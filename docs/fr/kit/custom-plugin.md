@@ -296,3 +296,88 @@ interface ErrorContext {
   recover(): void
 }
 ```
+
+## Plugins WASM
+
+Les plugins peuvent charger un binaire `.wasm` et interagir avec lui via des vues mémoire typées et des ring buffers. Appelez `engine.loadWasmModule()` dans `setup()` :
+
+```typescript
+import { definePlugin } from '@gwenjs/kit'
+
+export const PhysicsPlugin = definePlugin(() => ({
+  name: 'PhysicsPlugin',
+  async setup(engine) {
+    const handle = await engine.loadWasmModule({
+      name: 'my-physics',
+      url: new URL('./my-physics.wasm', import.meta.url),
+      memory: {
+        regions: [
+          { name: 'agents', byteOffset: 65536, byteLength: 409600, type: 'f32' },
+        ],
+      },
+      channels: [
+        { name: 'commands', direction: 'ts→wasm', capacity: 256, itemByteSize: 16 },
+      ],
+      step: (handle, dt) => {
+        handle.exports.step(dt)
+      },
+      expectedVersion: 1_000_000,
+      versionPolicy: 'warn',
+    })
+
+    // Vue de région mémoire — toujours live après memory.grow()
+    const agents = handle.region('agents')
+    agents.f32[0] = 1.0
+
+    // Ring buffer
+    const cmd = handle.channel('commands')
+    const data = new Float32Array([1, 0, 0, 0])
+    cmd.push(data)  // retourne false si plein
+  },
+  teardown() {},
+}))
+```
+
+### WasmModuleOptions
+
+| Champ | Type | Description |
+|---|---|---|
+| `name` | `string` | Identifiant unique — utilisez avec `useWasmModule('name')` dans les systèmes |
+| `url` | `URL \| string` | Chemin vers le binaire `.wasm` |
+| `memory.regions` | `WasmMemoryRegion[]` | Tranches nommées de la mémoire linéaire WASM |
+| `channels` | `WasmChannelOptions[]` | Ring buffers pour l'échange de messages TS↔WASM |
+| `step` | `(handle, dt) => void` | Callback par image (optionnel) |
+| `expectedVersion` | `number` | Valeur attendue de l'export `gwen_plugin_api_version` |
+| `versionPolicy` | `'warn' \| 'throw' \| 'ignore'` | Comportement en cas d'incompatibilité de version |
+
+### WasmRegionView
+
+```typescript
+const region = handle.region('agents')
+region.f32   // Float32Array
+region.u8    // Uint8Array
+region.i32   // Int32Array
+// Les vues sont toujours liées au ArrayBuffer courant après memory.grow()
+```
+
+### WasmRingBuffer
+
+```typescript
+const buf = handle.channel('commands')
+buf.push(data)   // enqueue — retourne false si plein
+buf.pop(dest)    // dequeue dans dest — retourne false si vide
+buf.length       // éléments dans le buffer
+buf.empty        // true si rien à dépiler
+buf.full         // true si push échouerait
+```
+
+### Côté Rust
+
+Exportez une constante de version pour que GWEN puisse vérifier la compatibilité API :
+
+```rust
+#[no_mangle]
+pub extern "C" fn gwen_plugin_api_version() -> u32 {
+    1_000_000 // v1.0.0
+}
+```

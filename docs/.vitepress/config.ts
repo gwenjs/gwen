@@ -30,6 +30,7 @@ const enSidebar = [
       { text: 'Tween & Animation', link: '/advanced/tween' },
       { text: 'Error Bus', link: '/advanced/error-bus' },
       { text: 'Debug Mode', link: '/advanced/debug-mode' },
+      { text: 'Extending Vite', link: '/advanced/vite-config' },
     ],
   },
   {
@@ -93,6 +94,7 @@ const frSidebar = [
       { text: 'Tween & Animation', link: '/fr/advanced/tween' },
       { text: "Bus d'erreurs", link: '/fr/advanced/error-bus' },
       { text: 'Mode debug', link: '/fr/advanced/debug-mode' },
+      { text: 'Étendre Vite', link: '/fr/advanced/vite-config' },
     ],
   },
   {
@@ -129,7 +131,7 @@ const frSidebar = [
 export default defineConfig({
   base: '/gwen/',
   cleanUrls: true,
-  ignoreDeadLinks: ['/advanced/vite-config', '/fr/advanced/vite-config'],
+  ignoreDeadLinks: [],
 
   locales: {
     root: {
