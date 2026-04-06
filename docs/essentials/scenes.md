@@ -1,177 +1,281 @@
 ---
 title: Scenes
-description: Scenes organise your game into discrete, loadable states like menus, gameplay, and game over screens.
+description: Organize your game into discrete, loadable states like menus, gameplay, and game over screens using scenes and a finite state machine router.
 ---
 
 # Scenes
 
-A **scene** is a collection of systems and actors that work together to create a distinct game state—your menu, main game, pause screen, game over screen, etc. Scenes are loaded and unloaded as a unit, making it easy to manage memory and organize complex games.
+A **scene** is a named, loadable state in your game: your menu, main gameplay, pause screen, game over screen, etc. Scenes are defined with `defineScene()` and navigated with `defineSceneRouter()`.
 
-## The Basics
+## Defining a Scene
 
-### Defining a Scene
-
-Use `defineScene()` to create a scene with its systems and actors:
+Use `defineScene()` to create a scene with systems and lifecycle hooks:
 
 ```ts
 import { defineScene } from '@gwenjs/core'
 import { MovementSystem, RenderSystem, CollisionSystem } from './systems'
-import { PlayerActor } from './actors/player'
 
+// Option 1: Object form
 export const GameScene = defineScene({
-  name: 'game',
+  name: 'Game',
   systems: [MovementSystem, RenderSystem, CollisionSystem],
-  actors: [PlayerActor],
 })
 ```
 
-When `GameScene` is loaded:
-1. All systems are initialized
-2. All actors are spawned
-3. The game loop runs every frame
-4. When unloaded, all actors and systems are cleaned up
-
-### Scene Router
-
-Use `defineSceneRouter()` and `useSceneRouter()` to navigate between scenes:
+Or use the **factory form** for dynamic setup and lifecycle hooks:
 
 ```ts
-import { defineSceneRouter, useSceneRouter } from '@gwenjs/core'
-import { MenuScene, GameScene, GameOverScene } from './scenes'
+import { defineScene } from '@gwenjs/core'
+import { MovementSystem, RenderSystem } from './systems'
 
-export const router = defineSceneRouter({
-  scenes: {
-    menu: MenuScene,
-    game: GameScene,
-    gameover: GameOverScene,
+// Option 2: Factory form (for onEnter/onExit)
+export const GameScene = defineScene('Game', (registry) => ({
+  systems: [MovementSystem, RenderSystem],
+  
+  onEnter: async () => {
+    console.log('Game scene loaded!')
+    // Load assets, initialize level, etc.
   },
-  initial: 'menu', // Scene loaded on startup
+  
+  onExit: () => {
+    console.log('Game scene unloading')
+    // Cleanup
+  },
+}))
+```
+
+When a scene loads:
+1. Systems are initialized
+2. `onEnter()` callback runs (if defined)
+3. Game loop runs each frame
+4. When switching away, `onExit()` runs, then systems are cleaned up
+
+## Scene Router — FSM Navigation
+
+Use `defineSceneRouter()` to declare a **finite state machine (FSM)** for navigation:
+
+```ts
+import { defineSceneRouter } from '@gwenjs/core'
+import { MenuScene } from './scenes/menu'
+import { GameScene } from './scenes/game'
+import { PauseScene } from './scenes/pause'
+import { GameOverScene } from './scenes/game-over'
+
+export const AppRouter = defineSceneRouter({
+  initial: 'menu',
+  routes: {
+    menu: {
+      scene: MenuScene,
+      on: { PLAY: 'game' },
+    },
+    game: {
+      scene: GameScene,
+      on: { PAUSE: 'pause', DIE: 'gameover' },
+    },
+    pause: {
+      scene: PauseScene,
+      overlay: true,           // Render on top of game
+      on: { RESUME: 'game', QUIT: 'menu' },
+    },
+    gameover: {
+      scene: GameOverScene,
+      on: { RETRY: 'game', MENU: 'menu' },
+    },
+  },
 })
 ```
 
-Inside a system, use `useSceneRouter()` to navigate:
+- `initial` — Starting state
+- `routes` — Map of state name to route config
+  - `scene` — The `defineScene()` object
+  - `on` — Event→state transitions
+  - `overlay: true` — Render on top (useful for pause menus)
+
+## Navigation: useSceneRouter()
+
+Inside a system or actor, call `useSceneRouter()` to get a navigation handle:
 
 ```ts
 import { defineSystem, useSceneRouter, onUpdate } from '@gwenjs/core'
+import { AppRouter } from '../router'
 
 export const MenuSystem = defineSystem(() => {
-  const { push } = useSceneRouter()
+  const nav = useSceneRouter(AppRouter)
 
   onUpdate(() => {
     if (playerPressedStart) {
-      push('game') // Load GameScene
+      nav.send('PLAY')  // Transition to 'game'
     }
   })
 })
 ```
 
+Or inside an actor:
+
+```ts
+import { defineActor, useSceneRouter, onUpdate } from '@gwenjs/core'
+import { AppRouter } from '../router'
+import { useComponent } from '@gwenjs/core'
+
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const nav = useSceneRouter(AppRouter)
+  const health = useComponent(Health)
+
+  onUpdate(() => {
+    if (health.value <= 0) {
+      nav.send('DIE')  // Transition to 'gameover'
+    }
+  })
+
+  return {}
+})
+```
+
+## Router Handle API
+
+```ts
+const nav = useSceneRouter(AppRouter)
+
+// Send an event
+await nav.send('PLAY')
+
+// Send with parameters
+await nav.send('PLAY', { level: 2, difficulty: 'hard' })
+
+// Check if transition is valid
+if (nav.can('PLAY')) { /* ... */ }
+
+// Get current state info
+nav.current          // e.g., 'game'
+nav.params           // Params passed to current state
+
+// Subscribe to transitions
+nav.onTransition((from, to) => {
+  console.log(`Transitioning from ${from} to ${to}`)
+})
+```
+
+## Passing Data Between Scenes
+
+Pass params when transitioning:
+
+```ts
+// In game system, when player dies:
+const nav = useSceneRouter(AppRouter)
+const finalScore = calculateScore()
+await nav.send('DIE', { score: finalScore, level: currentLevel })
+```
+
+In the target scene, access params via the router handle:
+
+```ts
+export const GameOverScene = defineScene('GameOver', (registry) => {
+  return {
+    systems: [GameOverSystem],
+    onEnter: async () => {
+      const nav = useSceneRouter(AppRouter)
+      console.log('Final score:', nav.params.score)
+    },
+  }
+})
+```
+
+## Overlay Scenes (Pause Menus)
+
+Set `overlay: true` to render a scene on top of the previous one:
+
+```ts
+const AppRouter = defineSceneRouter({
+  initial: 'menu',
+  routes: {
+    game: { scene: GameScene, on: { PAUSE: 'pause' } },
+    pause: {
+      scene: PauseScene,
+      overlay: true,  // Keeps game rendering behind pause menu
+      on: { RESUME: 'game', QUIT: 'menu' },
+    },
+  },
+})
+```
+
+When you transition to `pause`:
+- The game scene **stays loaded** (keeps running or paused)
+- The pause scene **renders on top**
+- Physics and systems in the game scene can be paused manually
+
 ## Scene Lifecycle
 
-Scenes follow this lifecycle:
-
 ```
-Loading → onStart actors → Game Loop (onUpdate) → onBeforeDestroy actors → Unloading
+Router starts → Initial scene onEnter
+         ↓
+    Game loop runs (onUpdate)
+         ↓
+    Event triggered (e.g., PAUSE)
+         ↓
+    Current scene onExit
+         ↓
+    Target scene onEnter
+         ↓
+    Back to game loop
 ```
 
-- **Loading**: Systems and scene data are initialized
-- **onStart**: Each actor's `onStart` callback fires once
-- **Game Loop**: `onUpdate` runs every frame for systems and actors
-- **onBeforeDestroy**: Each actor's `onBeforeDestroy` callback fires before the scene unloads
-- **Unloading**: Memory is freed, systems stop
-
-## In Practice
-
-### Passing Data Between Scenes
-
-Often you need to pass data when transitioning—like the player's final score to the game over screen:
+Example with pause menu:
 
 ```ts
-// From GameScene, when the player dies:
-const { push } = useSceneRouter()
-const finalScore = calculateScore()
-push('gameover', { score: finalScore, level: currentLevel })
+// game: running, rendering, systems active
+nav.send('PAUSE')
+// game: onExit NOT called (overlay)
+// pause: onEnter called
+// game: still renders behind pause UI
+// pause: renders on top
+
+nav.send('RESUME')
+// pause: onExit called
+// game: still running (onEnter NOT called again)
+// pause: removed from stack
 ```
 
-In `GameOverScene`, access the data:
+## Complete Example
 
 ```ts
-import { defineScene } from '@gwenjs/core'
-import { GameOverUIActor } from './actors/gameOverUI'
+// router.ts
+import { defineSceneRouter } from '@gwenjs/core'
+import { MenuScene } from './scenes/menu'
+import { GameScene } from './scenes/game'
+import { PauseScene } from './scenes/pause'
 
-export const GameOverScene = defineScene({
-  name: 'gameover',
-  actors: [GameOverUIActor],
-})
-
-// Inside GameOverUIActor:
-export const GameOverUIActor = defineActor({
-  name: 'GameOverUI',
-  setup() {
-    const { params } = useSceneRouter()
-    console.log(params.score)  // number
-    console.log(params.level)  // number
-  },
-})
-```
-
-### Multiple Scenes in a Game
-
-A typical game uses 3-5 scenes:
-
-```ts
-export const router = defineSceneRouter({
-  scenes: {
-    menu: MenuScene,        // Main menu
-    game: GameScene,        // Gameplay
-    pause: PauseScene,      // Pause overlay
-    gameover: GameOverScene, // Game over / final score
-  },
+export const AppRouter = defineSceneRouter({
   initial: 'menu',
+  routes: {
+    menu: { scene: MenuScene, on: { START: 'game' } },
+    game: { scene: GameScene, on: { PAUSE: 'pause', GAME_OVER: 'menu' } },
+    pause: { scene: PauseScene, overlay: true, on: { RESUME: 'game', QUIT: 'menu' } },
+  },
 })
-```
 
-Navigate between them based on game events:
+// main.ts
+import { createEngine } from '@gwenjs/core'
+import { AppRouter } from './router'
 
-```ts
-// Menu → Game
-push('game')
-
-// Game → Pause
-push('pause')
-
-// Pause → Game
-const { pop } = useSceneRouter()
-pop() // Return to previous scene
-
-// Game → GameOver
-push('gameover', { score: 1500 })
-```
-
-### Scene Stack vs Navigation
-
-`push()` adds a scene on top (useful for pause menus). `pop()` removes the top scene (returns to the previous one):
-
-```ts
-// Pause menu on top of gameplay
-push('pause') // Now showing pause
-pop()         // Back to game
-
-// Game over replaces current scene
-push('gameover') // Replaces game scene
+const engine = await createEngine({ variant: 'physics2d' })
+await engine.use(AppRouter)
+await engine.start()
 ```
 
 ## API Summary
 
 | Function | Description |
 |---|---|
-| `defineScene(options)` | Declare a scene with systems and actors |
-| `defineSceneRouter(options)` | Create a router managing multiple scenes |
-| `useSceneRouter()` | Get router instance from a system or actor |
-| `router.push(name, params?)` | Load a scene (add to stack) |
-| `router.pop()` | Unload the current scene (return to previous) |
+| `defineScene(name, factory)` | Create a scene with systems and lifecycle hooks |
+| `defineSceneRouter(options)` | Declare the FSM (states, transitions) |
+| `useSceneRouter(router)` | Get runtime handle inside system/actor |
+| `nav.send(event, params?)` | Trigger a transition |
+| `nav.can(event)` | Check if transition is valid in current state |
+| `nav.current` | Get current state name |
+| `nav.params` | Get params passed to current state |
 
 ## Next Steps
 
-- **[Layouts](/essentials/layouts)** — Persist UI across multiple scenes.
-- **[Systems](/essentials/systems)** — Write game logic that runs in scenes.
-- **[Actors](/essentials/scenes)** — Create unique named entities that live in scenes.
+- **[Scene Router](/essentials/scene-router)** — Deep dive into navigation and FSM patterns.
+- **[Actors](/essentials/actors)** — Create named, instance-based entities within scenes.
+- **[Systems](/essentials/systems)** — Write systems that run in scenes.

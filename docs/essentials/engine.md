@@ -5,65 +5,153 @@ description: Creating and configuring the GWEN engine instance, and how it manag
 
 # The Engine
 
-The **GWEN engine** is the runtime that boots your game, loads WASM, manages the scene graph, and runs your systems each frame. This guide shows you how to create an engine, configure it, and access it from within your systems.
+The **GWEN engine** is the runtime that boots your game, loads WASM, manages scenes, and runs your systems each frame. Engine setup happens in two places: **`gwen.config.ts`** (build-time) and **`main.ts`** (runtime bootstrap).
 
-## The Basics
+## Two-Part Setup
 
-### Creating an Engine
+### Part 1: Build Configuration — `gwen.config.ts`
 
-First, define your configuration, then create the engine:
+Use `defineConfig()` from `@gwenjs/app` to declare modules, WASM variant, and build-time settings:
+
+```ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],        // Activates physics module
+  engine: {
+    maxEntities: 10_000,                  // Optional engine config
+    variant: 'physics2d',                 // WASM variant
+  },
+})
+```
+
+The config file is processed **at build time** by Vite and sets up module resolution.
+
+### Part 2: Runtime Bootstrap — `main.ts`
+
+In your entry point, import and create the engine **separately**:
 
 ```ts
 import { createEngine } from '@gwenjs/core'
-import { defineConfig } from '@gwenjs/app'
 import { Physics2DPlugin } from '@gwenjs/physics2d'
+import { AppRouter } from './router'
 
-import MainScene from './scenes/main'
-import MenuScene from './scenes/menu'
-
-const config = defineConfig({
-  plugins: [Physics2DPlugin()],
-  scenes: {
-    main: MainScene,
-    menu: MenuScene,
-  },
-  initialScene: 'main',
+const engine = await createEngine({
+  maxEntities: 10_000,
+  variant: 'physics2d',
 })
 
-const engine = createEngine(config)
+// Mount plugins
+await engine.use(Physics2DPlugin())
+
+// Mount scene router
+await engine.use(AppRouter)
+
+// Start the game loop
 await engine.start()
 ```
 
-### Configuration Options
+**Key distinction:** `createEngine()` accepts `GwenEngineOptions` (runtime parameters), NOT `GwenUserConfig`. They are completely separate APIs.
 
-| Option | Type | Description |
+## Build-Time Config: `GwenUserConfig`
+
+Used in **`gwen.config.ts`** only. Configures modules, WASM variant, and build hooks.
+
+| Property | Type | Description |
 |---|---|---|
-| `plugins` | `Plugin[]` | Plugins to load (e.g., physics, rendering, networking) |
-| `scenes` | `Record<string, SceneClass>` | Map of scene name to class |
-| `initialScene` | `string` | Name of the scene to load on startup |
-| `wasm` | `WasmModule` | (optional) Custom WASM module (defaults to bundled gwen_core.wasm) |
-| `logger` | `Logger` | (optional) Custom logger instance |
-| `debug` | `boolean` | (optional) Enable debug mode (logs, gizmos, etc.) |
+| `modules` | `GwenModuleEntry[]` | List of modules to activate (e.g., `['@gwenjs/physics2d']`) |
+| `engine.maxEntities` | `number` | Max simultaneous entities (default 10_000) |
+| `engine.targetFPS` | `number` | Target FPS (default 60) |
+| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to load |
+| `engine.loop` | `'internal' \| 'external'` | Game loop ownership (default 'internal') |
+| `engine.maxDeltaSeconds` | `number` | Max delta time per frame (default 0.1s) |
+| `vite` | `Record<string, unknown>` | Direct Vite config extension |
+| `hooks` | `Partial<GwenBuildHooks>` | Build-time hook subscriptions |
+| `plugins` | `GwenPlugin[]` | Direct plugin registration (escape hatch) |
 
-### Engine Lifecycle
+**Example:**
+```ts
+export default defineConfig({
+  modules: [
+    '@gwenjs/physics2d',
+    ['@gwenjs/input', { gamepad: true }],
+  ],
+  engine: {
+    maxEntities: 5_000,
+    targetFPS: 60,
+    variant: 'physics2d',
+  },
+  vite: {
+    // Direct Vite config
+  },
+})
+```
 
-When you call `engine.start()`, this happens in order:
+## Runtime Config: `GwenEngineOptions`
 
-1. **Boot** — Load WASM module, initialize internal systems
-2. **Plugin Mount** — Call `mount()` on each plugin
-3. **Scene Load** — Load the initial scene, spawn its actors
-4. **Actor Setup** — Call `onStart()` on each actor in the scene
-5. **System Setup** — Call `onStart()` callbacks in each system
-6. **Game Loop** — Each frame:
-   - Call `onUpdate(dt)` on each system
-   - Render
-   - Physics simulation (if Physics2D plugin is loaded)
-7. **Scene Unload** — When switching scenes, call `onDestroy()` on actors and systems
-8. **Plugin Unmount** — Call `unmount()` on each plugin
+Used in **`createEngine()`** at runtime. Configures the engine instance.
+
+| Property | Type | Description |
+|---|---|---|
+| `maxEntities` | `number` | Max simultaneous entities |
+| `targetFPS` | `number` | Target frames per second |
+| `variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant |
+| `debug` | `boolean` | Enable debug logging and checks |
+| `enableStats` | `boolean` | Collect performance statistics (default true) |
+| `sparseTransformSync` | `boolean` | Only sync changed transforms (default true) |
+| `loop` | `'internal' \| 'external'` | Game loop mode (default 'internal') |
+| `maxDeltaSeconds` | `number` | Max delta per frame (default 0.1s) |
+| `tweenPoolSize` | `number` | Pre-allocated tween slots (default 256) |
+
+**Example:**
+```ts
+const engine = await createEngine({
+  maxEntities: 10_000,
+  targetFPS: 60,
+  variant: 'physics2d',
+  debug: true,
+  loop: 'internal',
+})
+```
+
+## Internal vs External Loop Mode
+
+By default, GWEN owns `requestAnimationFrame`. Use `loop: 'external'` to drive the loop yourself:
+
+```ts
+// Internal loop mode (default)
+const engine = await createEngine({ loop: 'internal' })
+await engine.start()
+
+// External loop mode
+const engine = await createEngine({ loop: 'external' })
+function gameLoop(delta: number) {
+  engine.advance(delta)
+  requestAnimationFrame(gameLoop)
+}
+requestAnimationFrame(gameLoop)
+```
+
+## Mounting Plugins and Routers
+
+After creation, mount plugins and routers before calling `engine.start()`:
+
+```ts
+const engine = await createEngine({ variant: 'physics2d' })
+
+// Mount a plugin
+await engine.use(Physics2DPlugin())
+
+// Mount a scene router
+await engine.use(AppRouter)
+
+// Now start the game loop
+await engine.start()
+```
 
 ## Accessing the Engine in Systems
 
-Inside a system's setup function, use the `useEngine()` hook to access the engine instance:
+Inside a system's setup function, use `useEngine()` to access the engine instance:
 
 ```ts
 import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
@@ -72,100 +160,82 @@ export const InputSystem = defineSystem(() => {
   const engine = useEngine()
 
   onUpdate(() => {
-    if (engine.input.isKeyDown('ArrowLeft')) {
-      // Handle input
-    }
+    // Run every frame
   })
 })
 ```
 
 From the engine, you can:
 
-- Access the **current scene** — `engine.currentScene`
+- Get **stats** — `engine.getStats()` (fps, frameCount, entityCount, etc.)
 - **Spawn/destroy entities** — `engine.spawn()`, `engine.destroy()`
 - Access **plugins** — `engine.getPlugin(PhysicsPlugin)`
-- **Switch scenes** — `engine.loadScene('menu')`
-- Access **input state** — `engine.input`
+- **Control the loop** — `engine.pause()`, `engine.resume()`, `engine.advance(delta)` (external mode)
 
-## Accessing Engine in Components and Actors
+## Engine Lifecycle
 
-Inside an **actor** (scene node), you can access the engine via the actor's context:
+When you call `engine.start()`:
 
-```ts
-import { Actor } from '@gwenjs/core'
-
-export class Player extends Actor {
-  onStart() {
-    const engine = this.scene.engine
-    this.scene.spawn(/* ... */)
-  }
-}
-```
-
-## Handling Startup and Shutdown
-
-Use plugin `mount()` and `unmount()` for initialization and cleanup:
-
-```ts
-import { Plugin } from '@gwenjs/core'
-
-export class MyPlugin extends Plugin {
-  mount(engine) {
-    console.log('Game is starting!')
-    // Initialize external libraries, load assets, etc.
-  }
-
-  unmount(engine) {
-    console.log('Game is shutting down!')
-    // Clean up: disconnect sockets, stop servers, etc.
-  }
-}
-```
+1. **Initialize** — Set up WASM heap, internal systems
+2. **Plugin Setup** — Call setup on each mounted plugin
+3. **Enter Initial Scene** — Load first router state or scene
+4. **Game Loop** — Each frame:
+   - Call `onUpdate(dt)` on all systems
+   - Update components
+   - Render (if canvas is attached)
+   - Physics simulation (if physics plugin is mounted)
 
 ## Common Engine Tasks
 
-### Switching Scenes
+### Getting Engine Stats
 
 ```ts
-const engine = useEngine()
-engine.loadScene('menu')
+const stats = engine.getStats()
+console.log(`FPS: ${stats.fps}`)
+console.log(`Entities: ${stats.entityCount}`)
+console.log(`Delta: ${stats.deltaTime}s`)
 ```
 
-### Getting a Plugin Instance
+### Pausing and Resuming
 
 ```ts
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-
-const engine = useEngine()
-const physics = engine.getPlugin(Physics2DPlugin)
+engine.pause()
+engine.resume()
 ```
 
-### Spawning an Entity
+### External Loop (Advanced)
 
 ```ts
-const engine = useEngine()
-const entityId = engine.spawn([
-  [Position, { x: 10, y: 20 }],
-  [Velocity, { x: 1, y: 0 }],
-])
+const engine = await createEngine({ loop: 'external' })
+
+let lastTime = performance.now()
+function tick(now: number) {
+  const delta = (now - lastTime) / 1000  // Convert to seconds
+  lastTime = now
+  engine.advance(delta)
+  requestAnimationFrame(tick)
+}
+requestAnimationFrame(tick)
 ```
 
 ## API Summary
 
-| Function/Property | Returns | Description |
+| Function | Returns | Description |
 |---|---|---|
-| `createEngine(config)` | `GwenEngine` | Create engine from config |
-| `engine.start()` | `Promise<void>` | Boot engine, load WASM, mount plugins, enter initial scene |
-| `engine.loadScene(name)` | `Promise<void>` | Load a new scene |
+| `createEngine(options)` | `Promise<GwenEngine>` | Create and initialize the engine |
+| `engine.use(plugin)` | `Promise<void>` | Mount a plugin or router |
+| `engine.start()` | `Promise<void>` | Start the game loop |
+| `engine.pause()` | `void` | Pause the game loop |
+| `engine.resume()` | `void` | Resume the game loop |
+| `engine.advance(delta)` | `void` | Manual frame advance (external loop mode) |
+| `engine.getStats()` | `EngineStats` | Get performance metrics |
 | `engine.spawn(components)` | `number` | Create a new entity |
 | `engine.destroy(id)` | `void` | Delete an entity |
-| `engine.currentScene` | `Scene` | The active scene |
-| `engine.input` | `InputState` | Current keyboard/mouse state |
-| `engine.getPlugin(PluginClass)` | `T` | Retrieve a plugin instance by class |
-| `useEngine()` | `GwenEngine` | Access engine from inside a system setup |
+| `useEngine()` | `GwenEngine` | Access engine from inside a system |
 
 ## Next Steps
 
 - **[Components](/essentials/components)** — Define data structures for your entities.
 - **[Systems](/essentials/systems)** — Write systems to move and update entities.
-- **[Scenes and Actors](/essentials/scenes)** — Understand the scene graph and prefab system.
+- **[Scenes](/essentials/scenes)** — Organize your game into distinct states.
+- **[Actors](/essentials/actors)** — Create composable, instance-based game objects.

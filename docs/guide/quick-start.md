@@ -34,41 +34,56 @@ The scaffold creates a structured game project:
 ```
 my-game/
 ├── src/
-│   ├── main.ts              # Entry point: engine setup
+│   ├── main.ts              # Entry point: engine bootstrap
+│   ├── gwen.config.ts       # Build config (modules, engine options)
 │   ├── components/          # defineComponent() definitions
 │   │   └── Position.ts
 │   ├── systems/             # defineSystem() implementations
 │   │   └── Movement.ts
-│   ├── actors/              # defineActor() — named, singleton entities
-│   │   └── Player.ts
 │   ├── scenes/              # defineScene() definitions
 │   │   └── GameScene.ts
-│   └── prefabs/             # definePrefab() — reusable entity templates
-│       └── Bullet.ts
-├── gwen.config.ts           # Engine config (plugins, scenes, WASM variant)
+│   ├── actors/              # defineActor() — instance-based entities
+│   │   └── Player.ts
+│   ├── prefabs/             # definePrefab() — reusable templates
+│   │   └── Bullet.ts
+│   ├── router.ts            # defineSceneRouter() — scene FSM
+│   └── index.html
 ├── tsconfig.json
 └── package.json
 ```
 
+## Build Configuration — `gwen.config.ts`
+
+Define modules and engine options at build time:
+
+```typescript
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+  },
+})
+```
+
 ## Your First Component
 
-A component is a piece of data that entities can have. Let's define a `Position` component:
+A component is a piece of data. Let's define a `Position` component:
 
 **src/components/Position.ts**
 ```typescript
 import { defineComponent } from '@gwenjs/core'
 
-export const Position = defineComponent('position', () => ({
+export const Position = defineComponent('Position', () => ({
   x: 0,
   y: 0,
 }))
 ```
 
-That's it. `defineComponent` returns a schema that defines what data travels with this component. GWEN will store position data efficiently in WASM linear memory.
-
 ## Your First System
 
-Systems are where the magic happens. They iterate over entities with specific components and update them each frame.
+Systems iterate over entities and update them each frame.
 
 **src/systems/Movement.ts**
 ```typescript
@@ -79,8 +94,8 @@ export const MovementSystem = defineSystem(() => {
   const query = useQuery({ with: [Position] })
 
   onUpdate(() => {
-    // Each frame, move every entity with a Position component
-    query.each(({ entity, c }) => {
+    // Each frame, move every entity with a Position
+    query.each(({ c }) => {
       const pos = c[Position]
       pos.x += 0.5  // Move right
       pos.y += 0.1  // Move down slightly
@@ -89,46 +104,57 @@ export const MovementSystem = defineSystem(() => {
 })
 ```
 
-The `useQuery` hook finds all entities with the `Position` component. `onUpdate` runs every frame. Inside, we iterate with `.each()` and update positions. WASM takes care of writing the changes back.
-
 ## Your First Scene
-
-Scenes are where you place and compose entities. They're functions that set up a playable level.
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene, createEntity } from '@gwenjs/core'
-import { Position } from '../components/Position'
+import { defineScene } from '@gwenjs/core'
+import { MovementSystem } from '../systems/Movement'
 
-export const GameScene = defineScene('game', ({ entities }) => {
-  // Create an actor (an entity with renderable components)
-  const player = createEntity()
-  entities.add(player)
-  
-  // Give it a Position
-  entities.setComponent(player, Position, { x: 100, y: 100 })
+export const GameScene = defineScene({
+  name: 'Game',
+  systems: [MovementSystem],
 })
 ```
 
-## Wire It All Together
+## Scene Router
+
+Define navigation between scenes:
+
+**src/router.ts**
+```typescript
+import { defineSceneRouter } from '@gwenjs/core'
+import { GameScene } from './scenes/GameScene'
+
+export const AppRouter = defineSceneRouter({
+  initial: 'game',
+  routes: {
+    game: { scene: GameScene, on: {} },
+  },
+})
+```
+
+## Bootstrap — `main.ts`
+
+Create the engine, mount plugins and router, then start:
 
 **src/main.ts**
 ```typescript
-import { createEngine, defineConfig } from '@gwenjs/app'
-import { Position } from './components/Position'
-import { MovementSystem } from './systems/Movement'
-import { GameScene } from './scenes/GameScene'
+import { createEngine } from '@gwenjs/core'
+import { Physics2DPlugin } from '@gwenjs/physics2d'
+import { AppRouter } from './router'
 
-const engine = createEngine(
-  defineConfig({
-    modules: [Position],
-    systems: [MovementSystem],
-    scenes: [GameScene],
-    initialScene: 'game',
-  })
-)
+const engine = await createEngine({
+  maxEntities: 10_000,
+  variant: 'physics2d',
+})
 
-engine.run()
+// Mount plugins and router
+await engine.use(Physics2DPlugin())
+await engine.use(AppRouter)
+
+// Start the game loop
+await engine.start()
 ```
 
 ## Run It
@@ -137,12 +163,12 @@ engine.run()
 pnpm dev
 ```
 
-Open your browser. You should see your game running—entities are being created, the movement system updates their positions every frame, and you're seeing the result rendered.
+Open your browser. You should see your game running—the Movement system updates positions every frame, and you're seeing the result rendered.
 
 ## Next Steps
 
 - **[Installation](/guide/installation)** — Add GWEN to an existing project.
 - **[Project Structure](/guide/project-structure)** — Understand the anatomy of a GWEN project.
-- **[Components](/essentials/components)** — Learn how to design your component schemas.
+- **[The Engine](/essentials/engine)** — Learn engine config and bootstrap.
+- **[Components](/essentials/components)** — Design component schemas.
 - **[Systems](/essentials/systems)** — Master system queries and lifecycle hooks.
-- **[Scenes](/essentials/scenes)** — Compose complex levels and gameplay.

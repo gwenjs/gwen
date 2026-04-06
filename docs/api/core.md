@@ -29,10 +29,11 @@ function createEngine(options: GwenEngineOptions): GwenEngine
 
 **Example:**
 ```ts
-const engine = createEngine({
-  scenes: [MainScene],
-  initialScene: MainScene.name
-});
+const engine = await createEngine({
+  maxEntities: 10_000,
+  variant: 'physics2d',
+  debug: true,
+})
 ```
 
 ### useEngine()

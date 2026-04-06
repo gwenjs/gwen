@@ -30,12 +30,12 @@ function defineConfig(input: GwenConfigInput): GwenUserConfig
 **Example:**
 ```ts
 export default defineConfig({
-  plugins: [Physics2DPlugin()],
-  scenes: [MainScene, MenuScene],
-  initialScene: 'Menu',
-  wasm: 'physics2d',
-  debug: true
-});
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+    variant: 'physics2d',
+  },
+})
 ```
 
 ## Configuration Options
@@ -46,23 +46,29 @@ export default defineConfig({
 
 | Property | Type | Description |
 |---|---|---|
-| `plugins` | `PluginDef[]` | List of plugins to load |
-| `scenes` | `SceneDef[]` | Available scenes |
-| `initialScene` | `string` | Name of initial scene to load |
-| `wasm` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to include |
-| `logger` | `LoggerOptions` | Logger configuration |
-| `debug` | `boolean` | Enable debug mode |
+| `modules` | `GwenModuleEntry[]` | List of modules to activate (e.g., `['@gwenjs/physics2d']` or `[['@gwenjs/input', { gamepad: true }]]`) |
+| `engine.maxEntities` | `number` | Max simultaneous entities (default 10_000) |
+| `engine.targetFPS` | `number` | Target FPS (default 60) |
+| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to load |
+| `engine.loop` | `'internal' \| 'external'` | Game loop ownership (default 'internal') |
+| `engine.maxDeltaSeconds` | `number` | Max delta time per frame (default 0.1s) |
+| `vite` | `Record<string, unknown>` | Direct Vite config extension |
+| `hooks` | `Partial<GwenBuildHooks>` | Build-time hook subscriptions |
+| `plugins` | `GwenPlugin[]` | Plugins to register directly (escape hatch) |
 
 **Example:**
 ```ts
 const config: GwenUserConfig = {
-  plugins: [Physics2DPlugin(), CustomPlugin()],
-  scenes: [GameScene],
-  initialScene: 'Game',
-  wasm: 'physics2d',
-  logger: { level: 'info' },
-  debug: false
-};
+  modules: [
+    '@gwenjs/physics2d',
+    ['@gwenjs/input', { gamepad: true }],
+  ],
+  engine: {
+    maxEntities: 5_000,
+    targetFPS: 60,
+    variant: 'physics2d',
+  },
+}
 ```
 
 ### ResolvedGwenConfig

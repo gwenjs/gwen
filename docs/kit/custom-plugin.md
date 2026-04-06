@@ -83,19 +83,20 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
 })
 ```
 
-Register with options in your config:
+Register and mount the plugin in your main.ts:
 
 ```ts
-import { defineConfig } from '@gwenjs/app'
+import { createEngine } from '@gwenjs/core'
 import { InputPlugin } from './plugins/input'
 
-export default defineConfig({
-  plugins: [
-    InputPlugin({
-      preventDefault: ['ArrowUp', 'ArrowDown'],
-    }),
-  ],
-})
+const engine = await createEngine({ variant: 'physics2d' })
+
+// Mount the plugin with options
+await engine.use(InputPlugin({
+  preventDefault: ['ArrowUp', 'ArrowDown'],
+}))
+
+await engine.start()
 ```
 
 ## Plugin Lifecycle
