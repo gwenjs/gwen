@@ -172,6 +172,38 @@ export const InputSystem = defineSystem(() => {
 })
 ```
 
+### useService
+
+Use `useService(key)` to access a runtime service registered by a plugin via `engine.provide()`. The return type is inferred from the `GwenProvides` interface. Plugins that register services augment this interface in their type declarations.
+
+```typescript
+import { defineSystem, useService, onUpdate } from '@gwenjs/core'
+
+export const AudioSystem = defineSystem(() => {
+  const audio = useService('audio') // typed via GwenProvides augmentation
+
+  onUpdate(() => {
+    if (audio.isLoaded('bgm')) audio.play('bgm')
+  })
+})
+```
+
+## Accessing WASM Modules
+
+Use `useWasmModule(name)` to access a WASM module loaded by a plugin via `engine.loadWasmModule()`. The generic type parameter types the `.exports` object. The module must have been loaded by a plugin before this system runs.
+
+```typescript
+import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core'
+
+export const PhysicsStepSystem = defineSystem(() => {
+  const mod = useWasmModule<{ step: (dt: number) => void }>('my-physics')
+
+  onUpdate((dt) => {
+    mod.exports.step(dt)
+  })
+})
+```
+
 ## In Practice
 
 ### Enemy AI System
@@ -362,6 +394,8 @@ This **decoupling** is why ECS scales. Add a new system? No refactoring neededâ€
 | `onRender(cb)` | Register render phase callback |
 | `useEngine()` | Access engine instance |
 | `usePhysics2D()` | Access physics service |
+| `useService(key)` | Access a runtime service registered via `engine.provide()` |
+| `useWasmModule(name)` | Access a WASM module loaded via `engine.loadWasmModule()` |
 | `addComponent(id, Component, data)` | Add component to entity |
 | `removeComponent(id, Component)` | Remove component from entity |
 

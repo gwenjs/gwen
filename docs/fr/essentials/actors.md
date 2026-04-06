@@ -45,17 +45,7 @@ L'objet retourné est l'**API publique** — les méthodes que le code externe p
 
 ## Enregistrement
 
-Enregistrez le plugin de l'acteur avec le moteur avant de générer :
-
-```ts
-// main.ts
-import { createEngine } from '@gwenjs/core'
-import { EnemyActor } from './actors/Enemy'
-
-const engine = await createEngine({ variant: 'physics2d' })
-await engine.use(EnemyActor._plugin)
-await engine.start()
-```
+Enregistrez le plugin de l'acteur avec le moteur avant de générer. Passez `actor._plugin` à `engine.use()` au démarrage.
 
 ## Génération et suppression
 
@@ -84,6 +74,61 @@ Ces composables s'exécutent à l'intérieur de la fonction factory de l'acteur 
 | `onRender(fn)` | Pendant la phase de rendu |
 | `onDestroy(fn)` | Une fois, avant que l'entité ne soit supprimée |
 | `onEvent(name, fn)` | Quand un crochet du moteur nommé se déclenche |
+
+## Transform
+
+Chaque instance d'acteur a accès à sa transform spatiale via `useTransform()`. Le handle opère directement sur le buffer mémoire WASM partagé — les vues restent toujours live après les appels `memory.grow()`.
+
+```typescript
+import { defineActor, useTransform, onStart } from '@gwenjs/core'
+import { PlayerPrefab } from '../prefabs'
+
+export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
+  const transform = useTransform()
+
+  onStart(() => {
+    transform.setPosition(props.x, props.y, 0)
+    transform.setScale(1, 1, 1)
+  })
+
+  return {}
+})
+```
+
+Méthodes du `TransformHandle` :
+
+| Méthode | Description |
+|---|---|
+| `setPosition(x, y, z)` | Définir la position dans le monde |
+| `setRotation(rx, ry, rz)` | Définir la rotation Euler (radians) |
+| `setScale(sx, sy, sz)` | Définir l'échelle |
+
+## Événements typés
+
+Utilisez `defineEvents()` pour déclarer un contrat d'événements typé, puis `emit()` pour déclencher des événements dans le contexte engine actif. Déclarez les contrats d'événements une seule fois et partagez-les entre acteurs et systèmes.
+
+```typescript
+import { defineEvents, emit, defineActor, onStart } from '@gwenjs/core'
+import { EnemyPrefab } from '../prefabs'
+
+// Déclarer le contrat d'événements une fois — partager entre acteurs et systèmes
+export const EnemyEvents = defineEvents({
+  hit: (damage: number) => {},
+  die: () => {},
+})
+
+export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  let hp = props.hp
+
+  return {
+    takeDamage: (damage: number) => {
+      emit('hit', damage)
+      hp -= damage
+      if (hp <= 0) emit('die')
+    },
+  }
+})
+```
 
 ## Accéder aux composants
 
@@ -173,18 +218,6 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
     getHp: () => health.value.hp,
   }
 })
-
-// src/main.ts
-import { createEngine } from '@gwenjs/core'
-import { EnemyActor } from './actors/Enemy'
-
-const engine = await createEngine({ variant: 'physics2d' })
-await engine.use(EnemyActor._plugin)
-await engine.start()
-
-// Générer quelques ennemis
-EnemyActor._plugin.spawn({ speed: 50 })
-EnemyActor._plugin.spawn({ speed: 75 })
 ```
 
 ## Acteurs vs Systèmes
@@ -208,7 +241,10 @@ Utilisez les acteurs pour les **entités uniques et nommées**. Utilisez les sys
 | `actor._plugin.despawn(id)` | Supprimer une instance |
 | `actor._plugin.get(id)` | Obtenir la référence API publique |
 | `useComponent(ComponentType)` | Accéder à un composant à l'intérieur de factory |
+| `useTransform()` | Accéder à la transform spatiale de l'acteur |
 | `useSceneRouter(router)` | Naviguer entre les scènes |
+| `defineEvents(schema)` | Déclarer un contrat d'événements typé |
+| `emit(event, ...args)` | Déclencher un événement dans le contexte engine actif |
 | `onStart(fn)` | S'exécute une fois à la génération |
 | `onUpdate(fn)` | S'exécute chaque frame |
 | `onDestroy(fn)` | S'exécute à la suppression |

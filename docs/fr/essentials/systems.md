@@ -172,6 +172,38 @@ export const InputSystem = defineSystem(() => {
 })
 ```
 
+### useService
+
+Utilisez `useService(key)` pour accéder à un service enregistré par un plugin via `engine.provide()`. Le type de retour est inféré depuis l'interface `GwenProvides`, augmentée par les plugins qui enregistrent des services.
+
+```typescript
+import { defineSystem, useService, onUpdate } from '@gwenjs/core'
+
+export const AudioSystem = defineSystem(() => {
+  const audio = useService('audio') // typé via l'augmentation GwenProvides
+
+  onUpdate(() => {
+    if (audio.isLoaded('bgm')) audio.play('bgm')
+  })
+})
+```
+
+## Accéder aux modules WASM
+
+Utilisez `useWasmModule(name)` pour accéder à un module WASM chargé par un plugin via `engine.loadWasmModule()`. Le paramètre de type générique type l'objet `.exports`. Le module doit avoir été chargé par un plugin avant que ce système s'exécute.
+
+```typescript
+import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core'
+
+export const PhysicsStepSystem = defineSystem(() => {
+  const mod = useWasmModule<{ step: (dt: number) => void }>('my-physics')
+
+  onUpdate((dt) => {
+    mod.exports.step(dt)
+  })
+})
+```
+
 ## En pratique
 
 ### Système d'IA pour les ennemis
@@ -362,6 +394,8 @@ Cet **découplage** est la raison pour laquelle ECS se met à l'échelle. Ajoute
 | `onRender(cb)` | Enregistrer le callback de phase de rendu |
 | `useEngine()` | Accéder à l'instance du moteur |
 | `usePhysics2D()` | Accéder au service de physique |
+| `useService(key)` | Accéder à un service enregistré via `engine.provide()` |
+| `useWasmModule(name)` | Accéder à un module WASM chargé via `engine.loadWasmModule()` |
 | `addComponent(id, Component, data)` | Ajouter un composant à une entité |
 | `removeComponent(id, Component)` | Retirer un composant d'une entité |
 
