@@ -80,7 +80,9 @@ nav.params                // paramètres passés lors de la transition
 Passez des données lors de l'envoi d'un événement :
 
 ```typescript
-nav.send('START', { level: 2, difficulty: 'hard' })
+async () => {
+  await nav.send('START', { level: 2, difficulty: 'hard' })
+}
 
 // Dans la GameScene :
 export const GameScene = defineScene('game', () => ({
