@@ -105,10 +105,10 @@ Méthodes du `TransformHandle` :
 
 ## Événements typés
 
-Utilisez `defineEvents()` pour déclarer un contrat d'événements typé, puis `emit()` pour déclencher des événements dans le contexte engine actif. Déclarez les contrats d'événements une seule fois et partagez-les entre acteurs et systèmes.
+Utilisez `defineEvents()` pour déclarer un contrat d'événements typé, puis `emit()` pour déclencher des événements dans le contexte engine actif. Déclarez les contrats d'événements une seule fois et partagez-les entre acteurs et systèmes. Écoutez les événements depuis un système via le hook d'événements (augmenté via `GwenRuntimeHooks`).
 
 ```typescript
-import { defineEvents, emit, defineActor, onStart } from '@gwenjs/core'
+import { defineEvents, emit, defineActor } from '@gwenjs/core'
 import { EnemyPrefab } from '../prefabs'
 
 // Déclarer le contrat d'événements une fois — partager entre acteurs et systèmes

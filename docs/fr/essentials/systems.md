@@ -380,7 +380,7 @@ Un comportement complexe émerge de systèmes simples. Voici un exemple complet 
 // Les données circulent par les composants
 ```
 
-Cet **découplage** est la raison pour laquelle ECS se met à l'échelle. Ajouter un nouveau système ? Aucune refactorisation nécessaire—définissez-en simplement un nouveau.
+Ce **découplage** est la raison pour laquelle ECS se met à l'échelle. Ajouter un nouveau système ? Aucune refactorisation nécessaire—définissez-en simplement un nouveau.
 
 ## Résumé de l'API
 

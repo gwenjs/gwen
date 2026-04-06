@@ -108,7 +108,7 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 Use `defineEvents()` to declare a typed event contract, then `emit()` to dispatch events within the active engine context. Declare event contracts once and share them across actors and systems. Listen to events from a system using the events hook (augmented via `GwenRuntimeHooks`).
 
 ```typescript
-import { defineEvents, emit, defineActor, onStart } from '@gwenjs/core'
+import { defineEvents, emit, defineActor } from '@gwenjs/core'
 import { EnemyPrefab } from '../prefabs'
 
 // Declare the event contract once — share across actors and systems
