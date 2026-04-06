@@ -48,14 +48,15 @@ Appelez `useSceneRouter()` à l'intérieur d'un acteur ou système pour obtenir 
 import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core'
 import { AppRouter } from '../router'
 import { Health } from '../components'
+import { PlayerPrefab } from './prefabs/Player'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const nav = useSceneRouter(AppRouter)
   const health = useComponent(Health)
 
-  onUpdate(() => {
+  onUpdate(async () => {
     if (health.value <= 0) {
-      nav.send('GAME_OVER')     // transition vers 'gameOver'
+      await nav.send('GAME_OVER')     // transition vers 'gameOver'
     }
   })
 
@@ -68,10 +69,10 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```typescript
 const nav = useSceneRouter(AppRouter)
 
-nav.send('START')     // déclencher une transition
-nav.can('START')      // vérifier si la transition est valide
-nav.current           // nom de l'état actuel
-nav.params            // paramètres passés lors de la transition
+await nav.send('START')   // déclencher une transition
+nav.can('START')          // vérifier si la transition est valide
+nav.current               // nom de l'état actuel
+nav.params                // paramètres passés lors de la transition
 ```
 
 ## Passer des paramètres
@@ -82,7 +83,7 @@ Passez des données lors de l'envoi d'un événement :
 nav.send('START', { level: 2, difficulty: 'hard' })
 
 // Dans la GameScene :
-export const GameScene = defineScene('game', (registry) => ({
+export const GameScene = defineScene('game', () => ({
   systems: [GameSystem],
   onEnter: async () => {
     const nav = useSceneRouter(AppRouter)
@@ -99,8 +100,8 @@ Quand une transition se déclenche :
 2. `onEnter` de la scène cible est appelé
 3. Les systèmes de l'ancienne scène sont désenregistrés, les nouveaux sont enregistrés
 
-```ts
-export const GameScene = defineScene('Game', (registry) => ({
+```typescript
+export const GameScene = defineScene('Game', () => ({
   systems: [PlayerSystem, EnemySystem],
   
   onEnter: async () => {
@@ -119,7 +120,7 @@ export const GameScene = defineScene('Game', (registry) => ({
 
 Définissez `overlay: true` pour garder la scène précédente chargée et rendue derrière la nouvelle :
 
-```ts
+```typescript
 const AppRouter = defineSceneRouter({
   initial: 'game',
   routes: {
@@ -133,7 +134,7 @@ const AppRouter = defineSceneRouter({
 })
 ```
 
-Quand vous transition vers `pause` :
+Lors de la transition vers `pause` :
 - La scène du jeu **reste chargée** (les systèmes continuent de s'exécuter)
 - La scène du jeu **continue de se rendre** (derrière l'UI de pause)
 - `onExit` n'est **pas appelé** sur la scène du jeu
@@ -214,6 +215,13 @@ export default defineConfig({
 | `nav.current` | Nom d'état actuel |
 | `nav.params` | Paramètres passés à l'état actuel |
 | `nav.onTransition(fn)` | S'abonner aux changements d'état |
+
+```typescript
+nav.onTransition((from, to) => {
+  // appelé à chaque transition
+  console.log(`Transitioned from ${from} to ${to}`)
+})
+```
 
 ## Prochaines étapes
 

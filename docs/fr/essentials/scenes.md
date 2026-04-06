@@ -26,6 +26,7 @@ export const GameScene = defineScene({
 **Forme factory** — pour les requêtes inline, les hooks de cycle de vie et la configuration réactive :
 
 ```typescript
+// imports omitted for brevity
 export const GameScene = defineScene('game', () => {
   const entities = useQuery({ with: [Position, Velocity] })
 

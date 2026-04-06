@@ -48,14 +48,15 @@ Call `useSceneRouter()` inside an actor or system to get a handle, then call `.s
 import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core'
 import { AppRouter } from '../router'
 import { Health } from '../components'
+import { PlayerPrefab } from './prefabs/Player'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const nav = useSceneRouter(AppRouter)
   const health = useComponent(Health)
 
-  onUpdate(() => {
+  onUpdate(async () => {
     if (health.value <= 0) {
-      nav.send('GAME_OVER')     // transitions to 'gameOver'
+      await nav.send('GAME_OVER')     // transitions to 'gameOver'
     }
   })
 
@@ -68,10 +69,10 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```typescript
 const nav = useSceneRouter(AppRouter)
 
-nav.send('START')     // trigger transition
-nav.can('START')      // check if transition is valid
-nav.current           // current state name
-nav.params            // params passed on transition
+await nav.send('START')   // trigger transition
+nav.can('START')          // check if transition is valid
+nav.current               // current state name
+nav.params                // params passed on transition
 ```
 
 ## Passing Params
@@ -82,7 +83,7 @@ Pass data when sending an event:
 nav.send('START', { level: 2, difficulty: 'hard' })
 
 // In the GameScene:
-export const GameScene = defineScene('game', (registry) => ({
+export const GameScene = defineScene('game', () => ({
   systems: [GameSystem],
   onEnter: async () => {
     const nav = useSceneRouter(AppRouter)
@@ -99,8 +100,8 @@ When a transition fires:
 2. `onEnter` of the target scene is called
 3. Systems from the old scene are deregistered, new ones registered
 
-```ts
-export const GameScene = defineScene('Game', (registry) => ({
+```typescript
+export const GameScene = defineScene('Game', () => ({
   systems: [PlayerSystem, EnemySystem],
   
   onEnter: async () => {
@@ -119,7 +120,7 @@ export const GameScene = defineScene('Game', (registry) => ({
 
 Set `overlay: true` to keep the previous scene loaded and rendered behind the new one:
 
-```ts
+```typescript
 const AppRouter = defineSceneRouter({
   initial: 'game',
   routes: {
@@ -214,6 +215,12 @@ export default defineConfig({
 | `nav.current` | Current state name |
 | `nav.params` | Params passed to current state |
 | `nav.onTransition(fn)` | Subscribe to state changes |
+
+```typescript
+nav.onTransition((from, to) => {
+  console.log(`Transitioned from ${from} to ${to}`)
+})
+```
 
 ## Next Steps
 
