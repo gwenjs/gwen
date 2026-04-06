@@ -38,30 +38,24 @@ pnpm add @gwenjs/physics2d
 pnpm add @gwenjs/physics3d
 ```
 
-## Ajouter le plugin Vite
+## Intégration Vite
 
-GWEN fournit des plugins Vite pour le bundling automatique de WASM et les intégrations TypeScript.
+Le plugin Vite de GWEN est géré automatiquement via `gwen.config.ts`. Si vous devez personnaliser la configuration Vite (par exemple, ajouter un plugin de rendu), le paquet `@gwenjs/vite` exporte un plugin `gwen()` que vous pouvez inclure manuellement :
 
-**vite.config.ts**
+**vite.config.ts** *(uniquement pour les configurations personnalisées)*
 ```typescript
 import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
-import { gwenVite } from '@gwenjs/vite'
+import { gwen } from '@gwenjs/vite'
 
 export default defineConfig({
   plugins: [
-    react(),
-    gwenVite({
-      modules: ['position', 'velocity'], // Auto-importer les modules WASM
-    }),
+    gwen({ cratePath: '../crates/gwen-core' }),
   ],
 })
 ```
 
-::: info Options du plugin
-- `modules` — Liste des modules WASM à précharger
-- `bundleWasm` — Intégrer WASM ou charger en tant que fichier séparé (par défaut : true)
-- `sourceMap` — Activer les cartes sources en WASM (par défaut : false en production)
+::: tip
+Pour la plupart des projets, vous n'avez pas besoin d'un `vite.config.ts` — le framework le gère via `gwen.config.ts`.
 :::
 
 ## Configuration TypeScript
