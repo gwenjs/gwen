@@ -7,6 +7,38 @@ description: Visualiser l'état du moteur, les colliseurs et le minutage du syst
 
 Le mode debug active les diagnostics visuels et console pour comprendre ce qui se passe à l'intérieur du moteur. Lorsqu'il est activé, GWEN affiche les wireframes de colliseurs, les superpositions de minutage du système et la journalisation structurée—vous aidant à diagnostiquer les problèmes de performance et à valider la logique.
 
+## Activer le mode debug
+
+### Debug global du moteur
+
+Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Cela active :
+- Journalisation détaillée de l'enregistrement des plugins et des événements de cycle de vie
+- Vérifications sentinelles par frame
+- Avertissements de timing de phase en cas de dépassement du budget de frame
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  engine: {
+    debug: true,
+  },
+})
+```
+
+### Debug de module
+
+Les modules individuels peuvent aussi exposer leur propre option `debug` via le tuple de module :
+
+```typescript
+export default defineConfig({
+  modules: [['@gwenjs/physics2d', { debug: true }]],
+})
+```
+
+Cela active le rendu de débogage physique (superposition des formes de collision), indépendamment du flag de debug global du moteur.
+
 ## Les bases
 
 Activez le mode debug dans votre configuration du moteur :

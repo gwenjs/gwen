@@ -69,6 +69,12 @@ export interface GwenUserConfig {
     variant?: 'light' | 'physics2d' | 'physics3d';
     loop?: 'internal' | 'external';
     maxDeltaSeconds?: number;
+    /**
+     * Enable global debug mode. Activates verbose logging, per-frame sentinel checks,
+     * phase timing warnings, and plugin setup logs.
+     * @default false
+     */
+    debug?: boolean;
   };
 
   /** Direct Vite config extension (simple case). */

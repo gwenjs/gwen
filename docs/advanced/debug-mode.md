@@ -7,6 +7,38 @@ description: Visualize engine state, colliders, and system timing.
 
 Debug mode enables visual and console diagnostics to understand what's happening inside the engine. When enabled, GWEN displays collider wireframes, system timing overlays, and structured logging—helping you diagnose performance issues and validate logic.
 
+## Enabling Debug Mode
+
+### Global Engine Debug
+
+Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. This enables:
+- Verbose logging for plugin registration and lifecycle events
+- Per-frame sentinel checks
+- Phase timing warnings when frame budget is exceeded
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  engine: {
+    debug: true,
+  },
+})
+```
+
+### Module Debug
+
+Individual modules may also expose their own `debug` option via the module tuple:
+
+```typescript
+export default defineConfig({
+  modules: [['@gwenjs/physics2d', { debug: true }]],
+})
+```
+
+This enables the physics debug renderer (collision shape overlays) independently of the global engine debug flag.
+
 ## The Basics
 
 Enable debug mode in your engine configuration:
