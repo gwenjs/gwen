@@ -8,9 +8,10 @@
   "type": "module",
   "scripts": {
     "prepare": "husky",
-    "install:all": "pnpm install && rustup target add wasm32-unknown-unknown",
+    "install:all": "pnpm install && rustup target add wasm32-unknown-unknown && ./scripts/build-wasm-tools.sh",
     "build": "pnpm build:wasm && pnpm build:ts",
     "build:ts": "pnpm --filter '@gwenjs/*' build",
+    "build:wasm:tools": "./scripts/build-wasm-tools.sh",
     "build:wasm": "./scripts/build-wasm.sh",
     "build:cargo": "./scripts/clean-cargo.sh build",
     "build:cargo:debug": "./scripts/clean-cargo.sh build-debug",
