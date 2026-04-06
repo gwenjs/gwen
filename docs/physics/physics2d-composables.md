@@ -9,6 +9,58 @@ description: Composable-first API for 2D rigid body physics in GWEN using Rapier
 
 Physics composables are composable functions called inside `defineActor()` that add rigid body dynamics and collision to actors. They work seamlessly with the scene graph—each actor gets its own physics body, and events like collisions are dispatched per-entity.
 
+## Module Configuration
+
+All options are passed as the second element of the module tuple in `gwen.config.ts`:
+
+```typescript
+// gwen.config.ts
+export default defineConfig({
+  modules: [
+    ['@gwenjs/physics2d', {
+      gravity: -9.81,
+      qualityPreset: 'medium',
+    }]
+  ],
+})
+```
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `gravity` | `number` | `-9.81` | Vertical gravity (Y axis, m/s²) |
+| `gravityX` | `number` | `0` | Horizontal gravity (X axis, m/s²) |
+| `maxEntities` | `number` | `10_000` | Max physics entities |
+| `qualityPreset` | `'low' \| 'medium' \| 'high' \| 'esport'` | `'medium'` | Physics quality preset |
+| `eventMode` | `'pull' \| 'hybrid'` | `'pull'` | Collision event read mode |
+| `coalesceEvents` | `boolean` | `true` | Merge duplicate collision events |
+| `ccdEnabled` | `boolean` | auto | Continuous collision detection (auto-enabled at `'high'`/`'esport'`) |
+| `layers` | `Record<string, number>` | `{}` | Collision layers (bit index 0–31) |
+| `debug` | `boolean` | `false` | Enable debug renderer |
+
+### Collision Layers
+
+```typescript
+export default defineConfig({
+  modules: [
+    ['@gwenjs/physics2d', {
+      layers: {
+        player:  0,
+        enemy:   1,
+        terrain: 2,
+        sensor:  3,
+      }
+    }]
+  ],
+})
+```
+
+Use `defineLayers()` inside a system or actor to build bitmask filters:
+
+```typescript
+const layers = defineLayers({ player: 0, enemy: 1, terrain: 2 })
+// layers.player === 0b001, layers.enemy === 0b010, etc.
+```
+
 ## The Basics
 
 Declare physics inside `defineActor()` — once per actor type. Composables read actor context automatically.
@@ -354,3 +406,49 @@ onUpdate(() => {
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`
+
+## Physics Helpers
+
+Tree-shakable helper functions for common physics operations. Import only what you need.
+
+> All helpers require a `physics: Physics2DAPI` instance as their first argument. Obtain it via `api.services.get('physics')` inside a system, or `usePhysics2D()` inside a composable.
+
+### Movement
+
+```typescript
+import { moveKinematicByVelocity, applyDirectionalImpulse } from '@gwenjs/physics2d/helpers/movement'
+
+// Move a kinematic body by velocity vector scaled by dt
+moveKinematicByVelocity(physics, entityId, { x: vx, y: vy }, dt)
+
+// Apply an impulse in a direction (for projectiles, explosions)
+applyDirectionalImpulse(physics, entityId, { x: 0, y: 1 }, force)
+```
+
+### Queries
+
+```typescript
+import { getBodySnapshot, getSpeed, isSensorActive } from '@gwenjs/physics2d/helpers/queries'
+
+// Get a snapshot of a body's physical state
+const snap = getBodySnapshot(physics, entityId)
+// snap: PhysicsEntitySnapshot { entityId, position, velocity }
+
+// Get scalar speed (magnitude of velocity)
+const speed = getSpeed(physics, entityId)  // number
+
+// Check if a sensor is currently active for an entity
+const active = isSensorActive(physics, entityId, sensorId)  // boolean
+```
+
+### Tilemap Chunk Orchestration
+
+```typescript
+import { createTilemapChunkOrchestrator } from '@gwenjs/physics2d/helpers/orchestration'
+
+const orchestrator = createTilemapChunkOrchestrator(physics, {
+  source: tilemapInput,
+})
+// TilemapChunkOrchestrator — load/unload static colliders per visible chunk
+// Methods: syncVisibleChunks(chunks), patchChunk(cx, cy, source), dispose()
+```

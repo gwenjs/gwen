@@ -9,6 +9,58 @@ description: API centré sur les composables pour la physique de corps rigides 2
 
 Les composables physiques sont des fonctions composables appelées à l'intérieur de `defineActor()` qui ajoutent la dynamique des corps rigides et les collisions aux acteurs. Ils fonctionnent en parfaite harmonie avec le graphe de scène — chaque acteur obtient son propre corps physique, et les événements comme les collisions sont envoyés par entité.
 
+## Configuration du module
+
+Toutes les options sont passées comme second élément du tuple de module dans `gwen.config.ts` :
+
+```typescript
+// gwen.config.ts
+export default defineConfig({
+  modules: [
+    ['@gwenjs/physics2d', {
+      gravity: -9.81,
+      qualityPreset: 'medium',
+    }]
+  ],
+})
+```
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `gravity` | `number` | `-9.81` | Gravité verticale (axe Y, m/s²) |
+| `gravityX` | `number` | `0` | Gravité horizontale (axe X, m/s²) |
+| `maxEntities` | `number` | `10_000` | Nombre max d'entités physiques |
+| `qualityPreset` | `'low' \| 'medium' \| 'high' \| 'esport'` | `'medium'` | Préréglage de qualité physique |
+| `eventMode` | `'pull' \| 'hybrid'` | `'pull'` | Mode de lecture des événements de collision |
+| `coalesceEvents` | `boolean` | `true` | Fusionner les événements de collision dupliqués |
+| `ccdEnabled` | `boolean` | auto | Détection de collision continue (activée automatiquement à `'high'`/`'esport'`) |
+| `layers` | `Record<string, number>` | `{}` | Couches de collision (index de bit 0–31) |
+| `debug` | `boolean` | `false` | Activer le renderer de débogage |
+
+### Couches de collision
+
+```typescript
+export default defineConfig({
+  modules: [
+    ['@gwenjs/physics2d', {
+      layers: {
+        player:  0,
+        enemy:   1,
+        terrain: 2,
+        sensor:  3,
+      }
+    }]
+  ],
+})
+```
+
+Utilisez `defineLayers()` dans un système ou un acteur pour construire des filtres en bitmask :
+
+```typescript
+const layers = defineLayers({ player: 0, enemy: 1, terrain: 2 })
+// layers.player === 0b001, layers.enemy === 0b010, etc.
+```
+
 ## Les bases
 
 Déclarez la physique à l'intérieur de `defineActor()` — une fois par type d'acteur. Les composables lisent le contexte de l'acteur automatiquement.
@@ -354,3 +406,49 @@ onUpdate(() => {
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`
+
+## Helpers Physics
+
+Fonctions helper tree-shakables pour les opérations physiques courantes. N'importez que ce dont vous avez besoin.
+
+> Tous les helpers requièrent une instance `physics: Physics2DAPI` comme premier argument. Obtenez-la via `api.services.get('physics')` dans un système, ou `usePhysics2D()` dans un composable.
+
+### Mouvement
+
+```typescript
+import { moveKinematicByVelocity, applyDirectionalImpulse } from '@gwenjs/physics2d/helpers/movement'
+
+// Déplacer un corps cinématique par vecteur de vélocité mis à l'échelle par dt
+moveKinematicByVelocity(physics, entityId, { x: vx, y: vy }, dt)
+
+// Appliquer une impulsion dans une direction (pour les projectiles, les explosions)
+applyDirectionalImpulse(physics, entityId, { x: 0, y: 1 }, force)
+```
+
+### Requêtes
+
+```typescript
+import { getBodySnapshot, getSpeed, isSensorActive } from '@gwenjs/physics2d/helpers/queries'
+
+// Obtenir un snapshot de l'état physique d'un corps
+const snap = getBodySnapshot(physics, entityId)
+// snap: PhysicsEntitySnapshot { entityId, position, velocity }
+
+// Obtenir la vitesse scalaire (magnitude de la vélocité)
+const speed = getSpeed(physics, entityId)  // number
+
+// Vérifier si un capteur est actuellement actif pour une entité
+const active = isSensorActive(physics, entityId, sensorId)  // boolean
+```
+
+### Orchestration de chunks de tilemap
+
+```typescript
+import { createTilemapChunkOrchestrator } from '@gwenjs/physics2d/helpers/orchestration'
+
+const orchestrator = createTilemapChunkOrchestrator(physics, {
+  source: tilemapInput,
+})
+// TilemapChunkOrchestrator — charger/décharger les colliders statiques par chunk visible
+// Méthodes : syncVisibleChunks(chunks), patchChunk(cx, cy, source), dispose()
+```
