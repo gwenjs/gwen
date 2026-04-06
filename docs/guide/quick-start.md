@@ -39,12 +39,13 @@ my-game/
 │   │   └── Position.ts
 │   ├── systems/             # defineSystem() implementations
 │   │   └── Movement.ts
+│   ├── actors/              # defineActor() — named, singleton entities
+│   │   └── Player.ts
 │   ├── scenes/              # defineScene() definitions
 │   │   └── GameScene.ts
-│   └── prefabs/             # definePrefab() factories
-│       └── Player.ts
-├── vite.config.ts           # @gwenjs/vite plugins
-├── gwen.config.ts           # Engine config
+│   └── prefabs/             # definePrefab() — reusable entity templates
+│       └── Bullet.ts
+├── gwen.config.ts           # Engine config (plugins, scenes, WASM variant)
 ├── tsconfig.json
 └── package.json
 ```

@@ -28,10 +28,13 @@ my-game/
 │   │   ├── GameScene.ts
 │   │   ├── GameOver.ts
 │   │   └── index.ts
-│   ├── prefabs/                   # Entity factories
+│   ├── actors/                    # Named entity definitions (defineActor)
 │   │   ├── Player.ts
 │   │   ├── Enemy.ts
-│   │   ├── Projectile.ts
+│   │   └── index.ts
+│   ├── prefabs/                   # Reusable entity templates (definePrefab)
+│   │   ├── Bullet.ts
+│   │   ├── Coin.ts
 │   │   └── index.ts
 │   ├── plugins/                   # Custom plugin factories
 │   │   ├── PhysicsPlugin.ts
@@ -44,8 +47,7 @@ my-game/
 │   └── utils/                     # Helpers and utilities
 │       ├── math.ts
 │       └── input.ts
-├── vite.config.ts                 # Vite + @gwenjs/vite config
-├── gwen.config.ts                 # GWEN engine configuration (optional)
+├── gwen.config.ts                 # GWEN engine configuration
 ├── tsconfig.json                  # TypeScript settings
 ├── package.json
 └── pnpm-lock.yaml
@@ -141,24 +143,44 @@ export const GameScene = defineScene('game', ({ entities }) => {
 })
 ```
 
-### `src/prefabs/` — Entity Factories
+### `src/actors/` — Named Entities
 
-Prefabs are reusable templates for spawning identical entities. They encapsulate an entity's initial components and data.
+Actors are named, singleton-like entities defined with `defineActor()`. Use them for things that exist once per scene — the player, a boss, a camera. Each actor has its own lifecycle (`onStart`, `onDestroy`) and can use physics composables.
 
-**src/prefabs/Player.ts**
+**src/actors/Player.ts**
 ```typescript
-import { createEntity } from '@gwenjs/core'
-import { Position, Velocity, Health } from '../components'
+import { defineActor, onStart, onDestroy } from '@gwenjs/core'
+import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
+import { Position, Health } from '../components'
 
-export const PlayerPrefab = {
-  create: () => {
-    const entity = createEntity()
-    entity.add(Position, { x: 100, y: 100 })
-    entity.add(Velocity, { vx: 0, vy: 0 })
-    entity.add(Health, { hp: 100 })
-    return entity
+export const PlayerActor = defineActor('Player', () => {
+  useDynamicBody({ gravityScale: 1 })
+  useBoxCollider({ width: 1, height: 2 })
+
+  onStart(() => {
+    Position.x[0] = 100
+    Position.y[0] = 100
+  })
+})
+```
+
+### `src/prefabs/` — Reusable Entity Templates
+
+Prefabs are defined with `definePrefab()` for entities you spawn in bulk — bullets, coins, enemies. They declare which components each instance gets and their default values.
+
+**src/prefabs/Bullet.ts**
+```typescript
+import { definePrefab } from '@gwenjs/core'
+import { Position, Velocity, DamageTag } from '../components'
+
+export const BulletPrefab = definePrefab({
+  name: 'Bullet',
+  components: [Position, Velocity, DamageTag],
+  defaults: {
+    [Position.name]: { x: 0, y: 0 },
+    [Velocity.name]: { x: 0, y: 10 },
   },
-}
+})
 ```
 
 ### `src/plugins/` — Custom Plugins
@@ -214,22 +236,9 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 
 ## Configuration Files
 
-### `vite.config.ts` — Build Configuration
+### `gwen.config.ts` — Engine Configuration
 
-Configures Vite and the GWEN Vite plugin:
-
-```typescript
-import { defineConfig } from 'vite'
-import { gwenVite } from '@gwenjs/vite'
-
-export default defineConfig({
-  plugins: [gwenVite()],
-})
-```
-
-### `gwen.config.ts` — Engine Configuration (Optional)
-
-Advanced GWEN settings like WASM variant selection, debug mode, or custom module loaders:
+The main configuration file for your GWEN project. Declares plugins, scenes, WASM variant, and debug options:
 
 ```typescript
 import { defineConfig } from '@gwenjs/app'
