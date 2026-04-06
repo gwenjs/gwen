@@ -86,7 +86,7 @@ export const PlayerActor = defineActor('Player', () => {
 })
 ```
 
-Le plugin fait automatiquement :
+Le module fait automatiquement :
 - Enregistre le corps avec la simulation physique
 - Synchronise les formes de collider avec le corps
 - Envoie les événements de collision aux callbacks abonnés

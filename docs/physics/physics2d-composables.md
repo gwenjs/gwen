@@ -86,7 +86,7 @@ export const PlayerActor = defineActor('Player', () => {
 })
 ```
 
-The plugin automatically:
+The module automatically:
 - Registers the body with the physics simulation
 - Syncs collider shapes to the body
 - Dispatches collision events to subscribed callbacks
