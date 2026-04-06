@@ -1,7 +1,7 @@
 /**
  * Tests for GwenLogger (RFC-011 Phase 1)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createLogger } from '../src/logger/index';
 import { createEngine } from '../src/index';
 import type { LogEntry } from '../src/logger/index';

@@ -1153,6 +1153,7 @@ interface GwenWindow extends Window {
   [key: string]: unknown;
 }
 
+// eslint-disable-next-line no-unused-vars
 declare const window: GwenWindow;
 
 /**

@@ -1,9 +1,9 @@
 /**
  * Tests for plugin error isolation (RFC-011 Phase 2)
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createEngine } from '../src/index';
-import type { GwenEngine, GwenPlugin, EngineErrorBus } from '../src/index';
+import type { GwenPlugin, EngineErrorBus } from '../src/index';
 import { CoreErrorCodes } from '../src/index';
 
 // ─── Minimal mock error bus ───────────────────────────────────────────────────
