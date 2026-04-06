@@ -23,8 +23,21 @@ jobs:
       - uses: actions/checkout@v4
         if: ${{ steps.release.outputs.releases_created }}
 
+      - uses: dtolnay/rust-toolchain@stable
+        if: ${{ steps.release.outputs.releases_created }}
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        if: ${{ steps.release.outputs.releases_created }}
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
       - uses: ./.github/actions/setup-node-pnpm
         if: ${{ steps.release.outputs.releases_created }}
+
+      - name: Build WASM
+        if: ${{ steps.release.outputs.releases_created }}
+        run: pnpm build:wasm
 
       - name: Build
         if: ${{ steps.release.outputs.releases_created }}
