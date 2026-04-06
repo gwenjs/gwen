@@ -5,26 +5,33 @@ description: Navigation FSM basée sur les scènes avec transitions typées.
 
 # Routeur de scènes
 
-Le routeur de scènes de GWEN est une **machine à états finis (FSM)** : vous déclarez les scènes comme des états nommés et définissez quels événements déclenchent les transitions entre eux. Cela rend la navigation type-safe et prévisible.
+Le **routeur de scènes** orchestre les transitions entre scènes à l'aide d'un automate fini. Définissez des états, des transitions et naviguez par programmation.
+
+> Les scènes sont définies séparément avec `defineScene()`. Voir [Scènes](/fr/essentials/scenes).
 
 ## Définir un routeur
 
 `defineSceneRouter()` déclare les états et les transitions :
 
-```ts
+```typescript
 import { defineSceneRouter } from '@gwenjs/core'
-import { MenuScene } from './scenes/menu'
-import { GameScene } from './scenes/game'
-import { PauseScene } from './scenes/pause'
-import { GameOverScene } from './scenes/game-over'
+import { MenuScene, GameScene, GameOverScene } from './scenes'
 
 export const AppRouter = defineSceneRouter({
   initial: 'menu',
   routes: {
-    menu:     { scene: MenuScene,     on: { PLAY: 'game' } },
-    game:     { scene: GameScene,     on: { PAUSE: 'pause', DIE: 'gameover' } },
-    pause:    { scene: PauseScene,    overlay: true, on: { RESUME: 'game', QUIT: 'menu' } },
-    gameover: { scene: GameOverScene, on: { RETRY: 'game', MENU: 'menu' } },
+    menu: {
+      scene: MenuScene,
+      on: { START: 'game' },
+    },
+    game: {
+      scene: GameScene,
+      on: { PAUSE: 'pause', GAME_OVER: 'gameOver' },
+    },
+    gameOver: {
+      scene: GameOverScene,
+      on: { RESTART: 'game', MENU: 'menu' },
+    },
   },
 })
 ```
@@ -37,7 +44,7 @@ export const AppRouter = defineSceneRouter({
 
 Appelez `useSceneRouter()` à l'intérieur d'un acteur ou système pour obtenir un handle, puis appelez `.send()` pour déclencher les transitions :
 
-```ts
+```typescript
 import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core'
 import { AppRouter } from '../router'
 import { Health } from '../components'
@@ -48,7 +55,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
   onUpdate(() => {
     if (health.value <= 0) {
-      nav.send('DIE')           // transition vers 'gameover'
+      nav.send('GAME_OVER')     // transition vers 'gameOver'
     }
   })
 
@@ -58,25 +65,24 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ## API Handle
 
-```ts
+```typescript
 const nav = useSceneRouter(AppRouter)
 
-nav.current          // nom d'état actuel, ex. 'game'
-nav.params           // paramètres passés à l'état actuel
-await nav.send('EVENT')    // déclencher une transition (async, retourne Promise<void>)
-nav.can('EVENT')     // vérifier si l'événement est valide dans l'état actuel
-nav.onTransition(fn) // s'abonner à toutes les transitions
+nav.send('START')     // déclencher une transition
+nav.can('START')      // vérifier si la transition est valide
+nav.current           // nom de l'état actuel
+nav.params            // paramètres passés lors de la transition
 ```
 
 ## Passer des paramètres
 
 Passez des données lors de l'envoi d'un événement :
 
-```ts
-nav.send('PLAY', { level: 2, difficulty: 'hard' })
+```typescript
+nav.send('START', { level: 2, difficulty: 'hard' })
 
 // Dans la GameScene :
-export const GameScene = defineScene('Game', (registry) => ({
+export const GameScene = defineScene('game', (registry) => ({
   systems: [GameSystem],
   onEnter: async () => {
     const nav = useSceneRouter(AppRouter)
@@ -146,15 +152,27 @@ Quand vous revenez de `pause` :
 
 Les erreurs sont levées immédiatement (pas au runtime), donc les routeurs mal configurés sont détectés pendant le développement.
 
+## Enregistrer le routeur
+
+Enregistrez le routeur dans `gwen.config.ts` en tant qu'option de module :
+
+```typescript
+// gwen.config.ts
+export default defineConfig({
+  modules: [
+    ['@gwenjs/core', { router: AppRouter }],
+  ],
+})
+```
+
+Le routeur est passé comme option de module, pas via un appel `engine.use()` standalone.
+
 ## Exemple complet
 
-```ts
+```typescript
 // src/router.ts
 import { defineSceneRouter } from '@gwenjs/core'
-import { MenuScene } from './scenes/menu'
-import { GameScene } from './scenes/game'
-import { PauseScene } from './scenes/pause'
-import { GameOverScene } from './scenes/game-over'
+import { MenuScene, GameScene, GameOverScene } from './scenes'
 
 export const AppRouter = defineSceneRouter({
   initial: 'menu',
@@ -165,64 +183,24 @@ export const AppRouter = defineSceneRouter({
     },
     game: {
       scene: GameScene,
-      on: { PAUSE: 'pause', GAME_OVER: 'gameover' },
+      on: { PAUSE: 'pause', GAME_OVER: 'gameOver' },
     },
-    pause: {
-      scene: PauseScene,
-      overlay: true,
-      on: { RESUME: 'game', QUIT: 'menu' },
-    },
-    gameover: {
+    gameOver: {
       scene: GameOverScene,
-      on: { RETRY: 'game', MENU: 'menu' },
+      on: { RESTART: 'game', MENU: 'menu' },
     },
   },
 })
 
-// src/scenes/game.ts
-import { defineScene } from '@gwenjs/core'
-import { GameSystem } from '../systems'
-
-export const GameScene = defineScene('Game', (registry) => ({
-  systems: [GameSystem],
-  
-  onEnter: async () => {
-    console.log('Game started')
-    // Charger les ressources, réinitialiser le niveau, etc.
-  },
-  
-  onExit: () => {
-    console.log('Game exiting')
-    // Nettoyage
-  },
-}))
-
-// src/scenes/pause.ts
-import { defineScene, useSceneRouter } from '@gwenjs/core'
-import { PauseSystem } from '../systems'
-import { AppRouter } from '../router'
-
-export const PauseScene = defineScene('Pause', (registry) => ({
-  systems: [PauseSystem],
-  
-  onEnter: async () => {
-    console.log('Pause menu opened')
-    // Mettre en pause la boucle de jeu (optionnel)
-  },
-  
-  onExit: () => {
-    console.log('Pause menu closed')
-    // Reprendre la boucle de jeu (optionnel)
-  },
-}))
-
-// src/main.ts
-import { createEngine } from '@gwenjs/core'
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/core'
 import { AppRouter } from './router'
 
-const engine = await createEngine({ variant: 'physics2d' })
-await engine.use(AppRouter)
-await engine.start()
+export default defineConfig({
+  modules: [
+    ['@gwenjs/core', { router: AppRouter }],
+  ],
+})
 ```
 
 ## Résumé de l'API
