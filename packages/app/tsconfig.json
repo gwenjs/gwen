@@ -1,0 +1,22 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "rootDir": "../..",
+    "outDir": "dist",
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
+    "types": ["node"],
+    "skipLibCheck": true,
+    // FIXME(type-safety): exactOptionalPropertyTypes disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
+    "exactOptionalPropertyTypes": false
+  },
+  "include": ["src", "tests"],
+  "references": [
+    {
+      "path": "../kit"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
       2,
       "always",
       [
-        "core", "kit", "math", "physics2d", "physics3d", "schema", "vite",
+        "app", "core", "kit", "math", "physics2d", "physics3d", "schema", "vite",
         "deps", "ci", "release", "docs"
       ]
     ]
