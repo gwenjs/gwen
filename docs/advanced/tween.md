@@ -51,6 +51,49 @@ GWEN includes standard easing functions:
 
 You can also provide a custom easing function: `(t: number) => number` where `t` ranges from 0 to 1.
 
+## Sequencing Animations
+
+`defineSequence` chains multiple tweens and timed waits into a single ordered sequence. Useful for intro animations, cutscenes, or any multi-step flow:
+
+```typescript
+import { useTween, defineSequence, defineSystem, onStart } from '@gwenjs/core'
+
+export const IntroSystem = defineSystem(() => {
+  const fadeIn  = useTween<number>({ duration: 0.4, easing: 'easeOutQuad' })
+  const moveUp  = useTween<number>({ duration: 0.6, easing: 'easeInOutCubic' })
+  const fadeOut = useTween<number>({ duration: 0.3, easing: 'easeInQuad' })
+
+  const seq = defineSequence([
+    { tween: fadeIn,  from: 0,   to: 1   },  // fade in
+    { wait: 0.5 },                             // hold for 0.5s
+    { tween: moveUp,  from: 0,   to: -80 },  // move up
+    { tween: fadeOut, from: 1,   to: 0   },  // fade out
+  ])
+
+  onStart(() => {
+    seq.play()
+    seq.onComplete(() => console.log('intro done'))
+  })
+})
+```
+
+Each step type:
+- `{ tween: TweenHandle, from: T, to: T }` — plays the tween and advances when complete
+- `{ wait: number }` — pauses for `wait` seconds
+
+### Sequence API
+
+| Method | Description |
+|---|---|
+| `seq.play()` | Start from step 0 (restarts if already playing) |
+| `seq.pause()` | Pause the active step |
+| `seq.reset()` | Reset to step 0 without playing |
+| `seq.onComplete(cb)` | Register a callback fired when all steps finish |
+
+::: warning
+Register `onComplete` on the sequence, not on individual tween handles. Calling `seq.play()` clears `onComplete` callbacks on the tween handles internally.
+:::
+
 ## Chaining Tweens
 
 Queue multiple segments with `.to()`:

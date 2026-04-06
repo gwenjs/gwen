@@ -51,6 +51,49 @@ GWEN inclut des fonctions de facilitation standard :
 
 Vous pouvez également fournir une fonction de facilitation personnalisée : `(t: number) => number` où `t` varie de 0 à 1.
 
+## Séquencer des animations
+
+`defineSequence` enchaîne plusieurs tweens et attentes temporisées en une seule séquence ordonnée. Utile pour les animations d'introduction, les cinématiques ou tout flux en plusieurs étapes :
+
+```typescript
+import { useTween, defineSequence, defineSystem, onStart } from '@gwenjs/core'
+
+export const IntroSystem = defineSystem(() => {
+  const fadeIn  = useTween<number>({ duration: 0.4, easing: 'easeOutQuad' })
+  const moveUp  = useTween<number>({ duration: 0.6, easing: 'easeInOutCubic' })
+  const fadeOut = useTween<number>({ duration: 0.3, easing: 'easeInQuad' })
+
+  const seq = defineSequence([
+    { tween: fadeIn,  from: 0,   to: 1   },  // fondu entrant
+    { wait: 0.5 },                             // maintien 0,5s
+    { tween: moveUp,  from: 0,   to: -80 },  // déplacement vers le haut
+    { tween: fadeOut, from: 1,   to: 0   },  // fondu sortant
+  ])
+
+  onStart(() => {
+    seq.play()
+    seq.onComplete(() => console.log('intro terminée'))
+  })
+})
+```
+
+Types d'étapes :
+- `{ tween: TweenHandle, from: T, to: T }` — joue le tween et avance à la fin
+- `{ wait: number }` — met en pause pendant `wait` secondes
+
+### API de séquence
+
+| Méthode | Description |
+|---|---|
+| `seq.play()` | Démarre depuis l'étape 0 (redémarre si déjà en cours) |
+| `seq.pause()` | Met en pause l'étape active |
+| `seq.reset()` | Réinitialise à l'étape 0 sans démarrer |
+| `seq.onComplete(cb)` | Enregistre un callback déclenché quand toutes les étapes sont terminées |
+
+::: warning
+Enregistrez `onComplete` sur la séquence, et non sur les tweens individuels. Appeler `seq.play()` efface les callbacks `onComplete` des tweens internes.
+:::
+
 ## Chaîner les tweens
 
 Mettez en file d'attente plusieurs segments avec `.to()` :

@@ -12,16 +12,9 @@ Le mode debug active les diagnostics visuels et console pour comprendre ce qui s
 Activez le mode debug dans votre configuration du moteur :
 
 ```ts
-import { defineConfig } from '@gwenjs/app'
-import { physics2D } from '@gwenjs/physics2d'
-
+// gwen.config.ts
 export default defineConfig({
-  maxEntities: 5000,
-  targetFPS: 60,
-  debug: true,  // Activer le mode debug
-  plugins: [
-    physics2D({ gravity: [0, -9.81] }),
-  ]
+  modules: [['@gwenjs/physics2d', { debug: true }]],
 })
 ```
 
@@ -64,9 +57,49 @@ GWEN affiche le temps d'exécution par système en millisecondes :
 
 Cela aide à identifier les goulots d'étranglement. Si un système dépasse régulièrement son budget (par exemple, la physique prenant 5ms sur une image de 16ms), vous avez trouvé un problème de performance.
 
+## Statistiques du moteur
+
+Accédez aux données de performance par frame via `engine.getStats()` :
+
+```typescript
+const stats = engine.getStats()
+
+console.log(stats.fps)           // FPS actuel
+console.log(stats.deltaTime)     // delta de la dernière frame en ms
+console.log(stats.frameCount)    // total de frames depuis le démarrage
+console.log(stats.budgetMs)      // budget de frame (1000 / targetFPS)
+console.log(stats.overBudget)    // true si la dernière frame a dépassé le budget
+
+// Décomposition par phase (toutes en ms)
+const p = stats.phaseMs
+console.log(p.tick)       // hook engine:tick
+console.log(p.plugins)    // appels onBeforeUpdate()
+console.log(p.physics)    // étape physics2d/3d
+console.log(p.wasm)       // étapes des modules WASM
+console.log(p.update)     // appels onUpdate()
+console.log(p.render)     // appels onAfterUpdate() + onRender()
+console.log(p.afterTick)  // hook engine:afterTick
+console.log(p.total)      // temps total de la frame
+```
+
+> **Note :** Utilisez `engine.getStats()` — et non `engine.stats`. C'est un appel de méthode.
+
 ## Journalisation structurée
 
-Le journal de GWEN produit une sortie structurée qui peut être filtrée et redirigée. Créez un journal dans vos systèmes :
+GWEN fournit un logger intégré via `createLogger()`. Niveaux de log : `debug` < `info` < `warn` < `error`. Chaque entrée est un objet `LogEntry` structuré, compatible avec des sinks de logs personnalisés.
+
+```typescript
+import { createLogger } from '@gwenjs/core'
+
+const logger = createLogger('MyPlugin')
+
+logger.debug('initializing...')
+logger.info('plugin started')
+logger.warn('slow frame detected', { frameMs: 32 })
+logger.error('unhandled error', error)
+```
+
+
 
 ```ts
 import { createLogger, defineSystem, useEngine } from '@gwenjs/core'
@@ -133,16 +166,10 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 Utilisez `import.meta.env.DEV` de Vite pour activer les fonctionnalités de débogage uniquement pendant le développement :
 
 ```ts
-import { defineConfig } from '@gwenjs/app'
-import { physics2D } from '@gwenjs/physics2d'
-
+// gwen.config.ts
 export default defineConfig({
-  maxEntities: 5000,
-  targetFPS: 60,
   debug: import.meta.env.DEV,  // Automatique
-  plugins: [
-    physics2D(),
-  ]
+  modules: [['@gwenjs/physics2d', {}]],
 })
 ```
 
