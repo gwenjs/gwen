@@ -1,0 +1,13 @@
+{
+  "extends": ["@commitlint/config-conventional"],
+  "rules": {
+    "scope-enum": [
+      2,
+      "always",
+      [
+        "core", "kit", "math", "physics2d", "physics3d", "schema", "vite",
+        "deps", "ci", "release", "docs"
+      ]
+    ]
+  }
+}
