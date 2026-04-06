@@ -23,7 +23,10 @@ my-game/
     │   └── Player.ts
     ├── prefabs/             # definePrefab() — entity templates
     │   └── Bullet.ts
-    └── router.ts            # defineSceneRouter() — scene navigation FSM
+    ├── router.ts            # defineSceneRouter() — scene navigation FSM
+    ├── plugins/             # definePlugin() — custom plugins (optional)
+    ├── assets/              # images, audio, fonts...
+    └── utils/               # shared helpers
 ```
 
 ::: info Auto-generated files
@@ -55,7 +58,7 @@ Each file defines one or more component schemas. Components are data containers 
 ```typescript
 import { defineComponent } from '@gwenjs/core'
 
-export const Position = defineComponent('position', () => ({
+export const Position = defineComponent('Position', () => ({
   x: 0,
   y: 0,
 }))
@@ -79,7 +82,7 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery([Position, Velocity])
+  const query = useQuery({ with: [Position, Velocity] })
 
   onUpdate((dt) => {
     for (const id of query) {
@@ -190,40 +193,6 @@ export function clamp(value: number, min: number, max: number) {
 
 export function distance(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-}
-```
-
-## Configuration Files
-
-### `gwen.config.ts` — Engine Configuration
-
-The main configuration file for your GWEN project. Declares modules and engine options:
-
-```typescript
-import { defineConfig } from '@gwenjs/app'
-
-export default defineConfig({
-  modules: ['@gwenjs/physics2d'],
-  engine: {
-    maxEntities: 10_000,
-  },
-})
-```
-
-### `tsconfig.json` — TypeScript Configuration
-
-Ensures strict type checking and proper module resolution:
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ES2020",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
-  }
 }
 ```
 

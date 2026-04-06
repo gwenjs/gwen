@@ -23,7 +23,10 @@ my-game/
     │   └── Player.ts
     ├── prefabs/             # definePrefab() — modèles d'entités
     │   └── Bullet.ts
-    └── router.ts            # defineSceneRouter() — FSM de navigation des scènes
+    ├── router.ts            # defineSceneRouter() — FSM de navigation des scènes
+    ├── plugins/             # definePlugin() — plugins personnalisés (optionnel)
+    ├── assets/              # images, audio, polices...
+    └── utils/               # utilitaires partagés
 ```
 
 ::: info Fichiers auto-générés
@@ -55,7 +58,7 @@ Chaque fichier définit un ou plusieurs schémas de composants. Les composants s
 ```typescript
 import { defineComponent } from '@gwenjs/core'
 
-export const Position = defineComponent('position', () => ({
+export const Position = defineComponent('Position', () => ({
   x: 0,
   y: 0,
 }))
@@ -79,7 +82,7 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery([Position, Velocity])
+  const query = useQuery({ with: [Position, Velocity] })
 
   onUpdate((dt) => {
     for (const id of query) {
@@ -180,7 +183,7 @@ assets/
 
 ### `src/utils/` — Utilitaires partagés
 
-Aides courantes qui n'ont pas d'autres endroits : fonctions mathématiques, aides d'entrée, gestionnaires d'état, etc.
+Utilitaires communs sans catégorie propre : fonctions mathématiques, aides d'entrée, gestionnaires d'état, etc.
 
 **src/utils/math.ts**
 ```typescript
@@ -190,40 +193,6 @@ export function clamp(value: number, min: number, max: number) {
 
 export function distance(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
-}
-```
-
-## Fichiers de configuration
-
-### `gwen.config.ts` — Configuration du moteur
-
-Le fichier de configuration principal de votre projet GWEN. Déclare les modules et les options du moteur :
-
-```typescript
-import { defineConfig } from '@gwenjs/app'
-
-export default defineConfig({
-  modules: ['@gwenjs/physics2d'],
-  engine: {
-    maxEntities: 10_000,
-  },
-})
-```
-
-### `tsconfig.json` — Configuration TypeScript
-
-Assure la vérification de type stricte et la résolution correcte des modules :
-
-```json
-{
-  "compilerOptions": {
-    "target": "ES2020",
-    "module": "ES2020",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
-    "skipLibCheck": true
-  }
 }
 ```
 

@@ -145,6 +145,8 @@ export default defineConfig({
 
 Pour les crochets de compilation, utilisez le champ `hooks` :
 
+Utilisez `vite` pour une configuration statique. Utilisez `hooks['vite:extendConfig']` pour une configuration conditionnelle ou programmatique.
+
 ```typescript
 export default defineConfig({
   hooks: {
@@ -163,4 +165,4 @@ Pour les modèles d'extension Vite complets (y compris l'extension au niveau des
 - **[Composants](/fr/essentials/components)** — Définir les structures de données pour vos entités.
 - **[Systèmes](/fr/essentials/systems)** — Écrire des systèmes pour déplacer et mettre à jour les entités.
 - **[Scènes](/fr/essentials/scenes)** — Organiser votre jeu en états distincts.
-- **[Acteurs](/essentials/actors)** — Créer des objets de jeu composables basés sur des instances.
+- **[Acteurs](/fr/essentials/actors)** — Créer des objets de jeu composables basés sur des instances.

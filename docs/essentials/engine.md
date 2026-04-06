@@ -145,6 +145,8 @@ export default defineConfig({
 
 For build hooks, use the `hooks` field:
 
+Use `vite` for static configuration. Use `hooks['vite:extendConfig']` when you need conditional or programmatic config.
+
 ```typescript
 export default defineConfig({
   hooks: {
