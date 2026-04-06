@@ -541,7 +541,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     const grid = new Uint8Array(width * height * depth); // all walkable
     // Block column x=2 rows z=0..4, except z=4 (leave top open)
     for (let z = 0; z <= 3; z++) {
-      grid[2 + 0 * width + z * width * height] = 1; // blocked
+      grid[2 + z * width * height] = 1; // blocked (x=2, y=0)
     }
 
     service.initNavGrid3D({ grid, width, height, depth, cellSize: 1 });

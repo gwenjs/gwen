@@ -79,6 +79,7 @@ describe('mat3 arithmetic', () => {
     const a = mat3(1, 2, 3, 0, 1, 4, 5, 6, 0);
     const b = mat3(7, 8, 9, 2, 0, 1, 3, 4, 5);
     const result = mat3Mul(a, b);
+    /* eslint-disable oxc/erasing-op -- intentional: zeros show the full matrix multiply formula */
     expect(result).toEqual({
       m00: 1 * 7 + 2 * 2 + 3 * 3,
       m01: 1 * 8 + 2 * 0 + 3 * 4,
@@ -90,6 +91,7 @@ describe('mat3 arithmetic', () => {
       m21: 5 * 8 + 6 * 0 + 0 * 4,
       m22: 5 * 9 + 6 * 1 + 0 * 5,
     });
+    /* eslint-enable oxc/erasing-op */
   });
 
   it('multiply matrix by vec3', () => {
