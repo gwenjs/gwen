@@ -28,7 +28,7 @@ my-game/
 │   │   ├── GameScene.ts
 │   │   ├── GameOver.ts
 │   │   └── index.ts
-│   ├── actors/                    # Entités nommées (defineActor)
+│   ├── actors/                    # Définitions d'entités nommées (defineActor)
 │   │   ├── Player.ts
 │   │   ├── Enemy.ts
 │   │   └── index.ts
@@ -57,24 +57,31 @@ my-game/
 
 ### `src/main.ts` — Point d'entrée du moteur
 
-Initialise le moteur GWEN, connecte tous les modules, systèmes et scènes :
+Initialise le moteur GWEN et enregistre les plugins :
 
 ```typescript
-import { createEngine, defineConfig } from '@gwenjs/app'
-import * as components from './components'
-import * as systems from './systems'
-import * as scenes from './scenes'
+import { createEngine } from '@gwenjs/core'
+import { Physics2DPlugin } from '@gwenjs/physics2d'
 
-const engine = createEngine(
-  defineConfig({
-    modules: Object.values(components),
-    systems: Object.values(systems),
-    scenes: Object.values(scenes),
-    initialScene: 'game',
-  })
-)
+const engine = await createEngine({ variant: 'physics2d' })
 
-engine.run()
+await engine.use(Physics2DPlugin())
+await engine.start()
+```
+
+### `gwen.config.ts` — Configuration
+
+Déclare les modules et les options du moteur à la compilation :
+
+```typescript
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+  },
+})
 ```
 
 ### `src/components/` — Définitions de composants
@@ -101,7 +108,7 @@ export * from './Health'
 
 ### `src/systems/` — Implémentations de systèmes
 
-Les systèmes sont la couche logique. Ils demandent des entités et modifient leurs composants à chaque frame.
+Les systèmes sont la couche logique. Ils interrogent les entités et modifient leurs composants à chaque frame.
 
 **src/systems/Movement.ts**
 ```typescript
@@ -109,45 +116,194 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position, Velocity] })
+  const query = useQuery([Position, Velocity])
 
-  onUpdate(() => {
-    query.each(({ c }) => {
-      const pos = c[Position]
-      const vel = c[Velocity]
-      pos.x += vel.vx
-      pos.y += vel.vy
-    })
+  onUpdate((dt) => {
+    for (const id of query) {
+      Position.x[id] += Velocity.x[id] * dt
+      Position.y[id] += Velocity.y[id] * dt
+    }
   })
 })
 ```
 
 ### `src/scenes/` — Définitions de scènes
 
-Les scènes sont des fonctions qui créent des entités et configurent le gameplay. Pensez-y comme des « niveaux » ou « écrans ».
+Les scènes sont des fonctions qui configurent le gameplay et enregistrent les systèmes :
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene, createEntity } from '@gwenjs/core'
-import { Player } from '../prefabs'
-import { EnemyPrefab } from '../prefabs'
+import { defineScene } from '@gwenjs/core'
+import { MovementSystem, CollisionSystem, RenderSystem } from '../systems'
 
-export const GameScene = defineScene('game', ({ entities }) => {
-  // Générer le joueur
-  entities.add(Player.create())
-
-  // Générer des ennemis
-  for (let i = 0; i < 5; i++) {
-    entities.add(EnemyPrefab.create({ x: i * 50, y: 10 }))
-  }
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, CollisionSystem, RenderSystem],
 })
 ```
 
 ### `src/actors/` — Entités nommées
 
-Les actors sont des entités nommées, de type singleton, définies avec `defineActor()`. Utilisez-les pour les éléments qui existent une seule fois par scène — le joueur, un boss, une caméra. Chaque actor a son propre cycle de vie (`onStart`, `onDestroy`) et peut utiliser des composables physiques.
+Les acteurs sont des entités nommées, de type singleton, définies avec `defineActor()`. Utilisez-les pour les éléments qui existent une seule fois par scène — le joueur, un boss, une caméra. Chaque acteur a son propre cycle de vie (`onStart`, `onDestroy`) et peut utiliser des composables physiques.
 
 **src/actors/Player.ts**
+```typescript
+import { defineActor, onStart, onDestroy } from '@gwenjs/core'
+import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
+import { Position, Health } from '../components'
+
+export const PlayerActor = defineActor('Player', () => {
+  useDynamicBody({ gravityScale: 1 })
+  useBoxCollider({ width: 1, height: 2 })
+
+  onStart(() => {
+    Position.x[0] = 100
+    Position.y[0] = 100
+  })
+})
+```
+
+### `src/prefabs/` — Modèles d'entités réutilisables
+
+Les préfabriqués sont définis avec `definePrefab()` pour les entités que vous générez en masse — balles, pièces, ennemis. Ils déclarent quels composants chaque instance obtient et leurs valeurs par défaut.
+
+**src/prefabs/Bullet.ts**
+```typescript
+import { definePrefab } from '@gwenjs/core'
+import { Position, Velocity, DamageTag } from '../components'
+
+export const BulletPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Velocity, defaults: { x: 0, y: 10 } },
+  { def: DamageTag, defaults: {} },
+])
+```
+
+### `src/plugins/` — Plugins personnalisés
+
+Les plugins étendent GWEN avec de nouveaux systèmes, composants ou crochets de cycle de vie. Utilisez-les pour des fonctionnalités réutilisables comme la gestion des entrées, l'audio ou l'analytique.
+
+**src/plugins/InputPlugin.ts**
+```typescript
+import { definePlugin } from '@gwenjs/kit'
+import { InputSystem } from '../systems/Input'
+
+export const InputPlugin = definePlugin(() => ({
+  name: 'input',
+  systems: [InputSystem],
+  install: (engine) => {
+    console.log('Plugin d\'entrée installé')
+  },
+}))
+```
+
+### `src/assets/` — Fichiers statiques
+
+Gardez les sprites, sons, données de niveau et autres ressources organisés ici. Vite s'occupera du bundling et de l'optimisation.
+
+```
+assets/
+├── sprites/
+│   ├── player.png
+│   ├── enemies/
+│   └── ui/
+├── sounds/
+│   ├── jump.wav
+│   └── music/
+└── levels/
+    ├── level1.json
+    └── level2.json
+```
+
+### `src/utils/` — Utilitaires partagés
+
+Aides courantes qui n'ont pas d'autres endroits : fonctions mathématiques, aides d'entrée, gestionnaires d'état, etc.
+
+**src/utils/math.ts**
+```typescript
+export function clamp(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value))
+}
+
+export function distance(x1: number, y1: number, x2: number, y2: number) {
+  return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
+}
+```
+
+## Fichiers de configuration
+
+### `gwen.config.ts` — Configuration du moteur
+
+Le fichier de configuration principal de votre projet GWEN. Déclare les modules et les options du moteur :
+
+```typescript
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+  },
+})
+```
+
+### `tsconfig.json` — Configuration TypeScript
+
+Assure la vérification de type stricte et la résolution correcte des modules :
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+## Modèles de mise à l'échelle
+
+À mesure que votre jeu grandit, considérez ces modèles organisationnels :
+
+**Par fonctionnalité** — Groupez les composants, systèmes et scènes connexes ensemble :
+
+```
+src/
+├── features/
+│   ├── player/
+│   │   ├── components/
+│   │   ├── systems/
+│   │   └── prefabs/
+│   ├── enemies/
+│   │   ├── components/
+│   │   ├── systems/
+│   │   └── prefabs/
+│   └── ui/
+│       ├── systems/
+│       └── scenes/
+```
+
+**Par responsabilité** — Gardez les systèmes, composants et préfabriqués dans leurs propres répertoires de haut niveau (illustrés ci-dessus). Cela fonctionne bien pour les petits jeux.
+
+**Par domaine** — Séparez le gameplay, les graphiques, la physique, l'audio et la mise en réseau dans leurs propres domaines avec des plugins.
+
+## Bonnes pratiques
+
+1. **Utilisez les fichiers d'index** — Réexportez depuis `components/index.ts`, `systems/index.ts`, etc., pour des imports propres.
+2. **Un composant par fichier** — Plus facile à trouver et à refactoriser.
+3. **Nommez les systèmes d'après ce qu'ils font** — `MovementSystem`, `CollisionSystem`, pas `UpdateLogic`.
+4. **Préfabriqués pour les entités complexes** — Si une entité utilise 3+ composants, créez un préfabriqué pour cela.
+5. **Plugins pour les fonctionnalités réutilisables** — Gestion des entrées, UI, animations—emballez dans des plugins pour que d'autres projets puissent les réutiliser.
+
+## Prochaines étapes
+
+- **[Composants](/fr/essentials/components)** — Apprenez à concevoir des schémas de composants.
+- **[Systèmes](/fr/essentials/systems)** — Maîtrisez les requêtes et crochets de système.
+- **[Scènes](/fr/essentials/scenes)** — Composez et gérez les scènes.
+- **[Préfabriqués](/fr/essentials/prefabs)** — Créez des modèles d'entités réutilisables.
 ```typescript
 import { defineActor, onStart } from '@gwenjs/core'
 import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'

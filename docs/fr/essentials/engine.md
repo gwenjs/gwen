@@ -5,65 +5,153 @@ description: Créer et configurer l'instance du moteur GWEN et comment il gère 
 
 # Le moteur
 
-Le **moteur GWEN** est le runtime qui démarre votre jeu, charge WASM, gère le graphe de scène et exécute vos systèmes chaque frame. Ce guide vous montre comment créer un moteur, le configurer et y accéder depuis vos systèmes.
+Le **moteur GWEN** est le runtime qui démarre votre jeu, charge WASM, gère les scènes et exécute vos systèmes chaque frame. La configuration du moteur se fait en deux endroits : **`gwen.config.ts`** (à la compilation) et **`main.ts`** (au démarrage).
 
-## Les bases
+## Configuration en deux parties
 
-### Créer un moteur
+### Partie 1 : Configuration à la compilation — `gwen.config.ts`
 
-D'abord, définissez votre configuration, puis créez le moteur :
+Utilisez `defineConfig()` depuis `@gwenjs/app` pour déclarer les modules, la variante WASM et les paramètres de compilation :
+
+```ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],        // Active le module physique
+  engine: {
+    maxEntities: 10_000,                  // Configuration du moteur (optionnelle)
+    variant: 'physics2d',                 // Variante WASM
+  },
+})
+```
+
+Le fichier de configuration est traité **à la compilation** par Vite et configure la résolution des modules.
+
+### Partie 2 : Démarrage au runtime — `main.ts`
+
+Dans votre point d'entrée, importez et créez le moteur **séparément** :
 
 ```ts
 import { createEngine } from '@gwenjs/core'
-import { defineConfig } from '@gwenjs/app'
 import { Physics2DPlugin } from '@gwenjs/physics2d'
+import { AppRouter } from './router'
 
-import MainScene from './scenes/main'
-import MenuScene from './scenes/menu'
-
-const config = defineConfig({
-  plugins: [Physics2DPlugin()],
-  scenes: {
-    main: MainScene,
-    menu: MenuScene,
-  },
-  initialScene: 'main',
+const engine = await createEngine({
+  maxEntities: 10_000,
+  variant: 'physics2d',
 })
 
-const engine = createEngine(config)
+// Installer les plugins
+await engine.use(Physics2DPlugin())
+
+// Installer le routeur de scènes
+await engine.use(AppRouter)
+
+// Démarrer la boucle de jeu
 await engine.start()
 ```
 
-### Options de configuration
+**Distinction clé :** `createEngine()` accepte `GwenEngineOptions` (paramètres au runtime), PAS `GwenUserConfig`. Ce sont des APIs complètement séparées.
 
-| Option | Type | Description |
+## Configuration à la compilation : `GwenUserConfig`
+
+Utilisée **uniquement dans `gwen.config.ts`**. Configure les modules, la variante WASM et les crochets de compilation.
+
+| Propriété | Type | Description |
 |---|---|---|
-| `plugins` | `Plugin[]` | Plugins à charger (ex. : physique, rendu, réseau) |
-| `scenes` | `Record<string, SceneClass>` | Carte du nom de scène à la classe |
-| `initialScene` | `string` | Nom de la scène à charger au démarrage |
-| `wasm` | `WasmModule` | (optionnel) Module WASM personnalisé (par défaut gwen_core.wasm) |
-| `logger` | `Logger` | (optionnel) Instance de logger personnalisée |
-| `debug` | `boolean` | (optionnel) Activer le mode debug (logs, gizmos, etc.) |
+| `modules` | `GwenModuleEntry[]` | Liste des modules à activer (ex. : `['@gwenjs/physics2d']`) |
+| `engine.maxEntities` | `number` | Nombre maximal d'entités simultanées (par défaut 10_000) |
+| `engine.targetFPS` | `number` | FPS cibles (par défaut 60) |
+| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger |
+| `engine.loop` | `'internal' \| 'external'` | Propriétaire de la boucle de jeu (par défaut 'internal') |
+| `engine.maxDeltaSeconds` | `number` | Delta temps max par frame (par défaut 0.1s) |
+| `vite` | `Record<string, unknown>` | Extension directe de la configuration Vite |
+| `hooks` | `Partial<GwenBuildHooks>` | Souscriptions aux crochets de compilation |
+| `plugins` | `GwenPlugin[]` | Enregistrement direct de plugins (porte de secours) |
 
-### Cycle de vie du moteur
+**Exemple :**
+```ts
+export default defineConfig({
+  modules: [
+    '@gwenjs/physics2d',
+    ['@gwenjs/input', { gamepad: true }],
+  ],
+  engine: {
+    maxEntities: 5_000,
+    targetFPS: 60,
+    variant: 'physics2d',
+  },
+  vite: {
+    // Configuration Vite directe
+  },
+})
+```
 
-Quand vous appelez `engine.start()`, voici ce qui se passe dans l'ordre :
+## Configuration au runtime : `GwenEngineOptions`
 
-1. **Boot** — Charger le module WASM, initialiser les systèmes internes
-2. **Montage des plugins** — Appeler `mount()` sur chaque plugin
-3. **Chargement de scène** — Charger la scène initiale, créer ses acteurs
-4. **Initialisation des acteurs** — Appeler `onStart()` sur chaque acteur de la scène
-5. **Initialisation des systèmes** — Appeler les callbacks `onStart()` dans chaque système
-6. **Boucle de jeu** — Chaque frame :
-   - Appeler `onUpdate(dt)` sur chaque système
-   - Rendu
-   - Simulation physique (si le plugin Physics2D est chargé)
-7. **Déchargement de scène** — En changeant de scène, appeler `onDestroy()` sur les acteurs et systèmes
-8. **Démontage des plugins** — Appeler `unmount()` sur chaque plugin
+Utilisée dans **`createEngine()`** au runtime. Configure l'instance du moteur.
+
+| Propriété | Type | Description |
+|---|---|---|
+| `maxEntities` | `number` | Nombre maximal d'entités simultanées |
+| `targetFPS` | `number` | Images par seconde cibles |
+| `variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM |
+| `debug` | `boolean` | Activer les logs de débogage et les vérifications |
+| `enableStats` | `boolean` | Collecter les statistiques de performance (par défaut true) |
+| `sparseTransformSync` | `boolean` | Ne synchroniser que les transformations modifiées (par défaut true) |
+| `loop` | `'internal' \| 'external'` | Mode de boucle de jeu (par défaut 'internal') |
+| `maxDeltaSeconds` | `number` | Delta max par frame (par défaut 0.1s) |
+| `tweenPoolSize` | `number` | Slots de tween pré-alloués (par défaut 256) |
+
+**Exemple :**
+```ts
+const engine = await createEngine({
+  maxEntities: 10_000,
+  targetFPS: 60,
+  variant: 'physics2d',
+  debug: true,
+  loop: 'internal',
+})
+```
+
+## Mode boucle interne vs externe
+
+Par défaut, GWEN gère `requestAnimationFrame`. Utilisez `loop: 'external'` pour contrôler la boucle vous-même :
+
+```ts
+// Mode boucle interne (par défaut)
+const engine = await createEngine({ loop: 'internal' })
+await engine.start()
+
+// Mode boucle externe
+const engine = await createEngine({ loop: 'external' })
+function gameLoop(delta: number) {
+  engine.advance(delta)
+  requestAnimationFrame(gameLoop)
+}
+requestAnimationFrame(gameLoop)
+```
+
+## Installation de plugins et routeurs
+
+Après la création, installez les plugins et routeurs avant d'appeler `engine.start()` :
+
+```ts
+const engine = await createEngine({ variant: 'physics2d' })
+
+// Installer un plugin
+await engine.use(Physics2DPlugin())
+
+// Installer un routeur de scènes
+await engine.use(AppRouter)
+
+// Démarrer la boucle de jeu
+await engine.start()
+```
 
 ## Accéder au moteur dans les systèmes
 
-À l'intérieur de la fonction de configuration d'un système, utilisez le hook `useEngine()` pour accéder à l'instance du moteur :
+À l'intérieur de la fonction de configuration d'un système, utilisez `useEngine()` pour accéder à l'instance du moteur :
 
 ```ts
 import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
@@ -72,100 +160,82 @@ export const InputSystem = defineSystem(() => {
   const engine = useEngine()
 
   onUpdate(() => {
-    if (engine.input.isKeyDown('ArrowLeft')) {
-      // Gérer l'entrée
-    }
+    // Exécuter chaque frame
   })
 })
 ```
 
 Depuis le moteur, vous pouvez :
 
-- Accéder à la **scène courante** — `engine.currentScene`
+- Obtenir les **statistiques** — `engine.getStats()` (fps, frameCount, entityCount, etc.)
 - **Créer/détruire des entités** — `engine.spawn()`, `engine.destroy()`
 - Accéder aux **plugins** — `engine.getPlugin(PhysicsPlugin)`
-- **Changer de scène** — `engine.loadScene('menu')`
-- Accéder à l'**état d'entrée** — `engine.input`
+- **Contrôler la boucle** — `engine.pause()`, `engine.resume()`, `engine.advance(delta)` (mode externe)
 
-## Accéder au moteur dans les composants et acteurs
+## Cycle de vie du moteur
 
-À l'intérieur d'un **acteur** (nœud de scène), vous pouvez accéder au moteur via le contexte de l'acteur :
+Quand vous appelez `engine.start()` :
 
-```ts
-import { Actor } from '@gwenjs/core'
-
-export class Player extends Actor {
-  onStart() {
-    const engine = this.scene.engine
-    this.scene.spawn(/* ... */)
-  }
-}
-```
-
-## Gérer le démarrage et l'arrêt
-
-Utilisez `mount()` et `unmount()` du plugin pour l'initialisation et le nettoyage :
-
-```ts
-import { Plugin } from '@gwenjs/core'
-
-export class MyPlugin extends Plugin {
-  mount(engine) {
-    console.log('Le jeu démarre !')
-    // Initialiser les bibliothèques externes, charger les ressources, etc.
-  }
-
-  unmount(engine) {
-    console.log('Le jeu s\'arrête !')
-    // Nettoyer : déconnecter les sockets, arrêter les serveurs, etc.
-  }
-}
-```
+1. **Initialisation** — Configurer la mémoire WASM, les systèmes internes
+2. **Configuration des plugins** — Appeler la configuration sur chaque plugin monté
+3. **Entrée dans la scène initiale** — Charger le premier état du routeur ou de la scène
+4. **Boucle de jeu** — Chaque frame :
+   - Appeler `onUpdate(dt)` sur tous les systèmes
+   - Mettre à jour les composants
+   - Rendu (si un canvas est attaché)
+   - Simulation physique (si le plugin Physics est monté)
 
 ## Tâches courantes du moteur
 
-### Changer de scène
+### Obtenir les statistiques du moteur
 
 ```ts
-const engine = useEngine()
-engine.loadScene('menu')
+const stats = engine.getStats()
+console.log(`FPS: ${stats.fps}`)
+console.log(`Entités: ${stats.entityCount}`)
+console.log(`Delta: ${stats.deltaTime}s`)
 ```
 
-### Obtenir une instance de plugin
+### Mettre en pause et reprendre
 
 ```ts
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-
-const engine = useEngine()
-const physics = engine.getPlugin(Physics2DPlugin)
+engine.pause()
+engine.resume()
 ```
 
-### Créer une entité
+### Boucle externe (avancé)
 
 ```ts
-const engine = useEngine()
-const entityId = engine.spawn([
-  [Position, { x: 10, y: 20 }],
-  [Velocity, { x: 1, y: 0 }],
-])
+const engine = await createEngine({ loop: 'external' })
+
+let lastTime = performance.now()
+function tick(now: number) {
+  const delta = (now - lastTime) / 1000  // Convertir en secondes
+  lastTime = now
+  engine.advance(delta)
+  requestAnimationFrame(tick)
+}
+requestAnimationFrame(tick)
 ```
 
 ## Résumé de l'API
 
-| Fonction/Propriété | Retour | Description |
+| Fonction | Retour | Description |
 |---|---|---|
-| `createEngine(config)` | `GwenEngine` | Créer un moteur à partir d'une configuration |
-| `engine.start()` | `Promise<void>` | Démarrer le moteur, charger WASM, monter les plugins, entrer dans la scène initiale |
-| `engine.loadScene(name)` | `Promise<void>` | Charger une nouvelle scène |
+| `createEngine(options)` | `Promise<GwenEngine>` | Créer et initialiser le moteur |
+| `engine.use(plugin)` | `Promise<void>` | Installer un plugin ou un routeur |
+| `engine.start()` | `Promise<void>` | Démarrer la boucle de jeu |
+| `engine.pause()` | `void` | Mettre en pause la boucle de jeu |
+| `engine.resume()` | `void` | Reprendre la boucle de jeu |
+| `engine.advance(delta)` | `void` | Avancer manuellement d'une frame (mode boucle externe) |
+| `engine.getStats()` | `EngineStats` | Obtenir les métriques de performance |
 | `engine.spawn(components)` | `number` | Créer une nouvelle entité |
 | `engine.destroy(id)` | `void` | Supprimer une entité |
-| `engine.currentScene` | `Scene` | La scène active |
-| `engine.input` | `InputState` | État du clavier/souris actuel |
-| `engine.getPlugin(PluginClass)` | `T` | Récupérer une instance de plugin par classe |
-| `useEngine()` | `GwenEngine` | Accéder au moteur depuis la configuration d'un système |
+| `useEngine()` | `GwenEngine` | Accéder au moteur depuis l'intérieur d'un système |
 
 ## Prochaines étapes
 
 - **[Composants](/fr/essentials/components)** — Définir les structures de données pour vos entités.
 - **[Systèmes](/fr/essentials/systems)** — Écrire des systèmes pour déplacer et mettre à jour les entités.
-- **[Scènes et acteurs](/fr/essentials/scenes)** — Comprendre le graphe de scène et le système de préfabriqué.
+- **[Scènes](/fr/essentials/scenes)** — Organiser votre jeu en états distincts.
+- **[Acteurs](/essentials/actors)** — Créer des objets de jeu composables basés sur des instances.

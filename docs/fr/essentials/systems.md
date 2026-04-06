@@ -34,15 +34,12 @@ export const MovementSystem = defineSystem(() => {
 Les systèmes sont enregistrés dans une scène :
 
 ```ts
-import { Scene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core'
 
-export class GameScene extends Scene {
-  onLoad() {
-    this.addSystem(MovementSystem)
-    this.addSystem(DamageSystem)
-    this.addSystem(RenderSystem)
-  }
-}
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, DamageSystem, RenderSystem],
+})
 ```
 
 ### Pourquoi diviser les phases de configuration et frame ?
@@ -54,36 +51,43 @@ La phase de configuration est coûteuse (les requêtes sont calculées une fois)
 
 Si les requêtes étaient recalculées chaque frame, votre jeu serait lent.
 
-## Hooks de cycle de vie
+## Crochets de cycle de vie
 
-Les systèmes ont plusieurs hooks de callback disponibles :
+Les systèmes ont plusieurs crochets de callback disponibles :
 
-| Hook | Signature | Quand | Cas d'usage |
+| Crochet | Signature | Quand | Cas d'usage |
 |---|---|---|---|
-| `onStart()` | `onStart(cb: () => void)` | Une fois quand la scène démarre | Initialiser l'état, charger les ressources |
 | `onUpdate()` | `onUpdate(cb: (dt: number) => void)` | Chaque frame | Mettre à jour les positions, vérifier les collisions |
-| `onDestroy()` | `onDestroy(cb: () => void)` | Quand la scène se décharge | Nettoyer, sauvegarder l'état |
-| `onEvent()` | `onEvent(type, cb: (data) => void)` | Quand l'événement se déclenche | Réagir aux événements personnalisés |
+| `onBeforeUpdate()` | `onBeforeUpdate(cb: (dt: number) => void)` | Avant la mise à jour principale | Pré-traiter les données |
+| `onAfterUpdate()` | `onAfterUpdate(cb: (dt: number) => void)` | Après la mise à jour principale | Post-traiter les données |
+| `onRender()` | `onRender(cb: () => void)` | Pendant la phase de rendu | Mises à jour de rendu |
 
 Exemple :
 
 ```ts
-import { defineSystem, onStart, onUpdate, onDestroy } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core'
+import { Position, Velocity } from './components'
 
 export const MySystem = defineSystem(() => {
-  let totalDamage = 0
+  const entities = useQuery([Position, Velocity])
 
-  onStart(() => {
-    console.log('Système initialisé')
+  onBeforeUpdate((dt) => {
+    // Étape de pré-traitement
   })
 
   onUpdate((dt) => {
     // Mettre à jour l'état du jeu
-    totalDamage += dt
+    for (const id of entities) {
+      Position.x[id] += Velocity.x[id] * dt
+    }
   })
 
-  onDestroy(() => {
-    console.log(`Dégâts totaux : ${totalDamage}`)
+  onAfterUpdate((dt) => {
+    // Étape de post-traitement
+  })
+
+  onRender(() => {
+    // Rendre l'état mis à jour
   })
 })
 ```
@@ -135,7 +139,7 @@ onUpdate(() => {
 
 ## Accéder aux services
 
-Les plugins exposent des services auxquels vous pouvez accéder depuis les systèmes en utilisant les hooks `use*` :
+Les plugins exposent des services auxquels vous pouvez accéder depuis les systèmes en utilisant les crochets `use*` :
 
 ### Service physique
 
@@ -198,6 +202,174 @@ export const EnemyAISystem = defineSystem(() => {
       const dist = Math.sqrt(dx * dx + dy * dy)
 
       if (dist > 0) {
+        Velocity.x[id] = (dx / dist) * ENEMY_SPEED
+        Velocity.y[id] = (dy / dist) * ENEMY_SPEED
+      }
+    }
+  })
+})
+```
+
+### Système de dégâts
+
+```ts
+import {
+  defineSystem,
+  useQuery,
+  onUpdate,
+  removeComponent,
+  addComponent,
+} from '@gwenjs/core'
+import {
+  Health,
+  DamageTag,
+  DeadTag,
+  Armor,
+} from './components'
+
+export const DamageSystem = defineSystem(() => {
+  const damaged = useQuery([Health, DamageTag])
+
+  onUpdate(() => {
+    for (const id of damaged) {
+      const armorValue = Armor.value[id] ?? 0
+      const damageReduction = armorValue / (armorValue + 10)
+      Health.current[id] -= 10 * (1 - damageReduction)
+
+      if (Health.current[id] <= 0) {
+        removeComponent(id, Health)
+        addComponent(id, DeadTag)
+      }
+
+      removeComponent(id, DamageTag)
+    }
+  })
+})
+```
+
+## Ordre des systèmes
+
+Les systèmes s'exécutent dans l'ordre dans lequel vous les listez dans la scène. Si `RenderSystem` dépend de `PhysicsSystem`, ajoutez la physique en premier :
+
+```ts
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [
+    PhysicsSystem,      // S'exécute en premier
+    MovementSystem,     // S'exécute en deuxième
+    CollisionSystem,    // S'exécute en troisième
+    RenderSystem,       // S'exécute en dernier (lit les positions mises à jour)
+  ],
+})
+```
+
+## Gestion des erreurs dans les systèmes
+
+Les erreurs dans le callback `onUpdate` d'un système sont capturées et enregistrées. Le jeu continue :
+
+```ts
+import { defineSystem, onUpdate } from '@gwenjs/core'
+
+export const SafeSystem = defineSystem(() => {
+  onUpdate(() => {
+    try {
+      // Opération risquée
+    } catch (err) {
+      console.error('Erreur système :', err)
+      // Le jeu continue
+    }
+  })
+})
+```
+
+Pour les erreurs irrécupérables, émettez un événement :
+
+```ts
+import { defineSystem, useEngine } from '@gwenjs/core'
+
+export const EngineAwareSystem = defineSystem(() => {
+  const engine = useEngine()
+
+  onUpdate(() => {
+    if (somethingBad) {
+      engine.errors.emit({
+        level: 'error',
+        code: 'GAME:UNRECOVERABLE',
+        message: 'Quelque chose s\'est mal passé',
+      })
+    }
+  })
+})
+```
+
+## Approfondissement
+
+### Performance : Configuration vs. Frame
+
+Quand vous appelez `useQuery([Position, Velocity])` dans la phase de configuration, GWEN :
+
+1. Scanne toutes les entités
+2. Construit une liste d'IDs correspondant à `[Position, Velocity]`
+3. Met en cache le résultat
+
+Quand la requête change (une entité gagne/perd un composant), le résultat est recalculé. Mais pendant la boucle de frame, l'itération est **O(n)** où n est la taille de la requête, pas le nombre total d'entités.
+
+**Sans cache (lent) :**
+```
+for chaque entité dans le monde {
+  if elle a Position et Velocity {
+    // traiter
+  }
+}
+// O(total des entités) par frame
+```
+
+**Avec cache (rapide) :**
+```
+entities = [id1, id2, id3, ...] // calculé une fois
+for chaque entité dans entities {
+  // traiter
+}
+// O(entités correspondantes) par frame
+```
+
+### Composition des systèmes
+
+Un comportement complexe émerge de systèmes simples. Voici un exemple complet :
+
+```ts
+// Les systèmes mettent à jour les composants indépendamment
+- MovementSystem met à jour Position en fonction de Velocity
+- DamageSystem met à jour Health en fonction de DamageTag
+- RenderSystem lit Position et rend
+- PhysicsSystem gère les collisions
+
+// Aucun système ne dépend directement de la sortie d'un autre
+// Les données circulent par les composants
+```
+
+Cet **découplage** est la raison pour laquelle ECS se met à l'échelle. Ajouter un nouveau système ? Aucune refactorisation nécessaire—définissez-en simplement un nouveau.
+
+## Résumé de l'API
+
+| Fonction | Description |
+|---|---|
+| `defineSystem(setup)` | Déclarer un système |
+| `useQuery(components, opts?)` | Ensemble d'entités réactif correspondant aux composants |
+| `onUpdate(cb)` | Enregistrer le callback de frame |
+| `onBeforeUpdate(cb)` | Enregistrer le callback de pré-mise à jour |
+| `onAfterUpdate(cb)` | Enregistrer le callback de post-mise à jour |
+| `onRender(cb)` | Enregistrer le callback de phase de rendu |
+| `useEngine()` | Accéder à l'instance du moteur |
+| `usePhysics2D()` | Accéder au service de physique |
+| `addComponent(id, Component, data)` | Ajouter un composant à une entité |
+| `removeComponent(id, Component)` | Retirer un composant d'une entité |
+
+## Prochaines étapes
+
+- **[Composants](/fr/essentials/components)** — Définir les données que vos systèmes vont manipuler.
+- **[Architecture](/fr/essentials/architecture)** — Comprendre comment les systèmes s'intègrent dans l'ECS.
+- **[Scènes et Acteurs](/fr/essentials/scenes)** — Apprendre à organiser les systèmes dans les scènes.
         Velocity.x[id] = (dx / dist) * ENEMY_SPEED
         Velocity.y[id] = (dy / dist) * ENEMY_SPEED
       }
