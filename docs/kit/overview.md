@@ -19,7 +19,7 @@ Together they allow you to extend GWEN with custom or third-party capabilities.
 | Aspect | Plugin | Module |
 |--------|--------|--------|
 | Defined with | `definePlugin()` from `@gwenjs/kit` | `defineGwenModule()` from `@gwenjs/kit` |
-| Registered in | `defineConfig({ plugins })` in `gwen.config.ts` | `defineConfig({ modules })` in `gwen.config.ts` or inside a plugin |
+| Registered in | `engine.use(Plugin())` in `main.ts` | `defineConfig({ modules })` in `gwen.config.ts` |
 | Execution context | Runtime (browser) | Build-time (Node.js: `gwen dev`, `gwen build`, `gwen prepare`) |
 | Scope | Engine-wide lifecycle | Feature setup, configuration, code generation |
 | Example | Input handling, physics simulation | Registering plugins, auto-imports, Vite extensions, type templates |
@@ -78,8 +78,18 @@ import InputModule from '@my-scope/input'
 
 export default defineConfig({
   modules: [InputModule],
-  plugins: [], // Other plugins registered here
 })
+```
+
+In `main.ts`, register the plugin that the module provides:
+
+```ts
+import { createEngine } from '@gwenjs/core'
+import { InputPlugin } from '@my-scope/input'
+
+const engine = await createEngine()
+await engine.use(InputPlugin())
+await engine.start()
 ```
 
 ## When to Use Each

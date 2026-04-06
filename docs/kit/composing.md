@@ -16,21 +16,22 @@ Real games often need multiple plugins that work together. This guide shows how 
 
 ### Plugin Ordering
 
-Plugins are registered in order in `gwen.config.ts`. **Dependencies must be registered before plugins that depend on them.**
+Plugins are registered in `main.ts` with `engine.use()`. **Dependencies must be registered before plugins that depend on them.**
 
 ```ts
-import { defineConfig } from '@gwenjs/app'
+import { createEngine } from '@gwenjs/core'
 import { InputPlugin } from './plugins/input'
 import { AudioPlugin } from './plugins/audio'
 import { GamePlugin } from './plugins/game' // Depends on Input and Audio
 
-export default defineConfig({
-  plugins: [
-    InputPlugin(),      // Registered first
-    AudioPlugin(),      // Registered second
-    GamePlugin(),       // Registered third — can use Input and Audio
-  ],
-})
+const engine = await createEngine()
+
+// Register in dependency order
+await engine.use(InputPlugin())      // Registered first
+await engine.use(AudioPlugin())      // Registered second
+await engine.use(GamePlugin())       // Registered third — can use Input and Audio
+
+await engine.start()
 ```
 
 ### Optional Dependencies
@@ -72,7 +73,7 @@ import { CollisionPlugin } from './collision'
 export const PhysicsSystemPlugin = definePlugin(() => ({
   name: 'physics-system',
   setup(engine) {
-    // Register dependent plugins
+    // Register dependent plugins within setup
     engine.use(PhysicsPlugin())
     engine.use(CollisionPlugin())
 
@@ -83,6 +84,17 @@ export const PhysicsSystemPlugin = definePlugin(() => ({
     })
   },
 }))
+```
+
+Then in `main.ts`:
+
+```ts
+import { createEngine } from '@gwenjs/core'
+import { PhysicsSystemPlugin } from './plugins/physics-system'
+
+const engine = await createEngine()
+await engine.use(PhysicsSystemPlugin())
+await engine.start()
 ```
 
 ## In Practice
@@ -175,17 +187,25 @@ export const GamePlugin = definePlugin(() => ({
 }))
 ```
 
-**Configuration:**
+**Configuration in `gwen.config.ts`:**
 
 ```ts
 import { defineConfig } from '@gwenjs/app'
-import { GamePlugin } from './plugins/game'
 
 export default defineConfig({
-  plugins: [
-    GamePlugin(), // Internally registers Input and Physics
-  ],
+  modules: ['@my-scope/game-framework'],
 })
+```
+
+**Registration in `main.ts`:**
+
+```ts
+import { createEngine } from '@gwenjs/core'
+import { GamePlugin } from './plugins/game'
+
+const engine = await createEngine()
+await engine.use(GamePlugin()) // Internally registers Input and Physics
+await engine.start()
 ```
 
 ### Handling Missing Dependencies Gracefully
@@ -224,29 +244,32 @@ export const DebugUIPlugin = definePlugin(() => ({
 3. **Game logic last** — Game-specific plugins that use the above
 4. **UI and Debug last** — Debug, UI plugins that query multiple services
 
-Example ordering:
+Example in `main.ts`:
 
 ```ts
-export default defineConfig({
-  plugins: [
-    // Infrastructure
-    InputPlugin(),
-    AudioPlugin(),
-    Platform2DPlugin(),
+import { createEngine } from '@gwenjs/core'
+import { InputPlugin } from './plugins/input'
+import { AudioPlugin } from './plugins/audio'
+import { Physics2DPlugin } from '@gwenjs/physics2d'
 
-    // Simulation
-    Physics2DPlugin({ gravity: 9.81 }),
-    AnimationPlugin(),
+const engine = await createEngine()
 
-    // Game
-    GamePlugin(),
-    SceneManagerPlugin(),
+// Infrastructure
+await engine.use(InputPlugin())
+await engine.use(AudioPlugin())
 
-    // Debug and UI (optional)
-    DebugPlugin({ showPhysics: true }),
-    UIPlugin(),
-  ],
-})
+// Simulation
+await engine.use(Physics2DPlugin({ gravity: 9.81 }))
+
+// Game
+await engine.use(GamePlugin())
+
+// Debug (optional)
+if (isDevelopment) {
+  await engine.use(DebugPlugin({ showPhysics: true }))
+}
+
+await engine.start()
 ```
 
 ## Using Modules for Complex Plugins
@@ -394,4 +417,13 @@ const MyPlugin = definePlugin(() => ({
     })
   },
 }))
+```
+
+Then in `main.ts`:
+
+```ts
+const engine = await createEngine()
+await engine.use(RequiredPlugin())
+await engine.use(MyPlugin())
+await engine.start()
 ```

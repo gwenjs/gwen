@@ -12,21 +12,19 @@ GWEN's error bus provides a structured way for the engine, plugins, and game cod
 Access the error bus through the engine:
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
 
 export const ErrorHandlingSystem = defineSystem(() => {
   const engine = useEngine()
 
-  onStart(() => {
-    // Listen for errors emitted by the engine or plugins
-    engine.errors.on((error) => {
-      console.warn(`[${error.level}] ${error.code}: ${error.message}`)
+  // Listen for errors emitted by the engine or plugins
+  engine.errors.on((error) => {
+    console.warn(`[${error.level}] ${error.code}: ${error.message}`)
 
-      if (error.level === 'fatal') {
-        // Perform cleanup or show an error screen
-        showErrorDialog(error.message)
-      }
-    })
+    if (error.level === 'fatal') {
+      // Perform cleanup or show an error screen
+      showErrorDialog(error.message)
+    }
   })
 })
 ```
@@ -162,28 +160,28 @@ export const PhysicsSystem = defineSystem(() => {
 Forward errors to your analytics backend:
 
 ```ts
+import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+
 export const TelemetrySystem = defineSystem(() => {
   const engine = useEngine()
 
-  onStart(() => {
-    engine.errors.on((event) => {
-      // Only report errors and above
-      if (['error', 'fatal'].includes(event.level)) {
-        fetch('/api/errors', {
-          method: 'POST',
-          body: JSON.stringify({
-            timestamp: Date.now(),
-            code: event.code,
-            message: event.message,
-            level: event.level,
-            context: event.context,
-            stacktrace: event.error instanceof Error
-              ? event.error.stack
-              : undefined
-          })
+  engine.errors.on((event) => {
+    // Only report errors and above
+    if (['error', 'fatal'].includes(event.level)) {
+      fetch('/api/errors', {
+        method: 'POST',
+        body: JSON.stringify({
+          timestamp: Date.now(),
+          code: event.code,
+          message: event.message,
+          level: event.level,
+          context: event.context,
+          stacktrace: event.error instanceof Error
+            ? event.error.stack
+            : undefined
         })
-      }
-    })
+      })
+    }
   })
 })
 ```

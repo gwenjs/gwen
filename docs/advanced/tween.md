@@ -23,10 +23,11 @@ export const FadeSystem = defineSystem(() => {
   onUpdate(() => {
     // opacity.value updates automatically each frame
     mesh.material.opacity = opacity.value
-  })
 
-  onStart(() => {
-    opacity.play({ from: 1, to: 0 })
+    // Start the tween when a condition is met
+    if (shouldFade && !opacity.playing) {
+      opacity.play({ from: 1, to: 0 })
+    }
   })
 })
 ```
@@ -55,13 +56,19 @@ You can also provide a custom easing function: `(t: number) => number` where `t`
 Queue multiple segments with `.to()`:
 
 ```ts
-const position = useTween<Vec2>({ duration: 0.2 })
+import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
 
-onStart(() => {
-  position
-    .play({ from: { x: 0, y: 0 }, to: { x: 100, y: 50 } })
-    .to({ value: { x: 100, y: 100 }, duration: 0.3 })
-    .to({ value: { x: 0, y: 100 }, duration: 0.2 })
+const AnimationSystem = defineSystem(() => {
+  const position = useTween<Vec2>({ duration: 0.2 })
+
+  onUpdate(() => {
+    if (shouldStartAnimation && !position.playing) {
+      position
+        .play({ from: { x: 0, y: 0 }, to: { x: 100, y: 50 } })
+        .to({ value: { x: 100, y: 100 }, duration: 0.3 })
+        .to({ value: { x: 0, y: 100 }, duration: 0.2 })
+    }
+  })
 })
 ```
 
@@ -107,14 +114,20 @@ scale.onLoop(() => {
 Repeat animations indefinitely or reverse them:
 
 ```ts
-const bobbing = useTween<number>({
-  duration: 1,
-  loop: true,
-  yoyo: true,  // Reverse direction after each cycle
-})
+import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
 
-onStart(() => {
-  bobbing.play({ from: 0, to: 1 })
+const BobbingSystem = defineSystem(() => {
+  const bobbing = useTween<number>({
+    duration: 1,
+    loop: true,
+    yoyo: true,  // Reverse direction after each cycle
+  })
+
+  onUpdate(() => {
+    if (!bobbing.playing) {
+      bobbing.play({ from: 0, to: 1 })
+    }
+  })
 })
 ```
 
@@ -127,25 +140,29 @@ With `loop: true` and `yoyo: true`, the tween bounces back and forth: 0 â†’ 1 â†
 Enemies scale from 0 to 1 over 0.2 seconds when spawned:
 
 ```ts
-import { definePrefab, useTween, onStart } from '@gwenjs/core'
+import { defineSystem, usePrefab, useTween, onUpdate } from '@gwenjs/core'
 import { Position, Scale } from './components'
+import { EnemyPrefab } from './prefabs'
 
-export const Enemy = definePrefab({
-  components: [Position, Scale],
-  setup(actor) {
-    const scale = useTween<number>({ duration: 0.2, easing: 'easeOut' })
+export const EnemySpawnSystem = defineSystem(() => {
+  const scale = useTween<number>({ duration: 0.2, easing: 'easeOut' })
+  const enemies = usePrefab(EnemyPrefab)
 
-    onStart(() => {
-      Scale.x[actor.id] = 0
-      Scale.y[actor.id] = 0
-      scale.play({ from: 0, to: 1 })
-    })
-
-    onUpdate(() => {
-      Scale.x[actor.id] = scale.value
-      Scale.y[actor.id] = scale.value
-    })
-  }
+  onUpdate(() => {
+    if (shouldSpawns) {
+      const id = enemies.spawn({ x: 100, y: 100 })
+      Scale.x[id] = 0
+      Scale.y[id] = 0
+      
+      if (!scale.playing) {
+        scale.play({ from: 0, to: 1 })
+      }
+      
+      // Update scale each frame
+      Scale.x[id] = scale.value
+      Scale.y[id] = scale.value
+    }
+  })
 })
 ```
 
@@ -154,16 +171,16 @@ export const Enemy = definePrefab({
 Fade a dialog panel in when a scene starts:
 
 ```ts
-import { useTween, onStart, onUpdate } from '@gwenjs/core'
+import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
 
 export const DialogSystem = defineSystem(() => {
   const alpha = useTween<number>({ duration: 0.4, easing: 'easeIn' })
 
-  onStart(() => {
-    alpha.play({ from: 0, to: 1 })
-  })
-
   onUpdate(() => {
+    if (!alpha.playing) {
+      alpha.play({ from: 0, to: 1 })
+    }
+    
     dialogPanel.opacity = alpha.value
   })
 })

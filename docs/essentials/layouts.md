@@ -11,15 +11,15 @@ A **layout** is a persistent UI layer that lives above all scenes. Unlike scenes
 
 ### Defining a Layout
 
-Use `defineLayout()` to create a persistent UI:
+Use `defineLayout()` to create a persistent UI layer:
 
 ```ts
-import { defineLayout } from '@gwenjs/core'
+import { defineLayout, placeActor } from '@gwenjs/core'
 import { HUDActor } from './actors/hud'
 
-export const GameLayout = defineLayout({
-  name: 'game-hud',
-  actors: [HUDActor],
+export const GameLayout = defineLayout(() => {
+  const hud = placeActor(HUDActor)
+  return { hud }
 })
 ```
 
@@ -28,30 +28,34 @@ export const GameLayout = defineLayout({
 Layouts are typically loaded at startup or when entering gameplay:
 
 ```ts
-import { defineSceneRouter, useLayoutManager } from '@gwenjs/core'
+import { defineSystem, useLayout } from '@gwenjs/core'
+import { GameLayout } from './layouts'
+
+export const LayoutInitSystem = defineSystem(() => {
+  const level = useLayout(GameLayout)
+
+  onUpdate(() => {
+    if (!level.active && shouldLoadLayout) {
+      level.load() // Persist this HUD across all scenes
+    }
+  })
+})
+```
+
+Or use from a scene router initialization:
+
+```ts
+import { defineSceneRouter } from '@gwenjs/core'
 import { GameLayout } from './layouts'
 
 export const router = defineSceneRouter({
   scenes: { menu: MenuScene, game: GameScene },
   initial: 'menu',
-  onRouterInit: (manager) => {
+  onRouterInit: async (router) => {
     // Load the layout when game starts
-    manager.loadLayout(GameLayout)
+    const level = useLayout(GameLayout)
+    await level.load()
   },
-})
-```
-
-Or load it dynamically from a system:
-
-```ts
-import { defineSystem, useLayoutManager } from '@gwenjs/core'
-
-export const LayoutInitSystem = defineSystem(() => {
-  const { loadLayout } = useLayoutManager()
-
-  onStart(() => {
-    loadLayout(GameLayout) // Persist this HUD across all scenes
-  })
 })
 ```
 
@@ -76,7 +80,7 @@ export const HUDData = defineComponent({
 
 ```ts
 // actors/hud.ts
-import { defineActor, onUpdate } from '@gwenjs/core'
+import { defineActor, onStart, onUpdate } from '@gwenjs/core'
 import { useQuery, useEngine } from '@gwenjs/core'
 import { HUDData } from '../components/hud'
 import { Health, Position } from '../components'
@@ -84,7 +88,7 @@ import { Health, Position } from '../components'
 export const HUDActor = defineActor({
   name: 'HUD',
   setup() {
-    let hudEntity: number
+    let hudEntity: bigint
 
     onStart(() => {
       const engine = useEngine()
@@ -136,19 +140,22 @@ router.pop() // HUD is still there with same values
 Layouts provide a shared data layer that any scene's system can read and write:
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
-import { useLayoutManager } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate, useLayout } from '@gwenjs/core'
+import { GameLayout } from './layouts'
 import { Health } from './components'
 import { HUDData } from './components/hud'
 
 export const HealthSyncSystem = defineSystem(() => {
   const players = useQuery([Health])
+  const level = useLayout(GameLayout)
 
   onUpdate(() => {
     for (const playerId of players) {
       // Update the HUD directly from any scene's system
-      const hudEntity = findHUDEntity() // Find HUD entity by name
-      HUDData.health[hudEntity] = Health.current[playerId]
+      if (level.active && level.refs.hud) {
+        const hudEntity = level.refs.hud // Reference to spawned HUD entity
+        HUDData.health[hudEntity] = Health.current[playerId]
+      }
     }
   })
 })
@@ -174,10 +181,12 @@ Use **scenes** for:
 
 | Function | Description |
 |---|---|
-| `defineLayout(options)` | Declare a persistent UI layer |
-| `useLayoutManager()` | Get layout control from a system or actor |
-| `manager.loadLayout(LayoutDef)` | Load a layout (persists across scenes) |
-| `manager.unloadLayout(name)` | Remove a layout |
+| `defineLayout(factory)` | Declare a persistent UI layer |
+| `useLayout(LayoutDef, opts?)` | Get layout control from a system or actor |
+| `layout.load()` | Load/activate the layout |
+| `layout.dispose()` | Unload/deactivate the layout |
+| `layout.active` | Boolean indicating if layout is loaded |
+| `layout.refs` | Object containing references to placed actors |
 
 ## Next Steps
 

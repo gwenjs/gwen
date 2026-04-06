@@ -53,10 +53,21 @@ const MyPlugin = definePlugin(() => ({
 export default defineGwenModule({
   meta: { name: '@my-scope/my-module', configKey: 'myModule' },
   setup(options, gwen) {
-    // Register the plugin to be loaded at runtime
+    // Export the plugin to be registered at runtime
     gwen.addPlugin(MyPlugin())
   },
 })
+```
+
+In `main.ts`, use the plugin:
+
+```ts
+import { createEngine } from '@gwenjs/core'
+import { MyPlugin } from '@my-scope/my-module'
+
+const engine = await createEngine()
+await engine.use(MyPlugin())
+await engine.start()
 ```
 
 ### Module with Options
@@ -98,6 +109,17 @@ export default defineConfig({
     apiUrl: 'https://dev.api.example.com',
   },
 })
+```
+
+Then in `main.ts`, register the plugin at runtime:
+
+```ts
+import { createEngine } from '@gwenjs/core'
+import { MyPlugin } from '@my-scope/my-module'
+
+const engine = await createEngine()
+await engine.use(MyPlugin(/* options */))
+await engine.start()
 ```
 
 ## Build-Time API (GwenKit)

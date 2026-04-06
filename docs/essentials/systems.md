@@ -34,15 +34,12 @@ export const MovementSystem = defineSystem(() => {
 Systems are registered in a scene:
 
 ```ts
-import { Scene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core'
 
-export class GameScene extends Scene {
-  onLoad() {
-    this.addSystem(MovementSystem)
-    this.addSystem(DamageSystem)
-    this.addSystem(RenderSystem)
-  }
-}
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, DamageSystem, RenderSystem],
+})
 ```
 
 ### Why Split Setup and Frame Phases?
@@ -60,30 +57,37 @@ Systems have several callback hooks available:
 
 | Hook | Signature | When | Use Case |
 |---|---|---|---|
-| `onStart()` | `onStart(cb: () => void)` | Once when scene starts | Initialize state, load assets |
 | `onUpdate()` | `onUpdate(cb: (dt: number) => void)` | Every frame | Update positions, check collisions |
-| `onDestroy()` | `onDestroy(cb: () => void)` | When scene unloads | Clean up, save state |
-| `onEvent()` | `onEvent(type, cb: (data) => void)` | When event fires | React to custom events |
+| `onBeforeUpdate()` | `onBeforeUpdate(cb: (dt: number) => void)` | Before main update | Pre-process data |
+| `onAfterUpdate()` | `onAfterUpdate(cb: (dt: number) => void)` | After main update | Post-process data |
+| `onRender()` | `onRender(cb: () => void)` | During render phase | Render updates |
 
 Example:
 
 ```ts
-import { defineSystem, onStart, onUpdate, onDestroy } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core'
+import { Position, Velocity } from './components'
 
 export const MySystem = defineSystem(() => {
-  let totalDamage = 0
+  const entities = useQuery([Position, Velocity])
 
-  onStart(() => {
-    console.log('System initialized')
+  onBeforeUpdate((dt) => {
+    // Pre-process step
   })
 
   onUpdate((dt) => {
     // Update game state
-    totalDamage += dt
+    for (const id of entities) {
+      Position.x[id] += Velocity.x[id] * dt
+    }
   })
 
-  onDestroy(() => {
-    console.log(`Total damage: ${totalDamage}`)
+  onAfterUpdate((dt) => {
+    // Post-process step
+  })
+
+  onRender(() => {
+    // Render the updated state
   })
 })
 ```
@@ -245,17 +249,18 @@ export const DamageSystem = defineSystem(() => {
 
 ## System Ordering
 
-Systems run in the order you add them to the scene. If `RenderSystem` depends on `PhysicsSystem`, add physics first:
+Systems run in the order you list them in the scene. If `RenderSystem` depends on `PhysicsSystem`, add physics first:
 
 ```ts
-export class GameScene extends Scene {
-  onLoad() {
-    this.addSystem(PhysicsSystem)      // Runs first
-    this.addSystem(MovementSystem)     // Runs second
-    this.addSystem(CollisionSystem)    // Runs third
-    this.addSystem(RenderSystem)       // Runs last (reads updated positions)
-  }
-}
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [
+    PhysicsSystem,      // Runs first
+    MovementSystem,     // Runs second
+    CollisionSystem,    // Runs third
+    RenderSystem,       // Runs last (reads updated positions)
+  ],
+})
 ```
 
 ## Error Handling in Systems
@@ -287,8 +292,11 @@ export const EngineAwareSystem = defineSystem(() => {
 
   onUpdate(() => {
     if (somethingBad) {
-      engine.emit('error', { message: 'Something went wrong' })
-      engine.loadScene('menu')
+      engine.errors.emit({
+        level: 'error',
+        code: 'GAME:UNRECOVERABLE',
+        message: 'Something went wrong',
+      })
     }
   })
 })
@@ -349,9 +357,9 @@ This **decoupling** is why ECS scales. Add a new system? No refactoring neededâ€
 | `defineSystem(setup)` | Declare a system |
 | `useQuery(components, opts?)` | Reactive entity set matching components |
 | `onUpdate(cb)` | Register frame callback |
-| `onStart(cb)` | Run once when scene starts |
-| `onDestroy(cb)` | Run when scene unloads |
-| `onEvent(type, cb)` | Listen to custom events |
+| `onBeforeUpdate(cb)` | Register pre-update callback |
+| `onAfterUpdate(cb)` | Register post-update callback |
+| `onRender(cb)` | Register render phase callback |
 | `useEngine()` | Access engine instance |
 | `usePhysics2D()` | Access physics service |
 | `addComponent(id, Component, data)` | Add component to entity |

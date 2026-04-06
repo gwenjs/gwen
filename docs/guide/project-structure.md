@@ -57,24 +57,31 @@ my-game/
 
 ### `src/main.ts` — Engine Entry Point
 
-Initializes the GWEN engine, wires up all modules, systems, and scenes:
+Initializes the GWEN engine and registers plugins:
 
 ```typescript
-import { createEngine, defineConfig } from '@gwenjs/app'
-import * as components from './components'
-import * as systems from './systems'
-import * as scenes from './scenes'
+import { createEngine } from '@gwenjs/core'
+import { Physics2DPlugin } from '@gwenjs/physics2d'
 
-const engine = createEngine(
-  defineConfig({
-    modules: Object.values(components),
-    systems: Object.values(systems),
-    scenes: Object.values(scenes),
-    initialScene: 'game',
-  })
-)
+const engine = await createEngine({ variant: 'physics2d' })
 
-engine.run()
+await engine.use(Physics2DPlugin())
+await engine.start()
+```
+
+### `gwen.config.ts` — Configuration
+
+Declares modules and engine options at build-time:
+
+```typescript
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+  },
+})
 ```
 
 ### `src/components/` — Component Definitions
@@ -109,37 +116,29 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position, Velocity] })
+  const query = useQuery([Position, Velocity])
 
-  onUpdate(() => {
-    query.each(({ c }) => {
-      const pos = c[Position]
-      const vel = c[Velocity]
-      pos.x += vel.vx
-      pos.y += vel.vy
-    })
+  onUpdate((dt) => {
+    for (const id of query) {
+      Position.x[id] += Velocity.x[id] * dt
+      Position.y[id] += Velocity.y[id] * dt
+    }
   })
 })
 ```
 
 ### `src/scenes/` — Scene Definitions
 
-Scenes are functions that spawn entities and set up gameplay. Think of them as "levels" or "screens."
+Scenes are functions that set up gameplay and register systems:
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene, createEntity } from '@gwenjs/core'
-import { Player } from '../prefabs'
-import { EnemyPrefab } from '../prefabs'
+import { defineScene } from '@gwenjs/core'
+import { MovementSystem, CollisionSystem, RenderSystem } from '../systems'
 
-export const GameScene = defineScene('game', ({ entities }) => {
-  // Spawn the player
-  entities.add(Player.create())
-
-  // Spawn enemies
-  for (let i = 0; i < 5; i++) {
-    entities.add(EnemyPrefab.create({ x: i * 50, y: 10 }))
-  }
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, CollisionSystem, RenderSystem],
 })
 ```
 
@@ -173,14 +172,11 @@ Prefabs are defined with `definePrefab()` for entities you spawn in bulk — bul
 import { definePrefab } from '@gwenjs/core'
 import { Position, Velocity, DamageTag } from '../components'
 
-export const BulletPrefab = definePrefab({
-  name: 'Bullet',
-  components: [Position, Velocity, DamageTag],
-  defaults: {
-    [Position.name]: { x: 0, y: 0 },
-    [Velocity.name]: { x: 0, y: 10 },
-  },
-})
+export const BulletPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Velocity, defaults: { x: 0, y: 10 } },
+  { def: DamageTag, defaults: {} },
+])
 ```
 
 ### `src/plugins/` — Custom Plugins
@@ -238,14 +234,16 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 
 ### `gwen.config.ts` — Engine Configuration
 
-The main configuration file for your GWEN project. Declares plugins, scenes, WASM variant, and debug options:
+The main configuration file for your GWEN project. Declares modules and engine options:
 
 ```typescript
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  wasmVariant: 'release', // or 'debug'
-  enableDebugMode: true,
+  modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+  },
 })
 ```
 
