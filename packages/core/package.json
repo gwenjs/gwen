@@ -1,0 +1,58 @@
+{
+  "name": "@gwenjs/core",
+  "version": "0.1.0",
+  "description": "GWEN Core Engine - ECS + WASM",
+  "files": [
+    "dist",
+    "wasm"
+  ],
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./scene": {
+      "types": "./src/scene/index.ts",
+      "import": "./src/scene/index.ts"
+    },
+    "./wasm/light": {
+      "types": "./wasm/light/gwen_core.d.ts",
+      "import": "./wasm/light/gwen_core.js"
+    },
+    "./wasm/physics2d": {
+      "types": "./wasm/physics2d/gwen_core.d.ts",
+      "import": "./wasm/physics2d/gwen_core.js"
+    },
+    "./wasm/physics3d": {
+      "types": "./wasm/physics3d/gwen_core.d.ts",
+      "import": "./wasm/physics3d/gwen_core.js"
+    }
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "vitest run",
+    "bench": "vitest bench --run",
+    "bench:ecs": "vitest bench --run bench/ecs.bench.ts",
+    "bench:query": "vitest bench --run bench/query.bench.ts",
+    "bench:simulation": "vitest bench --run bench/simulation.bench.ts",
+    "bench:simulation-wasm": "vitest bench --run bench/simulation-wasm.bench.ts",
+    "bench:ci": "vitest bench --run",
+    "watch": "vite build --watch"
+  },
+  "dependencies": {
+    "@gwenjs/math": "workspace:*",
+    "@gwenjs/schema": "workspace:*",
+    "hookable": "^6.0.1",
+    "unctx": "^2.5.0"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  }
+}
