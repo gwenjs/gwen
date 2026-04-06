@@ -1,8 +1,364 @@
 ---
 title: Systèmes
-description: Bientôt disponible.
+description: Les systèmes contiennent toute la logique de jeu dans GWEN. Apprenez à les définir et les composer.
 ---
 
 # Systèmes
 
-Bientôt disponible.
+Un **système** est une fonction qui s'exécute chaque frame et lit/écrit les données de composants. Les systèmes sont la couche logique de jeu de l'ECS de GWEN. Ce guide vous montre comment définir les systèmes, interroger les entités et accéder aux services.
+
+## Les bases
+
+### Définir un système
+
+Utilisez `defineSystem()` pour déclarer un système. À l'intérieur de la fonction de configuration, enregistrez les callbacks qui s'exécutent pendant la boucle de jeu :
+
+```ts
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { Position, Velocity } from './components'
+
+export const MovementSystem = defineSystem(() => {
+  // Phase de configuration : s'exécute une fois quand le système s'initialise
+  const entities = useQuery([Position, Velocity])
+
+  // Callback de frame : s'exécute chaque frame
+  onUpdate((dt) => {
+    for (const id of entities) {
+      Position.x[id] += Velocity.x[id] * dt
+      Position.y[id] += Velocity.y[id] * dt
+    }
+  })
+})
+```
+
+Les systèmes sont enregistrés dans une scène :
+
+```ts
+import { Scene } from '@gwenjs/core'
+
+export class GameScene extends Scene {
+  onLoad() {
+    this.addSystem(MovementSystem)
+    this.addSystem(DamageSystem)
+    this.addSystem(RenderSystem)
+  }
+}
+```
+
+### Pourquoi diviser les phases de configuration et frame ?
+
+La phase de configuration est coûteuse (les requêtes sont calculées une fois), mais la phase frame est légère (juste de l'accès à la mémoire). Cette conception en deux phases signifie :
+
+- **Configuration** — `useQuery()` scanne toutes les entités une fois, construisant l'ensemble correspondant
+- **Frame** — `onUpdate()` itère sur le résultat de requête en cache (très rapide)
+
+Si les requêtes étaient recalculées chaque frame, votre jeu serait lent.
+
+## Hooks de cycle de vie
+
+Les systèmes ont plusieurs hooks de callback disponibles :
+
+| Hook | Signature | Quand | Cas d'usage |
+|---|---|---|---|
+| `onStart()` | `onStart(cb: () => void)` | Une fois quand la scène démarre | Initialiser l'état, charger les ressources |
+| `onUpdate()` | `onUpdate(cb: (dt: number) => void)` | Chaque frame | Mettre à jour les positions, vérifier les collisions |
+| `onDestroy()` | `onDestroy(cb: () => void)` | Quand la scène se décharge | Nettoyer, sauvegarder l'état |
+| `onEvent()` | `onEvent(type, cb: (data) => void)` | Quand l'événement se déclenche | Réagir aux événements personnalisés |
+
+Exemple :
+
+```ts
+import { defineSystem, onStart, onUpdate, onDestroy } from '@gwenjs/core'
+
+export const MySystem = defineSystem(() => {
+  let totalDamage = 0
+
+  onStart(() => {
+    console.log('Système initialisé')
+  })
+
+  onUpdate((dt) => {
+    // Mettre à jour l'état du jeu
+    totalDamage += dt
+  })
+
+  onDestroy(() => {
+    console.log(`Dégâts totaux : ${totalDamage}`)
+  })
+})
+```
+
+## Requêtes
+
+### Requête de base
+
+Interroger toutes les entités avec un ensemble de composants :
+
+```ts
+const entities = useQuery([Position, Velocity])
+
+onUpdate((dt) => {
+  for (const id of entities) {
+    // Traiter toutes les entités avec Position et Velocity
+  }
+})
+```
+
+### Exclure des composants
+
+Exclure les entités qui ont un certain composant (souvent une étiquette) :
+
+```ts
+const alive = useQuery([Health], { exclude: [DeadTag] })
+
+onUpdate(() => {
+  for (const id of alive) {
+    // Traiter seulement les entités vivantes
+  }
+})
+```
+
+### Requêtes réactives
+
+Les requêtes sont réactives. Si une entité gagne ou perd un composant, le résultat de la requête se met à jour automatiquement :
+
+```ts
+const entities = useQuery([Health, Armor])
+
+onUpdate(() => {
+  // Si une entité perd son Armor, elle ne sera pas dans 'entities' au frame suivant
+  for (const id of entities) {
+    // ...
+  }
+})
+```
+
+## Accéder aux services
+
+Les plugins exposent des services auxquels vous pouvez accéder depuis les systèmes en utilisant les hooks `use*` :
+
+### Service physique
+
+```ts
+import { defineSystem, onUpdate, usePhysics2D } from '@gwenjs/core'
+
+export const PhysicsSystem = defineSystem(() => {
+  const physics = usePhysics2D()
+
+  onUpdate(() => {
+    const bodies = physics.queryAABB({ x: 0, y: 0, w: 100, h: 100 })
+    // Gérer les requêtes physiques
+  })
+})
+```
+
+### Accès au moteur
+
+```ts
+import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+
+export const InputSystem = defineSystem(() => {
+  const engine = useEngine()
+
+  onUpdate(() => {
+    if (engine.input.isKeyDown('ArrowRight')) {
+      // Gérer l'entrée
+    }
+  })
+})
+```
+
+## En pratique
+
+### Système d'IA pour les ennemis
+
+Voici un exemple complet : les ennemis qui se rapprochent du joueur :
+
+```ts
+import { defineSystem, useQuery, onUpdate, useEngine } from '@gwenjs/core'
+import { Position, Velocity, EnemyTag, PlayerTag } from './components'
+
+const ENEMY_SPEED = 50 // pixels par seconde
+
+export const EnemyAISystem = defineSystem(() => {
+  const enemies = useQuery([Position, Velocity, EnemyTag])
+  const player = useQuery([Position, PlayerTag])
+
+  onUpdate((dt) => {
+    if (player.length === 0) return
+
+    const playerPos = {
+      x: Position.x[player[0]],
+      y: Position.y[player[0]],
+    }
+
+    for (const id of enemies) {
+      const dx = playerPos.x - Position.x[id]
+      const dy = playerPos.y - Position.y[id]
+      const dist = Math.sqrt(dx * dx + dy * dy)
+
+      if (dist > 0) {
+        Velocity.x[id] = (dx / dist) * ENEMY_SPEED
+        Velocity.y[id] = (dy / dist) * ENEMY_SPEED
+      }
+    }
+  })
+})
+```
+
+### Système de dégâts
+
+```ts
+import {
+  defineSystem,
+  useQuery,
+  onUpdate,
+  removeComponent,
+  addComponent,
+} from '@gwenjs/core'
+import {
+  Health,
+  DamageTag,
+  DeadTag,
+  Armor,
+} from './components'
+
+export const DamageSystem = defineSystem(() => {
+  const damaged = useQuery([Health, DamageTag])
+
+  onUpdate(() => {
+    for (const id of damaged) {
+      const armorValue = Armor.value[id] ?? 0
+      const damageReduction = armorValue / (armorValue + 10)
+      Health.current[id] -= 10 * (1 - damageReduction)
+
+      if (Health.current[id] <= 0) {
+        removeComponent(id, Health)
+        addComponent(id, DeadTag)
+      }
+
+      removeComponent(id, DamageTag)
+    }
+  })
+})
+```
+
+## Ordre des systèmes
+
+Les systèmes s'exécutent dans l'ordre où vous les ajoutez à la scène. Si `RenderSystem` dépend de `PhysicsSystem`, ajoutez la physique en premier :
+
+```ts
+export class GameScene extends Scene {
+  onLoad() {
+    this.addSystem(PhysicsSystem)      // S'exécute d'abord
+    this.addSystem(MovementSystem)     // S'exécute deuxième
+    this.addSystem(CollisionSystem)    // S'exécute troisième
+    this.addSystem(RenderSystem)       // S'exécute dernier (lit les positions mises à jour)
+  }
+}
+```
+
+## Gestion des erreurs dans les systèmes
+
+Les erreurs dans le callback `onUpdate` d'un système sont capturées et enregistrées. Le jeu continue :
+
+```ts
+import { defineSystem, onUpdate } from '@gwenjs/core'
+
+export const SafeSystem = defineSystem(() => {
+  onUpdate(() => {
+    try {
+      // Opération risquée
+    } catch (err) {
+      console.error('Erreur système :', err)
+      // Le jeu continue
+    }
+  })
+})
+```
+
+Pour les erreurs irrécupérables, émettez un événement :
+
+```ts
+import { defineSystem, useEngine } from '@gwenjs/core'
+
+export const EngineAwareSystem = defineSystem(() => {
+  const engine = useEngine()
+
+  onUpdate(() => {
+    if (somethingBad) {
+      engine.emit('error', { message: 'Quelque chose s\'est mal passé' })
+      engine.loadScene('menu')
+    }
+  })
+})
+```
+
+## Sous le capot
+
+### Performance de configuration vs. frame
+
+Quand vous appelez `useQuery([Position, Velocity])` dans la phase de configuration, GWEN :
+
+1. Scanne toutes les entités
+2. Construit une liste d'IDs correspondant à `[Position, Velocity]`
+3. Cache le résultat
+
+Quand la requête change (une entité gagne/perd un composant), le résultat est recalculé. Mais pendant la boucle de frame, l'itération est **O(n)** où n est la taille de la requête, pas le nombre total d'entités.
+
+**Sans cache (lent) :**
+```
+pour chaque entité dans le monde {
+  si elle a Position et Velocity {
+    // traiter
+  }
+}
+// O(entités totales) par frame
+```
+
+**Avec cache (rapide) :**
+```
+entities = [id1, id2, id3, ...] // calculé une fois
+pour chaque entité dans entities {
+  // traiter
+}
+// O(entités correspondantes) par frame
+```
+
+### Composition des systèmes
+
+Un comportement complexe émerge de systèmes simples. Voici un exemple complet :
+
+```ts
+// Les systèmes mettent à jour les composants indépendamment
+- MovementSystem met à jour Position en fonction de Velocity
+- DamageSystem met à jour Health en fonction de DamageTag
+- RenderSystem lit Position et rend
+- PhysicsSystem gère les collisions
+
+// Aucun système ne dépend directement de la sortie d'un autre
+// Les données circulent via les composants
+```
+
+Ce **découplage** est pourquoi l'ECS scale. Ajouter un nouveau système ? Pas de refactorisation — juste en définir un nouveau.
+
+## Résumé de l'API
+
+| Fonction | Description |
+|---|---|
+| `defineSystem(setup)` | Déclarer un système |
+| `useQuery(components, opts?)` | Ensemble réactif d'entités correspondant aux composants |
+| `onUpdate(cb)` | Enregistrer le callback de frame |
+| `onStart(cb)` | S'exécuter une fois au démarrage de la scène |
+| `onDestroy(cb)` | S'exécuter au déchargement de la scène |
+| `onEvent(type, cb)` | Écouter les événements personnalisés |
+| `useEngine()` | Accéder à l'instance du moteur |
+| `usePhysics2D()` | Accéder au service physique |
+| `addComponent(id, Component, data)` | Ajouter un composant à une entité |
+| `removeComponent(id, Component)` | Supprimer un composant d'une entité |
+
+## Prochaines étapes
+
+- **[Composants](/fr/essentials/components)** — Définir les données que vos systèmes manipuleront.
+- **[Architecture](/fr/essentials/architecture)** — Comprendre comment les systèmes s'intègrent dans l'ECS.
+- **[Scènes et acteurs](/fr/essentials/scenes)** — Apprendre comment organiser les systèmes dans les scènes.
