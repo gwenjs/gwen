@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "metrics": {
+    "solverHighStepP95Ms": { "max": 10, "weight": 3 },
+    "solverHighTunnelRate": { "max": 0, "weight": 4 },
+    "solverEsportStepP95Ms": { "max": 12, "weight": 2 },
+    "tilemapBuildMs": { "max": 1000, "weight": 2 },
+    "tilemapPatchMs": { "max": 120, "weight": 2 }
+  },
+  "reserved": {
+    "droppedEvents": "not-measured-yet",
+    "allocations": "not-measured-yet"
+  }
+}

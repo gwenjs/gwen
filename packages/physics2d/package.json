@@ -1,0 +1,87 @@
+{
+  "name": "@gwenjs/physics2d",
+  "version": "0.1.0",
+  "description": "2D physics plugin for GWEN — pure adapter for core WASM",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./module": {
+      "types": "./src/module.ts",
+      "import": "./src/module.ts"
+    },
+    "./core": {
+      "types": "./src/core.ts",
+      "import": "./src/core.ts"
+    },
+    "./helpers": {
+      "types": "./src/helpers/index.ts",
+      "import": "./src/helpers/index.ts"
+    },
+    "./helpers/queries": {
+      "types": "./src/helpers/queries.ts",
+      "import": "./src/helpers/queries.ts"
+    },
+    "./helpers/movement": {
+      "types": "./src/helpers/movement.ts",
+      "import": "./src/helpers/movement.ts"
+    },
+    "./helpers/contact": {
+      "types": "./src/helpers/contact.ts",
+      "import": "./src/helpers/contact.ts"
+    },
+    "./helpers/static-geometry": {
+      "types": "./src/helpers/static-geometry.ts",
+      "import": "./src/helpers/static-geometry.ts"
+    },
+    "./helpers/orchestration": {
+      "types": "./src/helpers/orchestration.ts",
+      "import": "./src/helpers/orchestration.ts"
+    },
+    "./tilemap": {
+      "types": "./src/tilemap.ts",
+      "import": "./src/tilemap.ts"
+    },
+    "./debug": {
+      "types": "./src/debug.ts",
+      "import": "./src/debug.ts"
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "bench:solver": "BENCH_SLOW=1 vitest run bench/solver.test.ts",
+    "bench:tilemap": "vitest bench --run bench/tilemap.bench.ts",
+    "bench:bundle-size": "BENCH_SLOW=1 vitest run bench/bundle-size.test.ts",
+    "bench:score": "BENCH_SLOW=1 vitest run bench/perf-gate.test.ts",
+    "test:bench": "vitest bench --run",
+    "test:bench:solver": "BENCH_SLOW=1 vitest run bench/solver.test.ts",
+    "test:bench:tilemap": "vitest bench --run bench/tilemap.bench.ts",
+    "test:bench:tree-shaking": "BENCH_SLOW=1 vitest run bench/bundle-size.test.ts",
+    "test:bench:score": "vitest run bench/perf-gate.test.ts",
+    "bench:fast": "vitest bench --run bench/tilemap.bench.ts bench/helpers.bench.ts bench/integration.bench.ts",
+    "bench:ci": "BENCH_SLOW=1 vitest bench --run && BENCH_SLOW=1 vitest run bench/solver.test.ts bench/bundle-size.test.ts bench/perf-gate.test.ts"
+  },
+  "dependencies": {
+    "@gwenjs/core": "workspace:*",
+    "@gwenjs/kit": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.37",
+    "@vitest/coverage-v8": "^4.1.2",
+    "typescript": "^6.0.2",
+    "vite": "^8.0.3",
+    "vite-plugin-dts": "^4.5.4",
+    "vitest": "^4.1.2"
+  }
+}
