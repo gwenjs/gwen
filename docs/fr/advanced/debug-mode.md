@@ -195,12 +195,14 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 ### Débogage basé sur l'environnement
 
-Utilisez `import.meta.env.DEV` de Vite pour activer les fonctionnalités de débogage uniquement pendant le développement :
+Utilisez `process.env.NODE_ENV` pour activer les fonctionnalités de débogage uniquement pendant le développement :
 
 ```ts
 // gwen.config.ts
 export default defineConfig({
-  debug: import.meta.env.DEV,  // Automatique
+  engine: {
+    debug: process.env.NODE_ENV !== 'production',
+  },
   modules: [['@gwenjs/physics2d', {}]],
 })
 ```
