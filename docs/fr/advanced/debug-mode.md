@@ -99,7 +99,7 @@ logger.warn('slow frame detected', { frameMs: 32 })
 logger.error('unhandled error', error)
 ```
 
-
+Utilisez-le à l'intérieur d'un système avec accès au contexte d'initialisation :
 
 ```ts
 import { createLogger, defineSystem, useEngine } from '@gwenjs/core'
@@ -108,7 +108,7 @@ export const MySystem = defineSystem(() => {
   const engine = useEngine()
   const log = createLogger('game:my-system', engine.debug)
 
-  onUpdate(() => {
+  onStart(() => {
     log.info('System initialized', { entityCount: 42 })
     log.debug('Detailed initialization data', { config: {...} })
   })
@@ -235,7 +235,7 @@ Vous avez remarqué des baisses de fréquence d'images. Le mode debug aide :
    })
    ```
 
-4. **Analysez les journaux.** Vous découvrez que le nombre de corps passe de 10 à 200 quand les ennemis apparaissent, et la physique est martèle.
+4. **Analysez les journaux.** Vous découvrez que le nombre de corps passe de 10 à 200 quand les ennemis apparaissent, et les performances se dégradent.
 
 5. **Correction :** Réduire le nombre de corps de physique actifs ou utiliser le partitionnement spatial.
 
