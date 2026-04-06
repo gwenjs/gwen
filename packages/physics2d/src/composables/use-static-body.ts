@@ -1,7 +1,7 @@
 /**
  * @file useStaticBody() — registers a static (non-moving) physics body for the current actor.
  */
-import { _getActorEntityId } from '@gwenjs/core/scene';
+import { _getActorEntityId } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 import { useEngine } from '@gwenjs/core';
 import type { StaticBodyHandle, StaticBodyOptions, ColliderOptions } from '../types';

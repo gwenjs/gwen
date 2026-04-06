@@ -16,7 +16,7 @@
  */
 import type { CompoundColliderHandle3D, CompoundColliderOptions3D } from '../types';
 import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/scene';
+import { _getActorEntityId } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 
 export type { CompoundColliderOptions3D };
