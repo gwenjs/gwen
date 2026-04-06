@@ -58,3 +58,6 @@ coverage/
 # Worktrees & superpowers
 .worktrees/
 .superpowers/
+
+# Verdaccio local registry (non commité)
+.npmrc

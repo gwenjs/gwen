@@ -129,6 +129,7 @@ const frSidebar = [
 export default defineConfig({
   base: '/gwen/',
   cleanUrls: true,
+  ignoreDeadLinks: ['/advanced/vite-config', '/fr/advanced/vite-config'],
 
   locales: {
     root: {

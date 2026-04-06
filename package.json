@@ -31,7 +31,8 @@
     "typecheck": "pnpm --filter '@gwenjs/*' exec tsc --noEmit",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "verdaccio:publish": "pnpm --filter '@gwenjs/*' build && pnpm -r publish --registry http://localhost:4873 --no-git-checks"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",

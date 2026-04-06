@@ -5,11 +5,9 @@ description: Creating and configuring the GWEN engine instance, and how it manag
 
 # The Engine
 
-The **GWEN engine** is the runtime that boots your game, loads WASM, manages scenes, and runs your systems each frame. Engine setup happens in two places: **`gwen.config.ts`** (build-time) and **`main.ts`** (runtime bootstrap).
+The **GWEN engine** is the runtime that boots your game, loads WASM, manages scenes, and runs your systems each frame. Engine configuration happens in **`gwen.config.ts`** at build time — you never bootstrap the engine manually.
 
-## Two-Part Setup
-
-### Part 1: Build Configuration — `gwen.config.ts`
+## Build Configuration — `gwen.config.ts`
 
 Use `defineConfig()` from `@gwenjs/app` to declare modules, WASM variant, and build-time settings:
 
@@ -26,32 +24,6 @@ export default defineConfig({
 ```
 
 The config file is processed **at build time** by Vite and sets up module resolution.
-
-### Part 2: Runtime Bootstrap — `main.ts`
-
-In your entry point, import and create the engine **separately**:
-
-```ts
-import { createEngine } from '@gwenjs/core'
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-import { AppRouter } from './router'
-
-const engine = await createEngine({
-  maxEntities: 10_000,
-  variant: 'physics2d',
-})
-
-// Mount plugins
-await engine.use(Physics2DPlugin())
-
-// Mount scene router
-await engine.use(AppRouter)
-
-// Start the game loop
-await engine.start()
-```
-
-**Key distinction:** `createEngine()` accepts `GwenEngineOptions` (runtime parameters), NOT `GwenUserConfig`. They are completely separate APIs.
 
 ## Build-Time Config: `GwenUserConfig`
 
@@ -87,68 +59,6 @@ export default defineConfig({
 })
 ```
 
-## Runtime Config: `GwenEngineOptions`
-
-Used in **`createEngine()`** at runtime. Configures the engine instance.
-
-| Property | Type | Description |
-|---|---|---|
-| `maxEntities` | `number` | Max simultaneous entities |
-| `targetFPS` | `number` | Target frames per second |
-| `variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant |
-| `debug` | `boolean` | Enable debug logging and checks |
-| `enableStats` | `boolean` | Collect performance statistics (default true) |
-| `sparseTransformSync` | `boolean` | Only sync changed transforms (default true) |
-| `loop` | `'internal' \| 'external'` | Game loop mode (default 'internal') |
-| `maxDeltaSeconds` | `number` | Max delta per frame (default 0.1s) |
-| `tweenPoolSize` | `number` | Pre-allocated tween slots (default 256) |
-
-**Example:**
-```ts
-const engine = await createEngine({
-  maxEntities: 10_000,
-  targetFPS: 60,
-  variant: 'physics2d',
-  debug: true,
-  loop: 'internal',
-})
-```
-
-## Internal vs External Loop Mode
-
-By default, GWEN owns `requestAnimationFrame`. Use `loop: 'external'` to drive the loop yourself:
-
-```ts
-// Internal loop mode (default)
-const engine = await createEngine({ loop: 'internal' })
-await engine.start()
-
-// External loop mode
-const engine = await createEngine({ loop: 'external' })
-function gameLoop(delta: number) {
-  engine.advance(delta)
-  requestAnimationFrame(gameLoop)
-}
-requestAnimationFrame(gameLoop)
-```
-
-## Mounting Plugins and Routers
-
-After creation, mount plugins and routers before calling `engine.start()`:
-
-```ts
-const engine = await createEngine({ variant: 'physics2d' })
-
-// Mount a plugin
-await engine.use(Physics2DPlugin())
-
-// Mount a scene router
-await engine.use(AppRouter)
-
-// Now start the game loop
-await engine.start()
-```
-
 ## Accessing the Engine in Systems
 
 Inside a system's setup function, use `useEngine()` to access the engine instance:
@@ -174,7 +84,7 @@ From the engine, you can:
 
 ## Engine Lifecycle
 
-When you call `engine.start()`:
+When the game boots:
 
 1. **Initialize** — Set up WASM heap, internal systems
 2. **Plugin Setup** — Call setup on each mounted plugin
@@ -203,28 +113,10 @@ engine.pause()
 engine.resume()
 ```
 
-### External Loop (Advanced)
-
-```ts
-const engine = await createEngine({ loop: 'external' })
-
-let lastTime = performance.now()
-function tick(now: number) {
-  const delta = (now - lastTime) / 1000  // Convert to seconds
-  lastTime = now
-  engine.advance(delta)
-  requestAnimationFrame(tick)
-}
-requestAnimationFrame(tick)
-```
-
 ## API Summary
 
 | Function | Returns | Description |
 |---|---|---|
-| `createEngine(options)` | `Promise<GwenEngine>` | Create and initialize the engine |
-| `engine.use(plugin)` | `Promise<void>` | Mount a plugin or router |
-| `engine.start()` | `Promise<void>` | Start the game loop |
 | `engine.pause()` | `void` | Pause the game loop |
 | `engine.resume()` | `void` | Resume the game loop |
 | `engine.advance(delta)` | `void` | Manual frame advance (external loop mode) |
@@ -232,6 +124,39 @@ requestAnimationFrame(tick)
 | `engine.spawn(components)` | `number` | Create a new entity |
 | `engine.destroy(id)` | `void` | Delete an entity |
 | `useEngine()` | `GwenEngine` | Access engine from inside a system |
+
+## Extending Vite
+
+GWEN manages your Vite configuration internally — you don't need a `vite.config.ts` file. To extend it, use the `vite` field in `gwen.config.ts`:
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  modules: ['@gwenjs/physics2d'],
+  vite: {
+    resolve: {
+      alias: { '~assets': './src/assets' },
+    },
+  },
+})
+```
+
+For build hooks, use the `hooks` field:
+
+```typescript
+export default defineConfig({
+  hooks: {
+    'vite:extendConfig': (config) => {
+      config.resolve ??= {}
+      config.resolve.alias = { '~assets': './src/assets' }
+    },
+  },
+})
+```
+
+For complete Vite extension patterns (including module-level extension), see [Extending Vite](/advanced/vite-config).
 
 ## Next Steps
 

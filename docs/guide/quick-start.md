@@ -33,23 +33,19 @@ The scaffold creates a structured game project:
 
 ```
 my-game/
-├── src/
-│   ├── main.ts              # Entry point: engine bootstrap
-│   ├── gwen.config.ts       # Build config (modules, engine options)
-│   ├── components/          # defineComponent() definitions
-│   │   └── Position.ts
-│   ├── systems/             # defineSystem() implementations
-│   │   └── Movement.ts
-│   ├── scenes/              # defineScene() definitions
-│   │   └── GameScene.ts
-│   ├── actors/              # defineActor() — instance-based entities
-│   │   └── Player.ts
-│   ├── prefabs/             # definePrefab() — reusable templates
-│   │   └── Bullet.ts
-│   ├── router.ts            # defineSceneRouter() — scene FSM
-│   └── index.html
-├── tsconfig.json
-└── package.json
+├── gwen.config.ts           # Build config (modules, engine options)
+└── src/
+    ├── components/          # defineComponent() definitions
+    │   └── Position.ts
+    ├── systems/             # defineSystem() implementations
+    │   └── Movement.ts
+    ├── scenes/              # defineScene() definitions
+    │   └── GameScene.ts
+    ├── actors/              # defineActor() — instance-based entities
+    │   └── Player.ts
+    ├── prefabs/             # definePrefab() — reusable templates
+    │   └── Bullet.ts
+    └── router.ts            # defineSceneRouter() — scene navigation FSM
 ```
 
 ## Build Configuration — `gwen.config.ts`
@@ -57,6 +53,7 @@ my-game/
 Define modules and engine options at build time:
 
 ```typescript
+// gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
@@ -132,29 +129,6 @@ export const AppRouter = defineSceneRouter({
     game: { scene: GameScene, on: {} },
   },
 })
-```
-
-## Bootstrap — `main.ts`
-
-Create the engine, mount plugins and router, then start:
-
-**src/main.ts**
-```typescript
-import { createEngine } from '@gwenjs/core'
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-import { AppRouter } from './router'
-
-const engine = await createEngine({
-  maxEntities: 10_000,
-  variant: 'physics2d',
-})
-
-// Mount plugins and router
-await engine.use(Physics2DPlugin())
-await engine.use(AppRouter)
-
-// Start the game loop
-await engine.start()
 ```
 
 ## Run It

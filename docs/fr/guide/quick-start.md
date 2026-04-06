@@ -33,23 +33,19 @@ Le scaffold crée un projet de jeu structuré :
 
 ```
 my-game/
-├── src/
-│   ├── main.ts              # Point d'entrée : démarrage du moteur
-│   ├── gwen.config.ts       # Config de compilation (modules, options moteur)
-│   ├── components/          # Définitions defineComponent()
-│   │   └── Position.ts
-│   ├── systems/             # Implémentations defineSystem()
-│   │   └── Movement.ts
-│   ├── scenes/              # Définitions defineScene()
-│   │   └── GameScene.ts
-│   ├── actors/              # defineActor() — entités basées sur les instances
-│   │   └── Player.ts
-│   ├── prefabs/             # definePrefab() — modèles réutilisables
-│   │   └── Bullet.ts
-│   ├── router.ts            # defineSceneRouter() — FSM des scènes
-│   └── index.html
-├── tsconfig.json
-└── package.json
+├── gwen.config.ts           # Config de compilation (modules, options moteur)
+└── src/
+    ├── components/          # Définitions defineComponent()
+    │   └── Position.ts
+    ├── systems/             # Implémentations defineSystem()
+    │   └── Movement.ts
+    ├── scenes/              # Définitions defineScene()
+    │   └── GameScene.ts
+    ├── actors/              # defineActor() — entités basées sur les instances
+    │   └── Player.ts
+    ├── prefabs/             # definePrefab() — modèles réutilisables
+    │   └── Bullet.ts
+    └── router.ts            # defineSceneRouter() — FSM de navigation des scènes
 ```
 
 ## Configuration de compilation — `gwen.config.ts`
@@ -57,6 +53,7 @@ my-game/
 Définissez les modules et les options du moteur à la compilation :
 
 ```typescript
+// gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
@@ -132,29 +129,6 @@ export const AppRouter = defineSceneRouter({
     game: { scene: GameScene, on: {} },
   },
 })
-```
-
-## Démarrage — `main.ts`
-
-Créez le moteur, installez les plugins et le routeur, puis démarrez :
-
-**src/main.ts**
-```typescript
-import { createEngine } from '@gwenjs/core'
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-import { AppRouter } from './router'
-
-const engine = await createEngine({
-  maxEntities: 10_000,
-  variant: 'physics2d',
-})
-
-// Installer les plugins et le routeur
-await engine.use(Physics2DPlugin())
-await engine.use(AppRouter)
-
-// Démarrer la boucle de jeu
-await engine.start()
 ```
 
 ## Exécutez-le

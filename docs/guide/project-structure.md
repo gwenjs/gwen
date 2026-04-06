@@ -11,63 +11,26 @@ Understanding how a GWEN project is organized helps you write code that scales a
 
 ```
 my-game/
-├── src/
-│   ├── main.ts                    # Engine entry point
-│   ├── components/                # Component definitions
-│   │   ├── Position.ts
-│   │   ├── Velocity.ts
-│   │   ├── Health.ts
-│   │   └── index.ts               # Re-export all components
-│   ├── systems/                   # System implementations
-│   │   ├── Movement.ts
-│   │   ├── Collision.ts
-│   │   ├── Rendering.ts
-│   │   └── index.ts               # Re-export all systems
-│   ├── scenes/                    # Scene definitions
-│   │   ├── MainMenu.ts
-│   │   ├── GameScene.ts
-│   │   ├── GameOver.ts
-│   │   └── index.ts
-│   ├── actors/                    # Named entity definitions (defineActor)
-│   │   ├── Player.ts
-│   │   ├── Enemy.ts
-│   │   └── index.ts
-│   ├── prefabs/                   # Reusable entity templates (definePrefab)
-│   │   ├── Bullet.ts
-│   │   ├── Coin.ts
-│   │   └── index.ts
-│   ├── plugins/                   # Custom plugin factories
-│   │   ├── PhysicsPlugin.ts
-│   │   ├── InputPlugin.ts
-│   │   └── index.ts
-│   ├── assets/                    # Static assets
-│   │   ├── sprites/
-│   │   ├── sounds/
-│   │   └── levels/
-│   └── utils/                     # Helpers and utilities
-│       ├── math.ts
-│       └── input.ts
-├── gwen.config.ts                 # GWEN engine configuration
-├── tsconfig.json                  # TypeScript settings
-├── package.json
-└── pnpm-lock.yaml
+├── gwen.config.ts           # Framework + engine configuration
+└── src/
+    ├── components/          # defineComponent() — ECS data definitions
+    │   └── Position.ts
+    ├── systems/             # defineSystem() — game logic
+    │   └── Movement.ts
+    ├── scenes/              # defineScene() — scene definitions
+    │   └── GameScene.ts
+    ├── actors/              # defineActor() — instance-based game objects
+    │   └── Player.ts
+    ├── prefabs/             # definePrefab() — entity templates
+    │   └── Bullet.ts
+    └── router.ts            # defineSceneRouter() — scene navigation FSM
 ```
+
+::: info Auto-generated files
+`index.html` and `main.ts` are generated automatically by the GWEN framework. You never create or edit them directly.
+:::
 
 ## Directory Purposes
-
-### `src/main.ts` — Engine Entry Point
-
-Initializes the GWEN engine and registers plugins:
-
-```typescript
-import { createEngine } from '@gwenjs/core'
-import { Physics2DPlugin } from '@gwenjs/physics2d'
-
-const engine = await createEngine({ variant: 'physics2d' })
-
-await engine.use(Physics2DPlugin())
-await engine.start()
-```
 
 ### `gwen.config.ts` — Configuration
 
