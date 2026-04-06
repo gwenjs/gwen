@@ -30,7 +30,7 @@ export default defineConfig({
 
 L'objet `vite` est fusionné avec la configuration interne de GWEN via `defu` (les valeurs utilisateur ont la priorité).
 
-## Build hooks
+## Build Hooks
 
 Pour plus de contrôle, abonnez-vous au build hook `vite:extendConfig` :
 

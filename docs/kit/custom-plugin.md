@@ -1,10 +1,5 @@
 ---
 title: Writing a Custom Plugin
-description: Coming soon.
----
-
----
-title: Writing a Custom Plugin
 description: How to create and register a custom GWEN plugin with @gwenjs/kit.
 ---
 
