@@ -12,7 +12,8 @@
  * ```
  */
 
-import { defineGwenModule, definePluginTypes } from '@gwenjs/kit';
+import { defineGwenModule } from '@gwenjs/kit/module';
+import { definePluginTypes } from '@gwenjs/kit/plugin';
 import { Physics2DPlugin } from './plugin/index';
 import { physics2dVitePlugin } from './vite-plugin';
 import type { Physics2DConfig } from './types';

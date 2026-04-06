@@ -1,4 +1,4 @@
-import { definePlugin } from '@gwenjs/kit';
+import { definePlugin } from '@gwenjs/kit/plugin';
 import { getWasmBridge, createEntityId, unpackEntityId } from '@gwenjs/core';
 import type { EntityId, GwenEngine } from '@gwenjs/core';
 

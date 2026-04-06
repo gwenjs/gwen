@@ -5,9 +5,10 @@
  * contexts (e.g. gwen.config.ts bundled by Vite).
  */
 
-import type { GwenPlugin, GwenBuildHooks } from '@gwenjs/kit';
+import type { GwenPlugin } from '@gwenjs/core';
+import type { GwenBuildHooks } from '@gwenjs/kit/module';
 
-export type { GwenBuildHooks } from '@gwenjs/kit';
+export type { GwenBuildHooks } from '@gwenjs/kit/module';
 
 // ─── GwenModuleOptions (augmentable) ─────────────────────────────────────────
 

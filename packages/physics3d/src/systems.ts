@@ -5,7 +5,7 @@
  * that can be composed into a game's plugin list.
  */
 
-import { definePlugin } from '@gwenjs/kit';
+import { definePlugin } from '@gwenjs/kit/plugin';
 import type { EntityId, GwenEngine } from '@gwenjs/core';
 import type { Physics3DAPI } from './types';
 import './augment';

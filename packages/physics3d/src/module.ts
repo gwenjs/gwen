@@ -9,7 +9,9 @@
  * ```
  */
 
-import { defineGwenModule, definePluginTypes, type VitePlugin } from '@gwenjs/kit';
+import { defineGwenModule } from '@gwenjs/kit/module';
+import { definePluginTypes } from '@gwenjs/kit/plugin';
+import type { VitePlugin } from '@gwenjs/kit';
 import { Physics3DPlugin } from './index';
 import type { Physics3DConfig } from './types';
 import { physics3dVitePlugin } from './vite-plugin';
