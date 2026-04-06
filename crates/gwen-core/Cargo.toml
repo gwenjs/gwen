@@ -1,0 +1,82 @@
+[package]
+name = "gwen-core"
+version.workspace = true
+edition.workspace = true
+license = "MPL-2.0"
+authors = ["Jonathan Moutier <jonathan.moutier.dev@gmail.com>"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.87"
+js-sys = "0.3.64"
+web-sys = { version = "0.3.64", features = ["Window", "Document", "console"] }
+bytemuck = { version = "1", features = ["derive"] }
+
+# Physics — 2D (Rapier2D)
+rapier2d = { version = "0.22", default-features = false, features = [
+  "f32",
+  "dim2",
+], optional = true }
+# Physics — 3D (Rapier3D)
+rapier3d = { version = "0.22", default-features = false, features = [
+  "f32",
+  "dim3",
+], optional = true }
+# BVH serialisation — used at browser runtime (physics3d) and build time (build-tools)
+bincode = { version = "2", features = ["serde"], optional = true }
+# GLB/GLTF parsing — build-time only
+gltf = { version = "1.4", default-features = false, features = ["utils", "names"], optional = true }
+# Pathfinding
+pathfinding = { version = "4.3", optional = true }
+
+[features]
+# ─── Physics feature flags ────────────────────────────────────────────────────
+#
+# IMPORTANT: `physics2d` and `physics3d` are MUTUALLY EXCLUSIVE.
+# Enabling both at the same time will produce a compile-time error (see lib.rs).
+#
+# Exactly ONE of the following must be selected per WASM build variant:
+#   - (neither)     → gwen-core-light.wasm   — ECS + transforms only
+#   - physics2d     → gwen-core-physics2d.wasm — ECS + Rapier2D + pathfinding
+#   - physics3d     → gwen-core-physics3d.wasm — ECS + Rapier3D + pathfinding
+#
+# The `build-tools` feature adds BVH mesh pre-baking (Vite plugin / CLI use).
+# It requires `physics3d` to be enabled and is NEVER included in runtime WASM.
+
+## Enables 2D physics via Rapier2D. Mutually exclusive with `physics3d`.
+physics2d = ["dep:rapier2d", "pathfinding-2d"]
+
+## Enables 3D physics via Rapier3D. Mutually exclusive with `physics2d`.
+physics3d = ["dep:rapier3d", "pathfinding-3d", "dep:bincode", "rapier3d/serde-serialize"]
+
+## Adds build-time BVH mesh pre-baking tools. Requires `physics3d`.
+## Never enable in a runtime WASM build — only used in the Vite plugin / CLI.
+build-tools = ["dep:gltf", "physics3d"]
+
+# Internal features — not for direct use
+pathfinding-2d = ["dep:pathfinding"]
+pathfinding-3d = ["dep:pathfinding"]
+
+default = []
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+criterion = { version = "0.5", features = ["html_reports"] }
+
+# wasm-opt bundled with older wasm-pack doesn't support bulk-memory — skip it.
+# The .wasm produced by rustc is already valid and loads fine in all modern browsers.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false
+
+[[bin]]
+name = "bench_solver_presets"
+required-features = ["physics2d"]
+
+[[bench]]
+name = "transform_bench"
+harness = false

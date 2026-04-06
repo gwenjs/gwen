@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "verbatimModuleSyntax": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "isolatedModules": true,
+    "skipLibCheck": false,
+    "paths": {
+      "@gwenjs/*": ["./packages/*/src/index.ts", "./packages/*/src"],
+      "@gwenjs/physics2d/core": ["./packages/physics2d/src/index.ts"],
+      "@gwenjs/physics2d/helpers/static-geometry": [
+        "./packages/physics2d/src/helpers/static-geometry.ts"
+      ]
+    }
+  }
+}

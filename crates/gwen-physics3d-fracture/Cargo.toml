@@ -1,0 +1,32 @@
+[package]
+name = "gwen-physics3d-fracture"
+version.workspace = true
+edition.workspace = true
+license = "MPL-2.0"
+authors = ["Jonathan Moutier <jonathan.moutier.dev@gmail.com>"]
+description = "Voronoi mesh fracture for GWEN Physics 3D — standalone WASM module"
+
+# ─── Build note ───────────────────────────────────────────────────────────────
+# This crate compiles to a SEPARATE standalone WASM module:
+#   wasm-pack build crates/gwen-physics3d-fracture --release
+#
+# It is NOT part of gwen-core. It is loaded at runtime by the engine via
+# engine.loadWasmModule({ name: 'fracture', ... }) (RFC-008).
+#
+# TypeScript bindings: packages/physics3d-fracture/src/index.ts
+# ──────────────────────────────────────────────────────────────────────────────
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+wasm-bindgen = "0.2.87"
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3"
+
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
+[package.metadata.wasm-pack.profile.dev]
+wasm-opt = false

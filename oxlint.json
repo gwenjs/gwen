@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "rules": {
+    "no-unused-vars": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "eqeqeq": "error",
+    "no-console": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": ["*/wasm/gwen_core*", "*/wasm/gwen-core*", "gwen_core", "gwen-core"]
+      }
+    ]
+  },
+  "env": {
+    "browser": true,
+    "node": true
+  },
+  "ignorePatterns": [
+    "dist/**",
+    "node_modules/**",
+    "**/*.d.ts",
+    "crate/**",
+    "**/wasm/**"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/math" },
+    { "path": "packages/schema" },
+    { "path": "packages/core" },
+    { "path": "packages/kit" },
+    { "path": "packages/vite" },
+    { "path": "packages/physics2d" },
+    { "path": "packages/physics3d" }
+  ]
+}
