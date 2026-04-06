@@ -74,10 +74,9 @@ In `gwen.config.ts`:
 
 ```ts
 import { defineConfig } from '@gwenjs/app'
-import InputModule from '@my-scope/input'
 
 export default defineConfig({
-  modules: [InputModule],
+  modules: ['@my-scope/input'],
 })
 ```
 

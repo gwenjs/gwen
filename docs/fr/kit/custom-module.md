@@ -54,17 +54,6 @@ export default defineGwenModule({
 })
 ```
 
-Dans `main.ts`, utilisez le plugin :
-
-```ts
-import { createEngine } from '@gwenjs/core'
-import { MyPlugin } from '@my-scope/my-module'
-
-const engine = await createEngine()
-await engine.use(MyPlugin())
-await engine.start()
-```
-
 ### Module avec options
 
 Les modules peuvent accepter des options typées via la configuration :
@@ -95,26 +84,13 @@ Enregistrez dans `gwen.config.ts` :
 
 ```ts
 import { defineConfig } from '@gwenjs/app'
-import MyModule from '@my-scope/my-module'
 
 export default defineConfig({
-  modules: [MyModule],
-  myModule: {
+  modules: [['@my-scope/my-module', {
     debug: true,
     apiUrl: 'https://dev.api.example.com',
-  },
+  }]],
 })
-```
-
-Puis dans `main.ts`, enregistrez le plugin au runtime :
-
-```ts
-import { createEngine } from '@gwenjs/core'
-import { MyPlugin } from '@my-scope/my-module'
-
-const engine = await createEngine()
-await engine.use(MyPlugin(/* options */))
-await engine.start()
 ```
 
 ## API à la compilation (GwenKit)
@@ -332,14 +308,12 @@ Enregistrez le module dans `gwen.config.ts` :
 
 ```ts
 import { defineConfig } from '@gwenjs/app'
-import ScoreModule from '@my-scope/score'
 
 export default defineConfig({
-  modules: [ScoreModule],
-  score: {
+  modules: [['@my-scope/score', {
     initialScore: 0,
     maxScore: 9999,
-  },
+  }]],
 })
 ```
 
