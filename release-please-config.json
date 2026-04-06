@@ -1,0 +1,14 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "release-type": "node",
+  "separate-pull-requests": false,
+  "packages": {
+    "packages/core":      { "release-type": "node", "package-name": "@gwenjs/core" },
+    "packages/kit":       { "release-type": "node", "package-name": "@gwenjs/kit" },
+    "packages/math":      { "release-type": "node", "package-name": "@gwenjs/math" },
+    "packages/physics2d": { "release-type": "node", "package-name": "@gwenjs/physics2d" },
+    "packages/physics3d": { "release-type": "node", "package-name": "@gwenjs/physics3d" },
+    "packages/schema":    { "release-type": "node", "package-name": "@gwenjs/schema" },
+    "packages/vite":      { "release-type": "node", "package-name": "@gwenjs/vite" }
+  }
+}

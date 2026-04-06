@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    name: Lint & Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node-pnpm
+      - run: pnpm lint
+      - run: pnpm format:check
+
+  rust:
+    name: Rust tests + WASM build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: '. -> target'
+      - name: Install wasm-pack
+        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+      - name: Rust tests — gwen-core
+        run: cargo test -p gwen-core
+      - name: WASM tests — gwen-core
+        run: wasm-pack test --node crates/gwen-core
+      - name: Build WASM (all variants)
+        run: ./scripts/build-wasm.sh
+
+  typescript:
+    name: TypeScript
+    runs-on: ubuntu-latest
+    needs: [lint]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Build packages
+        run: pnpm build:ts
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test packages
+        run: pnpm test:ts
+
+  bench:
+    name: Benchmarks
+    runs-on: ubuntu-latest
+    needs: [typescript]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Build packages
+        run: pnpm build:ts
+      - name: ECS benchmarks — core
+        run: pnpm bench:core:ci
+      - name: Physics2D benchmarks
+        run: pnpm bench:physics:ci
+
+  ci-status:
+    name: CI Status
+    runs-on: ubuntu-latest
+    needs: [lint, rust, typescript, bench]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          if [ "${{ needs.lint.result }}"       != "success" ] || \
+             [ "${{ needs.rust.result }}"       != "success" ] || \
+             [ "${{ needs.typescript.result }}" != "success" ] || \
+             [ "${{ needs.bench.result }}"      != "success" ]; then
+            echo "❌ CI failed"
+            exit 1
+          fi
+          echo "✅ All checks passed"

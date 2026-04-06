@@ -1,0 +1,9 @@
+{
+  "packages/core":     "0.1.0",
+  "packages/kit":      "0.1.0",
+  "packages/math":     "0.1.0",
+  "packages/physics2d":"0.1.0",
+  "packages/physics3d":"0.1.0",
+  "packages/schema":   "0.1.0",
+  "packages/vite":     "0.1.0"
+}
