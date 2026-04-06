@@ -15,6 +15,11 @@
     "skipLibCheck": false,
     "paths": {
       "@gwenjs/*": ["./packages/*/src/index.ts", "./packages/*/src"],
+      "@gwenjs/core/system": ["./packages/core/src/system/index.ts"],
+      "@gwenjs/core/actor": ["./packages/core/src/actor/index.ts"],
+      "@gwenjs/core/scene": ["./packages/core/src/scene/index.ts"],
+      "@gwenjs/kit/plugin": ["./packages/kit/src/plugin/index.ts"],
+      "@gwenjs/kit/module": ["./packages/kit/src/module/index.ts"],
       "@gwenjs/physics2d/core": ["./packages/physics2d/src/index.ts"],
       "@gwenjs/physics2d/helpers/static-geometry": [
         "./packages/physics2d/src/helpers/static-geometry.ts"
