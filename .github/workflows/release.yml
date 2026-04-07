@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
 
 jobs:
   release-please:
@@ -35,6 +36,11 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
         if: ${{ steps.release.outputs.releases_created }}
 
+      - uses: actions/setup-node@v4
+        if: ${{ steps.release.outputs.releases_created }}
+        with:
+          registry-url: "https://registry.npmjs.org"
+
       - name: Build WASM
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm build:wasm
@@ -49,6 +55,4 @@ jobs:
 
       - name: Publish to npm
         if: ${{ steps.release.outputs.releases_created }}
-        run: pnpm -r publish --access public --no-git-checks
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: pnpm -r publish --access public --no-git-checks --provenance
