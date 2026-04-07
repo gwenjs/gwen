@@ -7,6 +7,7 @@ import { gwenLayoutPlugin } from './layout.js';
 import { gwenSceneRouterPlugin } from './scene-router.js';
 import { gwenTweenPlugin } from './tween.js';
 import { gwenOptimizerPlugin } from './optimizer.js';
+import { gwenSystemPlugin } from './system.js';
 import type { GwenViteOptions, GwenOptimizerUserOptions } from '../types.js';
 import type { PluginOption } from 'vite';
 
@@ -27,6 +28,7 @@ export {
   transformRouterNames,
 } from './scene-router.js';
 export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from './tween.js';
+export { gwenSystemPlugin, transformSystemNames } from './system.js';
 
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:
@@ -78,6 +80,7 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenLayoutPlugin(options),
     gwenSceneRouterPlugin(options),
     gwenTweenPlugin(options),
+    gwenSystemPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
   ];
 }

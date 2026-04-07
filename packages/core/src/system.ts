@@ -199,27 +199,33 @@ export function onRender(fn: RenderFn): void {
  *
  * Returns a {@link GwenPlugin} that can be passed directly to `engine.use()`.
  *
- * @param setup - System setup function. Called once synchronously in engine context.
+ * **Naming:** prefer one of these two forms so the engine can identify the system:
+ * - `export const ScoreSystem = defineSystem('ScoreSystem', () => { ... })` — explicit name
+ * - With the Vite plugin, the name is injected automatically from the exported variable.
+ *
+ * @param nameOrSetup - System name string **or** setup function (single-arg form).
+ * @param setup - Setup function when the first arg is a name string.
  * @returns A `GwenPlugin` representing the system.
  *
  * @example
  * ```typescript
- * export const moveSystem = defineSystem(function moveSystem() {
- *   // Composables resolved at setup time:
- *   const entities = useQuery([Position, Velocity])
+ * // Explicit name string (recommended without the Vite plugin)
+ * export const ScoreSystem = defineSystem('ScoreSystem', () => {
+ *   onUpdate((dt) => { ... })
+ * })
  *
- *   // Lifecycle callbacks registered at setup time:
- *   onUpdate((dt) => {
- *     for (const e of entities) {
- *       const pos = e.get(Position)
- *       const vel = e.get(Velocity)
- *       e.set(Position, { x: pos.x + vel.vx * dt, y: pos.y + vel.vy * dt })
- *     }
- *   })
+ * // With the Vite plugin the name is injected automatically:
+ * export const ScoreSystem = defineSystem(() => {
+ *   onUpdate((dt) => { ... })
  * })
  * ```
  */
-export function defineSystem(setup: () => void): GwenPlugin {
+export function defineSystem(name: string, setup: () => void): GwenPlugin;
+export function defineSystem(setup: () => void): GwenPlugin;
+export function defineSystem(nameOrSetup: string | (() => void), setup?: () => void): GwenPlugin {
+  const systemName = typeof nameOrSetup === 'string' ? nameOrSetup : (nameOrSetup.name || '');
+  const setupFn = typeof nameOrSetup === 'function' ? nameOrSetup : setup!;
+
   const _beforeUpdate: UpdateFn[] = [];
   const _update: UpdateFn[] = [];
   const _afterUpdate: UpdateFn[] = [];
@@ -227,15 +233,14 @@ export function defineSystem(setup: () => void): GwenPlugin {
 
   return {
     name: (() => {
-      if (!setup.name) {
+      if (!systemName) {
         console.warn(
-          '[GWEN] defineSystem() called with an anonymous function. ' +
-            'This makes debugging and plugin deduplication difficult. ' +
-            'Please use a named function: defineSystem(function mySystem() { ... })',
+          '[GWEN] defineSystem() called without a name. ' +
+            'Pass a name as first argument: defineSystem(\'mySystem\', () => { ... })',
         );
         return 'anonymous-system';
       }
-      return setup.name;
+      return systemName;
     })(),
 
     setup(_engine): void {
@@ -247,7 +252,7 @@ export function defineSystem(setup: () => void): GwenPlugin {
         onAfterUpdate: (fn) => _afterUpdate.push(fn),
         onRender: (fn) => _render.push(fn),
       };
-      _withSystemContext(ctx, setup);
+      _withSystemContext(ctx, setupFn);
     },
 
     onBeforeUpdate(dt: number): void {

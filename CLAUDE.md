@@ -28,13 +28,28 @@ const entities = useQuery([Health], { onChange: ... })
 
 ## defineSystem
 
-**Signature correcte :** `defineSystem(setup: () => void): GwenPlugin`
+**Signatures valides :**
 
 ```ts
-// ✅ CORRECT — function nommée recommandée
-export const MovementSystem = defineSystem(function MovementSystem() {
-  const entities = useQuery([Position, Velocity])
+defineSystem(name: string, setup: () => void): GwenPlugin
+defineSystem(setup: () => void): GwenPlugin
+```
 
+```ts
+// ✅ CORRECT — nom string explicite (recommandé sans le plugin Vite)
+export const MovementSystem = defineSystem('MovementSystem', () => {
+  const entities = useQuery([Position, Velocity])
+  onUpdate((dt) => {
+    for (const id of entities) {
+      Position.x[id] += Velocity.x[id] * dt
+    }
+  })
+})
+
+// ✅ CORRECT — avec le plugin Vite (@gwenjs/vite), le nom est injecté automatiquement
+// depuis le nom de la variable exportée
+export const MovementSystem = defineSystem(() => {
+  const entities = useQuery([Position, Velocity])
   onUpdate((dt) => {
     for (const id of entities) {
       Position.x[id] += Velocity.x[id] * dt
@@ -51,10 +66,10 @@ defineSystem(() => {
 })
 ```
 
-- Prend la fonction directement, **pas** un objet `{ setup }`
+- Prend soit `(name, setup)` soit `(setup)` directement, **pas** un objet `{ setup }`
 - La fonction setup **ne retourne rien** — les callbacks frame sont enregistrés via composables
 - Retourne `GwenPlugin`, pas `SystemDef`
-- Utiliser une fonction nommée (évite un warning du moteur)
+- Le plugin Vite `gwenSystemPlugin` (inclus dans `gwenVitePlugin`) injecte le nom automatiquement depuis `export const X = defineSystem(() => {})`
 
 ---
 
