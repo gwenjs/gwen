@@ -70,6 +70,8 @@ export interface ActorInstance<PublicAPI = void> {
   _destroy: VoidFn[];
   /** Cleanup fns for onEvent() — called on despawn to unregister engine hook handlers. */
   _eventCleanups: VoidFn[];
+  /** Dispose function from withCleanup() — fires all onCleanup() callbacks registered during factory. */
+  _cleanupDispose?: () => void;
   /** Public API returned by the factory and exposed via `ActorHandle.get()` / `getAll()`. */
   api: PublicAPI;
 }

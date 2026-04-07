@@ -6,7 +6,7 @@
  * is driven entirely by {@link KinematicBodyHandle.setVelocity} +
  * `onBeforeUpdate` integration, or by explicit {@link KinematicBodyHandle.moveTo} calls.
  */
-import { onBeforeUpdate } from '@gwenjs/core';
+import { onBeforeUpdate } from '@gwenjs/core/actor';
 import { _getActorEntityId } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 import type { KinematicBodyOptions, KinematicBodyHandle } from '../types';
@@ -51,7 +51,7 @@ export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicB
   let _vy = 0;
   let _omega = 0;
 
-  onBeforeUpdate((dt) => {
+  onBeforeUpdate((dt: number) => {
     if (!_active || !Number.isFinite(dt) || dt <= 0) return;
     const pos = physics.getPosition(entityId);
     if (!pos) return;

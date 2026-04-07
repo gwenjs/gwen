@@ -24,6 +24,7 @@
 import { createHooks, type Hookable } from 'hookable';
 import type { GwenRuntimeHooks, EngineErrorPayload } from './runtime-hooks.js';
 import { engineContext } from '../context.js';
+import { withCleanup } from '../cleanup-context.js';
 import { createLogger } from '../logger/index';
 import type { GwenLogger } from '../logger/index';
 import { WasmRegionView, WasmRingBuffer } from './wasm-module-handle.js';
@@ -808,6 +809,8 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Internal state ───────────────────────────────────────────────────────
   private readonly _plugins: GwenPlugin[] = [];
   private readonly _pluginNames = new Set<string>();
+  /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
+  private readonly _pluginCleanups = new Map<string, () => void>();
   private readonly _services = new Map<string, unknown>();
   private readonly _tracker = new ScopedHooksTracker();
   private _advancing = false;
@@ -957,8 +960,12 @@ class GwenEngineImpl implements GwenEngine {
     try {
       // Run setup inside engine context so useEngine() resolves to this instance.
       // engineContext.call() saves and restores the previous context (safe for nesting).
-      const setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
-      if (setupResult instanceof Promise) await setupResult;
+      let setupResult: void | Promise<void>;
+      const [, dispose] = withCleanup(() => {
+        setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
+      });
+      this._pluginCleanups.set(plugin.name, dispose);
+      if (setupResult! instanceof Promise) await setupResult!;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this._errorBus?.emit({
@@ -984,6 +991,8 @@ class GwenEngineImpl implements GwenEngine {
     if (idx === -1) return;
 
     const plugin = this._plugins[idx]!;
+    this._pluginCleanups.get(name)?.();
+    this._pluginCleanups.delete(name);
     await plugin.teardown?.();
     this._plugins.splice(idx, 1);
     this._pluginNames.delete(name);

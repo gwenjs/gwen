@@ -25,6 +25,7 @@ const DEFAULT_ENGINE = {
   variant: 'light' as const,
   loop: 'internal' as const,
   maxDeltaSeconds: 0.1,
+  debug: false,
 };
 
 /**

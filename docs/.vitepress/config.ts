@@ -27,6 +27,7 @@ const enSidebar = [
   {
     text: 'Going Further',
     items: [
+      { text: 'Hooks & Events', link: '/advanced/hooks' },
       { text: 'Tween & Animation', link: '/advanced/tween' },
       { text: 'Error Bus', link: '/advanced/error-bus' },
       { text: 'Debug Mode', link: '/advanced/debug-mode' },
@@ -91,6 +92,7 @@ const frSidebar = [
   {
     text: 'Aller plus loin',
     items: [
+      { text: 'Hooks et événements', link: '/fr/advanced/hooks' },
       { text: 'Tween & Animation', link: '/fr/advanced/tween' },
       { text: "Bus d'erreurs", link: '/fr/advanced/error-bus' },
       { text: 'Mode debug', link: '/fr/advanced/debug-mode' },

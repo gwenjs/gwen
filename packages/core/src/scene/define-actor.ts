@@ -37,6 +37,7 @@ import type { GwenRuntimeHooks } from '../engine/runtime-hooks.js';
 import type { EntityId } from '../engine/engine-api.js';
 import { _withSystemContext } from '../system.js';
 import type { SystemContext } from '../system.js';
+import { withCleanup } from '../cleanup-context.js';
 import type {
   ActorDefinition,
   ActorInstance,
@@ -331,6 +332,7 @@ export function defineActor<Props = void, PublicAPI = void>(
       _render: [],
       _destroy: [],
       _eventCleanups: [],
+      _cleanupDispose: undefined,
       // api is filled after the factory runs.
       api: undefined as unknown as PublicAPI,
     };
@@ -345,12 +347,16 @@ export function defineActor<Props = void, PublicAPI = void>(
 
     // 5. Run the factory inside the actor context (for onStart/onDestroy/onEvent)
     //    AND the system context (for onUpdate/onBeforeUpdate/onAfterUpdate/onRender).
+    //    Wrapped in withCleanup so any onCleanup() calls are collected and fired on despawn.
     let api: PublicAPI | undefined;
-    _withActorContext(instance, _engine, () => {
-      _withSystemContext(ctx, () => {
-        api = factory(props);
+    const [, cleanupDispose] = withCleanup(() => {
+      _withActorContext(instance, _engine!, () => {
+        _withSystemContext(ctx, () => {
+          api = factory(props);
+        });
       });
     });
+    instance._cleanupDispose = cleanupDispose;
 
     instance.api = api as PublicAPI;
 
@@ -383,7 +389,10 @@ export function defineActor<Props = void, PublicAPI = void>(
       instance._eventCleanups[i]!();
     }
 
-    // 3. Destroy the ECS entity.
+    // 3. Fire onCleanup() callbacks registered during factory (via withCleanup).
+    instance._cleanupDispose?.();
+
+    // 4. Destroy the ECS entity.
     _engine?.destroyEntity(entityId as unknown as EntityId);
 
     // 4. Remove from both registries.

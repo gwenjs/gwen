@@ -31,6 +31,7 @@ function makeConfig(overrides: Partial<ResolvedGwenConfig> = {}): ResolvedGwenCo
       variant: 'light',
       loop: 'internal',
       maxDeltaSeconds: 0.1,
+      debug: false,
     },
     ...overrides,
   };

@@ -1,4 +1,5 @@
-import type { GwenEngine, EntityId, ComponentDef, LiveQuery, EntityAccessor } from '@gwenjs/core';
+import type { GwenEngine, EntityId } from '@gwenjs/core';
+import type { ComponentDef, LiveQuery, EntityAccessor } from '@gwenjs/core/system';
 import type { Physics2DAPI, SensorState } from './types';
 import type {} from './augment';
 

@@ -105,28 +105,86 @@ Méthodes du `TransformHandle` :
 
 ## Événements typés
 
-Utilisez `defineEvents()` pour déclarer un contrat d'événements typé, puis `emit()` pour déclencher des événements dans le contexte engine actif. Déclarez les contrats d'événements une seule fois et partagez-les entre acteurs et systèmes. Écoutez les événements depuis un système via le hook d'événements (augmenté via `GwenRuntimeHooks`).
+Utilisez `defineEvents()` pour déclarer votre contrat d'événements de jeu en un seul endroit, puis partagez-le entre acteurs et systèmes.
 
-```typescript
-import { defineEvents, emit, defineActor } from '@gwenjs/core/actor'
-import { EnemyPrefab } from '../prefabs'
+```ts
+// src/events/enemy.ts
+import { defineEvents } from '@gwenjs/core/actor'
 
-// Déclarer le contrat d'événements une fois — partager entre acteurs et systèmes
 export const EnemyEvents = defineEvents({
-  hit: (damage: number) => {},
-  die: () => {},
+  'enemy:hit': (damage: number) => {},
+  'enemy:die': () => {},
 })
+```
+
+`defineEvents` est un outil de déclaration — il nomme et groupe vos événements pour que chaque partie de votre code fonctionne à partir du même contrat.
+
+### Émission d'événements
+
+Appelez `emit()` depuis à l'intérieur d'un acteur ou d'un système pour déclencher un événement :
+
+```ts
+import { defineActor, emit } from '@gwenjs/core/actor'
+import { EnemyEvents } from '../events/enemy'
+import { EnemyPrefab } from '../prefabs'
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
   let hp = props.hp
 
   return {
     takeDamage: (damage: number) => {
-      emit('hit', damage)
       hp -= damage
-      if (hp <= 0) emit('die')
+      emit('enemy:hit', damage)
+      if (hp <= 0) emit('enemy:die')
     },
   }
+})
+```
+
+### Écoute depuis un acteur
+
+Utilisez `onEvent()` à l'intérieur d'une factory `defineActor` pour écouter. Le handler est automatiquement supprimé quand l'acteur est détruit — aucun nettoyage nécessaire :
+
+```ts
+import { defineActor, onEvent, onStart } from '@gwenjs/core/actor'
+import { HUDPrefab } from '../prefabs'
+
+export const HUDActor = defineActor(HUDPrefab, () => {
+  let hits = 0
+
+  onEvent('enemy:hit', (damage) => {
+    hits++
+    console.log(`Enemy hit for ${damage} damage (total hits: ${hits})`)
+  })
+
+  onEvent('enemy:die', () => {
+    console.log('Enemy eliminated')
+  })
+
+  return {}
+})
+```
+
+### Écoute depuis un système
+
+Utilisez `useHook()` à l'intérieur d'une configuration `defineSystem` pour écouter depuis un système. Il se désabonne automatiquement quand le moteur s'arrête :
+
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useHook } from '@gwenjs/core'
+
+export const ScoreSystem = defineSystem(function ScoreSystem() {
+  let score = 0
+
+  // Auto-cleanup when the engine stops
+  useHook('enemy:die', () => {
+    score += 100
+    console.log('Score:', score)
+  })
+
+  useHook('enemy:hit', (damage) => {
+    score += damage
+  })
 })
 ```
 
@@ -243,8 +301,10 @@ Utilisez les acteurs pour les **entités uniques et nommées**. Utilisez les sys
 | `useComponent(ComponentType)` | Accéder à un composant à l'intérieur de factory |
 | `useTransform()` | Accéder à la transform spatiale de l'acteur |
 | `useSceneRouter(router)` | Naviguer entre les scènes |
-| `defineEvents(schema)` | Déclarer un contrat d'événements typé |
-| `emit(event, ...args)` | Déclencher un événement dans le contexte engine actif |
+| `defineEvents(map)` | Déclarer un contrat d'événements typé (partagé entre acteurs et systèmes) |
+| `emit(event, ...args)` | Déclencher un événement depuis un contexte moteur actif |
+| `onEvent(event, handler)` | Écouter un événement à l'intérieur d'un acteur (supprimé automatiquement à la destruction) |
+| `useHook(event, handler)` | S'abonner à un événement moteur ou de jeu (nettoyage automatique) — importer depuis `@gwenjs/core` |
 | `onStart(fn)` | S'exécute une fois à la génération |
 | `onUpdate(fn)` | S'exécute chaque frame |
 | `onDestroy(fn)` | S'exécute à la suppression |

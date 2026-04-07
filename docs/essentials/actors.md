@@ -167,22 +167,22 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 
 ### Listening from a System
 
-Use `engine.hooks.hook()` inside a `defineSystem` setup to listen from a system:
+Use `useHook()` inside a `defineSystem` setup to listen from a system. It automatically unsubscribes when the engine stops:
 
 ```ts
 import { defineSystem } from '@gwenjs/core/system'
-import { useEngine } from '@gwenjs/core'
+import { useHook } from '@gwenjs/core'
 
 export const ScoreSystem = defineSystem(function ScoreSystem() {
-  const engine = useEngine()
   let score = 0
 
-  engine.hooks.hook('enemy:die', () => {
+  // Auto-cleanup when the engine stops
+  useHook('enemy:die', () => {
     score += 100
     console.log('Score:', score)
   })
 
-  engine.hooks.hook('enemy:hit', (damage) => {
+  useHook('enemy:hit', (damage) => {
     score += damage
   })
 })
@@ -309,6 +309,7 @@ Use actors for **unique, named entities**. Use systems for **bulk operations** o
 | `defineEvents(map)` | Declare a typed event contract (shared across actors and systems) |
 | `emit(event, ...args)` | Dispatch an event from any active engine context |
 | `onEvent(event, handler)` | Listen to an event inside an actor (auto-removed on destroy) |
+| `useHook(event, handler)` | Subscribe to an engine or game event (auto-cleanup) — import from `@gwenjs/core` |
 | `onStart(fn)` | Runs once at spawn |
 | `onUpdate(fn)` | Runs every frame |
 | `onDestroy(fn)` | Runs at despawn |

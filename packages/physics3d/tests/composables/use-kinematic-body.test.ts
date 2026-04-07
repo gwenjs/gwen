@@ -5,14 +5,13 @@ import type { Physics3DBodyHandle } from '../../src/types.js';
 
 let _beforeUpdateCb: ((dt: number) => void) | null = null;
 
-vi.mock('@gwenjs/core', () => ({
-  onBeforeUpdate: vi.fn((fn: (dt: number) => void) => {
-    _beforeUpdateCb = fn;
-  }),
-}));
+vi.mock('@gwenjs/core', () => ({}));
 
 vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 1n),
+  onBeforeUpdate: vi.fn((fn: (dt: number) => void) => {
+    _beforeUpdateCb = fn;
+  }),
 }));
 
 const mockBodyHandle: Physics3DBodyHandle = {

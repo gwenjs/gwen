@@ -9,7 +9,7 @@ export * from './types';
 export * from './schema';
 
 // Hooks system
-export { createGwenHooks } from './hooks';
+export { createGwenHooks, useHook, onCleanup, withCleanup } from './hooks';
 export type { GwenHooks, GwenHookable } from './hooks';
 
 // Engine
