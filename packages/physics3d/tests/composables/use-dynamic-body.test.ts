@@ -1,7 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { Physics3DBodyHandle } from '../../src/types.js';
 
-vi.mock('@gwenjs/core/scene', () => ({
+vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 

@@ -11,7 +11,7 @@ vi.mock('@gwenjs/core', () => ({
   }),
 }));
 
-vi.mock('@gwenjs/core/scene', () => ({
+vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 
