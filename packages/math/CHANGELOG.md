@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.1](https://github.com/gwenjs/gwen/compare/math-v0.1.0...math-v0.1.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* **math:** suppress erasing-op warnings in tests ([6987c0a](https://github.com/gwenjs/gwen/commit/6987c0ad6928a4354ce2c40f13cf8141db58ff5e))
+* **release:** fix declaration paths and publishConfig for all packages ([f5152d5](https://github.com/gwenjs/gwen/commit/f5152d54d3939b1fbfce19586922034fbb08665a))
+
 ## v0.1.0 (2026-04-07)
 
 ### Initial Release
