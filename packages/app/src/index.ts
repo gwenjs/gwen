@@ -38,11 +38,6 @@ export type {
  * Re-exported from `@gwenjs/kit` so that consumers only need to import
  * from `@gwenjs/app` for both project configuration and module authoring.
  */
-export { defineGwenModule } from '@gwenjs/kit';
-export type {
-  GwenModule,
-  GwenModuleDefinition,
-  GwenKit,
-  AutoImport,
-  GwenTypeTemplate,
-} from '@gwenjs/kit';
+export { defineGwenModule } from '@gwenjs/kit/module';
+export type { GwenModule, GwenModuleDefinition, GwenKit } from '@gwenjs/kit/module';
+export type { AutoImport, GwenTypeTemplate } from '@gwenjs/kit';

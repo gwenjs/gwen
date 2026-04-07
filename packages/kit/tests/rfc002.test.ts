@@ -3,7 +3,7 @@
  * (definePlugin uses the existing class-based factory, which is the current implementation)
  */
 import { describe, it, expect } from 'vitest';
-import { definePlugin, satisfiesPluginContract, definePluginTypes } from '../src/index';
+import { definePlugin, satisfiesPluginContract, definePluginTypes } from '../src/plugin';
 
 describe('definePlugin', () => {
   it('returns a callable constructor', () => {

@@ -12,7 +12,7 @@ Un **acteur** est un objet de jeu composable basé sur des instances. Chaque ins
 `defineActor(prefab, factory)` prend un préfabriqué (disposition des composants) et une fonction factory qui configure les crochets de cycle de vie et retourne une API publique :
 
 ```ts
-import { defineActor, onStart, onDestroy, onUpdate } from '@gwenjs/core'
+import { defineActor, onStart, onDestroy, onUpdate } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs'
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
@@ -80,7 +80,7 @@ Ces composables s'exécutent à l'intérieur de la fonction factory de l'acteur 
 Chaque instance d'acteur a accès à sa transform spatiale via `useTransform()`. Le handle opère directement sur le buffer mémoire WASM partagé — les vues restent toujours live après les appels `memory.grow()`.
 
 ```typescript
-import { defineActor, useTransform, onStart } from '@gwenjs/core'
+import { defineActor, useTransform, onStart } from '@gwenjs/core/actor'
 import { PlayerPrefab } from '../prefabs'
 
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
@@ -108,7 +108,7 @@ Méthodes du `TransformHandle` :
 Utilisez `defineEvents()` pour déclarer un contrat d'événements typé, puis `emit()` pour déclencher des événements dans le contexte engine actif. Déclarez les contrats d'événements une seule fois et partagez-les entre acteurs et systèmes. Écoutez les événements depuis un système via le hook d'événements (augmenté via `GwenRuntimeHooks`).
 
 ```typescript
-import { defineEvents, emit, defineActor } from '@gwenjs/core'
+import { defineEvents, emit, defineActor } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs'
 
 // Déclarer le contrat d'événements une fois — partager entre acteurs et systèmes
@@ -135,7 +135,7 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
 Utilisez `useComponent()` pour obtenir et muter un composant :
 
 ```ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core'
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { Health } from '../components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -156,7 +156,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 À l'intérieur d'un acteur, utilisez `useSceneRouter()` pour naviguer entre les scènes :
 
 ```ts
-import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core'
+import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core/actor'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 
@@ -178,7 +178,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ```ts
 // src/prefabs/Enemy.ts
-import { definePrefab } from '@gwenjs/core'
+import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Health } from '../components'
 
 export const EnemyPrefab = definePrefab({
@@ -188,7 +188,7 @@ export const EnemyPrefab = definePrefab({
 })
 
 // src/actors/Enemy.ts
-import { defineActor, onStart, onUpdate, onDestroy, useComponent } from '@gwenjs/core'
+import { defineActor, onStart, onUpdate, onDestroy, useComponent } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs/Enemy'
 import { Health, Velocity } from '../components'
 

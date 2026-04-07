@@ -1,6 +1,10 @@
-// GWEN Engine Core — Public API
+// GWEN Engine Core — Public API (engine primitives only)
+// Game-loop primitives live in subpaths:
+//   @gwenjs/core/system  — defineSystem, onUpdate, useQuery, ...
+//   @gwenjs/core/actor   — defineActor, onStart, onDestroy, definePrefab, ...
+//   @gwenjs/core/scene   — defineScene, defineSceneRouter, ...
 
-// Types (source of truth for shared types)
+// Shared types
 export * from './types';
 export * from './schema';
 
@@ -8,12 +12,11 @@ export * from './schema';
 export { createGwenHooks } from './hooks';
 export type { GwenHooks, GwenHookable } from './hooks';
 
-// RFC-001: New GwenEngine interface & createEngine() factory
+// Engine
 export { createEngine, GwenPluginNotFoundError, CoreErrorCodes } from './engine/gwen-engine';
 export { GwenConfigError } from './errors';
 export type {
   GwenEngine,
-  // GwenPlugin is the RFC-001 interface (setup/teardown) — the primary plugin contract.
   GwenPlugin,
   GwenProvides,
   GwenEngineOptions,
@@ -30,76 +33,15 @@ export type {
 } from './engine/gwen-engine';
 export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from './engine/gwen-engine';
 
-// Logger (RFC-011)
+// Logger
 export { createLogger } from './logger/index.js';
 export type { GwenLogger, LogLevel, LogEntry } from './logger/index.js';
 
-// RFC-003: Runtime hooks interface (augmentable)
+// Runtime hooks interface
 export type { GwenRuntimeHooks, EngineErrorPayload } from './engine/runtime-hooks';
 
-// RFC-005: Composable context system (unctx-backed)
+// Engine context
 export { engineContext, useEngine, GwenContextError } from './context';
-export {
-  defineSystem,
-  onUpdate,
-  onBeforeUpdate,
-  onAfterUpdate,
-  onRender,
-  useQuery,
-  useService,
-  useWasmModule,
-} from './system';
-export type { LiveQuery, ComponentDef, EntityAccessor } from './system';
-
-// Scene primitives
-export { defineScene } from './scene/define-scene.js';
-export type {
-  SceneDefinition,
-  SceneFactory,
-  SceneOptions,
-  SceneRegistry,
-} from './scene/define-scene.js';
-
-export { definePrefab } from './define-prefab.js';
-export type { PrefabDefinition, PrefabComponentEntry } from './define-prefab.js';
-
-// RFC-011: Typed event declaration + emit helper
-export { defineEvents } from './define-events.js';
-export type { InferEvents, EventHandlerMap } from './define-events.js';
-export { emit } from './scene/emit.js';
-
-// Actor + Layout system (RFC-011, RFC-01)
-export { defineActor, onStart, onDestroy, onEvent } from './scene/define-actor.js';
-export { defineLayout } from './scene/define-layout.js';
-export { useActor, usePrefab, useComponent } from './scene/use-actor.js';
-export { useLayout } from './scene/use-layout.js';
-export { useTransform } from './scene/use-transform.js';
-export { placeActor, placeGroup, placePrefab } from './scene/place.js';
-export type { ActorHandle, PrefabHandle } from './scene/use-actor.js';
-export type {
-  ActorDefinition,
-  ActorInstance,
-  ActorPlugin,
-  PlaceHandle,
-  LayoutDefinition,
-  LayoutHandle,
-  UseLayoutOptions,
-} from './scene/types.js';
-export type { TransformHandle } from './scene/use-transform.js';
-
-// Scene Router (RFC-02)
-export { defineSceneRouter } from './router/define-scene-router.js';
-export { useSceneRouter } from './router/use-scene-router.js';
-export type {
-  RouteConfig,
-  SceneRouterOptions,
-  SceneRouterDefinition,
-  SceneRouterHandle,
-  EventsOf,
-  StatesOf,
-  TransitionEffect,
-  SceneInput,
-} from './router/router-types.js';
 
 // WASM Bridge
 export {
@@ -132,11 +74,11 @@ export {
 } from './wasm/shared-memory';
 export type { MemoryRegion } from './wasm/shared-memory';
 
-// WASM transform buffer host imports (RFC-GAP2 V1)
+// WASM transform buffer host imports
 export { buildTransformImports } from './wasm/transform-imports';
 export type { GwenTransformImports } from './wasm/transform-imports';
 
-// 3D Transform component + low-level buffer accessors
+// 3D Transform component
 export {
   TRANSFORM_OFFSETS,
   Transform3D,
@@ -153,5 +95,5 @@ export { GlobalStringPoolManager, StringPoolManager, StringPool } from './utils/
 export { detectCoreVariant } from './utils/variant-detector';
 export { detectSharedMemoryRequired } from './utils/variant-detector';
 
-// RFC-03: Tween & Animation System
+// Tween & Animation System
 export * from './tween/index.js';

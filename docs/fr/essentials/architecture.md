@@ -97,7 +97,7 @@ Plusieurs composants s'attachent à la même entité pour la décrire. Un joueur
 Un **système** est une fonction qui s'exécute chaque frame sur toutes les entités correspondant à une requête. Les systèmes lisent et écrivent les données de composants.
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {

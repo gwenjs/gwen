@@ -7,16 +7,9 @@
  * @internal — not part of the public API surface. Use `@gwenjs/app` exports.
  */
 
-import type { GwenPlugin } from '@gwenjs/kit';
-import type {
-  GwenModule,
-  GwenKit,
-  AutoImport,
-  GwenTypeTemplate,
-  VitePlugin,
-  ViteUserConfig,
-  GwenBuildHooks,
-} from '@gwenjs/kit';
+import type { GwenPlugin } from '@gwenjs/core';
+import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from '@gwenjs/kit';
+import type { GwenModule, GwenKit, GwenBuildHooks } from '@gwenjs/kit/module';
 import { createHooks } from 'hookable';
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';

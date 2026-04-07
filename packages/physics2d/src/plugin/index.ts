@@ -6,7 +6,7 @@
  * 2D physics plugin for GWEN — pure adapter providing 2D rigid-body physics via the core WASM.
  */
 
-import { definePlugin } from '@gwenjs/kit';
+import { definePlugin } from '@gwenjs/kit/plugin';
 import { unpackEntityId, createEntityId, getWasmBridge } from '@gwenjs/core';
 import type { GwenEngine, EntityId, WasmBridge, WasmEnginePhysics2D } from '@gwenjs/core';
 

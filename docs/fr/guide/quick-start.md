@@ -84,7 +84,7 @@ Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 
 **src/systems/Movement.ts**
 ```typescript
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position } from '../components/Position'
 
 export const MovementSystem = defineSystem(() => {
@@ -105,7 +105,7 @@ export const MovementSystem = defineSystem(() => {
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 import { MovementSystem } from '../systems/Movement'
 
 export const GameScene = defineScene({
@@ -120,7 +120,7 @@ Définissez la navigation entre les scènes :
 
 **src/router.ts**
 ```typescript
-import { defineSceneRouter } from '@gwenjs/core'
+import { defineSceneRouter } from '@gwenjs/core/scene'
 import { GameScene } from './scenes/GameScene'
 
 export const AppRouter = defineSceneRouter({

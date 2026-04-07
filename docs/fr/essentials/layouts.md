@@ -14,7 +14,7 @@ Un **layout** est une couche d'interface utilisateur persistante qui existe au-d
 Utilisez `defineLayout()` pour créer une couche d'interface utilisateur persistante :
 
 ```ts
-import { defineLayout, placeActor } from '@gwenjs/core'
+import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from './actors/hud'
 
 export const GameLayout = defineLayout(() => {
@@ -28,7 +28,8 @@ export const GameLayout = defineLayout(() => {
 Les layouts sont généralement chargés au démarrage ou lors de l'entrée du gameplay :
 
 ```ts
-import { defineSystem, useLayout } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 
 export const LayoutInitSystem = defineSystem(() => {
@@ -45,7 +46,7 @@ export const LayoutInitSystem = defineSystem(() => {
 Ou à partir d'une initialisation du routeur de scènes :
 
 ```ts
-import { defineSceneRouter } from '@gwenjs/core'
+import { defineSceneRouter } from '@gwenjs/core/scene'
 import { GameLayout } from './layouts'
 
 export const router = defineSceneRouter({
@@ -80,7 +81,7 @@ export const HUDData = defineComponent({
 
 ```ts
 // actors/hud.ts
-import { defineActor, onStart, onUpdate } from '@gwenjs/core'
+import { defineActor, onStart, onUpdate } from '@gwenjs/core/actor'
 import { useQuery, useEngine } from '@gwenjs/core'
 import { HUDData } from '../components/hud'
 import { Health, Position } from '../components'
@@ -140,7 +141,8 @@ router.pop() // Le HUD est toujours là avec les mêmes valeurs
 Les layouts fournissent une couche de données partagées que tout système de scène peut lire et écrire :
 
 ```ts
-import { defineSystem, useQuery, onUpdate, useLayout } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 import { Health } from './components'
 import { HUDData } from './components/hud'

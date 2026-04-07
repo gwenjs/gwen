@@ -1,7 +1,7 @@
 /**
  * @file useBoxCollider() — explicit box collider shape composable.
  */
-import { _getActorEntityId } from '@gwenjs/core/scene';
+import { _getActorEntityId } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 import type { BoxColliderHandle } from '../types';
 import { usePhysics2D } from '../composables';

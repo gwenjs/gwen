@@ -12,7 +12,8 @@ Les tweens sont la façon standard d'animer des valeurs numériques, des vecteur
 Créez un tween à l'intérieur d'un système en utilisant `useTween()` :
 
 ```ts
-import { useTween, defineSystem, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const FadeSystem = defineSystem(() => {
   const opacity = useTween<number>({
@@ -56,7 +57,9 @@ Vous pouvez également fournir une fonction de facilitation personnalisée : `(t
 `defineSequence` enchaîne plusieurs tweens et attentes temporisées en une seule séquence ordonnée. Utile pour les animations d'introduction, les cinématiques ou tout flux en plusieurs étapes :
 
 ```typescript
-import { useTween, defineSequence, defineSystem, onStart } from '@gwenjs/core'
+import { useTween, defineSequence } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { onStart } from '@gwenjs/core/actor'
 
 export const IntroSystem = defineSystem(() => {
   const fadeIn  = useTween<number>({ duration: 0.4, easing: 'easeOutQuad' })
@@ -99,7 +102,8 @@ Enregistrez `onComplete` sur la séquence, et non sur les tweens individuels. Ap
 Mettez en file d'attente plusieurs segments avec `.to()` :
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const AnimationSystem = defineSystem(() => {
   const position = useTween<Vec2>({ duration: 0.2 })
@@ -157,7 +161,8 @@ scale.onLoop(() => {
 Répétez les animations indéfiniment ou inversez-les :
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const BobbingSystem = defineSystem(() => {
   const bobbing = useTween<number>({
@@ -183,7 +188,9 @@ Avec `loop: true` et `yoyo: true`, le tween rebondit d'avant en arrière : 0 →
 Les ennemis changent d'échelle de 0 à 1 en 0,2 secondes lorsqu'ils sont générés :
 
 ```ts
-import { defineSystem, usePrefab, useTween, onUpdate } from '@gwenjs/core'
+import { usePrefab } from '@gwenjs/core/actor'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { Position, Scale } from './components'
 import { EnemyPrefab } from './prefabs'
 
@@ -214,7 +221,8 @@ export const EnemySpawnSystem = defineSystem(() => {
 Faire disparaître progressivement un panneau de dialogue au démarrage d'une scène :
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const DialogSystem = defineSystem(() => {
   const alpha = useTween<number>({ duration: 0.4, easing: 'easeIn' })

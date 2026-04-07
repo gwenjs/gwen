@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { definePlugin } from '../src/index';
+import { definePlugin } from '../src/plugin';
 import type { GwenEngine } from '@gwenjs/core';
 
 // ── Mock engine ───────────────────────────────────────────────────────────────

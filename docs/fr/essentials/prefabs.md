@@ -14,7 +14,7 @@ Un **prefab** est un modèle réutilisable pour générer des entités. Au lieu 
 Utilisez `definePrefab()` pour déclarer un modèle d'entité réutilisable :
 
 ```ts
-import { definePrefab } from '@gwenjs/core'
+import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Damage } from './components'
 
 export const BulletPrefab = definePrefab([
@@ -29,7 +29,8 @@ export const BulletPrefab = definePrefab([
 Utilisez `usePrefab()` pour obtenir un handle pour générer et supprimer des entités :
 
 ```ts
-import { usePrefab, defineSystem, onUpdate } from '@gwenjs/core'
+import { usePrefab } from '@gwenjs/core/actor'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { BulletPrefab } from './prefabs'
 
 export const FireSystem = defineSystem(() => {
@@ -88,7 +89,7 @@ const id = bullet.spawn({
 Voici un prefab réaliste pour les ennemis dans un jeu de tir :
 
 ```ts
-import { definePrefab } from '@gwenjs/core'
+import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Health, AI } from './components'
 
 export const EnemyPrefab = definePrefab([
@@ -102,7 +103,8 @@ export const EnemyPrefab = definePrefab([
 Dans votre système de génération :
 
 ```ts
-import { defineSystem, onUpdate, usePrefab } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { usePrefab } from '@gwenjs/core/actor'
 import { EnemyPrefab } from './prefabs'
 
 export const EnemySpawnerSystem = defineSystem(() => {

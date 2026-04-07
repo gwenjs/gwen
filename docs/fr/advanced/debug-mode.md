@@ -216,7 +216,7 @@ Maintenant :
 Enregistrez les systèmes réservés au debug :
 
 ```ts
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 
 export class GameScene extends defineScene {
   onLoad() {
@@ -278,7 +278,7 @@ Vous avez remarqué des baisses de fréquence d'images. Le mode debug aide :
 Les wireframes de colliseur aident à vérifier la géométrie de collision :
 
 ```ts
-import { defineScene, createEntity } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 import { Position, Collider } from './components'
 
 export class TestScene extends defineScene {

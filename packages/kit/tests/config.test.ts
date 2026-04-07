@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
+import type { GwenPlugin } from '@gwenjs/core';
 import {
-  type GwenPlugin,
   type MergePluginsPrefabExtensions,
   type MergePluginsSceneExtensions,
   type MergePluginsUIExtensions,
-} from '../src';
+} from '../src/config';
 import { defineConfig } from '@gwenjs/app';
 
 // V2 GwenPlugin instances (setup/teardown, no generics)

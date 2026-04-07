@@ -13,13 +13,15 @@
 import { describe, it, expect } from 'vitest';
 import {
   createEngine,
-  useService,
-  defineSystem,
-  onUpdate,
   engineContext,
   GwenContextError,
   GwenPluginNotFoundError,
 } from '../src/index';
+import {
+  useService,
+  defineSystem,
+  onUpdate,
+} from '../src/system/index';
 
 // ─── Declaration merging for test scope ───────────────────────────────────────
 

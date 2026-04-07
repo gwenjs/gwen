@@ -20,14 +20,16 @@ import {
   useEngine,
   GwenContextError,
   GwenPluginNotFoundError,
+  engineContext,
+} from '../src/index';
+import {
   defineSystem,
   onUpdate,
   onBeforeUpdate,
   onAfterUpdate,
   onRender,
   useQuery,
-  engineContext,
-} from '../src/index';
+} from '../src/system/index';
 
 // ─── useEngine() ─────────────────────────────────────────────────────────────
 

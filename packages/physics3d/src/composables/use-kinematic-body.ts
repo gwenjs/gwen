@@ -7,7 +7,7 @@
  * `onBeforeUpdate` integration, or by explicit {@link KinematicBodyHandle3D.moveTo} calls.
  */
 import { onBeforeUpdate } from '@gwenjs/core';
-import { _getActorEntityId } from '@gwenjs/core/scene';
+import { _getActorEntityId } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 import type {
   KinematicBodyOptions3D,

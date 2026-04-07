@@ -136,7 +136,7 @@ const enemyId = engine.spawn([
 Now systems can read and write this data:
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 
 export const DamageSystem = defineSystem(() => {
   const enemies = useQuery([Health, Armor], { exclude: [DeadTag] })

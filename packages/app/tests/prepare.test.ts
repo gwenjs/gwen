@@ -17,7 +17,7 @@ import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { GwenApp } from '../src/app.js';
-import { defineGwenModule } from '@gwenjs/kit';
+import { defineGwenModule } from '@gwenjs/kit/module';
 import type { ResolvedGwenConfig } from '../src/config.js';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────

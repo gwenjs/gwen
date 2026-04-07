@@ -12,14 +12,17 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createEngine,
+  defineComponent,
+  Types,
+  engineContext,
+} from '../src/index';
+import {
   defineSystem,
   onUpdate,
   useQuery,
-  engineContext,
-  defineComponent,
-  Types,
-} from '../src/index';
-import type { GwenEngine, EntityAccessor } from '../src/index';
+} from '../src/system/index';
+import type { GwenEngine } from '../src/index';
+import type { EntityAccessor } from '../src/system/index';
 
 // ─── Component fixtures ───────────────────────────────────────────────────────
 

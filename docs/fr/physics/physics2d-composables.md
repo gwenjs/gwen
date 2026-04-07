@@ -66,8 +66,9 @@ const layers = defineLayers({ player: 0, enemy: 1, terrain: 2 })
 Déclarez la physique à l'intérieur de `defineActor()` — une fois par type d'acteur. Les composables lisent le contexte de l'acteur automatiquement.
 
 ```ts
-import { defineActor, onUpdate } from '@gwenjs/core'
-import { useShape, useDynamicBody, useBoxCollider, onContact } from '@gwenjs/physics2d'
+import { defineActor } from '@gwenjs/core/actor'
+import { onUpdate, onContact } from '@gwenjs/core/system'
+import { useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor('Player', () => {
   useShape({ w: 32, h: 48 })
@@ -256,8 +257,9 @@ const ProjectileActor = defineActor('Projectile', () => {
 Voici un motif courant : un personnage qui tombe avec la gravité, entre en collision avec le terrain et peut sauter en touchant le sol.
 
 ```ts
-import { defineActor, onUpdate, createEntity } from '@gwenjs/core'
-import { useDynamicBody, useCapsuleCollider, onContact } from '@gwenjs/physics2d'
+import { defineActor } from '@gwenjs/core/actor'
+import { onUpdate, onContact } from '@gwenjs/core/system'
+import { useDynamicBody, useCapsuleCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor('Player', () => {
   const body = useDynamicBody({

@@ -19,7 +19,7 @@ A **module** is a build-time extension defined using `defineGwenModule()` from `
 The simplest module just provides metadata:
 
 ```ts
-import { defineGwenModule } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
 
 export default defineGwenModule({
   meta: {
@@ -39,7 +39,8 @@ export default defineGwenModule({
 Most modules register one or more runtime plugins:
 
 ```ts
-import { defineGwenModule, definePlugin } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
@@ -192,7 +193,8 @@ gwen.addModuleAugment(`
 Here's a complete module that provides a score tracking system:
 
 ```ts
-import { defineGwenModule, definePlugin } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 interface ScoreModuleOptions {
   initialScore?: number

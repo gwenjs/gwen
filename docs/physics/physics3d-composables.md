@@ -14,8 +14,9 @@ Physics 3D composables add rigid body dynamics and collision to actors in three-
 Declare 3D physics inside `defineActor()` — once per actor type:
 
 ```ts
-import { defineActor, onUpdate } from '@gwenjs/core'
-import { useDynamicBody, useSphereCollider, useRaycast, onContact } from '@gwenjs/physics3d'
+import { defineActor } from '@gwenjs/core/actor'
+import { onUpdate, onContact } from '@gwenjs/core/system'
+import { useDynamicBody, useSphereCollider, useRaycast } from '@gwenjs/physics3d'
 
 export const BallActor = defineActor('Ball', () => {
   const body = useDynamicBody({ mass: 2, ccdEnabled: true })
@@ -338,8 +339,9 @@ const ProjectileActor = defineActor('Projectile', () => {
 A complete example: character with gravity, ground detection via raycast, and jumping.
 
 ```ts
-import { defineActor, onUpdate } from '@gwenjs/core'
-import { useDynamicBody, useCapsuleCollider, useRaycast, onContact } from '@gwenjs/physics3d'
+import { defineActor } from '@gwenjs/core/actor'
+import { onUpdate, onContact } from '@gwenjs/core/system'
+import { useDynamicBody, useCapsuleCollider, useRaycast } from '@gwenjs/physics3d'
 import { Layers } from './layers'
 
 export const PlayerActor = defineActor('Player', () => {

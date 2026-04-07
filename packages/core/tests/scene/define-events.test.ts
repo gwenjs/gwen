@@ -9,9 +9,9 @@
  */
 
 import { describe, it, expect, vi, expectTypeOf } from 'vitest';
-import { defineEvents, emit } from '../../src/index.js';
-import type { InferEvents } from '../../src/index.js';
-import { createEngine } from '../../src/engine/gwen-engine.js';
+import { createEngine } from '../../src/index.js';
+import { defineEvents, emit } from '../../src/actor/index.js';
+import type { InferEvents } from '../../src/actor/index.js';
 
 // Simulated user-land declaration (what the user writes in their game)
 const GameEvents = defineEvents({

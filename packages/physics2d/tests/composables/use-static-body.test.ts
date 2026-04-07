@@ -21,7 +21,7 @@ vi.mock('../../src/composables.js', () => ({
   usePhysics2D: vi.fn(() => mockPhysics),
 }));
 
-vi.mock('@gwenjs/core/scene', () => ({
+vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 42n),
 }));
 

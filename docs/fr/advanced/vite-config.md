@@ -56,7 +56,7 @@ Utilisez `vite` pour la configuration statique. Utilisez `hooks['vite:extendConf
 Si vous créez un [module GWEN](/fr/kit/custom-module), utilisez `gwen.extendViteConfig()` et `gwen.addVitePlugin()` :
 
 ```typescript
-import { defineGwenModule } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
 
 export default defineGwenModule({
   meta: { name: '@my-scope/gwen-assets' },
