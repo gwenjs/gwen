@@ -3,15 +3,36 @@ title: "@gwenjs/kit"
 description: "API reference for @gwenjs/kit."
 ---
 
-# @gwenjs/kit
+# @gwenjs/kit API Reference
 
 `pnpm add @gwenjs/kit`
 
-Plugin and module system for extending GWEN. Provides utilities for creating reusable modules, auto-imports, and build-time integrations.
+## `@gwenjs/kit` — Shared types
 
-## Plugin Definition
+Types shared between plugin and module authors.
 
-### definePlugin(factory)
+**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`, `VitePlugin`, `ViteUserConfig`
+
+**Usage:**
+```ts
+import type { AutoImport, GwenTypeTemplate, DeepPartial } from '@gwenjs/kit'
+```
+
+## `@gwenjs/kit/plugin`
+
+Plugin authoring utilities and core type re-exports.
+
+**Exports:** `definePlugin`, `satisfiesPluginContract`, `definePluginTypes`, `GwenPluginFactory` (type), plus core type re-exports: `GwenPlugin`, `GwenEngine`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, etc.
+
+**Usage:**
+```ts
+import { definePlugin, satisfiesPluginContract } from '@gwenjs/kit/plugin'
+import type { GwenEngine, GwenPlugin } from '@gwenjs/kit/plugin'
+```
+
+### Plugin Definition
+
+#### definePlugin(factory)
 
 **Signature:**
 ```ts
@@ -46,9 +67,21 @@ defineConfig({
 });
 ```
 
-## Module Definition
+## `@gwenjs/kit/module`
 
-### defineGwenModule(name, api)
+Build-time module authoring.
+
+**Exports:** `defineGwenModule`, `GwenModule` (type), `GwenModuleDefinition` (type), `GwenKit` (type), `GwenBuildHooks` (type), `GwenBaseConfig` (type)
+
+**Usage:**
+```ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import type { GwenKit, GwenModule } from '@gwenjs/kit/module'
+```
+
+### Module Definition
+
+#### defineGwenModule(name, api)
 
 **Signature:**
 ```ts
@@ -80,9 +113,9 @@ defineGwenModule('@my-org/helpers', {
 });
 ```
 
-## Types
+### Types
 
-### GwenModule
+#### GwenModule
 
 **Signature:**
 ```ts
@@ -95,7 +128,7 @@ interface GwenModule {
 
 **Description.** Represents a registered GWEN module with exports and hooks.
 
-### GwenModuleDefinition
+#### GwenModuleDefinition
 
 **Signature:**
 ```ts
@@ -114,7 +147,7 @@ interface GwenModuleDefinition {
 | `hooks` | `GwenBuildHooks` | Build hooks to register |
 | `auto` | `AutoImport[]` | Auto-import rules (optional) |
 
-### GwenKit
+#### GwenKit
 
 **Signature:**
 ```ts
@@ -128,7 +161,7 @@ interface GwenKit {
 
 **Description.** The kit registry managing all modules and plugins.
 
-### GwenBuildHooks
+#### GwenBuildHooks
 
 **Signature:**
 ```ts
@@ -142,7 +175,7 @@ interface GwenBuildHooks {
 
 **Description.** Available build-time hooks for plugins and modules.
 
-### AutoImport
+#### AutoImport
 
 **Signature:**
 ```ts
@@ -169,7 +202,7 @@ const autoImports: AutoImport[] = [
 ];
 ```
 
-### GwenTypeTemplate
+#### GwenTypeTemplate
 
 **Signature:**
 ```ts
