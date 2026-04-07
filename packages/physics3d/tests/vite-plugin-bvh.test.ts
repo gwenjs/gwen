@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { createGwenPhysics3DPlugin, _setBuildToolsLoader } from '../src/vite-plugin.js';
+import { createGwenPhysics3DPlugin, _setBuildToolsLoader, transformBvhReferences } from '../src/vite-plugin.js';
 
 // Inject a mock build-tools WASM loader (avoids needing the actual build artifact)
 beforeAll(() => {
@@ -60,5 +60,61 @@ describe('gwen:physics3d Vite plugin — BVH transform', () => {
     const code = `useMeshCollider({ vertices: new Float32Array(), indices: new Uint32Array() })`;
     const result = await plugin.transformBvhReferences?.(code, 'src/game.ts');
     expect(result).toBeNull();
+  });
+});
+
+// ─── Step 10 — Error handling: missing GLB file ───────────────────────────────
+
+import * as nodeFsMock from 'node:fs';
+
+describe('gwen:physics3d — BVH error handling', () => {
+  it('logs a warning and skips when the GLB file does not exist', async () => {
+    // Temporarily make existsSync return false (file missing)
+    vi.mocked(nodeFsMock.existsSync).mockReturnValueOnce(false);
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const code = `useMeshCollider('./terrain.glb')`;
+      const result = await transformBvhReferences(code, '/project/src/game.ts');
+
+      // The plugin warns about the missing file
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('[gwen:physics3d]'),
+      );
+      // All matches were skipped → code unchanged → null
+      expect(result).toBeNull();
+    } finally {
+      warnSpy.mockRestore();
+      // Restore default mock behaviour (existsSync → true)
+      vi.mocked(nodeFsMock.existsSync).mockReturnValue(true);
+    }
+  });
+
+  it('does not throw when build_bvh_from_glb throws (bad GLB bytes)', async () => {
+    // Inject a loader that throws on every call
+    _setBuildToolsLoader(async () => ({
+      build_bvh_from_glb: () => {
+        throw new Error('invalid GLB magic');
+      },
+    }));
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const code = `useMeshCollider('./terrain.glb')`;
+      // Must not throw — the plugin catches exceptions from build_bvh_from_glb
+      await expect(
+        transformBvhReferences(code, '/project/src/game.ts'),
+      ).resolves.toBeNull();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('BVH pre-bake failed'),
+      );
+    } finally {
+      warnSpy.mockRestore();
+      // Restore working loader for subsequent tests
+      _setBuildToolsLoader(async () => ({
+        build_bvh_from_glb: (_bytes: Uint8Array) => new Uint8Array(16),
+      }));
+    }
   });
 });

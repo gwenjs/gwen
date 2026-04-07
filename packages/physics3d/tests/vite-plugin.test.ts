@@ -93,16 +93,16 @@ describe('physics3dVitePlugin', () => {
   it('transform returns undefined for non-TS/JS files', async () => {
     const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
     const plugin = physics3dVitePlugin();
-    const transform = plugin.transform as (code: string, id: string) => unknown;
-    const result = transform('some code', 'styles.css');
+    const transform = plugin.transform as (code: string, id: string) => Promise<unknown>;
+    const result = await transform('some code', 'styles.css');
     expect(result).toBeUndefined();
   });
 
   it('transform returns undefined when no defineLayers call', async () => {
     const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
     const plugin = physics3dVitePlugin();
-    const transform = plugin.transform as (code: string, id: string) => unknown;
-    const result = transform('const x = 5', 'file.ts');
+    const transform = plugin.transform as (code: string, id: string) => Promise<unknown>;
+    const result = await transform('const x = 5', 'file.ts');
     expect(result).toBeUndefined();
   });
 
@@ -112,7 +112,7 @@ describe('physics3dVitePlugin', () => {
     const transform = plugin.transform as (
       code: string,
       id: string,
-    ) => { code: string; map: null } | undefined;
+    ) => Promise<{ code: string; map: unknown } | undefined>;
     const code = [
       "import { defineLayers } from '@gwenjs/physics3d';",
       'const Layers = defineLayers({ player: 0x0001, enemy: 0x0002 });',
@@ -120,49 +120,127 @@ describe('physics3dVitePlugin', () => {
       'useDynamicBody({ membershipLayers: Layers.enemy });',
     ].join('\n');
 
-    const result = transform(code, 'src/game.ts');
+    const result = await transform(code, 'src/game.ts');
 
     expect(result).not.toBeUndefined();
     expect(result?.code).toContain('1'); // 0x0001 inlined as 1
     expect(result?.code).toContain('2'); // 0x0002 inlined as 2
     expect(result?.code).not.toContain('Layers.player');
     expect(result?.code).not.toContain('Layers.enemy');
-    expect(result?.map).toBeNull();
+    expect(result?.map).not.toBeNull();
   });
 
-  it('returns null map alongside transformed code', async () => {
+  it('returns a source map alongside transformed code', async () => {
     const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
     const plugin = physics3dVitePlugin();
     const transform = plugin.transform as (
       code: string,
       id: string,
-    ) => { code: string; map: null } | undefined;
+    ) => Promise<{ code: string; map: unknown } | undefined>;
     const code = 'const Layers = defineLayers({ ground: 4 });\nif (layer === Layers.ground) {}';
 
-    const result = transform(code, 'game.ts');
+    const result = await transform(code, 'game.ts');
 
     expect(result).toBeDefined();
-    expect(result?.map).toBeNull();
+    expect(result?.map).not.toBeNull();
+    expect(result?.map).toHaveProperty('mappings');
   });
 
   it('does not transform when no defineLayers call present', async () => {
     const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
     const plugin = physics3dVitePlugin();
-    const transform = plugin.transform as (code: string, id: string) => unknown;
-    const result = transform('const x = 1;', 'src/game.ts');
+    const transform = plugin.transform as (code: string, id: string) => Promise<unknown>;
+    const result = await transform('const x = 1;', 'src/game.ts');
     expect(result).toBeUndefined();
   });
 
   it('logs debug output when debug option is enabled and layers are inlined', async () => {
     const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
     const plugin = physics3dVitePlugin({ debug: true });
-    const transform = plugin.transform as (code: string, id: string) => unknown;
+    const transform = plugin.transform as (code: string, id: string) => Promise<unknown>;
     const consoleSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 
     const code = 'const Layers = defineLayers({ a: 1 });\nif (Layers.a) {}';
-    transform(code, 'src/test.ts');
+    await transform(code, 'src/test.ts');
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[gwen:physics3d]'));
     consoleSpy.mockRestore();
+  });
+
+  it('returns a non-null source map when layers are inlined', async () => {
+    const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
+    const plugin = physics3dVitePlugin();
+    const transform = plugin.transform as (
+      code: string,
+      id: string,
+    ) => Promise<{ code: string; map: unknown } | undefined>;
+
+    const code = [
+      "const Layers = defineLayers({ wall: 4, player: 1 });",
+      "useDynamicBody({ layer: Layers.wall, mask: Layers.player });",
+    ].join('\n');
+
+    const result = await transform(code, 'src/game.ts');
+
+    expect(result).toBeDefined();
+    expect(result!.map).not.toBeNull();
+    expect(result!.map).toHaveProperty('mappings');
+  });
+
+  it('removes the defineLayers declaration when all references are inlined', async () => {
+    const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
+    const plugin = physics3dVitePlugin();
+    const transform = plugin.transform as (
+      code: string,
+      id: string,
+    ) => Promise<{ code: string; map: unknown } | undefined>;
+
+    const code = [
+      "const Layers = defineLayers({ wall: 4, player: 1 });",
+      "useDynamicBody({ layer: Layers.wall, mask: Layers.player });",
+    ].join('\n');
+
+    const result = await transform(code, 'src/game.ts');
+
+    expect(result).toBeDefined();
+    expect(result!.code).not.toContain('defineLayers');
+    expect(result!.code).not.toContain('const Layers');
+    expect(result!.code).toContain('4');
+    expect(result!.code).toContain('1');
+  });
+
+  it('keeps the defineLayers declaration when the variable is still referenced', async () => {
+    const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
+    const plugin = physics3dVitePlugin();
+    const transform = plugin.transform as (
+      code: string,
+      id: string,
+    ) => Promise<{ code: string; map: unknown } | undefined>;
+
+    const code = [
+      "const Layers = defineLayers({ wall: 4 });",
+      "useDynamicBody({ layer: Layers.wall });",
+      "console.log(Layers);",
+    ].join('\n');
+
+    const result = await transform(code, 'src/game.ts');
+
+    expect(result).toBeDefined();
+    expect(result!.code).toContain('defineLayers');
+  });
+
+  it('warns when a layer is defined but never referenced', async () => {
+    const { physics3dVitePlugin } = await import('../src/vite-plugin.js');
+    const plugin = physics3dVitePlugin();
+    const warnings: string[] = [];
+    const mockCtx = { warn: vi.fn((m: string) => warnings.push(m)) };
+
+    const code = `
+      const L = defineLayers({ wall: 1, player: 2 })
+      useDynamicBody({ layer: L.wall }) // player never used
+    `;
+    await (plugin.transform as Function).call(mockCtx, code, 'test.ts');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('player');
   });
 });
