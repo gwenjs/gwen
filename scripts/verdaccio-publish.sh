@@ -23,7 +23,7 @@ echo "🗑  Dépublication des packages @gwenjs/* existants..."
 for pkg_json in "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"/packages/*/package.json; do
   pkg_name=$(node -p "require('$pkg_json').name" 2>/dev/null)
   if [[ "$pkg_name" == @gwenjs/* ]]; then
-    npm unpublish "$pkg_name" --registry "$REGISTRY" --force 2>/dev/null || true
+    pnpm unpublish "$pkg_name" --registry "$REGISTRY" --force 2>/dev/null || true
   fi
 done
 
@@ -45,13 +45,14 @@ for pkg_dir in "$ROOT"/packages/*/; do
   [[ "$pkg_name" == @gwenjs/* ]] || continue
 
   echo "  → $pkg_name"
-  (cd "$pkg_dir" && npm publish --registry "$REGISTRY" --no-git-checks 2>&1) || \
+  (cd "$pkg_dir" && pnpm publish --registry "$REGISTRY" --no-git-checks --force 2>&1) || \
     echo "  ⚠ $pkg_name : publication échouée (ignorée)"
 done
 
 echo "✅ Publication terminée."
 echo ""
 echo "📋 Packages disponibles :"
+pnpm view '@gwenjs/*' version --registry "$REGISTRY" 2>/dev/null || \
 curl -s "$REGISTRY/-/search?text=@gwenjs" | node -e "
 let d='';
 process.stdin.on('data',c=>d+=c).on('end',()=>{
