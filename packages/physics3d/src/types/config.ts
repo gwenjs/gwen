@@ -74,6 +74,28 @@ export interface Physics3DConfig {
    * ```
    */
   layers?: string[];
+
+  /**
+   * Build-time Vite plugin options for `gwen:physics3d`.
+   * These only affect the Vite build pipeline, not the runtime simulation.
+   */
+  vite?: {
+    /**
+     * Pre-bake BVH acceleration structures for `useMeshCollider('./file.glb')`
+     * and `useConvexCollider('./file.glb')` patterns at build time.
+     *
+     * Requires the `physics3d/build-tools` Node.js WASM to be built first
+     * (`pnpm run build:wasm` inside `packages/physics3d`).
+     *
+     * @default false
+     */
+    bvhPrebake?: boolean;
+    /**
+     * Log layer-inlining and BVH baking activity to the Vite console.
+     * @default false
+     */
+    debug?: boolean;
+  };
 }
 
 /** Fully resolved Physics3D config (all fields guaranteed). */

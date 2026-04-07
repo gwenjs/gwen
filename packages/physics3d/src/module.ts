@@ -42,7 +42,12 @@ export default defineGwenModule<Physics3DConfig>({
       { name: 'onSensorExit', from: '@gwenjs/physics3d' },
     ]);
 
-    kit.addVitePlugin(physics3dVitePlugin() as unknown as VitePlugin);
+    kit.addVitePlugin(
+      physics3dVitePlugin({
+        bvhPrebake: options.vite?.bvhPrebake,
+        debug: options.vite?.debug,
+      }) as unknown as VitePlugin,
+    );
 
     kit.addTypeTemplate({
       filename: 'physics3d.d.ts',
