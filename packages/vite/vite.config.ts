@@ -6,9 +6,12 @@ export default defineConfig({
   plugins: [dts({ include: ["src"], outDir: "dist", rollupTypes: false, entryRoot: "src" })],
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
+      entry: {
+        index: resolve(__dirname, "src/index.ts"),
+        "shared/layer-utils": resolve(__dirname, "src/shared/layer-utils.ts"),
+      },
       formats: ["es"],
-      fileName: () => "index.js",
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       // All deps are external — this is a Vite plugin, loaded by Vite itself

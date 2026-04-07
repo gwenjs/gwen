@@ -3,15 +3,13 @@
 #
 # Usage : pnpm verdaccio:publish
 #
-# - Vide le storage @gwenjs avant de publier (évite les conflits de version)
+# - Dépublie chaque @gwenjs/* existant (évite les conflits 409)
 # - Build chaque package individuellement ; continue si un package échoue
 # - Publie uniquement les packages qui ont été buildés avec succès
 
 set -euo pipefail
 
 REGISTRY="http://localhost:4873"
-# Verdaccio stocke dans ~/.local/share/verdaccio/storage par défaut
-STORAGE="${VERDACCIO_STORAGE:-$HOME/.local/share/verdaccio/storage}/@gwenjs"
 
 # Vérifier que Verdaccio tourne
 if ! curl -s "$REGISTRY/-/ping" > /dev/null 2>&1; then
@@ -19,9 +17,14 @@ if ! curl -s "$REGISTRY/-/ping" > /dev/null 2>&1; then
   exit 1
 fi
 
-# Vider le storage @gwenjs pour permettre la re-publication
-echo "🗑  Nettoyage du storage Verdaccio @gwenjs..."
-rm -rf "$STORAGE"
+# Dépublier tous les packages @gwenjs/* existants pour éviter les 409
+echo "🗑  Dépublication des packages @gwenjs/* existants..."
+for pkg_json in packages/*/package.json; do
+  pkg_name=$(node -p "require('./$pkg_json').name" 2>/dev/null)
+  if [[ "$pkg_name" == @gwenjs/* ]]; then
+    npm unpublish "$pkg_name" --registry "$REGISTRY" --force 2>/dev/null || true
+  fi
+done
 
 # Builder chaque package @gwenjs/* (les erreurs sont ignorées par package)
 echo "🔨 Build des packages @gwenjs/*..."
@@ -29,6 +32,6 @@ pnpm --filter '@gwenjs/*' build || true
 
 # Publier sur Verdaccio
 echo "📦 Publication sur $REGISTRY..."
-pnpm -r publish --registry "$REGISTRY" --no-git-checks --force
+pnpm -r publish --registry "$REGISTRY" --no-git-checks
 
 echo "✅ Publication terminée."
