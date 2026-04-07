@@ -216,7 +216,7 @@ Now:
 Register debug-only systems:
 
 ```ts
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 
 export class GameScene extends defineScene {
   onLoad() {
@@ -278,7 +278,7 @@ You've noticed frame rate drops. Debug mode helps:
 Collider wireframes help verify collision geometry:
 
 ```ts
-import { defineScene, createEntity } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 import { Position, Collider } from './components'
 
 export class TestScene extends defineScene {

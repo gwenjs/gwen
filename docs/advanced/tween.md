@@ -188,7 +188,8 @@ With `loop: true` and `yoyo: true`, the tween bounces back and forth: 0 â†’ 1 â†
 Enemies scale from 0 to 1 over 0.2 seconds when spawned:
 
 ```ts
-import { usePrefab, useTween } from '@gwenjs/core'
+import { usePrefab } from '@gwenjs/core/actor'
+import { useTween } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { Position, Scale } from './components'
 import { EnemyPrefab } from './prefabs'

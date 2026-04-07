@@ -30,7 +30,7 @@ Utilisez `usePrefab()` pour obtenir un handle pour générer et supprimer des en
 
 ```ts
 import { usePrefab } from '@gwenjs/core/actor'
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { BulletPrefab } from './prefabs'
 
 export const FireSystem = defineSystem(() => {
@@ -103,7 +103,7 @@ export const EnemyPrefab = definePrefab([
 Dans votre système de génération :
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { usePrefab } from '@gwenjs/core/actor'
 import { EnemyPrefab } from './prefabs'
 

@@ -28,7 +28,7 @@ export const GameLayout = defineLayout(() => {
 Layouts are typically loaded at startup or when entering gameplay:
 
 ```ts
-import { defineSystem } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
 import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 
@@ -46,7 +46,7 @@ export const LayoutInitSystem = defineSystem(() => {
 Or use from a scene router initialization:
 
 ```ts
-import { defineSceneRouter } from '@gwenjs/core'
+import { defineSceneRouter } from '@gwenjs/core/scene'
 import { GameLayout } from './layouts'
 
 export const router = defineSceneRouter({
@@ -141,7 +141,7 @@ router.pop() // HUD is still there with same values
 Layouts provide a shared data layer that any scene's system can read and write:
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 import { Health } from './components'

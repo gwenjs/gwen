@@ -188,7 +188,8 @@ Avec `loop: true` et `yoyo: true`, le tween rebondit d'avant en arrière : 0 →
 Les ennemis changent d'échelle de 0 à 1 en 0,2 secondes lorsqu'ils sont générés :
 
 ```ts
-import { usePrefab, useTween } from '@gwenjs/core'
+import { usePrefab } from '@gwenjs/core/actor'
+import { useTween } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { Position, Scale } from './components'
 import { EnemyPrefab } from './prefabs'

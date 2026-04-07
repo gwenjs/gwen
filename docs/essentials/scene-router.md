@@ -45,7 +45,7 @@ export const AppRouter = defineSceneRouter({
 Call `useSceneRouter()` inside an actor or system to get a handle, then call `.send()` to trigger transitions:
 
 ```typescript
-import { defineActor, onUpdate, useComponent } from '@gwenjs/core'
+import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
 import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'

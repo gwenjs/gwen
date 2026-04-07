@@ -135,7 +135,7 @@ Prefabs are defined with `definePrefab()` for entities you spawn in bulk — bul
 
 **src/prefabs/Bullet.ts**
 ```typescript
-import { definePrefab } from '@gwenjs/core'
+import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, DamageTag } from '../components'
 
 export const BulletPrefab = definePrefab([

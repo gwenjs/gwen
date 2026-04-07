@@ -30,7 +30,7 @@ Use `usePrefab()` to get a handle for spawning and despawning entities:
 
 ```ts
 import { usePrefab } from '@gwenjs/core/actor'
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { BulletPrefab } from './prefabs'
 
 export const FireSystem = defineSystem(() => {
@@ -103,7 +103,7 @@ export const EnemyPrefab = definePrefab([
 In your spawning system:
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { usePrefab } from '@gwenjs/core/actor'
 import { EnemyPrefab } from './prefabs'
 

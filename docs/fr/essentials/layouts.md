@@ -28,7 +28,7 @@ export const GameLayout = defineLayout(() => {
 Les layouts sont généralement chargés au démarrage ou lors de l'entrée du gameplay :
 
 ```ts
-import { defineSystem } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
 import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 
@@ -141,7 +141,7 @@ router.pop() // Le HUD est toujours là avec les mêmes valeurs
 Les layouts fournissent une couche de données partagées que tout système de scène peut lire et écrire :
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 import { Health } from './components'

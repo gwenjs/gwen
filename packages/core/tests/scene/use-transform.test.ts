@@ -3,7 +3,7 @@ import { createEngine } from '../../src/engine/gwen-engine.js';
 import { definePrefab } from '../../src/scene/define-prefab.js';
 import { defineActor } from '../../src/scene/define-actor.js';
 import { useTransform } from '../../src/scene/use-transform.js';
-import { defineLayout, placeActor, useLayout } from '../../src/scene/index.js';
+import { defineLayout, placeActor, useLayout } from '../../src/actor/index.js';
 import {
   getWasmBridge,
   _injectMockWasmEngine,

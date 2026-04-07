@@ -34,7 +34,7 @@ export const MovementSystem = defineSystem(() => {
 Systems are registered in a scene:
 
 ```ts
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 
 export const GameScene = defineScene({
   name: 'game',

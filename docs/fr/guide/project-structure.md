@@ -135,7 +135,7 @@ Les préfabriqués sont définis avec `definePrefab()` pour les entités que vou
 
 **src/prefabs/Bullet.ts**
 ```typescript
-import { definePrefab } from '@gwenjs/core'
+import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, DamageTag } from '../components'
 
 export const BulletPrefab = definePrefab([
