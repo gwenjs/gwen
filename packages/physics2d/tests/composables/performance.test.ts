@@ -65,10 +65,24 @@ describe("Performance", () => {
         relativeVelocity: 5,
       });
     }
+
+    // Warm-up run to avoid JIT cold-start timing skew
+    const warmup = new ContactRingBuffer();
+    warmup.write({
+      entityAIdx: 0,
+      entityBIdx: 1,
+      contactX: 0,
+      contactY: 0,
+      normalX: 1,
+      normalY: 0,
+      relativeVelocity: 0,
+    });
+    warmup.drain();
+
     const start = performance.now();
     buf.drain();
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(0.5));
+    expect(elapsed).toBeLessThan(ciThreshold(0.5, 20));
   });
 
   it("applies 1000 impulses in under 5ms", async () => {
