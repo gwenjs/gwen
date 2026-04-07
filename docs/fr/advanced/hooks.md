@@ -21,7 +21,7 @@ L'API principale est `useHook()`. Appelez-la à l'intérieur d'un contexte moteu
 import { useHook } from '@gwenjs/core'
 import { defineSystem } from '@gwenjs/core/system'
 
-export const LoggingSystem = defineSystem(function LoggingSystem() {
+export const LoggingSystem = defineSystem(() => {
   useHook('engine:start', () => {
     console.log('Game started!')
   })
@@ -60,7 +60,7 @@ Dans un **système** :
 import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
-export const TrackingSystem = defineSystem(function TrackingSystem() {
+export const TrackingSystem = defineSystem(() => {
   useHook('entity:spawn', (id) => {
     console.log('New entity:', id)
   })
@@ -257,7 +257,7 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
-export const ScoreSystem = defineSystem(function ScoreSystem() {
+export const ScoreSystem = defineSystem(() => {
   let score = 0
 
   useHook('enemy:die', () => {

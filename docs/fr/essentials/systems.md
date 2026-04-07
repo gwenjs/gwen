@@ -31,6 +31,21 @@ export const MovementSystem = defineSystem(() => {
 })
 ```
 
+### Nommage des systèmes
+
+Le moteur utilise un nom pour identifier chaque système (débogage, déduplication de plugins). Avec `gwenVitePlugin`, le nom est **injecté automatiquement** depuis la variable exportée — aucun boilerplate supplémentaire.
+
+Sans le plugin Vite (ex. dans les tests Node.js), passez le nom en premier argument :
+
+```ts
+// ✅ Avec le plugin Vite — nom déduit depuis export const
+export const MovementSystem = defineSystem(() => { ... })
+
+// ✅ Sans le plugin Vite — nom explicite
+export const MovementSystem = defineSystem('MovementSystem', () => { ... })
+```
+```
+
 Les systèmes sont enregistrés dans une scène :
 
 ```ts
@@ -392,7 +407,8 @@ Ce **découplage** est la raison pour laquelle ECS se met à l'échelle. Ajouter
 
 | Fonction | Description |
 |---|---|
-| `defineSystem(setup)` | Déclarer un système |
+| `defineSystem(setup)` | Déclarer un système (nom auto-injecté par le plugin Vite) |
+| `defineSystem(name, setup)` | Déclarer un système avec un nom explicite |
 | `useQuery(components, opts?)` | Ensemble d'entités réactif correspondant aux composants |
 | `onUpdate(cb)` | Enregistrer le callback de frame |
 | `onBeforeUpdate(cb)` | Enregistrer le callback de pré-mise à jour |

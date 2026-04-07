@@ -21,7 +21,7 @@ The primary API is `useHook()`. Call it inside an active engine context to subsc
 import { useHook } from '@gwenjs/core'
 import { defineSystem } from '@gwenjs/core/system'
 
-export const LoggingSystem = defineSystem(function LoggingSystem() {
+export const LoggingSystem = defineSystem(() => {
   useHook('engine:start', () => {
     console.log('Game started!')
   })
@@ -60,7 +60,7 @@ In a **system**:
 import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
-export const TrackingSystem = defineSystem(function TrackingSystem() {
+export const TrackingSystem = defineSystem(() => {
   useHook('entity:spawn', (id) => {
     console.log('New entity:', id)
   })
@@ -257,7 +257,7 @@ Listen from a system with `useHook()`:
 import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
-export const ScoreSystem = defineSystem(function ScoreSystem() {
+export const ScoreSystem = defineSystem(() => {
   let score = 0
 
   useHook('enemy:die', () => {
