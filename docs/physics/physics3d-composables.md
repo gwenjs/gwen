@@ -61,10 +61,11 @@ const ElevatorActor = defineActor('Elevator', () => {
   const body = useKinematicBody()
   useBoxCollider({ w: 4, h: 0.5, d: 4 })
 
-  onUpdate(({ time }) => {
-    // Sine wave motion
-    const y = Math.sin(time) * 5
-    body.setPosition(0, y, 0)
+  let elapsed = 0
+  onUpdate((dt) => {
+    elapsed += dt
+    const y = Math.sin(elapsed) * 5
+    body.moveTo(0, y, 0)
   })
 })
 
@@ -339,55 +340,48 @@ const ProjectileActor = defineActor('Projectile', () => {
 A complete example: character with gravity, ground detection via raycast, and jumping.
 
 ```ts
-import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { defineActor, useComponent, useService } from '@gwenjs/core/actor'
+import { onUpdate } from '@gwenjs/core/system'
 import { useDynamicBody, useCapsuleCollider, useRaycast } from '@gwenjs/physics3d'
+import { Position } from './components'
 import { Layers } from './layers'
 
-export const PlayerActor = defineActor('Player', () => {
-  const body = useDynamicBody({
-    mass: 1,
-    gravityScale: 2,
-    linearDamping: 0.1
-  })
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  // Read entity position each frame (physics3d writes to this component)
+  const pos = useComponent<{ x: number; y: number; z: number }>(Position)
+
+  // input comes from your input plugin (registered via engine.provide)
+  const input = useService('input')
+
+  const body = useDynamicBody({ mass: 1, gravityScale: 2, linearDamping: 0.1 })
 
   useCapsuleCollider({
     radius: 0.4,
-    length: 1.8,
-    offsetY: 0.9,  // Raise collider to match visual
+    height: 1.8,
+    offsetY: 0.9,
     layer: Layers.player,
-    mask: Layers.terrain | Layers.enemy
+    mask: Layers.terrain | Layers.enemy,
   })
 
-  // Ground detection via raycast
+  // Ground detection: origin tracks the entity's feet each frame
   const groundRay = useRaycast({
     origin: () => ({ x: pos.x, y: pos.y - 0.9, z: pos.z }),
     direction: { x: 0, y: -1, z: 0 },
     maxDist: 0.1,
-    mask: Layers.terrain
+    mask: Layers.terrain,
   })
 
-  let grounded = false
-  let moveSpeed = 0
+  onUpdate((dt) => {
+    const grounded = groundRay.hit
 
-  onUpdate(({ input, dt }) => {
-    // Ground check
-    grounded = groundRay.hit
-
-    // Get movement input
-    const forward = input.axis('forward') ?? 0  // W/S or Arrow up/down
-    const right = input.axis('right') ?? 0      // A/D or Arrow left/right
-
-    // Apply movement
-    const targetSpeed = 10
-    moveSpeed = forward * targetSpeed
+    const forward = input.axis('forward') ?? 0  // W/S
+    const right = input.axis('right') ?? 0      // A/D
 
     const vel = body.velocity
-    body.setVelocity(right * 5, vel.y, moveSpeed)
+    body.setVelocity(right * 5, vel.y, forward * 10)
 
-    // Jump
     if (input.justPressed('Space') && grounded) {
-      body.applyImpulse(0, 10, 0)  // Jump impulse in Y
+      body.applyImpulse(0, 10, 0)
     }
   })
 })
@@ -398,31 +392,17 @@ export const PlayerActor = defineActor('Player', () => {
 For complex terrain, use pre-baked BVH for efficiency:
 
 ```ts
-// In build setup (Vite plugin):
-// vite.config.ts
-import { physicsPlugin } from '@gwenjs/vite'
-
+// gwen.config.ts — enable BVH pre-baking via the module vite sub-key
 export default defineConfig({
-  plugins: [
-    physicsPlugin({
-      bvhPreload: ['./models/terrain.glb', './models/level-geometry.glb']
-    })
-  ]
+  modules: [
+    ['@gwenjs/physics3d', { vite: { bvhPrebake: true } }],
+  ],
 })
 
-// In actor:
-const TerrainActor = defineActor('Terrain', () => {
+// In actor — the Vite plugin rewrites the path to a pre-baked BVH handle at build time
+const TerrainActor = defineActor(TerrainPrefab, () => {
   useStaticBody()
-  
-  // Vite plugin converts this to a preloaded handle
-  const meshHandle = useMeshCollider('./models/terrain.glb')
-  
-  // Track loading
-  meshHandle.ready.then(() => {
-    console.log('Terrain collider loaded and active')
-  }).catch(() => {
-    console.error('Failed to load terrain collider')
-  })
+  useMeshCollider('./models/terrain.glb')  // path is replaced by the Vite plugin
 })
 ```
 
