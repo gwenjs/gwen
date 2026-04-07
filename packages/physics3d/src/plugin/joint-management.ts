@@ -46,13 +46,13 @@ export function createJointMethods(ctx: PluginContext): Pick<
             b.x ?? 0, b.y ?? 0, b.z ?? 0,
           ) ?? 0xffffffff;
         if (id === 0xffffffff) {
-          emitLocalJointWarning();
+          emitLocalJointWarning(ctx.log);
           return makeDummyJoint();
         }
         return makeJointHandle(id);
       }
 
-      emitLocalJointWarning();
+      emitLocalJointWarning(ctx.log);
       return makeDummyJoint();
     },
 
@@ -76,13 +76,13 @@ export function createJointMethods(ctx: PluginContext): Pick<
             useLimits, limitMin, limitMax,
           ) ?? 0xffffffff;
         if (id === 0xffffffff) {
-          emitLocalJointWarning();
+          emitLocalJointWarning(ctx.log);
           return makeDummyJoint();
         }
         return makeJointHandle(id);
       }
 
-      emitLocalJointWarning();
+      emitLocalJointWarning(ctx.log);
       return makeDummyJoint();
     },
 
@@ -106,13 +106,13 @@ export function createJointMethods(ctx: PluginContext): Pick<
             useLimits, limitMin, limitMax,
           ) ?? 0xffffffff;
         if (id === 0xffffffff) {
-          emitLocalJointWarning();
+          emitLocalJointWarning(ctx.log);
           return makeDummyJoint();
         }
         return makeJointHandle(id);
       }
 
-      emitLocalJointWarning();
+      emitLocalJointWarning(ctx.log);
       return makeDummyJoint();
     },
 
@@ -133,13 +133,13 @@ export function createJointMethods(ctx: PluginContext): Pick<
             useConeLimit, coneAngle,
           ) ?? 0xffffffff;
         if (id === 0xffffffff) {
-          emitLocalJointWarning();
+          emitLocalJointWarning(ctx.log);
           return makeDummyJoint();
         }
         return makeJointHandle(id);
       }
 
-      emitLocalJointWarning();
+      emitLocalJointWarning(ctx.log);
       return makeDummyJoint();
     },
 
@@ -158,13 +158,13 @@ export function createJointMethods(ctx: PluginContext): Pick<
             opts.restLength, opts.stiffness, opts.damping,
           ) ?? 0xffffffff;
         if (id === 0xffffffff) {
-          emitLocalJointWarning();
+          emitLocalJointWarning(ctx.log);
           return makeDummyJoint();
         }
         return makeJointHandle(id);
       }
 
-      emitLocalJointWarning();
+      emitLocalJointWarning(ctx.log);
       return makeDummyJoint();
     },
 

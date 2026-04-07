@@ -7,7 +7,7 @@
  */
 
 import { definePlugin } from '@gwenjs/kit/plugin';
-import { unpackEntityId, createEntityId, getWasmBridge } from '@gwenjs/core';
+import { unpackEntityId, createEntityId, getWasmBridge, createLogger } from '@gwenjs/core';
 import type { GwenEngine, EntityId, WasmBridge, WasmEnginePhysics2D } from '@gwenjs/core';
 
 import type {
@@ -124,6 +124,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   let bridge: WasmBridge | null = null;
   let currentEngine: GwenEngine | null = null;
   let physicsService: Physics2DAPI | null = null;
+  let log = createLogger('@gwenjs/physics2d', false);
 
   // Binary buffer state (encapsulated per plugin instance)
   let eventsView: DataView | null = null;
@@ -243,10 +244,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.additionalSolverIterations,
         );
         if (cfg.debug)
-          // eslint-disable-next-line no-console
-          console.log(
-            `[Physics2D] addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`,
-          );
+          log.debug(`addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`);
         return handle;
       },
       addBoxCollider: (handle, hw, hh, opts = {}) =>
@@ -376,6 +374,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     setup(engine: GwenEngine): void {
+      log = engine.logger.child('@gwenjs/physics2d');
       bridge = getWasmBridge();
 
       if (!bridge.hasPhysics()) {

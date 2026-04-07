@@ -221,6 +221,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
     setup(engine: GwenEngine): void {
       ctx._engine = engine;
+      ctx.log = engine.logger.child('@gwenjs/physics3d');
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
       ctx.bridgeRuntime = bridge;
@@ -314,10 +315,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       engine.provide('physics3d', service);
 
       if (cfg.debug) {
-        // eslint-disable-next-line no-console
-        console.log(
-          `[GWEN:Physics3D] Initialized. Backend=${ctx.backendMode} quality=${cfg.qualityPreset}`,
-        );
+        ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${cfg.qualityPreset}`);
       }
     },
 
