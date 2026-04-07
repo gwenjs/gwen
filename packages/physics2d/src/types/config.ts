@@ -69,4 +69,16 @@ export interface Physics2DConfig {
    * ```
    */
   layers?: Record<string, number>;
+
+  /**
+   * Build-time Vite plugin options for `gwen:physics2d`.
+   * These only affect the Vite build pipeline, not the runtime simulation.
+   */
+  vite?: {
+    /**
+     * Log layer-inlining activity to the Vite console.
+     * @default false
+     */
+    debug?: boolean;
+  };
 }
