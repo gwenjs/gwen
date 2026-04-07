@@ -198,11 +198,12 @@ fn wasm_query_entities_returns_correct_set() {
     let e2 = engine.create_entity();
 
     // e0: t0 + t1
-    engine.update_entity_archetype(e0.index(), &[t0, t1]);
+    engine.add_component(e0.index(), e0.generation(), t0, &[]);
+    engine.add_component(e0.index(), e0.generation(), t1, &[]);
     // e1: t0 only
-    engine.update_entity_archetype(e1.index(), &[t0]);
+    engine.add_component(e1.index(), e1.generation(), t0, &[]);
     // e2: t1 only
-    engine.update_entity_archetype(e2.index(), &[t1]);
+    engine.add_component(e2.index(), e2.generation(), t1, &[]);
 
     let results_t0 = engine.query_entities(&[t0]);
     assert_eq!(results_t0.len(), 2); // e0 and e1
