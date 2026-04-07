@@ -31,6 +31,7 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
   const entityId = _getActorEntityId() as unknown as EntityId;
 
   if (options.fixedRotation) {
+    // eslint-disable-next-line no-console
     console.warn(
       '[gwen:physics2d] fixedRotation is not yet supported by Physics2DAPI. The option is accepted but has no effect.',
     );

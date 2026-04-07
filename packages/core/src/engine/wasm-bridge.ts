@@ -199,14 +199,17 @@ export async function initWasm(
 
     if (variant === 'physics2d') {
       if (import.meta.env?.DEV) {
+        // eslint-disable-next-line no-console
         console.log('[GWEN] WASM core loaded — Physics2D variant active');
       }
     } else if (variant === 'physics3d') {
       if (import.meta.env?.DEV) {
+        // eslint-disable-next-line no-console
         console.log('[GWEN] WASM core loaded — Physics3D variant active');
       }
     } else {
       if (import.meta.env?.DEV) {
+        // eslint-disable-next-line no-console
         console.log('[GWEN] WASM core loaded — Light variant active');
       }
     }

@@ -72,6 +72,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
 
         if (slotIndex === 0xffffffff) {
           if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
             console.warn(
               '[GWEN:physics3d] addCharacterController: CC pool exhausted (max 32 controllers)',
             );
@@ -172,6 +173,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
         },
         move(v: Physics3DVec3, dt: number) {
           if (import.meta.env.DEV && !ctx._emittedCCLocalWarning) {
+            // eslint-disable-next-line no-console
             console.warn(
               '[GWEN:physics3d] CharacterController uses local fallback — step-up/slope not supported',
             );

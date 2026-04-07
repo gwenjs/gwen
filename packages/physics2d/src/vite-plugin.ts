@@ -89,6 +89,7 @@ export function physics2dVitePlugin(options: Physics2DVitePluginOptions = {}): P
       }
 
       if (options.debug) {
+        // eslint-disable-next-line no-console
         console.log(`[gwen:physics2d] Inlined ${layerMap.size} layer constants in ${id}`);
       }
 

@@ -243,6 +243,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.additionalSolverIterations,
         );
         if (cfg.debug)
+          // eslint-disable-next-line no-console
           console.log(
             `[Physics2D] addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`,
           );

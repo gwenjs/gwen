@@ -28,15 +28,19 @@ function defaultConsoleSink(entry: LogEntry): void {
   const msg = formatEntry(entry);
   switch (entry.level) {
     case 'debug':
+      // eslint-disable-next-line no-console
       console.debug(msg);
       break;
     case 'info':
+      // eslint-disable-next-line no-console
       console.info(msg);
       break;
     case 'warn':
+      // eslint-disable-next-line no-console
       console.warn(msg);
       break;
     case 'error':
+      // eslint-disable-next-line no-console
       console.error(msg);
       break;
   }

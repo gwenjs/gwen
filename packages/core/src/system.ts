@@ -234,6 +234,7 @@ export function defineSystem(nameOrSetup: string | (() => void), setup?: () => v
   return {
     name: (() => {
       if (!systemName) {
+        // eslint-disable-next-line no-console
         console.warn(
           '[GWEN] defineSystem() called without a name. ' +
             'Pass a name as first argument: defineSystem(\'mySystem\', () => { ... })',

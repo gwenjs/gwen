@@ -44,6 +44,7 @@ export function defineLayers<T extends Record<string, number>>(
     for (let j = i + 1; j < values.length; j++) {
       const shared = values[i] & values[j];
       if (shared) {
+        // eslint-disable-next-line no-console
         console.warn(
           `[gwen:physics3d] defineLayers: layers share bits (${values[i]} & ${values[j]} = ${shared}). ` +
             `This may cause unexpected collision filtering.`,

@@ -16,11 +16,13 @@ describe('defineLayers', () => {
 
   it('does not warn for valid non-overlapping layers', () => {
     defineLayers({ a: 1, b: 2, c: 4 });
+    // eslint-disable-next-line no-console
     expect(console.warn).not.toHaveBeenCalled();
   });
 
   it('emits console.warn when two layers share bits (a:1, b:3 — 1 & 3 = 1)', () => {
     defineLayers({ a: 1, b: 3 });
+    // eslint-disable-next-line no-console
     expect(console.warn).toHaveBeenCalledWith(
       expect.stringContaining('[gwen:physics3d] defineLayers: layers share bits'),
     );
@@ -29,6 +31,7 @@ describe('defineLayers', () => {
   it('includes the shared bit value in the warning', () => {
     defineLayers({ a: 6, b: 3 });
     // 6 & 3 = 2
+    // eslint-disable-next-line no-console
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('= 2'));
   });
 
@@ -49,6 +52,7 @@ describe('defineLayers', () => {
 
   it('handles a single layer without warning', () => {
     defineLayers({ only: 8 });
+    // eslint-disable-next-line no-console
     expect(console.warn).not.toHaveBeenCalled();
   });
 });

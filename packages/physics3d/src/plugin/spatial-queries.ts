@@ -67,6 +67,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
         };
       }
       if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
         console.warn('[GWEN:physics3d] castRay() not available in local mode');
       }
       return null;
@@ -103,6 +104,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
         };
       }
       if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
         console.warn('[GWEN:physics3d] castShape() not available in local mode');
       }
       return null;
@@ -123,6 +125,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
         if (!wasmMem || !ctx.overlapScratchView || ctx.overlapScratchPtr === 0) {
           if (import.meta.env.DEV) {
+            // eslint-disable-next-line no-console
             console.warn('[GWEN:physics3d] overlapShape() scratch buffer unavailable');
           }
           return [];
@@ -152,6 +155,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
         return entities;
       }
       if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
         console.warn('[GWEN:physics3d] overlapShape() not available in local mode');
       }
       return [];
@@ -177,6 +181,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
         };
       }
       if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
         console.warn('[GWEN:physics3d] projectPoint() not available in local mode');
       }
       return null;
@@ -187,6 +192,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
     registerRaycastSlot(opts: RaycastOpts, staticSlotIdx?: number): RaycastHandle {
       const id = staticSlotIdx ?? ctx.nextRaycastSlotId++;
       if (ctx.raycastSlots.size >= ctx.MAX_RAYCAST_SLOTS) {
+        // eslint-disable-next-line no-console
         console.warn(`[GWEN:physics3d] Maximum raycast slot count (${ctx.MAX_RAYCAST_SLOTS}) reached`);
       }
       const result: RaycastSlotResult = {
@@ -239,6 +245,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
     registerShapeCastSlot(opts: ShapeCastOpts, staticSlotIdx?: number): ShapeCastHandle {
       const id = staticSlotIdx ?? ctx.nextShapeCastSlotId++;
       if (ctx.shapeCastSlots.size >= ctx.MAX_SHAPECAST_SLOTS) {
+        // eslint-disable-next-line no-console
         console.warn(
           `[GWEN:physics3d] Maximum shape cast slot count (${ctx.MAX_SHAPECAST_SLOTS}) reached`,
         );
@@ -301,6 +308,7 @@ export function createSpatialQueryMethods(ctx: PluginContext): Pick<
     registerOverlapSlot(opts: OverlapOpts, staticSlotIdx?: number): OverlapHandle {
       const id = staticSlotIdx ?? ctx.nextOverlapSlotId++;
       if (ctx.overlapSlots.size >= ctx.MAX_OVERLAP_SLOTS) {
+        // eslint-disable-next-line no-console
         console.warn(`[GWEN:physics3d] Maximum overlap slot count (${ctx.MAX_OVERLAP_SLOTS}) reached`);
       }
       const result: OverlapSlotResult = { count: 0, entities: [] };

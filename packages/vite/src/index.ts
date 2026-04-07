@@ -537,6 +537,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
   let wasmSourceDir: string | null = null;
 
   function log(msg: string) {
+    // eslint-disable-next-line no-console
     if (verbose) console.log(`[gwen-vite] ${msg}`);
   }
 
@@ -632,6 +633,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       // No custom Rust crate — point to pre-compiled artifacts
       const precompiled = findPrecompiledWasmDir(root);
       if (!precompiled) {
+        // eslint-disable-next-line no-console
         console.warn(
           '[gwen-vite] No pre-compiled WASM found in @gwenjs/core/wasm — WASM unavailable',
         );
@@ -644,6 +646,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
 
     const wasmPack = findWasmPack();
     if (!wasmPack) {
+      // eslint-disable-next-line no-console
       console.warn(
         '[gwen-vite] wasm-pack not found — falling back to pre-compiled WASM from @gwenjs/core',
       );
@@ -672,6 +675,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     );
 
     if (result.status !== 0) {
+      // eslint-disable-next-line no-console
       console.error('[gwen-vite] wasm-pack build failed:', result.stderr);
       return false;
     }
@@ -717,6 +721,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
           log('WASM rebuilt — triggering HMR full reload');
           server?.ws.send({ type: 'full-reload' });
         } else {
+          // eslint-disable-next-line no-console
           console.error('[gwen-vite] WASM rebuild failed (exit ' + code + ')');
         }
       });
@@ -908,6 +913,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
         }
         if (files.length > 0) log(`Emitted ${files.length} WASM assets to dist/wasm/`);
       } else {
+        // eslint-disable-next-line no-console
         console.warn('[gwen-vite] No WASM source found for production build');
       }
 

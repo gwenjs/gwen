@@ -117,8 +117,10 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
       const scanner = new ComponentScanner(manifest);
       await scanner.scanFiles(files);
       if (debug) {
+        // eslint-disable-next-line no-console
         console.log(`[gwen:optimizer] buildStart — ${manifest.size} component(s) registered`);
         for (const entry of manifest.entries()) {
+          // eslint-disable-next-line no-console
           console.log(`  ${entry.name}: typeId=${entry.typeId}, stride=${entry.f32Stride}`);
         }
       }
@@ -161,6 +163,7 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
               `[gwen:optimizer] Optimizable pattern found in ${id}: useQuery([${pattern.queryComponents.join(', ')}]) — add gwenOptimizerPlugin({ mode: 'transform' }) to enable bulk rewrite.`,
             );
           } else if (debug) {
+            // eslint-disable-next-line no-console
             console.log(`[gwen:optimizer] Skipping in ${id}: ${result.reason}`);
           }
         }
@@ -173,10 +176,12 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
       for (const pattern of patterns) {
         const result = detector.classify(pattern);
         if (!result.optimizable) {
+          // eslint-disable-next-line no-console
           if (debug) console.log(`[gwen:optimizer] Skipping in ${id}: ${result.reason}`);
           continue;
         }
         if (debug)
+          // eslint-disable-next-line no-console
           console.log(
             `[gwen:optimizer] Transforming pattern in ${id}:`,
             pattern.queryComponents.join(', '),

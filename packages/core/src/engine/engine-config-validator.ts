@@ -53,6 +53,7 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
       );
     }
     if (v > 500_000) {
+      // eslint-disable-next-line no-console
       console.warn(
         `[GWEN] config warning: maxEntities value ${v} is unusual. Try 10_000 for a typical game.`,
       );
@@ -70,6 +71,7 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
       );
     }
     if (v > 144) {
+      // eslint-disable-next-line no-console
       console.warn(
         `[GWEN] config warning: targetFPS value ${v} is unusual. Common values: 30, 60, 120.`,
       );
@@ -99,6 +101,7 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
       );
     }
     if (v > 4096) {
+      // eslint-disable-next-line no-console
       console.warn(
         `[GWEN] config warning: tweenPoolSize value ${v} is unusual. Default 256 suits most games.`,
       );

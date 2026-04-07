@@ -201,7 +201,7 @@ describe('physics2d layer inlining → optimizer (sequential transform)', () => 
     expect(step1?.code).not.toContain('Layers.ground');
 
     // Optimizer should skip (no useQuery + onUpdate keywords)
-    const optimizerPlugin = gwenOptimizerPlugin({ mode: 'transform' });
+    const _optimizerPlugin = gwenOptimizerPlugin({ mode: 'transform' });
     // No buildStart needed — the quick-check guard fires first
     const codeAfterPhysics2d = step1?.code ?? layersOnlySource;
     // The optimizer guard checks for 'useQuery' in the string — this file won't have it

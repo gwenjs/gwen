@@ -125,6 +125,7 @@ export class StringPoolManager {
 
     // Debug warning for persistent pool growth
     if (this.debug && stats.persistentPoolSize > 1000) {
+      // eslint-disable-next-line no-console
       console.warn(
         `[StringPoolManager] persistentPool has ${stats.persistentPoolSize} entries. ` +
           `This may indicate a memory leak if strings are incorrectly marked as persistent.`,

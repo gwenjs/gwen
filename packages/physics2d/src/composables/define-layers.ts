@@ -31,6 +31,7 @@ export function defineLayers<T extends Record<string, number>>(
   for (let i = 0; i < values.length; i++) {
     for (let j = i + 1; j < values.length; j++) {
       if (values[i] & values[j]) {
+        // eslint-disable-next-line no-console
         console.warn(
           `[gwen:physics2d] defineLayers: layers at index ${i} and ${j} share bits (${values[i]} & ${values[j]} = ${values[i] & values[j]}). This may cause unexpected collision filtering.`,
         );

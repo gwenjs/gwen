@@ -184,7 +184,9 @@ describe('gwenOptimizerPlugin — E2E pipeline (buildStart → transform)', () =
     fs.writeFileSync(path.join(srcDir, 'position.ts'), POSITION_SOURCE, 'utf8');
 
     const logs: string[] = [];
+    // eslint-disable-next-line no-console
     const origLog = console.log.bind(console);
+    // eslint-disable-next-line no-console
     console.log = (...args: unknown[]) => logs.push(args.join(' '));
 
     try {
@@ -192,6 +194,7 @@ describe('gwenOptimizerPlugin — E2E pipeline (buildStart → transform)', () =
       (plugin.configResolved as Function)({ root: tmp });
       await (plugin.buildStart as Function).call({});
     } finally {
+      // eslint-disable-next-line no-console
       console.log = origLog;
     }
 

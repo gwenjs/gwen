@@ -8,7 +8,6 @@ import { createEntityId } from '@gwenjs/core';
 import type { EntityId } from '@gwenjs/core';
 import type {
   Physics3DColliderShape,
-  Physics3DVec3,
   JointHandle3D,
 } from '../types';
 import type { PluginContext } from './plugin-context';
@@ -18,6 +17,7 @@ import type { PluginContext } from './plugin-context';
  */
 export const emitLocalJointWarning = (): void => {
   if (import.meta.env.DEV) {
+    // eslint-disable-next-line no-console
     console.warn(
       '[GWEN:physics3d] Joint API requires WASM physics3d variant — not available in local mode',
     );

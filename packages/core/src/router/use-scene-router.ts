@@ -91,6 +91,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   // Activate initial scene
   const initialScene = resolveScene(routes[currentState as keyof TRoutes].scene);
   if (initialScene.onEnter) {
+    // eslint-disable-next-line no-console
     Promise.resolve(initialScene.onEnter()).catch(console.error);
   }
 

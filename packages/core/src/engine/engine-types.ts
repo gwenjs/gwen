@@ -116,6 +116,7 @@ export function checkPluginApiVersion(
     throw new Error(msg);
   }
   if (policy === 'warn') {
+    // eslint-disable-next-line no-console
     console.warn(msg);
   }
   return false;

@@ -88,6 +88,7 @@ export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOpti
   const { mode = 'warn', debug = false, extensions = ['.ts', '.tsx'] } = options;
 
   if (mode === 'transform') {
+    // eslint-disable-next-line no-console
     console.warn(
       '[gwen:physics3d-optimizer] mode: "transform" is not yet implemented. ' +
         'Falling back to mode: "warn".',
@@ -134,6 +135,7 @@ export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOpti
           `Replace with \`${METHOD_TO_COMPOSABLE[pattern.method]}()\` for zero-copy SAB reads.`;
 
         if (debug) {
+          // eslint-disable-next-line no-console
           console.warn(message);
         }
 

@@ -101,6 +101,7 @@ export function localFindPath3D(
 ): PathWaypoint3D[] {
   if (!ctx._localNavGrid) {
     if (import.meta.env.DEV) {
+      // eslint-disable-next-line no-console
       console.warn(
         '[GWEN:physics3d] findPath3D(): no nav grid uploaded — call initNavGrid3D() first',
       );

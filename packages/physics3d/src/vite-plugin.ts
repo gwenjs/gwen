@@ -139,6 +139,7 @@ export async function transformBvhReferences(
     const absGlbPath = resolve(dirname(id), glbPath);
 
     if (!existsSync(absGlbPath)) {
+      // eslint-disable-next-line no-console
       console.warn(`[gwen:physics3d] useMeshCollider: file not found: ${absGlbPath}`);
       continue;
     }
@@ -151,6 +152,7 @@ export async function transformBvhReferences(
     try {
       bvhBuffer = tools.build_bvh_from_glb(new Uint8Array(glbBytes), meshName);
     } catch (e) {
+      // eslint-disable-next-line no-console
       console.warn(`[gwen:physics3d] BVH pre-bake failed for ${glbPath}: ${e}`);
       continue;
     }
@@ -259,6 +261,7 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
               }
 
               if (baseOptions.debug) {
+                // eslint-disable-next-line no-console
                 console.log(`[gwen:physics3d] Inlined ${layerMap.size} layer constants in ${id}`);
               }
             }

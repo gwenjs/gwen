@@ -72,7 +72,6 @@ import { createSpatialQueryMethods } from './spatial-queries';
 
 import { createPathfindingMethods } from './pathfinding-service';
 
-import { entityIndexToId } from './plugin-helpers';
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
@@ -315,6 +314,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       engine.provide('physics3d', service);
 
       if (cfg.debug) {
+        // eslint-disable-next-line no-console
         console.log(
           `[GWEN:Physics3D] Initialized. Backend=${ctx.backendMode} quality=${cfg.qualityPreset}`,
         );

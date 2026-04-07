@@ -258,11 +258,13 @@ export function addColliderImpl(
   if (ctx.backendMode === 'local') {
     const shape = finalOptions.shape;
     if (shape.type === 'mesh') {
+      // eslint-disable-next-line no-console
       console.warn(
         '[PHYSICS3D:MESH_FALLBACK] useMeshCollider() is not yet fully implemented. ' +
           'Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.',
       );
     } else if (shape.type === 'convex') {
+      // eslint-disable-next-line no-console
       console.warn(
         '[PHYSICS3D:CONVEX_FALLBACK] useConvexCollider() is not yet fully implemented. ' +
           'Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.',
