@@ -36,6 +36,11 @@ export default defineConfig({
 | `ccdEnabled` | `boolean` | auto | Continuous collision detection (auto-enabled at `'high'`/`'esport'`) |
 | `layers` | `Record<string, number>` | `{}` | Collision layers (bit index 0–31) |
 | `debug` | `boolean` | `false` | Enable debug renderer |
+| `vite` | `{ debug?: boolean }` | `{}` | Build-time Vite plugin options (layer inlining debug logs) |
+
+:::tip Build-time layer warnings
+The `gwen:physics2d` Vite plugin emits a warning during build if a layer is defined with `defineLayers()` but never referenced in the same file. This helps catch dead layer definitions early.
+:::
 
 ### Collision Layers
 
@@ -327,11 +332,13 @@ const body = useDynamicBody()
 // Set velocity directly (m/s)
 body.setVelocity(10, 0)
 
-// Apply an instantaneous impulse (N·s)
-body.applyImpulse(0, 500)
+// Apply a continuous force (N) — accumulates across calls, applied each frame scaled by dt
+// Use for: rockets, wind, gravity overrides, any sustained push
+body.applyForce(0, 500)
 
-// Note: applyForce is a no-op in Rapier2D; use impulses instead
-body.applyForce(0, 100)  // This has no effect
+// Apply an instantaneous impulse (N·s) — one-shot, immediate
+// Use for: jumps, explosions, knockbacks
+body.applyImpulse(0, 500)
 ```
 
 ### Shape Component
@@ -394,7 +401,7 @@ onUpdate(() => {
 - `get velocity(): { x: number, y: number }` — Current linear velocity.
 - `setVelocity(vx: number, vy: number): void` — Set velocity directly.
 - `applyImpulse(ix: number, iy: number): void` — Apply instantaneous impulse.
-- `applyForce(fx: number, fy: number): void` — No-op in Rapier2D; use impulse.
+- `applyForce(fx: number, fy: number): void` — Accumulate continuous force (applied as impulse each frame, scaled by dt). Use for sustained pushes.
 - `enable(): void` — Re-enable the body if disabled.
 - `disable(): void` — Remove the body from simulation.
 - `get active(): boolean` — Whether the body is currently in the simulation.

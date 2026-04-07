@@ -36,6 +36,11 @@ export default defineConfig({
 | `ccdEnabled` | `boolean` | auto | Détection de collision continue (activée automatiquement à `'high'`/`'esport'`) |
 | `layers` | `Record<string, number>` | `{}` | Couches de collision (index de bit 0–31) |
 | `debug` | `boolean` | `false` | Activer le renderer de débogage |
+| `vite` | `{ debug?: boolean }` | `{}` | Options du plugin Vite au moment du build (logs de débogage d'intégration des couches) |
+
+:::tip Avertissements de couches au moment du build
+Le plugin Vite `gwen:physics2d` émet un avertissement pendant le build si une couche est définie avec `defineLayers()` mais jamais référencée dans le même fichier. Cela permet de détecter les définitions de couches inutilisées tôt.
+:::
 
 ### Couches de collision
 
@@ -327,11 +332,13 @@ const body = useDynamicBody()
 // Définir la vélocité directement (m/s)
 body.setVelocity(10, 0)
 
-// Appliquer une impulsion instantanée (N·s)
-body.applyImpulse(0, 500)
+// Appliquer une force continue (N) — s'accumule sur les appels, appliquée chaque frame × dt
+// Utilisation : fusées, vent, gravité personnalisée, toute poussée soutenue
+body.applyForce(0, 500)
 
-// Remarque: applyForce est une non-opération dans Rapier2D; utilisez les impulsions à la place
-body.applyForce(0, 100)  // Cela n'a aucun effet
+// Appliquer une impulsion instantanée (N·s) — ponctuelle, immédiate
+// Utilisation : sauts, explosions, reculs
+body.applyImpulse(0, 500)
 ```
 
 ### Composable de forme
@@ -394,7 +401,7 @@ onUpdate(() => {
 - `get velocity(): { x: number, y: number }` — Vélocité linéaire actuelle.
 - `setVelocity(vx: number, vy: number): void` — Définir la vélocité directement.
 - `applyImpulse(ix: number, iy: number): void` — Appliquer une impulsion instantanée.
-- `applyForce(fx: number, fy: number): void` — Non-opération dans Rapier2D; utilisez l'impulsion.
+- `applyForce(fx: number, fy: number): void` — Accumule une force continue (appliquée comme impulsion chaque frame, × dt). Pour les poussées soutenues.
 - `enable(): void` — Réactiver le corps s'il est désactivé.
 - `disable(): void` — Supprimer le corps de la simulation.
 - `get active(): boolean` — Si le corps est actuellement dans la simulation.

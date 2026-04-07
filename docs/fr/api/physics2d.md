@@ -405,16 +405,31 @@ function patchTilemapPhysicsChunk(opts: {
 
 ## Intégration Vite
 
-### physics2dVitePlugin()
+### physics2dVitePlugin(options?)
 
 **Signature:**
 ```ts
-function physics2dVitePlugin(): VitePlugin
+function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
+// interface Physics2DVitePluginOptions { debug?: boolean }
 ```
 
-**Description.** Plugin Vite pour bundler Rapier2D WASM. Enregistré automatiquement quand le plugin physics2d est utilisé.
+**Description.** Plugin Vite pour bundler Rapier2D WASM. Enregistré automatiquement quand le plugin physics2d est utilisé. Émet un avertissement au moment du build si une couche est définie avec `defineLayers()` mais jamais référencée dans le même fichier — permet de détecter les définitions de couches inutilisées tôt.
+
+**Paramètres:**
+| Paramètre | Type | Description |
+|---|---|---|
+| options | `Physics2DVitePluginOptions` | Options optionnelles du plugin au moment du build |
+| options.debug | `boolean` | Activer les logs de débogage pour l'intégration des couches (défaut: false) |
 
 **Retourne:** `VitePlugin`
+
+> **Note:** Lors de l'utilisation de la config du module, passez les options du plugin Vite via la sous-clé `vite` :
+> ```ts
+> modules: [['@gwenjs/physics2d', {
+>   gravity: -9.81,
+>   vite: { debug: true }  // Options du plugin Vite (build uniquement)
+> }]]
+> ```
 
 ## Définitions de type
 

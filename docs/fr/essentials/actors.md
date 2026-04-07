@@ -188,6 +188,10 @@ export const ScoreSystem = defineSystem(function ScoreSystem() {
 })
 ```
 
+::: tip Convention de nommage
+Préfixez les noms d'événements avec un espace de noms : `'enemy:hit'`, `'player:die'`, `'ui:open'`. Cela évite les collisions avec les hooks moteur intégrés comme `'engine:tick'` ou `'entity:spawn'`.
+:::
+
 ## Accéder aux composants
 
 Utilisez `useComponent()` pour obtenir et muter un composant :
@@ -214,7 +218,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 À l'intérieur d'un acteur, utilisez `useSceneRouter()` pour naviguer entre les scènes :
 
 ```ts
-import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 
