@@ -42,11 +42,11 @@
       },
       "./plugin": {
         "types": "./dist/plugin/index.d.ts",
-        "import": "./dist/plugin/index.js"
+        "import": "./dist/index.js"
       },
       "./module": {
         "types": "./dist/module/index.d.ts",
-        "import": "./dist/module/index.js"
+        "import": "./dist/index.js"
       }
     },
     "main": "./dist/index.js",

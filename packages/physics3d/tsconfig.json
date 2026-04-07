@@ -21,7 +21,7 @@
     "exactOptionalPropertyTypes": false,
     // FIXME(type-safety): noUncheckedIndexedAccess disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
     "noUncheckedIndexedAccess": false,
-    "rootDir": "../.."
+    "rootDir": "src"
   },
   "include": ["src"],
   "extends": "../../tsconfig.base.json",

@@ -11,7 +11,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "rootDir": "../..",
+    "rootDir": "src",
     "outDir": "dist",
     "customConditions": ["development"],
     // FIXME(type-safety): exactOptionalPropertyTypes disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md

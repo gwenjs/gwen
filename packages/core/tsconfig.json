@@ -11,7 +11,7 @@
     "strict": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "rootDir": "../..",
+    "rootDir": "src",
     "moduleResolution": "bundler",
     "declaration": true,
     "declarationMap": true,

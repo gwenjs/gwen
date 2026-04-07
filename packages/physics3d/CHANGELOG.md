@@ -13,7 +13,7 @@
 - fix format ([cf75fab](https://github.com/gwenjs/gwen/commit/cf75fab20820afbdb532763afee6337abb8a9e55))
 - fix logger initialization breaking tests with mocked @gwenjs/core ([976e1c3](https://github.com/gwenjs/gwen/commit/976e1c32bdd2aaeeb4556e92488ec905796be7d5))
 - update test mocks/imports to scoped subpaths ([d83852a](https://github.com/gwenjs/gwen/commit/d83852a3f9c71f4f24f35e299417452b69b35a07))
-- update _getActorEntityId import to @gwenjs/core/actor ([7273a5e](https://github.com/gwenjs/gwen/commit/7273a5e409e7df914b35cda21a9ebaaff4a67839))
+- update \_getActorEntityId import to @gwenjs/core/actor ([7273a5e](https://github.com/gwenjs/gwen/commit/7273a5e409e7df914b35cda21a9ebaaff4a67839))
 
 #### 💅 Refactors
 

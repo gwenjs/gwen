@@ -47,15 +47,15 @@
       },
       "./system": {
         "types": "./dist/system/index.d.ts",
-        "import": "./dist/system/index.js"
+        "import": "./dist/index.js"
       },
       "./actor": {
         "types": "./dist/actor/index.d.ts",
-        "import": "./dist/actor/index.js"
+        "import": "./dist/index.js"
       },
       "./scene": {
         "types": "./dist/scene/index.d.ts",
-        "import": "./dist/scene/index.js"
+        "import": "./dist/index.js"
       },
       "./wasm/light": {
         "types": "./wasm/light/gwen_core.d.ts",

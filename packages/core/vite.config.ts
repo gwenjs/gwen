@@ -7,8 +7,8 @@ export default defineConfig({
     dts({
       include: ["src"],
       outDir: "dist",
-      // Keep declaration generation compatible with src-based package entrypoints.
       rollupTypes: false,
+      entryRoot: "src",
     }),
   ],
   build: {

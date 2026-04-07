@@ -14,7 +14,7 @@
     "moduleResolution": "bundler",
     "declaration": true,
     "declarationMap": true,
-    "rootDir": "../..",
+    "rootDir": "src",
     "sourceMap": true,
     "outDir": "./dist",
     // FIXME(type-safety): exactOptionalPropertyTypes disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
