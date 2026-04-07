@@ -39,6 +39,40 @@
       "import": "./wasm/physics3d/gwen_core.js"
     }
   },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./system": {
+        "types": "./dist/system/index.d.ts",
+        "import": "./dist/system/index.js"
+      },
+      "./actor": {
+        "types": "./dist/actor/index.d.ts",
+        "import": "./dist/actor/index.js"
+      },
+      "./scene": {
+        "types": "./dist/scene/index.d.ts",
+        "import": "./dist/scene/index.js"
+      },
+      "./wasm/light": {
+        "types": "./wasm/light/gwen_core.d.ts",
+        "import": "./wasm/light/gwen_core.js"
+      },
+      "./wasm/physics2d": {
+        "types": "./wasm/physics2d/gwen_core.d.ts",
+        "import": "./wasm/physics2d/gwen_core.js"
+      },
+      "./wasm/physics3d": {
+        "types": "./wasm/physics3d/gwen_core.d.ts",
+        "import": "./wasm/physics3d/gwen_core.js"
+      }
+    }
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",

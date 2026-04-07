@@ -20,6 +20,7 @@
  */
 
 import { useEngine } from '../context.js';
+import type { GwenEngine } from '../engine/gwen-engine.js';
 import type {
   RouteConfig,
   SceneRouterDefinition,
@@ -29,8 +30,9 @@ import type {
 } from './router-types.js';
 import type { SceneDefinition, SceneFactory } from '../scene/define-scene.js';
 
-// Unique symbol to cache router handles on the engine instance
-const ROUTER_CACHE = Symbol('gwen.routerCache');
+// Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
+// WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.
+const routerCacheByEngine = new WeakMap<GwenEngine, Map<unknown, SceneRouterHandle<any>>>();
 
 type TransitionListener<TRoutes extends Record<string, RouteConfig<TRoutes>>> = (
   from: StatesOf<TRoutes>,
@@ -57,7 +59,7 @@ function resolveScene(input: SceneDefinition | SceneFactory): SceneDefinition {
 export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoutes>>>(
   routerDef: SceneRouterDefinition<TRoutes>,
 ): SceneRouterHandle<TRoutes> {
-  let engine: unknown;
+  let engine: GwenEngine;
   try {
     engine = useEngine();
   } catch {
@@ -67,11 +69,13 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     );
   }
 
-  // Singleton cache per engine
-  if (!(engine as any)[ROUTER_CACHE]) {
-    (engine as any)[ROUTER_CACHE] = new Map<unknown, SceneRouterHandle<any>>();
+  // Singleton cache per (engine, routerDef) pair — stored in a module-level WeakMap
+  // so the engine object itself is never mutated.
+  let cache = routerCacheByEngine.get(engine);
+  if (!cache) {
+    cache = new Map<unknown, SceneRouterHandle<any>>();
+    routerCacheByEngine.set(engine, cache);
   }
-  const cache: Map<unknown, SceneRouterHandle<any>> = (engine as any)[ROUTER_CACHE];
   if (cache.has(routerDef)) {
     return cache.get(routerDef)! as SceneRouterHandle<TRoutes>;
   }

@@ -55,6 +55,10 @@ export function emit<K extends keyof GwenRuntimeHooks>(
 export function emit(name: string, ...args: unknown[]): void;
 export function emit(name: string, ...args: unknown[]): void {
   const engine = useEngine();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (engine.hooks as any).callHook(name, ...args);
+  // `callHook` is typed for known GwenRuntimeHooks keys only, but the runtime
+  // implementation accepts any string (custom game events like 'enemy:died').
+  // We cast `name` to a known key so TypeScript is satisfied; the generic
+  // `...args: unknown[]` overload above ensures callers are still safe.
+  // This is the narrowest possible cast — engine.hooks itself stays fully typed.
+  (engine.hooks.callHook as (name: string, ...args: unknown[]) => void)(name, ...args);
 }
