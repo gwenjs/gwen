@@ -158,7 +158,7 @@ docs/                # VitePress documentation site
 
 ## Documentation
 
-Full documentation at [gwenjs.dev](https://gwenjs.dev) — or run it locally:
+Full documentation at [gwenjs.github.io/gwen](https://gwenjs.github.io/gwen/) — or run it locally:
 
 ```sh
 pnpm docs:dev
