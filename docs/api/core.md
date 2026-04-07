@@ -67,6 +67,42 @@ defineSystem({
 });
 ```
 
+### useTween(options)
+
+**Signature:**
+```ts
+function useTween<T>(options: {
+  duration: number
+  easing?: string
+  loop?: boolean
+  yoyo?: boolean
+}): TweenHandle<T>
+```
+
+**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks.
+
+**Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| options.duration | `number` | Duration in seconds |
+| options.easing | `string` | Easing function name (optional) |
+| options.loop | `boolean` | Loop animation (optional) |
+| options.yoyo | `boolean` | Reverse animation on loop (optional) |
+
+**Returns:** `TweenHandle<T>` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`.
+
+**Example:**
+```ts
+const opacity = useTween<number>({ duration: 0.5, easing: 'easeInOut' })
+
+onUpdate(() => {
+  if (!opacity.playing) {
+    opacity.play({ from: 0, to: 1 })
+  }
+  mesh.material.opacity = opacity.value
+})
+```
+
 ## `@gwenjs/core/system`
 
 System definition and frame-loop composables.
@@ -85,9 +121,7 @@ import { useQuery, useService, useWasmModule } from '@gwenjs/core/system'
 
 **Signature:**
 ```ts
-function defineSystem(options: {
-  setup: (ctx: SystemContext) => void;
-}): SystemDef
+function defineSystem(setup: () => void): GwenPlugin
 ```
 
 **Description.** Defines a system that runs once during initialization. Use lifecycle hooks and queries inside setup.
@@ -95,32 +129,29 @@ function defineSystem(options: {
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.setup | `function` | Setup function called once at initialization |
+| setup | `function` | Setup function called once at initialization |
 
-**Returns:** `SystemDef` — system definition for scene registration.
+**Returns:** `GwenPlugin` — plugin for scene registration.
 
 **Example:**
 ```ts
-defineSystem({
-  setup() {
-    const query = useQuery([Transform, Velocity]);
-    onUpdate((dt) => {
-      for (const entity of query) {
-        entity.transform.x += entity.velocity.x * dt;
-      }
-    });
-  }
-});
+export const moveSystem = defineSystem(function moveSystem() {
+  const query = useQuery([Position, Velocity])
+
+  onUpdate((dt) => {
+    for (const id of query) {
+      Position.x[id] += Velocity.x[id] * dt
+      Position.y[id] += Velocity.y[id] * dt
+    }
+  })
+})
 ```
 
-#### useQuery(components, opts?)
+#### useQuery(components)
 
 **Signature:**
 ```ts
-function useQuery<C extends ComponentDef[]>(
-  components: C,
-  opts?: { onChange?: (added: Entity[], removed: Entity[]) => void }
-): LiveQuery
+function useQuery(components: ComponentDef[]): LiveQuery
 ```
 
 **Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
@@ -129,18 +160,18 @@ function useQuery<C extends ComponentDef[]>(
 | Param | Type | Description |
 |---|---|---|
 | components | `ComponentDef[]` | Components to query for |
-| opts.onChange | `function` | Called when entities are added/removed from query |
 
 **Returns:** `LiveQuery` — an iterable set of matching entities.
 
 **Example:**
 ```ts
-const query = useQuery([Position, Velocity]);
+const enemies = useQuery([Position, EnemyTag])
+
 onUpdate(() => {
-  for (const entity of query) {
-    // Update position
+  for (const id of enemies) {
+    Position.x[id] += 1
   }
-});
+})
 ```
 
 #### useService(name)
@@ -611,7 +642,7 @@ const GameScene = defineScene({
 ```ts
 function defineSceneRouter(options: {
   initial: string;
-  scenes: Record<string, SceneDef>;
+  routes: Record<string, { scene: SceneDef; on: Record<string, string> }>;
 }): SceneRouterDef
 ```
 
@@ -622,192 +653,40 @@ function defineSceneRouter(options: {
 **Example:**
 ```ts
 defineSceneRouter({
-  initial: 'Menu',
-  scenes: { Menu: MenuScene, Game: GameScene }
-});
-```
-
-#### useSceneRouter()
-
-**Signature:**
-```ts
-function useSceneRouter(): SceneRouter
-```
-
-**Description.** Returns the active scene router. Use to transition between scenes.
-
-**Returns:** `SceneRouter` — with methods like `.goTo(name)`.
-
-**Example:**
-```ts
-const router = useSceneRouter();
-router.goTo('Game');
-```
-
----
-
-## Legacy Sections (Reorganized Above)
-
-#### defineComponent(options)
-
-**Signature:**
-```ts
-function defineComponent<T = {}>(options: {
-  name: string;
-  schema?: T;
-  onAdd?: (entity: Entity) => void;
-  onRemove?: (entity: Entity) => void;
-}): ComponentDef<T>
-```
-
-**Description.** Defines a component type with optional schema and lifecycle hooks.
-
-**Parameters:**
-| Param | Type | Description |
-|---|---|---|
-| options | `object` | Component definition |
-| options.name | `string` | Unique component name |
-| options.schema | `T` | Field schema using Types (optional) |
-| options.onAdd | `function` | Called when component is added to an entity |
-| options.onRemove | `function` | Called when component is removed |
-
-**Returns:** `ComponentDef<T>` — component definition for use in actors/scenes.
-
-**Example:**
-```ts
-const Health = defineComponent({
-  name: 'Health',
-  schema: {
-    hp: Types.f32,
-    maxHp: Types.f32
+  initial: 'menu',
+  routes: {
+    menu: { scene: MenuScene, on: { PLAY: 'game' } },
+    game: { scene: GameScene, on: { MENU: 'menu' } },
   },
-  onAdd(entity) {
-    console.log('Entity took health component');
-  }
-});
+})
 ```
 
-### Types
+#### useSceneRouter(routerDef)
 
 **Signature:**
 ```ts
-const Types = {
-  f32: Type,
-  f64: Type,
-  i32: Type,
-  ui32: Type,
-  i8: Type,
-  ui8: Type,
-  i16: Type,
-  ui16: Type
-}
+function useSceneRouter<TRoutes>(
+  routerDef: SceneRouterDefinition<TRoutes>
+): SceneRouterHandle<TRoutes>
 ```
 
-**Description.** Type constants for defining component schemas.
-
-**Example:**
-```ts
-schema: {
-  position: Types.f32,
-  count: Types.i32
-}
-```
-
-### Utilities
-
-#### createLogger(name, opts?)
-
-**Signature:**
-```ts
-function createLogger(name: string, opts?: LoggerOptions): GwenLogger
-```
-
-**Description.** Creates a named logger instance for debugging and logging.
+**Description.** Returns the runtime handle for a scene router. Call `.send()` to trigger transitions. Must be called inside an active engine context (system, actor, or scene lifecycle hook).
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Logger namespace name |
-| opts | `object` | Logger options (optional) |
+| routerDef | `SceneRouterDefinition` | Router created by `defineSceneRouter()` |
 
-**Returns:** `GwenLogger` — with methods: `.info()`, `.warn()`, `.error()`, `.debug()`
-
-**Example:**
-```ts
-const log = createLogger('Player');
-log.info('Player spawned');
-```
-
-#### useTween(options)
-
-**Signature:**
-```ts
-function useTween(options: {
-  duration: number;
-  easing?: EasingFunction;
-  loop?: boolean;
-  onProgress?: (t: number) => void;
-  onComplete?: () => void;
-}): TweenHandle
-```
-
-**Description.** Creates an animation tween. Returns a handle with `.play()`, `.stop()`, and `.to(target)` methods.
-
-**Parameters:**
-| Param | Type | Description |
-|---|---|---|
-| options.duration | `number` | Duration in seconds |
-| options.easing | `function` | Easing function (optional) |
-| options.loop | `boolean` | Loop animation (optional) |
-| options.onProgress | `function` | Progress callback (0–1) |
-| options.onComplete | `function` | Completion callback |
-
-**Returns:** `TweenHandle` — tween controller.
+**Returns:** `SceneRouterHandle` — with methods `.send(event, params?)`, `.can(event)`, `.current`, `.params`, `.onTransition(fn)`.
 
 **Example:**
 ```ts
-const tween = useTween({
-  duration: 1,
-  onProgress: (t) => { entity.x = lerp(0, 100, t); }
-});
-tween.play();
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { AppRouter } from '../router'
+
+const nav = useSceneRouter(AppRouter)
+await nav.send('START')        // trigger transition
+nav.can('START')               // check if valid
+nav.current                    // current state name
 ```
 
-#### createGwenHooks()
-
-**Signature:**
-```ts
-function createGwenHooks(): GwenHooks
-```
-
-**Description.** Creates a hooks instance for advanced plugin development.
-
-**Returns:** `GwenHooks`
-
-## Error Handling
-
-### CoreErrorCodes
-
-**Signature:**
-```ts
-enum CoreErrorCodes {
-  INVALID_COMPONENT = 'INVALID_COMPONENT',
-  INVALID_SYSTEM = 'INVALID_SYSTEM',
-  INVALID_ACTOR = 'INVALID_ACTOR',
-  SCENE_NOT_FOUND = 'SCENE_NOT_FOUND',
-  // ... other error codes
-}
-```
-
-**Description.** Enumeration of error codes thrown by the core engine.
-
-## Context
-
-### engineContext
-
-**Signature:**
-```ts
-const engineContext: AsyncLocalStorage<GwenEngine>
-```
-
-**Description.** Raw async context storage for the current engine. Typically not needed; use [`useEngine()`](#useengine) instead.

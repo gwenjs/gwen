@@ -134,16 +134,14 @@ logger.error('unhandled error', error)
 
 
 ```ts
-import { createLogger, defineSystem, useEngine } from '@gwenjs/core'
+import { createLogger, defineSystem, onUpdate, useEngine } from '@gwenjs/core/system'
 
-export const MySystem = defineSystem(() => {
+export const MySystem = defineSystem(function MySystem() {
   const engine = useEngine()
-  const log = createLogger('game:my-system', engine.debug)
+  const log = createLogger('game:my-system')
 
-  onStart(() => {
-    log.info('System initialized', { entityCount: 42 })
-    log.debug('Detailed initialization data', { config: {...} })
-  })
+  // This runs once during setup
+  log.info('System initialized')
 
   onUpdate(() => {
     if (someWarning) {
@@ -218,33 +216,12 @@ Register debug-only systems:
 ```ts
 import { defineScene } from '@gwenjs/core/scene'
 
-export class GameScene extends defineScene {
-  onLoad() {
-    this.addSystem(GameplaySystem)
-
-    if (import.meta.env.DEV) {
-      this.addSystem(DebugVisualizationSystem)
-      this.addSystem(PerformanceProfilingSystem)
-    }
-  }
-}
-```
-
-### Runtime Debug Toggle
-
-Allow players to toggle debug visuals in-game:
-
-```ts
-import { useEngine, defineSystem, onUpdate } from '@gwenjs/core'
-
-export const DebugToggleSystem = defineSystem(() => {
-  const engine = useEngine()
-
-  onUpdate(() => {
-    if (engine.input.isKeyPressed('F1')) {
-      engine.config.debug = !engine.config.debug
-    }
-  })
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [
+    GameplaySystem,
+    ...(import.meta.env.DEV ? [DebugVisualizationSystem, PerformanceProfilingSystem] : []),
+  ],
 })
 ```
 
@@ -279,19 +256,14 @@ Collider wireframes help verify collision geometry:
 
 ```ts
 import { defineScene } from '@gwenjs/core/scene'
-import { Position, Collider } from './components'
 
-export class TestScene extends defineScene {
-  onLoad() {
-    // Create an entity with a collider
-    const id = createEntity()
-    Position.set(id, { x: 100, y: 100 })
-    Collider.set(id, { type: 'box', w: 50, h: 50 })
+export const TestScene = defineScene({
+  name: 'test',
+  systems: [ColliderTestSystem],
+})
 
-    // In debug mode, the collider renders visually
-    // You can immediately see if the collider is positioned/sized correctly
-  }
-}
+// In your test system, spawn entities normally.
+// When debug: true is set, physics colliders render as wireframes automatically.
 ```
 
 ### Filtering Logs During Testing

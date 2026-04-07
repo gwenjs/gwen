@@ -11,7 +11,7 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`, `VitePlugin`, `ViteUserConfig`
+**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`
 
 **Usage:**
 ```ts
@@ -30,41 +30,30 @@ import { definePlugin, satisfiesPluginContract } from '@gwenjs/kit/plugin'
 import type { GwenEngine, GwenPlugin } from '@gwenjs/kit/plugin'
 ```
 
-### Plugin Definition
-
-#### definePlugin(factory)
+### definePlugin(factory)
 
 **Signature:**
 ```ts
 function definePlugin<T = any>(
-  factory: (opts?: T) => PluginDef | ((opts?: T) => PluginDef)
-): PluginFactory<T>
+  factory: (opts?: T) => PluginDef
+): GwenPluginFactory<T>
 ```
 
-**Description.** Defines a plugin that can be loaded in a GWEN app. The factory can return a `PluginDef` directly or a function that returns a `PluginDef`.
-
-**Parameters:**
-| Param | Type | Description |
-|---|---|---|
-| factory | `function` | Plugin factory function or definition |
-
-**Returns:** `PluginFactory<T>` — a plugin factory ready to register.
+**Description.** Creates a reusable plugin factory. The factory function receives options and returns a plugin definition with a `name` and a `setup(engine)` function.
 
 **Example:**
 ```ts
-export const MyPlugin = definePlugin((opts = {}) => ({
-  name: 'my-plugin',
-  version: '1.0.0',
-  async setup(engine) {
-    console.log('MyPlugin loaded');
-  }
-}));
-
-// In your app config:
-defineConfig({
-  plugins: [MyPlugin()],
-  // ...
-});
+export const InputPlugin = definePlugin<{ deadzone?: number }>((opts = {}) => ({
+  name: 'input',
+  setup(engine) {
+    const keys = new Set<string>()
+    engine.onStart(() => {
+      window.addEventListener('keydown', (e) => keys.add(e.key))
+      window.addEventListener('keyup', (e) => keys.delete(e.key))
+    })
+    engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
+  },
+}))
 ```
 
 ## `@gwenjs/kit/module`
@@ -79,138 +68,100 @@ import { defineGwenModule } from '@gwenjs/kit/module'
 import type { GwenKit, GwenModule } from '@gwenjs/kit/module'
 ```
 
-### Module Definition
-
-#### defineGwenModule(name, api)
+### defineGwenModule(definition)
 
 **Signature:**
 ```ts
-function defineGwenModule(name: string, api: GwenModuleDefinition): GwenModule
+function defineGwenModule<Options extends object = Record<string, unknown>>(
+  definition: GwenModuleDefinition<Options>
+): GwenModule<Options>
 ```
 
-**Description.** Defines a GWEN module for build-time auto-imports and module resolution.
+**Description.** Defines a GWEN module for build-time configuration. A module registers plugins, auto-imports, Vite extensions, and type templates. It is referenced by name in `gwen.config.ts`.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Module identifier (e.g., `@gwenjs/math`) |
-| api | `GwenModuleDefinition` | Module definition with exports and hooks |
-
-**Returns:** `GwenModule` — registered module.
+| `definition.meta.name` | `string` | Module identifier (e.g. `'@my-scope/input'`) |
+| `definition.meta.configKey` | `string` | Key used in `gwen.config.ts` (optional) |
+| `definition.defaults` | `DeepPartial<Options>` | Default option values (optional) |
+| `definition.setup` | `(options, gwen) => void` | Build-time setup function |
 
 **Example:**
 ```ts
-defineGwenModule('@my-org/helpers', {
-  exports: {
-    'useHelper': './helper.ts',
-    'useAnother': './another.ts'
+export default defineGwenModule<{ volume?: number }>({
+  meta: {
+    name: '@my-scope/audio',
+    configKey: 'audio',
   },
-  hooks: {
-    'app:config': (config) => {
-      console.log('Helpers module loaded');
-    }
-  }
-});
+  defaults: { volume: 0.8 },
+  setup(options, gwen) {
+    gwen.addPlugin(AudioPlugin(options))
+    gwen.addAutoImports([
+      { name: 'useAudio', from: '@my-scope/audio' },
+    ])
+  },
+})
 ```
 
 ### Types
 
-#### GwenModule
-
-**Signature:**
-```ts
-interface GwenModule {
-  name: string;
-  exports: Record<string, string>;
-  hooks?: Record<string, any>;
-}
-```
-
-**Description.** Represents a registered GWEN module with exports and hooks.
-
 #### GwenModuleDefinition
 
-**Signature:**
 ```ts
-interface GwenModuleDefinition {
-  exports: Record<string, string>;
-  hooks?: GwenBuildHooks;
-  auto?: AutoImport[];
+interface GwenModuleDefinition<Options extends object = Record<string, unknown>> {
+  meta: {
+    name: string
+    configKey?: string
+    version?: string
+  }
+  defaults?: DeepPartial<Options>
+  setup(options: Options, gwen: GwenKit): void | Promise<void>
 }
 ```
-
-**Description.** Definition of a GWEN module for auto-import and build system integration.
-
-| Property | Type | Description |
-|---|---|---|
-| `exports` | `object` | Map of export names to file paths |
-| `hooks` | `GwenBuildHooks` | Build hooks to register |
-| `auto` | `AutoImport[]` | Auto-import rules (optional) |
 
 #### GwenKit
 
-**Signature:**
-```ts
-interface GwenKit {
-  modules: Map<string, GwenModule>;
-  plugins: Map<string, PluginDef>;
-  registerModule(module: GwenModule): void;
-  registerPlugin(plugin: PluginDef): void;
-}
-```
+The build-time API passed to `setup()`:
 
-**Description.** The kit registry managing all modules and plugins.
+| Method | Purpose |
+|--------|---------|
+| `addPlugin(plugin)` | Register a runtime plugin |
+| `addAutoImports(imports)` | Declare auto-imported utilities |
+| `addVitePlugin(plugin)` | Add a Vite plugin to the build |
+| `extendViteConfig(fn)` | Extend Vite configuration |
+| `addTypeTemplate(template)` | Generate `.d.ts` files |
+| `addModuleAugment(snippet)` | Add TypeScript declarations inline |
+| `hook(event, fn)` | Subscribe to a build-time event |
+| `options` | Access resolved config options |
 
 #### GwenBuildHooks
 
-**Signature:**
-```ts
-interface GwenBuildHooks {
-  'app:config': Hook<(config: ResolvedGwenConfig) => void | Promise<void>>;
-  'app:resolved': Hook<(config: ResolvedGwenConfig) => void | Promise<void>>;
-  'module:register': Hook<(module: GwenModule) => void | Promise<void>>;
-  'plugin:setup': Hook<(plugin: PluginDef) => void | Promise<void>>;
-}
-```
+Available build-time hook events:
 
-**Description.** Available build-time hooks for plugins and modules.
+| Event | When |
+|---|---|
+| `'build:before'` | Before the build starts |
+| `'build:done'` | After the build completes |
+| `'module:before'` | Before a module's setup runs |
+| `'module:done'` | After a module's setup completes |
+| `'vite:extendConfig'` | When Vite config is being assembled |
 
 #### AutoImport
 
-**Signature:**
 ```ts
 interface AutoImport {
-  name: string;
-  from: string;
-  imports?: string[];
+  name: string   // Export name from the source module
+  from: string   // npm package or path
+  as?: string    // Override the name used in auto-import
 }
-```
-
-**Description.** Auto-import rule for build system auto-import features.
-
-| Property | Type | Description |
-|---|---|---|
-| `name` | `string` | Export name |
-| `from` | `string` | Module path to import from |
-| `imports` | `string[]` | Specific imports to include (optional) |
-
-**Example:**
-```ts
-const autoImports: AutoImport[] = [
-  { name: 'useQuery', from: '@gwenjs/core' },
-  { name: 'defineSystem', from: '@gwenjs/core' }
-];
 ```
 
 #### GwenTypeTemplate
 
-**Signature:**
 ```ts
 interface GwenTypeTemplate {
-  name: string;
-  path: string;
-  description?: string;
+  filename: string         // Path inside .gwen/, e.g. 'types/audio.d.ts'
+  getContents(): string    // Returns the .d.ts content
 }
 ```
-
-**Description.** Template for type definitions that can be auto-generated during the build.

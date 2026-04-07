@@ -28,7 +28,7 @@ export const GameScene = defineScene({
 ```typescript
 // imports omitted for brevity
 export const GameScene = defineScene('game', () => {
-  const entities = useQuery({ with: [Position, Velocity] })
+  const entities = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
     for (const id of entities) {

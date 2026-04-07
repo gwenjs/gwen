@@ -197,7 +197,7 @@ export const AppRouter = defineSceneRouter({
 })
 
 // gwen.config.ts
-import { defineConfig } from '@gwenjs/core'
+import { defineConfig } from '@gwenjs/app'
 import { AppRouter } from './router'
 
 export default defineConfig({

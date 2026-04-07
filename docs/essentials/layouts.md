@@ -50,12 +50,10 @@ import { defineSceneRouter } from '@gwenjs/core/scene'
 import { GameLayout } from './layouts'
 
 export const router = defineSceneRouter({
-  scenes: { menu: MenuScene, game: GameScene },
   initial: 'menu',
-  onRouterInit: async (router) => {
-    // Load the layout when game starts
-    const level = useLayout(GameLayout)
-    await level.load()
+  routes: {
+    menu: { scene: MenuScene, on: {} },
+    game: { scene: GameScene, on: {} },
   },
 })
 ```
@@ -82,39 +80,38 @@ export const HUDData = defineComponent({
 ```ts
 // actors/hud.ts
 import { defineActor, onStart, onUpdate } from '@gwenjs/core/actor'
-import { useQuery, useEngine } from '@gwenjs/core'
+import { useQuery, useEngine } from '@gwenjs/core/system'
+import { HUDPrefab } from '../prefabs/hud'
 import { HUDData } from '../components/hud'
-import { Health, Position } from '../components'
+import { Health } from '../components'
 
-export const HUDActor = defineActor({
-  name: 'HUD',
-  setup() {
-    let hudEntity: bigint
+export const HUDActor = defineActor(HUDPrefab, () => {
+  const players = useQuery([Health])
+  let hudEntity: bigint
 
-    onStart(() => {
-      const engine = useEngine()
-      // Spawn the HUD entity
-      hudEntity = engine.spawn([
-        [HUDData, { score: 0, health: 100 }],
-      ])
+  onStart(() => {
+    const engine = useEngine()
+    // Spawn the HUD entity
+    hudEntity = engine.spawn([
+      [HUDData, { score: 0, health: 100 }],
+    ])
+  })
+
+  onUpdate(() => {
+    // Update HUD from game state
+    for (const playerId of players) {
+      HUDData.score[hudEntity] += 10
+      HUDData.health[hudEntity] = Health.current[playerId]
+    }
+
+    // Render HUD (canvas, DOM, etc.)
+    renderHUD({
+      score: HUDData.score[hudEntity],
+      health: HUDData.health[hudEntity],
     })
+  })
 
-    onUpdate(() => {
-      // Update HUD from game state
-      const players = useQuery([Health, Position])
-
-      for (const playerId of players) {
-        HUDData.score[hudEntity] += 10
-        HUDData.health[hudEntity] = Health.current[playerId]
-      }
-
-      // Render HUD (canvas, DOM, etc.)
-      renderHUD({
-        score: HUDData.score[hudEntity],
-        health: HUDData.health[hudEntity],
-      })
-    })
-  },
+  return {}
 })
 ```
 
@@ -123,17 +120,9 @@ export const HUDActor = defineActor({
 Here's the key benefit: the layout stays alive when you change scenes:
 
 ```ts
-// Start in MenuScene (no HUD)
-router.push('menu')
-
-// Switch to GameScene (HUD appears)
-router.push('game') // GameLayout is still active, HUD renders
-
-// Switch to PauseScene (HUD stays)
-router.push('pause') // Same HUD, same data
-
-// Back to GameScene (HUD continues)
-router.pop() // HUD is still there with same values
+// The layout stays alive regardless of which scene is active.
+// As you navigate between scenes using nav.send(), the layout
+// and its actors remain loaded — no reloading, no data loss.
 ```
 
 ### Updating Layout Data from Systems

@@ -139,7 +139,7 @@ Now systems can read and write this data:
 import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 
 export const DamageSystem = defineSystem(() => {
-  const enemies = useQuery([Health, Armor], { exclude: [DeadTag] })
+  const enemies = useQuery([Health, Armor])
 
   onUpdate(() => {
     for (const id of enemies) {
@@ -149,8 +149,8 @@ export const DamageSystem = defineSystem(() => {
       }
 
       if (Health.current[id] <= 0) {
-        // Add the dead tag
-        addComponent(id, DeadTag)
+        // Mark as dead
+        engine.addComponent(id, DeadTag)
       }
     }
   })
@@ -162,13 +162,15 @@ export const DamageSystem = defineSystem(() => {
 Sometimes you need to add or remove a component from a living entity:
 
 ```ts
-import { addComponent, removeComponent } from '@gwenjs/core'
+import { useEngine } from '@gwenjs/core'
+
+const engine = useEngine()
 
 // Add a component
-addComponent(entityId, Position, { x: 10, y: 20 })
+engine.addComponent(entityId, Position, { x: 10, y: 20 })
 
 // Remove a component
-removeComponent(entityId, Velocity)
+engine.removeComponent(entityId, Velocity)
 ```
 
 **Note:** Adding/removing components is relatively expensive (reallocates buffers), so do it sparingly, not every frame.
@@ -229,8 +231,8 @@ Choosing the right types saves memory and improves performance:
 | `defineComponent(options)` | Declare a component with a typed schema |
 | `Types.f32`, `Types.f64`, etc. | Type descriptors for schema fields |
 | `Component.field[entityId]` | Read or write a component field |
-| `addComponent(id, Component, data)` | Add a component to a living entity |
-| `removeComponent(id, Component)` | Remove a component from an entity |
+| `engine.addComponent(id, Component, data)` | Add a component to a living entity |
+| `engine.removeComponent(id, Component)` | Remove a component from an entity |
 
 ## Next Steps
 

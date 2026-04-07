@@ -56,12 +56,15 @@ Each file defines one or more component schemas. Components are data containers 
 
 **src/components/Position.ts**
 ```typescript
-import { defineComponent } from '@gwenjs/core'
+import { defineComponent, Types } from '@gwenjs/core'
 
-export const Position = defineComponent('Position', () => ({
-  x: 0,
-  y: 0,
-}))
+export const Position = defineComponent({
+  name: 'Position',
+  schema: {
+    x: Types.f32,
+    y: Types.f32,
+  },
+})
 ```
 
 Use `src/components/index.ts` to re-export everything:
@@ -82,7 +85,7 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position, Velocity] })
+  const query = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
     for (const id of query) {
@@ -156,8 +159,7 @@ import { InputSystem } from '../systems/Input'
 
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
-  systems: [InputSystem],
-  install: (engine) => {
+  setup(engine) {
     console.log('Input plugin installed')
   },
 }))

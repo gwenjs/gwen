@@ -70,12 +70,15 @@ A component is a piece of data. Let's define a `Position` component:
 
 **src/components/Position.ts**
 ```typescript
-import { defineComponent } from '@gwenjs/core'
+import { defineComponent, Types } from '@gwenjs/core'
 
-export const Position = defineComponent('Position', () => ({
-  x: 0,
-  y: 0,
-}))
+export const Position = defineComponent({
+  name: 'Position',
+  schema: {
+    x: Types.f32,
+    y: Types.f32,
+  },
+})
 ```
 
 ## Your First System
@@ -87,16 +90,14 @@ Systems iterate over entities and update them each frame.
 import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position } from '../components/Position'
 
-export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position] })
+export const MovementSystem = defineSystem(function MovementSystem() {
+  const query = useQuery([Position])
 
-  onUpdate(() => {
-    // Each frame, move every entity with a Position
-    query.each(({ c }) => {
-      const pos = c[Position]
-      pos.x += 0.5  // Move right
-      pos.y += 0.1  // Move down slightly
-    })
+  onUpdate((dt) => {
+    for (const id of query) {
+      Position.x[id] += 0.5
+      Position.y[id] += 0.1
+    }
   })
 })
 ```

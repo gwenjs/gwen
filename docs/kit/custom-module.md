@@ -1,10 +1,5 @@
 ---
 title: Writing a Custom Module
-description: Coming soon.
----
-
----
-title: Writing a Custom Module
 description: Learn how to create and use GWEN modules for build-time configuration.
 ---
 
@@ -126,9 +121,12 @@ In game code, `useMyService` is available without an import:
 
 ```ts
 // No import needed!
-export const MySystem = defineSystem(() => {
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+
+export const MySystem = defineSystem(function MySystem() {
   const service = useMyService()
-  return (ctx) => { /* ... */ }
+
+  onUpdate(() => { /* ... */ })
 })
 ```
 
@@ -259,27 +257,26 @@ export default defineGwenModule<ScoreModuleOptions>({
 Use the score system in a game system:
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const ScoreDisplaySystem = defineSystem(() => {
-  const { get } = useEngine()
-  const scoreService = get('score')
+export const ScoreDisplaySystem = defineSystem(function ScoreDisplaySystem() {
+  const scoreService = useService('score')
 
-  return (ctx) => {
+  onUpdate(() => {
     const currentScore = scoreService.get()
     // Render score on screen
-  }
+  })
 })
 
 // Or use auto-import
-export const RewardSystem = defineSystem(() => {
+export const RewardSystem = defineSystem(function RewardSystem() {
   const score = useScore()
 
-  return (ctx) => {
+  onUpdate(() => {
     if (playerCollectedCoin) {
       score.add(10)
     }
-  }
+  })
 })
 ```
 

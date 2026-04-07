@@ -110,14 +110,14 @@ onUpdate((dt) => {
 
 ### Excluding Components
 
-Exclude entities that have a certain component (often a tag):
+Some systems may need to filter entities differently. While the `exclude` option is not directly supported, you can achieve similar behavior by querying with different component combinations:
 
 ```ts
-const alive = useQuery([Health], { exclude: [DeadTag] })
+const alive = useQuery([Health])
 
 onUpdate(() => {
   for (const id of alive) {
-    // Only process living entities
+    // Process entities with Health
   }
 })
 ```
@@ -145,7 +145,7 @@ Plugins expose services you can access from systems using `use*` hooks:
 
 ```ts
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { usePhysics2D } from '@gwenjs/core'
+import { usePhysics2D } from '@gwenjs/physics2d'
 
 export const PhysicsSystem = defineSystem(() => {
   const physics = usePhysics2D()
@@ -254,8 +254,7 @@ import {
   onUpdate,
 } from '@gwenjs/core/system'
 import {
-  removeComponent,
-  addComponent,
+  useEngine,
 } from '@gwenjs/core'
 import {
   Health,
@@ -266,6 +265,7 @@ import {
 
 export const DamageSystem = defineSystem(() => {
   const damaged = useQuery([Health, DamageTag])
+  const engine = useEngine()
 
   onUpdate(() => {
     for (const id of damaged) {
@@ -274,11 +274,11 @@ export const DamageSystem = defineSystem(() => {
       Health.current[id] -= 10 * (1 - damageReduction)
 
       if (Health.current[id] <= 0) {
-        removeComponent(id, Health)
-        addComponent(id, DeadTag)
+        engine.removeComponent(id, Health)
+        engine.addComponent(id, DeadTag)
       }
 
-      removeComponent(id, DamageTag)
+      engine.removeComponent(id, DamageTag)
     }
   })
 })
@@ -402,8 +402,8 @@ This **decoupling** is why ECS scales. Add a new system? No refactoring neededâ€
 | `usePhysics2D()` | Access physics service |
 | `useService(key)` | Access a runtime service registered via `engine.provide()` |
 | `useWasmModule(name)` | Access a WASM module loaded via `engine.loadWasmModule()` |
-| `addComponent(id, Component, data)` | Add component to entity |
-| `removeComponent(id, Component)` | Remove component from entity |
+| `engine.addComponent(id, Component, data)` | Add component to entity |
+| `engine.removeComponent(id, Component)` | Remove component from entity |
 
 ## Next Steps
 

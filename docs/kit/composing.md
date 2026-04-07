@@ -1,10 +1,5 @@
 ---
 title: Composing Plugins
-description: Coming soon.
----
-
----
-title: Composing Plugins
 description: Combine multiple plugins with dependencies and optional capabilities.
 ---
 
@@ -298,8 +293,8 @@ export default defineGwenModule({
   setup(options, gwen) {
     gwen.addPlugin(GamePlugin())
     gwen.addAutoImports([
-      { name: 'useInput', from '@my-scope/game-framework' },
-      { name: 'usePhysics2D', from '@my-scope/game-framework' },
+      { name: 'useInput', from: '@my-scope/game-framework' },
+      { name: 'usePhysics2D', from: '@my-scope/game-framework' },
     ])
   },
 })

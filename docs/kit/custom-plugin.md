@@ -136,18 +136,17 @@ engine.provide('myService', {
 })
 ```
 
-Access the service in a system using `useEngine().get()`:
+Access the service in a system using `useService()`:
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const MySystem = defineSystem(() => {
-  const { get } = useEngine()
-  const myService = get('myService')
+export const MySystem = defineSystem(function MySystem() {
+  const myService = useService('myService')
 
-  return (ctx) => {
+  onUpdate(() => {
     const data = myService.getData()
-  }
+  })
 })
 ```
 
@@ -248,18 +247,17 @@ export default defineGwenModule({
 Use in a system:
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const SoundEffectSystem = defineSystem(() => {
-  const { get } = useEngine()
-  const audio = get('audio')
+export const SoundEffectSystem = defineSystem(function SoundEffectSystem() {
+  const audio = useService('audio')
 
   audio.load('jump', '/sounds/jump.mp3')
   audio.load('coin', '/sounds/coin.mp3')
 
-  return (ctx) => {
+  onUpdate(() => {
     // Play sounds based on game events
-  }
+  })
 })
 ```
 

@@ -105,30 +105,92 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 
 ## Typed Events
 
-Use `defineEvents()` to declare a typed event contract, then `emit()` to dispatch events within the active engine context. Declare event contracts once and share them across actors and systems. Listen to events from a system using the events hook (augmented via `GwenRuntimeHooks`).
+Use `defineEvents()` to declare your game's event contracts in one place, then share them across actors and systems.
 
-```typescript
-import { defineEvents, emit, defineActor } from '@gwenjs/core/actor'
-import { EnemyPrefab } from '../prefabs'
+```ts
+// src/events/enemy.ts
+import { defineEvents } from '@gwenjs/core/actor'
 
-// Declare the event contract once — share across actors and systems
 export const EnemyEvents = defineEvents({
-  hit: (damage: number) => {},
-  die: () => {},
+  'enemy:hit': (damage: number) => {},
+  'enemy:die': () => {},
 })
+```
+
+`defineEvents` is a declaration tool — it names and groups your events so every part of your code works from the same contract.
+
+### Emitting Events
+
+Call `emit()` from inside an actor or system to fire an event:
+
+```ts
+import { defineActor, emit } from '@gwenjs/core/actor'
+import { EnemyEvents } from '../events/enemy'
+import { EnemyPrefab } from '../prefabs'
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
   let hp = props.hp
 
   return {
     takeDamage: (damage: number) => {
-      emit('hit', damage)
       hp -= damage
-      if (hp <= 0) emit('die')
+      emit('enemy:hit', damage)
+      if (hp <= 0) emit('enemy:die')
     },
   }
 })
 ```
+
+### Listening from an Actor
+
+Use `onEvent()` inside a `defineActor` factory to listen. The handler is automatically removed when the actor is destroyed — no cleanup needed:
+
+```ts
+import { defineActor, onEvent, onStart } from '@gwenjs/core/actor'
+import { HUDPrefab } from '../prefabs'
+
+export const HUDActor = defineActor(HUDPrefab, () => {
+  let hits = 0
+
+  onEvent('enemy:hit', (damage) => {
+    hits++
+    console.log(`Enemy hit for ${damage} damage (total hits: ${hits})`)
+  })
+
+  onEvent('enemy:die', () => {
+    console.log('Enemy eliminated')
+  })
+
+  return {}
+})
+```
+
+### Listening from a System
+
+Use `engine.hooks.hook()` inside a `defineSystem` setup to listen from a system:
+
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
+
+export const ScoreSystem = defineSystem(function ScoreSystem() {
+  const engine = useEngine()
+  let score = 0
+
+  engine.hooks.hook('enemy:die', () => {
+    score += 100
+    console.log('Score:', score)
+  })
+
+  engine.hooks.hook('enemy:hit', (damage) => {
+    score += damage
+  })
+})
+```
+
+::: tip Naming convention
+Prefix event names with a namespace: `'enemy:hit'`, `'player:die'`, `'ui:open'`. This avoids collisions with built-in engine hooks like `'engine:tick'` or `'entity:spawn'`.
+:::
 
 ## Accessing Components
 
@@ -156,7 +218,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 Inside an actor, use `useSceneRouter()` to navigate between scenes:
 
 ```ts
-import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 
@@ -243,8 +306,9 @@ Use actors for **unique, named entities**. Use systems for **bulk operations** o
 | `useComponent(ComponentType)` | Access a component inside factory |
 | `useTransform()` | Access the actor's spatial transform |
 | `useSceneRouter(router)` | Navigate between scenes |
-| `defineEvents(schema)` | Declare a typed event contract |
-| `emit(event, ...args)` | Dispatch an event in the active engine context |
+| `defineEvents(map)` | Declare a typed event contract (shared across actors and systems) |
+| `emit(event, ...args)` | Dispatch an event from any active engine context |
+| `onEvent(event, handler)` | Listen to an event inside an actor (auto-removed on destroy) |
 | `onStart(fn)` | Runs once at spawn |
 | `onUpdate(fn)` | Runs every frame |
 | `onDestroy(fn)` | Runs at despawn |
