@@ -216,7 +216,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
     setup(engine: GwenEngine): void {
       ctx._engine = engine;
-      ctx.log = engine.logger.child("@gwenjs/physics3d");
+      ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
       ctx.bridgeRuntime = bridge;

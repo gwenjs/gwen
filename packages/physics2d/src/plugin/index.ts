@@ -124,7 +124,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   let bridge: WasmBridge | null = null;
   let currentEngine: GwenEngine | null = null;
   let physicsService: Physics2DAPI | null = null;
-  let log = createLogger("@gwenjs/physics2d", false);
+  let log = createLogger("@gwenjs/physics2d", cfg.debug);
 
   // Binary buffer state (encapsulated per plugin instance)
   let eventsView: DataView | null = null;
@@ -376,7 +376,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     setup(engine: GwenEngine): void {
-      log = engine.logger.child("@gwenjs/physics2d");
+      log = engine.logger?.child("@gwenjs/physics2d") ?? log;
       bridge = getWasmBridge();
 
       if (!bridge.hasPhysics()) {

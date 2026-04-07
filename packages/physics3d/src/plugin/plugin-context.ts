@@ -6,7 +6,6 @@
  * Physics3DPlugin closure. The context is created once per plugin instance.
  */
 
-import { createLogger } from "@gwenjs/core";
 import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 import type {
   Physics3DBodyHandle,
@@ -160,7 +159,7 @@ export function createPluginContext(
     wasmBridge: null,
     bridgeRuntime: null,
     _engine: null,
-    log: createLogger("@gwenjs/physics3d", false),
+    log: { debug: () => {}, info: () => {}, warn: () => {}, error: () => {}, child() { return this; }, setSink: () => {} } as GwenLogger,
 
     bodyByEntity: new Map(),
     stateByEntity: new Map(),

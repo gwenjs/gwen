@@ -391,7 +391,7 @@ describe("Physics2DPlugin", () => {
   });
 
   it("does not emit debug logs when debug option is disabled", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const logSpy = vi.spyOn(console, "debug").mockImplementation(() => undefined);
     const plugin = Physics2DPlugin({ debug: false });
     await initPlugin(plugin, mockBridge, mockEngine);
 
@@ -401,14 +401,14 @@ describe("Physics2DPlugin", () => {
     physics.addRigidBody(1, "dynamic", 0, 0);
 
     const hasPhysicsDebugLog = logSpy.mock.calls.some((call) =>
-      String(call[0]).includes("[Physics2D]"),
+      String(call[0]).includes("@gwenjs/physics2d"),
     );
     expect(hasPhysicsDebugLog).toBe(false);
     logSpy.mockRestore();
   });
 
   it("emits strategic debug logs when debug option is enabled", async () => {
-    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const logSpy = vi.spyOn(console, "debug").mockImplementation(() => undefined);
     const plugin = Physics2DPlugin({ debug: true });
     await initPlugin(plugin, mockBridge, mockEngine);
 
@@ -418,7 +418,7 @@ describe("Physics2DPlugin", () => {
     physics.addRigidBody(1, "dynamic", 0, 0);
 
     const hasPhysicsDebugLog = logSpy.mock.calls.some((call) =>
-      String(call[0]).includes("[Physics2D]"),
+      String(call[0]).includes("@gwenjs/physics2d"),
     );
     expect(hasPhysicsDebugLog).toBe(true);
     logSpy.mockRestore();
