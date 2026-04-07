@@ -4,6 +4,21 @@ Ce fichier contient les règles critiques sur l'API GWEN. Ces patterns ont été
 
 ---
 
+## Absolute rules
+
+These rules apply to every task, without exception, before declaring it done.
+
+### Mandatory validation (in this order)
+
+1. `pnpm format` — oxfmt formatting. If it fails: fix and retry.
+2. `pnpm lint` — linting. If it fails: fix and retry.
+3. `pnpm typecheck` — type checking. If it fails: fix and retry.
+4. `pnpm test` — tests. If it fails: fix and retry.
+
+Never announce a task is done before all 4 commands pass without errors.
+
+---
+
 ## useQuery
 
 **Signature correcte :** `useQuery(components: ComponentDef[]): LiveQuery`
