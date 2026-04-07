@@ -19,10 +19,14 @@ import { Position, Velocity, Damage } from './components'
 
 export const BulletPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Velocity, defaults: { x: 5, y: 0 } },
-  { def: Damage, defaults: { value: 10 } },
+  { def: Velocity, defaults: { vx: 5, vy: 0 } },
+  { def: Damage,   defaults: { value: 10 } },
 ])
 ```
+
+:::tip Les noms de champs sont importants
+Les surcharges de `spawn()` sont un merge **flat** appliqué à tous les composants. Si deux composants partagent le même nom de champ (ex. les deux ont `x`), une seule surcharge impacte les deux. Utilisez des noms distincts entre composants — `x`/`y` pour la position, `vx`/`vy` pour la vélocité — pour que les surcharges soient sans ambiguïté.
+:::
 
 ### Générer à partir d'un prefab
 
@@ -33,32 +37,25 @@ import { usePrefab } from '@gwenjs/core/actor'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { BulletPrefab } from './prefabs'
 
-export const FireSystem = defineSystem(() => {
+export const FireSystem = defineSystem(function FireSystem() {
   const bullet = usePrefab(BulletPrefab)
 
   onUpdate(() => {
     if (shouldFire) {
-      // Générer une balle à la position du joueur
-      const id = bullet.spawn({
-        x: playerX,
-        y: playerY,
-      })
+      // Override Position.x/y — Velocity.vx/vy gardent leurs valeurs par défaut
+      const id = bullet.spawn({ x: playerX, y: playerY })
     }
   })
 })
 ```
 
 `usePrefab()` retourne un `PrefabHandle` avec deux méthodes :
-- `spawn(overrides?)` — Créer une entité, retourne son ID
+- `spawn(overrides?)` — Créer une entité, retourne son ID en `bigint`
 - `despawn(id)` — Détruire une entité par ID
 
-L'ID d'entité retourné est un `bigint` que vous pouvez utiliser pour suivre et supprimer les entités plus tard :
-
 ```ts
-const bulletId = bullet.spawn({
-  x: 100,
-  y: 50,
-})
+// Spawn à une position précise ; vélocité et dégâts utilisent les defaults du prefab
+const bulletId = bullet.spawn({ x: 100, y: 50 })
 
 // Plus tard, supprimer la balle
 bullet.despawn(bulletId)
@@ -66,20 +63,17 @@ bullet.despawn(bulletId)
 
 ### Surcharges partielles
 
-Lors de la génération, vous n'avez besoin de surcharger que les champs qui vous intéressent. Les valeurs par défaut complètent le reste :
+Les surcharges sont mergées shallow dans les defaults de chaque composant. Seuls les champs passés changent, le reste garde ses valeurs déclarées :
 
 ```ts
-// Utilise les dommages par défaut (10), position et vélocité personnalisées
-const id = bullet.spawn({
-  x: 200,
-  y: 300,
-})
+// Position surchargée, Velocity.vx/vy et Damage.value restent aux defaults
+const id = bullet.spawn({ x: 200, y: 300 })
 
-// Utilise toutes les valeurs par défaut sauf la position
-const id = bullet.spawn({
-  x: 100,
-  y: 100,
-})
+// Override position et direction de vélocité
+const id = bullet.spawn({ x: 100, y: 100, vx: -5 })
+
+// Utiliser tous les defaults — spawn à l'origine, part vers la droite, 10 dégâts
+const id = bullet.spawn()
 ```
 
 ## En pratique
@@ -94,9 +88,9 @@ import { Position, Velocity, Health, AI } from './components'
 
 export const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Velocity, defaults: { x: 0, y: 0 } },
-  { def: Health, defaults: { current: 50, max: 50 } },
-  { def: AI, defaults: { state: 0 } }, // État 0 = patrouille
+  { def: Velocity, defaults: { vx: 0, vy: 0 } },
+  { def: Health,   defaults: { current: 50, max: 50 } },
+  { def: AI,       defaults: { state: 0 } }, // État 0 = patrouille
 ])
 ```
 
