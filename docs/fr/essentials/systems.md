@@ -14,7 +14,7 @@ Un **système** est une fonction qui s'exécute chaque frame et lit/écrit les d
 Utilisez `defineSystem()` pour déclarer un système. À l'intérieur de la fonction de configuration, enregistrez les callbacks qui s'exécutent pendant la boucle de jeu :
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
@@ -34,7 +34,7 @@ export const MovementSystem = defineSystem(() => {
 Les systèmes sont enregistrés dans une scène :
 
 ```ts
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 
 export const GameScene = defineScene({
   name: 'game',
@@ -65,7 +65,7 @@ Les systèmes ont plusieurs crochets de callback disponibles :
 Exemple :
 
 ```ts
-import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MySystem = defineSystem(() => {
@@ -144,7 +144,8 @@ Les plugins exposent des services auxquels vous pouvez accéder depuis les syst�
 ### Service physique
 
 ```ts
-import { defineSystem, onUpdate, usePhysics2D } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { usePhysics2D } from '@gwenjs/core'
 
 export const PhysicsSystem = defineSystem(() => {
   const physics = usePhysics2D()
@@ -159,7 +160,8 @@ export const PhysicsSystem = defineSystem(() => {
 ### Accès au moteur
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const InputSystem = defineSystem(() => {
   const engine = useEngine()
@@ -177,7 +179,7 @@ export const InputSystem = defineSystem(() => {
 Utilisez `useService(key)` pour accéder à un service enregistré par un plugin via `engine.provide()`. Le type de retour est inféré depuis l'interface `GwenProvides`, augmentée par les plugins qui enregistrent des services.
 
 ```typescript
-import { defineSystem, useService, onUpdate } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
 export const AudioSystem = defineSystem(() => {
   const audio = useService('audio') // typé via l'augmentation GwenProvides
@@ -193,7 +195,7 @@ export const AudioSystem = defineSystem(() => {
 Utilisez `useWasmModule(name)` pour accéder à un module WASM chargé par un plugin via `engine.loadWasmModule()`. Le paramètre de type générique type l'objet `.exports`. Le module doit avoir été chargé par un plugin avant que ce système s'exécute.
 
 ```typescript
-import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core'
+import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core/system'
 
 export const PhysicsStepSystem = defineSystem(() => {
   const mod = useWasmModule<{ step: (dt: number) => void }>('my-physics')
@@ -211,7 +213,8 @@ export const PhysicsStepSystem = defineSystem(() => {
 Voici un exemple complet : les ennemis qui se rapprochent du joueur :
 
 ```ts
-import { defineSystem, useQuery, onUpdate, useEngine } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 import { Position, Velocity, EnemyTag, PlayerTag } from './components'
 
 const ENEMY_SPEED = 50 // pixels par seconde
@@ -249,6 +252,8 @@ import {
   defineSystem,
   useQuery,
   onUpdate,
+} from '@gwenjs/core/system'
+import {
   removeComponent,
   addComponent,
 } from '@gwenjs/core'
@@ -300,7 +305,7 @@ export const GameScene = defineScene({
 Les erreurs dans le callback `onUpdate` d'un système sont capturées et enregistrées. Le jeu continue :
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const SafeSystem = defineSystem(() => {
   onUpdate(() => {
@@ -317,7 +322,8 @@ export const SafeSystem = defineSystem(() => {
 Pour les erreurs irrécupérables, émettez un événement :
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const EngineAwareSystem = defineSystem(() => {
   const engine = useEngine()

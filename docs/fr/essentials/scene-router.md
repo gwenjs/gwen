@@ -14,7 +14,7 @@ Le **routeur de scènes** orchestre les transitions entre scènes à l'aide d'un
 `defineSceneRouter()` déclare les états et les transitions :
 
 ```typescript
-import { defineSceneRouter } from '@gwenjs/core'
+import { defineSceneRouter } from '@gwenjs/core/scene'
 import { MenuScene, GameScene, GameOverScene } from './scenes'
 
 export const AppRouter = defineSceneRouter({
@@ -45,7 +45,7 @@ export const AppRouter = defineSceneRouter({
 Appelez `useSceneRouter()` à l'intérieur d'un acteur ou système pour obtenir un handle, puis appelez `.send()` pour déclencher les transitions :
 
 ```typescript
-import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core'
+import { defineActor, useSceneRouter, onUpdate, useComponent } from '@gwenjs/core/actor'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 import { PlayerPrefab } from './prefabs/Player'
@@ -174,7 +174,7 @@ Le routeur est passé comme option de module, pas via un appel `engine.use()` st
 
 ```typescript
 // src/router.ts
-import { defineSceneRouter } from '@gwenjs/core'
+import { defineSceneRouter } from '@gwenjs/core/scene'
 import { MenuScene, GameScene, GameOverScene } from './scenes'
 
 export const AppRouter = defineSceneRouter({

@@ -14,7 +14,7 @@ Utilisez `defineScene()` pour créer une scène. Deux formes sont disponibles :
 **Forme options :**
 
 ```typescript
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 import { MovementSystem, RenderSystem } from './systems'
 
 export const GameScene = defineScene({

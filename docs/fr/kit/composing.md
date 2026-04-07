@@ -34,7 +34,7 @@ await engine.start()
 Vérifiez si un autre service existe avant de l'utiliser :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
@@ -61,7 +61,7 @@ export const GamePlugin = definePlugin(() => ({
 Certains plugins peuvent enregistrer d'autres plugins pendant leur configuration :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 import { PhysicsPlugin } from './physics'
 import { CollisionPlugin } from './collision'
 
@@ -101,7 +101,7 @@ Voici un exemple réaliste : un jeu basé sur la physique qui utilise l'entrée,
 **Plugin d'entrée :**
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 const keys = new Set<string>()
 
@@ -123,7 +123,7 @@ export const InputPlugin = definePlugin(() => ({
 **Plugin de physique :**
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const Physics2DPlugin = definePlugin<{ gravity?: number }>((opts = {}) => ({
   name: 'physics2d',
@@ -156,7 +156,7 @@ export const Physics2DPlugin = definePlugin<{ gravity?: number }>((opts = {}) =>
 **Plugin de jeu** (compose Input et Physics) :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 import { InputPlugin } from './input'
 import { Physics2DPlugin } from './physics'
 
@@ -208,7 +208,7 @@ await engine.start()
 Utilisez un modèle de détection de fonctionnalité pour les capacités vraiment optionnelles :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const DebugUIPlugin = definePlugin(() => ({
   name: 'debug-ui',
@@ -272,7 +272,8 @@ await engine.start()
 Pour les compositions de plugins complexes, utilisez `defineGwenModule()` pour tout empaqueter :
 
 ```ts
-import { defineGwenModule, definePlugin } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
 import { InputPlugin } from './input'
 import { Physics2DPlugin } from './physics'
 

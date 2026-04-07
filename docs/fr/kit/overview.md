@@ -32,7 +32,7 @@ Ensemble, ils vous permettent d'étendre GWEN avec des capacités personnalisée
 Un plugin simple qui écoute les événements clavier :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
@@ -55,7 +55,7 @@ export const InputPlugin = definePlugin(() => ({
 Un module qui configure le plugin Input et les auto-imports :
 
 ```ts
-import { defineGwenModule } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
 
 export default defineGwenModule({
   meta: { name: '@my-scope/input', configKey: 'input' },

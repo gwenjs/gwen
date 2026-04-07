@@ -14,7 +14,7 @@ Un **plugin** est un objet TypeScript conforme à l'interface `GwenPlugin`. Vous
 Voici un plugin de gestion d'entrée basique :
 
 ```ts
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 const keys = new Set<string>()
 
@@ -183,7 +183,8 @@ L'objet `context` fournit :
 Voici un plugin audio réaliste utilisant une bibliothèque comme Howler.js :
 
 ```ts
-import { definePlugin, defineGwenModule } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
+import { defineGwenModule } from '@gwenjs/kit/module'
 import { Howl } from 'howler'
 
 interface AudioOptions {
@@ -302,7 +303,7 @@ interface ErrorContext {
 Les plugins peuvent charger un binaire `.wasm` et interagir avec lui via des vues mémoire typées et des ring buffers. Appelez `engine.loadWasmModule()` dans `setup()` :
 
 ```typescript
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 
 export const PhysicsPlugin = definePlugin(() => ({
   name: 'PhysicsPlugin',
