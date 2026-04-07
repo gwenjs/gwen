@@ -53,7 +53,7 @@ export default defineConfig({
 | `layout.disableNameInjection` | `boolean` | `false` | Skip injecting the layout name into each layout definition. |
 | `sceneRouter` | `GwenSceneRouterOptions` | — | Options forwarded to the scene-router transform. |
 | `tween` | `GwenTweenOptions` | — | Options forwarded to the tween transform. |
-| `optimizer` | `boolean \| GwenOptimizerInlineOptions` | — | Enable the ECS bulk optimizer (see below). |
+| `optimizer` | `boolean \| GwenOptimizerUserOptions` | — | Enable the ECS bulk optimizer (see below). |
 
 ### The `optimizer` option
 
@@ -173,7 +173,8 @@ export default defineConfig({
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin, physics2dVitePlugin } from '@gwenjs/vite'
+import { gwenVitePlugin } from '@gwenjs/vite'
+import { physics2dVitePlugin } from '@gwenjs/physics2d'
 
 export default defineConfig({
   plugins: [
@@ -224,7 +225,8 @@ export default defineConfig({
 ```ts
 // vite.config.ts
 import { defineConfig } from 'vite'
-import { gwenVitePlugin, physics3dVitePlugin } from '@gwenjs/vite'
+import { gwenVitePlugin } from '@gwenjs/vite'
+import { physics3dVitePlugin } from '@gwenjs/physics3d'
 
 export default defineConfig({
   plugins: [

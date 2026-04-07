@@ -278,7 +278,7 @@ function usePhysics2D(): Physics2DAPI
 **Exemple:**
 ```ts
 const physics = usePhysics2D();
-physics.applyImpulse(entity, { x: 10, y: 0 });
+physics.applyImpulse(entityId, 10, 0);
 ```
 
 ### Physics2DAPI
@@ -287,23 +287,30 @@ physics.applyImpulse(entity, { x: 10, y: 0 });
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `applyImpulse` | `(entity: Entity, impulse: Vec2) => void` | Applique une force instantanée |
-| `applyForce` | `(entity: Entity, force: Vec2) => void` | Applique une force continue |
-| `setVelocity` | `(entity: Entity, velocity: Vec2) => void` | Définit la vélocité du corps |
-| `getVelocity` | `(entity: Entity) => Vec2` | Obtient la vélocité du corps |
-| `setAngularVelocity` | `(entity: Entity, av: number) => void` | Définit la vélocité de rotation |
-| `getAngularVelocity` | `(entity: Entity) => number` | Obtient la vélocité de rotation |
-| `raycast` | `(from: Vec2, to: Vec2, options?: RaycastOptions) => RaycastHit[]` | Lance un rayon |
-| `setGravity` | `(gravity: Vec2) => void` | Définit la gravité du monde |
-| `getGravity` | `() => Vec2` | Obtient la gravité du monde |
+| `applyImpulse` | `(entityId: EntityId, x: number, y: number) => void` | Applique une impulsion linéaire instantanée |
+| `setLinearVelocity` | `(entityId: EntityId, vx: number, vy: number) => void` | Remplace la vélocité linéaire (m/s) |
+| `getLinearVelocity` | `(entityId: EntityId) => { x: number; y: number } \| null` | Lit la vélocité linéaire actuelle |
+| `getPosition` | `(entityId: EntityId) => { x: number; y: number; rotation: number } \| null` | Lit la position et l'angle du corps |
+| `getCollisionEventsBatch` | `(opts?) => CollisionEventsBatch` | Récupère tous les événements de collision de cette frame |
+| `getCollisionContacts` | `(opts?) => ReadonlyArray<ResolvedCollisionContact>` | Lit les paires de contact actives |
+| `getSensorState` | `(entityId: EntityId, sensorId: number) => SensorState` | Lit l'état de chevauchement d'un sensor |
+
+:::tip
+La plupart des manipulations de corps (forces, vélocités, impulsions) se font via le handle retourné par `useDynamicBody()` — pas directement via `usePhysics2D()`. L'API service est principalement utilisée pour le polling des événements de collision et les requêtes spatiales.
+:::
 
 **Exemple:**
 ```ts
 const physics = usePhysics2D();
-const hits = physics.raycast({ x: 0, y: 0 }, { x: 10, y: 0 });
-for (const hit of hits) {
-  console.log('Hit:', hit.entity.name);
-}
+
+// Appliquer une impulsion via l'API service
+physics.applyImpulse(entityId, 0, 500)
+
+// Polling des événements de collision chaque frame
+onUpdate(() => {
+  const batch = physics.getCollisionEventsBatch()
+  // traitement du batch...
+})
 ```
 
 ## Systèmes

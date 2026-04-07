@@ -75,10 +75,10 @@ export const BallActor = defineActor(BallPrefab, () => {
 #### useStaticBody(options?)
 
 ```ts
-function useStaticBody(options?: Physics3DBodyOptions): void
+function useStaticBody(options?: StaticBodyOptions3D): StaticBodyHandle3D
 ```
 
-Ajoute un corps statique (immobile). À utiliser pour le terrain et les obstacles fixes. Retourne `void`.
+Ajoute un corps statique (immobile). À utiliser pour le terrain et les obstacles fixes. Retourne un handle avec `bodyId`, `active`, `enable()` et `disable()` pour activer/désactiver le corps.
 
 ```ts
 import { useStaticBody, useMeshCollider } from '@gwenjs/physics3d'
@@ -295,16 +295,17 @@ physics.applyImpulse(entityId, { x: 0, y: 500, z: 0 })
 
 | Méthode | Signature | Description |
 |---|---|---|
-| `applyImpulse` | `(entity: number, impulse: Physics3DVec3) => void` | Applique une impulsion instantanée |
-| `applyForce` | `(entity: number, force: Physics3DVec3) => void` | Applique une force continue cette frame |
-| `applyTorque` | `(entity: number, torque: Physics3DVec3) => void` | Applique une force rotationnelle |
-| `setVelocity` | `(entity: number, velocity: Physics3DVec3) => void` | Remplace la vélocité linéaire |
-| `getVelocity` | `(entity: number) => Physics3DVec3` | Lit la vélocité linéaire actuelle |
-| `setAngularVelocity` | `(entity: number, av: Physics3DVec3) => void` | Remplace la vélocité angulaire |
-| `getAngularVelocity` | `(entity: number) => Physics3DVec3` | Lit la vélocité angulaire actuelle |
-| `raycast` | `(from: Physics3DVec3, direction: Physics3DVec3, options?: RaycastOptions) => RaycastHit[]` | Lance un rayon et retourne les impacts |
-| `setGravity` | `(gravity: Physics3DVec3) => void` | Modifie la gravité du monde à l'exécution |
-| `getGravity` | `() => Physics3DVec3` | Lit la gravité du monde actuelle |
+| `applyImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Applique une impulsion linéaire instantanée (N·s) |
+| `applyAngularImpulse` | `(entityId: Physics3DEntityId, impulse: Partial<Physics3DVec3>) => boolean` | Applique une impulsion angulaire instantanée |
+| `addForce` | `(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>) => void` | Accumule une force continue pour ce step (N) |
+| `addTorque` | `(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>) => void` | Accumule un couple continu pour ce step (N·m) |
+| `setLinearVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Remplace la vélocité linéaire (m/s) |
+| `getLinearVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Lit la vélocité linéaire actuelle |
+| `setAngularVelocity` | `(entityId: Physics3DEntityId, velocity: Partial<Physics3DVec3>) => boolean` | Remplace la vélocité angulaire (rad/s) |
+| `getAngularVelocity` | `(entityId: Physics3DEntityId) => Physics3DVec3 \| undefined` | Lit la vélocité angulaire actuelle |
+| `setGravityScale` | `(entityId: Physics3DEntityId, scale: number) => void` | Échelle de gravité par corps (`0` désactive, `1` = normal) |
+| `getGravityScale` | `(entityId: Physics3DEntityId) => number` | Lit l'échelle de gravité actuelle d'un corps |
+| `castRay` | `(origin: Physics3DVec3, direction: Physics3DVec3, maxDist: number, opts?) => RayHit \| null` | Lance un rayon, retourne l'impact le plus proche ou `null` |
 
 ```ts
 const physics = usePhysics3D()
@@ -313,12 +314,12 @@ const physics = usePhysics3D()
 physics.applyImpulse(entityId, { x: 0, y: 300, z: 0 })
 
 // Vérification du sol
-const hits = physics.raycast(
+const hit = physics.castRay(
   { x: 0, y: 1, z: 0 },
   { x: 0, y: -1, z: 0 },
-  { maxDistance: 1.1 }
+  1.1,
 )
-const isGrounded = hits.length > 0
+const isGrounded = hit !== null
 ```
 
 ## Intégration Vite

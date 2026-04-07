@@ -278,7 +278,7 @@ function usePhysics2D(): Physics2DAPI
 **Example:**
 ```ts
 const physics = usePhysics2D();
-physics.applyImpulse(entity, { x: 10, y: 0 });
+physics.applyImpulse(entityId, 10, 0);
 ```
 
 ### Physics2DAPI
@@ -287,23 +287,30 @@ physics.applyImpulse(entity, { x: 10, y: 0 });
 
 | Method | Signature | Description |
 |---|---|---|
-| `applyImpulse` | `(entity: Entity, impulse: Vec2) => void` | Apply instantaneous force |
-| `applyForce` | `(entity: Entity, force: Vec2) => void` | Apply continuous force |
-| `setVelocity` | `(entity: Entity, velocity: Vec2) => void` | Set body velocity |
-| `getVelocity` | `(entity: Entity) => Vec2` | Get body velocity |
-| `setAngularVelocity` | `(entity: Entity, av: number) => void` | Set rotation velocity |
-| `getAngularVelocity` | `(entity: Entity) => number` | Get rotation velocity |
-| `raycast` | `(from: Vec2, to: Vec2, options?: RaycastOptions) => RaycastHit[]` | Cast a ray |
-| `setGravity` | `(gravity: Vec2) => void` | Set world gravity |
-| `getGravity` | `() => Vec2` | Get world gravity |
+| `applyImpulse` | `(entityId: EntityId, x: number, y: number) => void` | Apply an instantaneous linear impulse |
+| `setLinearVelocity` | `(entityId: EntityId, vx: number, vy: number) => void` | Override linear velocity (m/s) |
+| `getLinearVelocity` | `(entityId: EntityId) => { x: number; y: number } \| null` | Read current linear velocity |
+| `getPosition` | `(entityId: EntityId) => { x: number; y: number; rotation: number } \| null` | Read body position and angle |
+| `getCollisionEventsBatch` | `(opts?) => CollisionEventsBatch` | Pull all collision events for this frame |
+| `getCollisionContacts` | `(opts?) => ReadonlyArray<ResolvedCollisionContact>` | Read active contact pairs |
+| `getSensorState` | `(entityId: EntityId, sensorId: number) => SensorState` | Read sensor overlap state |
+
+:::tip
+Most body manipulation (forces, velocities, impulses) is done through the handle returned by `useDynamicBody()` — not through `usePhysics2D()` directly. The service API is primarily used for collision event polling and spatial queries.
+:::
 
 **Example:**
 ```ts
 const physics = usePhysics2D();
-const hits = physics.raycast({ x: 0, y: 0 }, { x: 10, y: 0 });
-for (const hit of hits) {
-  console.log('Hit:', hit.entity.name);
-}
+
+// Apply impulse directly via service API
+physics.applyImpulse(entityId, 0, 500)
+
+// Poll collision events each frame
+onUpdate(() => {
+  const batch = physics.getCollisionEventsBatch()
+  // process batch...
+})
 ```
 
 ## Systems
