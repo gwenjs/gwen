@@ -8,6 +8,7 @@
  * 5. Local-mode 3D A* pathfinding via initNavGrid3D + findPath3D
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ciThreshold } from "./helpers/perf";
 
 // ─── WASM mock setup ─────────────────────────────────────────────────────────
 
@@ -614,7 +615,7 @@ describe("Gap 5: local-mode 3D A* pathfinding", () => {
     const elapsed = performance.now() - t0;
 
     expect(path.length).toBeGreaterThan(1);
-    expect(elapsed).toBeLessThan(50); // must complete in < 50ms
+    expect(elapsed).toBeLessThan(ciThreshold(50));
   });
 });
 

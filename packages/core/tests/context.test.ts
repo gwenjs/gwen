@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ciThreshold } from "./helpers/perf";
 import {
   createEngine,
   useEngine,
@@ -512,7 +513,6 @@ describe("Performance", () => {
       }
     });
     const elapsed = performance.now() - start;
-    // Spec threshold is 0.5ms; allow 20× CI margin for slower GitHub Actions runners
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(ciThreshold(0.5, 20));
   });
 });

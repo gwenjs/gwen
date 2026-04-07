@@ -11,6 +11,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import { ciThreshold } from "../helpers/perf";
 import { TweenPool } from "../../src/tween/tween-pool";
 import { createEngine } from "../../src/index";
 import { defineSequence } from "../../src/tween/define-sequence";
@@ -32,8 +33,7 @@ describe("Performance: 1,000 tweens ticking per frame", () => {
     pool.tick(0.016);
     const elapsed = performance.now() - start;
 
-    // Spec threshold is 0.5ms; allow 2× CI margin
-    expect(elapsed).toBeLessThan(1.0);
+    expect(elapsed).toBeLessThan(ciThreshold(0.5, 2));
   });
 });
 
@@ -51,8 +51,7 @@ describe("Performance: 10,000 tweens ticking per frame", () => {
     pool.tick(0.016);
     const elapsed = performance.now() - start;
 
-    // Spec threshold is 5ms; allow 2× CI margin for slower GitHub Actions runners
-    expect(elapsed).toBeLessThan(10);
+    expect(elapsed).toBeLessThan(ciThreshold(5, 2));
   });
 });
 
@@ -129,8 +128,7 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
     });
 
     const elapsed = performance.now() - start;
-    // Spec threshold: < 2ms. Allow 10× CI margin for cold Node.js environments.
-    expect(elapsed).toBeLessThan(20);
+    expect(elapsed).toBeLessThan(ciThreshold(2, 10));
   });
 });
 
@@ -150,7 +148,6 @@ describe("Performance: zero-alloc tick sanity", () => {
     }
     const elapsed = performance.now() - start;
 
-    // 100 frames × 1000 tweens should complete in < 50ms
-    expect(elapsed).toBeLessThan(50);
+    expect(elapsed).toBeLessThan(ciThreshold(50));
   });
 });

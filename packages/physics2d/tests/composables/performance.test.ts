@@ -2,6 +2,7 @@
  * @file Performance tests for composables and ring buffer.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ciThreshold } from "../helpers/perf";
 
 let _bodyIdCounter = 0;
 
@@ -48,7 +49,7 @@ describe("Performance", () => {
       useStaticBody();
     }
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(100);
+    expect(elapsed).toBeLessThan(ciThreshold(100));
   });
 
   it("drains 500 ring buffer events in under 0.5ms", () => {
@@ -67,7 +68,7 @@ describe("Performance", () => {
     const start = performance.now();
     buf.drain();
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(0.5);
+    expect(elapsed).toBeLessThan(ciThreshold(0.5));
   });
 
   it("applies 1000 impulses in under 5ms", async () => {
@@ -78,6 +79,6 @@ describe("Performance", () => {
       body.applyImpulse(1, 0);
     }
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(5);
+    expect(elapsed).toBeLessThan(ciThreshold(5));
   });
 });

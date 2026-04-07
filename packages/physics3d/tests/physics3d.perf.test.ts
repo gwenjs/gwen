@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ciThreshold } from "./helpers/perf";
 import { ContactRingBuffer3D } from "../src/plugin/ring-buffer.js";
 
 // ─── Mocks for dynamic body perf test ─────────────────────────────────────
@@ -70,7 +71,7 @@ describe("physics3d performance", () => {
     const elapsed = performance.now() - start;
 
     expect(events).toHaveLength(500);
-    expect(elapsed).toBeLessThan(0.5);
+    expect(elapsed).toBeLessThan(ciThreshold(0.5));
   });
 
   it("writing and draining 512 events (full ring capacity) completes without data loss", () => {
@@ -104,7 +105,7 @@ describe("physics3d performance", () => {
       useDynamicBody();
     }
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(20);
+    expect(elapsed).toBeLessThan(ciThreshold(20));
   });
 
   it("500 onContact dispatches per frame < 1ms", () => {
@@ -124,7 +125,7 @@ describe("physics3d performance", () => {
     }
     const elapsed = performance.now() - start;
 
-    expect(elapsed).toBeLessThan(1);
+    expect(elapsed).toBeLessThan(ciThreshold(1));
     expect(cb).toHaveBeenCalledTimes(500);
     _clearContactCallbacks();
   });

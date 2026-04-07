@@ -3,6 +3,7 @@
  */
 import { describe, it, expect } from "vitest";
 import { createEngine, GwenConfigError } from "../src/index";
+import { ciThreshold } from "./helpers/perf";
 
 describe("createEngine", () => {
   it("returns a GwenEngine (not {engine, scenes})", async () => {
@@ -34,7 +35,7 @@ describe("createEngine", () => {
   it("initialises in < 50ms", async () => {
     const t = performance.now();
     await createEngine();
-    expect(performance.now() - t).toBeLessThan(50);
+    expect(performance.now() - t).toBeLessThan(ciThreshold(50));
   });
 
   it("rejects with GwenConfigError on invalid maxEntities", async () => {
