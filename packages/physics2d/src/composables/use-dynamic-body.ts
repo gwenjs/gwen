@@ -1,7 +1,7 @@
 /**
  * @file useDynamicBody() — registers a dynamic physics body for the current actor.
  */
-import { _getActorEntityId } from '@gwenjs/core/actor';
+import { _getActorEntityId, onBeforeUpdate } from '@gwenjs/core/actor';
 import type { EntityId } from '@gwenjs/core';
 import type { DynamicBodyHandle, DynamicBodyOptions, ColliderOptions } from '../types';
 import { usePhysics2D } from '../composables';
@@ -63,6 +63,16 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
 
   _createBody();
   let _active = true;
+  let _accFx = 0;
+  let _accFy = 0;
+
+  onBeforeUpdate((dt) => {
+    if (_active && (_accFx !== 0 || _accFy !== 0)) {
+      physics.applyImpulse(entityId, _accFx * dt, _accFy * dt);
+      _accFx = 0;
+      _accFy = 0;
+    }
+  });
 
   return {
     get bodyId() {
@@ -76,11 +86,13 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
     },
     /**
      * Apply a continuous force to the body.
-     * Note: Physics2DAPI has no direct `applyForce`; this is a no-op.
-     * Use `applyImpulse` for instantaneous velocity changes.
+     * Forces are accumulated each frame and converted to an impulse (`force * dt`)
+     * via `applyImpulse` in the `onBeforeUpdate` hook. The accumulator is reset
+     * after each flush, so this must be called every frame to sustain a force.
      */
-    applyForce(_fx: number, _fy: number) {
-      // TODO: Physics2DAPI does not expose applyForce — use applyImpulse instead.
+    applyForce(fx: number, fy: number) {
+      _accFx += fx;
+      _accFy += fy;
     },
     applyImpulse(ix: number, iy: number) {
       physics.applyImpulse(entityId, ix, iy);

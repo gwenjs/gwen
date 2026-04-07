@@ -1,8 +1,9 @@
 /**
  * @file vite-plugin extractLayerDefinitions / inlineLayerReferences unit tests.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { extractLayerDefinitions, inlineLayerReferences } from '../../src/vite-plugin.js';
+import { physics2dVitePlugin } from '../../src/vite-plugin.js';
 
 describe('extractLayerDefinitions', () => {
   it('extracts simple bitmask values from bit-shift expressions', () => {
@@ -83,5 +84,68 @@ describe('inlineLayerReferences', () => {
     ]);
     const code = `L.a | L.b | L.c`;
     expect(inlineLayerReferences(code, 'L', map)).toBe(`1 | 2 | 4`);
+  });
+});
+
+describe('physics2dVitePlugin transform', () => {
+  function callTransform(code: string, id = 'src/game.ts') {
+    const plugin = physics2dVitePlugin();
+    const transform = plugin.transform as (code: string, id: string) => { code: string; map: unknown } | null | undefined;
+    return transform.call({}, code, id);
+  }
+
+  it('returns a non-null source map when layers are inlined', () => {
+    const code = [
+      "const Layers = defineLayers({ wall: 1 << 2, player: 1 << 0 });",
+      "useStaticBody({ layer: Layers.wall, mask: Layers.player });",
+    ].join('\n');
+
+    const result = callTransform(code);
+
+    expect(result).toBeDefined();
+    expect(result!.map).not.toBeNull();
+    expect(result!.map).toHaveProperty('mappings');
+  });
+
+  it('removes the defineLayers declaration when all references are inlined', () => {
+    const code = [
+      "const Layers = defineLayers({ wall: 4, player: 1 });",
+      "useStaticBody({ layer: Layers.wall, mask: Layers.player });",
+    ].join('\n');
+
+    const result = callTransform(code);
+
+    expect(result).toBeDefined();
+    expect(result!.code).not.toContain('defineLayers');
+    expect(result!.code).not.toContain('const Layers');
+    expect(result!.code).toContain('4');
+    expect(result!.code).toContain('1');
+  });
+
+  it('keeps the defineLayers declaration when the variable is still referenced', () => {
+    const code = [
+      "const Layers = defineLayers({ wall: 4 });",
+      "useStaticBody({ layer: Layers.wall });",
+      "console.log(Layers);",
+    ].join('\n');
+
+    const result = callTransform(code);
+
+    expect(result).toBeDefined();
+    expect(result!.code).toContain('defineLayers');
+  });
+
+  it('warns when a layer is defined but never referenced', async () => {
+    const plugin = physics2dVitePlugin();
+    const warnings: string[] = [];
+    const mockCtx = { warn: vi.fn((m: string) => warnings.push(m)) };
+
+    const code = `
+      const L = defineLayers({ wall: 1, player: 2 })
+      useStaticBody({ layer: L.wall }) // player never used
+    `;
+    await (plugin.transform as Function).call(mockCtx, code, 'test.ts');
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('player');
   });
 });

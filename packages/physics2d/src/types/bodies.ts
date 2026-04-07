@@ -102,7 +102,13 @@ export interface DynamicBodyHandle {
   readonly bodyId: number;
   /** Whether the body is currently active in the simulation. */
   readonly active: boolean;
-  /** Apply a force to the body. */
+  /**
+   * Apply a continuous force to the body.
+   *
+   * Forces are accumulated within the current frame and flushed as an impulse
+   * (`force * dt`) during `onBeforeUpdate`. Call this every frame to sustain a
+   * constant force; the accumulator resets to zero after each flush.
+   */
   applyForce(fx: number, fy: number): void;
   /** Apply an impulse to the body. */
   applyImpulse(ix: number, iy: number): void;

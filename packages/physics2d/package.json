@@ -55,6 +55,56 @@
       "import": "./src/debug.ts"
     }
   },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./module": {
+        "types": "./dist/module.d.ts",
+        "import": "./dist/module.js"
+      },
+      "./core": {
+        "types": "./dist/core.d.ts",
+        "import": "./dist/core.js"
+      },
+      "./helpers": {
+        "types": "./dist/helpers/index.d.ts",
+        "import": "./dist/helpers/index.js"
+      },
+      "./helpers/queries": {
+        "types": "./dist/helpers/queries.d.ts",
+        "import": "./dist/helpers/queries.js"
+      },
+      "./helpers/movement": {
+        "types": "./dist/helpers/movement.d.ts",
+        "import": "./dist/helpers/movement.js"
+      },
+      "./helpers/contact": {
+        "types": "./dist/helpers/contact.d.ts",
+        "import": "./dist/helpers/contact.js"
+      },
+      "./helpers/static-geometry": {
+        "types": "./dist/helpers/static-geometry.d.ts",
+        "import": "./dist/helpers/static-geometry.js"
+      },
+      "./helpers/orchestration": {
+        "types": "./dist/helpers/orchestration.d.ts",
+        "import": "./dist/helpers/orchestration.js"
+      },
+      "./tilemap": {
+        "types": "./dist/tilemap.d.ts",
+        "import": "./dist/tilemap.js"
+      },
+      "./debug": {
+        "types": "./dist/debug.d.ts",
+        "import": "./dist/debug.js"
+      }
+    }
+  },
   "scripts": {
     "build": "vite build",
     "typecheck": "tsc --noEmit",
@@ -74,11 +124,13 @@
   },
   "dependencies": {
     "@gwenjs/core": "workspace:*",
-    "@gwenjs/kit": "workspace:*"
+    "@gwenjs/kit": "workspace:*",
+    "@gwenjs/vite": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.19.37",
     "@vitest/coverage-v8": "^4.1.2",
+    "magic-string": "^0.30.21",
     "typescript": "^6.0.2",
     "vite": "^8.0.3",
     "vite-plugin-dts": "^4.5.4",

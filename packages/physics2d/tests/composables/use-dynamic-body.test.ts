@@ -13,12 +13,17 @@ const mockPhysics = {
   getLinearVelocity: vi.fn(() => ({ x: 1.5, y: 2.5 })),
 };
 
+let capturedOnBeforeUpdate: ((dt: number) => void) | undefined;
+
 vi.mock('../../src/composables.js', () => ({
   usePhysics2D: vi.fn(() => mockPhysics),
 }));
 
 vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 42n),
+  onBeforeUpdate: vi.fn((cb: (dt: number) => void) => {
+    capturedOnBeforeUpdate = cb;
+  }),
 }));
 
 vi.mock('@gwenjs/core', () => ({}));
@@ -28,6 +33,7 @@ import { useDynamicBody } from '../../src/composables/use-dynamic-body.js';
 describe('useDynamicBody', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    capturedOnBeforeUpdate = undefined;
     mockPhysics.addRigidBody.mockReturnValue(99);
     mockPhysics.getLinearVelocity.mockReturnValue({ x: 1.5, y: 2.5 });
   });
@@ -122,10 +128,31 @@ describe('useDynamicBody', () => {
     expect(h.active).toBe(true);
   });
 
-  it('applyForce is a no-op (Physics2DAPI has no applyForce)', () => {
+  it('applyForce accumulates and flushes as impulse * dt on the next frame', () => {
     const h = useDynamicBody();
-    expect(() => h.applyForce(100, 200)).not.toThrow();
-    // applyImpulse should NOT have been called by applyForce
+    h.applyForce(100, 200);
+    // Before the frame ticks, no impulse yet
+    expect(mockPhysics.applyImpulse).not.toHaveBeenCalled();
+    // Simulate a frame tick
+    capturedOnBeforeUpdate!(0.016);
+    expect(mockPhysics.applyImpulse).toHaveBeenCalledWith(expect.anything(), 100 * 0.016, 200 * 0.016);
+  });
+
+  it('applyForce accumulates multiple calls within a frame', () => {
+    const h = useDynamicBody();
+    h.applyForce(100, 0);
+    h.applyForce(0, 200);
+    capturedOnBeforeUpdate!(0.016);
+    expect(mockPhysics.applyImpulse).toHaveBeenCalledWith(expect.anything(), 100 * 0.016, 200 * 0.016);
+  });
+
+  it('applyForce accumulator resets after each frame flush', () => {
+    const h = useDynamicBody();
+    h.applyForce(100, 200);
+    capturedOnBeforeUpdate!(0.016);
+    vi.clearAllMocks();
+    // No force applied this frame — no impulse should fire
+    capturedOnBeforeUpdate!(0.016);
     expect(mockPhysics.applyImpulse).not.toHaveBeenCalled();
   });
 

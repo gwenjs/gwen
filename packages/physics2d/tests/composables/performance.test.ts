@@ -21,6 +21,7 @@ vi.mock('../../src/composables.js', () => ({
 
 vi.mock('@gwenjs/core/actor', () => ({
   _getActorEntityId: vi.fn(() => 1n),
+  onBeforeUpdate: vi.fn(),
 }));
 
 vi.mock('@gwenjs/core', () => ({
