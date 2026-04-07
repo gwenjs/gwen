@@ -63,7 +63,7 @@ default = []
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
 
 # wasm-opt bundled with older wasm-pack doesn't support bulk-memory — skip it.
 # The .wasm produced by rustc is already valid and loads fine in all modern browsers.
