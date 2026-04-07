@@ -28,7 +28,7 @@ jobs:
         with:
           workspaces: '. -> target'
       - name: Install wasm-pack
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: cargo install wasm-pack --locked
       - name: Rust tests — gwen-core
         run: cargo test -p gwen-core
       - name: WASM tests — gwen-core

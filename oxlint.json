@@ -5,7 +5,7 @@
     "no-var": "error",
     "prefer-const": "error",
     "eqeqeq": "error",
-    "no-console": "off",
+    "no-console": "warn",
     "no-restricted-imports": [
       "error",
       {

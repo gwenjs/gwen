@@ -30,7 +30,7 @@ jobs:
 
       - name: Install wasm-pack
         if: ${{ steps.release.outputs.releases_created }}
-        run: curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+        run: cargo install wasm-pack --locked
 
       - uses: ./.github/actions/setup-node-pnpm
         if: ${{ steps.release.outputs.releases_created }}
@@ -42,6 +42,10 @@ jobs:
       - name: Build
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm build:ts
+
+      - name: Typecheck
+        if: ${{ steps.release.outputs.releases_created }}
+        run: pnpm typecheck
 
       - name: Publish to npm
         if: ${{ steps.release.outputs.releases_created }}
