@@ -14,7 +14,7 @@ A **layout** is a persistent UI layer that lives above all scenes. Unlike scenes
 Use `defineLayout()` to create a persistent UI layer:
 
 ```ts
-import { defineLayout, placeActor } from '@gwenjs/core'
+import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from './actors/hud'
 
 export const GameLayout = defineLayout(() => {
@@ -28,7 +28,8 @@ export const GameLayout = defineLayout(() => {
 Layouts are typically loaded at startup or when entering gameplay:
 
 ```ts
-import { defineSystem, useLayout } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core'
+import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 
 export const LayoutInitSystem = defineSystem(() => {
@@ -80,7 +81,7 @@ export const HUDData = defineComponent({
 
 ```ts
 // actors/hud.ts
-import { defineActor, onStart, onUpdate } from '@gwenjs/core'
+import { defineActor, onStart, onUpdate } from '@gwenjs/core/actor'
 import { useQuery, useEngine } from '@gwenjs/core'
 import { HUDData } from '../components/hud'
 import { Health, Position } from '../components'
@@ -140,7 +141,8 @@ router.pop() // HUD is still there with same values
 Layouts provide a shared data layer that any scene's system can read and write:
 
 ```ts
-import { defineSystem, useQuery, onUpdate, useLayout } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 import { Health } from './components'
 import { HUDData } from './components/hud'
