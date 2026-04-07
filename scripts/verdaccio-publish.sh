@@ -52,10 +52,9 @@ done
 echo "✅ Publication terminée."
 echo ""
 echo "📋 Packages disponibles :"
-pnpm view '@gwenjs/*' version --registry "$REGISTRY" 2>/dev/null || \
-curl -s "$REGISTRY/-/search?text=@gwenjs" | node -e "
-let d='';
-process.stdin.on('data',c=>d+=c).on('end',()=>{
-  const r=JSON.parse(d);
-  (r.objects||[]).forEach(o=>console.log('  '+o.package.name+'@'+o.package.version));
-})"
+for pkg_json in "$ROOT"/packages/*/package.json; do
+  pkg_name=$(node -p "require('$pkg_json').name" 2>/dev/null)
+  [[ "$pkg_name" == @gwenjs/* ]] || continue
+  version=$(curl -s "$REGISTRY/$pkg_name" | node -e "let d='';process.stdin.on('data',c=>d+=c).on('end',()=>{try{const p=JSON.parse(d);console.log(p['dist-tags']?.latest||'❌ absent')}catch{console.log('❌ erreur')}})")
+  echo "  $pkg_name@$version"
+done
