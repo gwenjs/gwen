@@ -10,7 +10,7 @@
     "wasm"
   ],
   "license": "MPL-2.0",
-  "author": "Jonathan Moutier <jonathan.moutier.dev@gmail.com>",
+  "author": "Jonathan Moutier <djo.moutier@gmail.com>",
   "files": [
     "dist",
     "src"

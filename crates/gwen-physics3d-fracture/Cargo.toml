@@ -3,7 +3,7 @@ name = "gwen-physics3d-fracture"
 version.workspace = true
 edition.workspace = true
 license = "MPL-2.0"
-authors = ["Jonathan Moutier <jonathan.moutier.dev@gmail.com>"]
+authors = ["Jonathan Moutier <djo.moutier@gmail.com>"]
 description = "Voronoi mesh fracture for GWEN Physics 3D — standalone WASM module"
 
 # ─── Build note ───────────────────────────────────────────────────────────────
