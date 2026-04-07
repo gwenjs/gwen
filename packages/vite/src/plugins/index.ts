@@ -6,7 +6,8 @@ import { gwenActorPlugin } from './actor.js';
 import { gwenLayoutPlugin } from './layout.js';
 import { gwenSceneRouterPlugin } from './scene-router.js';
 import { gwenTweenPlugin } from './tween.js';
-import type { GwenViteOptions } from '../types.js';
+import { gwenOptimizerPlugin } from './optimizer.js';
+import type { GwenViteOptions, GwenOptimizerUserOptions } from '../types.js';
 import type { PluginOption } from 'vite';
 
 export { gwenWasmPlugin } from './wasm.js';
@@ -50,6 +51,23 @@ export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from './tw
  * })
  * ```
  */
+/**
+ * Resolve the `optimizer` option from `GwenViteOptions` into concrete
+ * `gwenOptimizerPlugin` arguments.
+ *
+ * - `false / undefined` → detect mode, no extra options
+ * - `true`              → transform mode, default options
+ * - `{ ... }`           → transform mode, forwarded options
+ */
+function resolveOptimizerOptions(
+  opt: GwenViteOptions['optimizer'],
+): Parameters<typeof gwenOptimizerPlugin>[0] {
+  if (!opt) return { mode: 'detect' };
+  if (opt === true) return { mode: 'transform' };
+  const { componentsDir, tier, debug } = opt as GwenOptimizerUserOptions;
+  return { mode: 'transform', componentsDir, tier, debug };
+}
+
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     gwenWasmPlugin(options),
@@ -60,5 +78,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenLayoutPlugin(options),
     gwenSceneRouterPlugin(options),
     gwenTweenPlugin(options),
+    gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
   ];
 }

@@ -16,6 +16,28 @@
     "./transform": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./shared/layer-utils": {
+      "types": "./src/shared/layer-utils.ts",
+      "import": "./src/shared/layer-utils.ts"
+    }
+  },
+  "publishConfig": {
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./transform": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
+      },
+      "./shared/layer-utils": {
+        "types": "./dist/shared/layer-utils.d.ts",
+        "import": "./dist/shared/layer-utils.js"
+      }
     }
   },
   "scripts": {

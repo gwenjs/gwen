@@ -469,7 +469,11 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
     '',
     'bootstrap().catch(err => {',
     '  console.error("[GWEN] Fatal:", err);',
-    '  document.body.innerHTML = `<pre style="color:red;padding:2rem">[GWEN] Fatal:\\n${err}</pre>`;',
+    '  const pre = document.createElement("pre");',
+    '  pre.style.cssText = "color:red;padding:2rem";',
+    '  pre.textContent = `[GWEN] Fatal:\\n${err}`;',
+    '  document.body.textContent = "";',
+    '  document.body.appendChild(pre);',
     '});',
   );
 
