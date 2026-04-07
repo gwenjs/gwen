@@ -32,7 +32,8 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "verdaccio:publish": "pnpm --filter '@gwenjs/*' build && pnpm -r publish --registry http://localhost:4873 --no-git-checks"
+    "verdaccio:start": "verdaccio --config ./verdaccio.yaml",
+    "verdaccio:publish": "./scripts/verdaccio-publish.sh"
   },
   "devDependencies": {
     "@commitlint/cli": "^19.0.0",

@@ -1,0 +1,46 @@
+################################################################################
+# Verdaccio — config local pour le dev GWEN
+#
+# Usage : pnpm verdaccio:start
+# Publie  : pnpm verdaccio:publish
+#
+# Les packages @gwenjs/* sont publiés anonymement (pas de token nécessaire).
+# Ce registry est local uniquement — jamais utilisé en CI.
+################################################################################
+
+# Stockage des packages — utilise le storage global Verdaccio
+# Surcharger avec VERDACCIO_STORAGE si besoin
+storage: ~/.local/share/verdaccio/storage
+
+# Pas de plugins externes
+# plugins: ~
+
+web:
+  title: GWEN Local Registry
+
+auth:
+  htpasswd:
+    file: ./.verdaccio/htpasswd
+
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+
+packages:
+  # Packages @gwenjs/* : publication anonyme, accès libre
+  '@gwenjs/*':
+    access: $all
+    publish: $all
+    unpublish: $all
+    proxy: npmjs
+
+  # Tous les autres packages : proxy vers npm public
+  '**':
+    access: $all
+    publish: $authenticated
+    proxy: npmjs
+
+log:
+  type: stdout
+  format: pretty
+  level: warn
