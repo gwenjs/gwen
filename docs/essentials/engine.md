@@ -64,7 +64,8 @@ export default defineConfig({
 Inside a system's setup function, use `useEngine()` to access the engine instance:
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const InputSystem = defineSystem(() => {
   const engine = useEngine()

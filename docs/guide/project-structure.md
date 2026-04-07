@@ -78,7 +78,7 @@ Systems are the logic layer. They query entities and modify their components eac
 
 **src/systems/Movement.ts**
 ```typescript
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
@@ -99,7 +99,7 @@ Scenes are functions that set up gameplay and register systems:
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core'
+import { defineScene } from '@gwenjs/core/scene'
 import { MovementSystem, CollisionSystem, RenderSystem } from '../systems'
 
 export const GameScene = defineScene({
@@ -114,7 +114,7 @@ Actors are named, singleton-like entities defined with `defineActor()`. Use them
 
 **src/actors/Player.ts**
 ```typescript
-import { defineActor, onStart, onDestroy } from '@gwenjs/core'
+import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
 import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 import { Position, Health } from '../components'
 
@@ -151,7 +151,7 @@ Plugins extend GWEN with new systems, components, or lifecycle hooks. Use them f
 
 **src/plugins/InputPlugin.ts**
 ```typescript
-import { definePlugin } from '@gwenjs/kit'
+import { definePlugin } from '@gwenjs/kit/plugin'
 import { InputSystem } from '../systems/Input'
 
 export const InputPlugin = definePlugin(() => ({
