@@ -1,5 +1,10 @@
 # GWEN
 
+[![CI](https://github.com/gwenjs/gwen/actions/workflows/ci.yml/badge.svg)](https://github.com/gwenjs/gwen/actions/workflows/ci.yml)
+[![License: MPL-2.0](https://img.shields.io/badge/license-MPL--2.0-blue.svg)](https://opensource.org/licenses/MPL-2.0)
+[![docs](https://img.shields.io/badge/docs-gwenjs.github.io%2Fgwen-informational)](https://gwenjs.github.io/gwen/)
+[![pnpm](https://img.shields.io/badge/package%20manager-pnpm-orange)](https://pnpm.io)
+
 A composable TypeScript-first web game engine with a Rust/WebAssembly core.
 
 Write game logic in TypeScript. Run ECS, physics, and math in pre-compiled WebAssembly. No Rust required.
