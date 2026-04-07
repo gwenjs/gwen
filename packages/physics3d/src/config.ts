@@ -2,15 +2,15 @@
  * Configuration normalization for the Physics3D plugin.
  */
 
-import type { Physics3DConfig, ResolvedPhysics3DConfig, Physics3DQualityPreset } from './types';
+import type { Physics3DConfig, ResolvedPhysics3DConfig, Physics3DQualityPreset } from "./types";
 
-export { QUALITY_PRESETS } from './types';
+export { QUALITY_PRESETS } from "./types";
 
 /** Fully-resolved default configuration values. */
 export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
   gravity: { x: 0, y: -9.81, z: 0 },
   maxEntities: 10_000,
-  qualityPreset: 'medium',
+  qualityPreset: "medium",
   debug: false,
   coalesceEvents: true,
   layers: [],
@@ -84,13 +84,13 @@ export function resolveLayerBits(
   const declared = [...registry.keys()];
   let mask = 0;
   for (const name of names) {
-    if (typeof name === 'number') {
+    if (typeof name === "number") {
       mask |= name;
     } else {
       const bit = registry.get(name);
       if (bit === undefined) {
         throw new Error(
-          `[GWEN:Physics3D] Unknown layer "${name}". Declared layers: [${declared.join(', ')}]`,
+          `[GWEN:Physics3D] Unknown layer "${name}". Declared layers: [${declared.join(", ")}]`,
         );
       }
       mask |= bit;

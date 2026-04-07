@@ -6,16 +6,16 @@
  * is driven entirely by {@link KinematicBodyHandle3D.setVelocity} +
  * `onBeforeUpdate` integration, or by explicit {@link KinematicBodyHandle3D.moveTo} calls.
  */
-import { onBeforeUpdate } from '@gwenjs/core/actor';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
+import { onBeforeUpdate } from "@gwenjs/core/actor";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
 import type {
   KinematicBodyOptions3D,
   KinematicBodyHandle3D,
   Physics3DVec3,
   Physics3DQuat,
-} from '../types';
-import { usePhysics3D } from '../composables';
+} from "../types";
+import { usePhysics3D } from "../composables";
 
 /**
  * Registers the current actor's entity as a kinematic 3D physics body.
@@ -48,7 +48,7 @@ export function useKinematicBody(options: KinematicBodyOptions3D = {}): Kinemati
   const _fixedRotation = options.fixedRotation ?? false;
 
   const creationOptions = {
-    kind: 'kinematic' as const,
+    kind: "kinematic" as const,
     initialPosition: options.initialPosition,
     initialRotation: options.initialRotation,
   };

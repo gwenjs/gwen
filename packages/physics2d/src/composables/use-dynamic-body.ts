@@ -1,10 +1,10 @@
 /**
  * @file useDynamicBody() — registers a dynamic physics body for the current actor.
  */
-import { _getActorEntityId, onBeforeUpdate } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import type { DynamicBodyHandle, DynamicBodyOptions, ColliderOptions } from '../types';
-import { usePhysics2D } from '../composables';
+import { _getActorEntityId, onBeforeUpdate } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import type { DynamicBodyHandle, DynamicBodyOptions, ColliderOptions } from "../types";
+import { usePhysics2D } from "../composables";
 
 /**
  * Registers the current actor's entity as a dynamic (physics-simulated) body.
@@ -33,7 +33,7 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
   if (options.fixedRotation) {
     // eslint-disable-next-line no-console
     console.warn(
-      '[gwen:physics2d] fixedRotation is not yet supported by Physics2DAPI. The option is accepted but has no effect.',
+      "[gwen:physics2d] fixedRotation is not yet supported by Physics2DAPI. The option is accepted but has no effect.",
     );
   }
 
@@ -54,8 +54,8 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
 
   /** Register the rigid body and collider with the physics system. */
   function _createBody(): void {
-    _bodyHandle = physics.addRigidBody(entityId, 'dynamic', 0, 0, rigidBodyOpts);
-    if (options.shape === 'ball') {
+    _bodyHandle = physics.addRigidBody(entityId, "dynamic", 0, 0, rigidBodyOpts);
+    if (options.shape === "ball") {
       physics.addBallCollider(_bodyHandle, 0.5, colliderOpts);
     } else {
       physics.addBoxCollider(_bodyHandle, 0.5, 0.5, colliderOpts);

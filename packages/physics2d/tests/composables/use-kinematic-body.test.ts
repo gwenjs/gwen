@@ -1,15 +1,15 @@
 /**
  * @file useKinematicBody() composable tests.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
 let _beforeUpdateCb: ((dt: number) => void) | null = null;
 
-vi.mock('@gwenjs/core', () => ({}));
+vi.mock("@gwenjs/core", () => ({}));
 
-vi.mock('@gwenjs/core/actor', () => ({
+vi.mock("@gwenjs/core/actor", () => ({
   _getActorEntityId: vi.fn(() => 10n),
   onBeforeUpdate: vi.fn((fn: (dt: number) => void) => {
     _beforeUpdateCb = fn;
@@ -24,15 +24,15 @@ const mockPhysics = {
   setKinematicPosition: vi.fn(),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics2D: vi.fn(() => mockPhysics),
 }));
 
-import { useKinematicBody } from '../../src/composables/use-kinematic-body.js';
+import { useKinematicBody } from "../../src/composables/use-kinematic-body.js";
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('useKinematicBody (physics2d)', () => {
+describe("useKinematicBody (physics2d)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     _beforeUpdateCb = null;
@@ -43,45 +43,45 @@ describe('useKinematicBody (physics2d)', () => {
 
   it('calls addRigidBody with type "kinematic"', () => {
     useKinematicBody();
-    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, 'kinematic', 0, 0);
+    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, "kinematic", 0, 0);
   });
 
-  it('bodyId equals the handle returned by addRigidBody', () => {
+  it("bodyId equals the handle returned by addRigidBody", () => {
     const h = useKinematicBody();
     expect(h.bodyId).toBe(77);
   });
 
-  it('active is true initially', () => {
+  it("active is true initially", () => {
     expect(useKinematicBody().active).toBe(true);
   });
 
-  it('velocity getter returns {x:0, y:0} initially', () => {
+  it("velocity getter returns {x:0, y:0} initially", () => {
     expect(useKinematicBody().velocity).toEqual({ x: 0, y: 0 });
   });
 
-  it('angularVelocity getter returns 0 initially', () => {
+  it("angularVelocity getter returns 0 initially", () => {
     expect(useKinematicBody().angularVelocity).toBe(0);
   });
 
-  it('setVelocity stores values returned by velocity getter', () => {
+  it("setVelocity stores values returned by velocity getter", () => {
     const h = useKinematicBody();
     h.setVelocity(3, 4);
     expect(h.velocity).toEqual({ x: 3, y: 4 });
   });
 
-  it('setAngularVelocity stores value returned by angularVelocity getter', () => {
+  it("setAngularVelocity stores value returned by angularVelocity getter", () => {
     const h = useKinematicBody();
     h.setAngularVelocity(1.5);
     expect(h.angularVelocity).toBe(1.5);
   });
 
-  it('setAngularVelocity is a no-op when fixedRotation: true', () => {
+  it("setAngularVelocity is a no-op when fixedRotation: true", () => {
     const h = useKinematicBody({ fixedRotation: true });
     h.setAngularVelocity(99);
     expect(h.angularVelocity).toBe(0);
   });
 
-  it('onBeforeUpdate integrates position via setKinematicPositionWithAngle', () => {
+  it("onBeforeUpdate integrates position via setKinematicPositionWithAngle", () => {
     const h = useKinematicBody();
     h.setVelocity(2, 3);
     mockPhysics.getPosition.mockReturnValue({ x: 1, y: 1, rotation: 0 });
@@ -95,7 +95,7 @@ describe('useKinematicBody (physics2d)', () => {
     );
   });
 
-  it('onBeforeUpdate integrates angle when setAngularVelocity was called', () => {
+  it("onBeforeUpdate integrates angle when setAngularVelocity was called", () => {
     const h = useKinematicBody();
     h.setAngularVelocity(2);
     mockPhysics.getPosition.mockReturnValue({ x: 0, y: 0, rotation: 1 });
@@ -108,7 +108,7 @@ describe('useKinematicBody (physics2d)', () => {
     );
   });
 
-  it('onBeforeUpdate is a no-op when body is inactive', () => {
+  it("onBeforeUpdate is a no-op when body is inactive", () => {
     const h = useKinematicBody();
     h.setVelocity(1, 1);
     h.disable();
@@ -117,7 +117,7 @@ describe('useKinematicBody (physics2d)', () => {
     expect(mockPhysics.setKinematicPositionWithAngle).not.toHaveBeenCalled();
   });
 
-  it('onBeforeUpdate is a no-op when dt <= 0', () => {
+  it("onBeforeUpdate is a no-op when dt <= 0", () => {
     const h = useKinematicBody();
     h.setVelocity(1, 1);
     mockPhysics.setKinematicPositionWithAngle.mockClear();
@@ -125,19 +125,19 @@ describe('useKinematicBody (physics2d)', () => {
     expect(mockPhysics.setKinematicPositionWithAngle).not.toHaveBeenCalled();
   });
 
-  it('moveTo calls setKinematicPositionWithAngle immediately', () => {
+  it("moveTo calls setKinematicPositionWithAngle immediately", () => {
     const h = useKinematicBody();
     h.moveTo(5, 6, 1.2);
     expect(mockPhysics.setKinematicPositionWithAngle).toHaveBeenCalledWith(10n, 5, 6, 1.2);
   });
 
-  it('moveTo defaults angle to 0 when omitted', () => {
+  it("moveTo defaults angle to 0 when omitted", () => {
     const h = useKinematicBody();
     h.moveTo(1, 2);
     expect(mockPhysics.setKinematicPositionWithAngle).toHaveBeenCalledWith(10n, 1, 2, 0);
   });
 
-  it('moveTo is a no-op when inactive', () => {
+  it("moveTo is a no-op when inactive", () => {
     const h = useKinematicBody();
     h.disable();
     mockPhysics.setKinematicPositionWithAngle.mockClear();
@@ -145,24 +145,24 @@ describe('useKinematicBody (physics2d)', () => {
     expect(mockPhysics.setKinematicPositionWithAngle).not.toHaveBeenCalled();
   });
 
-  it('disable() calls removeBody and sets active to false', () => {
+  it("disable() calls removeBody and sets active to false", () => {
     const h = useKinematicBody();
     h.disable();
     expect(mockPhysics.removeBody).toHaveBeenCalled();
     expect(h.active).toBe(false);
   });
 
-  it('enable() after disable recreates the body', () => {
+  it("enable() after disable recreates the body", () => {
     const h = useKinematicBody({ initialPosition: { x: 3, y: 4 } });
     h.disable();
     vi.clearAllMocks();
     mockPhysics.addRigidBody.mockReturnValue(77);
     h.enable();
-    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, 'kinematic', 3, 4);
+    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, "kinematic", 3, 4);
     expect(h.active).toBe(true);
   });
 
-  it('disable() twice is a no-op on the second call', () => {
+  it("disable() twice is a no-op on the second call", () => {
     const h = useKinematicBody();
     h.disable();
     vi.clearAllMocks();
@@ -170,31 +170,31 @@ describe('useKinematicBody (physics2d)', () => {
     expect(mockPhysics.removeBody).not.toHaveBeenCalled();
   });
 
-  it('enable() twice is a no-op on the second call', () => {
+  it("enable() twice is a no-op on the second call", () => {
     const h = useKinematicBody();
     vi.clearAllMocks();
     h.enable();
     expect(mockPhysics.addRigidBody).not.toHaveBeenCalled();
   });
 
-  it('passes initialPosition to addRigidBody', () => {
+  it("passes initialPosition to addRigidBody", () => {
     useKinematicBody({ initialPosition: { x: 3, y: 4 } });
-    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, 'kinematic', 3, 4);
+    expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(10n, "kinematic", 3, 4);
   });
 
-  it('passes initialAngle to setKinematicPositionWithAngle', () => {
+  it("passes initialAngle to setKinematicPositionWithAngle", () => {
     useKinematicBody({ initialAngle: Math.PI });
     expect(mockPhysics.setKinematicPositionWithAngle).toHaveBeenCalledWith(10n, 0, 0, Math.PI);
   });
 
-  it('moveTo ignores angle when fixedRotation: true', () => {
+  it("moveTo ignores angle when fixedRotation: true", () => {
     const h = useKinematicBody({ fixedRotation: true });
     vi.clearAllMocks();
     h.moveTo(5, 6, 1.2);
     expect(mockPhysics.setKinematicPositionWithAngle).toHaveBeenCalledWith(10n, 5, 6, 0);
   });
 
-  it('onBeforeUpdate is a no-op when dt is NaN', () => {
+  it("onBeforeUpdate is a no-op when dt is NaN", () => {
     const h = useKinematicBody();
     h.setVelocity(1, 1);
     mockPhysics.setKinematicPositionWithAngle.mockClear();

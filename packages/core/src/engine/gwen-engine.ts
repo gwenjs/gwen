@@ -25,40 +25,31 @@
  *   #region Factory                             — createEngine()
  */
 
-import { createHooks, type Hookable } from 'hookable';
-import type { GwenRuntimeHooks, EngineErrorPayload } from './runtime-hooks.js';
-import { engineContext } from '../context.js';
-import { withCleanup } from '../cleanup-context.js';
-import { createLogger } from '../logger/index';
-import type { GwenLogger } from '../logger/index';
-import { WasmRegionView, WasmRingBuffer } from './wasm-module-handle.js';
-import { EntityManager, ComponentRegistry, QueryEngine } from '../core/ecs.js';
-import { getWasmBridge } from './wasm-bridge.js';
-import type { EntityId } from './engine-api.js';
-import type { ComponentDefinition, ComponentSchema, InferComponent } from '../schema.js';
-import type { ComponentDef, LiveQuery, EntityAccessor } from '../system.js';
-import { buildTransformImports } from '../wasm/transform-imports.js';
-import { SharedMemoryManager, TRANSFORM_STRIDE } from '../wasm/shared-memory.js';
-import { validateEngineConfig } from './engine-config-validator.js';
-import type { TweenPoolPolicy } from '../tween/tween-pool.js';
+import { createHooks, type Hookable } from "hookable";
+import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks.js";
+import { engineContext } from "../context.js";
+import { withCleanup } from "../cleanup-context.js";
+import { createLogger } from "../logger/index";
+import type { GwenLogger } from "../logger/index";
+import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs.js";
+import { getWasmBridge } from "./wasm-bridge.js";
+import type { EntityId } from "./engine-api.js";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system.js";
+import { buildTransformImports } from "../wasm/transform-imports.js";
+import { SharedMemoryManager, TRANSFORM_STRIDE } from "../wasm/shared-memory.js";
+import { validateEngineConfig } from "./engine-config-validator.js";
+import type { TweenPoolPolicy } from "../tween/tween-pool.js";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
 // existing `import { ... } from './gwen-engine.js'` statements keep working.
 
-export {
-  GwenPluginNotFoundError,
-  CoreErrorCodes,
-} from './engine-errors.js';
-export type {
-  GwenPluginNotFoundErrorOptions,
-  PluginErrorContext,
-} from './engine-errors.js';
+export { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
+export type { GwenPluginNotFoundErrorOptions, PluginErrorContext } from "./engine-errors.js";
 
-export {
-  GWEN_PLUGIN_API_VERSION,
-  checkPluginApiVersion,
-} from './engine-types.js';
+export { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 export type {
   WasmModuleOptions,
   WasmModuleHandle,
@@ -70,28 +61,22 @@ export type {
   EngineFramePhaseMs,
   EngineStats,
   GwenEngine,
-} from './engine-types.js';
+} from "./engine-types.js";
 
 export type {
   WasmMemoryRegion,
   WasmMemoryOptions,
   WasmChannelOptions,
-} from './wasm-module-handle.js';
-export { WasmRegionView, WasmRingBuffer } from './wasm-module-handle.js';
-export type { EngineErrorPayload } from './runtime-hooks.js';
+} from "./wasm-module-handle.js";
+export { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
+export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import {
-  GwenPluginNotFoundError,
-  CoreErrorCodes,
-} from './engine-errors.js';
-import type { PluginErrorContext } from './engine-errors.js';
+import { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
+import type { PluginErrorContext } from "./engine-errors.js";
 
-import {
-  GWEN_PLUGIN_API_VERSION,
-  checkPluginApiVersion,
-} from './engine-types.js';
+import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import type {
   WasmModuleOptions,
   WasmModuleHandle,
@@ -103,7 +88,7 @@ import type {
   EngineFramePhaseMs,
   EngineStats,
   GwenEngine,
-} from './engine-types.js';
+} from "./engine-types.js";
 
 // #region Internal helpers
 
@@ -145,7 +130,7 @@ class GwenEngineImpl implements GwenEngine {
   readonly maxEntities: number;
   readonly targetFPS: number;
   readonly maxDeltaSeconds: number;
-  readonly variant: 'light' | 'physics2d' | 'physics3d';
+  readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
   readonly tweenPoolSize: number;
   readonly tweenPoolPolicy: TweenPoolPolicy;
@@ -194,7 +179,7 @@ class GwenEngineImpl implements GwenEngine {
    * in Web Worker contexts where RAF is unavailable.
    */
   private _scheduleFrame(cb: (time: number) => void): number {
-    if (typeof requestAnimationFrame !== 'undefined') {
+    if (typeof requestAnimationFrame !== "undefined") {
       return requestAnimationFrame(cb);
     }
     // Worker fallback: no visual sync, but keeps the loop running.
@@ -203,7 +188,7 @@ class GwenEngineImpl implements GwenEngine {
 
   /** Cancel a previously scheduled frame (RAF or setTimeout handle). */
   private _cancelFrame(handle: number): void {
-    if (typeof cancelAnimationFrame !== 'undefined') {
+    if (typeof cancelAnimationFrame !== "undefined") {
       cancelAnimationFrame(handle);
     } else {
       clearTimeout(handle);
@@ -266,12 +251,12 @@ class GwenEngineImpl implements GwenEngine {
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
-    this.variant = opts.variant ?? 'light';
+    this.variant = opts.variant ?? "light";
     this.debug = opts.debug ?? false;
     this.tweenPoolSize = opts.tweenPoolSize ?? 256;
-    this.tweenPoolPolicy = opts.tweenPoolPolicy ?? { onExhausted: 'grow' };
-    this.logger = createLogger('gwen:core', this.debug, () => this._frameCountOwn);
-    this.provide('logger', this.logger);
+    this.tweenPoolPolicy = opts.tweenPoolPolicy ?? { onExhausted: "grow" };
+    this.logger = createLogger("gwen:core", this.debug, () => this._frameCountOwn);
+    this.provide("logger", this.logger);
     this._entityManager = new EntityManager(this.maxEntities);
     this._componentRegistry = new ComponentRegistry();
     this._queryEngine = new QueryEngine();
@@ -279,15 +264,15 @@ class GwenEngineImpl implements GwenEngine {
     if (opts.errorBus) {
       this._errorBus = opts.errorBus;
       // Register as 'errors' service so plugins can inject it.
-      this._services.set('errors', opts.errorBus);
+      this._services.set("errors", opts.errorBus);
       // Stop the engine gracefully before a fatal error is thrown.
       opts.errorBus.onFatal(() => {
         this.stop().catch(() => {});
       });
       // Install global window.onerror / unhandledrejection in production.
       if (
-        typeof globalThis !== 'undefined' &&
-        typeof (globalThis as Record<string, unknown>)['window'] !== 'undefined'
+        typeof globalThis !== "undefined" &&
+        typeof (globalThis as Record<string, unknown>)["window"] !== "undefined"
       ) {
         opts.errorBus.install?.();
       }
@@ -314,7 +299,7 @@ class GwenEngineImpl implements GwenEngine {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this._errorBus?.emit({
-        level: 'fatal',
+        level: "fatal",
         code: CoreErrorCodes.PLUGIN_SETUP_ERROR,
         message: `[${plugin.name}] setup failed: ${message}`,
         source: plugin.name,
@@ -325,7 +310,7 @@ class GwenEngineImpl implements GwenEngine {
 
     this._plugins.push(plugin);
     this._pluginNames.add(plugin.name);
-    await this.hooks.callHook('plugin:registered', plugin.name);
+    await this.hooks.callHook("plugin:registered", plugin.name);
     if (this.debug) {
       this.logger.debug(`plugin registered: ${plugin.name}`);
     }
@@ -355,7 +340,7 @@ class GwenEngineImpl implements GwenEngine {
       throw new GwenPluginNotFoundError({
         pluginName: key as string,
         hint: `Call engine.use(${key as string}Plugin()) before using this service.`,
-        docsUrl: 'https://gwenengine.dev/docs/plugins',
+        docsUrl: "https://gwenengine.dev/docs/plugins",
       });
     }
     return this._services.get(key as string) as GwenProvides[K];
@@ -409,8 +394,8 @@ class GwenEngineImpl implements GwenEngine {
     this._running = true;
     this._lastFrameTime = performance.now();
 
-    await this.hooks.callHook('engine:init');
-    await this.hooks.callHook('engine:start');
+    await this.hooks.callHook("engine:init");
+    await this.hooks.callHook("engine:start");
 
     // Drive the frame loop via _scheduleFrame (RAF on main thread, setTimeout in Workers).
     const loop = async (now: number) => {
@@ -437,12 +422,12 @@ class GwenEngineImpl implements GwenEngine {
           cause: err,
           frame: this._frameCountOwn,
         };
-        await this.hooks.callHook('engine:error', payload);
+        await this.hooks.callHook("engine:error", payload);
         this._errorBus?.emit({
-          level: 'error',
+          level: "error",
           code: CoreErrorCodes.FRAME_LOOP_ERROR,
           message: payload.message,
-          source: '@gwenjs/core',
+          source: "@gwenjs/core",
           error: err,
           context: { frame: this._frameCountOwn },
         });
@@ -459,7 +444,7 @@ class GwenEngineImpl implements GwenEngine {
       this._cancelFrame(this._rafHandle);
       this._rafHandle = 0;
     }
-    await this.hooks.callHook('engine:stop');
+    await this.hooks.callHook("engine:stop");
     this._tracker.clearAll(this.hooks);
   }
 
@@ -477,14 +462,14 @@ class GwenEngineImpl implements GwenEngine {
    */
   async startExternal(): Promise<void> {
     this._running = true;
-    await this.hooks.callHook('engine:init');
-    await this.hooks.callHook('engine:start');
+    await this.hooks.callHook("engine:init");
+    await this.hooks.callHook("engine:start");
     // Intentionally skip RAF — the caller drives the loop via advance().
   }
 
   async advance(dt: number): Promise<void> {
     if (this._advancing) {
-      throw new Error('[GwenEngine] advance() called re-entrantly — only one advance per frame.');
+      throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }
     this._advancing = true;
     // Cap dt (ms) at maxDeltaSeconds converted to ms to prevent spiral-of-death.
@@ -499,12 +484,12 @@ class GwenEngineImpl implements GwenEngine {
         cause: err,
         frame: this._frameCountOwn,
       };
-      await this.hooks.callHook('engine:error', payload);
+      await this.hooks.callHook("engine:error", payload);
       this._errorBus?.emit({
-        level: 'error',
+        level: "error",
         code: CoreErrorCodes.FRAME_LOOP_ERROR,
         message: payload.message,
-        source: '@gwenjs/core',
+        source: "@gwenjs/core",
         error: err,
         context: { frame: this._frameCountOwn },
       });
@@ -572,8 +557,8 @@ class GwenEngineImpl implements GwenEngine {
     );
 
     const memory =
-      instance.exports['memory'] instanceof WebAssembly.Memory
-        ? instance.exports['memory']
+      instance.exports["memory"] instanceof WebAssembly.Memory
+        ? instance.exports["memory"]
         : undefined;
 
     // Build region and channel maps from options.
@@ -844,8 +829,8 @@ class GwenEngineImpl implements GwenEngine {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) {
       throw new Error(
-        '[GWEN] loadWasmModule() was called before initWasm() completed. ' +
-          'Await initWasm() (or createEngine()) before loading community WASM modules.',
+        "[GWEN] loadWasmModule() was called before initWasm() completed. " +
+          "Await initWasm() (or createEngine()) before loading community WASM modules.",
       );
     }
     if (!this._sharedMemory) {
@@ -869,7 +854,7 @@ class GwenEngineImpl implements GwenEngine {
    */
   private async _reportPluginError(
     plugin: GwenPlugin,
-    phase: PluginErrorContext['phase'],
+    phase: PluginErrorContext["phase"],
     error: unknown,
   ): Promise<void> {
     let recovered = false;
@@ -894,14 +879,14 @@ class GwenEngineImpl implements GwenEngine {
         frame: this._frameCountOwn,
       });
       this._errorBus?.emit({
-        level: 'error',
+        level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         message: `[${plugin.name}] ${phase} threw: ${message}`,
         source: plugin.name,
         error,
         context: { phase, frame: this._frameCountOwn },
       });
-      await this.hooks.callHook('plugin:error', {
+      await this.hooks.callHook("plugin:error", {
         pluginName: plugin.name,
         phase,
         error,
@@ -921,7 +906,7 @@ class GwenEngineImpl implements GwenEngine {
     try {
       // Phase 1 — engine:tick hook (fires before any plugin work)
       const t1 = performance.now();
-      await this.hooks.callHook('engine:tick', dt);
+      await this.hooks.callHook("engine:tick", dt);
       const t2 = performance.now();
 
       // Phase 2 — onBeforeUpdate (all plugins, registration order)
@@ -929,7 +914,7 @@ class GwenEngineImpl implements GwenEngine {
         try {
           plugin.onBeforeUpdate?.(dt);
         } catch (err) {
-          await this._reportPluginError(plugin, 'onBeforeUpdate', err);
+          await this._reportPluginError(plugin, "onBeforeUpdate", err);
         }
       }
       const t3 = performance.now();
@@ -944,10 +929,10 @@ class GwenEngineImpl implements GwenEngine {
             ? CoreErrorCodes.WASM_PANIC
             : CoreErrorCodes.FRAME_LOOP_ERROR;
         this._errorBus?.emit({
-          level: 'fatal',
+          level: "fatal",
           code,
           message: `WASM step failed: ${err instanceof Error ? err.message : String(err)}`,
-          source: 'gwen_core.wasm',
+          source: "gwen_core.wasm",
           error: err,
           context: { frame: this._frameCountOwn },
         });
@@ -964,7 +949,7 @@ class GwenEngineImpl implements GwenEngine {
               ? CoreErrorCodes.WASM_PANIC
               : CoreErrorCodes.FRAME_LOOP_ERROR;
           this._errorBus?.emit({
-            level: 'error',
+            level: "error",
             code,
             message: `WASM module "${name}" step failed: ${err instanceof Error ? err.message : String(err)}`,
             source: `wasm:${name}`,
@@ -982,7 +967,7 @@ class GwenEngineImpl implements GwenEngine {
           const bridge = getWasmBridge();
           this._sharedMemory.checkSentinels(bridge);
         } catch (err) {
-          this.logger.error('WASM memory sentinel violation', {
+          this.logger.error("WASM memory sentinel violation", {
             error: err instanceof Error ? err.message : String(err),
           });
         }
@@ -996,7 +981,7 @@ class GwenEngineImpl implements GwenEngine {
         try {
           plugin.onUpdate?.(dt);
         } catch (err) {
-          await this._reportPluginError(plugin, 'onUpdate', err);
+          await this._reportPluginError(plugin, "onUpdate", err);
         }
       }
       const t6 = performance.now();
@@ -1006,14 +991,14 @@ class GwenEngineImpl implements GwenEngine {
         try {
           plugin.onAfterUpdate?.(dt);
         } catch (err) {
-          await this._reportPluginError(plugin, 'onAfterUpdate', err);
+          await this._reportPluginError(plugin, "onAfterUpdate", err);
         }
       }
       for (const plugin of this._plugins) {
         try {
           plugin.onRender?.();
         } catch (err) {
-          await this._reportPluginError(plugin, 'onRender', err);
+          await this._reportPluginError(plugin, "onRender", err);
         }
       }
       const t7 = performance.now();
@@ -1021,7 +1006,7 @@ class GwenEngineImpl implements GwenEngine {
       // Phase 8 — update stats, then fire engine:afterTick hook
       this._frameCountOwn++;
       this._fps = dt > 0 ? 1000 / dt : 0;
-      await this.hooks.callHook('engine:afterTick', dt);
+      await this.hooks.callHook("engine:afterTick", dt);
       const t8 = performance.now();
 
       this._lastPhaseMs = {
@@ -1040,7 +1025,7 @@ class GwenEngineImpl implements GwenEngine {
       if (this.debug) {
         const budget = 1000 / this.targetFPS;
         for (const [phase, ms] of Object.entries(this._lastPhaseMs)) {
-          if (phase === 'total') continue;
+          if (phase === "total") continue;
           if ((ms as number) > budget * 0.5) {
             this.logger.warn(`phase "${phase}" exceeded 50% of frame budget`, {
               phase,
@@ -1075,10 +1060,10 @@ class GwenEngineImpl implements GwenEngine {
     const realHooks = this.hooks;
     return new Proxy(realHooks, {
       get(target, prop) {
-        if (prop === 'hook') {
+        if (prop === "hook") {
           return (event: string, fn: (...args: unknown[]) => unknown) => {
             tracker.track(pluginName, event, fn);
-            return (target as unknown as Record<string, unknown>)['hook'] instanceof Function
+            return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
               ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(
                   event as keyof GwenRuntimeHooks,
                   fn as never,
@@ -1094,7 +1079,7 @@ class GwenEngineImpl implements GwenEngine {
   private _withScopedHooks(scopedHooks: Hookable<GwenRuntimeHooks>): GwenEngine {
     return new Proxy(this, {
       get(target, prop) {
-        if (prop === 'hooks') return scopedHooks;
+        if (prop === "hooks") return scopedHooks;
         return Reflect.get(target, prop);
       },
     });

@@ -1,22 +1,22 @@
-import { describe, expect, it } from 'vitest';
-import type { TilemapChunkOrchestrator, PhysicsEntitySnapshot } from '../src/types';
+import { describe, expect, it } from "vitest";
+import type { TilemapChunkOrchestrator, PhysicsEntitySnapshot } from "../src/types";
 
-describe('helper contracts', () => {
-  it('accepts a valid TilemapChunkOrchestrator shape', () => {
+describe("helper contracts", () => {
+  it("accepts a valid TilemapChunkOrchestrator shape", () => {
     const orchestrator: TilemapChunkOrchestrator = {
       syncVisibleChunks() {},
       patchChunk() {},
       dispose() {},
     };
 
-    expect(typeof orchestrator.syncVisibleChunks).toBe('function');
-    expect(typeof orchestrator.patchChunk).toBe('function');
-    expect(typeof orchestrator.dispose).toBe('function');
+    expect(typeof orchestrator.syncVisibleChunks).toBe("function");
+    expect(typeof orchestrator.patchChunk).toBe("function");
+    expect(typeof orchestrator.dispose).toBe("function");
   });
 
-  it('accepts nullable snapshot fields', () => {
+  it("accepts nullable snapshot fields", () => {
     const snapshot: PhysicsEntitySnapshot = {
-      entityId: BigInt(7) as import('@gwenjs/core').EntityId,
+      entityId: BigInt(7) as import("@gwenjs/core").EntityId,
       position: null,
       velocity: null,
     };

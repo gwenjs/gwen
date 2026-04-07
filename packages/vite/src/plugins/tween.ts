@@ -1,8 +1,8 @@
-import type { Plugin } from 'vite';
-import { walk } from 'oxc-walker';
-import type { ObjectExpression, ObjectProperty, StringLiteral } from 'oxc-parser';
-import type { GwenViteOptions } from '../types.js';
-import { parseSource, getObjectProperties, getPropertyKeyName } from '../oxc/index.js';
+import type { Plugin } from "vite";
+import { walk } from "oxc-walker";
+import type { ObjectExpression, ObjectProperty, StringLiteral } from "oxc-parser";
+import type { GwenViteOptions } from "../types.js";
+import { parseSource, getObjectProperties, getPropertyKeyName } from "../oxc/index.js";
 
 /**
  * Options for the `gwen:tween` sub-plugin.
@@ -22,10 +22,10 @@ export interface GwenTweenOptions {
 }
 
 /** Virtual module ID exposed to the user's code. */
-const VIRTUAL_ID = 'virtual:gwen/used-easings';
+const VIRTUAL_ID = "virtual:gwen/used-easings";
 
 /** Resolved internal module ID (prefixed with `\0` per Vite convention). */
-const RESOLVED_ID = '\0' + VIRTUAL_ID;
+const RESOLVED_ID = "\0" + VIRTUAL_ID;
 
 /**
  * Extract all easing function names used in `easing: '...'` properties within
@@ -43,22 +43,22 @@ const RESOLVED_ID = '\0' + VIRTUAL_ID;
  *
  * @since 1.0.0
  */
-export function extractUsedEasings(code: string, filename = 'tween.ts'): Set<string> {
+export function extractUsedEasings(code: string, filename = "tween.ts"): Set<string> {
   const found = new Set<string>();
-  if (!code.includes('easing')) return found;
+  if (!code.includes("easing")) return found;
 
   const parsed = parseSource(filename, code);
   if (!parsed) return found;
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'ObjectExpression') return;
+      if (node.type !== "ObjectExpression") return;
       for (const prop of getObjectProperties(node as ObjectExpression)) {
-        if (getPropertyKeyName(prop) !== 'easing') continue;
+        if (getPropertyKeyName(prop) !== "easing") continue;
         const { value } = prop as ObjectProperty;
         // StringLiteral and NumericLiteral both have type: 'Literal'
         // Distinguish by typeof value — cast only after the runtime check
-        if (value.type === 'Literal' && typeof (value as StringLiteral).value === 'string') {
+        if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
           found.add((value as StringLiteral).value);
         }
       }
@@ -94,7 +94,7 @@ export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
   const collectedEasings = new Set<string>();
 
   return {
-    name: 'gwen:tween',
+    name: "gwen:tween",
 
     buildStart() {
       // Reset collected easings at the start of every build so incremental
@@ -120,7 +120,7 @@ export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
       // Only process TS/JS files.
       if (!/\.(ts|js|tsx|jsx)$/.test(id)) return;
       // Quick bail-out — skip files that cannot contain a useTween easing.
-      if (!code.includes('useTween') && !code.includes('easing:')) return;
+      if (!code.includes("useTween") && !code.includes("easing:")) return;
 
       const found = extractUsedEasings(code);
       for (const name of found) {
@@ -130,9 +130,9 @@ export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
     },
 
     buildEnd() {
-      if (this.environment?.mode === 'dev' || process.env['NODE_ENV'] === 'development') {
+      if (this.environment?.mode === "dev" || process.env["NODE_ENV"] === "development") {
         const count = collectedEasings.size;
-        const names = [...collectedEasings].sort().join(', ') || '(none)';
+        const names = [...collectedEasings].sort().join(", ") || "(none)";
         // eslint-disable-next-line no-console
         console.info(`[gwen:tween] Detected ${count} easing(s): ${names}`);
       }

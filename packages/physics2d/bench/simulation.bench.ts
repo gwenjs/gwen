@@ -19,7 +19,7 @@
  *   pnpm --filter @gwenjs/physics2d bench
  */
 
-import { describe, bench } from 'vitest';
+import { describe, bench } from "vitest";
 
 import type {
   Physics2DAPI,
@@ -27,10 +27,10 @@ import type {
   CollisionEventsBatch,
   TilemapPhysicsChunk,
   TilemapPhysicsChunkMap,
-} from '../src/types';
-import { dedupeContactsByPair } from '../src/helpers/contact';
-import { buildTilemapPhysicsChunks } from '../src/helpers/tilemap';
-import { makeTiles } from './fixtures';
+} from "../src/types";
+import { dedupeContactsByPair } from "../src/helpers/contact";
+import { buildTilemapPhysicsChunks } from "../src/helpers/tilemap";
+import { makeTiles } from "./fixtures";
 
 // ---------------------------------------------------------------------------
 // Mock Physics2DAPI — no-op, isolates TS overhead from WASM
@@ -150,18 +150,18 @@ function simulateSteps(physics: Physics2DAPI, steps: number): void {
 // Benchmark: simulation step overhead
 // ---------------------------------------------------------------------------
 
-describe('Physics2D — simulation step (mock API)', () => {
+describe("Physics2D — simulation step (mock API)", () => {
   const physics = makeMockPhysics();
 
-  bench('step() × 50 — low body count scenario', () => {
+  bench("step() × 50 — low body count scenario", () => {
     simulateSteps(physics, 50);
   });
 
-  bench('step() × 200 — medium body count scenario', () => {
+  bench("step() × 200 — medium body count scenario", () => {
     simulateSteps(physics, 200);
   });
 
-  bench('step() × 1000 — stress scenario', () => {
+  bench("step() × 1000 — stress scenario", () => {
     simulateSteps(physics, 1_000);
   });
 });
@@ -170,20 +170,20 @@ describe('Physics2D — simulation step (mock API)', () => {
 // Benchmark: collision event processing
 // ---------------------------------------------------------------------------
 
-describe('Physics2D — collision event processing', () => {
-  bench('dedupeContactsByPair — 100 events per frame × 100 frames', () => {
+describe("Physics2D — collision event processing", () => {
+  bench("dedupeContactsByPair — 100 events per frame × 100 frames", () => {
     for (let f = 0; f < 100; f++) {
       dedupeContactsByPair(EVENTS_100);
     }
   });
 
-  bench('dedupeContactsByPair — 1000 events per frame × 100 frames', () => {
+  bench("dedupeContactsByPair — 1000 events per frame × 100 frames", () => {
     for (let f = 0; f < 100; f++) {
       dedupeContactsByPair(EVENTS_1000);
     }
   });
 
-  bench('read and process CollisionEventsBatch — 100 events', () => {
+  bench("read and process CollisionEventsBatch — 100 events", () => {
     const { events } = BATCH_100;
     let started = 0;
     for (let i = 0; i < events.length; i++) {
@@ -192,7 +192,7 @@ describe('Physics2D — collision event processing', () => {
     return started;
   });
 
-  bench('read and process CollisionEventsBatch — 1000 events', () => {
+  bench("read and process CollisionEventsBatch — 1000 events", () => {
     const { events } = BATCH_1000;
     let started = 0;
     for (let i = 0; i < events.length; i++) {
@@ -206,23 +206,23 @@ describe('Physics2D — collision event processing', () => {
 // Benchmark: tilemap chunk operations
 // ---------------------------------------------------------------------------
 
-describe('Physics2D — tilemap chunk operations', () => {
+describe("Physics2D — tilemap chunk operations", () => {
   const physics = makeMockPhysics();
 
-  bench('loadTilemapPhysicsChunk() — 16×16 chunk × 100', () => {
+  bench("loadTilemapPhysicsChunk() — 16×16 chunk × 100", () => {
     if (!FIRST_CHUNK) return;
     for (let i = 0; i < 100; i++) {
       physics.loadTilemapPhysicsChunk(FIRST_CHUNK, 0, 0);
     }
   });
 
-  bench('unloadTilemapPhysicsChunk() — cleanup × 100', () => {
+  bench("unloadTilemapPhysicsChunk() — cleanup × 100", () => {
     for (let i = 0; i < 100; i++) {
-      physics.unloadTilemapPhysicsChunk('chunk_0_0');
+      physics.unloadTilemapPhysicsChunk("chunk_0_0");
     }
   });
 
-  bench('buildTilemapPhysicsChunks() — 32×32 tile map', () => {
+  bench("buildTilemapPhysicsChunks() — 32×32 tile map", () => {
     buildTilemapPhysicsChunks({
       tiles: makeTiles(32, 32),
       mapWidthTiles: 32,

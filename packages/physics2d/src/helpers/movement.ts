@@ -1,5 +1,5 @@
-import type { EntityId } from '@gwenjs/core';
-import type { Physics2DAPI } from '../types';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics2DAPI } from "../types";
 
 /**
  * Move a kinematic body by integrating velocity over delta time.

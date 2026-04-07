@@ -12,20 +12,20 @@
  * - empty steps array: onComplete fires immediately on play()
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { createEngine } from '../../src/index';
-import { useTween } from '../../src/tween/use-tween';
-import { defineSequence } from '../../src/tween/define-sequence';
-import { getTweenManager } from '../../src/tween/tween-manager';
+import { describe, it, expect, vi } from "vitest";
+import { createEngine } from "../../src/index";
+import { useTween } from "../../src/tween/use-tween";
+import { defineSequence } from "../../src/tween/define-sequence";
+import { getTweenManager } from "../../src/tween/tween-manager";
 
 // ── Steps execute in order ────────────────────────────────────────────────────
 
-describe('defineSequence() step ordering', () => {
-  it('steps execute in order: first tween then second tween', async () => {
+describe("defineSequence() step ordering", () => {
+  it("steps execute in order: first tween then second tween", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 1 },
@@ -51,11 +51,11 @@ describe('defineSequence() step ordering', () => {
     });
   });
 
-  it('second tween starts with correct from/to values', async () => {
+  it("second tween starts with correct from/to values", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 1.0, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 1.0, easing: "linear" });
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 50 },
@@ -72,13 +72,13 @@ describe('defineSequence() step ordering', () => {
     });
   });
 
-  it('three-step sequence executes all steps', async () => {
+  it("three-step sequence executes all steps", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tweens = [
-        useTween<number>({ duration: 0.1, easing: 'linear' }),
-        useTween<number>({ duration: 0.1, easing: 'linear' }),
-        useTween<number>({ duration: 0.1, easing: 'linear' }),
+        useTween<number>({ duration: 0.1, easing: "linear" }),
+        useTween<number>({ duration: 0.1, easing: "linear" }),
+        useTween<number>({ duration: 0.1, easing: "linear" }),
       ];
       const completedSteps: number[] = [];
 
@@ -107,16 +107,16 @@ describe('defineSequence() step ordering', () => {
 
 // ── { wait: N } delay step ────────────────────────────────────────────────────
 
-describe('defineSequence() wait steps', () => {
-  it('wait step delays the next tween from starting', async () => {
+describe("defineSequence() wait steps", () => {
+  it("wait step delays the next tween from starting", async () => {
     const engine = await createEngine({ maxEntities: 100 });
 
     let tween2Started = false;
     let capturedTween2: ReturnType<typeof useTween<number>> | null = null;
 
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
       capturedTween2 = tween2;
 
       const seq = defineSequence([
@@ -140,12 +140,12 @@ describe('defineSequence() wait steps', () => {
     expect(capturedTween2!.playing).toBe(false);
   });
 
-  it('wait step triggers next tween after its duration elapses via pool tick', async () => {
+  it("wait step triggers next tween after its duration elapses via pool tick", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const manager = getTweenManager();
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 1 },
@@ -159,7 +159,7 @@ describe('defineSequence() wait steps', () => {
       tween1.tick(0.5);
       // Now the wait step is active in the pool
       // Tick the pool to advance the wait slot
-      manager['_pool'].tick(0.5);
+      manager["_pool"].tick(0.5);
       // After the wait, tween2 should have started
       expect(tween2.playing).toBe(true);
     });
@@ -168,12 +168,12 @@ describe('defineSequence() wait steps', () => {
 
 // ── onComplete fires once at sequence end ─────────────────────────────────────
 
-describe('defineSequence() onComplete', () => {
-  it('fires once when all steps complete', async () => {
+describe("defineSequence() onComplete", () => {
+  it("fires once when all steps complete", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
       const cb = vi.fn();
 
       const seq = defineSequence([
@@ -191,11 +191,11 @@ describe('defineSequence() onComplete', () => {
     });
   });
 
-  it('does NOT fire before all steps complete', async () => {
+  it("does NOT fire before all steps complete", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
       const cb = vi.fn();
 
       const seq = defineSequence([
@@ -211,7 +211,7 @@ describe('defineSequence() onComplete', () => {
     });
   });
 
-  it('multiple onComplete callbacks all fire', async () => {
+  it("multiple onComplete callbacks all fire", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 0.5 });
@@ -233,8 +233,8 @@ describe('defineSequence() onComplete', () => {
 
 // ── empty steps array ─────────────────────────────────────────────────────────
 
-describe('defineSequence() with empty steps array', () => {
-  it('onComplete fires immediately when play() is called with empty steps', async () => {
+describe("defineSequence() with empty steps array", () => {
+  it("onComplete fires immediately when play() is called with empty steps", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const cb = vi.fn();
@@ -248,11 +248,11 @@ describe('defineSequence() with empty steps array', () => {
 
 // ── pause() ───────────────────────────────────────────────────────────────────
 
-describe('defineSequence() pause()', () => {
-  it('pause() during a tween step stops the tween', async () => {
+describe("defineSequence() pause()", () => {
+  it("pause() during a tween step stops the tween", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       const seq = defineSequence([{ tween, from: 0, to: 100 }]);
 
       seq.play();
@@ -263,7 +263,7 @@ describe('defineSequence() pause()', () => {
     });
   });
 
-  it('pause() during a wait step pauses the wait slot', async () => {
+  it("pause() during a wait step pauses the wait slot", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const manager = getTweenManager();
@@ -286,7 +286,7 @@ describe('defineSequence() pause()', () => {
       seq.pause();
 
       // Tick pool — wait slot should not advance past 1s because it's paused
-      manager['_pool'].tick(1.5);
+      manager["_pool"].tick(1.5);
 
       // tween2 should not have started
       expect(tween2.playing).toBe(false);
@@ -297,11 +297,11 @@ describe('defineSequence() pause()', () => {
 
 // ── reset() ───────────────────────────────────────────────────────────────────
 
-describe('defineSequence() reset()', () => {
-  it('reset() stops execution', async () => {
+describe("defineSequence() reset()", () => {
+  it("reset() stops execution", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       const cb = vi.fn();
       const seq = defineSequence([{ tween, from: 0, to: 1 }]);
 
@@ -317,11 +317,11 @@ describe('defineSequence() reset()', () => {
     });
   });
 
-  it('play() after reset() restarts from beginning', async () => {
+  it("play() after reset() restarts from beginning", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: 'linear' });
-      const tween2 = useTween<number>({ duration: 0.5, easing: 'linear' });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
       const order: string[] = [];
 
       const seq = defineSequence([
@@ -338,22 +338,22 @@ describe('defineSequence() reset()', () => {
 
       // seq.play() calls _runStep(0) → tween1.play() (clears cbs).
       // Register AFTER seq.play() to avoid being wiped.
-      tween1.onComplete(() => order.push('step1'));
+      tween1.onComplete(() => order.push("step1"));
 
       tween1.tick(0.5); // complete step 1 again
       // tween2 is now started; register its callback
-      tween2.onComplete(() => order.push('step2'));
+      tween2.onComplete(() => order.push("step2"));
       tween2.tick(0.5); // complete step 2
 
-      expect(order).toEqual(['step1', 'step2']);
+      expect(order).toEqual(["step1", "step2"]);
     });
   });
 
-  it('reset() releases active wait slot back to pool', async () => {
+  it("reset() releases active wait slot back to pool", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const manager = getTweenManager();
-      const pool = manager['_pool'];
+      const pool = manager["_pool"];
       const tween1 = useTween<number>({ duration: 0.1 });
 
       const seq = defineSequence([{ tween: tween1, from: 0, to: 1 }, { wait: 1.0 }]);
@@ -373,8 +373,8 @@ describe('defineSequence() reset()', () => {
 
 // ── defineSequence() called outside context ───────────────────────────────────
 
-describe('defineSequence() outside engine context', () => {
-  it('throws when called outside any engine context', () => {
+describe("defineSequence() outside engine context", () => {
+  it("throws when called outside any engine context", () => {
     expect(() => defineSequence([])).toThrow();
   });
 });

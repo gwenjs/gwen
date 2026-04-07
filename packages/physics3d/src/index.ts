@@ -8,16 +8,16 @@
  * TypeScript simulation when the WASM physics3d variant is unavailable.
  */
 
-import './augment';
+import "./augment";
 
-export { Physics3DPlugin } from './plugin/index';
-export { Physics3DPlugin as default } from './plugin/index';
-export type { PreloadedBvhHandle } from './plugin/bvh';
-export { _clearBvhCache, preloadMeshCollider } from './plugin/bvh';
-export { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from './plugin/constants';
-export { ContactRingBuffer3D, CONTACT_EVENT_FLOATS, RING_CAPACITY_3D } from './plugin/ring-buffer';
-export { Physics3DErrorCodes } from './errors/codes';
-export type { Physics3DErrorCode } from './errors/codes';
+export { Physics3DPlugin } from "./plugin/index";
+export { Physics3DPlugin as default } from "./plugin/index";
+export type { PreloadedBvhHandle } from "./plugin/bvh";
+export { _clearBvhCache, preloadMeshCollider } from "./plugin/bvh";
+export { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./plugin/constants";
+export { ContactRingBuffer3D, CONTACT_EVENT_FLOATS, RING_CAPACITY_3D } from "./plugin/ring-buffer";
+export { Physics3DErrorCodes } from "./errors/codes";
+export type { Physics3DErrorCode } from "./errors/codes";
 
 export type {
   Physics3DAPI,
@@ -36,24 +36,24 @@ export type {
   Physics3DQuat,
   Physics3DConfig,
   Physics3DEntityId,
-} from './types';
+} from "./types";
 
-export { normalizePhysics3DConfig } from './config';
-export { QUALITY_PRESETS } from './config';
+export { normalizePhysics3DConfig } from "./config";
+export { QUALITY_PRESETS } from "./config";
 
-export * from './helpers/contact';
-export * from './helpers/movement';
-export * from './helpers/queries';
-export * from './systems';
+export * from "./helpers/contact";
+export * from "./helpers/movement";
+export * from "./helpers/queries";
+export * from "./systems";
 
 // ─── Module, composables & type augmentations ─────────────────────────────────
-export * from './augment';
-export { usePhysics3D } from './composables';
-export { default as physics3dModule } from './module';
+export * from "./augment";
+export { usePhysics3D } from "./composables";
+export { default as physics3dModule } from "./module";
 
 // ─── RFC-06 DX composables ────────────────────────────────────────────────────
-export * from './composables/index';
-export { physics3dVitePlugin, createGwenPhysics3DPlugin } from './vite-plugin';
+export * from "./composables/index";
+export { physics3dVitePlugin, createGwenPhysics3DPlugin } from "./vite-plugin";
 export type {
   ContactEvent3D,
   StaticBodyOptions3D,
@@ -73,6 +73,6 @@ export type {
   CompoundColliderHandle3D,
   CompoundShapeSpec,
   CompoundColliderOptions3D,
-} from './types';
+} from "./types";
 
-export type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from './types';
+export type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from "./types";

@@ -1,11 +1,11 @@
 /**
  * @file useSphereCollider() — attaches a sphere-shaped collider to the current entity.
  */
-import type { SphereColliderHandle3D, Physics3DMaterialPreset } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import { nextColliderId } from './collider-id';
+import type { SphereColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import { nextColliderId } from "./collider-id";
 
 /**
  * Options for configuring a sphere-shaped 3D collider.
@@ -56,7 +56,7 @@ export function useSphereCollider(options: SphereColliderOptions3D): SphereColli
 
   physics.addCollider(entityId, {
     shape: {
-      type: 'sphere',
+      type: "sphere",
       radius: options.radius,
     },
     offsetX: options.offsetX,

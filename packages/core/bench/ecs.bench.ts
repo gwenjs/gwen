@@ -11,9 +11,9 @@
  * With WASM active (after initWasm()), both columns are compared.
  */
 
-import { bench, describe } from 'vitest';
-import { EntityManager, ComponentRegistry, QueryEngine } from '../src/core/ecs';
-import { getWasmBridge, _resetWasmBridge } from '../src/engine/wasm-bridge';
+import { bench, describe } from "vitest";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { getWasmBridge, _resetWasmBridge } from "../src/engine/wasm-bridge";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -26,26 +26,26 @@ function makeTsEcs(maxEntities = 10_000) {
 
 // ── Benchmark 1: entity creation ─────────────────────────────────────────────
 
-describe('Entity creation — 1 000 entities', () => {
-  bench('TS-only', () => {
+describe("Entity creation — 1 000 entities", () => {
+  bench("TS-only", () => {
     const { em } = makeTsEcs(1_000);
     for (let i = 0; i < 1_000; i++) em.create();
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return; // Skip gracefully if WASM not loaded
     for (let i = 0; i < 1_000; i++) bridge.createEntity();
   });
 });
 
-describe('Entity creation — 10 000 entities', () => {
-  bench('TS-only', () => {
+describe("Entity creation — 10 000 entities", () => {
+  bench("TS-only", () => {
     const { em } = makeTsEcs(10_000);
     for (let i = 0; i < 10_000; i++) em.create();
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return;
     for (let i = 0; i < 10_000; i++) bridge.createEntity();
@@ -54,15 +54,15 @@ describe('Entity creation — 10 000 entities', () => {
 
 // ── Benchmark 2 : is_alive / isAlive ─────────────────────────────────────────
 
-describe('isAlive — 10 000 checks', () => {
+describe("isAlive — 10 000 checks", () => {
   const { em } = makeTsEcs(1);
   const tsId = em.create();
 
-  bench('TS-only', () => {
+  bench("TS-only", () => {
     for (let i = 0; i < 10_000; i++) em.isAlive(tsId);
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return;
     const id = bridge.createEntity()!;
@@ -72,15 +72,15 @@ describe('isAlive — 10 000 checks', () => {
 
 // ── Benchmark 3 : add + get composant ────────────────────────────────────────
 
-describe('Component add + get — 1 000 entities', () => {
-  bench('TS-only', () => {
+describe("Component add + get — 1 000 entities", () => {
+  bench("TS-only", () => {
     const { em, cr } = makeTsEcs(1_000);
     const ids = Array.from({ length: 1_000 }, () => em.create());
-    for (const id of ids) cr.add(id, 'Position', { x: 0, y: 0 });
-    for (const id of ids) cr.get(id, 'Position');
+    for (const id of ids) cr.add(id, "Position", { x: 0, y: 0 });
+    for (const id of ids) cr.get(id, "Position");
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return;
     const typeId = bridge.registerComponentType()!;
@@ -97,17 +97,17 @@ describe('Component add + get — 1 000 entities', () => {
 
 // ── Benchmark 4 : query ───────────────────────────────────────────────────────
 
-describe('Query — 1 000 entities, 1 component type', () => {
-  bench('TS-only', () => {
+describe("Query — 1 000 entities, 1 component type", () => {
+  bench("TS-only", () => {
     const { em, cr, qe } = makeTsEcs(1_000);
     for (let i = 0; i < 1_000; i++) {
       const id = em.create();
-      cr.add(id, 'Position', { x: i, y: 0 });
+      cr.add(id, "Position", { x: i, y: 0 });
     }
-    qe.query(['Position'], em, cr);
+    qe.query(["Position"], em, cr);
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return;
     const typeId = bridge.registerComponentType()!;
@@ -123,14 +123,14 @@ describe('Query — 1 000 entities, 1 component type', () => {
 
 // ── Benchmark 5 : entity lifecycle (create + delete) ─────────────────────────
 
-describe('Entity lifecycle (create + delete) — 5 000 cycles', () => {
-  bench('TS-only', () => {
+describe("Entity lifecycle (create + delete) — 5 000 cycles", () => {
+  bench("TS-only", () => {
     const { em } = makeTsEcs(5_000);
     const ids = Array.from({ length: 5_000 }, () => em.create());
     for (const id of ids) em.destroy(id);
   });
 
-  bench('WASM (if active)', () => {
+  bench("WASM (if active)", () => {
     const bridge = getWasmBridge();
     if (!bridge.isActive()) return;
     const ids: Array<{ index: number; generation: number }> = [];

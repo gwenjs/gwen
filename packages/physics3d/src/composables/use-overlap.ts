@@ -1,8 +1,8 @@
 /**
  * @file useOverlap() — registers a persistent per-frame overlap query slot for the scene.
  */
-import { usePhysics3D } from '../composables';
-import type { OverlapOpts, OverlapHandle } from '../types';
+import { usePhysics3D } from "../composables";
+import type { OverlapOpts, OverlapHandle } from "../types";
 
 /**
  * Extended handle returned by {@link useOverlap}.

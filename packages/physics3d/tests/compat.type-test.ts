@@ -10,7 +10,7 @@ import type {
   DynamicBodyHandle3D,
   BoxColliderHandle3D,
   ColliderHandle3D,
-} from '../src/types.js';
+} from "../src/types.js";
 
 // DynamicBodyHandle3D must extend StaticBodyHandle3D
 const _dynamicIsStatic: StaticBodyHandle3D = {} as DynamicBodyHandle3D;
@@ -63,15 +63,15 @@ import type {
   useStaticBody as _use2DStatic,
   useBoxCollider as _use2DBox,
   StaticBodyOptions,
-} from '@gwenjs/physics2d';
+} from "@gwenjs/physics2d";
 // @ts-ignore — @gwenjs/physics2d does not yet export BoxColliderOptions; works in built monorepo
-import type { BoxColliderOptions } from '@gwenjs/physics2d';
-import type { StaticBodyOptions3D } from '../src/types.js';
+import type { BoxColliderOptions } from "@gwenjs/physics2d";
+import type { StaticBodyOptions3D } from "../src/types.js";
 import type {
   useStaticBody as _use3DStatic,
   useBoxCollider as _use3DBox,
-} from '../src/composables/index.js';
-import type { BoxColliderOptions3D } from '../src/composables/use-box-collider.js';
+} from "../src/composables/index.js";
+import type { BoxColliderOptions3D } from "../src/composables/use-box-collider.js";
 
 // 2D options should structurally extend 3D options (2D is a subset of 3D params)
 // @ts-ignore — StaticBodyOptions from physics2d not yet exported; this check is valid in built monorepo
@@ -88,8 +88,8 @@ const _boxCompatCheck: _BoxCompat = true;
 void _boxCompatCheck;
 
 // Vitest requires at least one test in the file
-import { it, expect } from 'vitest';
-it('type compatibility — this test just needs to compile', () => {
+import { it, expect } from "vitest";
+it("type compatibility — this test just needs to compile", () => {
   // The compile-time checks above are the real assertions.
   expect(true).toBe(true);
 });

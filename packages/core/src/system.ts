@@ -26,10 +26,10 @@
  * ```
  */
 
-import { useEngine } from './context.js';
-import type { GwenPlugin, GwenProvides, WasmModuleHandle } from './engine/gwen-engine.js';
-import type { EntityId } from './engine/engine-api.js';
-import type { ComponentDefinition, ComponentSchema, InferComponent } from './schema.js';
+import { useEngine } from "./context.js";
+import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "./engine/gwen-engine.js";
+import type { EntityId } from "./engine/engine-api.js";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "./schema.js";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -69,8 +69,8 @@ let _currentSystemContext: SystemContext | null = null;
 export function _getSystemContext(): SystemContext {
   if (!_currentSystemContext) {
     throw new Error(
-      '[GWEN] onUpdate/onRender/onBeforeUpdate/onAfterUpdate must be called ' +
-        'inside a defineSystem() setup callback, not inside the lifecycle function itself.',
+      "[GWEN] onUpdate/onRender/onBeforeUpdate/onAfterUpdate must be called " +
+        "inside a defineSystem() setup callback, not inside the lifecycle function itself.",
     );
   }
   return _currentSystemContext;
@@ -223,8 +223,8 @@ export function onRender(fn: RenderFn): void {
 export function defineSystem(name: string, setup: () => void): GwenPlugin;
 export function defineSystem(setup: () => void): GwenPlugin;
 export function defineSystem(nameOrSetup: string | (() => void), setup?: () => void): GwenPlugin {
-  const systemName = typeof nameOrSetup === 'string' ? nameOrSetup : (nameOrSetup.name || '');
-  const setupFn = typeof nameOrSetup === 'function' ? nameOrSetup : setup!;
+  const systemName = typeof nameOrSetup === "string" ? nameOrSetup : nameOrSetup.name || "";
+  const setupFn = typeof nameOrSetup === "function" ? nameOrSetup : setup!;
 
   const _beforeUpdate: UpdateFn[] = [];
   const _update: UpdateFn[] = [];
@@ -236,10 +236,10 @@ export function defineSystem(nameOrSetup: string | (() => void), setup?: () => v
       if (!systemName) {
         // eslint-disable-next-line no-console
         console.warn(
-          '[GWEN] defineSystem() called without a name. ' +
-            'Pass a name as first argument: defineSystem(\'mySystem\', () => { ... })',
+          "[GWEN] defineSystem() called without a name. " +
+            "Pass a name as first argument: defineSystem('mySystem', () => { ... })",
         );
-        return 'anonymous-system';
+        return "anonymous-system";
       }
       return systemName;
     })(),

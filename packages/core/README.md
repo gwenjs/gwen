@@ -23,11 +23,11 @@ npm install@gwenjs/core
 ### Basic Usage
 
 ```typescript
-import { Engine, defineConfig } from '@gwenjs/core';
+import { Engine, defineConfig } from "@gwenjs/core";
 
 // Define configuration
 const config = defineConfig({
-  canvas: 'game-canvas',
+  canvas: "game-canvas",
   width: 1280,
   height: 720,
   maxEntities: 5000,
@@ -36,17 +36,17 @@ const config = defineConfig({
 // Create and start engine
 const engine = new Engine(config);
 
-engine.on('ready', () => {
+engine.on("ready", () => {
   // Game ready
   const player = engine.createEntity();
-  engine.addComponent(player, 'transform', {
+  engine.addComponent(player, "transform", {
     x: 100,
     y: 100,
     rotation: 0,
   });
 });
 
-engine.on('update', ({ deltaTime }) => {
+engine.on("update", ({ deltaTime }) => {
   // Update game logic
 });
 
@@ -115,7 +115,7 @@ Simple configuration definition:
 
 ```typescript
 const config = defineConfig({
-  canvas: 'my-canvas',
+  canvas: "my-canvas",
   width: 1920,
   height: 1080,
   maxEntities: 10000,
@@ -132,7 +132,7 @@ Advanced builder with chaining:
 
 ```typescript
 const config = new ConfigBuilder()
-  .setCanvas('game')
+  .setCanvas("game")
   .setResolution(1920, 1080)
   .setMaxEntities(10000)
   .setTargetFPS(60)
@@ -148,11 +148,11 @@ const engine = new Engine(config);
 ### Example 1: Simple Game
 
 ```typescript
-import { Engine, defineConfig } from '@gwenjs/core';
+import { Engine, defineConfig } from "@gwenjs/core";
 
 const engine = new Engine(
   defineConfig({
-    canvas: 'canvas',
+    canvas: "canvas",
     width: 800,
     height: 600,
   }),
@@ -160,23 +160,23 @@ const engine = new Engine(
 
 // Create player
 const player = engine.createEntity();
-engine.addComponent(player, 'transform', {
+engine.addComponent(player, "transform", {
   x: 400,
   y: 300,
   rotation: 0,
 });
 
-engine.addComponent(player, 'sprite', {
+engine.addComponent(player, "sprite", {
   width: 32,
   height: 32,
   color: { r: 0, g: 0, b: 1, a: 1 },
 });
 
 // Update loop
-engine.on('update', ({ deltaTime }) => {
-  const transform = engine.getComponent(player, 'transform');
+engine.on("update", ({ deltaTime }) => {
+  const transform = engine.getComponent(player, "transform");
   transform.x += 100 * deltaTime;
-  engine.addComponent(player, 'transform', transform);
+  engine.addComponent(player, "transform", transform);
 });
 
 engine.start();
@@ -186,17 +186,17 @@ engine.start();
 
 ```typescript
 // Get all moving entities
-const movingEntities = engine.query(['transform', 'velocity']);
+const movingEntities = engine.query(["transform", "velocity"]);
 
-engine.on('update', ({ deltaTime }) => {
+engine.on("update", ({ deltaTime }) => {
   movingEntities.forEach((entityId) => {
-    const transform = engine.getComponent(entityId, 'transform');
-    const velocity = engine.getComponent(entityId, 'velocity');
+    const transform = engine.getComponent(entityId, "transform");
+    const velocity = engine.getComponent(entityId, "velocity");
 
     transform.x += velocity.x * deltaTime;
     transform.y += velocity.y * deltaTime;
 
-    engine.addComponent(entityId, 'transform', transform);
+    engine.addComponent(entityId, "transform", transform);
   });
 });
 ```
@@ -204,21 +204,21 @@ engine.on('update', ({ deltaTime }) => {
 ### Example 3: With Plugins
 
 ```typescript
-import { Engine } from '@gwenjs/core';
-import { PhysicsPlugin } from '@gwenjs/gwen-physics';
-import { InputPlugin } from '@gwenjs/gwen-input';
+import { Engine } from "@gwenjs/core";
+import { PhysicsPlugin } from "@gwenjs/gwen-physics";
+import { InputPlugin } from "@gwenjs/gwen-input";
 
 const engine = new Engine();
 
 // Load plugins
-engine.loadPlugin('physics', PhysicsPlugin);
-engine.loadPlugin('input', InputPlugin);
+engine.loadPlugin("physics", PhysicsPlugin);
+engine.loadPlugin("input", InputPlugin);
 
-const input = engine.getPlugin('input');
-const physics = engine.getPlugin('physics');
+const input = engine.getPlugin("input");
+const physics = engine.getPlugin("physics");
 
-engine.on('update', () => {
-  if (input.isKeyPressed('ArrowUp')) {
+engine.on("update", () => {
+  if (input.isKeyPressed("ArrowUp")) {
     // Handle input
   }
 });
@@ -231,14 +231,14 @@ engine.start();
 ### Creating a Plugin
 
 ```typescript
-import type { Plugin } from '@gwenjs/core';
+import type { Plugin } from "@gwenjs/core";
 
 export const MyPlugin: Plugin = {
-  name: 'my-plugin',
-  version: '1.0.0',
+  name: "my-plugin",
+  version: "1.0.0",
 
   init(engine) {
-    console.log('Plugin initialized');
+    console.log("Plugin initialized");
   },
 
   update(dt) {
@@ -246,12 +246,12 @@ export const MyPlugin: Plugin = {
   },
 
   destroy() {
-    console.log('Plugin destroyed');
+    console.log("Plugin destroyed");
   },
 };
 
 // Use it
-engine.loadPlugin('my-plugin', MyPlugin);
+engine.loadPlugin("my-plugin", MyPlugin);
 ```
 
 ### Plugin Types
@@ -268,7 +268,7 @@ Built-in components:
 ### Transform
 
 ```typescript
-engine.addComponent(entity, 'transform', {
+engine.addComponent(entity, "transform", {
   x: 100,
   y: 100,
   rotation: 0,
@@ -280,19 +280,19 @@ engine.addComponent(entity, 'transform', {
 ### Sprite
 
 ```typescript
-engine.addComponent(entity, 'sprite', {
+engine.addComponent(entity, "sprite", {
   width: 64,
   height: 64,
   color: { r: 1, g: 0, b: 0, a: 1 },
   opacity: 1,
-  imageUrl: 'path/to/image.png',
+  imageUrl: "path/to/image.png",
 });
 ```
 
 ### Velocity
 
 ```typescript
-engine.addComponent(entity, 'velocity', {
+engine.addComponent(entity, "velocity", {
   x: 100,
   y: 50,
 });
@@ -303,7 +303,7 @@ engine.addComponent(entity, 'velocity', {
 Get the global engine instance:
 
 ```typescript
-import { getEngine, useEngine } from '@gwenjs/core';
+import { getEngine, useEngine } from "@gwenjs/core";
 
 // Get or create
 const engine = getEngine();
@@ -318,24 +318,24 @@ Listen to engine events:
 
 ```typescript
 // Engine lifecycle
-engine.on('start', () => console.log('Game started'));
-engine.on('stop', () => console.log('Game stopped'));
+engine.on("start", () => console.log("Game started"));
+engine.on("stop", () => console.log("Game stopped"));
 
 // Frame updates
-engine.on('update', ({ deltaTime, frameCount }) => {
+engine.on("update", ({ deltaTime, frameCount }) => {
   console.log(`Frame ${frameCount}, DT: ${deltaTime}`);
 });
 
-engine.on('render', () => {
+engine.on("render", () => {
   // Render event
 });
 
 // Entity events
-engine.on('entityCreated', (entityId) => {
+engine.on("entityCreated", (entityId) => {
   console.log(`Entity ${entityId} created`);
 });
 
-engine.on('componentAdded', ({ entityId, componentType }) => {
+engine.on("componentAdded", ({ entityId, componentType }) => {
   console.log(`Component ${componentType} added to entity ${entityId}`);
 });
 ```
@@ -381,7 +381,7 @@ interface EngineConfig {
 Full TypeScript support with complete type definitions:
 
 ```typescript
-import type { EngineConfig, Entity, Component, Plugin } from '@gwenjs/core';
+import type { EngineConfig, Entity, Component, Plugin } from "@gwenjs/core";
 ```
 
 ## 🐛 Debug Mode

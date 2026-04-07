@@ -2,7 +2,7 @@
  * Tests for Physics3D collision event parsing, hook dispatch, sensor state
  * updates, and per-entity callbacks.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Mock WASM bridge ────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ const physics3dGetBodyKind = vi.fn(() => 1);
 const physics3dSetBodyKind = vi.fn(() => true);
 
 const mockBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getPhysicsBridge: vi.fn(() => ({
     physics3d_init: physics3dInit,
     physics3d_step: physics3dStep,
@@ -53,7 +53,7 @@ const mockBridge = {
   getEntityGeneration: vi.fn((_slot: number) => 0),
 };
 
-vi.mock('@gwenjs/core', () => ({
+vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({
     index: Number(id & 0xffffffffn),
@@ -63,8 +63,8 @@ vi.mock('@gwenjs/core', () => ({
     BigInt(index) | (BigInt(generation) << 32n),
 }));
 
-import { Physics3DPlugin, type Physics3DAPI } from '../src/index';
-import type { GwenEngine } from '@gwenjs/core';
+import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
+import type { GwenEngine } from "@gwenjs/core";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -126,7 +126,7 @@ function makeEngine(generationFor: (slot: number) => number | undefined = () => 
   return { engine, services, hookMap };
 }
 
-describe('Physics3D collision events — WASM backend mode', () => {
+describe("Physics3D collision events — WASM backend mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockEventCount = 0;
@@ -140,16 +140,16 @@ describe('Physics3D collision events — WASM backend mode', () => {
     const { engine, services, hookMap } = makeEngine();
     const plugin = Physics3DPlugin();
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     return { plugin, service, engine, hookMap };
   }
 
-  it('getCollisionContacts returns empty array when no events', () => {
+  it("getCollisionContacts returns empty array when no events", () => {
     const { service } = setup();
     expect(service.getCollisionContacts()).toHaveLength(0);
   });
 
-  it('reads events from the ring buffer and dispatches the hook', () => {
+  it("reads events from the ring buffer and dispatches the hook", () => {
     const { plugin, service, engine } = setup();
 
     service.createBody(1);
@@ -166,14 +166,14 @@ describe('Physics3D collision events — WASM backend mode', () => {
     plugin.onUpdate!();
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      'physics3d:collision',
+      "physics3d:collision",
       expect.arrayContaining([
         expect.objectContaining({ aColliderId: 0, bColliderId: 0, started: true }),
       ]),
     );
   });
 
-  it('populates getCollisionContacts after onUpdate', () => {
+  it("populates getCollisionContacts after onUpdate", () => {
     const { plugin, service } = setup();
 
     service.createBody(10);
@@ -195,7 +195,7 @@ describe('Physics3D collision events — WASM backend mode', () => {
     expect(contacts[1].started).toBe(false);
   });
 
-  it('does not dispatch hook when contact list is empty', () => {
+  it("does not dispatch hook when contact list is empty", () => {
     const { plugin, engine } = setup();
 
     mockEventCount = 0;
@@ -203,12 +203,12 @@ describe('Physics3D collision events — WASM backend mode', () => {
     plugin.onUpdate!();
 
     expect(engine.hooks.callHook).not.toHaveBeenCalledWith(
-      'physics3d:collision',
+      "physics3d:collision",
       expect.anything(),
     );
   });
 
-  it('calls physics3d_consume_events after reading', () => {
+  it("calls physics3d_consume_events after reading", () => {
     const { plugin, service } = setup();
 
     service.createBody(5);
@@ -224,7 +224,7 @@ describe('Physics3D collision events — WASM backend mode', () => {
     expect(physics3dConsumeEvents).toHaveBeenCalledTimes(1);
   });
 
-  it('parses absent collider ids as undefined', () => {
+  it("parses absent collider ids as undefined", () => {
     const { plugin, service } = setup();
 
     service.createBody(7);
@@ -244,7 +244,7 @@ describe('Physics3D collision events — WASM backend mode', () => {
     expect(contacts[0].bColliderId).toBeUndefined();
   });
 
-  it('updates sensor state from events with collider ids', () => {
+  it("updates sensor state from events with collider ids", () => {
     const { plugin, service, engine } = setup();
 
     service.createBody(11);
@@ -264,14 +264,14 @@ describe('Physics3D collision events — WASM backend mode', () => {
     // Since we're in WASM mode and entity ids resolve through createEntityId,
     // we check that the sensor hook was called
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      'physics3d:sensor:changed',
+      "physics3d:sensor:changed",
       expect.anything(), // entityId
       sensorId,
       expect.objectContaining({ isActive: true, contactCount: 1 }),
     );
   });
 
-  it('dispatches sensor:changed when sensor transitions to inactive', () => {
+  it("dispatches sensor:changed when sensor transitions to inactive", () => {
     const { plugin, service, engine } = setup();
 
     service.createBody(13);
@@ -304,14 +304,14 @@ describe('Physics3D collision events — WASM backend mode', () => {
     }
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
-      'physics3d:sensor:changed',
+      "physics3d:sensor:changed",
       expect.anything(),
       sensorId,
       expect.objectContaining({ isActive: false }),
     );
   });
 
-  it('getCollisionEventMetrics reflects the number of events read this frame', () => {
+  it("getCollisionEventMetrics reflects the number of events read this frame", () => {
     const { plugin, service } = setup();
 
     service.createBody(30);
@@ -332,19 +332,19 @@ describe('Physics3D collision events — WASM backend mode', () => {
     expect(service.getCollisionEventMetrics().eventCount).toBe(2);
   });
 
-  it('calls per-entity collision callbacks', () => {
+  it("calls per-entity collision callbacks", () => {
     const callback = vi.fn();
 
     const { plugin, service, engine } = setup();
     // Manually add a callback for slot 20
     service.createBody(20n, {
-      colliders: [{ shape: { type: 'box', halfX: 0.5, halfY: 0.5, halfZ: 0.5 } }],
+      colliders: [{ shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 } }],
     });
     service.createBody(21n);
 
     // Directly call the prefab handler to register callback for entity 20
     const prefabHandler = (engine as any).hooks.hook.mock.calls.find(
-      ([name]: [string]) => name === 'prefab:instantiate',
+      ([name]: [string]) => name === "prefab:instantiate",
     )?.[1];
     if (prefabHandler) {
       prefabHandler(20n, { physics3d: { body: {}, onCollision: callback } });
@@ -365,7 +365,7 @@ describe('Physics3D collision events — WASM backend mode', () => {
     );
   });
 
-  it('getCollisionContacts respects the max option', () => {
+  it("getCollisionContacts respects the max option", () => {
     const { plugin, service } = setup();
 
     service.createBody(40);
@@ -400,8 +400,8 @@ describe('Physics3D collision events — WASM backend mode', () => {
   });
 });
 
-describe('Physics3D collision events — local mode', () => {
-  it('getCollisionContacts returns empty array in local mode', () => {
+describe("Physics3D collision events — local mode", () => {
+  it("getCollisionContacts returns empty array in local mode", () => {
     // Override the mock bridge for this test to remove physics3d_add_body,
     // which forces the plugin into local simulation mode.
     mockBridge.getPhysicsBridge.mockReturnValueOnce({
@@ -413,7 +413,7 @@ describe('Physics3D collision events — local mode', () => {
     const { engine, services } = makeEngine();
     const plugin = Physics3DPlugin();
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
 
     // No events should exist in local mode — ring buffer is never consulted
     mockEventCount = 0;

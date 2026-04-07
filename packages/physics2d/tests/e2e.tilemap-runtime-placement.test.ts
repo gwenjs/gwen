@@ -4,12 +4,12 @@
  * This test stays inside the plugin library and validates the public helper flow:
  * bake chunks -> stream visible chunks -> patch one chunk.
  */
-import { describe, expect, it, vi } from 'vitest';
-import { buildTilemapPhysicsChunks } from '../src/helpers/tilemap';
-import { createTilemapChunkOrchestrator } from '../src/helpers/orchestration';
+import { describe, expect, it, vi } from "vitest";
+import { buildTilemapPhysicsChunks } from "../src/helpers/tilemap";
+import { createTilemapChunkOrchestrator } from "../src/helpers/orchestration";
 
-describe('e2e tilemap runtime placement contract (library scoped)', () => {
-  it('streams adjacent chunks at deterministic world offsets and patches in place', () => {
+describe("e2e tilemap runtime placement contract (library scoped)", () => {
+  it("streams adjacent chunks at deterministic world offsets and patches in place", () => {
     // 4x2 tiles, chunk size 2 => two horizontal chunks on the same row.
     const source = {
       tiles: [1, 1, 1, 1, 1, 1, 1, 1],

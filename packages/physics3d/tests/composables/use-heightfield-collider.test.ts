@@ -1,18 +1,18 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { Physics3DBodyHandle } from '../../src/types.js';
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import type { Physics3DBodyHandle } from "../../src/types.js";
 
-vi.mock('@gwenjs/core/actor', () => ({
+vi.mock("@gwenjs/core/actor", () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 
-vi.mock('../../src/composables/collider-id.js', () => ({
+vi.mock("../../src/composables/collider-id.js", () => ({
   nextColliderId: vi.fn(() => 7),
 }));
 
 const mockBodyHandle: Physics3DBodyHandle = {
   bodyId: 1,
   entityId: 0,
-  kind: 'fixed',
+  kind: "fixed",
   mass: 1,
   linearDamping: 0,
   angularDamping: 0,
@@ -31,22 +31,22 @@ const mockPhysics3D = {
   removeCollider: vi.fn(() => true),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
-import { useHeightfieldCollider } from '../../src/composables/use-heightfield-collider.js';
+import { useHeightfieldCollider } from "../../src/composables/use-heightfield-collider.js";
 
 const makeHeights = (n: number) => new Float32Array(n);
 
-describe('useHeightfieldCollider', () => {
+describe("useHeightfieldCollider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPhysics3D.addCollider.mockReturnValue(true);
     mockPhysics3D.removeCollider.mockReturnValue(true);
   });
 
-  it('calls addCollider with correct heightfield shape', () => {
+  it("calls addCollider with correct heightfield shape", () => {
     const heights = makeHeights(9); // 3×3
     useHeightfieldCollider({ heights, rows: 3, cols: 3, scaleX: 10, scaleY: 2, scaleZ: 10 });
 
@@ -54,7 +54,7 @@ describe('useHeightfieldCollider', () => {
       1n,
       expect.objectContaining({
         shape: {
-          type: 'heightfield',
+          type: "heightfield",
           heights,
           rows: 3,
           cols: 3,
@@ -66,7 +66,7 @@ describe('useHeightfieldCollider', () => {
     );
   });
 
-  it('uses scaleX/Y/Z defaults of 1 when omitted', () => {
+  it("uses scaleX/Y/Z defaults of 1 when omitted", () => {
     const heights = makeHeights(4); // 2×2
     useHeightfieldCollider({ heights, rows: 2, cols: 2 });
 
@@ -78,18 +78,18 @@ describe('useHeightfieldCollider', () => {
     );
   });
 
-  it('handle.colliderId equals the value from nextColliderId()', () => {
+  it("handle.colliderId equals the value from nextColliderId()", () => {
     const handle = useHeightfieldCollider({ heights: makeHeights(4), rows: 2, cols: 2 });
     expect(handle.colliderId).toBe(7);
   });
 
-  it('handle.remove() calls removeCollider with entityId and colliderId', () => {
+  it("handle.remove() calls removeCollider with entityId and colliderId", () => {
     const handle = useHeightfieldCollider({ heights: makeHeights(4), rows: 2, cols: 2 });
     handle.remove();
     expect(mockPhysics3D.removeCollider).toHaveBeenCalledWith(1n, 7);
   });
 
-  it('handle.update() calls removeCollider then addCollider with new heights', () => {
+  it("handle.update() calls removeCollider then addCollider with new heights", () => {
     const original = makeHeights(9);
     const handle = useHeightfieldCollider({
       heights: original,
@@ -118,7 +118,7 @@ describe('useHeightfieldCollider', () => {
     );
   });
 
-  it('passes friction, restitution, layer, mask to addCollider', () => {
+  it("passes friction, restitution, layer, mask to addCollider", () => {
     const heights = makeHeights(4);
     useHeightfieldCollider({
       heights,

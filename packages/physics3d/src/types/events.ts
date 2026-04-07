@@ -1,5 +1,5 @@
-import type { EntityId } from '@gwenjs/core';
-import type { Physics3DBodyOptions } from './bodies';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics3DBodyOptions } from "./bodies";
 
 // ─── Sensor ─────────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ export interface Physics3DPluginHooks {
    * Fired once per frame during `onUpdate` with all resolved collision contacts.
    * The array is read-only and ephemeral — do not retain across frames.
    */
-  'physics3d:collision': (contacts: ReadonlyArray<Physics3DCollisionContact>) => void;
+  "physics3d:collision": (contacts: ReadonlyArray<Physics3DCollisionContact>) => void;
 
   /**
    * Emitted on every sensor state transition (inactive → active or active → inactive).
@@ -74,7 +74,7 @@ export interface Physics3DPluginHooks {
    * @param sensorId - Stable sensor id (e.g. `SENSOR_ID_FOOT`).
    * @param state    - Updated sensor state after the transition.
    */
-  'physics3d:sensor:changed': (
+  "physics3d:sensor:changed": (
     entityId: EntityId,
     sensorId: number,
     state: Physics3DSensorState,

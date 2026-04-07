@@ -14,11 +14,11 @@
  * function under test, with no allocation overhead in the hot path.
  */
 
-import { describe, bench } from 'vitest';
-import { createEntityId } from '@gwenjs/core';
-import type { EntityId } from '@gwenjs/core';
-import { dedupeContactsByPair, selectContactsForEntityId } from '../src/helpers/contact';
-import type { CollisionEvent, CollisionEventsBatch } from '../src/types';
+import { describe, bench } from "vitest";
+import { createEntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
+import { dedupeContactsByPair, selectContactsForEntityId } from "../src/helpers/contact";
+import type { CollisionEvent, CollisionEventsBatch } from "../src/types";
 
 // ---------------------------------------------------------------------------
 // Fixture factories
@@ -74,30 +74,30 @@ const TARGET_ENTITY: EntityId = createEntityId(7, 1);
 // Benchmarks
 // ---------------------------------------------------------------------------
 
-describe('contact helpers — dedupeContactsByPair', () => {
-  bench('dedupeContactsByPair — 100 events', () => {
+describe("contact helpers — dedupeContactsByPair", () => {
+  bench("dedupeContactsByPair — 100 events", () => {
     dedupeContactsByPair(EVENTS_100);
   });
 
-  bench('dedupeContactsByPair — 500 events', () => {
+  bench("dedupeContactsByPair — 500 events", () => {
     dedupeContactsByPair(EVENTS_500);
   });
 
-  bench('dedupeContactsByPair — 1000 events', () => {
+  bench("dedupeContactsByPair — 1000 events", () => {
     dedupeContactsByPair(EVENTS_1000);
   });
 });
 
-describe('contact helpers — selectContactsForEntityId', () => {
-  bench('selectContactsForEntityId — 100 events', () => {
+describe("contact helpers — selectContactsForEntityId", () => {
+  bench("selectContactsForEntityId — 100 events", () => {
     selectContactsForEntityId(BATCH_100, TARGET_ENTITY);
   });
 
-  bench('selectContactsForEntityId — 500 events', () => {
+  bench("selectContactsForEntityId — 500 events", () => {
     selectContactsForEntityId(BATCH_500, TARGET_ENTITY);
   });
 
-  bench('selectContactsForEntityId — 1000 events', () => {
+  bench("selectContactsForEntityId — 1000 events", () => {
     selectContactsForEntityId(BATCH_1000, TARGET_ENTITY);
   });
 });

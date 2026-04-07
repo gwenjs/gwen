@@ -8,7 +8,7 @@
  * that bypass the composable query system.
  */
 
-import { walk } from 'oxc-walker';
+import { walk } from "oxc-walker";
 import type {
   CallExpression,
   ArrowFunctionExpression,
@@ -20,16 +20,16 @@ import type {
   VariableDeclaration,
   VariableDeclarator,
   IfStatement,
-} from 'oxc-parser';
-import { parseSource, isCallTo, getCallArgs, getFunctionBodyStatements } from '../oxc/index.js';
+} from "oxc-parser";
+import { parseSource, isCallTo, getCallArgs, getFunctionBodyStatements } from "../oxc/index.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 /** The imperative physics query methods that should be called via composables. */
-export type PhysicsMethod = 'castRay' | 'castShape' | 'overlapShape';
+export type PhysicsMethod = "castRay" | "castShape" | "overlapShape";
 
 /** The frame-loop callback names in which imperative calls are anti-patterns. */
-export type PhysicsCallbackType = 'onUpdate' | 'onBeforeUpdate' | 'onAfterUpdate';
+export type PhysicsCallbackType = "onUpdate" | "onBeforeUpdate" | "onAfterUpdate";
 
 /**
  * A detected imperative physics query call inside a frame-loop callback.
@@ -49,11 +49,11 @@ export interface PhysicsQueryPattern {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PHYSICS_METHODS: ReadonlySet<string> = new Set(['castRay', 'castShape', 'overlapShape']);
+const PHYSICS_METHODS: ReadonlySet<string> = new Set(["castRay", "castShape", "overlapShape"]);
 const CALLBACK_TYPES: ReadonlySet<string> = new Set([
-  'onUpdate',
-  'onBeforeUpdate',
-  'onAfterUpdate',
+  "onUpdate",
+  "onBeforeUpdate",
+  "onAfterUpdate",
 ]);
 
 // ─── PhysicsQueryWalker ───────────────────────────────────────────────────────
@@ -94,9 +94,9 @@ export class PhysicsQueryWalker {
   walk(source: string): PhysicsQueryPattern[] {
     // Fast pre-scan: skip files that contain none of the target method names.
     if (
-      !source.includes('castRay') &&
-      !source.includes('castShape') &&
-      !source.includes('overlapShape')
+      !source.includes("castRay") &&
+      !source.includes("castShape") &&
+      !source.includes("overlapShape")
     ) {
       return [];
     }
@@ -109,14 +109,14 @@ export class PhysicsQueryWalker {
 
     walk(parsed.program, {
       enter(node) {
-        if (node.type !== 'CallExpression') return;
+        if (node.type !== "CallExpression") return;
         const call = node as CallExpression;
-        if (!isCallTo(call, 'defineSystem')) return;
+        if (!isCallTo(call, "defineSystem")) return;
 
         const args = getCallArgs(call);
         if (args.length === 0) return;
         const callback = args[0]!;
-        if (callback.type !== 'ArrowFunctionExpression' && callback.type !== 'FunctionExpression') {
+        if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") {
           return;
         }
 
@@ -124,9 +124,9 @@ export class PhysicsQueryWalker {
         const setupStmts = getFunctionBodyStatements(setupFn);
 
         for (const stmt of setupStmts) {
-          if (stmt.type !== 'ExpressionStatement') continue;
+          if (stmt.type !== "ExpressionStatement") continue;
           const exprStmt = stmt as ExpressionStatement;
-          if (exprStmt.expression.type !== 'CallExpression') continue;
+          if (exprStmt.expression.type !== "CallExpression") continue;
           const innerCall = exprStmt.expression as CallExpression;
 
           // Check if this is one of the frame-loop callback registrations.
@@ -136,7 +136,7 @@ export class PhysicsQueryWalker {
           const cbArgs = getCallArgs(innerCall);
           if (cbArgs.length === 0) continue;
           const cbFn = cbArgs[0]!;
-          if (cbFn.type !== 'ArrowFunctionExpression' && cbFn.type !== 'FunctionExpression') {
+          if (cbFn.type !== "ArrowFunctionExpression" && cbFn.type !== "FunctionExpression") {
             continue;
           }
 
@@ -167,7 +167,7 @@ export class PhysicsQueryWalker {
  * @returns The callee identifier name, or `null`.
  */
 function getDirectCalleeName(call: CallExpression): string | null {
-  if (call.callee.type !== 'Identifier') return null;
+  if (call.callee.type !== "Identifier") return null;
   return (call.callee as IdentifierName).name;
 }
 
@@ -187,31 +187,31 @@ function collectPhysicsCalls(
   out: PhysicsQueryPattern[],
 ): void {
   switch (node.type) {
-    case 'ExpressionStatement': {
+    case "ExpressionStatement": {
       const exprStmt = node as ExpressionStatement;
-      if (exprStmt.expression.type === 'CallExpression') {
+      if (exprStmt.expression.type === "CallExpression") {
         checkCallExprForPhysics(exprStmt.expression as CallExpression, callbackType, filename, out);
       }
       break;
     }
-    case 'VariableDeclaration': {
+    case "VariableDeclaration": {
       const varDecl = node as VariableDeclaration;
       for (const decl of varDecl.declarations) {
         const d = decl as VariableDeclarator;
-        if (d.init && d.init.type === 'CallExpression') {
+        if (d.init && d.init.type === "CallExpression") {
           checkCallExprForPhysics(d.init as CallExpression, callbackType, filename, out);
         }
       }
       break;
     }
-    case 'BlockStatement': {
+    case "BlockStatement": {
       const block = node as unknown as { body: Statement[] };
       for (const s of block.body) {
         collectPhysicsCalls(s, callbackType, filename, out);
       }
       break;
     }
-    case 'IfStatement': {
+    case "IfStatement": {
       const ifStmt = node as IfStatement;
       collectPhysicsCalls(ifStmt.consequent, callbackType, filename, out);
       if (ifStmt.alternate) {
@@ -219,18 +219,18 @@ function collectPhysicsCalls(
       }
       break;
     }
-    case 'ReturnStatement': {
+    case "ReturnStatement": {
       const retStmt = node as unknown as { argument?: Statement };
       if (retStmt.argument) {
         collectPhysicsCalls(retStmt.argument, callbackType, filename, out);
       }
       break;
     }
-    case 'ForOfStatement':
-    case 'ForInStatement':
-    case 'ForStatement':
-    case 'WhileStatement':
-    case 'DoWhileStatement': {
+    case "ForOfStatement":
+    case "ForInStatement":
+    case "ForStatement":
+    case "WhileStatement":
+    case "DoWhileStatement": {
       const loopStmt = node as unknown as { body: Statement };
       collectPhysicsCalls(loopStmt.body, callbackType, filename, out);
       break;
@@ -256,15 +256,15 @@ function checkCallExprForPhysics(
   filename: string,
   out: PhysicsQueryPattern[],
 ): void {
-  if (call.callee.type !== 'MemberExpression') return;
+  if (call.callee.type !== "MemberExpression") return;
   // Cast to StaticMemberExpression: only non-computed member access (physics.method)
   const mem = call.callee as StaticMemberExpression;
   if (mem.computed) return;
 
   // Only flag calls on the physics service object (physics or physics3d).
-  if (mem.object.type !== 'Identifier') return;
+  if (mem.object.type !== "Identifier") return;
   const objectName = (mem.object as IdentifierName).name;
-  if (objectName !== 'physics' && objectName !== 'physics3d') return;
+  if (objectName !== "physics" && objectName !== "physics3d") return;
 
   const methodName = mem.property.name;
   if (!PHYSICS_METHODS.has(methodName)) return;

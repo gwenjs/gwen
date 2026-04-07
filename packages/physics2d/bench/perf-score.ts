@@ -89,7 +89,7 @@ export interface PerfReport {
   /** Threshold file format version. */
   version: number;
   /** Overall gate verdict — `'pass'` only if every measured metric passes. */
-  verdict: 'pass' | 'fail';
+  verdict: "pass" | "fail";
   /**
    * Weighted composite score in [0, 100].
    * A score of 100 means all measured metrics passed.
@@ -123,12 +123,12 @@ export interface PerfReport {
  * ```
  */
 export function evaluatePerfGate(payload: PerfPayload, thresholds: PerfThresholds): PerfReport {
-  const high = payload.solver.results.find((row) => row.preset === 'high');
-  const esport = payload.solver.results.find((row) => row.preset === 'esport');
+  const high = payload.solver.results.find((row) => row.preset === "high");
+  const esport = payload.solver.results.find((row) => row.preset === "esport");
 
   if (!high || !esport) {
     throw new Error(
-      '[GWEN] Perf score requires `high` and `esport` rows from solver bench payload.',
+      "[GWEN] Perf score requires `high` and `esport` rows from solver bench payload.",
     );
   }
 
@@ -137,38 +137,38 @@ export function evaluatePerfGate(payload: PerfPayload, thresholds: PerfThreshold
   const measuredMetrics: Record<string, MetricResult> = {
     solverHighStepP95Ms: {
       value: high.stepP95Ms,
-      threshold: defs['solverHighStepP95Ms']?.max ?? null,
-      weight: defs['solverHighStepP95Ms']?.weight ?? 0,
-      unit: 'ms',
-      pass: high.stepP95Ms <= (defs['solverHighStepP95Ms']?.max ?? Infinity),
+      threshold: defs["solverHighStepP95Ms"]?.max ?? null,
+      weight: defs["solverHighStepP95Ms"]?.weight ?? 0,
+      unit: "ms",
+      pass: high.stepP95Ms <= (defs["solverHighStepP95Ms"]?.max ?? Infinity),
     },
     solverHighTunnelRate: {
       value: high.tunnelRate,
-      threshold: defs['solverHighTunnelRate']?.max ?? null,
-      weight: defs['solverHighTunnelRate']?.weight ?? 0,
-      unit: 'ratio',
-      pass: high.tunnelRate <= (defs['solverHighTunnelRate']?.max ?? Infinity),
+      threshold: defs["solverHighTunnelRate"]?.max ?? null,
+      weight: defs["solverHighTunnelRate"]?.weight ?? 0,
+      unit: "ratio",
+      pass: high.tunnelRate <= (defs["solverHighTunnelRate"]?.max ?? Infinity),
     },
     solverEsportStepP95Ms: {
       value: esport.stepP95Ms,
-      threshold: defs['solverEsportStepP95Ms']?.max ?? null,
-      weight: defs['solverEsportStepP95Ms']?.weight ?? 0,
-      unit: 'ms',
-      pass: esport.stepP95Ms <= (defs['solverEsportStepP95Ms']?.max ?? Infinity),
+      threshold: defs["solverEsportStepP95Ms"]?.max ?? null,
+      weight: defs["solverEsportStepP95Ms"]?.weight ?? 0,
+      unit: "ms",
+      pass: esport.stepP95Ms <= (defs["solverEsportStepP95Ms"]?.max ?? Infinity),
     },
     tilemapBuildMs: {
       value: payload.tilemap.buildMs,
-      threshold: defs['tilemapBuildMs']?.max ?? null,
-      weight: defs['tilemapBuildMs']?.weight ?? 0,
-      unit: 'ms',
-      pass: payload.tilemap.buildMs <= (defs['tilemapBuildMs']?.max ?? Infinity),
+      threshold: defs["tilemapBuildMs"]?.max ?? null,
+      weight: defs["tilemapBuildMs"]?.weight ?? 0,
+      unit: "ms",
+      pass: payload.tilemap.buildMs <= (defs["tilemapBuildMs"]?.max ?? Infinity),
     },
     tilemapPatchMs: {
       value: payload.tilemap.patchMs,
-      threshold: defs['tilemapPatchMs']?.max ?? null,
-      weight: defs['tilemapPatchMs']?.weight ?? 0,
-      unit: 'ms',
-      pass: payload.tilemap.patchMs <= (defs['tilemapPatchMs']?.max ?? Infinity),
+      threshold: defs["tilemapPatchMs"]?.max ?? null,
+      weight: defs["tilemapPatchMs"]?.weight ?? 0,
+      unit: "ms",
+      pass: payload.tilemap.patchMs <= (defs["tilemapPatchMs"]?.max ?? Infinity),
     },
   };
 
@@ -177,17 +177,17 @@ export function evaluatePerfGate(payload: PerfPayload, thresholds: PerfThreshold
       value: null,
       threshold: null,
       weight: 0,
-      unit: 'count',
+      unit: "count",
       pass: true,
-      status: thresholds.reserved?.['droppedEvents'] ?? 'reserved',
+      status: thresholds.reserved?.["droppedEvents"] ?? "reserved",
     },
     allocations: {
       value: null,
       threshold: null,
       weight: 0,
-      unit: 'count',
+      unit: "count",
       pass: true,
-      status: thresholds.reserved?.['allocations'] ?? 'reserved',
+      status: thresholds.reserved?.["allocations"] ?? "reserved",
     },
   };
 
@@ -199,7 +199,7 @@ export function evaluatePerfGate(payload: PerfPayload, thresholds: PerfThreshold
 
   return {
     version: thresholds.version,
-    verdict: Object.values(measuredMetrics).every((item) => item.pass) ? 'pass' : 'fail',
+    verdict: Object.values(measuredMetrics).every((item) => item.pass) ? "pass" : "fail",
     score: totalWeight === 0 ? 100 : Number(((passedWeight / totalWeight) * 100).toFixed(2)),
     metrics: {
       ...measuredMetrics,

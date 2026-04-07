@@ -33,7 +33,7 @@ export class GwenConfigError extends Error {
   constructor(field: string, value: unknown, hint: string) {
     super(`[GWEN] Invalid config — "${field}": ${String(value)}. ${hint}`);
     Object.setPrototypeOf(this, GwenConfigError.prototype);
-    this.name = 'GwenConfigError';
+    this.name = "GwenConfigError";
     this.field = field;
     this.value = value;
     this.hint = hint;

@@ -6,14 +6,14 @@
  * @module @gwenjs/schema
  */
 
-import type { GwenOptions, GwenModuleEntry, GwenConfigInput } from './config';
+import type { GwenOptions, GwenModuleEntry, GwenConfigInput } from "./config";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function isValidModuleEntry(entry: unknown): entry is GwenModuleEntry {
-  if (typeof entry === 'string') {
+  if (typeof entry === "string") {
     return entry.length > 0;
   }
 
@@ -21,7 +21,7 @@ function isValidModuleEntry(entry: unknown): entry is GwenModuleEntry {
     return false;
   }
 
-  if (typeof entry[0] !== 'string' || entry[0].length === 0) {
+  if (typeof entry[0] !== "string" || entry[0].length === 0) {
     return false;
   }
 
@@ -63,7 +63,7 @@ export function assertModuleFirstInput(input: GwenConfigInput): void {
   }
 
   throw new Error(
-    'Module-first configuration required: declare at least one entry in `modules` and migrate legacy `plugins`/`tsPlugins`/`wasmPlugins` usage.',
+    "Module-first configuration required: declare at least one entry in `modules` and migrate legacy `plugins`/`tsPlugins`/`wasmPlugins` usage.",
   );
 }
 
@@ -77,30 +77,30 @@ export function assertModuleFirstInput(input: GwenConfigInput): void {
 export function validateResolvedConfig(config: GwenOptions): GwenOptions {
   const maxEntities = config.engine.maxEntities;
   if (!Number.isInteger(maxEntities) || maxEntities < 100 || maxEntities > 1_000_000) {
-    throw new Error('maxEntities must be between 100 and 1000000');
+    throw new Error("maxEntities must be between 100 and 1000000");
   }
 
   const targetFPS = config.engine.targetFPS;
-  if (typeof targetFPS !== 'number' || targetFPS < 30 || targetFPS > 240) {
-    throw new Error('targetFPS must be between 30 and 240');
+  if (typeof targetFPS !== "number" || targetFPS < 30 || targetFPS > 240) {
+    throw new Error("targetFPS must be between 30 and 240");
   }
 
-  if (config.engine.loop !== 'internal' && config.engine.loop !== 'external') {
+  if (config.engine.loop !== "internal" && config.engine.loop !== "external") {
     throw new Error("engine.loop must be 'internal' or 'external'");
   }
 
   const maxDelta = config.engine.maxDeltaSeconds;
-  if (typeof maxDelta !== 'number' || maxDelta <= 0 || maxDelta > 1) {
-    throw new Error('engine.maxDeltaSeconds must be > 0 and <= 1');
+  if (typeof maxDelta !== "number" || maxDelta <= 0 || maxDelta > 1) {
+    throw new Error("engine.maxDeltaSeconds must be > 0 and <= 1");
   }
 
   const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
   if (!hexColorRegex.test(config.html.background)) {
-    throw new Error('background must be a valid hex color');
+    throw new Error("background must be a valid hex color");
   }
 
   if (!Array.isArray(config.modules)) {
-    throw new Error('modules must be an array');
+    throw new Error("modules must be an array");
   }
 
   for (let index = 0; index < config.modules.length; index += 1) {
@@ -112,7 +112,7 @@ export function validateResolvedConfig(config: GwenOptions): GwenOptions {
   }
 
   if (!Array.isArray(config.plugins)) {
-    throw new Error('plugins must be an array');
+    throw new Error("plugins must be an array");
   }
 
   return config;

@@ -20,7 +20,7 @@
  * ```
  */
 
-import type { LayoutDefinition, PlaceHandle } from './types.js';
+import type { LayoutDefinition, PlaceHandle } from "./types.js";
 
 /**
  * Define a layout — a declarative factory describing the initial composition of a scene.
@@ -45,6 +45,6 @@ export function defineLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
 ): LayoutDefinition<Refs> {
   return {
     _factory: factory,
-    __layoutName__: 'anonymous',
+    __layoutName__: "anonymous",
   };
 }

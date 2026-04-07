@@ -1,18 +1,18 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { Physics3DBodyHandle } from '../../src/types.js';
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import type { Physics3DBodyHandle } from "../../src/types.js";
 
-vi.mock('@gwenjs/core/actor', () => ({
+vi.mock("@gwenjs/core/actor", () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 
-vi.mock('../../src/composables/collider-id.js', () => ({
+vi.mock("../../src/composables/collider-id.js", () => ({
   nextColliderId: vi.fn(() => 1),
 }));
 
 const mockBodyHandle: Physics3DBodyHandle = {
   bodyId: 1,
   entityId: 0,
-  kind: 'fixed',
+  kind: "fixed",
   mass: 1,
   linearDamping: 0,
   angularDamping: 0,
@@ -31,60 +31,60 @@ const mockPhysics3D = {
   removeCollider: vi.fn(() => true),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
-import { useBoxCollider } from '../../src/composables/use-box-collider.js';
+import { useBoxCollider } from "../../src/composables/use-box-collider.js";
 
-describe('useBoxCollider', () => {
+describe("useBoxCollider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPhysics3D.addCollider.mockReturnValue(true);
     mockPhysics3D.removeCollider.mockReturnValue(true);
   });
 
-  it('calls addCollider with correct box shape for w:2, h:4, d:3', () => {
+  it("calls addCollider with correct box shape for w:2, h:4, d:3", () => {
     useBoxCollider({ w: 2, h: 4, d: 3 });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
       expect.objectContaining({
-        shape: { type: 'box', halfX: 1, halfY: 2, halfZ: 1.5 },
+        shape: { type: "box", halfX: 1, halfY: 2, halfZ: 1.5 },
       }),
     );
   });
 
-  it('d defaults to w when omitted: w:2, h:4 → halfZ = 1 (w/2)', () => {
+  it("d defaults to w when omitted: w:2, h:4 → halfZ = 1 (w/2)", () => {
     useBoxCollider({ w: 2, h: 4 });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
       expect.objectContaining({
-        shape: { type: 'box', halfX: 1, halfY: 2, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 2, halfZ: 1 },
       }),
     );
   });
 
-  it('handle.colliderId is a number', () => {
+  it("handle.colliderId is a number", () => {
     const handle = useBoxCollider({ w: 1, h: 1 });
-    expect(typeof handle.colliderId).toBe('number');
+    expect(typeof handle.colliderId).toBe("number");
   });
 
-  it('handle.remove() calls removeCollider with the same colliderId', () => {
+  it("handle.remove() calls removeCollider with the same colliderId", () => {
     const handle = useBoxCollider({ w: 1, h: 1 });
     const cid = handle.colliderId;
     handle.remove();
     expect(mockPhysics3D.removeCollider).toHaveBeenCalledWith(1n, cid);
   });
 
-  it('passes isSensor and material to addCollider', () => {
-    useBoxCollider({ w: 2, h: 2, isSensor: true, material: 'ice' });
+  it("passes isSensor and material to addCollider", () => {
+    useBoxCollider({ w: 2, h: 2, isSensor: true, material: "ice" });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,
-      expect.objectContaining({ isSensor: true, materialPreset: 'ice' }),
+      expect.objectContaining({ isSensor: true, materialPreset: "ice" }),
     );
   });
 
-  it('passes offset values to addCollider', () => {
+  it("passes offset values to addCollider", () => {
     useBoxCollider({ w: 1, h: 1, offsetX: 0.5, offsetY: 1.0, offsetZ: -0.5 });
     expect(mockPhysics3D.addCollider).toHaveBeenCalledWith(
       1n,

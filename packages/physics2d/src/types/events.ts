@@ -2,7 +2,7 @@
  * Collision event types.
  */
 
-import type { EntityId } from '@gwenjs/core';
+import type { EntityId } from "@gwenjs/core";
 
 export interface CollisionEvent {
   /** Numeric collider id on A side (stable within a prefab declaration). */

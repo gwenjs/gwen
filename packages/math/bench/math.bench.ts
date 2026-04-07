@@ -16,7 +16,7 @@
  *   pnpm --filter @gwenjs/math bench
  */
 
-import { bench, describe } from 'vitest';
+import { bench, describe } from "vitest";
 import {
   vec2,
   vec2Add,
@@ -34,8 +34,8 @@ import {
   quatFromEuler,
   lerp,
   clamp,
-} from '../src/index.js';
-import type { Vec2, Vec3, Quat } from '../src/index.js';
+} from "../src/index.js";
+import type { Vec2, Vec3, Quat } from "../src/index.js";
 
 // ── Pre-computed fixtures ─────────────────────────────────────────────────────
 
@@ -58,8 +58,8 @@ const TRS_S: Vec3 = vec3(2, 2, 2);
 
 // ── Vec2 operations ───────────────────────────────────────────────────────────
 
-describe('Vec2 operations', () => {
-  bench('vec2Add() × 100 000', () => {
+describe("Vec2 operations", () => {
+  bench("vec2Add() × 100 000", () => {
     let acc: Vec2 = A2;
     for (let i = 0; i < 100_000; i++) {
       acc = vec2Add(acc, B2);
@@ -67,7 +67,7 @@ describe('Vec2 operations', () => {
     return acc;
   });
 
-  bench('vec2Dot() × 100 000', () => {
+  bench("vec2Dot() × 100 000", () => {
     let sum = 0;
     for (let i = 0; i < 100_000; i++) {
       sum += vec2Dot(A2, B2);
@@ -75,7 +75,7 @@ describe('Vec2 operations', () => {
     return sum;
   });
 
-  bench('vec2Normalize() × 100 000', () => {
+  bench("vec2Normalize() × 100 000", () => {
     let v: Vec2 = A2;
     for (let i = 0; i < 100_000; i++) {
       v = vec2Normalize(v);
@@ -83,7 +83,7 @@ describe('Vec2 operations', () => {
     return v;
   });
 
-  bench('vec2Lerp() × 100 000', () => {
+  bench("vec2Lerp() × 100 000", () => {
     let v: Vec2 = A2;
     for (let i = 0; i < 100_000; i++) {
       v = vec2Lerp(A2, B2, LERP_T);
@@ -94,8 +94,8 @@ describe('Vec2 operations', () => {
 
 // ── Vec3 operations ───────────────────────────────────────────────────────────
 
-describe('Vec3 operations', () => {
-  bench('vec3Cross() × 100 000', () => {
+describe("Vec3 operations", () => {
+  bench("vec3Cross() × 100 000", () => {
     let v: Vec3 = A3;
     for (let i = 0; i < 100_000; i++) {
       v = vec3Cross(A3, B3);
@@ -103,7 +103,7 @@ describe('Vec3 operations', () => {
     return v;
   });
 
-  bench('vec3Normalize() × 100 000', () => {
+  bench("vec3Normalize() × 100 000", () => {
     let v: Vec3 = LONG3;
     for (let i = 0; i < 100_000; i++) {
       v = vec3Normalize(v);
@@ -111,7 +111,7 @@ describe('Vec3 operations', () => {
     return v;
   });
 
-  bench('vec3Dot() × 100 000', () => {
+  bench("vec3Dot() × 100 000", () => {
     let sum = 0;
     for (let i = 0; i < 100_000; i++) {
       sum += vec3Dot(A3, B3);
@@ -122,8 +122,8 @@ describe('Vec3 operations', () => {
 
 // ── Mat4 operations ───────────────────────────────────────────────────────────
 
-describe('Mat4 operations', () => {
-  bench('mat4Mul() × 10 000', () => {
+describe("Mat4 operations", () => {
+  bench("mat4Mul() × 10 000", () => {
     let m = M1;
     for (let i = 0; i < 10_000; i++) {
       m = mat4Mul(m, M2);
@@ -131,7 +131,7 @@ describe('Mat4 operations', () => {
     return m;
   });
 
-  bench('mat4TRS() × 10 000', () => {
+  bench("mat4TRS() × 10 000", () => {
     let m = M1;
     for (let i = 0; i < 10_000; i++) {
       m = mat4TRS(TRS_T, TRS_R, TRS_S);
@@ -139,7 +139,7 @@ describe('Mat4 operations', () => {
     return m;
   });
 
-  bench('mat4Perspective() × 10 000', () => {
+  bench("mat4Perspective() × 10 000", () => {
     let m = M1;
     for (let i = 0; i < 10_000; i++) {
       m = mat4Perspective(Math.PI / 3, 16 / 9, 0.1, 1000);
@@ -150,8 +150,8 @@ describe('Mat4 operations', () => {
 
 // ── Scalar operations (baseline) ──────────────────────────────────────────────
 
-describe('Scalar operations', () => {
-  bench('lerp() × 1 000 000', () => {
+describe("Scalar operations", () => {
+  bench("lerp() × 1 000 000", () => {
     let v = 0;
     for (let i = 0; i < 1_000_000; i++) {
       v = lerp(v, 1, 0.001);
@@ -159,7 +159,7 @@ describe('Scalar operations', () => {
     return v;
   });
 
-  bench('clamp() × 1 000 000', () => {
+  bench("clamp() × 1 000 000", () => {
     let v = 0;
     for (let i = 0; i < 1_000_000; i++) {
       v = clamp(i * 0.0001 - 50, 0, 1);

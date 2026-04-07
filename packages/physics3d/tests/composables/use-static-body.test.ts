@@ -1,14 +1,14 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import type { Physics3DBodyHandle } from '../../src/types.js';
+import { vi, describe, it, expect, beforeEach } from "vitest";
+import type { Physics3DBodyHandle } from "../../src/types.js";
 
-vi.mock('@gwenjs/core/actor', () => ({
+vi.mock("@gwenjs/core/actor", () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 
 const mockBodyHandle: Physics3DBodyHandle = {
   bodyId: 99,
   entityId: 0,
-  kind: 'fixed',
+  kind: "fixed",
   mass: 1,
   linearDamping: 0,
   angularDamping: 0,
@@ -27,13 +27,13 @@ const mockPhysics3D = {
   removeCollider: vi.fn(() => true),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
-import { useStaticBody } from '../../src/composables/use-static-body.js';
+import { useStaticBody } from "../../src/composables/use-static-body.js";
 
-describe('useStaticBody', () => {
+describe("useStaticBody", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Reset mockBodyHandle reference after clearAllMocks
@@ -41,46 +41,46 @@ describe('useStaticBody', () => {
     mockPhysics3D.removeBody.mockReturnValue(true);
   });
 
-  it('calls createBody with kind: fixed', () => {
+  it("calls createBody with kind: fixed", () => {
     useStaticBody();
-    expect(mockPhysics3D.createBody).toHaveBeenCalledWith(1n, { kind: 'fixed' });
+    expect(mockPhysics3D.createBody).toHaveBeenCalledWith(1n, { kind: "fixed" });
   });
 
-  it('handle.bodyId equals mockBodyHandle.bodyId (99)', () => {
+  it("handle.bodyId equals mockBodyHandle.bodyId (99)", () => {
     const handle = useStaticBody();
     expect(handle.bodyId).toBe(99);
   });
 
-  it('handle.active is true initially', () => {
+  it("handle.active is true initially", () => {
     const handle = useStaticBody();
     expect(handle.active).toBe(true);
   });
 
-  it('handle.disable() calls removeBody and sets active to false', () => {
+  it("handle.disable() calls removeBody and sets active to false", () => {
     const handle = useStaticBody();
     handle.disable();
     expect(mockPhysics3D.removeBody).toHaveBeenCalledWith(1n);
     expect(handle.active).toBe(false);
   });
 
-  it('handle.enable() after disable calls createBody again and sets active to true', () => {
+  it("handle.enable() after disable calls createBody again and sets active to true", () => {
     const handle = useStaticBody();
     handle.disable();
     vi.clearAllMocks();
     mockPhysics3D.createBody.mockReturnValue(mockBodyHandle);
     handle.enable();
-    expect(mockPhysics3D.createBody).toHaveBeenCalledWith(1n, { kind: 'fixed' });
+    expect(mockPhysics3D.createBody).toHaveBeenCalledWith(1n, { kind: "fixed" });
     expect(handle.active).toBe(true);
   });
 
-  it('handle.enable() when already enabled is a no-op', () => {
+  it("handle.enable() when already enabled is a no-op", () => {
     const handle = useStaticBody();
     vi.clearAllMocks();
     handle.enable();
     expect(mockPhysics3D.createBody).not.toHaveBeenCalled();
   });
 
-  it('handle.disable() when already disabled is a no-op', () => {
+  it("handle.disable() when already disabled is a no-op", () => {
     const handle = useStaticBody();
     handle.disable();
     vi.clearAllMocks();

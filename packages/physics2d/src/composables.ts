@@ -7,11 +7,11 @@
  * - During a plugin lifecycle hook (setup, onUpdate, etc.)
  */
 
-import { useEngine, GwenPluginNotFoundError } from '@gwenjs/core';
-import type { EntityId } from '@gwenjs/core';
-import type { Physics2DAPI } from './types';
+import { useEngine, GwenPluginNotFoundError } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
+import type { Physics2DAPI } from "./types";
 // Side-effect import: augments GwenProvides with 'physics2d'
-import './augment';
+import "./augment";
 
 // ─── usePhysics2D ─────────────────────────────────────────────────────────────
 
@@ -42,13 +42,13 @@ export function usePhysics2D(): Physics2DAPI {
   const engine = useEngine();
 
   // Try new RFC-001 provide/inject registry first.
-  const newService = engine.tryInject('physics2d');
+  const newService = engine.tryInject("physics2d");
   if (newService) return newService;
 
   throw new GwenPluginNotFoundError({
-    pluginName: '@gwenjs/physics2d',
-    hint: 'Call engine.use(physics2dPlugin()) before starting the engine.',
-    docsUrl: 'https://gwenengine.dev/plugins/physics2d',
+    pluginName: "@gwenjs/physics2d",
+    hint: "Call engine.use(physics2dPlugin()) before starting the engine.",
+    docsUrl: "https://gwenengine.dev/plugins/physics2d",
   });
 }
 

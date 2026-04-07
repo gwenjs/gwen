@@ -7,9 +7,9 @@
  * interface (`setup(engine)` / `teardown()` / `onUpdate(dt)` …).
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { definePlugin } from '../src/plugin';
-import type { GwenEngine } from '@gwenjs/core';
+import { describe, it, expect, vi } from "vitest";
+import { definePlugin } from "../src/plugin";
+import type { GwenEngine } from "@gwenjs/core";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
@@ -34,97 +34,97 @@ function mockEngine(): GwenEngine {
 
 // ─── TS-only plugin ───────────────────────────────────────────────────────────
 
-describe('definePlugin() — TS-only plugin', () => {
-  it('returns a factory function', () => {
-    const MyPlugin = definePlugin(() => ({ name: 'MyPlugin', setup: vi.fn() }));
-    expect(typeof MyPlugin).toBe('function');
+describe("definePlugin() — TS-only plugin", () => {
+  it("returns a factory function", () => {
+    const MyPlugin = definePlugin(() => ({ name: "MyPlugin", setup: vi.fn() }));
+    expect(typeof MyPlugin).toBe("function");
   });
 
-  it('calling the factory returns a defined plugin object', () => {
-    const MyPlugin = definePlugin(() => ({ name: 'MyPlugin', setup: vi.fn() }));
+  it("calling the factory returns a defined plugin object", () => {
+    const MyPlugin = definePlugin(() => ({ name: "MyPlugin", setup: vi.fn() }));
     expect(MyPlugin()).toBeDefined();
   });
 
-  it('instance name matches the definition', () => {
-    const MyPlugin = definePlugin(() => ({ name: 'MyPlugin', setup: vi.fn() }));
+  it("instance name matches the definition", () => {
+    const MyPlugin = definePlugin(() => ({ name: "MyPlugin", setup: vi.fn() }));
     const p = MyPlugin();
-    expect(p.name).toBe('MyPlugin');
+    expect(p.name).toBe("MyPlugin");
   });
 
-  it('version field is forwarded', () => {
-    const P = definePlugin(() => ({ name: 'P', version: '1.2.3', setup: vi.fn() }));
-    expect(P().version).toBe('1.2.3');
+  it("version field is forwarded", () => {
+    const P = definePlugin(() => ({ name: "P", version: "1.2.3", setup: vi.fn() }));
+    expect(P().version).toBe("1.2.3");
   });
 
-  it('plugin has no wasm property', () => {
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn() }));
+  it("plugin has no wasm property", () => {
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn() }));
     expect((P() as any).wasm).toBeUndefined();
   });
 
-  it('setup() is called with the engine argument', () => {
+  it("setup() is called with the engine argument", () => {
     const setup = vi.fn();
-    const P = definePlugin(() => ({ name: 'P', setup }));
+    const P = definePlugin(() => ({ name: "P", setup }));
     const engine = mockEngine();
     P().setup(engine);
     expect(setup).toHaveBeenCalledWith(engine);
     expect(setup).toHaveBeenCalledTimes(1);
   });
 
-  it('setup() can call engine.provide()', () => {
+  it("setup() can call engine.provide()", () => {
     const engine = mockEngine();
     const P = definePlugin(() => ({
-      name: 'P',
+      name: "P",
       setup(e: GwenEngine) {
-        (e as ReturnType<typeof mockEngine>).provide('audio' as never, {} as never);
+        (e as ReturnType<typeof mockEngine>).provide("audio" as never, {} as never);
       },
     }));
     P().setup(engine);
     expect((engine as ReturnType<typeof mockEngine>).provide).toHaveBeenCalledTimes(1);
   });
 
-  it('teardown() is called', () => {
+  it("teardown() is called", () => {
     const teardown = vi.fn();
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn(), teardown }));
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), teardown }));
     P().teardown!();
     expect(teardown).toHaveBeenCalledTimes(1);
   });
 
-  it('onUpdate() receives the dt argument (no api param)', () => {
+  it("onUpdate() receives the dt argument (no api param)", () => {
     const onUpdate = vi.fn();
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn(), onUpdate }));
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onUpdate }));
     P().onUpdate!(0.016);
     expect(onUpdate).toHaveBeenCalledWith(0.016);
   });
 
-  it('onAfterUpdate() receives the dt argument', () => {
+  it("onAfterUpdate() receives the dt argument", () => {
     const onAfterUpdate = vi.fn();
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn(), onAfterUpdate }));
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onAfterUpdate }));
     P().onAfterUpdate!(0.033);
     expect(onAfterUpdate).toHaveBeenCalledWith(0.033);
   });
 
-  it('onRender() is called with no arguments', () => {
+  it("onRender() is called with no arguments", () => {
     const onRender = vi.fn();
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn(), onRender }));
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn(), onRender }));
     P().onRender!();
     expect(onRender).toHaveBeenCalledTimes(1);
   });
 
-  it('options are forwarded to the factory', () => {
+  it("options are forwarded to the factory", () => {
     let captured: { volume?: number } = {};
     const P = definePlugin((opts: { volume?: number } = {}) => {
       captured = opts;
-      return { name: 'P', setup: vi.fn() };
+      return { name: "P", setup: vi.fn() };
     });
     P({ volume: 0.5 });
     expect(captured.volume).toBe(0.5);
   });
 
-  it('each factory call produces independent closure state', () => {
+  it("each factory call produces independent closure state", () => {
     const P = definePlugin(() => {
       let count = 0;
       return {
-        name: 'Counter',
+        name: "Counter",
         setup: vi.fn(),
         onUpdate() {
           count++;
@@ -147,18 +147,18 @@ describe('definePlugin() — TS-only plugin', () => {
     expect((p2 as typeof p2 & { getCount(): number }).getCount()).toBe(1);
   });
 
-  it('setup closure state persists across lifecycle calls', () => {
+  it("setup closure state persists across lifecycle calls", () => {
     const log: string[] = [];
     const P = definePlugin(() => ({
-      name: 'Stateful',
+      name: "Stateful",
       setup(_e: GwenEngine) {
-        log.push('setup');
+        log.push("setup");
       },
       onUpdate(_dt: number) {
-        log.push('update');
+        log.push("update");
       },
       teardown() {
-        log.push('teardown');
+        log.push("teardown");
       },
     }));
 
@@ -167,23 +167,23 @@ describe('definePlugin() — TS-only plugin', () => {
     p.onUpdate!(0.016);
     p.teardown!();
 
-    expect(log).toEqual(['setup', 'update', 'teardown']);
+    expect(log).toEqual(["setup", "update", "teardown"]);
   });
 });
 
 // ─── Options variants ─────────────────────────────────────────────────────────
 
-describe('definePlugin() — options variants', () => {
-  it('void options — Plugin() with no args', () => {
-    const P = definePlugin(() => ({ name: 'P', setup: vi.fn() }));
+describe("definePlugin() — options variants", () => {
+  it("void options — Plugin() with no args", () => {
+    const P = definePlugin(() => ({ name: "P", setup: vi.fn() }));
     expect(() => P()).not.toThrow();
   });
 
-  it('optional options — Plugin() OR Plugin(opts)', () => {
+  it("optional options — Plugin() OR Plugin(opts)", () => {
     let received: { x?: number } | undefined;
     const P = definePlugin((opts?: { x?: number }) => {
       received = opts;
-      return { name: 'P', setup: vi.fn() };
+      return { name: "P", setup: vi.fn() };
     });
     P();
     expect(received).toBeUndefined();
@@ -191,9 +191,9 @@ describe('definePlugin() — options variants', () => {
     expect(received?.x).toBe(42);
   });
 
-  it('required options — Plugin(opts) passes values to factory', () => {
+  it("required options — Plugin(opts) passes values to factory", () => {
     const P = definePlugin((opts: { speed: number }) => ({
-      name: 'Mover',
+      name: "Mover",
       setup: vi.fn(),
       getSpeed() {
         return opts.speed;
@@ -203,14 +203,14 @@ describe('definePlugin() — options variants', () => {
     expect((p as typeof p & { getSpeed(): number }).getSpeed()).toBe(5);
   });
 
-  it('multiple independent instances from same factory', () => {
+  it("multiple independent instances from same factory", () => {
     const P = definePlugin((opts: { id: string }) => ({
       name: `Plugin-${opts.id}`,
       setup: vi.fn(),
     }));
-    const p1 = P({ id: 'alpha' });
-    const p2 = P({ id: 'beta' });
-    expect(p1.name).toBe('Plugin-alpha');
-    expect(p2.name).toBe('Plugin-beta');
+    const p1 = P({ id: "alpha" });
+    const p2 = P({ id: "beta" });
+    expect(p1.name).toBe("Plugin-alpha");
+    expect(p2.name).toBe("Plugin-beta");
   });
 });

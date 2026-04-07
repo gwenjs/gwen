@@ -7,9 +7,9 @@
  * @since 1.0.0
  */
 
-import { useEngine } from '../context.js';
-import { getTweenManager } from './tween-manager.js';
-import type { TweenableValue, TweenOptions, TweenHandle } from './tween-types.js';
+import { useEngine } from "../context.js";
+import { getTweenManager } from "./tween-manager.js";
+import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types.js";
 
 // ── useTween ──────────────────────────────────────────────────────────────────
 

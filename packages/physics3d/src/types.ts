@@ -12,10 +12,10 @@
  * - `./types/api` - The Physics3DAPI service interface
  */
 
-export * from './types/config';
-export * from './types/bodies';
-export * from './types/colliders';
-export * from './types/bulk';
-export * from './types/events';
-export * from './types/joints';
-export * from './types/api';
+export * from "./types/config";
+export * from "./types/bodies";
+export * from "./types/colliders";
+export * from "./types/bulk";
+export * from "./types/events";
+export * from "./types/joints";
+export * from "./types/api";

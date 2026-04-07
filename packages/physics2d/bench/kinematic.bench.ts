@@ -7,7 +7,7 @@
  *
  * Run with: pnpm --filter @gwenjs/physics2d exec vitest bench --run
  */
-import { bench, describe } from 'vitest';
+import { bench, describe } from "vitest";
 
 // ── Naive path simulation ─────────────────────────────────────────────────────
 
@@ -57,28 +57,28 @@ function makeBulkFixtures(n: number) {
 
 // ── Suites ────────────────────────────────────────────────────────────────────
 
-describe('kinematic integration — 100 bodies', () => {
+describe("kinematic integration — 100 bodies", () => {
   const { positions, velocities } = makeNaiveFixtures(100);
   const { px, py, vx, vy } = makeBulkFixtures(100);
 
-  bench('naive (object array, N=100)', () => {
+  bench("naive (object array, N=100)", () => {
     naiveIntegrate(positions, velocities, 1 / 60);
   });
 
-  bench('bulk  (TypedArray,   N=100)', () => {
+  bench("bulk  (TypedArray,   N=100)", () => {
     bulkIntegrate(px, py, vx, vy, 1 / 60);
   });
 });
 
-describe('kinematic integration — 1000 bodies', () => {
+describe("kinematic integration — 1000 bodies", () => {
   const { positions, velocities } = makeNaiveFixtures(1000);
   const { px, py, vx, vy } = makeBulkFixtures(1000);
 
-  bench('naive (object array, N=1000)', () => {
+  bench("naive (object array, N=1000)", () => {
     naiveIntegrate(positions, velocities, 1 / 60);
   });
 
-  bench('bulk  (TypedArray,   N=1000)', () => {
+  bench("bulk  (TypedArray,   N=1000)", () => {
     bulkIntegrate(px, py, vx, vy, 1 / 60);
   });
 });

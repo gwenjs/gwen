@@ -11,8 +11,8 @@
  * Reference: Freya Holmér "Lerp smoothing is broken" — use `damp` instead.
  */
 
-import { lerp, wrapAngle } from './scalar.js';
-import type { Vec2, Vec3 } from './types.js';
+import { lerp, wrapAngle } from "./scalar.js";
+import type { Vec2, Vec3 } from "./types.js";
 
 // ── Scalar damp ───────────────────────────────────────────────────────────────
 

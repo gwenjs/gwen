@@ -1,7 +1,7 @@
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-export type PhysicsQualityPreset = 'low' | 'medium' | 'high' | 'esport';
-export type PhysicsEventMode = 'pull' | 'hybrid';
+export type PhysicsQualityPreset = "low" | "medium" | "high" | "esport";
+export type PhysicsEventMode = "pull" | "hybrid";
 
 /** Numeric bridge mapping for solver quality presets (TS -> WASM). */
 export const PHYSICS_QUALITY_PRESET_CODE: Record<PhysicsQualityPreset, number> = {

@@ -5,8 +5,8 @@
  * no direct WASM dependency.
  */
 
-import type { EntityId } from '@gwenjs/core';
-import type { Physics3DAPI, Physics3DVec3, Physics3DQuat } from '../types';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics3DAPI, Physics3DVec3, Physics3DQuat } from "../types";
 
 /**
  * Move a kinematic body by integrating velocity over delta time.

@@ -24,7 +24,7 @@
  * ```
  */
 
-import { defineComponent, Types } from '../schema.js';
+import { defineComponent, Types } from "../schema.js";
 
 /**
  * Byte offsets for fields within a single 3D transform buffer slot (stride = 48).
@@ -47,7 +47,7 @@ export const TRANSFORM_OFFSETS = {
 } as const;
 
 export const Transform3D = defineComponent({
-  name: 'Transform3D',
+  name: "Transform3D",
   schema: {
     position: Types.vec3,
     rotation: Types.quat,

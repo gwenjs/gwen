@@ -23,8 +23,6 @@
     }
   },
   "publishConfig": {
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
@@ -38,7 +36,9 @@
         "types": "./dist/shared/layer-utils.d.ts",
         "import": "./dist/shared/layer-utils.js"
       }
-    }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "build": "vite build",

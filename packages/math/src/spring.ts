@@ -35,7 +35,7 @@ import type {
   SpringState2D,
   SpringState3D,
   SpringOptions,
-} from './types.js';
+} from "./types.js";
 
 // ── Factory helpers ───────────────────────────────────────────────────────────
 

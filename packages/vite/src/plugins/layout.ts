@@ -1,14 +1,14 @@
-import { readdirSync, statSync, existsSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import type { Plugin, ViteDevServer } from 'vite';
-import MagicString from 'magic-string';
-import { walk } from 'oxc-walker';
-import type { VariableDeclarator } from 'oxc-parser';
-import type { GwenViteOptions } from '../types.js';
-import { parseSource, isCallTo } from '../oxc/index.js';
+import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import type { Plugin, ViteDevServer } from "vite";
+import MagicString from "magic-string";
+import { walk } from "oxc-walker";
+import type { VariableDeclarator } from "oxc-parser";
+import type { GwenViteOptions } from "../types.js";
+import { parseSource, isCallTo } from "../oxc/index.js";
 
-const LAYOUTS_VIRTUAL = 'virtual:gwen/layouts';
-const RESOLVED_LAYOUTS = '\0' + LAYOUTS_VIRTUAL;
+const LAYOUTS_VIRTUAL = "virtual:gwen/layouts";
+const RESOLVED_LAYOUTS = "\0" + LAYOUTS_VIRTUAL;
 
 /**
  * Options for the `gwen:layout` sub-plugin.
@@ -45,12 +45,12 @@ export interface GwenLayoutOptions {
  */
 export function generateLayoutsModule(layoutMap: Map<string, string>): string {
   if (layoutMap.size === 0) {
-    return 'export const layouts = {};\n';
+    return "export const layouts = {};\n";
   }
 
   const entries = Array.from(layoutMap.entries())
     .map(([name, path]) => `  '${name}': () => import('${path}')`)
-    .join(',\n');
+    .join(",\n");
 
   return `export const layouts = {\n${entries},\n};\n`;
 }
@@ -66,8 +66,8 @@ export function generateLayoutsModule(layoutMap: Map<string, string>): string {
  * @param filename - File path for the parser.
  * @returns Transformed source, or the original if no changes were made.
  */
-export function transformLayoutNames(code: string, filename = 'layout.ts'): string {
-  if (!code.includes('defineLayout')) return code;
+export function transformLayoutNames(code: string, filename = "layout.ts"): string {
+  if (!code.includes("defineLayout")) return code;
 
   const parsed = parseSource(filename, code);
   if (!parsed) return code;
@@ -77,13 +77,13 @@ export function transformLayoutNames(code: string, filename = 'layout.ts'): stri
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'VariableDeclarator') return;
+      if (node.type !== "VariableDeclarator") return;
       const { id, init } = node as VariableDeclarator;
-      if (id.type !== 'Identifier') return;
-      if (!init || !isCallTo(init, 'defineLayout')) return;
+      if (id.type !== "Identifier") return;
+      if (!init || !isCallTo(init, "defineLayout")) return;
 
       const varName = (id as { name: string }).name;
-      s.prependLeft(init.start, 'Object.assign(');
+      s.prependLeft(init.start, "Object.assign(");
       s.appendRight(init.end, `, { __layoutName__: '${varName}' })`);
       changed = true;
     },
@@ -100,19 +100,19 @@ export function transformLayoutNames(code: string, filename = 'layout.ts'): stri
  * @param filename - File path for the parser.
  * @returns Set of variable names found in `defineLayout` declarations.
  */
-export function extractLayoutNames(code: string, filename = 'layout.ts'): Set<string> {
+export function extractLayoutNames(code: string, filename = "layout.ts"): Set<string> {
   const names = new Set<string>();
-  if (!code.includes('defineLayout')) return names;
+  if (!code.includes("defineLayout")) return names;
 
   const parsed = parseSource(filename, code);
   if (!parsed) return names;
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'VariableDeclarator') return;
+      if (node.type !== "VariableDeclarator") return;
       const { id, init } = node as VariableDeclarator;
-      if (id.type !== 'Identifier') return;
-      if (!init || !isCallTo(init, 'defineLayout')) return;
+      if (id.type !== "Identifier") return;
+      if (!init || !isCallTo(init, "defineLayout")) return;
       names.add((id as { name: string }).name);
     },
   });
@@ -137,7 +137,7 @@ function scanLayoutDir(dir: string): string[] {
 
     if (statSync(full).isDirectory()) {
       result.push(...scanLayoutDir(full));
-    } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts') && !entry.endsWith('.d.ts')) {
+    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts") && !entry.endsWith(".d.ts")) {
       result.push(full);
     }
   }
@@ -171,10 +171,10 @@ function scanLayoutDir(dir: string): string[] {
  */
 export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   if (!options.layout) {
-    return { name: 'gwen:layout' };
+    return { name: "gwen:layout" };
   }
 
-  const include = options.layout.include ?? ['src/layouts/**/*.ts', 'src/**/*.layout.ts'];
+  const include = options.layout.include ?? ["src/layouts/**/*.ts", "src/**/*.layout.ts"];
   const disableNameInjection = options.layout.disableNameInjection ?? false;
   let root = process.cwd();
 
@@ -182,14 +182,14 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   const layoutDirs = new Set<string>();
   for (const pattern of include) {
     // Extract the base directory from the pattern (before any wildcards)
-    const basePath = pattern.split('**')[0].replace(/\/$/, '');
+    const basePath = pattern.split("**")[0].replace(/\/$/, "");
     if (basePath) {
       layoutDirs.add(resolve(root, basePath));
     }
   }
 
   return {
-    name: 'gwen:layout',
+    name: "gwen:layout",
 
     configResolved(config) {
       root = config.root;
@@ -211,7 +211,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
         for (const file of files) {
           // Read the file to extract layout names
           try {
-            const code = readFileSync(file, 'utf-8');
+            const code = readFileSync(file, "utf-8");
             const names = extractLayoutNames(code, file);
             for (const name of names) layoutMap.set(name, file);
           } catch {
@@ -231,7 +231,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
         const mod = server.moduleGraph.getModuleById(RESOLVED_LAYOUTS);
         if (mod) {
           server.moduleGraph.invalidateModule(mod);
-          server.hot.send({ type: 'full-reload' });
+          server.hot.send({ type: "full-reload" });
         }
         break;
       }

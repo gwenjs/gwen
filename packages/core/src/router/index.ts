@@ -1,6 +1,6 @@
 // packages/core/src/router/index.ts
-export { defineSceneRouter } from './define-scene-router.js';
-export { useSceneRouter } from './use-scene-router.js';
+export { defineSceneRouter } from "./define-scene-router.js";
+export { useSceneRouter } from "./use-scene-router.js";
 export type {
   RouteConfig,
   SceneRouterOptions,
@@ -10,4 +10,4 @@ export type {
   StatesOf,
   TransitionEffect,
   SceneInput,
-} from './router-types.js';
+} from "./router-types.js";

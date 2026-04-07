@@ -18,11 +18,11 @@
  * - re-entrant advance() throws
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createEngine } from '../src/index.js';
-import type { GwenEngine, GwenPlugin, WasmModuleHandle } from '../src/index.js';
-import { getWasmBridge } from '../src/engine/wasm-bridge.js';
-import { SharedMemoryManager } from '../src/wasm/shared-memory.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createEngine } from "../src/index.js";
+import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
+import { getWasmBridge } from "../src/engine/wasm-bridge.js";
+import { SharedMemoryManager } from "../src/wasm/shared-memory.js";
 
 // ─── Minimal valid WASM binary ────────────────────────────────────────────────
 // A wasm module that exports nothing (but is syntactically valid):
@@ -74,11 +74,11 @@ const WASM_WITH_MEMORY = new Uint8Array([
 
 function mockFetch(bytes: Uint8Array): void {
   vi.stubGlobal(
-    'fetch',
+    "fetch",
     vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
-      statusText: 'OK',
+      statusText: "OK",
       arrayBuffer: () => Promise.resolve(bytes.buffer.slice(0) as ArrayBuffer),
     }),
   );
@@ -86,11 +86,11 @@ function mockFetch(bytes: Uint8Array): void {
 
 function mockFetchFail(status = 404): void {
   vi.stubGlobal(
-    'fetch',
+    "fetch",
     vi.fn().mockResolvedValue({
       ok: false,
       status,
-      statusText: 'Not Found',
+      statusText: "Not Found",
       arrayBuffer: () => Promise.resolve(new ArrayBuffer(0)),
     }),
   );
@@ -125,7 +125,7 @@ function recordingPlugin(name: string, log: string[]): GwenPlugin {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('RFC-008 — Frame Loop v2', () => {
+describe("RFC-008 — Frame Loop v2", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -133,136 +133,136 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── Phase ordering ──────────────────────────────────────────────────────────
 
-  describe('8-phase frame loop ordering', () => {
-    it('executes all 8 phases in the documented order', async () => {
+  describe("8-phase frame loop ordering", () => {
+    it("executes all 8 phases in the documented order", async () => {
       const engine = await makeEngine();
       const log: string[] = [];
 
       // Observe hooks
-      engine.hooks.hook('engine:tick', (_dt) => {
-        log.push('hook:tick');
+      engine.hooks.hook("engine:tick", (_dt) => {
+        log.push("hook:tick");
       });
-      engine.hooks.hook('engine:afterTick', (_dt) => {
-        log.push('hook:afterTick');
+      engine.hooks.hook("engine:afterTick", (_dt) => {
+        log.push("hook:afterTick");
       });
 
       // Register a plugin that records each lifecycle call
-      await engine.use(recordingPlugin('p1', log));
+      await engine.use(recordingPlugin("p1", log));
 
       await engine.advance(16);
 
       expect(log).toEqual([
-        'p1:setup', // setup happens in use(), not in advance()
-        'hook:tick', // Phase 1
-        'p1:onBeforeUpdate', // Phase 2
+        "p1:setup", // setup happens in use(), not in advance()
+        "hook:tick", // Phase 1
+        "p1:onBeforeUpdate", // Phase 2
         // Phase 3 — physics disabled, nothing logged
         // Phase 4 — no WASM modules
         // Phase 5 — ECS stub
-        'p1:onUpdate', // Phase 6
-        'p1:onAfterUpdate', // Phase 7 (onAfterUpdate before onRender)
-        'p1:onRender', // Phase 7
-        'hook:afterTick', // Phase 8
+        "p1:onUpdate", // Phase 6
+        "p1:onAfterUpdate", // Phase 7 (onAfterUpdate before onRender)
+        "p1:onRender", // Phase 7
+        "hook:afterTick", // Phase 8
       ]);
     });
 
-    it('engine:tick fires before any onBeforeUpdate', async () => {
+    it("engine:tick fires before any onBeforeUpdate", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
-      engine.hooks.hook('engine:tick', () => {
-        order.push('tick-hook');
+      engine.hooks.hook("engine:tick", () => {
+        order.push("tick-hook");
       });
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onBeforeUpdate() {
-          order.push('onBeforeUpdate');
+          order.push("onBeforeUpdate");
         },
       });
 
       await engine.advance(16);
 
-      expect(order.indexOf('tick-hook')).toBeLessThan(order.indexOf('onBeforeUpdate'));
+      expect(order.indexOf("tick-hook")).toBeLessThan(order.indexOf("onBeforeUpdate"));
     });
 
-    it('engine:afterTick fires after all onRender calls', async () => {
+    it("engine:afterTick fires after all onRender calls", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
-      engine.hooks.hook('engine:afterTick', () => {
-        order.push('afterTick-hook');
+      engine.hooks.hook("engine:afterTick", () => {
+        order.push("afterTick-hook");
       });
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onRender() {
-          order.push('onRender');
+          order.push("onRender");
         },
       });
 
       await engine.advance(16);
 
-      const renderIdx = order.indexOf('onRender');
-      const afterTickIdx = order.indexOf('afterTick-hook');
+      const renderIdx = order.indexOf("onRender");
+      const afterTickIdx = order.indexOf("afterTick-hook");
       expect(renderIdx).toBeLessThan(afterTickIdx);
     });
 
-    it('onBeforeUpdate runs before onUpdate for the same plugin', async () => {
+    it("onBeforeUpdate runs before onUpdate for the same plugin", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onBeforeUpdate() {
-          order.push('before');
+          order.push("before");
         },
         onUpdate() {
-          order.push('update');
+          order.push("update");
         },
       });
 
       await engine.advance(16);
 
-      expect(order.indexOf('before')).toBeLessThan(order.indexOf('update'));
+      expect(order.indexOf("before")).toBeLessThan(order.indexOf("update"));
     });
 
-    it('two plugins execute in registration order within each phase', async () => {
+    it("two plugins execute in registration order within each phase", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
       await engine.use({
-        name: 'first',
+        name: "first",
         setup() {},
         onUpdate() {
-          order.push('first:update');
+          order.push("first:update");
         },
       });
       await engine.use({
-        name: 'second',
+        name: "second",
         setup() {},
         onUpdate() {
-          order.push('second:update');
+          order.push("second:update");
         },
       });
 
       await engine.advance(16);
 
-      expect(order).toEqual(['first:update', 'second:update']);
+      expect(order).toEqual(["first:update", "second:update"]);
     });
   });
 
   // ── Stats ───────────────────────────────────────────────────────────────────
 
-  describe('stats tracking', () => {
-    it('frameCount starts at 0 before any advance()', async () => {
+  describe("stats tracking", () => {
+    it("frameCount starts at 0 before any advance()", async () => {
       const engine = await makeEngine();
       expect(engine.frameCount).toBe(0);
       expect(engine.getStats().frameCount).toBe(0);
     });
 
-    it('frameCount increments by 1 per advance() call', async () => {
+    it("frameCount increments by 1 per advance() call", async () => {
       const engine = await makeEngine();
 
       await engine.advance(16);
@@ -275,26 +275,26 @@ describe('RFC-008 — Frame Loop v2', () => {
       expect(engine.frameCount).toBe(3);
     });
 
-    it('getStats().frameCount matches frameCount getter', async () => {
+    it("getStats().frameCount matches frameCount getter", async () => {
       const engine = await makeEngine();
       await engine.advance(16);
       expect(engine.getStats().frameCount).toBe(engine.frameCount);
     });
 
-    it('getFPS() returns 1000 / dt after each frame', async () => {
+    it("getFPS() returns 1000 / dt after each frame", async () => {
       const engine = await makeEngine();
       await engine.advance(16);
       expect(engine.getFPS()).toBeCloseTo(1000 / 16, 5);
     });
 
-    it('getFPS() returns 0 when dt is 0', async () => {
+    it("getFPS() returns 0 when dt is 0", async () => {
       const engine = await makeEngine();
       // dt=0 → capped to 0 (0 < maxDeltaSeconds*1000=100), so dt=0
       await engine.advance(0);
       expect(engine.getFPS()).toBe(0);
     });
 
-    it('getStats() includes fps and deltaTime', async () => {
+    it("getStats() includes fps and deltaTime", async () => {
       const engine = await makeEngine();
       await engine.advance(20);
       const stats = engine.getStats();
@@ -306,13 +306,13 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── advance() behaviour ─────────────────────────────────────────────────────
 
-  describe('advance()', () => {
-    it('passes dt in milliseconds to plugin.onUpdate', async () => {
+  describe("advance()", () => {
+    it("passes dt in milliseconds to plugin.onUpdate", async () => {
       const engine = await makeEngine();
       let receivedDt = -1;
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onUpdate(dt) {
           receivedDt = dt;
@@ -323,12 +323,12 @@ describe('RFC-008 — Frame Loop v2', () => {
       expect(receivedDt).toBeCloseTo(16.67, 5);
     });
 
-    it('caps dt at maxDeltaSeconds * 1000 ms', async () => {
+    it("caps dt at maxDeltaSeconds * 1000 ms", async () => {
       const engine = await makeEngine({ maxDeltaSeconds: 0.05 }); // cap = 50 ms
       let receivedDt = -1;
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onUpdate(dt) {
           receivedDt = dt;
@@ -339,12 +339,12 @@ describe('RFC-008 — Frame Loop v2', () => {
       expect(receivedDt).toBeCloseTo(50, 5);
     });
 
-    it('does not cap dt below maxDeltaSeconds * 1000', async () => {
+    it("does not cap dt below maxDeltaSeconds * 1000", async () => {
       const engine = await makeEngine({ maxDeltaSeconds: 0.1 }); // cap = 100 ms
       let receivedDt = -1;
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onUpdate(dt) {
           receivedDt = dt;
@@ -355,12 +355,12 @@ describe('RFC-008 — Frame Loop v2', () => {
       expect(receivedDt).toBeCloseTo(16, 5);
     });
 
-    it('throws on re-entrant calls', async () => {
+    it("throws on re-entrant calls", async () => {
       const engine = await makeEngine();
       let resolveBlock!: () => void;
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onUpdate() {
           // block inside onUpdate so advance() is still "running"
@@ -377,7 +377,7 @@ describe('RFC-008 — Frame Loop v2', () => {
       await first;
     });
 
-    it('clears re-entrancy flag after normal completion', async () => {
+    it("clears re-entrancy flag after normal completion", async () => {
       const engine = await makeEngine();
       await engine.advance(16);
       await expect(engine.advance(16)).resolves.toBeUndefined();
@@ -386,35 +386,35 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── startExternal() ─────────────────────────────────────────────────────────
 
-  describe('startExternal()', () => {
-    it('fires engine:init and engine:start hooks', async () => {
+  describe("startExternal()", () => {
+    it("fires engine:init and engine:start hooks", async () => {
       const engine = await makeEngine();
       const fired: string[] = [];
 
-      engine.hooks.hook('engine:init', () => {
-        fired.push('init');
+      engine.hooks.hook("engine:init", () => {
+        fired.push("init");
       });
-      engine.hooks.hook('engine:start', () => {
-        fired.push('start');
+      engine.hooks.hook("engine:start", () => {
+        fired.push("start");
       });
 
       await engine.startExternal();
 
-      expect(fired).toContain('init');
-      expect(fired).toContain('start');
+      expect(fired).toContain("init");
+      expect(fired).toContain("start");
     });
 
-    it('does not start RAF (requestAnimationFrame not called)', async () => {
+    it("does not start RAF (requestAnimationFrame not called)", async () => {
       const engine = await makeEngine();
       const rafSpy = vi.fn(() => 1);
-      vi.stubGlobal('requestAnimationFrame', rafSpy);
+      vi.stubGlobal("requestAnimationFrame", rafSpy);
 
       await engine.startExternal();
 
       expect(rafSpy).not.toHaveBeenCalled();
     });
 
-    it('allows advance() to be called immediately after startExternal()', async () => {
+    it("allows advance() to be called immediately after startExternal()", async () => {
       const engine = await makeEngine();
       await engine.startExternal();
       await expect(engine.advance(16)).resolves.toBeUndefined();
@@ -423,117 +423,117 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── WasmModuleHandle — loadWasmModule ───────────────────────────────────────
 
-  describe('loadWasmModule()', () => {
+  describe("loadWasmModule()", () => {
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
       // Mock the WASM bridge to be active for these tests (they don't test actual WASM initialization,
       // just the loadWasmModule mechanism and WasmModuleHandle properties)
       const bridge = getWasmBridge();
-      vi.spyOn(bridge, 'isActive').mockReturnValue(true);
+      vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
-      vi.spyOn(SharedMemoryManager, 'create').mockReturnValue({
+      vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
         transformBufferPtr: 1024,
       } as any);
     });
 
-    it('returns a WasmModuleHandle with the correct name', async () => {
+    it("returns a WasmModuleHandle with the correct name", async () => {
       const engine = await makeEngine();
-      const handle = await engine.loadWasmModule({ name: 'test', url: 'http://x/test.wasm' });
+      const handle = await engine.loadWasmModule({ name: "test", url: "http://x/test.wasm" });
 
-      expect(handle.name).toBe('test');
+      expect(handle.name).toBe("test");
     });
 
-    it('returns a WasmModuleHandle with an exports object', async () => {
+    it("returns a WasmModuleHandle with an exports object", async () => {
       const engine = await makeEngine();
-      const handle = await engine.loadWasmModule({ name: 'mod', url: 'http://x/mod.wasm' });
+      const handle = await engine.loadWasmModule({ name: "mod", url: "http://x/mod.wasm" });
 
       expect(handle.exports).toBeDefined();
-      expect(typeof handle.exports).toBe('object');
+      expect(typeof handle.exports).toBe("object");
     });
 
-    it('returns memory=undefined when the module does not export memory', async () => {
+    it("returns memory=undefined when the module does not export memory", async () => {
       const engine = await makeEngine();
-      const handle = await engine.loadWasmModule({ name: 'noMem', url: 'http://x/nomem.wasm' });
+      const handle = await engine.loadWasmModule({ name: "noMem", url: "http://x/nomem.wasm" });
 
       expect(handle.memory).toBeUndefined();
     });
 
-    it('returns memory instance when module exports memory', async () => {
+    it("returns memory instance when module exports memory", async () => {
       mockFetch(WASM_WITH_MEMORY);
       const engine = await makeEngine();
-      const handle = await engine.loadWasmModule({ name: 'withMem', url: 'http://x/mem.wasm' });
+      const handle = await engine.loadWasmModule({ name: "withMem", url: "http://x/mem.wasm" });
 
       expect(handle.memory).toBeInstanceOf(WebAssembly.Memory);
     });
 
-    it('deduplicates: calling twice with the same name returns the same handle', async () => {
+    it("deduplicates: calling twice with the same name returns the same handle", async () => {
       const engine = await makeEngine();
-      const h1 = await engine.loadWasmModule({ name: 'dedup', url: 'http://x/dedup.wasm' });
-      const h2 = await engine.loadWasmModule({ name: 'dedup', url: 'http://x/dedup.wasm' });
+      const h1 = await engine.loadWasmModule({ name: "dedup", url: "http://x/dedup.wasm" });
+      const h2 = await engine.loadWasmModule({ name: "dedup", url: "http://x/dedup.wasm" });
 
       expect(h1).toBe(h2);
       // fetch was only called once
       expect(vi.mocked(fetch)).toHaveBeenCalledTimes(1);
     });
 
-    it('throws with a descriptive error when fetch returns non-ok status', async () => {
+    it("throws with a descriptive error when fetch returns non-ok status", async () => {
       mockFetchFail(404);
       const engine = await makeEngine();
 
       await expect(
-        engine.loadWasmModule({ name: 'missing', url: 'http://x/missing.wasm' }),
+        engine.loadWasmModule({ name: "missing", url: "http://x/missing.wasm" }),
       ).rejects.toThrow(/loadWasmModule.*missing/);
     });
 
-    it('throws with a descriptive error when fetch rejects', async () => {
-      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('network error')));
+    it("throws with a descriptive error when fetch rejects", async () => {
+      vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("network error")));
       const engine = await makeEngine();
 
       await expect(
-        engine.loadWasmModule({ name: 'net', url: 'http://x/net.wasm' }),
+        engine.loadWasmModule({ name: "net", url: "http://x/net.wasm" }),
       ).rejects.toThrow(/loadWasmModule.*net/);
     });
 
-    it('accepts a URL object as url option', async () => {
+    it("accepts a URL object as url option", async () => {
       const engine = await makeEngine();
       const handle = await engine.loadWasmModule({
-        name: 'urlobj',
-        url: new URL('http://x/urlobj.wasm'),
+        name: "urlobj",
+        url: new URL("http://x/urlobj.wasm"),
       });
 
-      expect(handle.name).toBe('urlobj');
+      expect(handle.name).toBe("urlobj");
     });
   });
 
   // ── WasmModuleHandle — getWasmModule ────────────────────────────────────────
 
-  describe('getWasmModule()', () => {
+  describe("getWasmModule()", () => {
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
       // Mock the WASM bridge to be active for these tests
       const bridge = getWasmBridge();
-      vi.spyOn(bridge, 'isActive').mockReturnValue(true);
+      vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
-      vi.spyOn(SharedMemoryManager, 'create').mockReturnValue({
+      vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
         transformBufferPtr: 1024,
       } as any);
     });
 
-    it('returns the handle after it has been loaded', async () => {
+    it("returns the handle after it has been loaded", async () => {
       const engine = await makeEngine();
-      const loaded = await engine.loadWasmModule({ name: 'g', url: 'http://x/g.wasm' });
-      const retrieved = engine.getWasmModule('g');
+      const loaded = await engine.loadWasmModule({ name: "g", url: "http://x/g.wasm" });
+      const retrieved = engine.getWasmModule("g");
 
       expect(retrieved).toBe(loaded);
     });
 
-    it('throws a descriptive error when the module has not been loaded', async () => {
+    it("throws a descriptive error when the module has not been loaded", async () => {
       const engine = await makeEngine();
 
-      expect(() => engine.getWasmModule('nope')).toThrow(/getWasmModule.*nope/);
+      expect(() => engine.getWasmModule("nope")).toThrow(/getWasmModule.*nope/);
     });
 
-    it('error message includes actionable hint to call loadWasmModule', () => {
+    it("error message includes actionable hint to call loadWasmModule", () => {
       const _engine = createEngine() as unknown as GwenEngine;
       // createEngine is async, but the cast lets us test the sync path
       // — use a properly awaited engine instead
@@ -543,25 +543,25 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── Phase 4 — WASM module step ──────────────────────────────────────────────
 
-  describe('Phase 4 — WASM module step', () => {
+  describe("Phase 4 — WASM module step", () => {
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
       // Mock the WASM bridge to be active for these tests
       const bridge = getWasmBridge();
-      vi.spyOn(bridge, 'isActive').mockReturnValue(true);
+      vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
-      vi.spyOn(SharedMemoryManager, 'create').mockReturnValue({
+      vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
         transformBufferPtr: 1024,
       } as any);
     });
 
-    it('calls the step function with the handle and dt each frame', async () => {
+    it("calls the step function with the handle and dt each frame", async () => {
       const engine = await makeEngine();
 
       const stepFn = vi.fn();
       const handle = await engine.loadWasmModule<WebAssembly.Exports>({
-        name: 'stepped',
-        url: 'http://x/stepped.wasm',
+        name: "stepped",
+        url: "http://x/stepped.wasm",
         step: stepFn,
       });
 
@@ -571,78 +571,78 @@ describe('RFC-008 — Frame Loop v2', () => {
       expect(stepFn).toHaveBeenCalledWith(handle, 16);
     });
 
-    it('calls step for multiple modules in registration order', async () => {
+    it("calls step for multiple modules in registration order", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
       await engine.loadWasmModule({
-        name: 'first',
-        url: 'http://x/first.wasm',
+        name: "first",
+        url: "http://x/first.wasm",
         step: () => {
-          order.push('first');
+          order.push("first");
         },
       });
       await engine.loadWasmModule({
-        name: 'second',
-        url: 'http://x/second.wasm',
+        name: "second",
+        url: "http://x/second.wasm",
         step: () => {
-          order.push('second');
+          order.push("second");
         },
       });
 
       await engine.advance(16);
 
-      expect(order).toEqual(['first', 'second']);
+      expect(order).toEqual(["first", "second"]);
     });
 
-    it('step runs in Phase 4, after onBeforeUpdate and before onUpdate', async () => {
+    it("step runs in Phase 4, after onBeforeUpdate and before onUpdate", async () => {
       const engine = await makeEngine();
       const order: string[] = [];
 
       await engine.use({
-        name: 'p',
+        name: "p",
         setup() {},
         onBeforeUpdate() {
-          order.push('onBeforeUpdate');
+          order.push("onBeforeUpdate");
         },
         onUpdate() {
-          order.push('onUpdate');
+          order.push("onUpdate");
         },
       });
 
       await engine.loadWasmModule({
-        name: 'wmod',
-        url: 'http://x/wmod.wasm',
+        name: "wmod",
+        url: "http://x/wmod.wasm",
         step: () => {
-          order.push('wasmStep');
+          order.push("wasmStep");
         },
       });
 
       await engine.advance(16);
 
-      const beforeIdx = order.indexOf('onBeforeUpdate');
-      const wasmIdx = order.indexOf('wasmStep');
-      const updateIdx = order.indexOf('onUpdate');
+      const beforeIdx = order.indexOf("onBeforeUpdate");
+      const wasmIdx = order.indexOf("wasmStep");
+      const updateIdx = order.indexOf("onUpdate");
 
       expect(beforeIdx).toBeLessThan(wasmIdx);
       expect(wasmIdx).toBeLessThan(updateIdx);
     });
 
-    it('skips step for modules loaded without a step function', async () => {
+    it("skips step for modules loaded without a step function", async () => {
       const engine = await makeEngine();
 
       // Should not throw even with no step
-      await engine.loadWasmModule({ name: 'nostep', url: 'http://x/nostep.wasm' });
+      await engine.loadWasmModule({ name: "nostep", url: "http://x/nostep.wasm" });
       await expect(engine.advance(16)).resolves.toBeUndefined();
     });
 
-    it('passes the capped dt to the step function', async () => {
+    it("passes the capped dt to the step function", async () => {
       const engine = await makeEngine({ maxDeltaSeconds: 0.05 }); // cap = 50 ms
       const receivedDts: number[] = [];
 
       await engine.loadWasmModule({
-        name: 'dtcheck',
-        url: 'http://x/dtcheck.wasm',
+        name: "dtcheck",
+        url: "http://x/dtcheck.wasm",
         step: (_h, dt) => {
           receivedDts.push(dt);
         },
@@ -656,36 +656,36 @@ describe('RFC-008 — Frame Loop v2', () => {
 
   // ── Handle type safety ──────────────────────────────────────────────────────
 
-  describe('WasmModuleHandle type contracts', () => {
+  describe("WasmModuleHandle type contracts", () => {
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
       // Mock the WASM bridge to be active for these tests
       const bridge = getWasmBridge();
-      vi.spyOn(bridge, 'isActive').mockReturnValue(true);
+      vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
-      vi.spyOn(SharedMemoryManager, 'create').mockReturnValue({
+      vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
         transformBufferPtr: 1024,
       } as any);
     });
 
-    it('handle.name matches the options.name', async () => {
+    it("handle.name matches the options.name", async () => {
       const engine = await makeEngine();
-      const handle = await engine.loadWasmModule({ name: 'typed', url: 'http://x/t.wasm' });
+      const handle = await engine.loadWasmModule({ name: "typed", url: "http://x/t.wasm" });
 
-      expect(handle.name).toBe('typed');
+      expect(handle.name).toBe("typed");
     });
 
-    it('handle is readonly — name cannot be reassigned (type-level check)', async () => {
+    it("handle is readonly — name cannot be reassigned (type-level check)", async () => {
       const engine = await makeEngine();
       const handle: WasmModuleHandle = await engine.loadWasmModule({
-        name: 'ro',
-        url: 'http://x/ro.wasm',
+        name: "ro",
+        url: "http://x/ro.wasm",
       });
 
       // TypeScript readonly means this would be a compile error.
       // At runtime we verify the property exists and is accessible.
-      expect(handle.name).toBe('ro');
-      expect(Object.prototype.hasOwnProperty.call(handle, 'name') || 'name' in handle).toBe(true);
+      expect(handle.name).toBe("ro");
+      expect(Object.prototype.hasOwnProperty.call(handle, "name") || "name" in handle).toBe(true);
     });
   });
 });

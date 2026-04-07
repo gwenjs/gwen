@@ -1,4 +1,4 @@
-import type { Physics2DConfig, PhysicsQualityPreset } from './types';
+import type { Physics2DConfig, PhysicsQualityPreset } from "./types";
 
 /** Pixel to meter ratio used for internal conversions. */
 export const PIXELS_PER_METER = 50;
@@ -15,7 +15,7 @@ export type NormalizedPhysics2DConfig = {
   gravityX: number;
   maxEntities: number;
   qualityPreset: PhysicsQualityPreset;
-  eventMode: 'pull' | 'hybrid';
+  eventMode: "pull" | "hybrid";
   debug: boolean;
   coalesceEvents: boolean;
   ccdEnabled?: boolean;
@@ -42,8 +42,8 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
     gravity: config.gravity ?? -9.81,
     gravityX: config.gravityX ?? 0,
     maxEntities: config.maxEntities ?? 10_000,
-    qualityPreset: config.qualityPreset ?? 'medium',
-    eventMode: config.eventMode ?? 'pull',
+    qualityPreset: config.qualityPreset ?? "medium",
+    eventMode: config.eventMode ?? "pull",
     debug: config.debug ?? false,
     coalesceEvents: config.coalesceEvents ?? true,
     ...(config.ccdEnabled !== undefined ? { ccdEnabled: config.ccdEnabled } : {}),
@@ -56,7 +56,7 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
  */
 export function resolveGlobalCcdEnabled(cfg: NormalizedPhysics2DConfig): boolean {
   if (cfg.ccdEnabled !== undefined) return cfg.ccdEnabled;
-  return cfg.qualityPreset === 'high' || cfg.qualityPreset === 'esport';
+  return cfg.qualityPreset === "high" || cfg.qualityPreset === "esport";
 }
 
 /**
@@ -81,15 +81,15 @@ export class LayerRegistry {
    * - `number` → used as-is (raw bitmask)
    * - `string[]` → each name resolved; throws on unknown name
    */
-  resolve(value: string[] | number | undefined, role: 'membership' | 'filter'): number {
+  resolve(value: string[] | number | undefined, role: "membership" | "filter"): number {
     if (value === undefined) return LAYER_ALL;
-    if (typeof value === 'number') return value >>> 0;
+    if (typeof value === "number") return value >>> 0;
 
     let mask = 0;
     for (const name of value) {
       const bit = this.bits[name];
       if (bit === undefined) {
-        const known = Object.keys(this.bits).join(', ');
+        const known = Object.keys(this.bits).join(", ");
         throw new Error(
           `[Physics2D] Unknown layer "${name}" in ${role}. Declared layers: [${known}]. ` +
             `Add it to Physics2DConfig.layers or fix the typo.`,

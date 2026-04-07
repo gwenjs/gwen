@@ -16,8 +16,8 @@
  * ```
  */
 
-import { _getActorEntityId, _getActorEngine } from './define-actor.js';
-import { getWasmBridge } from '../engine/wasm-bridge.js';
+import { _getActorEntityId, _getActorEngine } from "./define-actor.js";
+import { getWasmBridge } from "../engine/wasm-bridge.js";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;
@@ -50,8 +50,8 @@ export function useTransform(): TransformHandle {
     idx = Number(entityId) & 0xffffffff;
   } catch {
     throw new Error(
-      '[GWEN] useTransform() must be called synchronously inside a defineActor() factory. ' +
-        'Use it to capture the entity ID and engine reference at actor spawn time.',
+      "[GWEN] useTransform() must be called synchronously inside a defineActor() factory. " +
+        "Use it to capture the entity ID and engine reference at actor spawn time.",
     );
   }
 
@@ -108,7 +108,7 @@ export function useTransform(): TransformHandle {
 
     setParent(handleOrId, keepWorldPos = false) {
       const parentId =
-        typeof handleOrId === 'bigint' ? handleOrId : (handleOrId as { entityId: bigint }).entityId;
+        typeof handleOrId === "bigint" ? handleOrId : (handleOrId as { entityId: bigint }).entityId;
       bridge.set_entity_parent?.(idx, Number(parentId) & 0xffffffff, keepWorldPos);
     },
 

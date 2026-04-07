@@ -5,10 +5,10 @@
  * This file imports c12 and must only be used in Node.js contexts.
  */
 
-import { defu } from 'defu';
+import { defu } from "defu";
 
-import type { GwenUserConfig, GwenModuleEntry, ResolvedGwenConfig } from './types';
-import { loadRawGwenConfig } from './config-loader';
+import type { GwenUserConfig, GwenModuleEntry, ResolvedGwenConfig } from "./types";
+import { loadRawGwenConfig } from "./config-loader";
 
 // Re-export all browser-safe types so CLI code can import from a single place
 export type {
@@ -17,13 +17,13 @@ export type {
   GwenUserConfig,
   ResolvedGwenConfig,
   GwenBuildHooks,
-} from './types';
+} from "./types";
 
 const DEFAULT_ENGINE = {
   maxEntities: 10_000,
   targetFPS: 60,
-  variant: 'light' as const,
-  loop: 'internal' as const,
+  variant: "light" as const,
+  loop: "internal" as const,
   maxDeltaSeconds: 0.1,
   debug: false,
 };

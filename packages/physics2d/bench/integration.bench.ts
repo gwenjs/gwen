@@ -14,20 +14,20 @@
  * Pre-computed fixtures are created outside `bench()` calls.
  */
 
-import { describe, bench } from 'vitest';
-import { createEntityId } from '@gwenjs/core';
-import type { EntityId } from '@gwenjs/core';
+import { describe, bench } from "vitest";
+import { createEntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
 
-import { buildTilemapPhysicsChunks } from '../src/helpers/tilemap';
-import { createTilemapChunkOrchestrator } from '../src/helpers/orchestration';
-import { dedupeContactsByPair, selectContactsForEntityId } from '../src/helpers/contact';
+import { buildTilemapPhysicsChunks } from "../src/helpers/tilemap";
+import { createTilemapChunkOrchestrator } from "../src/helpers/orchestration";
+import { dedupeContactsByPair, selectContactsForEntityId } from "../src/helpers/contact";
 import type {
   CollisionEvent,
   CollisionEventsBatch,
   Physics2DAPI,
   TilemapPhysicsChunk,
-} from '../src/types';
-import { makeTiles } from './fixtures';
+} from "../src/types";
+import { makeTiles } from "./fixtures";
 
 // ---------------------------------------------------------------------------
 // Mock Physics2DAPI (no-op — isolates TS overhead from WASM)
@@ -148,8 +148,8 @@ patchedTiles[PATCH_Y * MAP_WIDTH + PATCH_X] ^= 1;
  * Simulates 8 consecutive camera scroll frames.
  * Each frame: syncVisibleChunks(new visible set) — loads/unloads ~3 chunks.
  */
-describe('integration — camera scroll (8 frames)', () => {
-  bench('syncVisibleChunks — scroll right across 8 frames', () => {
+describe("integration — camera scroll (8 frames)", () => {
+  bench("syncVisibleChunks — scroll right across 8 frames", () => {
     const physics = makeMockPhysics();
     const orch = createTilemapChunkOrchestrator(physics, {
       source: tilemapInput,
@@ -165,8 +165,8 @@ describe('integration — camera scroll (8 frames)', () => {
  * Simulates a stable frame where the camera hasn't moved.
  * syncVisibleChunks should be a no-op (all chunks already loaded).
  */
-describe('integration — stable frame (no-op)', () => {
-  bench('syncVisibleChunks — same visible set (no-op)', () => {
+describe("integration — stable frame (no-op)", () => {
+  bench("syncVisibleChunks — same visible set (no-op)", () => {
     const physics = makeMockPhysics();
     const orch = createTilemapChunkOrchestrator(physics, {
       source: tilemapInput,
@@ -184,8 +184,8 @@ describe('integration — stable frame (no-op)', () => {
  * Simulates a destructible tile edit: patchChunk rebakes one chunk
  * and reloads it via the physics API.
  */
-describe('integration — destructible tile patch', () => {
-  bench('patchChunk (1 chunk rebake + reload)', () => {
+describe("integration — destructible tile patch", () => {
+  bench("patchChunk (1 chunk rebake + reload)", () => {
     const physics = makeMockPhysics();
     const orch = createTilemapChunkOrchestrator(physics, {
       source: tilemapInput,
@@ -201,7 +201,7 @@ describe('integration — destructible tile patch', () => {
  * Full game-loop integration: each iteration simulates one frame of
  * a platformer: scroll check + contact deduplication + player contact lookup.
  */
-describe('integration — full game loop (1 frame)', () => {
+describe("integration — full game loop (1 frame)", () => {
   // Create orchestrator once outside the bench
   const physics = makeMockPhysics();
   const orch = createTilemapChunkOrchestrator(physics, {
@@ -209,7 +209,7 @@ describe('integration — full game loop (1 frame)', () => {
     initial: chunkMap,
   });
 
-  bench('1 frame: syncVisibleChunks + dedupeContacts + selectPlayerContacts', () => {
+  bench("1 frame: syncVisibleChunks + dedupeContacts + selectPlayerContacts", () => {
     // 1. Chunk visibility sync (stable — no-op after first load)
     orch.syncVisibleChunks(cameraPositions[0]!);
 
@@ -220,6 +220,6 @@ describe('integration — full game loop (1 frame)', () => {
     selectContactsForEntityId(BATCH_PER_FRAME, PLAYER_ENTITY);
 
     // Prevent dead-code elimination
-    if (deduped.length < 0) throw new Error('unreachable');
+    if (deduped.length < 0) throw new Error("unreachable");
   });
 });

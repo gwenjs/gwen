@@ -6,18 +6,18 @@
  * and have no impact on V8 inlining of the implementation in gwen-engine.ts.
  */
 
-import type { Hookable } from 'hookable';
-import type { GwenRuntimeHooks } from './runtime-hooks.js';
-import type { GwenLogger } from '../logger/index';
-import type { WasmRegionView, WasmRingBuffer } from './wasm-module-handle.js';
-import type { EntityId } from './engine-api.js';
-import type { ComponentDefinition, ComponentSchema, InferComponent } from '../schema.js';
-import type { ComponentDef, LiveQuery, EntityAccessor } from '../system.js';
-import type { TweenPoolPolicy } from '../tween/tween-pool.js';
-import type { PluginErrorContext } from './engine-errors.js';
+import type { Hookable } from "hookable";
+import type { GwenRuntimeHooks } from "./runtime-hooks.js";
+import type { GwenLogger } from "../logger/index";
+import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
+import type { EntityId } from "./engine-api.js";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system.js";
+import type { TweenPoolPolicy } from "../tween/tween-pool.js";
+import type { PluginErrorContext } from "./engine-errors.js";
 
 // Re-export so consumers can access via this module
-export type { PluginErrorContext } from './engine-errors.js';
+export type { PluginErrorContext } from "./engine-errors.js";
 
 // ─── WASM module types (RFC-008) ────────────────────────────────────────────
 
@@ -44,12 +44,12 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
    * Named memory regions to expose via `handle.region(name)`.
    * Each region creates a {@link WasmRegionView} backed by WASM linear memory.
    */
-  readonly memory?: { regions: import('./wasm-module-handle.js').WasmMemoryRegion[] };
+  readonly memory?: { regions: import("./wasm-module-handle.js").WasmMemoryRegion[] };
   /**
    * Ring-buffer channels for TS↔WASM message passing.
    * Each channel creates a {@link WasmRingBuffer} accessible via `handle.channel(name)`.
    */
-  readonly channels?: import('./wasm-module-handle.js').WasmChannelOptions[];
+  readonly channels?: import("./wasm-module-handle.js").WasmChannelOptions[];
   /**
    * Optional per-frame step callback.
    * Called during Phase 4 of every frame with the live handle and delta time in milliseconds.
@@ -75,7 +75,7 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
    * - 'throw': throws an Error, preventing the module from loading
    * - 'ignore': silently continues regardless of version
    */
-  readonly versionPolicy?: 'warn' | 'throw' | 'ignore';
+  readonly versionPolicy?: "warn" | "throw" | "ignore";
 }
 
 /** Current GWEN plugin API version. Encoded as major * 1_000_000 + minor * 1_000 + patch. */
@@ -101,10 +101,10 @@ export function checkPluginApiVersion(
   exports: WebAssembly.Exports,
   moduleName: string,
   expectedVersion = GWEN_PLUGIN_API_VERSION,
-  policy: 'warn' | 'throw' | 'ignore' = 'warn',
+  policy: "warn" | "throw" | "ignore" = "warn",
 ): boolean {
-  const versionFn = exports['gwen_plugin_api_version'];
-  if (typeof versionFn !== 'function') {
+  const versionFn = exports["gwen_plugin_api_version"];
+  if (typeof versionFn !== "function") {
     return true; // No version export — old plugin, skip check
   }
   const actual = (versionFn as () => number)();
@@ -112,10 +112,10 @@ export function checkPluginApiVersion(
     return true;
   }
   const msg = `[GWEN] Plugin "${moduleName}" was compiled against API version ${actual} but engine expects ${expectedVersion}.`;
-  if (policy === 'throw') {
+  if (policy === "throw") {
     throw new Error(msg);
   }
-  if (policy === 'warn') {
+  if (policy === "warn") {
     // eslint-disable-next-line no-console
     console.warn(msg);
   }
@@ -232,7 +232,7 @@ export interface EngineErrorBus {
    * Matches the signature of `GwenErrorBus.emit()` in `@gwenjs/kit`.
    */
   emit(event: {
-    level: 'fatal' | 'error' | 'warning' | 'info' | 'verbose';
+    level: "fatal" | "error" | "warning" | "info" | "verbose";
     code: string;
     message: string;
     source?: string;
@@ -274,7 +274,7 @@ export interface GwenEngineOptions {
    * WASM variant to load.
    * @default 'light'
    */
-  variant?: 'light' | 'physics2d' | 'physics3d';
+  variant?: "light" | "physics2d" | "physics3d";
 
   /**
    * Optional error bus instance. When provided the engine emits all internal
@@ -628,7 +628,7 @@ export interface GwenEngine {
    * It is not a runtime configuration property. The loaded variant dictates whether
    * physics hooks (via `wasmBridge`) use fast native Rust code or TypeScript fallbacks.
    */
-  readonly variant: 'light' | 'physics2d' | 'physics3d';
+  readonly variant: "light" | "physics2d" | "physics3d";
 
   /** Whether debug mode is active. Reflects the `debug` option passed to `createEngine()`. */
   readonly debug: boolean;

@@ -6,26 +6,26 @@
  * controlling what `engine.createLiveQuery` returns on each call.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Mock } from 'vitest';
-import type { EntityId } from '@gwenjs/core';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Mock } from "vitest";
+import type { EntityId } from "@gwenjs/core";
 import {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
   SENSOR_ID_FOOT,
-} from '../src/systems';
+} from "../src/systems";
 import type {
   PhysicsKinematicSyncSystemOptions,
   PlatformerGroundedSystemOptions,
-} from '../src/systems';
-import type { Physics2DAPI, SensorState } from '../src/types';
+} from "../src/systems";
+import type { Physics2DAPI, SensorState } from "../src/types";
 
 // ─── Mock factories ───────────────────────────────────────────────────────────
 
 /** Creates a minimal Physics2DAPI mock. */
 function makePhysicsMock(): Pick<
   Physics2DAPI,
-  'setKinematicPosition' | 'getSensorState' | 'updateSensorState'
+  "setKinematicPosition" | "getSensorState" | "updateSensorState"
 > &
   Record<string, Mock> {
   return {
@@ -95,9 +95,9 @@ function makeEngineMock(physicsMock: ReturnType<typeof makePhysicsMock>) {
 
 // ─── Physics2DKinematicSyncSystem — live query integration ────────────────────
 
-describe('Physics2DKinematicSyncSystem', () => {
-  describe('live query integration', () => {
-    it('only iterates entities with both required components', () => {
+describe("Physics2DKinematicSyncSystem", () => {
+  describe("live query integration", () => {
+    it("only iterates entities with both required components", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
@@ -114,7 +114,7 @@ describe('Physics2DKinematicSyncSystem', () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 100 / 50, 200 / 50);
     });
 
-    it('picks up newly added entities on the next frame', () => {
+    it("picks up newly added entities on the next frame", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
@@ -138,7 +138,7 @@ describe('Physics2DKinematicSyncSystem', () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(20n as EntityId, 150 / 50, 75 / 50);
     });
 
-    it('drops removed entities from the query on the next frame', () => {
+    it("drops removed entities from the query on the next frame", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
@@ -165,12 +165,12 @@ describe('Physics2DKinematicSyncSystem', () => {
 
   // ─── Options & defaults ─────────────────────────────────────────────────────
 
-  describe('options', () => {
+  describe("options", () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
-    it('uses default pixelsPerMeter of 50 when not specified', () => {
+    it("uses default pixelsPerMeter of 50 when not specified", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
@@ -183,7 +183,7 @@ describe('Physics2DKinematicSyncSystem', () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 2, 4);
     });
 
-    it('respects a custom pixelsPerMeter', () => {
+    it("respects a custom pixelsPerMeter", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
@@ -196,23 +196,23 @@ describe('Physics2DKinematicSyncSystem', () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 1, 2);
     });
 
-    it('passes the configured positionComponent name to createLiveQuery', () => {
+    it("passes the configured positionComponent name to createLiveQuery", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
-      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: 'transform2d' };
+      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: "transform2d" };
       const system = createPhysicsKinematicSyncSystem(opts);
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
       // createLiveQuery should have been called with the custom component name.
-      expect(engine.createLiveQuery).toHaveBeenCalledWith(expect.arrayContaining(['transform2d']));
+      expect(engine.createLiveQuery).toHaveBeenCalledWith(expect.arrayContaining(["transform2d"]));
     });
   });
 
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
-  describe('lifecycle', () => {
-    it('is a no-op on onBeforeUpdate before setup is called', () => {
+  describe("lifecycle", () => {
+    it("is a no-op on onBeforeUpdate before setup is called", () => {
       const physics = makePhysicsMock();
       const system = createPhysicsKinematicSyncSystem();
       // Deliberately skip setup.
@@ -220,7 +220,7 @@ describe('Physics2DKinematicSyncSystem', () => {
       expect(physics.setKinematicPosition).not.toHaveBeenCalled();
     });
 
-    it('stops syncing after teardown', () => {
+    it("stops syncing after teardown", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 10, y: 20 });
@@ -235,22 +235,22 @@ describe('Physics2DKinematicSyncSystem', () => {
 
     it('has the plugin name "PhysicsKinematicSyncSystem"', () => {
       const system = createPhysicsKinematicSyncSystem();
-      expect(system.name).toBe('PhysicsKinematicSyncSystem');
+      expect(system.name).toBe("PhysicsKinematicSyncSystem");
     });
   });
 });
 
 // ─── SENSOR_ID_FOOT constant ──────────────────────────────────────────────────
 
-describe('SENSOR_ID_FOOT', () => {
-  it('equals 0xf007', () => {
+describe("SENSOR_ID_FOOT", () => {
+  it("equals 0xf007", () => {
     expect(SENSOR_ID_FOOT).toBe(0xf007);
   });
 });
 
 // ─── createPlatformerGroundedSystem ──────────────────────────────────────────
 
-describe('createPlatformerGroundedSystem', () => {
+describe("createPlatformerGroundedSystem", () => {
   let physics: ReturnType<typeof makePhysicsMock>;
 
   beforeEach(() => {
@@ -258,7 +258,7 @@ describe('createPlatformerGroundedSystem', () => {
     vi.clearAllMocks();
   });
 
-  it('isGrounded returns true when the foot sensor is active', () => {
+  it("isGrounded returns true when the foot sensor is active", () => {
     (physics.getSensorState as Mock).mockReturnValue({
       contactCount: 1,
       isActive: true,
@@ -270,7 +270,7 @@ describe('createPlatformerGroundedSystem', () => {
     expect(grounded.isGrounded(1n as EntityId)).toBe(true);
   });
 
-  it('isGrounded returns false when the foot sensor is inactive', () => {
+  it("isGrounded returns false when the foot sensor is inactive", () => {
     (physics.getSensorState as Mock).mockReturnValue({
       contactCount: 0,
       isActive: false,
@@ -282,7 +282,7 @@ describe('createPlatformerGroundedSystem', () => {
     expect(grounded.isGrounded(1n as EntityId)).toBe(false);
   });
 
-  it('getSensorState returns the full sensor state object', () => {
+  it("getSensorState returns the full sensor state object", () => {
     const state: SensorState = { contactCount: 3, isActive: true };
     (physics.getSensorState as Mock).mockReturnValue(state);
 
@@ -292,7 +292,7 @@ describe('createPlatformerGroundedSystem', () => {
     expect(grounded.getSensorState(1n as EntityId)).toStrictEqual(state);
   });
 
-  it('uses the default SENSOR_ID_FOOT when no sensorId is supplied', () => {
+  it("uses the default SENSOR_ID_FOOT when no sensorId is supplied", () => {
     const grounded = createPlatformerGroundedSystem({
       physics: physics as unknown as Physics2DAPI,
     });
@@ -301,7 +301,7 @@ describe('createPlatformerGroundedSystem', () => {
     expect(physics.getSensorState).toHaveBeenCalledWith(2n as EntityId, SENSOR_ID_FOOT);
   });
 
-  it('uses a custom sensorId when one is provided', () => {
+  it("uses a custom sensorId when one is provided", () => {
     const customId = 0xbeef;
     const opts: PlatformerGroundedSystemOptions = { sensorId: customId };
     const grounded = createPlatformerGroundedSystem({

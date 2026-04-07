@@ -1,13 +1,13 @@
-import { createEntityId } from '@gwenjs/core';
-import { describe, expect, it } from 'vitest';
-import type { CollisionEventsBatch } from '../src/types';
+import { createEntityId } from "@gwenjs/core";
+import { describe, expect, it } from "vitest";
+import type { CollisionEventsBatch } from "../src/types";
 import {
   dedupeContactsByPair,
   getEntityCollisionContacts,
   selectContactsForEntityId,
   selectResolvedContactsForEntityId,
   toResolvedContacts,
-} from '../src/helpers/contact';
+} from "../src/helpers/contact";
 
 /**
  * Build a minimal CollisionEventsBatch for tests.
@@ -22,12 +22,12 @@ function makeBatch(events: object[]): CollisionEventsBatch {
     droppedCritical: 0,
     droppedNonCritical: 0,
     coalesced: true,
-    events: events as CollisionEventsBatch['events'],
+    events: events as CollisionEventsBatch["events"],
   };
 }
 
-describe('contact helpers', () => {
-  it('should select events for one EntityId', () => {
+describe("contact helpers", () => {
+  it("should select events for one EntityId", () => {
     const selected = selectContactsForEntityId(
       makeBatch([
         { slotA: 12, slotB: 2, started: true },
@@ -40,7 +40,7 @@ describe('contact helpers', () => {
     expect(selected).toHaveLength(2);
   });
 
-  it('should return empty array when no events match the EntityId', () => {
+  it("should return empty array when no events match the EntityId", () => {
     const selected = selectContactsForEntityId(
       makeBatch([{ slotA: 5, slotB: 6, started: true }]),
       createEntityId(99, 0),
@@ -49,12 +49,12 @@ describe('contact helpers', () => {
     expect(selected).toHaveLength(0);
   });
 
-  it('should return empty array when batch has no events', () => {
+  it("should return empty array when batch has no events", () => {
     const selected = selectContactsForEntityId(makeBatch([]), createEntityId(1, 0));
     expect(selected).toHaveLength(0);
   });
 
-  it('should select resolved contacts for one EntityId', () => {
+  it("should select resolved contacts for one EntityId", () => {
     const e1 = createEntityId(1, 0);
     const e2 = createEntityId(2, 0);
     const e3 = createEntityId(3, 0);
@@ -70,7 +70,7 @@ describe('contact helpers', () => {
     expect(selected).toHaveLength(2);
   });
 
-  it('should pull and filter resolved contacts for one EntityId', () => {
+  it("should pull and filter resolved contacts for one EntityId", () => {
     const e1 = createEntityId(1, 0);
     const e2 = createEntityId(2, 0);
     const e3 = createEntityId(3, 0);
@@ -86,7 +86,7 @@ describe('contact helpers', () => {
     expect(selected).toHaveLength(2);
   });
 
-  it('should dedupe symmetric pairs deterministically by collider id', () => {
+  it("should dedupe symmetric pairs deterministically by collider id", () => {
     const deduped = dedupeContactsByPair([
       { aColliderId: 1, bColliderId: 2, started: true },
       { aColliderId: 2, bColliderId: 1, started: true },
@@ -99,11 +99,11 @@ describe('contact helpers', () => {
     ]);
   });
 
-  it('should return empty array when input is empty', () => {
+  it("should return empty array when input is empty", () => {
     expect(dedupeContactsByPair([])).toEqual([]);
   });
 
-  it('should keep ended events separate from started events for same pair', () => {
+  it("should keep ended events separate from started events for same pair", () => {
     const deduped = dedupeContactsByPair([
       { aColliderId: 1, bColliderId: 2, started: true },
       { aColliderId: 1, bColliderId: 2, started: false },
@@ -112,7 +112,7 @@ describe('contact helpers', () => {
     expect(deduped).toHaveLength(2);
   });
 
-  it('should resolve slots into packed entity ids', () => {
+  it("should resolve slots into packed entity ids", () => {
     const api = {
       getEntityGeneration(slot: number) {
         return slot === 1 || slot === 2 ? 3 : undefined;
@@ -132,7 +132,7 @@ describe('contact helpers', () => {
     ]);
   });
 
-  it('should preserve colliderId fields when present', () => {
+  it("should preserve colliderId fields when present", () => {
     const api = {
       getEntityGeneration: () => 1,
     } as any;
@@ -145,7 +145,7 @@ describe('contact helpers', () => {
     expect(resolved[0].bColliderId).toBe(20);
   });
 
-  it('should skip unresolved entity A', () => {
+  it("should skip unresolved entity A", () => {
     const api = {
       getEntityGeneration(slot: number) {
         return slot === 2 ? 1 : undefined;
@@ -156,7 +156,7 @@ describe('contact helpers', () => {
     expect(resolved).toHaveLength(0);
   });
 
-  it('should skip unresolved entity B', () => {
+  it("should skip unresolved entity B", () => {
     const api = {
       getEntityGeneration(slot: number) {
         return slot === 1 ? 1 : undefined;
@@ -167,7 +167,7 @@ describe('contact helpers', () => {
     expect(resolved).toHaveLength(0);
   });
 
-  it('should return empty array when input events list is empty', () => {
+  it("should return empty array when input events list is empty", () => {
     const api = { getEntityGeneration: () => 1 } as any;
     expect(toResolvedContacts(api, [])).toEqual([]);
   });

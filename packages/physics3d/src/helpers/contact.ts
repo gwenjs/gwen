@@ -5,8 +5,8 @@
  * the plugin — no WASM dependency.
  */
 
-import type { EntityId } from '@gwenjs/core';
-import type { Physics3DCollisionContact } from '../types';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics3DCollisionContact } from "../types";
 
 /**
  * Filter a contact batch to those involving a specific entity.

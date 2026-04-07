@@ -4,8 +4,8 @@ import type {
   TilemapChunkOrchestrator,
   TilemapPhysicsChunk,
   TilemapPhysicsChunkMap,
-} from '../types';
-import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from './tilemap';
+} from "../types";
+import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from "./tilemap";
 
 const DEFAULT_PIXELS_PER_METER = 50;
 

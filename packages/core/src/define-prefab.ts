@@ -63,7 +63,7 @@ export interface PrefabDefinition {
  */
 export function definePrefab(components: PrefabComponentEntry[]): PrefabDefinition {
   return Object.freeze({
-    __prefabName__: 'anonymous',
+    __prefabName__: "anonymous",
     components: [...components],
   });
 }

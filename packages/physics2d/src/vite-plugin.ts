@@ -9,13 +9,13 @@
  * 2. Collision filter dead-code elimination — warns about unused layer combinations.
  */
 
-import type { Plugin } from 'vite';
-import MagicString from 'magic-string';
+import type { Plugin } from "vite";
+import MagicString from "magic-string";
 import {
   evalBitExpr,
   extractLayerDefinitions,
   inlineLayerReferences,
-} from '@gwenjs/vite/shared/layer-utils';
+} from "@gwenjs/vite/shared/layer-utils";
 
 // Re-export for backward compatibility (tests may import from here).
 export { evalBitExpr, extractLayerDefinitions, inlineLayerReferences };
@@ -39,11 +39,11 @@ export interface Physics2DVitePluginOptions {
  */
 export function physics2dVitePlugin(options: Physics2DVitePluginOptions = {}): Plugin {
   return {
-    name: 'gwen:physics2d',
+    name: "gwen:physics2d",
 
     transform(code, id) {
       if (!/\.(ts|tsx|js|jsx)$/.test(id)) return;
-      if (!code.includes('defineLayers')) return;
+      if (!code.includes("defineLayers")) return;
 
       const layerMap = extractLayerDefinitions(code);
       if (!layerMap) return;
@@ -62,7 +62,7 @@ export function physics2dVitePlugin(options: Physics2DVitePluginOptions = {}): P
 
       // Overwrite each `VarName.layerName` reference with its literal value
       for (const [name, value] of layerMap) {
-        const refRe = new RegExp(`\\b${varName}\\.${name}\\b`, 'g');
+        const refRe = new RegExp(`\\b${varName}\\.${name}\\b`, "g");
         let count = 0;
         for (const m of code.matchAll(refRe)) {
           s.overwrite(m.index!, m.index! + m[0].length, String(value));

@@ -3,7 +3,7 @@
  * - `debug` / `info` : only active when `engine.debug === true`
  * - `warn` / `error` : always active regardless of debug mode
  */
-export type LogLevel = 'debug' | 'info' | 'warn' | 'error';
+export type LogLevel = "debug" | "info" | "warn" | "error";
 
 /**
  * A single structured log entry produced by {@link GwenLogger}.

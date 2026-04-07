@@ -20,7 +20,7 @@ import type {
   FunctionBody,
   StringLiteral,
   NumericLiteral,
-} from 'oxc-parser';
+} from "oxc-parser";
 
 // ─── Public type aliases ─────────────────────────────────────────────────────
 
@@ -48,9 +48,9 @@ export type FunctionExpression = OxcFunction;
  * ```
  */
 export function isCallTo(node: Expression, name: string): boolean {
-  if (node.type !== 'CallExpression') return false;
+  if (node.type !== "CallExpression") return false;
   const call = node as CallExpression;
-  if (call.callee.type !== 'Identifier') return false;
+  if (call.callee.type !== "Identifier") return false;
   return (call.callee as IdentifierName).name === name;
 }
 
@@ -68,7 +68,7 @@ export function isCallTo(node: Expression, name: string): boolean {
  * ```
  */
 export function getIdentifierName(node: Expression): string | null {
-  if (node.type !== 'Identifier') return null;
+  if (node.type !== "Identifier") return null;
   return (node as IdentifierName).name;
 }
 
@@ -84,9 +84,9 @@ export function getIdentifierName(node: Expression): string | null {
  * @returns The string value, or `null`.
  */
 export function getStringValue(node: Expression): string | null {
-  if (node.type !== 'Literal') return null;
+  if (node.type !== "Literal") return null;
   const value = (node as StringLiteral).value;
-  return typeof value === 'string' ? value : null;
+  return typeof value === "string" ? value : null;
 }
 
 /**
@@ -99,9 +99,9 @@ export function getStringValue(node: Expression): string | null {
  * @returns The number value, or `null`.
  */
 export function getNumericValue(node: Expression): number | null {
-  if (node.type !== 'Literal') return null;
+  if (node.type !== "Literal") return null;
   const value = (node as NumericLiteral).value;
-  return typeof value === 'number' ? value : null;
+  return typeof value === "number" ? value : null;
 }
 
 // ─── Call expression ─────────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ export function getNumericValue(node: Expression): number | null {
  * ```
  */
 export function getCallArgs(node: CallExpression): Expression[] {
-  return node.arguments.filter((a): a is Expression => a.type !== 'SpreadElement');
+  return node.arguments.filter((a): a is Expression => a.type !== "SpreadElement");
 }
 
 // ─── Function body ────────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ export function getCallArgs(node: CallExpression): Expression[] {
  */
 export function getFunctionBodyStatements(fn: OxcFunction | ArrowFunctionExpression): Statement[] {
   const { body } = fn;
-  if (!body || body.type !== 'BlockStatement') return [];
+  if (!body || body.type !== "BlockStatement") return [];
   // FunctionBody.body is Array<Directive | Statement>.  Directive is
   // structurally an ExpressionStatement (same `type` discriminant) and is
   // safely treated as one here.
@@ -172,9 +172,9 @@ export function getDeclaratorInit(decl: VariableDeclarator): Expression | null {
  * ```
  */
 export function getArrayElements(node: Expression): Expression[] {
-  if (node.type !== 'ArrayExpression') return [];
+  if (node.type !== "ArrayExpression") return [];
   const arr = node as ArrayExpression;
-  return arr.elements.filter((el): el is Expression => el !== null && el.type !== 'SpreadElement');
+  return arr.elements.filter((el): el is Expression => el !== null && el.type !== "SpreadElement");
 }
 
 /**
@@ -192,9 +192,9 @@ export function getArrayElements(node: Expression): Expression[] {
  * ```
  */
 export function getObjectProperties(node: Expression | ObjectExpression): ObjectProperty[] {
-  if (node.type !== 'ObjectExpression') return [];
+  if (node.type !== "ObjectExpression") return [];
   const obj = node as ObjectExpression;
-  return obj.properties.filter((p): p is ObjectProperty => p.type !== 'SpreadElement');
+  return obj.properties.filter((p): p is ObjectProperty => p.type !== "SpreadElement");
 }
 
 /**
@@ -213,10 +213,10 @@ export function getObjectProperties(node: Expression | ObjectExpression): Object
  */
 export function getPropertyKeyName(prop: ObjectProperty): string | null {
   const { key } = prop;
-  if (key.type === 'Identifier') return (key as IdentifierName).name;
-  if (key.type === 'Literal') {
+  if (key.type === "Identifier") return (key as IdentifierName).name;
+  if (key.type === "Literal") {
     const value = (key as StringLiteral).value;
-    return typeof value === 'string' ? value : null;
+    return typeof value === "string" ? value : null;
   }
   return null;
 }

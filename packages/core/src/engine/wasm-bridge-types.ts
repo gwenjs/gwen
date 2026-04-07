@@ -6,7 +6,7 @@
  * and have no impact on V8 inlining of the implementation in wasm-bridge.ts.
  */
 
-import type { EntityId } from './engine-api';
+import type { EntityId } from "./engine-api";
 
 // ─── Core variant ───────────────────────────────────────────────────────────
 
@@ -16,7 +16,7 @@ import type { EntityId } from './engine-api';
  * - physics2d: ECS + Rapier2D + Pathfinding 2D
  * - physics3d: ECS + Rapier3D + Pathfinding 3D
  */
-export type CoreVariant = 'light' | 'physics2d' | 'physics3d';
+export type CoreVariant = "light" | "physics2d" | "physics3d";
 
 // ─── WASM entity handle ─────────────────────────────────────────────────────
 

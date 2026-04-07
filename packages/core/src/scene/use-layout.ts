@@ -14,9 +14,9 @@
  * ```
  */
 
-import { useEngine, engineContext } from '../context.js';
-import { _withLayoutContext } from './place.js';
-import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from './types.js';
+import { useEngine, engineContext } from "../context.js";
+import { _withLayoutContext } from "./place.js";
+import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from "./types.js";
 
 /**
  * Returns a handle for loading and disposing a layout instance.
@@ -57,7 +57,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     if (options?.chunkSize !== undefined) {
       // eslint-disable-next-line no-console
       console.warn(
-        '[GWEN] useLayout: chunkSize is not yet implemented — all entities will be spawned at once.',
+        "[GWEN] useLayout: chunkSize is not yet implemented — all entities will be spawned at once.",
       );
     }
 

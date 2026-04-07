@@ -1,11 +1,11 @@
 /**
  * @file useCapsuleCollider() — attaches a capsule-shaped collider to the current entity.
  */
-import type { CapsuleColliderHandle3D, Physics3DMaterialPreset } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import { nextColliderId } from './collider-id';
+import type { CapsuleColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import { nextColliderId } from "./collider-id";
 
 /**
  * Options for configuring a capsule-shaped 3D collider.
@@ -22,7 +22,7 @@ export interface CapsuleColliderOptions3D {
    * Primary axis of the capsule.
    * @default 'y'
    */
-  axis?: 'x' | 'y' | 'z';
+  axis?: "x" | "y" | "z";
   /** Local-space X offset of the collider centre relative to the body origin. */
   offsetX?: number;
   /** Local-space Y offset of the collider centre relative to the body origin. */
@@ -72,7 +72,7 @@ export function useCapsuleCollider(options: CapsuleColliderOptions3D): CapsuleCo
 
   physics.addCollider(entityId, {
     shape: {
-      type: 'capsule',
+      type: "capsule",
       radius: options.radius,
       halfHeight: options.height / 2,
     },

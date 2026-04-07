@@ -13,10 +13,10 @@
  *   - 10000 bodies: ~1 ms
  */
 
-import { describe, bench, vi, beforeAll } from 'vitest';
-import type { EntityId } from '@gwenjs/core';
-import { createPhysicsKinematicSyncSystem } from '../src/systems';
-import type { Physics2DAPI } from '../src/types';
+import { describe, bench, vi, beforeAll } from "vitest";
+import type { EntityId } from "@gwenjs/core";
+import { createPhysicsKinematicSyncSystem } from "../src/systems";
+import type { Physics2DAPI } from "../src/types";
 
 // ─── Minimal stubs ─────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ import type { Physics2DAPI } from '../src/types';
  * Returns a no-op Physics2DAPI stub — only `setKinematicPosition` is needed
  * for the sync system hot path.
  */
-function makePhysicsStub(): Pick<Physics2DAPI, 'setKinematicPosition'> {
+function makePhysicsStub(): Pick<Physics2DAPI, "setKinematicPosition"> {
   return { setKinematicPosition: vi.fn() };
 }
 
@@ -112,16 +112,16 @@ beforeAll(() => {
 
 // ─── Benchmarks ────────────────────────────────────────────────────────────────
 
-describe('Physics2DKinematicSyncSystem — live query performance', () => {
-  bench('sync 100 bodies (sparse: 100 / 10 000 entities)', () => {
+describe("Physics2DKinematicSyncSystem — live query performance", () => {
+  bench("sync 100 bodies (sparse: 100 / 10 000 entities)", () => {
     system100.onBeforeUpdate(0.016);
   });
 
-  bench('sync 1 000 bodies', () => {
+  bench("sync 1 000 bodies", () => {
     system1000.onBeforeUpdate(0.016);
   });
 
-  bench('sync 10 000 bodies (dense)', () => {
+  bench("sync 10 000 bodies (dense)", () => {
     system10000.onBeforeUpdate(0.016);
   });
 });

@@ -14,9 +14,9 @@ import {
   type ComponentSchema,
   computeSchemaLayout,
   type SchemaLayout,
-} from '../schema';
-import type { ComponentType } from '../types';
-import type { ComponentFieldValue } from './engine-api';
+} from "../schema";
+import type { ComponentType } from "../types";
+import type { ComponentFieldValue } from "./engine-api";
 
 export class EngineSerializer {
   /** Layout cache — computed once per component type, reused every frame. */

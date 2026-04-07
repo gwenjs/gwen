@@ -3,10 +3,10 @@
  * @internal
  */
 
-import { createEntityId, unpackEntityId, type EntityId } from '../types/entity';
+import { createEntityId, unpackEntityId, type EntityId } from "../types/entity";
 
 // ── EntityId Re-exports ────────────────────────────────────────────────────────
-export { createEntityId, unpackEntityId, type EntityId } from '../types/entity';
+export { createEntityId, unpackEntityId, type EntityId } from "../types/entity";
 
 /**
  * Check structural equality of two EntityIds.
@@ -29,7 +29,7 @@ export function entityIdToString(id: EntityId): string {
  * Inverse of `entityIdToString()`.
  */
 export function entityIdFromString(str: string): EntityId {
-  const [indexStr, generationStr] = str.split(':');
+  const [indexStr, generationStr] = str.split(":");
   if (indexStr === undefined || generationStr === undefined) {
     throw new Error(`Invalid EntityId string format: "${str}". Expected "index:generation".`);
   }

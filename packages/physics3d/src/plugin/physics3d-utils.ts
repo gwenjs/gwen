@@ -10,8 +10,8 @@ import type {
   Physics3DBodyState,
   Physics3DColliderOptions,
   Physics3DEntityId,
-} from '../types';
-import { PHYSICS3D_MATERIAL_PRESETS } from '../types';
+} from "../types";
+import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
 
 /**
  * Construct a fully-initialized Physics3DVec3 from a partial override.
@@ -43,8 +43,8 @@ export function quat(v?: Partial<Physics3DQuat>): Physics3DQuat {
  * @returns Numeric slot index (0..2^32-1)
  */
 export function toEntityIndex(entityId: Physics3DEntityId): number {
-  if (typeof entityId === 'bigint') return Number(entityId & 0xffffffffn);
-  if (typeof entityId === 'number') return entityId;
+  if (typeof entityId === "bigint") return Number(entityId & 0xffffffffn);
+  if (typeof entityId === "number") return entityId;
   return parseInt(entityId as string, 10);
 }
 
@@ -55,9 +55,9 @@ export function toEntityIndex(entityId: Physics3DEntityId): number {
  * @returns TypeScript body kind string; defaults to 'dynamic' for unknown values
  */
 export function kindFromU8(k: number): Physics3DBodyKind {
-  if (k === 0) return 'fixed';
-  if (k === 2) return 'kinematic';
-  return 'dynamic';
+  if (k === 0) return "fixed";
+  if (k === 2) return "kinematic";
+  return "dynamic";
 }
 
 /**
@@ -67,8 +67,8 @@ export function kindFromU8(k: number): Physics3DBodyKind {
  * @returns WASM body kind byte
  */
 export function kindToU8(k: Physics3DBodyKind): number {
-  if (k === 'fixed') return 0;
-  if (k === 'kinematic') return 2;
+  if (k === "fixed") return 0;
+  if (k === "kinematic") return 2;
   return 1;
 }
 
@@ -169,20 +169,20 @@ export function computeColliderAABB(pos: Physics3DVec3, col: Physics3DColliderOp
   let hy: number;
   let hz: number;
 
-  if (shape.type === 'box') {
+  if (shape.type === "box") {
     hx = shape.halfX;
     hy = shape.halfY;
     hz = shape.halfZ;
-  } else if (shape.type === 'sphere') {
+  } else if (shape.type === "sphere") {
     hx = shape.radius;
     hy = shape.radius;
     hz = shape.radius;
-  } else if (shape.type === 'capsule') {
+  } else if (shape.type === "capsule") {
     // capsule: radius in X/Z, radius + halfHeight in Y
     hx = shape.radius;
     hy = shape.radius + shape.halfHeight;
     hz = shape.radius;
-  } else if (shape.type === 'mesh' || shape.type === 'convex') {
+  } else if (shape.type === "mesh" || shape.type === "convex") {
     // Compute a tight AABB from the vertex array for accurate local-mode collision.
     // The vertices Float32Array contains interleaved (x, y, z) triples.
     const verts = shape.vertices;

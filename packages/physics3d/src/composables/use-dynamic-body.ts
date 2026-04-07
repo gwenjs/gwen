@@ -6,10 +6,10 @@ import type {
   DynamicBodyHandle3D,
   Physics3DVec3,
   Physics3DBodyOptions,
-} from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
+} from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */
 const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
@@ -42,7 +42,7 @@ export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyH
   const entityId = _getActorEntityId() as unknown as EntityId;
 
   const creationOptions: Physics3DBodyOptions = {
-    kind: 'dynamic',
+    kind: "dynamic",
     mass: options.mass,
     gravityScale: options.gravityScale,
     linearDamping: options.linearDamping,

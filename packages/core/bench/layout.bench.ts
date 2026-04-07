@@ -8,16 +8,16 @@
  * All benchmarks measure pure TypeScript overhead without requiring WASM engine initialization.
  */
 
-import { bench, describe } from 'vitest';
-import { defineLayout } from '../src/scene/define-layout.js';
-import { defineActor } from '../src/scene/define-actor.js';
-import { definePrefab } from '../src/scene/define-prefab.js';
+import { bench, describe } from "vitest";
+import { defineLayout } from "../src/scene/define-layout.js";
+import { defineActor } from "../src/scene/define-actor.js";
+import { definePrefab } from "../src/scene/define-prefab.js";
 
 // Define a minimal prefab with one component
-const Position = { __name__: 'Position' };
+const Position = { __name__: "Position" };
 const SimpleActor = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
-describe('Layout System — Layout definition creation', () => {
+describe("Layout System — Layout definition creation", () => {
   /**
    * Bench: Create a layout definition with 50 actors.
    *
@@ -28,7 +28,7 @@ describe('Layout System — Layout definition creation', () => {
    * Does NOT measure layout execution (which requires engine context).
    * This isolates the TypeScript factory creation overhead.
    */
-  bench('defineLayout with 50 actor variants', () => {
+  bench("defineLayout with 50 actor variants", () => {
     const _actors = Array.from({ length: 50 }, (_, i) =>
       defineActor(SimpleActor, () => ({ id: i })),
     );
@@ -47,7 +47,7 @@ describe('Layout System — Layout definition creation', () => {
    * Measures the cost of defineActor when creating many actor variants.
    * Pure TypeScript operation with no WASM dependency.
    */
-  bench('defineActor × 10', () => {
+  bench("defineActor × 10", () => {
     for (let i = 0; i < 10; i++) {
       defineActor(SimpleActor, () => ({ id: i }));
     }
@@ -58,7 +58,7 @@ describe('Layout System — Layout definition creation', () => {
    *
    * Bulk actor definition overhead.
    */
-  bench('defineActor × 50', () => {
+  bench("defineActor × 50", () => {
     for (let i = 0; i < 50; i++) {
       defineActor(SimpleActor, () => ({ id: i }));
     }
@@ -69,21 +69,21 @@ describe('Layout System — Layout definition creation', () => {
    *
    * Large-scale actor definition overhead.
    */
-  bench('defineActor × 100', () => {
+  bench("defineActor × 100", () => {
     for (let i = 0; i < 100; i++) {
       defineActor(SimpleActor, () => ({ id: i }));
     }
   });
 });
 
-describe('Layout System — Factory object construction', () => {
+describe("Layout System — Factory object construction", () => {
   /**
    * Bench: Construct a refs object with 50 entries.
    *
    * Simulates the refs object construction that happens inside a layout factory.
    * Measures pure JavaScript object construction overhead.
    */
-  bench('build refs object — 50 entries', () => {
+  bench("build refs object — 50 entries", () => {
     const refs: Record<string, unknown> = {};
     for (let i = 0; i < 50; i++) {
       refs[`item${i}`] = { entityId: BigInt(i + 1) };
@@ -95,7 +95,7 @@ describe('Layout System — Factory object construction', () => {
    *
    * Large refs object construction overhead.
    */
-  bench('build refs object — 100 entries', () => {
+  bench("build refs object — 100 entries", () => {
     const refs: Record<string, unknown> = {};
     for (let i = 0; i < 100; i++) {
       refs[`item${i}`] = { entityId: BigInt(i + 1) };

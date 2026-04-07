@@ -47,7 +47,7 @@ export function evalBitExpr(expr: string): number | null {
   function parseBitOr(): number | null {
     let left = parseBitXor();
     if (left === null) return null;
-    while (peek() === '|') {
+    while (peek() === "|") {
       consume();
       const right = parseBitXor();
       if (right === null) return null;
@@ -59,7 +59,7 @@ export function evalBitExpr(expr: string): number | null {
   function parseBitXor(): number | null {
     let left = parseBitAnd();
     if (left === null) return null;
-    while (peek() === '^') {
+    while (peek() === "^") {
       consume();
       const right = parseBitAnd();
       if (right === null) return null;
@@ -71,7 +71,7 @@ export function evalBitExpr(expr: string): number | null {
   function parseBitAnd(): number | null {
     let left = parseShift();
     if (left === null) return null;
-    while (peek() === '&') {
+    while (peek() === "&") {
       consume();
       const right = parseShift();
       if (right === null) return null;
@@ -83,20 +83,20 @@ export function evalBitExpr(expr: string): number | null {
   function parseShift(): number | null {
     let left = parseUnary();
     if (left === null) return null;
-    while (peek() === '<<' || peek() === '>>') {
+    while (peek() === "<<" || peek() === ">>") {
       const op = consume();
       const right = parseUnary();
       if (right === null) return null;
-      left = op === '<<' ? (left << right) >>> 0 : (left >>> right);
+      left = op === "<<" ? (left << right) >>> 0 : left >>> right;
     }
     return left;
   }
 
   function parseUnary(): number | null {
-    if (peek() === '~') {
+    if (peek() === "~") {
       consume();
       const v = parseUnary();
-      return v === null ? null : (~v) >>> 0;
+      return v === null ? null : ~v >>> 0;
     }
     return parsePrimary();
   }
@@ -105,17 +105,17 @@ export function evalBitExpr(expr: string): number | null {
     const tok = peek();
     if (tok === undefined) return null;
 
-    if (tok === '(') {
+    if (tok === "(") {
       consume();
       const v = parseExpr();
-      if (v === null || consume() !== ')') return null;
+      if (v === null || consume() !== ")") return null;
       return v;
     }
 
     // Integer literal (decimal, hex, binary)
     if (/^(0x[\da-fA-F]+|0b[01]+|\d+)$/.test(tok)) {
       consume();
-      return parseInt(tok, tok.startsWith('0x') ? 16 : tok.startsWith('0b') ? 2 : 10);
+      return parseInt(tok, tok.startsWith("0x") ? 16 : tok.startsWith("0b") ? 2 : 10);
     }
 
     return null; // unexpected token
@@ -170,7 +170,7 @@ export function inlineLayerReferences(
 ): string {
   let result = code;
   for (const [name, value] of layerMap) {
-    const pattern = new RegExp(`\\b${variableName}\\.${name}\\b`, 'g');
+    const pattern = new RegExp(`\\b${variableName}\\.${name}\\b`, "g");
     result = result.replace(pattern, String(value));
   }
   return result;

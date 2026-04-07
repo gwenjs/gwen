@@ -14,10 +14,10 @@
  * > (cars, robots, characters) always compose primitive shapes with
  * > `useCompoundCollider`.
  */
-import type { CompoundColliderHandle3D, CompoundColliderOptions3D } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
+import type { CompoundColliderHandle3D, CompoundColliderOptions3D } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
 
 export type { CompoundColliderOptions3D };
 
@@ -85,8 +85,8 @@ export function useCompoundCollider(options: CompoundColliderOptions3D): Compoun
   const handle = physics.addCompoundCollider(entityId, options);
   if (!handle) {
     throw new Error(
-      '[GWEN:useCompoundCollider] No rigid body found for this entity. ' +
-        'Call useDynamicBody() or useStaticBody() before useCompoundCollider().',
+      "[GWEN:useCompoundCollider] No rigid body found for this entity. " +
+        "Call useDynamicBody() or useStaticBody() before useCompoundCollider().",
     );
   }
 

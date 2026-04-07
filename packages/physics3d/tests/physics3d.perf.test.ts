@@ -1,16 +1,16 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { ContactRingBuffer3D } from '../src/plugin/ring-buffer.js';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { ContactRingBuffer3D } from "../src/plugin/ring-buffer.js";
 
 // ─── Mocks for dynamic body perf test ─────────────────────────────────────
 
-vi.mock('@gwenjs/core/actor', () => ({
+vi.mock("@gwenjs/core/actor", () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 
 const mockBodyHandle = {
   bodyId: 1,
   entityId: 0,
-  kind: 'dynamic',
+  kind: "dynamic",
   mass: 1,
   linearDamping: 0,
   angularDamping: 0,
@@ -29,25 +29,25 @@ const mockPhysics3D = {
   removeCollider: vi.fn(() => true),
 };
 
-vi.mock('../src/composables.js', () => ({
+vi.mock("../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
-import { useDynamicBody } from '../src/composables/use-dynamic-body.js';
+import { useDynamicBody } from "../src/composables/use-dynamic-body.js";
 import {
   onContact,
   _dispatchContactEvent,
   _clearContactCallbacks,
-} from '../src/composables/on-contact.js';
-import type { Physics3DCollisionContact } from '../src/types.js';
+} from "../src/composables/on-contact.js";
+import type { Physics3DCollisionContact } from "../src/types.js";
 
-describe('physics3d performance', () => {
+describe("physics3d performance", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPhysics3D.createBody.mockReturnValue(mockBodyHandle);
   });
 
-  it('drains 500 contact events in < 0.5ms', () => {
+  it("drains 500 contact events in < 0.5ms", () => {
     const buf = new ContactRingBuffer3D();
 
     for (let i = 0; i < 500; i++) {
@@ -73,7 +73,7 @@ describe('physics3d performance', () => {
     expect(elapsed).toBeLessThan(0.5);
   });
 
-  it('writing and draining 512 events (full ring capacity) completes without data loss', () => {
+  it("writing and draining 512 events (full ring capacity) completes without data loss", () => {
     const buf = new ContactRingBuffer3D();
 
     for (let i = 0; i < 512; i++) {
@@ -98,7 +98,7 @@ describe('physics3d performance', () => {
     expect(events[511].entityA).toBe(511n);
   });
 
-  it('500 dynamic bodies created < 20ms', () => {
+  it("500 dynamic bodies created < 20ms", () => {
     const start = performance.now();
     for (let i = 0; i < 500; i++) {
       useDynamicBody();
@@ -107,7 +107,7 @@ describe('physics3d performance', () => {
     expect(elapsed).toBeLessThan(20);
   });
 
-  it('500 onContact dispatches per frame < 1ms', () => {
+  it("500 onContact dispatches per frame < 1ms", () => {
     _clearContactCallbacks();
     const cb = vi.fn();
     onContact(cb);

@@ -1,7 +1,7 @@
-import type { AutoImport, GwenTypeTemplate } from '@gwenjs/kit';
-import type { GwenSceneRouterOptions } from './plugins/scene-router.js';
-import type { GwenTweenOptions } from './plugins/tween.js';
-import type { WasmTier } from './optimizer/types.js';
+import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+import type { GwenSceneRouterOptions } from "./plugins/scene-router.js";
+import type { GwenTweenOptions } from "./plugins/tween.js";
+import type { WasmTier } from "./optimizer/types.js";
 
 /**
  * Which WASM binary build variant to load.
@@ -9,7 +9,7 @@ import type { WasmTier } from './optimizer/types.js';
  * - `'release'` — optimised, smaller, suitable for production.
  * - `'auto'` — resolves to `'release'` during `vite build`, `'debug'` during `vite dev`.
  */
-export type WasmVariant = 'debug' | 'release' | 'auto';
+export type WasmVariant = "debug" | "release" | "auto";
 
 /**
  * Options for the WASM sub-plugin (`gwen:wasm`).

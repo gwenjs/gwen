@@ -5,7 +5,7 @@
  * based on the plugins declared in the project configuration.
  */
 
-import type { CoreVariant } from '../engine/wasm-bridge';
+import type { CoreVariant } from "../engine/wasm-bridge";
 
 /**
  * Interface that matches the relevant part of GwenConfig for detection.
@@ -30,15 +30,15 @@ export function detectCoreVariant(config: VariantConfig): CoreVariant {
   const moduleNames = resolveModuleNames(config.modules);
   const pluginNames = Array.isArray(config.plugins) ? config.plugins.map((p) => p.name) : [];
 
-  if (pluginNames.includes('Physics3D') || moduleNames.includes('@gwenjs/physics3d')) {
-    return 'physics3d';
+  if (pluginNames.includes("Physics3D") || moduleNames.includes("@gwenjs/physics3d")) {
+    return "physics3d";
   }
 
-  if (pluginNames.includes('Physics2D') || moduleNames.includes('@gwenjs/physics2d')) {
-    return 'physics2d';
+  if (pluginNames.includes("Physics2D") || moduleNames.includes("@gwenjs/physics2d")) {
+    return "physics2d";
   }
 
-  return 'light';
+  return "light";
 }
 
 /**
@@ -51,7 +51,7 @@ export function detectSharedMemoryRequired(config: VariantConfig): boolean {
   return config.plugins.some((p) => p?.wasm?.sharedMemory === true);
 }
 
-function resolveModuleNames(modules: VariantConfig['modules']): string[] {
+function resolveModuleNames(modules: VariantConfig["modules"]): string[] {
   if (!Array.isArray(modules)) return [];
   return modules.map((m) => (Array.isArray(m) ? m[0] : m));
 }

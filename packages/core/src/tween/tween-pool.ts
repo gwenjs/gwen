@@ -8,11 +8,11 @@
  * @since 1.0.0
  */
 
-import { EASING_MAP, type EasingName } from './easing.js';
-import type { TweenHandle, TweenOptions, TweenableValue } from './tween-types.js';
-import { lerp } from '@gwenjs/math';
-import type { GwenLogger } from '../logger/types.js';
-import { GwenConfigError } from '../engine/config-error.js';
+import { EASING_MAP, type EasingName } from "./easing.js";
+import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types.js";
+import { lerp } from "@gwenjs/math";
+import type { GwenLogger } from "../logger/types.js";
+import { GwenConfigError } from "../engine/config-error.js";
 
 // ── TweenPoolPolicy ──────────────────────────────────────────────────────────
 
@@ -33,7 +33,7 @@ export interface TweenPoolPolicy {
    * - `'throw'` — throw {@link GwenConfigError} immediately
    * - `'drop'`  — silently return `null`; the caller must handle the null return value
    */
-  onExhausted: 'grow' | 'throw' | 'drop';
+  onExhausted: "grow" | "throw" | "drop";
   /**
    * Multiplier applied to the current pool size when growing.
    * @default 2
@@ -62,7 +62,7 @@ type ResolvedTweenPoolPolicy = Required<TweenPoolPolicy>;
 
 /** Default policy applied when none is provided to the {@link TweenPool} constructor. */
 const DEFAULT_POLICY: ResolvedTweenPoolPolicy = {
-  onExhausted: 'grow',
+  onExhausted: "grow",
   growthFactor: 2,
   maxSize: Infinity,
   warnAt: 0.75,
@@ -75,7 +75,7 @@ const DEFAULT_POLICY: ResolvedTweenPoolPolicy = {
  *
  * @internal
  */
-type ValueType = 'number' | 'vec2' | 'vec3' | 'color';
+type ValueType = "number" | "vec2" | "vec3" | "color";
 
 // ── TweenSlot: The pooled tween object ───────────────────────────────────────
 
@@ -99,7 +99,7 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
   private _playing: boolean = false;
   private _elapsed: number = 0;
   private _completeCbs: Array<() => void> = [];
-  private _valueType: ValueType = 'number';
+  private _valueType: ValueType = "number";
   private _onReturnLeg: boolean = false; // True during yoyo reverse
 
   // ─ Pre-allocated scratch objects for zero-alloc vector updates ──────────
@@ -281,10 +281,10 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
     this._yoyo = options.yoyo ?? false;
 
     // Resolve easing function
-    if (typeof options.easing === 'string') {
+    if (typeof options.easing === "string") {
       const easingName = options.easing as EasingName;
       this._easingFn = EASING_MAP[easingName] ?? ((t: number) => t);
-    } else if (typeof options.easing === 'function') {
+    } else if (typeof options.easing === "function") {
       this._easingFn = options.easing;
     } else {
       this._easingFn = (t: number) => t; // default: linear
@@ -308,7 +308,7 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
     this._playing = false;
     this._elapsed = 0;
     this._completeCbs.length = 0;
-    this._valueType = 'number';
+    this._valueType = "number";
     this._onReturnLeg = false;
   }
 
@@ -321,19 +321,19 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
    * @internal
    */
   private _detectValueType(val: TweenableValue): void {
-    if (typeof val === 'number') {
-      this._valueType = 'number';
-    } else if ('z' in val) {
+    if (typeof val === "number") {
+      this._valueType = "number";
+    } else if ("z" in val) {
       // Has z → Vec3
-      this._valueType = 'vec3';
-    } else if ('r' in val && 'a' in val) {
+      this._valueType = "vec3";
+    } else if ("r" in val && "a" in val) {
       // Has r, g, b, a → Color
-      this._valueType = 'color';
-    } else if ('x' in val) {
+      this._valueType = "color";
+    } else if ("x" in val) {
       // Has x → Vec2
-      this._valueType = 'vec2';
+      this._valueType = "vec2";
     } else {
-      this._valueType = 'number';
+      this._valueType = "number";
     }
   }
 
@@ -352,11 +352,11 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
     const to = this._to;
 
     switch (this._valueType) {
-      case 'number': {
+      case "number": {
         this._value = lerp(from as number, to as number, easedT);
         break;
       }
-      case 'vec2': {
+      case "vec2": {
         const fromVec2 = from as { x: number; y: number };
         const toVec2 = to as { x: number; y: number };
         this._vec2Scratch.x = lerp(fromVec2.x, toVec2.x, easedT);
@@ -364,7 +364,7 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
         this._value = this._vec2Scratch;
         break;
       }
-      case 'vec3': {
+      case "vec3": {
         const fromVec3 = from as { x: number; y: number; z: number };
         const toVec3 = to as { x: number; y: number; z: number };
         this._vec3Scratch.x = lerp(fromVec3.x, toVec3.x, easedT);
@@ -373,7 +373,7 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
         this._value = this._vec3Scratch;
         break;
       }
-      case 'color': {
+      case "color": {
         const fromColor = from as { r: number; g: number; b: number; a: number };
         const toColor = to as { r: number; g: number; b: number; a: number };
         this._colorScratch.r = lerp(fromColor.r, toColor.r, easedT);
@@ -431,9 +431,9 @@ export class TweenPool {
   constructor(size: number = 256, policy?: TweenPoolPolicy, logger?: GwenLogger) {
     if (size < 1) {
       throw new GwenConfigError(
-        'tweenPoolSize',
+        "tweenPoolSize",
         size,
-        'TweenPool size must be >= 1. Use at least 1 slot.',
+        "TweenPool size must be >= 1. Use at least 1 slot.",
       );
     }
 
@@ -480,26 +480,26 @@ export class TweenPool {
   claim(options: TweenOptions<TweenableValue>): TweenSlot | null {
     if (this._available.length === 0) {
       switch (this._policy.onExhausted) {
-        case 'grow': {
+        case "grow": {
           this._grow();
           if (this._available.length === 0) {
             // maxSize reached and still exhausted — escalate to error
             throw new GwenConfigError(
-              'tweenPoolSize',
+              "tweenPoolSize",
               this._slots.length,
-              'Increase tweenPoolSize or set maxSize to Infinity',
+              "Increase tweenPoolSize or set maxSize to Infinity",
             );
           }
           break;
         }
-        case 'throw': {
+        case "throw": {
           throw new GwenConfigError(
-            'tweenPoolSize',
+            "tweenPoolSize",
             this._slots.length,
-            'Increase tweenPoolSize or set maxSize to Infinity',
+            "Increase tweenPoolSize or set maxSize to Infinity",
           );
         }
-        case 'drop': {
+        case "drop": {
           return null;
         }
       }
@@ -513,7 +513,7 @@ export class TweenPool {
     const used = this._active.size;
     const capacity = this._slots.length;
     if (this._logger && used >= Math.ceil(capacity * this._policy.warnAt)) {
-      this._logger.debug('[TweenPool] Approaching capacity', { used, capacity });
+      this._logger.debug("[TweenPool] Approaching capacity", { used, capacity });
     }
 
     return slot;
@@ -580,7 +580,7 @@ export class TweenPool {
     // Resize tick buffer to cover the new capacity
     this._tickBuffer = Array.from({ length: newSize }) as TweenSlot[];
 
-    this._logger?.warn('[TweenPool] Pool exhausted, growing …', {
+    this._logger?.warn("[TweenPool] Pool exhausted, growing …", {
       from: currentSize,
       to: newSize,
     });

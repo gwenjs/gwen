@@ -24,7 +24,7 @@
  * ```
  */
 
-import type { GwenPlugin, GwenEngine } from '@gwenjs/core';
+import type { GwenPlugin, GwenEngine } from "@gwenjs/core";
 
 export type { GwenEngine };
 

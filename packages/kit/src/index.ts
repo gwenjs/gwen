@@ -10,4 +10,4 @@ export type {
   VitePlugin,
   ViteUserConfig,
   DeepPartial,
-} from './define-module.js';
+} from "./define-module.js";

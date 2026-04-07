@@ -4,7 +4,7 @@
  * Verifies that useShapeCast delegates to the correct Physics3D service methods
  * and that dispose() cleans up via unregisterShapeCastSlot.
  */
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach } from "vitest";
 
 const mockShapeCastHandle = {
   hit: false,
@@ -22,21 +22,21 @@ const mockPhysics3D = {
   unregisterShapeCastSlot: vi.fn(),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
-import { useShapeCast } from '../../src/composables/use-shape-cast.js';
+import { useShapeCast } from "../../src/composables/use-shape-cast.js";
 
-describe('useShapeCast', () => {
+describe("useShapeCast", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPhysics3D.registerShapeCastSlot.mockReturnValue(mockShapeCastHandle);
   });
 
-  it('calls registerShapeCastSlot with the provided opts', () => {
+  it("calls registerShapeCastSlot with the provided opts", () => {
     const opts = {
-      shape: { type: 'sphere' as const, radius: 0.5 },
+      shape: { type: "sphere" as const, radius: 0.5 },
       direction: { x: 0, y: -1, z: 0 },
       maxDist: 10,
     };
@@ -44,9 +44,9 @@ describe('useShapeCast', () => {
     expect(mockPhysics3D.registerShapeCastSlot).toHaveBeenCalledWith(opts);
   });
 
-  it('returns a handle with all ShapeCastHandle properties', () => {
+  it("returns a handle with all ShapeCastHandle properties", () => {
     const handle = useShapeCast({
-      shape: { type: 'sphere' as const, radius: 0.5 },
+      shape: { type: "sphere" as const, radius: 0.5 },
       direction: { x: 0, y: -1, z: 0 },
     });
     expect(handle.hit).toBe(false);
@@ -59,11 +59,11 @@ describe('useShapeCast', () => {
     expect(handle._id).toBe(43);
   });
 
-  it('exposes reactive getters — reflects mutations to the underlying handle', () => {
+  it("exposes reactive getters — reflects mutations to the underlying handle", () => {
     const liveHandle = { ...mockShapeCastHandle };
     mockPhysics3D.registerShapeCastSlot.mockReturnValue(liveHandle);
     const handle = useShapeCast({
-      shape: { type: 'sphere' as const, radius: 0.3 },
+      shape: { type: "sphere" as const, radius: 0.3 },
       direction: { x: 1, y: 0, z: 0 },
     });
 
@@ -75,27 +75,27 @@ describe('useShapeCast', () => {
     expect(handle.witnessA).toEqual({ x: 1, y: 0, z: 0 });
   });
 
-  it('dispose() calls unregisterShapeCastSlot with the underlying handle', () => {
+  it("dispose() calls unregisterShapeCastSlot with the underlying handle", () => {
     const handle = useShapeCast({
-      shape: { type: 'sphere' as const, radius: 0.5 },
+      shape: { type: "sphere" as const, radius: 0.5 },
       direction: { x: 0, y: -1, z: 0 },
     });
     handle.dispose();
     expect(mockPhysics3D.unregisterShapeCastSlot).toHaveBeenCalledWith(mockShapeCastHandle);
   });
 
-  it('dispose() calls unregisterShapeCastSlot exactly once', () => {
+  it("dispose() calls unregisterShapeCastSlot exactly once", () => {
     const handle = useShapeCast({
-      shape: { type: 'sphere' as const, radius: 0.5 },
+      shape: { type: "sphere" as const, radius: 0.5 },
       direction: { x: 0, y: -1, z: 0 },
     });
     handle.dispose();
     expect(mockPhysics3D.unregisterShapeCastSlot).toHaveBeenCalledTimes(1);
   });
 
-  it('registerShapeCastSlot is called exactly once per useShapeCast call', () => {
+  it("registerShapeCastSlot is called exactly once per useShapeCast call", () => {
     useShapeCast({
-      shape: { type: 'box' as const, hx: 1, hy: 1, hz: 1 },
+      shape: { type: "box" as const, hx: 1, hy: 1, hz: 1 },
       direction: { x: 0, y: 0, z: -1 },
     });
     expect(mockPhysics3D.registerShapeCastSlot).toHaveBeenCalledTimes(1);

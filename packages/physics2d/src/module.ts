@@ -12,11 +12,11 @@
  * ```
  */
 
-import { defineGwenModule } from '@gwenjs/kit/module';
-import { definePluginTypes } from '@gwenjs/kit/plugin';
-import { Physics2DPlugin } from './plugin/index';
-import { physics2dVitePlugin } from './vite-plugin';
-import type { Physics2DConfig } from './types';
+import { defineGwenModule } from "@gwenjs/kit/module";
+import { definePluginTypes } from "@gwenjs/kit/plugin";
+import { Physics2DPlugin } from "./plugin/index";
+import { physics2dVitePlugin } from "./vite-plugin";
+import type { Physics2DConfig } from "./types";
 
 /**
  * GWEN module for the Physics 2D plugin.
@@ -27,7 +27,7 @@ import type { Physics2DConfig } from './types';
  * 3. Generates `.gwen/types/physics2d.d.ts` with typed service/hook declarations.
  */
 export default defineGwenModule<Physics2DConfig>({
-  meta: { name: '@gwenjs/physics2d' },
+  meta: { name: "@gwenjs/physics2d" },
   defaults: {
     gravity: -9.81,
     gravityX: 0,
@@ -35,39 +35,41 @@ export default defineGwenModule<Physics2DConfig>({
   async setup(options, kit) {
     kit.addPlugin(Physics2DPlugin(options));
     kit.addVitePlugin(
-      physics2dVitePlugin({ debug: options.vite?.debug }) as unknown as import('@gwenjs/kit').VitePlugin,
+      physics2dVitePlugin({
+        debug: options.vite?.debug,
+      }) as unknown as import("@gwenjs/kit").VitePlugin,
     );
 
     kit.addAutoImports([
-      { name: 'usePhysics2D', from: '@gwenjs/physics2d' },
-      { name: 'useRigidBody', from: '@gwenjs/physics2d' },
-      { name: 'useCollider', from: '@gwenjs/physics2d' },
+      { name: "usePhysics2D", from: "@gwenjs/physics2d" },
+      { name: "useRigidBody", from: "@gwenjs/physics2d" },
+      { name: "useCollider", from: "@gwenjs/physics2d" },
       // RFC-04 additions:
-      { name: 'useStaticBody', from: '@gwenjs/physics2d' },
-      { name: 'useDynamicBody', from: '@gwenjs/physics2d' },
-      { name: 'useBoxCollider', from: '@gwenjs/physics2d' },
-      { name: 'useSphereCollider', from: '@gwenjs/physics2d' },
-      { name: 'useCapsuleCollider', from: '@gwenjs/physics2d' },
-      { name: 'defineLayers', from: '@gwenjs/physics2d' },
-      { name: 'onContact', from: '@gwenjs/physics2d' },
-      { name: 'onSensorEnter', from: '@gwenjs/physics2d' },
-      { name: 'onSensorExit', from: '@gwenjs/physics2d' },
-      { name: 'useShape', from: '@gwenjs/physics2d' },
+      { name: "useStaticBody", from: "@gwenjs/physics2d" },
+      { name: "useDynamicBody", from: "@gwenjs/physics2d" },
+      { name: "useBoxCollider", from: "@gwenjs/physics2d" },
+      { name: "useSphereCollider", from: "@gwenjs/physics2d" },
+      { name: "useCapsuleCollider", from: "@gwenjs/physics2d" },
+      { name: "defineLayers", from: "@gwenjs/physics2d" },
+      { name: "onContact", from: "@gwenjs/physics2d" },
+      { name: "onSensorEnter", from: "@gwenjs/physics2d" },
+      { name: "onSensorExit", from: "@gwenjs/physics2d" },
+      { name: "useShape", from: "@gwenjs/physics2d" },
     ]);
 
     kit.addTypeTemplate({
-      filename: 'physics2d.d.ts',
+      filename: "physics2d.d.ts",
       getContents: () =>
         definePluginTypes({
           imports: [
             "import type { Physics2DAPI, CollisionContact, CollisionEventsBatch, SensorState } from '@gwenjs/physics2d'",
           ],
-          provides: { physics2d: 'Physics2DAPI' },
+          provides: { physics2d: "Physics2DAPI" },
           hooks: {
-            'physics:collision': '(contacts: ReadonlyArray<CollisionContact>) => void',
-            'physics:collision:batch': '(batch: Readonly<CollisionEventsBatch>) => void',
-            'physics:sensor:changed':
-              '(entityId: EntityId, sensorId: number, state: SensorState) => void',
+            "physics:collision": "(contacts: ReadonlyArray<CollisionContact>) => void",
+            "physics:collision:batch": "(batch: Readonly<CollisionEventsBatch>) => void",
+            "physics:sensor:changed":
+              "(entityId: EntityId, sensorId: number, state: SensorState) => void",
           },
         }),
     });

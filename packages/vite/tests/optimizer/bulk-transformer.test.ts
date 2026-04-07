@@ -5,41 +5,41 @@
  * AstWalker parse to obtain source positions and verify the actual output.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import MagicString from 'magic-string';
-import { ComponentManifest } from '../../src/optimizer/component-manifest.js';
-import { applyBulkTransform } from '../../src/optimizer/bulk-transformer.js';
-import { AstWalker } from '../../src/optimizer/ast-walker.js';
-import type { OptimizablePattern } from '../../src/optimizer/types.js';
+import { describe, it, expect, beforeEach } from "vitest";
+import MagicString from "magic-string";
+import { ComponentManifest } from "../../src/optimizer/component-manifest.js";
+import { applyBulkTransform } from "../../src/optimizer/bulk-transformer.js";
+import { AstWalker } from "../../src/optimizer/ast-walker.js";
+import type { OptimizablePattern } from "../../src/optimizer/types.js";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
 /** Position component with 2 float32 fields (x, y). */
 const POSITION_ENTRY = {
-  name: 'Position',
+  name: "Position",
   typeId: 1,
   byteSize: 8,
   f32Stride: 2,
   fields: [
-    { name: 'x', type: 'f32', byteOffset: 0 },
-    { name: 'y', type: 'f32', byteOffset: 4 },
+    { name: "x", type: "f32", byteOffset: 0 },
+    { name: "y", type: "f32", byteOffset: 4 },
   ],
-  importPath: 'src/components/position.ts',
-  exportName: 'Position',
+  importPath: "src/components/position.ts",
+  exportName: "Position",
 } as const;
 
 /** Velocity component with 2 float32 fields (x, y). */
 const VELOCITY_ENTRY = {
-  name: 'Velocity',
+  name: "Velocity",
   typeId: 2,
   byteSize: 8,
   f32Stride: 2,
   fields: [
-    { name: 'x', type: 'f32', byteOffset: 0 },
-    { name: 'y', type: 'f32', byteOffset: 4 },
+    { name: "x", type: "f32", byteOffset: 0 },
+    { name: "y", type: "f32", byteOffset: 4 },
   ],
-  importPath: 'src/components/velocity.ts',
-  exportName: 'Velocity',
+  importPath: "src/components/velocity.ts",
+  exportName: "Velocity",
 } as const;
 
 // ─── System source used in integration tests ─────────────────────────────────
@@ -61,7 +61,7 @@ const SYSTEM_SOURCE = `defineSystem(() => {
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
 
-describe('applyBulkTransform', () => {
+describe("applyBulkTransform", () => {
   let manifest: ComponentManifest;
 
   beforeEach(() => {
@@ -72,36 +72,36 @@ describe('applyBulkTransform', () => {
 
   // ── No-positions guard ──────────────────────────────────────────────────────
 
-  it('returns false when pattern has no positions field', () => {
-    const code = 'const x = 1;';
+  it("returns false when pattern has no positions field", () => {
+    const code = "const x = 1;";
     const s = new MagicString(code);
     const pattern: OptimizablePattern = {
-      queryComponents: ['Position'],
-      readComponents: ['Position'],
-      writeComponents: ['Position'],
-      loc: { line: 1, column: 0, file: 'test.ts' },
+      queryComponents: ["Position"],
+      readComponents: ["Position"],
+      writeComponents: ["Position"],
+      loc: { line: 1, column: 0, file: "test.ts" },
       // positions deliberately omitted
     };
-    expect(applyBulkTransform(s, pattern, manifest, 'core')).toBe(false);
+    expect(applyBulkTransform(s, pattern, manifest, "core")).toBe(false);
   });
 
-  it('does not mutate MagicString when positions are absent', () => {
-    const code = 'const x = 1;';
+  it("does not mutate MagicString when positions are absent", () => {
+    const code = "const x = 1;";
     const s = new MagicString(code);
     const pattern: OptimizablePattern = {
-      queryComponents: ['Position'],
-      readComponents: ['Position'],
-      writeComponents: ['Position'],
-      loc: { line: 1, column: 0, file: 'test.ts' },
+      queryComponents: ["Position"],
+      readComponents: ["Position"],
+      writeComponents: ["Position"],
+      loc: { line: 1, column: 0, file: "test.ts" },
     };
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     expect(s.hasChanged()).toBe(false);
   });
 
   // ── Integration tests (require AstWalker to parse real source) ──────────────
 
-  it('transforms a single read+write component pattern', () => {
-    const walker = new AstWalker('test.ts');
+  it("transforms a single read+write component pattern", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
@@ -109,91 +109,91 @@ describe('applyBulkTransform', () => {
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    const result = applyBulkTransform(s, pattern, manifest, 'core');
+    const result = applyBulkTransform(s, pattern, manifest, "core");
     expect(result).toBe(true);
     const output = s.toString();
-    expect(output).toContain('queryReadBulk');
-    expect(output).toContain('queryWriteBulk');
+    expect(output).toContain("queryReadBulk");
+    expect(output).toContain("queryWriteBulk");
   });
 
-  it('generates queryReadBulk before the for loop', () => {
-    const walker = new AstWalker('test.ts');
+  it("generates queryReadBulk before the for loop", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    const readIdx = output.indexOf('queryReadBulk');
-    const forIdx = output.indexOf('for (let _i');
+    const readIdx = output.indexOf("queryReadBulk");
+    const forIdx = output.indexOf("for (let _i");
     expect(readIdx).toBeGreaterThanOrEqual(0);
     expect(forIdx).toBeGreaterThanOrEqual(0);
     // queryReadBulk must appear before the numeric for loop
     expect(readIdx).toBeLessThan(forIdx);
   });
 
-  it('generates queryWriteBulk after the for loop', () => {
-    const walker = new AstWalker('test.ts');
+  it("generates queryWriteBulk after the for loop", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    const writeIdx = output.indexOf('queryWriteBulk');
-    const forIdx = output.lastIndexOf('for (let _i');
+    const writeIdx = output.indexOf("queryWriteBulk");
+    const forIdx = output.lastIndexOf("for (let _i");
     expect(writeIdx).toBeGreaterThanOrEqual(0);
     // queryWriteBulk must appear after the numeric for loop
     expect(writeIdx).toBeGreaterThan(forIdx);
   });
 
-  it('replaces for-of loop with a numeric for loop', () => {
-    const walker = new AstWalker('test.ts');
+  it("replaces for-of loop with a numeric for loop", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    expect(output).not.toContain('for (const e of');
-    expect(output).toContain('for (let _i = 0;');
+    expect(output).not.toContain("for (const e of");
+    expect(output).toContain("for (let _i = 0;");
   });
 
-  it('removes the per-entity read declaration (const pos = useComponent(...))', () => {
-    const walker = new AstWalker('test.ts');
+  it("removes the per-entity read declaration (const pos = useComponent(...))", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
     // The original `const pos = useComponent(e, Position)` must be gone
-    expect(output).not.toContain('const pos = useComponent');
+    expect(output).not.toContain("const pos = useComponent");
   });
 
-  it('removes the per-entity write call (useComponent(e, Position, {...}))', () => {
-    const walker = new AstWalker('test.ts');
+  it("removes the per-entity write call (useComponent(e, Position, {...}))", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
     // The original 3-arg useComponent write call must be gone
-    expect(output).not.toContain('useComponent(e, Position, {');
+    expect(output).not.toContain("useComponent(e, Position, {");
   });
 
-  it('rewrites pos.x property access to typed-array accessor', () => {
+  it("rewrites pos.x property access to typed-array accessor", () => {
     // Use a source where pos.x appears OUTSIDE the write call so it ends up
     // in propAccesses and is rewritten by the transformer. In SYSTEM_SOURCE,
     // pos.x only appears inside the write call (which is removed entirely);
@@ -208,7 +208,7 @@ describe('applyBulkTransform', () => {
     }
   });
 });`;
-    const walker = new AstWalker('test.ts');
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(sourceWithExternalRead);
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
@@ -216,31 +216,31 @@ describe('applyBulkTransform', () => {
     if (!pattern.positions) return;
 
     const s = new MagicString(sourceWithExternalRead);
-    applyBulkTransform(s, pattern, manifest, 'core');
+    applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
     // pos.x (outside the write call) must be rewritten to a typed-array accessor
-    expect(output).not.toContain('pos.x');
-    expect(output).toContain('_position[_i * 2 + 0]');
+    expect(output).not.toContain("pos.x");
+    expect(output).toContain("_position[_i * 2 + 0]");
   });
 
-  it('produces a source map when transformation is applied', () => {
-    const walker = new AstWalker('test.ts');
+  it("produces a source map when transformation is applied", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
-    const result = applyBulkTransform(s, pattern, manifest, 'core');
+    const result = applyBulkTransform(s, pattern, manifest, "core");
     if (!result) return;
 
-    const map = s.generateMap({ hires: true, source: 'test.ts', includeContent: true });
+    const map = s.generateMap({ hires: true, source: "test.ts", includeContent: true });
     expect(map).toBeDefined();
     expect(map.mappings.length).toBeGreaterThan(0);
   });
 
-  it('extracts pattern positions in AstWalker.walk output', () => {
-    const walker = new AstWalker('test.ts');
+  it("extracts pattern positions in AstWalker.walk output", () => {
+    const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
@@ -255,7 +255,7 @@ describe('applyBulkTransform', () => {
     expect(positions.forOfStart).toBeGreaterThanOrEqual(0);
     expect(positions.forBodyStart).toBeGreaterThan(positions.forOfStart);
     expect(positions.forOfEnd).toBeGreaterThan(positions.forBodyStart);
-    expect(positions.entityVar).toBe('e');
+    expect(positions.entityVar).toBe("e");
     expect(positions.readDecls.length).toBeGreaterThan(0);
     expect(positions.writeCalls.length).toBeGreaterThan(0);
   });

@@ -5,17 +5,17 @@
  * Uses the same patterns: generation counter, free list, SoA-style storage.
  */
 
-import type { ComponentDefinition, ComponentSchema } from '../schema';
-import type { EntityId } from '../types/entity';
+import type { ComponentDefinition, ComponentSchema } from "../schema";
+import type { EntityId } from "../types/entity";
 import {
   buildQueryCacheKey,
   normalizeComponentTypesForQuery,
   type ComponentTypeInput,
-} from './component-type-normalizer';
-import { createEntityId, unpackEntityId } from '../types/entity';
+} from "./component-type-normalizer";
+import { createEntityId, unpackEntityId } from "../types/entity";
 
 // Re-export EntityId as part of the ECS module's public API
-export type { EntityId } from '../types/entity';
+export type { EntityId } from "../types/entity";
 
 /** A single component definition — shorthand for use in query descriptors. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -160,10 +160,10 @@ export class ComponentRegistry {
   /** Add or update a component on an entity. */
   add<T>(
     entityId: EntityId,
-    type: ComponentType | ComponentDefinition<import('../schema').ComponentSchema>,
+    type: ComponentType | ComponentDefinition<import("../schema").ComponentSchema>,
     data: T,
   ): void {
-    const key = typeof type === 'string' ? type : type.name;
+    const key = typeof type === "string" ? type : type.name;
     if (!this.storage.has(key)) {
       this.storage.set(key, new Map());
     }
@@ -173,9 +173,9 @@ export class ComponentRegistry {
   /** Remove a component from an entity. Returns true if it existed. */
   remove(
     entityId: EntityId,
-    type: ComponentType | ComponentDefinition<import('../schema').ComponentSchema>,
+    type: ComponentType | ComponentDefinition<import("../schema").ComponentSchema>,
   ): boolean {
-    const key = typeof type === 'string' ? type : type.name;
+    const key = typeof type === "string" ? type : type.name;
     const map = this.storage.get(key);
     if (!map) return false;
     return map.delete(idIndex(entityId));
@@ -184,18 +184,18 @@ export class ComponentRegistry {
   /** Get a component by entity and type. Returns undefined if absent. */
   get<T>(
     entityId: EntityId,
-    type: ComponentType | ComponentDefinition<import('../schema').ComponentSchema>,
+    type: ComponentType | ComponentDefinition<import("../schema").ComponentSchema>,
   ): T | undefined {
-    const key = typeof type === 'string' ? type : type.name;
+    const key = typeof type === "string" ? type : type.name;
     return this.storage.get(key)?.get(idIndex(entityId)) as T | undefined;
   }
 
   /** Check if an entity has a component. */
   has(
     entityId: EntityId,
-    type: ComponentType | ComponentDefinition<import('../schema').ComponentSchema>,
+    type: ComponentType | ComponentDefinition<import("../schema").ComponentSchema>,
   ): boolean {
-    const key = typeof type === 'string' ? type : type.name;
+    const key = typeof type === "string" ? type : type.name;
     return this.storage.get(key)?.has(idIndex(entityId)) ?? false;
   }
 
@@ -245,18 +245,18 @@ export class QueryEngine {
     const desc: SystemQueryDescriptor = Array.isArray(queryDesc) ? { all: queryDesc } : queryDesc;
 
     // 1. 'all' filter — primary requirement
-    const allRequired = (desc.all ?? []).map((d) => (typeof d === 'string' ? d : d.name));
+    const allRequired = (desc.all ?? []).map((d) => (typeof d === "string" ? d : d.name));
     let results = this.query(allRequired, entities, components);
 
     // 2. 'any' filter — at least one
     if (desc.any && desc.any.length > 0) {
-      const anyNames = desc.any.map((d) => (typeof d === 'string' ? d : d.name));
+      const anyNames = desc.any.map((d) => (typeof d === "string" ? d : d.name));
       results = results.filter((id) => anyNames.some((type) => components.has(id, type)));
     }
 
     // 3. 'none' filter — exclusion
     if (desc.none && desc.none.length > 0) {
-      const noneNames = desc.none.map((d) => (typeof d === 'string' ? d : d.name));
+      const noneNames = desc.none.map((d) => (typeof d === "string" ? d : d.name));
       results = results.filter((id) => !noneNames.some((type) => components.has(id, type)));
     }
 

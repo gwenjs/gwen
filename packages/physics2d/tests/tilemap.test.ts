@@ -1,9 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from '../src/helpers/tilemap';
-import { TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION } from '../src/types';
+import { describe, expect, it } from "vitest";
+import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from "../src/helpers/tilemap";
+import { TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION } from "../src/types";
 
-describe('buildTilemapPhysicsChunks', () => {
-  it('bakes deterministic chunks with versioned format + checksum', () => {
+describe("buildTilemapPhysicsChunks", () => {
+  it("bakes deterministic chunks with versioned format + checksum", () => {
     // 4x4 map, 2x2 chunks, one 2x2 solid block in top-left quadrant.
     const tiles = [1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
 
@@ -30,11 +30,11 @@ describe('buildTilemapPhysicsChunks', () => {
     expect(chunk00!.rects).toHaveLength(1);
     expect(chunk00!.rects[0]).toEqual({ x: 0, y: 0, w: 2, h: 2 });
     expect(chunk00!.colliders[0]).toEqual(
-      expect.objectContaining({ shape: 'box', hw: 16, hh: 16, offsetX: 16, offsetY: 16 }),
+      expect.objectContaining({ shape: "box", hw: 16, hh: 16, offsetX: 16, offsetY: 16 }),
     );
   });
 
-  it('patches only one chunk and updates checksum deterministically', () => {
+  it("patches only one chunk and updates checksum deterministically", () => {
     const baseTiles = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     const full = buildTilemapPhysicsChunks({
       tiles: baseTiles,

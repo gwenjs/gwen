@@ -13,7 +13,7 @@
  *   - Engine integration
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   getWasmBridge,
   _injectMockWasmEngine,
@@ -22,7 +22,7 @@ import {
   type WasmBridge,
   type WasmEngine,
   type WasmEntityId,
-} from '../src/engine/wasm-bridge';
+} from "../src/engine/wasm-bridge";
 
 // ── Mock helper ───────────────────────────────────────────────────────────────
 
@@ -60,53 +60,53 @@ function createMockEngine(): WasmEngine {
 
 // ── Without WASM (not initialized) ───────────────────────────────────────────
 
-describe('WasmBridge — not initialized', () => {
+describe("WasmBridge — not initialized", () => {
   beforeEach(() => _resetWasmBridge());
 
-  it('isActive() returns false', () => {
+  it("isActive() returns false", () => {
     expect(getWasmBridge().isActive()).toBe(false);
   });
 
-  it('engine() throws', () => {
-    expect(() => getWasmBridge().engine()).toThrow('WASM');
+  it("engine() throws", () => {
+    expect(() => getWasmBridge().engine()).toThrow("WASM");
   });
 
-  it('createEntity() throws', () => {
-    expect(() => getWasmBridge().createEntity()).toThrow('WASM');
+  it("createEntity() throws", () => {
+    expect(() => getWasmBridge().createEntity()).toThrow("WASM");
   });
 
-  it('deleteEntity() throws', () => {
-    expect(() => getWasmBridge().deleteEntity(0, 0)).toThrow('WASM');
+  it("deleteEntity() throws", () => {
+    expect(() => getWasmBridge().deleteEntity(0, 0)).toThrow("WASM");
   });
 
-  it('isAlive() throws', () => {
-    expect(() => getWasmBridge().isAlive(0, 0)).toThrow('WASM');
+  it("isAlive() throws", () => {
+    expect(() => getWasmBridge().isAlive(0, 0)).toThrow("WASM");
   });
 
-  it('countEntities() throws', () => {
-    expect(() => getWasmBridge().countEntities()).toThrow('WASM');
+  it("countEntities() throws", () => {
+    expect(() => getWasmBridge().countEntities()).toThrow("WASM");
   });
 
-  it('registerComponentType() throws', () => {
-    expect(() => getWasmBridge().registerComponentType()).toThrow('WASM');
+  it("registerComponentType() throws", () => {
+    expect(() => getWasmBridge().registerComponentType()).toThrow("WASM");
   });
 
-  it('addComponent() throws', () => {
-    expect(() => getWasmBridge().addComponent(0, 0, 0, new Uint8Array(4))).toThrow('WASM');
+  it("addComponent() throws", () => {
+    expect(() => getWasmBridge().addComponent(0, 0, 0, new Uint8Array(4))).toThrow("WASM");
   });
 
-  it('tick() throws', () => {
-    expect(() => getWasmBridge().tick(16)).toThrow('WASM');
+  it("tick() throws", () => {
+    expect(() => getWasmBridge().tick(16)).toThrow("WASM");
   });
 
-  it('stats() throws', () => {
-    expect(() => getWasmBridge().stats()).toThrow('WASM');
+  it("stats() throws", () => {
+    expect(() => getWasmBridge().stats()).toThrow("WASM");
   });
 });
 
 // ── With injected mock ────────────────────────────────────────────────────────
 
-describe('WasmBridge — with injected mock', () => {
+describe("WasmBridge — with injected mock", () => {
   let bridge: WasmBridge;
   let mock: WasmEngine;
 
@@ -119,63 +119,63 @@ describe('WasmBridge — with injected mock', () => {
 
   afterEach(() => _resetWasmBridge());
 
-  it('isActive() returns true', () => {
+  it("isActive() returns true", () => {
     expect(bridge.isActive()).toBe(true);
   });
 
-  it('engine() returns the mock', () => {
+  it("engine() returns the mock", () => {
     expect(bridge.engine()).toBe(mock);
   });
 
-  it('createEntity() delegates to mock', () => {
+  it("createEntity() delegates to mock", () => {
     const id = bridge.createEntity();
     expect(mock.create_entity).toHaveBeenCalled();
     expect(id).toEqual({ index: 0, generation: 0 });
   });
 
-  it('deleteEntity() delegates to mock', () => {
+  it("deleteEntity() delegates to mock", () => {
     bridge.deleteEntity(0, 0);
     expect(mock.delete_entity).toHaveBeenCalledWith(0, 0);
   });
 
-  it('isAlive() delegates to mock', () => {
+  it("isAlive() delegates to mock", () => {
     bridge.isAlive(0, 0);
     expect(mock.is_alive).toHaveBeenCalledWith(0, 0);
   });
 
-  it('registerComponentType() delegates to mock', () => {
+  it("registerComponentType() delegates to mock", () => {
     const id = bridge.registerComponentType();
     expect(mock.register_component_type).toHaveBeenCalled();
     expect(id).toBe(0);
   });
 
-  it('addComponent() delegates to mock', () => {
+  it("addComponent() delegates to mock", () => {
     const data = new Uint8Array([1, 2, 3]);
     bridge.addComponent(0, 0, 1, data);
     expect(mock.add_component).toHaveBeenCalledWith(0, 0, 1, data);
   });
 
-  it('removeComponent() delegates to mock', () => {
+  it("removeComponent() delegates to mock", () => {
     bridge.removeComponent(0, 0, 1);
     expect(mock.remove_component).toHaveBeenCalledWith(0, 0, 1);
   });
 
-  it('hasComponent() delegates to mock', () => {
+  it("hasComponent() delegates to mock", () => {
     bridge.hasComponent(0, 0, 1);
     expect(mock.has_component).toHaveBeenCalledWith(0, 0, 1);
   });
 
-  it('getComponentRaw() delegates to mock', () => {
+  it("getComponentRaw() delegates to mock", () => {
     bridge.getComponentRaw(0, 0, 1);
     expect(mock.get_component_raw).toHaveBeenCalledWith(0, 0, 1);
   });
 
-  it('updateEntityArchetype() passes Uint32Array to mock', () => {
+  it("updateEntityArchetype() passes Uint32Array to mock", () => {
     bridge.updateEntityArchetype(0, [1, 2, 3]);
     expect(mock.update_entity_archetype).toHaveBeenCalledWith(0, new Uint32Array([1, 2, 3]));
   });
 
-  it('queryEntities() returns packed EntityIds from mock', () => {
+  it("queryEntities() returns packed EntityIds from mock", () => {
     (mock.query_entities as ReturnType<typeof vi.fn>).mockReturnValueOnce(
       new Uint32Array([0, 1, 2]),
     );
@@ -184,7 +184,7 @@ describe('WasmBridge — with injected mock', () => {
     expect(result).toEqual([0n, 1n, 2n]); // generation=0 → entityId === BigInt(index)
   });
 
-  it('queryEntitiesRaw() delegates to query_entities_to_buffer', () => {
+  it("queryEntitiesRaw() delegates to query_entities_to_buffer", () => {
     (mock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mockReturnValueOnce(5);
     const count = bridge.queryEntitiesRaw([10, 20]);
     expect(mock.query_entities_to_buffer).toHaveBeenCalled();
@@ -196,7 +196,7 @@ describe('WasmBridge — with injected mock', () => {
     expect(Array.from(callArg)).toEqual([10, 20]);
   });
 
-  it('forEachQueryResultRaw() iterates over static buffer', () => {
+  it("forEachQueryResultRaw() iterates over static buffer", () => {
     const buf = new ArrayBuffer(100_000);
     const mockMemory = { buffer: buf } as WebAssembly.Memory;
     _injectMockWasmExports({ memory: mockMemory });
@@ -219,7 +219,7 @@ describe('WasmBridge — with injected mock', () => {
     expect(mock.query_entities_to_buffer).toHaveBeenCalled();
   });
 
-  it('forEachQueryResultRaw() handles memory grow by recreating the view', () => {
+  it("forEachQueryResultRaw() handles memory grow by recreating the view", () => {
     const buf1 = new ArrayBuffer(100_000);
     const buf2 = new ArrayBuffer(200_000);
     const mockMemory = { buffer: buf1 } as any;
@@ -241,40 +241,40 @@ describe('WasmBridge — with injected mock', () => {
     expect(result).toBe(99);
   });
 
-  it('tick() delegates to mock', () => {
+  it("tick() delegates to mock", () => {
     bridge.tick(16.5);
     expect(mock.tick).toHaveBeenCalledWith(16.5);
   });
 
-  it('stats() returns mock stats string', () => {
+  it("stats() returns mock stats string", () => {
     const s = bridge.stats();
     expect(s).toBe('{"entities":0,"frame":1}');
   });
 
   // ── SAB methods ──────────────────────────────────────────────────────────
 
-  it('allocSharedBuffer() delegates to mock and returns the pointer', () => {
+  it("allocSharedBuffer() delegates to mock and returns the pointer", () => {
     const ptr = bridge.allocSharedBuffer(320_000);
     expect(mock.alloc_shared_buffer).toHaveBeenCalledWith(320_000);
     expect(ptr).toBe(4096); // value returned by the mock
   });
 
-  it('allocSharedBuffer() with 0 bytes delegates to mock', () => {
+  it("allocSharedBuffer() with 0 bytes delegates to mock", () => {
     bridge.allocSharedBuffer(0);
     expect(mock.alloc_shared_buffer).toHaveBeenCalledWith(0);
   });
 
-  it('syncTransformsToBuffer() delegates ptr and maxEntities to mock', () => {
+  it("syncTransformsToBuffer() delegates ptr and maxEntities to mock", () => {
     bridge.syncTransformsToBuffer(4096, 10_000);
     expect(mock.sync_transforms_to_buffer).toHaveBeenCalledWith(4096, 10_000);
   });
 
-  it('syncTransformsFromBuffer() delegates ptr and maxEntities to mock', () => {
+  it("syncTransformsFromBuffer() delegates ptr and maxEntities to mock", () => {
     bridge.syncTransformsFromBuffer(4096, 10_000);
     expect(mock.sync_transforms_from_buffer).toHaveBeenCalledWith(4096, 10_000);
   });
 
-  it('syncTransformsToBuffer() and syncTransformsFromBuffer() pass different ptr values', () => {
+  it("syncTransformsToBuffer() and syncTransformsFromBuffer() pass different ptr values", () => {
     bridge.syncTransformsToBuffer(1024, 500);
     bridge.syncTransformsFromBuffer(2048, 500);
     expect(mock.sync_transforms_to_buffer).toHaveBeenCalledWith(1024, 500);
@@ -283,7 +283,7 @@ describe('WasmBridge — with injected mock', () => {
 
   // ── getLinearMemory() ────────────────────────────────────────────────────
 
-  it('getLinearMemory() returns null with a mock engine (no real WASM module)', () => {
+  it("getLinearMemory() returns null with a mock engine (no real WASM module)", () => {
     // _injectMockWasmEngine leaves _wasmModule null intentionally —
     // test environments must not depend on a real WebAssembly.Memory.
     expect(bridge.getLinearMemory()).toBeNull();
@@ -292,15 +292,15 @@ describe('WasmBridge — with injected mock', () => {
 
 // ── Singleton ─────────────────────────────────────────────────────────────────
 
-describe('WasmBridge — singleton', () => {
-  it('getWasmBridge() always returns the same instance', () => {
+describe("WasmBridge — singleton", () => {
+  it("getWasmBridge() always returns the same instance", () => {
     _resetWasmBridge();
     const a = getWasmBridge();
     const b = getWasmBridge();
     expect(a).toBe(b);
   });
 
-  it('_resetWasmBridge() resets isActive() to false', () => {
+  it("_resetWasmBridge() resets isActive() to false", () => {
     _injectMockWasmEngine(createMockEngine());
     expect(getWasmBridge().isActive()).toBe(true);
     _resetWasmBridge();
@@ -312,12 +312,12 @@ describe('WasmBridge — singleton', () => {
 
 // ── checkMemoryGrow() tests ───────────────────────────────────────────────────
 
-describe('WasmBridge — checkMemoryGrow()', () => {
+describe("WasmBridge — checkMemoryGrow()", () => {
   afterEach(() => {
     _resetWasmBridge();
   });
 
-  it('should return false on first call (initializes state)', () => {
+  it("should return false on first call (initializes state)", () => {
     const buf1 = new ArrayBuffer(100);
     const mockMemory = { buffer: buf1 } as WebAssembly.Memory;
 
@@ -327,7 +327,7 @@ describe('WasmBridge — checkMemoryGrow()', () => {
     expect(bridge.checkMemoryGrow()).toBe(false);
   });
 
-  it('should return true when buffer reference changes', () => {
+  it("should return true when buffer reference changes", () => {
     const buf1 = new ArrayBuffer(100);
     const buf2 = new ArrayBuffer(200);
     const mockMemory = { buffer: buf1 } as any;
@@ -342,7 +342,7 @@ describe('WasmBridge — checkMemoryGrow()', () => {
     expect(bridge.checkMemoryGrow()).toBe(true);
   });
 
-  it('should return false if called twice without grow', () => {
+  it("should return false if called twice without grow", () => {
     const buf1 = new ArrayBuffer(100);
     const mockMemory = { buffer: buf1 } as WebAssembly.Memory;
 
@@ -353,13 +353,13 @@ describe('WasmBridge — checkMemoryGrow()', () => {
     expect(bridge.checkMemoryGrow()).toBe(false); // no grow
   });
 
-  it('should return false if bridge is inactive', () => {
+  it("should return false if bridge is inactive", () => {
     _resetWasmBridge();
     const bridge = getWasmBridge();
     expect(bridge.checkMemoryGrow()).toBe(false);
   });
 
-  it('should be idempotent after a grow detection', () => {
+  it("should be idempotent after a grow detection", () => {
     const buf1 = new ArrayBuffer(100);
     const buf2 = new ArrayBuffer(200);
     const mockMemory = { buffer: buf1 } as any;

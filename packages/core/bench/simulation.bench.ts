@@ -14,21 +14,21 @@
  *   pnpm --filter @gwenjs/core exec vitest bench --run bench/simulation.bench.ts
  */
 
-import { bench, describe, beforeAll } from 'vitest';
-import { EntityManager, ComponentRegistry, QueryEngine } from '../src/core/ecs';
-import { createEngine } from '../src/index';
-import { defineComponent, Types, type InferComponent } from '../src/schema';
-import type { EntityId } from '../src/types/entity';
+import { bench, describe, beforeAll } from "vitest";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { createEngine } from "../src/index";
+import { defineComponent, Types, type InferComponent } from "../src/schema";
+import type { EntityId } from "../src/types/entity";
 
 // ── Component definitions ─────────────────────────────────────────────────────
 
-const Position = defineComponent({ name: 'Position', schema: { x: Types.f32, y: Types.f32 } });
-const Velocity = defineComponent({ name: 'Velocity', schema: { vx: Types.f32, vy: Types.f32 } });
+const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
+const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
 const Health = defineComponent({
-  name: 'Health',
+  name: "Health",
   schema: { current: Types.f32, max: Types.f32, regenRate: Types.f32 },
 });
-const _Tag = defineComponent({ name: 'Tag', schema: { value: Types.u32 } });
+const _Tag = defineComponent({ name: "Tag", schema: { value: Types.u32 } });
 
 type Pos = InferComponent<typeof Position>;
 type Vel = InferComponent<typeof Velocity>;
@@ -98,28 +98,28 @@ function runHealthFrame(cr: ComponentRegistry, qe: QueryEngine, em: EntityManage
 
 // ── 1. Single system (movement), 1 frame ─────────────────────────────────────
 
-describe('Movement system — 1 frame, direct TS ECS', () => {
+describe("Movement system — 1 frame, direct TS ECS", () => {
   const s1k = makeFullWorld(1_000);
   const s5k = makeFullWorld(5_000);
   const s10k = makeFullWorld(10_000);
 
-  bench('1 000 entities', () => runMovementFrame(s1k.cr, s1k.qe, s1k.em));
-  bench('5 000 entities', () => runMovementFrame(s5k.cr, s5k.qe, s5k.em));
-  bench('10 000 entities', () => runMovementFrame(s10k.cr, s10k.qe, s10k.em));
+  bench("1 000 entities", () => runMovementFrame(s1k.cr, s1k.qe, s1k.em));
+  bench("5 000 entities", () => runMovementFrame(s5k.cr, s5k.qe, s5k.em));
+  bench("10 000 entities", () => runMovementFrame(s10k.cr, s10k.qe, s10k.em));
 });
 
 // ── 2. Multi-system frame (movement + health), 1 frame ───────────────────────
 
-describe('Multi-system frame (movement + health) — 1 frame, direct TS ECS', () => {
+describe("Multi-system frame (movement + health) — 1 frame, direct TS ECS", () => {
   const s1k = makeFullWorld(1_000);
   const s5k = makeFullWorld(5_000);
 
-  bench('1 000 entities', () => {
+  bench("1 000 entities", () => {
     runMovementFrame(s1k.cr, s1k.qe, s1k.em);
     runHealthFrame(s1k.cr, s1k.qe, s1k.em);
   });
 
-  bench('5 000 entities', () => {
+  bench("5 000 entities", () => {
     runMovementFrame(s5k.cr, s5k.qe, s5k.em);
     runHealthFrame(s5k.cr, s5k.qe, s5k.em);
   });
@@ -127,8 +127,8 @@ describe('Multi-system frame (movement + health) — 1 frame, direct TS ECS', ()
 
 // ── 3. 100-frame simulation (sustained throughput) ────────────────────────────
 
-describe('Sustained 100-frame simulation — movement + health', () => {
-  bench('1 000 entities × 100 frames', () => {
+describe("Sustained 100-frame simulation — movement + health", () => {
+  bench("1 000 entities × 100 frames", () => {
     const { em, cr, qe } = makeFullWorld(1_000);
     for (let f = 0; f < 100; f++) {
       runMovementFrame(cr, qe, em);
@@ -136,7 +136,7 @@ describe('Sustained 100-frame simulation — movement + health', () => {
     }
   });
 
-  bench('5 000 entities × 100 frames', () => {
+  bench("5 000 entities × 100 frames", () => {
     const { em, cr, qe } = makeFullWorld(5_000);
     for (let f = 0; f < 100; f++) {
       runMovementFrame(cr, qe, em);
@@ -147,14 +147,14 @@ describe('Sustained 100-frame simulation — movement + health', () => {
 
 // ── 4. Sparse world (10% entities have velocity) ─────────────────────────────
 
-describe('Movement system — sparse world (10% have Velocity)', () => {
+describe("Movement system — sparse world (10% have Velocity)", () => {
   const sparse1k = makeSparseWorld(1_000, 10);
   const sparse5k = makeSparseWorld(5_000, 10);
 
-  bench('1 000 total entities, ~100 match', () => {
+  bench("1 000 total entities, ~100 match", () => {
     runMovementFrame(sparse1k.cr, sparse1k.qe, sparse1k.em);
   });
-  bench('5 000 total entities, ~500 match', () => {
+  bench("5 000 total entities, ~500 match", () => {
     runMovementFrame(sparse5k.cr, sparse5k.qe, sparse5k.em);
   });
 });
@@ -186,10 +186,10 @@ const _engineReady = (async () => {
   _movQuery5k = _engine5k.createLiveQuery([Position, Velocity]);
 })();
 
-describe('Engine-level frame simulation — createLiveQuery + EntityAccessor.get()', () => {
+describe("Engine-level frame simulation — createLiveQuery + EntityAccessor.get()", () => {
   beforeAll(() => _engineReady);
 
-  bench('1 000 entities — 1 frame (iterate + mutate via addComponent)', () => {
+  bench("1 000 entities — 1 frame (iterate + mutate via addComponent)", () => {
     for (const entity of _movQuery1k) {
       const pos = entity.get(Position) as Pos | undefined;
       const vel = entity.get(Velocity) as Vel | undefined;
@@ -202,7 +202,7 @@ describe('Engine-level frame simulation — createLiveQuery + EntityAccessor.get
     }
   });
 
-  bench('5 000 entities — 1 frame (iterate + mutate via addComponent)', () => {
+  bench("5 000 entities — 1 frame (iterate + mutate via addComponent)", () => {
     for (const entity of _movQuery5k) {
       const pos = entity.get(Position) as Pos | undefined;
       const vel = entity.get(Velocity) as Vel | undefined;
@@ -218,8 +218,8 @@ describe('Engine-level frame simulation — createLiveQuery + EntityAccessor.get
 
 // ── 6. Entity churn — spawn + destroy per frame ───────────────────────────────
 
-describe('Entity churn — spawn 10 + destroy 10 per frame, 1 000 stable entities', () => {
-  bench('100 frames with churn', () => {
+describe("Entity churn — spawn 10 + destroy 10 per frame, 1 000 stable entities", () => {
+  bench("100 frames with churn", () => {
     const { em, cr, qe } = makeFullWorld(1_000);
     const live: EntityId[] = [...em];
     for (let f = 0; f < 100; f++) {

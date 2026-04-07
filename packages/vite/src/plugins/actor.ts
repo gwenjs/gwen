@@ -1,14 +1,14 @@
-import { readdirSync, statSync, existsSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import type { Plugin, ViteDevServer } from 'vite';
-import MagicString from 'magic-string';
-import { walk } from 'oxc-walker';
-import type { VariableDeclarator, CallExpression } from 'oxc-parser';
-import type { GwenViteOptions } from '../types.js';
-import { parseSource, isCallTo, getIdentifierName, getCallArgs } from '../oxc/index.js';
+import { readdirSync, statSync, existsSync } from "node:fs";
+import { join, resolve } from "node:path";
+import type { Plugin, ViteDevServer } from "vite";
+import MagicString from "magic-string";
+import { walk } from "oxc-walker";
+import type { VariableDeclarator, CallExpression } from "oxc-parser";
+import type { GwenViteOptions } from "../types.js";
+import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
 
-const ACTORS_VIRTUAL = 'virtual:gwen/actors';
-const RESOLVED_ACTORS = '\0' + ACTORS_VIRTUAL;
+const ACTORS_VIRTUAL = "virtual:gwen/actors";
+const RESOLVED_ACTORS = "\0" + ACTORS_VIRTUAL;
 
 /**
  * Generates the `virtual:gwen/actors` module source.
@@ -27,9 +27,9 @@ const RESOLVED_ACTORS = '\0' + ACTORS_VIRTUAL;
  */
 export function generateActorsModule(actorFiles: string[]): string {
   if (actorFiles.length === 0) {
-    return 'export const actors = [];\n';
+    return "export const actors = [];\n";
   }
-  const entries = actorFiles.map((f) => `  () => import('${f}')`).join(',\n');
+  const entries = actorFiles.map((f) => `  () => import('${f}')`).join(",\n");
   return `export const actors = [\n${entries},\n];\n`;
 }
 
@@ -50,8 +50,8 @@ export function generateActorsModule(actorFiles: string[]): string {
  * const Hero = defineActor(/* __actorName__: "Hero" *\/ config)
  * ```
  */
-export function transformActorNames(code: string, filename = 'actor.ts'): string {
-  if (!code.includes('defineActor') && !code.includes('definePrefab')) return code;
+export function transformActorNames(code: string, filename = "actor.ts"): string {
+  if (!code.includes("defineActor") && !code.includes("definePrefab")) return code;
 
   const parsed = parseSource(filename, code);
   if (!parsed) return code;
@@ -61,15 +61,15 @@ export function transformActorNames(code: string, filename = 'actor.ts'): string
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'VariableDeclarator') return;
+      if (node.type !== "VariableDeclarator") return;
       const { id, init } = node as VariableDeclarator;
-      if (id.type !== 'Identifier') return;
+      if (id.type !== "Identifier") return;
       if (!init) return;
-      if (!isCallTo(init, 'defineActor') && !isCallTo(init, 'definePrefab')) return;
+      if (!isCallTo(init, "defineActor") && !isCallTo(init, "definePrefab")) return;
 
       const varName = (id as { name: string }).name;
       const callee = getIdentifierName((init as CallExpression).callee);
-      const metaKey = callee === 'defineActor' ? '__actorName__' : '__prefabName__';
+      const metaKey = callee === "defineActor" ? "__actorName__" : "__prefabName__";
 
       const args = getCallArgs(init as CallExpression);
       if (args.length > 0) {
@@ -98,7 +98,7 @@ function scanActorDir(dir: string): string[] {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) {
       result.push(...scanActorDir(full));
-    } else if (entry.endsWith('.ts') && !entry.endsWith('.test.ts') && !entry.endsWith('.d.ts')) {
+    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts") && !entry.endsWith(".d.ts")) {
       result.push(full);
     }
   }
@@ -129,15 +129,15 @@ function scanActorDir(dir: string): string[] {
  */
 export function gwenActorPlugin(options: GwenViteOptions): Plugin {
   if (!options.actors) {
-    return { name: 'gwen:actor' };
+    return { name: "gwen:actor" };
   }
 
-  const actorDir = options.actors.dir ?? 'src/actors';
+  const actorDir = options.actors.dir ?? "src/actors";
   const hmrEnabled = options.actors.hmr !== false;
   let root = process.cwd();
 
   return {
-    name: 'gwen:actor',
+    name: "gwen:actor",
 
     configResolved(config) {
       root = config.root;
@@ -158,7 +158,7 @@ export function gwenActorPlugin(options: GwenViteOptions): Plugin {
       const mod = server.moduleGraph.getModuleById(RESOLVED_ACTORS);
       if (mod) {
         server.moduleGraph.invalidateModule(mod);
-        server.hot.send({ type: 'full-reload' });
+        server.hot.send({ type: "full-reload" });
       }
     },
 

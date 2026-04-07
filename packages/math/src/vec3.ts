@@ -4,8 +4,8 @@
  * All functions are pure (return new objects) unless the name ends in `Mut`.
  */
 
-import type { Vec3 } from './types.js';
-import { EPSILON } from './scalar.js';
+import type { Vec3 } from "./types.js";
+import { EPSILON } from "./scalar.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 

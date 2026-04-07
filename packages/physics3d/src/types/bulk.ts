@@ -1,4 +1,4 @@
-import type { EntityId } from '@gwenjs/core';
+import type { EntityId } from "@gwenjs/core";
 
 // ─── Bulk spawn ───────────────────────────────────────────────────────────────
 

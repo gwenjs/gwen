@@ -57,7 +57,7 @@ export class ContactRingBuffer {
     isEnter: boolean;
     isExit: boolean;
   }[] {
-    const events: ReturnType<ContactRingBuffer['drain']> = [];
+    const events: ReturnType<ContactRingBuffer["drain"]> = [];
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY;
       const base = slot * (CONTACT_EVENT_BYTES / 4);

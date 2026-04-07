@@ -8,8 +8,8 @@
  * All functions are pure unless the name ends in `Mut`.
  */
 
-import type { Quat, Vec3 } from './types.js';
-import { EPSILON } from './scalar.js';
+import type { Quat, Vec3 } from "./types.js";
+import { EPSILON } from "./scalar.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 

@@ -6,8 +6,8 @@
  * mutation for hot-path game loops.
  */
 
-import type { Vec2 } from './types.js';
-import { EPSILON } from './scalar.js';
+import type { Vec2 } from "./types.js";
+import { EPSILON } from "./scalar.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 

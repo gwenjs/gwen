@@ -26,12 +26,12 @@
  * ```
  */
 
-import fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { spawnSync, spawn, type ChildProcess } from 'node:child_process';
-import type { Plugin, ViteDevServer } from 'vite';
-import { walk } from 'oxc-walker';
+import fs from "node:fs";
+import * as path from "node:path";
+import { fileURLToPath } from "node:url";
+import { spawnSync, spawn, type ChildProcess } from "node:child_process";
+import type { Plugin, ViteDevServer } from "vite";
+import { walk } from "oxc-walker";
 import type {
   ExportDefaultDeclaration,
   ExportNamedDeclaration,
@@ -44,21 +44,21 @@ import type {
   ObjectProperty,
   ArrayExpression,
   Class as OxcClass,
-} from 'oxc-parser';
+} from "oxc-parser";
 import {
   parseSource,
   isCallTo,
   getCallArgs,
   getObjectProperties,
   getPropertyKeyName,
-} from './oxc/index.js';
+} from "./oxc/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type CoreVariant = 'light' | 'physics2d' | 'physics3d';
+export type CoreVariant = "light" | "physics2d" | "physics3d";
 
 export interface GwenPluginOptions {
   /**
@@ -85,7 +85,7 @@ export interface GwenPluginOptions {
    * wasm-pack compilation mode ('release' | 'debug').
    * Default: 'debug' in dev mode for faster rebuilds.
    */
-  wasmMode?: 'release' | 'debug';
+  wasmMode?: "release" | "debug";
   /**
    * Path to the gwen-manifest.json manifest.
    * If provided, its contents are injected as `__GWEN_MANIFEST__`.
@@ -97,16 +97,16 @@ export interface GwenPluginOptions {
 
 // ── Virtual module IDs ────────────────────────────────────────────────────────
 
-const VIRTUAL_MANIFEST_ID = 'virtual:gwen-manifest';
-const RESOLVED_VIRTUAL_MANIFEST = '\0' + VIRTUAL_MANIFEST_ID;
+const VIRTUAL_MANIFEST_ID = "virtual:gwen-manifest";
+const RESOLVED_VIRTUAL_MANIFEST = "\0" + VIRTUAL_MANIFEST_ID;
 
 // /@gwenjs/gwen- prefix — resolved as real HTTP path by browser,
 // intercepted by resolveId before Vite looks on disk.
 // Pattern identical to /@vite/ and /@fs/ used by Vite itself.
-const GWEN_ENTRY_ID = '/@gwenjs/gwen-entry';
-const GWEN_SCENES_ID = '/@gwenjs/gwen-scenes';
-const RESOLVED_ENTRY = '\0/@gwenjs/gwen-entry';
-const RESOLVED_SCENES = '\0/@gwenjs/gwen-scenes';
+const GWEN_ENTRY_ID = "/@gwenjs/gwen-entry";
+const GWEN_SCENES_ID = "/@gwenjs/gwen-scenes";
+const RESOLVED_ENTRY = "\0/@gwenjs/gwen-entry";
+const RESOLVED_SCENES = "\0/@gwenjs/gwen-scenes";
 
 // ── Scan src/scenes/ ──────────────────────────────────────────────────────────
 
@@ -149,7 +149,7 @@ function scanSceneFile(
   if (!parsed) {
     return {
       className: fallbackName,
-      sceneName: fallbackName.replace(/Scene$/, ''),
+      sceneName: fallbackName.replace(/Scene$/, ""),
       isDefault: false,
       isConst: false,
       isFactory: false,
@@ -165,11 +165,11 @@ function scanSceneFile(
   walk(parsed.program, {
     enter(node) {
       // Case 1: export default class FooScene
-      if (node.type === 'ExportDefaultDeclaration') {
+      if (node.type === "ExportDefaultDeclaration") {
         const { declaration } = node as ExportDefaultDeclaration;
-        if (declaration.type === 'ClassDeclaration' || declaration.type === 'ClassExpression') {
+        if (declaration.type === "ClassDeclaration" || declaration.type === "ClassExpression") {
           const cls = declaration as OxcClass;
-          if (cls.id?.type === 'Identifier') {
+          if (cls.id?.type === "Identifier") {
             className = (cls.id as { name: string }).name;
             isDefault = true;
           }
@@ -178,27 +178,27 @@ function scanSceneFile(
       }
 
       // Case 2 & 3: export class / export const = defineScene(...)
-      if (node.type === 'ExportNamedDeclaration') {
+      if (node.type === "ExportNamedDeclaration") {
         const { declaration } = node as ExportNamedDeclaration;
         if (!declaration) return;
 
-        if (declaration.type === 'ClassDeclaration' || declaration.type === 'ClassExpression') {
+        if (declaration.type === "ClassDeclaration" || declaration.type === "ClassExpression") {
           const cls = declaration as OxcClass;
-          if (cls.id?.type === 'Identifier') className = (cls.id as { name: string }).name;
+          if (cls.id?.type === "Identifier") className = (cls.id as { name: string }).name;
           return;
         }
 
-        if (declaration.type === 'VariableDeclaration') {
+        if (declaration.type === "VariableDeclaration") {
           for (const declarator of (declaration as VariableDeclaration).declarations) {
             const { id, init } = declarator as VariableDeclarator;
-            if (id.type !== 'Identifier') continue;
-            if (!init || !isCallTo(init, 'defineScene')) continue;
+            if (id.type !== "Identifier") continue;
+            if (!init || !isCallTo(init, "defineScene")) continue;
             className = (id as { name: string }).name;
             isConst = true;
             const args = getCallArgs(init as CallExpression);
-            if (args.length >= 1 && args[0]!.type === 'Literal') {
+            if (args.length >= 1 && args[0]!.type === "Literal") {
               const val = (args[0] as StringLiteral).value;
-              if (typeof val === 'string') {
+              if (typeof val === "string") {
                 sceneName = val;
                 isFactory = true;
               }
@@ -209,27 +209,27 @@ function scanSceneFile(
       }
 
       // Case 3b: defineScene('name', ...) outside export
-      if (node.type === 'CallExpression' && isCallTo(node as CallExpression, 'defineScene')) {
+      if (node.type === "CallExpression" && isCallTo(node as CallExpression, "defineScene")) {
         if (!sceneName) {
           const args = getCallArgs(node as CallExpression);
-          if (args.length >= 1 && args[0]!.type === 'Literal') {
+          if (args.length >= 1 && args[0]!.type === "Literal") {
             const val = (args[0] as StringLiteral).value;
-            if (typeof val === 'string') sceneName = val;
+            if (typeof val === "string") sceneName = val;
           }
         }
         return;
       }
 
       // Case 4: readonly name = 'Foo' inside a class
-      if (node.type === 'PropertyDefinition') {
+      if (node.type === "PropertyDefinition") {
         const propDef = node as PropertyDefinition;
         if (
-          propDef.key.type === 'Identifier' &&
-          (propDef.key as { name: string }).name === 'name'
+          propDef.key.type === "Identifier" &&
+          (propDef.key as { name: string }).name === "name"
         ) {
-          if (propDef.value && propDef.value.type === 'Literal' && !sceneName) {
+          if (propDef.value && propDef.value.type === "Literal" && !sceneName) {
             const val = (propDef.value as StringLiteral).value;
-            if (typeof val === 'string') sceneName = val;
+            if (typeof val === "string") sceneName = val;
           }
         }
       }
@@ -238,7 +238,7 @@ function scanSceneFile(
 
   return {
     className,
-    sceneName: sceneName ?? className.replace(/Scene$/, ''),
+    sceneName: sceneName ?? className.replace(/Scene$/, ""),
     isDefault,
     isConst,
     isFactory,
@@ -246,17 +246,17 @@ function scanSceneFile(
 }
 
 function scanScenes(projectRoot: string): SceneInfo[] {
-  const scenesDir = path.join(projectRoot, 'src', 'scenes');
+  const scenesDir = path.join(projectRoot, "src", "scenes");
   if (!fs.existsSync(scenesDir)) return [];
 
   return fs
     .readdirSync(scenesDir)
-    .filter((f) => f.endsWith('.ts') && !f.startsWith('_') && !f.startsWith('.'))
+    .filter((f) => f.endsWith(".ts") && !f.startsWith("_") && !f.startsWith("."))
     .sort()
     .map((file) => {
-      const base = file.replace(/\.ts$/, '');
+      const base = file.replace(/\.ts$/, "");
       const fullPath = path.join(scenesDir, file);
-      const source = fs.readFileSync(fullPath, 'utf-8');
+      const source = fs.readFileSync(fullPath, "utf-8");
 
       const { className, sceneName, isDefault, isFactory, isConst } = scanSceneFile(
         source,
@@ -278,7 +278,7 @@ function scanScenes(projectRoot: string): SceneInfo[] {
 
 function resolveMainScene(scenes: SceneInfo[], fromConfig?: string): string | undefined {
   if (fromConfig) return fromConfig;
-  const candidates = ['Main', 'MainMenu', 'Boot'];
+  const candidates = ["Main", "MainMenu", "Boot"];
   return candidates.find((c) => scenes.some((s) => s.sceneName === c)) ?? scenes[0]?.sceneName;
 }
 
@@ -287,9 +287,9 @@ function resolveMainScene(scenes: SceneInfo[], fromConfig?: string): string | un
 function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined): string {
   if (scenes.length === 0) {
     return [
-      'export function registerScenes(_scenes) {}',
-      'export const mainScene = undefined;',
-    ].join('\n');
+      "export function registerScenes(_scenes) {}",
+      "export const mainScene = undefined;",
+    ].join("\n");
   }
 
   const imports = scenes
@@ -298,7 +298,7 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
         ? `import ${s.className} from ${JSON.stringify(s.relPath)};`
         : `import { ${s.className} } from ${JSON.stringify(s.relPath)};`,
     )
-    .join('\n');
+    .join("\n");
 
   const registrations = scenes
     .map((s) => {
@@ -313,19 +313,19 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
       // class (backward compat)
       return `  scenes.register(new ${s.className}(scenes));`;
     })
-    .join('\n');
+    .join("\n");
 
-  const mainSceneValue = mainScene ? JSON.stringify(mainScene) : 'undefined';
+  const mainSceneValue = mainScene ? JSON.stringify(mainScene) : "undefined";
 
   return [
     imports,
-    '',
-    'export function registerScenes(scenes) {',
+    "",
+    "export function registerScenes(scenes) {",
     registrations,
-    '}',
-    '',
+    "}",
+    "",
     `export const mainScene = ${mainSceneValue};`,
-  ].join('\n');
+  ].join("\n");
 }
 
 /**
@@ -340,7 +340,7 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
  */
 function extractModuleNamesFromConfig(configPath: string): string[] {
   if (!fs.existsSync(configPath)) return [];
-  const src = fs.readFileSync(configPath, 'utf-8');
+  const src = fs.readFileSync(configPath, "utf-8");
 
   const parsed = parseSource(configPath, src);
   if (!parsed) return [];
@@ -349,34 +349,34 @@ function extractModuleNamesFromConfig(configPath: string): string[] {
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'ObjectExpression') return;
+      if (node.type !== "ObjectExpression") return;
 
       for (const prop of getObjectProperties(node as ObjectExpression)) {
-        if (getPropertyKeyName(prop) !== 'modules') continue;
+        if (getPropertyKeyName(prop) !== "modules") continue;
 
         const { value } = prop as ObjectProperty;
-        if (value.type !== 'ArrayExpression') continue;
+        if (value.type !== "ArrayExpression") continue;
 
         for (const el of (value as ArrayExpression).elements) {
-          if (!el || el.type === 'SpreadElement') continue;
+          if (!el || el.type === "SpreadElement") continue;
 
           // Form 1: '@scope/pkg' string literal
-          if (el.type === 'Literal' && typeof (el as StringLiteral).value === 'string') {
+          if (el.type === "Literal" && typeof (el as StringLiteral).value === "string") {
             const s = (el as StringLiteral).value;
-            if (s.includes('/') || s.startsWith('@')) names.push(s);
+            if (s.includes("/") || s.startsWith("@")) names.push(s);
             continue;
           }
 
           // Form 2: ['@scope/pkg', opts] tuple
-          if (el.type === 'ArrayExpression') {
+          if (el.type === "ArrayExpression") {
             const first = (el as ArrayExpression).elements[0];
             if (
               first &&
-              first.type === 'Literal' &&
-              typeof (first as StringLiteral).value === 'string'
+              first.type === "Literal" &&
+              typeof (first as StringLiteral).value === "string"
             ) {
               const s = (first as StringLiteral).value;
-              if (s.includes('/') || s.startsWith('@')) names.push(s);
+              if (s.includes("/") || s.startsWith("@")) names.push(s);
             }
           }
         }
@@ -403,82 +403,82 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
   // Generate static imports for each module — Vite can pre-bundle these
   const localVars: string[] = moduleNames.map((name, i) => {
     const localVar = `_gwenMod${i}`;
-    lines.push(`import ${localVar} from ${JSON.stringify(name + '/module')};`);
+    lines.push(`import ${localVar} from ${JSON.stringify(name + "/module")};`);
     return localVar;
   });
 
   // Build a static registry mapping name → imported module object
   const registryEntries = moduleNames
     .map((name, i) => `  ${JSON.stringify(name)}: ${localVars[i]}`)
-    .join(',\n');
+    .join(",\n");
   const registryCode =
     moduleNames.length > 0
       ? `const _gwenModRegistry = {\n${registryEntries}\n};\n`
-      : 'const _gwenModRegistry = {};\n';
+      : "const _gwenModRegistry = {};\n";
 
   const bootstrapLines = [
-    '',
+    "",
     registryCode,
-    'async function bootstrap() {',
-    '  const variant = detectCoreVariant(gwenConfig);',
-    '  const requireSAB = detectSharedMemoryRequired(gwenConfig);',
-    '  await initWasm(variant, { requireSAB });',
-    '  const engine = await createEngine(gwenConfig.engine ?? {});',
-    '',
-    '  // Load runtime plugins declared via modules: []',
-    '  const modulePlugins = [];',
-    '  const kit = {',
+    "async function bootstrap() {",
+    "  const variant = detectCoreVariant(gwenConfig);",
+    "  const requireSAB = detectSharedMemoryRequired(gwenConfig);",
+    "  await initWasm(variant, { requireSAB });",
+    "  const engine = await createEngine(gwenConfig.engine ?? {});",
+    "",
+    "  // Load runtime plugins declared via modules: []",
+    "  const modulePlugins = [];",
+    "  const kit = {",
     '    addPlugin(p) { modulePlugins.push(typeof p === "function" ? p() : p); },',
-    '    addAutoImports() {},',
-    '    addVitePlugin() {},',
-    '    extendViteConfig() {},',
-    '    addTypeTemplate() {},',
-    '    addModuleAugment() {},',
-    '    hook() {},',
-    '    options: gwenConfig,',
-    '  };',
-    '  for (const entry of (gwenConfig.modules ?? [])) {',
-    '    const [name, opts] = Array.isArray(entry) ? entry : [entry, {}];',
-    '    const mod = _gwenModRegistry[name];',
-    '    if (mod) {',
-    '      const def = mod.default ?? mod;',
+    "    addAutoImports() {},",
+    "    addVitePlugin() {},",
+    "    extendViteConfig() {},",
+    "    addTypeTemplate() {},",
+    "    addModuleAugment() {},",
+    "    hook() {},",
+    "    options: gwenConfig,",
+    "  };",
+    "  for (const entry of (gwenConfig.modules ?? [])) {",
+    "    const [name, opts] = Array.isArray(entry) ? entry : [entry, {}];",
+    "    const mod = _gwenModRegistry[name];",
+    "    if (mod) {",
+    "      const def = mod.default ?? mod;",
     '      if (def && typeof def.setup === "function") await def.setup(opts ?? {}, kit);',
-    '    }',
-    '  }',
-    '  for (const p of modulePlugins) await engine.use(p);',
-    '',
-    '  // Direct plugins from plugins: []',
-    '  for (const plugin of (gwenConfig.plugins ?? [])) {',
-    '    await engine.use(plugin);',
-    '  }',
+    "    }",
+    "  }",
+    "  for (const p of modulePlugins) await engine.use(p);",
+    "",
+    "  // Direct plugins from plugins: []",
+    "  for (const plugin of (gwenConfig.plugins ?? [])) {",
+    "    await engine.use(plugin);",
+    "  }",
   ];
 
   if (hasScenesDir) {
     bootstrapLines.push(
-      '',
-      '  // Wire scenes: collect system plugins via SceneRegistry adapter',
-      '  const usages = [];',
-      '  registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } });',
-      '  await Promise.all(usages);',
+      "",
+      "  // Wire scenes: collect system plugins via SceneRegistry adapter",
+      "  const usages = [];",
+      "  registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } });",
+      "  await Promise.all(usages);",
     );
   }
 
   bootstrapLines.push(
-    '  await engine.start();',
-    '}',
-    '',
-    'bootstrap().catch(err => {',
+    "  await engine.start();",
+    "}",
+    "",
+    "bootstrap().catch(err => {",
     '  console.error("[GWEN] Fatal:", err);',
     '  const pre = document.createElement("pre");',
     '  pre.style.cssText = "color:red;padding:2rem";',
-    '  pre.textContent = `[GWEN] Fatal:\\n${err}`;',
+    "  pre.textContent = `[GWEN] Fatal:\\n${err}`;",
     '  document.body.textContent = "";',
-    '  document.body.appendChild(pre);',
-    '});',
+    "  document.body.appendChild(pre);",
+    "});",
   );
 
   lines.push(...bootstrapLines);
-  return lines.join('\n');
+  return lines.join("\n");
 }
 
 // ── Plugin principal ──────────────────────────────────────────────────────────
@@ -488,14 +488,14 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
  * Returns the full path to the file if found, null otherwise.
  */
 function findWasmPluginFile(root: string, fileName: string): string | null {
-  const nmDir = path.resolve(root, 'node_modules/@gwenjs');
+  const nmDir = path.resolve(root, "node_modules/@gwenjs");
   if (!fs.existsSync(nmDir)) return null;
 
   for (const entry of fs.readdirSync(nmDir)) {
-    if (!entry.startsWith('gwen-plugin-')) continue;
+    if (!entry.startsWith("gwen-plugin-")) continue;
     const pkgPath = path.join(nmDir, entry);
     const realPkgPath = fs.existsSync(pkgPath) ? fs.realpathSync(pkgPath) : pkgPath;
-    const candidate = path.join(realPkgPath, 'wasm', fileName);
+    const candidate = path.join(realPkgPath, "wasm", fileName);
     if (fs.existsSync(candidate)) return candidate;
   }
   return null;
@@ -507,22 +507,22 @@ function findWasmPluginFile(root: string, fileName: string): string | null {
  */
 function collectWasmPluginDirs(root: string): string[] {
   const dirs: string[] = [];
-  const nmDir = path.resolve(root, 'node_modules/@gwenjs');
+  const nmDir = path.resolve(root, "node_modules/@gwenjs");
   if (!fs.existsSync(nmDir)) return [];
 
   for (const entry of fs.readdirSync(nmDir)) {
-    if (!entry.startsWith('gwen-plugin-')) continue;
+    if (!entry.startsWith("gwen-plugin-")) continue;
     // Resolve symlink (pnpm workspace uses symlinks to source packages)
     const pkgPath = path.join(nmDir, entry);
     const realPkgPath = fs.existsSync(pkgPath) ? fs.realpathSync(pkgPath) : pkgPath;
-    const wasmDir = path.join(realPkgPath, 'wasm');
+    const wasmDir = path.join(realPkgPath, "wasm");
     if (fs.existsSync(wasmDir)) dirs.push(wasmDir);
   }
   return dirs;
 }
 
 export function gwen(options: GwenPluginOptions = {}): Plugin {
-  const { wasmPublicPath = '/wasm', wasmMode = 'debug', verbose = false, manifestPath } = options;
+  const { wasmPublicPath = "/wasm", wasmMode = "debug", verbose = false, manifestPath } = options;
 
   let projectRoot = process.cwd();
   let cratePath: string | null = options.cratePath ?? null;
@@ -547,10 +547,10 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     // Stop as soon as we find ANY Cargo.toml — if it's workspace-only, we don't compile.
     let dir = root;
     for (let i = 0; i < 4; i++) {
-      const cargo = path.join(dir, 'Cargo.toml');
+      const cargo = path.join(dir, "Cargo.toml");
       if (fs.existsSync(cargo)) {
-        const content = fs.readFileSync(cargo, 'utf-8');
-        if (content.includes('[package]')) return dir;
+        const content = fs.readFileSync(cargo, "utf-8");
+        if (content.includes("[package]")) return dir;
         // Found a workspace-only Cargo.toml → stop, no custom crate here
         return null;
       }
@@ -560,10 +560,10 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
   }
 
   function findWasmPack(): string | null {
-    const candidates = ['wasm-pack', `${process.env.HOME}/.cargo/bin/wasm-pack`];
+    const candidates = ["wasm-pack", `${process.env.HOME}/.cargo/bin/wasm-pack`];
     for (const c of candidates) {
       try {
-        spawnSync(c, ['--version'], { stdio: 'ignore' });
+        spawnSync(c, ["--version"], { stdio: "ignore" });
         return c;
       } catch {
         /* not found */
@@ -580,9 +580,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     try {
       // In Node.js ESM, we can resolve the package location.
       // We look for the package.json path to find the base directory of the engine-core package.
-      const pkgUrl = import.meta.resolve('@gwenjs/core/package.json');
+      const pkgUrl = import.meta.resolve("@gwenjs/core/package.json");
       const pkgPath = fileURLToPath(pkgUrl);
-      const wasmDir = path.join(path.dirname(pkgPath), 'wasm');
+      const wasmDir = path.join(path.dirname(pkgPath), "wasm");
 
       if (fs.existsSync(wasmDir)) {
         log(`Resolved WASM dir via import.meta.resolve: ${wasmDir}`);
@@ -592,7 +592,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       // Fallback
     }
 
-    const candidate = path.resolve(root, 'node_modules/@gwenjs/core/wasm');
+    const candidate = path.resolve(root, "node_modules/@gwenjs/core/wasm");
     if (fs.existsSync(candidate)) {
       log(`Found WASM dir via node_modules: ${candidate}`);
       return candidate;
@@ -604,7 +604,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
   /**
    * Returns WASM/JS files from wasmSourceDir recursively.
    */
-  function listWasmFiles(dir: string, base: string = ''): string[] {
+  function listWasmFiles(dir: string, base: string = ""): string[] {
     if (!fs.existsSync(dir)) return [];
     const results: string[] = [];
     const files = fs.readdirSync(dir);
@@ -613,7 +613,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       const relPath = path.join(base, file);
       if (fs.statSync(fullPath).isDirectory()) {
         results.push(...listWasmFiles(fullPath, relPath));
-      } else if (file.endsWith('.wasm') || file.endsWith('.js')) {
+      } else if (file.endsWith(".wasm") || file.endsWith(".js")) {
         results.push(relPath);
       }
     }
@@ -635,7 +635,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       if (!precompiled) {
         // eslint-disable-next-line no-console
         console.warn(
-          '[gwen-vite] No pre-compiled WASM found in @gwenjs/core/wasm — WASM unavailable',
+          "[gwen-vite] No pre-compiled WASM found in @gwenjs/core/wasm — WASM unavailable",
         );
         return false;
       }
@@ -648,7 +648,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     if (!wasmPack) {
       // eslint-disable-next-line no-console
       console.warn(
-        '[gwen-vite] wasm-pack not found — falling back to pre-compiled WASM from @gwenjs/core',
+        "[gwen-vite] wasm-pack not found — falling back to pre-compiled WASM from @gwenjs/core",
       );
       const precompiled = findPrecompiledWasmDir(root);
       if (precompiled) wasmSourceDir = precompiled;
@@ -656,32 +656,32 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     }
 
     // Compile to .gwen/wasm/ to avoid polluting public/
-    const outDir = path.resolve(root, '.gwen', 'wasm');
+    const outDir = path.resolve(root, ".gwen", "wasm");
     fs.mkdirSync(outDir, { recursive: true });
 
     log(`Building WASM: ${crate} → ${outDir}`);
     const result = spawnSync(
       wasmPack,
       [
-        'build',
-        '--target',
-        'web',
-        '--out-dir',
+        "build",
+        "--target",
+        "web",
+        "--out-dir",
         outDir,
-        wasmMode === 'release' ? '--release' : '--dev',
+        wasmMode === "release" ? "--release" : "--dev",
         crate,
       ],
-      { stdio: verbose ? 'inherit' : 'pipe', encoding: 'utf-8' },
+      { stdio: verbose ? "inherit" : "pipe", encoding: "utf-8" },
     );
 
     if (result.status !== 0) {
       // eslint-disable-next-line no-console
-      console.error('[gwen-vite] wasm-pack build failed:', result.stderr);
+      console.error("[gwen-vite] wasm-pack build failed:", result.stderr);
       return false;
     }
 
     wasmSourceDir = outDir;
-    log('WASM build succeeded');
+    log("WASM build succeeded");
     return true;
   }
 
@@ -692,37 +692,37 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     const wasmPack = findWasmPack();
     if (!wasmPack) return;
 
-    const srcDir = path.join(crate, 'src');
+    const srcDir = path.join(crate, "src");
     if (!fs.existsSync(srcDir)) return;
 
     log(`Watching Rust sources in ${srcDir}`);
 
     // Register srcDir with Vite's Chokidar instance for reliable cross-platform watching
     devServer.watcher.add(srcDir);
-    devServer.watcher.on('change', (filePath) => {
+    devServer.watcher.on("change", (filePath) => {
       if (!filePath.startsWith(srcDir + path.sep)) return;
-      if (!filePath.endsWith('.rs')) return;
+      if (!filePath.endsWith(".rs")) return;
       log(`Rust file changed: ${filePath} — rebuilding WASM...`);
 
       // Debounce: ignore if already building
       if (watchProcess?.exitCode === null) return;
 
       // Compiler dans .gwen/wasm/ (pas dans public/)
-      const outDir = path.resolve(root, '.gwen', 'wasm');
+      const outDir = path.resolve(root, ".gwen", "wasm");
       watchProcess = spawn(
         wasmPack,
-        ['build', '--target', 'web', '--out-dir', outDir, '--dev', crate],
-        { stdio: 'pipe' },
+        ["build", "--target", "web", "--out-dir", outDir, "--dev", crate],
+        { stdio: "pipe" },
       );
 
-      watchProcess!.on('close', (code: number | null) => {
+      watchProcess!.on("close", (code: number | null) => {
         if (code === 0) {
           wasmSourceDir = outDir;
-          log('WASM rebuilt — triggering HMR full reload');
-          server?.ws.send({ type: 'full-reload' });
+          log("WASM rebuilt — triggering HMR full reload");
+          server?.ws.send({ type: "full-reload" });
         } else {
           // eslint-disable-next-line no-console
-          console.error('[gwen-vite] WASM rebuild failed (exit ' + code + ')');
+          console.error("[gwen-vite] WASM rebuild failed (exit " + code + ")");
         }
       });
     });
@@ -730,27 +730,27 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
 
   function loadManifest(): string {
     if (manifestPath && fs.existsSync(manifestPath)) {
-      return fs.readFileSync(manifestPath, 'utf-8');
+      return fs.readFileSync(manifestPath, "utf-8");
     }
     // Try common locations
-    for (const loc of ['dist/gwen-manifest.json', 'gwen-manifest.json']) {
+    for (const loc of ["dist/gwen-manifest.json", "gwen-manifest.json"]) {
       const p = path.resolve(projectRoot, loc);
-      if (fs.existsSync(p)) return fs.readFileSync(p, 'utf-8');
+      if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8");
     }
-    return JSON.stringify({ version: '0.1.0', plugins: [], engine: {} });
+    return JSON.stringify({ version: "0.1.0", plugins: [], engine: {} });
   }
 
   return {
-    name: 'gwen',
-    enforce: 'pre',
+    name: "gwen",
+    enforce: "pre",
 
     // ── COOP/COEP headers for Vite preview (production) ───────────────────
     config() {
       return {
         preview: {
           headers: {
-            'Cross-Origin-Opener-Policy': 'same-origin',
-            'Cross-Origin-Embedder-Policy': 'require-corp',
+            "Cross-Origin-Opener-Policy": "same-origin",
+            "Cross-Origin-Embedder-Policy": "require-corp",
           },
         },
       };
@@ -771,18 +771,18 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       }
 
       if (id === RESOLVED_ENTRY) {
-        const hasScenesDir = fs.existsSync(path.join(projectRoot, 'src', 'scenes'));
-        const configPath = path.join(projectRoot, 'gwen.config.ts');
+        const hasScenesDir = fs.existsSync(path.join(projectRoot, "src", "scenes"));
+        const configPath = path.join(projectRoot, "gwen.config.ts");
         const moduleNames = extractModuleNamesFromConfig(configPath);
         return generateEntryModule(hasScenesDir, moduleNames);
       }
 
       if (id === RESOLVED_SCENES) {
         const scenes = scanScenes(projectRoot);
-        const configPath = path.join(projectRoot, 'gwen.config.ts');
+        const configPath = path.join(projectRoot, "gwen.config.ts");
         let mainSceneFromConfig: string | undefined;
         if (fs.existsSync(configPath)) {
-          const src = fs.readFileSync(configPath, 'utf-8');
+          const src = fs.readFileSync(configPath, "utf-8");
           mainSceneFromConfig = src.match(/mainScene\s*:\s*['"]([^'"]+)['"]/)?.[1];
         }
         return generateScenesModule(scenes, resolveMainScene(scenes, mainSceneFromConfig));
@@ -794,9 +794,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     // ── Inject entry script into served HTML ────────────────────────────
     transformIndexHtml(html) {
       // If script already present, don't duplicate
-      if (html.includes('/@gwenjs/gwen-entry')) return html;
+      if (html.includes("/@gwenjs/gwen-entry")) return html;
       return html.replace(
-        '</body>',
+        "</body>",
         '  <script type="module" src="/@gwenjs/gwen-entry"></script>\n</body>',
       );
     },
@@ -808,17 +808,17 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       cratePath = resolveCratePath(projectRoot);
 
       // Watcher on src/scenes/ to invalidate modules
-      const scenesDir = path.join(projectRoot, 'src', 'scenes');
+      const scenesDir = path.join(projectRoot, "src", "scenes");
       if (fs.existsSync(scenesDir)) {
         // Register scenesDir with Vite's Chokidar instance for reliable cross-platform watching
         devServer.watcher.add(scenesDir);
-        devServer.watcher.on('change', (filePath) => {
+        devServer.watcher.on("change", (filePath) => {
           if (!filePath.startsWith(scenesDir + path.sep)) return;
           const mod = devServer.moduleGraph.getModuleById(RESOLVED_SCENES);
           if (mod) devServer.moduleGraph.invalidateModule(mod);
           const entryMod = devServer.moduleGraph.getModuleById(RESOLVED_ENTRY);
           if (entryMod) devServer.moduleGraph.invalidateModule(entryMod);
-          devServer.ws.send({ type: 'full-reload' });
+          devServer.ws.send({ type: "full-reload" });
         });
       }
 
@@ -830,21 +830,21 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       // WASM middleware + COOP/COEP headers + generated HTML if index.html missing
       devServer.middlewares.use((req, res, next) => {
         // ── COOP/COEP headers — required for SharedArrayBuffer (WASM plugins) ──
-        res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-        res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+        res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
+        res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
 
         // Serve WASM files directly from wasmSourceDir (no copy to public/)
-        const wasmPrefix = wasmPublicPath.endsWith('/') ? wasmPublicPath : wasmPublicPath + '/';
+        const wasmPrefix = wasmPublicPath.endsWith("/") ? wasmPublicPath : wasmPublicPath + "/";
         if (req.url?.startsWith(wasmPrefix)) {
-          const fileName = req.url.slice(wasmPrefix.length).split('?')[0];
+          const fileName = req.url.slice(wasmPrefix.length).split("?")[0];
 
           // 1. Try primary wasmSourceDir (gwen-core or custom crate)
           if (wasmSourceDir) {
             const filePath = path.join(wasmSourceDir, fileName);
             if (fs.existsSync(filePath)) {
               const ext = path.extname(filePath);
-              if (ext === '.wasm') res.setHeader('Content-Type', 'application/wasm');
-              if (ext === '.js') res.setHeader('Content-Type', 'application/javascript');
+              if (ext === ".wasm") res.setHeader("Content-Type", "application/wasm");
+              if (ext === ".js") res.setHeader("Content-Type", "application/javascript");
               res.end(fs.readFileSync(filePath));
               return;
             }
@@ -854,8 +854,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
           const pluginWasmFile = findWasmPluginFile(projectRoot, fileName);
           if (pluginWasmFile) {
             const ext = path.extname(pluginWasmFile);
-            if (ext === '.wasm') res.setHeader('Content-Type', 'application/wasm');
-            if (ext === '.js') res.setHeader('Content-Type', 'application/javascript');
+            if (ext === ".wasm") res.setHeader("Content-Type", "application/wasm");
+            if (ext === ".js") res.setHeader("Content-Type", "application/javascript");
             res.end(fs.readFileSync(pluginWasmFile));
             return;
           }
@@ -863,22 +863,22 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
 
         // Serve .gwen/index.html (file prepared by CLI)
         if (
-          (req.url === '/' || req.url === '/index.html') &&
-          !fs.existsSync(path.join(projectRoot, 'index.html'))
+          (req.url === "/" || req.url === "/index.html") &&
+          !fs.existsSync(path.join(projectRoot, "index.html"))
         ) {
-          const gwenHtmlPath = path.join(projectRoot, '.gwen', 'index.html');
+          const gwenHtmlPath = path.join(projectRoot, ".gwen", "index.html");
 
           // Fallback minimal in case `gwen prepare` hasn't finished yet
           let raw = `<!DOCTYPE html><html><body><script type="module" src="/@gwenjs/gwen-entry"></script></body></html>`;
           if (fs.existsSync(gwenHtmlPath)) {
-            raw = fs.readFileSync(gwenHtmlPath, 'utf-8');
+            raw = fs.readFileSync(gwenHtmlPath, "utf-8");
           }
 
           // Go through Vite pipeline: inject HMR client + transformIndexHtml hooks
           devServer
             .transformIndexHtml(req.url!, raw, req.originalUrl)
             .then((html) => {
-              res.setHeader('Content-Type', 'text/html; charset=utf-8');
+              res.setHeader("Content-Type", "text/html; charset=utf-8");
               res.end(html);
             })
             .catch(next);
@@ -894,8 +894,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       // Manifest
       const manifest = loadManifest();
       this.emitFile({
-        type: 'asset',
-        fileName: 'gwen-manifest.json',
+        type: "asset",
+        fileName: "gwen-manifest.json",
         source: manifest,
       });
 
@@ -906,7 +906,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
         for (const file of files) {
           const buffer = fs.readFileSync(path.join(srcDir, file));
           this.emitFile({
-            type: 'asset',
+            type: "asset",
             fileName: `wasm/${file}`,
             source: new Uint8Array(buffer),
           });
@@ -914,7 +914,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
         if (files.length > 0) log(`Emitted ${files.length} WASM assets to dist/wasm/`);
       } else {
         // eslint-disable-next-line no-console
-        console.warn('[gwen-vite] No WASM source found for production build');
+        console.warn("[gwen-vite] No WASM source found for production build");
       }
 
       // Emit WASM plugin assets from node_modules/@gwenjs/gwen-plugin-*/wasm/
@@ -924,7 +924,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
         for (const file of files) {
           const buffer = fs.readFileSync(path.join(pluginDir, file));
           this.emitFile({
-            type: 'asset',
+            type: "asset",
             fileName: `wasm/${file}`,
             source: new Uint8Array(buffer),
           });
@@ -947,8 +947,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
 }
 
 // Default export for CommonJS compatibility
-export { gwenTransform } from './transform';
-export type { GwenTransformOptions } from './transform';
+export { gwenTransform } from "./transform";
+export type { GwenTransformOptions } from "./transform";
 
 /** @internal Exported for unit tests only */
 export { generateEntryModule, generateScenesModule, extractModuleNamesFromConfig };
@@ -956,13 +956,13 @@ export { generateEntryModule, generateScenesModule, extractModuleNamesFromConfig
 export default gwen;
 
 // RFC-006: New sub-plugin architecture
-export { gwenVitePlugin } from './plugins/index.js';
-export type { GwenViteOptions, GwenWasmOptions, WasmVariant, ActorPluginOptions } from './types.js';
+export { gwenVitePlugin } from "./plugins/index.js";
+export type { GwenViteOptions, GwenWasmOptions, WasmVariant, ActorPluginOptions } from "./types.js";
 
 // RFC-007: ECS optimizer plugin (opt-in)
-export { gwenOptimizerPlugin } from './plugins/optimizer.js';
-export type { GwenOptimizerOptions } from './plugins/optimizer.js';
+export { gwenOptimizerPlugin } from "./plugins/optimizer.js";
+export type { GwenOptimizerOptions } from "./plugins/optimizer.js";
 
 // RFC-008: Physics3D query optimizer plugin (opt-in, Phase 1 — warn)
-export { gwenPhysics3DOptimizerPlugin } from './plugins/physics3d-optimizer.js';
-export type { GwenPhysics3DOptimizerOptions } from './plugins/physics3d-optimizer.js';
+export { gwenPhysics3DOptimizerPlugin } from "./plugins/physics3d-optimizer.js";
+export type { GwenPhysics3DOptimizerOptions } from "./plugins/physics3d-optimizer.js";

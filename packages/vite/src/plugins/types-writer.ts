@@ -1,8 +1,8 @@
-import { writeFileSync, mkdirSync, existsSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type { Plugin } from 'vite';
-import type { GwenTypeTemplate } from '@gwenjs/kit';
-import type { GwenViteOptions } from '../types.js';
+import { writeFileSync, mkdirSync, existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import type { Plugin } from "vite";
+import type { GwenTypeTemplate } from "@gwenjs/kit";
+import type { GwenViteOptions } from "../types.js";
 
 /**
  * Writes type template files into `.gwen/types/` at build start.
@@ -28,14 +28,14 @@ export function gwenTypesPlugin(options: GwenViteOptions): Plugin {
   let root = process.cwd();
 
   return {
-    name: 'gwen:types',
+    name: "gwen:types",
 
     configResolved(config) {
       root = config.root;
     },
 
     buildStart() {
-      writeTypeTemplates(root, options.gwenDir ?? '.gwen', templates);
+      writeTypeTemplates(root, options.gwenDir ?? ".gwen", templates);
     },
   };
 }
@@ -51,7 +51,7 @@ export function gwenTypesPlugin(options: GwenViteOptions): Plugin {
 function writeTypeTemplates(root: string, gwenDir: string, templates: GwenTypeTemplate[]): void {
   if (templates.length === 0) return;
 
-  const dir = resolve(root, gwenDir, 'types');
+  const dir = resolve(root, gwenDir, "types");
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
   for (const template of templates) {
@@ -69,8 +69,8 @@ function writeTypeTemplates(root: string, gwenDir: string, templates: GwenTypeTe
  */
 function writeIfChanged(filePath: string, content: string): void {
   if (existsSync(filePath)) {
-    const existing = readFileSync(filePath, 'utf-8');
+    const existing = readFileSync(filePath, "utf-8");
     if (existing === content) return;
   }
-  writeFileSync(filePath, content, 'utf-8');
+  writeFileSync(filePath, content, "utf-8");
 }

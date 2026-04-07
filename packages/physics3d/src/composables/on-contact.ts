@@ -1,7 +1,7 @@
 /**
  * @file onContact() — register a callback for 3D contact events this frame.
  */
-import type { Physics3DCollisionContact } from '../types';
+import type { Physics3DCollisionContact } from "../types";
 
 /** Registry of all active contact callbacks for the current frame. */
 const _contactCallbacks: ((e: Physics3DCollisionContact) => void)[] = [];

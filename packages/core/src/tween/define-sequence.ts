@@ -7,10 +7,10 @@
  * @since 1.0.0
  */
 
-import { useEngine } from '../context.js';
-import { getTweenManager } from './tween-manager.js';
-import { TweenSlot } from './tween-pool.js';
-import type { SequenceHandle, SequenceStep, TweenableValue } from './tween-types.js';
+import { useEngine } from "../context.js";
+import { getTweenManager } from "./tween-manager.js";
+import { TweenSlot } from "./tween-pool.js";
+import type { SequenceHandle, SequenceStep, TweenableValue } from "./tween-types.js";
 
 // ── defineSequence ────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
     _currentStep = index;
     const step = steps[index]!;
 
-    if ('wait' in step) {
+    if ("wait" in step) {
       // ── Wait step ────────────────────────────────────────────────────────────
       //
       // Claim a temporary number tween for the wait duration (0 → 1).
@@ -164,7 +164,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
     pause(): void {
       _playing = false;
       const step = steps[_currentStep];
-      if (step !== undefined && 'tween' in step) {
+      if (step !== undefined && "tween" in step) {
         step.tween.pause();
       }
       if (_activeWaitSlot) {
@@ -184,7 +184,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
     reset(): void {
       _playing = false;
       const step = steps[_currentStep];
-      if (step !== undefined && 'tween' in step) {
+      if (step !== undefined && "tween" in step) {
         step.tween.reset();
       }
       if (_activeWaitSlot) {

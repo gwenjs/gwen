@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { PhysicsQueryWalker } from '../src/optimizer/physics-walker';
+import { describe, it, expect } from "vitest";
+import { PhysicsQueryWalker } from "../src/optimizer/physics-walker";
 
 const SYSTEM_WITH_CAST_RAY = `
 import { defineSystem, onUpdate } from '@gwenjs/core';
@@ -80,59 +80,59 @@ export const movementSystem = defineSystem(() => {
 });
 `;
 
-describe('PhysicsQueryWalker', () => {
-  it('detects physics.castRay inside onUpdate', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+describe("PhysicsQueryWalker", () => {
+  it("detects physics.castRay inside onUpdate", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(SYSTEM_WITH_CAST_RAY);
     expect(patterns.length).toBe(1);
-    expect(patterns[0]!.method).toBe('castRay');
-    expect(patterns[0]!.callbackType).toBe('onUpdate');
-    expect(patterns[0]!.filename).toBe('test.ts');
-    expect(typeof patterns[0]!.start).toBe('number');
-    expect(typeof patterns[0]!.end).toBe('number');
+    expect(patterns[0]!.method).toBe("castRay");
+    expect(patterns[0]!.callbackType).toBe("onUpdate");
+    expect(patterns[0]!.filename).toBe("test.ts");
+    expect(typeof patterns[0]!.start).toBe("number");
+    expect(typeof patterns[0]!.end).toBe("number");
   });
 
-  it('does NOT flag physics.castRay at setup level', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+  it("does NOT flag physics.castRay at setup level", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(SYSTEM_WITH_CAST_RAY_AT_SETUP);
     expect(patterns).toEqual([]);
   });
 
-  it('detects physics.castShape inside onAfterUpdate', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+  it("detects physics.castShape inside onAfterUpdate", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(SYSTEM_WITH_CAST_SHAPE_AFTER_UPDATE);
     expect(patterns.length).toBe(1);
-    expect(patterns[0]!.method).toBe('castShape');
-    expect(patterns[0]!.callbackType).toBe('onAfterUpdate');
+    expect(patterns[0]!.method).toBe("castShape");
+    expect(patterns[0]!.callbackType).toBe("onAfterUpdate");
   });
 
-  it('detects physics.overlapShape inside onUpdate', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+  it("detects physics.overlapShape inside onUpdate", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(SYSTEM_WITH_OVERLAP_SHAPE);
     expect(patterns.length).toBe(1);
-    expect(patterns[0]!.method).toBe('overlapShape');
-    expect(patterns[0]!.callbackType).toBe('onUpdate');
+    expect(patterns[0]!.method).toBe("overlapShape");
+    expect(patterns[0]!.callbackType).toBe("onUpdate");
   });
 
-  it('does NOT flag useRaycast composable (already optimized)', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+  it("does NOT flag useRaycast composable (already optimized)", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(SYSTEM_WITH_USE_RAYCAST);
     expect(patterns).toEqual([]);
   });
 
-  it('returns empty array for non-physics source', () => {
-    const walker = new PhysicsQueryWalker('test.ts');
+  it("returns empty array for non-physics source", () => {
+    const walker = new PhysicsQueryWalker("test.ts");
     const patterns = walker.walk(NON_PHYSICS_SOURCE);
     expect(patterns).toEqual([]);
   });
 
-  it('does NOT flag someOtherService.castRay() inside onUpdate', () => {
+  it("does NOT flag someOtherService.castRay() inside onUpdate", () => {
     const src = `
       export const sys = defineSystem(() => {
         onUpdate(() => { renderer.castRay(opts); });
       });
     `;
-    const walker = new PhysicsQueryWalker('test.ts');
+    const walker = new PhysicsQueryWalker("test.ts");
     expect(walker.walk(src)).toHaveLength(0);
   });
 });

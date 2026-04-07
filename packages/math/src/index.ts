@@ -24,7 +24,7 @@ export type {
   SpringState2D,
   SpringState3D,
   SpringOptions,
-} from './types.js';
+} from "./types.js";
 
 // ── Scalar ────────────────────────────────────────────────────────────────────
 export {
@@ -50,10 +50,10 @@ export {
   sign,
   moveTowards,
   moveTowardsAngle,
-} from './scalar.js';
+} from "./scalar.js";
 
 // ── Damp ──────────────────────────────────────────────────────────────────────
-export { damp, dampAngle, dampVec2, dampVec2Mut, dampVec3, dampVec3Mut } from './damp.js';
+export { damp, dampAngle, dampVec2, dampVec2Mut, dampVec3, dampVec3Mut } from "./damp.js";
 
 // ── Spring ────────────────────────────────────────────────────────────────────
 export {
@@ -69,7 +69,7 @@ export {
   criticalOpts,
   bouncyOpts,
   sluggishOpts,
-} from './spring.js';
+} from "./spring.js";
 
 // ── Vec2 ──────────────────────────────────────────────────────────────────────
 export {
@@ -104,7 +104,7 @@ export {
   vec2ClampLength,
   vec2Equals,
   vec2IsZero,
-} from './vec2.js';
+} from "./vec2.js";
 
 // ── Vec3 ──────────────────────────────────────────────────────────────────────
 export {
@@ -138,7 +138,7 @@ export {
   vec3ClampLength,
   vec3Equals,
   vec3IsZero,
-} from './vec3.js';
+} from "./vec3.js";
 
 // ── Quaternion ────────────────────────────────────────────────────────────────
 export {
@@ -158,7 +158,7 @@ export {
   quatSlerp,
   quatToEuler,
   quatEquals,
-} from './quat.js';
+} from "./quat.js";
 
 // ── Vec4 ──────────────────────────────────────────────────────────────────────
 export {
@@ -182,10 +182,10 @@ export {
   vec4Normalize,
   vec4Lerp,
   vec4Equals,
-} from './vec4.js';
+} from "./vec4.js";
 
 // ── Mat3 ──────────────────────────────────────────────────────────────────────
-export type { Mat3 } from './mat3.js';
+export type { Mat3 } from "./mat3.js";
 export {
   mat3,
   mat3Identity,
@@ -201,10 +201,10 @@ export {
   mat3Scale,
   mat3NormalFromMat3,
   mat3Equals,
-} from './mat3.js';
+} from "./mat3.js";
 
 // ── Mat4 ──────────────────────────────────────────────────────────────────────
-export type { Mat4 } from './mat4.js';
+export type { Mat4 } from "./mat4.js";
 export {
   mat4,
   mat4Identity,
@@ -227,7 +227,7 @@ export {
   mat4Ortho,
   mat4LookAt,
   mat4Equals,
-} from './mat4.js';
+} from "./mat4.js";
 export {
   color,
   colorWhite,
@@ -242,4 +242,4 @@ export {
   colorPremultiply,
   colorClamp,
   colorClone,
-} from './color.js';
+} from "./color.js";

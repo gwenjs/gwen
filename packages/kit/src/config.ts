@@ -5,7 +5,7 @@
  * `defineConfig()` lives in `@gwenjs/app` — not here.
  */
 
-import type { GwenOptions } from '@gwenjs/schema';
+import type { GwenOptions } from "@gwenjs/schema";
 
 /**
  * Resolved GWEN project configuration shape.

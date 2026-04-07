@@ -22,7 +22,7 @@ export interface Physics3DQuat {
  * - `'high'`   — More iterations, higher fidelity.
  * - `'esport'` — Maximum iterations for competitive accuracy.
  */
-export type Physics3DQualityPreset = 'low' | 'medium' | 'high' | 'esport';
+export type Physics3DQualityPreset = "low" | "medium" | "high" | "esport";
 
 /**
  * Numeric bridge mapping for quality presets (TS -> WASM).

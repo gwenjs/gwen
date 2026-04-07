@@ -1,4 +1,4 @@
-import type { ComponentEntry } from './types';
+import type { ComponentEntry } from "./types";
 
 /**
  * Build-time registry of all `defineComponent` calls found in the project.

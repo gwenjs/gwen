@@ -38,8 +38,8 @@
  * ```
  */
 
-import { GwenConfigError } from '../engine/config-error.js';
-import type { WasmBridge } from '../engine/wasm-bridge.js';
+import { GwenConfigError } from "../engine/config-error.js";
+import type { WasmBridge } from "../engine/wasm-bridge.js";
 
 // ─── Public constants ─────────────────────────────────────────────────────────
 
@@ -173,7 +173,7 @@ export class SharedMemoryManager {
   static create(bridge: WasmBridge, maxEntities = 10_000): SharedMemoryManager {
     if (!bridge.isActive()) {
       throw new Error(
-        '[GWEN:SharedMemory] initWasm() must be called before SharedMemoryManager.create().',
+        "[GWEN:SharedMemory] initWasm() must be called before SharedMemoryManager.create().",
       );
     }
 
@@ -188,7 +188,7 @@ export class SharedMemoryManager {
       const mb = (totalBytes / 1024 / 1024).toFixed(1);
       const maxMb = (MAX_SAB_BYTES / 1024 / 1024).toFixed(0);
       throw new GwenConfigError(
-        'maxEntities',
+        "maxEntities",
         maxEntities,
         `Requested ${mb} MiB of shared memory exceeds the ${maxMb} MiB limit. ` +
           `Reduce maxEntities or increase MAX_SAB_BYTES if you know what you're doing.`,
@@ -199,7 +199,7 @@ export class SharedMemoryManager {
 
     if (ptr === 0) {
       throw new Error(
-        '[GWEN:SharedMemory] alloc_shared_buffer() returned a null pointer — out of WASM memory?',
+        "[GWEN:SharedMemory] alloc_shared_buffer() returned a null pointer — out of WASM memory?",
       );
     }
 
@@ -344,7 +344,7 @@ export class SharedMemoryManager {
    */
   getTransformRegion(): MemoryRegion {
     return {
-      pluginId: '__core__',
+      pluginId: "__core__",
       ptr: this.basePtr,
       byteLength: this.totalBytes,
       byteOffset: 0,

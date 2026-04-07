@@ -1,7 +1,7 @@
 /**
  * @file useJoint() — creates a physics joint between two bodies and returns a control handle.
  */
-import { usePhysics3D } from '../composables';
+import { usePhysics3D } from "../composables";
 import type {
   JointHandle3D,
   FixedJointOpts,
@@ -9,7 +9,7 @@ import type {
   PrismaticJointOpts,
   BallJointOpts,
   SpringJointOpts,
-} from '../types';
+} from "../types";
 
 /**
  * Discriminated union of all joint option types.
@@ -22,11 +22,11 @@ import type {
  * - `'spring'`    — elastic connection with rest length ({@link SpringJointOpts})
  */
 export type UseJointOpts =
-  | ({ type: 'fixed' } & FixedJointOpts)
-  | ({ type: 'revolute' } & RevoluteJointOpts)
-  | ({ type: 'prismatic' } & PrismaticJointOpts)
-  | ({ type: 'ball' } & BallJointOpts)
-  | ({ type: 'spring' } & SpringJointOpts);
+  | ({ type: "fixed" } & FixedJointOpts)
+  | ({ type: "revolute" } & RevoluteJointOpts)
+  | ({ type: "prismatic" } & PrismaticJointOpts)
+  | ({ type: "ball" } & BallJointOpts)
+  | ({ type: "spring" } & SpringJointOpts);
 
 /**
  * Handle returned by {@link useJoint}.
@@ -110,19 +110,19 @@ export function useJoint(opts: UseJointOpts): UseJointHandle {
   let jointId: JointHandle3D;
 
   switch (opts.type) {
-    case 'fixed':
+    case "fixed":
       jointId = physics.addFixedJoint(opts);
       break;
-    case 'revolute':
+    case "revolute":
       jointId = physics.addRevoluteJoint(opts);
       break;
-    case 'prismatic':
+    case "prismatic":
       jointId = physics.addPrismaticJoint(opts);
       break;
-    case 'ball':
+    case "ball":
       jointId = physics.addBallJoint(opts);
       break;
-    case 'spring':
+    case "spring":
       jointId = physics.addSpringJoint(opts);
       break;
   }

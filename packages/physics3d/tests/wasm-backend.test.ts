@@ -5,7 +5,7 @@
  * to verify that the plugin delegates all body operations to the WASM layer when available,
  * and does NOT run the local TS simulation in that mode.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const physics3dInit = vi.fn();
 const physics3dStep = vi.fn();
@@ -111,7 +111,7 @@ const physics3dCharacterControllerMove = vi.fn();
 const physics3dRemoveCharacterController = vi.fn();
 
 const mockBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getLinearMemory: vi.fn(() => ({
     buffer: new SharedArrayBuffer(65536),
     byteLength: 65536,
@@ -163,14 +163,14 @@ const mockBridge = {
   })),
 };
 
-vi.mock('@gwenjs/core', () => ({
+vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
 }));
 
-import { Physics3DPlugin, type Physics3DAPI } from '../src/index';
-import type { GwenEngine } from '@gwenjs/core';
+import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
+import type { GwenEngine } from "@gwenjs/core";
 
-describe('Physics3D plugin — WASM backend mode', () => {
+describe("Physics3D plugin — WASM backend mode", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     wasmBodyState.clear();
@@ -200,28 +200,28 @@ describe('Physics3D plugin — WASM backend mode', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     return { plugin, service };
   }
 
-  it('detects WASM backend and delegates createBody to physics3d_add_body', () => {
+  it("detects WASM backend and delegates createBody to physics3d_add_body", () => {
     const { service } = setup();
 
-    service.createBody(10, { kind: 'dynamic', mass: 5 });
+    service.createBody(10, { kind: "dynamic", mass: 5 });
 
     expect(physics3dAddBody).toHaveBeenCalledWith(10, 0, 0, 0, 1 /* dynamic */, 5, 0, 0);
     expect(service.hasBody(10)).toBe(true);
     expect(service.getBodyCount()).toBe(1);
   });
 
-  it('delegates createBody with initial position', () => {
+  it("delegates createBody with initial position", () => {
     const { service } = setup();
     service.createBody(11, { initialPosition: { x: 1, y: 2, z: 3 } });
 
     expect(physics3dAddBody).toHaveBeenCalledWith(11, 1, 2, 3, 1, expect.any(Number), 0, 0);
   });
 
-  it('calls physics3d_set_body_state for initial rotation/velocity', () => {
+  it("calls physics3d_set_body_state for initial rotation/velocity", () => {
     const { service } = setup();
     service.createBody(12, {
       initialPosition: { x: 0, y: 0, z: 0 },
@@ -232,7 +232,7 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dSetBodyState).toHaveBeenCalledWith(12, 0, 0, 0, 0, 1, 0, 0, 5, 0, 0, 0, 0, 0);
   });
 
-  it('delegates removeBody to physics3d_remove_body', () => {
+  it("delegates removeBody to physics3d_remove_body", () => {
     const { service } = setup();
     service.createBody(20);
     expect(service.removeBody(20)).toBe(true);
@@ -240,13 +240,13 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(service.hasBody(20)).toBe(false);
   });
 
-  it('removeBody returns false for unknown entity', () => {
+  it("removeBody returns false for unknown entity", () => {
     const { service } = setup();
     expect(service.removeBody(404)).toBe(false);
     expect(physics3dRemoveBody).not.toHaveBeenCalled();
   });
 
-  it('getBodyState delegates to physics3d_get_body_state', () => {
+  it("getBodyState delegates to physics3d_get_body_state", () => {
     const { service } = setup();
     wasmBodyState.set(30, new Float32Array([1, 2, 3, 0, 0, 0, 1, 4, 5, 6, 7, 8, 9]));
     service.createBody(30);
@@ -259,12 +259,12 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dGetBodyState).toHaveBeenCalledWith(30);
   });
 
-  it('getBodyState returns undefined for unknown entity', () => {
+  it("getBodyState returns undefined for unknown entity", () => {
     const { service } = setup();
     expect(service.getBodyState(404)).toBeUndefined();
   });
 
-  it('setBodyState delegates to WASM after merging patch', () => {
+  it("setBodyState delegates to WASM after merging patch", () => {
     const { service } = setup();
     wasmBodyState.set(31, new Float32Array([1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
     service.createBody(31);
@@ -274,7 +274,7 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dSetBodyState).toHaveBeenCalledWith(31, 1, 99, 3, 0, 0, 0, 1, 7, 0, 0, 0, 0, 0);
   });
 
-  it('getLinearVelocity / setLinearVelocity delegate to WASM', () => {
+  it("getLinearVelocity / setLinearVelocity delegate to WASM", () => {
     const { service } = setup();
     wasmLinVel.set(40, new Float32Array([3, 4, 5]));
     service.createBody(40);
@@ -285,7 +285,7 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dSetLinearVelocity).toHaveBeenCalledWith(40, 3, 99, 5);
   });
 
-  it('getAngularVelocity / setAngularVelocity delegate to WASM', () => {
+  it("getAngularVelocity / setAngularVelocity delegate to WASM", () => {
     const { service } = setup();
     wasmAngVel.set(41, new Float32Array([1, 2, 3]));
     service.createBody(41);
@@ -296,7 +296,7 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dSetAngularVelocity).toHaveBeenCalledWith(41, 1, 2, 9);
   });
 
-  it('applyImpulse delegates to WASM', () => {
+  it("applyImpulse delegates to WASM", () => {
     const { service } = setup();
     service.createBody(50);
 
@@ -304,24 +304,24 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dApplyImpulse).toHaveBeenCalledWith(50, 5, -1, 0);
   });
 
-  it('applyImpulse returns false for missing body', () => {
+  it("applyImpulse returns false for missing body", () => {
     const { service } = setup();
     expect(service.applyImpulse(999, { x: 1 })).toBe(false);
     expect(physics3dApplyImpulse).not.toHaveBeenCalled();
   });
 
-  it('getBodyKind / setBodyKind delegate to WASM', () => {
+  it("getBodyKind / setBodyKind delegate to WASM", () => {
     const { service } = setup();
     wasmKind.set(60, 1); // dynamic
     service.createBody(60);
 
-    expect(service.getBodyKind(60)).toBe('dynamic');
+    expect(service.getBodyKind(60)).toBe("dynamic");
 
-    service.setBodyKind(60, 'fixed');
+    service.setBodyKind(60, "fixed");
     expect(physics3dSetBodyKind).toHaveBeenCalledWith(60, 0 /* fixed */);
   });
 
-  it('does NOT run local advanceLocalState during step in wasm mode', () => {
+  it("does NOT run local advanceLocalState during step in wasm mode", () => {
     const { service } = setup();
     wasmBodyState.set(70, new Float32Array(13)); // all zeros
     service.createBody(70, { initialLinearVelocity: { x: 10 } });
@@ -336,14 +336,14 @@ describe('Physics3D plugin — WASM backend mode', () => {
     expect(physics3dGetBodyState).toHaveBeenCalled();
   });
 
-  it('step calls physics3d_step with the provided delta', () => {
+  it("step calls physics3d_step with the provided delta", () => {
     const { service } = setup();
     service.step(1 / 30);
     expect(physics3dStep).toHaveBeenCalledWith(1 / 30);
   });
 });
 
-describe('Physics3D WASM backend — mesh and convex colliders', () => {
+describe("Physics3D WASM backend — mesh and convex colliders", () => {
   beforeEach(() => {
     physics3dInit.mockReset();
     physics3dAddBody.mockReset().mockReturnValue(true);
@@ -367,17 +367,17 @@ describe('Physics3D WASM backend — mesh and convex colliders', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
     return { service };
   }
 
-  it('delegates mesh collider to physics3d_add_mesh_collider in wasm mode', () => {
+  it("delegates mesh collider to physics3d_add_mesh_collider in wasm mode", () => {
     const { service } = setupWithBody(1);
     const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
     const indices = new Uint32Array([0, 1, 2]);
     const ok = service.addCollider(1, {
-      shape: { type: 'mesh', vertices, indices },
+      shape: { type: "mesh", vertices, indices },
       colliderId: 1,
     });
     expect(ok).toBe(true);
@@ -389,11 +389,11 @@ describe('Physics3D WASM backend — mesh and convex colliders', () => {
     expect(args[2]).toBe(indices);
   });
 
-  it('delegates convex collider to physics3d_add_convex_collider in wasm mode', () => {
+  it("delegates convex collider to physics3d_add_convex_collider in wasm mode", () => {
     const { service } = setupWithBody(2);
     const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
     const ok = service.addCollider(2, {
-      shape: { type: 'convex', vertices },
+      shape: { type: "convex", vertices },
       colliderId: 1,
       density: 2.5,
     });
@@ -405,14 +405,14 @@ describe('Physics3D WASM backend — mesh and convex colliders', () => {
     expect(args[1]).toBe(vertices);
   });
 
-  it('returns false when physics3d_add_mesh_collider returns undefined (absent bridge export)', () => {
+  it("returns false when physics3d_add_mesh_collider returns undefined (absent bridge export)", () => {
     // Simulate older WASM where the method exists but returns undefined (or is genuinely absent).
     // Optional chaining (?.) propagates undefined → ?? false.
     physics3dAddMeshCollider.mockReturnValue(undefined);
     const { service } = setupWithBody(3);
     const ok = service.addCollider(3, {
       shape: {
-        type: 'mesh',
+        type: "mesh",
         vertices: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
         indices: new Uint32Array([0, 1, 2]),
       },
@@ -423,7 +423,7 @@ describe('Physics3D WASM backend — mesh and convex colliders', () => {
   });
 });
 
-describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
+describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     wasmBodyState.clear();
@@ -452,12 +452,12 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
     return { service, entityId };
   }
 
-  it('addForce delegates to physics3d_add_force with correct slot and components', () => {
+  it("addForce delegates to physics3d_add_force with correct slot and components", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.addForce(entityId, { x: 1, y: 2, z: 3 });
@@ -466,7 +466,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dAddForce).toHaveBeenCalledWith(10, 1, 2, 3);
   });
 
-  it('addForce uses zero defaults for missing vector components', () => {
+  it("addForce uses zero defaults for missing vector components", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.addForce(entityId, { x: 5 });
@@ -475,7 +475,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dAddForce).toHaveBeenCalledWith(10, 5, 0, 0);
   });
 
-  it('addTorque delegates to physics3d_add_torque with correct slot and components', () => {
+  it("addTorque delegates to physics3d_add_torque with correct slot and components", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.addTorque(entityId, { x: 0, y: 1, z: 0 });
@@ -484,7 +484,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dAddTorque).toHaveBeenCalledWith(10, 0, 1, 0);
   });
 
-  it('addForceAtPoint delegates to physics3d_add_force_at_point with force and point', () => {
+  it("addForceAtPoint delegates to physics3d_add_force_at_point with force and point", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.addForceAtPoint(entityId, { x: 1, y: 0, z: 0 }, { x: 0, y: 1, z: 0 });
@@ -493,7 +493,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dAddForceAtPoint).toHaveBeenCalledWith(10, 1, 0, 0, 0, 1, 0);
   });
 
-  it('setGravityScale delegates to physics3d_set_gravity_scale with slot and scale', () => {
+  it("setGravityScale delegates to physics3d_set_gravity_scale with slot and scale", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.setGravityScale(entityId, 2.5);
@@ -502,7 +502,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dSetGravityScale).toHaveBeenCalledWith(10, 2.5);
   });
 
-  it('getGravityScale returns the value reported by physics3d_get_gravity_scale', () => {
+  it("getGravityScale returns the value reported by physics3d_get_gravity_scale", () => {
     physics3dGetGravityScale.mockReturnValue(3.0);
     const { service, entityId } = setupWithBody(10);
 
@@ -512,7 +512,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dGetGravityScale).toHaveBeenCalledWith(10);
   });
 
-  it('lockTranslations delegates to physics3d_lock_translations with correct axes', () => {
+  it("lockTranslations delegates to physics3d_lock_translations with correct axes", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.lockTranslations(entityId, true, false, true);
@@ -521,7 +521,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dLockTranslations).toHaveBeenCalledWith(10, true, false, true);
   });
 
-  it('lockRotations delegates to physics3d_lock_rotations with correct axes', () => {
+  it("lockRotations delegates to physics3d_lock_rotations with correct axes", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.lockRotations(entityId, false, true, false);
@@ -530,7 +530,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dLockRotations).toHaveBeenCalledWith(10, false, true, false);
   });
 
-  it('setBodySleeping(true) delegates to physics3d_set_body_sleeping with sleeping=true', () => {
+  it("setBodySleeping(true) delegates to physics3d_set_body_sleeping with sleeping=true", () => {
     const { service, entityId } = setupWithBody(10);
 
     service.setBodySleeping(entityId, true);
@@ -539,7 +539,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dSetBodySleeping).toHaveBeenCalledWith(10, true);
   });
 
-  it('isBodySleeping returns the value reported by physics3d_is_body_sleeping', () => {
+  it("isBodySleeping returns the value reported by physics3d_is_body_sleeping", () => {
     physics3dIsBodySleeping.mockReturnValue(true);
     const { service, entityId } = setupWithBody(10);
 
@@ -549,7 +549,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dIsBodySleeping).toHaveBeenCalledWith(10);
   });
 
-  it('wakeAll delegates to physics3d_wake_all once', () => {
+  it("wakeAll delegates to physics3d_wake_all once", () => {
     const { service } = setupWithBody(10);
 
     service.wakeAll();
@@ -557,7 +557,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
     expect(physics3dWakeAll).toHaveBeenCalledOnce();
   });
 
-  it('addForce does not throw when called for an entity with no registered body', () => {
+  it("addForce does not throw when called for an entity with no registered body", () => {
     const { service } = setupWithBody(10);
 
     // Entity 999 was never registered — addForce has no bodyByEntity guard in WASM mode;
@@ -574,7 +574,7 @@ describe('Group A — RFC-09: forces, gravity, locks, sleep', () => {
  * correct WASM bridge export with the right argument order and values.
  * All tests use isolated mock state and a two-body setup.
  */
-describe('Group B — RFC-08: joints', () => {
+describe("Group B — RFC-08: joints", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     wasmBodyState.clear();
@@ -611,12 +611,12 @@ describe('Group B — RFC-08: joints', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
     return { service, entityId };
   }
 
-  it('addFixedJoint delegates to physics3d_add_fixed_joint with both slots and anchors', () => {
+  it("addFixedJoint delegates to physics3d_add_fixed_joint with both slots and anchors", () => {
     const { service } = setupWithBody(10);
     // Register a second body at slot 11
     service.createBody(11);
@@ -634,7 +634,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(handle).toBe(1);
   });
 
-  it('addRevoluteJoint delegates with axis and limits', () => {
+  it("addRevoluteJoint delegates with axis and limits", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -668,7 +668,7 @@ describe('Group B — RFC-08: joints', () => {
     );
   });
 
-  it('addRevoluteJoint without limits passes useLimits=false and zero bounds', () => {
+  it("addRevoluteJoint without limits passes useLimits=false and zero bounds", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -682,7 +682,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(args[13]).toBe(0);
   });
 
-  it('addPrismaticJoint delegates with axis and limits', () => {
+  it("addPrismaticJoint delegates with axis and limits", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -712,7 +712,7 @@ describe('Group B — RFC-08: joints', () => {
     );
   });
 
-  it('addBallJoint delegates with cone limit when coneAngle is provided', () => {
+  it("addBallJoint delegates with cone limit when coneAngle is provided", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -722,7 +722,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(physics3dAddBallJoint).toHaveBeenCalledWith(10, 11, 0, 0, 0, 0, 0, 0, true, Math.PI / 4);
   });
 
-  it('addBallJoint without coneAngle passes useConeLimit=false and coneAngle=0', () => {
+  it("addBallJoint without coneAngle passes useConeLimit=false and coneAngle=0", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -735,7 +735,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(args[9]).toBe(0);
   });
 
-  it('addSpringJoint delegates with restLength stiffness damping', () => {
+  it("addSpringJoint delegates with restLength stiffness damping", () => {
     const { service } = setupWithBody(10);
     service.createBody(11);
 
@@ -751,7 +751,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(physics3dAddSpringJoint).toHaveBeenCalledWith(10, 11, 0, 0, 0, 0, 0, 0, 2, 100, 10);
   });
 
-  it('addFixedJoint returns dummy handle (0xffffffff) when WASM returns 0xffffffff', () => {
+  it("addFixedJoint returns dummy handle (0xffffffff) when WASM returns 0xffffffff", () => {
     physics3dAddFixedJoint.mockReturnValueOnce(0xffffffff);
     const { service } = setupWithBody(10);
     service.createBody(11);
@@ -762,7 +762,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(handle).toBe(0xffffffff);
   });
 
-  it('removeJoint delegates to physics3d_remove_joint with the joint id', () => {
+  it("removeJoint delegates to physics3d_remove_joint with the joint id", () => {
     const { service } = setupWithBody(10);
 
     service.removeJoint(1);
@@ -771,7 +771,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(physics3dRemoveJoint).toHaveBeenCalledWith(1);
   });
 
-  it('setJointMotorVelocity delegates to physics3d_set_joint_motor_velocity', () => {
+  it("setJointMotorVelocity delegates to physics3d_set_joint_motor_velocity", () => {
     const { service } = setupWithBody(10);
 
     service.setJointMotorVelocity(1, 2.5, 100);
@@ -780,7 +780,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(physics3dSetJointMotorVelocity).toHaveBeenCalledWith(1, 2.5, 100);
   });
 
-  it('setJointMotorPosition delegates to physics3d_set_joint_motor_position', () => {
+  it("setJointMotorPosition delegates to physics3d_set_joint_motor_position", () => {
     const { service } = setupWithBody(10);
 
     service.setJointMotorPosition(1, 0.5, 50, 5);
@@ -789,7 +789,7 @@ describe('Group B — RFC-08: joints', () => {
     expect(physics3dSetJointMotorPosition).toHaveBeenCalledWith(1, 0.5, 50, 5);
   });
 
-  it('setJointEnabled delegates to physics3d_set_joint_enabled for both true and false', () => {
+  it("setJointEnabled delegates to physics3d_set_joint_enabled for both true and false", () => {
     const { service } = setupWithBody(10);
 
     service.setJointEnabled(1, false);
@@ -810,7 +810,7 @@ describe('Group B — RFC-08: joints', () => {
  * marshals arguments, parses the flat result arrays, and returns the typed
  * domain objects (or `null` / `[]` on miss / unavailable paths).
  */
-describe('Group C — RFC-07: spatial queries', () => {
+describe("Group C — RFC-07: spatial queries", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     physics3dAddBody.mockReturnValue(true);
@@ -837,13 +837,13 @@ describe('Group C — RFC-07: spatial queries', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const api = services.get('physics3d') as Physics3DAPI;
+    const api = services.get("physics3d") as Physics3DAPI;
     return { api };
   }
 
   // ─── castRay ─────────────────────────────────────────────────────────────
 
-  it('castRay returns null when WASM returns falsy', () => {
+  it("castRay returns null when WASM returns falsy", () => {
     physics3dCastRay.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -852,7 +852,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result).toBeNull();
   });
 
-  it('castRay returns null when result[0] === 0 (miss)', () => {
+  it("castRay returns null when result[0] === 0 (miss)", () => {
     physics3dCastRay.mockReturnValue([0, 0, 0, 0, 0, 0, 0, 0, 0]);
     const { api } = setup();
 
@@ -861,7 +861,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result).toBeNull();
   });
 
-  it('castRay returns RayHit with correct fields on hit', () => {
+  it("castRay returns RayHit with correct fields on hit", () => {
     // [hit=1, entityIdx=5, dist=3.14, nx=0, ny=1, nz=0, px=0, py=5, pz=0]
     physics3dCastRay.mockReturnValue([1, 5, 3.14, 0, 1, 0, 0, 5, 0]);
     const { api } = setup();
@@ -876,7 +876,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result!.entity).toBeDefined();
   });
 
-  it('castRay passes solid=false as 0 in the last argument', () => {
+  it("castRay passes solid=false as 0 in the last argument", () => {
     physics3dCastRay.mockReturnValue([1, 0, 1, 0, 1, 0, 0, 1, 0]);
     const { api } = setup();
 
@@ -897,7 +897,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     );
   });
 
-  it('castRay uses default layers=0xffffffff and mask=0xffffffff when no opts given', () => {
+  it("castRay uses default layers=0xffffffff and mask=0xffffffff when no opts given", () => {
     physics3dCastRay.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -910,7 +910,7 @@ describe('Group C — RFC-07: spatial queries', () => {
 
   // ─── castShape ───────────────────────────────────────────────────────────
 
-  it('castShape returns null when result[0] === 0 (miss)', () => {
+  it("castShape returns null when result[0] === 0 (miss)", () => {
     physics3dCastShape.mockReturnValue(Array(15).fill(0));
     const { api } = setup();
 
@@ -918,14 +918,14 @@ describe('Group C — RFC-07: spatial queries', () => {
       { x: 0, y: 5, z: 0 },
       { x: 0, y: 0, z: 0, w: 1 },
       { x: 0, y: -1, z: 0 },
-      { type: 'box', halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+      { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
       20,
     );
 
     expect(result).toBeNull();
   });
 
-  it('castShape returns ShapeHit with all fields on hit', () => {
+  it("castShape returns ShapeHit with all fields on hit", () => {
     // [hit=1, entityIdx=7, toi=2.5, nx=0, ny=1, nz=0, px=0, py=2, pz=0, waAx=0, waAy=2.1, waAz=0, waBx=0, waBy=1.9, waBz=0]
     physics3dCastShape.mockReturnValue([1, 7, 2.5, 0, 1, 0, 0, 2, 0, 0, 2.1, 0, 0, 1.9, 0]);
     const { api } = setup();
@@ -934,7 +934,7 @@ describe('Group C — RFC-07: spatial queries', () => {
       { x: 0, y: 5, z: 0 },
       { x: 0, y: 0, z: 0, w: 1 },
       { x: 0, y: -1, z: 0 },
-      { type: 'box', halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+      { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
       20,
     );
 
@@ -947,7 +947,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result!.entity).toBeDefined();
   });
 
-  it('castShape encodes box shape correctly (shapeType=0, halfX/Y/Z)', () => {
+  it("castShape encodes box shape correctly (shapeType=0, halfX/Y/Z)", () => {
     physics3dCastShape.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -955,7 +955,7 @@ describe('Group C — RFC-07: spatial queries', () => {
       { x: 0, y: 0, z: 0 },
       { x: 0, y: 0, z: 0, w: 1 },
       { x: 1, y: 0, z: 0 },
-      { type: 'box', halfX: 1, halfY: 2, halfZ: 3 },
+      { type: "box", halfX: 1, halfY: 2, halfZ: 3 },
       10,
     );
 
@@ -967,7 +967,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(args[13]).toBe(3); // halfZ
   });
 
-  it('castShape encodes sphere shape correctly (shapeType=1, radius)', () => {
+  it("castShape encodes sphere shape correctly (shapeType=1, radius)", () => {
     physics3dCastShape.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -975,7 +975,7 @@ describe('Group C — RFC-07: spatial queries', () => {
       { x: 0, y: 0, z: 0 },
       { x: 0, y: 0, z: 0, w: 1 },
       { x: 1, y: 0, z: 0 },
-      { type: 'sphere', radius: 0.5 },
+      { type: "sphere", radius: 0.5 },
       10,
     );
 
@@ -988,7 +988,7 @@ describe('Group C — RFC-07: spatial queries', () => {
 
   // ─── overlapShape ────────────────────────────────────────────────────────
 
-  it('overlapShape returns empty array when scratch buffer is unavailable (mock mode without overlapScratchPtr)', () => {
+  it("overlapShape returns empty array when scratch buffer is unavailable (mock mode without overlapScratchPtr)", () => {
     const { api } = setup();
 
     // In WASM mock mode, bridgeRuntime.getLinearMemory() is mocked to return a
@@ -997,7 +997,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     const result = api.overlapShape(
       { x: 0, y: 0, z: 0 },
       { x: 0, y: 0, z: 0, w: 1 },
-      { type: 'sphere', radius: 1 },
+      { type: "sphere", radius: 1 },
     );
 
     expect(result).toEqual([]);
@@ -1007,7 +1007,7 @@ describe('Group C — RFC-07: spatial queries', () => {
 
   // ─── projectPoint ────────────────────────────────────────────────────────
 
-  it('projectPoint returns null when result[0] === 0 (miss)', () => {
+  it("projectPoint returns null when result[0] === 0 (miss)", () => {
     physics3dProjectPoint.mockReturnValue([0, 0, 0, 0, 0, 0]);
     const { api } = setup();
 
@@ -1016,7 +1016,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result).toBeNull();
   });
 
-  it('projectPoint returns PointProjection with correct fields on hit', () => {
+  it("projectPoint returns PointProjection with correct fields on hit", () => {
     // [hit=1, entityIdx=3, projX=1.0, projY=2.0, projZ=3.0, isInside=0]
     physics3dProjectPoint.mockReturnValue([1, 3, 1.0, 2.0, 3.0, 0]);
     const { api } = setup();
@@ -1029,7 +1029,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result!.entity).toBeDefined();
   });
 
-  it('projectPoint sets isInside=true when result[5] !== 0', () => {
+  it("projectPoint sets isInside=true when result[5] !== 0", () => {
     // [hit=1, entityIdx=3, projX=0, projY=0, projZ=0, isInside=1]
     physics3dProjectPoint.mockReturnValue([1, 3, 0, 0, 0, 1]);
     const { api } = setup();
@@ -1039,7 +1039,7 @@ describe('Group C — RFC-07: spatial queries', () => {
     expect(result!.isInside).toBe(true);
   });
 
-  it('projectPoint passes solid=false as 0 in the last argument', () => {
+  it("projectPoint passes solid=false as 0 in the last argument", () => {
     physics3dProjectPoint.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -1063,7 +1063,7 @@ describe('Group C — RFC-07: spatial queries', () => {
  * Because no real SharedArrayBuffer is set up in this mock environment,
  * `isGrounded` always reads `false` and `groundNormal` always returns `null`.
  */
-describe('Group D — RFC-09: character controller', () => {
+describe("Group D — RFC-09: character controller", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     physics3dAddBody.mockReturnValue(true);
@@ -1092,12 +1092,12 @@ describe('Group D — RFC-09: character controller', () => {
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
-    const api = services.get('physics3d') as Physics3DAPI;
+    const api = services.get("physics3d") as Physics3DAPI;
     api.createBody(entityId);
     return { api, entityId };
   }
 
-  it('addCharacterController delegates to physics3d_add_character_controller with defaults', () => {
+  it("addCharacterController delegates to physics3d_add_character_controller with defaults", () => {
     const { api, entityId } = setupWithBody(10);
 
     api.addCharacterController(entityId);
@@ -1113,7 +1113,7 @@ describe('Group D — RFC-09: character controller', () => {
     );
   });
 
-  it('addCharacterController passes custom opts to WASM', () => {
+  it("addCharacterController passes custom opts to WASM", () => {
     const { api, entityId } = setupWithBody(10);
 
     api.addCharacterController(entityId, {
@@ -1136,7 +1136,7 @@ describe('Group D — RFC-09: character controller', () => {
     );
   });
 
-  it('addCharacterController returns handle with isGrounded=false (no SAB in mock)', () => {
+  it("addCharacterController returns handle with isGrounded=false (no SAB in mock)", () => {
     const { api, entityId } = setupWithBody(10);
 
     const handle = api.addCharacterController(entityId);
@@ -1144,7 +1144,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(handle.isGrounded).toBe(false);
   });
 
-  it('addCharacterController returns handle with groundNormal=null (no SAB in mock)', () => {
+  it("addCharacterController returns handle with groundNormal=null (no SAB in mock)", () => {
     const { api, entityId } = setupWithBody(10);
 
     const handle = api.addCharacterController(entityId);
@@ -1152,7 +1152,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(handle.groundNormal).toBeNull();
   });
 
-  it('addCharacterController returns handle with groundEntity=null', () => {
+  it("addCharacterController returns handle with groundEntity=null", () => {
     const { api, entityId } = setupWithBody(10);
 
     const handle = api.addCharacterController(entityId);
@@ -1160,7 +1160,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(handle.groundEntity).toBeNull();
   });
 
-  it('handle.move calls physics3d_character_controller_move with entityIndex, velocity components, and dt', () => {
+  it("handle.move calls physics3d_character_controller_move with entityIndex, velocity components, and dt", () => {
     const { api, entityId } = setupWithBody(10);
     const handle = api.addCharacterController(entityId);
 
@@ -1169,7 +1169,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(physics3dCharacterControllerMove).toHaveBeenCalledWith(10, 0, -5, 0, 1 / 60);
   });
 
-  it('handle.move updates lastTranslation to velocity * dt', () => {
+  it("handle.move updates lastTranslation to velocity * dt", () => {
     const { api, entityId } = setupWithBody(10);
     const handle = api.addCharacterController(entityId);
 
@@ -1178,7 +1178,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(handle.lastTranslation).toEqual({ x: 1, y: 0, z: 0 });
   });
 
-  it('removeCharacterController delegates to physics3d_remove_character_controller', () => {
+  it("removeCharacterController delegates to physics3d_remove_character_controller", () => {
     const { api, entityId } = setupWithBody(10);
     api.addCharacterController(entityId);
 
@@ -1187,7 +1187,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(physics3dRemoveCharacterController).toHaveBeenCalledWith(10);
   });
 
-  it('addCharacterController called twice for same entity — second call updates ccRegistrations', () => {
+  it("addCharacterController called twice for same entity — second call updates ccRegistrations", () => {
     const { api, entityId } = setupWithBody(10);
 
     api.addCharacterController(entityId);
@@ -1196,7 +1196,7 @@ describe('Group D — RFC-09: character controller', () => {
     expect(physics3dAddCharacterController).toHaveBeenCalledTimes(2);
   });
 
-  it('addCharacterController when WASM returns 0xffffffff — handle still created', () => {
+  it("addCharacterController when WASM returns 0xffffffff — handle still created", () => {
     physics3dAddCharacterController.mockReturnValueOnce(0xffffffff);
     const { api, entityId } = setupWithBody(10);
 

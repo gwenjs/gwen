@@ -1,14 +1,14 @@
 /**
  * @file onContact() / _dispatchContactEvent() tests.
  */
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from "vitest";
 import {
   _dispatchContactEvent,
   onContact,
   _setCurrentContactEntityId,
   _clearContactCallbacks,
-} from '../../src/composables/on-contact.js';
-import type { ContactEvent } from '../../src/types.js';
+} from "../../src/composables/on-contact.js";
+import type { ContactEvent } from "../../src/types.js";
 
 /** Sample contact event for testing. */
 const sampleEvent: ContactEvent = {
@@ -21,13 +21,13 @@ const sampleEvent: ContactEvent = {
   relativeVelocity: 5,
 };
 
-describe('onContact / _dispatchContactEvent', () => {
+describe("onContact / _dispatchContactEvent", () => {
   beforeEach(() => {
     // Clear current entity context before each test
     _setCurrentContactEntityId(null);
   });
 
-  it('dispatches to a callback registered with an explicit entity ID', () => {
+  it("dispatches to a callback registered with an explicit entity ID", () => {
     let received: ContactEvent | null = null;
     onContact((e) => {
       received = e;
@@ -36,7 +36,7 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(received).toEqual(sampleEvent);
   });
 
-  it('does not dispatch to a callback registered for a different entity', () => {
+  it("does not dispatch to a callback registered for a different entity", () => {
     let received: ContactEvent | null = null;
     onContact((e) => {
       received = e;
@@ -45,7 +45,7 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(received).toBeNull();
   });
 
-  it('dispatches to multiple callbacks for the same entity', () => {
+  it("dispatches to multiple callbacks for the same entity", () => {
     const results: number[] = [];
     onContact(() => results.push(1), 5n);
     onContact(() => results.push(2), 5n);
@@ -53,11 +53,11 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(results).toEqual([1, 2]);
   });
 
-  it('does not throw when dispatching to an entity with no callbacks', () => {
+  it("does not throw when dispatching to an entity with no callbacks", () => {
     expect(() => _dispatchContactEvent(999n, sampleEvent)).not.toThrow();
   });
 
-  it('does not register callback when entityId is not provided and context is null', () => {
+  it("does not register callback when entityId is not provided and context is null", () => {
     let received: ContactEvent | null = null;
     onContact((e) => {
       received = e;
@@ -66,7 +66,7 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(received).toBeNull();
   });
 
-  it('registers callback using context entity ID set via _setCurrentContactEntityId', () => {
+  it("registers callback using context entity ID set via _setCurrentContactEntityId", () => {
     _setCurrentContactEntityId(77n);
     let received: ContactEvent | null = null;
     onContact((e) => {
@@ -76,7 +76,7 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(received).toEqual(sampleEvent);
   });
 
-  it('explicit entityId takes precedence over context entity ID', () => {
+  it("explicit entityId takes precedence over context entity ID", () => {
     _setCurrentContactEntityId(10n);
     let received: ContactEvent | null = null;
     onContact((e) => {
@@ -93,7 +93,7 @@ describe('onContact / _dispatchContactEvent', () => {
     expect(receivedFromContext).toEqual(sampleEvent);
   });
 
-  it('_clearContactCallbacks removes callbacks for entity', () => {
+  it("_clearContactCallbacks removes callbacks for entity", () => {
     let called = false;
     onContact(() => {
       called = true;

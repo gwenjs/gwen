@@ -10,7 +10,7 @@
  */
 
 // @ts-ignore — dynamic import resolved by bundler at runtime
-import initWasm, { build_bvh_buffer } from '../../build-tools/gwen_core.js';
+import initWasm, { build_bvh_buffer } from "../../build-tools/gwen_core.js";
 
 /** Whether the WASM module has finished initialising. */
 let wasmReady = false;

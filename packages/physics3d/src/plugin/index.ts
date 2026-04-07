@@ -1,6 +1,6 @@
-import { definePlugin } from '@gwenjs/kit/plugin';
-import { getWasmBridge, createEntityId, unpackEntityId } from '@gwenjs/core';
-import type { EntityId, GwenEngine } from '@gwenjs/core';
+import { definePlugin } from "@gwenjs/kit/plugin";
+import { getWasmBridge, createEntityId, unpackEntityId } from "@gwenjs/core";
+import type { EntityId, GwenEngine } from "@gwenjs/core";
 
 import type {
   Physics3DAPI,
@@ -9,24 +9,20 @@ import type {
   Physics3DPrefabExtension,
   Physics3DSensorState,
   Physics3DEntityId,
-} from '../types';
+} from "../types";
 
-import {
-  normalizePhysics3DConfig,
-  buildLayerRegistry,
-  QUALITY_PRESETS,
-} from '../config';
+import { normalizePhysics3DConfig, buildLayerRegistry, QUALITY_PRESETS } from "../config";
 
-import { _dispatchContactEvent, _clearContactCallbacks } from '../composables/on-contact';
+import { _dispatchContactEvent, _clearContactCallbacks } from "../composables/on-contact";
 import {
   _dispatchSensorEnter,
   _dispatchSensorExit,
   _clearSensorCallbacks,
-} from '../composables/on-sensor';
+} from "../composables/on-sensor";
 
-import type { Physics3DBridgeRuntime } from './bridge';
-import { toEntityIndex } from './physics3d-utils';
-import { createPluginContext } from './plugin-context';
+import type { Physics3DBridgeRuntime } from "./bridge";
+import { toEntityIndex } from "./physics3d-utils";
+import { createPluginContext } from "./plugin-context";
 
 // ─── Sub-module imports ────────────────────────────────────────────────────────
 
@@ -47,7 +43,7 @@ import {
   createGetAngularVelocity,
   createSetAngularVelocity,
   createSetKinematicPosition,
-} from './body-management';
+} from "./body-management";
 
 import {
   addColliderImpl,
@@ -56,22 +52,21 @@ import {
   createRebuildMeshCollider,
   createBulkSpawnStaticBoxes,
   createAddCompoundCollider,
-} from './collider-management';
+} from "./collider-management";
 
-import { createGetSensorState, createUpdateSensorState } from './sensor-management';
+import { createGetSensorState, createUpdateSensorState } from "./sensor-management";
 
-import { detectLocalCollisions, readWasmCollisionEvents } from './collision-events';
+import { detectLocalCollisions, readWasmCollisionEvents } from "./collision-events";
 
-import { createJointMethods } from './joint-management';
+import { createJointMethods } from "./joint-management";
 
-import { createForcesAndConstraints } from './forces-and-constraints';
+import { createForcesAndConstraints } from "./forces-and-constraints";
 
-import { createCharacterControllerMethods } from './character-controller';
+import { createCharacterControllerMethods } from "./character-controller";
 
-import { createSpatialQueryMethods } from './spatial-queries';
+import { createSpatialQueryMethods } from "./spatial-queries";
 
-import { createPathfindingMethods } from './pathfinding-service';
-
+import { createPathfindingMethods } from "./pathfinding-service";
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
@@ -87,10 +82,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
   // ─── Build bound API methods from sub-modules ──────────────────────────────
 
-  const _createBody = (
-    entityId: Physics3DEntityId,
-    options = {},
-  ) => createBody(ctx, entityId, options, (eid, opts) => addColliderImpl(ctx, eid, opts));
+  const _createBody = (entityId: Physics3DEntityId, options = {}) =>
+    createBody(ctx, entityId, options, (eid, opts) => addColliderImpl(ctx, eid, opts));
 
   const _removeBody = (entityId: Physics3DEntityId) => removeBody(ctx, entityId);
   const _hasBody = (entityId: Physics3DEntityId) => hasBody(ctx, entityId);
@@ -131,10 +124,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
     step: (deltaSeconds: number) => {
       if (!ctx.stepFn) {
-        throw new Error('[GWEN:Physics3D] step() called before plugin initialization.');
+        throw new Error("[GWEN:Physics3D] step() called before plugin initialization.");
       }
       ctx.stepFn(deltaSeconds);
-      if (deltaSeconds > 0 && ctx.backendMode === 'local') {
+      if (deltaSeconds > 0 && ctx.backendMode === "local") {
         advanceLocalState(ctx, deltaSeconds);
       }
     },
@@ -178,7 +171,9 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     },
 
     getCollisionContacts: (opts) =>
-      opts?.max !== undefined ? ctx.currentFrameContacts.slice(0, opts.max) : ctx.currentFrameContacts,
+      opts?.max !== undefined
+        ? ctx.currentFrameContacts.slice(0, opts.max)
+        : ctx.currentFrameContacts,
 
     getCollisionEventMetrics: () => ({ eventCount: ctx.lastFrameEventCount }),
 
@@ -217,16 +212,16 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
   // ─── Plugin lifecycle ─────────────────────────────────────────────────────────
 
   return {
-    name: '@gwenjs/physics3d',
+    name: "@gwenjs/physics3d",
 
     setup(engine: GwenEngine): void {
       ctx._engine = engine;
-      ctx.log = engine.logger.child('@gwenjs/physics3d');
+      ctx.log = engine.logger.child("@gwenjs/physics3d");
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
       ctx.bridgeRuntime = bridge;
 
-      if (ctx._variant !== 'physics3d') {
+      if (ctx._variant !== "physics3d") {
         throw new Error(
           `[GWEN:Physics3D] Active core variant is "${ctx._variant}". ` +
             'Use initWasm("physics3d") before starting the engine.',
@@ -235,27 +230,27 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
       const pb = bridge.getPhysicsBridge();
 
-      if (typeof pb.physics3d_init !== 'function') {
+      if (typeof pb.physics3d_init !== "function") {
         throw new Error(
-          '[GWEN:Physics3D] physics3d_init() is not available in current WASM exports.',
+          "[GWEN:Physics3D] physics3d_init() is not available in current WASM exports.",
         );
       }
 
       pb.physics3d_init(cfg.gravity.x, cfg.gravity.y, cfg.gravity.z, cfg.maxEntities);
 
-      if (typeof pb.physics3d_set_quality === 'function') {
+      if (typeof pb.physics3d_set_quality === "function") {
         pb.physics3d_set_quality(QUALITY_PRESETS[cfg.qualityPreset]);
       }
 
-      if (typeof pb.physics3d_set_event_coalescing === 'function') {
+      if (typeof pb.physics3d_set_event_coalescing === "function") {
         pb.physics3d_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
       }
 
-      ctx.stepFn = typeof pb.physics3d_step === 'function' ? pb.physics3d_step.bind(pb) : null;
+      ctx.stepFn = typeof pb.physics3d_step === "function" ? pb.physics3d_step.bind(pb) : null;
 
       // Detect WASM backend: if physics3d_add_body is exported, delegate to Rapier3D
-      if (typeof pb.physics3d_add_body === 'function') {
-        ctx.backendMode = 'wasm';
+      if (typeof pb.physics3d_add_body === "function") {
+        ctx.backendMode = "wasm";
         ctx.wasmBridge = pb;
 
         // Populate CC SAB view from WASM linear memory
@@ -264,7 +259,11 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (ccSabPtr > 0) {
           const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
           if (mem) {
-            ctx.ccSABView.view = new Float32Array(mem.buffer, ccSabPtr, maxCC * ctx.CC_STATE_STRIDE);
+            ctx.ccSABView.view = new Float32Array(
+              mem.buffer,
+              ccSabPtr,
+              maxCC * ctx.CC_STATE_STRIDE,
+            );
           }
         }
       }
@@ -272,7 +271,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.ready = true;
 
       // Register prefab extension handler
-      engine.hooks.hook('prefab:instantiate', (entityId, extensions) => {
+      engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
         const ext = (extensions as Record<string, unknown>)?.physics3d as
           | Physics3DPrefabExtension
           | undefined;
@@ -283,26 +282,26 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
         if (ext.onCollision) {
           const slot =
-            typeof eid === 'bigint'
+            typeof eid === "bigint"
               ? unpackEntityId(eid as EntityId).index
-              : typeof eid === 'number'
+              : typeof eid === "number"
                 ? eid
                 : parseInt(String(eid), 10);
           ctx.entityCollisionCallbacks.set(slot, ext.onCollision);
         }
       });
 
-      ctx.offEntityDestroyed = engine.hooks.hook('entity:destroy', (entityId: EntityId) => {
+      ctx.offEntityDestroyed = engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
         if (
-          typeof entityId === 'bigint' ||
-          typeof entityId === 'number' ||
-          typeof entityId === 'string'
+          typeof entityId === "bigint" ||
+          typeof entityId === "number" ||
+          typeof entityId === "string"
         ) {
           const eid = entityId as Physics3DEntityId;
           const slot =
-            typeof eid === 'bigint'
+            typeof eid === "bigint"
               ? Number((eid as bigint) & 0xffffffffn)
-              : typeof eid === 'number'
+              : typeof eid === "number"
                 ? eid
                 : parseInt(String(eid), 10);
           ctx.entityCollisionCallbacks.delete(slot);
@@ -312,7 +311,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         }
       });
 
-      engine.provide('physics3d', service);
+      engine.provide("physics3d", service);
 
       if (cfg.debug) {
         ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${cfg.qualityPreset}`);
@@ -323,7 +322,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (!ctx.ready || !ctx.stepFn) return;
       if (!(deltaTime > 0)) return;
       ctx.stepFn(deltaTime);
-      if (ctx.backendMode === 'local') {
+      if (ctx.backendMode === "local") {
         advanceLocalState(ctx, deltaTime);
       }
     },
@@ -332,7 +331,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (!ctx.ready || !ctx._engine) return;
 
       // Invalidate DataView if memory buffer changed (memory.grow event)
-      if (ctx.eventsView && ctx.backendMode === 'wasm') {
+      if (ctx.eventsView && ctx.backendMode === "wasm") {
         const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? ctx.wasmBridge?.memory ?? null;
         if (memory && ctx.eventsBufferRef !== memory.buffer) {
           ctx.eventsView = null;
@@ -341,13 +340,17 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       }
 
       // Re-validate CC SAB view after WASM memory.grow
-      if (ctx.ccSABView.view !== null && ctx.backendMode === 'wasm') {
+      if (ctx.ccSABView.view !== null && ctx.backendMode === "wasm") {
         const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
         if (mem !== null && ctx.ccSABView.view.buffer !== mem.buffer) {
           const ccSabPtr2 = ctx.wasmBridge!.physics3d_get_cc_sab_ptr?.() ?? 0;
           const maxCC2 = ctx.wasmBridge!.physics3d_get_max_cc_entities?.() ?? 32;
           if (ccSabPtr2 > 0) {
-            ctx.ccSABView.view = new Float32Array(mem.buffer, ccSabPtr2, maxCC2 * ctx.CC_STATE_STRIDE);
+            ctx.ccSABView.view = new Float32Array(
+              mem.buffer,
+              ccSabPtr2,
+              maxCC2 * ctx.CC_STATE_STRIDE,
+            );
           } else {
             ctx.ccSABView.view = null;
           }
@@ -356,13 +359,13 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
       // Read events from WASM, or run local AABB collision detection
       const rawEvents =
-        ctx.backendMode === 'wasm' ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
+        ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
 
       // Build resolved contacts — in local mode entity ids are slot bigints
       const contacts: Physics3DCollisionContact[] = rawEvents.map((ev) => {
         let entityA: EntityId;
         let entityB: EntityId;
-        if (ctx.backendMode === 'wasm') {
+        if (ctx.backendMode === "wasm") {
           const genA = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotA);
           const genB = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotB);
           entityA =
@@ -385,12 +388,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.currentFrameContacts = contacts;
 
       // Track event count for metrics (includes local AABB events in fallback mode)
-      if (ctx.backendMode === 'local') ctx.lastFrameEventCount = rawEvents.length;
+      if (ctx.backendMode === "local") ctx.lastFrameEventCount = rawEvents.length;
 
       if (contacts.length === 0) return;
 
       // Dispatch hook
-      void ctx._engine.hooks.callHook('physics3d:collision', contacts);
+      void ctx._engine.hooks.callHook("physics3d:collision", contacts);
 
       // Dispatch to composable onContact() callbacks
       for (const contact of contacts) {
@@ -406,7 +409,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           if (colliderId === undefined) continue;
 
           let eid: EntityId;
-          if (ctx.backendMode === 'wasm') {
+          if (ctx.backendMode === "wasm") {
             const generation = ctx.bridgeRuntime?.getEntityGeneration?.(slot);
             if (generation === undefined) continue;
             eid = createEntityId(slot, generation);
@@ -427,7 +430,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           sensorMap.set(colliderId, next);
 
           if (prev.isActive !== newActive) {
-            void ctx._engine.hooks.callHook('physics3d:sensor:changed', eid, colliderId, next);
+            void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
             if (newActive) {
               _dispatchSensorEnter(colliderId, eid as unknown as bigint);
             } else {
@@ -455,7 +458,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       _clearContactCallbacks();
       _clearSensorCallbacks();
       ctx.stepFn = null;
-      ctx.backendMode = 'local';
+      ctx.backendMode = "local";
       ctx.wasmBridge = null;
       ctx.bridgeRuntime = null;
       ctx._engine = null;

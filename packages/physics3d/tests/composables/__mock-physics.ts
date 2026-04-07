@@ -1,13 +1,13 @@
 /**
  * @file Shared mock for usePhysics3D() used across composable tests.
  */
-import { vi } from 'vitest';
-import type { Physics3DBodyHandle } from '../../src/types.js';
+import { vi } from "vitest";
+import type { Physics3DBodyHandle } from "../../src/types.js";
 
 export const mockBodyHandle: Physics3DBodyHandle = {
   bodyId: 99,
   entityId: 0,
-  kind: 'fixed',
+  kind: "fixed",
   mass: 1,
   linearDamping: 0,
   angularDamping: 0,
@@ -26,6 +26,6 @@ export const mockPhysics3D = {
   removeCollider: vi.fn(() => true),
 };
 
-vi.mock('../../src/composables.js', () => ({
+vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));

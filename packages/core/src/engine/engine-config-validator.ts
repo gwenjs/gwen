@@ -3,8 +3,8 @@
  * Validates `GwenEngineOptions` and throws `GwenConfigError` on invalid values.
  */
 
-import type { GwenEngineOptions } from './gwen-engine.js';
-import { GwenConfigError } from './config-error.js';
+import type { GwenEngineOptions } from "./gwen-engine.js";
+import { GwenConfigError } from "./config-error.js";
 
 /**
  * Validates engine configuration options.
@@ -40,16 +40,16 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
     const v = opts.maxEntities;
     if (!Number.isInteger(v) || v < 1) {
       throw new GwenConfigError(
-        'maxEntities',
+        "maxEntities",
         v,
-        'Must be a positive integer. Try 10_000 for a typical game.',
+        "Must be a positive integer. Try 10_000 for a typical game.",
       );
     }
     if (v > 2_000_000) {
       throw new GwenConfigError(
-        'maxEntities',
+        "maxEntities",
         v,
-        'Above 2 000 000 entities, consider chunking your world.',
+        "Above 2 000 000 entities, consider chunking your world.",
       );
     }
     if (v > 500_000) {
@@ -65,9 +65,9 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
     const v = opts.targetFPS;
     if (!Number.isFinite(v) || v < 1 || v > 300) {
       throw new GwenConfigError(
-        'targetFPS',
+        "targetFPS",
         v,
-        'Must be between 1 and 300. Common values: 30, 60, 120.',
+        "Must be between 1 and 300. Common values: 30, 60, 120.",
       );
     }
     if (v > 144) {
@@ -83,9 +83,9 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
     const v = opts.maxDeltaSeconds;
     if (!Number.isFinite(v) || v <= 0 || v > 10) {
       throw new GwenConfigError(
-        'maxDeltaSeconds',
+        "maxDeltaSeconds",
         v,
-        'Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.',
+        "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
       );
     }
   }
@@ -95,9 +95,9 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
     const v = opts.tweenPoolSize;
     if (!Number.isInteger(v) || v < 1) {
       throw new GwenConfigError(
-        'tweenPoolSize',
+        "tweenPoolSize",
         v,
-        'Must be a positive integer. Default 256 suits most games.',
+        "Must be a positive integer. Default 256 suits most games.",
       );
     }
     if (v > 4096) {

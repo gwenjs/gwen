@@ -5,27 +5,27 @@
  * and the three placement composables (placeGroup, placeActor, placePrefab).
  */
 
-import { describe, it, expect } from 'vitest';
-import { definePrefab } from '../../src/scene/define-prefab.js';
-import { defineActor } from '../../src/scene/define-actor.js';
-import { createEngine } from '../../src/engine/gwen-engine.js';
+import { describe, it, expect } from "vitest";
+import { definePrefab } from "../../src/scene/define-prefab.js";
+import { defineActor } from "../../src/scene/define-actor.js";
+import { createEngine } from "../../src/engine/gwen-engine.js";
 import {
   _withLayoutContext,
   _isInLayoutContext,
   placeGroup,
   placeActor,
   placePrefab,
-} from '../../src/scene/place.js';
+} from "../../src/scene/place.js";
 
-const Position = { __name__: 'Position' };
+const Position = { __name__: "Position" };
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
-describe('layout context guard', () => {
-  it('_isInLayoutContext returns false outside a layout', () => {
+describe("layout context guard", () => {
+  it("_isInLayoutContext returns false outside a layout", () => {
     expect(_isInLayoutContext()).toBe(false);
   });
 
-  it('_isInLayoutContext returns true inside _withLayoutContext', () => {
+  it("_isInLayoutContext returns true inside _withLayoutContext", () => {
     let inside = false;
     _withLayoutContext(() => {
       inside = _isInLayoutContext();
@@ -33,22 +33,22 @@ describe('layout context guard', () => {
     expect(inside).toBe(true);
   });
 
-  it('placeGroup throws when called outside a layout context', () => {
+  it("placeGroup throws when called outside a layout context", () => {
     expect(() => placeGroup({ at: [0, 0] })).toThrow(/placeGroup.*defineLayout/);
   });
 
-  it('placeActor throws when called outside a layout context', () => {
+  it("placeActor throws when called outside a layout context", () => {
     const Actor = defineActor(SimplePrefab, () => {});
     expect(() => placeActor(Actor, { at: [0, 0] })).toThrow(/placeActor.*defineLayout/);
   });
 
-  it('placePrefab throws when called outside a layout context', () => {
+  it("placePrefab throws when called outside a layout context", () => {
     expect(() => placePrefab(SimplePrefab, { at: [0, 0] })).toThrow(/placePrefab.*defineLayout/);
   });
 });
 
-describe('placeGroup', () => {
-  it('returns a PlaceHandle with a valid entityId inside layout context', async () => {
+describe("placeGroup", () => {
+  it("returns a PlaceHandle with a valid entityId inside layout context", async () => {
     const engine = await createEngine();
     let handle: ReturnType<typeof placeGroup> | undefined;
 
@@ -58,11 +58,11 @@ describe('placeGroup', () => {
       });
     });
 
-    expect(typeof handle!.entityId).toBe('bigint');
+    expect(typeof handle!.entityId).toBe("bigint");
     expect(handle!.api).toBeUndefined();
   });
 
-  it('places entity at specified position', async () => {
+  it("places entity at specified position", async () => {
     const engine = await createEngine();
     let handle: ReturnType<typeof placeGroup> | undefined;
 
@@ -73,14 +73,14 @@ describe('placeGroup', () => {
     });
 
     expect(handle).toBeDefined();
-    expect(typeof handle!.entityId).toBe('bigint');
+    expect(typeof handle!.entityId).toBe("bigint");
   });
 });
 
-describe('placeActor', () => {
-  it('spawns an actor entity and returns a PlaceHandle with api', async () => {
+describe("placeActor", () => {
+  it("spawns an actor entity and returns a PlaceHandle with api", async () => {
     const engine = await createEngine();
-    const Actor = defineActor(SimplePrefab, () => ({ greet: () => 'hello' }));
+    const Actor = defineActor(SimplePrefab, () => ({ greet: () => "hello" }));
     await engine.use(Actor._plugin);
     let handle: ReturnType<typeof placeActor<typeof Actor>> | undefined;
 
@@ -90,11 +90,11 @@ describe('placeActor', () => {
       });
     });
 
-    expect(typeof handle!.entityId).toBe('bigint');
-    expect(handle!.api.greet()).toBe('hello');
+    expect(typeof handle!.entityId).toBe("bigint");
+    expect(handle!.api.greet()).toBe("hello");
   });
 
-  it('tracks spawned actor in instances', async () => {
+  it("tracks spawned actor in instances", async () => {
     const engine = await createEngine();
     const Actor = defineActor(SimplePrefab, () => ({}));
     await engine.use(Actor._plugin);
@@ -110,8 +110,8 @@ describe('placeActor', () => {
   });
 });
 
-describe('placePrefab', () => {
-  it('creates an entity with prefab components', async () => {
+describe("placePrefab", () => {
+  it("creates an entity with prefab components", async () => {
     const engine = await createEngine();
     let handle: ReturnType<typeof placePrefab> | undefined;
 
@@ -121,13 +121,13 @@ describe('placePrefab', () => {
       });
     });
 
-    expect(typeof handle!.entityId).toBe('bigint');
+    expect(typeof handle!.entityId).toBe("bigint");
     expect(handle!.api).toBeUndefined();
   });
 });
 
-describe('PlaceHandle methods', () => {
-  it('moveTo updates entity position', async () => {
+describe("PlaceHandle methods", () => {
+  it("moveTo updates entity position", async () => {
     const engine = await createEngine();
     let handle: ReturnType<typeof placeGroup> | undefined;
 
@@ -142,7 +142,7 @@ describe('PlaceHandle methods', () => {
     expect(() => handle!.moveTo([10, 20, 30])).not.toThrow();
   });
 
-  it('despawn removes entity', async () => {
+  it("despawn removes entity", async () => {
     const engine = await createEngine();
     let handle: ReturnType<typeof placeGroup> | undefined;
 
@@ -157,8 +157,8 @@ describe('PlaceHandle methods', () => {
   });
 });
 
-describe('_withLayoutContext captures entities', () => {
-  it('returns entities list from context', async () => {
+describe("_withLayoutContext captures entities", () => {
+  it("returns entities list from context", async () => {
     const engine = await createEngine();
     let result: ReturnType<typeof _withLayoutContext> | undefined;
 
@@ -170,16 +170,16 @@ describe('_withLayoutContext captures entities', () => {
     });
 
     expect(result!.entities).toHaveLength(2);
-    expect(result!.entities.every((e) => typeof e === 'bigint')).toBe(true);
+    expect(result!.entities.every((e) => typeof e === "bigint")).toBe(true);
   });
 
-  it('returns result from factory', () => {
-    const result = _withLayoutContext(() => ({ foo: 'bar' }));
+  it("returns result from factory", () => {
+    const result = _withLayoutContext(() => ({ foo: "bar" }));
 
-    expect(result.result).toEqual({ foo: 'bar' });
+    expect(result.result).toEqual({ foo: "bar" });
   });
 
-  it('restores previous context after execution', () => {
+  it("restores previous context after execution", () => {
     expect(_isInLayoutContext()).toBe(false);
     _withLayoutContext(() => {
       expect(_isInLayoutContext()).toBe(true);

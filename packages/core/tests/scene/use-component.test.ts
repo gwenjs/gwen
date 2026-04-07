@@ -1,16 +1,16 @@
-import { describe, it, expect } from 'vitest';
-import { definePrefab } from '../../src/scene/define-prefab.js';
-import { defineActor } from '../../src/scene/define-actor.js';
-import { useComponent } from '../../src/scene/use-actor.js';
-import { onUpdate } from '../../src/system.js';
-import { createEngine } from '../../src/engine/gwen-engine.js';
+import { describe, it, expect } from "vitest";
+import { definePrefab } from "../../src/scene/define-prefab.js";
+import { defineActor } from "../../src/scene/define-actor.js";
+import { useComponent } from "../../src/scene/use-actor.js";
+import { onUpdate } from "../../src/system.js";
+import { createEngine } from "../../src/engine/gwen-engine.js";
 
-const Position = { __name__: 'Position' };
+const Position = { __name__: "Position" };
 
 const PosPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
-describe('useComponent', () => {
-  it('reads the component from the current actor entity', async () => {
+describe("useComponent", () => {
+  it("reads the component from the current actor entity", async () => {
     const engine = await createEngine();
     let capturedX: number | undefined;
 
@@ -31,7 +31,7 @@ describe('useComponent', () => {
     expect(capturedX).toBeDefined();
   });
 
-  it('writes to the component via proxy set', async () => {
+  it("writes to the component via proxy set", async () => {
     const engine = await createEngine();
 
     const Actor = defineActor(PosPrefab, () => {

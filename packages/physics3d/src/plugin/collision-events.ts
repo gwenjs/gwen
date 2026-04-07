@@ -2,10 +2,10 @@
  * @fileoverview Collision event reading (WASM ring buffer) and local AABB detection.
  */
 
-import type { InternalCollisionEvent3D } from './bridge';
-import { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from './constants';
-import { computeColliderAABB, aabbOverlap } from './physics3d-utils';
-import type { PluginContext } from './plugin-context';
+import type { InternalCollisionEvent3D } from "./bridge";
+import { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./constants";
+import { computeColliderAABB, aabbOverlap } from "./physics3d-utils";
+import type { PluginContext } from "./plugin-context";
 
 // ─── AABB collision detection (local mode) ────────────────────────────────────
 
@@ -78,11 +78,11 @@ export function detectLocalCollisions(ctx: PluginContext): InternalCollisionEven
   // Previously overlapping pairs that no longer overlap → contact ended
   for (const prevKey of ctx.previousLocalContactKeys) {
     if (!currentKeys.has(prevKey)) {
-      const parts = prevKey.split(':');
-      const slotA = parseInt(parts[0] ?? '0', 10);
-      const rawCIdA = parseInt(parts[1] ?? '-1', 10);
-      const slotB = parseInt(parts[2] ?? '0', 10);
-      const rawCIdB = parseInt(parts[3] ?? '-1', 10);
+      const parts = prevKey.split(":");
+      const slotA = parseInt(parts[0] ?? "0", 10);
+      const rawCIdA = parseInt(parts[1] ?? "-1", 10);
+      const slotB = parseInt(parts[2] ?? "0", 10);
+      const rawCIdB = parseInt(parts[3] ?? "-1", 10);
       events.push({
         slotA,
         slotB,

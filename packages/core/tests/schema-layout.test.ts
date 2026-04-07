@@ -1,8 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { Types, computeSchemaLayout } from '../src/schema';
+import { describe, it, expect } from "vitest";
+import { Types, computeSchemaLayout } from "../src/schema";
 
-describe('computeSchemaLayout', () => {
-  it('should compute exact byte size and offsets for numeric components', () => {
+describe("computeSchemaLayout", () => {
+  it("should compute exact byte size and offsets for numeric components", () => {
     const layout = computeSchemaLayout({
       x: Types.f32,
       y: Types.f32,
@@ -16,7 +16,7 @@ describe('computeSchemaLayout', () => {
     expect(layout.deserialize).toBeDefined();
   });
 
-  it('should treat strings as i32 identifiers using StringPool', () => {
+  it("should treat strings as i32 identifiers using StringPool", () => {
     const layout = computeSchemaLayout({
       x: Types.f32,
       name: Types.string,
@@ -27,7 +27,7 @@ describe('computeSchemaLayout', () => {
     expect(layout.deserialize).toBeDefined();
   });
 
-  it('should correctly serialize and deserialize using DataView', () => {
+  it("should correctly serialize and deserialize using DataView", () => {
     const layout = computeSchemaLayout({
       speed: Types.f32,
       maxHp: Types.i32,

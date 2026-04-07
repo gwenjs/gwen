@@ -1,12 +1,12 @@
-import { describe, it, expect } from 'vitest';
-import { definePrefab } from '../../src/define-prefab.js';
+import { describe, it, expect } from "vitest";
+import { definePrefab } from "../../src/define-prefab.js";
 
 // Minimal component-like objects for testing (no real ECS needed)
-const Position = { __componentName__: 'Position' };
-const Health = { __componentName__: 'Health' };
+const Position = { __componentName__: "Position" };
+const Health = { __componentName__: "Health" };
 
-describe('definePrefab', () => {
-  it('returns a PrefabDefinition with the given components', () => {
+describe("definePrefab", () => {
+  it("returns a PrefabDefinition with the given components", () => {
     const prefab = definePrefab([
       { def: Position, defaults: { x: 0, y: 0 } },
       { def: Health, defaults: { hp: 100 } },
@@ -20,21 +20,21 @@ describe('definePrefab', () => {
 
   it('sets __prefabName__ to "anonymous" by default', () => {
     const prefab = definePrefab([]);
-    expect(prefab.__prefabName__).toBe('anonymous');
+    expect(prefab.__prefabName__).toBe("anonymous");
   });
 
-  it('accepts an empty components array', () => {
+  it("accepts an empty components array", () => {
     const prefab = definePrefab([]);
     expect(prefab.components).toHaveLength(0);
   });
 
-  it('does not mutate the input array', () => {
+  it("does not mutate the input array", () => {
     const input = [{ def: Position, defaults: {} }];
     definePrefab(input);
     expect(input).toHaveLength(1);
   });
 
-  it('returns a frozen object (immutable)', () => {
+  it("returns a frozen object (immutable)", () => {
     const prefab = definePrefab([]);
     expect(Object.isFrozen(prefab)).toBe(true);
   });

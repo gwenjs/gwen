@@ -2,22 +2,16 @@
  * @fileoverview Pathfinding service methods for the Physics3D API.
  */
 
-import type {
-  Physics3DAPI,
-  Physics3DVec3,
-  Pathfinding3DOptions,
-  PathWaypoint3D,
-} from '../types';
-import { localFindPath3D } from './pathfinding';
-import type { PluginContext } from './plugin-context';
+import type { Physics3DAPI, Physics3DVec3, Pathfinding3DOptions, PathWaypoint3D } from "../types";
+import { localFindPath3D } from "./pathfinding";
+import type { PluginContext } from "./plugin-context";
 
-export function createPathfindingMethods(ctx: PluginContext): Pick<
-  Physics3DAPI,
-  'initNavGrid3D' | 'findPath3D'
-> {
+export function createPathfindingMethods(
+  ctx: PluginContext,
+): Pick<Physics3DAPI, "initNavGrid3D" | "findPath3D"> {
   return {
     initNavGrid3D(opts: Pathfinding3DOptions): void {
-      if (ctx.backendMode === 'wasm') {
+      if (ctx.backendMode === "wasm") {
         const pb = ctx.wasmBridge! as unknown as Record<string, unknown>;
         const allocFn = pb.__wbindgen_malloc as
           | ((size: number, align: number) => number)
@@ -26,7 +20,7 @@ export function createPathfindingMethods(ctx: PluginContext): Pick<
           | ((ptr: number, size: number, align: number) => void)
           | undefined;
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
-        if (typeof allocFn === 'function' && wasmMem) {
+        if (typeof allocFn === "function" && wasmMem) {
           const ptr = allocFn.call(ctx.wasmBridge, opts.grid.byteLength, 1);
           new Uint8Array(wasmMem.buffer, ptr, opts.grid.byteLength).set(opts.grid);
           ctx.wasmBridge!.physics3d_init_navgrid_3d?.(
@@ -48,10 +42,14 @@ export function createPathfindingMethods(ctx: PluginContext): Pick<
     },
 
     findPath3D(from: Physics3DVec3, to: Physics3DVec3): PathWaypoint3D[] {
-      if (ctx.backendMode === 'wasm') {
+      if (ctx.backendMode === "wasm") {
         const count = ctx.wasmBridge!.physics3d_find_path_3d?.(
-          from.x, from.y, from.z,
-          to.x, to.y, to.z,
+          from.x,
+          from.y,
+          from.z,
+          to.x,
+          to.y,
+          to.z,
         );
         if (!count || count === 0) return [];
         const ptr = ctx.wasmBridge!.physics3d_get_path_buffer_ptr_3d?.();

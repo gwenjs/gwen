@@ -5,10 +5,10 @@
  * that can be composed into a game's plugin list.
  */
 
-import { definePlugin } from '@gwenjs/kit/plugin';
-import type { EntityId, GwenEngine } from '@gwenjs/core';
-import type { Physics3DAPI } from './types';
-import './augment';
+import { definePlugin } from "@gwenjs/kit/plugin";
+import type { EntityId, GwenEngine } from "@gwenjs/core";
+import type { Physics3DAPI } from "./types";
+import "./augment";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -83,7 +83,7 @@ interface GwenEngineStringComponentAccess {
  * ```
  */
 export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
-  const positionComponent = options.positionComponent ?? 'transform3d';
+  const positionComponent = options.positionComponent ?? "transform3d";
   const rotationComponent = options.rotationComponent;
 
   return definePlugin(() => {
@@ -91,11 +91,11 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
     let _engine: GwenEngine | null = null;
 
     return {
-      name: 'Physics3DKinematicSyncSystem',
+      name: "Physics3DKinematicSyncSystem",
 
       setup(engine: GwenEngine): void {
         _engine = engine;
-        physics = engine.tryInject('physics3d') ?? null;
+        physics = engine.tryInject("physics3d") ?? null;
       },
 
       onBeforeUpdate(): void {
@@ -110,7 +110,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
         for (const entityId of stringEngine.createLiveQuery([positionComponent])) {
           // perf: replaced [...spread] with for...of to avoid array allocation every frame
           if (!physics.hasBody(entityId)) continue;
-          if (physics.getBodyKind(entityId) !== 'kinematic') continue;
+          if (physics.getBodyKind(entityId) !== "kinematic") continue;
 
           const pos = stringEngine.getComponent<{ x: number; y: number; z: number }>(
             entityId,

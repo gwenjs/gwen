@@ -8,59 +8,59 @@
  * - onEvent() accepts keys declared via defineEvents without any cast
  */
 
-import { describe, it, expect, vi, expectTypeOf } from 'vitest';
-import { createEngine } from '../../src/index.js';
-import { defineEvents, emit } from '../../src/actor/index.js';
-import type { InferEvents } from '../../src/actor/index.js';
+import { describe, it, expect, vi, expectTypeOf } from "vitest";
+import { createEngine } from "../../src/index.js";
+import { defineEvents, emit } from "../../src/actor/index.js";
+import type { InferEvents } from "../../src/actor/index.js";
 
 // Simulated user-land declaration (what the user writes in their game)
 const GameEvents = defineEvents({
-  'enemy:died': (_id: bigint): void => undefined,
-  'player:damage': (_amount: number): void => undefined,
-  'level:complete': (): void => undefined,
+  "enemy:died": (_id: bigint): void => undefined,
+  "player:damage": (_amount: number): void => undefined,
+  "level:complete": (): void => undefined,
 });
 
 // Type augmentation — users put this in their events.ts
-declare module '@gwenjs/core' {
+declare module "@gwenjs/core" {
   interface GwenRuntimeHooks extends InferEvents<typeof GameEvents> {}
 }
 
-describe('defineEvents()', () => {
-  it('returns the exact same object at runtime (identity)', () => {
+describe("defineEvents()", () => {
+  it("returns the exact same object at runtime (identity)", () => {
     const map = {
-      'foo:bar': (_x: number): void => undefined,
+      "foo:bar": (_x: number): void => undefined,
     };
     const result = defineEvents(map);
     expect(result).toBe(map);
   });
 
-  it('preserves all keys and values', () => {
-    expect(Object.keys(GameEvents)).toEqual(['enemy:died', 'player:damage', 'level:complete']);
-    expect(typeof GameEvents['enemy:died']).toBe('function');
+  it("preserves all keys and values", () => {
+    expect(Object.keys(GameEvents)).toEqual(["enemy:died", "player:damage", "level:complete"]);
+    expect(typeof GameEvents["enemy:died"]).toBe("function");
   });
 });
 
-describe('InferEvents<T>', () => {
-  it('maps event keys to their handler types', () => {
+describe("InferEvents<T>", () => {
+  it("maps event keys to their handler types", () => {
     type Events = InferEvents<typeof GameEvents>;
     // Type-level: 'enemy:died' key should map to a function taking bigint
-    expectTypeOf<Events['enemy:died']>().toEqualTypeOf<(id: bigint) => void>();
-    expectTypeOf<Events['player:damage']>().toEqualTypeOf<(amount: number) => void>();
-    expectTypeOf<Events['level:complete']>().toEqualTypeOf<() => void>();
+    expectTypeOf<Events["enemy:died"]>().toEqualTypeOf<(id: bigint) => void>();
+    expectTypeOf<Events["player:damage"]>().toEqualTypeOf<(amount: number) => void>();
+    expectTypeOf<Events["level:complete"]>().toEqualTypeOf<() => void>();
   });
 });
 
-describe('emit() with declared events', () => {
-  it('accepts declared event keys and args without any cast', async () => {
+describe("emit() with declared events", () => {
+  it("accepts declared event keys and args without any cast", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
-    engine.hooks.hook('enemy:died' as never, spy);
+    engine.hooks.hook("enemy:died" as never, spy);
 
     engine.run(() => {
       // No 'as never', no cast — fully typed via augmentation
-      emit('enemy:died', 42n);
-      emit('player:damage', 10);
-      emit('level:complete');
+      emit("enemy:died", 42n);
+      emit("player:damage", 10);
+      emit("level:complete");
     });
 
     expect(spy).toHaveBeenCalledWith(42n);

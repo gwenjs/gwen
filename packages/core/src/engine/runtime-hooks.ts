@@ -1,4 +1,4 @@
-import type { EntityId } from './engine-api.js';
+import type { EntityId } from "./engine-api.js";
 
 /**
  * Payload emitted with the `engine:error` hook when the frame loop catches an error.
@@ -38,23 +38,23 @@ export interface EngineErrorPayload {
  */
 export interface GwenRuntimeHooks {
   /** Fired once when `engine.start()` is called, after all plugins are set up. */
-  'engine:init': () => void;
+  "engine:init": () => void;
   /** Fired once when `engine.start()` begins the RAF loop. */
-  'engine:start': () => void;
+  "engine:start": () => void;
   /** Fired once when `engine.stop()` tears down the engine. */
-  'engine:stop': () => void;
+  "engine:stop": () => void;
   /** Fired after a plugin completes its `setup()` and is registered in the engine. */
-  'plugin:registered': (pluginName: string) => void;
+  "plugin:registered": (pluginName: string) => void;
   /** Fired at the start of every tick, before any phase runs. */
-  'engine:tick': (dt: number) => void;
+  "engine:tick": (dt: number) => void;
   /** Fired at the end of every tick, after the render phase. */
-  'engine:afterTick': (dt: number) => void;
+  "engine:afterTick": (dt: number) => void;
   /** Fired when a new entity is created. */
-  'entity:spawn': (id: EntityId) => void;
+  "entity:spawn": (id: EntityId) => void;
   /** Fired when an entity is destroyed. */
-  'entity:destroy': (id: EntityId) => void;
+  "entity:destroy": (id: EntityId) => void;
   /** Fired when the frame loop catches an unhandled error. */
-  'engine:error': (payload: EngineErrorPayload) => void;
+  "engine:error": (payload: EngineErrorPayload) => void;
 
   /**
    * Fired when a plugin lifecycle hook throws and the error is not recovered
@@ -67,9 +67,9 @@ export interface GwenRuntimeHooks {
    * })
    * ```
    */
-  'plugin:error': (payload: {
+  "plugin:error": (payload: {
     pluginName: string;
-    phase: 'setup' | 'onBeforeUpdate' | 'onUpdate' | 'onAfterUpdate' | 'onRender' | 'teardown';
+    phase: "setup" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender" | "teardown";
     error: unknown;
     frame: number;
   }) => void;
@@ -79,7 +79,7 @@ export interface GwenRuntimeHooks {
    * prefab declaration. Pass the entity id and the prefab's `extensions` map.
    * Plugins (e.g. Physics2D) subscribe to this to create rigid bodies, etc.
    */
-  'prefab:instantiate': (
+  "prefab:instantiate": (
     entityId: EntityId,
     extensions: Readonly<Partial<GwenPrefabExtensions>>,
   ) => void;

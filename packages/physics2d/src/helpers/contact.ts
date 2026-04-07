@@ -1,11 +1,11 @@
-import { createEntityId, unpackEntityId } from '@gwenjs/core';
-import type { EntityId } from '@gwenjs/core';
+import { createEntityId, unpackEntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
 import type {
   CollisionEvent,
   CollisionEventsBatch,
   Physics2DAPI,
   ResolvedCollisionContact,
-} from '../types';
+} from "../types";
 
 /** Minimal interface needed to resolve entity generation numbers. */
 interface GenerationSource {

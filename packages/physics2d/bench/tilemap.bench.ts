@@ -10,9 +10,9 @@
  * with setup overhead.
  */
 
-import { describe, bench } from 'vitest';
-import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from '../src/index';
-import { makeTiles } from './fixtures';
+import { describe, bench } from "vitest";
+import { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from "../src/index";
+import { makeTiles } from "./fixtures";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -55,8 +55,8 @@ patchedTiles[PATCH_IDX] = patchedTiles[PATCH_IDX] === 0 ? 1 : 0;
  * Covers full-build and incremental-patch scenarios on a 256×128 tile map
  * with 16×16 tile chunks.
  */
-describe('tilemap physics', () => {
-  bench('buildTilemapPhysicsChunks 256×128', () => {
+describe("tilemap physics", () => {
+  bench("buildTilemapPhysicsChunks 256×128", () => {
     buildTilemapPhysicsChunks({
       tiles,
       mapWidthTiles: MAP_WIDTH_TILES,
@@ -66,7 +66,7 @@ describe('tilemap physics', () => {
     });
   });
 
-  bench('patchTilemapPhysicsChunk chunk 3:2', () => {
+  bench("patchTilemapPhysicsChunk chunk 3:2", () => {
     patchTilemapPhysicsChunk({
       source: {
         tiles: patchedTiles,

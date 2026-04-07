@@ -23,10 +23,10 @@
  * ```
  */
 
-import MagicString from 'magic-string';
-import type { ComponentManifest } from './component-manifest.js';
-import type { OptimizablePattern, WasmTier } from './types.js';
-import { CodeGenerator } from './code-generator.js';
+import MagicString from "magic-string";
+import type { ComponentManifest } from "./component-manifest.js";
+import type { OptimizablePattern, WasmTier } from "./types.js";
+import { CodeGenerator } from "./code-generator.js";
 
 /**
  * Applies the Phase 2 bulk WASM transformation to a single `OptimizablePattern`
@@ -112,10 +112,10 @@ export function applyBulkTransform(
   const writeLines: string[] = [];
   for (const comp of pattern.writeComponents) {
     const dataVar = compToDataVar.get(comp)!;
-    writeLines.push('\n    ' + gen.generateBulkWrite(comp, '_slots', '_gens', dataVar) + ';');
+    writeLines.push("\n    " + gen.generateBulkWrite(comp, "_slots", "_gens", dataVar) + ";");
   }
   if (writeLines.length > 0) {
-    s.appendLeft(pos.forOfEnd, writeLines.join(''));
+    s.appendLeft(pos.forOfEnd, writeLines.join(""));
   }
 
   // Step 6: Insert `queryReadBulk` declarations immediately before the for loop.
@@ -130,13 +130,13 @@ export function applyBulkTransform(
     const dataVar = compToDataVar.get(comp)!;
     if (isFirst) {
       // Full destructuring: entityCount, data, slots, gens
-      readLines.push(gen.generateBulkRead(pattern.queryComponents, comp) + ';');
+      readLines.push(gen.generateBulkRead(pattern.queryComponents, comp) + ";");
       isFirst = false;
     } else {
       // Data-only destructuring for additional read components
       const typeIds = pattern.queryComponents.map((n) => manifest.get(n)!.typeId);
       readLines.push(
-        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(', ')}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
       );
     }
   }
@@ -152,18 +152,18 @@ export function applyBulkTransform(
     if (isFirst) {
       // First component overall — include entityCount, slots, gens
       readLines.push(
-        `const { entityCount: ${countVar}, data: ${dataVar}, slots: _slots, gens: _gens } = __gwen_bridge__.queryReadBulk([${typeIds.join(', ')}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { entityCount: ${countVar}, data: ${dataVar}, slots: _slots, gens: _gens } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
       );
       isFirst = false;
     } else {
       readLines.push(
-        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(', ')}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
       );
     }
   }
 
   if (readLines.length > 0) {
-    s.prependLeft(pos.forOfStart, readLines.map((l) => '    ' + l).join('\n') + '\n    ');
+    s.prependLeft(pos.forOfStart, readLines.map((l) => "    " + l).join("\n") + "\n    ");
   }
 
   return true;

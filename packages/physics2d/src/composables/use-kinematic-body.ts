@@ -6,11 +6,11 @@
  * is driven entirely by {@link KinematicBodyHandle.setVelocity} +
  * `onBeforeUpdate` integration, or by explicit {@link KinematicBodyHandle.moveTo} calls.
  */
-import { onBeforeUpdate } from '@gwenjs/core/actor';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import type { KinematicBodyOptions, KinematicBodyHandle } from '../types';
-import { usePhysics2D } from '../composables';
+import { onBeforeUpdate } from "@gwenjs/core/actor";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import type { KinematicBodyOptions, KinematicBodyHandle } from "../types";
+import { usePhysics2D } from "../composables";
 
 /**
  * Registers the current actor's entity as a kinematic 2D physics body.
@@ -44,7 +44,7 @@ export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicB
   const _initY = options.initialPosition?.y ?? 0;
   const _initAngle = options.initialAngle ?? 0;
 
-  let _bodyHandle = physics.addRigidBody(entityId, 'kinematic', _initX, _initY);
+  let _bodyHandle = physics.addRigidBody(entityId, "kinematic", _initX, _initY);
   physics.setKinematicPositionWithAngle(entityId, _initX, _initY, _initAngle);
   let _active = true;
   let _vx = 0;
@@ -90,7 +90,7 @@ export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicB
 
     enable() {
       if (_active) return;
-      _bodyHandle = physics.addRigidBody(entityId, 'kinematic', _initX, _initY);
+      _bodyHandle = physics.addRigidBody(entityId, "kinematic", _initX, _initY);
       physics.setKinematicPositionWithAngle(entityId, _initX, _initY, _initAngle);
       _active = true;
     },

@@ -4,7 +4,7 @@
  * All functions are pure (return new objects) unless the name ends in `Mut`.
  */
 
-import type { Vec4 } from './types.js';
+import type { Vec4 } from "./types.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 

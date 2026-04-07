@@ -3,10 +3,10 @@
  * populates a {@link ComponentManifest} with build-time metadata.
  */
 
-import { readdirSync, statSync, existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
-import { walk } from 'oxc-walker';
+import { readdirSync, statSync, existsSync } from "node:fs";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { walk } from "oxc-walker";
 import type {
   VariableDeclarator,
   CallExpression,
@@ -15,16 +15,16 @@ import type {
   NumericLiteral,
   StaticMemberExpression,
   IdentifierName,
-} from 'oxc-parser';
+} from "oxc-parser";
 import {
   parseSource,
   isCallTo,
   getCallArgs,
   getObjectProperties,
   getPropertyKeyName,
-} from '../oxc/index.js';
-import type { ComponentManifest } from './component-manifest.js';
-import type { ComponentEntry, ComponentFieldMeta } from './types.js';
+} from "../oxc/index.js";
+import type { ComponentManifest } from "./component-manifest.js";
+import type { ComponentEntry, ComponentFieldMeta } from "./types.js";
 
 // ─── ComponentScanner ────────────────────────────────────────────────────────
 
@@ -54,7 +54,7 @@ export class ComponentScanner {
   async scanFiles(files: string[]): Promise<void> {
     await Promise.allSettled(
       files.map(async (file) => {
-        const code = await readFile(file, 'utf-8');
+        const code = await readFile(file, "utf-8");
         this.scanSource(code, file);
       }),
     );
@@ -69,23 +69,23 @@ export class ComponentScanner {
    * @param filename - Absolute path (stored as `importPath` in ComponentEntry).
    */
   scanSource(source: string, filename: string): void {
-    if (!source.includes('defineComponent')) return;
+    if (!source.includes("defineComponent")) return;
     const parsed = parseSource(filename, source);
     if (!parsed) return;
 
     walk(parsed.program, {
       enter: (node) => {
-        if (node.type !== 'VariableDeclarator') return;
+        if (node.type !== "VariableDeclarator") return;
         const decl = node as VariableDeclarator;
         const { id, init } = decl;
-        if (id.type !== 'Identifier') return;
-        if (!init || !isCallTo(init, 'defineComponent')) return;
+        if (id.type !== "Identifier") return;
+        if (!init || !isCallTo(init, "defineComponent")) return;
 
         const exportName = (id as IdentifierName).name;
         const args = getCallArgs(init as CallExpression);
         if (args.length === 0) return;
         const configArg = args[0];
-        if (configArg.type !== 'ObjectExpression') return;
+        if (configArg.type !== "ObjectExpression") return;
 
         const entry = this._extractEntry(configArg as ObjectExpression, exportName, filename);
         if (entry) this.manifest.register(entry);
@@ -116,18 +116,18 @@ export class ComponentScanner {
       const { value } = prop;
 
       switch (key) {
-        case 'name':
-          if (value.type === 'Literal' && typeof (value as StringLiteral).value === 'string') {
+        case "name":
+          if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
             name = (value as StringLiteral).value;
           }
           break;
-        case '_typeId':
-          if (value.type === 'Literal' && typeof (value as NumericLiteral).value === 'number') {
+        case "_typeId":
+          if (value.type === "Literal" && typeof (value as NumericLiteral).value === "number") {
             typeId = (value as NumericLiteral).value;
           }
           break;
-        case 'schema':
-          if (value.type === 'ObjectExpression') {
+        case "schema":
+          if (value.type === "ObjectExpression") {
             schema = this._extractSchema(value as ObjectExpression);
           }
           break;
@@ -164,11 +164,11 @@ export class ComponentScanner {
       const { value } = prop;
 
       // Types.f32 → StaticMemberExpression (type: 'MemberExpression', computed: false)
-      if (value.type === 'MemberExpression') {
+      if (value.type === "MemberExpression") {
         const mem = value as StaticMemberExpression;
-        if (!mem.computed && mem.object.type === 'Identifier') {
+        if (!mem.computed && mem.object.type === "Identifier") {
           const objName = (mem.object as IdentifierName).name;
-          if (objName === 'Types') {
+          if (objName === "Types") {
             result[key] = mem.property.name;
           }
         }
@@ -176,7 +176,7 @@ export class ComponentScanner {
       }
 
       // String literal fallback: { x: 'f32' }
-      if (value.type === 'Literal' && typeof (value as StringLiteral).value === 'string') {
+      if (value.type === "Literal" && typeof (value as StringLiteral).value === "string") {
         result[key] = (value as StringLiteral).value;
       }
     }
@@ -243,10 +243,10 @@ export function findComponentFiles(dir: string): string[] {
     if (statSync(full).isDirectory()) {
       result.push(...findComponentFiles(full));
     } else if (
-      (entry.endsWith('.ts') || entry.endsWith('.tsx')) &&
-      !entry.endsWith('.test.ts') &&
-      !entry.endsWith('.test.tsx') &&
-      !entry.endsWith('.d.ts')
+      (entry.endsWith(".ts") || entry.endsWith(".tsx")) &&
+      !entry.endsWith(".test.ts") &&
+      !entry.endsWith(".test.tsx") &&
+      !entry.endsWith(".d.ts")
     ) {
       result.push(full);
     }

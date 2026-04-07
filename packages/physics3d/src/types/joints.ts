@@ -1,6 +1,6 @@
-import type { Physics3DVec3, Physics3DQuat } from './config';
-import type { Physics3DColliderShape } from './colliders';
-import type { Physics3DEntityId } from './bodies';
+import type { Physics3DVec3, Physics3DQuat } from "./config";
+import type { Physics3DColliderShape } from "./colliders";
+import type { Physics3DEntityId } from "./bodies";
 
 // ─── Joint handle & id ────────────────────────────────────────────────────────
 
@@ -252,7 +252,7 @@ export interface CharacterControllerHandle {
    * Populated from the 5-float return value of `physics3d_character_controller_move`
    * when the WASM layer supports it.
    */
-  readonly groundEntity: import('./bodies').Physics3DEntityId | null;
+  readonly groundEntity: import("./bodies").Physics3DEntityId | null;
   /**
    * The actual translation applied during the last `move()` call (metres).
    * May differ from `desiredVelocity × dt` due to collision response.

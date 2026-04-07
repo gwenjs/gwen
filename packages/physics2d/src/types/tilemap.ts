@@ -2,14 +2,14 @@
  * Tilemap physics chunk types.
  */
 
-import type { EntityId } from '@gwenjs/core';
+import type { EntityId } from "@gwenjs/core";
 import type {
   PhysicsColliderShape,
   PhysicsMaterialPreset,
   PhysicsMaterialPresetName,
-} from './materials';
-import type { RigidBodyType, PhysicsGroundedRole } from './bodies';
-import type { CollisionContact } from './events';
+} from "./materials";
+import type { RigidBodyType, PhysicsGroundedRole } from "./bodies";
+import type { CollisionContact } from "./events";
 
 export const TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION = 1;
 

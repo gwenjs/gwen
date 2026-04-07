@@ -6,7 +6,7 @@
  * linear/angular damping, gravity integration, quaternion rotation, applyTorque,
  * and setAngularVelocity. No WASM module is required.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── Mock WASM bridge in local (non-physics3d) fallback mode ───────────────────
 // Omitting `physics3d_add_body` forces the plugin into local simulation mode.
@@ -15,7 +15,7 @@ const physics3dInit = vi.fn();
 const physics3dStep = vi.fn();
 
 const mockBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getPhysicsBridge: vi.fn(() => ({
     physics3d_init: physics3dInit,
     physics3d_step: physics3dStep,
@@ -24,7 +24,7 @@ const mockBridge = {
   getEntityGeneration: vi.fn((_index: number) => 0),
 };
 
-vi.mock('@gwenjs/core', () => ({
+vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({
     index: Number(id & 0xffffffffn),
@@ -34,8 +34,8 @@ vi.mock('@gwenjs/core', () => ({
     BigInt(index) | (BigInt(generation) << 32n),
 }));
 
-import { Physics3DPlugin, type Physics3DAPI, type Physics3DConfig } from '../src/index';
-import type { GwenEngine } from '@gwenjs/core';
+import { Physics3DPlugin, type Physics3DAPI, type Physics3DConfig } from "../src/index";
+import type { GwenEngine } from "@gwenjs/core";
 
 // ─── Test factory ─────────────────────────────────────────────────────────────
 
@@ -73,33 +73,33 @@ function setup(config?: Physics3DConfig) {
   const plugin = Physics3DPlugin(config);
   const { engine, services, hookMap, callHook } = makeEngine();
   plugin.setup(engine);
-  const service = services.get('physics3d') as Physics3DAPI;
+  const service = services.get("physics3d") as Physics3DAPI;
   return { plugin, service, engine, hookMap, callHook };
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('Physics3D TypeScript fallback', () => {
+describe("Physics3D TypeScript fallback", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   // ─── Collision detection ───────────────────────────────────────────────────
 
-  describe('collision detection', () => {
-    it('detects overlap between two AABB bodies', () => {
+  describe("collision detection", () => {
+    it("detects overlap between two AABB bodies", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       // Two boxes at the origin — they overlap completely
       service.createBody(1n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(1n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
       service.createBody(2n, { initialPosition: { x: 0.5, y: 0, z: 0 } });
       service.addCollider(2n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
@@ -111,18 +111,18 @@ describe('Physics3D TypeScript fallback', () => {
       expect(contacts[0]?.started).toBe(true);
     });
 
-    it('does not report contact when bodies are separated', () => {
+    it("does not report contact when bodies are separated", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(10n, { initialPosition: { x: -10, y: 0, z: 0 } });
       service.addCollider(10n, {
-        shape: { type: 'box', halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+        shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
         colliderId: 0,
       });
 
       service.createBody(11n, { initialPosition: { x: 10, y: 0, z: 0 } });
       service.addCollider(11n, {
-        shape: { type: 'box', halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+        shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
         colliderId: 0,
       });
 
@@ -132,18 +132,18 @@ describe('Physics3D TypeScript fallback', () => {
       expect(service.getCollisionContacts()).toHaveLength(0);
     });
 
-    it('emits contact events for overlapping bodies', () => {
+    it("emits contact events for overlapping bodies", () => {
       const { plugin, service, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(20n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(20n, {
-        shape: { type: 'sphere', radius: 2 },
+        shape: { type: "sphere", radius: 2 },
         colliderId: 0,
       });
 
       service.createBody(21n, { initialPosition: { x: 1, y: 0, z: 0 } });
       service.addCollider(21n, {
-        shape: { type: 'sphere', radius: 2 },
+        shape: { type: "sphere", radius: 2 },
         colliderId: 0,
       });
 
@@ -151,26 +151,26 @@ describe('Physics3D TypeScript fallback', () => {
       plugin.onUpdate!();
 
       expect(callHook).toHaveBeenCalledWith(
-        'physics3d:collision',
+        "physics3d:collision",
         expect.arrayContaining([expect.objectContaining({ started: true })]),
       );
     });
 
-    it('activates sensor state on overlap', () => {
+    it("activates sensor state on overlap", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 42;
 
       service.createBody(30n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(30n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         isSensor: true,
         colliderId: SENSOR_ID,
       });
 
       service.createBody(31n, { initialPosition: { x: 0.5, y: 0, z: 0 } });
       service.addCollider(31n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
@@ -182,21 +182,21 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.contactCount).toBe(1);
     });
 
-    it('deactivates sensor state when bodies separate', () => {
+    it("deactivates sensor state when bodies separate", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 99;
 
       service.createBody(40n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(40n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         isSensor: true,
         colliderId: SENSOR_ID,
       });
 
       service.createBody(41n, { initialPosition: { x: 0.5, y: 0, z: 0 } });
       service.addCollider(41n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
@@ -215,20 +215,20 @@ describe('Physics3D TypeScript fallback', () => {
       expect(service.getSensorState(40n, SENSOR_ID).contactCount).toBe(0);
     });
 
-    it('dispatches sensor:changed hook on activation and deactivation', () => {
+    it("dispatches sensor:changed hook on activation and deactivation", () => {
       const { plugin, service, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 55;
 
       service.createBody(50n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(50n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         isSensor: true,
         colliderId: SENSOR_ID,
       });
       service.createBody(51n, { initialPosition: { x: 0.5, y: 0, z: 0 } });
       service.addCollider(51n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
@@ -236,7 +236,7 @@ describe('Physics3D TypeScript fallback', () => {
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
       expect(callHook).toHaveBeenCalledWith(
-        'physics3d:sensor:changed',
+        "physics3d:sensor:changed",
         BigInt(50),
         SENSOR_ID,
         expect.objectContaining({ isActive: true }),
@@ -250,7 +250,7 @@ describe('Physics3D TypeScript fallback', () => {
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
       expect(callHook).toHaveBeenCalledWith(
-        'physics3d:sensor:changed',
+        "physics3d:sensor:changed",
         BigInt(50),
         SENSOR_ID,
         expect.objectContaining({ isActive: false }),
@@ -260,12 +260,12 @@ describe('Physics3D TypeScript fallback', () => {
 
   // ─── Dynamics ─────────────────────────────────────────────────────────────
 
-  describe('dynamics', () => {
-    it('applies linear damping to velocity', () => {
+  describe("dynamics", () => {
+    it("applies linear damping to velocity", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(60n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         linearDamping: 1,
         initialLinearVelocity: { x: 10, y: 0, z: 0 },
       });
@@ -276,11 +276,11 @@ describe('Physics3D TypeScript fallback', () => {
       expect(service.getLinearVelocity(60n)?.x).toBeCloseTo(5, 5);
     });
 
-    it('applies angular damping to angular velocity', () => {
+    it("applies angular damping to angular velocity", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(61n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         angularDamping: 2,
         initialAngularVelocity: { x: 0, y: 8, z: 0 },
       });
@@ -291,11 +291,11 @@ describe('Physics3D TypeScript fallback', () => {
       expect(service.getAngularVelocity(61n)?.y).toBeCloseTo(4, 5);
     });
 
-    it('integrates gravity over time for dynamic bodies', () => {
+    it("integrates gravity over time for dynamic bodies", () => {
       const { service } = setup({ gravity: { x: 0, y: -10, z: 0 } });
 
       service.createBody(62n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         initialPosition: { x: 0, y: 100, z: 0 },
       });
 
@@ -307,11 +307,11 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state?.position.y).toBeCloseTo(90, 5);
     });
 
-    it('does not move kinematic bodies under gravity', () => {
+    it("does not move kinematic bodies under gravity", () => {
       const { service } = setup({ gravity: { x: 0, y: -9.81, z: 0 } });
 
       service.createBody(63n, {
-        kind: 'kinematic',
+        kind: "kinematic",
         initialPosition: { x: 0, y: 5, z: 0 },
       });
 
@@ -324,8 +324,8 @@ describe('Physics3D TypeScript fallback', () => {
 
   // ─── Rotation ─────────────────────────────────────────────────────────────
 
-  describe('rotation', () => {
-    it('stores and retrieves quaternion rotation via getBodyState', () => {
+  describe("rotation", () => {
+    it("stores and retrieves quaternion rotation via getBodyState", () => {
       const { service } = setup();
 
       service.createBody(70n, {
@@ -339,10 +339,10 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state?.rotation.w).toBeCloseTo(0.7071, 4);
     });
 
-    it('applies torque and changes angular velocity', () => {
+    it("applies torque and changes angular velocity", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
-      service.createBody(71n, { kind: 'dynamic', mass: 1 });
+      service.createBody(71n, { kind: "dynamic", mass: 1 });
 
       const result = service.applyTorque(71n, { y: 5 });
       expect(result).toBe(true);
@@ -351,17 +351,17 @@ describe('Physics3D TypeScript fallback', () => {
       expect(angVel?.y).toBeCloseTo(5, 5);
     });
 
-    it('applyTorque has no effect on fixed bodies', () => {
+    it("applyTorque has no effect on fixed bodies", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
-      service.createBody(72n, { kind: 'fixed' });
+      service.createBody(72n, { kind: "fixed" });
       const result = service.applyTorque(72n, { y: 10 });
 
       expect(result).toBe(false);
       expect(service.getAngularVelocity(72n)?.y).toBe(0);
     });
 
-    it('setAngularVelocity overrides existing angular velocity', () => {
+    it("setAngularVelocity overrides existing angular velocity", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(73n, {
@@ -376,7 +376,7 @@ describe('Physics3D TypeScript fallback', () => {
       expect(angVel?.z).toBe(3); // z is preserved
     });
 
-    it('rotation quaternion remains unit length after setRotation', () => {
+    it("rotation quaternion remains unit length after setRotation", () => {
       const { service } = setup();
 
       service.createBody(74n, {
@@ -391,11 +391,11 @@ describe('Physics3D TypeScript fallback', () => {
       expect(len).toBeCloseTo(1, 5);
     });
 
-    it('integrates angular velocity into rotation quaternion during step', () => {
+    it("integrates angular velocity into rotation quaternion during step", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(75n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         // π rad/s around Y axis
         initialAngularVelocity: { x: 0, y: Math.PI, z: 0 },
         initialRotation: { x: 0, y: 0, z: 0, w: 1 },
@@ -419,11 +419,11 @@ describe('Physics3D TypeScript fallback', () => {
       expect(rot.y).toBeGreaterThan(0.5);
     });
 
-    it('rotation quaternion stays unit length across multiple steps', () => {
+    it("rotation quaternion stays unit length across multiple steps", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(76n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         initialAngularVelocity: { x: 1, y: 2, z: 3 },
       });
 
@@ -440,18 +440,18 @@ describe('Physics3D TypeScript fallback', () => {
 
   // ─── Event metrics ─────────────────────────────────────────────────────────
 
-  describe('event metrics', () => {
-    it('getCollisionEventMetrics reflects AABB events in local mode', () => {
+  describe("event metrics", () => {
+    it("getCollisionEventMetrics reflects AABB events in local mode", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(80n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(80n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
       service.createBody(81n, { initialPosition: { x: 0.5, y: 0, z: 0 } });
       service.addCollider(81n, {
-        shape: { type: 'box', halfX: 1, halfY: 1, halfZ: 1 },
+        shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 },
         colliderId: 0,
       });
 
@@ -466,10 +466,10 @@ describe('Physics3D TypeScript fallback', () => {
 
   // ─── Local mode: forces, torques, gravity scale, axis locks, sleep ─────────
 
-  describe('local physics state', () => {
-    it('addForce accelerates a dynamic body (F=ma → Δv=F/m·dt)', () => {
+  describe("local physics state", () => {
+    it("addForce accelerates a dynamic body (F=ma → Δv=F/m·dt)", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
-      service.createBody(1n, { kind: 'dynamic', mass: 2 });
+      service.createBody(1n, { kind: "dynamic", mass: 2 });
       // Apply force (2, 0, 0) — mass 2 → a = 1 → Δv = 1 * (1/60)
       service.addForce(1n, { x: 2, y: 0, z: 0 });
       plugin.onBeforeUpdate!(1 / 60);
@@ -479,9 +479,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.linearVelocity.y).toBeCloseTo(0, 5);
     });
 
-    it('forces accumulate across multiple addForce calls before step', () => {
+    it("forces accumulate across multiple addForce calls before step", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
-      service.createBody(2n, { kind: 'dynamic', mass: 1 });
+      service.createBody(2n, { kind: "dynamic", mass: 1 });
       service.addForce(2n, { x: 1, y: 0, z: 0 });
       service.addForce(2n, { x: 1, y: 0, z: 0 });
       plugin.onBeforeUpdate!(1 / 60);
@@ -491,9 +491,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.linearVelocity.x).toBeCloseTo(2 / 60, 5);
     });
 
-    it('forces are consumed after one step', () => {
+    it("forces are consumed after one step", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
-      service.createBody(3n, { kind: 'dynamic', mass: 1 });
+      service.createBody(3n, { kind: "dynamic", mass: 1 });
       service.addForce(3n, { x: 10, y: 0, z: 0 });
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
@@ -506,9 +506,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(v2).toBeCloseTo(v1, 5);
     });
 
-    it('addTorque changes angular velocity', () => {
+    it("addTorque changes angular velocity", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
-      service.createBody(4n, { kind: 'dynamic', mass: 2 });
+      service.createBody(4n, { kind: "dynamic", mass: 2 });
       service.addTorque(4n, { x: 0, y: 2, z: 0 });
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
@@ -517,9 +517,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.angularVelocity.y).toBeCloseTo(1 / 60, 5);
     });
 
-    it('setGravityScale 0 disables gravity for a body', () => {
+    it("setGravityScale 0 disables gravity for a body", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
-      service.createBody(5n, { kind: 'dynamic', mass: 1 });
+      service.createBody(5n, { kind: "dynamic", mass: 1 });
       service.setGravityScale(5n, 0);
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
@@ -527,9 +527,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.linearVelocity.y).toBeCloseTo(0, 5);
     });
 
-    it('setGravityScale 2 doubles gravity for a body', () => {
+    it("setGravityScale 2 doubles gravity for a body", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
-      service.createBody(6n, { kind: 'dynamic', mass: 1 });
+      service.createBody(6n, { kind: "dynamic", mass: 1 });
       service.setGravityScale(6n, 2);
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
@@ -537,10 +537,10 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.linearVelocity.y).toBeCloseTo((-9.8 * 2) / 60, 5);
     });
 
-    it('lockTranslations prevents movement on locked axes', () => {
+    it("lockTranslations prevents movement on locked axes", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(7n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         mass: 1,
         initialLinearVelocity: { x: 5, y: 5, z: 5 },
       });
@@ -554,10 +554,10 @@ describe('Physics3D TypeScript fallback', () => {
       expect(Math.abs(state.position.y)).toBeGreaterThan(0);
     });
 
-    it('lockRotations prevents rotation on locked axes', () => {
+    it("lockRotations prevents rotation on locked axes", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(8n, {
-        kind: 'dynamic',
+        kind: "dynamic",
         mass: 1,
         initialAngularVelocity: { x: 1, y: 1, z: 1 },
       });
@@ -570,9 +570,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(service.getAngularVelocity(8n)!.y).toBeCloseTo(0, 3);
     });
 
-    it('sleeping bodies do not integrate', () => {
+    it("sleeping bodies do not integrate", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
-      service.createBody(9n, { kind: 'dynamic', mass: 1 });
+      service.createBody(9n, { kind: "dynamic", mass: 1 });
       service.setBodySleeping(9n, true);
       plugin.onBeforeUpdate!(1 / 60);
       plugin.onUpdate!();
@@ -582,9 +582,9 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.position.y).toBeCloseTo(0, 5);
     });
 
-    it('wakeAll re-enables sleeping bodies', () => {
+    it("wakeAll re-enables sleeping bodies", () => {
       const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
-      service.createBody(10n, { kind: 'dynamic', mass: 1 });
+      service.createBody(10n, { kind: "dynamic", mass: 1 });
       service.setBodySleeping(10n, true);
       service.wakeAll();
       plugin.onBeforeUpdate!(1 / 60);
@@ -594,15 +594,15 @@ describe('Physics3D TypeScript fallback', () => {
       expect(state.linearVelocity.y).toBeCloseTo(-9.8 / 60, 5);
     });
 
-    it('removeBody cleans up force/torque/lock/sleep state', () => {
+    it("removeBody cleans up force/torque/lock/sleep state", () => {
       const { service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
-      service.createBody(11n, { kind: 'dynamic', mass: 1 });
+      service.createBody(11n, { kind: "dynamic", mass: 1 });
       service.addForce(11n, { x: 1, y: 0, z: 0 });
       service.setBodySleeping(11n, true);
       service.lockTranslations(11n, true, false, false);
       service.removeBody(11n);
       // Re-create same slot — should start clean
-      service.createBody(11n, { kind: 'dynamic', mass: 1 });
+      service.createBody(11n, { kind: "dynamic", mass: 1 });
       expect(service.isBodySleeping(11n)).toBe(false);
       expect(service.getBodyState(11n)?.linearVelocity.x).toBeCloseTo(0, 5);
     });

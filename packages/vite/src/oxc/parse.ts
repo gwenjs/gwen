@@ -2,8 +2,8 @@
  * @file OXC-parser wrapper — parses TypeScript/JavaScript source into an AST.
  */
 
-import { parseSync } from 'oxc-parser';
-import type { Program } from 'oxc-parser';
+import { parseSync } from "oxc-parser";
+import type { Program } from "oxc-parser";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

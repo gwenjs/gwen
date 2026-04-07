@@ -2,7 +2,7 @@
  * Rigid body and collider configuration types.
  */
 
-export type RigidBodyType = 'fixed' | 'dynamic' | 'kinematic';
+export type RigidBodyType = "fixed" | "dynamic" | "kinematic";
 
 /** Numeric encoding of `RigidBodyType` passed through the WASM boundary. */
 export const BODY_TYPE: Record<RigidBodyType, number> = {
@@ -44,7 +44,7 @@ export interface ColliderOptions {
   offsetY?: number;
 }
 
-export type ColliderShape = 'box' | 'ball';
+export type ColliderShape = "box" | "ball";
 
 export interface StaticBodyOptions {
   /** Collider shape type. @default 'box' */
@@ -231,4 +231,4 @@ export interface Physics2DLayerDefinition {
   [key: string]: number;
 }
 
-export type PhysicsGroundedRole = 'none' | 'head' | 'body' | 'foot';
+export type PhysicsGroundedRole = "none" | "head" | "body" | "foot";

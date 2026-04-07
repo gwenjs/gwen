@@ -5,6 +5,6 @@
  * Import from here in plugin packages and application code.
  */
 
-export { GwenContextError } from './context.js';
-export { GwenPluginNotFoundError } from './engine/gwen-engine.js';
-export { GwenConfigError } from './engine/config-error.js';
+export { GwenContextError } from "./context.js";
+export { GwenPluginNotFoundError } from "./engine/gwen-engine.js";
+export { GwenConfigError } from "./engine/config-error.js";

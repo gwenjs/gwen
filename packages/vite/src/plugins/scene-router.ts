@@ -1,5 +1,5 @@
-import type { Plugin } from 'vite';
-import type { GwenViteOptions } from '../types.js';
+import type { Plugin } from "vite";
+import type { GwenViteOptions } from "../types.js";
 
 /**
  * Options for the `gwen:scene-router` sub-plugin.
@@ -27,7 +27,7 @@ export interface GwenSceneRouterOptions {
  * ```
  */
 export function transformRouterNames(code: string): string {
-  if (!code.includes('defineSceneRouter')) {
+  if (!code.includes("defineSceneRouter")) {
     return code;
   }
   // Handles: const Name = defineSceneRouter(...)
@@ -73,19 +73,19 @@ if (typeof window !== 'undefined') {
 export function gwenSceneRouterPlugin(options: GwenViteOptions = {}): Plugin {
   const disableNameInjection = options.sceneRouter?.disableNameInjection ?? false;
   return {
-    name: 'gwen:scene-router',
+    name: "gwen:scene-router",
     transform(code, id) {
       if (disableNameInjection) return;
       if (!/\.(ts|js)x?$/.test(id)) return;
-      if (!code.includes('defineSceneRouter')) return;
+      if (!code.includes("defineSceneRouter")) return;
       const transformed = transformRouterNames(code);
       if (transformed === code) return;
       return { code: transformed, map: null };
     },
     transformIndexHtml: {
-      order: 'post',
+      order: "post",
       handler(html, ctx) {
-        if (ctx.server && ctx.server.config.command === 'serve') {
+        if (ctx.server && ctx.server.config.command === "serve") {
           return html.replace(/<head>/i, `<head>\n<script>${generateRouterDevtools()}</script>`);
         }
       },

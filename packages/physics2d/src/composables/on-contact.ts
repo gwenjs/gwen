@@ -1,7 +1,7 @@
 /**
  * @file onContact() — subscribes to collision events for the current actor entity.
  */
-import type { ContactEvent } from '../types';
+import type { ContactEvent } from "../types";
 
 /** @internal Entity-keyed registry of onContact callbacks (entity string key → callbacks). */
 const _contactCallbacks = new Map<string, ((e: ContactEvent) => void)[]>();

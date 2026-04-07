@@ -1,11 +1,11 @@
-import type { Plugin } from 'vite';
-import MagicString from 'magic-string';
-import { ComponentManifest } from '../optimizer/component-manifest.js';
-import { AstWalker } from '../optimizer/ast-walker.js';
-import { PatternDetector } from '../optimizer/pattern-detector.js';
-import { ComponentScanner, findComponentFiles } from '../optimizer/component-scanner.js';
-import { applyBulkTransform } from '../optimizer/bulk-transformer.js';
-import type { WasmTier } from '../optimizer/types.js';
+import type { Plugin } from "vite";
+import MagicString from "magic-string";
+import { ComponentManifest } from "../optimizer/component-manifest.js";
+import { AstWalker } from "../optimizer/ast-walker.js";
+import { PatternDetector } from "../optimizer/pattern-detector.js";
+import { ComponentScanner, findComponentFiles } from "../optimizer/component-scanner.js";
+import { applyBulkTransform } from "../optimizer/bulk-transformer.js";
+import type { WasmTier } from "../optimizer/types.js";
 
 /** Options for `gwenOptimizerPlugin`. */
 export interface GwenOptimizerOptions {
@@ -22,7 +22,7 @@ export interface GwenOptimizerOptions {
    *   the plugin is used standalone via `gwenOptimizerPlugin()`).
    * @default 'transform'
    */
-  mode?: 'detect' | 'transform';
+  mode?: "detect" | "transform";
   /**
    * Override the WASM tier for generated code.
    * Defaults to `'core'`; set to `'physics2d'` or `'physics3d'` when using the
@@ -86,14 +86,14 @@ export interface GwenOptimizerOptions {
  * @returns A Vite plugin instance.
  */
 export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin {
-  const { debug = false, mode = 'transform' } = options;
-  const _tier: WasmTier = options.tier ?? 'core';
+  const { debug = false, mode = "transform" } = options;
+  const _tier: WasmTier = options.tier ?? "core";
 
   const manifest = new ComponentManifest();
   let _root = process.cwd();
 
   return {
-    name: 'gwen:optimizer',
+    name: "gwen:optimizer",
 
     /**
      * Capture the resolved project root so `buildStart` can locate `componentsDir`.
@@ -112,7 +112,7 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
      */
     async buildStart() {
       manifest.clear();
-      const compDir = `${_root}/${options.componentsDir ?? 'src'}`;
+      const compDir = `${_root}/${options.componentsDir ?? "src"}`;
       const files = findComponentFiles(compDir);
       const scanner = new ComponentScanner(manifest);
       await scanner.scanFiles(files);
@@ -145,8 +145,8 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
      * @returns `null` to skip, or `{ code, map }` when a pattern was transformed.
      */
     transform(code: string, id: string) {
-      if (!id.endsWith('.ts') && !id.endsWith('.tsx')) return null;
-      if (!code.includes('useQuery') || !code.includes('onUpdate')) return null;
+      if (!id.endsWith(".ts") && !id.endsWith(".tsx")) return null;
+      if (!code.includes("useQuery") || !code.includes("onUpdate")) return null;
 
       const walker = new AstWalker(id);
       const patterns = walker.walk(code);
@@ -155,12 +155,12 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
 
       const detector = new PatternDetector(manifest);
 
-      if (mode === 'detect') {
+      if (mode === "detect") {
         for (const pattern of patterns) {
           const result = detector.classify(pattern);
           if (result.optimizable) {
             this.warn(
-              `[gwen:optimizer] Optimizable pattern found in ${id}: useQuery([${pattern.queryComponents.join(', ')}]) — add gwenOptimizerPlugin({ mode: 'transform' }) to enable bulk rewrite.`,
+              `[gwen:optimizer] Optimizable pattern found in ${id}: useQuery([${pattern.queryComponents.join(", ")}]) — add gwenOptimizerPlugin({ mode: 'transform' }) to enable bulk rewrite.`,
             );
           } else if (debug) {
             // eslint-disable-next-line no-console
@@ -184,7 +184,7 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
           // eslint-disable-next-line no-console
           console.log(
             `[gwen:optimizer] Transforming pattern in ${id}:`,
-            pattern.queryComponents.join(', '),
+            pattern.queryComponents.join(", "),
           );
         if (applyBulkTransform(s, pattern, manifest, _tier)) transformed = true;
       }

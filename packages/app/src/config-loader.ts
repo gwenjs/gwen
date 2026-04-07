@@ -21,9 +21,9 @@
  * wrapping depths (no wrap, single wrap, double wrap).
  */
 
-import { existsSync } from 'node:fs';
-import { loadConfig } from 'c12';
-import type { GwenUserConfig } from './types';
+import { existsSync } from "node:fs";
+import { loadConfig } from "c12";
+import type { GwenUserConfig } from "./types";
 
 // ─── GwenConfigLoadError ─────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ export class GwenConfigLoadError extends Error {
     public readonly cause: unknown,
   ) {
     super(message);
-    this.name = 'GwenConfigLoadError';
+    this.name = "GwenConfigLoadError";
   }
 }
 
@@ -67,7 +67,7 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
 
   try {
     const result = await loadConfig<GwenUserConfig>({
-      name: 'gwen',
+      name: "gwen",
       cwd,
       dotenv: true,
       // Custom resolver that handles CJS/ESM double-wrapping from jiti-register hook.
@@ -78,8 +78,8 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
       //      (occurs when jiti-register hook intercepts the import and Node.js
       //       then wraps the CJS exports object as an ESM namespace)
       resolveModule: (mod: unknown): GwenUserConfig => {
-        const first = (mod as Record<string, unknown>)?.['default'] ?? mod;
-        const second = (first as Record<string, unknown>)?.['default'] ?? first;
+        const first = (mod as Record<string, unknown>)?.["default"] ?? mod;
+        const second = (first as Record<string, unknown>)?.["default"] ?? first;
         return (second ?? {}) as GwenUserConfig;
       },
     });

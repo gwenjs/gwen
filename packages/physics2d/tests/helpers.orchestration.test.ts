@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createTilemapChunkOrchestrator } from '../src/helpers/orchestration';
+import { describe, expect, it, vi } from "vitest";
+import { createTilemapChunkOrchestrator } from "../src/helpers/orchestration";
 
-describe('orchestration helpers', () => {
+describe("orchestration helpers", () => {
   const source = {
     tiles: [1, 0, 0, 1],
     mapWidthTiles: 2,
@@ -18,7 +18,7 @@ describe('orchestration helpers', () => {
     } as any;
   }
 
-  it('should load a newly visible chunk once', () => {
+  it("should load a newly visible chunk once", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -28,7 +28,7 @@ describe('orchestration helpers', () => {
     expect(physics.loadTilemapPhysicsChunk).toHaveBeenCalledTimes(1);
   });
 
-  it('should unload chunks that are no longer visible', () => {
+  it("should unload chunks that are no longer visible", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -38,7 +38,7 @@ describe('orchestration helpers', () => {
     expect(physics.unloadTilemapPhysicsChunk).toHaveBeenCalledTimes(1);
   });
 
-  it('should not call unload when nothing was previously loaded', () => {
+  it("should not call unload when nothing was previously loaded", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -47,7 +47,7 @@ describe('orchestration helpers', () => {
     expect(physics.unloadTilemapPhysicsChunk).not.toHaveBeenCalled();
   });
 
-  it('should silently skip a chunk that does not exist in the bake', () => {
+  it("should silently skip a chunk that does not exist in the bake", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -56,7 +56,7 @@ describe('orchestration helpers', () => {
     expect(physics.loadTilemapPhysicsChunk).not.toHaveBeenCalled();
   });
 
-  it('should patch one chunk without full reload', () => {
+  it("should patch one chunk without full reload", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -67,7 +67,7 @@ describe('orchestration helpers', () => {
     expect(physics.loadTilemapPhysicsChunk).toHaveBeenCalledTimes(1);
   });
 
-  it('should not call patchTilemapPhysicsChunk for a chunk that is not loaded', () => {
+  it("should not call patchTilemapPhysicsChunk for a chunk that is not loaded", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -77,7 +77,7 @@ describe('orchestration helpers', () => {
     expect(physics.patchTilemapPhysicsChunk).not.toHaveBeenCalled();
   });
 
-  it('should unload all tracked chunks on dispose', () => {
+  it("should unload all tracked chunks on dispose", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, { source });
 
@@ -90,7 +90,7 @@ describe('orchestration helpers', () => {
     expect(physics.unloadTilemapPhysicsChunk).toHaveBeenCalledTimes(2);
   });
 
-  it('should accept a custom world origin', () => {
+  it("should accept a custom world origin", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, {
       source,
@@ -104,7 +104,7 @@ describe('orchestration helpers', () => {
     expect(y).toBe(20);
   });
 
-  it('should place each visible chunk at its chunk-grid world offset', () => {
+  it("should place each visible chunk at its chunk-grid world offset", () => {
     const physics = makePhysics();
     const orch = createTilemapChunkOrchestrator(physics, {
       source,

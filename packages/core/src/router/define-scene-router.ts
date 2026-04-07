@@ -18,7 +18,7 @@
  * ```
  */
 
-import type { RouteConfig, SceneRouterOptions, SceneRouterDefinition } from './router-types.js';
+import type { RouteConfig, SceneRouterOptions, SceneRouterDefinition } from "./router-types.js";
 
 /**
  * Declares a type-safe FSM scene router.
@@ -52,7 +52,7 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   if (!keys.includes(options.initial as string)) {
     throw new Error(
       `[GWEN] defineSceneRouter: initial state "${String(options.initial)}" not found in routes. ` +
-        `Valid states: ${keys.join(', ')}`,
+        `Valid states: ${keys.join(", ")}`,
     );
   }
 
@@ -65,7 +65,7 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
         if (!keys.includes(target as string)) {
           throw new Error(
             `[GWEN] defineSceneRouter: transition "${event}" in state "${state}" points to ` +
-              `"${String(target)}" which is not a valid route. Valid states: ${keys.join(', ')}`,
+              `"${String(target)}" which is not a valid route. Valid states: ${keys.join(", ")}`,
           );
         }
       }
@@ -73,7 +73,7 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   }
 
   return {
-    __type: 'SceneRouterDefinition',
+    __type: "SceneRouterDefinition",
     options,
   } as SceneRouterDefinition<TRoutes>;
 }

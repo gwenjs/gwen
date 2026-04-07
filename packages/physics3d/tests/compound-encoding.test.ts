@@ -4,26 +4,26 @@
  * Tests are deliberately pure (no mocks, no WASM) — they exercise
  * encodeCompoundShapes() in isolation to validate the Float32Array layout.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   encodeCompoundShapes,
   COMPOUND_SHAPE_BOX,
   COMPOUND_SHAPE_SPHERE,
   COMPOUND_SHAPE_CAPSULE,
   FLOATS_PER_COMPOUND_SHAPE,
-} from '../src/helpers/compound';
-import type { CompoundShapeSpec } from '../src/types';
+} from "../src/helpers/compound";
+import type { CompoundShapeSpec } from "../src/types";
 
-describe('encodeCompoundShapes', () => {
-  it('returns an empty Float32Array for an empty shapes list', () => {
+describe("encodeCompoundShapes", () => {
+  it("returns an empty Float32Array for an empty shapes list", () => {
     const buf = encodeCompoundShapes([], []);
     expect(buf).toBeInstanceOf(Float32Array);
     expect(buf.length).toBe(0);
   });
 
-  it('encodes a single box shape correctly', () => {
+  it("encodes a single box shape correctly", () => {
     const shape: CompoundShapeSpec = {
-      type: 'box',
+      type: "box",
       halfX: 1.0,
       halfY: 0.3,
       halfZ: 2.0,
@@ -45,9 +45,9 @@ describe('encodeCompoundShapes', () => {
     expect(buf[11]).toBe(42); // colliderId
   });
 
-  it('encodes a sphere shape correctly', () => {
+  it("encodes a sphere shape correctly", () => {
     const shape: CompoundShapeSpec = {
-      type: 'sphere',
+      type: "sphere",
       radius: 0.35,
       offsetX: -0.9,
       isSensor: true,
@@ -62,9 +62,9 @@ describe('encodeCompoundShapes', () => {
     expect(buf[11]).toBe(7); // colliderId
   });
 
-  it('encodes a capsule shape correctly', () => {
+  it("encodes a capsule shape correctly", () => {
     const shape: CompoundShapeSpec = {
-      type: 'capsule',
+      type: "capsule",
       radius: 0.25,
       halfHeight: 0.5,
       friction: 1.2,
@@ -77,11 +77,11 @@ describe('encodeCompoundShapes', () => {
     expect(buf[11]).toBe(3);
   });
 
-  it('encodes multiple shapes with correct stride', () => {
+  it("encodes multiple shapes with correct stride", () => {
     const shapes: CompoundShapeSpec[] = [
-      { type: 'box', halfX: 1.0, halfY: 0.3, halfZ: 2.0 },
-      { type: 'sphere', radius: 0.35 },
-      { type: 'capsule', radius: 0.1, halfHeight: 0.4 },
+      { type: "box", halfX: 1.0, halfY: 0.3, halfZ: 2.0 },
+      { type: "sphere", radius: 0.35 },
+      { type: "capsule", radius: 0.1, halfHeight: 0.4 },
     ];
     const buf = encodeCompoundShapes(shapes, [10, 11, 12]);
     expect(buf.length).toBe(3 * FLOATS_PER_COMPOUND_SHAPE);
@@ -96,9 +96,9 @@ describe('encodeCompoundShapes', () => {
     expect(buf[2 * FLOATS_PER_COMPOUND_SHAPE + 11]).toBe(12);
   });
 
-  it('applies custom friction and restitution per shape', () => {
+  it("applies custom friction and restitution per shape", () => {
     const shape: CompoundShapeSpec = {
-      type: 'box',
+      type: "box",
       halfX: 0.5,
       halfY: 0.5,
       halfZ: 0.5,
@@ -110,13 +110,13 @@ describe('encodeCompoundShapes', () => {
     expect(buf[10]).toBeCloseTo(0.8);
   });
 
-  it('throws when shapes.length !== colliderIds.length', () => {
-    const shapes: CompoundShapeSpec[] = [{ type: 'box', halfX: 1, halfY: 1, halfZ: 1 }];
+  it("throws when shapes.length !== colliderIds.length", () => {
+    const shapes: CompoundShapeSpec[] = [{ type: "box", halfX: 1, halfY: 1, halfZ: 1 }];
     expect(() => encodeCompoundShapes(shapes, [])).toThrow(/shapes\.length.*colliderIds\.length/);
   });
 
-  it('encodes all-zero offsets when offsets are omitted', () => {
-    const buf = encodeCompoundShapes([{ type: 'sphere', radius: 1.0 }], [0]);
+  it("encodes all-zero offsets when offsets are omitted", () => {
+    const buf = encodeCompoundShapes([{ type: "sphere", radius: 1.0 }], [0]);
     expect(buf[5]).toBe(0); // offsetX
     expect(buf[6]).toBe(0); // offsetY
     expect(buf[7]).toBe(0); // offsetZ

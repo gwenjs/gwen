@@ -1,5 +1,5 @@
-import { usePhysics3D } from '../composables';
-import type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from '../types';
+import { usePhysics3D } from "../composables";
+import type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from "../types";
 
 /**
  * Spawn N static box bodies in one call from inside an actor or system setup().

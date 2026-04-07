@@ -1,8 +1,8 @@
-import type { Plugin } from 'vite';
-import MagicString from 'magic-string';
-import { walk } from 'oxc-walker';
-import type { VariableDeclarator, CallExpression } from 'oxc-parser';
-import { parseSource, isCallTo, getCallArgs } from '../oxc/index.js';
+import type { Plugin } from "vite";
+import MagicString from "magic-string";
+import { walk } from "oxc-walker";
+import type { VariableDeclarator, CallExpression } from "oxc-parser";
+import { parseSource, isCallTo, getCallArgs } from "../oxc/index.js";
 
 /**
  * Transform `defineSystem` variable declarations to inject a name string as the
@@ -23,8 +23,8 @@ import { parseSource, isCallTo, getCallArgs } from '../oxc/index.js';
  * export const ScoreSystem = defineSystem('ScoreSystem', () => { ... })
  * ```
  */
-export function transformSystemNames(code: string, filename = 'unknown.ts'): string {
-  if (!code.includes('defineSystem')) return code;
+export function transformSystemNames(code: string, filename = "unknown.ts"): string {
+  if (!code.includes("defineSystem")) return code;
 
   const parsed = parseSource(filename, code);
   if (!parsed) return code;
@@ -34,18 +34,18 @@ export function transformSystemNames(code: string, filename = 'unknown.ts'): str
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== 'VariableDeclarator') return;
+      if (node.type !== "VariableDeclarator") return;
       const { id, init } = node as VariableDeclarator;
-      if (id.type !== 'Identifier') return;
+      if (id.type !== "Identifier") return;
       if (!init) return;
-      if (!isCallTo(init, 'defineSystem')) return;
+      if (!isCallTo(init, "defineSystem")) return;
 
       const varName = (id as { name: string }).name;
       const args = getCallArgs(init as CallExpression);
 
       // Skip if the first arg is already a string literal (name already explicit)
       // oxc-parser uses type 'Literal' for both string and numeric literals
-      if (args.length > 0 && args[0]!.type === 'Literal') return;
+      if (args.length > 0 && args[0]!.type === "Literal") return;
 
       if (args.length > 0) {
         s.prependLeft(args[0]!.start, `'${varName}', `);
@@ -71,11 +71,11 @@ export function transformSystemNames(code: string, filename = 'unknown.ts'): str
  */
 export function gwenSystemPlugin(): Plugin {
   return {
-    name: 'gwen:system',
+    name: "gwen:system",
     transform(code, id) {
-      if (id.endsWith('.d.ts') || id.endsWith('.test.ts') || id.endsWith('.test.js')) return;
+      if (id.endsWith(".d.ts") || id.endsWith(".test.ts") || id.endsWith(".test.js")) return;
       if (!/\.(ts|js)x?$/.test(id)) return;
-      if (!code.includes('defineSystem')) return;
+      if (!code.includes("defineSystem")) return;
       const transformed = transformSystemNames(code, id);
       if (transformed === code) return;
       return { code: transformed, map: null };

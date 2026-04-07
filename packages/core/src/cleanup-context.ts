@@ -14,7 +14,7 @@
  *
  * @internal
  */
-const _cleanupStack: Array<(() => void)[]> = []
+const _cleanupStack: Array<(() => void)[]> = [];
 
 /**
  * Wraps a function in a cleanup context, collecting all cleanup callbacks.
@@ -43,15 +43,20 @@ const _cleanupStack: Array<(() => void)[]> = []
  * ```
  */
 export function withCleanup<T>(fn: () => T): [result: T, dispose: () => void] {
-  const fns: (() => void)[] = []
-  _cleanupStack.push(fns)
-  let result: T
+  const fns: (() => void)[] = [];
+  _cleanupStack.push(fns);
+  let result: T;
   try {
-    result = fn()
+    result = fn();
   } finally {
-    _cleanupStack.pop()
+    _cleanupStack.pop();
   }
-  return [result, () => { for (const f of fns) f() }]
+  return [
+    result,
+    () => {
+      for (const f of fns) f();
+    },
+  ];
 }
 
 /**
@@ -65,9 +70,9 @@ export function withCleanup<T>(fn: () => T): [result: T, dispose: () => void] {
  * @param fn - Cleanup callback to register
  */
 export function tryOnCleanup(fn: () => void): void {
-  const top = _cleanupStack[_cleanupStack.length - 1]
+  const top = _cleanupStack[_cleanupStack.length - 1];
   if (top) {
-    top.push(fn)
+    top.push(fn);
   }
 }
 
@@ -118,5 +123,5 @@ export function tryOnCleanup(fn: () => void): void {
  * @since 1.0.0
  */
 export function onCleanup(fn: () => void): void {
-  tryOnCleanup(fn)
+  tryOnCleanup(fn);
 }

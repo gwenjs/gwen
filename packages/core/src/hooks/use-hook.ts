@@ -1,6 +1,6 @@
-import { onCleanup } from '../cleanup-context.js'
-import { useEngine } from '../context.js'
-import type { GwenRuntimeHooks } from '../engine/runtime-hooks.js'
+import { onCleanup } from "../cleanup-context.js";
+import { useEngine } from "../context.js";
+import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 
 /**
  * Subscribes to a {@link GwenRuntimeHooks} event and registers an automatic cleanup.
@@ -66,8 +66,8 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   name: K,
   fn: GwenRuntimeHooks[K],
 ): () => void {
-  const engine = useEngine()
-  const unsubscribe = engine.hooks.hook(name, fn as never)
-  onCleanup(unsubscribe)
-  return unsubscribe
+  const engine = useEngine();
+  const unsubscribe = engine.hooks.hook(name, fn as never);
+  onCleanup(unsubscribe);
+  return unsubscribe;
 }

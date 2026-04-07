@@ -13,16 +13,16 @@
  *   pnpm --filter @gwenjs/core exec vitest bench --run bench/query.bench.ts
  */
 
-import { bench, describe } from 'vitest';
-import { EntityManager, ComponentRegistry, QueryEngine } from '../src/core/ecs';
-import { createEngine } from '../src/index';
-import { defineComponent, Types } from '../src/schema';
+import { bench, describe } from "vitest";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { createEngine } from "../src/index";
+import { defineComponent, Types } from "../src/schema";
 
 // ── Component definitions ─────────────────────────────────────────────────────
 
-const Position = defineComponent({ name: 'Position', schema: { x: Types.f32, y: Types.f32 } });
-const Velocity = defineComponent({ name: 'Velocity', schema: { vx: Types.f32, vy: Types.f32 } });
-const Health = defineComponent({ name: 'Health', schema: { current: Types.f32, max: Types.f32 } });
+const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
+const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
+const Health = defineComponent({ name: "Health", schema: { current: Types.f32, max: Types.f32 } });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,11 +41,11 @@ function makeWorld(n: number) {
 
 // ── 1. Query setup cost ───────────────────────────────────────────────────────
 
-describe('Query setup (createLiveQuery) — one-time cost per system', () => {
+describe("Query setup (createLiveQuery) — one-time cost per system", () => {
   let engine: Awaited<ReturnType<typeof createEngine>>;
 
   bench(
-    'engine.createLiveQuery([Position, Velocity])',
+    "engine.createLiveQuery([Position, Velocity])",
     async () => {
       if (!engine) engine = await createEngine({ maxEntities: 1_000 });
       engine.createLiveQuery([Position, Velocity]);
@@ -56,10 +56,10 @@ describe('Query setup (createLiveQuery) — one-time cost per system', () => {
 
 // ── 2. Iteration — various world sizes ────────────────────────────────────────
 
-describe('Query iteration — 500 entities, 1 component', () => {
+describe("Query iteration — 500 entities, 1 component", () => {
   const { em, cr, qe } = makeWorld(500);
 
-  bench('QueryEngine.resolve (direct)', () => {
+  bench("QueryEngine.resolve (direct)", () => {
     qe.invalidate();
     const results = qe.resolve([Position], em, cr);
     let sum = 0;
@@ -71,10 +71,10 @@ describe('Query iteration — 500 entities, 1 component', () => {
   });
 });
 
-describe('Query iteration — 1 000 entities, 1 component', () => {
+describe("Query iteration — 1 000 entities, 1 component", () => {
   const { em, cr, qe } = makeWorld(1_000);
 
-  bench('QueryEngine.resolve (direct)', () => {
+  bench("QueryEngine.resolve (direct)", () => {
     qe.invalidate();
     const results = qe.resolve([Position], em, cr);
     let sum = 0;
@@ -85,7 +85,7 @@ describe('Query iteration — 1 000 entities, 1 component', () => {
     return sum;
   });
 
-  bench('engine.createLiveQuery — EntityAccessor.get()', async () => {
+  bench("engine.createLiveQuery — EntityAccessor.get()", async () => {
     const engine = await createEngine({ maxEntities: 1_000 });
     for (let i = 0; i < 1_000; i++) {
       const id = engine.createEntity();
@@ -102,10 +102,10 @@ describe('Query iteration — 1 000 entities, 1 component', () => {
   });
 });
 
-describe('Query iteration — 5 000 entities, 1 component', () => {
+describe("Query iteration — 5 000 entities, 1 component", () => {
   const { em, cr, qe } = makeWorld(5_000);
 
-  bench('QueryEngine.resolve (direct)', () => {
+  bench("QueryEngine.resolve (direct)", () => {
     qe.invalidate();
     const results = qe.resolve([Position], em, cr);
     let sum = 0;
@@ -117,10 +117,10 @@ describe('Query iteration — 5 000 entities, 1 component', () => {
   });
 });
 
-describe('Query iteration — 10 000 entities, 1 component', () => {
+describe("Query iteration — 10 000 entities, 1 component", () => {
   const { em, cr, qe } = makeWorld(10_000);
 
-  bench('QueryEngine.resolve (direct)', () => {
+  bench("QueryEngine.resolve (direct)", () => {
     qe.invalidate();
     const results = qe.resolve([Position], em, cr);
     let sum = 0;
@@ -134,7 +134,7 @@ describe('Query iteration — 10 000 entities, 1 component', () => {
 
 // ── 3. Multi-component filter (all: [A, B, C]) ────────────────────────────────
 
-describe('Multi-component query — 1 000 entities, 3 components (all match)', () => {
+describe("Multi-component query — 1 000 entities, 3 components (all match)", () => {
   const em = new EntityManager(1_000);
   const cr = new ComponentRegistry();
   const qe = new QueryEngine();
@@ -145,13 +145,13 @@ describe('Multi-component query — 1 000 entities, 3 components (all match)', (
     cr.add(id, Health, { current: 100, max: 100 });
   }
 
-  bench('all: [Position, Velocity, Health]', () => {
+  bench("all: [Position, Velocity, Health]", () => {
     qe.invalidate();
     qe.resolve([Position, Velocity, Health], em, cr);
   });
 });
 
-describe('Multi-component query — 1 000 entities, 3 components (50% match)', () => {
+describe("Multi-component query — 1 000 entities, 3 components (50% match)", () => {
   const em = new EntityManager(1_000);
   const cr = new ComponentRegistry();
   const qe = new QueryEngine();
@@ -163,7 +163,7 @@ describe('Multi-component query — 1 000 entities, 3 components (50% match)', (
     if (i % 2 === 0) cr.add(id, Health, { current: 100, max: 100 });
   }
 
-  bench('all: [Position, Velocity, Health] — half match', () => {
+  bench("all: [Position, Velocity, Health] — half match", () => {
     qe.invalidate();
     qe.resolve([Position, Velocity, Health], em, cr);
   });
@@ -171,12 +171,12 @@ describe('Multi-component query — 1 000 entities, 3 components (50% match)', (
 
 // ── 4. EntityAccessor.get() per-field read cost ───────────────────────────────
 
-describe('EntityAccessor.get() — 1 000 entities × 2 components per frame', () => {
+describe("EntityAccessor.get() — 1 000 entities × 2 components per frame", () => {
   let engine: Awaited<ReturnType<typeof createEngine>>;
   let query: Iterable<{ get: (def: typeof Position | typeof Velocity) => unknown }>;
 
   bench(
-    'iterate + get(Position) + get(Velocity)',
+    "iterate + get(Position) + get(Velocity)",
     async () => {
       if (!engine) {
         engine = await createEngine({ maxEntities: 1_000 });
@@ -201,7 +201,7 @@ describe('EntityAccessor.get() — 1 000 entities × 2 components per frame', ()
 
 // ── 5. Invalidation cost after mutation ───────────────────────────────────────
 
-describe('Query invalidation after addComponent — 100 mutations', () => {
+describe("Query invalidation after addComponent — 100 mutations", () => {
   const em = new EntityManager(1_000);
   const cr = new ComponentRegistry();
   const qe = new QueryEngine();
@@ -212,7 +212,7 @@ describe('Query invalidation after addComponent — 100 mutations', () => {
     ids.push(id);
   }
 
-  bench('addComponent × 100 (triggers invalidate each time)', () => {
+  bench("addComponent × 100 (triggers invalidate each time)", () => {
     for (let i = 0; i < 100; i++) {
       const id = ids[i % ids.length]!;
       cr.add(id, Velocity, { vx: i, vy: 0 });
@@ -221,12 +221,12 @@ describe('Query invalidation after addComponent — 100 mutations', () => {
   });
 });
 
-describe('Cached query re-read without invalidation — 1 000 entities', () => {
+describe("Cached query re-read without invalidation — 1 000 entities", () => {
   const { em, cr, qe } = makeWorld(1_000);
   // warm up cache
   qe.resolve([Position], em, cr);
 
-  bench('re-read cached query result (no invalidation)', () => {
+  bench("re-read cached query result (no invalidation)", () => {
     qe.resolve([Position], em, cr);
   });
 });

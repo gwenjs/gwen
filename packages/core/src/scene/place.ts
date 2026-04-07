@@ -22,9 +22,9 @@
  * ```
  */
 
-import { useEngine } from '../context.js';
-import type { PlaceHandle, ActorDefinition } from './types.js';
-import type { PrefabDefinition } from '../define-prefab.js';
+import { useEngine } from "../context.js";
+import type { PlaceHandle, ActorDefinition } from "./types.js";
+import type { PrefabDefinition } from "../define-prefab.js";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
@@ -112,11 +112,11 @@ export interface PlaceOptions<Props = Record<string, unknown>> {
  * })
  * ```
  */
-export function placeGroup(options: Omit<PlaceOptions, 'props'> = {}): PlaceHandle<void> {
+export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
     throw new Error(
-      '[GWEN] placeGroup() must be called inside a defineLayout() factory. ' +
-        'See https://docs.gwen.sh/layouts for examples.',
+      "[GWEN] placeGroup() must be called inside a defineLayout() factory. " +
+        "See https://docs.gwen.sh/layouts for examples.",
     );
   }
 
@@ -161,8 +161,8 @@ export function placeActor<Props, API>(
 ): PlaceHandle<API> {
   if (!_isInLayoutContext()) {
     throw new Error(
-      '[GWEN] placeActor() must be called inside a defineLayout() factory. ' +
-        'See https://docs.gwen.sh/layouts for examples.',
+      "[GWEN] placeActor() must be called inside a defineLayout() factory. " +
+        "See https://docs.gwen.sh/layouts for examples.",
     );
   }
 
@@ -208,8 +208,8 @@ export function placePrefab(
 ): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
     throw new Error(
-      '[GWEN] placePrefab() must be called inside a defineLayout() factory. ' +
-        'See https://docs.gwen.sh/layouts for examples.',
+      "[GWEN] placePrefab() must be called inside a defineLayout() factory. " +
+        "See https://docs.gwen.sh/layouts for examples.",
     );
   }
 

@@ -5,16 +5,16 @@
 //   @gwenjs/core/scene   — defineScene, defineSceneRouter, ...
 
 // Shared types
-export * from './types';
-export * from './schema';
+export * from "./types";
+export * from "./schema";
 
 // Hooks system
-export { createGwenHooks, useHook, onCleanup, withCleanup } from './hooks';
-export type { GwenHooks, GwenHookable } from './hooks';
+export { createGwenHooks, useHook, onCleanup, withCleanup } from "./hooks";
+export type { GwenHooks, GwenHookable } from "./hooks";
 
 // Engine
-export { createEngine, GwenPluginNotFoundError, CoreErrorCodes } from './engine/gwen-engine';
-export { GwenConfigError } from './errors';
+export { createEngine, GwenPluginNotFoundError, CoreErrorCodes } from "./engine/gwen-engine";
+export { GwenConfigError } from "./errors";
 export type {
   GwenEngine,
   GwenPlugin,
@@ -30,18 +30,18 @@ export type {
   EngineErrorBus,
   PlacementBridge,
   PluginErrorContext,
-} from './engine/gwen-engine';
-export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from './engine/gwen-engine';
+} from "./engine/gwen-engine";
+export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./engine/gwen-engine";
 
 // Logger
-export { createLogger } from './logger/index.js';
-export type { GwenLogger, LogLevel, LogEntry } from './logger/index.js';
+export { createLogger } from "./logger/index.js";
+export type { GwenLogger, LogLevel, LogEntry } from "./logger/index.js";
 
 // Runtime hooks interface
-export type { GwenRuntimeHooks, EngineErrorPayload } from './engine/runtime-hooks';
+export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 
 // Engine context
-export { engineContext, useEngine, GwenContextError } from './context';
+export { engineContext, useEngine, GwenContextError } from "./context";
 
 // WASM Bridge
 export {
@@ -49,7 +49,7 @@ export {
   getWasmBridge,
   _resetWasmBridge,
   _injectMockWasmEngine,
-} from './engine/wasm-bridge';
+} from "./engine/wasm-bridge";
 export type {
   WasmBridge,
   WasmEntityId,
@@ -59,7 +59,7 @@ export type {
   GwenCoreWasm,
   CoreVariant,
   InitWasmOptions,
-} from './engine/wasm-bridge';
+} from "./engine/wasm-bridge";
 
 // WASM shared memory
 export {
@@ -71,12 +71,12 @@ export {
   FLAGS3D_OFFSET,
   SENTINEL,
   MAX_SAB_BYTES,
-} from './wasm/shared-memory';
-export type { MemoryRegion } from './wasm/shared-memory';
+} from "./wasm/shared-memory";
+export type { MemoryRegion } from "./wasm/shared-memory";
 
 // WASM transform buffer host imports
-export { buildTransformImports } from './wasm/transform-imports';
-export type { GwenTransformImports } from './wasm/transform-imports';
+export { buildTransformImports } from "./wasm/transform-imports";
+export type { GwenTransformImports } from "./wasm/transform-imports";
 
 // 3D Transform component
 export {
@@ -88,12 +88,12 @@ export {
   writeTransform3DPosition,
   writeTransform3DRotation,
   writeTransform3DScale,
-} from './components/transform3d';
-export { GlobalStringPoolManager, StringPoolManager, StringPool } from './utils/string-pool';
+} from "./components/transform3d";
+export { GlobalStringPoolManager, StringPoolManager, StringPool } from "./utils/string-pool";
 
 // Core variant detection
-export { detectCoreVariant } from './utils/variant-detector';
-export { detectSharedMemoryRequired } from './utils/variant-detector';
+export { detectCoreVariant } from "./utils/variant-detector";
+export { detectSharedMemoryRequired } from "./utils/variant-detector";
 
 // Tween & Animation System
-export * from './tween/index.js';
+export * from "./tween/index.js";

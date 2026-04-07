@@ -2,11 +2,11 @@
  * @file useHeightfieldCollider() — attaches a grid-based heightfield collider
  * to the current entity for efficient terrain collision.
  */
-import type { HeightfieldColliderHandle3D, Physics3DMaterialPreset } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import { nextColliderId } from './collider-id';
+import type { HeightfieldColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import { nextColliderId } from "./collider-id";
 
 /**
  * Options for configuring a grid-based heightfield 3D collider.
@@ -93,7 +93,7 @@ export function useHeightfieldCollider(
 
   const buildColliderOptions = (heights: Float32Array) => ({
     shape: {
-      type: 'heightfield' as const,
+      type: "heightfield" as const,
       heights,
       rows: options.rows,
       cols: options.cols,

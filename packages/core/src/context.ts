@@ -6,8 +6,8 @@
  * making composables available without explicit parameter passing.
  */
 
-import { createContext } from 'unctx';
-import type { GwenEngine } from './engine/gwen-engine.js';
+import { createContext } from "unctx";
+import type { GwenEngine } from "./engine/gwen-engine.js";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -46,7 +46,7 @@ export const engineContext = createContext<GwenEngine>({
 export class GwenContextError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = 'GwenContextError';
+    this.name = "GwenContextError";
   }
 }
 
@@ -82,9 +82,9 @@ export function useEngine(): GwenEngine {
   const engine = engineContext.tryUse();
   if (!engine) {
     throw new GwenContextError(
-      '[GWEN] useEngine() was called outside of an engine context.\n' +
-        'Make sure you are calling it inside defineSystem(), engine.run(), ' +
-        'or a plugin lifecycle hook (setup, onUpdate, onRender, etc.).',
+      "[GWEN] useEngine() was called outside of an engine context.\n" +
+        "Make sure you are calling it inside defineSystem(), engine.run(), " +
+        "or a plugin lifecycle hook (setup, onUpdate, onRender, etc.).",
     );
   }
   return engine;

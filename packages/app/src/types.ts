@@ -5,10 +5,10 @@
  * contexts (e.g. gwen.config.ts bundled by Vite).
  */
 
-import type { GwenPlugin } from '@gwenjs/core';
-import type { GwenBuildHooks } from '@gwenjs/kit/module';
+import type { GwenPlugin } from "@gwenjs/core";
+import type { GwenBuildHooks } from "@gwenjs/kit/module";
 
-export type { GwenBuildHooks } from '@gwenjs/kit/module';
+export type { GwenBuildHooks } from "@gwenjs/kit/module";
 
 // ─── GwenModuleOptions (augmentable) ─────────────────────────────────────────
 
@@ -67,8 +67,8 @@ export interface GwenUserConfig {
   engine?: {
     maxEntities?: number;
     targetFPS?: number;
-    variant?: 'light' | 'physics2d' | 'physics3d';
-    loop?: 'internal' | 'external';
+    variant?: "light" | "physics2d" | "physics3d";
+    loop?: "internal" | "external";
     maxDeltaSeconds?: number;
     /**
      * Enable global debug mode. Activates verbose logging, per-frame sentinel checks,
@@ -93,7 +93,7 @@ export interface GwenUserConfig {
 
 /** Fully resolved config (same shape as user config, with defaults filled in). */
 export type ResolvedGwenConfig = GwenUserConfig & {
-  engine: Required<NonNullable<GwenUserConfig['engine']>>;
+  engine: Required<NonNullable<GwenUserConfig["engine"]>>;
   modules: GwenModuleEntry[];
 };
 

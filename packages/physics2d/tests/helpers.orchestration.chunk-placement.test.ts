@@ -1,7 +1,7 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createTilemapChunkOrchestrator } from '../src/helpers/orchestration';
+import { describe, expect, it, vi } from "vitest";
+import { createTilemapChunkOrchestrator } from "../src/helpers/orchestration";
 
-describe('orchestration chunk world placement', () => {
+describe("orchestration chunk world placement", () => {
   function makePhysics() {
     return {
       loadTilemapPhysicsChunk: vi.fn(),
@@ -10,7 +10,7 @@ describe('orchestration chunk world placement', () => {
     } as const;
   }
 
-  it('loads visible chunks at origin + chunk-grid offset in meters', () => {
+  it("loads visible chunks at origin + chunk-grid offset in meters", () => {
     const physics = makePhysics();
 
     const source = {
@@ -44,7 +44,7 @@ describe('orchestration chunk world placement', () => {
     expect(second[2]).toBeCloseTo(3.4, 6);
   });
 
-  it('patches a loaded chunk at the same world offset formula', () => {
+  it("patches a loaded chunk at the same world offset formula", () => {
     const physics = makePhysics();
 
     const source = {

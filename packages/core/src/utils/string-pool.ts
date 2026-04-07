@@ -47,7 +47,7 @@ export class StringPool {
    * @returns The string, or empty string if not found
    */
   public get(id: number): string {
-    return this.idToStr.get(id) ?? '';
+    return this.idToStr.get(id) ?? "";
   }
 
   /**

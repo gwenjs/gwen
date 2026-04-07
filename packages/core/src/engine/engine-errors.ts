@@ -50,9 +50,9 @@ export class GwenPluginNotFoundError extends Error {
   constructor(opts: GwenPluginNotFoundErrorOptions) {
     const hint =
       opts.hint || `Add the "${opts.pluginName}" plugin via engine.use() or in gwen.config.ts.`;
-    const docsUrl = opts.docsUrl || 'https://gwenengine.dev/docs/plugins';
+    const docsUrl = opts.docsUrl || "https://gwenengine.dev/docs/plugins";
     super(`[GwenEngine] Plugin/service "${opts.pluginName}" not found. ${hint}`);
-    this.name = 'GwenPluginNotFoundError';
+    this.name = "GwenPluginNotFoundError";
     this.pluginName = opts.pluginName;
     this.hint = hint;
     this.docsUrl = docsUrl;
@@ -66,7 +66,7 @@ export class GwenPluginNotFoundError extends Error {
  */
 export interface PluginErrorContext {
   /** Frame loop phase in which the error occurred. */
-  phase: 'setup' | 'onBeforeUpdate' | 'onUpdate' | 'onAfterUpdate' | 'onRender' | 'teardown';
+  phase: "setup" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender" | "teardown";
   /** Engine frame index at the time of the error. */
   frame: number;
   /**
@@ -81,10 +81,10 @@ export interface PluginErrorContext {
 
 /** Error codes emitted by the GWEN core engine. */
 export const CoreErrorCodes = {
-  FRAME_LOOP_ERROR: 'CORE:FRAME_LOOP_ERROR',
-  PLUGIN_SETUP_ERROR: 'CORE:PLUGIN_SETUP_ERROR',
-  PLUGIN_RUNTIME_ERROR: 'CORE:PLUGIN_RUNTIME_ERROR',
-  WASM_LOAD_ERROR: 'CORE:WASM_LOAD_ERROR',
-  WASM_TIMEOUT: 'CORE:WASM_TIMEOUT',
-  WASM_PANIC: 'CORE:WASM_PANIC',
+  FRAME_LOOP_ERROR: "CORE:FRAME_LOOP_ERROR",
+  PLUGIN_SETUP_ERROR: "CORE:PLUGIN_SETUP_ERROR",
+  PLUGIN_RUNTIME_ERROR: "CORE:PLUGIN_RUNTIME_ERROR",
+  WASM_LOAD_ERROR: "CORE:WASM_LOAD_ERROR",
+  WASM_TIMEOUT: "CORE:WASM_TIMEOUT",
+  WASM_PANIC: "CORE:WASM_PANIC",
 } as const;

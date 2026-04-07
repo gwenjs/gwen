@@ -6,14 +6,14 @@
  */
 
 // ─── Plugin exports ─────────────────────────────────────────────────────────
-export { Physics2DPlugin, Physics2D, physics2D } from './plugin/index';
-export { ShapeComponent } from './shape-component';
-export type { ShapeData } from './shape-component';
-export { ContactRingBuffer, CONTACT_EVENT_BYTES, RING_CAPACITY } from './ring-buffer';
+export { Physics2DPlugin, Physics2D, physics2D } from "./plugin/index";
+export { ShapeComponent } from "./shape-component";
+export type { ShapeData } from "./shape-component";
+export { ContactRingBuffer, CONTACT_EVENT_BYTES, RING_CAPACITY } from "./ring-buffer";
 
 // ─── Module, composables & type augmentations ───────────────────────────────
-export * from './augment';
-export { usePhysics2D, useRigidBody, useCollider } from './composables';
+export * from "./augment";
+export { usePhysics2D, useRigidBody, useCollider } from "./composables";
 export {
   useStaticBody,
   useDynamicBody,
@@ -28,14 +28,14 @@ export {
   _clearSensorCallbacks,
   useShape,
   useKinematicBody,
-} from './composables/index';
-export { physics2dVitePlugin } from './vite-plugin';
+} from "./composables/index";
+export { physics2dVitePlugin } from "./vite-plugin";
 export type {
   BoxColliderOptions,
   SphereColliderOptions,
   CapsuleColliderOptions,
   ShapeOptions,
-} from './composables/index';
+} from "./composables/index";
 export type {
   StaticBodyOptions,
   StaticBodyHandle,
@@ -48,16 +48,16 @@ export type {
   CapsuleColliderHandle,
   ContactEvent,
   Physics2DLayerDefinition,
-} from './types';
+} from "./types";
 
 // ─── Re-export systems & helper utilities ───────────────────────────────────
 export {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
   SENSOR_ID_FOOT,
-} from './systems';
-export { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from './helpers/tilemap';
-export type { PhysicsKinematicSyncSystemOptions, PlatformerGroundedSystemOptions } from './systems';
+} from "./systems";
+export { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from "./helpers/tilemap";
+export type { PhysicsKinematicSyncSystemOptions, PlatformerGroundedSystemOptions } from "./systems";
 
 // ─── Re-export public types ───────────────────────────────────────────────
 export type {
@@ -75,12 +75,12 @@ export type {
   PhysicsColliderShape,
   SensorState,
   TilemapPhysicsChunkMap,
-} from './types';
+} from "./types";
 
 export {
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
   PHYSICS_QUALITY_PRESET_CODE,
   PHYSICS2D_WASM_EVENT_STRIDE,
-} from './types';
+} from "./types";
 
-export { default } from './module';
+export { default } from "./module";

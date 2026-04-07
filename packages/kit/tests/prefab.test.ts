@@ -13,9 +13,9 @@
  * - Instantiation-time overrides are merged with defaults
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { definePlugin } from '../src/plugin';
-import type { GwenEngine } from '@gwenjs/core';
+import { describe, it, expect, vi } from "vitest";
+import { definePlugin } from "../src/plugin";
+import type { GwenEngine } from "@gwenjs/core";
 
 // ── Mock engine ───────────────────────────────────────────────────────────────
 
@@ -62,18 +62,18 @@ interface PlayerPrefabOptions {
  * Demonstrates the recommended pattern for entity templates in GWEN plugins.
  */
 const PlayerPrefabPlugin = definePlugin((defaults: PlayerPrefabOptions = {}) => ({
-  name: 'PlayerPrefabPlugin',
+  name: "PlayerPrefabPlugin",
 
   setup(engine: GwenEngine): void {
     const factory = (overrides: PlayerPrefabOptions = {}) => {
-      const merged = { health: 100, tag: 'player', ...defaults, ...overrides };
+      const merged = { health: 100, tag: "player", ...defaults, ...overrides };
       const id = (engine as any).createEntity() as number;
-      (engine as any).addComponent(id, 'health', { value: merged.health });
-      (engine as any).addComponent(id, 'tag', { name: merged.tag });
+      (engine as any).addComponent(id, "health", { value: merged.health });
+      (engine as any).addComponent(id, "tag", { name: merged.tag });
       return id;
     };
 
-    (engine as any).provide('playerFactory', factory);
+    (engine as any).provide("playerFactory", factory);
   },
 
   teardown(): void {
@@ -83,33 +83,33 @@ const PlayerPrefabPlugin = definePlugin((defaults: PlayerPrefabOptions = {}) => 
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('definePlugin() — prefab factory pattern', () => {
-  it('returns a plugin factory that produces a valid GwenPlugin', () => {
+describe("definePlugin() — prefab factory pattern", () => {
+  it("returns a plugin factory that produces a valid GwenPlugin", () => {
     const plugin = PlayerPrefabPlugin();
     expect(plugin).toBeDefined();
-    expect(plugin.name).toBe('PlayerPrefabPlugin');
-    expect(typeof plugin.setup).toBe('function');
+    expect(plugin.name).toBe("PlayerPrefabPlugin");
+    expect(typeof plugin.setup).toBe("function");
   });
 
-  it('calls setup() with the engine instance', () => {
+  it("calls setup() with the engine instance", () => {
     const engine = mockEngine();
     const setupSpy = vi.fn();
-    const Plugin = definePlugin(() => ({ name: 'Spy', setup: setupSpy }));
+    const Plugin = definePlugin(() => ({ name: "Spy", setup: setupSpy }));
     Plugin().setup(engine);
     expect(setupSpy).toHaveBeenCalledWith(engine);
   });
 
-  it('registers provided services on the engine during setup', () => {
+  it("registers provided services on the engine during setup", () => {
     const engine = mockEngine();
     PlayerPrefabPlugin().setup(engine);
-    const factory = (engine as any).tryInject('playerFactory');
-    expect(typeof factory).toBe('function');
+    const factory = (engine as any).tryInject("playerFactory");
+    expect(typeof factory).toBe("function");
   });
 
-  it('calls teardown() when the plugin is torn down', () => {
+  it("calls teardown() when the plugin is torn down", () => {
     const teardownSpy = vi.fn();
     const Plugin = definePlugin(() => ({
-      name: 'Teardown',
+      name: "Teardown",
       setup: vi.fn(),
       teardown: teardownSpy,
     }));
@@ -120,26 +120,26 @@ describe('definePlugin() — prefab factory pattern', () => {
   });
 });
 
-describe('definePrefab() — entity factory with defaults and overrides', () => {
-  it('instantiates an entity with all defined components', () => {
+describe("definePrefab() — entity factory with defaults and overrides", () => {
+  it("instantiates an entity with all defined components", () => {
     const engine = mockEngine();
     PlayerPrefabPlugin().setup(engine);
 
-    const factory = (engine as any).inject('playerFactory') as (o?: PlayerPrefabOptions) => number;
+    const factory = (engine as any).inject("playerFactory") as (o?: PlayerPrefabOptions) => number;
     const id = factory();
 
-    expect((engine as any).getComponent(id, 'health')).toEqual({ value: 100 });
-    expect((engine as any).getComponent(id, 'tag')).toEqual({ name: 'player' });
+    expect((engine as any).getComponent(id, "health")).toEqual({ value: 100 });
+    expect((engine as any).getComponent(id, "tag")).toEqual({ name: "player" });
   });
 
-  it('merges instantiation-time overrides with plugin defaults', () => {
+  it("merges instantiation-time overrides with plugin defaults", () => {
     const engine = mockEngine();
     PlayerPrefabPlugin({ health: 200 }).setup(engine);
 
-    const factory = (engine as any).inject('playerFactory') as (o?: PlayerPrefabOptions) => number;
-    const id = factory({ health: 50, tag: 'boss' });
+    const factory = (engine as any).inject("playerFactory") as (o?: PlayerPrefabOptions) => number;
+    const id = factory({ health: 50, tag: "boss" });
 
-    expect((engine as any).getComponent(id, 'health')).toEqual({ value: 50 });
-    expect((engine as any).getComponent(id, 'tag')).toEqual({ name: 'boss' });
+    expect((engine as any).getComponent(id, "health")).toEqual({ value: 50 });
+    expect((engine as any).getComponent(id, "tag")).toEqual({ name: "boss" });
   });
 });

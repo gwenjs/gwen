@@ -1,4 +1,4 @@
-import type { SceneDefinition, SceneFactory } from '../scene/define-scene.js';
+import type { SceneDefinition, SceneFactory } from "../scene/define-scene.js";
 
 /** A scene accepted by a route: either a SceneDefinition or SceneFactory. */
 export type SceneInput = SceneDefinition | SceneFactory;
@@ -28,7 +28,7 @@ export interface RouteConfig<TRoutes extends Record<string, RouteConfig<TRoutes>
 
 /** Transition effect configuration. */
 export interface TransitionEffect {
-  effect: 'fade' | 'none';
+  effect: "fade" | "none";
   duration?: number;
   color?: string;
 }
@@ -48,7 +48,7 @@ export interface SceneRouterOptions<TRoutes extends Record<string, RouteConfig<T
 
 /** Infer all event names that appear across any route's `on` map. */
 export type EventsOf<TRoutes extends Record<string, RouteConfig<TRoutes>>> =
-  NonNullable<TRoutes[keyof TRoutes]['on']> extends infer O
+  NonNullable<TRoutes[keyof TRoutes]["on"]> extends infer O
     ? O extends Record<infer K, unknown>
       ? K
       : never
@@ -62,7 +62,7 @@ export type StatesOf<TRoutes extends Record<string, RouteConfig<TRoutes>>> = key
  * Pass to `useSceneRouter(router)` to get the runtime handle.
  */
 export interface SceneRouterDefinition<TRoutes extends Record<string, RouteConfig<TRoutes>>> {
-  readonly __type: 'SceneRouterDefinition';
+  readonly __type: "SceneRouterDefinition";
   readonly options: SceneRouterOptions<TRoutes>;
 }
 

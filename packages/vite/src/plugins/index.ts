@@ -1,34 +1,34 @@
-import { gwenWasmPlugin } from './wasm.js';
-import { gwenAutoImportsPlugin } from './auto-imports.js';
-import { gwenTypesPlugin } from './types-writer.js';
-import { gwenVirtualPlugin } from './virtual-env.js';
-import { gwenActorPlugin } from './actor.js';
-import { gwenLayoutPlugin } from './layout.js';
-import { gwenSceneRouterPlugin } from './scene-router.js';
-import { gwenTweenPlugin } from './tween.js';
-import { gwenOptimizerPlugin } from './optimizer.js';
-import { gwenSystemPlugin } from './system.js';
-import type { GwenViteOptions, GwenOptimizerUserOptions } from '../types.js';
-import type { PluginOption } from 'vite';
+import { gwenWasmPlugin } from "./wasm.js";
+import { gwenAutoImportsPlugin } from "./auto-imports.js";
+import { gwenTypesPlugin } from "./types-writer.js";
+import { gwenVirtualPlugin } from "./virtual-env.js";
+import { gwenActorPlugin } from "./actor.js";
+import { gwenLayoutPlugin } from "./layout.js";
+import { gwenSceneRouterPlugin } from "./scene-router.js";
+import { gwenTweenPlugin } from "./tween.js";
+import { gwenOptimizerPlugin } from "./optimizer.js";
+import { gwenSystemPlugin } from "./system.js";
+import type { GwenViteOptions, GwenOptimizerUserOptions } from "../types.js";
+import type { PluginOption } from "vite";
 
-export { gwenWasmPlugin } from './wasm.js';
-export { gwenAutoImportsPlugin, generateAutoImportsModule } from './auto-imports.js';
-export { gwenTypesPlugin } from './types-writer.js';
-export { gwenVirtualPlugin } from './virtual-env.js';
-export { gwenActorPlugin, generateActorsModule, transformActorNames } from './actor.js';
+export { gwenWasmPlugin } from "./wasm.js";
+export { gwenAutoImportsPlugin, generateAutoImportsModule } from "./auto-imports.js";
+export { gwenTypesPlugin } from "./types-writer.js";
+export { gwenVirtualPlugin } from "./virtual-env.js";
+export { gwenActorPlugin, generateActorsModule, transformActorNames } from "./actor.js";
 export {
   gwenLayoutPlugin,
   generateLayoutsModule,
   transformLayoutNames,
   extractLayoutNames,
-} from './layout.js';
+} from "./layout.js";
 export {
   gwenSceneRouterPlugin,
   generateRouterDevtools,
   transformRouterNames,
-} from './scene-router.js';
-export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from './tween.js';
-export { gwenSystemPlugin, transformSystemNames } from './system.js';
+} from "./scene-router.js";
+export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from "./tween.js";
+export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:
@@ -62,12 +62,12 @@ export { gwenSystemPlugin, transformSystemNames } from './system.js';
  * - `{ ... }`           → transform mode, forwarded options
  */
 function resolveOptimizerOptions(
-  opt: GwenViteOptions['optimizer'],
+  opt: GwenViteOptions["optimizer"],
 ): Parameters<typeof gwenOptimizerPlugin>[0] {
-  if (!opt) return { mode: 'detect' };
-  if (opt === true) return { mode: 'transform' };
+  if (!opt) return { mode: "detect" };
+  if (opt === true) return { mode: "transform" };
   const { componentsDir, tier, debug } = opt as GwenOptimizerUserOptions;
-  return { mode: 'transform', componentsDir, tier, debug };
+  return { mode: "transform", componentsDir, tier, debug };
 }
 
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {

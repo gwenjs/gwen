@@ -10,6 +10,6 @@
  *   types/engine-config.ts   — EngineConfig
  */
 
-export * from './types/global-augment';
-export * from './types/entity';
-export * from './types/engine-config';
+export * from "./types/global-augment";
+export * from "./types/entity";
+export * from "./types/engine-config";

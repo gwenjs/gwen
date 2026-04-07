@@ -1,5 +1,5 @@
-import type { OptimizablePattern } from './types';
-import type { ComponentManifest } from './component-manifest';
+import type { OptimizablePattern } from "./types";
+import type { ComponentManifest } from "./component-manifest";
 
 /**
  * Classification result for a detected pattern.
@@ -59,7 +59,7 @@ export class PatternDetector {
       }
     }
 
-    const numericTypes = new Set(['f32', 'i32', 'u32', 'f64', 'i64', 'u64', 'bool']);
+    const numericTypes = new Set(["f32", "i32", "u32", "f64", "i64", "u64", "bool"]);
     for (const name of allComponents) {
       const entry = this.manifest.get(name)!;
       for (const field of entry.fields) {

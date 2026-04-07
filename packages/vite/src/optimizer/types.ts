@@ -101,14 +101,14 @@ export interface OptimizablePattern {
  * Tier of WASM APIs available based on the user's installed packages.
  * Determines which bulk operations can be generated.
  */
-export type WasmTier = 'core' | 'physics2d' | 'physics3d';
+export type WasmTier = "core" | "physics2d" | "physics3d";
 
 /**
  * Context passed to the code generator.
  */
 export interface OptimizerContext {
   /** Component registry collected during buildStart */
-  readonly manifest: import('./component-manifest').ComponentManifest;
+  readonly manifest: import("./component-manifest").ComponentManifest;
   /** Which WASM tier is active */
   readonly tier: WasmTier;
   /** Enable verbose logging (set via `gwenOptimizerPlugin({ debug: true })`) */

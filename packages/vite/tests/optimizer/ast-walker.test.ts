@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { AstWalker } from '../../src/optimizer/ast-walker';
+import { describe, it, expect } from "vitest";
+import { AstWalker } from "../../src/optimizer/ast-walker";
 
 const SYSTEM_CODE = `
 import { useQuery, onUpdate, useComponent } from '@gwenjs/core'
@@ -18,32 +18,32 @@ export const movementSystem = defineSystem(() => {
 })
 `;
 
-describe('AstWalker', () => {
-  it('detects a useQuery call and its component names', () => {
-    const walker = new AstWalker('test.ts');
+describe("AstWalker", () => {
+  it("detects a useQuery call and its component names", () => {
+    const walker = new AstWalker("test.ts");
     const findings = walker.walk(SYSTEM_CODE);
     expect(findings.length).toBeGreaterThan(0);
-    expect(findings[0]!.queryComponents).toContain('Position');
-    expect(findings[0]!.queryComponents).toContain('Velocity');
+    expect(findings[0]!.queryComponents).toContain("Position");
+    expect(findings[0]!.queryComponents).toContain("Velocity");
   });
 
-  it('detects read components from useComponent calls', () => {
-    const walker = new AstWalker('test.ts');
+  it("detects read components from useComponent calls", () => {
+    const walker = new AstWalker("test.ts");
     const findings = walker.walk(SYSTEM_CODE);
-    expect(findings[0]!.readComponents).toContain('Position');
-    expect(findings[0]!.readComponents).toContain('Velocity');
+    expect(findings[0]!.readComponents).toContain("Position");
+    expect(findings[0]!.readComponents).toContain("Velocity");
   });
 
-  it('returns empty array for unparseable source', () => {
-    const walker = new AstWalker('test.ts');
+  it("returns empty array for unparseable source", () => {
+    const walker = new AstWalker("test.ts");
     // Pass a string that contains 'useQuery' (to bypass the early return)
     // but is syntactically invalid so the parser throws.
-    const findings = walker.walk('useQuery(!!!invalid syntax @@@');
+    const findings = walker.walk("useQuery(!!!invalid syntax @@@");
     expect(findings).toEqual([]);
   });
 
-  it('returns empty array for source with no defineSystem', () => {
-    const walker = new AstWalker('test.ts');
+  it("returns empty array for source with no defineSystem", () => {
+    const walker = new AstWalker("test.ts");
     // Valid TypeScript but no defineSystem call — no patterns should be found.
     const source = `
       import { useQuery } from '@gwenjs/core';

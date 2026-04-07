@@ -4,7 +4,7 @@
  * Converts an array of {@link CompoundShapeSpec} objects into the flat
  * `Float32Array` accepted by `physics3d_add_compound_collider`.
  */
-import type { CompoundShapeSpec } from '../types';
+import type { CompoundShapeSpec } from "../types";
 
 /** Shape-type discriminant values — must match Rust `COMPOUND_SHAPE_*` constants. */
 export const COMPOUND_SHAPE_BOX = 0;
@@ -52,21 +52,21 @@ export function encodeCompoundShapes(
     const id = colliderIds[i]!;
 
     switch (shape.type) {
-      case 'box':
+      case "box":
         buf[base + 0] = COMPOUND_SHAPE_BOX;
         buf[base + 1] = shape.halfX;
         buf[base + 2] = shape.halfY;
         buf[base + 3] = shape.halfZ;
         buf[base + 4] = 0; // p3 reserved
         break;
-      case 'sphere':
+      case "sphere":
         buf[base + 0] = COMPOUND_SHAPE_SPHERE;
         buf[base + 1] = shape.radius;
         buf[base + 2] = 0;
         buf[base + 3] = 0;
         buf[base + 4] = 0;
         break;
-      case 'capsule':
+      case "capsule":
         buf[base + 0] = COMPOUND_SHAPE_CAPSULE;
         buf[base + 1] = shape.radius;
         buf[base + 2] = shape.halfHeight;

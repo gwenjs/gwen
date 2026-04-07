@@ -3,16 +3,16 @@
  * Defines the mutable state variables used across plugin lifecycle hooks.
  */
 
-import type { Physics3DWasmBridge, Physics3DBridgeRuntime } from './bridge';
-import type { GwenEngine } from '@gwenjs/core';
+import type { Physics3DWasmBridge, Physics3DBridgeRuntime } from "./bridge";
+import type { GwenEngine } from "@gwenjs/core";
 import type {
   Physics3DBodyHandle,
   Physics3DBodyState,
   Physics3DColliderOptions,
   Physics3DSensorState,
   Physics3DPrefabExtension,
-} from '../types';
-import type { InternalCollisionEvent3D } from './bridge';
+} from "../types";
+import type { InternalCollisionEvent3D } from "./bridge";
 
 /**
  * Mutable plugin state variables. Captured in the plugin closure and updated
@@ -25,7 +25,7 @@ export interface Physics3DPluginState {
   ready: boolean;
 
   /** Current backend mode: 'wasm' (Rapier3D) or 'local' (TypeScript fallback). */
-  backendMode: 'wasm' | 'local';
+  backendMode: "wasm" | "local";
 
   /** The WASM physics3d bridge — non-null only in 'wasm' mode. */
   wasmBridge: Physics3DWasmBridge | null;
@@ -52,7 +52,7 @@ export interface Physics3DPluginState {
   localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
 
   /** Per-entity collision callbacks: entity slot → onCollision callback. */
-  entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension['onCollision']>>;
+  entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   /** Current frame contacts — rebuilt each frame in onUpdate. */
   currentFrameContacts: Array<any>; // Avoid circular dependency, use any for collision contact type
@@ -82,5 +82,5 @@ export interface Physics3DPluginState {
   engine: GwenEngine | null;
 
   /** Core variant name (e.g., 'light', 'physics3d', 'physics2d'). */
-  variant: 'light' | 'physics2d' | 'physics3d';
+  variant: "light" | "physics2d" | "physics3d";
 }

@@ -62,7 +62,7 @@ export interface GwenOptions {
     /** Use sparse transform synchronization */
     sparseTransformSync: boolean;
     /** Loop ownership mode */
-    loop: 'internal' | 'external';
+    loop: "internal" | "external";
     /** Delta cap in seconds for a single simulation step */
     maxDeltaSeconds: number;
   };
@@ -80,7 +80,7 @@ export interface GwenOptions {
   /** List of scene names available in the project */
   scenes: string[];
   /** Scene loading mode: 'auto' to auto-load scene files, false to disable */
-  scenesMode: 'auto' | false;
+  scenesMode: "auto" | false;
   /** Initial scene to load at startup (optional) */
   mainScene?: string;
   /** Project root directory (set by resolver at runtime) */

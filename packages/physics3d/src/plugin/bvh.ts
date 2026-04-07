@@ -1,6 +1,6 @@
 // ─── BVH fetch cache (module-level — shared across plugin instances) ────────────
 
-import { Physics3DErrorCodes } from '../errors/codes';
+import { Physics3DErrorCodes } from "../errors/codes";
 
 /**
  * Cache mapping BVH asset URL to its in-flight or resolved fetch Promise.
@@ -72,7 +72,7 @@ export const _bvhWorkerCallbacks = new Map<
 /** Get (or lazily create) the module-level BVH worker. */
 export function getBvhWorker(): Worker {
   if (!_bvhWorker) {
-    _bvhWorker = new Worker(new URL('./bvh-worker.ts', import.meta.url), { type: 'module' });
+    _bvhWorker = new Worker(new URL("./bvh-worker.ts", import.meta.url), { type: "module" });
     _bvhWorker.onmessage = ({
       data,
     }: MessageEvent<{ id: number; bvhBytes: Uint8Array | null; error: string | null }>) => {
@@ -81,7 +81,7 @@ export function getBvhWorker(): Worker {
       clearTimeout(cb.timeoutId);
       _bvhWorkerCallbacks.delete(data.id);
       if (data.error || !data.bvhBytes) {
-        cb.reject(new Error(data.error ?? '[GWEN:Physics3D] BVH worker returned empty result'));
+        cb.reject(new Error(data.error ?? "[GWEN:Physics3D] BVH worker returned empty result"));
       } else {
         cb.resolve(data.bvhBytes);
       }
@@ -147,7 +147,7 @@ export function queueBvhJob(vertices: Float32Array, indices: Uint32Array): Promi
  */
 export interface PreloadedBvhHandle {
   /** Current fetch state of the BVH binary. */
-  status: 'loading' | 'ready' | 'error';
+  status: "loading" | "ready" | "error";
   /** The URL being fetched. */
   url: string;
   /**
@@ -191,7 +191,7 @@ export interface PreloadedBvhHandle {
  */
 export function preloadMeshCollider(url: string): PreloadedBvhHandle {
   const handle: PreloadedBvhHandle = {
-    status: 'loading',
+    status: "loading",
     url,
     ready: Promise.resolve(),
   };
@@ -199,10 +199,10 @@ export function preloadMeshCollider(url: string): PreloadedBvhHandle {
   handle.ready = _fetchBvhBuffer(url)
     .then((ab) => {
       handle._buffer = ab;
-      handle.status = 'ready';
+      handle.status = "ready";
     })
     .catch(() => {
-      handle.status = 'error';
+      handle.status = "error";
     });
 
   return handle;

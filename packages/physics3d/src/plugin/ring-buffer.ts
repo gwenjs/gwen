@@ -16,7 +16,7 @@
  * entityA/B are written/read via the Uint32Array view at the same offsets.
  */
 
-import type { ContactEvent3D } from '../types';
+import type { ContactEvent3D } from "../types";
 
 /** Number of f32 slots per contact event record. */
 export const CONTACT_EVENT_FLOATS = 10;

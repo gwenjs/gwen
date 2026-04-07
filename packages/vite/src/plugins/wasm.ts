@@ -1,11 +1,11 @@
-import { createRequire } from 'node:module';
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
-import type { Plugin } from 'vite';
-import type { GwenViteOptions } from '../types.js';
+import { createRequire } from "node:module";
+import { readFileSync, existsSync } from "node:fs";
+import { resolve } from "node:path";
+import type { Plugin } from "vite";
+import type { GwenViteOptions } from "../types.js";
 
-const WASM_VIRTUAL_ID = 'virtual:gwen/wasm';
-const RESOLVED_WASM_VIRTUAL_ID = '\0' + WASM_VIRTUAL_ID;
+const WASM_VIRTUAL_ID = "virtual:gwen/wasm";
+const RESOLVED_WASM_VIRTUAL_ID = "\0" + WASM_VIRTUAL_ID;
 
 /**
  * Injects the correct WASM binary as a virtual module.
@@ -26,19 +26,19 @@ const RESOLVED_WASM_VIRTUAL_ID = '\0' + WASM_VIRTUAL_ID;
  */
 export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
   let isBuild = false;
-  let variant: 'debug' | 'release' = 'debug';
+  let variant: "debug" | "release" = "debug";
 
   /** Cached base64-encoded WASM binary for build mode. Null means uncached. */
   let buildCache: string | null = null;
 
   return {
-    name: 'gwen:wasm',
-    enforce: 'pre',
+    name: "gwen:wasm",
+    enforce: "pre",
 
     configResolved(config) {
-      isBuild = config.command === 'build';
-      const requested = options.wasm?.variant ?? 'auto';
-      variant = requested === 'auto' ? (isBuild ? 'release' : 'debug') : requested;
+      isBuild = config.command === "build";
+      const requested = options.wasm?.variant ?? "auto";
+      variant = requested === "auto" ? (isBuild ? "release" : "debug") : requested;
       // Invalidate cache on every new build configuration to avoid stale data
       buildCache = null;
     },
@@ -63,7 +63,7 @@ export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
       // Cache the result to avoid repeated readFileSync calls across multiple chunks.
       if (isBuild) {
         if (buildCache === null) {
-          buildCache = readFileSync(wasmPath).toString('base64');
+          buildCache = readFileSync(wasmPath).toString("base64");
         }
         return `export const wasmUrl = 'data:application/wasm;base64,${buildCache}'`;
       }
@@ -74,9 +74,9 @@ export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
 
     configureServer(server) {
       // Serve WASM as a static file in dev
-      server.middlewares.use('/@gwen-wasm', (req, res) => {
-        const requested = (req.url ?? '').replace('/', '');
-        const wasmVariant = requested.startsWith('release') ? 'release' : 'debug';
+      server.middlewares.use("/@gwen-wasm", (req, res) => {
+        const requested = (req.url ?? "").replace("/", "");
+        const wasmVariant = requested.startsWith("release") ? "release" : "debug";
         const wasmPath = resolveWasmPath(wasmVariant, options.wasm?.wasmPath);
 
         if (!existsSync(wasmPath)) {
@@ -85,15 +85,15 @@ export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
           return;
         }
 
-        res.setHeader('Content-Type', 'application/wasm');
+        res.setHeader("Content-Type", "application/wasm");
         res.end(readFileSync(wasmPath));
       });
 
       // HMR: reload on WASM source change
       if (options.wasm?.hmr !== false) {
-        server.watcher.on('change', (file) => {
-          if (file.endsWith('.wasm')) {
-            server.ws.send({ type: 'full-reload' });
+        server.watcher.on("change", (file) => {
+          if (file.endsWith(".wasm")) {
+            server.ws.send({ type: "full-reload" });
           }
         });
       }
@@ -110,11 +110,11 @@ export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
  * @param variant - `'debug'` or `'release'`
  * @param override - Optional absolute or relative path override.
  */
-function resolveWasmPath(variant: 'debug' | 'release', override?: string): string {
+function resolveWasmPath(variant: "debug" | "release", override?: string): string {
   if (override) return resolve(override);
 
   const require = createRequire(import.meta.url);
-  const corePkg = require.resolve('@gwenjs/core/package.json');
-  const coreDir = resolve(corePkg, '..');
-  return resolve(coreDir, 'wasm', `gwen_core_${variant}.wasm`);
+  const corePkg = require.resolve("@gwenjs/core/package.json");
+  const coreDir = resolve(corePkg, "..");
+  return resolve(coreDir, "wasm", `gwen_core_${variant}.wasm`);
 }

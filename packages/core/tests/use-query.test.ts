@@ -9,37 +9,28 @@
  * `destroyEntity`, and `useQuery` / `EntityAccessor`.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
-import {
-  createEngine,
-  defineComponent,
-  Types,
-  engineContext,
-} from '../src/index';
-import {
-  defineSystem,
-  onUpdate,
-  useQuery,
-} from '../src/system/index';
-import type { GwenEngine } from '../src/index';
-import type { EntityAccessor } from '../src/system/index';
+import { describe, it, expect, beforeEach } from "vitest";
+import { createEngine, defineComponent, Types, engineContext } from "../src/index";
+import { defineSystem, onUpdate, useQuery } from "../src/system/index";
+import type { GwenEngine } from "../src/index";
+import type { EntityAccessor } from "../src/system/index";
 
 // ─── Component fixtures ───────────────────────────────────────────────────────
 
 const Position = defineComponent({
-  name: 'Position',
+  name: "Position",
   schema: { x: Types.f32, y: Types.f32 },
   defaults: { x: 0, y: 0 },
 });
 
 const Velocity = defineComponent({
-  name: 'Velocity',
+  name: "Velocity",
   schema: { vx: Types.f32, vy: Types.f32 },
   defaults: { vx: 0, vy: 0 },
 });
 
 const EnemyTag = defineComponent({
-  name: 'EnemyTag',
+  name: "EnemyTag",
   schema: {},
 });
 
@@ -58,7 +49,7 @@ function collect(query: Iterable<EntityAccessor>): EntityAccessor[] {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe('useQuery()', () => {
+describe("useQuery()", () => {
   let engine: GwenEngine;
 
   beforeEach(async () => {
@@ -68,7 +59,7 @@ describe('useQuery()', () => {
 
   // ── 1. Basic query — entities with matching components appear ──────────────
 
-  it('returns entities that have all queried components', () => {
+  it("returns entities that have all queried components", () => {
     const e1 = engine.createEntity();
     const e2 = engine.createEntity();
     const e3 = engine.createEntity(); // only Position — should NOT appear
@@ -94,7 +85,7 @@ describe('useQuery()', () => {
 
   // ── 2. Adding a component makes the entity appear ─────────────────────────
 
-  it('reflects newly added components on the next iteration', () => {
+  it("reflects newly added components on the next iteration", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 10, y: 20 });
 
@@ -113,7 +104,7 @@ describe('useQuery()', () => {
 
   // ── 3. Removing a component removes the entity from results ───────────────
 
-  it('removes the entity from results after a component is removed', () => {
+  it("removes the entity from results after a component is removed", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 0, y: 0 });
     engine.addComponent(e, Velocity, { vx: 5, vy: 0 });
@@ -129,7 +120,7 @@ describe('useQuery()', () => {
 
   // ── 4. Destroying an entity removes it from results ───────────────────────
 
-  it('removes the entity from results after it is destroyed', () => {
+  it("removes the entity from results after it is destroyed", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 0, y: 0 });
     engine.addComponent(e, Velocity, { vx: 0, vy: 0 });
@@ -145,7 +136,7 @@ describe('useQuery()', () => {
 
   // ── 5. EntityAccessor.get() returns correct component data ────────────────
 
-  it('EntityAccessor.get() returns the stored component data', () => {
+  it("EntityAccessor.get() returns the stored component data", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 42, y: 99 });
     engine.addComponent(e, Velocity, { vx: 1.5, vy: -3.0 });
@@ -169,7 +160,7 @@ describe('useQuery()', () => {
 
   // ── 6. EntityAccessor.get() returns undefined for absent component ─────────
 
-  it('EntityAccessor.get() returns undefined for a component the entity does not have', () => {
+  it("EntityAccessor.get() returns undefined for a component the entity does not have", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 0, y: 0 });
     // No Velocity, no EnemyTag
@@ -184,7 +175,7 @@ describe('useQuery()', () => {
 
   // ── 7. Multiple-component filter (all of A and B) ─────────────────────────
 
-  it('multi-component filter only includes entities with all listed components', () => {
+  it("multi-component filter only includes entities with all listed components", () => {
     const eAll = engine.createEntity(); // has Position + Velocity + EnemyTag
     const eSome = engine.createEntity(); // has Position + EnemyTag (no Velocity)
     const eNone = engine.createEntity(); // has only Position
@@ -208,7 +199,7 @@ describe('useQuery()', () => {
 
   // ── 8. Empty query with no components returns all alive entities ───────────
 
-  it('empty component list returns all alive entities', () => {
+  it("empty component list returns all alive entities", () => {
     const e1 = engine.createEntity();
     const e2 = engine.createEntity();
     const e3 = engine.createEntity();
@@ -223,7 +214,7 @@ describe('useQuery()', () => {
 
   // ── 9. Query is accessible inside onUpdate callbacks ─────────────────────
 
-  it('query captured at setup time is iterable inside onUpdate', async () => {
+  it("query captured at setup time is iterable inside onUpdate", async () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 10, y: 20 });
     engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
@@ -251,7 +242,7 @@ describe('useQuery()', () => {
 
   // ── 10. defaults are merged when addComponent is called ───────────────────
 
-  it('component defaults are merged with supplied data', () => {
+  it("component defaults are merged with supplied data", () => {
     const e = engine.createEntity();
     // Only supply x — y should fall back to the default (0)
     engine.addComponent(e, Position, { x: 77 });
@@ -264,14 +255,14 @@ describe('useQuery()', () => {
 
   // ── 11. isAlive / destroyEntity ────────────────────────────────────────────
 
-  it('isAlive returns false after destroyEntity', () => {
+  it("isAlive returns false after destroyEntity", () => {
     const e = engine.createEntity();
     expect(engine.isAlive(e)).toBe(true);
     engine.destroyEntity(e);
     expect(engine.isAlive(e)).toBe(false);
   });
 
-  it('destroyEntity returns false for an already-dead entity', () => {
+  it("destroyEntity returns false for an already-dead entity", () => {
     const e = engine.createEntity();
     engine.destroyEntity(e);
     expect(engine.destroyEntity(e)).toBe(false);
@@ -279,7 +270,7 @@ describe('useQuery()', () => {
 
   // ── 12. hasComponent ───────────────────────────────────────────────────────
 
-  it('hasComponent returns true after addComponent and false after removeComponent', () => {
+  it("hasComponent returns true after addComponent and false after removeComponent", () => {
     const e = engine.createEntity();
     expect(engine.hasComponent(e, Position)).toBe(false);
     engine.addComponent(e, Position, { x: 0, y: 0 });
@@ -290,7 +281,7 @@ describe('useQuery()', () => {
 
   // ── 13. removeComponent returns false when component is absent ────────────
 
-  it('removeComponent returns false when the component is not present', () => {
+  it("removeComponent returns false when the component is not present", () => {
     const e = engine.createEntity();
     expect(engine.removeComponent(e, Velocity)).toBe(false);
   });

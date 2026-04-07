@@ -1,5 +1,5 @@
-import type { EntityId } from '@gwenjs/core';
-import type { Physics2DAPI, PhysicsEntitySnapshot } from '../types';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics2DAPI, PhysicsEntitySnapshot } from "../types";
 
 /**
  * Read a compact read-only snapshot of one physics body.

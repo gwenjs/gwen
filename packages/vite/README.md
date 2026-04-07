@@ -15,13 +15,13 @@ npm install -D @gwenjs/vite
 ### Add to vite.config.ts
 
 ```typescript
-import { defineConfig } from 'vite';
-import { gwen } from '@gwenjs/vite';
+import { defineConfig } from "vite";
+import { gwen } from "@gwenjs/vite";
 
 export default defineConfig({
   plugins: [
     gwen({
-      cratePath: './crates/gwen-core',
+      cratePath: "./crates/gwen-core",
       watch: true,
     }),
   ],
@@ -32,8 +32,8 @@ export default defineConfig({
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite';
-import { gwen } from '@gwenjs/vite';
+import { defineConfig } from "vite";
+import { gwen } from "@gwenjs/vite";
 
 export default defineConfig({
   plugins: [gwen()],
@@ -48,9 +48,9 @@ Automatically rebuilds Rust/WASM code when `.rs` files change, then triggers HMR
 
 ```typescript
 gwen({
-  cratePath: '../crates/gwen-core',
+  cratePath: "../crates/gwen-core",
   watch: true,
-  wasmMode: 'debug', // 'debug' for dev, 'release' for build
+  wasmMode: "debug", // 'debug' for dev, 'release' for build
 });
 ```
 
@@ -68,7 +68,7 @@ Scans `src/scenes/` and generates scene registry automatically.
 Injects `gwen-manifest.json` as a virtual module.
 
 ```typescript
-import manifest from 'virtual:gwen-manifest';
+import manifest from "virtual:gwen-manifest";
 
 console.log(manifest.version);
 console.log(manifest.buildDate);
@@ -83,8 +83,8 @@ Current implemented behavior is intentionally safe and incremental:
 - optional `query: [...]` typing rewrite to `query: [...] as const` (`compileSystems`).
 
 ```typescript
-import { defineConfig } from 'vite';
-import { gwen, gwenTransform } from '@gwenjs/vite';
+import { defineConfig } from "vite";
+import { gwen, gwenTransform } from "@gwenjs/vite";
 
 export default defineConfig({
   plugins: [
@@ -101,7 +101,7 @@ export default defineConfig({
 Subpath import is also supported:
 
 ```typescript
-import { gwenTransform } from '@gwenjs/vite/transform';
+import { gwenTransform } from "@gwenjs/vite/transform";
 ```
 
 ## Configuration
@@ -118,7 +118,7 @@ interface GwenPluginOptions {
   watch?: boolean;
 
   // Compilation mode: 'debug' (fast) or 'release' (optimized)
-  wasmMode?: 'release' | 'debug';
+  wasmMode?: "release" | "debug";
 
   // Path to gwen-manifest.json (optional)
   manifestPath?: string;
@@ -151,15 +151,15 @@ interface GwenTransformOptions {
 
 ```typescript
 // vite.config.ts
-import { defineConfig } from 'vite';
-import { gwen } from '@gwenjs/vite';
+import { defineConfig } from "vite";
+import { gwen } from "@gwenjs/vite";
 
 export default defineConfig({
   plugins: [
     gwen({
-      cratePath: './crates/gwen-core',
-      watch: process.env.NODE_ENV === 'development',
-      wasmMode: 'debug',
+      cratePath: "./crates/gwen-core",
+      watch: process.env.NODE_ENV === "development",
+      wasmMode: "debug",
       verbose: true,
     }),
   ],
@@ -173,8 +173,8 @@ export default defineConfig({
 export default defineConfig({
   plugins: [
     gwen({
-      cratePath: './crates/gwen-core',
-      wasmMode: 'release', // Optimized binary
+      cratePath: "./crates/gwen-core",
+      wasmMode: "release", // Optimized binary
       watch: false,
     }),
   ],
@@ -185,11 +185,11 @@ export default defineConfig({
 
 ```typescript
 // src/scenes/GameScene.ts
-import { defineScene } from '@gwenjs/core';
+import { defineScene } from "@gwenjs/core";
 
-export const GameScene = defineScene('game', () => ({
+export const GameScene = defineScene("game", () => ({
   onInit(api) {
-    console.log('Game started!');
+    console.log("Game started!");
   },
   onUpdate(_api, delta) {
     // Game logic
@@ -197,9 +197,9 @@ export const GameScene = defineScene('game', () => ({
 }));
 
 // src/scenes/MenuScene.ts
-export const MenuScene = defineScene('menu', () => ({
+export const MenuScene = defineScene("menu", () => ({
   onInit(api) {
-    console.log('Menu opened!');
+    console.log("Menu opened!");
   },
 }));
 
@@ -213,7 +213,7 @@ export const MenuScene = defineScene('menu', () => ({
 Access build metadata:
 
 ```typescript
-import manifest from 'virtual:gwen-manifest';
+import manifest from "virtual:gwen-manifest";
 
 console.log(manifest.version); // Package version
 console.log(manifest.buildDate); // Build timestamp

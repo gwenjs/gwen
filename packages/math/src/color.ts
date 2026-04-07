@@ -5,8 +5,8 @@
  * All functions are pure unless the name ends in `Mut`.
  */
 
-import type { Color } from './types.js';
-import { clamp01 } from './scalar.js';
+import type { Color } from "./types.js";
+import { clamp01 } from "./scalar.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 
@@ -37,7 +37,7 @@ export function colorTransparent(): Color {
  * Throws if the format is not recognised.
  */
 export function colorFromHex(hex: string): Color {
-  const h = hex.startsWith('#') ? hex.slice(1) : hex;
+  const h = hex.startsWith("#") ? hex.slice(1) : hex;
   let r: number,
     g: number,
     b: number,
@@ -75,7 +75,7 @@ export function colorToHex(c: Color): string {
   const toHexByte = (v: number) =>
     Math.round(clamp01(v) * 255)
       .toString(16)
-      .padStart(2, '0');
+      .padStart(2, "0");
   return `#${toHexByte(c.r)}${toHexByte(c.g)}${toHexByte(c.b)}${toHexByte(c.a)}`;
 }
 

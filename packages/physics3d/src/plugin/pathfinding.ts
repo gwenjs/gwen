@@ -4,8 +4,8 @@
  * Contains the MinHeap data structure and local-mode pathfinding implementation.
  */
 
-import type { Physics3DVec3, PathWaypoint3D } from '../types';
-import type { PluginContext } from './plugin-context';
+import type { Physics3DVec3, PathWaypoint3D } from "../types";
+import type { PluginContext } from "./plugin-context";
 
 // ─── MinHeap ───────────────────────────────────────────────────────────────────
 
@@ -101,7 +101,7 @@ export function localFindPath3D(
 ): PathWaypoint3D[] {
   if (!ctx._localNavGrid) {
     if (import.meta.env.DEV) {
-      ctx.log.warn('findPath3D(): no nav grid uploaded — call initNavGrid3D() first');
+      ctx.log.warn("findPath3D(): no nav grid uploaded — call initNavGrid3D() first");
     }
     return [{ x: to.x, y: to.y, z: to.z }];
   }
@@ -195,7 +195,7 @@ export function localFindPath3D(
   const path: PathWaypoint3D[] = [];
   let cur: CellKey | undefined = goalKey;
   while (cur !== undefined) {
-    const parts = cur.split(',');
+    const parts = cur.split(",");
     path.unshift(cellToWorld(Number(parts[0]), Number(parts[1]), Number(parts[2])));
     cur = cameFrom.get(cur);
   }

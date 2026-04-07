@@ -5,9 +5,9 @@
  * inside `defineSystem()`, `engine.run(fn)`, or a plugin lifecycle hook.
  */
 
-import { useEngine, GwenPluginNotFoundError } from '@gwenjs/core';
-import type { Physics3DAPI } from './types';
-import './augment';
+import { useEngine, GwenPluginNotFoundError } from "@gwenjs/core";
+import type { Physics3DAPI } from "./types";
+import "./augment";
 
 /**
  * Returns the Physics 3D API service registered by `physics3dPlugin()`.
@@ -27,11 +27,11 @@ import './augment';
  */
 export function usePhysics3D(): Physics3DAPI {
   const engine = useEngine();
-  const service = engine.tryInject('physics3d');
+  const service = engine.tryInject("physics3d");
   if (service) return service;
   throw new GwenPluginNotFoundError({
-    pluginName: '@gwenjs/physics3d',
-    hint: 'Call engine.use(physics3dPlugin()) before starting the engine.',
-    docsUrl: 'https://gwenengine.dev/plugins/physics3d',
+    pluginName: "@gwenjs/physics3d",
+    hint: "Call engine.use(physics3dPlugin()) before starting the engine.",
+    docsUrl: "https://gwenengine.dev/plugins/physics3d",
   });
 }

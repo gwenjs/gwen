@@ -2,16 +2,16 @@
  * @fileoverview Character controller creation and management.
  */
 
-import type { EntityId } from '@gwenjs/core';
+import type { EntityId } from "@gwenjs/core";
 import type {
   Physics3DAPI,
   Physics3DVec3,
   CharacterControllerOpts,
   CharacterControllerHandle,
-} from '../types';
-import { toEntityIndex } from './physics3d-utils';
-import { entityIndexToId } from './plugin-helpers';
-import type { PluginContext } from './plugin-context';
+} from "../types";
+import { toEntityIndex } from "./physics3d-utils";
+import { entityIndexToId } from "./plugin-helpers";
+import type { PluginContext } from "./plugin-context";
 
 /**
  * Returns a {@link CharacterControllerHandle} whose `move()` is a no-op and
@@ -38,10 +38,9 @@ function createInertCharacterControllerHandle(): CharacterControllerHandle {
   } satisfies CharacterControllerHandle;
 }
 
-export function createCharacterControllerMethods(ctx: PluginContext): Pick<
-  Physics3DAPI,
-  'addCharacterController' | 'removeCharacterController'
-> {
+export function createCharacterControllerMethods(
+  ctx: PluginContext,
+): Pick<Physics3DAPI, "addCharacterController" | "removeCharacterController"> {
   return {
     addCharacterController(
       entityId: EntityId,
@@ -58,7 +57,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
 
       const entityIndex = toEntityIndex(entityId);
 
-      if (ctx.backendMode === 'wasm') {
+      if (ctx.backendMode === "wasm") {
         const slotIndex =
           ctx.wasmBridge?.physics3d_add_character_controller?.(
             entityIndex,
@@ -72,7 +71,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
 
         if (slotIndex === 0xffffffff) {
           if (import.meta.env.DEV) {
-            ctx.log.warn('addCharacterController: CC pool exhausted (max 32 controllers)');
+            ctx.log.warn("addCharacterController: CC pool exhausted (max 32 controllers)");
           }
           return createInertCharacterControllerHandle();
         }
@@ -170,7 +169,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
         },
         move(v: Physics3DVec3, dt: number) {
           if (import.meta.env.DEV && !ctx._emittedCCLocalWarning) {
-            ctx.log.warn('CharacterController uses local fallback — step-up/slope not supported');
+            ctx.log.warn("CharacterController uses local fallback — step-up/slope not supported");
             ctx._emittedCCLocalWarning = true;
           }
           const state = ctx.stateByEntity.get(entityIndex);
@@ -189,7 +188,7 @@ export function createCharacterControllerMethods(ctx: PluginContext): Pick<
     removeCharacterController(entityId: EntityId): void {
       const entityIndex = toEntityIndex(entityId);
       ctx.ccRegistrations.delete(entityIndex);
-      if (ctx.backendMode === 'wasm') {
+      if (ctx.backendMode === "wasm") {
         ctx.wasmBridge?.physics3d_remove_character_controller?.(entityIndex);
       }
     },

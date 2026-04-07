@@ -13,18 +13,18 @@
  * Baseline machine: M-series Mac, single-threaded Node 20.
  */
 
-import { expect, test } from 'vitest';
-import { EntityManager, ComponentRegistry, QueryEngine } from '../src/core/ecs';
-import { defineComponent, Types } from '../src/schema';
+import { expect, test } from "vitest";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { defineComponent, Types } from "../src/schema";
 
 // ── Component definitions ─────────────────────────────────────────────────────
 
-const Position = defineComponent({ name: 'Position', schema: { x: Types.f32, y: Types.f32 } });
-const Velocity = defineComponent({ name: 'Velocity', schema: { vx: Types.f32, vy: Types.f32 } });
+const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
+const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
 
 // ── Gate 1: createEntity() × 1000 ────────────────────────────────────────────
 
-test('createEntity() × 1000 completes in < 50ms', () => {
+test("createEntity() × 1000 completes in < 50ms", () => {
   const start = performance.now();
 
   const em = new EntityManager(1_000);
@@ -38,7 +38,7 @@ test('createEntity() × 1000 completes in < 50ms', () => {
 
 // ── Gate 2: getComponent() × 1000 ────────────────────────────────────────────
 
-test('getComponent() × 1000 completes in < 50ms', () => {
+test("getComponent() × 1000 completes in < 50ms", () => {
   // Pre-populate world outside the timed section.
   const em = new EntityManager(1_000);
   const cr = new ComponentRegistry();
@@ -62,7 +62,7 @@ test('getComponent() × 1000 completes in < 50ms', () => {
 
 // ── Gate 3: useQuery iteration over 10 000 entities ───────────────────────────
 
-test('QueryEngine.resolve iteration over 10 000 entities completes in < 100ms', () => {
+test("QueryEngine.resolve iteration over 10 000 entities completes in < 100ms", () => {
   // Pre-populate world outside the timed section.
   const em = new EntityManager(10_000);
   const cr = new ComponentRegistry();

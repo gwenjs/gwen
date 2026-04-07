@@ -6,16 +6,16 @@
  * @module @gwenjs/schema
  */
 
-import { defu } from 'defu';
-import type { GwenOptions, GwenConfigInput, GwenPluginBase, GwenModuleEntry } from './config';
-import { validateResolvedConfig } from './validate.js';
+import { defu } from "defu";
+import type { GwenOptions, GwenConfigInput, GwenPluginBase, GwenModuleEntry } from "./config";
+import { validateResolvedConfig } from "./validate.js";
 
 function isPluginBase(value: unknown): value is GwenPluginBase {
   return (
-    typeof value === 'object' &&
+    typeof value === "object" &&
     value !== null &&
-    'name' in value &&
-    typeof (value as { name?: unknown }).name === 'string'
+    "name" in value &&
+    typeof (value as { name?: unknown }).name === "string"
   );
 }
 
@@ -46,19 +46,19 @@ export const defaultOptions: GwenOptions = {
     debug: false,
     enableStats: true,
     sparseTransformSync: true,
-    loop: 'internal',
+    loop: "internal",
     maxDeltaSeconds: 0.1,
   },
   html: {
-    title: 'GWEN Project',
-    background: '#000000',
+    title: "GWEN Project",
+    background: "#000000",
   },
   modules: [],
   plugins: [],
   scenes: [],
-  scenesMode: 'auto',
-  srcDir: 'src',
-  outDir: 'dist',
+  scenesMode: "auto",
+  srcDir: "src",
+  outDir: "dist",
 };
 
 /**
@@ -104,7 +104,7 @@ export function resolveConfig(input: GwenConfigInput = {}): GwenOptions {
     modules,
     plugins,
     scenes: merged.scenes ?? [],
-    scenesMode: merged.scenesMode ?? 'auto',
+    scenesMode: merged.scenesMode ?? "auto",
     srcDir: merged.srcDir,
     outDir: merged.outDir,
   };

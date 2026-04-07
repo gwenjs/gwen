@@ -5,8 +5,8 @@ import type {
   TilemapChunkRect,
   TilemapPhysicsChunk,
   TilemapPhysicsChunkMap,
-} from '../types';
-import { TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION } from '../types';
+} from "../types";
+import { TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION } from "../types";
 
 const DEFAULT_CHUNK_SIZE_TILES = 16;
 const DEFAULT_TILE_SIZE_PX = 16;
@@ -21,7 +21,7 @@ function fnv1a32(input: string): string {
     hash ^= input.charCodeAt(i);
     hash = Math.imul(hash, 0x01000193);
   }
-  return (hash >>> 0).toString(16).padStart(8, '0');
+  return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
 function makeColliderFromRect(
@@ -31,17 +31,17 @@ function makeColliderFromRect(
 ): PhysicsColliderDef {
   return {
     id: `chunk_rect_${index}`,
-    shape: 'box',
+    shape: "box",
     hw: (rect.w * tileSizePx) / 2,
     hh: (rect.h * tileSizePx) / 2,
     offsetX: (rect.x + rect.w / 2) * tileSizePx,
     offsetY: (rect.y + rect.h / 2) * tileSizePx,
-    groundedRole: 'none',
+    groundedRole: "none",
   };
 }
 
 function rectSignature(rects: readonly TilemapChunkRect[]): string {
-  return rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join('|');
+  return rects.map((r) => `${r.x},${r.y},${r.w},${r.h}`).join("|");
 }
 
 function bakeChunkRects(

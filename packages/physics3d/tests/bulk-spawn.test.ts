@@ -1,7 +1,7 @@
 /**
  * Tests for Physics3DAPI.bulkSpawnStaticBoxes — local and WASM modes.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ── WASM bridge mock (physics3d variant, with bulk spawn) ─────────────────────
 
@@ -14,7 +14,7 @@ const physics3dBulkSpawnStaticBoxes = vi.fn().mockReturnValue(0);
 let entityCounter = 0;
 
 const mockBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getPhysicsBridge: vi.fn(() => ({
     physics3d_init: physics3dInit,
     physics3d_step: physics3dStep,
@@ -23,15 +23,15 @@ const mockBridge = {
   })),
 };
 
-vi.mock('@gwenjs/core', () => ({
+vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
 }));
 
-import { Physics3DPlugin, type Physics3DAPI } from '../src/index';
-import type { GwenEngine, EntityId } from '@gwenjs/core';
+import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
+import type { GwenEngine, EntityId } from "@gwenjs/core";
 
 function makeEngine() {
   const services = new Map<string, unknown>();
@@ -62,7 +62,7 @@ function makeEngine() {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
+describe("bulkSpawnStaticBoxes — local mode (no bulk WASM call)", () => {
   function setup() {
     const { engine, services } = makeEngine();
     const plugin = Physics3DPlugin();
@@ -73,7 +73,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
       // NO physics3d_add_body → local mode
     });
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     return { service, engine };
   }
 
@@ -83,7 +83,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     mockBridge.getPhysicsBridge.mockReset();
   });
 
-  it('returns count equal to positions.length / 3', () => {
+  it("returns count equal to positions.length / 3", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0, 10, 0, 0]);
     const { count } = service.bulkSpawnStaticBoxes({
@@ -93,7 +93,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     expect(count).toBe(3);
   });
 
-  it('returns entityIds array of length N', () => {
+  it("returns entityIds array of length N", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 1, 0, 0]);
     const { entityIds } = service.bulkSpawnStaticBoxes({
@@ -103,7 +103,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     expect(entityIds).toHaveLength(2);
   });
 
-  it('creates entity IDs by calling engine.createEntity() N times', () => {
+  it("creates entity IDs by calling engine.createEntity() N times", () => {
     const { service, engine } = setup();
     const positions = new Float32Array([0, 0, 0, 1, 0, 0, 2, 0, 0]);
     service.bulkSpawnStaticBoxes({
@@ -115,7 +115,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     ).toHaveBeenCalledTimes(3);
   });
 
-  it('spawned entities are tracked by hasBody', () => {
+  it("spawned entities are tracked by hasBody", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0]);
     const { entityIds } = service.bulkSpawnStaticBoxes({
@@ -127,7 +127,7 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     }
   });
 
-  it('uses per-box halfExtents when length === N×3 (local mode)', () => {
+  it("uses per-box halfExtents when length === N×3 (local mode)", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0]);
     // Per-box: box 0 → [0.5, 0.5, 0.5], box 1 → [1.0, 2.0, 0.3]
@@ -137,18 +137,18 @@ describe('bulkSpawnStaticBoxes — local mode (no bulk WASM call)', () => {
     expect(entityIds).toHaveLength(2);
   });
 
-  it('throws RangeError when positions.length is not a multiple of 3', () => {
+  it("throws RangeError when positions.length is not a multiple of 3", () => {
     const { service } = setup();
     expect(() =>
       service.bulkSpawnStaticBoxes({
         positions: new Float32Array([0, 0, 0, 1, 0]), // length 5 — invalid
         halfExtents: new Float32Array([0.5, 0.5, 0.5]),
       }),
-    ).toThrow('[GWEN:Physics3D] positions.length must be a multiple of 3');
+    ).toThrow("[GWEN:Physics3D] positions.length must be a multiple of 3");
   });
 });
 
-describe('bulkSpawnStaticBoxes — WASM mode', () => {
+describe("bulkSpawnStaticBoxes — WASM mode", () => {
   function setup() {
     const { engine, services } = makeEngine();
     // Restore full bridge with bulk spawn
@@ -160,7 +160,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     });
     const plugin = Physics3DPlugin();
     plugin.setup(engine);
-    const service = services.get('physics3d') as Physics3DAPI;
+    const service = services.get("physics3d") as Physics3DAPI;
     return { service, engine };
   }
 
@@ -173,7 +173,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     mockBridge.getPhysicsBridge.mockReset();
   });
 
-  it('calls physics3d_bulk_spawn_static_boxes once for N entities', () => {
+  it("calls physics3d_bulk_spawn_static_boxes once for N entities", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0, 10, 0, 0]);
     service.bulkSpawnStaticBoxes({
@@ -183,7 +183,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     expect(physics3dBulkSpawnStaticBoxes).toHaveBeenCalledOnce();
   });
 
-  it('passes a Uint32Array of entity indices as first argument', () => {
+  it("passes a Uint32Array of entity indices as first argument", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0]);
     service.bulkSpawnStaticBoxes({
@@ -195,7 +195,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     expect(entityIndices).toHaveLength(2);
   });
 
-  it('passes friction and restitution to bulk call', () => {
+  it("passes friction and restitution to bulk call", () => {
     const { service } = setup();
     service.bulkSpawnStaticBoxes({
       positions: new Float32Array([0, 0, 0]),
@@ -209,7 +209,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     expect(args[4]).toBeCloseTo(0.1);
   });
 
-  it('returns count matching WASM return value', () => {
+  it("returns count matching WASM return value", () => {
     const { service } = setup();
     physics3dBulkSpawnStaticBoxes.mockReturnValue(5);
     const positions = new Float32Array(Array.from({ length: 15 }, () => 0)); // 5 entities × 3
@@ -220,7 +220,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     expect(count).toBe(5);
   });
 
-  it('marks all spawned entities as hasBody', () => {
+  it("marks all spawned entities as hasBody", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0, 10, 0, 0]);
     const { entityIds } = service.bulkSpawnStaticBoxes({
@@ -232,7 +232,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     }
   });
 
-  it('passes per-box halfExtents buffer through to WASM unchanged', () => {
+  it("passes per-box halfExtents buffer through to WASM unchanged", () => {
     const { service } = setup();
     const positions = new Float32Array([0, 0, 0, 5, 0, 0]);
     // Per-box: box 0 → [0.5, 0.5, 0.5], box 1 → [1.0, 2.0, 0.3]
@@ -243,7 +243,7 @@ describe('bulkSpawnStaticBoxes — WASM mode', () => {
     expect(args[2]).toBe(halfExtents);
   });
 
-  it('only registers spawned entities when WASM returns count < N', () => {
+  it("only registers spawned entities when WASM returns count < N", () => {
     const { service } = setup();
     // Mock WASM returning only 1 even though 3 were requested
     physics3dBulkSpawnStaticBoxes.mockReturnValue(1);

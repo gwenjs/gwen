@@ -3,8 +3,8 @@ import type {
   Physics2DAPI,
   TilemapPhysicsChunk,
   TilemapPhysicsChunkMap,
-} from '../types';
-import { buildTilemapPhysicsChunks } from './tilemap';
+} from "../types";
+import { buildTilemapPhysicsChunks } from "./tilemap";
 
 /**
  * Build merged static geometry chunks from a tilemap source.

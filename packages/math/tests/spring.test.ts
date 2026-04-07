@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   makeSpring1D,
   makeSpring2D,
@@ -12,38 +12,38 @@ import {
   criticalOpts,
   bouncyOpts,
   sluggishOpts,
-} from '../src/spring.js';
+} from "../src/spring.js";
 
 const dt = 1 / 60;
 
-describe('makeSpring1D', () => {
-  it('creates state with given value', () => {
+describe("makeSpring1D", () => {
+  it("creates state with given value", () => {
     const s = makeSpring1D(5);
     expect(s.value).toBe(5);
     expect(s.velocity).toBe(0);
   });
-  it('accepts initial velocity', () => {
+  it("accepts initial velocity", () => {
     const s = makeSpring1D(0, 10);
     expect(s.velocity).toBe(10);
   });
 });
 
-describe('stepSpring1D', () => {
-  it('mutates state in-place', () => {
+describe("stepSpring1D", () => {
+  it("mutates state in-place", () => {
     const s = makeSpring1D(0);
     const ref = s;
     stepSpring1D(s, 100, criticalOpts(200), dt);
     expect(s).toBe(ref); // same object
     expect(s.value).toBeGreaterThan(0);
   });
-  it('converges to target over many steps', () => {
+  it("converges to target over many steps", () => {
     const s = makeSpring1D(0);
     const opts = criticalOpts(300);
     for (let i = 0; i < 500; i++) stepSpring1D(s, 100, opts, dt);
     expect(s.value).toBeCloseTo(100, 1);
     expect(s.velocity).toBeCloseTo(0, 1);
   });
-  it('can overshoot with underdamped spring', () => {
+  it("can overshoot with underdamped spring", () => {
     const s = makeSpring1D(0);
     const opts = bouncyOpts(300, 0.2);
     let maxValue = 0;
@@ -55,14 +55,14 @@ describe('stepSpring1D', () => {
   });
 });
 
-describe('spring1D (functional)', () => {
-  it('does not mutate input state', () => {
+describe("spring1D (functional)", () => {
+  it("does not mutate input state", () => {
     const s = makeSpring1D(0);
     spring1D(s, 100, criticalOpts(200), dt);
     expect(s.value).toBe(0);
     expect(s.velocity).toBe(0);
   });
-  it('returns new state object', () => {
+  it("returns new state object", () => {
     const s = makeSpring1D(0);
     const s2 = spring1D(s, 100, criticalOpts(200), dt);
     expect(s2).not.toBe(s);
@@ -70,14 +70,14 @@ describe('spring1D (functional)', () => {
   });
 });
 
-describe('stepSpring2D', () => {
-  it('moves each axis towards target', () => {
+describe("stepSpring2D", () => {
+  it("moves each axis towards target", () => {
     const s = makeSpring2D(0, 0);
     stepSpring2D(s, { x: 10, y: -5 }, criticalOpts(200), dt);
     expect(s.x).toBeGreaterThan(0);
     expect(s.y).toBeLessThan(0);
   });
-  it('converges over many steps', () => {
+  it("converges over many steps", () => {
     const s = makeSpring2D(0, 0);
     const opts = criticalOpts(300);
     for (let i = 0; i < 500; i++) stepSpring2D(s, { x: 10, y: 20 }, opts, dt);
@@ -86,8 +86,8 @@ describe('stepSpring2D', () => {
   });
 });
 
-describe('spring2D (functional)', () => {
-  it('does not mutate state', () => {
+describe("spring2D (functional)", () => {
+  it("does not mutate state", () => {
     const s = makeSpring2D(0, 0);
     spring2D(s, { x: 10, y: 10 }, criticalOpts(200), dt);
     expect(s.x).toBe(0);
@@ -95,15 +95,15 @@ describe('spring2D (functional)', () => {
   });
 });
 
-describe('stepSpring3D', () => {
-  it('moves each axis towards target', () => {
+describe("stepSpring3D", () => {
+  it("moves each axis towards target", () => {
     const s = makeSpring3D(0, 0, 0);
     stepSpring3D(s, { x: 1, y: 2, z: 3 }, criticalOpts(200), dt);
     expect(s.x).toBeGreaterThan(0);
     expect(s.y).toBeGreaterThan(0);
     expect(s.z).toBeGreaterThan(0);
   });
-  it('converges over many steps', () => {
+  it("converges over many steps", () => {
     const s = makeSpring3D(0, 0, 0);
     const opts = criticalOpts(300);
     const target = { x: 5, y: -3, z: 10 };
@@ -114,8 +114,8 @@ describe('stepSpring3D', () => {
   });
 });
 
-describe('spring3D (functional)', () => {
-  it('does not mutate state', () => {
+describe("spring3D (functional)", () => {
+  it("does not mutate state", () => {
     const s = makeSpring3D(1, 2, 3);
     spring3D(s, { x: 0, y: 0, z: 0 }, criticalOpts(200), dt);
     expect(s.x).toBe(1);
@@ -124,16 +124,16 @@ describe('spring3D (functional)', () => {
   });
 });
 
-describe('spring presets', () => {
-  it('criticalOpts — damping = 2*sqrt(stiffness)', () => {
+describe("spring presets", () => {
+  it("criticalOpts — damping = 2*sqrt(stiffness)", () => {
     const opts = criticalOpts(100);
     expect(opts.damping).toBeCloseTo(2 * Math.sqrt(100));
   });
-  it('bouncyOpts — damping < critical', () => {
+  it("bouncyOpts — damping < critical", () => {
     const opts = bouncyOpts(100);
     expect(opts.damping).toBeLessThan(2 * Math.sqrt(100));
   });
-  it('sluggishOpts — damping > critical', () => {
+  it("sluggishOpts — damping > critical", () => {
     const opts = sluggishOpts(100);
     expect(opts.damping).toBeGreaterThan(2 * Math.sqrt(100));
   });

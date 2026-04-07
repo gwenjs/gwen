@@ -2,7 +2,7 @@
  * @file RFC-004 — defineGwenModule, GwenKit, AutoImport, GwenTypeTemplate
  */
 
-import type { GwenPlugin } from '@gwenjs/core';
+import type { GwenPlugin } from "@gwenjs/core";
 
 // ─── DeepPartial helper ───────────────────────────────────────────────────────
 
@@ -164,15 +164,15 @@ export type ViteUserConfig = Record<string, unknown>;
  */
 export interface GwenBuildHooks {
   /** Fired before any module setup runs. */
-  'build:before': () => void;
+  "build:before": () => void;
   /** Fired after all module setup is complete. */
-  'build:done': () => void;
+  "build:done": () => void;
   /** Fired before each module's `setup()` runs. */
-  'module:before': (mod: { meta: { name: string } }) => void;
+  "module:before": (mod: { meta: { name: string } }) => void;
   /** Fired after each module's `setup()` completes. */
-  'module:done': (mod: { meta: { name: string } }) => void;
+  "module:done": (mod: { meta: { name: string } }) => void;
   /** Fired by each module when it extends the Vite config. */
-  'vite:extendConfig': (config: ViteUserConfig) => void;
+  "vite:extendConfig": (config: ViteUserConfig) => void;
 }
 
 // ─── GwenBaseConfig ──────────────────────────────────────────────────────────

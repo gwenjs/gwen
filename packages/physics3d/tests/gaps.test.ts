@@ -7,7 +7,7 @@
  * 4. mesh/convex AABB computed from vertices
  * 5. Local-mode 3D A* pathfinding via initNavGrid3D + findPath3D
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 // ─── WASM mock setup ─────────────────────────────────────────────────────────
 
@@ -34,7 +34,7 @@ const CC_SAB_TEST_OFFSET = 4;
 let _ccTestSAB: SharedArrayBuffer = new SharedArrayBuffer(65536);
 
 const mockBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getLinearMemory: vi.fn(() => ({
     buffer: new SharedArrayBuffer(65536),
     byteLength: 65536,
@@ -62,7 +62,7 @@ const mockBridge = {
 
 /** Local-mode bridge: omits physics3d_add_body to force local simulation. */
 const _mockLocalBridge = {
-  variant: 'physics3d' as const,
+  variant: "physics3d" as const,
   getLinearMemory: vi.fn(() => null),
   getPhysicsBridge: vi.fn(() => ({
     physics3d_init: physics3dInit,
@@ -72,7 +72,7 @@ const _mockLocalBridge = {
   getEntityGeneration: vi.fn((_index: number) => 0),
 };
 
-vi.mock('@gwenjs/core', () => ({
+vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({
     index: Number(id & 0xffffffffn),
@@ -82,9 +82,9 @@ vi.mock('@gwenjs/core', () => ({
     BigInt(index) | (BigInt(generation) << 32n),
 }));
 
-import { Physics3DPlugin, type Physics3DAPI } from '../src/index';
-import type { GwenEngine } from '@gwenjs/core';
-import { computeColliderAABB } from '../src/plugin/physics3d-utils';
+import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
+import type { GwenEngine } from "@gwenjs/core";
+import { computeColliderAABB } from "../src/plugin/physics3d-utils";
 
 // ─── Engine / service factory ─────────────────────────────────────────────────
 
@@ -130,7 +130,7 @@ function setupWasm(): { service: Physics3DAPI } {
   const plugin = Physics3DPlugin();
   const { engine, services } = makeEngine();
   plugin.setup(engine);
-  return { service: services.get('physics3d') as Physics3DAPI };
+  return { service: services.get("physics3d") as Physics3DAPI };
 }
 
 /**
@@ -165,7 +165,7 @@ function setupWasmWithCcSab(): { service: Physics3DAPI; ccView: Float32Array } {
   const plugin = Physics3DPlugin();
   const { engine, services } = makeEngine();
   plugin.setup(engine);
-  return { service: services.get('physics3d') as Physics3DAPI, ccView };
+  return { service: services.get("physics3d") as Physics3DAPI, ccView };
 }
 
 /**
@@ -180,7 +180,7 @@ function setupLocal(): { service: Physics3DAPI } {
   const plugin = Physics3DPlugin();
   const { engine, services } = makeEngine();
   plugin.setup(engine);
-  return { service: services.get('physics3d') as Physics3DAPI };
+  return { service: services.get("physics3d") as Physics3DAPI };
 }
 
 beforeEach(() => {
@@ -198,26 +198,26 @@ beforeEach(() => {
 
 // ─── Gap 1: fixedRotation ─────────────────────────────────────────────────────
 
-describe('Gap 1: fixedRotation in createBody', () => {
-  it('WASM mode — calls physics3d_lock_rotations(all=true) when fixedRotation is true', () => {
+describe("Gap 1: fixedRotation in createBody", () => {
+  it("WASM mode — calls physics3d_lock_rotations(all=true) when fixedRotation is true", () => {
     const { service } = setupWasm();
     service.createBody(1, { fixedRotation: true });
     expect(physics3dLockRotations).toHaveBeenCalledWith(1, true, true, true);
   });
 
-  it('WASM mode — does NOT call physics3d_lock_rotations when fixedRotation is false', () => {
+  it("WASM mode — does NOT call physics3d_lock_rotations when fixedRotation is false", () => {
     const { service } = setupWasm();
     service.createBody(2, { fixedRotation: false });
     expect(physics3dLockRotations).not.toHaveBeenCalled();
   });
 
-  it('WASM mode — does NOT call physics3d_lock_rotations when fixedRotation is omitted', () => {
+  it("WASM mode — does NOT call physics3d_lock_rotations when fixedRotation is omitted", () => {
     const { service } = setupWasm();
-    service.createBody(3, { kind: 'dynamic', mass: 1 });
+    service.createBody(3, { kind: "dynamic", mass: 1 });
     expect(physics3dLockRotations).not.toHaveBeenCalled();
   });
 
-  it('local mode — body created with fixedRotation=true cannot rotate (lockRotations applied)', () => {
+  it("local mode — body created with fixedRotation=true cannot rotate (lockRotations applied)", () => {
     const { service } = setupLocal();
     // Create body with fixedRotation and give it angular velocity
     service.createBody(10, { fixedRotation: true });
@@ -233,34 +233,34 @@ describe('Gap 1: fixedRotation in createBody', () => {
 
 // ─── Gap 2: quality (per-body solver iterations) ─────────────────────────────
 
-describe('Gap 2: per-body quality preset', () => {
+describe("Gap 2: per-body quality preset", () => {
   it('WASM mode — "high" quality calls physics3d_set_body_solver_iterations with 1', () => {
     const { service } = setupWasm();
-    service.createBody(20, { quality: 'high' });
+    service.createBody(20, { quality: "high" });
     expect(physics3dSetBodySolverIterations).toHaveBeenCalledWith(20, 1);
   });
 
   it('WASM mode — "esport" quality calls physics3d_set_body_solver_iterations with 2', () => {
     const { service } = setupWasm();
-    service.createBody(21, { quality: 'esport' });
+    service.createBody(21, { quality: "esport" });
     expect(physics3dSetBodySolverIterations).toHaveBeenCalledWith(21, 2);
   });
 
   it('WASM mode — "low" quality does NOT call physics3d_set_body_solver_iterations (0 iters)', () => {
     const { service } = setupWasm();
-    service.createBody(22, { quality: 'low' });
+    service.createBody(22, { quality: "low" });
     expect(physics3dSetBodySolverIterations).not.toHaveBeenCalled();
   });
 
   it('WASM mode — "medium" quality does NOT call physics3d_set_body_solver_iterations (0 iters)', () => {
     const { service } = setupWasm();
-    service.createBody(23, { quality: 'medium' });
+    service.createBody(23, { quality: "medium" });
     expect(physics3dSetBodySolverIterations).not.toHaveBeenCalled();
   });
 
-  it('WASM mode — omitted quality does NOT call physics3d_set_body_solver_iterations', () => {
+  it("WASM mode — omitted quality does NOT call physics3d_set_body_solver_iterations", () => {
     const { service } = setupWasm();
-    service.createBody(24, { kind: 'dynamic' });
+    service.createBody(24, { kind: "dynamic" });
     expect(physics3dSetBodySolverIterations).not.toHaveBeenCalled();
   });
 });
@@ -278,10 +278,10 @@ function u32ToF32Bits(u: number): number {
   return view.getFloat32(0, true);
 }
 
-describe('Gap 3: CharacterController CC SAB state reads', () => {
-  it('reads isGrounded=true and groundNormal from CC SAB slot 0', () => {
+describe("Gap 3: CharacterController CC SAB state reads", () => {
+  it("reads isGrounded=true and groundNormal from CC SAB slot 0", () => {
     const { service, ccView } = setupWasmWithCcSab();
-    service.createBody(30, { kind: 'dynamic' });
+    service.createBody(30, { kind: "dynamic" });
 
     // Pre-populate SAB slot 0: grounded=1, nx=0, ny=1, nz=0, groundEntity=0xFFFFFFFF (none)
     ccView[0] = 1.0; // grounded
@@ -290,7 +290,7 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     ccView[3] = 0.0; // nz
     ccView[4] = u32ToF32Bits(0xffffffff); // no ground entity
 
-    const cc = service.addCharacterController(30 as unknown as import('@gwenjs/core').EntityId);
+    const cc = service.addCharacterController(30 as unknown as import("@gwenjs/core").EntityId);
     cc.move({ x: 0, y: -5, z: 0 }, 1 / 60);
 
     expect(cc.isGrounded).toBe(true);
@@ -298,9 +298,9 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     expect(cc.groundEntity).toBeNull();
   });
 
-  it('reads groundEntity from CC SAB when grounded on a dynamic body', () => {
+  it("reads groundEntity from CC SAB when grounded on a dynamic body", () => {
     const { service, ccView } = setupWasmWithCcSab();
-    service.createBody(31, { kind: 'dynamic' });
+    service.createBody(31, { kind: "dynamic" });
 
     // Slot 0: grounded, entity index 5
     ccView[0] = 1.0;
@@ -309,7 +309,7 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     ccView[3] = 0.0;
     ccView[4] = u32ToF32Bits(5);
 
-    const cc = service.addCharacterController(31 as unknown as import('@gwenjs/core').EntityId);
+    const cc = service.addCharacterController(31 as unknown as import("@gwenjs/core").EntityId);
     cc.move({ x: 0, y: -5, z: 0 }, 1 / 60);
 
     expect(cc.isGrounded).toBe(true);
@@ -318,9 +318,9 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     expect(Number(cc.groundEntity) & 0xffffffff).toBe(5);
   });
 
-  it('reads isGrounded=false and clears groundEntity when SAB slot has grounded=0', () => {
+  it("reads isGrounded=false and clears groundEntity when SAB slot has grounded=0", () => {
     const { service, ccView } = setupWasmWithCcSab();
-    service.createBody(32, { kind: 'dynamic' });
+    service.createBody(32, { kind: "dynamic" });
 
     // Slot 0: not grounded
     ccView[0] = 0.0;
@@ -329,7 +329,7 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     ccView[3] = 0.0;
     ccView[4] = u32ToF32Bits(0xffffffff);
 
-    const cc = service.addCharacterController(32 as unknown as import('@gwenjs/core').EntityId);
+    const cc = service.addCharacterController(32 as unknown as import("@gwenjs/core").EntityId);
     cc.move({ x: 0, y: -5, z: 0 }, 1 / 60);
 
     expect(cc.isGrounded).toBe(false);
@@ -337,12 +337,12 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
     expect(cc.groundEntity).toBeNull();
   });
 
-  it('defaults isGrounded=false when CC SAB view is null (ptr=0)', () => {
+  it("defaults isGrounded=false when CC SAB view is null (ptr=0)", () => {
     // Default setup: ptr=0 → ccSABView.view = null
     const { service } = setupWasm();
-    service.createBody(33, { kind: 'dynamic' });
+    service.createBody(33, { kind: "dynamic" });
 
-    const cc = service.addCharacterController(33 as unknown as import('@gwenjs/core').EntityId);
+    const cc = service.addCharacterController(33 as unknown as import("@gwenjs/core").EntityId);
     // Should not throw — SAB view is null so defaults to false
     expect(() => cc.move({ x: 0, y: -5, z: 0 }, 1 / 60)).not.toThrow();
     expect(cc.isGrounded).toBe(false);
@@ -353,42 +353,42 @@ describe('Gap 3: CharacterController CC SAB state reads', () => {
 
 // ─── CC SAB memory map ────────────────────────────────────────────────────────
 
-describe('CC SAB memory map', () => {
-  it('addCharacterController returns compact slot 0 for first CC', () => {
+describe("CC SAB memory map", () => {
+  it("addCharacterController returns compact slot 0 for first CC", () => {
     physics3dAddCharacterController.mockReturnValue(0);
     const { service } = setupWasm();
-    service.createBody(40, { kind: 'dynamic' });
+    service.createBody(40, { kind: "dynamic" });
     // The handle is returned; the slotIndex captured internally should be 0
-    const handle = service.addCharacterController(40 as unknown as import('@gwenjs/core').EntityId);
+    const handle = service.addCharacterController(40 as unknown as import("@gwenjs/core").EntityId);
     expect(handle).toBeDefined();
-    expect(typeof handle.isGrounded).toBe('boolean');
-    expect(typeof handle.move).toBe('function');
+    expect(typeof handle.isGrounded).toBe("boolean");
+    expect(typeof handle.move).toBe("function");
   });
 
-  it('move() calls physics3d_character_controller_move with correct args', () => {
+  it("move() calls physics3d_character_controller_move with correct args", () => {
     const { service } = setupWasm();
-    service.createBody(41, { kind: 'dynamic' });
-    const cc = service.addCharacterController(41 as unknown as import('@gwenjs/core').EntityId);
+    service.createBody(41, { kind: "dynamic" });
+    const cc = service.addCharacterController(41 as unknown as import("@gwenjs/core").EntityId);
     cc.move({ x: 1, y: -5, z: 2 }, 1 / 60);
     expect(physics3dCharacterControllerMove).toHaveBeenCalledWith(41, 1, -5, 2, 1 / 60);
   });
 
-  it('move() does not throw and isGrounded is boolean when SAB view is null', () => {
+  it("move() does not throw and isGrounded is boolean when SAB view is null", () => {
     // ptr=0 → no SAB view
     const { service } = setupWasm();
-    service.createBody(42, { kind: 'dynamic' });
-    const handle = service.addCharacterController(42 as unknown as import('@gwenjs/core').EntityId);
+    service.createBody(42, { kind: "dynamic" });
+    const handle = service.addCharacterController(42 as unknown as import("@gwenjs/core").EntityId);
     expect(() => handle.move({ x: 0, y: -5, z: 0 }, 1 / 60)).not.toThrow();
-    expect(typeof handle.isGrounded).toBe('boolean');
+    expect(typeof handle.isGrounded).toBe("boolean");
   });
 
-  it('second CC gets slot 1 from the mock', () => {
+  it("second CC gets slot 1 from the mock", () => {
     physics3dAddCharacterController
       .mockReturnValueOnce(0) // first call → slot 0
       .mockReturnValueOnce(1); // second call → slot 1
     const { service, ccView } = setupWasmWithCcSab();
-    service.createBody(43, { kind: 'dynamic' });
-    service.createBody(44, { kind: 'dynamic' });
+    service.createBody(43, { kind: "dynamic" });
+    service.createBody(44, { kind: "dynamic" });
 
     // Slot 1 (index 5..9 in ccView): grounded
     ccView[5] = 1.0; // grounded flag for slot 1
@@ -397,19 +397,19 @@ describe('CC SAB memory map', () => {
     ccView[8] = 0.0;
     ccView[9] = u32ToF32Bits(0xffffffff);
 
-    const _cc0 = service.addCharacterController(43 as unknown as import('@gwenjs/core').EntityId);
-    const cc1 = service.addCharacterController(44 as unknown as import('@gwenjs/core').EntityId);
+    const _cc0 = service.addCharacterController(43 as unknown as import("@gwenjs/core").EntityId);
+    const cc1 = service.addCharacterController(44 as unknown as import("@gwenjs/core").EntityId);
     cc1.move({ x: 0, y: -5, z: 0 }, 1 / 60);
 
     expect(cc1.isGrounded).toBe(true);
   });
-  it('returns an inert handle and does not throw when CC pool is exhausted', () => {
+  it("returns an inert handle and does not throw when CC pool is exhausted", () => {
     // Mock Rust returning u32::MAX (0xffffffff) = pool exhausted
     const setup = setupWasmWithCcSab();
-    setup.service.createBody(99, { kind: 'dynamic' });
+    setup.service.createBody(99, { kind: "dynamic" });
     physics3dAddCharacterController.mockReturnValueOnce(0xffffffff);
     const handle = setup.service.addCharacterController(
-      99 as unknown as import('@gwenjs/core').EntityId,
+      99 as unknown as import("@gwenjs/core").EntityId,
     );
     expect(() => handle.move({ x: 0, y: -5, z: 0 }, 1 / 60)).not.toThrow();
     expect(handle.isGrounded).toBe(false);
@@ -420,8 +420,8 @@ describe('CC SAB memory map', () => {
 
 // ─── Gap 4: mesh/convex AABB from vertices ────────────────────────────────────
 
-describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
-  it('computes correct tight AABB for a mesh collider with known vertices', () => {
+describe("Gap 4: computeColliderAABB — mesh and convex shapes", () => {
+  it("computes correct tight AABB for a mesh collider with known vertices", () => {
     // Unit cube verts at ±1 on all axes
     const verts = new Float32Array([
       -1, -1, -1, 1, -1, -1, -1, 1, -1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1, 1, 1, 1, 1, 1,
@@ -429,7 +429,7 @@ describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
     const aabb = computeColliderAABB(
       { x: 0, y: 0, z: 0 },
       {
-        shape: { type: 'mesh', vertices: verts, indices: new Uint32Array([0, 1, 2]) },
+        shape: { type: "mesh", vertices: verts, indices: new Uint32Array([0, 1, 2]) },
         offsetX: 0,
         offsetY: 0,
         offsetZ: 0,
@@ -443,12 +443,12 @@ describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
     expect(aabb.maxZ).toBeCloseTo(1);
   });
 
-  it('applies body position offset to mesh AABB', () => {
+  it("applies body position offset to mesh AABB", () => {
     const verts = new Float32Array([-1, -1, -1, 1, 1, 1]);
     const aabb = computeColliderAABB(
       { x: 5, y: 10, z: 3 },
       {
-        shape: { type: 'mesh', vertices: verts, indices: new Uint32Array([0, 1]) },
+        shape: { type: "mesh", vertices: verts, indices: new Uint32Array([0, 1]) },
       },
     );
     // Centre of verts is (0,0,0), half-extents (1,1,1); body at (5,10,3)
@@ -458,12 +458,12 @@ describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
     expect(aabb.maxY).toBeCloseTo(11);
   });
 
-  it('computes correct AABB for a convex collider', () => {
+  it("computes correct AABB for a convex collider", () => {
     const verts = new Float32Array([0, 0, 0, 2, 4, 6]);
     const aabb = computeColliderAABB(
       { x: 0, y: 0, z: 0 },
       {
-        shape: { type: 'convex', vertices: verts },
+        shape: { type: "convex", vertices: verts },
       },
     );
     // Extents: X [0..2], Y [0..4], Z [0..6]; half-extents (1,2,3), centre (1,2,3)
@@ -475,11 +475,11 @@ describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
     expect(aabb.maxZ).toBeCloseTo(6);
   });
 
-  it('returns unit AABB fallback when mesh has no vertices', () => {
+  it("returns unit AABB fallback when mesh has no vertices", () => {
     const aabb = computeColliderAABB(
       { x: 0, y: 0, z: 0 },
       {
-        shape: { type: 'mesh', vertices: new Float32Array([]), indices: new Uint32Array([]) },
+        shape: { type: "mesh", vertices: new Float32Array([]), indices: new Uint32Array([]) },
       },
     );
     expect(aabb.maxX - aabb.minX).toBeCloseTo(1);
@@ -490,10 +490,10 @@ describe('Gap 4: computeColliderAABB — mesh and convex shapes', () => {
 
 // ─── Gap 5: local-mode 3D A* pathfinding ─────────────────────────────────────
 
-describe('Gap 5: local-mode 3D A* pathfinding', () => {
-  it('returns direct path when no nav grid is uploaded', () => {
+describe("Gap 5: local-mode 3D A* pathfinding", () => {
+  it("returns direct path when no nav grid is uploaded", () => {
     const { service } = setupLocal();
-    service.createBody(50, { kind: 'dynamic' });
+    service.createBody(50, { kind: "dynamic" });
 
     const path = service.findPath3D({ x: 0, y: 0, z: 0 }, { x: 10, y: 0, z: 10 });
     // Without a grid, should return a fallback single-waypoint path
@@ -503,7 +503,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     expect(last.z).toBeCloseTo(10);
   });
 
-  it('finds straight-line path through open grid', () => {
+  it("finds straight-line path through open grid", () => {
     const { service } = setupLocal();
 
     // 5×1×5 grid, all walkable (0)
@@ -531,7 +531,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     expect(last.x).toBeCloseTo(4);
   });
 
-  it('navigates around a wall of blocked cells', () => {
+  it("navigates around a wall of blocked cells", () => {
     const { service } = setupLocal();
 
     // 5×1×5 grid — column x=2 is a solid wall except at (2,0,2)
@@ -558,7 +558,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     }
   });
 
-  it('returns fallback two-point path when no route exists', () => {
+  it("returns fallback two-point path when no route exists", () => {
     const { service } = setupLocal();
 
     // 3×1×3 grid — fully blocked except start and goal (unreachable from each other)
@@ -574,7 +574,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     expect(path.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('returns correct world-space coordinates with non-zero origin', () => {
+  it("returns correct world-space coordinates with non-zero origin", () => {
     const { service } = setupLocal();
 
     const width = 3;
@@ -600,7 +600,7 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
     expect(last.x).toBeCloseTo(14);
   });
 
-  it('finds path in large grid within 50ms', () => {
+  it("finds path in large grid within 50ms", () => {
     const { service } = setupLocal();
     // 30×1×30 open corridor = 900 cells
     const W = 30,
@@ -620,14 +620,14 @@ describe('Gap 5: local-mode 3D A* pathfinding', () => {
 
 // ─── MinHeap via _localFindPath3D ─────────────────────────────────────────────
 
-describe('MinHeap via _localFindPath3D', () => {
+describe("MinHeap via _localFindPath3D", () => {
   let physics: Physics3DAPI;
 
   beforeEach(() => {
     physics = setupLocal().service;
   });
 
-  it('returns correct ordered path on 5×1×1 corridor', () => {
+  it("returns correct ordered path on 5×1×1 corridor", () => {
     const grid = new Uint8Array(5); // all walkable
     physics.initNavGrid3D({ grid, width: 5, height: 1, depth: 1, cellSize: 1 });
     const path = physics.findPath3D({ x: 0, y: 0, z: 0 }, { x: 4, y: 0, z: 0 });
@@ -636,7 +636,7 @@ describe('MinHeap via _localFindPath3D', () => {
     expect(path[path.length - 1]!.x).toBeCloseTo(4, 0);
   });
 
-  it('navigates around a wall in 5×1×5 grid', () => {
+  it("navigates around a wall in 5×1×5 grid", () => {
     const W = 5,
       H = 1,
       D = 5;
@@ -653,7 +653,7 @@ describe('MinHeap via _localFindPath3D', () => {
     }
   });
 
-  it('returns fallback [from, to] when no path exists', () => {
+  it("returns fallback [from, to] when no path exists", () => {
     // fully blocked map
     const W = 3,
       H = 1,

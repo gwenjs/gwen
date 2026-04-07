@@ -14,32 +14,32 @@
  * @since 1.0.0
  */
 export type EasingName =
-  | 'linear'
-  | 'easeInQuad'
-  | 'easeOutQuad'
-  | 'easeInOutQuad'
-  | 'easeInCubic'
-  | 'easeOutCubic'
-  | 'easeInOutCubic'
-  | 'easeInQuart'
-  | 'easeOutQuart'
-  | 'easeInOutQuart'
-  | 'easeInSine'
-  | 'easeOutSine'
-  | 'easeInOutSine'
-  | 'easeInExpo'
-  | 'easeOutExpo'
-  | 'easeInOutExpo'
-  | 'easeInBack'
-  | 'easeOutBack'
-  | 'easeInOutBack'
-  | 'easeInElastic'
-  | 'easeOutElastic'
-  | 'easeInOutElastic'
-  | 'easeInBounce'
-  | 'easeOutBounce'
-  | 'easeInOutBounce'
-  | 'spring';
+  | "linear"
+  | "easeInQuad"
+  | "easeOutQuad"
+  | "easeInOutQuad"
+  | "easeInCubic"
+  | "easeOutCubic"
+  | "easeInOutCubic"
+  | "easeInQuart"
+  | "easeOutQuart"
+  | "easeInOutQuart"
+  | "easeInSine"
+  | "easeOutSine"
+  | "easeInOutSine"
+  | "easeInExpo"
+  | "easeOutExpo"
+  | "easeInOutExpo"
+  | "easeInBack"
+  | "easeOutBack"
+  | "easeInOutBack"
+  | "easeInElastic"
+  | "easeOutElastic"
+  | "easeInOutElastic"
+  | "easeInBounce"
+  | "easeOutBounce"
+  | "easeInOutBounce"
+  | "spring";
 
 // ── Linear ───────────────────────────────────────────────────────────────────
 

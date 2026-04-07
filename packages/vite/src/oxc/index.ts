@@ -11,8 +11,8 @@
  * ```
  */
 
-export { walk, parseAndWalk, ScopeTracker } from 'oxc-walker';
-export type { WalkOptions, WalkerEnter, WalkerThisContextEnter } from 'oxc-walker';
-export type { Node } from 'oxc-parser';
-export * from './helpers.js';
-export * from './parse.js';
+export { walk, parseAndWalk, ScopeTracker } from "oxc-walker";
+export type { WalkOptions, WalkerEnter, WalkerThisContextEnter } from "oxc-walker";
+export type { Node } from "oxc-parser";
+export * from "./helpers.js";
+export * from "./parse.js";

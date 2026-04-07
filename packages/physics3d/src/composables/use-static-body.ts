@@ -1,10 +1,10 @@
 /**
  * @file useStaticBody() — registers a static 3D physics body for the current actor.
  */
-import type { StaticBodyOptions3D, StaticBodyHandle3D } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
+import type { StaticBodyOptions3D, StaticBodyHandle3D } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
 
 /**
  * Registers the current actor's entity as a static (non-moving) 3D physics body.
@@ -37,7 +37,7 @@ export function useStaticBody(options: StaticBodyOptions3D = {}): StaticBodyHand
   // for convenience and forward it to any colliders added separately.
   void options;
 
-  let _handle = physics.createBody(entityId, { kind: 'fixed' });
+  let _handle = physics.createBody(entityId, { kind: "fixed" });
   let _active = true;
 
   return {
@@ -49,7 +49,7 @@ export function useStaticBody(options: StaticBodyOptions3D = {}): StaticBodyHand
     },
     enable() {
       if (_active) return;
-      _handle = physics.createBody(entityId, { kind: 'fixed' });
+      _handle = physics.createBody(entityId, { kind: "fixed" });
       _active = true;
     },
     disable() {

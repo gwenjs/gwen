@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { GwenPlugin } from '../engine/gwen-engine';
+import type { GwenPlugin } from "../engine/gwen-engine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -127,7 +127,7 @@ export function defineScene(
     onExit?: () => void | Promise<void>;
   },
 ): SceneFactory | SceneDefinition {
-  if (typeof nameOrOptions === 'string') {
+  if (typeof nameOrOptions === "string") {
     // Factory form: defineScene('Name', factory)
     const name = nameOrOptions;
     const fn = (registry: SceneRegistry): SceneDefinition => {
@@ -139,7 +139,7 @@ export function defineScene(
         onExit: result.onExit,
       };
     };
-    Object.defineProperty(fn, 'sceneName', { value: name, writable: false });
+    Object.defineProperty(fn, "sceneName", { value: name, writable: false });
     return fn as SceneFactory;
   }
 

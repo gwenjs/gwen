@@ -1,7 +1,7 @@
 /**
  * @file ShapeComponent — shared shape dimensions ECS component for @gwenjs/physics2d.
  */
-import { defineComponent, Types } from '@gwenjs/core';
+import { defineComponent, Types } from "@gwenjs/core";
 
 /**
  * Shared shape dimensions ECS component.
@@ -21,7 +21,7 @@ import { defineComponent, Types } from '@gwenjs/core';
  * @since 1.0.0
  */
 export const ShapeComponent = defineComponent({
-  name: 'Shape',
+  name: "Shape",
   schema: {
     w: Types.f32,
     h: Types.f32,

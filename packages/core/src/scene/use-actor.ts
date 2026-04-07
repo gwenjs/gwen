@@ -24,11 +24,11 @@
  * ```
  */
 
-import { useEngine } from '../context.js';
-import { _getActorEntityId, _getActorEngine } from './define-actor.js';
-import type { ActorDefinition, PrefabDefinition } from './types.js';
-import type { ComponentDefinition, ComponentSchema } from '../schema.js';
-import type { EntityId } from '../engine/engine-api.js';
+import { useEngine } from "../context.js";
+import { _getActorEntityId, _getActorEngine } from "./define-actor.js";
+import type { ActorDefinition, PrefabDefinition } from "./types.js";
+import type { ComponentDefinition, ComponentSchema } from "../schema.js";
+import type { EntityId } from "../engine/engine-api.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -309,7 +309,7 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
 
   return new Proxy({} as T, {
     get(_target: T, prop: string | symbol): unknown {
-      if (typeof prop !== 'string') return undefined;
+      if (typeof prop !== "string") return undefined;
       const comp = engine.getComponent(entityId as unknown as EntityId, typedDef) as
         | Record<string, unknown>
         | undefined;
@@ -317,7 +317,7 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
     },
 
     set(_target: T, prop: string | symbol, value: unknown): boolean {
-      if (typeof prop !== 'string') return false;
+      if (typeof prop !== "string") return false;
       const current =
         (engine.getComponent(entityId as unknown as EntityId, typedDef) as Record<
           string,

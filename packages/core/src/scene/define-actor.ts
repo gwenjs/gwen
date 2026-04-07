@@ -32,12 +32,12 @@
  * ```
  */
 
-import type { GwenEngine } from '../engine/gwen-engine.js';
-import type { GwenRuntimeHooks } from '../engine/runtime-hooks.js';
-import type { EntityId } from '../engine/engine-api.js';
-import { _withSystemContext } from '../system.js';
-import type { SystemContext } from '../system.js';
-import { withCleanup } from '../cleanup-context.js';
+import type { GwenEngine } from "../engine/gwen-engine.js";
+import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
+import type { EntityId } from "../engine/engine-api.js";
+import { _withSystemContext } from "../system.js";
+import type { SystemContext } from "../system.js";
+import { withCleanup } from "../cleanup-context.js";
 import type {
   ActorDefinition,
   ActorInstance,
@@ -46,7 +46,7 @@ import type {
   VoidFn,
   UpdateFn,
   RenderFn,
-} from './types.js';
+} from "./types.js";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -121,8 +121,8 @@ function _withActorContext(instance: ActorInstance<any>, engine: GwenEngine, fn:
 export function _getActorEntityId(): bigint {
   if (_currentActorEntityId === null) {
     throw new Error(
-      '[GWEN] _getActorEntityId() must be called inside a defineActor() factory function. ' +
-        'It is only valid during actor spawn.',
+      "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function. " +
+        "It is only valid during actor spawn.",
     );
   }
   return _currentActorEntityId;
@@ -149,8 +149,8 @@ export function _getActorEntityId(): bigint {
 export function _getActorEngine(): GwenEngine {
   if (_currentEngine === null) {
     throw new Error(
-      '[GWEN] _getActorEngine() must be called inside a defineActor() factory function. ' +
-        'It is only valid during actor spawn.',
+      "[GWEN] _getActorEngine() must be called inside a defineActor() factory function. " +
+        "It is only valid during actor spawn.",
     );
   }
   return _currentEngine;
@@ -176,7 +176,7 @@ export function _getActorEngine(): GwenEngine {
 export function onStart(fn: VoidFn): void {
   if (!_currentActorInstance) {
     throw new Error(
-      '[GWEN] onStart() must be called synchronously inside a defineActor() factory function.',
+      "[GWEN] onStart() must be called synchronously inside a defineActor() factory function.",
     );
   }
   _currentActorInstance._start.push(fn);
@@ -200,7 +200,7 @@ export function onStart(fn: VoidFn): void {
 export function onDestroy(fn: VoidFn): void {
   if (!_currentActorInstance) {
     throw new Error(
-      '[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.',
+      "[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.",
     );
   }
   _currentActorInstance._destroy.push(fn);
@@ -227,7 +227,7 @@ export function onDestroy(fn: VoidFn): void {
 export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): void {
   if (!_currentActorInstance || !_currentEngine) {
     throw new Error(
-      '[GWEN] onEvent() must be called synchronously inside a defineActor() factory function.',
+      "[GWEN] onEvent() must be called synchronously inside a defineActor() factory function.",
     );
   }
   const engine = _currentEngine;
@@ -308,8 +308,8 @@ export function defineActor<Props = void, PublicAPI = void>(
   function spawn(props?: Props): bigint {
     if (!_engine) {
       throw new Error(
-        '[GWEN] Actor.spawn() called before the plugin was set up. ' +
-          'Call `await engine.use(actor._plugin)` before spawning.',
+        "[GWEN] Actor.spawn() called before the plugin was set up. " +
+          "Call `await engine.use(actor._plugin)` before spawning.",
       );
     }
 
@@ -404,7 +404,7 @@ export function defineActor<Props = void, PublicAPI = void>(
   // ─── Plugin ───────────────────────────────────────────────────────────────
 
   const _plugin: ActorPlugin<Props> = {
-    name: 'anonymous-actor',
+    name: "anonymous-actor",
 
     setup(engine: GwenEngine): void {
       _engine = engine;
@@ -456,7 +456,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     _plugin,
     _instances,
     _prefab: prefab,
-    __actorName__: 'anonymous',
+    __actorName__: "anonymous",
     // Type markers — values are never accessed at runtime.
     __props__: undefined as unknown as Props,
     __api__: undefined as unknown as PublicAPI,

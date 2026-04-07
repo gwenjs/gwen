@@ -34,8 +34,6 @@
     }
   },
   "publishConfig": {
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
@@ -50,7 +48,9 @@
         "types": "./dist/module/index.d.ts",
         "import": "./dist/module/index.js"
       }
-    }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "dev": "vite",

@@ -15,7 +15,7 @@ export type {
   GwenConfigInput,
   DeepPartial,
   EngineAPI,
-} from './config';
+} from "./config";
 
 export type {
   EngineLifecycleHooks,
@@ -25,8 +25,8 @@ export type {
   SceneLifecycleHooks,
   ExtensionLifecycleHooks,
   GwenHooks,
-} from './hooks';
+} from "./hooks";
 
 // Runtime
-export { defaultOptions, resolveConfig } from './defaults.js';
-export { validateResolvedConfig, assertModuleFirstInput } from './validate.js';
+export { defaultOptions, resolveConfig } from "./defaults.js";
+export { validateResolvedConfig, assertModuleFirstInput } from "./validate.js";

@@ -661,7 +661,7 @@ export interface Physics3DWasmBridge {
 
 /** Minimal bridge runtime shape returned by getWasmBridge(). */
 export interface Physics3DBridgeRuntime {
-  variant: 'light' | 'physics2d' | 'physics3d';
+  variant: "light" | "physics2d" | "physics3d";
   getPhysicsBridge(): Physics3DWasmBridge;
   getLinearMemory?(): WebAssembly.Memory | null;
   /** Returns the current generation counter for an entity slot index. */

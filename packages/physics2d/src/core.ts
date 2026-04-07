@@ -1,12 +1,12 @@
-export { Physics2DPlugin, physics2D } from './index';
+export { Physics2DPlugin, physics2D } from "./index";
 
 export {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
   SENSOR_ID_FOOT,
-} from './systems';
+} from "./systems";
 
-export type { PhysicsKinematicSyncSystemOptions, PlatformerGroundedSystemOptions } from './systems';
+export type { PhysicsKinematicSyncSystemOptions, PlatformerGroundedSystemOptions } from "./systems";
 
 export type {
   Physics2DConfig,
@@ -32,6 +32,6 @@ export type {
   PhysicsEntitySnapshot,
   ResolvedCollisionContact,
   TilemapChunkOrchestrator,
-} from './types';
+} from "./types";
 
-export { PHYSICS2D_BRIDGE_SCHEMA_VERSION, PHYSICS_QUALITY_PRESET_CODE } from './types';
+export { PHYSICS2D_BRIDGE_SCHEMA_VERSION, PHYSICS_QUALITY_PRESET_CODE } from "./types";

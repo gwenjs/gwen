@@ -20,7 +20,7 @@ export interface WasmMemoryRegion {
   /** Byte length of the region. */
   byteLength: number;
   /** Primary element type for the typed accessor. */
-  type: 'u8' | 'u16' | 'u32' | 'i8' | 'i16' | 'i32' | 'f32' | 'f64';
+  type: "u8" | "u16" | "u32" | "i8" | "i16" | "i32" | "f32" | "f64";
 }
 
 /**
@@ -30,7 +30,7 @@ export interface WasmChannelOptions {
   /** Stable name used to access the channel: `handle.channel('commands')`. */
   name: string;
   /** Data flow direction. */
-  direction: 'ts→wasm' | 'wasm→ts';
+  direction: "ts→wasm" | "wasm→ts";
   /** Maximum number of items in the ring buffer. */
   capacity: number;
   /** Size of one item in bytes. Must be a multiple of 4. */
@@ -192,7 +192,7 @@ export class WasmRingBuffer {
       // Try auto-detection via exported function.
       const ptrExportName = `gwen_${opts.name}_ring_ptr`;
       const ptrExport = exports?.[ptrExportName];
-      if (typeof ptrExport === 'function') {
+      if (typeof ptrExport === "function") {
         byteOffset = (ptrExport as () => number)();
       } else {
         // Fallback: first 64 KiB page boundary, past shadow stack.

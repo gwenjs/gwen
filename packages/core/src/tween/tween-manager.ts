@@ -7,12 +7,12 @@
  * @since 1.0.0
  */
 
-import { useEngine } from '../context.js';
-import type { GwenEngine } from '../engine/gwen-engine.js';
-import type { TweenOptions, TweenableValue } from './tween-types.js';
-import { TweenPool, type TweenSlot } from './tween-pool.js';
-import type { TweenPoolPolicy } from './tween-pool.js';
-import type { GwenLogger } from '../logger/types.js';
+import { useEngine } from "../context.js";
+import type { GwenEngine } from "../engine/gwen-engine.js";
+import type { TweenOptions, TweenableValue } from "./tween-types.js";
+import { TweenPool, type TweenSlot } from "./tween-pool.js";
+import type { TweenPoolPolicy } from "./tween-pool.js";
+import type { GwenLogger } from "../logger/types.js";
 
 // ── Cache symbol ────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ import type { GwenLogger } from '../logger/types.js';
  *
  * @internal
  */
-const TWEEN_MANAGER_KEY = Symbol('gwen.tweenManager');
+const TWEEN_MANAGER_KEY = Symbol("gwen.tweenManager");
 
 // ── TweenManager ─────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export class TweenManager {
 
     // Register the tick hook on the engine
     // The hook fires at the start of every frame with the delta time
-    this._unregister = engine.hooks.hook('engine:tick', (dt: number) => {
+    this._unregister = engine.hooks.hook("engine:tick", (dt: number) => {
       this._tick(dt);
     });
   }
@@ -163,7 +163,7 @@ export function getTweenManager(engine?: GwenEngine): TweenManager {
       resolvedEngine = useEngine() as GwenEngine;
     } catch {
       throw new Error(
-        '[GWEN] getTweenManager() requires an engine instance or an active engine context (inside engine.run(), defineActor(), defineSystem(), etc.)',
+        "[GWEN] getTweenManager() requires an engine instance or an active engine context (inside engine.run(), defineActor(), defineSystem(), etc.)",
       );
     }
   } else {
@@ -181,7 +181,7 @@ export function getTweenManager(engine?: GwenEngine): TweenManager {
     resolvedEngine,
     resolvedEngine.tweenPoolSize,
     resolvedEngine.tweenPoolPolicy,
-    resolvedEngine.logger.child('@gwenjs/core/tween'),
+    resolvedEngine.logger.child("@gwenjs/core/tween"),
   );
   (resolvedEngine as unknown as Record<symbol, unknown>)[TWEEN_MANAGER_KEY] = manager;
 

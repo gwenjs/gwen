@@ -9,7 +9,7 @@
  *
  * Run with: pnpm --filter @gwenjs/physics3d exec vitest bench --run
  */
-import { bench, describe } from 'vitest';
+import { bench, describe } from "vitest";
 
 // ── Naive path simulation ─────────────────────────────────────────────────────
 
@@ -84,36 +84,36 @@ function makeBulk3D(n: number) {
 
 // ── Suites ────────────────────────────────────────────────────────────────────
 
-describe('kinematic position integration — 100 bodies', () => {
+describe("kinematic position integration — 100 bodies", () => {
   const { positions, velocities } = makeNaive3D(100);
   const { px, py, pz, vx, vy, vz } = makeBulk3D(100);
 
-  bench('naive (object array, N=100)', () => {
+  bench("naive (object array, N=100)", () => {
     naiveIntegrate3D(positions, velocities, 1 / 60);
   });
 
-  bench('bulk  (TypedArray,   N=100)', () => {
+  bench("bulk  (TypedArray,   N=100)", () => {
     bulkIntegrate3D(px, py, pz, vx, vy, vz, 1 / 60);
   });
 });
 
-describe('kinematic position integration — 1000 bodies', () => {
+describe("kinematic position integration — 1000 bodies", () => {
   const { positions, velocities } = makeNaive3D(1000);
   const { px, py, pz, vx, vy, vz } = makeBulk3D(1000);
 
-  bench('naive (object array, N=1000)', () => {
+  bench("naive (object array, N=1000)", () => {
     naiveIntegrate3D(positions, velocities, 1 / 60);
   });
 
-  bench('bulk  (TypedArray,   N=1000)', () => {
+  bench("bulk  (TypedArray,   N=1000)", () => {
     bulkIntegrate3D(px, py, pz, vx, vy, vz, 1 / 60);
   });
 });
 
-describe('quaternion integration — 100 bodies', () => {
+describe("quaternion integration — 100 bodies", () => {
   const quats: Quat[] = Array.from({ length: 100 }, () => ({ x: 0, y: 0, z: 0, w: 1 }));
 
-  bench('integrateQuat N=100', () => {
+  bench("integrateQuat N=100", () => {
     for (const q of quats) {
       Object.assign(q, integrateQuat(q, 0, 1, 0, 1 / 60));
     }

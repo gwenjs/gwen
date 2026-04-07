@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from 'vitest';
-import { applyDirectionalImpulse, moveKinematicByVelocity } from '../src/helpers/movement';
+import { describe, expect, it, vi } from "vitest";
+import { applyDirectionalImpulse, moveKinematicByVelocity } from "../src/helpers/movement";
 
-describe('movement helpers', () => {
-  it('should move kinematic body by velocity * dt', () => {
+describe("movement helpers", () => {
+  it("should move kinematic body by velocity * dt", () => {
     const setKinematicPosition = vi.fn();
     const physics = {
       getPosition: () => ({ x: 10, y: 20, rotation: 0 }),
@@ -13,7 +13,7 @@ describe('movement helpers', () => {
     expect(setKinematicPosition).toHaveBeenCalledWith(5, 12, 19);
   });
 
-  it('should no-op when dt <= 0', () => {
+  it("should no-op when dt <= 0", () => {
     const setKinematicPosition = vi.fn();
     const physics = {
       getPosition: () => ({ x: 0, y: 0, rotation: 0 }),
@@ -24,7 +24,7 @@ describe('movement helpers', () => {
     expect(setKinematicPosition).not.toHaveBeenCalled();
   });
 
-  it('should no-op when dt is negative', () => {
+  it("should no-op when dt is negative", () => {
     const setKinematicPosition = vi.fn();
     const physics = {
       getPosition: () => ({ x: 0, y: 0, rotation: 0 }),
@@ -35,7 +35,7 @@ describe('movement helpers', () => {
     expect(setKinematicPosition).not.toHaveBeenCalled();
   });
 
-  it('should no-op when dt is NaN', () => {
+  it("should no-op when dt is NaN", () => {
     const setKinematicPosition = vi.fn();
     const physics = {
       getPosition: () => ({ x: 0, y: 0, rotation: 0 }),
@@ -46,7 +46,7 @@ describe('movement helpers', () => {
     expect(setKinematicPosition).not.toHaveBeenCalled();
   });
 
-  it('should no-op when body position is unavailable', () => {
+  it("should no-op when body position is unavailable", () => {
     const setKinematicPosition = vi.fn();
     const physics = {
       getPosition: () => null,
@@ -57,7 +57,7 @@ describe('movement helpers', () => {
     expect(setKinematicPosition).not.toHaveBeenCalled();
   });
 
-  it('should normalize direction before applying impulse', () => {
+  it("should normalize direction before applying impulse", () => {
     const applyImpulse = vi.fn();
     const physics = { applyImpulse } as any;
 
@@ -65,7 +65,7 @@ describe('movement helpers', () => {
     expect(applyImpulse).toHaveBeenCalledWith(3, 5, 0);
   });
 
-  it('should normalize diagonal direction', () => {
+  it("should normalize diagonal direction", () => {
     const applyImpulse = vi.fn();
     const physics = { applyImpulse } as any;
 
@@ -74,7 +74,7 @@ describe('movement helpers', () => {
     expect(applyImpulse.mock.calls[0][2]).toBeCloseTo(1);
   });
 
-  it('should no-op with zero direction vector', () => {
+  it("should no-op with zero direction vector", () => {
     const applyImpulse = vi.fn();
     const physics = { applyImpulse } as any;
 
@@ -82,7 +82,7 @@ describe('movement helpers', () => {
     expect(applyImpulse).not.toHaveBeenCalled();
   });
 
-  it('should no-op when magnitude is zero', () => {
+  it("should no-op when magnitude is zero", () => {
     const applyImpulse = vi.fn();
     const physics = { applyImpulse } as any;
 
@@ -90,7 +90,7 @@ describe('movement helpers', () => {
     expect(applyImpulse).not.toHaveBeenCalled();
   });
 
-  it('should no-op when magnitude is NaN', () => {
+  it("should no-op when magnitude is NaN", () => {
     const applyImpulse = vi.fn();
     const physics = { applyImpulse } as any;
 

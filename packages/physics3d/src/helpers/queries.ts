@@ -5,8 +5,8 @@
  * All helpers are pure functions — no WASM dependency.
  */
 
-import type { EntityId } from '@gwenjs/core';
-import type { Physics3DAPI, Physics3DBodySnapshot } from '../types';
+import type { EntityId } from "@gwenjs/core";
+import type { Physics3DAPI, Physics3DBodySnapshot } from "../types";
 
 /**
  * Read a compact read-only snapshot of one 3D physics body.

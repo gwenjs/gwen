@@ -1,9 +1,9 @@
-import { createRequire } from 'node:module';
-import type { Plugin } from 'vite';
-import type { GwenViteOptions } from '../types.js';
+import { createRequire } from "node:module";
+import type { Plugin } from "vite";
+import type { GwenViteOptions } from "../types.js";
 
-const ENV_VIRTUAL = 'virtual:gwen/env';
-const RESOLVED_ENV = '\0' + ENV_VIRTUAL;
+const ENV_VIRTUAL = "virtual:gwen/env";
+const RESOLVED_ENV = "\0" + ENV_VIRTUAL;
 
 /**
  * Provides runtime constants injected at build time via `virtual:gwen/env`.
@@ -19,15 +19,15 @@ const RESOLVED_ENV = '\0' + ENV_VIRTUAL;
  */
 export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
   let isBuild = false;
-  let variant: 'debug' | 'release' = 'debug';
+  let variant: "debug" | "release" = "debug";
 
   return {
-    name: 'gwen:virtual',
+    name: "gwen:virtual",
 
     configResolved(config) {
-      isBuild = config.command === 'build';
-      const requested = options.wasm?.variant ?? 'auto';
-      variant = requested === 'auto' ? (isBuild ? 'release' : 'debug') : requested;
+      isBuild = config.command === "build";
+      const requested = options.wasm?.variant ?? "auto";
+      variant = requested === "auto" ? (isBuild ? "release" : "debug") : requested;
     },
 
     resolveId(id) {
@@ -38,10 +38,10 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
       if (id !== RESOLVED_ENV) return;
 
       // Read version from @gwenjs/core package.json
-      let version = '0.0.0';
+      let version = "0.0.0";
       try {
         const require = createRequire(import.meta.url);
-        const pkg = require('@gwenjs/core/package.json') as { version: string };
+        const pkg = require("@gwenjs/core/package.json") as { version: string };
         version = pkg.version;
       } catch {
         // Fall back to '0.0.0' if the package is not resolvable
@@ -51,7 +51,7 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
         `export const GWEN_VERSION = '${version}'`,
         `export const GWEN_WASM_VARIANT = '${variant}'`,
         `export const GWEN_DEV = ${!isBuild}`,
-      ].join('\n');
+      ].join("\n");
     },
   };
 }

@@ -5,12 +5,12 @@
  * eliminates O(N×M) WASM calls in getEntityTypeIds().
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EngineComponentRegistry } from '../src/engine/engine-component-registry';
-import { createEntityId } from '../src/types/entity';
-import type { WasmBridge } from '../src/engine/wasm-bridge';
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { EngineComponentRegistry } from "../src/engine/engine-component-registry";
+import { createEntityId } from "../src/types/entity";
+import type { WasmBridge } from "../src/engine/wasm-bridge";
 
-describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
+describe("EngineComponentRegistry — entityTypeCache (P1-3)", () => {
   let registry: EngineComponentRegistry;
   let mockBridge: WasmBridge;
 
@@ -26,7 +26,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── trackAdd() tests ──────────────────────────────────────────────────────
 
-  it('trackAdd adds a type to the cache', () => {
+  it("trackAdd adds a type to the cache", () => {
     const slotIndex = 0;
     const typeId = 42;
 
@@ -38,7 +38,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
     expect(types).toEqual([42]);
   });
 
-  it('trackAdd supports multiple types on same entity', () => {
+  it("trackAdd supports multiple types on same entity", () => {
     const slotIndex = 5;
 
     registry.trackAdd(slotIndex, 10);
@@ -54,7 +54,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
     expect(types).toContain(30);
   });
 
-  it('trackAdd is idempotent (no duplicates)', () => {
+  it("trackAdd is idempotent (no duplicates)", () => {
     const slotIndex = 3;
     const typeId = 99;
 
@@ -70,7 +70,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── trackRemove() tests ───────────────────────────────────────────────────
 
-  it('trackRemove removes a type from the cache', () => {
+  it("trackRemove removes a type from the cache", () => {
     const slotIndex = 1;
 
     registry.trackAdd(slotIndex, 100);
@@ -83,7 +83,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
     expect(types).toEqual([200]);
   });
 
-  it('trackRemove on non-existent type is safe (no-op)', () => {
+  it("trackRemove on non-existent type is safe (no-op)", () => {
     const slotIndex = 2;
 
     registry.trackAdd(slotIndex, 50);
@@ -95,7 +95,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
     expect(types).toEqual([50]); // Unchanged
   });
 
-  it('trackRemove cleans up empty cache entries', () => {
+  it("trackRemove cleans up empty cache entries", () => {
     const slotIndex = 7;
 
     registry.trackAdd(slotIndex, 77);
@@ -109,20 +109,20 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── getEntityTypeIds() cache behavior ─────────────────────────────────────
 
-  it('getEntityTypeIds returns empty array for uncached entity', () => {
+  it("getEntityTypeIds returns empty array for uncached entity", () => {
     const entityId = createEntityId(999, 0);
     const types = registry.getEntityTypeIds(entityId);
 
     expect(types).toEqual([]);
   });
 
-  it('getEntityTypeIds NEVER calls hasComponent (cache hit)', () => {
+  it("getEntityTypeIds NEVER calls hasComponent (cache hit)", () => {
     const slotIndex = 10;
 
     // Register some component types
-    registry.getOrRegister('Transform');
-    registry.getOrRegister('Velocity');
-    registry.getOrRegister('Health');
+    registry.getOrRegister("Transform");
+    registry.getOrRegister("Velocity");
+    registry.getOrRegister("Health");
 
     // Track components on entity
     registry.trackAdd(slotIndex, 1);
@@ -138,7 +138,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── clearEntityCache() tests ──────────────────────────────────────────────
 
-  it('clearEntityCache removes all types for an entity', () => {
+  it("clearEntityCache removes all types for an entity", () => {
     const slotIndex = 15;
 
     registry.trackAdd(slotIndex, 1);
@@ -153,7 +153,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
     expect(types).toEqual([]);
   });
 
-  it('clearEntityCache on non-existent entry is safe', () => {
+  it("clearEntityCache on non-existent entry is safe", () => {
     expect(() => {
       registry.clearEntityCache(9999);
     }).not.toThrow();
@@ -161,11 +161,11 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── Integration: realistic scenario ───────────────────────────────────────
 
-  it('realistic scenario: 500 entities × 3 components', () => {
+  it("realistic scenario: 500 entities × 3 components", () => {
     // Simulate 500 entities each with Transform, Velocity, Sprite
-    const transformId = registry.getOrRegister('Transform');
-    const velocityId = registry.getOrRegister('Velocity');
-    const spriteId = registry.getOrRegister('Sprite');
+    const transformId = registry.getOrRegister("Transform");
+    const velocityId = registry.getOrRegister("Velocity");
+    const spriteId = registry.getOrRegister("Sprite");
 
     for (let i = 0; i < 500; i++) {
       registry.trackAdd(i, transformId);
@@ -188,7 +188,7 @@ describe('EngineComponentRegistry — entityTypeCache (P1-3)', () => {
 
   // ── Performance validation ────────────────────────────────────────────────
 
-  it('getEntityTypeIds is O(1) — constant time regardless of registered types', () => {
+  it("getEntityTypeIds is O(1) — constant time regardless of registered types", () => {
     const slotIndex = 42;
 
     // Register 100 different component types

@@ -1,4 +1,4 @@
-import type { ColliderHandle3D } from './bodies';
+import type { ColliderHandle3D } from "./bodies";
 
 // ─── Colliders ─────────────────────────────────────────────────────────────────
 
@@ -6,13 +6,13 @@ import type { ColliderHandle3D } from './bodies';
  * Discriminated union of supported 3D collider shapes.
  */
 export type Physics3DColliderShape =
-  | { type: 'box'; halfX: number; halfY: number; halfZ: number }
-  | { type: 'sphere'; radius: number }
-  | { type: 'capsule'; radius: number; halfHeight: number }
-  | { type: 'mesh'; vertices: Float32Array; indices: Uint32Array }
-  | { type: 'convex'; vertices: Float32Array }
+  | { type: "box"; halfX: number; halfY: number; halfZ: number }
+  | { type: "sphere"; radius: number }
+  | { type: "capsule"; radius: number; halfHeight: number }
+  | { type: "mesh"; vertices: Float32Array; indices: Uint32Array }
+  | { type: "convex"; vertices: Float32Array }
   | {
-      type: 'heightfield';
+      type: "heightfield";
       /** Row-major flat array of rows × cols height values. */
       heights: Float32Array;
       /** Number of rows (Z axis). */
@@ -35,7 +35,7 @@ export type Physics3DColliderShape =
  * - `'rubber'`  — High friction and moderate restitution.
  * - `'metal'`   — Low friction, high density.
  */
-export type Physics3DMaterialPreset = 'default' | 'ice' | 'rubber' | 'metal';
+export type Physics3DMaterialPreset = "default" | "ice" | "rubber" | "metal";
 
 /** Numeric material values for a Physics3DMaterialPreset. */
 export interface Physics3DMaterialValues {
@@ -133,7 +133,7 @@ export type CapsuleColliderHandle3D = ColliderHandle3D;
  */
 export interface MeshColliderHandle3D extends ColliderHandle3D {
   /** Current load state. `'active'` once the collider is live in Rapier. */
-  status: 'loading' | 'active' | 'error';
+  status: "loading" | "active" | "error";
   /**
    * Resolves when the collider becomes active in Rapier.
    * Already resolved when created from synchronous `vertices`/`indices` data.
@@ -223,7 +223,7 @@ export type ConvexColliderHandle3D = ColliderHandle3D;
  */
 export type CompoundShapeSpec =
   | {
-      type: 'box';
+      type: "box";
       /** Half-extent along the local X axis (metres). */
       halfX: number;
       /** Half-extent along the local Y axis (metres). */
@@ -238,7 +238,7 @@ export type CompoundShapeSpec =
       restitution?: number;
     }
   | {
-      type: 'sphere';
+      type: "sphere";
       radius: number;
       offsetX?: number;
       offsetY?: number;
@@ -248,7 +248,7 @@ export type CompoundShapeSpec =
       restitution?: number;
     }
   | {
-      type: 'capsule';
+      type: "capsule";
       radius: number;
       halfHeight: number;
       offsetX?: number;

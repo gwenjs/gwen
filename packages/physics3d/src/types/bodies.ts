@@ -1,5 +1,5 @@
-import type { Physics3DVec3, Physics3DQuat, Physics3DQualityPreset } from './config';
-import type { Physics3DColliderOptions, Physics3DMaterialPreset } from './colliders';
+import type { Physics3DVec3, Physics3DQuat, Physics3DQualityPreset } from "./config";
+import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
 
 /** Accepted forms of entity identity at the Physics3D API boundary. */
 export type Physics3DEntityId = string | number | bigint;
@@ -11,7 +11,7 @@ export type Physics3DEntityId = string | number | bigint;
  * - `'dynamic'`   — Fully simulated (gravity, forces, collisions).
  * - `'kinematic'` — Position driven by explicit writes; ignores gravity.
  */
-export type Physics3DBodyKind = 'dynamic' | 'kinematic' | 'fixed';
+export type Physics3DBodyKind = "dynamic" | "kinematic" | "fixed";
 
 /**
  * Options accepted by `createBody`.
@@ -71,7 +71,7 @@ export interface Physics3DBodyOptions {
    * Maps to Rapier's `additional_solver_iterations`.
    * @default undefined (uses world preset)
    */
-  quality?: import('./config').Physics3DQualityPreset;
+  quality?: import("./config").Physics3DQualityPreset;
 }
 
 /** Opaque handle returned by `createBody`, stored internally. */

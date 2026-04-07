@@ -21,7 +21,7 @@ export interface Mat3 {
   /** Row 2, Col 2 */ m22: number;
 }
 
-import type { Vec3 } from './types.js';
+import type { Vec3 } from "./types.js";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 

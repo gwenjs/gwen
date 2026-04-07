@@ -7,13 +7,13 @@
  * @internal — not part of the public API surface. Use `@gwenjs/app` exports.
  */
 
-import type { GwenPlugin } from '@gwenjs/core';
-import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from '@gwenjs/kit';
-import type { GwenModule, GwenKit, GwenBuildHooks } from '@gwenjs/kit/module';
-import { createHooks } from 'hookable';
-import { writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs';
-import { resolve, join } from 'node:path';
-import type { ResolvedGwenConfig } from './config';
+import type { GwenPlugin } from "@gwenjs/core";
+import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
+import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
+import { createHooks } from "hookable";
+import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
+import { resolve, join } from "node:path";
+import type { ResolvedGwenConfig } from "./config";
 
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +111,7 @@ export class GwenApp {
     config: ResolvedGwenConfig,
     moduleLoader?: (name: string) => Promise<GwenModule>,
   ): Promise<void> {
-    await this.buildHooks.callHook('build:before');
+    await this.buildHooks.callHook("build:before");
 
     for (const entry of config.modules ?? []) {
       const [name, userOptions = {}] = Array.isArray(entry)
@@ -123,9 +123,9 @@ export class GwenApp {
         mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
       } catch (cause) {
         const hint =
-          cause instanceof Error && cause.message.includes('Cannot find package')
+          cause instanceof Error && cause.message.includes("Cannot find package")
             ? ` Hint: run 'gwen add ${name}' to install it.`
-            : '';
+            : "";
         throw new Error(
           `[gwen] Failed to load module "${name}": ${cause instanceof Error ? cause.message : String(cause)}.${hint}`,
           { cause },
@@ -140,7 +140,7 @@ export class GwenApp {
 
       const kit = this._createKit(config);
 
-      await this.buildHooks.callHook('module:before', mod);
+      await this.buildHooks.callHook("module:before", mod);
       try {
         await mod.setup(options as Record<string, unknown>, kit);
       } catch (cause) {
@@ -149,7 +149,7 @@ export class GwenApp {
           { cause },
         );
       }
-      await this.buildHooks.callHook('module:done', mod);
+      await this.buildHooks.callHook("module:done", mod);
     }
 
     // Apply the user's direct `vite` config extension last.
@@ -157,7 +157,7 @@ export class GwenApp {
       this._viteConfigExtenders.push(() => config.vite as Partial<ViteUserConfig>);
     }
 
-    await this.buildHooks.callHook('build:done');
+    await this.buildHooks.callHook("build:done");
   }
 
   // ── prepare ──────────────────────────────────────────────────────────────────
@@ -185,33 +185,33 @@ export class GwenApp {
    * ```
    */
   async prepare(rootDir: string = process.cwd()): Promise<void> {
-    const gwenDir = resolve(rootDir, '.gwen');
-    const typesDir = join(gwenDir, 'types');
+    const gwenDir = resolve(rootDir, ".gwen");
+    const typesDir = join(gwenDir, "types");
 
     mkdirSync(typesDir, { recursive: true });
 
     // 1. auto-imports.d.ts
-    writeIfChanged(join(typesDir, 'auto-imports.d.ts'), generateAutoImportsDts(this._autoImports));
+    writeIfChanged(join(typesDir, "auto-imports.d.ts"), generateAutoImportsDts(this._autoImports));
 
     // 2. per-module type templates
     for (const template of this._typeTemplates) {
       const dest = join(typesDir, template.filename);
       // Ensure sub-directories exist (e.g. 'types/physics2d.d.ts')
-      mkdirSync(join(dest, '..'), { recursive: true });
+      mkdirSync(join(dest, ".."), { recursive: true });
       writeIfChanged(dest, template.getContents());
     }
 
     // 3. env.d.ts
-    writeIfChanged(join(typesDir, 'env.d.ts'), GWEN_ENV_DTS);
+    writeIfChanged(join(typesDir, "env.d.ts"), GWEN_ENV_DTS);
 
     // 4. module-augments.d.ts — collected GwenProvides / GwenRuntimeHooks augmentations
     writeIfChanged(
-      join(typesDir, 'module-augments.d.ts'),
+      join(typesDir, "module-augments.d.ts"),
       generateModuleAugmentsDts(this._moduleAugments),
     );
 
     // 5. .gwen/tsconfig.json
-    writeIfChanged(join(gwenDir, 'tsconfig.json'), generateGwenTsConfig());
+    writeIfChanged(join(gwenDir, "tsconfig.json"), generateGwenTsConfig());
   }
 
   // ── resolveViteConfig ────────────────────────────────────────────────────────
@@ -256,7 +256,7 @@ export class GwenApp {
        * factory function that returns a plugin instance.
        */
       addPlugin(plugin: GwenPlugin | (() => GwenPlugin)): void {
-        app._plugins.push(typeof plugin === 'function' ? plugin() : plugin);
+        app._plugins.push(typeof plugin === "function" ? plugin() : plugin);
       },
 
       /** Registers composables/utilities for auto-import. */
@@ -336,10 +336,10 @@ function mergeDefaults(
     const defaultVal = defaults[key];
 
     if (
-      typeof userVal === 'object' &&
+      typeof userVal === "object" &&
       userVal !== null &&
       !Array.isArray(userVal) &&
-      typeof defaultVal === 'object' &&
+      typeof defaultVal === "object" &&
       defaultVal !== null &&
       !Array.isArray(defaultVal)
     ) {
@@ -372,7 +372,7 @@ async function loadModule(name: string): Promise<GwenModule> {
   >;
   const definition: unknown = imported.default ?? imported;
 
-  if (!definition || typeof (definition as Record<string, unknown>)['setup'] !== 'function') {
+  if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {
     throw new Error(
       `[GWEN] Module "${name}" does not export a valid GwenModule (missing setup function). ` +
         `Ensure the module exports a default object created with defineGwenModule().`,
@@ -393,10 +393,10 @@ async function loadModule(name: string): Promise<GwenModule> {
  */
 function writeIfChanged(filePath: string, content: string): void {
   if (existsSync(filePath)) {
-    const current = readFileSync(filePath, 'utf8');
+    const current = readFileSync(filePath, "utf8");
     if (current === content) return;
   }
-  writeFileSync(filePath, content, 'utf8');
+  writeFileSync(filePath, content, "utf8");
 }
 
 /**
@@ -407,13 +407,13 @@ function writeIfChanged(filePath: string, content: string): void {
  */
 function generateAutoImportsDts(imports: AutoImport[]): string {
   if (imports.length === 0) {
-    return '// Generated by gwen prepare — do not edit\n// No auto-imports registered.\nexport {};\n';
+    return "// Generated by gwen prepare — do not edit\n// No auto-imports registered.\nexport {};\n";
   }
 
   const lines: string[] = [
-    '// Generated by gwen prepare — do not edit',
-    '// Auto-imported composables — available globally without an explicit import.',
-    '',
+    "// Generated by gwen prepare — do not edit",
+    "// Auto-imported composables — available globally without an explicit import.",
+    "",
   ];
 
   for (const { name, from, as } of imports) {
@@ -422,8 +422,8 @@ function generateAutoImportsDts(imports: AutoImport[]): string {
     lines.push(`declare const ${localName}: typeof import('${from}')['${name}'];`);
   }
 
-  lines.push('');
-  return lines.join('\n');
+  lines.push("");
+  return lines.join("\n");
 }
 
 /** Virtual module type declarations written to `.gwen/types/env.d.ts`. */
@@ -469,15 +469,15 @@ function generateGwenTsConfig(): string {
   return (
     JSON.stringify(
       {
-        $schema: 'https://json.schemastore.org/tsconfig',
-        _comment: 'Generated by gwen prepare — do not edit',
+        $schema: "https://json.schemastore.org/tsconfig",
+        _comment: "Generated by gwen prepare — do not edit",
         compilerOptions: {
           // TypeScript 6 compat
-          ignoreDeprecations: '6.0',
-          target: 'ES2022',
-          module: 'ESNext',
-          moduleResolution: 'bundler',
-          lib: ['ES2022', 'DOM', 'DOM.Iterable'],
+          ignoreDeprecations: "6.0",
+          target: "ES2022",
+          module: "ESNext",
+          moduleResolution: "bundler",
+          lib: ["ES2022", "DOM", "DOM.Iterable"],
           strict: true,
           verbatimModuleSyntax: true,
           isolatedModules: true,
@@ -485,11 +485,11 @@ function generateGwenTsConfig(): string {
           // Allow incomplete type declarations in dependencies
           skipLibCheck: true,
         },
-        include: ['../src/**/*.ts', '../*.ts', 'types/**/*.d.ts'],
+        include: ["../src/**/*.ts", "../*.ts", "types/**/*.d.ts"],
       },
       null,
       2,
-    ) + '\n'
+    ) + "\n"
   );
 }
 
@@ -502,14 +502,14 @@ function generateGwenTsConfig(): string {
  */
 function generateModuleAugmentsDts(snippets: string[]): string {
   const header = [
-    '// Generated by gwen prepare — do not edit',
-    '// Aggregated GwenProvides / GwenRuntimeHooks module augmentations.',
-    '',
+    "// Generated by gwen prepare — do not edit",
+    "// Aggregated GwenProvides / GwenRuntimeHooks module augmentations.",
+    "",
   ];
 
   if (snippets.length === 0) {
-    return [...header, 'export {};\n'].join('\n');
+    return [...header, "export {};\n"].join("\n");
   }
 
-  return [...header, ...snippets.map((s) => s.trim()), '', 'export {};\n'].join('\n');
+  return [...header, ...snippets.map((s) => s.trim()), "", "export {};\n"].join("\n");
 }

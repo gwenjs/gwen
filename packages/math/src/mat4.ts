@@ -7,9 +7,9 @@
  * All functions are pure (return new objects) unless the name ends in `Mut`.
  */
 
-import type { Vec3, Vec4 } from './types.js';
-import type { Quat } from './types.js';
-import type { Mat3 } from './mat3.js';
+import type { Vec3, Vec4 } from "./types.js";
+import type { Quat } from "./types.js";
+import type { Mat3 } from "./mat3.js";
 
 /** 4×4 matrix (row-major storage). */
 export interface Mat4 {

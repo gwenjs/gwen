@@ -11,19 +11,19 @@
  * ```
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { describe, it, expect, beforeAll } from "vitest";
+import { execFileSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
 
-const BENCH_SLOW = Boolean(process.env['BENCH_SLOW']);
+const BENCH_SLOW = Boolean(process.env["BENCH_SLOW"]);
 
-const repoRoot = path.resolve(fileURLToPath(new URL('.', import.meta.url)), '../../..');
-const manifestPath = path.join(repoRoot, 'crates/gwen-core/Cargo.toml');
+const repoRoot = path.resolve(fileURLToPath(new URL(".", import.meta.url)), "../../..");
+const manifestPath = path.join(repoRoot, "crates/gwen-core/Cargo.toml");
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,33 +62,33 @@ let byPreset: Record<string, SolverRow>;
  * Validates structural correctness and physics invariants of the Rust solver
  * benchmark output.
  */
-describe('solver bench (cargo)', () => {
+describe("solver bench (cargo)", () => {
   beforeAll(() => {
     if (!BENCH_SLOW) return;
 
     try {
       const raw = execFileSync(
-        'cargo',
+        "cargo",
         [
-          'run',
-          '--quiet',
-          '--manifest-path',
+          "run",
+          "--quiet",
+          "--manifest-path",
           manifestPath,
-          '--bin',
-          'bench_solver_presets',
-          '--features',
-          'physics2d',
-          '--',
-          '--json',
+          "--bin",
+          "bench_solver_presets",
+          "--features",
+          "physics2d",
+          "--",
+          "--json",
         ],
         {
           cwd: repoRoot,
-          encoding: 'utf8',
-          stdio: ['pipe', 'pipe', 'pipe'], // prevent stderr bleed into stdout
+          encoding: "utf8",
+          stdio: ["pipe", "pipe", "pipe"], // prevent stderr bleed into stdout
         },
       ).trim();
 
-      const jsonStart = raw.indexOf('{');
+      const jsonStart = raw.indexOf("{");
       if (jsonStart === -1) throw new Error(`No JSON in cargo output:\n${raw}`);
       payload = JSON.parse(raw.slice(jsonStart)) as SolverBenchPayload;
       byPreset = Object.fromEntries(payload.results.map((row) => [row.preset, row])) as Record<
@@ -101,9 +101,9 @@ describe('solver bench (cargo)', () => {
   }, 300_000);
 
   it.skipIf(!BENCH_SLOW)(
-    'produces valid solver-presets payload',
+    "produces valid solver-presets payload",
     () => {
-      expect(payload.scenario).toBe('solver-presets');
+      expect(payload.scenario).toBe("solver-presets");
       expect(Array.isArray(payload.results)).toBe(true);
       expect(payload.results).toHaveLength(4);
 
@@ -119,24 +119,24 @@ describe('solver bench (cargo)', () => {
   );
 
   it.skipIf(!BENCH_SLOW)(
-    'high preset has no worse tunnel rate than low preset',
+    "high preset has no worse tunnel rate than low preset",
     () => {
-      expect(byPreset['high'], 'high preset must be present in solver results').toBeDefined();
-      expect(byPreset['low'], 'low preset must be present in solver results').toBeDefined();
-      expect(byPreset['esport'], 'esport preset must be present in solver results').toBeDefined();
-      expect(byPreset['high']!.tunnelRate).toBeLessThanOrEqual(byPreset['low']!.tunnelRate);
-      expect(byPreset['esport']!.tunnelRate).toBeLessThanOrEqual(byPreset['low']!.tunnelRate);
+      expect(byPreset["high"], "high preset must be present in solver results").toBeDefined();
+      expect(byPreset["low"], "low preset must be present in solver results").toBeDefined();
+      expect(byPreset["esport"], "esport preset must be present in solver results").toBeDefined();
+      expect(byPreset["high"]!.tunnelRate).toBeLessThanOrEqual(byPreset["low"]!.tunnelRate);
+      expect(byPreset["esport"]!.tunnelRate).toBeLessThanOrEqual(byPreset["low"]!.tunnelRate);
     },
     300_000,
   );
 
   it.skipIf(!BENCH_SLOW)(
-    'esport has more solver iterations than high',
+    "esport has more solver iterations than high",
     () => {
-      expect(byPreset['esport'], 'esport preset must be present in solver results').toBeDefined();
-      expect(byPreset['high'], 'high preset must be present in solver results').toBeDefined();
-      expect(byPreset['esport']!.solverIterations).toBeGreaterThanOrEqual(
-        byPreset['high']!.solverIterations,
+      expect(byPreset["esport"], "esport preset must be present in solver results").toBeDefined();
+      expect(byPreset["high"], "high preset must be present in solver results").toBeDefined();
+      expect(byPreset["esport"]!.solverIterations).toBeGreaterThanOrEqual(
+        byPreset["high"]!.solverIterations,
       );
     },
     300_000,

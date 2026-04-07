@@ -12,12 +12,12 @@
  * `preloadMeshCollider`), the load is performed asynchronously. The returned
  * handle exposes `status`, `ready`, and `abort()` to track and control the load.
  */
-import type { MeshColliderHandle3D, MeshColliderOptions } from '../types';
-import { usePhysics3D } from '../composables';
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import { nextColliderId } from './collider-id';
-import type { PreloadedBvhHandle } from '../index';
+import type { MeshColliderHandle3D, MeshColliderOptions } from "../types";
+import { usePhysics3D } from "../composables";
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import { nextColliderId } from "./collider-id";
+import type { PreloadedBvhHandle } from "../index";
 
 /**
  * Type guard for {@link PreloadedBvhHandle}.
@@ -26,7 +26,7 @@ import type { PreloadedBvhHandle } from '../index';
  * @returns `true` when `v` is a `PreloadedBvhHandle`.
  */
 function isPreloadedBvhHandle(v: unknown): v is PreloadedBvhHandle {
-  return typeof v === 'object' && v !== null && 'url' in v && 'status' in v;
+  return typeof v === "object" && v !== null && "url" in v && "status" in v;
 }
 
 /**
@@ -82,7 +82,7 @@ export function useMeshCollider(
 
   // ── Status / ready / abort tracking ──────────────────────────────────────────
 
-  let _status: MeshColliderHandle3D['status'] = isAsync ? 'loading' : 'active';
+  let _status: MeshColliderHandle3D["status"] = isAsync ? "loading" : "active";
 
   // For the sync path, ready is immediately resolved
   let _ready: Promise<void> = Promise.resolve();
@@ -92,7 +92,7 @@ export function useMeshCollider(
 
   physics.addCollider(entityId, {
     shape: {
-      type: 'mesh',
+      type: "mesh",
       // Provide empty buffers as placeholders when using the async BVH path
       vertices: opts.vertices ?? new Float32Array(0),
       indices: opts.indices ?? new Uint32Array(0),
@@ -111,15 +111,15 @@ export function useMeshCollider(
     if (pending) {
       _ready = pending.ready.then(
         () => {
-          _status = 'active';
+          _status = "active";
         },
         () => {
-          _status = 'error';
+          _status = "error";
         },
       );
       _abortFn = () => {
         pending.abort();
-        _status = 'error';
+        _status = "error";
       };
     }
   }
@@ -145,17 +145,17 @@ export function useMeshCollider(
       // Current implementation: synchronous WASM call (blocks main thread briefly
       // for large meshes — acceptable until RFC-06c is integrated).
       currentOptions = { ...currentOptions, vertices, indices };
-      _status = 'loading';
+      _status = "loading";
       const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, {
         isSensor: currentOptions.isSensor,
       });
       if (!ok) {
-        _status = 'error';
+        _status = "error";
         throw new Error(
           `physics3d_rebuild_mesh_collider failed for entity ${String(entityId)}, colliderId ${colliderId}`,
         );
       }
-      _status = 'active';
+      _status = "active";
     },
     remove() {
       physics.removeCollider(entityId, colliderId);

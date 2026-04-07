@@ -16,24 +16,24 @@
  *   pnpm --filter @gwenjs/core exec vitest bench --run bench/simulation-wasm.bench.ts
  */
 
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { bench, describe } from 'vitest';
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
+import { bench, describe } from "vitest";
 
 // ── TS ECS (for comparison) ───────────────────────────────────────────────
-import { EntityManager, ComponentRegistry, QueryEngine } from '../src/core/ecs';
-import { defineComponent, Types } from '../src/schema';
-import type { EntityId as _EntityId } from '../src/types/entity';
+import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { defineComponent, Types } from "../src/schema";
+import type { EntityId as _EntityId } from "../src/types/entity";
 
 // ── WASM bootstrap (synchronous) ──────────────────────────────────────────
 
 const _require = createRequire(import.meta.url);
 const _dir = dirname(fileURLToPath(import.meta.url));
 
-const WASM_GLUE = resolve(_dir, '../wasm/light/gwen_core.js');
-const WASM_BIN = resolve(_dir, '../wasm/light/gwen_core_bg.wasm');
+const WASM_GLUE = resolve(_dir, "../wasm/light/gwen_core.js");
+const WASM_BIN = resolve(_dir, "../wasm/light/gwen_core_bg.wasm");
 
 /** Minimal shape of a wasm-bindgen Engine instance */
 interface RawWasmEngine {
@@ -66,8 +66,8 @@ const COMP_BYTES = 8; // 2 × f32 per component
 
 // ── Component definitions (TS ECS) ────────────────────────────────────────
 
-const Position = defineComponent({ name: 'Position', schema: { x: Types.f32, y: Types.f32 } });
-const Velocity = defineComponent({ name: 'Velocity', schema: { vx: Types.f32, vy: Types.f32 } });
+const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
+const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
 
 // ── WASM world ────────────────────────────────────────────────────────────
 
@@ -164,18 +164,18 @@ const _ts10k = buildTsWorld(10_000);
 
 // ── 1. Movement system — 1 frame ─────────────────────────────────────────
 
-describe('WASM ECS movement system — 1 frame', () => {
-  bench('1 000 entities', () => runWasmFrame(_wasm1k));
-  bench('5 000 entities', () => runWasmFrame(_wasm5k));
-  bench('10 000 entities', () => runWasmFrame(_wasm10k));
+describe("WASM ECS movement system — 1 frame", () => {
+  bench("1 000 entities", () => runWasmFrame(_wasm1k));
+  bench("5 000 entities", () => runWasmFrame(_wasm5k));
+  bench("10 000 entities", () => runWasmFrame(_wasm10k));
 });
 
 // ── 2. TS ECS movement system — 1 frame (same workload, for comparison) ──
 
-describe('TS ECS movement system — 1 frame', () => {
-  bench('1 000 entities', () => runTsFrame(_ts1k));
-  bench('5 000 entities', () => runTsFrame(_ts5k));
-  bench('10 000 entities', () => runTsFrame(_ts10k));
+describe("TS ECS movement system — 1 frame", () => {
+  bench("1 000 entities", () => runTsFrame(_ts1k));
+  bench("5 000 entities", () => runTsFrame(_ts5k));
+  bench("10 000 entities", () => runTsFrame(_ts10k));
 });
 
 // ── 3. Side-by-side summary — 1 000 entities ─────────────────────────────
@@ -183,30 +183,30 @@ describe('TS ECS movement system — 1 frame', () => {
 const _wasmSbs = buildWasmWorld(1_000);
 const _tsSbs = buildTsWorld(1_000);
 
-describe('Side-by-side: TS vs WASM ECS — 1 000 entities, 1 frame', () => {
-  bench('TypeScript ECS', () => runTsFrame(_tsSbs));
-  bench('Rust WASM ECS', () => runWasmFrame(_wasmSbs));
+describe("Side-by-side: TS vs WASM ECS — 1 000 entities, 1 frame", () => {
+  bench("TypeScript ECS", () => runTsFrame(_tsSbs));
+  bench("Rust WASM ECS", () => runWasmFrame(_wasmSbs));
 });
 
 // ── 4. 100-frame sustained simulation ────────────────────────────────────
 
-describe('Sustained 100-frame simulation — WASM vs TS', () => {
-  bench('WASM — 1 000 entities × 100 frames', () => {
+describe("Sustained 100-frame simulation — WASM vs TS", () => {
+  bench("WASM — 1 000 entities × 100 frames", () => {
     const w = buildWasmWorld(1_000);
     for (let f = 0; f < 100; f++) runWasmFrame(w);
   });
 
-  bench('TS — 1 000 entities × 100 frames', () => {
+  bench("TS — 1 000 entities × 100 frames", () => {
     const ts = buildTsWorld(1_000);
     for (let f = 0; f < 100; f++) runTsFrame(ts);
   });
 
-  bench('WASM — 5 000 entities × 100 frames', () => {
+  bench("WASM — 5 000 entities × 100 frames", () => {
     const w = buildWasmWorld(5_000);
     for (let f = 0; f < 100; f++) runWasmFrame(w);
   });
 
-  bench('TS — 5 000 entities × 100 frames', () => {
+  bench("TS — 5 000 entities × 100 frames", () => {
     const ts = buildTsWorld(5_000);
     for (let f = 0; f < 100; f++) runTsFrame(ts);
   });
@@ -217,12 +217,12 @@ describe('Sustained 100-frame simulation — WASM vs TS', () => {
 const _wasmQO = buildWasmWorld(5_000);
 const _tsQO = buildTsWorld(5_000);
 
-describe('Query-only cost (no writes) — 5 000 entities', () => {
-  bench('WASM query_entities()', () => {
+describe("Query-only cost (no writes) — 5 000 entities", () => {
+  bench("WASM query_entities()", () => {
     _wasmQO.engine.query_entities(new Uint32Array([_wasmQO.posTypeId, _wasmQO.velTypeId]));
   });
 
-  bench('TS QueryEngine.resolve()', () => {
+  bench("TS QueryEngine.resolve()", () => {
     _tsQO.qe.resolve([Position, Velocity], _tsQO.em, _tsQO.cr);
     _tsQO.qe.invalidate();
   });

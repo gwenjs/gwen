@@ -12,9 +12,9 @@
  * @internal Used exclusively by the Engine class.
  */
 
-import type { ComponentType } from '../types';
-import type { WasmBridge } from './wasm-bridge';
-import { unpackEntityId, type EntityId } from './engine-api';
+import type { ComponentType } from "../types";
+import type { WasmBridge } from "./wasm-bridge";
+import { unpackEntityId, type EntityId } from "./engine-api";
 
 export class EngineComponentRegistry {
   /** TS component name → Rust numeric typeId */

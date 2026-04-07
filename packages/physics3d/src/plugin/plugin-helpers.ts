@@ -4,20 +4,17 @@
  * These helpers depend on the PluginContext for WASM bridge and runtime access.
  */
 
-import { createEntityId } from '@gwenjs/core';
-import type { EntityId, GwenLogger } from '@gwenjs/core';
-import type {
-  Physics3DColliderShape,
-  JointHandle3D,
-} from '../types';
-import type { PluginContext } from './plugin-context';
+import { createEntityId } from "@gwenjs/core";
+import type { EntityId, GwenLogger } from "@gwenjs/core";
+import type { Physics3DColliderShape, JointHandle3D } from "../types";
+import type { PluginContext } from "./plugin-context";
 
 /**
  * Emit a one-time warning that a joint operation is unavailable in local mode.
  */
 export const emitLocalJointWarning = (log: GwenLogger): void => {
   if (import.meta.env.DEV) {
-    log.warn('Joint API requires WASM physics3d variant — not available in local mode');
+    log.warn("Joint API requires WASM physics3d variant — not available in local mode");
   }
 };
 
@@ -59,11 +56,11 @@ export const u32ToF32 = (ctx: PluginContext, val: number): number => {
  */
 export const encodeShape = (shape: Physics3DColliderShape): [number, number, number, number] => {
   switch (shape.type) {
-    case 'box':
+    case "box":
       return [0, shape.halfX, shape.halfY, shape.halfZ];
-    case 'sphere':
+    case "sphere":
       return [1, shape.radius, 0, 0];
-    case 'capsule':
+    case "capsule":
       return [2, shape.radius, shape.halfHeight, 0];
     default:
       // Mesh, convex, heightfield: not supported for spatial queries — fall back to unit sphere
@@ -74,10 +71,7 @@ export const encodeShape = (shape: Physics3DColliderShape): [number, number, num
 /**
  * Generate the next stable collider id for an entity.
  */
-export const nextColliderIdForEntity = (
-  ctx: PluginContext,
-  entityId: number,
-): number => {
+export const nextColliderIdForEntity = (ctx: PluginContext, entityId: number): number => {
   const existing = ctx.localColliders.get(entityId);
   return existing ? existing.length : 0;
 };

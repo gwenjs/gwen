@@ -7,8 +7,8 @@
  * @since 1.0.0
  */
 
-import type { Vec2, Vec3, Color } from '@gwenjs/math';
-import type { EasingName } from './easing.js';
+import type { Vec2, Vec3, Color } from "@gwenjs/math";
+import type { EasingName } from "./easing.js";
 
 export type { EasingName };
 

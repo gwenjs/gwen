@@ -6,8 +6,8 @@
  * Physics3DPlugin closure. The context is created once per plugin instance.
  */
 
-import { createLogger } from '@gwenjs/core';
-import type { GwenEngine, GwenLogger } from '@gwenjs/core';
+import { createLogger } from "@gwenjs/core";
+import type { GwenEngine, GwenLogger } from "@gwenjs/core";
 import type {
   Physics3DBodyHandle,
   Physics3DBodyState,
@@ -23,14 +23,18 @@ import type {
   OverlapOpts,
   OverlapSlotResult,
   Physics3DCollisionContact,
-} from '../types';
-import type { InternalCollisionEvent3D, Physics3DWasmBridge, Physics3DBridgeRuntime } from './bridge';
+} from "../types";
+import type {
+  InternalCollisionEvent3D,
+  Physics3DWasmBridge,
+  Physics3DBridgeRuntime,
+} from "./bridge";
 
 /** Layer registry type returned by `buildLayerRegistry`. */
-export type LayerRegistry = ReturnType<typeof import('../config').buildLayerRegistry>;
+export type LayerRegistry = ReturnType<typeof import("../config").buildLayerRegistry>;
 
 /** Normalised config type returned by `normalizePhysics3DConfig`. */
-export type NormalisedConfig = ReturnType<typeof import('../config').normalizePhysics3DConfig>;
+export type NormalisedConfig = ReturnType<typeof import("../config").normalizePhysics3DConfig>;
 
 /**
  * Shared mutable state for the Physics3D plugin.
@@ -46,11 +50,11 @@ export interface PluginContext {
 
   // ── Plugin lifecycle flags ─────────────────────────────────────────────────
   ready: boolean;
-  _variant: 'light' | 'physics2d' | 'physics3d';
+  _variant: "light" | "physics2d" | "physics3d";
   stepFn: ((delta: number) => void) | null;
   offEntityDestroyed: (() => void) | null;
   nextBodyId: number;
-  backendMode: 'wasm' | 'local';
+  backendMode: "wasm" | "local";
   wasmBridge: Physics3DWasmBridge | null;
   bridgeRuntime: Physics3DBridgeRuntime | null;
   _engine: GwenEngine | null;
@@ -68,10 +72,7 @@ export interface PluginContext {
   localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
 
   // ── Collision callbacks ────────────────────────────────────────────────────
-  entityCollisionCallbacks: Map<
-    number,
-    NonNullable<Physics3DPrefabExtension['onCollision']>
-  >;
+  entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   // ── Frame contacts ─────────────────────────────────────────────────────────
   currentFrameContacts: Physics3DCollisionContact[];
@@ -101,10 +102,7 @@ export interface PluginContext {
 
   // ── Raycast slots ──────────────────────────────────────────────────────────
   nextRaycastSlotId: number;
-  raycastSlots: Map<
-    number,
-    { opts: RaycastOpts; result: RaycastSlotResult; _si: Float32Array }
-  >;
+  raycastSlots: Map<number, { opts: RaycastOpts; result: RaycastSlotResult; _si: Float32Array }>;
   _raycastOutputSABPtr: number;
 
   // ── Shape-cast slots ───────────────────────────────────────────────────────
@@ -117,10 +115,7 @@ export interface PluginContext {
 
   // ── Overlap slots ──────────────────────────────────────────────────────────
   nextOverlapSlotId: number;
-  overlapSlots: Map<
-    number,
-    { opts: OverlapOpts; result: OverlapSlotResult; _si: Float32Array }
-  >;
+  overlapSlots: Map<number, { opts: OverlapOpts; result: OverlapSlotResult; _si: Float32Array }>;
   _overlapOutputSABPtr: number;
   overlapScratchView: DataView | null;
   overlapScratchPtr: number;
@@ -157,15 +152,15 @@ export function createPluginContext(
     layerRegistry,
 
     ready: false,
-    _variant: 'light',
+    _variant: "light",
     stepFn: null,
     offEntityDestroyed: null,
     nextBodyId: 1,
-    backendMode: 'local',
+    backendMode: "local",
     wasmBridge: null,
     bridgeRuntime: null,
     _engine: null,
-    log: createLogger('@gwenjs/physics3d', false),
+    log: createLogger("@gwenjs/physics3d", false),
 
     bodyByEntity: new Map(),
     stateByEntity: new Map(),

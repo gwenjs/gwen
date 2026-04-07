@@ -37,19 +37,19 @@
  *   pnpm --filter @gwenjs/core exec vitest bench --run bench/shared-memory.bench.ts
  */
 
-import { readFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { dirname, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { bench, describe } from 'vitest';
+import { readFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { bench, describe } from "vitest";
 
 // ── WASM bootstrap ────────────────────────────────────────────────────────────
 
 const _require = createRequire(import.meta.url);
 const _dir = dirname(fileURLToPath(import.meta.url));
 
-const WASM_GLUE = resolve(_dir, '../wasm/light/gwen_core.js');
-const WASM_BIN = resolve(_dir, '../wasm/light/gwen_core_bg.wasm');
+const WASM_GLUE = resolve(_dir, "../wasm/light/gwen_core.js");
+const WASM_BIN = resolve(_dir, "../wasm/light/gwen_core_bg.wasm");
 
 interface RawWasmEngine {
   create_entity(): { index: number; generation: number };
@@ -254,26 +254,26 @@ const _ptr10k = buildWasmPtrWorld(10_000);
 
 // ── 1. Single frame — Path A ──────────────────────────────────────────────────
 
-describe('Movement 1 frame — A: Chatty WASM ECS (3N crossings, current)', () => {
-  bench('1 000 entities', () => runChattyWasmFrame(_ecs1k));
-  bench('5 000 entities', () => runChattyWasmFrame(_ecs5k));
-  bench('10 000 entities', () => runChattyWasmFrame(_ecs10k));
+describe("Movement 1 frame — A: Chatty WASM ECS (3N crossings, current)", () => {
+  bench("1 000 entities", () => runChattyWasmFrame(_ecs1k));
+  bench("5 000 entities", () => runChattyWasmFrame(_ecs5k));
+  bench("10 000 entities", () => runChattyWasmFrame(_ecs10k));
 });
 
 // ── 2. Single frame — Path B ──────────────────────────────────────────────────
 
-describe('Movement 1 frame — B: Flat JS Float32Array (0 crossings, plugin owns data)', () => {
-  bench('1 000 entities', () => runFlatBufferFrame(_flat1k));
-  bench('5 000 entities', () => runFlatBufferFrame(_flat5k));
-  bench('10 000 entities', () => runFlatBufferFrame(_flat10k));
+describe("Movement 1 frame — B: Flat JS Float32Array (0 crossings, plugin owns data)", () => {
+  bench("1 000 entities", () => runFlatBufferFrame(_flat1k));
+  bench("5 000 entities", () => runFlatBufferFrame(_flat5k));
+  bench("10 000 entities", () => runFlatBufferFrame(_flat10k));
 });
 
 // ── 3. Single frame — Path C ──────────────────────────────────────────────────
 
-describe('Movement 1 frame — C: WASM linear memory (0 crossings, buffer in WASM heap)', () => {
-  bench('1 000 entities', () => runWasmPtrFrame(_ptr1k));
-  bench('5 000 entities', () => runWasmPtrFrame(_ptr5k));
-  bench('10 000 entities', () => runWasmPtrFrame(_ptr10k));
+describe("Movement 1 frame — C: WASM linear memory (0 crossings, buffer in WASM heap)", () => {
+  bench("1 000 entities", () => runWasmPtrFrame(_ptr1k));
+  bench("5 000 entities", () => runWasmPtrFrame(_ptr5k));
+  bench("10 000 entities", () => runWasmPtrFrame(_ptr10k));
 });
 
 // ── 4. Side-by-side — 1 000 entities, 1 frame ────────────────────────────────
@@ -282,24 +282,24 @@ const _sbsEcs = buildWasmEcsWorld(1_000);
 const _sbsFlat = buildFlatBufferWorld(1_000);
 const _sbsPtr = buildWasmPtrWorld(1_000);
 
-describe('Side-by-side — 1 000 entities, 1 frame', () => {
-  bench('A — Chatty WASM ECS     (3 000 crossings)', () => runChattyWasmFrame(_sbsEcs));
-  bench('B — Flat JS Float32Array (0 crossings)   ', () => runFlatBufferFrame(_sbsFlat));
-  bench('C — WASM linear memory   (0 crossings)   ', () => runWasmPtrFrame(_sbsPtr));
+describe("Side-by-side — 1 000 entities, 1 frame", () => {
+  bench("A — Chatty WASM ECS     (3 000 crossings)", () => runChattyWasmFrame(_sbsEcs));
+  bench("B — Flat JS Float32Array (0 crossings)   ", () => runFlatBufferFrame(_sbsFlat));
+  bench("C — WASM linear memory   (0 crossings)   ", () => runWasmPtrFrame(_sbsPtr));
 });
 
 // ── 5. Sustained 100-frame simulation — 1 000 entities ───────────────────────
 
-describe('Sustained 100 frames — 1 000 entities', () => {
-  bench('A — Chatty WASM ECS', () => {
+describe("Sustained 100 frames — 1 000 entities", () => {
+  bench("A — Chatty WASM ECS", () => {
     const w = buildWasmEcsWorld(1_000);
     for (let f = 0; f < 100; f++) runChattyWasmFrame(w);
   });
-  bench('B — Flat JS Float32Array', () => {
+  bench("B — Flat JS Float32Array", () => {
     const w = buildFlatBufferWorld(1_000);
     for (let f = 0; f < 100; f++) runFlatBufferFrame(w);
   });
-  bench('C — WASM linear memory', () => {
+  bench("C — WASM linear memory", () => {
     const w = buildWasmPtrWorld(1_000);
     for (let f = 0; f < 100; f++) runWasmPtrFrame(w);
   });
@@ -307,16 +307,16 @@ describe('Sustained 100 frames — 1 000 entities', () => {
 
 // ── 6. Sustained 100-frame simulation — 5 000 entities ───────────────────────
 
-describe('Sustained 100 frames — 5 000 entities', () => {
-  bench('A — Chatty WASM ECS', () => {
+describe("Sustained 100 frames — 5 000 entities", () => {
+  bench("A — Chatty WASM ECS", () => {
     const w = buildWasmEcsWorld(5_000);
     for (let f = 0; f < 100; f++) runChattyWasmFrame(w);
   });
-  bench('B — Flat JS Float32Array', () => {
+  bench("B — Flat JS Float32Array", () => {
     const w = buildFlatBufferWorld(5_000);
     for (let f = 0; f < 100; f++) runFlatBufferFrame(w);
   });
-  bench('C — WASM linear memory', () => {
+  bench("C — WASM linear memory", () => {
     const w = buildWasmPtrWorld(5_000);
     for (let f = 0; f < 100; f++) runWasmPtrFrame(w);
   });
@@ -423,10 +423,10 @@ const _bulk10k = buildWasmEcsBulkWorld(10_000);
 
 // ── 7. Single frame — Path D (Bulk API) ───────────────────────────────────────
 
-describe('Movement 1 frame — D: Bulk WASM ECS API (4 crossings total, target state)', () => {
-  bench('1 000 entities', () => runBulkWasmFrame(_bulk1k));
-  bench('5 000 entities', () => runBulkWasmFrame(_bulk5k));
-  bench('10 000 entities', () => runBulkWasmFrame(_bulk10k));
+describe("Movement 1 frame — D: Bulk WASM ECS API (4 crossings total, target state)", () => {
+  bench("1 000 entities", () => runBulkWasmFrame(_bulk1k));
+  bench("5 000 entities", () => runBulkWasmFrame(_bulk5k));
+  bench("10 000 entities", () => runBulkWasmFrame(_bulk10k));
 });
 
 // ── 8. Side-by-side chatty vs bulk — 1 000 entities ──────────────────────────
@@ -436,19 +436,19 @@ describe('Movement 1 frame — D: Bulk WASM ECS API (4 crossings total, target s
 const _sbsChatty2 = buildWasmEcsWorld(1_000);
 const _sbsBulk2 = buildWasmEcsBulkWorld(1_000);
 
-describe('Side-by-side chatty vs bulk — 1 000 entities, 1 frame', () => {
-  bench('A — Chatty ECS (3 000 crossings)', () => runChattyWasmFrame(_sbsChatty2));
-  bench('D — Bulk ECS   (4 crossings)    ', () => runBulkWasmFrame(_sbsBulk2));
+describe("Side-by-side chatty vs bulk — 1 000 entities, 1 frame", () => {
+  bench("A — Chatty ECS (3 000 crossings)", () => runChattyWasmFrame(_sbsChatty2));
+  bench("D — Bulk ECS   (4 crossings)    ", () => runBulkWasmFrame(_sbsBulk2));
 });
 
 // ── 9. Sustained 100-frame simulation — bulk API ──────────────────────────────
 
-describe('Sustained 100 frames — D: Bulk WASM ECS API', () => {
-  bench('1 000 entities', () => {
+describe("Sustained 100 frames — D: Bulk WASM ECS API", () => {
+  bench("1 000 entities", () => {
     const w = buildWasmEcsBulkWorld(1_000);
     for (let f = 0; f < 100; f++) runBulkWasmFrame(w);
   });
-  bench('5 000 entities', () => {
+  bench("5 000 entities", () => {
     const w = buildWasmEcsBulkWorld(5_000);
     for (let f = 0; f < 100; f++) runBulkWasmFrame(w);
   });

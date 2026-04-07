@@ -40,8 +40,6 @@
     }
   },
   "publishConfig": {
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
@@ -71,7 +69,9 @@
         "types": "./wasm/physics3d/gwen_core.d.ts",
         "import": "./wasm/physics3d/gwen_core.js"
       }
-    }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "dev": "vite",

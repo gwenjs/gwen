@@ -2,7 +2,7 @@
  * @file RFC-002 — satisfiesPluginContract & definePluginTypes
  */
 
-import type { GwenPlugin } from '@gwenjs/core';
+import type { GwenPlugin } from "@gwenjs/core";
 
 // ─── satisfiesPluginContract ─────────────────────────────────────────────────
 
@@ -95,19 +95,19 @@ export function definePluginTypes(options: PluginTypesOptions): string {
 
   if (options.provides && Object.keys(options.provides).length > 0) {
     const lines = Object.entries(options.provides).map(([k, v]) => `    ${k}: ${v}`);
-    blocks.push(`  interface GwenProvides {\n${lines.join('\n')}\n  }`);
+    blocks.push(`  interface GwenProvides {\n${lines.join("\n")}\n  }`);
   }
 
   if (options.hooks && Object.keys(options.hooks).length > 0) {
     const lines = Object.entries(options.hooks).map(([k, v]) => `    '${k}': ${v}`);
-    blocks.push(`  interface GwenRuntimeHooks {\n${lines.join('\n')}\n  }`);
+    blocks.push(`  interface GwenRuntimeHooks {\n${lines.join("\n")}\n  }`);
   }
 
-  if (blocks.length === 0) return '';
+  if (blocks.length === 0) return "";
 
   const importLines =
-    options.imports && options.imports.length > 0 ? options.imports.join('\n') + '\n\n' : '';
+    options.imports && options.imports.length > 0 ? options.imports.join("\n") + "\n\n" : "";
   // `export {}` makes this a module file, enabling proper declaration merging
   // instead of ambient module replacement.
-  return `export {}\n\n${importLines}declare module '@gwenjs/core' {\n${blocks.join('\n')}\n}`;
+  return `export {}\n\n${importLines}declare module '@gwenjs/core' {\n${blocks.join("\n")}\n}`;
 }

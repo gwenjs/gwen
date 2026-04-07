@@ -1,22 +1,22 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect } from "vitest";
 import {
   ContactRingBuffer3D,
   CONTACT_EVENT_FLOATS,
   RING_CAPACITY_3D,
-} from '../src/plugin/ring-buffer.js';
+} from "../src/plugin/ring-buffer.js";
 
-describe('ContactRingBuffer3D', () => {
-  it('exports the correct constants', () => {
+describe("ContactRingBuffer3D", () => {
+  it("exports the correct constants", () => {
     expect(CONTACT_EVENT_FLOATS).toBe(10);
     expect(RING_CAPACITY_3D).toBe(512);
   });
 
-  it('returns an empty array when no events have been written', () => {
+  it("returns an empty array when no events have been written", () => {
     const buf = new ContactRingBuffer3D();
     expect(buf.drain()).toEqual([]);
   });
 
-  it('drains a single written event with correct field values', () => {
+  it("drains a single written event with correct field values", () => {
     const buf = new ContactRingBuffer3D();
     buf.write({
       entityAIdx: 5,
@@ -45,7 +45,7 @@ describe('ContactRingBuffer3D', () => {
     expect(e.restitution).toBeCloseTo(0.3, 4);
   });
 
-  it('entityA and entityB are bigints', () => {
+  it("entityA and entityB are bigints", () => {
     const buf = new ContactRingBuffer3D();
     buf.write({
       entityAIdx: 0,
@@ -60,11 +60,11 @@ describe('ContactRingBuffer3D', () => {
       restitution: 0,
     });
     const [e] = buf.drain();
-    expect(typeof e.entityA).toBe('bigint');
-    expect(typeof e.entityB).toBe('bigint');
+    expect(typeof e.entityA).toBe("bigint");
+    expect(typeof e.entityB).toBe("bigint");
   });
 
-  it('correctly stores and retrieves the Z coordinate', () => {
+  it("correctly stores and retrieves the Z coordinate", () => {
     const buf = new ContactRingBuffer3D();
     buf.write({
       entityAIdx: 1,
@@ -83,7 +83,7 @@ describe('ContactRingBuffer3D', () => {
     expect(e.normalZ).toBeCloseTo(-1, 5);
   });
 
-  it('drains 3 consecutive events in order', () => {
+  it("drains 3 consecutive events in order", () => {
     const buf = new ContactRingBuffer3D();
     for (let i = 0; i < 3; i++) {
       buf.write({
@@ -109,7 +109,7 @@ describe('ContactRingBuffer3D', () => {
     }
   });
 
-  it('returns empty array on second drain with no new writes', () => {
+  it("returns empty array on second drain with no new writes", () => {
     const buf = new ContactRingBuffer3D();
     buf.write({
       entityAIdx: 1,
@@ -127,13 +127,13 @@ describe('ContactRingBuffer3D', () => {
     expect(buf.drain()).toHaveLength(0);
   });
 
-  it('accepts an externally created SharedArrayBuffer', () => {
+  it("accepts an externally created SharedArrayBuffer", () => {
     const sab = new SharedArrayBuffer(CONTACT_EVENT_FLOATS * 4 * RING_CAPACITY_3D);
     const buf = new ContactRingBuffer3D(sab);
     expect(buf.sab).toBe(sab);
   });
 
-  it('exposes the SAB via the sab getter', () => {
+  it("exposes the SAB via the sab getter", () => {
     const buf = new ContactRingBuffer3D();
     expect(buf.sab).toBeInstanceOf(SharedArrayBuffer);
   });

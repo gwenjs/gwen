@@ -10,9 +10,9 @@ import type {
   Physics3DColliderOptions,
   Physics3DCollisionContact,
   Physics3DSensorState,
-} from './index';
-import type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from './bulk';
-import type { CompoundColliderOptions3D, CompoundColliderHandle3D } from './colliders';
+} from "./index";
+import type { BulkStaticBoxesOptions, BulkStaticBoxesResult } from "./bulk";
+import type { CompoundColliderOptions3D, CompoundColliderHandle3D } from "./colliders";
 import type {
   FixedJointOpts,
   RevoluteJointOpts,
@@ -34,8 +34,8 @@ import type {
   ShapeCastHandle,
   OverlapOpts,
   OverlapHandle,
-} from './joints';
-import type { Physics3DColliderShape } from './colliders';
+} from "./joints";
+import type { Physics3DColliderShape } from "./colliders";
 
 // ─── Service API ───────────────────────────────────────────────────────────────
 
@@ -74,7 +74,7 @@ export interface Physics3DAPI {
    *
    * @since 1.0.0
    */
-  variant(): 'light' | 'physics2d' | 'physics3d';
+  variant(): "light" | "physics2d" | "physics3d";
 
   /**
    * Manually advance the physics simulation by `deltaSeconds`.
@@ -377,7 +377,7 @@ export interface Physics3DAPI {
     indices: Uint32Array,
     options?: Pick<
       Physics3DColliderOptions,
-      'isSensor' | 'friction' | 'restitution' | 'layers' | 'mask'
+      "isSensor" | "friction" | "restitution" | "layers" | "mask"
     >,
   ): boolean;
 

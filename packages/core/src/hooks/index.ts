@@ -35,9 +35,9 @@
  * ```
  */
 
-import { createHooks } from 'hookable';
-import type { Hookable } from 'hookable';
-import type { GwenHooks } from './types';
+import { createHooks } from "hookable";
+import type { Hookable } from "hookable";
+import type { GwenHooks } from "./types";
 
 // ════════════════════════════════════════════════════════════════════════════
 // Exports
@@ -50,9 +50,9 @@ export type {
   ComponentLifecycleHooks,
   SceneLifecycleHooks,
   ExtensionLifecycleHooks,
-} from '@gwenjs/schema';
+} from "@gwenjs/schema";
 
-export type { GwenHooks } from './types';
+export type { GwenHooks } from "./types";
 
 /**
  * Type alias for a GWEN hooks instance.
@@ -66,10 +66,10 @@ export type { GwenHooks } from './types';
 export type GwenHookable<H extends Record<string, any> = GwenHooks> = Hookable<H>;
 
 // Re-export useHook composable
-export { useHook } from './use-hook.js';
+export { useHook } from "./use-hook.js";
 
 // Re-export onCleanup from cleanup-context (hooks/index.ts is the logical home for hook-related composables)
-export { onCleanup, withCleanup } from '../cleanup-context.js';
+export { onCleanup, withCleanup } from "../cleanup-context.js";
 
 // ════════════════════════════════════════════════════════════════════════════
 // Factory

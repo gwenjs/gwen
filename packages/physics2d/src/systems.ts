@@ -1,12 +1,12 @@
-import type { GwenEngine, EntityId } from '@gwenjs/core';
-import type { ComponentDef, LiveQuery, EntityAccessor } from '@gwenjs/core/system';
-import type { Physics2DAPI, SensorState } from './types';
-import type {} from './augment';
+import type { GwenEngine, EntityId } from "@gwenjs/core";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "@gwenjs/core/system";
+import type { Physics2DAPI, SensorState } from "./types";
+import type {} from "./augment";
 
 /** Default pixel-to-meter conversion ratio for Rapier2D. */
 const DEFAULT_PIXELS_PER_METER = 50;
 /** Default ECS component name used to read 2D positions. */
-const DEFAULT_POSITION_COMPONENT = 'position';
+const DEFAULT_POSITION_COMPONENT = "position";
 
 /**
  * A minimal 2D vector with `x` and `y` numeric coordinates.
@@ -26,10 +26,10 @@ interface Vec2 {
  */
 function isVec2(v: unknown): v is Vec2 {
   return (
-    typeof v === 'object' &&
+    typeof v === "object" &&
     v !== null &&
-    typeof (v as Record<string, unknown>)['x'] === 'number' &&
-    typeof (v as Record<string, unknown>)['y'] === 'number'
+    typeof (v as Record<string, unknown>)["x"] === "number" &&
+    typeof (v as Record<string, unknown>)["y"] === "number"
   );
 }
 
@@ -83,7 +83,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
 
   return {
     /** Unique plugin identifier consumed by the engine registry. */
-    name: 'PhysicsKinematicSyncSystem',
+    name: "PhysicsKinematicSyncSystem",
 
     /**
      * Initialises the plugin: resolves the Physics2D service and registers a
@@ -92,7 +92,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
      * @param engine - The running GWEN engine instance.
      */
     setup(engine: GwenEngine): void {
-      _physics = engine.inject('physics2d');
+      _physics = engine.inject("physics2d");
 
       // The ECS registry accepts string component names at runtime even though the
       // TypeScript overload expects a ComponentDefinition. The cast avoids `any`.

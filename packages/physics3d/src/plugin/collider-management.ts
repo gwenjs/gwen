@@ -4,7 +4,7 @@
  * Also contains the bulk static box spawning logic.
  */
 
-import type { EntityId } from '@gwenjs/core';
+import type { EntityId } from "@gwenjs/core";
 import type {
   Physics3DAPI,
   Physics3DBodyHandle,
@@ -13,10 +13,10 @@ import type {
   CompoundShapeSpec,
   BulkStaticBoxesOptions,
   BulkStaticBoxesResult,
-} from '../types';
-import { resolveLayerBits } from '../config';
-import { encodeCompoundShapes } from '../helpers/compound';
-import { nextColliderId } from '../composables/collider-id';
+} from "../types";
+import { resolveLayerBits } from "../config";
+import { encodeCompoundShapes } from "../helpers/compound";
+import { nextColliderId } from "../composables/collider-id";
 import {
   _fetchBvhBuffer,
   getBvhWorker,
@@ -24,11 +24,11 @@ import {
   _bvhWorkerCallbacks,
   getNextBvhJobId,
   registerBvhCallback,
-} from './bvh';
-import { toEntityIndex, resolveColliderMaterial } from './physics3d-utils';
-import { nextColliderIdForEntity } from './plugin-helpers';
-import { createBodyLocal } from './body-management';
-import type { PluginContext } from './plugin-context';
+} from "./bvh";
+import { toEntityIndex, resolveColliderMaterial } from "./physics3d-utils";
+import { nextColliderIdForEntity } from "./plugin-helpers";
+import { createBodyLocal } from "./body-management";
+import type { PluginContext } from "./plugin-context";
 
 // ─── Helper ────────────────────────────────────────────────────────────────────
 
@@ -51,17 +51,17 @@ export function shapeSpecToColliderOptions(
     mask,
   };
   switch (shape.type) {
-    case 'box':
+    case "box":
       return {
         ...common,
-        shape: { type: 'box', halfX: shape.halfX, halfY: shape.halfY, halfZ: shape.halfZ },
+        shape: { type: "box", halfX: shape.halfX, halfY: shape.halfY, halfZ: shape.halfZ },
       };
-    case 'sphere':
-      return { ...common, shape: { type: 'sphere', radius: shape.radius } };
-    case 'capsule':
+    case "sphere":
+      return { ...common, shape: { type: "sphere", radius: shape.radius } };
+    case "capsule":
       return {
         ...common,
-        shape: { type: 'capsule', radius: shape.radius, halfHeight: shape.halfHeight },
+        shape: { type: "capsule", radius: shape.radius, halfHeight: shape.halfHeight },
       };
   }
 }
@@ -87,7 +87,7 @@ export function addColliderImpl(
   if (!ctx.localColliders.has(slot)) ctx.localColliders.set(slot, []);
   ctx.localColliders.get(slot)!.push(finalOptions);
 
-  if (ctx.backendMode === 'wasm') {
+  if (ctx.backendMode === "wasm") {
     const idx = toEntityIndex(entityId);
     const { friction, restitution, density } = resolveColliderMaterial(finalOptions);
     const isSensor = finalOptions.isSensor ? 1 : 0;
@@ -98,51 +98,82 @@ export function addColliderImpl(
     const oz = finalOptions.offsetZ ?? 0;
     const shape = finalOptions.shape;
 
-    if (shape.type === 'box') {
+    if (shape.type === "box") {
       return (
         ctx.wasmBridge!.physics3d_add_box_collider?.(
           idx,
-          shape.halfX, shape.halfY, shape.halfZ,
-          friction, restitution, density, isSensor,
-          membership, filter, colliderId,
-          ox, oy, oz,
+          shape.halfX,
+          shape.halfY,
+          shape.halfZ,
+          friction,
+          restitution,
+          density,
+          isSensor,
+          membership,
+          filter,
+          colliderId,
+          ox,
+          oy,
+          oz,
         ) ?? false
       );
     }
-    if (shape.type === 'sphere') {
+    if (shape.type === "sphere") {
       return (
         ctx.wasmBridge!.physics3d_add_sphere_collider?.(
           idx,
           shape.radius,
-          friction, restitution, density, isSensor,
-          membership, filter, colliderId,
-          ox, oy, oz,
+          friction,
+          restitution,
+          density,
+          isSensor,
+          membership,
+          filter,
+          colliderId,
+          ox,
+          oy,
+          oz,
         ) ?? false
       );
     }
-    if (shape.type === 'capsule') {
+    if (shape.type === "capsule") {
       return (
         ctx.wasmBridge!.physics3d_add_capsule_collider?.(
           idx,
-          shape.radius, shape.halfHeight,
-          friction, restitution, density, isSensor,
-          membership, filter, colliderId,
-          ox, oy, oz,
+          shape.radius,
+          shape.halfHeight,
+          friction,
+          restitution,
+          density,
+          isSensor,
+          membership,
+          filter,
+          colliderId,
+          ox,
+          oy,
+          oz,
         ) ?? false
       );
     }
-    if (shape.type === 'heightfield') {
+    if (shape.type === "heightfield") {
       return (
         ctx.wasmBridge!.physics3d_add_heightfield_collider?.(
           idx,
-          shape.heights, shape.rows, shape.cols,
-          shape.scaleX ?? 1, shape.scaleY ?? 1, shape.scaleZ ?? 1,
-          friction, restitution,
-          membership, filter, colliderId,
+          shape.heights,
+          shape.rows,
+          shape.cols,
+          shape.scaleX ?? 1,
+          shape.scaleY ?? 1,
+          shape.scaleZ ?? 1,
+          friction,
+          restitution,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }
-    if (shape.type === 'mesh') {
+    if (shape.type === "mesh") {
       // ── Async path: pre-baked BVH URL ───────────────────────────────────
       if (finalOptions.__bvhUrl) {
         const bvhUrl = finalOptions.__bvhUrl;
@@ -161,16 +192,19 @@ export function addColliderImpl(
               ctx.wasmBridge!.physics3d_load_bvh_collider?.(
                 idx,
                 new Uint8Array(ab),
-                ox, oy, oz,
+                ox,
+                oy,
+                oz,
                 finalOptions.isSensor ?? false,
-                friction, restitution,
-                membership, filter, colliderId,
+                friction,
+                restitution,
+                membership,
+                filter,
+                colliderId,
               ) ?? false;
             if (ok) resolveReady();
             else
-              rejectReady(
-                new Error('[GWEN:Physics3D] physics3d_load_bvh_collider returned false'),
-              );
+              rejectReady(new Error("[GWEN:Physics3D] physics3d_load_bvh_collider returned false"));
           })
           .catch(rejectReady);
 
@@ -179,7 +213,7 @@ export function addColliderImpl(
       }
       // ── Sync path: inline vertices + indices ─────────────────────────────
       const triCount = shape.indices.length / 3;
-      if (triCount >= BVH_WORKER_THRESHOLD && typeof Worker !== 'undefined') {
+      if (triCount >= BVH_WORKER_THRESHOLD && typeof Worker !== "undefined") {
         const jobId = getNextBvhJobId();
         const ac = new AbortController();
         let resolveReady!: () => void;
@@ -197,16 +231,19 @@ export function addColliderImpl(
               ctx.wasmBridge!.physics3d_load_bvh_collider?.(
                 idx,
                 bvhBytes,
-                ox, oy, oz,
+                ox,
+                oy,
+                oz,
                 finalOptions.isSensor ?? false,
-                friction, restitution,
-                membership, filter, colliderId,
+                friction,
+                restitution,
+                membership,
+                filter,
+                colliderId,
               ) ?? false;
             if (ok) resolveReady();
             else
-              rejectReady(
-                new Error('[GWEN:Physics3D] physics3d_load_bvh_collider returned false'),
-              );
+              rejectReady(new Error("[GWEN:Physics3D] physics3d_load_bvh_collider returned false"));
           },
           rejectReady,
         );
@@ -234,38 +271,52 @@ export function addColliderImpl(
       return (
         ctx.wasmBridge!.physics3d_add_mesh_collider?.(
           idx,
-          shape.vertices, shape.indices,
-          ox, oy, oz,
-          isSensor, friction, restitution,
-          membership, filter, colliderId,
+          shape.vertices,
+          shape.indices,
+          ox,
+          oy,
+          oz,
+          isSensor,
+          friction,
+          restitution,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }
-    if (shape.type === 'convex') {
+    if (shape.type === "convex") {
       return (
         ctx.wasmBridge!.physics3d_add_convex_collider?.(
           idx,
           shape.vertices,
-          ox, oy, oz,
-          isSensor, friction, restitution, density,
-          membership, filter, colliderId,
+          ox,
+          oy,
+          oz,
+          isSensor,
+          friction,
+          restitution,
+          density,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }
   }
 
   // Emit warnings for unimplemented shape types in local mode
-  if (ctx.backendMode === 'local') {
+  if (ctx.backendMode === "local") {
     const shape = finalOptions.shape;
-    if (shape.type === 'mesh') {
+    if (shape.type === "mesh") {
       ctx.log.warn(
-        'useMeshCollider() is not yet fully implemented. ' +
-          'Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.',
+        "useMeshCollider() is not yet fully implemented. " +
+          "Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.",
       );
-    } else if (shape.type === 'convex') {
+    } else if (shape.type === "convex") {
       ctx.log.warn(
-        'useConvexCollider() is not yet fully implemented. ' +
-          'Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.',
+        "useConvexCollider() is not yet fully implemented. " +
+          "Falling back to a 1×1×1 box collider. Upgrade to a build with RFC-06b support.",
       );
     }
   }
@@ -275,11 +326,11 @@ export function addColliderImpl(
 
 // ─── Public collider API methods ───────────────────────────────────────────────
 
-export function createAddCollider(ctx: PluginContext): Physics3DAPI['addCollider'] {
+export function createAddCollider(ctx: PluginContext): Physics3DAPI["addCollider"] {
   return (entityId, options) => addColliderImpl(ctx, entityId, options);
 }
 
-export function createRemoveCollider(ctx: PluginContext): Physics3DAPI['removeCollider'] {
+export function createRemoveCollider(ctx: PluginContext): Physics3DAPI["removeCollider"] {
   return (entityId, colliderId) => {
     const slot = toEntityIndex(entityId);
     if (!ctx.bodyByEntity.has(slot)) return false;
@@ -290,7 +341,7 @@ export function createRemoveCollider(ctx: PluginContext): Physics3DAPI['removeCo
       if (idx !== -1) colliders.splice(idx, 1);
     }
 
-    if (ctx.backendMode === 'wasm') {
+    if (ctx.backendMode === "wasm") {
       return ctx.wasmBridge!.physics3d_remove_collider?.(slot, colliderId) ?? false;
     }
 
@@ -298,7 +349,7 @@ export function createRemoveCollider(ctx: PluginContext): Physics3DAPI['removeCo
   };
 }
 
-export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI['rebuildMeshCollider'] {
+export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["rebuildMeshCollider"] {
   return (entityId, colliderId, vertices, indices, options) => {
     const slot = toEntityIndex(entityId);
     if (!ctx.bodyByEntity.has(slot)) return false;
@@ -306,13 +357,13 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI['reb
     const colliders = ctx.localColliders.get(slot);
     if (colliders) {
       const entry = colliders.find((c) => c.colliderId === colliderId);
-      if (entry && entry.shape.type === 'mesh') {
+      if (entry && entry.shape.type === "mesh") {
         entry.shape.vertices = vertices;
         entry.shape.indices = indices;
       }
     }
 
-    if (ctx.backendMode !== 'wasm') return true;
+    if (ctx.backendMode !== "wasm") return true;
 
     const { friction, restitution } = resolveColliderMaterial({
       ...options,
@@ -323,11 +374,18 @@ export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI['reb
 
     return (
       ctx.wasmBridge!.physics3d_rebuild_mesh_collider?.(
-        slot, colliderId,
-        vertices, indices,
-        0, 0, 0,
-        isSensor, friction, restitution,
-        membership, filter,
+        slot,
+        colliderId,
+        vertices,
+        indices,
+        0,
+        0,
+        0,
+        isSensor,
+        friction,
+        restitution,
+        membership,
+        filter,
       ) ?? false
     );
   };
@@ -358,19 +416,21 @@ export function createBulkSpawnStaticBoxes(
       entityIndices[i] = toEntityIndex(eid as unknown as Physics3DEntityId);
     }
 
-    if (ctx.backendMode === 'wasm' && ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes) {
+    if (ctx.backendMode === "wasm" && ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes) {
       const spawned = ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes(
         entityIndices,
         options.positions,
         options.halfExtents,
-        friction, restitution,
-        membership, filter,
+        friction,
+        restitution,
+        membership,
+        filter,
       );
       for (let i = 0; i < spawned; i++) {
         const handle: Physics3DBodyHandle = {
           bodyId: ctx.nextBodyId++,
           entityId: entityIds[i] as unknown as Physics3DEntityId,
-          kind: 'fixed',
+          kind: "fixed",
           mass: 0,
           linearDamping: 0,
           angularDamping: 0,
@@ -391,11 +451,11 @@ export function createBulkSpawnStaticBoxes(
       const hz = uniform ? options.halfExtents[2]! : options.halfExtents[i * 3 + 2]!;
 
       createBodyLocal(ctx, entityIds[i] as unknown as Physics3DEntityId, {
-        kind: 'fixed',
+        kind: "fixed",
         initialPosition: { x: px, y: py, z: pz },
         colliders: [
           {
-            shape: { type: 'box', halfX: hx, halfY: hy, halfZ: hz },
+            shape: { type: "box", halfX: hx, halfY: hy, halfZ: hz },
             friction,
             restitution,
             layers: options.layers,
@@ -410,7 +470,7 @@ export function createBulkSpawnStaticBoxes(
 
 // ─── Compound collider ─────────────────────────────────────────────────────────
 
-export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI['addCompoundCollider'] {
+export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["addCompoundCollider"] {
   const removeCollider = createRemoveCollider(ctx);
 
   return (entityId, options) => {
@@ -420,7 +480,7 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI['add
     const { shapes, layers, mask } = options;
     const colliderIds = shapes.map(() => nextColliderId());
 
-    if (ctx.backendMode === 'wasm' && ctx.wasmBridge?.physics3d_add_compound_collider) {
+    if (ctx.backendMode === "wasm" && ctx.wasmBridge?.physics3d_add_compound_collider) {
       const layerBits = resolveLayerBits(layers, ctx.layerRegistry);
       const maskBits = resolveLayerBits(mask, ctx.layerRegistry);
       const buf = encodeCompoundShapes(shapes, colliderIds);
@@ -436,7 +496,11 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI['add
       });
     } else {
       shapes.forEach((shape, i) => {
-        addColliderImpl(ctx, entityId, shapeSpecToColliderOptions(shape, colliderIds[i]!, layers, mask));
+        addColliderImpl(
+          ctx,
+          entityId,
+          shapeSpecToColliderOptions(shape, colliderIds[i]!, layers, mask),
+        );
       });
     }
 

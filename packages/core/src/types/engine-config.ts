@@ -2,7 +2,7 @@
  * Engine configuration and runtime stats.
  */
 
-import type { GwenPlugin } from '../engine/gwen-engine';
+import type { GwenPlugin } from "../engine/gwen-engine";
 
 // ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -47,7 +47,7 @@ export interface EngineConfig {
    *
    * @default 'internal'
    */
-  loop?: 'internal' | 'external';
+  loop?: "internal" | "external";
 
   /**
    * Maximum delta time (in seconds) passed to a single simulation step.

@@ -7,9 +7,9 @@
  * `@gwenjs/core` with typed physics service keys, hooks and prefab extensions.
  */
 
-import type { Physics2DAPI, Physics2DPluginHooks, Physics2DPrefabExtension } from './types';
+import type { Physics2DAPI, Physics2DPluginHooks, Physics2DPrefabExtension } from "./types";
 
-declare module '@gwenjs/core' {
+declare module "@gwenjs/core" {
   /**
    * Physics 2D service slot in the engine's provide/inject registry.
    * Available after `engine.use(physics2dPlugin())` completes setup.

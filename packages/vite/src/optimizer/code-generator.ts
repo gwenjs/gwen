@@ -1,5 +1,5 @@
-import type { ComponentManifest } from './component-manifest';
-import type { WasmTier } from './types';
+import type { ComponentManifest } from "./component-manifest";
+import type { WasmTier } from "./types";
 
 /**
  * Generates TypeScript code snippets for bulk WASM operations.
@@ -55,8 +55,8 @@ export class CodeGenerator {
     const varName = `_${readComponent.toLowerCase()}`;
     return [
       `const { entityCount: _count_${readComponent.toLowerCase()}, data: ${varName}, slots: _slots, gens: _gens } =`,
-      `  __gwen_bridge__.queryReadBulk([${typeIds.join(', ')}], ${entry.typeId}, ${entry.f32Stride})`,
-    ].join('\n');
+      `  __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride})`,
+    ].join("\n");
   }
 
   /**

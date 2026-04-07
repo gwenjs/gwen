@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import type { WasmBridge } from '../../src/engine/wasm-bridge';
+import { describe, it, expect, vi } from "vitest";
+import type { WasmBridge } from "../../src/engine/wasm-bridge";
 
 /**
  * Minimal WasmBridge mock for testing the TypeScript API surface.
@@ -8,7 +8,7 @@ import type { WasmBridge } from '../../src/engine/wasm-bridge';
 function makeMockBridge(overrides: Partial<WasmBridge> = {}): WasmBridge {
   return {
     isActive: vi.fn().mockReturnValue(true),
-    variant: 'light',
+    variant: "light",
     hasPhysics: vi.fn().mockReturnValue(false),
     getPhysicsBridge: vi.fn(),
     engine: vi.fn(),
@@ -50,15 +50,15 @@ function makeMockBridge(overrides: Partial<WasmBridge> = {}): WasmBridge {
   } as unknown as WasmBridge;
 }
 
-describe('WasmBridge.queryReadBulk', () => {
-  it('returns entityCount 0 when no entities match', () => {
+describe("WasmBridge.queryReadBulk", () => {
+  it("returns entityCount 0 when no entities match", () => {
     const bridge = makeMockBridge();
     const result = bridge.queryReadBulk([1], 1, 4);
     expect(result.entityCount).toBe(0);
     expect(result.data.length).toBe(0);
   });
 
-  it('returns a Float32Array with f32Stride × entityCount elements', () => {
+  it("returns a Float32Array with f32Stride × entityCount elements", () => {
     const bridge = makeMockBridge({
       queryReadBulk: vi.fn().mockReturnValue({
         entityCount: 3,
@@ -72,7 +72,7 @@ describe('WasmBridge.queryReadBulk', () => {
     expect(result.entityCount).toBe(3);
   });
 
-  it('returns slots and gens arrays of length entityCount', () => {
+  it("returns slots and gens arrays of length entityCount", () => {
     const bridge = makeMockBridge({
       queryReadBulk: vi.fn().mockReturnValue({
         entityCount: 2,
@@ -86,7 +86,7 @@ describe('WasmBridge.queryReadBulk', () => {
     expect(result.gens.length).toBe(2);
   });
 
-  it('handles multiple component type IDs in filter', () => {
+  it("handles multiple component type IDs in filter", () => {
     const readFn = vi.fn().mockReturnValue({
       entityCount: 1,
       data: new Float32Array(3),
@@ -101,7 +101,7 @@ describe('WasmBridge.queryReadBulk', () => {
     expect(result.entityCount).toBe(1);
   });
 
-  it('handles large stride values', () => {
+  it("handles large stride values", () => {
     const bridge = makeMockBridge({
       queryReadBulk: vi.fn().mockReturnValue({
         entityCount: 2,
@@ -116,15 +116,15 @@ describe('WasmBridge.queryReadBulk', () => {
   });
 });
 
-describe('WasmBridge.queryWriteBulk', () => {
-  it('does not throw with empty entity set', () => {
+describe("WasmBridge.queryWriteBulk", () => {
+  it("does not throw with empty entity set", () => {
     const bridge = makeMockBridge();
     expect(() =>
       bridge.queryWriteBulk(new Uint32Array(0), new Uint32Array(0), 1, new Float32Array(0)),
     ).not.toThrow();
   });
 
-  it('is called with correct args', () => {
+  it("is called with correct args", () => {
     const writeFn = vi.fn();
     const bridge = makeMockBridge({ queryWriteBulk: writeFn });
     const slots = new Uint32Array([1, 2]);
@@ -134,7 +134,7 @@ describe('WasmBridge.queryWriteBulk', () => {
     expect(writeFn).toHaveBeenCalledWith(slots, gens, 5, data);
   });
 
-  it('handles single entity write', () => {
+  it("handles single entity write", () => {
     const writeFn = vi.fn();
     const bridge = makeMockBridge({ queryWriteBulk: writeFn });
     const slots = new Uint32Array([42]);
@@ -145,7 +145,7 @@ describe('WasmBridge.queryWriteBulk', () => {
     expect(writeFn).toHaveBeenCalledWith(slots, gens, 7, data);
   });
 
-  it('handles large batches', () => {
+  it("handles large batches", () => {
     const writeFn = vi.fn();
     const bridge = makeMockBridge({ queryWriteBulk: writeFn });
     const n = 5000;
@@ -161,8 +161,8 @@ describe('WasmBridge.queryWriteBulk', () => {
   });
 });
 
-describe('WasmBridge.queryReadBulk + queryWriteBulk roundtrip', () => {
-  it('can read and write back in sequence', () => {
+describe("WasmBridge.queryReadBulk + queryWriteBulk roundtrip", () => {
+  it("can read and write back in sequence", () => {
     const readData = new Float32Array([1.0, 2.0, 3.0, 4.0]);
     const readSlots = new Uint32Array([0, 1]);
     const readGens = new Uint32Array([0, 0]);

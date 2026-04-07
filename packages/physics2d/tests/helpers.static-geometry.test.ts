@@ -1,9 +1,9 @@
-import { describe, expect, it, vi } from 'vitest';
-import { buildTilemapPhysicsChunks } from '../src/helpers/tilemap';
-import { buildStaticGeometryChunk, loadStaticGeometryChunk } from '../src/helpers/static-geometry';
+import { describe, expect, it, vi } from "vitest";
+import { buildTilemapPhysicsChunks } from "../src/helpers/tilemap";
+import { buildStaticGeometryChunk, loadStaticGeometryChunk } from "../src/helpers/static-geometry";
 
-describe('static geometry helpers', () => {
-  it('should merge contiguous solids into a single rectangle', () => {
+describe("static geometry helpers", () => {
+  it("should merge contiguous solids into a single rectangle", () => {
     const map = buildStaticGeometryChunk({
       tiles: [1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
       mapWidthTiles: 4,
@@ -16,7 +16,7 @@ describe('static geometry helpers', () => {
     expect(chunk?.rects).toEqual([{ x: 0, y: 0, w: 2, h: 2 }]);
   });
 
-  it('should produce no rects for an empty chunk', () => {
+  it("should produce no rects for an empty chunk", () => {
     const map = buildStaticGeometryChunk({
       tiles: [0, 0, 0, 0],
       mapWidthTiles: 2,
@@ -28,7 +28,7 @@ describe('static geometry helpers', () => {
     expect(map.chunks[0].rects).toHaveLength(0);
   });
 
-  it('should produce deterministic chunk checksums', () => {
+  it("should produce deterministic chunk checksums", () => {
     const input = {
       tiles: [1, 0, 0, 0],
       mapWidthTiles: 2,
@@ -41,7 +41,7 @@ describe('static geometry helpers', () => {
     expect(a.chunks[0].checksum).toBe(b.chunks[0].checksum);
   });
 
-  it('should produce different checksums for different tile layouts', () => {
+  it("should produce different checksums for different tile layouts", () => {
     const base = buildStaticGeometryChunk({
       tiles: [1, 0, 0, 0],
       mapWidthTiles: 2,
@@ -59,7 +59,7 @@ describe('static geometry helpers', () => {
     expect(base.chunks[0].checksum).not.toBe(other.chunks[0].checksum);
   });
 
-  it('should load chunk at given origin and return the chunk key', () => {
+  it("should load chunk at given origin and return the chunk key", () => {
     const physics = { loadTilemapPhysicsChunk: vi.fn() } as any;
     const chunk = buildTilemapPhysicsChunks({
       tiles: [1],
@@ -75,7 +75,7 @@ describe('static geometry helpers', () => {
     expect(physics.loadTilemapPhysicsChunk).toHaveBeenCalledWith(chunk, 3, 4);
   });
 
-  it('should call loadTilemapPhysicsChunk with origin zero when not specified', () => {
+  it("should call loadTilemapPhysicsChunk with origin zero when not specified", () => {
     const physics = { loadTilemapPhysicsChunk: vi.fn() } as any;
     const chunk = buildTilemapPhysicsChunks({
       tiles: [1],

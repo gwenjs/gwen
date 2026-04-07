@@ -1,4 +1,4 @@
-import type { GwenLogger, LogEntry, LogLevel } from './types';
+import type { GwenLogger, LogEntry, LogLevel } from "./types";
 
 /**
  * Format a {@link LogEntry} into a human-readable string.
@@ -16,7 +16,7 @@ function formatEntry(entry: LogEntry): string {
     }
   }
   if (entry.frame !== undefined) parts.push(`frame=${entry.frame}`);
-  return parts.join('  ');
+  return parts.join("  ");
 }
 
 /**
@@ -27,19 +27,19 @@ function formatEntry(entry: LogEntry): string {
 function defaultConsoleSink(entry: LogEntry): void {
   const msg = formatEntry(entry);
   switch (entry.level) {
-    case 'debug':
+    case "debug":
       // eslint-disable-next-line no-console
       console.debug(msg);
       break;
-    case 'info':
+    case "info":
       // eslint-disable-next-line no-console
       console.info(msg);
       break;
-    case 'warn':
+    case "warn":
       // eslint-disable-next-line no-console
       console.warn(msg);
       break;
-    case 'error':
+    case "error":
       // eslint-disable-next-line no-console
       console.error(msg);
       break;
@@ -62,7 +62,7 @@ function createChildLogger(
   sinkRef: { fn: (entry: LogEntry) => void },
 ): GwenLogger {
   function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
-    if ((level === 'debug' || level === 'info') && !debugMode) return;
+    if ((level === "debug" || level === "info") && !debugMode) return;
     const entry: LogEntry = {
       level,
       source,
@@ -75,10 +75,10 @@ function createChildLogger(
   }
 
   return {
-    debug: (msg, data) => emit('debug', msg, data),
-    info: (msg, data) => emit('info', msg, data),
-    warn: (msg, data) => emit('warn', msg, data),
-    error: (msg, data) => emit('error', msg, data),
+    debug: (msg, data) => emit("debug", msg, data),
+    info: (msg, data) => emit("info", msg, data),
+    warn: (msg, data) => emit("warn", msg, data),
+    error: (msg, data) => emit("error", msg, data),
     child(childSource: string): GwenLogger {
       return createChildLogger(childSource, debugMode, getFrame, sinkRef);
     },
@@ -119,7 +119,7 @@ export function createLogger(
   const sinkRef: { fn: (entry: LogEntry) => void } = { fn: defaultConsoleSink };
 
   function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
-    if ((level === 'debug' || level === 'info') && !debugMode) return;
+    if ((level === "debug" || level === "info") && !debugMode) return;
     const entry: LogEntry = {
       level,
       source,
@@ -132,10 +132,10 @@ export function createLogger(
   }
 
   const logger: GwenLogger = {
-    debug: (msg, data) => emit('debug', msg, data),
-    info: (msg, data) => emit('info', msg, data),
-    warn: (msg, data) => emit('warn', msg, data),
-    error: (msg, data) => emit('error', msg, data),
+    debug: (msg, data) => emit("debug", msg, data),
+    info: (msg, data) => emit("info", msg, data),
+    warn: (msg, data) => emit("warn", msg, data),
+    error: (msg, data) => emit("error", msg, data),
     child(childSource: string): GwenLogger {
       return createChildLogger(childSource, debugMode, getFrame, sinkRef);
     },

@@ -1,14 +1,14 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createEngine } from '../../src/engine/gwen-engine.js';
-import { definePrefab } from '../../src/scene/define-prefab.js';
-import { defineActor } from '../../src/scene/define-actor.js';
-import { useTransform } from '../../src/scene/use-transform.js';
-import { defineLayout, placeActor, useLayout } from '../../src/actor/index.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createEngine } from "../../src/engine/gwen-engine.js";
+import { definePrefab } from "../../src/scene/define-prefab.js";
+import { defineActor } from "../../src/scene/define-actor.js";
+import { useTransform } from "../../src/scene/use-transform.js";
+import { defineLayout, placeActor, useLayout } from "../../src/actor/index.js";
 import {
   getWasmBridge,
   _injectMockWasmEngine,
   _resetWasmBridge,
-} from '../../src/engine/wasm-bridge.js';
+} from "../../src/engine/wasm-bridge.js";
 
 // Helper to create a minimal mock WASM engine
 function createMockEngine() {
@@ -26,10 +26,10 @@ function createMockEngine() {
   };
 }
 
-const Pos = { __name__: 'Position' };
+const Pos = { __name__: "Position" };
 const Prefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);
 
-describe('useTransform context guard', () => {
+describe("useTransform context guard", () => {
   beforeEach(() => {
     _injectMockWasmEngine(createMockEngine() as any);
   });
@@ -38,12 +38,12 @@ describe('useTransform context guard', () => {
     _resetWasmBridge();
   });
 
-  it('throws with descriptive message when called outside defineActor', () => {
+  it("throws with descriptive message when called outside defineActor", () => {
     expect(() => useTransform()).toThrow(/useTransform.*defineActor/);
   });
 });
 
-describe('useTransform — local write operations', () => {
+describe("useTransform — local write operations", () => {
   beforeEach(() => {
     _injectMockWasmEngine(createMockEngine() as any);
   });
@@ -52,14 +52,14 @@ describe('useTransform — local write operations', () => {
     _resetWasmBridge();
   });
 
-  it('translate() calls translate_entity on the bridge', async () => {
+  it("translate() calls translate_entity on the bridge", async () => {
     const engine = await createEngine();
     const bridge = getWasmBridge().engine();
     // Ensure the method exists before spying
     if (!bridge.translate_entity) {
       bridge.translate_entity = () => {};
     }
-    const spy = vi.spyOn(bridge, 'translate_entity').mockImplementation(() => {});
+    const spy = vi.spyOn(bridge, "translate_entity").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -71,14 +71,14 @@ describe('useTransform — local write operations', () => {
     expect(spy).toHaveBeenCalledWith(expect.any(Number), 5, 10);
   });
 
-  it('setPosition() calls set_entity_local_position on the bridge', async () => {
+  it("setPosition() calls set_entity_local_position on the bridge", async () => {
     const engine = await createEngine();
     const bridge = getWasmBridge().engine();
     // Ensure the method exists before spying
     if (!bridge.set_entity_local_position) {
       bridge.set_entity_local_position = () => {};
     }
-    const spy = vi.spyOn(bridge, 'set_entity_local_position').mockImplementation(() => {});
+    const spy = vi.spyOn(bridge, "set_entity_local_position").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -91,7 +91,7 @@ describe('useTransform — local write operations', () => {
   });
 });
 
-describe('useTransform — setParent / detach', () => {
+describe("useTransform — setParent / detach", () => {
   beforeEach(() => {
     _injectMockWasmEngine(createMockEngine() as any);
   });
@@ -100,14 +100,14 @@ describe('useTransform — setParent / detach', () => {
     _resetWasmBridge();
   });
 
-  it('setParent() calls set_entity_parent with correct indices', async () => {
+  it("setParent() calls set_entity_parent with correct indices", async () => {
     const engine = await createEngine();
     const bridge = getWasmBridge().engine();
     // Ensure the method exists before spying
     if (!bridge.set_entity_parent) {
       bridge.set_entity_parent = () => {};
     }
-    const spy = vi.spyOn(bridge, 'set_entity_parent').mockImplementation(() => {});
+    const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
 
     let childEntityId: bigint | undefined;
     const Child = defineActor(Prefab, () => {
@@ -128,14 +128,14 @@ describe('useTransform — setParent / detach', () => {
     );
   });
 
-  it('detach() calls set_entity_parent with u32::MAX (0xffffffff) as parent index', async () => {
+  it("detach() calls set_entity_parent with u32::MAX (0xffffffff) as parent index", async () => {
     const engine = await createEngine();
     const bridge = getWasmBridge().engine();
     // Ensure the method exists before spying
     if (!bridge.set_entity_parent) {
       bridge.set_entity_parent = () => {};
     }
-    const spy = vi.spyOn(bridge, 'set_entity_parent').mockImplementation(() => {});
+    const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
 
     let entityId: bigint | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -153,7 +153,7 @@ describe('useTransform — setParent / detach', () => {
   });
 });
 
-describe('useTransform — world reads', () => {
+describe("useTransform — world reads", () => {
   beforeEach(() => {
     _injectMockWasmEngine(createMockEngine() as any);
   });
@@ -162,7 +162,7 @@ describe('useTransform — world reads', () => {
     _resetWasmBridge();
   });
 
-  it('world reads return values from the bridge', async () => {
+  it("world reads return values from the bridge", async () => {
     const engine = await createEngine();
 
     let worldHandle: any;
@@ -184,8 +184,8 @@ describe('useTransform — world reads', () => {
     });
 
     // world reads should return numbers (mock bridge returns 0 for undefined calls)
-    expect(typeof worldHandle?.world.x).toBe('number');
-    expect(typeof worldHandle?.world.y).toBe('number');
-    expect(typeof worldHandle?.world.rotation).toBe('number');
+    expect(typeof worldHandle?.world.x).toBe("number");
+    expect(typeof worldHandle?.world.y).toBe("number");
+    expect(typeof worldHandle?.world.rotation).toBe("number");
   });
 });

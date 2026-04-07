@@ -7,9 +7,9 @@
  * composable query system (`useRaycast`, `useShapeCast`, etc.).
  */
 
-import type { Plugin } from 'vite';
-import { PhysicsQueryWalker } from '../optimizer/physics-walker.js';
-import type { PhysicsMethod } from '../optimizer/physics-walker.js';
+import type { Plugin } from "vite";
+import { PhysicsQueryWalker } from "../optimizer/physics-walker.js";
+import type { PhysicsMethod } from "../optimizer/physics-walker.js";
 
 // ─── Options ─────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ export interface GwenPhysics3DOptimizerOptions {
    *
    * @default 'warn'
    */
-  mode?: 'warn' | 'transform';
+  mode?: "warn" | "transform";
 
   /**
    * Enable verbose logging of detected patterns to the console.
@@ -51,9 +51,9 @@ export interface GwenPhysics3DOptimizerOptions {
  * Used to produce actionable warning messages.
  */
 const METHOD_TO_COMPOSABLE: Record<PhysicsMethod, string> = {
-  castRay: 'useRaycast',
-  castShape: 'useShapeCast',
-  overlapShape: 'useOverlap',
+  castRay: "useRaycast",
+  castShape: "useShapeCast",
+  overlapShape: "useOverlap",
 };
 
 // ─── Plugin ───────────────────────────────────────────────────────────────────
@@ -85,9 +85,9 @@ const METHOD_TO_COMPOSABLE: Record<PhysicsMethod, string> = {
  * @returns A Vite plugin instance.
  */
 export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOptions = {}): Plugin {
-  const { mode = 'warn', debug = false, extensions = ['.ts', '.tsx'] } = options;
+  const { mode = "warn", debug = false, extensions = [".ts", ".tsx"] } = options;
 
-  if (mode === 'transform') {
+  if (mode === "transform") {
     // eslint-disable-next-line no-console
     console.warn(
       '[gwen:physics3d-optimizer] mode: "transform" is not yet implemented. ' +
@@ -96,8 +96,8 @@ export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOpti
   }
 
   return {
-    name: 'gwen:physics3d-optimizer',
-    enforce: 'pre',
+    name: "gwen:physics3d-optimizer",
+    enforce: "pre",
 
     /**
      * Analyse TypeScript files for imperative physics query anti-patterns.
@@ -117,9 +117,9 @@ export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOpti
 
       // Fast bailout: skip files with none of the target method names.
       if (
-        !code.includes('castRay') &&
-        !code.includes('castShape') &&
-        !code.includes('overlapShape')
+        !code.includes("castRay") &&
+        !code.includes("castShape") &&
+        !code.includes("overlapShape")
       ) {
         return null;
       }

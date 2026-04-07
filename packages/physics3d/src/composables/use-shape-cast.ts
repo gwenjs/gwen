@@ -1,8 +1,8 @@
 /**
  * @file useShapeCast() — registers a persistent per-frame shape-cast slot for the scene.
  */
-import { usePhysics3D } from '../composables';
-import type { ShapeCastOpts, ShapeCastHandle } from '../types';
+import { usePhysics3D } from "../composables";
+import type { ShapeCastOpts, ShapeCastHandle } from "../types";
 
 /**
  * Extended handle returned by {@link useShapeCast}.

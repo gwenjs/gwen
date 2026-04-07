@@ -6,9 +6,9 @@
  * 2D physics plugin for GWEN — pure adapter providing 2D rigid-body physics via the core WASM.
  */
 
-import { definePlugin } from '@gwenjs/kit/plugin';
-import { unpackEntityId, createEntityId, getWasmBridge, createLogger } from '@gwenjs/core';
-import type { GwenEngine, EntityId, WasmBridge, WasmEnginePhysics2D } from '@gwenjs/core';
+import { definePlugin } from "@gwenjs/kit/plugin";
+import { unpackEntityId, createEntityId, getWasmBridge, createLogger } from "@gwenjs/core";
+import type { GwenEngine, EntityId, WasmBridge, WasmEnginePhysics2D } from "@gwenjs/core";
 
 import type {
   Physics2DConfig,
@@ -17,14 +17,14 @@ import type {
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   CollisionContact,
-} from '../types';
+} from "../types";
 
 import {
   BODY_TYPE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
   PHYSICS_QUALITY_PRESET_CODE,
   PHYSICS2D_WASM_EVENT_STRIDE,
-} from '../types';
+} from "../types";
 
 // ─── Internal types ──────────────────────────────────────────────────────────
 
@@ -46,22 +46,22 @@ import {
   LayerRegistry,
   resolveGlobalCcdEnabled,
   PIXELS_PER_METER,
-} from '../config';
+} from "../config";
 
-import { addPrefabCollider } from '../prefab';
-import { tilemapChunkIdFromKey, tilemapPseudoEntityFromChunkId } from '../utils';
+import { addPrefabCollider } from "../prefab";
+import { tilemapChunkIdFromKey, tilemapPseudoEntityFromChunkId } from "../utils";
 
 // Public exports
 export {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
   SENSOR_ID_FOOT,
-} from '../systems';
-export { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from '../helpers/tilemap';
+} from "../systems";
+export { buildTilemapPhysicsChunks, patchTilemapPhysicsChunk } from "../helpers/tilemap";
 export type {
   PhysicsKinematicSyncSystemOptions,
   PlatformerGroundedSystemOptions,
-} from '../systems';
+} from "../systems";
 
 // Re-export public types
 export type {
@@ -79,7 +79,7 @@ export type {
   PhysicsColliderShape,
   SensorState,
   TilemapPhysicsChunkMap,
-} from '../types';
+} from "../types";
 
 export {
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
@@ -117,14 +117,14 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   const activeSensors = new Map<number, Set<number>>();
   const entityCollisionCallbacks = new Map<
     number,
-    NonNullable<Physics2DPrefabExtension['onCollision']>
+    NonNullable<Physics2DPrefabExtension["onCollision"]>
   >();
 
   // Physics bridge reference — typed as WasmBridge since getWasmBridge() always returns it.
   let bridge: WasmBridge | null = null;
   let currentEngine: GwenEngine | null = null;
   let physicsService: Physics2DAPI | null = null;
-  let log = createLogger('@gwenjs/physics2d', false);
+  let log = createLogger("@gwenjs/physics2d", false);
 
   // Binary buffer state (encapsulated per plugin instance)
   let eventsView: DataView | null = null;
@@ -207,8 +207,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   function createAPI(): Physics2DAPI {
     const pb = bridge!.getPhysicsBridge() as WasmEnginePhysics2D;
     /** Extract raw slot index from packed EntityId (bigint) or legacy raw slot number. */
-    const slot = (id: import('@gwenjs/core').EntityId | number) =>
-      typeof id === 'number' ? id : unpackEntityId(id).index;
+    const slot = (id: import("@gwenjs/core").EntityId | number) =>
+      typeof id === "number" ? id : unpackEntityId(id).index;
     const resolveContacts = (events: ReadonlyArray<InternalCollisionEvent>): CollisionContact[] => {
       const out: CollisionContact[] = [];
       for (const ev of events) {
@@ -244,7 +244,9 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.additionalSolverIterations,
         );
         if (cfg.debug)
-          log.debug(`addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`);
+          log.debug(
+            `addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`,
+          );
         return handle;
       },
       addBoxCollider: (handle, hw, hh, opts = {}) =>
@@ -256,12 +258,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.friction ?? 0.5,
           opts.isSensor ? 1 : 0,
           opts.density ?? 1.0,
-          typeof opts.membershipLayers === 'number'
+          typeof opts.membershipLayers === "number"
             ? opts.membershipLayers
-            : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, 'membership'),
-          typeof opts.filterLayers === 'number'
+            : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, "membership"),
+          typeof opts.filterLayers === "number"
             ? opts.filterLayers
-            : layerRegistry.resolve(opts.filterLayers as string[] | undefined, 'filter'),
+            : layerRegistry.resolve(opts.filterLayers as string[] | undefined, "filter"),
           opts.colliderId,
           opts.offsetX,
           opts.offsetY,
@@ -274,12 +276,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.friction ?? 0.5,
           opts.isSensor ? 1 : 0,
           opts.density ?? 1.0,
-          typeof opts.membershipLayers === 'number'
+          typeof opts.membershipLayers === "number"
             ? opts.membershipLayers
-            : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, 'membership'),
-          typeof opts.filterLayers === 'number'
+            : layerRegistry.resolve(opts.membershipLayers as string[] | undefined, "membership"),
+          typeof opts.filterLayers === "number"
             ? opts.filterLayers
-            : layerRegistry.resolve(opts.filterLayers as string[] | undefined, 'filter'),
+            : layerRegistry.resolve(opts.filterLayers as string[] | undefined, "filter"),
           opts.colliderId,
           opts.offsetX,
           opts.offsetY,
@@ -366,7 +368,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   }
 
   return {
-    name: '@gwenjs/physics2d',
+    name: "@gwenjs/physics2d",
     provides: { physics: {} as Physics2DAPI },
     providesHooks: {} as Physics2DPluginHooks,
     extensions: { prefab: {} as Physics2DPrefabExtension },
@@ -374,11 +376,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     // ── Lifecycle ──────────────────────────────────────────────────────
 
     setup(engine: GwenEngine): void {
-      log = engine.logger.child('@gwenjs/physics2d');
+      log = engine.logger.child("@gwenjs/physics2d");
       bridge = getWasmBridge();
 
       if (!bridge.hasPhysics()) {
-        throw new Error('[Physics2D] Core WASM variant does not include physics.');
+        throw new Error("[Physics2D] Core WASM variant does not include physics.");
       }
 
       const pb = bridge.getPhysicsBridge() as WasmEnginePhysics2D;
@@ -388,15 +390,15 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0);
 
       physicsService = createAPI();
-      engine.provide('physics2d', physicsService!);
+      engine.provide("physics2d", physicsService!);
 
-      engine.hooks.hook('prefab:instantiate', (entityId, extensions) => {
+      engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
         const ext = extensions?.physics;
         if (!ext) return;
 
         const { index: slot } = unpackEntityId(entityId);
 
-        const handle = physicsService!.addRigidBody(entityId, ext.bodyType ?? 'dynamic', 0, 0, {
+        const handle = physicsService!.addRigidBody(entityId, ext.bodyType ?? "dynamic", 0, 0, {
           ...(ext.mass !== undefined ? { mass: ext.mass } : {}),
           ...(ext.gravityScale !== undefined ? { gravityScale: ext.gravityScale } : {}),
           ...(ext.linearDamping !== undefined ? { linearDamping: ext.linearDamping } : {}),
@@ -425,14 +427,14 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           if (sensors.size > 0) activeSensors.set(slot, sensors);
         } else {
           throw new Error(
-            '[Physics2D] Prefab extension must declare `extensions.physics.colliders[]` in v2.',
+            "[Physics2D] Prefab extension must declare `extensions.physics.colliders[]` in v2.",
           );
         }
 
         if (ext.onCollision) entityCollisionCallbacks.set(slot, ext.onCollision);
       });
 
-      engine.hooks.hook('entity:destroy', (entityId: EntityId) => {
+      engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
         const { index: slot } = unpackEntityId(entityId);
         entityCollisionCallbacks.delete(slot);
         activeSensors.delete(slot);
@@ -452,8 +454,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       const batch = physicsService.getCollisionEventsBatch();
       if (batch.count === 0) return;
 
-      if (cfg.eventMode === 'hybrid')
-        void currentEngine?.hooks.callHook('physics:collision:batch', batch);
+      if (cfg.eventMode === "hybrid")
+        void currentEngine?.hooks.callHook("physics:collision:batch", batch);
 
       // Cast to internal type to access slot indices, which are not on the public CollisionEvent.
       const internalEvents = batch.events as unknown as InternalCollisionEvent[];
@@ -472,7 +474,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           const nextState = physicsService.getSensorState(entityId, item.id);
           if (prevState.isActive !== nextState.isActive)
             void currentEngine?.hooks.callHook(
-              'physics:sensor:changed',
+              "physics:sensor:changed",
               entityId,
               item.id,
               nextState,
@@ -494,7 +496,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         });
       }
 
-      void currentEngine?.hooks.callHook('physics:collision', contacts);
+      void currentEngine?.hooks.callHook("physics:collision", contacts);
       for (const contact of contacts) {
         const slotA = unpackEntityId(contact.entityA).index;
         const slotB = unpackEntityId(contact.entityB).index;

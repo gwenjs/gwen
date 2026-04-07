@@ -6,8 +6,8 @@
  * lifecycle callback) without needing to hold a reference to the engine.
  */
 
-import { useEngine } from '../context.js';
-import type { GwenRuntimeHooks } from '../engine/runtime-hooks.js';
+import { useEngine } from "../context.js";
+import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 
 /**
  * Emits a named event via the engine's hookable system.

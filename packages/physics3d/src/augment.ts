@@ -6,10 +6,10 @@
  * `@gwenjs/core` with typed physics service keys and hooks.
  */
 
-import type { Physics3DAPI, Physics3DPluginHooks } from './types';
-import type { EntityId } from '@gwenjs/core';
+import type { Physics3DAPI, Physics3DPluginHooks } from "./types";
+import type { EntityId } from "@gwenjs/core";
 
-declare module '@gwenjs/core' {
+declare module "@gwenjs/core" {
   /**
    * Physics 3D service slot in the engine's provide/inject registry.
    * Available after `engine.use(physics3dPlugin())` completes setup.
@@ -29,11 +29,11 @@ declare module '@gwenjs/core' {
    */
   interface GwenRuntimeHooks extends Physics3DPluginHooks {
     /** Fired after the physics step completes. */
-    'physics3d:step': (stepDt: number) => void;
+    "physics3d:step": (stepDt: number) => void;
     /** Fired when a collision begins between two entities. */
-    'physics3d:collisionStart': (entityA: EntityId, entityB: EntityId) => void;
+    "physics3d:collisionStart": (entityA: EntityId, entityB: EntityId) => void;
     /** Fired when a collision ends between two entities. */
-    'physics3d:collisionEnd': (entityA: EntityId, entityB: EntityId) => void;
+    "physics3d:collisionEnd": (entityA: EntityId, entityB: EntityId) => void;
   }
 }
 

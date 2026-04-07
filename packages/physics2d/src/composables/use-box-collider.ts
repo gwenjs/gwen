@@ -1,10 +1,10 @@
 /**
  * @file useBoxCollider() — explicit box collider shape composable.
  */
-import { _getActorEntityId } from '@gwenjs/core/actor';
-import type { EntityId } from '@gwenjs/core';
-import type { BoxColliderHandle } from '../types';
-import { usePhysics2D } from '../composables';
+import { _getActorEntityId } from "@gwenjs/core/actor";
+import type { EntityId } from "@gwenjs/core";
+import type { BoxColliderHandle } from "../types";
+import { usePhysics2D } from "../composables";
 
 export interface BoxColliderOptions {
   /** Width of the box collider in world units. */
@@ -49,7 +49,7 @@ export function useBoxCollider(options: BoxColliderOptions): BoxColliderHandle {
 
   const bodyHandle = physics.addRigidBody(
     entityId,
-    'fixed',
+    "fixed",
     options.offsetX ?? 0,
     options.offsetY ?? 0,
   );

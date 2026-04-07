@@ -1,6 +1,6 @@
-import type { Plugin } from 'vite';
-import MagicString from 'magic-string';
-import { parseSync } from 'oxc-parser';
+import type { Plugin } from "vite";
+import MagicString from "magic-string";
+import { parseSync } from "oxc-parser";
 import type {
   Program,
   Statement,
@@ -11,10 +11,10 @@ import type {
   ObjectExpression,
   ObjectProperty,
   StringLiteral,
-} from 'oxc-parser';
-import { walk } from 'oxc-walker';
+} from "oxc-parser";
+import { walk } from "oxc-walker";
 
-const CORE_IMPORT = '@gwenjs/core';
+const CORE_IMPORT = "@gwenjs/core";
 
 export interface GwenTransformOptions {
   /** Enable compile-time transforms for defineComponent schemas. */
@@ -30,7 +30,7 @@ export interface GwenTransformOptions {
 }
 
 function normalizeId(id: string): string {
-  return id.replace(/\\/g, '/');
+  return id.replace(/\\/g, "/");
 }
 
 function defaultInclude(id: string): boolean {
@@ -38,7 +38,7 @@ function defaultInclude(id: string): boolean {
 }
 
 function defaultExclude(id: string): boolean {
-  return id.includes('/node_modules/') || id.startsWith('\0') || id.includes('/.vite/');
+  return id.includes("/node_modules/") || id.startsWith("\0") || id.includes("/.vite/");
 }
 
 /**
@@ -57,8 +57,8 @@ export function gwenTransform(options: GwenTransformOptions = {}): Plugin {
   const exclude = options.exclude ?? defaultExclude;
 
   return {
-    name: 'gwen-transform',
-    enforce: 'pre',
+    name: "gwen-transform",
+    enforce: "pre",
 
     transform(code, id) {
       const normalized = normalizeId(id);
@@ -81,7 +81,7 @@ export function gwenTransform(options: GwenTransformOptions = {}): Plugin {
       try {
         const result = parseSync(id, code);
         if (result.errors && result.errors.length > 0) {
-          const fatal = result.errors.filter((e) => e.severity === 'Error');
+          const fatal = result.errors.filter((e) => e.severity === "Error");
           if (fatal.length > 0) return null;
           // Non-fatal diagnostics — proceed but warn the developer.
           for (const e of result.errors) {
@@ -141,18 +141,18 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
 
   const coreImportNode = body.find(
     (node) =>
-      node.type === 'ImportDeclaration' &&
+      node.type === "ImportDeclaration" &&
       (node as ImportDeclaration).source.value === CORE_IMPORT &&
-      (node as ImportDeclaration).importKind !== 'type',
+      (node as ImportDeclaration).importKind !== "type",
   );
 
   if (coreImportNode) {
     const coreImport = coreImportNode as ImportDeclaration;
     const existing: string[] = coreImport.specifiers
-      .filter((sp): sp is ImportSpecifier => sp.type === 'ImportSpecifier')
+      .filter((sp): sp is ImportSpecifier => sp.type === "ImportSpecifier")
       .map((sp) => {
         const imported = sp.imported as ModuleExportName;
-        return imported.type === 'Identifier'
+        return imported.type === "Identifier"
           ? (imported as IdentifierName).name
           : (imported as { value: string }).value;
       })
@@ -162,24 +162,24 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
     if (missing.length === 0) return;
 
     const namedSpecs = coreImport.specifiers.filter(
-      (sp): sp is ImportSpecifier => sp.type === 'ImportSpecifier',
+      (sp): sp is ImportSpecifier => sp.type === "ImportSpecifier",
     );
 
     if (namedSpecs.length > 0) {
       const lastSpec = namedSpecs[namedSpecs.length - 1]!;
-      s.appendLeft(lastSpec.end, `, ${missing.join(', ')}`);
+      s.appendLeft(lastSpec.end, `, ${missing.join(", ")}`);
     } else {
-      s.appendLeft(coreImport.end, `\nimport { ${missing.join(', ')} } from '${CORE_IMPORT}';`);
+      s.appendLeft(coreImport.end, `\nimport { ${missing.join(", ")} } from '${CORE_IMPORT}';`);
     }
     return;
   }
 
-  const imports = body.filter((node) => node.type === 'ImportDeclaration');
-  const insertLine = `import { ${specifiers.join(', ')} } from '${CORE_IMPORT}';\n`;
+  const imports = body.filter((node) => node.type === "ImportDeclaration");
+  const insertLine = `import { ${specifiers.join(", ")} } from '${CORE_IMPORT}';\n`;
 
   if (imports.length > 0) {
     const lastImport = imports[imports.length - 1]!;
-    s.appendLeft(lastImport.end, '\n' + insertLine.trimEnd());
+    s.appendLeft(lastImport.end, "\n" + insertLine.trimEnd());
   } else {
     s.prepend(insertLine);
   }
@@ -207,34 +207,34 @@ function applyAsConstTransforms(program: Program, s: MagicString, opts: AsConstO
 
   walk(program, {
     enter(node) {
-      if (node.type !== 'ObjectExpression') return;
+      if (node.type !== "ObjectExpression") return;
       const objNode = node as ObjectExpression;
 
       for (const prop of objNode.properties) {
-        if (prop.type !== 'Property') continue;
+        if (prop.type !== "Property") continue;
         const p = prop as ObjectProperty;
 
         const key = p.key;
         const value = p.value;
 
         const keyName: string | null =
-          key.type === 'Identifier'
+          key.type === "Identifier"
             ? (key as IdentifierName).name
-            : key.type === 'Literal'
+            : key.type === "Literal"
               ? (() => {
                   const v = (key as StringLiteral).value;
-                  return typeof v === 'string' ? v : null;
+                  return typeof v === "string" ? v : null;
                 })()
               : null;
 
         if (!keyName) continue;
-        if (value.type === 'TSAsExpression') continue;
+        if (value.type === "TSAsExpression") continue;
 
-        if (opts.query && keyName === 'query' && value.type === 'ArrayExpression') {
+        if (opts.query && keyName === "query" && value.type === "ArrayExpression") {
           insertPositions.add(value.end);
         }
 
-        if (opts.schema && keyName === 'schema' && value.type === 'ObjectExpression') {
+        if (opts.schema && keyName === "schema" && value.type === "ObjectExpression") {
           insertPositions.add(value.end);
         }
       }
@@ -244,6 +244,6 @@ function applyAsConstTransforms(program: Program, s: MagicString, opts: AsConstO
   // Process in reverse order to avoid invalidating earlier positions.
   const sorted = [...insertPositions].sort((a, b) => b - a);
   for (const pos of sorted) {
-    s.appendLeft(pos, ' as const');
+    s.appendLeft(pos, " as const");
   }
 }

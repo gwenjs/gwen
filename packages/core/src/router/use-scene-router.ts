@@ -19,16 +19,16 @@
  * ```
  */
 
-import { useEngine } from '../context.js';
-import type { GwenEngine } from '../engine/gwen-engine.js';
+import { useEngine } from "../context.js";
+import type { GwenEngine } from "../engine/gwen-engine.js";
 import type {
   RouteConfig,
   SceneRouterDefinition,
   SceneRouterHandle,
   EventsOf,
   StatesOf,
-} from './router-types.js';
-import type { SceneDefinition, SceneFactory } from '../scene/define-scene.js';
+} from "./router-types.js";
+import type { SceneDefinition, SceneFactory } from "../scene/define-scene.js";
 
 // Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
 // WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.
@@ -41,7 +41,7 @@ type TransitionListener<TRoutes extends Record<string, RouteConfig<TRoutes>>> = 
 ) => void;
 
 function resolveScene(input: SceneDefinition | SceneFactory): SceneDefinition {
-  if (typeof input === 'function') {
+  if (typeof input === "function") {
     return (input as SceneFactory)({ register: () => {} });
   }
   return input as SceneDefinition;
@@ -65,7 +65,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   } catch {
     // Rethrow with a useSceneRouter-specific message for test compatibility
     throw new Error(
-      '[GWEN] useSceneRouter() must be called inside an active engine context. Call it inside engine.run(), defineActor(), defineSystem(), or scene lifecycle hooks.',
+      "[GWEN] useSceneRouter() must be called inside an active engine context. Call it inside engine.run(), defineActor(), defineSystem(), or scene lifecycle hooks.",
     );
   }
 

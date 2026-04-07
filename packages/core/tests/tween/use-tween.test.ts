@@ -11,20 +11,20 @@
  * - yoyo: value reverses correctly on second half
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { createEngine } from '../../src/index';
-import { useTween } from '../../src/tween/use-tween';
-import { getTweenManager } from '../../src/tween/tween-manager';
+import { describe, it, expect, vi } from "vitest";
+import { createEngine } from "../../src/index";
+import { useTween } from "../../src/tween/use-tween";
+import { getTweenManager } from "../../src/tween/tween-manager";
 
 // ── useTween() outside context ────────────────────────────────────────────────
 
-describe('useTween() outside engine context', () => {
-  it('throws when called outside any engine context', () => {
+describe("useTween() outside engine context", () => {
+  it("throws when called outside any engine context", () => {
     expect(() => useTween<number>({ duration: 1 })).toThrow();
   });
 
-  it('error message mentions engine context requirements', () => {
-    let msg = '';
+  it("error message mentions engine context requirements", () => {
+    let msg = "";
     try {
       useTween<number>({ duration: 1 });
     } catch (e) {
@@ -36,22 +36,22 @@ describe('useTween() outside engine context', () => {
 
 // ── useTween<number>() basic lifecycle ───────────────────────────────────────
 
-describe('useTween<number>()', () => {
-  it('returns a TweenHandle with play, pause, resume, reset, onComplete, value, playing', async () => {
+describe("useTween<number>()", () => {
+  it("returns a TweenHandle with play, pause, resume, reset, onComplete, value, playing", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
-      expect(typeof tween.play).toBe('function');
-      expect(typeof tween.pause).toBe('function');
-      expect(typeof tween.resume).toBe('function');
-      expect(typeof tween.reset).toBe('function');
-      expect(typeof tween.onComplete).toBe('function');
-      expect('value' in tween).toBe(true);
-      expect('playing' in tween).toBe(true);
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
+      expect(typeof tween.play).toBe("function");
+      expect(typeof tween.pause).toBe("function");
+      expect(typeof tween.resume).toBe("function");
+      expect(typeof tween.reset).toBe("function");
+      expect(typeof tween.onComplete).toBe("function");
+      expect("value" in tween).toBe(true);
+      expect("playing" in tween).toBe(true);
     });
   });
 
-  it('value is 0 before play()', async () => {
+  it("value is 0 before play()", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 1 });
@@ -59,7 +59,7 @@ describe('useTween<number>()', () => {
     });
   });
 
-  it('playing is false before play()', async () => {
+  it("playing is false before play()", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 1 });
@@ -67,37 +67,37 @@ describe('useTween<number>()', () => {
     });
   });
 
-  it('play() sets playing to true and value to `from`', async () => {
+  it("play() sets playing to true and value to `from`", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 10, to: 100 });
       expect(tween.playing).toBe(true);
       expect(tween.value).toBe(10);
     });
   });
 
-  it('tick() advances value linearly', async () => {
+  it("tick() advances value linearly", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 0, to: 100 });
       tween.tick(0.5);
       expect(tween.value).toBeCloseTo(50, 2);
     });
   });
 
-  it('value reaches `to` at exactly t=1.0', async () => {
+  it("value reaches `to` at exactly t=1.0", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 0, to: 100 });
       tween.tick(1.0);
       expect(tween.value).toBeCloseTo(100, 3);
     });
   });
 
-  it('stops playing after duration', async () => {
+  it("stops playing after duration", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 1 });
@@ -110,11 +110,11 @@ describe('useTween<number>()', () => {
 
 // ── useTween<Vec2>() ──────────────────────────────────────────────────────────
 
-describe('useTween<Vec2>()', () => {
-  it('interpolates x and y correctly at t=0.5', async () => {
+describe("useTween<Vec2>()", () => {
+  it("interpolates x and y correctly at t=0.5", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<{ x: number; y: number }>({ duration: 1, easing: 'linear' });
+      const tween = useTween<{ x: number; y: number }>({ duration: 1, easing: "linear" });
       tween.play({ from: { x: 0, y: 0 }, to: { x: 100, y: 200 } });
       tween.tick(0.5);
       const v = tween.value as { x: number; y: number };
@@ -123,10 +123,10 @@ describe('useTween<Vec2>()', () => {
     });
   });
 
-  it('reaches target {x, y} at t=1.0', async () => {
+  it("reaches target {x, y} at t=1.0", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<{ x: number; y: number }>({ duration: 1, easing: 'linear' });
+      const tween = useTween<{ x: number; y: number }>({ duration: 1, easing: "linear" });
       tween.play({ from: { x: 0, y: 0 }, to: { x: 50, y: 75 } });
       tween.tick(1.0);
       const v = tween.value as { x: number; y: number };
@@ -138,11 +138,11 @@ describe('useTween<Vec2>()', () => {
 
 // ── pause() / resume() ────────────────────────────────────────────────────────
 
-describe('useTween pause() and resume()', () => {
-  it('pause() halts progress', async () => {
+describe("useTween pause() and resume()", () => {
+  it("pause() halts progress", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 0, to: 100 });
       tween.tick(0.25);
       const valueAtPause = tween.value as number;
@@ -153,10 +153,10 @@ describe('useTween pause() and resume()', () => {
     });
   });
 
-  it('resume() continues from paused position', async () => {
+  it("resume() continues from paused position", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 0, to: 100 });
       tween.tick(0.25); // at 25
       tween.pause();
@@ -170,11 +170,11 @@ describe('useTween pause() and resume()', () => {
 
 // ── reset() ───────────────────────────────────────────────────────────────────
 
-describe('useTween reset()', () => {
-  it('reset() stops playing and returns to `from`', async () => {
+describe("useTween reset()", () => {
+  it("reset() stops playing and returns to `from`", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 5, to: 100 });
       tween.tick(0.5);
       tween.reset();
@@ -183,10 +183,10 @@ describe('useTween reset()', () => {
     });
   });
 
-  it('play() after reset() restarts from the beginning', async () => {
+  it("play() after reset() restarts from the beginning", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear' });
+      const tween = useTween<number>({ duration: 1, easing: "linear" });
       tween.play({ from: 0, to: 100 });
       tween.tick(0.8);
       tween.reset();
@@ -199,8 +199,8 @@ describe('useTween reset()', () => {
 
 // ── onComplete ────────────────────────────────────────────────────────────────
 
-describe('useTween onComplete()', () => {
-  it('fires exactly once for a non-loop tween', async () => {
+describe("useTween onComplete()", () => {
+  it("fires exactly once for a non-loop tween", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 1 });
@@ -213,7 +213,7 @@ describe('useTween onComplete()', () => {
     });
   });
 
-  it('does NOT fire again after tween stops for non-loop', async () => {
+  it("does NOT fire again after tween stops for non-loop", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 0.5 });
@@ -226,7 +226,7 @@ describe('useTween onComplete()', () => {
     });
   });
 
-  it('fires on each cycle for a looping tween', async () => {
+  it("fires on each cycle for a looping tween", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
       const tween = useTween<number>({ duration: 0.5, loop: true });
@@ -243,11 +243,11 @@ describe('useTween onComplete()', () => {
 
 // ── yoyo mode ────────────────────────────────────────────────────────────────
 
-describe('useTween yoyo mode', () => {
-  it('value reverses on second half', async () => {
+describe("useTween yoyo mode", () => {
+  it("value reverses on second half", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear', yoyo: true });
+      const tween = useTween<number>({ duration: 1, easing: "linear", yoyo: true });
       tween.play({ from: 0, to: 100 });
       tween.tick(1.0); // completes forward leg → switches to return leg
       tween.tick(0.5); // halfway through return leg
@@ -255,10 +255,10 @@ describe('useTween yoyo mode', () => {
     });
   });
 
-  it('stops after full yoyo cycle (no loop)', async () => {
+  it("stops after full yoyo cycle (no loop)", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: 'linear', yoyo: true });
+      const tween = useTween<number>({ duration: 1, easing: "linear", yoyo: true });
       tween.play({ from: 0, to: 100 });
       tween.tick(1.0); // forward leg
       tween.tick(1.0); // return leg
@@ -269,19 +269,19 @@ describe('useTween yoyo mode', () => {
 
 // ── getTweenManager singleton ─────────────────────────────────────────────────
 
-describe('getTweenManager() singleton', () => {
-  it('returns the same instance on subsequent calls', async () => {
+describe("getTweenManager() singleton", () => {
+  it("returns the same instance on subsequent calls", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     const m1 = engine.run(() => getTweenManager());
     const m2 = engine.run(() => getTweenManager());
     expect(m1).toBe(m2);
   });
 
-  it('throws when called outside engine context without explicit engine', () => {
-    expect(() => getTweenManager()).toThrow('[GWEN]');
+  it("throws when called outside engine context without explicit engine", () => {
+    expect(() => getTweenManager()).toThrow("[GWEN]");
   });
 
-  it('accepts explicit engine parameter', async () => {
+  it("accepts explicit engine parameter", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     const manager = getTweenManager(engine as Parameters<typeof getTweenManager>[0]);
     expect(manager).toBeDefined();
@@ -290,15 +290,15 @@ describe('getTweenManager() singleton', () => {
 
 // ── engine.advance() integrates tween tick via hook ──────────────────────────
 
-describe('engine.advance() drives tween via engine:tick hook', () => {
-  it('tween value updates when engine advances', async () => {
+describe("engine.advance() drives tween via engine:tick hook", () => {
+  it("tween value updates when engine advances", async () => {
     const engine = await createEngine({ maxEntities: 100 });
     let capturedTween: ReturnType<typeof useTween<number>> | null = null;
 
     await engine.use({
-      name: 'tween-test-plugin',
+      name: "tween-test-plugin",
       setup() {
-        capturedTween = useTween<number>({ duration: 1, easing: 'linear' });
+        capturedTween = useTween<number>({ duration: 1, easing: "linear" });
         capturedTween.play({ from: 0, to: 100 });
       },
     });

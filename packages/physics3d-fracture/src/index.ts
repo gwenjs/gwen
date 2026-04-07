@@ -34,7 +34,7 @@
  * @returns A flat `Float32Array` buffer encoding all non-empty shards.
  *   Returns an empty array if `vertices_flat` or `indices_flat` is empty.
  */
-export { voronoi_fracture } from '../wasm/gwen_physics3d_fracture.js';
+export { voronoi_fracture } from "../wasm/gwen_physics3d_fracture.js";
 
 /**
  * Initialize the fracture WASM module synchronously from a pre-compiled
@@ -46,13 +46,9 @@ export { voronoi_fracture } from '../wasm/gwen_physics3d_fracture.js';
  *   (`BufferSource | WebAssembly.Module`). The bare `SyncInitInput` form is deprecated.
  * @returns The `InitOutput` instance exposing the module's memory and exports.
  */
-export { initSync } from '../wasm/gwen_physics3d_fracture.js';
+export { initSync } from "../wasm/gwen_physics3d_fracture.js";
 
-export type {
-  InitInput,
-  InitOutput,
-  SyncInitInput,
-} from '../wasm/gwen_physics3d_fracture.js';
+export type { InitInput, InitOutput, SyncInitInput } from "../wasm/gwen_physics3d_fracture.js";
 
 /** Initialize the fracture WASM module asynchronously. Must be called before `voronoi_fracture`.
  *
@@ -71,4 +67,4 @@ export type {
  * const shards = voronoi_fracture(vertices, indices, ix, iy, iz, 8, 42);
  * ```
  */
-export { default as initFracture } from '../wasm/gwen_physics3d_fracture.js';
+export { default as initFracture } from "../wasm/gwen_physics3d_fracture.js";

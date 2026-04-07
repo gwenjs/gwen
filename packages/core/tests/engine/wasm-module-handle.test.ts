@@ -2,10 +2,10 @@
  * @file Tests for WasmRingBuffer byteOffset resolution and WasmRegionView.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { WasmRingBuffer, WasmRegionView } from '../../src/engine/wasm-module-handle';
+import { describe, it, expect, vi } from "vitest";
+import { WasmRingBuffer, WasmRegionView } from "../../src/engine/wasm-module-handle";
 
-describe('WasmRingBuffer byteOffset resolution', () => {
+describe("WasmRingBuffer byteOffset resolution", () => {
   /**
    * Create a mock WASM memory with sufficient pages.
    */
@@ -16,15 +16,15 @@ describe('WasmRingBuffer byteOffset resolution', () => {
     } as WebAssembly.Memory;
   }
 
-  describe('byteOffset priority: explicit > auto-detect > fallback', () => {
-    it('uses explicit opts.byteOffset when provided', () => {
+  describe("byteOffset priority: explicit > auto-detect > fallback", () => {
+    it("uses explicit opts.byteOffset when provided", () => {
       const memory = createMockMemory();
       const explicitOffset = 512;
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
           byteOffset: explicitOffset,
@@ -48,7 +48,7 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(fallbackValue).toBe(0);
     });
 
-    it('calls gwen_{name}_ring_ptr() export when available', () => {
+    it("calls gwen_{name}_ring_ptr() export when available", () => {
       const memory = createMockMemory();
       const detectedOffset = 1024; // Well within our 256KB buffer
       const ptrFn = vi.fn(() => detectedOffset);
@@ -59,8 +59,8 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
         },
@@ -83,15 +83,15 @@ describe('WasmRingBuffer byteOffset resolution', () => {
     });
 
     it.each([
-      ['no export in exports object', {} as WebAssembly.Exports],
-      ['undefined exports parameter', undefined],
-    ])('falls back to 65536 when %s', (_label, exports) => {
+      ["no export in exports object", {} as WebAssembly.Exports],
+      ["undefined exports parameter", undefined],
+    ])("falls back to 65536 when %s", (_label, exports) => {
       const memory = createMockMemory();
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
         },
@@ -112,7 +112,7 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(dataView.getUint32(1024, true)).toBe(0);
     });
 
-    it('prefers opts.byteOffset over exports', () => {
+    it("prefers opts.byteOffset over exports", () => {
       const memory = createMockMemory();
       const explicitOffset = 512;
       const detectedOffset = 1024;
@@ -123,8 +123,8 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
           byteOffset: explicitOffset,
@@ -145,7 +145,7 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(dataView.getUint32(detectedOffset, true)).toBe(0);
     });
 
-    it('handles non-function exports gracefully (ignores them)', () => {
+    it("handles non-function exports gracefully (ignores them)", () => {
       const memory = createMockMemory();
       const mockExports = {
         gwen_test_ring_ptr: 42, // Not a function
@@ -154,8 +154,8 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
         },
@@ -171,7 +171,7 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(dest[0]).toBe(888);
     });
 
-    it('calls different ring_ptr exports for different channel names', () => {
+    it("calls different ring_ptr exports for different channel names", () => {
       const memory = createMockMemory();
       const cmdOffset = 1024;
       const responseOffset = 2048;
@@ -184,8 +184,8 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       const cmdBuffer = new WasmRingBuffer(
         memory,
         {
-          name: 'commands',
-          direction: 'ts→wasm',
+          name: "commands",
+          direction: "ts→wasm",
           capacity: 10,
           itemByteSize: 4,
         },
@@ -195,8 +195,8 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       const respBuffer = new WasmRingBuffer(
         memory,
         {
-          name: 'responses',
-          direction: 'wasm→ts',
+          name: "responses",
+          direction: "wasm→ts",
           capacity: 10,
           itemByteSize: 4,
         },
@@ -220,14 +220,14 @@ describe('WasmRingBuffer byteOffset resolution', () => {
     });
   });
 
-  describe('ring buffer operations at correct offset', () => {
-    it('push() and pop() work correctly at detected offset', () => {
+  describe("ring buffer operations at correct offset", () => {
+    it("push() and pop() work correctly at detected offset", () => {
       const memory = createMockMemory();
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 5,
           itemByteSize: 4,
         },
@@ -256,13 +256,13 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(buffer.empty).toBe(true);
     });
 
-    it('respects capacity from channel options', () => {
+    it("respects capacity from channel options", () => {
       const memory = createMockMemory();
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 4,
           itemByteSize: 4,
         },
@@ -281,13 +281,13 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(buffer.push(data)).toBe(false);
     });
 
-    it('wraps around on ring buffer operations', () => {
+    it("wraps around on ring buffer operations", () => {
       const memory = createMockMemory();
       const buffer = new WasmRingBuffer(
         memory,
         {
-          name: 'test',
-          direction: 'ts→wasm',
+          name: "test",
+          direction: "ts→wasm",
           capacity: 4,
           itemByteSize: 4,
         },
@@ -324,14 +324,14 @@ describe('WasmRingBuffer byteOffset resolution', () => {
     });
   });
 
-  describe('WasmRegionView', () => {
-    it('creates live typed views into memory regions', () => {
+  describe("WasmRegionView", () => {
+    it("creates live typed views into memory regions", () => {
       const memory = createMockMemory();
       const view = new WasmRegionView(memory, {
-        name: 'test-region',
+        name: "test-region",
         byteOffset: 0,
         byteLength: 256,
-        type: 'f32',
+        type: "f32",
       });
 
       // Write to the region via f32 view.
@@ -344,13 +344,13 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(view.f32[1]).toBe(2.5);
     });
 
-    it('provides multiple typed views (u8, u32, f32, etc.)', () => {
+    it("provides multiple typed views (u8, u32, f32, etc.)", () => {
       const memory = createMockMemory();
       const view = new WasmRegionView(memory, {
-        name: 'test-region',
+        name: "test-region",
         byteOffset: 0,
         byteLength: 256,
-        type: 'u32',
+        type: "u32",
       });
 
       // Test various typed views.
@@ -367,13 +367,13 @@ describe('WasmRingBuffer byteOffset resolution', () => {
       expect(Math.abs(f32[0] - 3.14159) < 0.001).toBe(true);
     });
 
-    it('buffer property returns a copy, not a live view', () => {
+    it("buffer property returns a copy, not a live view", () => {
       const memory = createMockMemory();
       const view = new WasmRegionView(memory, {
-        name: 'test-region',
+        name: "test-region",
         byteOffset: 0,
         byteLength: 16,
-        type: 'u8',
+        type: "u8",
       });
 
       // Write to region

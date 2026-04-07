@@ -27,52 +27,52 @@
 // Supported scalar types for WASM memory layout
 export const Types = {
   f32: {
-    type: 'f32' as const,
+    type: "f32" as const,
     byteLength: 4,
-    read: 'getFloat32' as const,
-    write: 'setFloat32' as const,
+    read: "getFloat32" as const,
+    write: "setFloat32" as const,
   },
   f64: {
-    type: 'f64' as const,
+    type: "f64" as const,
     byteLength: 8,
-    read: 'getFloat64' as const,
-    write: 'setFloat64' as const,
+    read: "getFloat64" as const,
+    write: "setFloat64" as const,
   },
   i32: {
-    type: 'i32' as const,
+    type: "i32" as const,
     byteLength: 4,
-    read: 'getInt32' as const,
-    write: 'setInt32' as const,
+    read: "getInt32" as const,
+    write: "setInt32" as const,
   },
   i64: {
-    type: 'i64' as const,
+    type: "i64" as const,
     byteLength: 8,
-    read: 'getBigInt64' as const,
-    write: 'setBigInt64' as const,
+    read: "getBigInt64" as const,
+    write: "setBigInt64" as const,
   },
   u32: {
-    type: 'u32' as const,
+    type: "u32" as const,
     byteLength: 4,
-    read: 'getUint32' as const,
-    write: 'setUint32' as const,
+    read: "getUint32" as const,
+    write: "setUint32" as const,
   },
   u64: {
-    type: 'u64' as const,
+    type: "u64" as const,
     byteLength: 8,
-    read: 'getBigUint64' as const,
-    write: 'setBigUint64' as const,
+    read: "getBigUint64" as const,
+    write: "setBigUint64" as const,
   },
   bool: {
-    type: 'bool' as const,
+    type: "bool" as const,
     byteLength: 1,
-    read: 'getInt8' as const,
-    write: 'setInt8' as const,
+    read: "getInt8" as const,
+    write: "setInt8" as const,
   },
   string: {
-    type: 'string' as const,
+    type: "string" as const,
     byteLength: 4,
-    read: 'getString' as const,
-    write: 'setString' as const,
+    read: "getString" as const,
+    write: "setString" as const,
   },
   /**
    * Persistent string — survives scene transitions.
@@ -85,10 +85,10 @@ export const Types = {
    * Default to `Types.string` (scene-scoped) unless you explicitly need persistence.
    */
   persistentString: {
-    type: 'string' as const,
+    type: "string" as const,
     byteLength: 4,
-    read: 'getString' as const,
-    write: 'setString' as const,
+    read: "getString" as const,
+    write: "setString" as const,
     isPersistent: true, // Flag for computeSchemaLayout to select the persistent pool
   },
 
@@ -98,15 +98,15 @@ export const Types = {
   // (handled by the schema serializer as packed f32 arrays).
 
   /** 2D vector — serialized as 2 × f32 (x, y). */
-  vec2: { type: 'vec2' as const, byteLength: 8, fields: ['x', 'y'] as const },
+  vec2: { type: "vec2" as const, byteLength: 8, fields: ["x", "y"] as const },
   /** 3D vector — serialized as 3 × f32 (x, y, z). */
-  vec3: { type: 'vec3' as const, byteLength: 12, fields: ['x', 'y', 'z'] as const },
+  vec3: { type: "vec3" as const, byteLength: 12, fields: ["x", "y", "z"] as const },
   /** 4D vector — serialized as 4 × f32 (x, y, z, w). */
-  vec4: { type: 'vec4' as const, byteLength: 16, fields: ['x', 'y', 'z', 'w'] as const },
+  vec4: { type: "vec4" as const, byteLength: 16, fields: ["x", "y", "z", "w"] as const },
   /** Quaternion — serialized as 4 × f32 (x, y, z, w). Identity: (0, 0, 0, 1). */
-  quat: { type: 'quat' as const, byteLength: 16, fields: ['x', 'y', 'z', 'w'] as const },
+  quat: { type: "quat" as const, byteLength: 16, fields: ["x", "y", "z", "w"] as const },
   /** RGBA color — serialized as 4 × f32 (r, g, b, a). Range [0, 1] per channel. */
-  color: { type: 'color' as const, byteLength: 16, fields: ['r', 'g', 'b', 'a'] as const },
+  color: { type: "color" as const, byteLength: 16, fields: ["r", "g", "b", "a"] as const },
 };
 
 export type SchemaType = (typeof Types)[keyof typeof Types];
@@ -136,7 +136,7 @@ export interface SchemaLayout<T> {
 type FieldValue = number | bigint | boolean | string | Record<string, number>;
 
 interface FieldMeta {
-  type: SchemaType['type'];
+  type: SchemaType["type"];
   offset: number;
   byteLength: number;
 }
@@ -164,12 +164,12 @@ const COMPOSITE_FIELDS: Record<string, readonly string[]> = Object.fromEntries(
   Object.values(Types)
     .filter(
       (t): t is Extract<(typeof Types)[keyof typeof Types], { fields: readonly string[] }> =>
-        'fields' in t,
+        "fields" in t,
     )
     .map((t) => [t.type, t.fields]),
 );
 
-import { GlobalStringPoolManager } from './utils/string-pool.js';
+import { GlobalStringPoolManager } from "./utils/string-pool.js";
 
 // Typed helpers for dynamic DataView numeric read/write dispatch.
 // Avoids `as any` on DataView for dynamic method name calls.
@@ -310,7 +310,7 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
     key,
     meta,
     typeObj: schema[key]!,
-    handler: (SCHEMA_TYPE_HANDLERS[meta.type] ?? SCHEMA_TYPE_HANDLERS['_numeric'])!,
+    handler: (SCHEMA_TYPE_HANDLERS[meta.type] ?? SCHEMA_TYPE_HANDLERS["_numeric"])!,
   }));
 
   const serialize = (data: T, view: DataView): number => {
@@ -332,7 +332,7 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
 
   return {
     byteLength: totalByteLength,
-    hasString: order.some(([, m]) => m.type === 'string'),
+    hasString: order.some(([, m]) => m.type === "string"),
     serialize,
     deserialize,
   };
@@ -350,19 +350,19 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
  * - `color` → `{ r: number; g: number; b: number; a: number }`
  * - all other numeric types → `number`
  */
-export type InferSchemaType<T extends SchemaType> = T['type'] extends 'bool'
+export type InferSchemaType<T extends SchemaType> = T["type"] extends "bool"
   ? boolean
-  : T['type'] extends 'string'
+  : T["type"] extends "string"
     ? string
-    : T['type'] extends 'i64' | 'u64'
+    : T["type"] extends "i64" | "u64"
       ? bigint
-      : T['type'] extends 'vec2'
+      : T["type"] extends "vec2"
         ? { x: number; y: number }
-        : T['type'] extends 'vec3'
+        : T["type"] extends "vec3"
           ? { x: number; y: number; z: number }
-          : T['type'] extends 'vec4' | 'quat'
+          : T["type"] extends "vec4" | "quat"
             ? { x: number; y: number; z: number; w: number }
-            : T['type'] extends 'color'
+            : T["type"] extends "color"
               ? { r: number; g: number; b: number; a: number }
               : number;
 
@@ -370,7 +370,7 @@ export type InferSchemaType<T extends SchemaType> = T['type'] extends 'bool'
  * Extracts the TypeScript interface from a ComponentDefinition.
  */
 export type InferComponent<D extends ComponentDefinition<ComponentSchema>> = {
-  [K in keyof D['schema']]: InferSchemaType<D['schema'][K]>;
+  [K in keyof D["schema"]]: InferSchemaType<D["schema"][K]>;
 };
 
 /** Monotonic counter for assigning unique numeric IDs to components at definition time. */
@@ -443,7 +443,7 @@ export interface ComponentDefinition<S extends ComponentSchema> {
  */
 export type ComponentBody<S extends ComponentSchema> = Omit<
   ComponentDefinition<S>,
-  'name' | '_typeId' | '_byteSize' | '_f32Stride' | '_fields'
+  "name" | "_typeId" | "_byteSize" | "_f32Stride" | "_fields"
 >;
 
 /**
@@ -478,7 +478,7 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * ```
  */
 export function defineComponent<S extends ComponentSchema>(
-  config: Omit<ComponentDefinition<S>, '_typeId' | '_byteSize' | '_f32Stride' | '_fields'>,
+  config: Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">,
 ): ComponentDefinition<S>;
 
 export function defineComponent<S extends ComponentSchema>(
@@ -489,13 +489,13 @@ export function defineComponent<S extends ComponentSchema>(
 export function defineComponent<S extends ComponentSchema>(
   nameOrConfig:
     | string
-    | Omit<ComponentDefinition<S>, '_typeId' | '_byteSize' | '_f32Stride' | '_fields'>,
+    | Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">,
   factory?: () => ComponentBody<S>,
 ): ComponentDefinition<S> {
   const config: Omit<
     ComponentDefinition<S>,
-    '_typeId' | '_byteSize' | '_f32Stride' | '_fields'
-  > = typeof nameOrConfig === 'string' ? { name: nameOrConfig, ...factory!() } : nameOrConfig;
+    "_typeId" | "_byteSize" | "_f32Stride" | "_fields"
+  > = typeof nameOrConfig === "string" ? { name: nameOrConfig, ...factory!() } : nameOrConfig;
 
   const _typeId = _nextTypeId++;
 

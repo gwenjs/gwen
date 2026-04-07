@@ -115,29 +115,29 @@ src/
 
 ```typescript
 // core/prefab.ts importing from core/
-import { EntityId } from '../engine';
+import { EntityId } from "../engine";
 ```
 
 **Cross-folder:**
 
 ```typescript
 // engine/engine.ts importing from core/
-import type { EntityManager } from '../core/ecs';
-import { PluginManager } from '../plugin-system/plugin-manager';
+import type { EntityManager } from "../core/ecs";
+import { PluginManager } from "../plugin-system/plugin-manager";
 ```
 
 **From root level:**
 
 ```typescript
-import type { EngineConfig } from '../types';
-import { schema } from '../schema';
+import type { EngineConfig } from "../types";
+import { schema } from "../schema";
 ```
 
 **External users (via index.ts):**
 
 ```typescript
 // External package importing
-import { Engine, defineConfig } from '@gwenjs/core';
+import { Engine, defineConfig } from "@gwenjs/core";
 ```
 
 ### ❌ Avoid
@@ -206,10 +206,10 @@ All test files (`.test.ts`, `.bench.ts`) import from the **public API**:
 
 ```typescript
 // ✅ Preferred (tests most common usage)
-import { Engine, defineConfig } from '@gwenjs/core';
+import { Engine, defineConfig } from "@gwenjs/core";
 
 // ✅ OK for internal tests (verify implementation)
-import { EntityManager } from '../src/core/ecs';
+import { EntityManager } from "../src/core/ecs";
 ```
 
 ### Running Tests
@@ -224,17 +224,17 @@ pnpm test --watch     # Watch mode
 ### Old Imports
 
 ```typescript
-import { Engine } from './engine';
-import { EntityManager } from './ecs';
-import { PluginManager } from './plugin-manager';
+import { Engine } from "./engine";
+import { EntityManager } from "./ecs";
+import { PluginManager } from "./plugin-manager";
 ```
 
 ### New Imports
 
 ```typescript
-import { Engine } from './engine/engine';
-import { EntityManager } from './core/ecs';
-import { PluginManager } from './plugin-system/plugin-manager';
+import { Engine } from "./engine/engine";
+import { EntityManager } from "./core/ecs";
+import { PluginManager } from "./plugin-system/plugin-manager";
 ```
 
 ### Updating External Packages
@@ -242,7 +242,7 @@ import { PluginManager } from './plugin-system/plugin-manager';
 **No changes needed!** External packages import from the barrel export:
 
 ```typescript
-import { Engine } from '@gwenjs/core'; // Still works ✓
+import { Engine } from "@gwenjs/core"; // Still works ✓
 ```
 
 ## Future Improvements
