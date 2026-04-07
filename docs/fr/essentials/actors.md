@@ -49,17 +49,47 @@ Enregistrez le plugin de l'acteur avec le moteur avant de générer. Passez `act
 
 ## Génération et suppression
 
+Utilisez `useActor()` dans la phase de setup d'un système ou d'un acteur pour obtenir un handle typé :
+
 ```ts
-// Générer — retourne l'ID d'entité
-const id = EnemyActor._plugin.spawn({ hp: 100 })
+import { useActor } from '@gwenjs/core/actor'
+import { defineSystem } from '@gwenjs/core/system'
+import { EnemyActor } from './actors/enemy'
 
-// Supprimer — appelle onDestroy et supprime l'entité
-EnemyActor._plugin.despawn(id)
+export const SpawnerSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor)
 
-// Obtenir une référence (si vous avez stocké l'ID)
-const actor = EnemyActor._plugin.get(id)
-actor.takeDamage(10)
+  // Générer — retourne l'ID d'entité
+  const id = enemies.spawn({ hp: 100 })
+
+  // Supprimer — appelle onDestroy et retire l'entité
+  enemies.despawn(id)
+
+  // Obtenir l'API publique de la première instance vivante
+  const enemy = enemies.get()
+  enemy?.takeDamage(10)
+
+  // Obtenir toutes les instances vivantes
+  for (const e of enemies.getAll()) {
+    e.takeDamage(5)
+  }
+
+  // Supprimer toutes les instances d'un coup
+  enemies.despawnAll()
+})
 ```
+
+`useActor()` retourne un `ActorHandle` avec :
+
+| Méthode | Description |
+|---|---|
+| `spawn(props?)` | Créer une instance, retourne l'ID d'entité |
+| `despawn(id)` | Supprimer une instance spécifique |
+| `despawnAll()` | Supprimer toutes les instances vivantes |
+| `count()` | Nombre d'instances vivantes |
+| `get()` | API publique de la première instance vivante (`undefined` si aucune) |
+| `getAll()` | API publique de toutes les instances vivantes |
+| `spawnOnce(props?)` | Spawn singleton (sans effet si déjà vivant) |
 
 ## Composables de cycle de vie
 
@@ -300,9 +330,14 @@ Utilisez les acteurs pour les **entités uniques et nommées**. Utilisez les sys
 |---|---|
 | `defineActor(prefab, factory)` | Créer un type d'acteur |
 | `actor._plugin` | Le plugin à enregistrer avec `engine.use()` |
-| `actor._plugin.spawn(props)` | Générer une instance (retourne l'ID d'entité) |
-| `actor._plugin.despawn(id)` | Supprimer une instance |
-| `actor._plugin.get(id)` | Obtenir la référence API publique |
+| `useActor(actorDef)` | Obtenir un handle typé (appeler en phase de setup) |
+| `handle.spawn(props?)` | Générer une instance, retourne l'ID d'entité |
+| `handle.despawn(id)` | Supprimer une instance spécifique |
+| `handle.despawnAll()` | Supprimer toutes les instances vivantes |
+| `handle.count()` | Nombre d'instances vivantes |
+| `handle.get()` | API publique de la première instance vivante |
+| `handle.getAll()` | API publique de toutes les instances vivantes |
+| `handle.spawnOnce(props?)` | Spawn singleton (sans effet si déjà vivant) |
 | `useComponent(ComponentType)` | Accéder à un composant à l'intérieur de factory |
 | `useTransform()` | Accéder à la transform spatiale de l'acteur |
 | `useSceneRouter(router)` | Naviguer entre les scènes |

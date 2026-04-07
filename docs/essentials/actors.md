@@ -49,17 +49,47 @@ Register the actor's plugin with the engine before spawning. Pass `actor._plugin
 
 ## Spawning and Despawning
 
+Use `useActor()` inside a system or actor setup phase to get a typed handle:
+
 ```ts
-// Spawn — returns the entity ID
-const id = EnemyActor._plugin.spawn({ hp: 100 })
+import { useActor } from '@gwenjs/core/actor'
+import { defineSystem } from '@gwenjs/core/system'
+import { EnemyActor } from './actors/enemy'
 
-// Despawn — calls onDestroy and removes the entity
-EnemyActor._plugin.despawn(id)
+export const SpawnerSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor)
 
-// Get a reference (if you stored the ID)
-const actor = EnemyActor._plugin.get(id)
-actor.takeDamage(10)
+  // Spawn — returns the entity ID
+  const id = enemies.spawn({ hp: 100 })
+
+  // Despawn — calls onDestroy and removes the entity
+  enemies.despawn(id)
+
+  // Get the first live instance's public API
+  const enemy = enemies.get()
+  enemy?.takeDamage(10)
+
+  // Get all live instances
+  for (const e of enemies.getAll()) {
+    e.takeDamage(5)
+  }
+
+  // Despawn every instance at once
+  enemies.despawnAll()
+})
 ```
+
+`useActor()` returns an `ActorHandle` with:
+
+| Method | Description |
+|---|---|
+| `spawn(props?)` | Create an instance, returns entity ID |
+| `despawn(id)` | Remove a specific instance |
+| `despawnAll()` | Remove all live instances |
+| `count()` | Number of live instances |
+| `get()` | Public API of the first live instance (`undefined` if none) |
+| `getAll()` | Public API of every live instance |
+| `spawnOnce(props?)` | Spawn only if no live instance exists yet (singleton) |
 
 ## Lifecycle Composables
 
@@ -300,9 +330,14 @@ Use actors for **unique, named entities**. Use systems for **bulk operations** o
 |---|---|
 | `defineActor(prefab, factory)` | Create an actor type |
 | `actor._plugin` | The plugin to register with `engine.use()` |
-| `actor._plugin.spawn(props)` | Spawn an instance (returns entity ID) |
-| `actor._plugin.despawn(id)` | Despawn an instance |
-| `actor._plugin.get(id)` | Get the public API reference |
+| `useActor(actorDef)` | Get a typed handle (call in setup phase) |
+| `handle.spawn(props?)` | Spawn an instance, returns entity ID |
+| `handle.despawn(id)` | Despawn a specific instance |
+| `handle.despawnAll()` | Despawn all live instances |
+| `handle.count()` | Number of live instances |
+| `handle.get()` | Public API of the first live instance |
+| `handle.getAll()` | Public APIs of all live instances |
+| `handle.spawnOnce(props?)` | Spawn singleton (noop if already live) |
 | `useComponent(ComponentType)` | Access a component inside factory |
 | `useTransform()` | Access the actor's spatial transform |
 | `useSceneRouter(router)` | Navigate between scenes |
