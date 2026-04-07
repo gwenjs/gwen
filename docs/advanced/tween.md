@@ -12,7 +12,8 @@ Tweens are the standard way to animate numeric values, vectors, and colors in GW
 Create a tween inside a system using `useTween()`:
 
 ```ts
-import { useTween, defineSystem, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const FadeSystem = defineSystem(() => {
   const opacity = useTween<number>({
@@ -56,7 +57,9 @@ You can also provide a custom easing function: `(t: number) => number` where `t`
 `defineSequence` chains multiple tweens and timed waits into a single ordered sequence. Useful for intro animations, cutscenes, or any multi-step flow:
 
 ```typescript
-import { useTween, defineSequence, defineSystem, onStart } from '@gwenjs/core'
+import { useTween, defineSequence } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { onStart } from '@gwenjs/core/actor'
 
 export const IntroSystem = defineSystem(() => {
   const fadeIn  = useTween<number>({ duration: 0.4, easing: 'easeOutQuad' })
@@ -99,7 +102,8 @@ Register `onComplete` on the sequence, not on individual tween handles. Calling 
 Queue multiple segments with `.to()`:
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const AnimationSystem = defineSystem(() => {
   const position = useTween<Vec2>({ duration: 0.2 })
@@ -157,7 +161,8 @@ scale.onLoop(() => {
 Repeat animations indefinitely or reverse them:
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const BobbingSystem = defineSystem(() => {
   const bobbing = useTween<number>({
@@ -183,7 +188,8 @@ With `loop: true` and `yoyo: true`, the tween bounces back and forth: 0 â†’ 1 â†
 Enemies scale from 0 to 1 over 0.2 seconds when spawned:
 
 ```ts
-import { defineSystem, usePrefab, useTween, onUpdate } from '@gwenjs/core'
+import { usePrefab, useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { Position, Scale } from './components'
 import { EnemyPrefab } from './prefabs'
 
@@ -214,7 +220,8 @@ export const EnemySpawnSystem = defineSystem(() => {
 Fade a dialog panel in when a scene starts:
 
 ```ts
-import { defineSystem, useTween, onUpdate } from '@gwenjs/core'
+import { useTween } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const DialogSystem = defineSystem(() => {
   const alpha = useTween<number>({ duration: 0.4, easing: 'easeIn' })

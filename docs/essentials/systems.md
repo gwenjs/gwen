@@ -14,7 +14,7 @@ A **system** is a function that runs every frame and reads/writes component data
 Use `defineSystem()` to declare a system. Inside the setup function, register callbacks that run during the game loop:
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
@@ -65,7 +65,7 @@ Systems have several callback hooks available:
 Example:
 
 ```ts
-import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MySystem = defineSystem(() => {
@@ -144,7 +144,8 @@ Plugins expose services you can access from systems using `use*` hooks:
 ### Physics Service
 
 ```ts
-import { defineSystem, onUpdate, usePhysics2D } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { usePhysics2D } from '@gwenjs/core'
 
 export const PhysicsSystem = defineSystem(() => {
   const physics = usePhysics2D()
@@ -159,7 +160,8 @@ export const PhysicsSystem = defineSystem(() => {
 ### Engine Access
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const InputSystem = defineSystem(() => {
   const engine = useEngine()
@@ -177,7 +179,7 @@ export const InputSystem = defineSystem(() => {
 Use `useService(key)` to access a runtime service registered by a plugin via `engine.provide()`. The return type is inferred from the `GwenProvides` interface. Plugins that register services augment this interface in their type declarations.
 
 ```typescript
-import { defineSystem, useService, onUpdate } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
 export const AudioSystem = defineSystem(() => {
   const audio = useService('audio') // typed via GwenProvides augmentation
@@ -193,7 +195,7 @@ export const AudioSystem = defineSystem(() => {
 Use `useWasmModule(name)` to access a WASM module loaded by a plugin via `engine.loadWasmModule()`. The generic type parameter types the `.exports` object. The module must have been loaded by a plugin before this system runs.
 
 ```typescript
-import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core'
+import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core/system'
 
 export const PhysicsStepSystem = defineSystem(() => {
   const mod = useWasmModule<{ step: (dt: number) => void }>('my-physics')
@@ -211,7 +213,8 @@ export const PhysicsStepSystem = defineSystem(() => {
 Here's a complete example: enemies that move toward the player:
 
 ```ts
-import { defineSystem, useQuery, onUpdate, useEngine } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 import { Position, Velocity, EnemyTag, PlayerTag } from './components'
 
 const ENEMY_SPEED = 50 // pixels per second
@@ -249,6 +252,8 @@ import {
   defineSystem,
   useQuery,
   onUpdate,
+} from '@gwenjs/core/system'
+import {
   removeComponent,
   addComponent,
 } from '@gwenjs/core'
@@ -300,7 +305,7 @@ export const GameScene = defineScene({
 Errors in a system's `onUpdate` callback are caught and logged. The game continues:
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const SafeSystem = defineSystem(() => {
   onUpdate(() => {
@@ -317,7 +322,8 @@ export const SafeSystem = defineSystem(() => {
 For unrecoverable errors, emit an event:
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const EngineAwareSystem = defineSystem(() => {
   const engine = useEngine()
