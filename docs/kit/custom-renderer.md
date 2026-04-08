@@ -33,9 +33,23 @@ Use the GWEN CLI to generate the package structure:
 pnpm dlx @gwenjs/cli scaffold package renderer-mytech
 ```
 
-This creates `packages/renderer-mytech/` with `package.json`, `tsconfig.json`,
-`vite.config.ts`, and a starter `src/index.ts`. Then add `@gwenjs/renderer-core`
-as a dependency:
+This generates the full package structure:
+
+```
+renderer-mytech/
+├── package.json
+├── tsconfig.json
+├── vite.config.ts
+└── src/
+    ├── index.ts
+    ├── types.ts
+    ├── plugin.ts
+    ├── composables.ts
+    ├── augment.ts
+    └── module.ts
+```
+
+Then add `@gwenjs/renderer-core` as a dependency:
 
 ```bash
 pnpm --filter @gwenjs/renderer-mytech add @gwenjs/renderer-core
