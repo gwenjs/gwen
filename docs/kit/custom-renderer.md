@@ -107,15 +107,7 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 
 ## Step 3 — Create the GwenPlugin
 
-Create `src/mytech-plugin.ts`.
-
-::: tip Why `getOrCreateLayerManager` instead of `new LayerManager`?
-`getOrCreateLayerManager(engine, container)` is the correct way to obtain a `LayerManager` inside a plugin.
-It creates the shared instance on first call — bound to the engine's logger so all renderer warnings
-flow through the engine's log sink — and returns the same instance to every subsequent renderer plugin.
-You never manage the singleton yourself, and you never need to know whether another renderer already
-created it.
-:::
+Create `src/mytech-plugin.ts`:
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'

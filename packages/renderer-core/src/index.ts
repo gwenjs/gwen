@@ -13,7 +13,6 @@
  *   type SpriteHandle,
  *   type HTMLHandle,
  *   type MeshHandle,
- *   LayerManager,
  *   RendererErrorCodes,
  *   RendererAlreadyRegisteredError,
  * } from '@gwenjs/renderer-core'
@@ -42,8 +41,10 @@ export {
   RendererStatsCollectorImpl,
 } from "./stats.js";
 
-// LayerManager
-export { LayerManager } from "./layer-manager.js";
+// LayerManager — getOrCreateLayerManager is the only public entry point.
+// LayerManager itself is intentionally not exported: plugin authors must use
+// getOrCreateLayerManager(engine, container) so the instance is always bound
+// to the engine logger and shared across all renderer plugins.
 export { getOrCreateLayerManager } from "./get-or-create-layer-manager.js";
 
 // defineRendererService
