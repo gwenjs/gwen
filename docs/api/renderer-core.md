@@ -88,24 +88,7 @@ Returned by `useMesh()` / `useR3F()`.
 | `setVisible(v)` | Show / hide |
 | `destroy()` | Remove from scene — call in `onDestroy()` |
 
-## Classes
-
-### `LayerManager`
-
-```ts
-class LayerManager {
-  constructor(root: HTMLElement, logger?: GwenLogger)
-  register(service: RendererService): void
-  mount(): void
-  resize(width: number, height: number): void
-  unregister(rendererName: string): void
-  enableStats(): void
-  getStats(): RendererStats
-}
-```
-
-Manages DOM ordering and renderer lifecycle. Do not instantiate directly in
-renderer plugins — use `getOrCreateLayerManager()` instead.
+## Functions
 
 ### `getOrCreateLayerManager()`
 
