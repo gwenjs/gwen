@@ -22,6 +22,7 @@ export default defineConfig({
         "testing/index": resolve(__dirname, "src/testing/index.ts"),
       },
       formats: ["es"],
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       external: ["@gwenjs/core"],
