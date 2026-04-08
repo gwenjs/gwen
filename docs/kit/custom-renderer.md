@@ -52,7 +52,8 @@ renderer-mytech/
 Then add `@gwenjs/renderer-core` as a dependency:
 
 ```bash
-pnpm --filter @gwenjs/renderer-mytech add @gwenjs/renderer-core
+cd renderer-mytech
+pnpm add @gwenjs/renderer-core
 ```
 
 ## Step 2 — Implement `RendererService`
