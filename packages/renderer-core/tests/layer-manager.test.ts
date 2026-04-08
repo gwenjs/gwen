@@ -204,4 +204,63 @@ describe("LayerManager", () => {
     manager.mount();
     expect(root.children.length).toBe(countAfterFirst);
   });
+
+  // ── beginFrame ────────────────────────────────────────────────────────────
+
+  it("beginFrame() is a no-op when stats are disabled", () => {
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    // No enableStats() — beginFrame must not throw
+    expect(() => manager.beginFrame()).not.toThrow();
+  });
+
+  it("beginFrame() resets global totals to zero each frame", () => {
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.enableStats();
+    manager.mount();
+
+    // Simulate a frame: stats collector receives reports
+    const stats = manager.getStats();
+    // Manually bump totals (simulating what reportLayer/reportFrameTime would do)
+    stats.totalRenderTimeMs = 5;
+    stats.totalDrawCalls = 10;
+    stats.totalEntitiesRendered = 20;
+
+    manager.beginFrame();
+
+    expect(stats.totalRenderTimeMs).toBe(0);
+    expect(stats.totalDrawCalls).toBe(0);
+    expect(stats.totalEntitiesRendered).toBe(0);
+  });
+
+  it("beginFrame() resets per-renderer frameTimeMs", () => {
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.enableStats();
+    manager.mount();
+
+    // Inject a real collector via setStatsCollector so we can test the reset path
+    const stats = manager.getStats();
+    stats.renderers["renderer:canvas"] = {
+      type: "canvas",
+      frameTimeMs: 8,
+      layers: {
+        game: {
+          order: 10,
+          coordinate: "screen",
+          entityCount: 3,
+          drawCalls: 2,
+          domNodes: 0,
+          visible: true,
+          frameTimeMs: 4,
+        },
+      },
+    };
+
+    manager.beginFrame();
+
+    expect(stats.renderers["renderer:canvas"]?.frameTimeMs).toBe(0);
+    expect(stats.renderers["renderer:canvas"]?.layers["game"]?.drawCalls).toBe(0);
+  });
 });

@@ -223,9 +223,7 @@ import { MyTechRenderer } from '../src/mytech-renderer-service.js'
 
 describe('@gwenjs/renderer-mytech conformité', () => {
   it('satisfait le contrat RendererService', () => {
-    const service = MyTechRenderer({
-      layers: { main: { order: 0 } },
-    })
+    const service = MyTechRenderer({ layers: { main: { order: 0 } } })
     expect(() => runConformanceTests(service)).not.toThrow()
   })
 })

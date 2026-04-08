@@ -59,7 +59,9 @@ const service = MyRenderer({ layers: { game: { order: 10 } } })
 function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager
 ```
 
-Point d'entrée pour les plugins renderer. Retourne le `LayerManager` partagé pour cette instance d'engine, en le créant au premier appel. L'instance créée est automatiquement liée à `engine.logger`.
+Point d'entrée pour les plugins renderer. Retourne le `LayerManager` partagé pour cette instance d'engine, en le créant au premier appel. Au premier appel, il :
+- Lie le manager à `engine.logger` pour que tous les avertissements transitent par le log sink de l'engine.
+- Enregistre un handler `engine:tick` qui appelle `manager.beginFrame()` au début de chaque frame, maintenant les totaux de stats par frame sans aucun câblage côté plugin.
 
 ```ts
 // Dans un plugin renderer :
@@ -140,7 +142,7 @@ manager.mount()
 
 const stats = manager.getStats()
 // stats.renderers['renderer:canvas'].frameTimeMs  — scalaire pour cette frame
-// stats.totalDrawCalls                            — total de draw calls accumulés
+// stats.totalDrawCalls                            — total de draw calls pour la frame courante
 // stats.history.drawCalls[0]                      — draw calls d'une frame dans le ring buffer de 60 frames
 ```
 

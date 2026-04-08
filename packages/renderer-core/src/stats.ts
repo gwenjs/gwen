@@ -137,8 +137,8 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
       }
     }
     // Note: global totals (totalDrawCalls, totalRenderTimeMs, totalEntitiesRendered)
-    // are NOT reset here. They accumulate across all renderers per frame and must be
-    // reset by the frame orchestrator (LayerManager) before any renderer reports.
+    // are NOT reset here. They accumulate across all renderers within a single frame.
+    // LayerManager.beginFrame() resets them once per tick before any renderer reports.
   }
 
   reportLayer(layerName: string, partial: Partial<RendererLayerStats>): void {
