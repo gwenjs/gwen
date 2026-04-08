@@ -298,7 +298,7 @@ export class GwenApp {
       },
 
       /** Subscribes to a build-time hook. */
-      hook<H extends keyof GwenBuildHooks>(event: H, fn: GwenBuildHooks[H]): void {
+      hook<H extends string & keyof GwenBuildHooks>(event: H, fn: GwenBuildHooks[H]): void {
         // TypeScript cannot fully preserve Hookable's callback inference when
         // forwarding a generic event key through this wrapper method.
         // `as never` is a local escape hatch that keeps strict typing at the
