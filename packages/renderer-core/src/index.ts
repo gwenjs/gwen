@@ -54,6 +54,18 @@ export {
   UnknownLayerError,
 } from "./errors.js";
 
-// TODO(renderer-core): Module augmentation for EngineStats deferred to Task 8.
-// When vite.config.ts is added, augment.ts can be exported and EngineStats declaration
-// merging will work. For now, see ./augment.ts for the planned augmentation.
+// Import from @gwenjs/core to enable the declare module augmentation below.
+import type {} from '@gwenjs/core'
+
+// Augment EngineStats with renderer stats.
+// This declaration merging makes engine.getStats().renderers available
+// when @gwenjs/renderer-core is installed.
+declare module "@gwenjs/core" {
+  interface EngineStats {
+    /**
+     * Renderer stats snapshot. Only populated when `import.meta.env.DEV || engine.debug`.
+     * `undefined` in production builds without debug mode.
+     */
+    renderers?: import("./stats.js").RendererStats;
+  }
+}
