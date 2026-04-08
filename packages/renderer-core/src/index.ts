@@ -44,6 +44,7 @@ export {
 
 // LayerManager
 export { LayerManager } from "./layer-manager.js";
+export { getOrCreateLayerManager } from "./get-or-create-layer-manager.js";
 
 // Errors
 export {
@@ -67,5 +68,14 @@ declare module "@gwenjs/core" {
      * `undefined` in production builds without debug mode.
      */
     renderers?: import("./stats.js").RendererStats;
+  }
+
+  interface GwenProvides {
+    /**
+     * The shared LayerManager for this engine instance.
+     * Created automatically by the first renderer plugin via `getOrCreateLayerManager()`.
+     * Do not create or provide this manually.
+     */
+    layerManager: import("./layer-manager.js").LayerManager;
   }
 }
