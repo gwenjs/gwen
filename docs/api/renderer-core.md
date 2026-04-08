@@ -9,7 +9,9 @@ The zero-dependency contract package for GWEN renderer plugins. Contains the
 `RendererService` interface, `LayerManager`, stats types, error classes, and
 the `runConformanceTests()` utility.
 
-Install alongside any renderer plugin — it ships as a peer dependency.
+```bash
+pnpm add @gwenjs/renderer-core
+```
 
 ## Constants
 
