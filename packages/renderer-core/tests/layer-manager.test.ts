@@ -157,4 +157,22 @@ describe("LayerManager", () => {
     expect(stats).toHaveProperty("renderers");
     expect(stats).toHaveProperty("history");
   });
+
+  it("enables stats for renderers registered after enableStats()", () => {
+    manager.enableStats();
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.mount();
+    // setStatsCollector must be called even when enableStats() preceded register()
+    expect(svc.setStatsCollector).toHaveBeenCalledOnce();
+  });
+
+  it("mount() is idempotent — calling it twice does not double-insert elements", () => {
+    const svc = makeService("renderer:canvas", { game: { order: 10 } });
+    manager.register(svc);
+    manager.mount();
+    const countAfterFirst = root.children.length;
+    manager.mount();
+    expect(root.children.length).toBe(countAfterFirst);
+  });
 });
