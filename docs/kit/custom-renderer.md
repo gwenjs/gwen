@@ -124,7 +124,7 @@ Create `src/mytech-plugin.ts`:
 
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
-import { LayerManager } from '@gwenjs/renderer-core'
+import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
 import type { LayerDef } from '@gwenjs/renderer-core'
 import { MyTechRendererService } from './mytech-renderer-service.js'
 
@@ -132,8 +132,6 @@ export interface MyTechRendererOptions {
   layers: Record<string, LayerDef>
   container?: HTMLElement
 }
-
-let _layerManager: LayerManager | null = null
 
 export const MyTechRendererPlugin = definePlugin<MyTechRendererOptions>((opts) => {
   const service = new MyTechRendererService({ layers: opts.layers })
@@ -143,22 +141,14 @@ export const MyTechRendererPlugin = definePlugin<MyTechRendererOptions>((opts) =
     setup(engine) {
       engine.provide('renderer:mytech', service)
 
-      if (!_layerManager) {
-        _layerManager = new LayerManager(opts.container ?? document.body)
-        if (import.meta.env.DEV || engine.debug) {
-          _layerManager.enableStats()
-        }
+      const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
+      if (import.meta.env.DEV || engine.debug) {
+        manager.enableStats()
       }
+      manager.register(service)
 
-      _layerManager.register(service)
-
-      engine.onStart(() => {
-        _layerManager!.mount()
-      })
-
-      engine.onDestroy(() => {
-        _layerManager!.unregister('renderer:mytech')
-      })
+      engine.onStart(() => manager.mount())
+      engine.onDestroy(() => manager.unregister('renderer:mytech'))
     },
 
     onRender() {
