@@ -185,6 +185,8 @@ export class LayerManager {
       for (const [layerName, layerDef] of Object.entries(service.layers)) {
         if (layerDef !== undefined && incomingOrders.has(layerDef.order)) {
           const incomingLayerName = incomingOrders.get(layerDef.order);
+          // eslint-disable-next-line no-console
+          // oxlint-disable-next-line no-console
           console.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
               `Layer order conflict: "${service.name}:${layerName}" and ` +
