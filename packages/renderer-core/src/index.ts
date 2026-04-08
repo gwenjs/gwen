@@ -55,7 +55,7 @@ export {
 } from "./errors.js";
 
 // Import from @gwenjs/core to enable the declare module augmentation below.
-import type {} from '@gwenjs/core'
+import type {} from "@gwenjs/core";
 
 // Augment EngineStats with renderer stats.
 // This declaration merging makes engine.getStats().renderers available
