@@ -68,18 +68,42 @@ describe("RendererStatsCollectorImpl", () => {
     expect(stats.history.head).toBe(1);
   });
 
-  it("resets per-frame totals on beginFrame()", () => {
+  it("resets only per-renderer data on beginFrame(), not global totals", () => {
     collector.enable();
     collector.reportLayer("game", { drawCalls: 5 });
+    collector.reportFrameTime(8);
+    // global totals remain — only the renderer-specific stats are cleared
+    const prevTotal = stats.totalDrawCalls;
     collector.beginFrame();
-    expect(stats.totalDrawCalls).toBe(0);
-    expect(stats.totalRenderTimeMs).toBe(0);
+    expect(stats.totalDrawCalls).toBe(prevTotal); // global total NOT reset
+    // per-renderer frame time IS reset
+    expect(stats.renderers["renderer:canvas"]?.frameTimeMs).toBe(0);
+  });
+
+  it("does not wipe first renderer totals when second renderer calls beginFrame()", () => {
+    const collector2 = new RendererStatsCollectorImpl("renderer:html", stats);
+    collector.enable();
+    collector2.enable();
+
+    collector.reportLayer("game", { drawCalls: 3, entityCount: 5 });
+    collector.reportFrameTime(4);
+
+    // Second renderer begins its frame — must NOT wipe collector1's totals
+    collector2.beginFrame();
+    collector2.reportLayer("hud", { drawCalls: 1, entityCount: 2 });
+    collector2.reportFrameTime(2);
+
+    expect(stats.totalDrawCalls).toBe(4); // 3 + 1
+    expect(stats.totalEntitiesRendered).toBe(7); // 5 + 2
+    expect(stats.totalRenderTimeMs).toBeCloseTo(6); // 4 + 2
   });
 
   it("accumulates totals across multiple renderers", () => {
     const collector2 = new RendererStatsCollectorImpl("renderer:html", stats);
     collector.enable();
     collector2.enable();
+    collector.beginFrame();
+    collector2.beginFrame();
     collector.reportLayer("game", { drawCalls: 3, entityCount: 5 });
     collector2.reportLayer("hud", { drawCalls: 0, entityCount: 2 });
     collector.reportFrameTime(4);
