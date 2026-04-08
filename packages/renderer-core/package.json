@@ -1,11 +1,11 @@
 {
   "name": "@gwenjs/renderer-core",
   "version": "0.1.0",
-  "type": "module",
   "files": [
     "dist",
     "src"
   ],
+  "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {
@@ -20,8 +20,6 @@
     }
   },
   "publishConfig": {
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
     "exports": {
       ".": {
         "types": "./dist/index.d.ts",
@@ -32,7 +30,9 @@
         "types": "./dist/testing/index.d.ts",
         "import": "./dist/testing/index.js"
       }
-    }
+    },
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts"
   },
   "scripts": {
     "build": "vite build",
