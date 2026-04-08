@@ -151,6 +151,26 @@ describe("LayerManager", () => {
     warnSpy.mockRestore();
   });
 
+  it("warns when a single renderer declares two layers with the same order", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const svc = makeService("renderer:canvas", { bg: { order: 10 }, fg: { order: 10 } });
+    manager.register(svc);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"));
+    warnSpy.mockRestore();
+  });
+
+  it("warns only once for a duplicate order within a single renderer", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const svc = makeService("renderer:canvas", {
+      a: { order: 5 },
+      b: { order: 5 },
+      c: { order: 5 },
+    });
+    manager.register(svc);
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
   // ── Stats ─────────────────────────────────────────────────────────────────
 
   it("calls setStatsCollector() after mount() when stats are enabled", () => {
