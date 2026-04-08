@@ -65,41 +65,41 @@ Create `src/mytech-renderer-service.ts`:
 
 ```ts
 import { defineRendererService, type LayerDef } from '@gwenjs/renderer-core'
-import { MyTechRenderer } from 'mytech'
+import { MyTechEngine } from 'mytech'
 
 export interface MyTechRendererOptions {
   layers: Record<string, LayerDef>
 }
 
-let renderer: MyTechRenderer | null = null
+let engine: MyTechEngine | null = null
 
 export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts) => ({
   name: 'renderer:mytech',
   layers: opts.layers,
 
   // Called once per declared layer — result is cached automatically
-  createElement(layerName) {
+  createElement() {
     return document.createElement('canvas')
   },
 
   mount({ getLayer }) {
     const canvas = getLayer(Object.keys(opts.layers)[0]!) as HTMLCanvasElement
-    renderer = new MyTechRenderer({ canvas })
+    engine = new MyTechEngine({ canvas })
   },
 
   unmount() {
-    renderer?.dispose()
-    renderer = null
+    engine?.dispose()
+    engine = null
   },
 
   resize(w, h) {
-    renderer?.setSize(w, h)
+    engine?.setSize(w, h)
   },
 
   // Called each frame via service.flush() — stats are no-ops when disabled
   flush({ reportFrameTime }) {
     const t = performance.now()
-    renderer?.render()
+    engine?.render()
     reportFrameTime(performance.now() - t)
   },
 }))
