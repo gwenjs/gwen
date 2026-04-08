@@ -6,10 +6,13 @@ export default defineConfig({
   plugins: [dts({ include: ["src"], outDir: "dist", rollupTypes: false, entryRoot: "src" })],
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "GwenKit",
-      formats: ["es", "cjs"],
-      fileName: (format) => `index.${format === "es" ? "js" : "cjs"}`,
+      entry: {
+        index: resolve(__dirname, "src/index.ts"),
+        "plugin/index": resolve(__dirname, "src/plugin/index.ts"),
+        "module/index": resolve(__dirname, "src/module/index.ts"),
+      },
+      formats: ["es"],
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       external: ["@gwenjs/core"],

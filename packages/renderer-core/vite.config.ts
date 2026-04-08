@@ -9,6 +9,10 @@ export default defineConfig({
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
+      // Prevent @gwenjs/* path aliases from being resolved to relative paths in .d.ts files.
+      // Without this, `declare module '@gwenjs/core'` becomes `declare module '../packages/core/src/index.ts'`
+      // which doesn't match the module specifier consumers use.
+      pathsToAliases: false,
     }),
   ],
   build: {
