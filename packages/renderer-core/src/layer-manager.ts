@@ -7,6 +7,7 @@
  * and validates contract versions.
  */
 
+import { createLogger } from "@gwenjs/core";
 import {
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
@@ -16,6 +17,8 @@ import type { RendererService } from "./types.js";
 import { RENDERER_CONTRACT_VERSION } from "./types.js";
 import { RendererStatsCollectorImpl, createRendererStats } from "./stats.js";
 import type { RendererStats } from "./stats.js";
+
+const log = createLogger("renderer-core:layer-manager", false);
 
 interface RegisteredRenderer {
   service: RendererService;
@@ -185,9 +188,7 @@ export class LayerManager {
       for (const [layerName, layerDef] of Object.entries(service.layers)) {
         if (layerDef !== undefined && incomingOrders.has(layerDef.order)) {
           const incomingLayerName = incomingOrders.get(layerDef.order);
-          // eslint-disable-next-line no-console
-          // oxlint-disable-next-line no-console
-          console.warn(
+          log.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
               `Layer order conflict: "${service.name}:${layerName}" and ` +
               `"${incoming.name}:${incomingLayerName}" both use order ${layerDef.order}. ` +
