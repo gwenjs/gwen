@@ -4,6 +4,7 @@
     { "path": "packages/math" },
     { "path": "packages/schema" },
     { "path": "packages/core" },
+    { "path": "packages/renderer-core" },
     { "path": "packages/kit" },
     { "path": "packages/app" },
     { "path": "packages/vite" },
