@@ -104,6 +104,7 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
   private _enabled = false;
   private readonly _rendererName: string;
   private readonly _stats: RendererStats;
+  private _currentFrameDrawCalls = 0;
 
   constructor(rendererName: string, stats: RendererStats) {
     this._rendererName = rendererName;
@@ -122,12 +123,10 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
     }
   }
 
-  /** Reset per-frame totals. Called by LayerManager at the start of each frame. */
+  /** Reset per-renderer data. Called by LayerManager at the start of each frame. */
   beginFrame(): void {
     if (!this._enabled) return;
-    this._stats.totalDrawCalls = 0;
-    this._stats.totalRenderTimeMs = 0;
-    this._stats.totalEntitiesRendered = 0;
+    this._currentFrameDrawCalls = 0;
     const r = this._stats.renderers[this._rendererName];
     if (r) {
       r.frameTimeMs = 0;
@@ -137,6 +136,9 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
         layer.frameTimeMs = 0;
       }
     }
+    // Note: global totals (totalDrawCalls, totalRenderTimeMs, totalEntitiesRendered)
+    // are NOT reset here. They accumulate across all renderers per frame and must be
+    // reset by the frame orchestrator (LayerManager) before any renderer reports.
   }
 
   reportLayer(layerName: string, partial: Partial<RendererLayerStats>): void {
@@ -156,6 +158,7 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
       };
     }
     Object.assign(r.layers[layerName]!, partial);
+    this._currentFrameDrawCalls += partial.drawCalls ?? 0;
     this._stats.totalDrawCalls += partial.drawCalls ?? 0;
     this._stats.totalEntitiesRendered += partial.entityCount ?? 0;
   }
@@ -167,7 +170,7 @@ export class RendererStatsCollectorImpl implements RendererStatsCollector {
     this._stats.totalRenderTimeMs += ms;
     const { history } = this._stats;
     history.frameTimeMs[history.head] = ms;
-    history.drawCalls[history.head] = this._stats.totalDrawCalls;
+    history.drawCalls[history.head] = this._currentFrameDrawCalls;
     history.head = (history.head + 1) % 60;
   }
 }
