@@ -45,5 +45,11 @@ export function getOrCreateLayerManager(engine: GwenEngine, container: HTMLEleme
 
   const manager = new LayerManager(container, engine.logger.child("renderer-core"));
   engine.provide("layerManager", manager);
+
+  // Reset per-frame stats totals at the start of every tick.
+  // Registered once (LayerManager is a singleton per engine) so multiple renderer
+  // plugins calling getOrCreateLayerManager() do not double-register the hook.
+  engine.hooks.hook("engine:tick", () => manager.beginFrame());
+
   return manager;
 }

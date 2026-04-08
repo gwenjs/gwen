@@ -50,6 +50,24 @@ export class LayerManager {
   }
 
   /**
+   * Reset per-frame global totals and per-renderer stats for the new frame.
+   * Called automatically by {@link getOrCreateLayerManager} at the start of every
+   * tick via `engine.hooks.hook('engine:tick', ...)`. Plugin authors do not need
+   * to call this manually.
+   *
+   * When stats are disabled this is a no-op.
+   */
+  beginFrame(): void {
+    if (!this._debugEnabled) return;
+    this._stats.totalRenderTimeMs = 0;
+    this._stats.totalDrawCalls = 0;
+    this._stats.totalEntitiesRendered = 0;
+    for (const { collector } of this._renderers.values()) {
+      collector.beginFrame();
+    }
+  }
+
+  /**
    * Enable stats collection for all current and future renderers.
    * Called by the renderer-core plugin when `import.meta.env.DEV || engine.debug`.
    */

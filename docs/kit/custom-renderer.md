@@ -192,8 +192,8 @@ export function useMyTechObject(): MyTechObjectHandle {
 }
 ```
 
-::: tip Pas besoin de l'entity ID
-The composable uses `onDestroy` (public API) for lifecycle — no internal `_getActorEntityId()` needed.
+::: tip No entity ID needed
+The composable uses `onDestroy` (public API) for lifecycle — no internal API needed.
 If you need transform sync, do it explicitly in `onUpdate` or build a higher-level composable on top.
 :::
 
@@ -235,14 +235,12 @@ export default defineGwenModule<MyTechRendererOptions>({
 ```ts
 // tests/conformance.test.ts
 import { runConformanceTests } from '@gwenjs/renderer-core/testing'
-import { MyTechRendererService } from '../src/mytech-renderer-service.js'
+import { MyTechRenderer } from '../src/mytech-renderer-service.js'
 
 describe('@gwenjs/renderer-mytech conformance', () => {
   it('satisfies the RendererService contract', () => {
-    const service = new MyTechRendererService({
-      layers: { main: { order: 0 } },
-    })
-    runConformanceTests(service)
+    const service = MyTechRenderer({ layers: { main: { order: 0 } } })
+    expect(() => runConformanceTests(service)).not.toThrow()
   })
 })
 ```

@@ -29,6 +29,9 @@ function makeEngine(): GwenEngine {
       services.set(key, value);
     }),
     tryInject: vi.fn((key: string) => services.get(key)),
+    hooks: {
+      hook: vi.fn(),
+    },
   } as unknown as GwenEngine;
 }
 
@@ -74,5 +77,13 @@ describe("getOrCreateLayerManager", () => {
     const otherContainer = document.createElement("div");
     const second = getOrCreateLayerManager(engine, otherContainer);
     expect(second).toBe(first);
+  });
+
+  it("registers an engine:tick hook for beginFrame() on first call only", () => {
+    getOrCreateLayerManager(engine, container);
+    getOrCreateLayerManager(engine, container);
+    // engine:tick hook must be registered exactly once (manager is a singleton)
+    expect(engine.hooks.hook).toHaveBeenCalledOnce();
+    expect(engine.hooks.hook).toHaveBeenCalledWith("engine:tick", expect.any(Function));
   });
 });
