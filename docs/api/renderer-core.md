@@ -94,7 +94,7 @@ Returned by `useMesh()` / `useR3F()`.
 
 ```ts
 class LayerManager {
-  constructor(root: HTMLElement)
+  constructor(root: HTMLElement, logger?: GwenLogger)
   register(service: RendererService): void
   mount(): void
   resize(width: number, height: number): void
@@ -104,9 +104,31 @@ class LayerManager {
 }
 ```
 
-Manages DOM ordering and renderer lifecycle. Instantiated once by the first
-renderer plugin that registers, then shared across all renderers via
-`getOrCreateLayerManager()`.
+Manages DOM ordering and renderer lifecycle. Do not instantiate directly in
+renderer plugins — use `getOrCreateLayerManager()` instead.
+
+### `getOrCreateLayerManager()`
+
+```ts
+function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager
+```
+
+The entry point for renderer plugins. Returns the shared `LayerManager` for this engine,
+creating it on first call. The created instance is automatically bound to `engine.logger`
+so all renderer warnings flow through the engine's log sink.
+
+```ts
+// Inside a renderer plugin:
+setup(engine) {
+  const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
+  manager.register(service)
+  engine.onStart(() => manager.mount())
+  engine.onDestroy(() => manager.unregister(service.name))
+}
+```
+
+The `container` argument is only used on the first call. Subsequent renderer plugins
+reuse the existing instance regardless of the container they pass.
 
 ## Error codes
 
