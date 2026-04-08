@@ -184,10 +184,24 @@ export class LayerManager {
 
   private _checkOrderConflicts(incoming: RendererService): void {
     const incomingOrders = new Map<number, string>();
+    const warnedIncoming = new Set<number>();
+
     for (const [name, def] of Object.entries(incoming.layers)) {
-      if (def !== undefined) {
-        incomingOrders.set(def.order, name);
+      if (def === undefined) continue;
+      const existing = incomingOrders.get(def.order);
+      if (existing !== undefined) {
+        if (!warnedIncoming.has(def.order)) {
+          this._log.warn(
+            `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
+              `Layer order conflict within "${incoming.name}": ` +
+              `"${existing}" and "${name}" both use order ${def.order}. ` +
+              `Adjust one layer's order to silence this warning.`,
+          );
+          warnedIncoming.add(def.order);
+        }
+        continue;
       }
+      incomingOrders.set(def.order, name);
     }
 
     for (const { service } of this._renderers.values()) {
