@@ -27,34 +27,18 @@ The GWEN engine does not know about rendering at all — everything visual is a 
 
 ## Step 1 — Scaffold the package
 
+Use the GWEN CLI to generate the package structure:
+
 ```bash
-mkdir packages/renderer-mytech
-cd packages/renderer-mytech
+pnpm dlx @gwenjs/cli scaffold package renderer-mytech
 ```
 
-Create `package.json`:
+This creates `packages/renderer-mytech/` with `package.json`, `tsconfig.json`,
+`vite.config.ts`, and a starter `src/index.ts`. Then add `@gwenjs/renderer-core`
+as a dependency:
 
-```json
-{
-  "name": "@gwenjs/renderer-mytech",
-  "version": "0.1.0",
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "dependencies": {
-    "@gwenjs/core": "workspace:*",
-    "@gwenjs/renderer-core": "workspace:*",
-    "mytech": "^1.0.0"
-  },
-  "devDependencies": {
-    "typescript": "^6.0.2",
-    "vite": "^8.0.3",
-    "vite-plugin-dts": "^4.5.4",
-    "vitest": "^4.1.2",
-    "happy-dom": "^18.0.0"
-  }
-}
+```bash
+pnpm --filter @gwenjs/renderer-mytech add @gwenjs/renderer-core
 ```
 
 ## Step 2 — Implement `RendererService`
