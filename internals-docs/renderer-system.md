@@ -27,7 +27,8 @@ game code
 ```
 
 `@gwenjs/renderer-core` is the only shared dependency. It contains no graphical code —
-only TypeScript interfaces, `LayerManager`, `RendererStatsCollector`, and error classes.
+only TypeScript interfaces, `defineRendererService`, `getOrCreateLayerManager`,
+`RendererStatsCollector`, and error classes.
 
 ## Key Design Decisions
 
@@ -60,6 +61,10 @@ exist and in what order. It:
 5. Propagates `resize()` to all renderers
 
 Individual renderer plugins do **not** touch the DOM outside their own elements.
+
+`LayerManager` is not part of the public API. Plugin authors obtain the shared instance
+via `getOrCreateLayerManager(engine, container)`, which creates it on first call bound
+to `engine.logger` and returns the same instance to every subsequent renderer plugin.
 
 ### Frame loop integration
 
@@ -103,11 +108,12 @@ as `RendererErrorCodes`. This mirrors the `CoreErrorCodes` pattern in `@gwenjs/c
 
 ## Adding a New Renderer
 
-1. Create `packages/renderer-<name>/`
-2. Implement `RendererService` from `@gwenjs/renderer-core`
-3. Augment `GwenProvides` with `'renderer:<name>': MyRendererService`
-4. Export composables (`useSprite`, `useHTML`, `useMesh`…) that call `useService('renderer:<name>')`
-5. Export a `defineGwenModule` default export
-6. Run `runConformanceTests()` from `@gwenjs/renderer-core/testing` in your test suite
+1. Scaffold with `pnpm dlx @gwenjs/cli scaffold package renderer-<name>`
+2. Use `defineRendererService(factory)` from `@gwenjs/renderer-core` — handles contract version, element caching, stats wiring automatically
+3. Use `getOrCreateLayerManager(engine, container)` in the plugin's `setup()` to register with the shared `LayerManager`
+4. Augment `GwenProvides` with `'renderer:<name>': ReturnType<typeof MyRenderer>`
+5. Export composables (`useSprite`, `useHTML`, `useMesh`…) using `useService('renderer:<name>')` + `onDestroy` for lifecycle — no `_getActorEntityId` needed
+6. Export a `defineGwenModule` default export
+7. Run `runConformanceTests()` from `@gwenjs/renderer-core/testing` in your test suite
 
 See `docs/kit/custom-renderer.md` for the step-by-step contributor guide.
