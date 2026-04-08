@@ -89,6 +89,7 @@ manager.enableStats();
 manager.mount();
 
 const stats = manager.getStats();
-// stats.renderers['renderer:canvas'].frameTimeMs  — ring buffer (60 frames)
-// stats.history.totalDrawCalls                    — accumulated totals
+// stats.renderers['renderer:canvas'].frameTimeMs  — scalar for this frame
+// stats.totalDrawCalls                            — accumulated total draw calls
+// stats.history.drawCalls[0]                      — draw calls for one frame in the 60-frame ring buffer
 ```
