@@ -9,7 +9,8 @@
     "packages/physics2d": { "release-type": "node", "package-name": "@gwenjs/physics2d" },
     "packages/physics3d": { "release-type": "node", "package-name": "@gwenjs/physics3d" },
     "packages/schema":    { "release-type": "node", "package-name": "@gwenjs/schema" },
-    "packages/app":       { "release-type": "node", "package-name": "@gwenjs/app" },
-    "packages/vite":      { "release-type": "node", "package-name": "@gwenjs/vite" }
+    "packages/app":             { "release-type": "node", "package-name": "@gwenjs/app" },
+    "packages/vite":            { "release-type": "node", "package-name": "@gwenjs/vite" },
+    "packages/renderer-core":   { "release-type": "node", "package-name": "@gwenjs/renderer-core" }
   }
 }
