@@ -33,6 +33,7 @@ export type RendererErrorCode = (typeof RendererErrorCodes)[keyof typeof Rendere
  */
 export class RendererAlreadyRegisteredError extends Error {
   readonly code = RendererErrorCodes.ALREADY_REGISTERED;
+  readonly rendererName: string;
   readonly hint: string;
   readonly docsUrl: string;
 
@@ -41,6 +42,7 @@ export class RendererAlreadyRegisteredError extends Error {
       `[GwenRenderer] "${rendererName}" is already registered. Only one renderer per key is allowed.`,
     );
     this.name = "RendererAlreadyRegisteredError";
+    this.rendererName = rendererName;
     this.hint = `Remove the duplicate module entry for "${rendererName}" in gwen.config.ts.`;
     this.docsUrl = "https://gwenengine.dev/docs/renderer#errors";
   }
@@ -56,6 +58,9 @@ export class RendererAlreadyRegisteredError extends Error {
  */
 export class RendererContractVersionError extends Error {
   readonly code = RendererErrorCodes.CONTRACT_VERSION;
+  readonly rendererName: string;
+  readonly actual: number;
+  readonly expected: number;
   readonly hint: string;
   readonly docsUrl: string;
 
@@ -64,6 +69,9 @@ export class RendererContractVersionError extends Error {
       `[GwenRenderer] "${rendererName}" contractVersion ${actual} is incompatible with renderer-core v${expected}.`,
     );
     this.name = "RendererContractVersionError";
+    this.rendererName = rendererName;
+    this.actual = actual;
+    this.expected = expected;
     this.hint = `Update @gwenjs/renderer-core or "${rendererName}" so their versions match.`;
     this.docsUrl = "https://gwenengine.dev/docs/renderer#versioning";
   }
@@ -79,12 +87,16 @@ export class RendererContractVersionError extends Error {
  */
 export class UnknownLayerError extends Error {
   readonly code = RendererErrorCodes.UNKNOWN_LAYER;
+  readonly layerName: string;
+  readonly rendererName: string;
   readonly hint: string;
   readonly docsUrl: string;
 
   constructor(layerName: string, rendererName: string) {
     super(`[GwenRenderer] Layer "${layerName}" not found in "${rendererName}".`);
     this.name = "UnknownLayerError";
+    this.layerName = layerName;
+    this.rendererName = rendererName;
     this.hint = `Declare a layer named "${layerName}" in gwen.config.ts under the "${rendererName}" module config.`;
     this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
   }
