@@ -46,6 +46,15 @@ export {
 export { LayerManager } from "./layer-manager.js";
 export { getOrCreateLayerManager } from "./get-or-create-layer-manager.js";
 
+// defineRendererService
+export {
+  defineRendererService,
+  type RendererServiceDef,
+  type RendererMountContext,
+  type RendererFlushContext,
+  type ManagedRendererService,
+} from "./define-renderer-service.js";
+
 // Errors
 export {
   RendererErrorCodes,

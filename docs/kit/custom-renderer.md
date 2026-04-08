@@ -56,65 +56,53 @@ cd renderer-mytech
 pnpm add @gwenjs/renderer-core
 ```
 
-## Step 2 — Implement `RendererService`
+## Step 2 — Implement the renderer service
+
+Use `defineRendererService` to define your service. It handles contract version,
+element caching, `UnknownLayerError`, and stats wiring automatically.
 
 Create `src/mytech-renderer-service.ts`:
 
 ```ts
-import {
-  RENDERER_CONTRACT_VERSION,
-  UnknownLayerError,
-  type LayerDef,
-  type RendererService,
-  type RendererStatsCollector,
-} from '@gwenjs/renderer-core'
+import { defineRendererService, type LayerDef } from '@gwenjs/renderer-core'
 import { MyTechRenderer } from 'mytech'
 
-export class MyTechRendererService implements RendererService {
-  readonly name = 'renderer:mytech'
-  readonly contractVersion = RENDERER_CONTRACT_VERSION
-  readonly layers: Record<string, LayerDef>
-
-  private _renderer: MyTechRenderer | null = null
-  private _statsCollector: RendererStatsCollector | null = null
-
-  constructor(config: { layers: Record<string, LayerDef> }) {
-    this.layers = config.layers
-  }
-
-  mount(container: HTMLElement): void {
-    const canvas = this.getLayerElement(Object.keys(this.layers)[0]!) as HTMLCanvasElement
-    this._renderer = new MyTechRenderer({ canvas })
-  }
-
-  unmount(): void {
-    this._renderer?.dispose()
-    this._renderer = null
-  }
-
-  resize(width: number, height: number): void {
-    this._renderer?.setSize(width, height)
-  }
-
-  getLayerElement(layerName: string): HTMLCanvasElement {
-    if (!(layerName in this.layers)) {
-      throw new UnknownLayerError(layerName, this.name)
-    }
-    return document.createElement('canvas')
-  }
-
-  setStatsCollector(collector: RendererStatsCollector): void {
-    this._statsCollector = collector
-  }
-
-  /** Called each frame from onRender(). Flush draw calls and report stats. */
-  flush(): void {
-    const start = performance.now()
-    this._renderer?.render()
-    const elapsed = performance.now() - start
-    this._statsCollector?.reportFrameTime(elapsed)
-  }
+export interface MyTechRendererOptions {
+  layers: Record<string, LayerDef>
 }
+
+let renderer: MyTechRenderer | null = null
+
+export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts) => ({
+  name: 'renderer:mytech',
+  layers: opts.layers,
+
+  // Called once per declared layer — result is cached automatically
+  createElement(layerName) {
+    return document.createElement('canvas')
+  },
+
+  mount({ getLayer }) {
+    const canvas = getLayer(Object.keys(opts.layers)[0]!) as HTMLCanvasElement
+    renderer = new MyTechRenderer({ canvas })
+  },
+
+  unmount() {
+    renderer?.dispose()
+    renderer = null
+  },
+
+  resize(w, h) {
+    renderer?.setSize(w, h)
+  },
+
+  // Called each frame via service.flush() — stats are no-ops when disabled
+  flush({ reportFrameTime }) {
+    const t = performance.now()
+    renderer?.render()
+    reportFrameTime(performance.now() - t)
+  },
+}))
 ```
 
 ## Step 3 — Create the GwenPlugin
@@ -133,15 +121,15 @@ created it.
 import { definePlugin } from '@gwenjs/kit/plugin'
 import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
 import type { LayerDef } from '@gwenjs/renderer-core'
-import { MyTechRendererService } from './mytech-renderer-service.js'
+import { MyTechRenderer } from './mytech-renderer-service.js'
 
-export interface MyTechRendererOptions {
+export interface MyTechRendererPluginOptions {
   layers: Record<string, LayerDef>
   container?: HTMLElement
 }
 
-export const MyTechRendererPlugin = definePlugin<MyTechRendererOptions>((opts) => {
-  const service = new MyTechRendererService({ layers: opts.layers })
+export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((opts) => {
+  const service = MyTechRenderer({ layers: opts.layers })
 
   return {
     name: 'renderer:mytech',
