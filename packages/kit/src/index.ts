@@ -11,3 +11,10 @@ export type {
   ViteUserConfig,
   DeepPartial,
 } from "./define-module.js";
+
+export type {
+  GwenConfig,
+  MergePluginsPrefabExtensions,
+  MergePluginsSceneExtensions,
+  MergePluginsUIExtensions,
+} from "./config.js";

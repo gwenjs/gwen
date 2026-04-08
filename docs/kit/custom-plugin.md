@@ -5,7 +5,7 @@ description: How to create and register a custom GWEN plugin with @gwenjs/kit.
 
 # Writing a Custom Plugin
 
-A **plugin** is a TypeScript object conforming to the `GwenPlugin` interface. You create plugins using `definePlugin()` from `@gwenjs/kit`, which returns a factory function you can customize with options.
+A **plugin** is a TypeScript object conforming to the `GwenPlugin` interface. You create plugins using `definePlugin()` from `@gwenjs/kit/plugin`, which returns a factory function you can customize with options.
 
 ## The Basics
 
