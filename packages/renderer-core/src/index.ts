@@ -62,6 +62,7 @@ export {
   type RendererErrorCode,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
+  EmptyLayersError,
   UnknownLayerError,
 } from "./errors.js";
 

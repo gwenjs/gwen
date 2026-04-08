@@ -78,6 +78,29 @@ export class RendererContractVersionError extends Error {
 }
 
 /**
+ * Thrown when a renderer is registered with zero layers.
+ *
+ * @example
+ * ```ts
+ * throw new EmptyLayersError('renderer:canvas')
+ * ```
+ */
+export class EmptyLayersError extends Error {
+  readonly code = RendererErrorCodes.MISSING_LAYER;
+  readonly rendererName: string;
+  readonly hint: string;
+  readonly docsUrl: string;
+
+  constructor(rendererName: string) {
+    super(`[GwenRenderer] "${rendererName}" declares zero layers. At least one layer is required.`);
+    this.name = "EmptyLayersError";
+    this.rendererName = rendererName;
+    this.hint = `Add at least one layer entry to the "${rendererName}" config, e.g. layers: { game: { order: 10 } }.`;
+    this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
+  }
+}
+
+/**
  * Thrown when a composable references a layer name that was not declared in the renderer config.
  *
  * @example

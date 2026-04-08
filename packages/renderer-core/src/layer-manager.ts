@@ -10,6 +10,7 @@
 import { createLogger } from "@gwenjs/core";
 import type { GwenLogger } from "@gwenjs/core";
 import {
+  EmptyLayersError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
   RendererErrorCodes,
@@ -69,6 +70,10 @@ export class LayerManager {
   register(service: RendererService): void {
     if (this._renderers.has(service.name)) {
       throw new RendererAlreadyRegisteredError(service.name);
+    }
+
+    if (Object.keys(service.layers).length === 0) {
+      throw new EmptyLayersError(service.name);
     }
 
     if (service.contractVersion !== RENDERER_CONTRACT_VERSION) {
