@@ -155,29 +155,55 @@ export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((o
 
 ## Step 4 — Expose composables
 
-Create `src/composables/use-mytech.ts`:
+Composables are the public API for game code. Each composable:
+- Retrieves the service via `useService`
+- Creates the resource on the service
+- Registers `onDestroy` automatically — the game dev never has to
+
+Create `src/composables/use-mytech-object.ts`:
 
 ```ts
+import { onDestroy } from '@gwenjs/core/actor'
 import { useService } from '@gwenjs/core/system'
-import type { MyTechRendererService } from '../mytech-renderer-service.js'
+
+export interface MyTechObjectHandle {
+  setPosition(x: number, y: number): void
+  setVisible(v: boolean): void
+  destroy(): void
+}
 
 /**
- * Returns a handle to your renderer's primary layer.
- * Must be called inside defineActor() or defineSystem().
+ * Adds a MyTech renderable object to the current actor.
+ * Cleaned up automatically when the actor is destroyed.
+ *
+ * Must be called inside `defineActor()`.
  *
  * @example
  * ```ts
- * export const MyActor = defineActor(MyPrefab, () => {
- *   const renderer = useMyTech()
- *   onStart(() => renderer.addObject(myObject))
- *   onDestroy(() => renderer.removeObject(myObject))
+ * export const EnemyActor = defineActor(EnemyPrefab, () => {
+ *   const obj = useMyTechObject()
+ *   onUpdate(() => obj.setPosition(Position.x[id], Position.y[id]))
  * })
  * ```
  */
-export function useMyTech(): MyTechRendererService {
-  return useService('renderer:mytech')
+export function useMyTechObject(): MyTechObjectHandle {
+  const service = useService('renderer:mytech')
+  const obj = service.createObject()
+
+  onDestroy(() => obj.destroy())
+
+  return {
+    setPosition: (x, y) => obj.setPosition(x, y),
+    setVisible:  (v) => obj.setVisible(v),
+    destroy:     () => obj.destroy(),
+  }
 }
 ```
+
+::: tip Pas besoin de l'entity ID
+The composable uses `onDestroy` (public API) for lifecycle — no internal `_getActorEntityId()` needed.
+If you need transform sync, do it explicitly in `onUpdate` or build a higher-level composable on top.
+:::
 
 ## Step 5 — Export a GwenModule
 
