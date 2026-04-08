@@ -48,6 +48,11 @@ describe("RendererAlreadyRegisteredError", () => {
     expect(err.hint.length).toBeGreaterThan(0);
     expect(err.docsUrl.length).toBeGreaterThan(0);
   });
+
+  it("exposes rendererName as a public field", () => {
+    const err = new RendererAlreadyRegisteredError("renderer:canvas");
+    expect(err.rendererName).toBe("renderer:canvas");
+  });
 });
 
 describe("RendererContractVersionError", () => {
@@ -62,6 +67,23 @@ describe("RendererContractVersionError", () => {
     const err = new RendererContractVersionError("renderer:canvas", 2, 1);
     expect(err.code).toBe(RendererErrorCodes.CONTRACT_VERSION);
   });
+
+  it("is an instance of Error", () => {
+    const err = new RendererContractVersionError("renderer:canvas", 2, 1);
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("has the correct name", () => {
+    const err = new RendererContractVersionError("renderer:canvas", 2, 1);
+    expect(err.name).toBe("RendererContractVersionError");
+  });
+
+  it("exposes actual and expected as public fields", () => {
+    const err = new RendererContractVersionError("renderer:canvas", 2, 1);
+    expect(err.actual).toBe(2);
+    expect(err.expected).toBe(1);
+    expect(err.rendererName).toBe("renderer:canvas");
+  });
 });
 
 describe("UnknownLayerError", () => {
@@ -74,5 +96,21 @@ describe("UnknownLayerError", () => {
   it("has the correct error code", () => {
     const err = new UnknownLayerError("hud", "renderer:html");
     expect(err.code).toBe(RendererErrorCodes.UNKNOWN_LAYER);
+  });
+
+  it("is an instance of Error", () => {
+    const err = new UnknownLayerError("hud", "renderer:html");
+    expect(err).toBeInstanceOf(Error);
+  });
+
+  it("has the correct name", () => {
+    const err = new UnknownLayerError("hud", "renderer:html");
+    expect(err.name).toBe("UnknownLayerError");
+  });
+
+  it("exposes layerName and rendererName as public fields", () => {
+    const err = new UnknownLayerError("hud", "renderer:html");
+    expect(err.layerName).toBe("hud");
+    expect(err.rendererName).toBe("renderer:html");
   });
 });
