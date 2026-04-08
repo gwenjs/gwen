@@ -3,7 +3,11 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { LayerManager } from "../src/layer-manager.js";
 import type { RendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
-import { RendererAlreadyRegisteredError, RendererContractVersionError } from "../src/errors.js";
+import {
+  EmptyLayersError,
+  RendererAlreadyRegisteredError,
+  RendererContractVersionError,
+} from "../src/errors.js";
 
 /** Factory for a minimal valid RendererService mock. */
 function makeService(
@@ -60,6 +64,11 @@ describe("LayerManager", () => {
   it("throws RendererContractVersionError on version mismatch", () => {
     const svc = makeService("renderer:canvas", { game: { order: 10 } }, 999);
     expect(() => manager.register(svc)).toThrowError(RendererContractVersionError);
+  });
+
+  it("throws EmptyLayersError when registering a renderer with zero layers", () => {
+    const svc = makeService("renderer:canvas", {});
+    expect(() => manager.register(svc)).toThrowError(EmptyLayersError);
   });
 
   // ── DOM mounting ─────────────────────────────────────────────────────────
