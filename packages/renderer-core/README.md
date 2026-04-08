@@ -60,8 +60,10 @@ Use `runConformanceTests` in your plugin's test suite to verify your service imp
 ```ts
 import { runConformanceTests } from "@gwenjs/renderer-core/testing";
 
-const result = runConformanceTests(myService);
-if (!result.passed) console.error(result.errors);
+// Throws with a descriptive message on the first violation — use inside a test:
+it("satisfies the RendererService contract", () => {
+  expect(() => runConformanceTests(myService)).not.toThrow();
+});
 ```
 
 See [`docs/kit/custom-renderer.md`](../../docs/kit/custom-renderer.md) for the full step-by-step guide.
