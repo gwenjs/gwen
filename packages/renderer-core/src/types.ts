@@ -76,8 +76,11 @@ export interface RendererService {
    */
   readonly layers: Record<string, LayerDef>;
   /**
-   * Called by LayerManager after all DOM elements have been inserted.
-   * @param container - The root element created for this renderer's layer group.
+   * Called by LayerManager after all layer DOM elements have been inserted into
+   * the shared root container. The `container` argument is that shared root —
+   * use it to read dimensions, attach resize observers, or initialise a WebGL
+   * context that targets the full viewport.
+   * @param container - The shared root container passed to LayerManager.
    */
   mount(container: HTMLElement): void;
   /** Called by LayerManager when the engine shuts down. Must free all resources. */
