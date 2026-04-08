@@ -69,23 +69,18 @@ export {
 // Import from @gwenjs/core to enable the declare module augmentation below.
 import type {} from "@gwenjs/core";
 
-// Augment EngineStats with renderer stats.
-// This declaration merging makes engine.getStats().renderers available
-// when @gwenjs/renderer-core is installed.
+// Renderer stats are exposed by the shared LayerManager at runtime via
+// `layerManager.getStats()`. This package does not attach renderer stats to
+// `engine.getStats()` — type-augmenting EngineStats would imply runtime
+// population that never happens.
 declare module "@gwenjs/core" {
-  interface EngineStats {
-    /**
-     * Renderer stats snapshot. Only populated when `import.meta.env.DEV || engine.debug`.
-     * `undefined` in production builds without debug mode.
-     */
-    renderers?: import("./stats.js").RendererStats;
-  }
-
   interface GwenProvides {
     /**
      * The shared LayerManager for this engine instance.
      * Created automatically by the first renderer plugin via `getOrCreateLayerManager()`.
      * Do not create or provide this manually.
+     *
+     * Use `engine.inject('layerManager').getStats()` to read renderer stats.
      */
     layerManager: import("./layer-manager.js").LayerManager;
   }

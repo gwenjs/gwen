@@ -37,8 +37,8 @@ export interface RendererRendererStats {
 }
 
 /**
- * Full renderer stats snapshot — augments EngineStats via declaration merging.
- * Available from `engine.getStats().renderers` when stats are enabled.
+ * Full renderer stats snapshot.
+ * Available from `engine.inject('layerManager').getStats()` when stats are enabled.
  */
 export interface RendererStats {
   /** Per-renderer breakdown. Keys are GwenProvides keys (e.g. `'renderer:canvas'`). */
