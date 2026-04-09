@@ -129,15 +129,25 @@ main() {
 
   # Build web target for browser BVH worker
   log_info "Building gwen-core BVH worker (web target)..."
+  local bvh_out_dir="$PROJECT_ROOT/packages/physics3d/wasm/bvh"
+  rm -rf "$bvh_out_dir"
+  mkdir -p "$bvh_out_dir"
+
   wasm-pack build "$CRATE_DIR" \
     --target web \
     --release \
-    --out-dir "$PROJECT_ROOT/packages/physics3d/wasm/bvh" \
+    --out-dir "$bvh_out_dir" \
     -- --features "build-tools" --no-default-features 2>&1
 
-  rm -f "$PROJECT_ROOT/packages/physics3d/wasm/bvh/.gitignore" \
-        "$PROJECT_ROOT/packages/physics3d/wasm/bvh/package.json" \
-        "$PROJECT_ROOT/packages/physics3d/wasm/bvh/README.md"
+  rm -f "$bvh_out_dir/.gitignore" "$bvh_out_dir/package.json" "$bvh_out_dir/README.md"
+
+  if command -v wasm-opt &> /dev/null; then
+    local bvh_wasm="$bvh_out_dir/gwen_core_bg.wasm"
+    log_info "  Running wasm-opt -Oz on bvh worker..."
+    wasm-opt -Oz "$bvh_wasm" -o "$bvh_wasm.opt"
+    mv "$bvh_wasm.opt" "$bvh_wasm"
+  fi
+
   log_info "BVH worker WASM built successfully"
   echo ""
 

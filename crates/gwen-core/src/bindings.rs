@@ -3195,6 +3195,20 @@ impl Engine {
     }
 }
 
+// ─── build-tools exports ──────────────────────────────────────────────────────
+
+#[cfg(feature = "build-tools")]
+#[wasm_bindgen]
+pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
+    crate::build_tools::build_bvh_buffer(vertices_flat, indices_flat)
+}
+
+#[cfg(feature = "build-tools")]
+#[wasm_bindgen]
+pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<String>) -> Result<Vec<u8>, String> {
+    crate::build_tools::build_bvh_from_glb(glb_bytes, mesh_name.as_deref())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

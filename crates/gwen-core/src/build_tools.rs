@@ -1,11 +1,9 @@
 //! Build-time mesh processing utilities.
 //!
 //! This module is compiled only when the `build-tools` feature is enabled.
-//!
-//! - [`build_bvh_buffer`] is exposed via `#[wasm_bindgen]` and works in both
-//!   browser workers (web target) and the Node.js build-tools target.
-//! - [`build_bvh_from_glb`] is Node.js / CLI only (reads GLB bytes; no wasm-bindgen
-//!   annotation because the `gltf` dependency is unsuitable for direct browser use).
+//! It contains pure-Rust helpers; their wasm-bindgen exports live in `bindings.rs`
+//! (gated by `#[cfg(feature = "build-tools")]`) to keep all public WASM exports
+//! centralised and auditable.
 //!
 //! # Key functions
 //!
@@ -21,7 +19,6 @@
 //! runtime, avoiding the ~50 ms QBVH construction cost on large meshes.
 
 use rapier3d::{geometry::TriMesh, na::Point3};
-use wasm_bindgen::prelude::*;
 
 /// Build a pre-baked BVH buffer from flat vertex and triangle index arrays.
 ///
@@ -41,7 +38,6 @@ use wasm_bindgen::prelude::*;
 ///
 /// # Panics
 /// Panics if `vertices_flat.len() % 3 != 0` or `indices_flat.len() % 3 != 0`.
-#[wasm_bindgen]
 pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
     assert_eq!(
         vertices_flat.len() % 3,
