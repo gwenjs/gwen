@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.1](https://github.com/gwenjs/gwen/compare/app-v0.2.0...app-v0.2.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** add pathsToAliases: false to all packages using vite-plugin-dts ([c40fc2e](https://github.com/gwenjs/gwen/commit/c40fc2ef4f7f1d640c68e7e2ac3c587b5bad4e37))
+* **ci:** address Copilot review feedback on PR [#14](https://github.com/gwenjs/gwen/issues/14) ([f33450f](https://github.com/gwenjs/gwen/commit/f33450f5e619f459b28a3a8d1f7fa0fb94069d34))
+* **ci:** resolve release build errors and eliminate vite warnings ([be7495b](https://github.com/gwenjs/gwen/commit/be7495bb9aeafe9d49fdc6da8ee859f64ca576ca))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/app-v0.1.0...app-v0.2.0) (2026-04-08)
 
 

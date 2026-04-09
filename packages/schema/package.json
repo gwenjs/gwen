@@ -1,6 +1,6 @@
 {
   "name": "@gwenjs/schema",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GWEN configuration schema - Single Source of Truth (SSOT) for engine config",
   "keywords": [
     "config",

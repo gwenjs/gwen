@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/gwenjs/gwen/compare/physics3d-v0.2.0...physics3d-v0.2.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** add pathsToAliases: false to all packages using vite-plugin-dts ([c40fc2e](https://github.com/gwenjs/gwen/commit/c40fc2ef4f7f1d640c68e7e2ac3c587b5bad4e37))
+* **ci:** resolve release build errors and eliminate vite warnings ([be7495b](https://github.com/gwenjs/gwen/commit/be7495bb9aeafe9d49fdc6da8ee859f64ca576ca))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/physics3d-v0.1.0...physics3d-v0.2.0) (2026-04-08)
 
 

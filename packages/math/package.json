@@ -1,6 +1,6 @@
 {
   "name": "@gwenjs/math",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Math utilities for GWEN — lerp, damp, spring, vec3, quat helpers",
   "files": [
     "dist"

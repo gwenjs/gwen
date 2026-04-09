@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/gwenjs/gwen/compare/math-v0.1.1...math-v0.1.2) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** add pathsToAliases: false to all packages using vite-plugin-dts ([c40fc2e](https://github.com/gwenjs/gwen/commit/c40fc2ef4f7f1d640c68e7e2ac3c587b5bad4e37))
+
 ## [0.1.1](https://github.com/gwenjs/gwen/compare/math-v0.1.0...math-v0.1.1) (2026-04-08)
 
 

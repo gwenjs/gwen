@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/gwenjs/gwen/compare/physics2d-v0.2.0...physics2d-v0.2.1) (2026-04-09)
+
+
+### Bug Fixes
+
+* **ci:** add pathsToAliases: false to all packages using vite-plugin-dts ([c40fc2e](https://github.com/gwenjs/gwen/commit/c40fc2ef4f7f1d640c68e7e2ac3c587b5bad4e37))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/physics2d-v0.1.0...physics2d-v0.2.0) (2026-04-08)
 
 
