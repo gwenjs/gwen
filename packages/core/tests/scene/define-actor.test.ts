@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/scene/define-prefab.js";
-import { defineActor, onStart, onDestroy, onEvent } from "../../src/scene/define-actor.js";
+import {
+  defineActor,
+  onStart,
+  onDestroy,
+  onEvent,
+  useEntityId,
+} from "../../src/scene/define-actor.js";
 import { onUpdate } from "../../src/system.js";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 
@@ -112,5 +118,85 @@ describe("public API", () => {
     const id = Actor._plugin.spawn?.();
     const instance = Actor._instances.get(id!);
     expect(instance?.api?.greet()).toBe("hello");
+  });
+});
+
+describe("useEntityId", () => {
+  it("returns the entity ID of the actor being spawned", async () => {
+    const engine = await createEngine();
+    let capturedId: bigint | undefined;
+
+    const Actor = defineActor(SimplePrefab, () => {
+      capturedId = useEntityId();
+    });
+    await engine.use(Actor._plugin);
+    const spawnedId = Actor._plugin.spawn?.();
+
+    expect(capturedId).toBe(spawnedId);
+  });
+
+  it("returns a different ID for each spawn", async () => {
+    const engine = await createEngine();
+    const ids: bigint[] = [];
+
+    const Actor = defineActor(SimplePrefab, () => {
+      ids.push(useEntityId());
+    });
+    await engine.use(Actor._plugin);
+    Actor._plugin.spawn?.();
+    Actor._plugin.spawn?.();
+
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it("ID returned by useEntityId matches the instance's entityId", async () => {
+    const engine = await createEngine();
+    let capturedId: bigint | undefined;
+
+    const Actor = defineActor(SimplePrefab, () => {
+      capturedId = useEntityId();
+    });
+    await engine.use(Actor._plugin);
+    const spawnedId = Actor._plugin.spawn?.();
+    const instance = Actor._instances.get(spawnedId!);
+
+    expect(capturedId).toBe(instance?.entityId);
+  });
+
+  it("is valid inside a composable called from the factory", async () => {
+    const engine = await createEngine();
+    let composableId: bigint | undefined;
+
+    function useMyComposable() {
+      composableId = useEntityId();
+    }
+
+    const Actor = defineActor(SimplePrefab, () => {
+      useMyComposable();
+    });
+    await engine.use(Actor._plugin);
+    const spawnedId = Actor._plugin.spawn?.();
+
+    expect(composableId).toBe(spawnedId);
+  });
+
+  it("throws when called outside a defineActor factory", () => {
+    expect(() => useEntityId()).toThrow(
+      "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function.",
+    );
+  });
+
+  it("throws when called inside onStart (not setup phase)", async () => {
+    const engine = await createEngine();
+
+    const Actor = defineActor(SimplePrefab, () => {
+      onStart(() => {
+        // onStart runs after setup — no actor context active here
+        expect(() => useEntityId()).toThrow();
+      });
+    });
+    await engine.use(Actor._plugin);
+    Actor._plugin.spawn?.();
   });
 });

@@ -129,6 +129,61 @@ export function _getActorEntityId(): bigint {
 }
 
 /**
+ * Returns the ECS entity ID of the actor currently being set up.
+ *
+ * Call this inside a `defineActor()` factory (or inside a composable called
+ * from one) to obtain the `bigint` identifier that uniquely names this actor
+ * instance in the ECS world. The value is stable for the entire lifetime of
+ * the actor — from spawn to despawn.
+ *
+ * ### When to use
+ *
+ * Use `useEntityId()` when a composable needs to key a per-instance resource
+ * to the specific actor being spawned. The canonical example is a renderer
+ * composable that must allocate a unique slot:
+ *
+ * ```ts
+ * // Composable for a renderer plugin
+ * export function useSprite(src: string): SpriteHandle {
+ *   const id = useEntityId()
+ *   const service = useService('renderer:canvas')
+ *   const sprite = service.allocateSprite(String(id), src)
+ *   onCleanup(() => sprite.destroy())
+ *   return sprite
+ * }
+ * ```
+ *
+ * For singleton actors (HUD, score display…) a plain static string key is
+ * simpler and preferred:
+ *
+ * ```ts
+ * // ✅ Singleton — static key is clearest
+ * export const HudActor = defineActor(HudPrefab, () => {
+ *   const hud = useHTML('hud', 'score')
+ * })
+ *
+ * // ✅ Multiple instances — entity ID guarantees a unique slot per actor
+ * export const EnemyActor = defineActor(EnemyPrefab, () => {
+ *   const id = useEntityId()
+ *   const label = useHTML('ui', String(id))
+ * })
+ * ```
+ *
+ * ### Context requirement
+ *
+ * `useEntityId()` must be called during the **setup phase** of a
+ * `defineActor()` factory — i.e., at the top level of the factory function,
+ * not inside `onStart`, `onUpdate`, or other callbacks. Violating this throws
+ * at runtime.
+ *
+ * @returns The `bigint` entity ID for the actor being set up.
+ * @throws {Error} If called outside an active `defineActor()` factory context.
+ */
+export function useEntityId(): bigint {
+  return _getActorEntityId();
+}
+
+/**
  * Returns the engine that owns the actor currently being spawned.
  *
  * Used by `useComponent()` to capture the engine reference at factory call time,
