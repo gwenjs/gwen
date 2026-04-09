@@ -151,6 +151,103 @@ export const MySystem = defineSystem(() => {
 })
 ```
 
+## Écrire des composables réutilisables
+
+Les plugins exposent souvent des **composables** — des fonctions comme `useSprite()` ou `useHTML()` que le code de jeu appelle à l'intérieur des acteurs (et bientôt des scènes) pour acquérir une ressource et la libérer automatiquement.
+
+### `onCleanup` — le bon primitif de cycle de vie
+
+Lors de l'écriture d'un composable, utilisez `onCleanup` depuis `@gwenjs/core` plutôt que `onDestroy` depuis `@gwenjs/core/actor`.
+
+```ts
+// ✅ CORRECT — fonctionne dans les acteurs et tout autre contexte établissant un scope de cleanup
+import { onCleanup } from '@gwenjs/core'
+import { useService } from '@gwenjs/core/system'
+
+export function useParticles(opts?: { layer?: string }): ParticleHandle {
+  const service = useService('renderer:particles')
+  const handle = service.allocateHandle(opts?.layer ?? 'game')
+  onCleanup(() => handle.destroy())   // s'exécute à la fin du scope englobant
+  return handle
+}
+```
+
+```ts
+// ❌ INCORRECT — lève une exception si appelé hors d'une factory defineActor()
+import { onDestroy } from '@gwenjs/core/actor'
+
+export function useParticles(): ParticleHandle {
+  const service = useService('renderer:particles')
+  const handle = service.allocateHandle('game')
+  onDestroy(() => handle.destroy())   // erreur : pas de contexte acteur actif
+  return handle
+}
+```
+
+### Comment fonctionne `onCleanup`
+
+`onCleanup` enregistre un callback sur le **contexte de cleanup** actif le plus proche — un scope basé sur une pile établi par `withCleanup`. Le callback s'exécute à la fin de ce scope (despawn d'acteur, sortie de scène, teardown de plugin…).
+
+| Scope | Déclencheur du cleanup |
+|---|---|
+| Factory `defineActor()` | Acteur despawné |
+| Setup `definePlugin()` | Engine détruit |
+| `withCleanup(() => { ... })` | Appel manuel à `dispose()` |
+
+Si aucun contexte de cleanup n'est actif, `onCleanup` est un **no-op silencieux** — sûr à appeler sans condition.
+
+### Pattern composable pour les auteurs de plugins
+
+```ts
+import { onCleanup } from '@gwenjs/core'
+import { useService } from '@gwenjs/core/system'
+import type { MyHandle } from './types.js'
+
+/**
+ * Acquiert une ressource depuis MyPlugin et la libère automatiquement
+ * à la fin du scope englobant (despawn d'acteur, sortie de scène, etc.).
+ *
+ * Doit être appelé dans un contexte de cleanup : `defineActor()`, `definePlugin()`,
+ * ou tout scope enveloppé dans `withCleanup`.
+ */
+export function useMyResource(id: string): MyHandle {
+  const service = useService('my-plugin')
+  const handle = service.acquire(id)
+  onCleanup(() => handle.release())
+  return handle
+}
+```
+
+Le code de jeu bénéficie alors d'une gestion automatique du cycle de vie sans cleanup manuel :
+
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const particles = useMyResource('trail')   // libéré au despawn automatiquement
+  onUpdate((dt) => particles.setPosition(Position.x[id], Position.y[id]))
+})
+```
+
+### Utiliser `withCleanup` directement
+
+Si vous devez gérer une ressource hors d'un acteur (par exemple dans le `setup` d'un plugin), utilisez `withCleanup` pour établir le scope manuellement :
+
+```ts
+import { withCleanup, onCleanup } from '@gwenjs/core'
+
+const [handle, dispose] = withCleanup(() => {
+  const h = service.acquire('my-resource')
+  onCleanup(() => h.release())
+  return h
+})
+
+// Plus tard, quand terminé :
+dispose()  // libère la ressource
+```
+
+::: tip Support des scènes
+Le cycle de vie des scènes (`onEnter` / `onExit`) n'établit pas encore de contexte de cleanup, donc `onCleanup` est un no-op lorsqu'il est appelé depuis `onEnter`. Une future mise à jour de `@gwenjs/core` enveloppera `onEnter` dans `withCleanup` et effectuera le dispose sur `onExit`, rendant tous les composables transparents dans les scènes. **Utilisez `onCleanup` dès maintenant** pour que votre plugin soit compatible sans aucune modification.
+:::
+
 ## Gestion des erreurs
 
 Gérez les erreurs qui se produisent dans votre plugin :
