@@ -3,7 +3,15 @@ import { resolve } from "path";
 import dts from "vite-plugin-dts";
 
 export default defineConfig({
-  plugins: [dts({ include: ["src"], outDir: "dist", rollupTypes: false, entryRoot: "src" })],
+  plugins: [
+    dts({
+      include: ["src"],
+      outDir: "dist",
+      rollupTypes: false,
+      entryRoot: "src",
+      pathsToAliases: false,
+    }),
+  ],
   build: {
     lib: {
       entry: {
