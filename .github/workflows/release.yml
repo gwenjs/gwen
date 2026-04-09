@@ -45,11 +45,11 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
-          registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm install --frozen-lockfile
+
       - name: Build WASM
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm build:wasm
@@ -64,4 +64,4 @@ jobs:
 
       - name: Publish to npm
         if: ${{ steps.release.outputs.releases_created }}
-        run: pnpm -r publish --access public --no-git-checks --provenance
+        run: pnpm -r exec -- npm publish --access public --provenance
