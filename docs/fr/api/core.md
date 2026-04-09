@@ -563,6 +563,58 @@ function useLayout(): Layout
 
 **Retourne:** `Layout`
 
+### useEntityId()
+
+**Signature:**
+```ts
+function useEntityId(): bigint
+```
+
+**Description.** Retourne l'identifiant ECS (`bigint`) de l'acteur en cours d'initialisation. La valeur est unique et stable pendant toute la durée de vie de l'acteur (du spawn au despawn).
+
+Doit être appelé pendant la **phase setup** de la factory `defineActor()` — c'est-à-dire au niveau supérieur de la fonction factory, pas dans `onStart`, `onUpdate` ou d'autres callbacks.
+
+**Retourne:** `bigint` — l'identifiant d'entité de l'acteur en cours de spawn.
+
+**Lève une exception:** Si appelé hors d'un contexte `defineActor()` actif.
+
+**Exemple — acteur singleton (clé statique préférable) :**
+```ts
+import { defineActor } from '@gwenjs/core/actor'
+
+export const HudActor = defineActor(HudPrefab, () => {
+  // Un seul HUD existe — une clé statique est plus claire
+  const hud = useHTML('hud', 'score')
+})
+```
+
+**Exemple — instances multiples (clé unique par acteur) :**
+```ts
+import { defineActor, useEntityId } from '@gwenjs/core/actor'
+
+export const EnemyActor = defineActor(EnemyPrefab, () => {
+  const id = useEntityId()
+  const label = useHTML('ui', String(id))  // slot unique par ennemi
+})
+```
+
+**Exemple — dans un composable :**
+```ts
+import { useEntityId } from '@gwenjs/core/actor'
+import { useService } from '@gwenjs/core/system'
+import { onCleanup } from '@gwenjs/core'
+
+export function useSprite(src: string): SpriteHandle {
+  const id = useEntityId()
+  const service = useService('renderer:canvas')
+  const sprite = service.allocateSprite(String(id), src)
+  onCleanup(() => sprite.destroy())
+  return sprite
+}
+```
+
+---
+
 ### useTransform()
 
 **Signature:**

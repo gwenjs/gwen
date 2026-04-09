@@ -215,7 +215,7 @@ function useWasmModule(name: string): any
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEvent`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEvent`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`
 
 **Usage:**
 ```ts
@@ -574,6 +574,58 @@ function useLayout(): Layout
 **Description.** Returns the current layout context. Use to add/remove UI elements.
 
 **Returns:** `Layout`
+
+#### useEntityId()
+
+**Signature:**
+```ts
+function useEntityId(): bigint
+```
+
+**Description.** Returns the ECS entity ID of the actor currently being set up. The value is a `bigint` that uniquely identifies this actor instance for its entire lifetime (from spawn to despawn).
+
+Must be called during the **setup phase** of a `defineActor()` factory — i.e. at the top level of the factory function, not inside `onStart`, `onUpdate`, or other callbacks.
+
+**Returns:** `bigint` — the entity ID of the actor being spawned.
+
+**Throws:** If called outside an active `defineActor()` factory context.
+
+**Example — singleton actor (static key preferred):**
+```ts
+import { defineActor } from '@gwenjs/core/actor'
+
+export const HudActor = defineActor(HudPrefab, () => {
+  // Only one HUD exists — a static key is clearest
+  const hud = useHTML('hud', 'score')
+})
+```
+
+**Example — multiple instances (unique key per actor):**
+```ts
+import { defineActor, useEntityId } from '@gwenjs/core/actor'
+
+export const EnemyActor = defineActor(EnemyPrefab, () => {
+  const id = useEntityId()
+  const label = useHTML('ui', String(id))  // unique slot per enemy
+})
+```
+
+**Example — inside a composable:**
+```ts
+import { useEntityId } from '@gwenjs/core/actor'
+import { useService } from '@gwenjs/core/system'
+import { onCleanup } from '@gwenjs/core'
+
+export function useSprite(src: string): SpriteHandle {
+  const id = useEntityId()
+  const service = useService('renderer:canvas')
+  const sprite = service.allocateSprite(String(id), src)
+  onCleanup(() => sprite.destroy())
+  return sprite
+}
+```
+
+---
 
 #### useTransform()
 

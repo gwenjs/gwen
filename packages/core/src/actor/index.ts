@@ -6,6 +6,7 @@ export {
   onStart,
   onDestroy,
   onEvent,
+  useEntityId,
   _getActorEntityId,
 } from "../scene/define-actor.js";
 
