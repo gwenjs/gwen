@@ -45,6 +45,7 @@ jobs:
         with:
           node-version: "22"
           cache: pnpm
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         if: ${{ steps.release.outputs.releases_created }}
@@ -65,3 +66,5 @@ jobs:
       - name: Publish to npm
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm -r exec -- npm publish --access public --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
