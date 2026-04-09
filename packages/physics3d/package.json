@@ -1,6 +1,6 @@
 {
   "name": "@gwenjs/physics3d",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "3D physics plugin foundation for GWEN — Rapier3D adapter surface",
   "files": [
     "dist"
