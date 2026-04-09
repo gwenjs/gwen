@@ -150,6 +150,103 @@ export const MySystem = defineSystem(function MySystem() {
 })
 ```
 
+## Writing Reusable Composables
+
+Plugins often need to expose composables — functions like `useSprite()` or `useHTML()` that game code calls inside actors (and eventually scenes) to acquire a resource and have it cleaned up automatically.
+
+### `onCleanup` — the right lifecycle primitive
+
+When writing a composable, use `onCleanup` from `@gwenjs/core` instead of `onDestroy` from `@gwenjs/core/actor`.
+
+```ts
+// ✅ CORRECT — works in actors and any other context that establishes a cleanup scope
+import { onCleanup } from '@gwenjs/core'
+import { useService } from '@gwenjs/core/system'
+
+export function useParticles(opts?: { layer?: string }): ParticleHandle {
+  const service = useService('renderer:particles')
+  const handle = service.allocateHandle(opts?.layer ?? 'game')
+  onCleanup(() => handle.destroy())   // runs whenever the surrounding scope ends
+  return handle
+}
+```
+
+```ts
+// ❌ WRONG — throws if called outside a defineActor() factory
+import { onDestroy } from '@gwenjs/core/actor'
+
+export function useParticles(): ParticleHandle {
+  const service = useService('renderer:particles')
+  const handle = service.allocateHandle('game')
+  onDestroy(() => handle.destroy())   // error: no active actor context
+  return handle
+}
+```
+
+### How `onCleanup` works
+
+`onCleanup` registers a callback on the nearest active **cleanup context** — a stack-based scope established by `withCleanup`. The callback fires when that scope ends (actor despawn, scene exit, plugin teardown…).
+
+| Scope | Cleanup trigger |
+|---|---|
+| `defineActor()` factory | Actor despawned |
+| `definePlugin()` setup | Engine destroyed |
+| `withCleanup(() => { ... })` | Manual `dispose()` call |
+
+If no cleanup context is active, `onCleanup` is a **silent no-op** — safe to call unconditionally.
+
+### Composable pattern for plugin authors
+
+```ts
+import { onCleanup } from '@gwenjs/core'
+import { useService } from '@gwenjs/core/system'
+import type { MyHandle } from './types.js'
+
+/**
+ * Acquires a resource from MyPlugin and releases it automatically
+ * when the enclosing scope ends (actor despawn, scene exit, etc.).
+ *
+ * Must be called inside a cleanup context: `defineActor()`, `definePlugin()`,
+ * or any scope wrapped with `withCleanup`.
+ */
+export function useMyResource(id: string): MyHandle {
+  const service = useService('my-plugin')
+  const handle = service.acquire(id)
+  onCleanup(() => handle.release())
+  return handle
+}
+```
+
+Game code then has automatic lifecycle management with no manual cleanup:
+
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const particles = useMyResource('trail')   // released on despawn automatically
+  onUpdate((dt) => particles.setPosition(Position.x[id], Position.y[id]))
+})
+```
+
+### Using `withCleanup` directly
+
+If you need to manage a resource outside an actor (e.g. in a plugin's `setup`), use `withCleanup` to establish the scope manually:
+
+```ts
+import { withCleanup, onCleanup } from '@gwenjs/core'
+
+const [handle, dispose] = withCleanup(() => {
+  const h = service.acquire('my-resource')
+  onCleanup(() => h.release())
+  return h
+})
+
+// Later, when done:
+dispose()  // releases the resource
+```
+
+::: tip Scene support
+Scene lifecycle (`onEnter` / `onExit`) does not currently establish a cleanup context, so `onCleanup` is a no-op when called from `onEnter`. A future update to `@gwenjs/core` will wrap `onEnter` in `withCleanup` and dispose on `onExit`, making all composables work transparently in scenes. **Use `onCleanup` now** so your plugin is forward-compatible without any changes.
+:::
+
 ## Error Handling
 
 Handle errors that occur in your plugin:
