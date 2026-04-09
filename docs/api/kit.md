@@ -47,7 +47,7 @@ export const InputPlugin = definePlugin<{ deadzone?: number }>((opts = {}) => ({
   name: 'input',
   setup(engine) {
     const keys = new Set<string>()
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       window.addEventListener('keydown', (e) => keys.add(e.key))
       window.addEventListener('keyup', (e) => keys.delete(e.key))
     })

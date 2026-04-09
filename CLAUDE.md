@@ -279,8 +279,8 @@ export const InputPlugin = definePlugin<{ deadzone?: number }>((opts = {}) => ({
   name: 'input',
   setup(engine) {
     engine.provide('input', { ... })
-    engine.onStart(() => { ... })
-    engine.onDestroy(() => { ... })
+    engine.hooks.hook('engine:init', () => { ... })
+    engine.hooks.hook('engine:stop', () => { ... })
   },
 }))
 

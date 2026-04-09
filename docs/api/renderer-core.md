@@ -109,8 +109,8 @@ creating it on first call. On first call it also:
 setup(engine) {
   const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
   manager.register(service)
-  engine.onStart(() => manager.mount())
-  engine.onDestroy(() => manager.unregister(service.name))
+  engine.hooks.hook('engine:init', () => manager.mount())
+  engine.hooks.hook('engine:stop', () => manager.unregister(service.name))
 }
 ```
 

@@ -21,7 +21,7 @@ const keys = new Set<string>()
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       window.addEventListener('keydown', (e) => keys.add(e.key))
       window.addEventListener('keyup', (e) => keys.delete(e.key))
     })
@@ -52,7 +52,7 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
   return {
     name: 'input',
     setup(engine) {
-      engine.onStart(() => {
+      engine.hooks.hook('engine:init', () => {
         window.addEventListener('keydown', (e) => {
           if (preventDefault.includes(e.key)) e.preventDefault()
           keys.add(e.key)
@@ -107,12 +107,12 @@ export const MyPlugin = definePlugin(() => ({
     // Called once during engine init
     // Register services, event listeners, etc.
 
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       // Called after WASM module is loaded
       // Safe to use engine features here
     })
 
-    engine.onDestroy(() => {
+    engine.hooks.hook('engine:stop', () => {
       // Called before engine shutdown
       // Cleanup listeners, free resources
     })
@@ -225,7 +225,7 @@ export const AudioPlugin = definePlugin<AudioOptions>((opts = {}) => ({
     const manager = new AudioManager(opts.volume)
     engine.provide('audio', manager)
 
-    engine.onDestroy(() => {
+    engine.hooks.hook('engine:stop', () => {
       manager.dispose()
     })
   },
