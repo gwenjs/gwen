@@ -1,411 +1,233 @@
-#@gwenjs/core
+# @gwenjs/core
 
-**TypeScript SDK for GWEN Game Engine**
+Core primitives for the GWEN game engine — entity management, components, systems, actors, scenes, and the plugin architecture.
 
-Complete framework for building web games with a powerful Rust/WASM core and flexible TypeScript layer.
-
-## 📦 What's Included
-
-- **Engine Class** - Main API for game development
-- **Configuration System** - Flexible configuration with builder pattern
-- **Type Definitions** - Full TypeScript support
-- **Plugin System** - Extensible architecture
-- **Event System** - Pub/sub for all events
-
-## 🚀 Quick Start
-
-### Installation
+## Installation
 
 ```bash
-npm install@gwenjs/core
+npm install @gwenjs/core
 ```
 
-### Basic Usage
+## Subpath imports
 
-```typescript
-import { Engine, defineConfig } from "@gwenjs/core";
+`@gwenjs/core` is split into three subpaths to keep bundle sizes small:
 
-// Define configuration
-const config = defineConfig({
-  canvas: "game-canvas",
-  width: 1280,
-  height: 720,
-  maxEntities: 5000,
-});
+| Subpath | What it exports |
+|---|---|
+| `@gwenjs/core` | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `initWasm`, `onCleanup` |
+| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` |
+| `@gwenjs/core/actor` | `defineActor`, `onStart`, `onDestroy`, `onEvent`, `useEntityId`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
+| `@gwenjs/core/scene` | `defineScene`, `defineSceneRouter`, `useSceneRouter` |
 
-// Create and start engine
-const engine = new Engine(config);
+## Quick start
 
-engine.on("ready", () => {
-  // Game ready
-  const player = engine.createEntity();
-  engine.addComponent(player, "transform", {
-    x: 100,
-    y: 100,
-    rotation: 0,
-  });
-});
+```ts
+import { createEngine, defineComponent, Types } from '@gwenjs/core'
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 
-engine.on("update", ({ deltaTime }) => {
-  // Update game logic
-});
+// 1. Define components (Structure-of-Arrays)
+const Position = defineComponent({
+  name: 'Position',
+  schema: { x: Types.f32, y: Types.f32 },
+})
 
-engine.start();
+const Velocity = defineComponent({
+  name: 'Velocity',
+  schema: { x: Types.f32, y: Types.f32 },
+})
+
+// 2. Define a system
+const MovementSystem = defineSystem('MovementSystem', () => {
+  const entities = useQuery([Position, Velocity])
+
+  onUpdate((dt) => {
+    for (const id of entities) {
+      Position.x[id] += Velocity.x[id] * dt
+      Position.y[id] += Velocity.y[id] * dt
+    }
+  })
+})
+
+// 3. Create and start the engine
+const engine = await createEngine()
+await engine.use(MovementSystem)
+engine.start()
 ```
 
-## 📚 API Reference
+## Components
 
-### Engine Class
+Components use a Structure-of-Arrays layout — data for a field across all entities is stored in a typed array, indexed by entity ID.
 
-#### Constructor
+```ts
+import { defineComponent, Types } from '@gwenjs/core'
 
-```typescript
-const engine = new Engine(config?: Partial<EngineConfig>);
+const Health = defineComponent({
+  name: 'Health',
+  schema: { hp: Types.f32, max: Types.f32 },
+})
+
+// Access component data by entity ID
+Health.hp[entityId] = 100
+Health.max[entityId] = 100
 ```
 
-#### Methods
+Available types: `Types.f32`, `Types.f64`, `Types.i32`, `Types.ui32`, `Types.i16`, `Types.ui16`, `Types.i8`, `Types.ui8`, `Types.bool`.
 
-**Lifecycle:**
+## Systems
 
-- `start()` - Start the game loop
-- `stop()` - Stop the game loop
+Systems run game logic every frame. Use `useQuery` to iterate entities and frame hooks to schedule work.
 
-**Entity Management:**
+```ts
+import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
 
-- `createEntity(): number` - Create new entity
-- `destroyEntity(id: number): boolean` - Destroy entity
-- `entityExists(id: number): boolean` - Check if entity exists
-- `getEntityCount(): number` - Get active entity count
+const PhysicsSystem = defineSystem('PhysicsSystem', () => {
+  const entities = useQuery([Position, Velocity])
 
-**Component Management:**
-
-- `addComponent(entity: number, type: string, data: any)` - Add component to entity
-- `removeComponent(entity: number, type: string)` - Remove component
-- `getComponent(entity: number, type: string): any` - Get component data
-- `hasComponent(entity: number, type: string): boolean` - Check if component exists
-
-**Queries:**
-
-- `query(components: string[]): number[]` - Query entities by components
-- `queryWith(components: string[], filter?: Function): number[]` - Query with custom filter
-
-**Events:**
-
-- `on(event: string, listener: Function)` - Register event listener
-- `off(event: string, listener: Function)` - Remove event listener
-
-**Plugins:**
-
-- `loadPlugin(name: string, plugin: Plugin)` - Load a plugin
-- `getPlugin(name: string): any` - Get loaded plugin
-- `hasPlugin(name: string): boolean` - Check if plugin loaded
-
-**Statistics:**
-
-- `getFPS(): number` - Get current FPS
-- `getDeltaTime(): number` - Get current frame delta
-- `getFrameCount(): number` - Get total frames
-- `getStats()` - Get all statistics
-
-### Configuration
-
-#### defineConfig
-
-Simple configuration definition:
-
-```typescript
-const config = defineConfig({
-  canvas: "my-canvas",
-  width: 1920,
-  height: 1080,
-  maxEntities: 10000,
-  targetFPS: 60,
-  debug: true,
-});
-
-const engine = new Engine(config);
+  onBeforeUpdate((dt) => { /* runs before update */ })
+  onUpdate((dt) => { /* main update */ })
+  onAfterUpdate((dt) => { /* runs after update */ })
+  onRender(() => { /* render pass */ })
+})
 ```
 
-#### ConfigBuilder
+`useQuery` must be called during the setup phase, not inside a frame hook.
 
-Advanced builder with chaining:
+## Actors
 
-```typescript
-const config = new ConfigBuilder()
-  .setCanvas("game")
-  .setResolution(1920, 1080)
-  .setMaxEntities(10000)
-  .setTargetFPS(60)
-  .enableDebug()
-  .addPlugin(physicsPlugin)
-  .build();
+Actors are entity-bound objects with a lifecycle. Use `defineActor` for interactive game objects.
 
-const engine = new Engine(config);
-```
+```ts
+import { defineActor, onStart, onDestroy, onEvent, definePrefab, defineEvents, useEntityId } from '@gwenjs/core/actor'
 
-## 🎮 Game Examples
+const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Health, defaults: { hp: 100, max: 100 } },
+])
 
-### Example 1: Simple Game
+const EnemyEvents = defineEvents({
+  'enemy:hit': (damage: number) => {},
+})
 
-```typescript
-import { Engine, defineConfig } from "@gwenjs/core";
+const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  const entityId = useEntityId()
 
-const engine = new Engine(
-  defineConfig({
-    canvas: "canvas",
-    width: 800,
-    height: 600,
-  }),
-);
+  onStart(() => {
+    Health.hp[entityId] = props.hp
+  })
 
-// Create player
-const player = engine.createEntity();
-engine.addComponent(player, "transform", {
-  x: 400,
-  y: 300,
-  rotation: 0,
-});
+  onDestroy(() => {
+    console.log('Enemy destroyed')
+  })
 
-engine.addComponent(player, "sprite", {
-  width: 32,
-  height: 32,
-  color: { r: 0, g: 0, b: 1, a: 1 },
-});
-
-// Update loop
-engine.on("update", ({ deltaTime }) => {
-  const transform = engine.getComponent(player, "transform");
-  transform.x += 100 * deltaTime;
-  engine.addComponent(player, "transform", transform);
-});
-
-engine.start();
-```
-
-### Example 2: Using Queries
-
-```typescript
-// Get all moving entities
-const movingEntities = engine.query(["transform", "velocity"]);
-
-engine.on("update", ({ deltaTime }) => {
-  movingEntities.forEach((entityId) => {
-    const transform = engine.getComponent(entityId, "transform");
-    const velocity = engine.getComponent(entityId, "velocity");
-
-    transform.x += velocity.x * deltaTime;
-    transform.y += velocity.y * deltaTime;
-
-    engine.addComponent(entityId, "transform", transform);
-  });
-});
-```
-
-### Example 3: With Plugins
-
-```typescript
-import { Engine } from "@gwenjs/core";
-import { PhysicsPlugin } from "@gwenjs/gwen-physics";
-import { InputPlugin } from "@gwenjs/gwen-input";
-
-const engine = new Engine();
-
-// Load plugins
-engine.loadPlugin("physics", PhysicsPlugin);
-engine.loadPlugin("input", InputPlugin);
-
-const input = engine.getPlugin("input");
-const physics = engine.getPlugin("physics");
-
-engine.on("update", () => {
-  if (input.isKeyPressed("ArrowUp")) {
-    // Handle input
+  return {
+    takeDamage: (n: number) => {
+      Health.hp[entityId] -= n
+    },
   }
-});
+})
 
-engine.start();
+// Register and spawn
+await engine.use(EnemyActor._plugin)
+const id = EnemyActor._plugin.spawn({ hp: 50 })
+EnemyActor._plugin.despawn(id)
 ```
 
-## 🧩 Plugin System
+### Lifecycle hooks (actor only)
 
-### Creating a Plugin
+| Hook | When |
+|---|---|
+| `onStart(fn)` | Once, after spawn |
+| `onDestroy(fn)` | Once, on despawn |
+| `onEvent(event, fn)` | On event — automatically removed on despawn |
 
-```typescript
-import type { Plugin } from "@gwenjs/core";
+### `useEntityId`
 
-export const MyPlugin: Plugin = {
-  name: "my-plugin",
-  version: "1.0.0",
+Returns the entity ID of the actor being set up. Valid only during the `defineActor` factory function (including composables called from it).
 
-  init(engine) {
-    console.log("Plugin initialized");
+```ts
+const MyActor = defineActor(MyPrefab, () => {
+  const id = useEntityId() // bigint
+})
+```
+
+## Events
+
+```ts
+import { defineEvents, emit, onEvent } from '@gwenjs/core/actor'
+import { useEngine } from '@gwenjs/core'
+
+// Declare the event contract
+export const GameEvents = defineEvents({
+  'player:died': () => {},
+  'enemy:hit': (damage: number) => {},
+})
+
+// Emit from anywhere
+emit('enemy:hit', 42)
+
+// Listen inside an actor (auto-cleaned up on despawn)
+onEvent('enemy:hit', (damage) => { ... })
+
+// Listen from a system
+const engine = useEngine()
+engine.hooks.hook('enemy:hit', (damage) => { ... })
+```
+
+## Scenes
+
+```ts
+import { defineScene, defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
+
+const MenuScene = defineScene({
+  name: 'menu',
+  systems: [MenuSystem],
+})
+
+const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, PhysicsSystem],
+})
+
+const AppRouter = defineSceneRouter({
+  initial: 'menu',
+  routes: {
+    menu: { scene: MenuScene, on: { START: 'game' } },
+    game: { scene: GameScene, on: { PAUSE: 'menu' } },
   },
+})
 
-  update(dt) {
-    // Per-frame update
-  },
-
-  destroy() {
-    console.log("Plugin destroyed");
-  },
-};
-
-// Use it
-engine.loadPlugin("my-plugin", MyPlugin);
+// Navigate
+const nav = useSceneRouter(AppRouter)
+await nav.send('START')
+console.log(nav.current) // 'game'
 ```
 
-### Plugin Types
+## Plugin system
 
-Plugins can be:
+```ts
+import { createEngine } from '@gwenjs/core'
 
-- **TypeScript** - Run in main thread
-- **Rust/WASM** - Run in WASM thread (fast calculations)
+const engine = await createEngine()
 
-## 📊 Component Types
+// Plugins are GwenPlugin objects returned by defineSystem, defineActor._plugin, etc.
+await engine.use(MovementSystem)
+await engine.use(EnemyActor._plugin)
 
-Built-in components:
-
-### Transform
-
-```typescript
-engine.addComponent(entity, "transform", {
-  x: 100,
-  y: 100,
-  rotation: 0,
-  scaleX: 1,
-  scaleY: 1,
-});
+engine.start()
+engine.stop()
 ```
 
-### Sprite
+## Logger
 
-```typescript
-engine.addComponent(entity, "sprite", {
-  width: 64,
-  height: 64,
-  color: { r: 1, g: 0, b: 0, a: 1 },
-  opacity: 1,
-  imageUrl: "path/to/image.png",
-});
+```ts
+import { createLogger } from '@gwenjs/core'
+
+const log = createLogger('game:my-system')
+log.info('hello')
+log.warn('something odd')
+log.error('oops')
 ```
 
-### Velocity
-
-```typescript
-engine.addComponent(entity, "velocity", {
-  x: 100,
-  y: 50,
-});
-```
-
-## 🎯 Global Engine Access
-
-Get the global engine instance:
-
-```typescript
-import { getEngine, useEngine } from "@gwenjs/core";
-
-// Get or create
-const engine = getEngine();
-
-// Or use hook (must be initialized first)
-const engine = useEngine();
-```
-
-## 📖 Events
-
-Listen to engine events:
-
-```typescript
-// Engine lifecycle
-engine.on("start", () => console.log("Game started"));
-engine.on("stop", () => console.log("Game stopped"));
-
-// Frame updates
-engine.on("update", ({ deltaTime, frameCount }) => {
-  console.log(`Frame ${frameCount}, DT: ${deltaTime}`);
-});
-
-engine.on("render", () => {
-  // Render event
-});
-
-// Entity events
-engine.on("entityCreated", (entityId) => {
-  console.log(`Entity ${entityId} created`);
-});
-
-engine.on("componentAdded", ({ entityId, componentType }) => {
-  console.log(`Component ${componentType} added to entity ${entityId}`);
-});
-```
-
-## 🔧 Configuration Reference
-
-```typescript
-interface EngineConfig {
-  // Maximum entities in scene
-  maxEntities: number;
-
-  // Canvas element ID or reference
-  canvas: string | HTMLCanvasElement;
-
-  // Canvas dimensions
-  width: number;
-  height: number;
-
-  // Target FPS
-  targetFPS: number;
-
-  // Enable debug mode
-  debug?: boolean;
-
-  // Show statistics
-  enableStats?: boolean;
-
-  // Plugins to load
-  plugins?: Plugin[];
-}
-```
-
-## 🚀 Performance Tips
-
-1. **Use Queries** - Pre-calculate queries for repeated operations
-2. **Batch Updates** - Update multiple entities in one loop
-3. **Use WASM Plugins** - Offload heavy calculations to Rust
-4. **Limit Entities** - Use appropriate `maxEntities` value
-5. **Profile** - Check FPS counter to identify bottlenecks
-
-## 📝 TypeScript Support
-
-Full TypeScript support with complete type definitions:
-
-```typescript
-import type { EngineConfig, Entity, Component, Plugin } from "@gwenjs/core";
-```
-
-## 🐛 Debug Mode
-
-Enable debug logging:
-
-```typescript
-const engine = new Engine({
-  debug: true,
-  enableStats: true,
-});
-
-// Get stats
-const stats = engine.getStats();
-console.log(stats.fps, stats.entityCount);
-```
-
-## 📚 Next Steps
-
-- **[API Docs](./docs/API.md)** - Complete API reference
-- **[Plugin Guide](./docs/PLUGINS.md)** - How to create plugins
-- **[Examples](./examples/)** - Full game examples
-- **[Troubleshooting](./docs/TROUBLESHOOTING.md)** - Common issues
-
-## 📄 License
+## License
 
 MIT
