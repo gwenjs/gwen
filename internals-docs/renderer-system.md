@@ -117,3 +117,49 @@ as `RendererErrorCodes`. This mirrors the `CoreErrorCodes` pattern in `@gwenjs/c
 7. Run `runConformanceTests()` from `@gwenjs/renderer-core/testing` in your test suite
 
 See `docs/kit/custom-renderer.md` for the step-by-step contributor guide.
+
+## Extending a Renderer Service with Composable Infrastructure
+
+Some renderer plugins need to expose methods beyond the `RendererService` contract
+(e.g. `allocateHandle`) so that composables can call them via `useService`. The
+correct pattern is the `extension` field on `RendererServiceDef`:
+
+```ts
+// ✅ CORRECT — use the extension field
+export const MyRenderer = defineRendererService<
+  MyOptions,
+  { allocateHandle(layer: string, key: string): MyHandle }
+>((opts) => {
+  const layers = buildLayerMap(opts.layers)   // closed over by extension
+  return {
+    name: 'renderer:my',
+    layers: opts.layers,
+    createElement: (name) => layers.get(name)!.element,
+    mount: () => {},
+    unmount: () => { layers.forEach((l) => l.destroy()) },
+    resize: () => {},
+    extension: {
+      allocateHandle(layer, key) { return layers.get(layer)!.allocate(key) },
+    },
+  }
+})
+
+// ❌ WRONG — do not reimplement the full RendererService manually
+export function MyRenderer(opts: MyOptions): RendererService & { allocateHandle(...) } {
+  const elementCache = new Map()    // duplication
+  let statsCollector: ...           // duplication
+  return { contractVersion: ..., getLayerElement: ..., /* 60 lines of boilerplate */ }
+}
+
+// ❌ WRONG — do not use Object.assign to bolt on extra methods
+const base = defineRendererService<MyOptions>(factory)(opts)
+return Object.assign(base, { allocateHandle: ... })
+```
+
+**Why `extension` is the right approach:**
+- No boilerplate duplication — `contractVersion`, element caching, and stats wiring
+  remain managed by `defineRendererService`.
+- Extension methods close over factory-scoped state (the layer map, the renderer
+  instance) naturally, with no WeakMap tricks or module-level singletons.
+- The extended type flows to `ReturnType<typeof MyRenderer>` automatically —
+  composables cast to it via `as MyRendererService`.

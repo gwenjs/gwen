@@ -2,10 +2,20 @@
  * @file defineRendererService — ergonomic factory for RendererService implementations.
  *
  * Handles all boilerplate automatically:
- * - contractVersion injection
+ * - `contractVersion` injection
  * - DOM element creation and caching per layer
- * - UnknownLayerError on undeclared layers
- * - setStatsCollector wiring (no-op until LayerManager enables stats)
+ * - `UnknownLayerError` on undeclared layers
+ * - `setStatsCollector` wiring (`reportFrameTime`/`reportLayer` are no-ops until
+ *   `LayerManager` enables stats)
+ *
+ * Renderer plugins that need to expose additional methods (e.g. `allocateHandle`
+ * for composable use) can declare them in the `extension` field of the definition
+ * object. They are merged into the returned `ManagedRendererService` instance and
+ * reflected in the return type via the `TExtension` generic.
+ *
+ * Contract properties (`name`, `contractVersion`, `layers`, `getLayerElement`,
+ * `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) always take
+ * precedence and cannot be overridden via `extension`.
  */
 
 import { RENDERER_CONTRACT_VERSION } from "./types.js";
@@ -33,9 +43,16 @@ export interface RendererFlushContext {
 
 /**
  * Definition object passed to `defineRendererService`.
- * Describes what the renderer does — boilerplate is handled for you.
+ *
+ * Describes what the renderer does — boilerplate is handled for you. The optional
+ * `extension` field lets you attach renderer-specific methods (e.g. `allocateHandle`)
+ * that will be merged into the returned `ManagedRendererService` and reflected in
+ * its TypeScript type via the `TExtension` generic.
+ *
+ * @typeParam TExtension - Shape of the additional methods/properties merged into
+ *   the returned service. Defaults to `{}` (no extension).
  */
-export interface RendererServiceDef {
+export interface RendererServiceDef<TExtension extends object = {}> {
   /** Unique renderer identifier. Must match the `GwenProvides` key. */
   name: string;
   /** Layer declarations. Keys are layer names, values define order and coordinate space. */
@@ -57,9 +74,48 @@ export interface RendererServiceDef {
    * no-ops when stats are disabled, so no guard is needed.
    */
   flush?(ctx: RendererFlushContext): void;
+  /**
+   * Additional methods or properties to expose on the managed service instance.
+   *
+   * Use this when a renderer plugin needs to expose infrastructure for its
+   * composables (e.g. `allocateHandle`) without reimplementing the full
+   * `RendererService` boilerplate.
+   *
+   * The values are merged into the returned object before contract properties,
+   * so contract keys (`name`, `contractVersion`, `layers`, `getLayerElement`,
+   * `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) always win on
+   * collision.
+   *
+   * @example
+   * ```ts
+   * export const MyRenderer = defineRendererService<
+   *   MyOptions,
+   *   { allocateHandle(layer: string, key: string): MyHandle }
+   * >((opts) => {
+   *   const layers = buildLayerMap(opts)
+   *   return {
+   *     name: 'renderer:my',
+   *     layers: opts.layers,
+   *     createElement: (name) => layers.get(name)!.element,
+   *     mount: () => {},
+   *     unmount: () => { layers.forEach((l) => l.destroy()) },
+   *     resize: () => {},
+   *     extension: {
+   *       allocateHandle(layer, key) {
+   *         return new MyHandle(layers.get(layer)!, key)
+   *       },
+   *     },
+   *   }
+   * })
+   * ```
+   */
+  extension?: TExtension;
 }
 
-/** A fully-wired RendererService with an additional `flush()` method for frame rendering. */
+/**
+ * A fully-wired `RendererService` with an additional `flush()` method for
+ * frame rendering. Returned by `defineRendererService`.
+ */
 export type ManagedRendererService = RendererService & {
   /**
    * Trigger the renderer's frame render. Call from the plugin's `onRender` hook.
@@ -74,44 +130,89 @@ export type ManagedRendererService = RendererService & {
  * Define a renderer service factory.
  *
  * Returns a function that accepts your options and produces a fully-wired
- * `RendererService`. Handles contract version, element caching,
+ * `ManagedRendererService`. Handles contract version, DOM element caching,
  * `UnknownLayerError`, and stats collector wiring automatically.
  *
- * @example
+ * ### Basic usage
+ *
  * ```ts
- * export const MyTechRenderer = defineRendererService<{ layers: Record<string, LayerDef> }>(
- *   (opts) => ({
- *     name: 'renderer:mytech',
- *     layers: opts.layers,
+ * export const MyTechRenderer = defineRendererService<MyTechOptions>((opts) => ({
+ *   name: 'renderer:mytech',
+ *   layers: opts.layers,
  *
- *     createElement(layerName) {
- *       return document.createElement('canvas')
- *     },
+ *   createElement(layerName) {
+ *     return document.createElement('canvas')
+ *   },
  *
- *     mount({ getLayer }) {
- *       const canvas = getLayer('game') as HTMLCanvasElement
- *       renderer = new MyTech({ canvas })
- *     },
+ *   mount({ getLayer }) {
+ *     const canvas = getLayer('game') as HTMLCanvasElement
+ *     renderer = new MyTech({ canvas })
+ *   },
  *
- *     unmount() { renderer?.dispose() },
- *     resize(w, h) { renderer?.setSize(w, h) },
+ *   unmount() { renderer?.dispose() },
+ *   resize(w, h) { renderer?.setSize(w, h) },
  *
- *     flush({ reportFrameTime }) {
- *       const t = performance.now()
- *       renderer?.render()
- *       reportFrameTime(performance.now() - t)
- *     },
- *   })
- * )
+ *   flush({ reportFrameTime }) {
+ *     const t = performance.now()
+ *     renderer?.render()
+ *     reportFrameTime(performance.now() - t)
+ *   },
+ * }))
  *
  * // In the plugin:
  * const service = MyTechRenderer({ layers: { game: { order: 10 } } })
  * ```
+ *
+ * ### Extending the service with renderer-specific methods
+ *
+ * Use the `extension` field when composables need to call renderer-internal
+ * methods via `useService`. The extension type flows through to the return
+ * type automatically — no `Object.assign`, no boilerplate reimplementation.
+ *
+ * ```ts
+ * export type HTMLRendererService = ReturnType<typeof HTMLRenderer>
+ *
+ * export const HTMLRenderer = defineRendererService<
+ *   HTMLOptions,
+ *   { allocateHandle(layer: string, key: string): HTMLHandle }
+ * >((opts) => {
+ *   const htmlLayers = buildHTMLLayerMap(opts.layers)
+ *
+ *   return {
+ *     name: 'renderer:html',
+ *     layers: opts.layers,
+ *     createElement: (name) => htmlLayers.get(name)!.element,
+ *     mount: () => {},
+ *     unmount: () => { htmlLayers.forEach((l) => l.element.remove()) },
+ *     resize: () => {},
+ *
+ *     extension: {
+ *       allocateHandle(layer, key) {
+ *         const l = htmlLayers.get(layer)
+ *         if (!l) throw new UnknownLayerError(layer, 'renderer:html')
+ *         return new HTMLHandleImpl(l, key)
+ *       },
+ *     },
+ *   }
+ * })
+ *
+ * // In the composable:
+ * export function useHTML(layerName: string): HTMLHandle {
+ *   const service = useService('renderer:html') as HTMLRendererService
+ *   const handle = service.allocateHandle(layerName, String(entityId))
+ *   onDestroy(() => handle.unmount())
+ *   return handle
+ * }
+ * ```
+ *
+ * @typeParam Options    - The options object accepted by the returned factory function.
+ * @typeParam TExtension - Additional methods/properties merged into the returned service.
+ *   Defaults to `{}`. Can be inferred when both generics are omitted.
  */
-export function defineRendererService<Options>(
-  factory: (opts: Options) => RendererServiceDef,
-): (opts: Options) => ManagedRendererService {
-  return (opts: Options): ManagedRendererService => {
+export function defineRendererService<Options, TExtension extends object = {}>(
+  factory: (opts: Options) => RendererServiceDef<TExtension>,
+): (opts: Options) => ManagedRendererService & TExtension {
+  return (opts: Options): ManagedRendererService & TExtension => {
     const def = factory(opts);
     const elementCache = new Map<string, HTMLElement>();
     let collector: RendererStatsCollector | undefined;
@@ -121,7 +222,12 @@ export function defineRendererService<Options>(
       reportLayer: (name, stats) => collector?.reportLayer(name, stats),
     };
 
+    // Extension methods are spread first so that contract properties always win
+    // on collision (name, contractVersion, layers, getLayerElement, mount, unmount,
+    // resize, setStatsCollector, flush).
     return {
+      ...(def.extension as TExtension),
+
       name: def.name,
       contractVersion: RENDERER_CONTRACT_VERSION,
       layers: def.layers,
@@ -165,6 +271,6 @@ export function defineRendererService<Options>(
       flush(): void {
         def.flush?.(flushCtx);
       },
-    };
+    } as ManagedRendererService & TExtension;
   };
 }

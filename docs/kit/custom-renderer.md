@@ -132,6 +132,73 @@ service.mount(container) // ✅ correct public API
 ```
 :::
 
+### Exposing renderer-specific methods for composables
+
+Some renderers need to expose infrastructure methods (e.g. `allocateHandle`) that
+composables call via `useService`. Use the `extension` field — it is merged into
+the returned service and typed via the second generic, with no `Object.assign` and
+no boilerplate reimplementation.
+
+```ts
+import { defineRendererService, UnknownLayerError, type LayerDef } from '@gwenjs/renderer-core'
+
+export interface MyTechRendererOptions {
+  layers: Record<string, LayerDef>
+}
+
+export interface MyTechHandle {
+  setPosition(x: number, y: number): void
+  destroy(): void
+}
+
+// The extension type is reflected on ReturnType<typeof MyTechRenderer>
+export const MyTechRenderer = defineRendererService<
+  MyTechRendererOptions,
+  { allocateHandle(layerName: string, key: string): MyTechHandle }
+>((opts) => {
+  // State scoped to this instance — extension methods close over it
+  const layerObjects = new Map<string, MyTechLayer>()
+  for (const [name, def] of Object.entries(opts.layers)) {
+    layerObjects.set(name, new MyTechLayer(name, def))
+  }
+
+  return {
+    name: 'renderer:mytech',
+    layers: opts.layers,
+    createElement: (name) => layerObjects.get(name)!.element,
+    mount: () => {},
+    unmount: () => { layerObjects.forEach((l) => l.destroy()) },
+    resize: () => {},
+
+    extension: {
+      allocateHandle(layerName, key) {
+        const layer = layerObjects.get(layerName)
+        if (!layer) throw new UnknownLayerError(layerName, 'renderer:mytech')
+        return layer.allocate(key)
+      },
+    },
+  }
+})
+
+// Export the extended service type for composables to cast to
+export type MyTechRendererService = ReturnType<typeof MyTechRenderer>
+```
+
+Then in the composable:
+
+```ts
+import { onCleanup } from '@gwenjs/core'
+import { useService } from '@gwenjs/core/system'
+import type { MyTechHandle, MyTechRendererService } from './mytech-renderer-service.js'
+
+export function useMyTechObject(layerName: string, key: string): MyTechHandle {
+  const service = useService('renderer:mytech') as MyTechRendererService
+  const handle = service.allocateHandle(layerName, key)
+  onCleanup(() => handle.destroy())
+  return handle
+}
+```
+
 ## Step 3 — Create the GwenPlugin
 
 Create `src/mytech-plugin.ts`:
