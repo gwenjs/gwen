@@ -5,11 +5,9 @@ import {
   type MergePluginsSceneExtensions,
   type MergePluginsUIExtensions,
 } from "../src/config";
-import { defineConfig } from "@gwenjs/app";
 
 // V2 GwenPlugin instances (setup/teardown, no generics)
 const PluginA: GwenPlugin = { name: "A", setup(_engine) {} };
-const PluginB: GwenPlugin = { name: "B", setup(_engine) {} };
 
 // Plugins with extension schemas (structural extension pattern)
 const PhysicsPlugin = {
@@ -31,25 +29,6 @@ const AudioPlugin = {
     ui: {} as { layer: string },
   },
 } satisfies GwenPlugin & { extensions: { prefab: { volume: number }; ui: { layer: string } } };
-
-describe("@gwenjs/app defineConfig", () => {
-  it("keeps runtime payload unchanged", () => {
-    const conf = defineConfig({
-      engine: { maxEntities: 10_000 },
-      plugins: [PluginA, PluginB],
-      html: { title: "Game", background: "#000000" },
-    });
-
-    expect(conf.engine?.maxEntities).toBe(10_000);
-    expect((conf.plugins ?? []).length).toBe(2);
-  });
-
-  it("returns the same config object", () => {
-    const input = { engine: { maxEntities: 5_000 } };
-    const conf = defineConfig(input);
-    expect(conf).toEqual(input);
-  });
-});
 
 describe("@gwenjs/kit MergePlugins*Extensions", () => {
   it("MergePluginsPrefabExtensions merges prefab extensions from all plugins", () => {

@@ -3,7 +3,15 @@ import { resolve } from "path";
 import dts from "vite-plugin-dts";
 
 export default defineConfig({
-  plugins: [dts({ include: ["src"], outDir: "dist", rollupTypes: false, entryRoot: "src" })],
+  plugins: [
+    dts({
+      include: ["src"],
+      exclude: ["wasm"],
+      outDir: "dist",
+      rollupTypes: false,
+      entryRoot: "src",
+    }),
+  ],
   build: {
     lib: {
       entry: resolve(__dirname, "src/index.ts"),
@@ -12,13 +20,7 @@ export default defineConfig({
       fileName: () => "index.js",
     },
     rollupOptions: {
-      external: ["@gwenjs/core", "@gwenjs/kit"],
-      output: {
-        globals: {
-          "@gwenjs/core": "GwenEngineCore",
-          "@gwenjs/kit": "GwenKit",
-        },
-      },
+      external: (id) => !id.startsWith(".") && !id.startsWith("/"),
     },
   },
 });

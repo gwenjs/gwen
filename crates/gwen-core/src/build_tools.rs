@@ -1,8 +1,11 @@
 //! Build-time mesh processing utilities.
 //!
-//! This module is compiled only when the `build-tools` feature is enabled and
-//! is intended for use in the Node.js WASM target used by the Vite/build plugin.
-//! It is **never** included in browser builds.
+//! This module is compiled only when the `build-tools` feature is enabled.
+//!
+//! - [`build_bvh_buffer`] is exposed via `#[wasm_bindgen]` and works in both
+//!   browser workers (web target) and the Node.js build-tools target.
+//! - [`build_bvh_from_glb`] is Node.js / CLI only (reads GLB bytes; no wasm-bindgen
+//!   annotation because the `gltf` dependency is unsuitable for direct browser use).
 //!
 //! # Key functions
 //!
@@ -18,6 +21,7 @@
 //! runtime, avoiding the ~50 ms QBVH construction cost on large meshes.
 
 use rapier3d::{geometry::TriMesh, na::Point3};
+use wasm_bindgen::prelude::*;
 
 /// Build a pre-baked BVH buffer from flat vertex and triangle index arrays.
 ///
@@ -37,6 +41,7 @@ use rapier3d::{geometry::TriMesh, na::Point3};
 ///
 /// # Panics
 /// Panics if `vertices_flat.len() % 3 != 0` or `indices_flat.len() % 3 != 0`.
+#[wasm_bindgen]
 pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
     assert_eq!(
         vertices_flat.len() % 3,
