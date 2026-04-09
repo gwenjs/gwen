@@ -35,13 +35,25 @@ jobs:
         if: ${{ steps.release.outputs.releases_created }}
         run: cargo install wasm-pack --locked
 
-      - uses: ./.github/actions/setup-node-pnpm
+      - uses: pnpm/action-setup@v5
         if: ${{ steps.release.outputs.releases_created }}
+        with:
+          version: "10"
 
       - uses: actions/setup-node@v4
         if: ${{ steps.release.outputs.releases_created }}
         with:
+          node-version: "22"
+          cache: pnpm
           registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        if: ${{ steps.release.outputs.releases_created }}
+        run: pnpm install --frozen-lockfile
+
+      - name: Update npm for OIDC support
+        if: ${{ steps.release.outputs.releases_created }}
+        run: npm install -g npm@latest
 
       - name: Build WASM
         if: ${{ steps.release.outputs.releases_created }}
