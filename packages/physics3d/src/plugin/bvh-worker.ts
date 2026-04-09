@@ -9,8 +9,8 @@
  * and send `WorkerJob` messages.
  */
 
-// @ts-ignore — dynamic import resolved by bundler at runtime
-import initWasm, { build_bvh_buffer } from "../../build-tools/gwen_core.js";
+// @ts-ignore — path resolved at build time by wasm-pack --target web
+import initWasm, { build_bvh_buffer } from "../../wasm/bvh/gwen_core.js";
 
 /** Whether the WASM module has finished initialising. */
 let wasmReady = false;
@@ -18,9 +18,11 @@ let wasmReady = false;
 /** Jobs queued while WASM is still loading. */
 const queue: WorkerJob[] = [];
 
+// Vite resolves `new URL(…, import.meta.url)` as an asset reference in workers.
+const wasmUrl = new URL("../../wasm/bvh/gwen_core_bg.wasm", import.meta.url);
+
 // Initialise WASM asynchronously; flush the queue when done
-// @ts-ignore — initWasm typed from runtime .d.ts; build-tools variant is callable
-initWasm().then(() => {
+initWasm(wasmUrl).then(() => {
   wasmReady = true;
   queue.splice(0).forEach(processJob);
 });

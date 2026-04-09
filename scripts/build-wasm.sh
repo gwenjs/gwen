@@ -127,6 +127,20 @@ main() {
   log_info "Build-tools WASM built successfully"
   echo ""
 
+  # Build web target for browser BVH worker
+  log_info "Building gwen-core BVH worker (web target)..."
+  wasm-pack build "$CRATE_DIR" \
+    --target web \
+    --release \
+    --out-dir "$PROJECT_ROOT/packages/physics3d/wasm/bvh" \
+    -- --features "build-tools" --no-default-features 2>&1
+
+  rm -f "$PROJECT_ROOT/packages/physics3d/wasm/bvh/.gitignore" \
+        "$PROJECT_ROOT/packages/physics3d/wasm/bvh/package.json" \
+        "$PROJECT_ROOT/packages/physics3d/wasm/bvh/README.md"
+  log_info "BVH worker WASM built successfully"
+  echo ""
+
   # 4. Build gwen-physics3d-fracture (standalone Voronoi fracture module)
   build_fracture() {
     local out_dir="$PROJECT_ROOT/packages/physics3d-fracture/wasm"
