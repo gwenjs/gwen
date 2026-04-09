@@ -54,6 +54,7 @@ export {
   type RendererMountContext,
   type RendererFlushContext,
   type ManagedRendererService,
+  type RendererServiceInstance,
 } from "./define-renderer-service.js";
 
 // Errors

@@ -124,6 +124,19 @@ export type ManagedRendererService = RendererService & {
   flush(): void;
 };
 
+/**
+ * The public type returned by a `defineRendererService` factory call.
+ *
+ * Contract keys from `ManagedRendererService` are excluded from `TExtension`
+ * before the intersection so that colliding extension keys can never produce a
+ * `never`-typed property on the resulting service. The runtime contract always
+ * wins — the types reflect that accurately.
+ *
+ * @typeParam TExtension - The extension shape declared in `RendererServiceDef`.
+ */
+export type RendererServiceInstance<TExtension extends object = {}> = ManagedRendererService &
+  Omit<TExtension, keyof ManagedRendererService>;
+
 // ─── Implementation ───────────────────────────────────────────────────────────
 
 /**
@@ -200,19 +213,20 @@ export type ManagedRendererService = RendererService & {
  * export function useHTML(layerName: string): HTMLHandle {
  *   const service = useService('renderer:html') as HTMLRendererService
  *   const handle = service.allocateHandle(layerName, String(entityId))
- *   onDestroy(() => handle.unmount())
+ *   onCleanup(() => handle.unmount())
  *   return handle
  * }
  * ```
  *
  * @typeParam Options    - The options object accepted by the returned factory function.
  * @typeParam TExtension - Additional methods/properties merged into the returned service.
- *   Defaults to `{}`. Can be inferred when both generics are omitted.
+ *   Defaults to `{}`. Contract keys are excluded from `TExtension` in the public
+ *   return type (`RendererServiceInstance`) so collisions never produce `never`.
  */
 export function defineRendererService<Options, TExtension extends object = {}>(
   factory: (opts: Options) => RendererServiceDef<TExtension>,
-): (opts: Options) => ManagedRendererService & TExtension {
-  return (opts: Options): ManagedRendererService & TExtension => {
+): (opts: Options) => RendererServiceInstance<TExtension> {
+  return (opts: Options): RendererServiceInstance<TExtension> => {
     const def = factory(opts);
     const elementCache = new Map<string, HTMLElement>();
     let collector: RendererStatsCollector | undefined;
@@ -224,9 +238,10 @@ export function defineRendererService<Options, TExtension extends object = {}>(
 
     // Extension methods are spread first so that contract properties always win
     // on collision (name, contractVersion, layers, getLayerElement, mount, unmount,
-    // resize, setStatsCollector, flush).
+    // resize, setStatsCollector, flush). The public type (RendererServiceInstance)
+    // already omits contract keys from TExtension so collisions can't produce never.
     return {
-      ...(def.extension as TExtension),
+      ...(def.extension as Omit<TExtension, keyof ManagedRendererService>),
 
       name: def.name,
       contractVersion: RENDERER_CONTRACT_VERSION,
@@ -271,6 +286,6 @@ export function defineRendererService<Options, TExtension extends object = {}>(
       flush(): void {
         def.flush?.(flushCtx);
       },
-    } as ManagedRendererService & TExtension;
+    } as RendererServiceInstance<TExtension>;
   };
 }

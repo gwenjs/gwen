@@ -307,6 +307,36 @@ describe("defineRendererService — extension", () => {
     expect(service.extraMethod()).toBe("ok");
   });
 
+  it("colliding contract key in TExtension does not produce never on the public type", () => {
+    // When TExtension contains a key that is also in ManagedRendererService (e.g. `flush`
+    // typed as string), the returned service's `flush` must still be callable as `() => void`.
+    // RendererServiceInstance omits TExtension keys that clash with ManagedRendererService,
+    // so the contract type always wins and the property is never `never`.
+    const Collider = defineRendererService<
+      object,
+      // `flush` conflicts with ManagedRendererService.flush — should be omitted from public type
+      { flush: string; extraMethod(): string }
+    >(() => ({
+      name: "renderer:collider",
+      layers: { a: { order: 0 } },
+      createElement: () => document.createElement("div"),
+      mount: vi.fn(),
+      unmount: vi.fn(),
+      resize: vi.fn(),
+      extension: {
+        flush: "SHOULD-NOT-APPEAR",
+        extraMethod: () => "ok",
+      },
+    }));
+
+    const service = Collider({});
+    // contract flush() must be callable — not string, not never
+    expect(typeof service.flush).toBe("function");
+    expect(() => service.flush()).not.toThrow();
+    // non-colliding extension key must still be accessible
+    expect(service.extraMethod()).toBe("ok");
+  });
+
   it("works correctly without an extension field (backward compatible)", () => {
     const Plain = defineRendererService<object>(() => ({
       name: "renderer:plain",
