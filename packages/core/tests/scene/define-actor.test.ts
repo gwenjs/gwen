@@ -183,7 +183,7 @@ describe("useEntityId", () => {
 
   it("throws when called outside a defineActor factory", () => {
     expect(() => useEntityId()).toThrow(
-      "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function.",
+      /\[GWEN\] useEntityId\(\) must be called inside a defineActor\(\) factory function\./,
     );
   });
 
@@ -193,10 +193,21 @@ describe("useEntityId", () => {
     const Actor = defineActor(SimplePrefab, () => {
       onStart(() => {
         // onStart runs after setup — no actor context active here
-        expect(() => useEntityId()).toThrow();
+        expect(() => useEntityId()).toThrow(
+          /\[GWEN\] useEntityId\(\) must be called inside a defineActor\(\) factory function\./,
+        );
       });
     });
     await engine.use(Actor._plugin);
     Actor._plugin.spawn?.();
+  });
+});
+
+describe("useEntityId — public entrypoint export", () => {
+  it("is exported from @gwenjs/core/actor entrypoint", async () => {
+    // Verify the export is present on the public entrypoint to prevent
+    // accidental removal from actor/index.ts.
+    const actorModule = await import("../../src/actor/index.js");
+    expect(typeof actorModule.useEntityId).toBe("function");
   });
 });

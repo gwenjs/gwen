@@ -180,7 +180,13 @@ export function _getActorEntityId(): bigint {
  * @throws {Error} If called outside an active `defineActor()` factory context.
  */
 export function useEntityId(): bigint {
-  return _getActorEntityId();
+  if (_currentActorEntityId === null) {
+    throw new Error(
+      "[GWEN] useEntityId() must be called inside a defineActor() factory function. " +
+        "It is only valid during actor spawn.",
+    );
+  }
+  return _currentActorEntityId;
 }
 
 /**
