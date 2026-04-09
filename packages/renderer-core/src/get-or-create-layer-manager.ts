@@ -33,8 +33,8 @@ import { LayerManager } from "./layer-manager.js";
  *   setup(engine) {
  *     const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
  *     manager.register(canvasService)
- *     engine.onStart(() => manager.mount())
- *     engine.onDestroy(() => manager.unregister('renderer:canvas'))
+ *     engine.hooks.hook('engine:init', () => manager.mount())
+ *     engine.hooks.hook('engine:stop', () => manager.unregister('renderer:canvas'))
  *   },
  * }))
  * ```

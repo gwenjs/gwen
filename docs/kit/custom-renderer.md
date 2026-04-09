@@ -134,8 +134,8 @@ export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((o
       }
       manager.register(service)
 
-      engine.onStart(() => manager.mount())
-      engine.onDestroy(() => manager.unregister('renderer:mytech'))
+      engine.hooks.hook('engine:init', () => manager.mount())
+      engine.hooks.hook('engine:stop', () => manager.unregister('renderer:mytech'))
     },
 
     onRender() {

@@ -39,7 +39,7 @@ import { definePlugin } from '@gwenjs/kit/plugin'
 export const GamePlugin = definePlugin(() => ({
   name: 'game',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       // Audio is optional — only use if available
       const audio = engine.get('audio')
       if (audio) {
@@ -72,7 +72,7 @@ export const PhysicsSystemPlugin = definePlugin(() => ({
     engine.use(PhysicsPlugin())
     engine.use(CollisionPlugin())
 
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       // Now you can safely use physics and collision services
       const physics = engine.get('physics')
       const collision = engine.get('collision')
@@ -108,7 +108,7 @@ const keys = new Set<string>()
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       window.addEventListener('keydown', (e) => keys.add(e.key))
       window.addEventListener('keyup', (e) => keys.delete(e.key))
     })
@@ -167,14 +167,14 @@ export const GamePlugin = definePlugin(() => ({
     engine.use(InputPlugin())
     engine.use(Physics2DPlugin({ gravity: 15 }))
 
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       const input = engine.get('input')
       const physics = engine.get('physics2d')
 
       // Initialize game state
       physics.addBody('player', 1.0)
 
-      engine.onDestroy(() => {
+      engine.hooks.hook('engine:stop', () => {
         console.log('Game plugin shutting down')
       })
     })
@@ -213,7 +213,7 @@ import { definePlugin } from '@gwenjs/kit/plugin'
 export const DebugUIPlugin = definePlugin(() => ({
   name: 'debug-ui',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       const physics = engine.get('physics2d')
 
       if (physics) {
@@ -308,7 +308,7 @@ Si un plugin ne s'initialise pas, les plugins en aval n'auront pas accès à son
 export const CriticalGamePlugin = definePlugin(() => ({
   name: 'critical-game',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       const physics = engine.get('physics2d')
 
       if (!physics) {
@@ -347,7 +347,7 @@ export const GamePlugin = definePlugin(() => ({
 ### 2. **Vérifiez les dépendances manquantes**
 
 ```ts
-engine.onStart(() => {
+engine.hooks.hook('engine:init', () => {
   const requiredService = engine.get('required')
   if (!requiredService) {
     throw new Error('Required service not found')
@@ -399,7 +399,7 @@ export default defineConfig({
 const MyPlugin = definePlugin(() => ({
   name: 'my-plugin',
   setup(engine) {
-    engine.onStart(() => {
+    engine.hooks.hook('engine:init', () => {
       const required = engine.get('required')
       const optional = engine.get('optional')
 
