@@ -1,23 +1,5 @@
 # Changelog
 
-## [0.2.0](https://github.com/gwenjs/gwen/compare/kit-v0.1.0...kit-v0.2.0) (2026-04-08)
-
-
-### Features
-
-* **core,kit:** scoped subpath exports for @gwenjs/core and @gwenjs/kit ([5e9445e](https://github.com/gwenjs/gwen/commit/5e9445ec5bae2541192abad2121f6a7eb847a311))
-* **kit:** add @gwenjs/kit/module entry point ([d91cf9c](https://github.com/gwenjs/gwen/commit/d91cf9ca18db5e3ee33a062f74704835932e50f6))
-* **kit:** add @gwenjs/kit/plugin entry point ([2154b69](https://github.com/gwenjs/gwen/commit/2154b695dad5a664d90c76364cd6c1d09986a691))
-
-
-### Bug Fixes
-
-* **kit,app:** point kit exports to dist and tighten hook type ([5f43489](https://github.com/gwenjs/gwen/commit/5f43489e38213aacced02ed0556a2db50b6927bf))
-* **kit:** correct publishConfig.exports, remove src from files, export config types ([bc38a32](https://github.com/gwenjs/gwen/commit/bc38a32a6412592288c77c814a7f3d874cc0916c))
-* **kit:** correct publishConfig.exports, remove src from files, export config types ([82a4dff](https://github.com/gwenjs/gwen/commit/82a4dff3ae9bdbd07f60fee92c2b8109b962cb60))
-* **kit:** restore @gwenjs/app devDep and config.test.ts ([e65416a](https://github.com/gwenjs/gwen/commit/e65416aa8f773bd3f0947e0ae0baf11729bb9c8c))
-* **release:** fix declaration paths and publishConfig for all packages ([f5152d5](https://github.com/gwenjs/gwen/commit/f5152d54d3939b1fbfce19586922034fbb08665a))
-
 ## v0.1.0 (2026-04-07)
 
 ### Initial Release

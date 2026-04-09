@@ -1,24 +1,5 @@
 # Changelog
 
-## [0.2.0](https://github.com/gwenjs/gwen/compare/core-v0.1.0...core-v0.2.0) (2026-04-08)
-
-
-### Features
-
-* **core,kit:** scoped subpath exports for @gwenjs/core and @gwenjs/kit ([5e9445e](https://github.com/gwenjs/gwen/commit/5e9445ec5bae2541192abad2121f6a7eb847a311))
-* **core,vite:** add string-name overload to defineSystem and auto-inject via Vite ([4a9efa6](https://github.com/gwenjs/gwen/commit/4a9efa62840fa6734370c3213224bb423b2cc66e))
-* **core:** add @gwenjs/core/actor entry point ([5862e73](https://github.com/gwenjs/gwen/commit/5862e739434c002b2cd8456384760233368ca79e))
-* **core:** add @gwenjs/core/system entry point ([80b743f](https://github.com/gwenjs/gwen/commit/80b743fd4bcf79400d37b0a16c15261afbb26314))
-* **core:** add useHook and onCleanup composables with universal auto-cleanup ([d7f57c5](https://github.com/gwenjs/gwen/commit/d7f57c521a2cf82449f3a23e91940391f74b03f6))
-* **core:** wire package.json exports and tsconfig paths for subpaths ([3d79224](https://github.com/gwenjs/gwen/commit/3d7922429dbcc27cd6168a0e015e910186867fe5))
-
-
-### Bug Fixes
-
-* **docs,core:** fix remaining stray flat imports and update core tests ([e1c2c62](https://github.com/gwenjs/gwen/commit/e1c2c6279c5e80335574ccee0c60bf8c7f568fb2))
-* **release:** fix declaration paths and publishConfig for all packages ([f5152d5](https://github.com/gwenjs/gwen/commit/f5152d54d3939b1fbfce19586922034fbb08665a))
-* resolve all oxlint warnings and errors ([dd50a38](https://github.com/gwenjs/gwen/commit/dd50a38759416d8ec50c333f3a8bbc608f008d70))
-
 ## v0.1.0 (2026-04-07)
 
 ### Initial Release
