@@ -102,6 +102,33 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
 }))
 ```
 
+## Comment LayerManager orchestre le montage
+
+`defineRendererService` crée deux surfaces d'API distinctes :
+
+| `RendererServiceDef` (ce que vous écrivez) | `RendererService` (ce que LayerManager appelle) |
+|---|---|
+| `createElement(layerName): HTMLElement` | `getLayerElement(layerName): HTMLElement` |
+| `mount(ctx: RendererMountContext): void` | `mount(container: HTMLElement): void` |
+
+La séquence d'orchestration lors de l'appel à `manager.mount()` :
+
+1. **Pour chaque layer déclaré** — LayerManager appelle `service.getLayerElement(layerName)`, ce qui déclenche votre `createElement(layerName)` au premier appel et met le résultat en cache.
+2. **Insertion dans le DOM** — LayerManager insère chaque élément dans le conteneur dans l'ordre défini par `order`.
+3. **Appel de mount** — LayerManager appelle `service.mount(container)`. En interne, `defineRendererService` traduit cela en `def.mount({ container, getLayer: (name) => elementCache.get(name) })`.
+4. **Votre `mount({ getLayer })` s'exécute** — à ce stade, tous les éléments sont déjà dans le DOM et ont leurs dimensions finales.
+
+::: tip Tester le service directement
+Lors de tests en dehors de LayerManager, appelez `service.mount(container)` avec un `HTMLElement` — pas `{ getLayer }`. Le contexte `getLayer` est construit en interne par `defineRendererService`.
+
+```ts
+const service = MyTechRenderer({ layers: { main: { order: 0 } } })
+const container = document.createElement('div')
+document.body.appendChild(container)
+service.mount(container) // ✅ API publique correcte
+```
+:::
+
 ## Étape 3 — Créer le GwenPlugin
 
 Créer `src/mytech-plugin.ts` :
