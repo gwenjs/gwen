@@ -194,3 +194,131 @@ describe("defineRendererService", () => {
     expect(a.getLayerElement("game")).not.toBe(b.getLayerElement("game"));
   });
 });
+
+// ── Extension ─────────────────────────────────────────────────────────────────
+
+describe("defineRendererService — extension", () => {
+  // ── Type-level: extension methods appear on the returned service ──────────
+
+  it("exposes extension methods on the returned service", () => {
+    interface MyHandle {
+      render(): void;
+    }
+
+    const RendererWithHandle = defineRendererService<
+      object,
+      { allocateHandle(layer: string): MyHandle }
+    >(() => {
+      const handles = new Map<string, MyHandle>();
+
+      return {
+        name: "renderer:ext-test",
+        layers: { main: { order: 0 } },
+        createElement: () => document.createElement("div"),
+        mount: vi.fn(),
+        unmount: vi.fn(),
+        resize: vi.fn(),
+        extension: {
+          allocateHandle(layer: string): MyHandle {
+            const h: MyHandle = { render: vi.fn() };
+            handles.set(layer, h);
+            return h;
+          },
+        },
+      };
+    });
+
+    const service = RendererWithHandle({});
+    // allocateHandle must be present and callable
+    expect(typeof service.allocateHandle).toBe("function");
+    const handle = service.allocateHandle("main");
+    expect(typeof handle.render).toBe("function");
+  });
+
+  it("extension methods close over factory-scoped state", () => {
+    const calls: string[] = [];
+
+    const TrackedRenderer = defineRendererService<object, { ping(msg: string): void }>(() => ({
+      name: "renderer:tracked-ext",
+      layers: { a: { order: 0 } },
+      createElement: () => document.createElement("div"),
+      mount: vi.fn(),
+      unmount: vi.fn(),
+      resize: vi.fn(),
+      extension: {
+        ping(msg: string) {
+          calls.push(msg);
+        },
+      },
+    }));
+
+    const service = TrackedRenderer({});
+    service.ping("hello");
+    service.ping("world");
+    expect(calls).toEqual(["hello", "world"]);
+  });
+
+  it("each instance has its own independent extension state", () => {
+    const CallTracker = defineRendererService<object, { getCallCount(): number }>(() => {
+      let count = 0;
+      return {
+        name: "renderer:counter",
+        layers: { a: { order: 0 } },
+        createElement: () => document.createElement("div"),
+        mount: vi.fn(),
+        unmount: vi.fn(),
+        resize: vi.fn(),
+        extension: {
+          getCallCount() {
+            return ++count;
+          },
+        },
+      };
+    });
+
+    const a = CallTracker({});
+    const b = CallTracker({});
+    expect(a.getCallCount()).toBe(1);
+    expect(a.getCallCount()).toBe(2);
+    // b has its own counter — must start from 1
+    expect(b.getCallCount()).toBe(1);
+  });
+
+  it("contract properties override extension keys with the same name", () => {
+    // If a renderer accidentally puts a contract key in extension, the contract wins.
+    const service = defineRendererService<
+      object,
+      // deliberately shadowing `name` — contract must always win
+      { name: string; extraMethod(): string }
+    >(() => ({
+      name: "renderer:contract-wins",
+      layers: { a: { order: 0 } },
+      createElement: () => document.createElement("div"),
+      mount: vi.fn(),
+      unmount: vi.fn(),
+      resize: vi.fn(),
+      extension: {
+        name: "renderer:SHOULD-NOT-APPEAR",
+        extraMethod: () => "ok",
+      },
+    }))({});
+
+    expect(service.name).toBe("renderer:contract-wins");
+    expect(service.extraMethod()).toBe("ok");
+  });
+
+  it("works correctly without an extension field (backward compatible)", () => {
+    const Plain = defineRendererService<object>(() => ({
+      name: "renderer:plain",
+      layers: { a: { order: 0 } },
+      createElement: () => document.createElement("div"),
+      mount: vi.fn(),
+      unmount: vi.fn(),
+      resize: vi.fn(),
+    }));
+
+    const service = Plain({});
+    expect(service.name).toBe("renderer:plain");
+    expect(service.contractVersion).toBe(RENDERER_CONTRACT_VERSION);
+  });
+});

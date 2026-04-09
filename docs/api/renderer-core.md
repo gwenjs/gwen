@@ -92,6 +92,73 @@ Returned by `useMesh()` / `useR3F()`.
 
 ## Functions
 
+### `defineRendererService()`
+
+```ts
+function defineRendererService<Options, TExtension extends object = {}>(
+  factory: (opts: Options) => RendererServiceDef<TExtension>
+): (opts: Options) => ManagedRendererService & TExtension
+```
+
+Ergonomic factory for `RendererService` implementations. Handles contract version,
+DOM element caching, `UnknownLayerError`, and stats collector wiring automatically.
+
+The optional `TExtension` generic lets renderer plugins expose additional methods
+(e.g. `allocateHandle` for composable use) without reimplementing the full
+`RendererService` boilerplate.
+
+```ts
+// Basic usage — no extension
+export const MyRenderer = defineRendererService<MyOptions>((opts) => ({
+  name: 'renderer:mytech',
+  layers: opts.layers,
+  createElement: () => document.createElement('canvas'),
+  mount({ getLayer }) { /* init renderer */ },
+  unmount() { /* dispose */ },
+  resize(w, h) { /* resize */ },
+  flush({ reportFrameTime }) { reportFrameTime(/* ms */0) },
+}))
+
+// With extension — renderer-specific methods typed on the returned service
+export const HTMLRenderer = defineRendererService<
+  HTMLOptions,
+  { allocateHandle(layer: string, key: string): HTMLHandle }
+>((opts) => {
+  const layers = buildLayerMap(opts.layers)
+  return {
+    name: 'renderer:html',
+    layers: opts.layers,
+    createElement: (name) => layers.get(name)!.element,
+    mount: () => {},
+    unmount: () => { layers.forEach((l) => l.element.remove()) },
+    resize: () => {},
+    extension: {
+      allocateHandle(layer, key) { return new HTMLHandleImpl(layers.get(layer)!, key) },
+    },
+  }
+})
+
+export type HTMLRendererService = ReturnType<typeof HTMLRenderer>
+// HTMLRendererService = ManagedRendererService & { allocateHandle(...): HTMLHandle }
+```
+
+**`RendererServiceDef<TExtension>` fields**
+
+| Field | Required | Description |
+|---|---|---|
+| `name` | ✅ | Unique renderer identifier |
+| `layers` | ✅ | Layer declarations |
+| `createElement(name)` | ✅ | Create the DOM element for one layer — result is cached |
+| `mount(ctx)` | ✅ | Called after all elements are inserted |
+| `unmount()` | ✅ | Must release all resources |
+| `resize(w, h)` | ✅ | Called on viewport resize |
+| `flush(ctx)` | Optional | Called each frame via `service.flush()` |
+| `extension` | Optional | Additional methods merged into the returned service |
+
+Contract properties (`name`, `contractVersion`, `layers`, `getLayerElement`,
+`mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) always take precedence
+over same-named keys in `extension`.
+
 ### `getOrCreateLayerManager()`
 
 ```ts

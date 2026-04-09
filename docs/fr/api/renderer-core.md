@@ -12,9 +12,9 @@ Package de contrat pour les plugins renderer GWEN. Aucune dépendance graphique 
 ## defineRendererService()
 
 ```ts
-function defineRendererService<Options>(
-  factory: (opts: Options) => RendererServiceDef
-): (opts: Options) => ManagedRendererService
+function defineRendererService<Options, TExtension extends object = {}>(
+  factory: (opts: Options) => RendererServiceDef<TExtension>
+): (opts: Options) => ManagedRendererService & TExtension
 ```
 
 Factory ergonomique pour implémenter un `RendererService`. Gère automatiquement :
@@ -23,25 +23,19 @@ Factory ergonomique pour implémenter un `RendererService`. Gère automatiquemen
 - `UnknownLayerError` pour les layers non déclarés
 - Câblage de `setStatsCollector` — `reportFrameTime`/`reportLayer` sont des no-ops quand les stats sont désactivées
 
+Le generic optionnel `TExtension` permet aux plugins renderer d'exposer des méthodes supplémentaires (ex. `allocateHandle` pour les composables) sans réimplémenter le boilerplate `RendererService`.
+
 ```ts
+// Usage de base — sans extension
 export const MyRenderer = defineRendererService<{ layers: Record<string, LayerDef> }>(
   (opts) => ({
     name: 'renderer:mytech',
     layers: opts.layers,
-
-    createElement(layerName) {
-      return document.createElement('canvas')
-    },
-
-    mount({ getLayer }) {
-      const canvas = getLayer('game') as HTMLCanvasElement
-      // initialisation du renderer
-    },
-
+    createElement(layerName) { return document.createElement('canvas') },
+    mount({ getLayer }) { /* initialisation */ },
     unmount() { /* nettoyage */ },
     resize(w, h) { /* redimensionnement */ },
-
-    flush({ reportFrameTime, reportLayer }) {
+    flush({ reportFrameTime }) {
       const t = performance.now()
       // rendu
       reportFrameTime(performance.now() - t)
@@ -52,6 +46,47 @@ export const MyRenderer = defineRendererService<{ layers: Record<string, LayerDe
 // Instanciation dans le plugin :
 const service = MyRenderer({ layers: { game: { order: 10 } } })
 ```
+
+```ts
+// Avec extension — méthodes spécifiques au renderer typées sur le service retourné
+export const HTMLRenderer = defineRendererService<
+  HTMLOptions,
+  { allocateHandle(layer: string, key: string): HTMLHandle }
+>((opts) => {
+  const layers = buildLayerMap(opts.layers)
+  return {
+    name: 'renderer:html',
+    layers: opts.layers,
+    createElement: (name) => layers.get(name)!.element,
+    mount: () => {},
+    unmount: () => { layers.forEach((l) => l.element.remove()) },
+    resize: () => {},
+    extension: {
+      allocateHandle(layer, key) {
+        return new HTMLHandleImpl(layers.get(layer)!, key)
+      },
+    },
+  }
+})
+
+export type HTMLRendererService = ReturnType<typeof HTMLRenderer>
+// HTMLRendererService = ManagedRendererService & { allocateHandle(...): HTMLHandle }
+```
+
+**Champs de `RendererServiceDef<TExtension>`**
+
+| Champ | Requis | Description |
+|---|---|---|
+| `name` | ✅ | Identifiant unique du renderer |
+| `layers` | ✅ | Déclarations de layers |
+| `createElement(name)` | ✅ | Crée l'élément DOM pour un layer — résultat mis en cache |
+| `mount(ctx)` | ✅ | Appelé après insertion de tous les éléments |
+| `unmount()` | ✅ | Doit libérer toutes les ressources |
+| `resize(w, h)` | ✅ | Appelé lors du redimensionnement du viewport |
+| `flush(ctx)` | Optionnel | Appelé chaque frame via `service.flush()` |
+| `extension` | Optionnel | Méthodes supplémentaires fusionnées dans le service retourné |
+
+Les propriétés du contrat (`name`, `contractVersion`, `layers`, `getLayerElement`, `mount`, `unmount`, `resize`, `setStatsCollector`, `flush`) ont toujours la priorité sur les clés homonymes dans `extension`.
 
 ## getOrCreateLayerManager()
 
