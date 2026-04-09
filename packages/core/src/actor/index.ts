@@ -7,6 +7,9 @@ export {
   onDestroy,
   onEvent,
   useEntityId,
+  // Still exported for internal monorepo packages (physics2d, physics3d) that
+  // have not yet been migrated to useEntityId(). External consumers should use
+  // useEntityId() instead.
   _getActorEntityId,
 } from "../scene/define-actor.js";
 
