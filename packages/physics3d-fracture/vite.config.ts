@@ -12,5 +12,5 @@ export default defineConfig({
       external: ["../wasm/gwen_physics3d_fracture.js"],
     },
   },
-  plugins: [dts({ rollupTypes: true })],
+  plugins: [dts({ rollupTypes: true, pathsToAliases: false })],
 });

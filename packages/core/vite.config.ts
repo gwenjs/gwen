@@ -9,6 +9,7 @@ export default defineConfig({
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
+      pathsToAliases: false,
     }),
   ],
   build: {
