@@ -51,10 +51,6 @@ jobs:
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm install --frozen-lockfile
 
-      - name: Update npm for OIDC support
-        if: ${{ steps.release.outputs.releases_created }}
-        run: npm install -g npm@latest
-
       - name: Build WASM
         if: ${{ steps.release.outputs.releases_created }}
         run: pnpm build:wasm
