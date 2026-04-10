@@ -65,7 +65,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
 
       if (hasFollow) {
         const follow = engine.getComponent(id, FollowTarget)!;
-        const targetId = BigInt(follow.entityId) as EntityId;
+        const targetId = follow.entityId as EntityId;
         const targetCam = engine.getComponent(targetId, Camera);
         if (targetCam) {
           const tx = targetCam.x + follow.offsetX;
@@ -105,12 +105,13 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
             }
           } else {
             const prevWp = pathData.waypoints[(pathComp.index as number) - 1];
-            if (prevWp) {
-              x = prevWp.position.x + (wp.position.x - prevWp.position.x) * progress;
-              y = prevWp.position.y + (wp.position.y - prevWp.position.y) * progress;
-              z = prevWp.position.z + (wp.position.z - prevWp.position.z) * progress;
-              engine.addComponent(id, Camera, { ...cam, x, y, z });
-            }
+            const startX = prevWp ? prevWp.position.x : cam.x;
+            const startY = prevWp ? prevWp.position.y : cam.y;
+            const startZ = prevWp ? prevWp.position.z : cam.z;
+            x = startX + (wp.position.x - startX) * progress;
+            y = startY + (wp.position.y - startY) * progress;
+            z = startZ + (wp.position.z - startZ) * progress;
+            engine.addComponent(id, Camera, { ...cam, x, y, z });
           }
         }
       }

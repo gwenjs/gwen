@@ -19,9 +19,9 @@ import { CameraSystem } from "./camera-system.js";
 
 export const CameraCorePlugin = definePlugin(() => ({
   name: "camera-core",
-  setup(engine) {
+  async setup(engine) {
     getOrCreateCameraManager(engine);
     getOrCreateViewportManager(engine);
-    void engine.use(CameraSystem);
+    await engine.use(CameraSystem);
   },
 }));

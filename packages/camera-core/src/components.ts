@@ -46,7 +46,7 @@ export const Camera = defineComponent({
 export const FollowTarget = defineComponent({
   name: "FollowTarget",
   schema: {
-    entityId: Types.u32,
+    entityId: Types.u64,
     lerp: Types.f32,
     offsetX: Types.f32,
     offsetY: Types.f32,
