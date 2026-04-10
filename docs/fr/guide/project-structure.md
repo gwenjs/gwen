@@ -118,13 +118,18 @@ import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
 import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 import { Position, Health } from '../components'
 
-export const PlayerActor = defineActor('Player', () => {
+const PlayerPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Health,   defaults: { hp: 100 } },
+])
+
+export const PlayerActor = defineActor(PlayerPrefab, () => {
   useDynamicBody({ gravityScale: 1 })
   useBoxCollider({ width: 1, height: 2 })
 
   onStart(() => {
-    Position.x[0] = 100
-    Position.y[0] = 100
+    Position.x[entityId] = 100
+    Position.y[entityId] = 100
   })
 })
 ```
