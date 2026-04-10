@@ -19,8 +19,8 @@ import { CameraCorePlugin, Camera, cameraViewportMap } from "@gwenjs/camera-core
 const engine = await createEngine({ maxEntities: 1000 });
 await engine.use(CameraCorePlugin());
 
-// Register a viewport
-engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1920, height: 1080 });
+// Register a viewport (normalized [0–1] region — full screen)
+engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
 
 // Create a camera entity
 const camId = engine.createEntity();
@@ -150,14 +150,16 @@ If `camera2d`/`camera3d` don't fit your needs, you can build your own on top of 
 
 ```ts
 import { CameraCorePlugin, Camera, cameraViewportMap } from "@gwenjs/camera-core";
-import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { useCameraManager } from "@gwenjs/renderer-core";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
 await engine.use(CameraCorePlugin());
 
 // Your system reads CameraManager after CameraSystem runs
 const MyRenderSystem = defineSystem("MyRenderSystem", () => {
+  const cameras = useCameraManager();
   onUpdate(() => {
-    const state = engine.inject("cameraManager").get("main");
+    const state = cameras.get("main");
     if (state) {
       const { x, y, z } = state.worldTransform.position;
       // apply to your renderer
