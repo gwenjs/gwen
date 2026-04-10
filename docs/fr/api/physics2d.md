@@ -72,7 +72,7 @@ const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const BallActor = defineActor(BallPrefab, () => {
   useDynamicBody({ mass: 2, restitution: 0.8 })
-  useBoxCollider({ width: 1, height: 1 })
+  useBoxCollider({ w: 1, h: 1 })
 })
 ```
 
@@ -104,7 +104,7 @@ const GroundPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const GroundActor = defineActor(GroundPrefab, () => {
   useStaticBody()
-  useBoxCollider({ width: 100, height: 1 })
+  useBoxCollider({ w: 100, h: 1 })
 })
 ```
 
@@ -122,15 +122,19 @@ function useBoxCollider(options: BoxColliderOptions): void
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.width | `number` | Largeur de la boîte |
-| options.height | `number` | Hauteur de la boîte |
-| options.sensor | `boolean` | Est capteur (déclenchement uniquement) |
+| options.w | `number` | Largeur de la boîte en unités monde |
+| options.h | `number` | Hauteur de la boîte en unités monde |
+| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
+| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
+| options.mask | `number` | Bitmask de filtre de collision |
+| options.offsetX | `number` | Décalage X local par rapport à l'origine de l'acteur |
+| options.offsetY | `number` | Décalage Y local par rapport à l'origine de l'acteur |
 
-**Retourne:** `void`
+**Retourne:** `BoxColliderHandle`
 
 **Exemple:**
 ```ts
-useBoxCollider({ width: 2, height: 2, sensor: false });
+useBoxCollider({ w: 2, h: 2, isSensor: false });
 ```
 
 ### useSphereCollider(options)
@@ -145,8 +149,10 @@ function useSphereCollider(options: SphereColliderOptions): void
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.radius | `number` | Rayon du cercle |
-| options.sensor | `boolean` | Est capteur (déclenchement uniquement) |
+| options.radius | `number` | Rayon du cercle en unités monde |
+| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
+| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
+| options.mask | `number` | Bitmask de filtre de collision |
 
 **Retourne:** `void`
 
@@ -162,9 +168,11 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.halfHeight | `number` | Demi-hauteur de la capsule |
-| options.radius | `number` | Rayon final |
-| options.sensor | `boolean` | Est capteur (déclenchement uniquement) |
+| options.radius | `number` | Rayon de la capsule en unités monde |
+| options.height | `number` | Hauteur totale de la capsule en unités monde |
+| options.isSensor | `boolean` | Si vrai, génère des événements de chevauchement sans réponse physique |
+| options.layer | `number` | Bitmask de couche d'appartenance aux collisions |
+| options.mask | `number` | Bitmask de filtre de collision |
 
 **Retourne:** `void`
 
@@ -188,10 +196,12 @@ function onContact(handler: (event: ContactEvent) => void): void
 
 **Exemple:**
 ```ts
+const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
+
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   onContact((event) => {
-    if (event.other.name === 'Spike') {
-      // Prendre des dégâts
+    if (event.relativeVelocity > 10) {
+      // Impact violent — prendre des dégâts
     }
   })
 })
@@ -202,68 +212,71 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 **Signature:**
 ```ts
 interface ContactEvent {
-  self: Entity;
-  other: Entity;
-  started: boolean;
-  ended: boolean;
-  point: Vec2;
-  normal: Vec2;
-  impulse: number;
+  entityA: bigint;
+  entityB: bigint;
+  contactX: number;
+  contactY: number;
+  normalX: number;
+  normalY: number;
+  relativeVelocity: number;
 }
 ```
 
-### onSensorEnter(handler)
+### onSensorEnter(sensorId, callback)
 
 **Signature:**
 ```ts
-function onSensorEnter(handler: (other: Entity) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): void
 ```
 
-**Description.** Appelé quand un autre collider entre dans un déclencheur de capteur.
+**Description.** Appelé quand une autre entité entre dans un collider capteur. Utiliser le `colliderId` du handle de collider comme `sensorId`.
 
 **Exemple:**
 ```ts
 export const CoinActor = defineActor(CoinPrefab, () => {
-  useSphereCollider({ radius: 0.5, sensor: true })
-  onSensorEnter((other) => {
-    if (other.name === 'Player') {
-      // Collecter la pièce
-    }
+  const zone = useSphereCollider({ radius: 0.5, isSensor: true })
+  onSensorEnter(zone.colliderId, (entityId) => {
+    // Une entité est entrée dans la zone
+    console.log('Collecté par l\'entité :', entityId)
   })
 })
 ```
 
-### onSensorExit(handler)
+### onSensorExit(sensorId, callback)
 
 **Signature:**
 ```ts
-function onSensorExit(handler: (other: Entity) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): void
 ```
 
-**Description.** Appelé quand un autre collider quitte un déclencheur de capteur.
+**Description.** Appelé quand une autre entité quitte un collider capteur.
 
 ## Couches
 
-### defineLayers(names)
+### defineLayers(definition)
 
 **Signature:**
 ```ts
-function defineLayers(names: string[]): LayerMask
+function defineLayers<T extends Record<string, number>>(definition: T): Record<string, number>
 ```
 
-**Description.** Crée des définitions de couches pour le filtrage des collisions.
+**Description.** Déclare des couches de collision nommées avec leurs valeurs de bitmask. Le plugin Vite intègre les valeurs de couche au moment du build et avertit si des couches partagent des bits.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| names | `string[]` | Liste des noms de couches |
+| definition | `Record<string, number>` | Objet associant des noms de couches à des valeurs de bitmask |
 
-**Retourne:** `LayerMask` — objet avec des drapeaux de bits de couche.
+**Retourne:** `Record<string, number>` — le même objet, avec les noms de couches comme clés.
 
 **Exemple:**
 ```ts
-const Layers = defineLayers(['player', 'enemy', 'wall']);
-// Utilisez Layers.player, Layers.enemy, etc.
+const Layers = defineLayers({
+  player: 1 << 0,
+  enemy:  1 << 1,
+  wall:   1 << 2,
+})
+// Utilisez Layers.player, Layers.enemy, Layers.wall
 ```
 
 ## Service de physique

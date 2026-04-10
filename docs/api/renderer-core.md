@@ -304,7 +304,7 @@ creates the manager when it registers.
 
 ```ts
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { defineSystem } from '@gwenjs/core/system'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const ViewportSetupSystem = defineSystem('ViewportSetupSystem', () => {
   const viewports = useViewportManager()

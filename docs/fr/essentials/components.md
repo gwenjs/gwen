@@ -162,6 +162,8 @@ export const DamageSystem = defineSystem(() => {
 Parfois vous devez ajouter ou supprimer un composant d'une entité vivante :
 
 ```ts
+import { useEngine } from '@gwenjs/core'
+
 const engine = useEngine()
 
 // Ajouter un composant

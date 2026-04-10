@@ -260,7 +260,7 @@ Requiert que `CameraCorePlugin` (de `@gwenjs/camera-core`) soit installé.
 
 ```ts
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { defineSystem } from '@gwenjs/core/system'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 const ViewportSetupSystem = defineSystem('ViewportSetupSystem', () => {
   const viewports = useViewportManager()

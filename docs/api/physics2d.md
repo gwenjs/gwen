@@ -72,7 +72,7 @@ const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const BallActor = defineActor(BallPrefab, () => {
   useDynamicBody({ mass: 2, restitution: 0.8 })
-  useBoxCollider({ width: 1, height: 1 })
+  useBoxCollider({ w: 1, h: 1 })
 })
 ```
 
@@ -104,7 +104,7 @@ const GroundPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const GroundActor = defineActor(GroundPrefab, () => {
   useStaticBody()
-  useBoxCollider({ width: 100, height: 1 })
+  useBoxCollider({ w: 100, h: 1 })
 })
 ```
 
@@ -122,15 +122,19 @@ function useBoxCollider(options: BoxColliderOptions): void
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.width | `number` | Box width |
-| options.height | `number` | Box height |
-| options.sensor | `boolean` | Is sensor (trigger-only) |
+| options.w | `number` | Box width in world units |
+| options.h | `number` | Box height in world units |
+| options.isSensor | `boolean` | If true, generates overlap events with no physical response |
+| options.layer | `number` | Collision membership layer bitmask |
+| options.mask | `number` | Collision filter mask bitmask |
+| options.offsetX | `number` | Local X offset from actor origin |
+| options.offsetY | `number` | Local Y offset from actor origin |
 
-**Returns:** `void`
+**Returns:** `BoxColliderHandle`
 
 **Example:**
 ```ts
-useBoxCollider({ width: 2, height: 2, sensor: false });
+useBoxCollider({ w: 2, h: 2, isSensor: false });
 ```
 
 ### useSphereCollider(options)
@@ -145,8 +149,10 @@ function useSphereCollider(options: SphereColliderOptions): void
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.radius | `number` | Circle radius |
-| options.sensor | `boolean` | Is sensor (trigger-only) |
+| options.radius | `number` | Circle radius in world units |
+| options.isSensor | `boolean` | If true, generates overlap events with no physical response |
+| options.layer | `number` | Collision membership layer bitmask |
+| options.mask | `number` | Collision filter mask bitmask |
 
 **Returns:** `void`
 
@@ -162,9 +168,11 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.halfHeight | `number` | Half height of capsule |
-| options.radius | `number` | End radius |
-| options.sensor | `boolean` | Is sensor (trigger-only) |
+| options.radius | `number` | Capsule radius in world units |
+| options.height | `number` | Total capsule height in world units |
+| options.isSensor | `boolean` | If true, generates overlap events with no physical response |
+| options.layer | `number` | Collision membership layer bitmask |
+| options.mask | `number` | Collision filter mask bitmask |
 
 **Returns:** `void`
 
@@ -188,10 +196,12 @@ function onContact(handler: (event: ContactEvent) => void): void
 
 **Example:**
 ```ts
+const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
+
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   onContact((event) => {
-    if (event.other.name === 'Spike') {
-      // Take damage
+    if (event.relativeVelocity > 10) {
+      // Hard impact — take damage
     }
   })
 })
@@ -202,45 +212,44 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 **Signature:**
 ```ts
 interface ContactEvent {
-  self: Entity;
-  other: Entity;
-  started: boolean;
-  ended: boolean;
-  point: Vec2;
-  normal: Vec2;
-  impulse: number;
+  entityA: bigint;
+  entityB: bigint;
+  contactX: number;
+  contactY: number;
+  normalX: number;
+  normalY: number;
+  relativeVelocity: number;
 }
 ```
 
-### onSensorEnter(handler)
+### onSensorEnter(sensorId, callback)
 
 **Signature:**
 ```ts
-function onSensorEnter(handler: (other: Entity) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): void
 ```
 
-**Description.** Called when another collider enters a sensor trigger.
+**Description.** Called when another entity enters a sensor collider. Use the `colliderId` from the collider handle as `sensorId`.
 
 **Example:**
 ```ts
 export const CoinActor = defineActor(CoinPrefab, () => {
-  useSphereCollider({ radius: 0.5, sensor: true })
-  onSensorEnter((other) => {
-    if (other.name === 'Player') {
-      // Collect coin
-    }
+  const zone = useSphereCollider({ radius: 0.5, isSensor: true })
+  onSensorEnter(zone.colliderId, (entityId) => {
+    // Entity entered the coin zone
+    console.log('Collected by entity:', entityId)
   })
 })
 ```
 
-### onSensorExit(handler)
+### onSensorExit(sensorId, callback)
 
 **Signature:**
 ```ts
-function onSensorExit(handler: (other: Entity) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): void
 ```
 
-**Description.** Called when another collider exits a sensor trigger.
+**Description.** Called when another entity leaves a sensor collider.
 
 ## Layers
 
@@ -248,22 +257,26 @@ function onSensorExit(handler: (other: Entity) => void): void
 
 **Signature:**
 ```ts
-function defineLayers(names: string[]): LayerMask
+function defineLayers<T extends Record<string, number>>(definition: T): Record<string, number>
 ```
 
-**Description.** Creates layer definitions for collision filtering.
+**Description.** Declares named collision layers with their bitmask values. The Vite plugin inlines layer values at build time and warns if layers share bits.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| names | `string[]` | Layer name list |
+| definition | `Record<string, number>` | Object mapping layer names to bitmask values |
 
-**Returns:** `LayerMask` — object with layer bit flags.
+**Returns:** `Record<string, number>` — same object, typed with layer names as keys.
 
 **Example:**
 ```ts
-const Layers = defineLayers(['player', 'enemy', 'wall']);
-// Use Layers.player, Layers.enemy, etc.
+const Layers = defineLayers({
+  player: 1 << 0,
+  enemy:  1 << 1,
+  wall:   1 << 2,
+})
+// Use Layers.player, Layers.enemy, Layers.wall
 ```
 
 ## Physics Service
