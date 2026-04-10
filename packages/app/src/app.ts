@@ -14,6 +14,7 @@ import { createHooks } from "hookable";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ResolvedGwenConfig } from "./config";
+import { createViewportsPlugin } from "./viewports-plugin.js";
 
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
 
@@ -112,6 +113,11 @@ export class GwenApp {
     moduleLoader?: (name: string) => Promise<GwenModule>,
   ): Promise<void> {
     await this.buildHooks.callHook("build:before");
+
+    // Register the viewports plugin first so it runs before camera/renderer plugins.
+    // This ensures ViewportManager is populated by engine:init, when camera systems
+    // expect viewports to already exist.
+    this._plugins.unshift(createViewportsPlugin(config.viewports));
 
     for (const entry of config.modules ?? []) {
       const [name, userOptions = {}] = Array.isArray(entry)

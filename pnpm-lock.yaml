@@ -38,6 +38,9 @@ importers:
       '@gwenjs/kit':
         specifier: workspace:*
         version: link:../kit
+      '@gwenjs/renderer-core':
+        specifier: workspace:*
+        version: link:../renderer-core
       c12:
         specifier: 4.0.0-beta.3
         version: 4.0.0-beta.3(jiti@2.6.1)(magicast@0.5.2)
