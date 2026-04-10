@@ -8,9 +8,15 @@ import type { Vec3 } from "@gwenjs/math";
 /** Easing function names accepted by CameraWaypoint and BlendOpts. */
 export type EasingName =
   | "linear"
-  | "easeIn" | "easeOut" | "easeInOut"
-  | "easeInQuad" | "easeOutQuad" | "easeInOutQuad"
-  | "easeInCubic" | "easeOutCubic" | "easeInOutCubic";
+  | "easeIn"
+  | "easeOut"
+  | "easeInOut"
+  | "easeInQuad"
+  | "easeOutQuad"
+  | "easeInOutQuad"
+  | "easeInCubic"
+  | "easeOutCubic"
+  | "easeInOutCubic";
 
 /** A single waypoint on a camera travelling path. Shared by camera2d and camera3d. */
 export interface CameraWaypoint {

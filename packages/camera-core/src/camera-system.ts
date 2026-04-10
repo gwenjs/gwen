@@ -15,6 +15,7 @@
 
 import { defineSystem, onAfterUpdate, useQuery } from "@gwenjs/core/system";
 import { useEngine } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
 import type { CameraState } from "@gwenjs/renderer-core";
 import { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components.js";
@@ -37,7 +38,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
   const cameraQuery = useQuery([Camera]);
 
   // per-viewport tracking for semantic hook emission
-  const activeEntityPerViewport = new Map<string, number>(); // viewportId → entityId
+  const activeEntityPerViewport = new Map<string, EntityId>(); // viewportId → entityId
 
   onAfterUpdate((dt) => {
     _frame++;
@@ -64,7 +65,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
 
       if (hasFollow) {
         const follow = engine.getComponent(id, FollowTarget)!;
-        const targetId = follow.entityId as number;
+        const targetId = BigInt(follow.entityId) as EntityId;
         const targetCam = engine.getComponent(targetId, Camera);
         if (targetCam) {
           const tx = targetCam.x + follow.offsetX;
@@ -175,7 +176,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
 
     // ── Step 5: semantic hook emission ────────────────────────────────────────
 
-    const currentActivePerViewport = new Map<string, number>();
+    const currentActivePerViewport = new Map<string, EntityId>();
 
     for (const entity of cameraQuery) {
       const id = entity.id;
@@ -194,12 +195,15 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const hooks = engine.hooks as any;
+
     for (const [viewportId, entityId] of currentActivePerViewport) {
       const prev = activeEntityPerViewport.get(viewportId);
       if (prev === undefined) {
-        void engine.hooks.callHook("camera:activate", { viewportId, entityId });
+        void hooks.callHook("camera:activate", { viewportId, entityId });
       } else if (prev !== entityId) {
-        void engine.hooks.callHook("camera:switch", { viewportId, from: prev, to: entityId });
+        void hooks.callHook("camera:switch", { viewportId, from: prev, to: entityId });
       }
       activeEntityPerViewport.set(viewportId, entityId);
     }
@@ -207,7 +211,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
     for (const [viewportId] of activeEntityPerViewport) {
       if (!currentActivePerViewport.has(viewportId)) {
         activeEntityPerViewport.delete(viewportId);
-        void engine.hooks.callHook("camera:deactivate", { viewportId });
+        void hooks.callHook("camera:deactivate", { viewportId });
       }
     }
   });

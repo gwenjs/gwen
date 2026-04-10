@@ -7,10 +7,10 @@
  */
 
 export const CameraErrorCodes = {
-  VIEWPORT_NOT_FOUND:    "CAMERA:VIEWPORT_NOT_FOUND",
-  EMPTY_PATH:            "CAMERA:EMPTY_PATH",
-  PERSPECTIVE_FALLBACK:  "CAMERA:PERSPECTIVE_FALLBACK",  // warn only, never thrown
-  PRIORITY_CONFLICT:     "CAMERA:PRIORITY_CONFLICT",      // warn only, never thrown
+  VIEWPORT_NOT_FOUND: "CAMERA:VIEWPORT_NOT_FOUND",
+  EMPTY_PATH: "CAMERA:EMPTY_PATH",
+  PERSPECTIVE_FALLBACK: "CAMERA:PERSPECTIVE_FALLBACK", // warn only, never thrown
+  PRIORITY_CONFLICT: "CAMERA:PRIORITY_CONFLICT", // warn only, never thrown
 } as const;
 
 export type CameraErrorCode = (typeof CameraErrorCodes)[keyof typeof CameraErrorCodes];
