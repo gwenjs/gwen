@@ -11,6 +11,7 @@
     "packages/schema":    { "release-type": "node", "package-name": "@gwenjs/schema" },
     "packages/app":           { "release-type": "node", "package-name": "@gwenjs/app" },
     "packages/vite":          { "release-type": "node", "package-name": "@gwenjs/vite" },
-    "packages/renderer-core": { "release-type": "node", "package-name": "@gwenjs/renderer-core" }
+    "packages/renderer-core": { "release-type": "node", "package-name": "@gwenjs/renderer-core" },
+    "packages/camera-core":   { "release-type": "node", "package-name": "@gwenjs/camera-core" }
   }
 }
