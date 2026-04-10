@@ -61,7 +61,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       // ── Step 1: base position ──────────────────────────────────────────────
 
       const hasFollow = engine.hasComponent(id, FollowTarget);
-      const hasPath = cameraPathStore.has(id);
+      const hasPath = cameraPathStore.has(id) && engine.hasComponent(id, CameraPath);
 
       if (hasFollow) {
         const follow = engine.getComponent(id, FollowTarget)!;
@@ -78,7 +78,8 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
         }
       } else if (hasPath) {
         const pathData = cameraPathStore.get(id)!;
-        const pathComp = engine.getComponent(id, CameraPath)!;
+        const pathComp = engine.getComponent(id, CameraPath);
+        if (!pathComp) continue;
         const wp = pathData.waypoints[pathComp.index as number];
         if (wp) {
           pathData.elapsed += dtSeconds;
@@ -100,6 +101,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
             } else {
               pathData.opts.onComplete?.();
               cameraPathStore.delete(id);
+              engine.removeComponent(id, CameraPath);
             }
           } else {
             const prevWp = pathData.waypoints[(pathComp.index as number) - 1];
