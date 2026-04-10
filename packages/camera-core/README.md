@@ -12,34 +12,47 @@ npm install @gwenjs/camera-core
 
 ## Quick start
 
+Since `camera-core` is a low-level primitive, the canonical way to use it is via a
+`gwen.config.ts` with `CameraCorePlugin` and a setup system:
+
 ```ts
-import { createEngine } from "@gwenjs/core";
+// gwen.config.ts
+import { defineConfig } from "@gwenjs/app";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
+import { useEngine } from "@gwenjs/core";
+import { useViewportManager } from "@gwenjs/renderer-core";
 import { CameraCorePlugin, Camera, cameraViewportMap } from "@gwenjs/camera-core";
 
-const engine = await createEngine({ maxEntities: 1000 });
-await engine.use(CameraCorePlugin());
+const CameraSetupSystem = defineSystem("CameraSetupSystem", () => {
+  const engine = useEngine();
+  const viewports = useViewportManager();
 
-// Register a viewport (normalized [0–1] region — full screen)
-engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
+  // Register a full-screen viewport (normalized [0–1])
+  viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
 
-// Create a camera entity
-const camId = engine.createEntity();
-engine.addComponent(camId, Camera, {
-  active: 1,
-  priority: 0,
-  projectionType: 0, // 0 = orthographic, 1 = perspective
-  x: 0,
-  y: 0,
-  z: 0,
-  rotX: 0,
-  rotY: 0,
-  rotZ: 0,
-  zoom: 1,
-  fov: Math.PI / 3,
-  near: -1000,
-  far: 1000,
+  // Create the camera entity
+  const camId = engine.createEntity();
+  engine.addComponent(camId, Camera, {
+    active: 1,
+    priority: 0,
+    projectionType: 0, // 0 = orthographic, 1 = perspective
+    x: 0,
+    y: 0,
+    z: 0,
+    rotX: 0,
+    rotY: 0,
+    rotZ: 0,
+    zoom: 1,
+    fov: Math.PI / 3,
+    near: -1000,
+    far: 1000,
+  });
+  cameraViewportMap.set(camId, "main");
 });
-cameraViewportMap.set(camId, "main");
+
+export default defineConfig({
+  plugins: [CameraCorePlugin(), CameraSetupSystem],
+});
 ```
 
 ## ECS components
