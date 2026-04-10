@@ -108,44 +108,7 @@ export { ViewportManagerImpl } from "./viewport-manager.js";
 export { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 export { useViewportManager } from "./use-viewport-manager.js";
 
-// ── GwenProvides augmentation — cameraManager + viewportManager ──────────────
-// Import to activate the declare module augmentation below.
-import type { CameraManager as CM } from "./camera-manager.js";
-import type { ViewportManager as VM } from "./viewport-manager.js";
-
-declare module "@gwenjs/core" {
-  interface GwenProvides {
-    /**
-     * Per-frame camera state store. Written by CameraSystem, read by renderers.
-     * Installed automatically when CameraCorePlugin is used.
-     */
-    cameraManager: CM;
-    /**
-     * Screen region registry. Written by @gwenjs/app or useViewportManager() at runtime.
-     * Installed automatically when CameraCorePlugin is used.
-     */
-    viewportManager: VM;
-  }
-}
-
-// ── GwenRuntimeHooks augmentation — viewport:* hooks ─────────────────────────
-// camera:* hooks are declared in @gwenjs/camera-core (emitted by CameraSystem).
-import type { ViewportRegion as VR } from "./camera-types.js";
-
-declare module "@gwenjs/core" {
-  interface GwenRuntimeHooks {
-    /**
-     * Fired when a new viewport is registered via `ViewportManager.set()`.
-     * Renderer plugins subscribe to this to create their viewport containers.
-     */
-    "viewport:add": (payload: { id: string; region: VR }) => void;
-    /**
-     * Fired when an existing viewport is resized via `ViewportManager.set()`.
-     */
-    "viewport:resize": (payload: { id: string; region: VR }) => void;
-    /**
-     * Fired when a viewport is removed via `ViewportManager.remove()`.
-     */
-    "viewport:remove": (payload: { id: string }) => void;
-  }
-}
+// cameraManager, viewportManager and viewport:* hook augmentations live in
+// get-or-create-camera-manager.ts and get-or-create-viewport-manager.ts,
+// co-located with their implementations. They activate automatically via
+// the re-exports above.

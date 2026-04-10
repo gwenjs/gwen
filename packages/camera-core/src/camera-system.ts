@@ -27,9 +27,6 @@ function shakeOffset(trauma: number, seed: number): number {
   return Math.sin(seed * 127.1 + trauma * 311.7) * trauma * trauma;
 }
 
-// frame counter used as seed for shake noise
-let _frame = 0;
-
 export const CameraSystem = defineSystem("CameraSystem", () => {
   const engine = useEngine();
   const cameras = useCameraManager();
@@ -39,6 +36,9 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
 
   // per-viewport tracking for semantic hook emission
   const activeEntityPerViewport = new Map<string, EntityId>(); // viewportId → entityId
+
+  // frame counter used as seed for shake noise — scoped per engine instance
+  let _frame = 0;
 
   onAfterUpdate((dt) => {
     _frame++;
