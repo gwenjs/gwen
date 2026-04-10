@@ -41,6 +41,17 @@ export interface LayerDef {
    * @default 'screen'
    */
   coordinate?: "world" | "screen";
+  /**
+   * Whether this layer belongs to a specific viewport or is rendered globally.
+   *
+   * - `'viewport'` — the layer is instanced once per viewport and receives the
+   *   corresponding camera transform. Default for `coordinate: 'world'` layers.
+   * - `'global'` — the layer is mounted once for the entire screen (e.g. a HUD
+   *   that sits above all viewports). Default for `coordinate: 'screen'` layers.
+   *
+   * @default `'viewport'` when `coordinate === 'world'`, `'global'` otherwise
+   */
+  scope?: "viewport" | "global";
 }
 
 /**
