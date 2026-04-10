@@ -3,7 +3,7 @@
  * @file Camera error codes and error classes.
  *
  * All errors carry a `code`, a human-readable `hint`, and a `docsUrl`.
- * Always call `log.error(...)` before throwing — see each class's constructor.
+ * Callers may log these errors before throwing or handling them.
  */
 
 export const CameraErrorCodes = {
