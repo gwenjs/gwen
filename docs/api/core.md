@@ -224,33 +224,51 @@ import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePre
 
 ### Actors
 
-#### defineActor(name, setup)
+#### defineActor(prefab, factory)
 
 **Signature:**
 ```ts
-function defineActor(name: string, setup: (ctx: ActorContext) => void): ActorDef
+function defineActor<Props = void>(
+  prefab: PrefabDefinition,
+  factory: (props?: Props) => Record<string, unknown>
+): ActorDef
 ```
 
-**Description.** Defines an actor (entity template) with components and lifecycle setup.
+**Description.** Defines an actor — an entity template with lifecycle hooks and a public API. The `factory` runs once per spawned instance; register lifecycle hooks (`onStart`, `onUpdate`, `onDestroy`, `onEvent`) inside it. The returned object becomes the actor's public API.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Unique actor name |
-| setup | `function` | Setup function to initialize the actor |
+| `prefab` | `PrefabDefinition` | Component set and defaults, defined with `definePrefab()` |
+| `factory` | `(props?) => object` | Runs once per spawn — register lifecycle hooks here, return public API |
 
-**Returns:** `ActorDef` — actor definition for spawning.
+**Returns:** `ActorDef` — use `ActorDef._plugin` to spawn and despawn instances.
 
 **Example:**
 ```ts
-const Player = defineActor('Player', (setup) => {
-  useComponent(Transform);
-  useComponent(Health);
-  
-  onAdd((entity) => {
-    console.log('Player spawned');
-  });
-});
+import { defineActor, definePrefab, onStart, onDestroy } from '@gwenjs/core/actor'
+
+const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Health,   defaults: { hp: 100 } },
+])
+
+export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  onStart(() => {
+    Health.hp[entityId] = props.hp
+  })
+  onDestroy(() => {
+    console.log('Enemy destroyed')
+  })
+  return {
+    takeDamage: (n: number) => { Health.hp[entityId] -= n },
+  }
+})
+
+// Spawn and despawn via _plugin:
+await engine.use(EnemyActor._plugin)
+const id = EnemyActor._plugin.spawn({ hp: 50 })
+EnemyActor._plugin.despawn(id)
 ```
 
 #### useActor(ActorDef)
@@ -277,9 +295,12 @@ function useComponent<T = {}>(def: ComponentDef<T>): void
 
 **Example:**
 ```ts
-defineActor('Player', setup() {
-  useComponent(Health);
-});
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const hp = useComponent(Health)
+  onStart(() => {
+    console.log('hp:', hp.hp[entityId])
+  })
+})
 ```
 
 #### usePrefab(PrefabDef)

@@ -135,9 +135,12 @@ function useComponent<T = {}>(def: ComponentDef<T>): void
 
 **Exemple:**
 ```ts
-defineActor('Player', setup() {
-  useComponent(Health);
-});
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const hp = useComponent(Health)
+  onStart(() => {
+    console.log('hp:', hp.hp[entityId])
+  })
+})
 ```
 
 ## Systèmes
@@ -146,9 +149,8 @@ defineActor('Player', setup() {
 
 **Signature:**
 ```ts
-function defineSystem(options: {
-  setup: (ctx: SystemContext) => void;
-}): SystemDef
+function defineSystem(setup: () => void): GwenPlugin
+function defineSystem(name: string, setup: () => void): GwenPlugin
 ```
 
 **Description.** Définit un système qui s'exécute une fois lors de l'initialisation. Utilisez les hooks de cycle de vie et les requêtes à l'intérieur de setup.
@@ -156,9 +158,10 @@ function defineSystem(options: {
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.setup | `function` | Fonction de setup appelée une fois lors de l'initialisation |
+| `name` | `string` | Nom du système (optionnel, injecté automatiquement par le plugin Vite) |
+| `setup` | `function` | Fonction de setup appelée une fois à l'initialisation |
 
-**Retourne:** `SystemDef` — définition du système pour enregistrement de scène.
+**Retourne:** `GwenPlugin` — plugin à enregistrer dans une scène ou la config.
 
 **Exemple:**
 ```ts
@@ -176,10 +179,7 @@ export const MovementSystem = defineSystem('MovementSystem', () => {
 
 **Signature:**
 ```ts
-function useQuery<C extends ComponentDef[]>(
-  components: C,
-  opts?: { onChange?: (added: Entity[], removed: Entity[]) => void }
-): LiveQuery
+function useQuery(components: ComponentDef[]): LiveQuery
 ```
 
 **Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.
@@ -380,33 +380,51 @@ router.goTo('Game');
 
 ## Acteurs
 
-### defineActor(name, setup)
+### defineActor(prefab, factory)
 
 **Signature:**
 ```ts
-function defineActor(name: string, setup: (ctx: ActorContext) => void): ActorDef
+function defineActor<Props = void>(
+  prefab: PrefabDefinition,
+  factory: (props?: Props) => Record<string, unknown>
+): ActorDef
 ```
 
-**Description.** Définit un acteur (modèle d'entité) avec des composants et une configuration de cycle de vie.
+**Description.** Définit un acteur — un modèle d'entité avec des hooks de cycle de vie et une API publique. La `factory` s'exécute une fois par instance générée ; les hooks de cycle de vie (`onStart`, `onUpdate`, `onDestroy`, `onEvent`) sont enregistrés à l'intérieur. L'objet retourné devient l'API publique de l'acteur.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom d'acteur unique |
-| setup | `function` | Fonction de setup pour initialiser l'acteur |
+| `prefab` | `PrefabDefinition` | Ensemble de composants et valeurs par défaut, défini avec `definePrefab()` |
+| `factory` | `(props?) => object` | Exécutée une fois par spawn — enregistrez les hooks ici, retournez l'API publique |
 
-**Retourne:** `ActorDef` — définition d'acteur pour génération.
+**Retourne:** `ActorDef` — utilisez `ActorDef._plugin` pour spawner et despawner des instances.
 
 **Exemple:**
 ```ts
-const Player = defineActor('Player', (setup) => {
-  useComponent(Transform);
-  useComponent(Health);
-  
-  onAdd((entity) => {
-    console.log('Player spawned');
-  });
-});
+import { defineActor, definePrefab, onStart, onDestroy } from '@gwenjs/core/actor'
+
+const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Health,   defaults: { hp: 100 } },
+])
+
+export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  onStart(() => {
+    Health.hp[entityId] = props.hp
+  })
+  onDestroy(() => {
+    console.log('Enemy détruit')
+  })
+  return {
+    takeDamage: (n: number) => { Health.hp[entityId] -= n },
+  }
+})
+
+// Spawn et despawn via _plugin :
+await engine.use(EnemyActor._plugin)
+const id = EnemyActor._plugin.spawn({ hp: 50 })
+EnemyActor._plugin.despawn(id)
 ```
 
 ### useActor(ActorDef)

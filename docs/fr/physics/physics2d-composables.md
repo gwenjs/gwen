@@ -75,7 +75,7 @@ import { defineActor } from '@gwenjs/core/actor'
 import { onUpdate, onContact } from '@gwenjs/core/system'
 import { useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 
-export const PlayerActor = defineActor('Player', () => {
+export const PlayerActor = defineActor(PlayerPrefab, () => {
   useShape({ w: 32, h: 48 })
   useDynamicBody({ gravityScale: 1 })
   useBoxCollider({ w: 32, h: 48 })
@@ -110,13 +110,13 @@ Chaque acteur a besoin d'exactement un composable de corps. Choisissez selon la 
 
 ```ts
 // Caisse en chute libre entièrement simulée
-const CrateActor = defineActor('Crate', () => {
+const CrateActor = defineActor(CratePrefab, () => {
   useDynamicBody({ mass: 5, linearDamping: 0.1 })
   useBoxCollider({ w: 32, h: 32 })
 })
 
 // Plateforme qui se déplace sur commande
-const PlatformActor = defineActor('Platform', () => {
+const PlatformActor = defineActor(PlatformPrefab, () => {
   const body = useKinematicBody()
   useBoxCollider({ w: 128, h: 16 })
   onUpdate(({ dt }) => {
@@ -125,7 +125,7 @@ const PlatformActor = defineActor('Platform', () => {
 })
 
 // Sol immobile
-const GroundActor = defineActor('Ground', () => {
+const GroundActor = defineActor(GroundPrefab, () => {
   useStaticBody()
   useBoxCollider({ w: 1024, h: 32 })
 })
@@ -143,13 +143,13 @@ Ajoutez des formes de collision à un corps avec un composable collider. Un acte
 
 ```ts
 // Personnage avec collider en capsule
-const CharacterActor = defineActor('Character', () => {
+const CharacterActor = defineActor(CharacterPrefab, () => {
   useDynamicBody({ mass: 1, gravityScale: 1 })
   useCapsuleCollider({ radius: 0.5, length: 2 })
 })
 
 // Balle avec collider capteur (chevauchement uniquement)
-const BallActor = defineActor('Ball', () => {
+const BallActor = defineActor(BallPrefab, () => {
   useDynamicBody({ mass: 0.5 })
   useSphereCollider({ radius: 0.25, isSensor: true })
 })
@@ -225,7 +225,7 @@ export const Layers = defineLayers({
 })
 
 // Le joueur entre en collision avec le terrain uniquement (pas les ennemis)
-const PlayerActor = defineActor('Player', () => {
+const PlayerActor = defineActor(PlayerPrefab, () => {
   useDynamicBody()
   useBoxCollider({
     w: 32, h: 48,
@@ -235,7 +235,7 @@ const PlayerActor = defineActor('Player', () => {
 })
 
 // L'ennemi entre en collision avec le terrain et les projectiles (pas le joueur)
-const EnemyActor = defineActor('Enemy', () => {
+const EnemyActor = defineActor(EnemyPrefab, () => {
   useDynamicBody()
   useBoxCollider({
     w: 24, h: 24,
@@ -245,7 +245,7 @@ const EnemyActor = defineActor('Enemy', () => {
 })
 
 // Le projectile entre en collision avec tout sauf les autres projectiles
-const ProjectileActor = defineActor('Projectile', () => {
+const ProjectileActor = defineActor(ProjectilePrefab, () => {
   useDynamicBody()
   useSphereCollider({
     radius: 4,
@@ -266,7 +266,7 @@ import { defineActor } from '@gwenjs/core/actor'
 import { onUpdate, onContact } from '@gwenjs/core/system'
 import { useDynamicBody, useCapsuleCollider } from '@gwenjs/physics2d'
 
-export const PlayerActor = defineActor('Player', () => {
+export const PlayerActor = defineActor(PlayerPrefab, () => {
   const body = useDynamicBody({
     mass: 1,
     gravityScale: 3,

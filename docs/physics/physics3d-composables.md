@@ -18,7 +18,7 @@ import { defineActor } from '@gwenjs/core/actor'
 import { onUpdate, onContact } from '@gwenjs/core/system'
 import { useDynamicBody, useSphereCollider, useRaycast } from '@gwenjs/physics3d'
 
-export const BallActor = defineActor('Ball', () => {
+export const BallActor = defineActor(BallPrefab, () => {
   const body = useDynamicBody({ mass: 2, ccdEnabled: true })
   useSphereCollider({ radius: 0.5 })
 
@@ -51,13 +51,13 @@ Each actor needs exactly one body composable:
 
 ```ts
 // Falling crate in 3D
-const CrateActor = defineActor('Crate', () => {
+const CrateActor = defineActor(CratePrefab, () => {
   useDynamicBody({ mass: 10, linearDamping: 0.2 })
   useBoxCollider({ w: 1, h: 1, d: 1 })
 })
 
 // Elevator moving on a track
-const ElevatorActor = defineActor('Elevator', () => {
+const ElevatorActor = defineActor(ElevatorPrefab, () => {
   const body = useKinematicBody()
   useBoxCollider({ w: 4, h: 0.5, d: 4 })
 
@@ -70,7 +70,7 @@ const ElevatorActor = defineActor('Elevator', () => {
 })
 
 // Terrain (terrain can use mesh colliders for efficiency)
-const TerrainActor = defineActor('Terrain', () => {
+const TerrainActor = defineActor(TerrainPrefab, () => {
   useStaticBody()
   useMeshCollider({ vertices: terrainVerts, indices: terrainIndices })
 })
@@ -92,13 +92,13 @@ Add collision shapes with collider composables. An actor can have multiple colli
 
 ```ts
 // Character with capsule
-const CharacterActor = defineActor('Character', () => {
+const CharacterActor = defineActor(CharacterPrefab, () => {
   useDynamicBody({ mass: 1 })
   useCapsuleCollider({ radius: 0.4, length: 1.8 })
 })
 
 // Asteroid with convex hull
-const AsteroidActor = defineActor('Asteroid', () => {
+const AsteroidActor = defineActor(AsteroidPrefab, () => {
   useDynamicBody({ mass: 5 })
   useConvexCollider({
     vertices: asteroidVertices,
@@ -107,7 +107,7 @@ const AsteroidActor = defineActor('Asteroid', () => {
 })
 
 // Robot with compound collider (head + body + legs)
-const RobotActor = defineActor('Robot', () => {
+const RobotActor = defineActor(RobotPrefab, () => {
   useDynamicBody({ mass: 50 })
   useCompoundCollider({
     shapes: [
@@ -119,7 +119,7 @@ const RobotActor = defineActor('Robot', () => {
 })
 
 // Terrain with mesh collider (preloaded BVH for efficiency)
-const TerrainActor = defineActor('Terrain', () => {
+const TerrainActor = defineActor(TerrainPrefab, () => {
   useStaticBody()
   const mesh = useMeshCollider('./terrain.glb')
   ready.then(() => console.log('Terrain collider loaded'))
@@ -313,7 +313,7 @@ export const Layers = defineLayers({
 })
 
 // Player collides with terrain only
-const PlayerActor = defineActor('Player', () => {
+const PlayerActor = defineActor(PlayerPrefab, () => {
   useDynamicBody()
   useCapsuleCollider({
     radius: 0.4, length: 1.8,
@@ -323,7 +323,7 @@ const PlayerActor = defineActor('Player', () => {
 })
 
 // Projectile collides with everything except other projectiles
-const ProjectileActor = defineActor('Projectile', () => {
+const ProjectileActor = defineActor(ProjectilePrefab, () => {
   useDynamicBody()
   useSphereCollider({
     radius: 0.1,
@@ -462,7 +462,7 @@ import { preloadMeshCollider } from '@gwenjs/physics3d'
 const terrainBvh = await preloadMeshCollider('./models/terrain.glb')
 
 // Later, in an actor:
-const TerrainActor = defineActor('Terrain', () => {
+const TerrainActor = defineActor(TerrainPrefab, () => {
   useStaticBody()
   useMeshCollider(terrainBvh)  // No async wait needed
 })
