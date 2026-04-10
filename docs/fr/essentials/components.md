@@ -162,13 +162,13 @@ export const DamageSystem = defineSystem(() => {
 Parfois vous devez ajouter ou supprimer un composant d'une entité vivante :
 
 ```ts
-import { addComponent, removeComponent } from '@gwenjs/core'
+const engine = useEngine()
 
 // Ajouter un composant
-addComponent(entityId, Position, { x: 10, y: 20 })
+engine.addComponent(entityId, Position, { x: 10, y: 20 })
 
 // Supprimer un composant
-removeComponent(entityId, Velocity)
+engine.removeComponent(entityId, Velocity)
 ```
 
 **Note :** Ajouter/supprimer des composants est relativement coûteux (réalloue les buffers), donc faites-le rarement, pas chaque frame.

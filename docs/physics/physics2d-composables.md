@@ -72,7 +72,8 @@ Declare physics inside `defineActor()` — once per actor type. Composables read
 
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { onUpdate } from '@gwenjs/core/system'
+import { onContact } from '@gwenjs/physics2d'
 import { useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -263,7 +264,8 @@ Here's a common pattern: a character that falls with gravity, collides with terr
 
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { onUpdate } from '@gwenjs/core/system'
+import { onContact } from '@gwenjs/physics2d'
 import { useDynamicBody, useCapsuleCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {

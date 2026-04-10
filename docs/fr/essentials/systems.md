@@ -268,10 +268,7 @@ import {
   useQuery,
   onUpdate,
 } from '@gwenjs/core/system'
-import {
-  removeComponent,
-  addComponent,
-} from '@gwenjs/core'
+import { useEngine } from '@gwenjs/core'
 import {
   Health,
   DamageTag,
@@ -280,6 +277,7 @@ import {
 } from './components'
 
 export const DamageSystem = defineSystem(() => {
+  const engine = useEngine()
   const damaged = useQuery([Health, DamageTag])
 
   onUpdate(() => {
@@ -289,11 +287,11 @@ export const DamageSystem = defineSystem(() => {
       Health.current[id] -= 10 * (1 - damageReduction)
 
       if (Health.current[id] <= 0) {
-        removeComponent(id, Health)
-        addComponent(id, DeadTag)
+        engine.removeComponent(id, Health)
+        engine.addComponent(id, DeadTag)
       }
 
-      removeComponent(id, DamageTag)
+      engine.removeComponent(id, DamageTag)
     }
   })
 })

@@ -48,36 +48,43 @@ defineConfig({
 
 ## Définition de modules
 
-### defineGwenModule(name, api)
+### defineGwenModule(definition)
 
 **Signature:**
 ```ts
-function defineGwenModule(name: string, api: GwenModuleDefinition): GwenModule
+function defineGwenModule<Options extends object = Record<string, unknown>>(
+  definition: {
+    meta: { name: string; configKey: string }
+    defaults?: Partial<Options>
+    setup(options: Options, gwen: GwenKit): void
+  }
+): GwenModule<Options>
 ```
 
-**Description.** Définit un module GWEN pour les auto-imports au moment du build et la résolution de modules.
+**Description.** Définit un module GWEN — un plugin de build qui ajoute des auto-imports, des plugins runtime, des plugins Vite, et des augmentations de types.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Identifiant du module (par ex., `@gwenjs/math`) |
-| api | `GwenModuleDefinition` | Définition du module avec exports et hooks |
+| `definition.meta.name` | `string` | Identifiant du module (ex. `'@my-scope/module'`) |
+| `definition.meta.configKey` | `string` | Clé dans `gwen.config.ts` pour les options |
+| `definition.defaults` | `Partial<Options>` | Valeurs par défaut des options (optionnel) |
+| `definition.setup` | `function` | Appelé avec les options résolues et l'API GwenKit |
 
-**Retourne:** `GwenModule` — module enregistré.
+**Retourne:** `GwenModule<Options>` — à exporter comme export par défaut du fichier module.
 
 **Exemple:**
 ```ts
-defineGwenModule('@my-org/helpers', {
-  exports: {
-    'useHelper': './helper.ts',
-    'useAnother': './another.ts'
+import { defineGwenModule } from '@gwenjs/kit/module'
+
+export default defineGwenModule<{ volume?: number }>({
+  meta: { name: '@my-org/audio', configKey: 'audio' },
+  defaults: { volume: 1 },
+  setup(options, gwen) {
+    gwen.addPlugin(AudioPlugin({ volume: options.volume }))
+    gwen.addAutoImports([{ name: 'useAudio', from: '@my-org/audio' }])
   },
-  hooks: {
-    'app:config': (config) => {
-      console.log('Helpers module loaded');
-    }
-  }
-});
+})
 ```
 
 ## Types
