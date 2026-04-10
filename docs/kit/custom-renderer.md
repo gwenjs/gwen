@@ -356,6 +356,101 @@ export default defineConfig({
 })
 ```
 
+## Integrating with cameras and viewports
+
+`@gwenjs/renderer-core` ships two managed services that renderer plugins should
+integrate with: `ViewportManager` and `CameraManager`.
+
+### `ViewportManager` — named screen regions
+
+A viewport is a normalized `[0–1]` region of the output surface. Game code calls
+`useViewportManager()` to declare viewports; your renderer reads them to position
+and size render targets.
+
+```ts
+import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
+
+// Inside GwenPlugin.setup(engine):
+const viewports = getOrCreateViewportManager(engine)
+
+// React to viewport changes (resize, add, remove)
+engine.hooks.hook('viewport:add', ({ id, region }) => {
+  // region: { x, y, width, height } — all normalized [0–1]
+  myRenderer.addRenderTarget(id, region)
+})
+engine.hooks.hook('viewport:resize', ({ id, region }) => {
+  myRenderer.resizeRenderTarget(id, region)
+})
+engine.hooks.hook('viewport:remove', ({ id }) => {
+  myRenderer.removeRenderTarget(id)
+})
+
+// Read current viewports at mount time
+for (const [id, region] of viewports.entries()) {
+  myRenderer.addRenderTarget(id, region)
+}
+```
+
+The `viewport:add`, `viewport:resize`, and `viewport:remove` hooks are emitted by
+`ViewportManager` itself — your renderer only needs to subscribe.
+
+### `CameraManager` — per-viewport camera state
+
+After `CameraSystem` runs each frame, `CameraManager` holds the winning `CameraState`
+for each viewport. Read it in your render flush to apply transforms.
+
+```ts
+import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
+import type { CameraState } from '@gwenjs/renderer-core'
+
+// Inside GwenPlugin.setup(engine):
+const cameras = getOrCreateCameraManager(engine)
+
+// Inside your flush / onRender callback:
+flush({ reportFrameTime }) {
+  const t = performance.now()
+  for (const [viewportId, target] of myRenderer.targets) {
+    const cam = cameras.get(viewportId)
+    if (cam) {
+      const { x, y, z } = cam.worldTransform.position
+      const { rotX, rotY, rotZ } = cam.worldTransform.rotation
+      myRenderer.setCamera(viewportId, x, y, z, rotX, rotY, rotZ, cam.projection)
+    }
+    myRenderer.render(viewportId)
+  }
+  reportFrameTime(performance.now() - t)
+}
+```
+
+`CameraState` fields:
+
+| Field | Type | Description |
+|---|---|---|
+| `entityId` | `EntityId` | The camera entity |
+| `viewportId` | `string` | Target viewport |
+| `worldTransform` | `WorldTransform` | `{ position: Vec3, rotation: Vec3, scale: Vec3 }` |
+| `projection` | `CameraProjection` | `{ type: 'orthographic' \| 'perspective', zoom, fov, near, far }` |
+| `shakeOffset` | `Vec2` | Screen-space offset from `CameraShake` (does not affect `worldTransform`) |
+
+### `LayerDef.scope`
+
+The `scope` field on `LayerDef` lets you declare whether a layer should be replicated
+per viewport or shared globally.
+
+```ts
+layers: {
+  // One game canvas per viewport (default behaviour)
+  game: { order: 10, scope: 'viewport' },
+  // Single shared HUD layer across all viewports
+  hud:  { order: 90, scope: 'global' },
+}
+```
+
+`scope: 'viewport'` (default) signals to higher-level tooling that the layer is
+expected to map 1:1 with a viewport region. `scope: 'global'` signals a full-screen
+overlay. `LayerManager` does not enforce layout — the renderer plugin is responsible
+for using this metadata to position its elements.
+
 ## Required vs. optional
 
 | RendererService member | Required | Notes |
