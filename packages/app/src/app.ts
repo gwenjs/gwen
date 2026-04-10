@@ -119,9 +119,7 @@ export class GwenApp {
     // expect viewports to already exist.
     // Replace if already registered (idempotent for watch-mode / multi-call scenarios).
     const viewportsPlugin = createViewportsPlugin(config.viewports);
-    const existingIndex = this._plugins.findIndex(
-      (plugin) => plugin.name === "gwen:viewports",
-    );
+    const existingIndex = this._plugins.findIndex((plugin) => plugin.name === "gwen:viewports");
     if (existingIndex >= 0) {
       this._plugins[existingIndex] = viewportsPlugin;
     } else {
