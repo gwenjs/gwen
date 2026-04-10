@@ -72,7 +72,8 @@ Déclarez la physique à l'intérieur de `defineActor()` — une fois par type d
 
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { onUpdate } from '@gwenjs/core/system'
+import { onContact } from '@gwenjs/physics2d'
 import { useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -263,7 +264,8 @@ Voici un motif courant : un personnage qui tombe avec la gravité, entre en coll
 
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { onUpdate } from '@gwenjs/core/system'
+import { onContact } from '@gwenjs/physics2d'
 import { useDynamicBody, useCapsuleCollider } from '@gwenjs/physics2d'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {

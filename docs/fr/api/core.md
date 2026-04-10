@@ -61,39 +61,35 @@ const MySystem = defineSystem('MySystem', () => {
 
 **Signature:**
 ```ts
-function defineComponent<T = {}>(options: {
+// Forme objet (recommandée)
+function defineComponent<T>(options: {
   name: string;
-  schema?: T;
-  onAdd?: (entity: Entity) => void;
-  onRemove?: (entity: Entity) => void;
+  schema: T;
 }): ComponentDef<T>
+
+// Forme factory (schéma dynamique)
+function defineComponent<T>(name: string, factory: () => { schema: T }): ComponentDef<T>
 ```
 
-**Description.** Définit un type de composant avec un schéma optionnel et des hooks de cycle de vie.
+**Description.** Définit un type de composant SoA (Structure-of-Arrays). Les données sont stockées dans des buffers WASM typés — il n'y a pas de hooks de cycle de vie sur les composants.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options | `object` | Définition du composant |
-| options.name | `string` | Nom de composant unique |
-| options.schema | `T` | Schéma des champs utilisant Types (optionnel) |
-| options.onAdd | `function` | Appelé quand le composant est ajouté à une entité |
-| options.onRemove | `function` | Appelé quand le composant est retiré |
+| `options.name` | `string` | Nom de composant unique |
+| `options.schema` | `T` | Champs et types WASM (`Types.f32`, `Types.i32`, etc.) |
 
-**Retourne:** `ComponentDef<T>` — définition du composant pour utilisation dans des acteurs/scènes.
+**Retourne:** `ComponentDef<T>` — définition à référencer dans les prefabs et requêtes.
 
 **Exemple:**
 ```ts
-const Health = defineComponent({
+export const Health = defineComponent({
   name: 'Health',
   schema: {
-    hp: Types.f32,
-    maxHp: Types.f32
+    hp:    Types.f32,
+    maxHp: Types.f32,
   },
-  onAdd(entity) {
-    console.log('Entity took health component');
-  }
-});
+})
 ```
 
 ### Types
@@ -345,37 +341,43 @@ const GameScene = defineScene({
 ```ts
 function defineSceneRouter(options: {
   initial: string;
-  scenes: Record<string, SceneDef>;
+  routes: Record<string, { scene: SceneDef; on?: Record<string, string> }>;
 }): SceneRouterDef
 ```
 
-**Description.** Définit un routeur de scène pour gérer les transitions de scène.
+**Description.** Définit un routeur de scène avec des transitions nommées.
 
 **Retourne:** `SceneRouterDef`
 
 **Exemple:**
 ```ts
-defineSceneRouter({
-  initial: 'Menu',
-  scenes: { Menu: MenuScene, Game: GameScene }
-});
+export const AppRouter = defineSceneRouter({
+  initial: 'menu',
+  routes: {
+    menu: { scene: MenuScene, on: { START: 'game' } },
+    game: { scene: GameScene, on: { PAUSE: 'pause' } },
+  },
+})
 ```
 
-### useSceneRouter()
+### useSceneRouter(routerDef)
 
 **Signature:**
 ```ts
-function useSceneRouter(): SceneRouter
+function useSceneRouter<TRoutes>(routerDef: SceneRouterDef<TRoutes>): SceneRouterHandle<TRoutes>
 ```
 
-**Description.** Retourne le routeur de scène actif. À utiliser pour faire transitionner entre les scènes.
+**Description.** Retourne le handle du routeur pour déclencher des transitions depuis un acteur ou un système.
 
-**Retourne:** `SceneRouter` — avec des méthodes comme `.goTo(name)`.
+**Retourne:** `SceneRouterHandle` — `{ send, can, current, params }`.
 
 **Exemple:**
 ```ts
-const router = useSceneRouter();
-router.goTo('Game');
+const nav = useSceneRouter(AppRouter)
+await nav.send('START')
+nav.can('START')   // boolean
+nav.current        // nom de la scène courante
+nav.params         // paramètres passés lors de la transition
 ```
 
 ## Acteurs

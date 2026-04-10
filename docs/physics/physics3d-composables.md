@@ -15,7 +15,8 @@ Declare 3D physics inside `defineActor()` — once per actor type:
 
 ```ts
 import { defineActor } from '@gwenjs/core/actor'
-import { onUpdate, onContact } from '@gwenjs/core/system'
+import { onUpdate } from '@gwenjs/core/system'
+import { onContact } from '@gwenjs/physics3d'
 import { useDynamicBody, useSphereCollider, useRaycast } from '@gwenjs/physics3d'
 
 export const BallActor = defineActor(BallPrefab, () => {
