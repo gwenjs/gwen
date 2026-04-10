@@ -117,7 +117,16 @@ export class GwenApp {
     // Register the viewports plugin first so it runs before camera/renderer plugins.
     // This ensures ViewportManager is populated by engine:init, when camera systems
     // expect viewports to already exist.
-    this._plugins.unshift(createViewportsPlugin(config.viewports));
+    // Replace if already registered (idempotent for watch-mode / multi-call scenarios).
+    const viewportsPlugin = createViewportsPlugin(config.viewports);
+    const existingIndex = this._plugins.findIndex(
+      (plugin) => plugin.name === "gwen:viewports",
+    );
+    if (existingIndex >= 0) {
+      this._plugins[existingIndex] = viewportsPlugin;
+    } else {
+      this._plugins.unshift(viewportsPlugin);
+    }
 
     for (const entry of config.modules ?? []) {
       const [name, userOptions = {}] = Array.isArray(entry)

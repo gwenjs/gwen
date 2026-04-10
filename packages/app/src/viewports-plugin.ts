@@ -27,9 +27,9 @@ const DEFAULT_MAIN: ViewportRegion = { x: 0, y: 0, width: 1, height: 1 };
  * @internal — called by GwenApp.setupModules(), not by end-users.
  */
 export function createViewportsPlugin(
-  viewports?: Record<string, { x: number; y: number; width: number; height: number }>,
+  viewports?: Record<string, ViewportRegion>,
 ) {
-  const entries = Object.entries(viewports ?? {}) as [string, ViewportRegion][];
+  const entries: [string, ViewportRegion][] = Object.entries(viewports ?? {});
 
   return definePlugin(() => ({
     name: "gwen:viewports",

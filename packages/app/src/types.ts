@@ -7,6 +7,7 @@
 
 import type { GwenPlugin } from "@gwenjs/core";
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
+import type { ViewportRegion } from "@gwenjs/renderer-core";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
 
@@ -102,7 +103,7 @@ export interface GwenUserConfig {
    * }
    * ```
    */
-  viewports?: Record<string, { x: number; y: number; width: number; height: number }>;
+  viewports?: Record<string, ViewportRegion>;
 
   /** Module-specific options (typed via GwenModuleOptions augmentation). */
   [key: string]: unknown;
