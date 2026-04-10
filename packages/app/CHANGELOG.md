@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/gwenjs/gwen/compare/app-v0.2.0...app-v0.3.0) (2026-04-10)
+
+
+### Features
+
+* **app:** add viewports support via gwen.config.ts ([eaddd4a](https://github.com/gwenjs/gwen/commit/eaddd4abd9f1d8edea3e59be093a9f0d7cef9205))
+
+
+### Bug Fixes
+
+* **app:** address code review on viewports support ([9bd793b](https://github.com/gwenjs/gwen/commit/9bd793bab98427619dfb4045852f5a6a9e679d61))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/app-v0.1.0...app-v0.2.0) (2026-04-09)
 
 

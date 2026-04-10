@@ -1,12 +1,12 @@
 {
-  "packages/app": "0.2.0",
+  "packages/app": "0.3.0",
   "packages/camera-core": "0.1.0",
   "packages/core": "0.2.0",
   "packages/kit": "0.2.0",
   "packages/math": "0.1.1",
   "packages/physics2d": "0.2.0",
   "packages/physics3d": "0.2.0",
-  "packages/renderer-core": "0.3.0",
+  "packages/renderer-core": "0.4.0",
   "packages/schema": "0.1.1",
   "packages/vite": "0.2.0"
 }
