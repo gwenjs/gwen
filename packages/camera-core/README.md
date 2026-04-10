@@ -28,23 +28,29 @@ engine.addComponent(camId, Camera, {
   active: 1,
   priority: 0,
   projectionType: 0, // 0 = orthographic, 1 = perspective
-  x: 0, y: 0, z: 0,
-  rotX: 0, rotY: 0, rotZ: 0,
-  zoom: 1, fov: Math.PI / 3,
-  near: -1000, far: 1000,
+  x: 0,
+  y: 0,
+  z: 0,
+  rotX: 0,
+  rotY: 0,
+  rotZ: 0,
+  zoom: 1,
+  fov: Math.PI / 3,
+  near: -1000,
+  far: 1000,
 });
 cameraViewportMap.set(camId, "main");
 ```
 
 ## ECS components
 
-| Component      | Purpose                                                                     |
-| -------------- | --------------------------------------------------------------------------- |
-| `Camera`       | Core camera state — position, rotation, projection, active flag, priority  |
-| `FollowTarget` | Lerps the camera toward another entity's position each frame                |
-| `CameraBounds` | Clamps the camera position to a bounding box after movement                 |
+| Component      | Purpose                                                                                 |
+| -------------- | --------------------------------------------------------------------------------------- |
+| `Camera`       | Core camera state — position, rotation, projection, active flag, priority               |
+| `FollowTarget` | Lerps the camera toward another entity's position each frame                            |
+| `CameraBounds` | Clamps the camera position to a bounding box after movement                             |
 | `CameraShake`  | Trauma-based screen shake — offsets the rendered position without moving `Camera.x/y/z` |
-| `CameraPath`   | ECS bookmark for path-following state (index + progress in current segment) |
+| `CameraPath`   | ECS bookmark for path-following state (index + progress in current segment)             |
 
 ### `Camera` fields
 
@@ -116,10 +122,10 @@ cameraPathStore.set(camId, pathData);
 
 `CameraSystem` emits these hooks each frame via `engine.hooks`:
 
-| Hook                | Payload                                              | When                                                   |
-| ------------------- | ---------------------------------------------------- | ------------------------------------------------------ |
-| `camera:activate`   | `{ viewportId: string, entityId: EntityId }`         | First time a camera becomes active on a viewport       |
-| `camera:deactivate` | `{ viewportId: string }`                             | The active camera is deactivated with no replacement   |
+| Hook                | Payload                                                | When                                                 |
+| ------------------- | ------------------------------------------------------ | ---------------------------------------------------- |
+| `camera:activate`   | `{ viewportId: string, entityId: EntityId }`           | First time a camera becomes active on a viewport     |
+| `camera:deactivate` | `{ viewportId: string }`                               | The active camera is deactivated with no replacement |
 | `camera:switch`     | `{ viewportId: string, from: EntityId, to: EntityId }` | Active camera changes from one entity to another     |
 
 ```ts
