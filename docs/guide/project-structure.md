@@ -117,7 +117,7 @@ Actors are named, singleton-like entities defined with `defineActor()`. Use them
 
 **src/actors/Player.ts**
 ```typescript
-import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
+import { defineActor, definePrefab, onStart, onDestroy, useEntityId } from '@gwenjs/core/actor'
 import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
 import { Position, Health } from '../components'
 
@@ -127,6 +127,7 @@ const PlayerPrefab = definePrefab([
 ])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const entityId = useEntityId()
   useDynamicBody({ gravityScale: 1 })
   useBoxCollider({ width: 1, height: 2 })
 

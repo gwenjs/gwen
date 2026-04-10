@@ -132,6 +132,7 @@ function useComponent<T = {}>(def: ComponentDef<T>): void
 **Exemple:**
 ```ts
 export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const entityId = useEntityId()
   const hp = useComponent(Health)
   onStart(() => {
     console.log('hp:', hp.hp[entityId])
@@ -404,7 +405,7 @@ function defineActor<Props = void>(
 
 **Exemple:**
 ```ts
-import { defineActor, definePrefab, onStart, onDestroy } from '@gwenjs/core/actor'
+import { defineActor, definePrefab, onStart, onDestroy, useEntityId } from '@gwenjs/core/actor'
 
 const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
@@ -412,6 +413,7 @@ const EnemyPrefab = definePrefab([
 ])
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  const entityId = useEntityId()
   onStart(() => {
     Health.hp[entityId] = props.hp
   })
