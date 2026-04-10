@@ -131,7 +131,7 @@ cameraPathStore.set(camId, pathData)
 
 ## Hooks moteur
 
-`CameraSystem` émet ces hooks via `engine.hooks` à chaque frame :
+`CameraSystem` émet ces hooks via `engine.hooks` lorsque la caméra active change sur un viewport :
 
 | Hook | Payload | Quand |
 |---|---|---|
@@ -188,9 +188,9 @@ const MyRenderSystem = defineSystem('MyRenderSystem', () => {
 
 ```ts
 const CameraErrorCodes = {
-  CAMERA_NOT_FOUND:    'CAMERA:CAMERA_NOT_FOUND',
-  VIEWPORT_NOT_FOUND:  'CAMERA:VIEWPORT_NOT_FOUND',
-  INVALID_PATH:        'CAMERA:INVALID_PATH',
-  INVALID_WAYPOINT:    'CAMERA:INVALID_WAYPOINT',
+  VIEWPORT_NOT_FOUND:   'CAMERA:VIEWPORT_NOT_FOUND',
+  EMPTY_PATH:           'CAMERA:EMPTY_PATH',
+  PERSPECTIVE_FALLBACK: 'CAMERA:PERSPECTIVE_FALLBACK', // warn uniquement, jamais levé
+  PRIORITY_CONFLICT:    'CAMERA:PRIORITY_CONFLICT',    // warn uniquement, jamais levé
 }
 ```
