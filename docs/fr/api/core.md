@@ -49,12 +49,10 @@ function useEngine(): GwenEngine
 
 **Exemple:**
 ```ts
-defineSystem({
-  setup() {
-    const engine = useEngine();
-    console.log(engine.deltaTime);
-  }
-});
+const MySystem = defineSystem('MySystem', () => {
+  const engine = useEngine()
+  console.log(engine.deltaTime)
+})
 ```
 
 ## Composants
@@ -164,16 +162,14 @@ function defineSystem(options: {
 
 **Exemple:**
 ```ts
-defineSystem({
-  setup() {
-    const query = useQuery([Transform, Velocity]);
-    onUpdate((dt) => {
-      for (const entity of query) {
-        entity.transform.x += entity.velocity.x * dt;
-      }
-    });
-  }
-});
+export const MovementSystem = defineSystem('MovementSystem', () => {
+  const entities = useQuery([Transform, Velocity])
+  onUpdate((dt) => {
+    for (const id of entities) {
+      Transform.x[id] += Velocity.x[id] * dt
+    }
+  })
+})
 ```
 
 ### useQuery(components, opts?)
