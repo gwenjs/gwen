@@ -68,10 +68,12 @@ function useDynamicBody(options?: DynamicBodyOptions): void
 
 **Exemple:**
 ```ts
-defineActor('Ball', (setup) => {
-  useDynamicBody({ mass: 2, restitution: 0.8 });
-  useBoxCollider({ width: 1, height: 1 });
-});
+const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
+
+export const BallActor = defineActor(BallPrefab, () => {
+  useDynamicBody({ mass: 2, restitution: 0.8 })
+  useBoxCollider({ width: 1, height: 1 })
+})
 ```
 
 ### useKinematicBody(options?)
@@ -98,10 +100,12 @@ function useStaticBody(): void
 
 **Exemple:**
 ```ts
-defineActor('Ground', (setup) => {
-  useStaticBody();
-  useBoxCollider({ width: 100, height: 1 });
-});
+const GroundPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
+
+export const GroundActor = defineActor(GroundPrefab, () => {
+  useStaticBody()
+  useBoxCollider({ width: 100, height: 1 })
+})
 ```
 
 ## Colliders
@@ -184,13 +188,13 @@ function onContact(handler: (event: ContactEvent) => void): void
 
 **Exemple:**
 ```ts
-defineActor('Player', (setup) => {
+export const PlayerActor = defineActor(PlayerPrefab, () => {
   onContact((event) => {
     if (event.other.name === 'Spike') {
       // Prendre des dégâts
     }
-  });
-});
+  })
+})
 ```
 
 ### ContactEvent
@@ -219,14 +223,14 @@ function onSensorEnter(handler: (other: Entity) => void): void
 
 **Exemple:**
 ```ts
-defineActor('Coin', (setup) => {
-  useSphereCollider({ radius: 0.5, sensor: true });
+export const CoinActor = defineActor(CoinPrefab, () => {
+  useSphereCollider({ radius: 0.5, sensor: true })
   onSensorEnter((other) => {
     if (other.name === 'Player') {
       // Collecter la pièce
     }
-  });
-});
+  })
+})
 ```
 
 ### onSensorExit(handler)
@@ -354,13 +358,12 @@ function createPlatformerGroundedSystem(opts?: {
 
 **Exemple:**
 ```ts
-defineSystem({
-  setup() {
-    const groundedSystem = createPlatformerGroundedSystem({
-      raycastDistance: 0.1
-    });
-  }
-});
+export const MyScene = defineScene({
+  name: 'game',
+  systems: [
+    createPlatformerGroundedSystem({ raycastDistance: 0.1 }),
+  ],
+})
 ```
 
 ## Support Tilemap

@@ -49,11 +49,16 @@ The interface every renderer plugin must implement. Register via
 interface LayerDef {
   order: number
   coordinate?: 'world' | 'screen'  // default: 'screen'
+  scope?: 'viewport' | 'global'    // default: 'global' when screen, 'viewport' when world
 }
 ```
 
 Declares a named rendering slot. `order` controls depth (0 = background, 100 = HUD).
-`coordinate: 'world'` signals that the renderer projects world coordinates to screen.
+
+| Field | Description |
+|---|---|
+| `coordinate` | `'screen'` (default) — CSS pixel positions. `'world'` — the renderer must project world-unit positions to screen space. |
+| `scope` | `'viewport'` — the layer is instanced once per viewport and receives the camera transform. `'global'` — mounted once for the entire screen (e.g. HUD above all viewports). Defaults to `'global'` when `coordinate: 'screen'`, `'viewport'` when `coordinate: 'world'`. |
 
 ### `SpriteHandle`
 
@@ -183,6 +188,254 @@ setup(engine) {
 
 The `container` argument is only used on the first call. Subsequent renderer plugins
 reuse the existing instance regardless of the container they pass.
+
+## Camera and viewport
+
+These types, interfaces, and composables are shared between renderer plugins and
+camera-aware systems. Renderer plugins read `CameraState` each frame to project
+the world; game code writes `ViewportRegion`s to declare screen regions.
+
+### Types
+
+#### `ViewportRegion`
+
+```ts
+interface ViewportRegion {
+  x: number       // left edge [0–1]
+  y: number       // top edge  [0–1]
+  width: number   // [0–1]
+  height: number  // [0–1]
+}
+```
+
+Normalised screen region. `{ x: 0, y: 0, width: 1, height: 1 }` = full screen,
+`{ x: 0, y: 0, width: 0.5, height: 1 }` = left half.
+
+#### `ViewportContext`
+
+```ts
+interface ViewportContext {
+  id: string              // e.g. 'main', 'p1', 'minimap'
+  region: ViewportRegion
+}
+```
+
+A registered viewport — its id and current screen region. Returned by
+`ViewportManager.get()` and `ViewportManager.getAll()`.
+
+#### `WorldTransform`
+
+```ts
+interface WorldTransform {
+  position: Vec3   // world-space position
+  rotation: Vec3   // Euler angles in radians. 2D cameras: only z is used.
+}
+```
+
+Position and orientation of a camera in world space.
+
+#### `CameraProjection`
+
+```ts
+type CameraProjection =
+  | { type: 'orthographic'; zoom: number; near: number; far: number }
+  | { type: 'perspective';  fov: number;  near: number; far: number }
+```
+
+How the world is projected onto the screen. `aspect` is always derived from the
+viewport pixel dimensions at render time — never stored here.
+
+| Field | Orthographic | Perspective |
+|---|---|---|
+| `zoom` | World units per pixel — `1` = 1 unit/px | — |
+| `fov` | — | Vertical FOV in radians |
+| `near` | Near clip plane (default `-1`) | Near clip plane (default `0.1`) |
+| `far` | Far clip plane (default `1`) | Far clip plane (default `1000`) |
+
+#### `CameraState`
+
+```ts
+interface CameraState {
+  worldTransform: WorldTransform
+  projection: CameraProjection
+  viewportId: string   // which viewport this camera is bound to
+  active: boolean
+  priority: number     // higher wins when multiple cameras target the same viewport
+}
+```
+
+The complete camera state for one viewport. Written by `CameraSystem` (camera-core)
+at the start of each frame and read by renderer plugins.
+
+---
+
+### `ViewportManager`
+
+Registry of named screen regions. Emits engine hooks when viewports are added,
+resized, or removed.
+
+```ts
+interface ViewportManager {
+  set(id: string, region: ViewportRegion): void
+  remove(id: string): void
+  get(id: string): ViewportContext | undefined
+  getAll(): ReadonlyMap<string, ViewportContext>
+}
+```
+
+| Method | Description |
+|---|---|
+| `set(id, region)` | Register or update a viewport. Emits `viewport:add` on first call, `viewport:resize` on update. |
+| `remove(id)` | Remove a viewport. Emits `viewport:remove`. No-op for unknown ids. |
+| `get(id)` | Read a viewport context, or `undefined` if not registered. |
+| `getAll()` | All registered viewports. The returned map is live — do not mutate it. |
+
+#### `useViewportManager()`
+
+```ts
+function useViewportManager(): ViewportManager
+```
+
+Composable accessor for the shared `ViewportManager`. Call inside `defineSystem`,
+`defineActor`, or `defineScene` setup functions.
+
+Requires `CameraCorePlugin` (from `@gwenjs/camera-core`) to be installed — it
+creates the manager when it registers.
+
+```ts
+import { useViewportManager } from '@gwenjs/renderer-core'
+import { defineSystem } from '@gwenjs/core/system'
+
+const ViewportSetupSystem = defineSystem('ViewportSetupSystem', () => {
+  const viewports = useViewportManager()
+  // full screen
+  viewports.set('main', { x: 0, y: 0, width: 1, height: 1 })
+})
+
+// Dynamic split-screen example
+const SplitScreenSystem = defineSystem('SplitScreenSystem', () => {
+  const viewports = useViewportManager()
+  onUpdate(() => {
+    if (player2Joined) {
+      viewports.set('p1', { x: 0,   y: 0, width: 0.5, height: 1 })
+      viewports.set('p2', { x: 0.5, y: 0, width: 0.5, height: 1 })
+      viewports.remove('main')
+    }
+  })
+})
+```
+
+#### `getOrCreateViewportManager(engine)`
+
+```ts
+function getOrCreateViewportManager(engine: GwenEngine): ViewportManager
+```
+
+Plugin-level factory. Returns the shared `ViewportManager` for this engine,
+creating it on first call and registering it as `engine.provide('viewportManager', …)`.
+
+Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
+
+```ts
+import { getOrCreateViewportManager } from '@gwenjs/renderer-core'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+export const MyRendererPlugin = definePlugin<{ container: HTMLElement }>((opts) => ({
+  name: 'renderer:my',
+  setup(engine) {
+    const viewports = getOrCreateViewportManager(engine)
+    viewports.set('main', { x: 0, y: 0, width: 1, height: 1 })
+  },
+}))
+```
+
+#### Viewport hooks
+
+Declared on `GwenRuntimeHooks` by `@gwenjs/renderer-core`:
+
+| Hook | Payload | When |
+|---|---|---|
+| `viewport:add` | `{ id: string, region: ViewportRegion }` | New viewport registered |
+| `viewport:resize` | `{ id: string, region: ViewportRegion }` | Existing viewport's region updated |
+| `viewport:remove` | `{ id: string }` | Viewport removed |
+
+```ts
+engine.hooks.hook('viewport:add', ({ id, region }) => {
+  console.log(`viewport "${id}" added`, region)
+})
+```
+
+---
+
+### `CameraManager`
+
+Per-frame camera state store. Written by `CameraSystem` at the start of each frame;
+read by renderer plugins during rendering.
+
+```ts
+interface CameraManager {
+  set(viewportId: string, state: CameraState): void
+  get(viewportId: string): CameraState | undefined
+  getAll(): ReadonlyMap<string, CameraState>
+  clearFrame(): void
+}
+```
+
+| Method | Description |
+|---|---|
+| `set(viewportId, state)` | Write camera state. Ignored if an existing state has strictly higher priority. |
+| `get(viewportId)` | Read the active camera state for a viewport, or `undefined` if none. |
+| `getAll()` | All current states. Live map — do not mutate. |
+| `clearFrame()` | Clear all states. Called by `CameraSystem` before writing new states. |
+
+#### `useCameraManager()`
+
+```ts
+function useCameraManager(): CameraManager
+```
+
+Composable accessor for the shared `CameraManager`. Call inside `defineSystem`,
+`defineActor`, or `defineScene` setup functions.
+
+Requires `CameraCorePlugin` (from `@gwenjs/camera-core`) to be installed.
+
+```ts
+import { useCameraManager } from '@gwenjs/renderer-core'
+import { defineSystem, onRender } from '@gwenjs/core/system'
+
+const MyRenderSystem = defineSystem('MyRenderSystem', () => {
+  const cameras = useCameraManager()
+  onRender(() => {
+    const state = cameras.get('main')
+    if (state?.active) {
+      const { position, rotation } = state.worldTransform
+      // apply to renderer…
+    }
+  })
+})
+```
+
+#### `getOrCreateCameraManager(engine)`
+
+```ts
+function getOrCreateCameraManager(engine: GwenEngine): CameraManager
+```
+
+Plugin-level factory. Returns the shared `CameraManager` for this engine,
+creating it on first call and registering it as `engine.provide('cameraManager', …)`.
+
+Use this inside `definePlugin`'s `setup(engine)` — not in systems or actors.
+
+```ts
+import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
+
+setup(engine) {
+  const cameras = getOrCreateCameraManager(engine)
+  // cameras is now available via useCameraManager() in systems/actors
+}
+```
+
+---
 
 ## Error codes
 

@@ -59,12 +59,10 @@ function useEngine(): GwenEngine
 
 **Example:**
 ```ts
-defineSystem({
-  setup() {
-    const engine = useEngine();
-    console.log(engine.deltaTime);
-  }
-});
+const MySystem = defineSystem('MySystem', () => {
+  const engine = useEngine()
+  console.log(engine.deltaTime)
+})
 ```
 
 ### useTween(options)
