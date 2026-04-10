@@ -71,9 +71,11 @@ const layers = defineLayers({ player: 0, enemy: 1, terrain: 2 })
 Declare physics inside `defineActor()` — once per actor type. Composables read actor context automatically.
 
 ```ts
-import { defineActor } from '@gwenjs/core/actor'
+import { defineActor, definePrefab } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
 import { onContact, useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
+
+const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   useShape({ w: 32, h: 48 })
@@ -183,16 +185,18 @@ Subscribe to collision contact events with `onContact()`:
 
 ```ts
 onContact((contact) => {
-  console.log('Entity collided:', contact.other)
+  console.log('Entities:', contact.entityA, contact.entityB)
   console.log('Relative velocity:', contact.relativeVelocity)
-  console.log('Normal:', contact.normal)
+  console.log('Normal:', contact.normalX, contact.normalY)
 })
 ```
 
 The `contact` object has:
-- `other` — Entity ID of the colliding entity
-- `relativeVelocity` — Speed at which the two bodies collide
-- `normal` — Normal vector of the collision surface
+- `entityA` — Entity ID of the first participant
+- `entityB` — Entity ID of the second participant
+- `contactX`, `contactY` — World-space contact point coordinates
+- `normalX`, `normalY` — Contact normal components (unit vector)
+- `relativeVelocity` — Relative impact speed at the contact point (m/s)
 
 ### Sensor Events
 
@@ -411,7 +415,7 @@ onUpdate(() => {
 
 ### Types
 
-- `ContactEvent` — `{ other: bigint, relativeVelocity: number, normal: { x: number, y: number } }`
+- `ContactEvent` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, normalX: number, normalY: number, relativeVelocity: number }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`

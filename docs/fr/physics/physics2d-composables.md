@@ -71,9 +71,11 @@ const layers = defineLayers({ player: 0, enemy: 1, terrain: 2 })
 Déclarez la physique à l'intérieur de `defineActor()` — une fois par type d'acteur. Les composables lisent le contexte de l'acteur automatiquement.
 
 ```ts
-import { defineActor } from '@gwenjs/core/actor'
+import { defineActor, definePrefab } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
 import { onContact, useShape, useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
+
+const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   useShape({ w: 32, h: 48 })
@@ -183,16 +185,18 @@ Abonnez-vous aux événements de contact de collision avec `onContact()` :
 
 ```ts
 onContact((contact) => {
-  console.log('Entity collided:', contact.other)
-  console.log('Relative velocity:', contact.relativeVelocity)
-  console.log('Normal:', contact.normal)
+  console.log('Entités :', contact.entityA, contact.entityB)
+  console.log('Vitesse relative :', contact.relativeVelocity)
+  console.log('Normale :', contact.normalX, contact.normalY)
 })
 ```
 
 L'objet `contact` a :
-- `other` — ID de l'entité qui entre en collision
-- `relativeVelocity` — Vitesse à laquelle les deux corps entrent en collision
-- `normal` — Vecteur normal de la surface de collision
+- `entityA` — ID de la première entité participante
+- `entityB` — ID de la deuxième entité participante
+- `contactX`, `contactY` — Coordonnées du point de contact en espace monde
+- `normalX`, `normalY` — Composantes de la normale de contact (vecteur unitaire)
+- `relativeVelocity` — Vitesse d'impact relative au point de contact (m/s)
 
 ### Événements des capteurs
 
@@ -411,7 +415,7 @@ onUpdate(() => {
 
 ### Types
 
-- `ContactEvent` — `{ other: bigint, relativeVelocity: number, normal: { x: number, y: number } }`
+- `ContactEvent` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, normalX: number, normalY: number, relativeVelocity: number }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`

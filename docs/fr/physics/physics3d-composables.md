@@ -14,16 +14,18 @@ Les composables Physics 3D ajoutent la dynamique des corps rigides et les collis
 Déclarez la physique 3D à l'intérieur de `defineActor()` — une fois par type d'acteur :
 
 ```ts
-import { defineActor } from '@gwenjs/core/actor'
+import { defineActor, definePrefab } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
 import { onContact, useDynamicBody, useSphereCollider, useRaycast } from '@gwenjs/physics3d'
+
+const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0, z: 0 } }])
 
 export const BallActor = defineActor(BallPrefab, () => {
   const body = useDynamicBody({ mass: 2, ccdEnabled: true })
   useSphereCollider({ radius: 0.5 })
 
   onContact((contact) => {
-    console.log('Hit something:', contact.other)
+    console.log('Vitesse d\'impact :', contact.relativeVelocity)
   })
 
   onUpdate(() => {
@@ -163,18 +165,20 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ```ts
 onContact((contact) => {
-  console.log('Hit:', contact.other)
-  console.log('Speed:', contact.relativeVelocity)
-  console.log('Point:', contact.point)
-  console.log('Normal:', contact.normal)
+  console.log('Entités :', contact.entityA, contact.entityB)
+  console.log('Vitesse :', contact.relativeVelocity)
+  console.log('Point :', contact.contactX, contact.contactY, contact.contactZ)
+  console.log('Normale :', contact.normalX, contact.normalY, contact.normalZ)
 })
 ```
 
 Objet `contact` :
-- `other` — ID de l'entité qui entre en collision
-- `relativeVelocity` — Vitesse relative au point de collision
-- `point` — Point de collision dans l'espace du monde
-- `normal` — Normale de surface
+- `entityA` — ID de la première entité participante
+- `entityB` — ID de la deuxième entité participante
+- `contactX`, `contactY`, `contactZ` — Coordonnées du point de contact en espace monde
+- `normalX`, `normalY`, `normalZ` — Composantes de la normale de contact (vecteur unitaire de B vers A)
+- `relativeVelocity` — Vitesse d'impact relative au point de contact (m/s)
+- `restitution` — Coefficient de restitution effectif au point de contact
 
 ### Événements des capteurs
 
@@ -517,7 +521,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 ### Types
 
 - `Vec3` — `{ x: number, y: number, z: number }`
-- `ContactEvent3D` — `{ other: bigint, relativeVelocity: number, point: Vec3, normal: Vec3 }`
+- `ContactEvent3D` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, contactZ: number, normalX: number, normalY: number, normalZ: number, relativeVelocity: number, restitution: number }`
 - Diverses handles de collider avec `colliderId`, `isSensor`, `remove()`, etc.
 - `UseRaycastHandle` — Propriétés de hit et `dispose()`
 - `UseShapeCastHandle` — Similaire au raycast

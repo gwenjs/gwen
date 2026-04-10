@@ -14,16 +14,18 @@ Physics 3D composables add rigid body dynamics and collision to actors in three-
 Declare 3D physics inside `defineActor()` — once per actor type:
 
 ```ts
-import { defineActor } from '@gwenjs/core/actor'
+import { defineActor, definePrefab } from '@gwenjs/core/actor'
 import { onUpdate } from '@gwenjs/core/system'
 import { onContact, useDynamicBody, useSphereCollider, useRaycast } from '@gwenjs/physics3d'
+
+const BallPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0, z: 0 } }])
 
 export const BallActor = defineActor(BallPrefab, () => {
   const body = useDynamicBody({ mass: 2, ccdEnabled: true })
   useSphereCollider({ radius: 0.5 })
 
   onContact((contact) => {
-    console.log('Hit something:', contact.other)
+    console.log('Impact velocity:', contact.relativeVelocity)
   })
 
   onUpdate(() => {
@@ -163,18 +165,20 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 
 ```ts
 onContact((contact) => {
-  console.log('Hit:', contact.other)
+  console.log('Entities:', contact.entityA, contact.entityB)
   console.log('Speed:', contact.relativeVelocity)
-  console.log('Point:', contact.point)
-  console.log('Normal:', contact.normal)
+  console.log('Point:', contact.contactX, contact.contactY, contact.contactZ)
+  console.log('Normal:', contact.normalX, contact.normalY, contact.normalZ)
 })
 ```
 
 `contact` object:
-- `other` — Entity ID of the colliding entity
-- `relativeVelocity` — Relative speed at collision
-- `point` — Collision point in world space
-- `normal` — Surface normal
+- `entityA` — Entity ID of the first participant
+- `entityB` — Entity ID of the second participant
+- `contactX`, `contactY`, `contactZ` — World-space contact point coordinates
+- `normalX`, `normalY`, `normalZ` — Contact normal components (unit vector from B to A)
+- `relativeVelocity` — Relative impact speed at the contact point (m/s)
+- `restitution` — Effective restitution coefficient at the contact point
 
 ### Sensor Events
 
@@ -517,7 +521,7 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 ### Types
 
 - `Vec3` — `{ x: number, y: number, z: number }`
-- `ContactEvent3D` — `{ other: bigint, relativeVelocity: number, point: Vec3, normal: Vec3 }`
+- `ContactEvent3D` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, contactZ: number, normalX: number, normalY: number, normalZ: number, relativeVelocity: number, restitution: number }`
 - Various collider handles with `colliderId`, `isSensor`, `remove()`, etc.
 - `UseRaycastHandle` — Hit properties and `dispose()`
 - `UseShapeCastHandle` — Similar to raycast

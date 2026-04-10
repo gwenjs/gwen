@@ -297,10 +297,9 @@ function useComponent<T = {}>(def: ComponentDef<T>): void
 **Example:**
 ```ts
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const entityId = useEntityId()
-  const hp = useComponent(Health)
+  const health = useComponent(Health)
   onStart(() => {
-    console.log('hp:', hp.hp[entityId])
+    console.log('hp:', health.hp)
   })
 })
 ```
