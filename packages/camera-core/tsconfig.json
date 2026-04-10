@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "lib": ["ES2022"],
+    "rootDir": "src",
+    "outDir": "./dist"
+  },
+  "include": ["src"],
+  "references": [
+    { "path": "../core" },
+    { "path": "../renderer-core" },
+    { "path": "../math" },
+    { "path": "../kit" }
+  ]
+}
