@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/gwenjs/gwen/compare/renderer-core-v0.2.0...renderer-core-v0.3.0) (2026-04-10)
+
+
+### Features
+
+* **renderer-core:** add camera and viewport singleton factories and composables ([ca5d323](https://github.com/gwenjs/gwen/commit/ca5d32369fbf8f327a7e968a52f636fbc65dc5ec))
+* **renderer-core:** add CameraManager service ([aa73a18](https://github.com/gwenjs/gwen/commit/aa73a183e365c893585791a7093bcbb239203b3a))
+* **renderer-core:** add scope field to LayerDef ([cb33e42](https://github.com/gwenjs/gwen/commit/cb33e42e9bef33f6b89d1654826a2596f4705e07))
+* **renderer-core:** add shared camera and viewport types ([4c80960](https://github.com/gwenjs/gwen/commit/4c8096033ad6fa9641577000eaead7f75f073d8a))
+* **renderer-core:** add ViewportManager service ([dbdffdf](https://github.com/gwenjs/gwen/commit/dbdffdf7bff9f43a0c3f4692305dbf2e4de4539f))
+* **renderer-core:** export camera/viewport contracts and augment GwenProvides + GwenRuntimeHooks ([2e07295](https://github.com/gwenjs/gwen/commit/2e0729582c66acf8c56dc2d14735f75d96e60fef))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/renderer-core-v0.1.0...renderer-core-v0.2.0) (2026-04-09)
 
 
