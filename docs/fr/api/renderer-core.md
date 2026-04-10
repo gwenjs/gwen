@@ -150,6 +150,8 @@ interface LayerDef {
 
 ## Caméra et viewports
 
+> Pour un guide utilisateur sur la déclaration et la gestion des viewports, voir **[Viewports](/fr/rendering/viewports)**.
+
 Ces types, interfaces et composables sont partagés entre les plugins renderer et les systèmes qui ont besoin de la caméra. Les plugins renderer lisent `CameraState` à chaque frame pour projeter le monde ; le code de jeu écrit des `ViewportRegion` pour déclarer les régions d'écran.
 
 ### Types

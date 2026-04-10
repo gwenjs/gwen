@@ -193,8 +193,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
 
-    expect(app.plugins).toHaveLength(1);
-    expect(app.plugins[0]).toBe(fakePlugin);
+    // +1 for the built-in gwen:viewports plugin always registered at index 0
+    expect(app.plugins).toHaveLength(2);
+    expect(app.plugins[1]).toBe(fakePlugin);
   });
 
   it("collects plugins from multiple modules in order", async () => {
@@ -218,9 +219,10 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
 
-    expect(app.plugins).toHaveLength(2);
-    expect(app.plugins[0]).toBe(pluginA);
-    expect(app.plugins[1]).toBe(pluginB);
+    // +1 for the built-in gwen:viewports plugin always registered at index 0
+    expect(app.plugins).toHaveLength(3);
+    expect(app.plugins[1]).toBe(pluginA);
+    expect(app.plugins[2]).toBe(pluginB);
   });
 
   it("unwraps factory functions passed to addPlugin()", async () => {
@@ -239,7 +241,8 @@ describe("GwenApp.setupModules — plugin collection", () => {
     await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
 
     expect(factory).toHaveBeenCalledOnce();
-    expect(app.plugins[0]).toBe(fakePlugin);
+    // gwen:viewports is at index 0, module plugins start at index 1
+    expect(app.plugins[1]).toBe(fakePlugin);
   });
 });
 
@@ -602,7 +605,8 @@ describe("GwenApp — getter immutability", () => {
     snap1.push({ name: "injected" as const } as unknown as GwenPlugin);
 
     // The internal array should NOT have been mutated
-    expect(app.plugins).toHaveLength(1);
+    // +1 for the built-in gwen:viewports plugin
+    expect(app.plugins).toHaveLength(2);
   });
 });
 

@@ -35,6 +35,12 @@ const enSidebar = [
     ],
   },
   {
+    text: 'Rendering',
+    items: [
+      { text: 'Viewports', link: '/rendering/viewports' },
+    ],
+  },
+  {
     text: 'Physics',
     items: [
       { text: 'Physics 2D Composables', link: '/physics/physics2d-composables' },
@@ -101,6 +107,12 @@ const frSidebar = [
       { text: "Bus d'erreurs", link: '/fr/advanced/error-bus' },
       { text: 'Mode debug', link: '/fr/advanced/debug-mode' },
       { text: 'Étendre Vite', link: '/fr/advanced/vite-config' },
+    ],
+  },
+  {
+    text: 'Rendu',
+    items: [
+      { text: 'Viewports', link: '/fr/rendering/viewports' },
     ],
   },
   {

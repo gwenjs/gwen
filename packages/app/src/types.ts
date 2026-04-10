@@ -87,6 +87,23 @@ export interface GwenUserConfig {
   /** Plugins to register directly (without a module). */
   plugins?: GwenPlugin[];
 
+  /**
+   * Static viewport declarations — normalized [0–1] screen regions.
+   *
+   * `@gwenjs/app` passes these to `ViewportManager` at engine startup.
+   * If absent, a default fullscreen `'main'` viewport is created automatically.
+   *
+   * @example
+   * ```ts
+   * // Split-screen
+   * viewports: {
+   *   p1: { x: 0,   y: 0, width: 0.5, height: 1 },
+   *   p2: { x: 0.5, y: 0, width: 0.5, height: 1 },
+   * }
+   * ```
+   */
+  viewports?: Record<string, { x: number; y: number; width: number; height: number }>;
+
   /** Module-specific options (typed via GwenModuleOptions augmentation). */
   [key: string]: unknown;
 }

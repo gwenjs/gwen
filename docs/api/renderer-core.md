@@ -191,6 +191,8 @@ reuse the existing instance regardless of the container they pass.
 
 ## Camera and viewport
 
+> For a user-facing guide on declaring and managing viewports, see **[Viewports](/rendering/viewports)**.
+
 These types, interfaces, and composables are shared between renderer plugins and
 camera-aware systems. Renderer plugins read `CameraState` each frame to project
 the world; game code writes `ViewportRegion`s to declare screen regions.
