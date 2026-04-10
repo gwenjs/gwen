@@ -49,7 +49,7 @@ export { CameraCorePlugin } from "./camera-core-plugin.js";
 
 // ── GwenRuntimeHooks augmentation — camera:* hooks ───────────────────────────
 // viewport:* hooks are declared in @gwenjs/renderer-core.
-import type {} from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
 
 declare module "@gwenjs/core" {
   interface GwenRuntimeHooks {
@@ -57,7 +57,7 @@ declare module "@gwenjs/core" {
      * Fired the first time a camera becomes active on a viewport.
      * Not fired again until the camera is deactivated and a new one activates.
      */
-    "camera:activate": (payload: { viewportId: string; entityId: number }) => void;
+    "camera:activate": (payload: { viewportId: string; entityId: EntityId }) => void;
     /**
      * Fired when the previously active camera on a viewport loses its active state
      * and no replacement camera is found for that frame.
@@ -67,6 +67,6 @@ declare module "@gwenjs/core" {
      * Fired when the active camera on a viewport changes from one entity to another.
      * Not fired on initial activation — use `camera:activate` for that.
      */
-    "camera:switch": (payload: { viewportId: string; from: number; to: number }) => void;
+    "camera:switch": (payload: { viewportId: string; from: EntityId; to: EntityId }) => void;
   }
 }
