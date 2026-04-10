@@ -29,22 +29,44 @@ describe("CameraSystem — follow target", () => {
     // create target entity with Camera component at (100, 200)
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 100, y: 200, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 100,
+      y: 200,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
 
     // create camera entity following the target
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     engine.addComponent(camId, FollowTarget, {
       entityId: targetId,
       lerp: 1.0, // instant at lerp=1
-      offsetX: 0, offsetY: 0, offsetZ: 0,
+      offsetX: 0,
+      offsetY: 0,
+      offsetZ: 0,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -67,23 +89,51 @@ describe("CameraSystem — bounds clamp", () => {
 
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 500, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 500,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     engine.addComponent(camId, FollowTarget, {
-      entityId: targetId, lerp: 1.0, offsetX: 0, offsetY: 0, offsetZ: 0,
+      entityId: targetId,
+      lerp: 1.0,
+      offsetX: 0,
+      offsetY: 0,
+      offsetZ: 0,
     });
     engine.addComponent(camId, CameraBounds, {
-      minX: 0, minY: 0, minZ: 0,
-      maxX: 200, maxY: 200, maxZ: 0,
+      minX: 0,
+      minY: 0,
+      minZ: 0,
+      maxX: 200,
+      maxY: 200,
+      maxZ: 0,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -103,12 +153,25 @@ describe("CameraSystem — shake", () => {
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 50, y: 50, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 50,
+      y: 50,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     engine.addComponent(camId, CameraShake, {
-      trauma: 1.0, decay: 0, maxX: 20, maxY: 20,
+      trauma: 1.0,
+      decay: 0,
+      maxX: 20,
+      maxY: 20,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -130,12 +193,25 @@ describe("CameraSystem — shake", () => {
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     engine.addComponent(camId, CameraShake, {
-      trauma: 1.0, decay: 1.0, maxX: 10, maxY: 10,
+      trauma: 1.0,
+      decay: 1.0,
+      maxX: 10,
+      maxY: 10,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -154,9 +230,19 @@ describe("CameraSystem — inactive camera", () => {
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 0, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 0,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -178,9 +264,19 @@ describe("CameraSystem — semantic hooks", () => {
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     cameraViewportMap.set(camId, "main");
 
@@ -200,9 +296,19 @@ describe("CameraSystem — semantic hooks", () => {
 
     const cam1 = engine.createEntity();
     engine.addComponent(cam1, Camera, {
-      active: 1, priority: 0, projectionType: 0,
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 0,
+      projectionType: 0,
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     cameraViewportMap.set(cam1, "main");
 
@@ -210,9 +316,19 @@ describe("CameraSystem — semantic hooks", () => {
 
     const cam2 = engine.createEntity();
     engine.addComponent(cam2, Camera, {
-      active: 1, priority: 1, projectionType: 0, // higher priority
-      x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0,
-      zoom: 1, fov: 1, near: -1, far: 1,
+      active: 1,
+      priority: 1,
+      projectionType: 0, // higher priority
+      x: 0,
+      y: 0,
+      z: 0,
+      rotX: 0,
+      rotY: 0,
+      rotZ: 0,
+      zoom: 1,
+      fov: 1,
+      near: -1,
+      far: 1,
     });
     cameraViewportMap.set(cam2, "main");
 

@@ -21,19 +21,19 @@ import { defineComponent, Types } from "@gwenjs/core";
 export const Camera = defineComponent({
   name: "Camera",
   schema: {
-    active:         Types.u32,
-    priority:       Types.f32,
-    x:              Types.f32,
-    y:              Types.f32,
-    z:              Types.f32,
-    rotX:           Types.f32,
-    rotY:           Types.f32,
-    rotZ:           Types.f32,
-    projectionType: Types.u32,  // 0 = orthographic, 1 = perspective
-    zoom:           Types.f32,  // orthographic
-    fov:            Types.f32,  // perspective, radians
-    near:           Types.f32,
-    far:            Types.f32,
+    active: Types.u32,
+    priority: Types.f32,
+    x: Types.f32,
+    y: Types.f32,
+    z: Types.f32,
+    rotX: Types.f32,
+    rotY: Types.f32,
+    rotZ: Types.f32,
+    projectionType: Types.u32, // 0 = orthographic, 1 = perspective
+    zoom: Types.f32, // orthographic
+    fov: Types.f32, // perspective, radians
+    near: Types.f32,
+    far: Types.f32,
   },
 });
 
@@ -47,10 +47,10 @@ export const FollowTarget = defineComponent({
   name: "FollowTarget",
   schema: {
     entityId: Types.u32,
-    lerp:     Types.f32,
-    offsetX:  Types.f32,
-    offsetY:  Types.f32,
-    offsetZ:  Types.f32,
+    lerp: Types.f32,
+    offsetX: Types.f32,
+    offsetY: Types.f32,
+    offsetZ: Types.f32,
   },
 });
 
@@ -81,10 +81,10 @@ export const CameraBounds = defineComponent({
 export const CameraShake = defineComponent({
   name: "CameraShake",
   schema: {
-    trauma:  Types.f32,
-    decay:   Types.f32,
-    maxX:    Types.f32,
-    maxY:    Types.f32,
+    trauma: Types.f32,
+    decay: Types.f32,
+    maxX: Types.f32,
+    maxY: Types.f32,
   },
 });
 
@@ -98,7 +98,7 @@ export const CameraShake = defineComponent({
 export const CameraPath = defineComponent({
   name: "CameraPath",
   schema: {
-    index:    Types.u32,
+    index: Types.u32,
     progress: Types.f32,
   },
 });
