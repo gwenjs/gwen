@@ -5,6 +5,7 @@
 
 ### Features
 
+* **app:** add viewports support via gwen.config.ts ([eaddd4a](https://github.com/gwenjs/gwen/commit/eaddd4abd9f1d8edea3e59be093a9f0d7cef9205))
 * **renderer-core:** add camera and viewport singleton factories and composables ([ca5d323](https://github.com/gwenjs/gwen/commit/ca5d32369fbf8f327a7e968a52f636fbc65dc5ec))
 * **renderer-core:** add CameraManager service ([aa73a18](https://github.com/gwenjs/gwen/commit/aa73a183e365c893585791a7093bcbb239203b3a))
 * **renderer-core:** add scope field to LayerDef ([cb33e42](https://github.com/gwenjs/gwen/commit/cb33e42e9bef33f6b89d1654826a2596f4705e07))
