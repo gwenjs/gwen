@@ -304,35 +304,88 @@ onEvent('player-hit', (damage) => {
 
 ## Scènes
 
-### defineScene(options)
+### defineScene(name, factory)
 
 **Signature:**
 ```ts
-function defineScene(options: {
-  name: string;
-  systems?: SystemDef[];
-  actors?: ActorDef[];
-}): SceneDef
+function defineScene(name: string, factory: () => void): SceneFactory
 ```
 
-**Description.** Définit une scène avec des systèmes et des acteurs initiaux.
+**Description.** Définit une scène de jeu. La factory s'exécute dans un contexte engine actif au démarrage — tous les composables engine sont disponibles. Déclarez les systèmes et les hooks de cycle de vie via des composables. Le résultat est mis en cache, la factory ne s'exécute qu'une seule fois.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.name | `string` | Nom de scène unique |
-| options.systems | `SystemDef[]` | Systèmes à exécuter dans cette scène |
-| options.actors | `ActorDef[]` | Acteurs initiaux à générer |
+| name | `string` | Nom unique de la scène (utilisé par le routeur) |
+| factory | `() => void` | Fonction de setup — appelez `useSystem`, `onEnter`, `onExit` ici |
 
-**Retourne:** `SceneDef` — définition de scène.
+**Retourne:** `SceneFactory` — appelable, avec une propriété `.sceneName`.
 
 **Exemple:**
 ```ts
-const GameScene = defineScene({
-  name: 'Game',
-  systems: [PhysicsSystem, InputSystem],
-  actors: [Player, Enemy]
-});
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
+
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
+})
+```
+
+### useSystem(plugins)
+
+**Signature:**
+```ts
+function useSystem(plugins: GwenPlugin[]): void
+```
+
+**Description.** Déclare les systèmes actifs pendant cette scène. Doit être appelé dans la factory d'un `defineScene()`.
+
+**Lève:** `GwenContextError` si appelé hors d'une factory `defineScene()`.
+
+**Exemple:**
+```ts
+defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem, CollisionSystem])
+})
+```
+
+### onEnter(cb)
+
+**Signature:**
+```ts
+function onEnter(cb: (params?: Record<string, unknown>) => void | Promise<void>): void
+```
+
+**Description.** Enregistre un callback déclenché quand le routeur entre dans cette scène. Reçoit les params passés à `nav.send()`. Doit être appelé dans la factory d'un `defineScene()`.
+
+**Lève:** `GwenContextError` si appelé hors d'une factory `defineScene()`.
+
+**Exemple:**
+```ts
+defineScene('game', () => {
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+})
+```
+
+### onExit(cb)
+
+**Signature:**
+```ts
+function onExit(cb: () => void | Promise<void>): void
+```
+
+**Description.** Enregistre un callback déclenché quand le routeur quitte cette scène. Doit être appelé dans la factory d'un `defineScene()`.
+
+**Lève:** `GwenContextError` si appelé hors d'une factory `defineScene()`.
+
+**Exemple:**
+```ts
+defineScene('game', () => {
+  const player = useActor(PlayerActor)
+  onExit(() => player.despawnAll())
+})
 ```
 
 ### defineSceneRouter(options)
@@ -341,11 +394,11 @@ const GameScene = defineScene({
 ```ts
 function defineSceneRouter(options: {
   initial: string;
-  routes: Record<string, { scene: SceneDef; on?: Record<string, string> }>;
+  routes: Record<string, { scene: SceneFactory; on?: Record<string, string> }>;
 }): SceneRouterDef
 ```
 
-**Description.** Définit un routeur de scène avec des transitions nommées.
+**Description.** Définit un routeur de scènes pour gérer les transitions.
 
 **Retourne:** `SceneRouterDef`
 
@@ -367,7 +420,7 @@ export const AppRouter = defineSceneRouter({
 function useSceneRouter<TRoutes>(routerDef: SceneRouterDef<TRoutes>): SceneRouterHandle<TRoutes>
 ```
 
-**Description.** Retourne le handle du routeur pour déclencher des transitions depuis un acteur ou un système.
+**Description.** Retourne le handle runtime pour un routeur de scènes. Appelez `.send()` pour déclencher des transitions.
 
 **Retourne:** `SceneRouterHandle` — `{ send, can, current, params }`.
 
@@ -375,9 +428,6 @@ function useSceneRouter<TRoutes>(routerDef: SceneRouterDef<TRoutes>): SceneRoute
 ```ts
 const nav = useSceneRouter(AppRouter)
 await nav.send('START')
-nav.can('START')   // boolean
-nav.current        // nom de la scène courante
-nav.params         // paramètres passés lors de la transition
 ```
 
 ## Acteurs
