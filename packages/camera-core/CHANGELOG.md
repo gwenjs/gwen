@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/gwenjs/gwen/compare/camera-core-v0.1.0...camera-core-v0.1.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* **camera-core:** fix any type useless ([9aad861](https://github.com/gwenjs/gwen/commit/9aad861233100b31bc42b991a1a16753a0c7a495))
+
 ## 0.1.0 (2026-04-10)
 
 

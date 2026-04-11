@@ -1,6 +1,6 @@
 {
   "packages/app": "0.3.0",
-  "packages/camera-core": "0.1.0",
+  "packages/camera-core": "0.1.1",
   "packages/core": "0.2.0",
   "packages/kit": "0.2.0",
   "packages/math": "0.1.1",
