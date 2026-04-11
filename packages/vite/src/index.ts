@@ -458,7 +458,7 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
       "",
       "  // Wire scenes: collect system plugins via SceneRegistry adapter",
       "  const usages = [];",
-      "  registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } });",
+      "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } }));",
       "  await Promise.all(usages);",
     );
   }
