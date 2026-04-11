@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/gwenjs/gwen/compare/renderer-core-v0.4.1...renderer-core-v0.4.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* use workspace:^ for internal dependencies to allow patch resolution ([a693325](https://github.com/gwenjs/gwen/commit/a6933253b1204bb7b650c1500c5745ea3f0276e3))
+
 ## [0.4.1](https://github.com/gwenjs/gwen/compare/renderer-core-v0.4.0...renderer-core-v0.4.1) (2026-04-11)
 
 
