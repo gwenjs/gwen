@@ -9,32 +9,43 @@ Une **scène** regroupe les systèmes actifs pour un état de jeu. Changez de sc
 
 ## Définir une scène
 
-Utilisez `defineScene()` pour créer une scène. Deux formes sont disponibles :
-
-**Forme options :**
+Utilisez `defineScene()` pour créer une scène. La factory est un contexte de setup : déclarez les systèmes et les hooks de cycle de vie via des composables.
 
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { useActor } from '@gwenjs/core/actor'
 import { MovementSystem, RenderSystem } from './systems'
+import { PlayerActor } from './actors/player'
 
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, RenderSystem],
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
+
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
 })
 ```
 
-**Forme factory** — pour les requêtes inline, les hooks de cycle de vie et la configuration réactive :
+## Composables de scène
+
+| Composable | Utilisation |
+|---|---|
+| `useSystem([...])` | Déclare les systèmes actifs pendant cette scène |
+| `onEnter(cb)` | Spawne des acteurs, charge des ressources, lance la musique à l'activation |
+| `onExit(cb)` | Despawne les acteurs, libère les ressources à la sortie |
+
+La factory s'exécute dans un contexte engine actif : `useEngine()`, `useActor()`, `usePrefab()` et `useSceneRouter()` sont tous disponibles.
+
+## Scène minimale
+
+Une scène sans acteurs ni hooks de cycle de vie :
 
 ```typescript
-// imports omitted for brevity
-export const GameScene = defineScene('game', () => {
-  const entities = useQuery({ with: [Position, Velocity] })
+import { defineScene, useSystem } from '@gwenjs/core/scene'
+import { MovementSystem, RenderSystem } from './systems'
 
-  onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-    }
-  })
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
 })
 ```
 
