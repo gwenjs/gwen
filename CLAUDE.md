@@ -41,72 +41,42 @@ const entities = useQuery([Health], { onChange: ... })
 
 ---
 
-## defineSystem
+## defineScene
 
-**Signatures valides :**
-
-```ts
-defineSystem(name: string, setup: () => void): GwenPlugin
-defineSystem(setup: () => void): GwenPlugin
-```
+**Signature :** `defineScene(name: string, setup: () => void): SceneFactory`
 
 ```ts
-// ✅ CORRECT — nom string explicite (recommandé sans le plugin Vite)
-export const MovementSystem = defineSystem('MovementSystem', () => {
-  const entities = useQuery([Position, Velocity])
-  onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-    }
-  })
+// ✅ CORRECT — forme unique, tout par composables
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
+
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
 })
 
-// ✅ CORRECT — avec le plugin Vite (@gwenjs/vite), le nom est injecté automatiquement
-// depuis le nom de la variable exportée
-export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
-  onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-    }
-  })
+// ❌ FAUX — forme objet supprimée
+export const GameScene = defineScene({
+  name: 'game',
+  systems: [MovementSystem, RenderSystem],
 })
 
-// ❌ FAUX — forme objet inexistante
-defineSystem({ setup() { ... } })
-
-// ❌ FAUX — ne retourne pas de callback
-defineSystem(() => {
-  return (ctx) => { ... }
-})
-```
-
-- Prend soit `(name, setup)` soit `(setup)` directement, **pas** un objet `{ setup }`
-- La fonction setup **ne retourne rien** — les callbacks frame sont enregistrés via composables
-- Retourne `GwenPlugin`, pas `SystemDef`
-- Le plugin Vite `gwenSystemPlugin` (inclus dans `gwenVitePlugin`) injecte le nom automatiquement depuis `export const X = defineSystem(() => {})`
-
----
-
-## defineComponent
-
-**Deux formes valides :**
-
-```ts
-// ✅ Forme objet (recommandée)
-export const Position = defineComponent({
-  name: 'Position',
-  schema: { x: Types.f32, y: Types.f32 },
-})
-
-// ✅ Forme factory (pour schéma dynamique)
-export const Position = defineComponent('Position', () => ({
-  schema: { x: Types.f32, y: Types.f32 },
+// ❌ FAUX — la factory ne retourne rien
+export const GameScene = defineScene('game', () => ({
+  systems: [MovementSystem],
 }))
-
-// ❌ FAUX — la factory doit retourner { schema: ... }, pas les valeurs directement
-export const Position = defineComponent('Position', () => ({ x: 0, y: 0 }))
 ```
+
+Composables disponibles dans la factory :
+
+| Composable | Rôle |
+|---|---|
+| `useSystem([...plugins])` | Déclare les systèmes actifs pour cette scène |
+| `onEnter(cb)` | Callback déclenché quand la scène devient active |
+| `onExit(cb)` | Callback déclenché quand la scène est quittée |
+
+Composables engine également disponibles dans la factory (contexte engine actif) :
+- `useEngine()`, `useActor()`, `usePrefab()`, `useSceneRouter()`
 
 ---
 
@@ -336,7 +306,7 @@ defineGwenModule('@my-scope/module', { exports: { ... } })
 | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `initWasm` | `@gwenjs/core` |
 | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` | `@gwenjs/core/system` |
 | `defineActor`, `onStart`, `onDestroy`, `onEvent`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` | `@gwenjs/core/actor` |
-| `defineScene`, `defineSceneRouter`, `useSceneRouter` | `@gwenjs/core/scene` |
+| `defineScene`, `defineSceneRouter`, `useSceneRouter`, `useSystem`, `onEnter`, `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
 | `defineGwenModule` | `@gwenjs/kit/module` |
 | `defineConfig` | `@gwenjs/app` |
