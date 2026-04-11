@@ -668,44 +668,100 @@ transform.x += 10;
 
 Scene and router definition.
 
-**Exports:** `defineScene`, `defineSceneRouter`, `useSceneRouter`
+**Exports:** `defineScene`, `useSystem`, `onEnter`, `onExit`, `defineSceneRouter`, `useSceneRouter`
 
 **Usage:**
 ```ts
-import { defineScene, defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { defineSceneRouter, useSceneRouter } from '@gwenjs/core/scene'
 ```
 
 ### Scenes
 
-#### defineScene(options)
+#### defineScene(name, factory)
 
 **Signature:**
 ```ts
-function defineScene(options: {
-  name: string;
-  systems?: SystemDef[];
-  actors?: ActorDef[];
-}): SceneDef
+function defineScene(name: string, factory: () => void): SceneFactory
 ```
 
-**Description.** Defines a scene with systems and initial actors.
+**Description.** Defines a game scene. The factory runs inside an engine context at bootstrap — all engine composables are available. Declare systems and lifecycle hooks via composables. The factory result is cached and only executed once.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.name | `string` | Unique scene name |
-| options.systems | `SystemDef[]` | Systems to run in this scene |
-| options.actors | `ActorDef[]` | Initial actors to spawn |
+| name | `string` | Unique scene name (used by the router) |
+| factory | `() => void` | Setup function — call `useSystem`, `onEnter`, `onExit` here |
 
-**Returns:** `SceneDef` — scene definition.
+**Returns:** `SceneFactory` — callable with a `.sceneName` property.
 
 **Example:**
 ```ts
-const GameScene = defineScene({
-  name: 'Game',
-  systems: [PhysicsSystem, InputSystem],
-  actors: [Player, Enemy]
-});
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
+
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
+})
+```
+
+#### useSystem(plugins)
+
+**Signature:**
+```ts
+function useSystem(plugins: GwenPlugin[]): void
+```
+
+**Description.** Declares the systems that run while this scene is active. Must be called inside a `defineScene()` factory.
+
+**Throws:** `GwenContextError` if called outside a `defineScene()` factory.
+
+**Example:**
+```ts
+defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem, CollisionSystem])
+})
+```
+
+#### onEnter(cb)
+
+**Signature:**
+```ts
+function onEnter(cb: (params?: Record<string, unknown>) => void | Promise<void>): void
+```
+
+**Description.** Registers a callback fired when the engine routes to this scene. Receives the params passed to `nav.send()`. Must be called inside a `defineScene()` factory.
+
+**Throws:** `GwenContextError` if called outside a `defineScene()` factory.
+
+**Example:**
+```ts
+defineScene('game', () => {
+  const player = useActor(PlayerActor)
+  onEnter((params) => {
+    player.spawnOnce({ x: params?.startX as number ?? 400, y: 530 })
+  })
+})
+```
+
+#### onExit(cb)
+
+**Signature:**
+```ts
+function onExit(cb: () => void | Promise<void>): void
+```
+
+**Description.** Registers a callback fired when the engine routes away from this scene. Must be called inside a `defineScene()` factory.
+
+**Throws:** `GwenContextError` if called outside a `defineScene()` factory.
+
+**Example:**
+```ts
+defineScene('game', () => {
+  const player = useActor(PlayerActor)
+  onExit(() => player.despawnAll())
+})
 ```
 
 #### defineSceneRouter(options)
@@ -714,7 +770,7 @@ const GameScene = defineScene({
 ```ts
 function defineSceneRouter(options: {
   initial: string;
-  routes: Record<string, { scene: SceneDef; on: Record<string, string> }>;
+  routes: Record<string, { scene: SceneFactory; on: Record<string, string> }>;
 }): SceneRouterDef
 ```
 
@@ -761,4 +817,3 @@ await nav.send('START')        // trigger transition
 nav.can('START')               // check if valid
 nav.current                    // current state name
 ```
-
