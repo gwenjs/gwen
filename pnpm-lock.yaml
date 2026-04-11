@@ -70,16 +70,16 @@ importers:
   packages/camera-core:
     dependencies:
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@gwenjs/kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../kit
       '@gwenjs/math':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../math
       '@gwenjs/renderer-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../renderer-core
     devDependencies:
       typescript:
@@ -98,10 +98,10 @@ importers:
   packages/core:
     dependencies:
       '@gwenjs/math':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../math
       '@gwenjs/schema':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../schema
       hookable:
         specifier: ^6.0.1
@@ -126,10 +126,10 @@ importers:
   packages/kit:
     dependencies:
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@gwenjs/schema':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../schema
     devDependencies:
       typescript:
@@ -163,13 +163,13 @@ importers:
   packages/physics2d:
     dependencies:
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@gwenjs/kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../kit
       '@gwenjs/vite':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../vite
     devDependencies:
       '@types/node':
@@ -197,13 +197,13 @@ importers:
   packages/physics3d:
     dependencies:
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@gwenjs/kit':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../kit
       '@gwenjs/vite':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../vite
     devDependencies:
       hookable:
@@ -243,7 +243,7 @@ importers:
   packages/renderer-core:
     dependencies:
       '@gwenjs/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
     devDependencies:
       happy-dom:
