@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 import { defineScene } from "../../src/scene/define-scene.js";
+import { useSystem, onEnter, onExit } from "../../src/scene/scene-context.js";
 import { defineSceneRouter } from "../../src/router/define-scene-router.js";
 import { useSceneRouter } from "../../src/router/use-scene-router.js";
 
@@ -8,14 +9,18 @@ const onEnterMenu = vi.fn();
 const onExitMenu = vi.fn();
 const onEnterGame = vi.fn();
 
-const MenuScene = defineScene({
-  name: "Menu",
-  systems: [],
-  onEnter: onEnterMenu,
-  onExit: onExitMenu,
+const MenuScene = defineScene("Menu", () => {
+  useSystem([]);
+  onEnter(onEnterMenu);
+  onExit(onExitMenu);
 });
-const GameScene = defineScene({ name: "Game", systems: [], onEnter: onEnterGame });
-const PauseScene = defineScene({ name: "Pause", systems: [] });
+const GameScene = defineScene("Game", () => {
+  useSystem([]);
+  onEnter(onEnterGame);
+});
+const PauseScene = defineScene("Pause", () => {
+  useSystem([]);
+});
 
 const AppRouter = defineSceneRouter({
   initial: "menu",
@@ -59,8 +64,13 @@ describe("useSceneRouter()", () => {
 
   it("send() passes params to onEnter of target scene", async () => {
     const onEnterSpy = vi.fn();
-    const SceneA = defineScene({ name: "A", systems: [] });
-    const SceneB = defineScene({ name: "B", systems: [], onEnter: onEnterSpy });
+    const SceneA = defineScene("A", () => {
+      useSystem([]);
+    });
+    const SceneB = defineScene("B", () => {
+      useSystem([]);
+      onEnter(onEnterSpy);
+    });
     const router = defineSceneRouter({
       initial: "a",
       routes: {
@@ -80,7 +90,6 @@ describe("useSceneRouter()", () => {
     const engine = await createEngine();
     await engine.run(async () => {
       const nav = useSceneRouter(AppRouter);
-      // 'WIN' is not valid in 'menu' state
       await expect(nav.send("WIN" as any)).resolves.toBeUndefined();
       expect(nav.current).toBe("menu");
     });
