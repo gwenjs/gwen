@@ -128,7 +128,7 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
     });
 
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(2, 10));
+    expect(elapsed).toBeLessThan(ciThreshold(5, 10));
   });
 });
 

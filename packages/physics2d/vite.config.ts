@@ -16,6 +16,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, "src/index.ts"),
+        module: resolve(__dirname, "src/module.ts"),
         core: resolve(__dirname, "src/core.ts"),
         helpers: resolve(__dirname, "src/helpers.ts"),
         "helpers-queries": resolve(__dirname, "src/helpers-queries.ts"),

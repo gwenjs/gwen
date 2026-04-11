@@ -14,16 +14,18 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "GwenCore",
-      formats: ["es", "cjs"],
-      fileName: (format) => `index.${format === "es" ? "js" : "cjs"}`,
+      entry: {
+        index: resolve(__dirname, "src/index.ts"),
+        "system/index": resolve(__dirname, "src/system/index.ts"),
+        "actor/index": resolve(__dirname, "src/actor/index.ts"),
+        "scene/index": resolve(__dirname, "src/scene/index.ts"),
+      },
+      formats: ["es"],
     },
     rollupOptions: {
       output: {
-        globals: {
-          "@gwenjs/core": "GwenCore",
-        },
+        entryFileNames: "[name].js",
+        chunkFileNames: "chunks/[name]-[hash].js",
       },
     },
   },

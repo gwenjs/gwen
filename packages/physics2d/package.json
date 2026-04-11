@@ -63,7 +63,7 @@
       },
       "./module": {
         "types": "./dist/module.d.ts",
-        "import": "./dist/index.js"
+        "import": "./dist/module.js"
       },
       "./core": {
         "types": "./dist/core.d.ts",
