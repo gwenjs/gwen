@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/gwenjs/gwen/compare/physics2d-v0.2.1...physics2d-v0.2.2) (2026-04-11)
+
+
+### Bug Fixes
+
+* use workspace:^ for internal dependencies to allow patch resolution ([a693325](https://github.com/gwenjs/gwen/commit/a6933253b1204bb7b650c1500c5745ea3f0276e3))
+
 ## [0.2.1](https://github.com/gwenjs/gwen/compare/physics2d-v0.2.0...physics2d-v0.2.1) (2026-04-11)
 
 
