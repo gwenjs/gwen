@@ -87,8 +87,8 @@
     "watch": "vite build --watch"
   },
   "dependencies": {
-    "@gwenjs/math": "workspace:*",
-    "@gwenjs/schema": "workspace:*",
+    "@gwenjs/math": "workspace:^",
+    "@gwenjs/schema": "workspace:^",
     "hookable": "^6.0.1",
     "unctx": "^2.5.0"
   },

@@ -31,10 +31,10 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@gwenjs/core": "workspace:*",
-    "@gwenjs/kit": "workspace:*",
-    "@gwenjs/math": "workspace:*",
-    "@gwenjs/renderer-core": "workspace:*"
+    "@gwenjs/core": "workspace:^",
+    "@gwenjs/kit": "workspace:^",
+    "@gwenjs/math": "workspace:^",
+    "@gwenjs/renderer-core": "workspace:^"
   },
   "devDependencies": {
     "typescript": "^6.0.2",

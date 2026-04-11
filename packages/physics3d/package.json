@@ -31,9 +31,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@gwenjs/core": "workspace:*",
-    "@gwenjs/kit": "workspace:*",
-    "@gwenjs/vite": "workspace:*"
+    "@gwenjs/core": "workspace:^",
+    "@gwenjs/kit": "workspace:^",
+    "@gwenjs/vite": "workspace:^"
   },
   "devDependencies": {
     "hookable": "^6.0.1",

@@ -57,8 +57,8 @@
     "watch": "vite build --watch"
   },
   "dependencies": {
-    "@gwenjs/core": "workspace:*",
-    "@gwenjs/schema": "workspace:*"
+    "@gwenjs/core": "workspace:^",
+    "@gwenjs/schema": "workspace:^"
   },
   "devDependencies": {
     "typescript": "^6.0.2",

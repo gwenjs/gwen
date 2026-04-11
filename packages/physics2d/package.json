@@ -123,9 +123,9 @@
     "bench:ci": "BENCH_SLOW=1 vitest bench --run && BENCH_SLOW=1 vitest run bench/solver.test.ts bench/bundle-size.test.ts bench/perf-gate.test.ts"
   },
   "dependencies": {
-    "@gwenjs/core": "workspace:*",
-    "@gwenjs/kit": "workspace:*",
-    "@gwenjs/vite": "workspace:*"
+    "@gwenjs/core": "workspace:^",
+    "@gwenjs/kit": "workspace:^",
+    "@gwenjs/vite": "workspace:^"
   },
   "devDependencies": {
     "@types/node": "^20.19.37",
