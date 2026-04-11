@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/gwenjs/gwen/compare/core-v0.2.0...core-v0.2.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* correct publishConfig subpath exports to point to dedicated dist chunks ([ad31d31](https://github.com/gwenjs/gwen/commit/ad31d314e6515f1105ab537e9cd6fcd662a4cb68))
+
 ## [0.2.0](https://github.com/gwenjs/gwen/compare/core-v0.1.0...core-v0.2.0) (2026-04-09)
 
 
