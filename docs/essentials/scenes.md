@@ -9,32 +9,43 @@ A **scene** groups the active systems for one game state. Swap scenes to change 
 
 ## Defining a Scene
 
-Use `defineScene()` to create a scene. Two forms are supported:
-
-**Options form:**
+Use `defineScene()` to create a scene. The factory body is a setup context: declare systems and lifecycle hooks via composables.
 
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { useActor } from '@gwenjs/core/actor'
 import { MovementSystem, RenderSystem } from './systems'
+import { PlayerActor } from './actors/player'
 
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, RenderSystem],
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
+
+  const player = useActor(PlayerActor)
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
 })
 ```
 
-**Factory form** — for inline queries, lifecycle hooks, and reactive setup:
+## Scene Composables
+
+| Composable | When to use |
+|---|---|
+| `useSystem([...])` | Declare which systems run while this scene is active |
+| `onEnter(cb)` | Spawn actors, load resources, start music when the scene activates |
+| `onExit(cb)` | Despawn actors, release resources when leaving the scene |
+
+The factory runs inside an active engine context, so `useEngine()`, `useActor()`, `usePrefab()`, and `useSceneRouter()` are all available.
+
+## Minimal Scene
+
+A scene with no actors and no lifecycle hooks:
 
 ```typescript
-// imports omitted for brevity
-export const GameScene = defineScene('game', () => {
-  const entities = useQuery([Position, Velocity])
+import { defineScene, useSystem } from '@gwenjs/core/scene'
+import { MovementSystem, RenderSystem } from './systems'
 
-  onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-    }
-  })
+export const GameScene = defineScene('game', () => {
+  useSystem([MovementSystem, RenderSystem])
 })
 ```
 
