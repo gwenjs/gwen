@@ -198,8 +198,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const hooks = engine.hooks as any;
+    const hooks = engine.hooks;
 
     for (const [viewportId, entityId] of currentActivePerViewport) {
       const prev = activeEntityPerViewport.get(viewportId);
