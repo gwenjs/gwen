@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/gwenjs/gwen/compare/renderer-core-v0.4.0...renderer-core-v0.4.1) (2026-04-11)
+
+
+### Bug Fixes
+
+* renderer core package json exports ([ab38734](https://github.com/gwenjs/gwen/commit/ab38734b2d78222b2b683039240b227706141162))
+
 ## [0.4.0](https://github.com/gwenjs/gwen/compare/renderer-core-v0.3.0...renderer-core-v0.4.0) (2026-04-10)
 
 
