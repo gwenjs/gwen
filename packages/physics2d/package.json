@@ -1,6 +1,6 @@
 {
   "name": "@gwenjs/physics2d",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "2D physics plugin for GWEN — pure adapter for core WASM",
   "files": [
     "dist"

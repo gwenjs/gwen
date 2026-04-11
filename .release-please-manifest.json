@@ -1,10 +1,10 @@
 {
   "packages/app": "0.3.0",
   "packages/camera-core": "0.1.1",
-  "packages/core": "0.2.0",
+  "packages/core": "0.2.1",
   "packages/kit": "0.2.0",
   "packages/math": "0.1.1",
-  "packages/physics2d": "0.2.0",
+  "packages/physics2d": "0.2.1",
   "packages/physics3d": "0.2.0",
   "packages/renderer-core": "0.4.1",
   "packages/schema": "0.1.1",
