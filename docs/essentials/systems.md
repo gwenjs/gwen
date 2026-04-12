@@ -1,27 +1,23 @@
 ---
 title: Systems
-description: Systems are where all game logic lives in GWEN. Learn to define and compose them.
+description: Systems are where all game logic lives in GWEN. Learn to define them, inject dependencies, and control their lifecycle.
 ---
 
 # Systems
 
-A **system** is a function that runs every frame and reads/writes component data. Systems are the game logic layer of GWEN's ECS. This guide shows you how to define systems, query entities, and access services.
+A **system** is a function that runs every frame and reads/writes component data. Systems are the game logic layer of GWEN's ECS.
 
-## The Basics
+## Defining a System
 
-### Defining a System
-
-Use `defineSystem()` to declare a system. Inside the setup function, register callbacks that run during the game loop:
+Use `defineSystem()` to declare a system. It returns a **factory function** — you call it to produce a plugin, then pass that plugin to `useSystem()` inside a scene.
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { defineSystem, onUpdate, useQuery } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
-  // Setup phase: runs once when the system initializes
   const entities = useQuery([Position, Velocity])
 
-  // Frame callback: runs every frame
   onUpdate((dt) => {
     for (const id of entities) {
       Position.x[id] += Velocity.x[id] * dt
@@ -31,11 +27,22 @@ export const MovementSystem = defineSystem(() => {
 })
 ```
 
-### System Naming
+## Registering Systems in a Scene
 
-The engine uses a name to identify each system (for debugging and plugin deduplication). When you use `gwenVitePlugin`, the name is **injected automatically** from the exported variable — no extra boilerplate needed.
+Call `useSystem()` once per system inside `defineScene()`. Each call returns a `SystemHandle`:
 
-Without the Vite plugin (e.g. in Node.js tests), pass the name explicitly as a first argument:
+```ts
+import { defineScene, useSystem } from '@gwenjs/core/scene'
+
+export const GameScene = defineScene('game', () => {
+  const movement = useSystem(MovementSystem())
+  const render   = useSystem(RenderSystem())
+})
+```
+
+## System Naming
+
+The engine uses a name to identify each system (deduplication and debugging). With `gwenVitePlugin`, the name is **injected automatically** from the exported variable. Without the Vite plugin (tests, Node.js), pass it explicitly:
 
 ```ts
 // ✅ With Vite plugin — name inferred from export const
@@ -44,385 +51,108 @@ export const MovementSystem = defineSystem(() => { ... })
 // ✅ Without Vite plugin — explicit name
 export const MovementSystem = defineSystem('MovementSystem', () => { ... })
 ```
-```
 
-Systems are registered in a scene:
+## Dependency Injection
+
+Systems can declare typed dependencies as parameters. The scene wires them at setup time, keeping the system decoupled from concrete actor types.
 
 ```ts
-import { defineScene } from '@gwenjs/core/scene'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, DamageSystem, RenderSystem],
+// Accepts any object with a takeDamage method — not tied to PlayerActor
+export const CombatSystem = defineSystem((target: { takeDamage(n: number): void }) => {
+  onUpdate(() => target.takeDamage(5))
 })
 ```
 
-### Why Split Setup and Frame Phases?
-
-The setup phase is expensive (queries are computed once), but the frame phase is lightweight (just data access). This two-phase design means:
-
-- **Setup** — `useQuery()` scans all entities once, building the matching set
-- **Frame** — `onUpdate()` iterates over the cached query result (very fast)
-
-If queries were recomputed every frame, your game would be slow.
-
-## Lifecycle Hooks
-
-Systems have several callback hooks available:
-
-| Hook | Signature | When | Use Case |
-|---|---|---|---|
-| `onUpdate()` | `onUpdate(cb: (dt: number) => void)` | Every frame | Update positions, check collisions |
-| `onBeforeUpdate()` | `onBeforeUpdate(cb: (dt: number) => void)` | Before main update | Pre-process data |
-| `onAfterUpdate()` | `onAfterUpdate(cb: (dt: number) => void)` | After main update | Post-process data |
-| `onRender()` | `onRender(cb: () => void)` | During render phase | Render updates |
-
-Example:
+In the scene:
 
 ```ts
-import { defineSystem, useQuery, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/system'
-import { Position, Velocity } from './components'
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+import { useActor } from '@gwenjs/core/actor'
 
-export const MySystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+export const GameScene = defineScene('game', () => {
+  const player = useActor(PlayerActor)
 
-  onBeforeUpdate((dt) => {
-    // Pre-process step
-  })
+  const movement = useSystem(MovementSystem())
+  const combat   = useSystem(CombatSystem(player))  // player implements the interface
 
+  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+  onExit(() => player.despawnAll())
+})
+```
+
+## SystemHandle — Lifecycle Control
+
+`useSystem()` returns a `SystemHandle`:
+
+```ts
+interface SystemHandle {
+  pause(): void    // stop frame callbacks, preserve state
+  resume(): void   // restart callbacks
+  destroy(): void  // permanently remove from frame loop
+  readonly active: boolean
+}
+```
+
+```ts
+const combat = useSystem(CombatSystem(player))
+
+// During a cinematic — pause combat logic
+combat.pause()
+
+// After the cinematic ends
+combat.resume()
+```
+
+### Pause and Scene Overlays
+
+If a scene overlay (e.g. a pause menu) freezes the underlying scene, systems are automatically scene-paused by the engine. A system you paused yourself **will not** be reactivated when the overlay closes — only the engine's scene-pause is cleared:
+
+```ts
+combat.pause()           // you pause combat during a cutscene
+
+// player opens pause menu → engine scene-pauses all systems
+// player closes pause menu → engine scene-resumes non-user-paused systems
+
+// combat is still paused because YOU paused it
+combat.resume()          // explicitly resume when cutscene ends
+```
+
+## Actor Dependency Auto-Discovery
+
+If a system uses `useActor()` internally (for actors it owns), GWEN discovers and installs the actor plugin automatically — you do not need to declare it separately in the scene:
+
+```ts
+export const SpawnSystem = defineSystem(() => {
+  const asteroid = useActor(AsteroidActor)  // owned by this system
   onUpdate((dt) => {
-    // Update game state
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-    }
-  })
-
-  onAfterUpdate((dt) => {
-    // Post-process step
-  })
-
-  onRender(() => {
-    // Render the updated state
+    asteroid.spawn({ x: randomX(), y: -10 })
   })
 })
-```
 
-## Queries
-
-### Basic Query
-
-Query for all entities with a set of components:
-
-```ts
-const entities = useQuery([Position, Velocity])
-
-onUpdate((dt) => {
-  for (const id of entities) {
-    // Process all entities with Position and Velocity
-  }
+// In the scene — no explicit useActor(AsteroidActor) needed:
+export const GameScene = defineScene('game', () => {
+  useSystem(SpawnSystem())  // AsteroidActor is auto-discovered and installed
 })
 ```
 
-### Excluding Components
+## Frame Phases
 
-Some systems may need to filter entities differently. While the `exclude` option is not directly supported, you can achieve similar behavior by querying with different component combinations:
+Register callbacks in the correct phase:
 
-```ts
-const alive = useQuery([Health])
-
-onUpdate(() => {
-  for (const id of alive) {
-    // Process entities with Health
-  }
-})
-```
-
-### Reactive Queries
-
-Queries are reactive. If an entity gains or loses a component, the query result updates automatically:
+| Composable | Phase | Typical use |
+|---|---|---|
+| `onBeforeUpdate(dt)` | Before physics/WASM | Input sampling, pre-simulation |
+| `onUpdate(dt)` | Main update | Game logic, AI, movement |
+| `onAfterUpdate(dt)` | Post-update | State sync, scoring |
+| `onRender()` | Render | Draw calls (no `dt`) |
 
 ```ts
-const entities = useQuery([Health, Armor])
-
-onUpdate(() => {
-  // If an entity gets its Armor removed, it won't be in 'entities' next frame
-  for (const id of entities) {
-    // ...
-  }
-})
-```
-
-## Accessing Services
-
-Plugins expose services you can access from systems using `use*` hooks:
-
-### Physics Service
-
-```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { usePhysics2D } from '@gwenjs/physics2d'
-
-export const PhysicsSystem = defineSystem(() => {
-  const physics = usePhysics2D()
-
-  onUpdate(() => {
-    const bodies = physics.queryAABB({ x: 0, y: 0, w: 100, h: 100 })
-    // Handle physics queries
-  })
-})
-```
-
-### Engine Access
-
-```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useEngine } from '@gwenjs/core'
-
 export const InputSystem = defineSystem(() => {
-  const engine = useEngine()
-
-  onUpdate(() => {
-    if (engine.input.isKeyDown('ArrowRight')) {
-      // Handle input
-    }
-  })
+  onBeforeUpdate((dt) => { /* read input */ })
+  onUpdate((dt)       => { /* apply movement */ })
+  onAfterUpdate((dt)  => { /* update debug HUD */ })
+  onRender(()         => { /* draw debug overlay */ })
 })
 ```
-
-### useService
-
-Use `useService(key)` to access a runtime service registered by a plugin via `engine.provide()`. The return type is inferred from the `GwenProvides` interface. Plugins that register services augment this interface in their type declarations.
-
-```typescript
-import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
-
-export const AudioSystem = defineSystem(() => {
-  const audio = useService('audio') // typed via GwenProvides augmentation
-
-  onUpdate(() => {
-    if (audio.isLoaded('bgm')) audio.play('bgm')
-  })
-})
-```
-
-## Accessing WASM Modules
-
-Use `useWasmModule(name)` to access a WASM module loaded by a plugin via `engine.loadWasmModule()`. The generic type parameter types the `.exports` object. The module must have been loaded by a plugin before this system runs.
-
-```typescript
-import { defineSystem, useWasmModule, onUpdate } from '@gwenjs/core/system'
-
-export const PhysicsStepSystem = defineSystem(() => {
-  const mod = useWasmModule<{ step: (dt: number) => void }>('my-physics')
-
-  onUpdate((dt) => {
-    mod.exports.step(dt)
-  })
-})
-```
-
-## In Practice
-
-### Enemy AI System
-
-Here's a complete example: enemies that move toward the player:
-
-```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
-import { useEngine } from '@gwenjs/core'
-import { Position, Velocity, EnemyTag, PlayerTag } from './components'
-
-const ENEMY_SPEED = 50 // pixels per second
-
-export const EnemyAISystem = defineSystem(() => {
-  const enemies = useQuery([Position, Velocity, EnemyTag])
-  const player = useQuery([Position, PlayerTag])
-
-  onUpdate((dt) => {
-    if (player.length === 0) return
-
-    const playerPos = {
-      x: Position.x[player[0]],
-      y: Position.y[player[0]],
-    }
-
-    for (const id of enemies) {
-      const dx = playerPos.x - Position.x[id]
-      const dy = playerPos.y - Position.y[id]
-      const dist = Math.sqrt(dx * dx + dy * dy)
-
-      if (dist > 0) {
-        Velocity.x[id] = (dx / dist) * ENEMY_SPEED
-        Velocity.y[id] = (dy / dist) * ENEMY_SPEED
-      }
-    }
-  })
-})
-```
-
-### Damage System
-
-```ts
-import {
-  defineSystem,
-  useQuery,
-  onUpdate,
-} from '@gwenjs/core/system'
-import {
-  useEngine,
-} from '@gwenjs/core'
-import {
-  Health,
-  DamageTag,
-  DeadTag,
-  Armor,
-} from './components'
-
-export const DamageSystem = defineSystem(() => {
-  const damaged = useQuery([Health, DamageTag])
-  const engine = useEngine()
-
-  onUpdate(() => {
-    for (const id of damaged) {
-      const armorValue = Armor.value[id] ?? 0
-      const damageReduction = armorValue / (armorValue + 10)
-      Health.current[id] -= 10 * (1 - damageReduction)
-
-      if (Health.current[id] <= 0) {
-        engine.removeComponent(id, Health)
-        engine.addComponent(id, DeadTag)
-      }
-
-      engine.removeComponent(id, DamageTag)
-    }
-  })
-})
-```
-
-## System Ordering
-
-Systems run in the order you list them in the scene. If `RenderSystem` depends on `PhysicsSystem`, add physics first:
-
-```ts
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [
-    PhysicsSystem,      // Runs first
-    MovementSystem,     // Runs second
-    CollisionSystem,    // Runs third
-    RenderSystem,       // Runs last (reads updated positions)
-  ],
-})
-```
-
-## Error Handling in Systems
-
-Errors in a system's `onUpdate` callback are caught and logged. The game continues:
-
-```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-
-export const SafeSystem = defineSystem(() => {
-  onUpdate(() => {
-    try {
-      // Risky operation
-    } catch (err) {
-      console.error('System error:', err)
-      // Game continues
-    }
-  })
-})
-```
-
-For unrecoverable errors, emit an event:
-
-```ts
-import { defineSystem } from '@gwenjs/core/system'
-import { useEngine } from '@gwenjs/core'
-
-export const EngineAwareSystem = defineSystem(() => {
-  const engine = useEngine()
-
-  onUpdate(() => {
-    if (somethingBad) {
-      engine.errors.emit({
-        level: 'error',
-        code: 'GAME:UNRECOVERABLE',
-        message: 'Something went wrong',
-      })
-    }
-  })
-})
-```
-
-## Deep Dive
-
-### Setup vs. Frame Performance
-
-When you call `useQuery([Position, Velocity])` in the setup phase, GWEN:
-
-1. Scans all entities
-2. Builds a list of IDs matching `[Position, Velocity]`
-3. Caches the result
-
-When the query changes (an entity gains/loses a component), the result is recalculated. But during the frame loop, iteration is **O(n)** where n is the query size, not the total entity count.
-
-**Without caching (slow):**
-```
-for each entity in the world {
-  if it has Position and Velocity {
-    // process
-  }
-}
-// O(total entities) per frame
-```
-
-**With caching (fast):**
-```
-entities = [id1, id2, id3, ...] // computed once
-for each entity in entities {
-  // process
-}
-// O(matching entities) per frame
-```
-
-### System Composition
-
-Complex behavior emerges from simple systems. Here's a complete example:
-
-```ts
-// Systems update components independently
-- MovementSystem updates Position based on Velocity
-- DamageSystem updates Health based on DamageTag
-- RenderSystem reads Position and renders
-- PhysicsSystem handles collisions
-
-// No system depends on another's output directly
-// Data flows through components
-```
-
-This **decoupling** is why ECS scales. Add a new system? No refactoring needed—just define a new one.
-
-## API Summary
-
-| Function | Description |
-|---|---|
-| `defineSystem(setup)` | Declare a system (name auto-injected by Vite plugin) |
-| `defineSystem(name, setup)` | Declare a system with an explicit name |
-| `useQuery(components, opts?)` | Reactive entity set matching components |
-| `onUpdate(cb)` | Register frame callback |
-| `onBeforeUpdate(cb)` | Register pre-update callback |
-| `onAfterUpdate(cb)` | Register post-update callback |
-| `onRender(cb)` | Register render phase callback |
-| `useEngine()` | Access engine instance |
-| `usePhysics2D()` | Access physics service |
-| `useService(key)` | Access a runtime service registered via `engine.provide()` |
-| `useWasmModule(name)` | Access a WASM module loaded via `engine.loadWasmModule()` |
-| `engine.addComponent(id, Component, data)` | Add component to entity |
-| `engine.removeComponent(id, Component)` | Remove component from entity |
-
-## Next Steps
-
-- **[Components](/essentials/components)** — Define the data your systems will manipulate.
-- **[Architecture](/essentials/architecture)** — Understand how systems fit into ECS.
-- **[Scenes and Actors](/essentials/scenes)** — Learn how to organize systems in scenes.
