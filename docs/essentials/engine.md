@@ -29,17 +29,18 @@ The config file is processed **at build time** by Vite and sets up module resolu
 
 Used in **`gwen.config.ts`** only. Configures modules, WASM variant, and build hooks.
 
-| Property | Type | Description |
-|---|---|---|
-| `modules` | `GwenModuleEntry[]` | List of modules to activate (e.g., `['@gwenjs/physics2d']`) |
-| `engine.maxEntities` | `number` | Max simultaneous entities (default 10_000) |
-| `engine.targetFPS` | `number` | Target FPS (default 60) |
-| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to load |
-| `engine.loop` | `'internal' \| 'external'` | Game loop ownership (default 'internal') |
-| `engine.maxDeltaSeconds` | `number` | Max delta time per frame (default 0.1s) |
-| `vite` | `Record<string, unknown>` | Direct Vite config extension |
-| `hooks` | `Partial<GwenBuildHooks>` | Build-time hook subscriptions |
-| `plugins` | `GwenPlugin[]` | Direct plugin registration (escape hatch) |
+| Property                 | Type                                    | Description                                                 |
+|--------------------------|-----------------------------------------|-------------------------------------------------------------|
+| `modules`                | `GwenModuleEntry[]`                     | List of modules to activate (e.g., `['@gwenjs/physics2d']`) |
+| `engine.maxEntities`     | `number`                                | Max simultaneous entities (default 10_000)                  |
+| `engine.targetFPS`       | `number`                                | Target FPS (default 60)                                     |
+| `engine.variant`         | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to load                                        |
+| `engine.loop`            | `'internal' \| 'external'`              | Game loop ownership (default 'internal')                    |
+| `engine.maxDeltaSeconds` | `number`                                | Max delta time per frame (default 0.1s)                     |
+| `engine.debug`           | `boolean`                               | Activate debug globally                                     |
+| `vite`                   | `Record<string, unknown>`               | Direct Vite config extension                                |
+| `hooks`                  | `Partial<GwenBuildHooks>`               | Build-time hook subscriptions                               |
+| `plugins`                | `GwenPlugin[]`                          | Direct plugin registration (escape hatch)                   |
 
 **Example:**
 ```ts

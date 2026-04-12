@@ -86,14 +86,14 @@ async () => {
 }
 
 // In the GameScene:
-export const GameScene = defineScene('game', () => ({
-  systems: [GameSystem],
-  onEnter: async () => {
-    const nav = useSceneRouter(AppRouter)
-    const params = nav.params
-    console.log('Starting level', params.level)
-  },
-}))
+export const GameScene = defineScene('game', () => {
+    useSystem(GameSystem)
+    onEnter(async () => {
+        const nav = useSceneRouter(AppRouter)
+        const params = nav.params
+        console.log('Starting level', params.level)
+    })
+})
 ```
 
 ## Scene Lifecycle
@@ -104,19 +104,20 @@ When a transition fires:
 3. Systems from the old scene are deregistered, new ones registered
 
 ```typescript
-export const GameScene = defineScene('Game', () => ({
-  systems: [PlayerSystem, EnemySystem],
-  
-  onEnter: async () => {
-    console.log('Game scene loaded!')
-    await loadAssets()
-  },
-  
-  onExit: () => {
-    console.log('Game scene unloading')
-    cleanup()
-  },
-}))
+export const GameScene = defineScene('Game', () => {
+    useSystem(PlayerSystem())
+    useSystem(EnemySystem())
+
+    onEnter(async () => {
+        console.log('Game scene loaded!')
+        await loadAssets()
+    })
+
+    onExit(() => {
+        console.log('Game scene unloading')
+        cleanup()
+    })
+})
 ```
 
 ## Overlay Scenes

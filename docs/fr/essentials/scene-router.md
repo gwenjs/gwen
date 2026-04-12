@@ -85,14 +85,14 @@ async () => {
 }
 
 // Dans la GameScene :
-export const GameScene = defineScene('game', () => ({
-  systems: [GameSystem],
-  onEnter: async () => {
+export const GameScene = defineScene('game', () => {
+  useSystem(GameSystem)
+  onEnter(async () => {
     const nav = useSceneRouter(AppRouter)
     const params = nav.params
     console.log('Starting level', params.level)
-  },
-}))
+  })
+})
 ```
 
 ## Cycle de vie des scènes
@@ -103,19 +103,20 @@ Quand une transition se déclenche :
 3. Les systèmes de l'ancienne scène sont désenregistrés, les nouveaux sont enregistrés
 
 ```typescript
-export const GameScene = defineScene('Game', () => ({
-  systems: [PlayerSystem, EnemySystem],
+export const GameScene = defineScene('Game', () => {
+    useSystem(PlayerSystem())
+    useSystem(EnemySystem())
   
-  onEnter: async () => {
+  onEnter(async () => {
     console.log('Game scene loaded!')
     await loadAssets()
-  },
+  })
   
-  onExit: () => {
+  onExit(() => {
     console.log('Game scene unloading')
     cleanup()
-  },
-}))
+  })
+})
 ```
 
 ## Scènes en superposition

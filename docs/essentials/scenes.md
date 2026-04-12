@@ -46,7 +46,8 @@ import { defineScene, useSystem } from '@gwenjs/core/scene'
 import { MovementSystem, RenderSystem } from './systems'
 
 export const GameScene = defineScene('game', () => {
-  useSystem([MovementSystem, RenderSystem])
+    useSystem(MovementSystem())
+    useSystem(RenderSystem())
 })
 ```
 

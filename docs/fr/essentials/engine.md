@@ -29,17 +29,18 @@ Le fichier de configuration est traité **à la compilation** par Vite et config
 
 Utilisée **uniquement dans `gwen.config.ts`**. Configure les modules, la variante WASM et les crochets de compilation.
 
-| Propriété | Type | Description |
-|---|---|---|
-| `modules` | `GwenModuleEntry[]` | Liste des modules à activer (ex. : `['@gwenjs/physics2d']`) |
-| `engine.maxEntities` | `number` | Nombre maximal d'entités simultanées (par défaut 10_000) |
-| `engine.targetFPS` | `number` | FPS cibles (par défaut 60) |
-| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger |
-| `engine.loop` | `'internal' \| 'external'` | Propriétaire de la boucle de jeu (par défaut 'internal') |
-| `engine.maxDeltaSeconds` | `number` | Delta temps max par frame (par défaut 0.1s) |
-| `vite` | `Record<string, unknown>` | Extension directe de la configuration Vite |
-| `hooks` | `Partial<GwenBuildHooks>` | Souscriptions aux crochets de compilation |
-| `plugins` | `GwenPlugin[]` | Enregistrement direct de plugins (porte de secours) |
+| Propriété                | Type                                    | Description                                                |
+|--------------------------|-----------------------------------------|------------------------------------------------------------|
+| `modules`                | `GwenModuleEntry[]`                     | Liste des modules à activer (ex. : `['@gwenjs/physics2d']`) |
+| `engine.maxEntities`     | `number`                                | Nombre maximal d'entités simultanées (par défaut 10_000)   |
+| `engine.targetFPS`       | `number`                                | FPS cibles (par défaut 60)                                 |
+| `engine.variant`         | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger                                    |
+| `engine.loop`            | `'internal' \| 'external'`              | Propriétaire de la boucle de jeu (par défaut 'internal')   |
+| `engine.maxDeltaSeconds` | `number`                                | Delta temps max par frame (par défaut 0.1s)                |
+| `engine.debug`           | `boolean`                               | Activer le debug globalement                               |
+| `vite`                   | `Record<string, unknown>`               | Extension directe de la configuration Vite                 |
+| `hooks`                  | `Partial<GwenBuildHooks>`               | Souscriptions aux crochets de compilation                  |
+| `plugins`                | `GwenPlugin[]`                          | Enregistrement direct de plugins (porte de secours)        |
 
 **Exemple :**
 ```ts
