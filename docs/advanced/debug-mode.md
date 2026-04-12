@@ -323,5 +323,6 @@ These checks catch bugs early but add ~5–10% overhead.
 
 ## Next Steps
 
+- **[Actor Leak Detection](/advanced/actor-leak-detection)** — Detect unbounded actor growth with `watchActorLeaks`.
 - **[Error Bus](/advanced/error-bus)** — Structured error handling alongside logging.
 - **[Systems](/essentials/systems)** — Write systems that log and profile efficiently.

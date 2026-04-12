@@ -351,5 +351,6 @@ Ces vérifications détectent les bogues tôt mais ajoutent ~5–10% de surcharg
 
 ## Prochaines étapes
 
+- **[Détection de leaks d'acteurs](/fr/advanced/actor-leak-detection)** — Détecter la croissance non bornée d'acteurs avec `watchActorLeaks`.
 - **[Bus d'erreurs](/fr/advanced/error-bus)** — Gestion structurée des erreurs aux côtés de la journalisation.
 - **[Systèmes](/fr/essentials/systems)** — Écrire des systèmes qui se connectent et se profilent efficacement.
