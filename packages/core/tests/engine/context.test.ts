@@ -49,7 +49,32 @@ describe("useEngine()", () => {
     } catch (e) {
       msg = (e as Error).message;
     }
-    expect(msg).toContain("defineSystem");
+    expect(msg).toContain(`\
+[GWEN] useEngine() was called outside an active engine context.
+
+Common causes and fixes:
+
+1. Called at module top-level or in a plain callback
+   → Wrap with engine.run():
+     engine.run(() => { useEngine() })
+
+2. Called after an \`await\` inside an async lifecycle callback (context lost)
+   → In onEnter / onExit: ensure @gwenjs/vite is configured in vite.config.ts.
+     The async context transform handles this automatically.
+
+   → In onStart or a custom async callback: use withAsyncContext():
+     import { withAsyncContext } from '@gwenjs/core'
+     onStart(withAsyncContext(async () => {
+       await doSomething()
+       useHTML()  // ✅ context restored
+     }))
+
+   → Or capture the composable before the first await (preferred for actors):
+     onStart(async () => {
+       const html = useHTML()  // ✅ captured before await
+       await doSomething()
+       html.mount()
+     })`);
     expect(msg).toContain("engine.run");
   });
 

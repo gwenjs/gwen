@@ -27,53 +27,101 @@ export const engineContext = createContext<GwenEngine>({
   asyncContext: false,
 });
 
-// ─── useEngine() ─────────────────────────────────────────────────────────────
+// ─── Error codes ─────────────────────────────────────────────────────────────
 
 /**
- * Error thrown when a composable is used outside of an active engine context.
+ * Structured error codes for {@link GwenContextError}.
  *
- * @example
- * ```typescript
- * try {
- *   const engine = useEngine()
- * } catch (e) {
- *   if (e instanceof GwenContextError) {
- *     console.error('Composable called outside engine context')
- *   }
- * }
- * ```
+ * - `OUTSIDE_ENGINE` — composable called outside any active engine context
+ *   (e.g. at module top-level, in a plain DOM callback, or after an `await`
+ *   without context propagation).
+ * - `ACTOR_SETUP_ONLY` — composable is only valid during an actor factory phase.
+ */
+export type GwenContextErrorCode = "OUTSIDE_ENGINE" | "ACTOR_SETUP_ONLY";
+
+// ─── GwenContextError ────────────────────────────────────────────────────────
+
+/**
+ * Thrown when a GWEN composable is called outside an active engine context.
+ *
+ * Check {@link GwenContextError.code} to distinguish the root cause, and read
+ * the message for a step-by-step fix.
  */
 export class GwenContextError extends Error {
-  constructor(message: string) {
+  /**
+   * Structured code identifying the root cause.
+   * @see {@link GwenContextErrorCode}
+   */
+  readonly code: GwenContextErrorCode;
+
+  constructor(message: string, code: GwenContextErrorCode = "OUTSIDE_ENGINE") {
     super(message);
     this.name = "GwenContextError";
+    this.code = code;
   }
 }
+
+const OUTSIDE_ENGINE_MESSAGE = `\
+[GWEN] useEngine() was called outside an active engine context.
+
+Common causes and fixes:
+
+1. Called at module top-level or in a plain callback
+   → Wrap with engine.run():
+     engine.run(() => { useEngine() })
+
+2. Called after an \`await\` inside an async lifecycle callback (context lost)
+   → In onEnter / onExit: ensure @gwenjs/vite is configured in vite.config.ts.
+     The async context transform handles this automatically.
+
+   → In onStart or a custom async callback: use withAsyncContext():
+     import { withAsyncContext } from '@gwenjs/core'
+     onStart(withAsyncContext(async () => {
+       await doSomething()
+       useHTML()  // ✅ context restored
+     }))
+
+   → Or capture the composable before the first await (preferred for actors):
+     onStart(async () => {
+       const html = useHTML()  // ✅ captured before await
+       await doSomething()
+       html.mount()
+     })`;
+
+// ─── useEngine() ─────────────────────────────────────────────────────────────
 
 /**
  * Returns the currently active {@link GwenEngine} instance.
  *
  * Must be called within an active engine context:
- * - Inside a system defined with `defineSystem()`
+ * - Inside `defineSystem()` factory or any of its frame hooks
+ * - Inside `defineScene()` factory
  * - Inside `engine.run(fn)`
- * - During a plugin lifecycle hook (`setup`, `onUpdate`, `onRender`, `onBeforeUpdate`, `onAfterUpdate`)
+ * - Inside `onEnter()` or `onExit()` (sync or async — handled by Vite transform)
+ * - Inside `withAsyncContext()` wrapper
  *
- * @returns The active {@link GwenEngine} instance
- * @throws {GwenContextError} If called outside any active engine context
+ * @throws {GwenContextError} When called outside any engine context. The error
+ *   message explains the most common fixes, including the async context pattern.
  *
  * @example Inside engine.run():
  * ```typescript
- * const engine = await createEngine()
- * const instance = engine.run(() => useEngine())
- * // instance === engine ✓
+ * const instance = engine.run(() => useEngine()) // instance === engine ✓
  * ```
  *
  * @example Inside defineSystem():
  * ```typescript
  * const mySystem = defineSystem(() => {
  *   const engine = useEngine()
- *   onUpdate((dt) => {
- *     // engine is available here too
+ *   onUpdate((dt) => { /* engine available here too *\/ })
+ * })
+ * ```
+ *
+ * @example Inside async onEnter (requires \@gwenjs/vite):
+ * ```typescript
+ * const Scene = defineScene('game', () => {
+ *   onEnter(async () => {
+ *     await loadAssets()
+ *     const engine = useEngine() // ✅ context restored by Vite transform
  *   })
  * })
  * ```
@@ -81,11 +129,7 @@ export class GwenContextError extends Error {
 export function useEngine(): GwenEngine {
   const engine = engineContext.tryUse();
   if (!engine) {
-    throw new GwenContextError(
-      "[GWEN] useEngine() was called outside of an engine context.\n" +
-        "Make sure you are calling it inside defineSystem(), engine.run(), " +
-        "or a plugin lifecycle hook (setup, onUpdate, onRender, etc.).",
-    );
+    throw new GwenContextError(OUTSIDE_ENGINE_MESSAGE, "OUTSIDE_ENGINE");
   }
   return engine;
 }
