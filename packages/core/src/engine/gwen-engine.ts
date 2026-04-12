@@ -35,8 +35,8 @@ import { getWasmBridge } from "./wasm-bridge.js";
 import type { EntityId } from "./engine-api.js";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
-import { buildTransformImports } from "@gwenjs/core/transform-imports.js";
-import { SharedMemoryManager, TRANSFORM_STRIDE } from "@gwenjs/core/shared-memory.js";
+import { buildTransformImports } from "../hooks/wasm/transform-imports.js";
+import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory.js";
 import { validateEngineConfig } from "./engine-config-validator.js";
 import type { TweenPoolPolicy } from "../tween/tween-pool.js";
 

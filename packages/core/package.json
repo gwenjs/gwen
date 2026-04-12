@@ -26,6 +26,22 @@
       "types": "./src/scene/index.ts",
       "import": "./src/scene/index.ts"
     },
+    "./shared-memory": {
+      "types": "./src/hooks/wasm/shared-memory.ts",
+      "import": "./src/hooks/wasm/shared-memory.ts"
+    },
+    "./shared-memory.js": {
+      "types": "./src/hooks/wasm/shared-memory.ts",
+      "import": "./src/hooks/wasm/shared-memory.ts"
+    },
+    "./transform-imports": {
+      "types": "./src/hooks/wasm/transform-imports.ts",
+      "import": "./src/hooks/wasm/transform-imports.ts"
+    },
+    "./transform-imports.js": {
+      "types": "./src/hooks/wasm/transform-imports.ts",
+      "import": "./src/hooks/wasm/transform-imports.ts"
+    },
     "./wasm/light": {
       "types": "./wasm/light/gwen_core.d.ts",
       "import": "./wasm/light/gwen_core.js"
@@ -56,6 +72,22 @@
       "./scene": {
         "types": "./dist/scene/index.d.ts",
         "import": "./dist/scene/index.js"
+      },
+      "./shared-memory": {
+        "types": "./dist/hooks/wasm/shared-memory.d.ts",
+        "import": "./dist/hooks/wasm/shared-memory.js"
+      },
+      "./shared-memory.js": {
+        "types": "./dist/hooks/wasm/shared-memory.d.ts",
+        "import": "./dist/hooks/wasm/shared-memory.js"
+      },
+      "./transform-imports": {
+        "types": "./dist/hooks/wasm/transform-imports.d.ts",
+        "import": "./dist/hooks/wasm/transform-imports.js"
+      },
+      "./transform-imports.js": {
+        "types": "./dist/hooks/wasm/transform-imports.d.ts",
+        "import": "./dist/hooks/wasm/transform-imports.js"
       },
       "./wasm/light": {
         "types": "./wasm/light/gwen_core.d.ts",

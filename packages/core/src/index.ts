@@ -71,12 +71,12 @@ export {
   FLAGS3D_OFFSET,
   SENTINEL,
   MAX_SAB_BYTES,
-} from "@gwenjs/core/shared-memory";
-export type { MemoryRegion } from "@gwenjs/core/shared-memory";
+} from "./hooks/wasm/shared-memory.js";
+export type { MemoryRegion } from "./hooks/wasm/shared-memory.js";
 
 // WASM transform buffer host imports
-export { buildTransformImports } from "@gwenjs/core/transform-imports";
-export type { GwenTransformImports } from "@gwenjs/core/transform-imports";
+export { buildTransformImports } from "./hooks/wasm/transform-imports.js";
+export type { GwenTransformImports } from "./hooks/wasm/transform-imports.js";
 
 // 3D Transform component
 export {
