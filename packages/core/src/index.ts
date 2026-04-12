@@ -41,7 +41,14 @@ export type { GwenLogger, LogLevel, LogEntry } from "./logger/index.js";
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 
 // Engine context
-export { engineContext, useEngine, GwenContextError } from "./engine/context";
+export {
+  engineContext,
+  useEngine,
+  GwenContextError,
+  executeAsync,
+  withAsyncContext,
+} from "./engine/context";
+export type { GwenContextErrorCode } from "./engine/context";
 
 // WASM Bridge
 export {
