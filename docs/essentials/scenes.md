@@ -37,6 +37,10 @@ export const GameScene = defineScene('game', () => {
 
 The factory runs inside an active engine context, so `useEngine()`, `useActor()`, `usePrefab()`, and `useSceneRouter()` are all available.
 
+::: tip Async onEnter and onExit
+Async `onEnter` and `onExit` callbacks work seamlessly when `@gwenjs/vite` is configured. Composables called after `await` are automatically propagated via the Vite transform. See [Async Context](/advanced/async-context) for details.
+:::
+
 ## Minimal Scene
 
 A scene with no actors and no lifecycle hooks:

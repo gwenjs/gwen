@@ -324,6 +324,27 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
 
 Utilisez les acteurs pour les **entités uniques et nommées**. Utilisez les systèmes pour les **opérations en masse** sur des ensembles d'entités.
 
+## Composables dans les callbacks asynchrones
+
+Les handles de composables (`useTransform()`, `useHTML()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans un `async onStart` après un `await`. La factory s'exécute avec le contexte moteur actif ; les callbacks s'exécutent plus tard et peuvent ne pas avoir de contexte.
+
+Le pattern correct est de capturer les handles pendant le setup et de les utiliser comme closures :
+
+```ts
+const PlayerActor = defineActor(PlayerPrefab, () => {
+  const transform = useTransform()  // ✅ capturé dans la factory sync
+  const html = useHTML()
+
+  onStart(async () => {
+    await loadPlayerSprite()
+    transform.setPosition(400, 300)  // ✅ closure — aucun contexte requis
+    html.show('player-hud')
+  })
+})
+```
+
+Si vous avez vraiment besoin d'appeler un composable après `await` dans `onStart`, utilisez `withAsyncContext()` — voir [Contexte asynchrone](/fr/advanced/async-context).
+
 ## Résumé de l'API
 
 | | |

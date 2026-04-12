@@ -37,6 +37,10 @@ export const GameScene = defineScene('game', () => {
 
 La factory s'exécute dans un contexte engine actif : `useEngine()`, `useActor()`, `usePrefab()` et `useSceneRouter()` sont tous disponibles.
 
+::: tip onEnter et onExit asynchrones
+Les callbacks `onEnter` et `onExit` asynchrones fonctionnent de façon transparente quand `@gwenjs/vite` est configuré. Les composables appelés après `await` sont automatiquement propagés via le transform Vite. Voir [Contexte asynchrone](/fr/advanced/async-context) pour les détails.
+:::
+
 ## Scène minimale
 
 Une scène sans acteurs ni hooks de cycle de vie :
