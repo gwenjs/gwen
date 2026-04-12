@@ -110,6 +110,7 @@ const frSidebar = [
       { text: 'Mode debug', link: '/fr/advanced/debug-mode' },
       { text: 'Détection de leaks d\'acteurs', link: '/fr/advanced/actor-leak-detection' },
       { text: 'Étendre Vite', link: '/fr/advanced/vite-config' },
+      { text: 'Contexte asynchrone', link: '/fr/advanced/async-context' },
     ],
   },
   {
