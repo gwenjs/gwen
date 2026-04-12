@@ -235,10 +235,9 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("await engine.start()");
   });
 
-  it("with scenes: imports registerScenes but not mainScene", () => {
+  it("with scenes: imports registerScenes and mainSceneFactory", () => {
     const code = generateEntryModule(true);
-    expect(code).toContain("import { registerScenes }");
-    expect(code).not.toContain("mainScene");
+    expect(code).toContain("import { registerScenes, mainSceneFactory }");
   });
 
   it("with scenes: wires systems via SceneRegistry adapter before start", () => {

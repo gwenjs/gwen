@@ -289,6 +289,7 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
     return [
       "export function registerScenes(_scenes) {}",
       "export const mainScene = undefined;",
+      "export const mainSceneFactory = undefined;",
     ].join("\n");
   }
 
@@ -316,6 +317,9 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
     .join("\n");
 
   const mainSceneValue = mainScene ? JSON.stringify(mainScene) : "undefined";
+  const mainSceneFactoryValue = mainScene
+    ? (scenes.find((s) => s.sceneName === mainScene)?.className ?? "undefined")
+    : "undefined";
 
   return [
     imports,
@@ -325,6 +329,7 @@ function generateScenesModule(scenes: SceneInfo[], mainScene: string | undefined
     "}",
     "",
     `export const mainScene = ${mainSceneValue};`,
+    `export const mainSceneFactory = ${mainSceneFactoryValue};`,
   ].join("\n");
 }
 
@@ -397,7 +402,7 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
   ];
 
   if (hasScenesDir) {
-    lines.push('import { registerScenes } from "/@gwenjs/gwen-scenes";');
+    lines.push('import { registerScenes, mainSceneFactory } from "/@gwenjs/gwen-scenes";');
   }
 
   // Generate static imports for each module — Vite can pre-bundle these
@@ -460,6 +465,12 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
       "  const usages = [];",
       "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } }));",
       "  await Promise.all(usages);",
+      "",
+      "  // Activate initial scene: fire onEnter for the main scene",
+      "  if (mainSceneFactory) {",
+      "    const _mainDef = mainSceneFactory({ register() {} });",
+      "    if (_mainDef.onEnter) await _mainDef.onEnter();",
+      "  }",
     );
   }
 
