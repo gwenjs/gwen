@@ -18,7 +18,8 @@ import { MovementSystem, RenderSystem } from './systems'
 import { PlayerActor } from './actors/player'
 
 export const GameScene = defineScene('game', () => {
-  useSystem([MovementSystem, RenderSystem])
+    useSystem(MovementSystem())
+    useSystem(RenderSystem())
 
   const player = useActor(PlayerActor)
   onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
