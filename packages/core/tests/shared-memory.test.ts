@@ -23,7 +23,7 @@ import {
   SENTINEL,
   FLAG_PHYSICS_ACTIVE,
   FLAGS_OFFSET,
-} from "../src/wasm/shared-memory";
+} from "@gwenjs/core/shared-memory";
 import type { WasmBridge } from "../src/engine/wasm-bridge";
 
 // ─── Mock bridge ──────────────────────────────────────────────────────────────

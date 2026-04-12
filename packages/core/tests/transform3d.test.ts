@@ -15,7 +15,7 @@ import {
   writeTransform3DRotation,
   writeTransform3DScale,
 } from "../src/components/transform3d";
-import { TRANSFORM3D_STRIDE } from "../src/wasm/shared-memory";
+import { TRANSFORM3D_STRIDE } from "@gwenjs/core/shared-memory";
 
 // ── Layout constants ──────────────────────────────────────────────────────────
 

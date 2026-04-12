@@ -1,6 +1,6 @@
 // packages/core/src/router/index.ts
-export { defineSceneRouter } from "./define-scene-router.js";
-export { useSceneRouter } from "./use-scene-router.js";
+export { defineSceneRouter } from "./defines/define-scene-router";
+export { useSceneRouter } from "./uses/use-scene-router";
 export type {
   RouteConfig,
   SceneRouterOptions,

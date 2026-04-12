@@ -41,7 +41,7 @@ export type { GwenLogger, LogLevel, LogEntry } from "./logger/index.js";
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 
 // Engine context
-export { engineContext, useEngine, GwenContextError } from "./context";
+export { engineContext, useEngine, GwenContextError } from "./engine/context";
 
 // WASM Bridge
 export {
@@ -71,12 +71,12 @@ export {
   FLAGS3D_OFFSET,
   SENTINEL,
   MAX_SAB_BYTES,
-} from "./wasm/shared-memory";
-export type { MemoryRegion } from "./wasm/shared-memory";
+} from "@gwenjs/core/shared-memory";
+export type { MemoryRegion } from "@gwenjs/core/shared-memory";
 
 // WASM transform buffer host imports
-export { buildTransformImports } from "./wasm/transform-imports";
-export type { GwenTransformImports } from "./wasm/transform-imports";
+export { buildTransformImports } from "@gwenjs/core/transform-imports";
+export type { GwenTransformImports } from "@gwenjs/core/transform-imports";
 
 // 3D Transform component
 export {

@@ -1,5 +1,5 @@
 import { onCleanup } from "../cleanup-context.js";
-import { useEngine } from "../context.js";
+import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 
 /**

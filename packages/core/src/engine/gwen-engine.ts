@@ -1,6 +1,4 @@
 /**
- * @file RFC-001 / RFC-008 — GwenEngine interface & createEngine() factory
- *
  * Provides the new `createEngine(options?) → Promise<GwenEngine>` API
  * described in RFC-001. Internally delegates to the existing `Engine` class
  * so no existing behaviour is changed.
@@ -27,7 +25,7 @@
 
 import { createHooks, type Hookable } from "hookable";
 import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks.js";
-import { engineContext } from "../context.js";
+import { engineContext } from "./context";
 import { withCleanup } from "../cleanup-context.js";
 import { createLogger } from "../logger/index";
 import type { GwenLogger } from "../logger/index";
@@ -36,9 +34,9 @@ import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs.js";
 import { getWasmBridge } from "./wasm-bridge.js";
 import type { EntityId } from "./engine-api.js";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system.js";
-import { buildTransformImports } from "../wasm/transform-imports.js";
-import { SharedMemoryManager, TRANSFORM_STRIDE } from "../wasm/shared-memory.js";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
+import { buildTransformImports } from "@gwenjs/core/transform-imports.js";
+import { SharedMemoryManager, TRANSFORM_STRIDE } from "@gwenjs/core/shared-memory.js";
 import { validateEngineConfig } from "./engine-config-validator.js";
 import type { TweenPoolPolicy } from "../tween/tween-pool.js";
 

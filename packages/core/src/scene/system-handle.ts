@@ -30,7 +30,7 @@
  * ```
  */
 
-import type { GwenPlugin } from "../engine/gwen-engine.js";
+import type { GwenPlugin } from "../engine/gwen-engine";
 
 // ─── Public interface ─────────────────────────────────────────────────────────
 

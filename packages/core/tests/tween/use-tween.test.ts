@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/index";
-import { useTween } from "../../src/tween/use-tween";
+import { useTween } from "../../src/tween/uses/use-tween";
 import { getTweenManager } from "../../src/tween/tween-manager";
 
 // ── useTween() outside context ────────────────────────────────────────────────

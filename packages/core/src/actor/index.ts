@@ -11,28 +11,28 @@ export {
   // have not yet been migrated to useEntityId(). External consumers should use
   // useEntityId() instead.
   _getActorEntityId,
-} from "../scene/define-actor.js";
+} from "./defines/define-actor";
 
 // Frame hooks (re-exported — also valid in system context)
-export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system.js";
+export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/defines/define-system";
 
 // Prefab + events
-export { definePrefab } from "../define-prefab.js";
-export { defineEvents } from "../define-events.js";
-export { emit } from "../scene/emit.js";
+export { definePrefab } from "./defines/define-prefab";
+export { defineEvents } from "./defines/define-events";
+export { emit } from "./emit";
 
 // Actor composables
-export { useActor, usePrefab, useComponent } from "../scene/use-actor.js";
-export { defineLayout } from "../scene/define-layout.js";
-export { useLayout } from "../scene/use-layout.js";
-export { useTransform } from "../scene/use-transform.js";
-export { placeActor, placeGroup, placePrefab } from "../scene/place.js";
+export { useActor, usePrefab, useComponent } from "./uses/use-actor";
+export { defineLayout } from "./defines/define-layout";
+export { useLayout } from "./uses/use-layout";
+export { useTransform } from "./uses/use-transform";
+export { placeActor, placeGroup, placePrefab } from "./place";
 
 // Types
-export type { ActorHandle, PrefabHandle } from "../scene/use-actor.js";
-export type { TransformHandle } from "../scene/use-transform.js";
-export type { PrefabDefinition, PrefabComponentEntry } from "../define-prefab.js";
-export type { InferEvents, EventHandlerMap } from "../define-events.js";
+export type { ActorHandle, PrefabHandle } from "./uses/use-actor";
+export type { TransformHandle } from "./uses/use-transform";
+export type { PrefabDefinition, PrefabComponentEntry } from "./defines/define-prefab";
+export type { InferEvents, EventHandlerMap } from "./defines/define-events";
 export type {
   ActorDefinition,
   ActorInstance,
@@ -44,4 +44,4 @@ export type {
   UpdateFn,
   RenderFn,
   VoidFn,
-} from "../scene/types.js";
+} from "./types";

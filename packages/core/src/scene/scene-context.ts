@@ -10,10 +10,10 @@
  * - `onExit(cb)` — callback when scene is exited
  */
 
-import { GwenContextError, engineContext } from "../context.js";
+import { GwenContextError, engineContext } from "../engine/context";
 import type { GwenEngine, GwenPlugin } from "../engine/gwen-engine.js";
-import { createSystemHandle } from "./system-handle.js";
-import type { SystemHandle } from "./system-handle.js";
+import { createSystemHandle } from "./system-handle";
+import type { SystemHandle } from "./system-handle";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 

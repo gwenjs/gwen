@@ -8,5 +8,5 @@ export {
   useQuery,
   useService,
   useWasmModule,
-} from "../system.js";
-export type { LiveQuery, ComponentDef, EntityAccessor } from "../system.js";
+} from "./defines/define-system";
+export type { LiveQuery, ComponentDef, EntityAccessor } from "./defines/define-system";

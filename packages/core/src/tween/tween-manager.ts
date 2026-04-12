@@ -7,7 +7,7 @@
  * @since 1.0.0
  */
 
-import { useEngine } from "../context.js";
+import { useEngine } from "../engine/context";
 import type { GwenEngine } from "../engine/gwen-engine.js";
 import type { TweenOptions, TweenableValue } from "./tween-types.js";
 import { TweenPool, type TweenSlot } from "./tween-pool.js";

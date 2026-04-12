@@ -14,8 +14,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/index";
-import { useTween } from "../../src/tween/use-tween";
-import { defineSequence } from "../../src/tween/define-sequence";
+import { useTween } from "../../src/tween/uses/use-tween";
+import { defineSequence } from "../../src/tween/defines/define-sequence";
 import { getTweenManager } from "../../src/tween/tween-manager";
 
 // ── Steps execute in order ────────────────────────────────────────────────────

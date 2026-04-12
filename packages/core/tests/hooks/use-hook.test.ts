@@ -12,8 +12,8 @@
 import { describe, it, expect, vi } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api.js";
 import { createEngine, useHook, GwenContextError } from "../../src/index";
-import { definePrefab } from "../../src/scene/define-prefab";
-import { defineActor } from "../../src/scene/define-actor";
+import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { defineActor } from "../../src/actor/defines/define-actor";
 
 // ── useHook() outside engine context ─────────────────────────────────────────
 

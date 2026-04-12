@@ -9,9 +9,9 @@
  */
 
 import { bench, describe } from "vitest";
-import { defineLayout } from "../src/scene/define-layout.js";
-import { defineActor } from "../src/scene/define-actor.js";
-import { definePrefab } from "../src/scene/define-prefab.js";
+import { defineLayout } from "../src/actor/defines/define-layout.js";
+import { defineActor } from "../src/actor/defines/define-actor.js";
+import { definePrefab } from "../src/actor/defines/define-prefab";
 
 // Define a minimal prefab with one component
 const Position = { __name__: "Position" };

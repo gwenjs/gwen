@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine.js";
-import { defineScene } from "../../src/scene/define-scene.js";
-import { definePrefab } from "../../src/scene/define-prefab.js";
-import { defineActor } from "../../src/scene/define-actor.js";
-import { useActor } from "../../src/scene/use-actor.js";
+import { defineScene } from "../../src/scene/defines/define-scene";
+import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { defineActor } from "../../src/actor/defines/define-actor";
+import { useActor } from "../../src/actor/uses/use-actor";
 import { onEnter, onExit } from "../../src/scene/scene-context.js";
-import { defineSceneRouter } from "../../src/router/define-scene-router.js";
-import { useSceneRouter } from "../../src/router/use-scene-router.js";
+import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
+import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 
 const onEnterMenu = vi.fn();
 const onExitMenu = vi.fn();

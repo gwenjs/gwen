@@ -12,7 +12,7 @@ import type { GwenLogger } from "../logger/index";
 import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
 import type { EntityId } from "./engine-api.js";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system.js";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
 import type { TweenPoolPolicy } from "../tween/tween-pool.js";
 import type { PluginErrorContext } from "./engine-errors.js";
 

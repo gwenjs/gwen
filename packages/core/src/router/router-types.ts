@@ -1,4 +1,4 @@
-import type { SceneDefinition, SceneFactory } from "../scene/define-scene.js";
+import type { SceneDefinition, SceneFactory } from "../scene/defines/define-scene";
 
 /** A scene accepted by a route: either a SceneDefinition or SceneFactory. */
 export type SceneInput = SceneDefinition | SceneFactory;
