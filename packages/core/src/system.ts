@@ -1,6 +1,4 @@
 /**
- * @file RFC-005 — Composable-first system definition for @gwenjs/core
- *
  * Provides `defineSystem()` and the lifecycle composables (`onUpdate`, `onBeforeUpdate`,
  * `onAfterUpdate`, `onRender`) for writing game systems without class boilerplate.
  *
@@ -187,90 +185,167 @@ export function onRender(fn: RenderFn): void {
   _getSystemContext().onRender(fn);
 }
 
+// ─── DiscoverablePlugin ───────────────────────────────────────────────────────
+
+/**
+ * Extension of {@link GwenPlugin} produced by `defineSystem()`.
+ *
+ * Adds a `_discover()` method used by `useSystem()` to run the system's setup
+ * function in collect mode (no-op frame callbacks, active engine context) so
+ * that `useActor()` calls inside the factory register their actor plugins as
+ * scene dependencies before the bootstrap installs anything via `engine.use()`.
+ *
+ * @internal
+ */
+export interface DiscoverablePlugin extends GwenPlugin {
+  /**
+   * Run the system setup in collect mode.
+   *
+   * Frame-phase callbacks (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
+   * `onRender`) are no-ops. All other composables (`useActor`, `useQuery`,
+   * `useService`) execute normally inside the active engine context.
+   *
+   * Must be called inside an active engine context (e.g. from within
+   * `engine.run()`). `useSystem()` calls this automatically.
+   *
+   * **Note:** The system setup runs twice — once in collect mode and once
+   * during `engine.use()`. Side-effect-free composables are unaffected.
+   * A `console.log` inside the setup function will print twice; this is
+   * documented behaviour.
+   */
+  _discover(): void;
+}
+
 // ─── defineSystem ─────────────────────────────────────────────────────────────
 
 /**
  * Defines a game system using the composable pattern.
  *
- * The `setup` function runs **once** when the plugin is registered via `engine.use()`.
- * During setup the engine context is active — composables (`useEngine()`, plugin
- * composables, `useQuery()`) may be called to capture references used inside
- * the registered lifecycle callbacks.
+ * Returns a **factory function** that, when called with its dependency arguments,
+ * produces a {@link GwenPlugin} ready to be passed to `useSystem()`.
  *
- * Returns a {@link GwenPlugin} that can be passed directly to `engine.use()`.
+ * The factory form enables typed dependency injection: systems declare their
+ * dependencies as parameters and receive them from the scene, keeping systems
+ * decoupled from concrete actor types.
+ *
+ * The setup function runs **once** when the plugin is registered via `engine.use()`.
+ * During setup the engine context is active — composables (`useEngine()`,
+ * `useQuery()`, `useService()`, `useActor()`) may be called to capture references
+ * used inside the registered lifecycle callbacks.
  *
  * **Naming:** prefer one of these two forms so the engine can identify the system:
  * - `export const ScoreSystem = defineSystem('ScoreSystem', () => { ... })` — explicit name
  * - With the Vite plugin, the name is injected automatically from the exported variable.
  *
  * @param nameOrSetup - System name string **or** setup function (single-arg form).
- * @param setup - Setup function when the first arg is a name string.
- * @returns A `GwenPlugin` representing the system.
+ * @param setup       - Setup function when the first arg is a name string.
+ * @returns A factory function. Calling the factory with dependency arguments
+ *          produces a {@link GwenPlugin}.
  *
  * @example
  * ```typescript
- * // Explicit name string (recommended without the Vite plugin)
- * export const ScoreSystem = defineSystem('ScoreSystem', () => {
- *   onUpdate((dt) => { ... })
+ * // Zero-dependency system
+ * export const MovementSystem = defineSystem(() => {
+ *   const entities = useQuery([Position, Velocity])
+ *   onUpdate((dt) => {
+ *     for (const id of entities) {
+ *       Position.x[id] += Velocity.x[id] * dt
+ *     }
+ *   })
  * })
+ * // Usage: useSystem(MovementSystem())
  *
- * // With the Vite plugin the name is injected automatically:
- * export const ScoreSystem = defineSystem(() => {
- *   onUpdate((dt) => { ... })
+ * // System with dependency injection
+ * export const CombatSystem = defineSystem((player: PlayerAPI) => {
+ *   onUpdate(() => player.takeDamage(10))
  * })
+ * // Usage: useSystem(CombatSystem(player))
  * ```
  */
-export function defineSystem(name: string, setup: () => void): GwenPlugin;
-export function defineSystem(setup: () => void): GwenPlugin;
-export function defineSystem(nameOrSetup: string | (() => void), setup?: () => void): GwenPlugin {
-  const systemName = typeof nameOrSetup === "string" ? nameOrSetup : nameOrSetup.name || "";
-  const setupFn = typeof nameOrSetup === "function" ? nameOrSetup : setup!;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function defineSystem<Args extends any[]>(
+    name: string,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setup: (...args: Args) => void,
+): (...args: Args) => DiscoverablePlugin;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function defineSystem<Args extends any[]>(
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setup: (...args: Args) => void,
+): (...args: Args) => DiscoverablePlugin;
+export function defineSystem<Args extends unknown[]>(
+    nameOrSetup: string | ((...args: Args) => void),
+    maybeSetup?: (...args: Args) => void,
+): (...args: Args) => DiscoverablePlugin {
+  const systemName =
+      typeof nameOrSetup === "string"
+          ? nameOrSetup
+          : (nameOrSetup as { name?: string }).name || "";
+  const setupTemplate =
+      typeof nameOrSetup === "function" ? nameOrSetup : maybeSetup!;
 
-  const _beforeUpdate: UpdateFn[] = [];
-  const _update: UpdateFn[] = [];
-  const _afterUpdate: UpdateFn[] = [];
-  const _render: RenderFn[] = [];
+  if (!systemName) {
+    // eslint-disable-next-line no-console
+    console.warn(
+        "[GWEN] defineSystem() called without a name. " +
+        "Pass a name as first argument: defineSystem('mySystem', () => { ... })",
+    );
+  }
 
-  return {
-    name: (() => {
-      if (!systemName) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          "[GWEN] defineSystem() called without a name. " +
-            "Pass a name as first argument: defineSystem('mySystem', () => { ... })",
-        );
-        return "anonymous-system";
-      }
-      return systemName;
-    })(),
+  return (...args: Args): DiscoverablePlugin => {
+    const _beforeUpdate: UpdateFn[] = [];
+    const _update: UpdateFn[] = [];
+    const _afterUpdate: UpdateFn[] = [];
+    const _render: RenderFn[] = [];
 
-    setup(_engine): void {
-      // The engine context is already set by engine.use() wrapping.
-      // Activate the system registration context and run the user's setup.
-      const ctx: SystemContext = {
-        onBeforeUpdate: (fn) => _beforeUpdate.push(fn),
-        onUpdate: (fn) => _update.push(fn),
-        onAfterUpdate: (fn) => _afterUpdate.push(fn),
-        onRender: (fn) => _render.push(fn),
-      };
-      _withSystemContext(ctx, setupFn);
-    },
+    const noop = () => {};
 
-    onBeforeUpdate(dt: number): void {
-      for (let i = 0; i < _beforeUpdate.length; i++) _beforeUpdate[i]!(dt);
-    },
+    const plugin: DiscoverablePlugin = {
+      name: systemName || "anonymous-system",
 
-    onUpdate(dt: number): void {
-      for (let i = 0; i < _update.length; i++) _update[i]!(dt);
-    },
+      setup(): void {
+        // The engine context is already set by engine.use() wrapping.
+        // Activate the system registration context and run the user's setup.
+        const ctx: SystemContext = {
+          onBeforeUpdate: (fn) => _beforeUpdate.push(fn),
+          onUpdate: (fn) => _update.push(fn),
+          onAfterUpdate: (fn) => _afterUpdate.push(fn),
+          onRender: (fn) => _render.push(fn),
+        };
+        _withSystemContext(ctx, () => setupTemplate(...args));
+      },
 
-    onAfterUpdate(dt: number): void {
-      for (let i = 0; i < _afterUpdate.length; i++) _afterUpdate[i]!(dt);
-    },
+      _discover(): void {
+        // Collect mode: run setup with no-op frame callbacks so that
+        // useActor() calls register actor plugins as scene dependencies
+        // without registering any frame callbacks.
+        const dummyCtx: SystemContext = {
+          onBeforeUpdate: noop,
+          onUpdate: noop,
+          onAfterUpdate: noop,
+          onRender: noop,
+        };
+        _withSystemContext(dummyCtx, () => setupTemplate(...args));
+      },
 
-    onRender(): void {
-      for (let i = 0; i < _render.length; i++) _render[i]!();
-    },
+      onBeforeUpdate(dt: number): void {
+        for (let i = 0; i < _beforeUpdate.length; i++) _beforeUpdate[i]!(dt);
+      },
+
+      onUpdate(dt: number): void {
+        for (let i = 0; i < _update.length; i++) _update[i]!(dt);
+      },
+
+      onAfterUpdate(dt: number): void {
+        for (let i = 0; i < _afterUpdate.length; i++) _afterUpdate[i]!(dt);
+      },
+
+      onRender(): void {
+        for (let i = 0; i < _render.length; i++) _render[i]!();
+      },
+    };
+
+    return plugin;
   };
 }
 
