@@ -21,7 +21,8 @@ describe("defineActor", () => {
     expect(typeof Actor._plugin).toBe("object");
     expect(Actor._instances).toBeInstanceOf(Map);
     expect(Actor._prefab).toBe(SimplePrefab);
-    expect(Actor.__actorName__).toBe("anonymous");
+    expect(typeof Actor.__actorName__).toBe("string");
+    expect(Actor.__actorName__.length).toBeGreaterThan(0);
   });
 
   it("starts with zero instances", () => {
@@ -209,5 +210,38 @@ describe("useEntityId — public entrypoint export", () => {
     // accidental removal from actor/index.ts.
     const actorModule = await import("../../src/actor/index.js");
     expect(typeof actorModule.useEntityId).toBe("function");
+  });
+});
+
+describe("defineActor — plugin naming", () => {
+  it("uses the provided name string as _plugin.name", () => {
+    const Actor = defineActor("MyHero", SimplePrefab, () => {});
+    expect(Actor._plugin.name).toBe("MyHero");
+    expect(Actor.__actorName__).toBe("MyHero");
+  });
+
+  it("falls back to a unique counter name when no name is given", () => {
+    const A = defineActor(SimplePrefab, () => {});
+    const B = defineActor(SimplePrefab, () => {});
+    // Both should be non-empty strings and different from each other
+    expect(typeof A._plugin.name).toBe("string");
+    expect(A._plugin.name).not.toBe("anonymous-actor");
+    expect(A._plugin.name).not.toBe(B._plugin.name);
+  });
+
+  it("two different defineActor calls never share a name", () => {
+    const actors = Array.from({ length: 10 }, () => defineActor(SimplePrefab, () => {}));
+    const names = actors.map((a) => a._plugin.name);
+    const unique = new Set(names);
+    expect(unique.size).toBe(10);
+  });
+
+  it("named form: plugin name matches the provided name", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor("TestActor", SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+    // The plugin was installed — no deduplication issue
+    Actor._plugin.spawn?.();
+    expect(Actor._instances.size).toBe(1);
   });
 });

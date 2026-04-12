@@ -1,6 +1,4 @@
 /**
- * @file RFC-011 — `defineActor()` for @gwenjs/core
- *
  * Implements the actor system: a composable, instance-based alternative to
  * `defineSystem()`. Each actor owns its own ECS entity, runs lifecycle hooks
  * per instance, and exposes a public API for inter-actor communication.
@@ -38,6 +36,7 @@ import type { EntityId } from "../engine/engine-api.js";
 import { _withSystemContext } from "../system.js";
 import type { SystemContext } from "../system.js";
 import { withCleanup } from "../cleanup-context.js";
+import { GwenActorError, ActorErrorCodes } from "../engine/engine-errors.js";
 import type {
   ActorDefinition,
   ActorInstance,
@@ -105,7 +104,7 @@ function _withActorContext(instance: ActorInstance<any>, engine: GwenEngine, fn:
 /**
  * Returns the entity ID of the actor currently being spawned.
  *
- * Used by `useComponent()` (RFC-011 Task 7) to know which entity to target.
+ * Used by `useComponent()` to know which entity to target.
  *
  * @returns The active actor's entity ID as a `bigint`.
  * @throws {Error} If called outside an active actor spawn context.
@@ -303,6 +302,21 @@ export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRunti
 
 // ─── defineActor ─────────────────────────────────────────────────────────────
 
+// ─── Module-level plugin name counter ─────────────────────────────────────────
+
+/**
+ * Monotonically-increasing counter used to generate unique plugin names for
+ * `defineActor()` calls that do not provide an explicit name.
+ *
+ * The Vite transform injects the exported variable name as the first argument
+ * automatically. In test environments or plain Node.js, the counter produces
+ * stable names (`actor-1`, `actor-2`, …) that are unique per call site,
+ * preventing `engine.use()` deduplication from silently discarding plugins.
+ *
+ * @internal
+ */
+let _actorPluginCounter = 0;
+
 /**
  * Factory type accepted by {@link defineActor}.
  *
@@ -315,43 +329,43 @@ type ActorFactory<Props, PublicAPI> = (props?: Props) => PublicAPI;
  * Defines an actor type: a composable, instance-based game object backed by a
  * single ECS entity per instance.
  *
- * Returns an {@link ActorDefinition} containing:
- * - `_plugin` — a `GwenPlugin` (with `spawn`/`despawn` extensions) to pass to
- *   `engine.use()`.
- * - `_instances` — a live `Map<bigint, ActorInstance>` registry.
- * - `_prefab` — the prefab that declares the actor's ECS component layout.
- *
- * The `factory` runs **per instance** inside `spawn()`. During the factory call,
- * both the actor context (for `onStart`, `onDestroy`, `onEvent`) and the system
- * context (for `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`) are
- * active so all lifecycle composables resolve correctly.
- *
- * @param prefab - The prefab defining the ECS component layout for this actor.
+ * @overload
+ * Explicit name form — use without the Vite plugin (tests, Node.js scripts).
+ * @param name    - Unique plugin name. Must be distinct across all `defineActor()` calls
+ *                  registered with the same engine.
+ * @param prefab  - Prefab defining the ECS component layout for this actor.
  * @param factory - Per-instance setup function. May register lifecycle callbacks
- *   and return a public API object.
- * @returns An {@link ActorDefinition} ready to be used with `engine.use()`.
- *
- * @example
- * ```typescript
- * const Position = defineComponent('Position', { x: 0, y: 0 })
- * const EnemyPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
- *
- * export const EnemyActor = defineActor(EnemyPrefab, (props?: { hp: number }) => {
- *   onStart(() => console.log('enemy spawned'))
- *   onDestroy(() => console.log('enemy destroyed'))
- *   onUpdate((dt) => { ... })
- *   return { takeDamage: (amount: number) => { ... } }
- * })
- *
- * await engine.use(EnemyActor._plugin)
- * const id = EnemyActor._plugin.spawn({ hp: 100 })
- * EnemyActor._plugin.despawn(id)
- * ```
+ *                  and return a public API object.
  */
 export function defineActor<Props = void, PublicAPI = void>(
-  prefab: PrefabDefinition,
-  factory: ActorFactory<Props, PublicAPI>,
+    name: string,
+    prefab: PrefabDefinition,
+    factory: ActorFactory<Props, PublicAPI>,
+): ActorDefinition<Props, PublicAPI>;
+/**
+ * @overload
+ * Anonymous form — the Vite plugin injects the exported variable name automatically.
+ * Without the Vite plugin, a stable counter-based name is generated (`actor-1`, `actor-2`, …).
+ * @param prefab  - Prefab defining the ECS component layout for this actor.
+ * @param factory - Per-instance setup function.
+ */
+export function defineActor<Props = void, PublicAPI = void>(
+    prefab: PrefabDefinition,
+    factory: ActorFactory<Props, PublicAPI>,
+): ActorDefinition<Props, PublicAPI>;
+export function defineActor<Props = void, PublicAPI = void>(
+    nameOrPrefab: string | PrefabDefinition,
+    prefabOrFactory: PrefabDefinition | ActorFactory<Props, PublicAPI>,
+    maybeFactory?: ActorFactory<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI> {
+  const pluginName =
+      typeof nameOrPrefab === "string" ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
+  const prefab =
+      typeof nameOrPrefab === "string"
+          ? (prefabOrFactory as PrefabDefinition)
+          : (nameOrPrefab as PrefabDefinition);
+  const factory =
+      maybeFactory ?? (prefabOrFactory as ActorFactory<Props, PublicAPI>);
   const _instances = new Map<bigint, ActorInstance<PublicAPI>>();
 
   /**
@@ -368,9 +382,17 @@ export function defineActor<Props = void, PublicAPI = void>(
 
   function spawn(props?: Props): bigint {
     if (!_engine) {
-      throw new Error(
-        "[GWEN] Actor.spawn() called before the plugin was set up. " +
-          "Call `await engine.use(actor._plugin)` before spawning.",
+      throw new GwenActorError(
+        ActorErrorCodes.PLUGIN_NOT_READY,
+        "[GWEN] Actor.spawn() was called before the actor plugin was installed.\n" +
+          "  Code: ACTOR:PLUGIN_NOT_READY\n\n" +
+          "  Possible causes:\n" +
+          "  1. spawn() was called directly inside a defineScene() factory body.\n" +
+          "     Fix: wrap the call in onEnter(() => actor.spawnOnce(...)).\n" +
+          "  2. spawn() was called from a system (e.g. SpawnSystem.onUpdate), but the\n" +
+          "     actor was only declared inside defineSystem() — not in the scene factory.\n" +
+          "     Fix: also call useActor(MyActor) inside the defineScene() factory that\n" +
+          "     includes the system, so the plugin is auto-installed at bootstrap.",
       );
     }
 
@@ -465,7 +487,7 @@ export function defineActor<Props = void, PublicAPI = void>(
   // ─── Plugin ───────────────────────────────────────────────────────────────
 
   const _plugin: ActorPlugin<Props> = {
-    name: "anonymous-actor",
+    name: pluginName,
 
     setup(engine: GwenEngine): void {
       _engine = engine;
@@ -517,8 +539,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     _plugin,
     _instances,
     _prefab: prefab,
-    __actorName__: "anonymous",
-    // Type markers — values are never accessed at runtime.
+    __actorName__: pluginName,  // ← was "anonymous"
     __props__: undefined as unknown as Props,
     __api__: undefined as unknown as PublicAPI,
   };
