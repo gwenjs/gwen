@@ -1,6 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 import { defineScene } from "../../src/scene/define-scene.js";
+import { definePrefab } from "../../src/scene/define-prefab.js";
+import { defineActor } from "../../src/scene/define-actor.js";
+import { useActor } from "../../src/scene/use-actor.js";
 import { useSystem, onEnter, onExit } from "../../src/scene/scene-context.js";
 import { defineSceneRouter } from "../../src/router/define-scene-router.js";
 import { useSceneRouter } from "../../src/router/use-scene-router.js";
@@ -10,17 +13,13 @@ const onExitMenu = vi.fn();
 const onEnterGame = vi.fn();
 
 const MenuScene = defineScene("Menu", () => {
-  useSystem([]);
   onEnter(onEnterMenu);
   onExit(onExitMenu);
 });
 const GameScene = defineScene("Game", () => {
-  useSystem([]);
   onEnter(onEnterGame);
 });
-const PauseScene = defineScene("Pause", () => {
-  useSystem([]);
-});
+const PauseScene = defineScene("Pause", () => {});
 
 const AppRouter = defineSceneRouter({
   initial: "menu",
@@ -30,6 +29,8 @@ const AppRouter = defineSceneRouter({
     pause: { scene: PauseScene, overlay: true, on: { RESUME: "game", QUIT: "menu" } },
   },
 });
+
+const Position = { __name__: "Position" };
 
 describe("useSceneRouter()", () => {
   it("starts in the initial state", async () => {
@@ -64,11 +65,8 @@ describe("useSceneRouter()", () => {
 
   it("send() passes params to onEnter of target scene", async () => {
     const onEnterSpy = vi.fn();
-    const SceneA = defineScene("A", () => {
-      useSystem([]);
-    });
+    const SceneA = defineScene("A", () => {});
     const SceneB = defineScene("B", () => {
-      useSystem([]);
       onEnter(onEnterSpy);
     });
     const router = defineSceneRouter({
@@ -135,6 +133,43 @@ describe("useSceneRouter()", () => {
       await nav.send("PLAY", { debug: true });
       expect(nav.params).toEqual({ debug: true });
     });
+  });
+
+  it("allows scenes to spawn actors on enter without manual plugin setup", async () => {
+    const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+    const PlayerActor = defineActor(PlayerPrefab, () => ({ tag: "player" }));
+
+    const Menu = defineScene("MenuWithActorSpawn", () => {});
+    const Game = defineScene("GameWithActorSpawn", () => {
+      const player = useActor(PlayerActor);
+      onEnter(() => {
+        player.spawnOnce();
+      });
+    });
+    const router = defineSceneRouter({
+      initial: "menu",
+      routes: {
+        menu: { scene: Menu, on: { PLAY: "game" } },
+        game: { scene: Game, on: {} },
+      },
+    });
+
+    const engine = await createEngine();
+    const usages: Promise<unknown>[] = [];
+    engine.run(() => {
+      for (const sceneFactory of [Menu, Game]) {
+        const scene = sceneFactory({ register: () => {} });
+        for (const plugin of scene.systems) usages.push(engine.use(plugin));
+      }
+    });
+    await Promise.all(usages);
+
+    await engine.run(async () => {
+      const nav = useSceneRouter(router);
+      await expect(nav.send("PLAY")).resolves.toBeUndefined();
+    });
+
+    expect(PlayerActor._instances.size).toBe(1);
   });
 
   it("throws if used outside engine context", () => {

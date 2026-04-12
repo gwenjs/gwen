@@ -1,6 +1,4 @@
 /**
- * @file RFC-011 Task 7 — `useActor()`, `usePrefab()`, `useComponent()` composables
- *
  * These composables are designed to be called inside:
  * - `useActor` / `usePrefab` — inside `engine.run()` or another engine context
  * - `useComponent` — inside a `defineActor()` factory function (actor spawn context)
@@ -26,6 +24,7 @@
 
 import { useEngine } from "../context.js";
 import { _getActorEntityId, _getActorEngine } from "./define-actor.js";
+import { _registerScenePlugin } from "./scene-context.js";
 import type { ActorDefinition, PrefabDefinition } from "./types.js";
 import type { ComponentDefinition, ComponentSchema } from "../schema.js";
 import type { EntityId } from "../engine/engine-api.js";
@@ -121,39 +120,62 @@ export interface PrefabHandle {
   despawn(id: bigint): void;
 }
 
+/** @internal Methods on `ActorHandle` that take priority over `PublicAPI` in the Proxy. */
+const HANDLE_OWN_KEYS = new Set<string>([
+  "spawn",
+  "despawn",
+  "despawnAll",
+  "count",
+  "get",
+  "getAll",
+  "spawnOnce",
+]);
+
 // ─── useActor ─────────────────────────────────────────────────────────────────
 
 /**
- * Returns a typed handle for spawning and managing instances of the given actor.
+ * Returns a typed handle for spawning and managing instances of the given actor,
+ * combined with a Proxy that delegates `PublicAPI` method calls to the first
+ * live instance.
+ *
+ * The combined type `ActorHandle<Props, PublicAPI> & PublicAPI` allows passing
+ * the result directly to a system parameter typed as `PublicAPI`, enabling
+ * dependency injection without the `.get()?.method()` indirection.
+ *
+ * **Priority rule:** `ActorHandle` methods (`spawn`, `despawn`, `despawnAll`,
+ * `count`, `get`, `getAll`, `spawnOnce`) take precedence over any `PublicAPI`
+ * method with the same name. If a collision exists, rename the `PublicAPI` method.
  *
  * Must be called inside an active engine context (e.g. `engine.run()`, a plugin
  * `setup()` callback, or a `defineSystem()` factory).
  *
- * The returned handle is **not** bound to the engine context — its methods may
- * be called freely from anywhere after the handle is created.
- *
  * @param actorDef - The actor definition produced by `defineActor()`.
- * @returns An {@link ActorHandle} for `actorDef`.
+ * @returns A Proxy implementing both `ActorHandle<Props, PublicAPI>` and `PublicAPI`.
  *
  * @throws {GwenContextError} If called outside an active engine context.
  *
  * @example
  * ```typescript
- * const enemies = useActor(EnemyActor);
- * const id = enemies.spawn({ hp: 100 });
- * enemies.despawnAll();
+ * // In scene factory:
+ * const player = useActor(PlayerActor)
+ *
+ * // Pass to a DI system — typed as PlayerAPI at call site:
+ * useSystem(CombatSystem(player))
+ *
+ * // Direct ActorHandle usage:
+ * onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+ * onExit(() => player.despawnAll())
  * ```
  */
 export function useActor<Props, PublicAPI>(
   actorDef: ActorDefinition<Props, PublicAPI>,
-): ActorHandle<Props, PublicAPI> {
-  // Validate we are inside an engine context (throws GwenContextError if not).
+): ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI) {
   useEngine();
+  _registerScenePlugin(actorDef._plugin);
 
-  /** Tracks the singleton entity ID used by `spawnOnce`. */
   let _singletonId: bigint | undefined;
 
-  return {
+  const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): bigint {
       return actorDef._plugin.spawn(props);
     },
@@ -165,7 +187,6 @@ export function useActor<Props, PublicAPI>(
 
     despawnAll(): void {
       _singletonId = undefined;
-      // Copy keys first — despawn() mutates _instances during iteration.
       for (const id of Array.from(actorDef._instances.keys())) {
         actorDef._plugin.despawn(id);
       }
@@ -195,6 +216,33 @@ export function useActor<Props, PublicAPI>(
       return _singletonId;
     },
   };
+
+  // Proxy: ActorHandle methods take priority; everything else delegates to PublicAPI.
+  return new Proxy(baseHandle as object, {
+    get(target, prop: string | symbol): unknown {
+      // Priority 1: ActorHandle own methods
+      if (typeof prop === "string" && HANDLE_OWN_KEYS.has(prop)) {
+        return (target as Record<string, unknown>)[prop];
+      }
+
+      // Priority 2: PublicAPI property / method delegation
+      if (typeof prop === "string") {
+        const api = actorDef._instances.values().next().value?.api as
+          | Record<string, unknown>
+          | undefined;
+        if (!api) return () => undefined;
+        const value = api[prop];
+        if (typeof value === "function") {
+          return (...args: unknown[]): unknown =>
+            (value as (...a: unknown[]) => unknown).apply(api, args);
+        }
+        return value;
+      }
+
+      // Fallback: symbol or unknown prop
+      return (target as Record<string | symbol, unknown>)[prop];
+    },
+  }) as ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI);
 }
 
 // ─── usePrefab ────────────────────────────────────────────────────────────────
