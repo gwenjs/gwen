@@ -61,13 +61,13 @@ export interface WatchActorLeaksOptions {
    * @param count  - Current live instance count.
    * @param delta  - Instances added since the last poll.
    */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onLeak?: (name: string, count: number, delta: number) => void;
 }
 
 // ─── Default reporter ─────────────────────────────────────────────────────────
 
 function defaultLeak(name: string, count: number, delta: number): void {
+  // eslint-disable-next-line no-console
   console.warn(
     `[GWEN] Possible actor leak detected: "${name}" has ${count} live instances ` +
       `(+${delta} since last check). Call despawn() or despawnAll() when done, ` +
