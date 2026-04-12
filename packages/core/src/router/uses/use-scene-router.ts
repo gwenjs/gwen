@@ -19,7 +19,7 @@
  * ```
  */
 
-import { useEngine } from "../../engine/context";
+import { useEngine, engineContext } from "../../engine/context";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type {
   RouteConfig,
@@ -88,11 +88,21 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   const overlayStack: StatesOf<TRoutes>[] = [];
   const listeners: TransitionListener<TRoutes>[] = [];
 
-  // Activate initial scene
+  // Activate initial scene (fire-and-forget with full context scope)
   const initialScene = resolveScene(routes[currentState as keyof TRoutes].scene);
   if (initialScene.onEnter) {
-    // eslint-disable-next-line no-console
-    Promise.resolve(initialScene.onEnter()).catch(console.error);
+    const _onEnter = initialScene.onEnter;
+    (async () => {
+      engineContext.set(engine, true);
+      try {
+        await _onEnter();
+      } catch (e) {
+        // eslint-disable-next-line no-console
+        console.error(e);
+      } finally {
+        engineContext.unset();
+      }
+    })();
   }
 
   const handle: SceneRouterHandle<TRoutes> = {
@@ -142,7 +152,15 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         // Normal transition — exit current, clear any overlay stack
         overlayStack.length = 0;
         if (fromScene.onExit) {
-          await Promise.resolve(fromScene.onExit());
+          // Keep engine context alive for the full async duration of onExit.
+          // engineContext.set() keeps currentInstance set across every await
+          // inside onExit without requiring the @gwenjs/vite async transform.
+          engineContext.set(engine, true);
+          try {
+            await fromScene.onExit!();
+          } finally {
+            engineContext.unset();
+          }
         }
       }
 
@@ -150,7 +168,13 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       currentParams = params;
 
       if (toScene.onEnter) {
-        await Promise.resolve(toScene.onEnter(params));
+        // Same pattern: keep engine context alive for the full async duration.
+        engineContext.set(engine, true);
+        try {
+          await toScene.onEnter!(params);
+        } finally {
+          engineContext.unset();
+        }
       }
 
       for (const l of listeners) l(fromState, target, params);
