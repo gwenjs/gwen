@@ -33,6 +33,7 @@ const enSidebar = [
       { text: 'Debug Mode', link: '/advanced/debug-mode' },
       { text: 'Actor Leak Detection', link: '/advanced/actor-leak-detection' },
       { text: 'Extending Vite', link: '/advanced/vite-config' },
+      { text: 'Async Context', link: '/advanced/async-context' },
     ],
   },
   {
