@@ -26,11 +26,13 @@ export { useActor, usePrefab, useComponent } from "./uses/use-actor";
 export { defineLayout } from "./defines/define-layout";
 export { useLayout } from "./uses/use-layout";
 export { useTransform } from "./uses/use-transform";
+export { watchActorLeaks } from "./uses/watch-actor-leaks";
 export { placeActor, placeGroup, placePrefab } from "./place";
 
 // Types
 export type { ActorHandle, PrefabHandle } from "./uses/use-actor";
 export type { TransformHandle } from "./uses/use-transform";
+export type { WatchActorLeaksOptions } from "./uses/watch-actor-leaks";
 export type { PrefabDefinition, PrefabComponentEntry } from "./defines/define-prefab";
 export type { InferEvents, EventHandlerMap } from "./defines/define-events";
 export type {
