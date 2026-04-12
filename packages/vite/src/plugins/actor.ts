@@ -35,8 +35,13 @@ export function generateActorsModule(actorFiles: string[]): string {
 
 /**
  * Transform `defineActor` and `definePrefab` variable declarations to inject
- * name metadata as a leading comment, using AST-based parsing to avoid
- * false positives inside string literals or comments.
+ * name metadata.
+ *
+ * - `defineActor`: injects the variable name as a **string literal** first argument,
+ *   matching the pattern used by `transformSystemNames` for `defineSystem`.
+ *   Skipped if the first argument is already a string literal.
+ * - `definePrefab`: keeps the existing comment injection (`__prefabName__: "Foo"`)
+ *   because `definePrefab` does not accept a name argument.
  *
  * @param code     - TypeScript source code to transform.
  * @param filename - File path for the parser (used in diagnostics).
@@ -44,10 +49,13 @@ export function generateActorsModule(actorFiles: string[]): string {
  *
  * @example
  * ```ts
- * // Input:
- * const Hero = defineActor(config)
- * // Output:
- * const Hero = defineActor(/* __actorName__: "Hero" *\/ config)
+ * // defineActor — input:
+ * const Hero = defineActor(HeroPrefab, factory)
+ * // defineActor — output:
+ * const Hero = defineActor('Hero', HeroPrefab, factory)
+ *
+ * // definePrefab — unchanged comment form:
+ * const HeroPrefab = definePrefab(/* __prefabName__: "HeroPrefab" *\/ [...])
  * ```
  */
 export function transformActorNames(code: string, filename = "actor.ts"): string {
@@ -69,15 +77,28 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
 
       const varName = (id as { name: string }).name;
       const callee = getIdentifierName((init as CallExpression).callee);
-      const metaKey = callee === "defineActor" ? "__actorName__" : "__prefabName__";
-
       const args = getCallArgs(init as CallExpression);
-      if (args.length > 0) {
-        s.prependLeft(args[0]!.start, `/* ${metaKey}: "${varName}" */ `);
+
+      if (callee === "defineActor") {
+        // Skip if the first argument is already a string literal (name already explicit).
+        if (args.length > 0 && args[0]!.type === "Literal") return;
+
+        if (args.length > 0) {
+          s.prependLeft(args[0]!.start, `'${varName}', `);
+        } else {
+          s.prependLeft((init as CallExpression).end - 1, `'${varName}'`);
+        }
+        changed = true;
       } else {
-        s.prependLeft(init.end - 1, `/* ${metaKey}: "${varName}" */ `);
+        // definePrefab — keep comment injection (no name argument on the function).
+        const metaKey = "__prefabName__";
+        if (args.length > 0) {
+          s.prependLeft(args[0]!.start, `/* ${metaKey}: "${varName}" */ `);
+        } else {
+          s.prependLeft((init as CallExpression).end - 1, `/* ${metaKey}: "${varName}" */ `);
+        }
+        changed = true;
       }
-      changed = true;
     },
   });
 

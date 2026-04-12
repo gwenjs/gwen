@@ -3,8 +3,7 @@ import { generateActorsModule, transformActorNames } from "../src/plugins/actor.
 
 describe("generateActorsModule", () => {
   it("returns empty actors array when no files given", () => {
-    const code = generateActorsModule([]);
-    expect(code).toContain("export const actors = []");
+    expect(generateActorsModule([])).toContain("export const actors = []");
   });
 
   it("generates lazy imports for each actor file", () => {
@@ -19,33 +18,42 @@ describe("generateActorsModule", () => {
 
   it("generates correct number of entries", () => {
     const code = generateActorsModule(["/a.ts", "/b.ts", "/c.ts"]);
-    const matches = code.match(/import\(/g);
-    expect(matches).toHaveLength(3);
+    expect(code.match(/import\(/g)).toHaveLength(3);
   });
 });
 
-describe("transformActorNames", () => {
-  it("injects __actorName__ comment into defineActor calls", () => {
+describe("transformActorNames — string literal injection", () => {
+  it("injects actor name as string literal (not comment)", () => {
     const input = `const EnemyActor = defineActor(EnemyPrefab, () => {});`;
     const result = transformActorNames(input);
-    expect(result).toContain("EnemyActor");
-    expect(result).toContain("defineActor");
-    // The transform should preserve the variable name somewhere
-    expect(result).not.toBe(input); // something changed
+    // Must inject a string literal 'EnemyActor' as first arg
+    expect(result).toContain(`defineActor('EnemyActor',`);
+    // Must NOT inject a comment
+    expect(result).not.toContain("/*");
   });
 
-  it("injects __prefabName__ comment into definePrefab calls", () => {
+  it("injects name before first argument", () => {
+    const input = `const PlayerActor = defineActor(PlayerPrefab, factory);`;
+    const result = transformActorNames(input);
+    expect(result).toBe(`const PlayerActor = defineActor('PlayerActor', PlayerPrefab, factory);`);
+  });
+
+  it("skips if first argument is already a string literal", () => {
+    const input = `const Hero = defineActor('Hero', HeroPrefab, factory);`;
+    expect(transformActorNames(input)).toBe(input);
+  });
+
+  it("handles export const form", () => {
+    const input = `export const HeroActor = defineActor(HeroPrefab, () => {});`;
+    const result = transformActorNames(input);
+    expect(result).toContain(`defineActor('HeroActor',`);
+  });
+
+  it("does NOT inject name into definePrefab calls", () => {
     const input = `const EnemyPrefab = definePrefab([]);`;
     const result = transformActorNames(input);
-    expect(result).toContain("EnemyPrefab");
-    expect(result).toContain("definePrefab");
-    expect(result).not.toBe(input);
-  });
-
-  it("returns code unchanged if no defineActor or definePrefab", () => {
-    const input = `const x = 1;`;
-    const result = transformActorNames(input);
-    expect(result).toBe(input);
+    // definePrefab keeps its comment injection (unchanged behaviour)
+    expect(result).not.toContain("definePrefab('EnemyPrefab'");
   });
 
   it("does not transform defineActor inside a string literal", () => {
@@ -53,8 +61,24 @@ describe("transformActorNames", () => {
     expect(transformActorNames(code)).toBe(code);
   });
 
-  it("transforms const Foo = defineActor with no arguments", () => {
+  it("returns code unchanged if no defineActor or definePrefab", () => {
+    expect(transformActorNames(`const x = 1;`)).toBe(`const x = 1;`);
+  });
+
+  it("handles defineActor with no arguments (edge case)", () => {
     const code = `const Foo = defineActor();`;
-    expect(transformActorNames(code)).toContain('__actorName__: "Foo"');
+    const result = transformActorNames(code);
+    expect(result).toContain(`defineActor('Foo'`);
+    expect(result).not.toContain("/*");
+  });
+
+  it("transforms multiple defineActor calls in one file", () => {
+    const code = [
+      `const PlayerActor = defineActor(PlayerPrefab, factory);`,
+      `const EnemyActor = defineActor(EnemyPrefab, factory);`,
+    ].join("\n");
+    const result = transformActorNames(code);
+    expect(result).toContain(`defineActor('PlayerActor',`);
+    expect(result).toContain(`defineActor('EnemyActor',`);
   });
 });
