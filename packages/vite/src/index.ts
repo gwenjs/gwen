@@ -397,7 +397,7 @@ function extractModuleNamesFromConfig(configPath: string): string[] {
 
 function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []): string {
   const lines = [
-    'import { initWasm, createEngine, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core";',
+    'import { initWasm, createEngine, detectCoreVariant, detectSharedMemoryRequired, engineContext } from "@gwenjs/core";',
     'import gwenConfig from "/gwen.config.ts";',
   ];
 
@@ -466,10 +466,13 @@ function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []):
       "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } }));",
       "  await Promise.all(usages);",
       "",
-      "  // Activate initial scene: fire onEnter for the main scene",
+      "  // Activate initial scene: fire onEnter for the main scene with engine context",
       "  if (mainSceneFactory) {",
       "    const _mainDef = mainSceneFactory({ register() {} });",
-      "    if (_mainDef.onEnter) await _mainDef.onEnter();",
+      "    if (_mainDef.onEnter) {",
+      "      engineContext.set(engine, true);",
+      "      try { await _mainDef.onEnter(); } finally { engineContext.unset(); }",
+      "    }",
       "  }",
     );
   }

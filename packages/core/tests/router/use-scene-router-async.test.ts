@@ -9,6 +9,88 @@ function wait(ms = 0) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+describe("direct onEnter call — bootstrap pattern", () => {
+  it("context is available after await when onEnter is called with set/unset", async () => {
+    let capturedEngine: unknown;
+
+    const SceneA = defineScene("bp_a", () => {
+      onEnter(async () => {
+        await wait();
+        capturedEngine = engineContext.tryUse();
+      });
+    });
+
+    const engine = await createEngine({ maxEntities: 100 });
+    const def = (
+      SceneA as unknown as (r: { register: () => void }) => { onEnter?: () => Promise<void> }
+    )({ register: () => {} });
+
+    engineContext.set(engine, true);
+    try {
+      if (def.onEnter) await def.onEnter();
+    } finally {
+      engineContext.unset();
+    }
+
+    expect(capturedEngine).toBe(engine);
+  });
+
+  it("context is falsy after direct onEnter completes (no leak)", async () => {
+    const SceneA = defineScene("bp_leak", () => {
+      onEnter(async () => {
+        await wait();
+      });
+    });
+
+    const engine = await createEngine({ maxEntities: 100 });
+    const def = (
+      SceneA as unknown as (r: { register: () => void }) => { onEnter?: () => Promise<void> }
+    )({ register: () => {} });
+
+    engineContext.set(engine, true);
+    try {
+      if (def.onEnter) await def.onEnter();
+    } finally {
+      engineContext.unset();
+    }
+
+    expect(engineContext.tryUse()).toBeFalsy();
+  });
+});
+
+describe("initial scene onEnter — useSceneRouter activation", () => {
+  it("initial scene onEnter has engine context after await", async () => {
+    let capturedEngine: unknown;
+
+    const SceneA = defineScene("init_a", () => {
+      onEnter(async () => {
+        await wait();
+        capturedEngine = engineContext.tryUse();
+      });
+    });
+
+    const Router = defineSceneRouter({
+      initial: "init_a",
+      routes: {
+        init_a: { scene: SceneA, on: {} },
+      },
+    });
+
+    const engine = await createEngine({ maxEntities: 100 });
+    // Simulate the bootstrap: set context, call useSceneRouter, await initial onEnter
+    engineContext.set(engine, true);
+    try {
+      useSceneRouter(Router);
+      // Give the fire-and-forget IIFE time to complete
+      await wait(10);
+    } finally {
+      engineContext.unset();
+    }
+
+    expect(capturedEngine).toBe(engine);
+  });
+});
+
 describe("async onEnter — engine context propagation", () => {
   it("useEngine() works after await in onEnter", async () => {
     let capturedEngine: unknown;
