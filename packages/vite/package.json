@@ -50,7 +50,8 @@
     "@gwenjs/kit": "workspace:*",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.123.0",
-    "oxc-walker": "^0.7.0"
+    "oxc-walker": "^0.7.0",
+    "unctx": "^2.5.0"
   },
   "devDependencies": {
     "@types/node": "^20",
