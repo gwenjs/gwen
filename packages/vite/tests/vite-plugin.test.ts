@@ -13,6 +13,7 @@ import {
   generateScenesModule,
   extractModuleNamesFromConfig,
 } from "../src/index";
+import { gwenVitePlugin } from "../src/plugins/index.js";
 
 function makeTmp(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "gwen-vite-test-"));
@@ -316,5 +317,17 @@ describe("generateScenesModule — registerScenes contract", () => {
     const code = generateScenesModule([], undefined);
     expect(code).toContain("export function registerScenes(_scenes)");
     expect(code).toContain("export const mainScene = undefined");
+  });
+});
+
+describe("gwenVitePlugin — async-context plugin included", () => {
+  it("includes gwen:async-context plugin", () => {
+    const plugins = (gwenVitePlugin() as unknown[]).flat(Infinity);
+    const names = plugins
+      .filter(
+        (p): p is { name: string } => !!p && typeof (p as { name?: string }).name === "string",
+      )
+      .map((p) => p.name);
+    expect(names).toContain("gwen:async-context");
   });
 });
