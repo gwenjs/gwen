@@ -27,12 +27,12 @@ uplinks:
     url: https://registry.npmjs.org/
 
 packages:
-  # Packages @gwenjs/* : publication anonyme, accès libre
+  # Packages @gwenjs/* : publication anonyme, accès libre, pas de proxy npm
+  # (ces packages existent sur npm réel — le proxy empêche de republier la même version)
   '@gwenjs/*':
     access: $all
     publish: $all
     unpublish: $all
-    proxy: npmjs
 
   # Tous les autres packages : proxy vers npm public
   '**':
