@@ -26,7 +26,7 @@ describe("CameraSystem — follow target", () => {
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
 
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     // create target entity with Camera component at (100, 200)
     const targetId = engine.createEntity();
@@ -87,7 +87,7 @@ describe("CameraSystem — bounds clamp", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
@@ -151,7 +151,7 @@ describe("CameraSystem — shake", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -191,7 +191,7 @@ describe("CameraSystem — shake", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -228,7 +228,7 @@ describe("CameraSystem — inactive camera", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -259,7 +259,7 @@ describe("CameraSystem — semantic hooks", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const activateSpy = vi.fn();
     engine.hooks.hook("camera:activate", activateSpy);
@@ -291,7 +291,7 @@ describe("CameraSystem — semantic hooks", () => {
     const engine = await makeEngine();
     const viewports = engine.inject("viewportManager");
     viewports.set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const switchSpy = vi.fn();
     engine.hooks.hook("camera:switch", switchSpy);
@@ -350,7 +350,7 @@ describe("CameraSystem — follow offset", () => {
   it("applies offsetX/offsetY to the lerped position", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
@@ -404,7 +404,7 @@ describe("CameraSystem — follow offset", () => {
   it("applies partial lerp (< 1.0) smoothly", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
@@ -460,7 +460,7 @@ describe("CameraSystem — bounds min clamp", () => {
   it("clamps camera below minX/minY", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const targetId = engine.createEntity();
     engine.addComponent(targetId, Camera, {
@@ -524,7 +524,7 @@ describe("CameraSystem — projection type", () => {
   it("builds orthographic projection from Camera component", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -558,7 +558,7 @@ describe("CameraSystem — projection type", () => {
   it("builds perspective projection from Camera component", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -594,7 +594,7 @@ describe("CameraSystem — shake offset affects position", () => {
   it("shake offset shifts the CameraState position away from Camera.x/y", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -635,7 +635,7 @@ describe("CameraSystem — multi-camera priority", () => {
   it("higher priority camera wins the viewport slot", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const lowCam = engine.createEntity();
     engine.addComponent(lowCam, Camera, {
@@ -686,7 +686,7 @@ describe("CameraSystem — camera:deactivate hook", () => {
   it("emits camera:deactivate when the only active camera is deactivated", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const deactivateSpy = vi.fn();
     engine.hooks.hook("camera:deactivate", deactivateSpy);
@@ -725,7 +725,7 @@ describe("CameraSystem — CameraPath", () => {
   it("advances camera toward first waypoint position", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -763,7 +763,7 @@ describe("CameraSystem — CameraPath", () => {
   it("calls onComplete when the last waypoint is reached (no loop)", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const onComplete = vi.fn();
 
@@ -802,7 +802,7 @@ describe("CameraSystem — CameraPath", () => {
   it("loops back to index 0 when loop:true", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {
@@ -840,7 +840,7 @@ describe("CameraSystem — CameraPath", () => {
   it("camera without cameraViewportMap entry is ignored", async () => {
     const engine = await makeEngine();
     engine.inject("viewportManager").set("main", { x: 0, y: 0, width: 1, height: 1 });
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
 
     const camId = engine.createEntity();
     engine.addComponent(camId, Camera, {

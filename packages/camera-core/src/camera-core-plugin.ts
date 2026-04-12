@@ -22,6 +22,6 @@ export const CameraCorePlugin = definePlugin(() => ({
   async setup(engine) {
     getOrCreateCameraManager(engine);
     getOrCreateViewportManager(engine);
-    await engine.use(CameraSystem);
+    await engine.use(CameraSystem());
   },
 }));
