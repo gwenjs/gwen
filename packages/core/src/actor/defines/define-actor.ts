@@ -320,10 +320,16 @@ let _actorPluginCounter = 0;
 /**
  * Factory type accepted by {@link defineActor}.
  *
- * @template Props - Props forwarded from `spawn(props?)`.
+ * When `Props` is `void` the factory takes no arguments.
+ * When `Props` is a concrete type the factory receives it as a required parameter
+ * (spawn always provides it, so the factory can rely on it being defined).
+ *
+ * @template Props - Props forwarded from `spawn(props)`.
  * @template PublicAPI - The object returned by the factory (actor's public API).
  */
-type ActorFactory<Props, PublicAPI> = (props?: Props) => PublicAPI;
+type ActorFactory<Props, PublicAPI> = Props extends void
+  ? () => PublicAPI
+  : (props: Props) => PublicAPI;
 
 /**
  * Defines an actor type: a composable, instance-based game object backed by a
@@ -434,7 +440,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     const [, cleanupDispose] = withCleanup(() => {
       _withActorContext(instance, _engine!, () => {
         _withSystemContext(ctx, () => {
-          api = factory(props);
+          api = (factory as (props?: Props) => PublicAPI)(props);
         });
       });
     });

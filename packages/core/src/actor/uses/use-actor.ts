@@ -42,10 +42,12 @@ export interface ActorHandle<Props, PublicAPI> {
   /**
    * Spawn a new instance of the actor.
    *
-   * @param props - Optional props forwarded to the actor factory.
+   * When `Props` is `void` no argument is needed.
+   * When `Props` is a concrete type the props argument is required.
+   *
    * @returns The ECS entity ID of the new instance.
    */
-  spawn(props?: Props): bigint;
+  spawn(...args: Props extends void ? [] : [props: Props]): bigint;
 
   /**
    * Despawn the actor instance with the given entity ID.
@@ -85,10 +87,12 @@ export interface ActorHandle<Props, PublicAPI> {
    * Spawn a new instance only if no live instance exists yet.
    * On subsequent calls, returns the existing instance's entity ID.
    *
-   * @param props - Optional props forwarded to the actor factory on first spawn.
+   * When `Props` is `void` no argument is needed.
+   * When `Props` is a concrete type the props argument is required.
+   *
    * @returns The singleton instance's entity ID.
    */
-  spawnOnce(props?: Props): bigint;
+  spawnOnce(...args: Props extends void ? [] : [props: Props]): bigint;
 }
 
 /**
@@ -177,7 +181,7 @@ export function useActor<Props, PublicAPI>(
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): bigint {
-      return actorDef._plugin.spawn(props);
+      return (actorDef._plugin.spawn as (props?: Props) => bigint)(props);
     },
 
     despawn(id: bigint): void {
@@ -212,7 +216,7 @@ export function useActor<Props, PublicAPI>(
       if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
         return _singletonId;
       }
-      _singletonId = actorDef._plugin.spawn(props);
+      _singletonId = (actorDef._plugin.spawn as (props?: Props) => bigint)(props);
       return _singletonId;
     },
   };

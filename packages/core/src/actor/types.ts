@@ -88,10 +88,12 @@ export interface ActorPlugin<Props = void> extends GwenPlugin {
   /**
    * Spawn a new actor instance.
    *
-   * @param props - Optional props forwarded to the actor factory.
+   * When `Props` is `void` no argument is needed.
+   * When `Props` is a concrete type the props argument is required.
+   *
    * @returns The ECS entity ID of the spawned instance.
    */
-  spawn(props?: Props): bigint;
+  spawn(...args: Props extends void ? [] : [props: Props]): bigint;
 
   /**
    * Despawn the actor instance associated with the given entity ID.

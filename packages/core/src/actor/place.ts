@@ -166,7 +166,9 @@ export function placeActor<Props, API>(
     );
   }
 
-  const entityId = actorDef._plugin.spawn(options.props) as unknown as bigint;
+  const entityId = (actorDef._plugin.spawn as (props?: Props) => bigint)(
+    options.props,
+  ) as unknown as bigint;
   const bridge = useEngine()._getPlacementBridge();
   applyTransform(bridge, entityId, options);
   _register(entityId);
