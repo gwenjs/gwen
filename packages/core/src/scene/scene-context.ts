@@ -10,8 +10,10 @@
  * - `onExit(cb)` — callback when scene is exited
  */
 
-import { GwenContextError } from "../context.js";
-import type { GwenPlugin } from "../engine/gwen-engine.js";
+import { GwenContextError, engineContext } from "../context.js";
+import type { GwenEngine, GwenPlugin } from "../engine/gwen-engine.js";
+import { createSystemHandle } from "./system-handle.js";
+import type { SystemHandle } from "./system-handle.js";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -28,6 +30,20 @@ export interface SceneSetupContext {
  * @internal
  */
 let _currentSceneCtx: SceneSetupContext | null = null;
+const _SCENE_CONTEXT_SYMBOL = Symbol.for("@gwenjs/core.scene-setup-context");
+
+type SceneContextEngine = GwenEngine & {
+  [_SCENE_CONTEXT_SYMBOL]?: SceneSetupContext;
+};
+
+function _getEngineSceneContext(): SceneSetupContext | null {
+  const engine = engineContext.tryUse() as SceneContextEngine | undefined;
+  return engine?.[_SCENE_CONTEXT_SYMBOL] ?? null;
+}
+
+function _getActiveSceneContext(): SceneSetupContext | null {
+  return _currentSceneCtx ?? _getEngineSceneContext();
+}
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
@@ -38,38 +54,90 @@ let _currentSceneCtx: SceneSetupContext | null = null;
  */
 export function _withSceneContext(factory: () => void): SceneSetupContext {
   const prev = _currentSceneCtx;
+  const engine = engineContext.tryUse() as SceneContextEngine | undefined;
+  const prevEngineCtx = engine?.[_SCENE_CONTEXT_SYMBOL];
   const ctx: SceneSetupContext = { systems: [] };
   _currentSceneCtx = ctx;
+  if (engine) engine[_SCENE_CONTEXT_SYMBOL] = ctx;
   try {
     factory();
   } finally {
     _currentSceneCtx = prev;
+    if (engine) {
+      if (prevEngineCtx) engine[_SCENE_CONTEXT_SYMBOL] = prevEngineCtx;
+      else delete engine[_SCENE_CONTEXT_SYMBOL];
+    }
   }
   return ctx;
 }
 
-// ─── Public composables ───────────────────────────────────────────────────────
-
 /**
- * Declare the systems that run while this scene is active.
+ * Register a plugin against the active scene context, if any.
+ * Used by scene-aware composables such as `useActor()` so bootstrap can
+ * install all required plugins before scene lifecycle hooks run.
+ * @internal
+ */
+export function _registerScenePlugin(plugin: GwenPlugin): void {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) return;
+  if (ctx.systems.includes(plugin)) return;
+  ctx.systems.push(plugin);
+}
+
+// ─── Public composables ───────────────────────────────────────────────────────
+/**
+ * Register a system to run while this scene is active.
  *
- * Must be called inside a `defineScene()` factory.
+ * Must be called inside a `defineScene()` factory. Each call registers one
+ * system and returns a `SystemHandle` for runtime lifecycle control.
  *
- * @param plugins - Array of system plugins to activate for this scene.
+ * **Collect pass:** if the plugin produced by `defineSystem()` exposes a
+ * `_discover()` method, `useSystem` runs it before registration. The collect
+ * pass executes the system's setup function with no-op frame callbacks so
+ * that `useActor()` calls inside the factory register their actor plugins as
+ * scene dependencies. Actor plugins are therefore installed before this
+ * system during the bootstrap — the correct installation order is guaranteed
+ * automatically.
+ *
+ * @param plugin - A plugin produced by calling a `defineSystem()` factory,
+ *                 e.g. `MovementSystem()` or `CombatSystem(player)`.
+ * @returns A {@link SystemHandle} with `pause()`, `resume()`, and `destroy()`.
+ *
  * @throws {GwenContextError} If called outside a `defineScene()` factory.
  *
  * @example
  * ```ts
- * defineScene('Game', () => {
- *   useSystem([MovementSystem, RenderSystem])
+ * defineScene('game', () => {
+ *   const player = useActor(PlayerActor)
+ *
+ *   const movement = useSystem(MovementSystem())
+ *   const combat   = useSystem(CombatSystem(player))
+ *
+ *   onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
+ *   onExit(() => player.despawnAll())
  * })
  * ```
  */
-export function useSystem(plugins: GwenPlugin[]): void {
-  if (!_currentSceneCtx) {
+export function useSystem(plugin: GwenPlugin): SystemHandle {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
     throw new GwenContextError("[GWEN] useSystem() must be called inside a defineScene() factory.");
   }
-  _currentSceneCtx.systems.push(...plugins);
+
+  // Collect pass: run the system setup in no-op mode to discover useActor() deps.
+  // This must happen BEFORE we push the wrapped plugin so that discovered actor
+  // plugins appear earlier in ctx.systems — actors must be installed before
+  // the systems that depend on them.
+  const discoverable = plugin as { _discover?: () => void };
+  if (typeof discoverable._discover === "function") {
+    discoverable._discover();
+  }
+
+  // Wrap the plugin with pause/resume/destroy lifecycle gates.
+  const { plugin: wrappedPlugin, handle } = createSystemHandle(plugin);
+  ctx.systems.push(wrappedPlugin);
+
+  return handle;
 }
 
 /**
@@ -89,10 +157,11 @@ export function useSystem(plugins: GwenPlugin[]): void {
  * ```
  */
 export function onEnter(cb: (params?: Record<string, unknown>) => void | Promise<void>): void {
-  if (!_currentSceneCtx) {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
     throw new GwenContextError("[GWEN] onEnter() must be called inside a defineScene() factory.");
   }
-  _currentSceneCtx.onEnterCb = cb;
+  ctx.onEnterCb = cb;
 }
 
 /**
@@ -112,8 +181,9 @@ export function onEnter(cb: (params?: Record<string, unknown>) => void | Promise
  * ```
  */
 export function onExit(cb: () => void | Promise<void>): void {
-  if (!_currentSceneCtx) {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
     throw new GwenContextError("[GWEN] onExit() must be called inside a defineScene() factory.");
   }
-  _currentSceneCtx.onExitCb = cb;
+  ctx.onExitCb = cb;
 }

@@ -5,5 +5,6 @@ export { defineScene } from "./define-scene.js";
 export type { SceneDefinition, SceneFactory, SceneRegistry } from "./define-scene.js";
 
 export { useSystem, onEnter, onExit } from "./scene-context.js";
+export type { SystemHandle } from "./system-handle.js";
 
 export * from "../router/index.js";
