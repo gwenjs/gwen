@@ -4,7 +4,7 @@ import { defineScene } from "../../src/scene/define-scene.js";
 import { definePrefab } from "../../src/scene/define-prefab.js";
 import { defineActor } from "../../src/scene/define-actor.js";
 import { useActor } from "../../src/scene/use-actor.js";
-import { useSystem, onEnter, onExit } from "../../src/scene/scene-context.js";
+import { onEnter, onExit } from "../../src/scene/scene-context.js";
 import { defineSceneRouter } from "../../src/router/define-scene-router.js";
 import { useSceneRouter } from "../../src/router/use-scene-router.js";
 

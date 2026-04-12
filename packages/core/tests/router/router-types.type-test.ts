@@ -3,15 +3,20 @@ import type {
   SceneRouterHandle,
   EventsOf,
   StatesOf,
-  RouteConfig,
+  SceneInput,
 } from "../../src/router/router-types.js";
 
+// Plain object types (no RouteConfig intersection) so the `on` property
+// keeps its literal key types — RouteConfig.on uses Record<string, ...>
+// which would bleed a string index signature into the intersection.
+declare const fakeScene: SceneInput;
+
 type MockRoutes = {
-  menu: RouteConfig<MockRoutes> & { on: { PLAY: "game"; OPTIONS: "settings" } };
-  game: RouteConfig<MockRoutes> & { on: { PAUSE: "pause"; DIE: "gameover" } };
-  pause: RouteConfig<MockRoutes> & { on: { RESUME: "game"; QUIT: "menu" } };
-  gameover: RouteConfig<MockRoutes> & { on: { RETRY: "game"; MENU: "menu" } };
-  settings: RouteConfig<MockRoutes> & { on: { BACK: "menu" } };
+  menu: { scene: typeof fakeScene; on: { PLAY: "game"; OPTIONS: "settings" } };
+  game: { scene: typeof fakeScene; on: { PAUSE: "pause"; DIE: "gameover" } };
+  pause: { scene: typeof fakeScene; on: { RESUME: "game"; QUIT: "menu" } };
+  gameover: { scene: typeof fakeScene; on: { RETRY: "game"; MENU: "menu" } };
+  settings: { scene: typeof fakeScene; on: { BACK: "menu" } };
 };
 
 type Events = EventsOf<MockRoutes>;

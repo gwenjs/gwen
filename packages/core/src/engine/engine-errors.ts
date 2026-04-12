@@ -88,3 +88,30 @@ export const CoreErrorCodes = {
   WASM_TIMEOUT: "CORE:WASM_TIMEOUT",
   WASM_PANIC: "CORE:WASM_PANIC",
 } as const;
+
+/** Error codes emitted by the GWEN actor system. */
+export const ActorErrorCodes = {
+  PLUGIN_NOT_READY: "ACTOR:PLUGIN_NOT_READY",
+} as const;
+
+/**
+ * Thrown when an actor operation is attempted before the actor's plugin has
+ * been installed with `engine.use()`.
+ *
+ * @example
+ * ```ts
+ * if (err instanceof GwenActorError && err.code === 'ACTOR:PLUGIN_NOT_READY') {
+ *   // actor plugin was not installed before spawning
+ * }
+ * ```
+ */
+export class GwenActorError extends Error {
+  /** Machine-readable error code. */
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "GwenActorError";
+    this.code = code;
+  }
+}

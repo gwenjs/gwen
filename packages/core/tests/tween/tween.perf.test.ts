@@ -12,7 +12,7 @@
 
 import { describe, it, expect } from "vitest";
 import { ciThreshold } from "../helpers/perf";
-import { TweenPool } from "../../src/tween/tween-pool";
+import { TweenPool, TweenSlot } from "../../src/tween/tween-pool";
 import { createEngine } from "../../src/index";
 import { defineSequence } from "../../src/tween/define-sequence";
 
@@ -23,7 +23,7 @@ describe("Performance: 1,000 tweens ticking per frame", () => {
     const pool = new TweenPool(1_000);
     for (let i = 0; i < 1_000; i++) {
       const slot = pool.claim({ duration: 1, easing: "linear" });
-      slot.play({ from: 0, to: 100 });
+      slot!.play({ from: 0, to: 100 });
     }
 
     // Warm-up run to avoid JIT cold-start timing skew
@@ -44,7 +44,7 @@ describe("Performance: 10,000 tweens ticking per frame", () => {
     const pool = new TweenPool(10_000);
     for (let i = 0; i < 10_000; i++) {
       const slot = pool.claim({ duration: 1, easing: "linear" });
-      slot.play({ from: 0, to: 100 });
+      slot!.play({ from: 0, to: 100 });
     }
 
     const start = performance.now();
@@ -100,10 +100,10 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
     // (avoids exhausting the engine's default 256-slot TweenManager pool).
     // TweenSlot implements TweenHandle, so it can be passed directly to defineSequence.
     const bigPool = new TweenPool(10_100);
-    const preClaimed = [];
+    const preClaimed: TweenSlot[] = [];
     for (let i = 0; i < 10_100; i++) {
       const slot = bigPool.claim({ duration: 0.1, easing: "linear" });
-      preClaimed.push(slot);
+      preClaimed.push(slot!);
     }
 
     // Larger warm-up to stabilize JIT before measurement
@@ -139,7 +139,7 @@ describe("Performance: zero-alloc tick sanity", () => {
     const pool = new TweenPool(1_000);
     for (let i = 0; i < 1_000; i++) {
       const slot = pool.claim({ duration: 100, easing: "linear", loop: true });
-      slot.play({ from: 0, to: 1 });
+      slot!.play({ from: 0, to: 1 });
     }
 
     const start = performance.now();

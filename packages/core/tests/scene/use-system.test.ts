@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
 import { defineScene } from "../../src/scene/define-scene.js";
-import { useSystem, onEnter, onExit } from "../../src/scene/scene-context.js";
+import { useSystem } from "../../src/scene/scene-context.js";
 import { GwenContextError } from "../../src/context.js";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 import { defineSystem, onUpdate } from "../../src/system.js";
@@ -14,7 +14,7 @@ const Position = { __name__: "Position" };
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 function makePlugin(name: string): GwenPlugin {
-  return { name, apiVersion: 1, setup() {} };
+  return { name, setup() {} };
 }
 
 describe("useSystem — basic API", () => {
@@ -150,7 +150,7 @@ describe("useSystem — SystemHandle gating within scene", () => {
     await engine.use(MyScene({ register: () => {} }).systems[0]!);
 
     handle.pause();
-    engine.hooks.callHook("engine:update", 0.016);
+    await engine.advance(16);
     expect(spy).not.toHaveBeenCalled();
   });
 });

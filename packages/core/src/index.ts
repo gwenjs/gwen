@@ -14,7 +14,7 @@ export type { GwenHooks, GwenHookable } from "./hooks";
 
 // Engine
 export { createEngine, GwenPluginNotFoundError, CoreErrorCodes } from "./engine/gwen-engine";
-export { GwenConfigError } from "./errors";
+export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export type {
   GwenEngine,
   GwenPlugin,

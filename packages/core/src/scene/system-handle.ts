@@ -161,9 +161,8 @@ export function createSystemHandle(inner: GwenPlugin): {
 
   const plugin: GwenPlugin = {
     name: inner.name,
-    apiVersion: inner.apiVersion,
 
-    setup: inner.setup ? (...args) => inner.setup!(...args) : undefined,
+    setup: (engine) => inner.setup(engine),
 
     onBeforeUpdate: inner.onBeforeUpdate
       ? (dt: number): void => {

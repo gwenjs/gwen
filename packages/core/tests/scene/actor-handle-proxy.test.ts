@@ -3,7 +3,6 @@ import { defineActor } from "../../src/scene/define-actor.js";
 import { useActor } from "../../src/scene/use-actor.js";
 import { definePrefab } from "../../src/scene/define-prefab.js";
 import { createEngine } from "../../src/engine/gwen-engine.js";
-import { onStart } from "../../src/scene/define-actor.js";
 
 const Position = { __name__: "Position" };
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);

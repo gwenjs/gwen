@@ -338,9 +338,9 @@ type ActorFactory<Props, PublicAPI> = (props?: Props) => PublicAPI;
  *                  and return a public API object.
  */
 export function defineActor<Props = void, PublicAPI = void>(
-    name: string,
-    prefab: PrefabDefinition,
-    factory: ActorFactory<Props, PublicAPI>,
+  name: string,
+  prefab: PrefabDefinition,
+  factory: ActorFactory<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI>;
 /**
  * @overload
@@ -350,22 +350,21 @@ export function defineActor<Props = void, PublicAPI = void>(
  * @param factory - Per-instance setup function.
  */
 export function defineActor<Props = void, PublicAPI = void>(
-    prefab: PrefabDefinition,
-    factory: ActorFactory<Props, PublicAPI>,
+  prefab: PrefabDefinition,
+  factory: ActorFactory<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI>;
 export function defineActor<Props = void, PublicAPI = void>(
-    nameOrPrefab: string | PrefabDefinition,
-    prefabOrFactory: PrefabDefinition | ActorFactory<Props, PublicAPI>,
-    maybeFactory?: ActorFactory<Props, PublicAPI>,
+  nameOrPrefab: string | PrefabDefinition,
+  prefabOrFactory: PrefabDefinition | ActorFactory<Props, PublicAPI>,
+  maybeFactory?: ActorFactory<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI> {
   const pluginName =
-      typeof nameOrPrefab === "string" ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
+    typeof nameOrPrefab === "string" ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
   const prefab =
-      typeof nameOrPrefab === "string"
-          ? (prefabOrFactory as PrefabDefinition)
-          : (nameOrPrefab as PrefabDefinition);
-  const factory =
-      maybeFactory ?? (prefabOrFactory as ActorFactory<Props, PublicAPI>);
+    typeof nameOrPrefab === "string"
+      ? (prefabOrFactory as PrefabDefinition)
+      : (nameOrPrefab as PrefabDefinition);
+  const factory = maybeFactory ?? (prefabOrFactory as ActorFactory<Props, PublicAPI>);
   const _instances = new Map<bigint, ActorInstance<PublicAPI>>();
 
   /**
@@ -539,7 +538,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     _plugin,
     _instances,
     _prefab: prefab,
-    __actorName__: pluginName,  // ← was "anonymous"
+    __actorName__: pluginName, // ← was "anonymous"
     __props__: undefined as unknown as Props,
     __api__: undefined as unknown as PublicAPI,
   };

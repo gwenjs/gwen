@@ -100,7 +100,7 @@ describe("useService()", () => {
       capturedService = useService("testCounter");
     });
 
-    await engine.use(system);
+    await engine.use(system());
     expect(capturedService).toBe(counter);
   });
 
@@ -114,7 +114,7 @@ describe("useService()", () => {
       onUpdate(() => svc.increment());
     });
 
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     await engine.advance(0.016);
 
@@ -151,7 +151,7 @@ describe("useService()", () => {
       });
     });
 
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     await engine.advance(0.016);
     await engine.advance(0.016);

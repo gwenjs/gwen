@@ -96,10 +96,10 @@ describe("usePrefab", () => {
 
     const { spawn, despawn } = engine.run(() => usePrefab(Prefab));
     const id = spawn();
-    expect(engine.isAlive(id)).toBe(true);
+    expect(engine.isAlive(id as never)).toBe(true);
 
     despawn(id);
-    expect(engine.isAlive(id)).toBe(false);
+    expect(engine.isAlive(id as never)).toBe(false);
   });
 
   it("spawn accepts component overrides", async () => {
@@ -109,7 +109,7 @@ describe("usePrefab", () => {
     const { spawn } = engine.run(() => usePrefab(Prefab));
     const id = spawn({ x: 99 });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pos = engine.getComponent(id, Position as any);
+    const pos = engine.getComponent(id as never, Position as any);
     expect(pos?.x).toBe(99);
   });
 });

@@ -2,9 +2,9 @@ import { describe, it, expect } from "vitest";
 import { defineScene } from "../../src/scene/define-scene.js";
 import { defineSceneRouter } from "../../src/router/define-scene-router.js";
 
-const MenuScene = defineScene({ name: "Menu", systems: [] });
-const GameScene = defineScene({ name: "Game", systems: [] });
-const PauseScene = defineScene({ name: "Pause", systems: [] });
+const MenuScene = defineScene("Menu", () => {});
+const GameScene = defineScene("Game", () => {});
+const PauseScene = defineScene("Pause", () => {});
 
 describe("defineSceneRouter()", () => {
   it("returns a SceneRouterDefinition with __type marker", () => {

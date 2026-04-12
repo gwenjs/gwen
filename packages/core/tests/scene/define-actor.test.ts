@@ -99,12 +99,12 @@ describe("lifecycle hooks inside factory", () => {
     const id = Actor._plugin.spawn?.();
 
     // handler registered — calling hook should invoke it
-    engine.hooks.callHook("entity:create" as never, 0n as never);
+    (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 0n);
     expect(handler).toHaveBeenCalledOnce();
 
     // after despawn — cleanup should have removed the handler
     Actor._plugin.despawn?.(id!);
-    engine.hooks.callHook("entity:create" as never, 1n as never);
+    (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 1n);
     expect(handler).toHaveBeenCalledOnce(); // still 1 — not called again
   });
 });

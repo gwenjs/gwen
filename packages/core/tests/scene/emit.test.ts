@@ -28,7 +28,7 @@ describe("emit()", () => {
     const engine = await createEngine();
     const spy = vi.fn();
     // Custom game event — no augmentation, no cast needed
-    engine.hooks.hook("enemy:died" as never, spy);
+    engine.hooks.hook("enemy:died" as never, spy as never);
 
     engine.run(() => {
       emit("enemy:died"); // no "as never" needed

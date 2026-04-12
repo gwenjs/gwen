@@ -308,14 +308,14 @@ describe("GwenPluginNotFoundError", () => {
 
 describe("defineSystem()", () => {
   it("returns a GwenPlugin with a name", () => {
-    const system = defineSystem(function mySystem() {});
-    expect(system.name).toBe("mySystem");
-    expect(typeof system.setup).toBe("function");
+    const plugin = defineSystem(function mySystem() {})();
+    expect(plugin.name).toBe("mySystem");
+    expect(typeof plugin.setup).toBe("function");
   });
 
   it('anonymous setup fn gets name "anonymous-system"', () => {
-    const system = defineSystem(() => {});
-    expect(system.name).toBe("anonymous-system");
+    const plugin = defineSystem(() => {})();
+    expect(plugin.name).toBe("anonymous-system");
   });
 
   it("onUpdate callback is called every frame with dt", async () => {
@@ -324,7 +324,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       onUpdate(spy);
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     await engine.advance(0.016);
     expect(spy).toHaveBeenCalledTimes(2);
@@ -354,7 +354,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       onBeforeUpdate(spy);
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(0.016);
@@ -366,7 +366,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       onAfterUpdate(spy);
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(0.016);
@@ -378,7 +378,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       onRender(spy);
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(spy).toHaveBeenCalledTimes(1);
   });
@@ -391,7 +391,7 @@ describe("defineSystem()", () => {
       onUpdate(() => calls.push(2));
       onUpdate(() => calls.push(3));
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(calls).toEqual([1, 2, 3]);
   });
@@ -402,7 +402,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       capturedInSetup = useEngine();
     });
-    await engine.use(system);
+    await engine.use(system());
     expect(capturedInSetup).toBe(engine);
   });
 
@@ -414,7 +414,7 @@ describe("defineSystem()", () => {
         capturedInUpdate = useEngine();
       });
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(capturedInUpdate).toBe(engine);
   });
@@ -433,7 +433,7 @@ describe("defineSystem()", () => {
       );
       onUpdate((dt) => svc.step(dt));
     });
-    await engine.use(system);
+    await engine.use(system());
     await engine.advance(0.016);
     expect(fakeService.step).toHaveBeenCalledWith(0.016);
   });
@@ -459,7 +459,7 @@ describe("defineSystem()", () => {
     const system = defineSystem(() => {
       onUpdate(() => {});
     });
-    await engine.use(system);
+    await engine.use(system());
     // After setup, calling onUpdate outside context should throw
     expect(() => onUpdate(() => {})).toThrow();
   });
@@ -470,8 +470,8 @@ describe("defineSystem()", () => {
     const system = defineSystem(function dedupSystem() {
       setupSpy();
     });
-    await engine.use(system);
-    await engine.use(system);
+    await engine.use(system());
+    await engine.use(system());
     expect(setupSpy).toHaveBeenCalledTimes(1);
   });
 });

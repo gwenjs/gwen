@@ -264,30 +264,27 @@ export interface DiscoverablePlugin extends GwenPlugin {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function defineSystem<Args extends any[]>(
-    name: string,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setup: (...args: Args) => void,
+  name: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setup: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function defineSystem<Args extends any[]>(
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setup: (...args: Args) => void,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  setup: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin;
 export function defineSystem<Args extends unknown[]>(
-    nameOrSetup: string | ((...args: Args) => void),
-    maybeSetup?: (...args: Args) => void,
+  nameOrSetup: string | ((...args: Args) => void),
+  maybeSetup?: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin {
   const systemName =
-      typeof nameOrSetup === "string"
-          ? nameOrSetup
-          : (nameOrSetup as { name?: string }).name || "";
-  const setupTemplate =
-      typeof nameOrSetup === "function" ? nameOrSetup : maybeSetup!;
+    typeof nameOrSetup === "string" ? nameOrSetup : (nameOrSetup as { name?: string }).name || "";
+  const setupTemplate = typeof nameOrSetup === "function" ? nameOrSetup : maybeSetup!;
 
   if (!systemName) {
     // eslint-disable-next-line no-console
     console.warn(
-        "[GWEN] defineSystem() called without a name. " +
+      "[GWEN] defineSystem() called without a name. " +
         "Pass a name as first argument: defineSystem('mySystem', () => { ... })",
     );
   }

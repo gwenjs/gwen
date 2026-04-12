@@ -55,7 +55,7 @@ function createMockEngine(): WasmEngine {
     clear_transform_dirty: vi.fn(),
     sync_transforms_from_buffer: vi.fn(),
     stats: vi.fn(() => '{"entities":0,"frame":1}'),
-  } as WasmEngine;
+  } as unknown as WasmEngine;
 }
 
 // ── Without WASM (not initialized) ───────────────────────────────────────────

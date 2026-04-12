@@ -2,7 +2,7 @@
  * @file Tests for checkPluginApiVersion and GWEN_PLUGIN_API_VERSION.
  */
 
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine/gwen-engine";
 
 describe("checkPluginApiVersion", () => {
@@ -11,7 +11,7 @@ describe("checkPluginApiVersion", () => {
   });
 
   it("returns true when no gwen_plugin_api_version export exists", () => {
-    const exports = {} as WebAssembly.Exports; // Empty exports
+    const exports = {} as unknown as WebAssembly.Exports; // Empty exports
     const result = checkPluginApiVersion(exports, "oldPlugin");
     expect(result).toBe(true);
   });
@@ -19,7 +19,7 @@ describe("checkPluginApiVersion", () => {
   it("returns true when version matches expectedVersion", () => {
     const exports = {
       gwen_plugin_api_version: () => 1_000_000,
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
     const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000);
     expect(result).toBe(true);
   });
@@ -28,7 +28,7 @@ describe("checkPluginApiVersion", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const exports = {
       gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     const result = checkPluginApiVersion(
       exports,
@@ -46,7 +46,7 @@ describe("checkPluginApiVersion", () => {
   it("throws on mismatch with policy=throw", () => {
     const exports = {
       gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     expect(() =>
       checkPluginApiVersion(
@@ -64,7 +64,7 @@ describe("checkPluginApiVersion", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const exports = {
       gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     const result = checkPluginApiVersion(
       exports,
@@ -80,7 +80,7 @@ describe("checkPluginApiVersion", () => {
   it("uses GWEN_PLUGIN_API_VERSION as default expected version", () => {
     const exports = {
       gwen_plugin_api_version: () => GWEN_PLUGIN_API_VERSION,
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     const result = checkPluginApiVersion(exports, "myPlugin"); // No expectedVersion provided
 
@@ -91,7 +91,7 @@ describe("checkPluginApiVersion", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const exports = {
       gwen_plugin_api_version: () => 2_000_000, // v2.0.0
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000); // No policy provided
 
@@ -104,7 +104,7 @@ describe("checkPluginApiVersion", () => {
     const version123 = 1_002_003;
     const exports = {
       gwen_plugin_api_version: () => version123,
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     expect(checkPluginApiVersion(exports, "plugin", version123)).toBe(true);
     expect(checkPluginApiVersion(exports, "plugin", 1_002_004)).toBe(false);
@@ -117,7 +117,7 @@ describe("checkPluginApiVersion", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const exports = {
       gwen_plugin_api_version: () => 2_003_004,
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     checkPluginApiVersion(exports, "testPlugin", 1_002_003, "warn");
 
@@ -130,7 +130,7 @@ describe("checkPluginApiVersion", () => {
     const exports = {
       gwen_plugin_api_version: () => 1_000_000,
       someOtherExport: "not a function",
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     // This should not throw during version check
     const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000);
@@ -140,7 +140,7 @@ describe("checkPluginApiVersion", () => {
   it("ignores non-function gwen_plugin_api_version exports", () => {
     const exports = {
       gwen_plugin_api_version: "not a function",
-    } as WebAssembly.Exports;
+    } as unknown as WebAssembly.Exports;
 
     const result = checkPluginApiVersion(exports, "myPlugin");
     expect(result).toBe(true); // Should return true as if no version export exists

@@ -81,12 +81,12 @@ describe("defineScene composable API", () => {
     const Actor = defineActor(prefab, () => ({}));
     const sceneCtx = { systems: [] as GwenPlugin[] };
 
-    (engine as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL] = sceneCtx;
+    (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL] = sceneCtx;
     engine.run(() => {
       useActor(Actor);
     });
 
     expect(sceneCtx.systems).toContain(Actor._plugin);
-    delete (engine as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
+    delete (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
   });
 });

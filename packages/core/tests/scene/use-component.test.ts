@@ -48,7 +48,7 @@ describe("useComponent", () => {
     await engine.advance(16);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const component = engine.getComponent(entityId!, Position as any);
+    const component = engine.getComponent(entityId! as never, Position as any);
     if (component !== null && component !== undefined) {
       expect((component as { x: number }).x).toBe(99);
     }

@@ -88,19 +88,19 @@ describe("engine.use / engine.unuse", () => {
 describe("engine.provide / inject / tryInject", () => {
   it("inject() returns provided value", async () => {
     const engine = await createEngine();
-    engine.provide("testSvc", { value: 42 });
-    expect(engine.inject("testSvc")).toEqual({ value: 42 });
+    engine.provide("testSvc" as never, { value: 42 } as never);
+    expect(engine.inject("testSvc" as never)).toEqual({ value: 42 });
   });
 
   it("inject() throws GwenPluginNotFoundError when absent", async () => {
     const engine = await createEngine();
-    expect(() => engine.inject("testSvc")).toThrow(GwenPluginNotFoundError);
+    expect(() => engine.inject("testSvc" as never)).toThrow(GwenPluginNotFoundError);
   });
 
   it("GwenPluginNotFoundError has plugin, hint, docsUrl", async () => {
     const engine = await createEngine();
     try {
-      engine.inject("testSvc");
+      engine.inject("testSvc" as never);
     } catch (e) {
       expect(e).toBeInstanceOf(GwenPluginNotFoundError);
       const err = e as GwenPluginNotFoundError;
@@ -112,7 +112,7 @@ describe("engine.provide / inject / tryInject", () => {
 
   it("tryInject() returns undefined when absent", async () => {
     const engine = await createEngine();
-    expect(engine.tryInject("testSvc")).toBeUndefined();
+    expect(engine.tryInject("testSvc" as never)).toBeUndefined();
   });
 });
 

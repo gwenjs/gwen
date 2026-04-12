@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
+import type { PlaceHandle } from "../../src/scene/types.js";
 import { definePrefab } from "../../src/scene/define-prefab.js";
 import { defineActor } from "../../src/scene/define-actor.js";
 import { createEngine } from "../../src/engine/gwen-engine.js";
@@ -82,7 +83,7 @@ describe("placeActor", () => {
     const engine = await createEngine();
     const Actor = defineActor(SimplePrefab, () => ({ greet: () => "hello" }));
     await engine.use(Actor._plugin);
-    let handle: ReturnType<typeof placeActor<typeof Actor>> | undefined;
+    let handle: PlaceHandle<{ greet(): string }> | undefined;
 
     await engine.run(async () => {
       _withLayoutContext(() => {

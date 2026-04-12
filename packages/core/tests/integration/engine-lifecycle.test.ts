@@ -215,7 +215,7 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
     await engine.use({
       name: "provider",
       setup(eng) {
-        eng.provide("counter" as never, { count: 0 });
+        eng.provide("counter" as never, { count: 0 } as never);
       },
     });
 

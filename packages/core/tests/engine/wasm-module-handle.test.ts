@@ -13,7 +13,7 @@ describe("WasmRingBuffer byteOffset resolution", () => {
     return {
       buffer: new SharedArrayBuffer(pageSizeKB * 1024),
       grow: () => 1,
-    } as WebAssembly.Memory;
+    } as unknown as WebAssembly.Memory;
   }
 
   describe("byteOffset priority: explicit > auto-detect > fallback", () => {

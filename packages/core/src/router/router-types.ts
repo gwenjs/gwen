@@ -47,12 +47,11 @@ export interface SceneRouterOptions<TRoutes extends Record<string, RouteConfig<T
 }
 
 /** Infer all event names that appear across any route's `on` map. */
-export type EventsOf<TRoutes extends Record<string, RouteConfig<TRoutes>>> =
-  NonNullable<TRoutes[keyof TRoutes]["on"]> extends infer O
-    ? O extends Record<infer K, unknown>
-      ? K
-      : never
+export type EventsOf<TRoutes extends Record<string, RouteConfig<TRoutes>>> = {
+  [K in keyof TRoutes]: TRoutes[K] extends { on: Record<infer E extends string, unknown> }
+    ? E
     : never;
+}[keyof TRoutes];
 
 /** Infer all state keys. */
 export type StatesOf<TRoutes extends Record<string, RouteConfig<TRoutes>>> = keyof TRoutes & string;

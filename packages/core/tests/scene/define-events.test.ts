@@ -54,7 +54,7 @@ describe("emit() with declared events", () => {
   it("accepts declared event keys and args without any cast", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
-    engine.hooks.hook("enemy:died" as never, spy);
+    engine.hooks.hook("enemy:died" as never, spy as never);
 
     engine.run(() => {
       // No 'as never', no cast — fully typed via augmentation

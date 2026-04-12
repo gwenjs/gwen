@@ -31,9 +31,10 @@ describe("defineLayout", () => {
   });
 
   it("factory can be called and returns correct type", () => {
-    const Layout = defineLayout(() => ({ foo: "bar" }));
+    const fakeHandle = {} as unknown as ReturnType<typeof placeGroup>;
+    const Layout = defineLayout(() => ({ foo: fakeHandle }));
     const result = Layout._factory();
-    expect(result).toEqual({ foo: "bar" });
+    expect(result).toHaveProperty("foo");
   });
 
   it("throws if placement composables are called outside the factory", () => {

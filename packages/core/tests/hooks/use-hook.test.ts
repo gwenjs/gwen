@@ -10,6 +10,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import type { EntityId } from "../../src/engine/engine-api.js";
 import { createEngine, useHook, GwenContextError } from "../../src/index";
 import { definePrefab } from "../../src/scene/define-prefab";
 import { defineActor } from "../../src/scene/define-actor";
@@ -38,7 +39,7 @@ describe("useHook() basic subscription", () => {
       },
     });
 
-    engine.hooks.callHook("entity:spawn", 1n);
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
     expect(handler).toHaveBeenCalledWith(1n);
   });
@@ -66,12 +67,12 @@ describe("useHook() basic subscription", () => {
       },
     });
 
-    engine.hooks.callHook("entity:spawn", 1n);
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
 
     unsubscribe!();
 
-    engine.hooks.callHook("entity:spawn", 2n);
+    engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
   });
 });
@@ -91,11 +92,11 @@ describe("useHook() auto-cleanup in plugin context", () => {
     };
 
     await engine.use(plugin);
-    engine.hooks.callHook("entity:spawn", 1n);
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
 
     await engine.unuse(plugin.name);
-    engine.hooks.callHook("entity:spawn", 2n);
+    engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
   });
 
@@ -116,7 +117,7 @@ describe("useHook() auto-cleanup in plugin context", () => {
     };
 
     await engine.use(plugin);
-    engine.hooks.callHook("entity:spawn", 1n);
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(calls).toEqual(["handler"]);
 
     await engine.unuse(plugin.name);
@@ -145,13 +146,13 @@ describe("useHook() auto-cleanup in actor context", () => {
       entityId = Actor._plugin.spawn?.();
     });
 
-    engine.hooks.callHook("entity:spawn", 1n);
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
 
     engine.run(() => {
       Actor._plugin.despawn?.(entityId!);
     });
-    engine.hooks.callHook("entity:spawn", 2n);
+    engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
     expect(handler).toHaveBeenCalledOnce();
   });
 
@@ -176,16 +177,16 @@ describe("useHook() auto-cleanup in actor context", () => {
     });
     expect(events).toEqual([]);
 
-    engine.hooks.callHook("entity:spawn", 10n);
+    engine.hooks.callHook("entity:spawn", 10n as unknown as EntityId);
     expect(events).toEqual([10]);
 
-    engine.hooks.callHook("entity:spawn", 20n);
+    engine.hooks.callHook("entity:spawn", 20n as unknown as EntityId);
     expect(events).toEqual([10, 20]);
 
     engine.run(() => {
       Actor._plugin.despawn?.(entityId!);
     });
-    engine.hooks.callHook("entity:spawn", 30n);
+    engine.hooks.callHook("entity:spawn", 30n as unknown as EntityId);
     expect(events).toEqual([10, 20]);
   });
 });

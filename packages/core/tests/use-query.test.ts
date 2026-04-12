@@ -230,7 +230,7 @@ describe("useQuery()", () => {
       });
     });
 
-    await engine.use(system);
+    await engine.use(system());
     await engine.startExternal();
     await engine.advance(16);
 
