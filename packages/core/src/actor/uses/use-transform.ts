@@ -57,6 +57,30 @@ export function useTransform(): TransformHandle {
 
   const bridge = getWasmBridge().engine();
 
+  // Stable world-transform view — created once per actor spawn, not on every
+  // `transform.world` access. Getter functions close over `bridge` and `idx`
+  // exactly like the other methods, so WASM reads happen lazily on property access.
+  const world = Object.freeze({
+    get x() {
+      return (bridge.get_entity_world_x?.(idx) as number) ?? 0;
+    },
+    get y() {
+      return (bridge.get_entity_world_y?.(idx) as number) ?? 0;
+    },
+    get z() {
+      return 0;
+    },
+    get rotation() {
+      return (bridge.get_entity_world_rotation?.(idx) as number) ?? 0;
+    },
+    get scaleX() {
+      return 1;
+    },
+    get scaleY() {
+      return 1;
+    },
+  });
+
   return {
     translate(dx, dy) {
       bridge.translate_entity?.(idx, dx, dy ?? 0);
@@ -80,26 +104,7 @@ export function useTransform(): TransformHandle {
     },
 
     get world() {
-      return {
-        get x() {
-          return (bridge.get_entity_world_x?.(idx) as number) ?? 0;
-        },
-        get y() {
-          return (bridge.get_entity_world_y?.(idx) as number) ?? 0;
-        },
-        get z() {
-          return 0;
-        },
-        get rotation() {
-          return (bridge.get_entity_world_rotation?.(idx) as number) ?? 0;
-        },
-        get scaleX() {
-          return 1;
-        },
-        get scaleY() {
-          return 1;
-        },
-      };
+      return world;
     },
 
     get hasParent() {

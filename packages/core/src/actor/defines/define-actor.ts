@@ -453,10 +453,13 @@ export function defineActor<Props = void, PublicAPI = void>(
     _instances.set(entityId, instance);
     _instanceArray.push(instance);
 
-    // 7. Fire _start callbacks immediately after setup.
+    // 7. Fire _start callbacks immediately after setup, then release the
+    //    array so onStart closures (which often capture composable handles
+    //    like TransformHandle) are not retained for the actor's lifetime.
     for (let i = 0; i < instance._start.length; i++) {
       instance._start[i]!();
     }
+    instance._start = [];
 
     return entityId;
   }
