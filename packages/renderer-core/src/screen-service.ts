@@ -7,6 +7,7 @@
  */
 
 import type { GwenLogger } from "@gwenjs/core";
+import { ScreenErrorCodes } from "./screen-errors.js";
 import type { ViewportManager } from "./viewport-manager.js";
 
 // ── Public types ─────────────────────────────────────────────────────────────
@@ -248,7 +249,18 @@ export class ScreenServiceImpl implements ScreenService {
 
   private _refreshPixels(id: string, info: _MutableInfo): void {
     const region = this._vm.get(id)?.region;
-    if (!region) return;
+    if (!region) {
+      if (this._cw > 0 || this._ch > 0) {
+        const known = [...this._vm.getAll().keys()];
+        this._log.warn(
+          `[${ScreenErrorCodes.ViewportNotFound}] useScreen('${id}') — viewport '${id}' is not registered in ViewportManager. ` +
+            `Known viewports: [${known.length > 0 ? known.map((v) => `'${v}'`).join(", ") : "none"}]. ` +
+            `Declare it in gwen.config.ts under viewports:{} or check the viewport id for typos. ` +
+            `See: https://gwenengine.dev/docs/screen#viewports`,
+        );
+      }
+      return;
+    }
     info.pixels.width = Math.round(this._cw * region.width);
     info.pixels.height = Math.round(this._ch * region.height);
     info.dpr = this._dpr;

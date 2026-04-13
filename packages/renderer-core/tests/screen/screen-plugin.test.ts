@@ -106,4 +106,54 @@ describe("ScreenPlugin", () => {
     engine._fire("engine:afterTick");
     expect(spy).toHaveBeenCalled();
   });
+
+  // ── Integration: viewport registration order ─────────────────────────────────
+  // Regression test for: bootstrap not mounting createViewportsPlugin before ScreenPlugin.
+  // If viewport:add fires AFTER engine:init, pixels must still be computed correctly.
+
+  it("pixels are non-zero when viewport is registered via viewport:add after engine:init", () => {
+    const engine = makeEngine();
+    const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
+    plugin.setup(engine);
+
+    const svc = getOrCreateScreenService(engine);
+    const info = svc.getOrCreateInfo("main");
+
+    // engine:init fires first — 'main' not in VM yet → pixels stay 0
+    engine._fire("engine:init");
+    expect(info.pixels.width).toBe(0);
+
+    // viewport:add fires (viewports plugin hooks engine:init and calls vm.set after screen plugin)
+    // ScreenPlugin's viewport:add handler calls setContainerSize again → pixels updated
+    const vm = engine.tryInject("viewportManager") as { set: (id: string, r: object) => void };
+    vm.set("main", { x: 0, y: 0, width: 1, height: 1 });
+    // viewport:add is emitted by ViewportManagerImpl.set() → triggers ScreenPlugin hook
+    engine._fire("viewport:add", { id: "main", region: { x: 0, y: 0, width: 1, height: 1 } });
+
+    expect(info.pixels.width).toBe(800);
+    expect(info.pixels.height).toBe(600);
+  });
+
+  it("warn with SCREEN:VIEWPORT_NOT_FOUND code when useScreen() uses an unknown viewport id", () => {
+    const engine = makeEngine();
+    const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
+    plugin.setup(engine);
+
+    const svc = getOrCreateScreenService(engine);
+    engine._fire("engine:init");
+
+    // register 'main' so the service has a known viewport
+    const vm = engine.tryInject("viewportManager") as { set: (id: string, r: object) => void };
+    vm.set("main", { x: 0, y: 0, width: 1, height: 1 });
+    engine._fire("viewport:add", { id: "main", region: { x: 0, y: 0, width: 1, height: 1 } });
+
+    // accessing unknown viewport after container size is known should warn
+    const warnSpy = vi.spyOn(engine.logger.child("renderer-core:screen"), "warn");
+    svc.getOrCreateInfo("typo-viewport");
+    // setContainerSize re-run to trigger the warning path
+    svc.setContainerSize(800, 600);
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("SCREEN:VIEWPORT_NOT_FOUND"));
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("typo-viewport"));
+  });
 });

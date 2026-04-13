@@ -55,6 +55,7 @@ export default defineConfig({
 | `engine.debug` | `boolean` | `false` | Active les logs verbeux, les vérifications sentinelles par frame, les avertissements de timing de phase et les logs d'initialisation des plugins. |
 | `globalCss` | `string[]` | `[]` | Fichiers CSS injectés dans chaque page, relatifs à la racine du projet (ex. `'./src/styles/global.css'`). |
 | `viewports` | `Record<string, ViewportRegion>` | — | Déclarations statiques de viewports (régions normalisées 0–1). Si absent, un viewport `'main'` plein écran est créé automatiquement. |
+| `screen.sizeProvider` | `ScreenSizeProvider` | auto | Fournisseur de taille personnalisé pour `ScreenPlugin`. Détecté automatiquement en navigateur (ResizeObserver). Requis pour Node.js ou les environnements sans DOM. |
 | `hooks` | `Partial<GwenBuildHooks>` | — | Abonnements aux hooks de build. |
 | `plugins` | `GwenPlugin[]` | — | Plugins runtime à enregistrer directement, sans module wrapper. |
 
@@ -75,6 +76,8 @@ export default defineConfig({
   viewports: {
     main: { x: 0, y: 0, width: 1, height: 1 },
   },
+  // Node.js uniquement — le navigateur détecte la taille automatiquement via ResizeObserver
+  // screen: { sizeProvider: StaticSizeProvider({ width: 1920, height: 1080 }) },
 })
 ```
 

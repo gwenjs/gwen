@@ -19,6 +19,11 @@
  * ```
  */
 
+// ─── Runtime plugins (browser-safe) ──────────────────────────────────────────
+
+export { createViewportsPlugin } from "./viewports-plugin";
+export { createScreenPlugin } from "./create-screen-plugin";
+
 // ─── Config helpers (browser-safe) ───────────────────────────────────────────
 
 export { defineConfig } from "./types";

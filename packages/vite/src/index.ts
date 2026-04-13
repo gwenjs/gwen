@@ -468,6 +468,7 @@ function generateEntryModule(
 
   lines.push(
     'import { initWasm, createEngine, detectCoreVariant, detectSharedMemoryRequired, engineContext } from "@gwenjs/core";',
+    'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
   );
 
@@ -499,6 +500,10 @@ function generateEntryModule(
     "  const requireSAB = detectSharedMemoryRequired(gwenConfig);",
     "  await initWasm(variant, { requireSAB });",
     "  const engine = await createEngine(gwenConfig.engine ?? {});",
+    "",
+    "  // Built-in framework plugins — viewports first, then screen (screen reads viewport regions)",
+    "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
+    "  await engine.use(createScreenPlugin(gwenConfig.screen));",
     "",
     "  // Load runtime plugins declared via modules: []",
     "  const modulePlugins = [];",
