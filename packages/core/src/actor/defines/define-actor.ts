@@ -508,6 +508,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     onBeforeUpdate(dt: number): void {
       for (let j = 0; j < _instanceArray.length; j++) {
         const inst = _instanceArray[j]!;
+        if (inst._isDormant) continue;
         for (let i = 0; i < inst._beforeUpdate.length; i++) {
           inst._beforeUpdate[i]!(dt);
         }
@@ -517,6 +518,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     onUpdate(dt: number): void {
       for (let j = 0; j < _instanceArray.length; j++) {
         const inst = _instanceArray[j]!;
+        if (inst._isDormant) continue;
         for (let i = 0; i < inst._update.length; i++) {
           inst._update[i]!(dt);
         }
@@ -526,6 +528,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     onAfterUpdate(dt: number): void {
       for (let j = 0; j < _instanceArray.length; j++) {
         const inst = _instanceArray[j]!;
+        if (inst._isDormant) continue;
         for (let i = 0; i < inst._afterUpdate.length; i++) {
           inst._afterUpdate[i]!(dt);
         }
@@ -535,6 +538,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     onRender(): void {
       for (let j = 0; j < _instanceArray.length; j++) {
         const inst = _instanceArray[j]!;
+        if (inst._isDormant) continue;
         for (let i = 0; i < inst._render.length; i++) {
           inst._render[i]!();
         }
