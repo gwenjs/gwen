@@ -292,11 +292,14 @@ export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRunti
   }
   const engine = _currentEngine;
   const instance = _currentActorInstance;
-  // Register the hook on the engine's hookable (uses scoped hooks proxy captured from setup).
-  engine.hooks.hook(name, fn as never);
-  // Schedule removal on despawn so the handler does not outlive the actor.
+  // Wrap the handler: silently skip dispatch when the actor is dormant in a pool.
+  const guardedFn = ((...args: unknown[]) => {
+    if (instance._isDormant) return;
+    return (fn as (...a: unknown[]) => unknown)(...args);
+  }) as GwenRuntimeHooks[K];
+  engine.hooks.hook(name, guardedFn as never);
   instance._eventCleanups.push(() => {
-    engine.hooks.removeHook(name, fn as never);
+    engine.hooks.removeHook(name, guardedFn as never);
   });
 }
 
