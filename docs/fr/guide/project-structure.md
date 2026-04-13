@@ -56,12 +56,15 @@ Chaque fichier définit un ou plusieurs schémas de composants. Les composants s
 
 **src/components/Position.ts**
 ```typescript
-import { defineComponent } from '@gwenjs/core'
+import { defineComponent, Types } from '@gwenjs/core'
 
-export const Position = defineComponent('Position', () => ({
-  x: 0,
-  y: 0,
-}))
+export const Position = defineComponent({
+  name: 'Position',
+  schema: {
+    x: Types.f32,
+    y: Types.f32,
+  },
+})
 ```
 
 Utilisez `src/components/index.ts` pour réexporter tout :
@@ -82,7 +85,7 @@ import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from '../components'
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position, Velocity] })
+  const query = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
     for (const id of query) {
@@ -99,12 +102,13 @@ Les scènes sont des fonctions qui configurent le gameplay et enregistrent les s
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem } from '@gwenjs/core/scene'
 import { MovementSystem, CollisionSystem, RenderSystem } from '../systems'
 
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, CollisionSystem, RenderSystem],
+export const GameScene = defineScene('game', () => {
+  useSystem(MovementSystem())
+  useSystem(CollisionSystem())
+  useSystem(RenderSystem())
 })
 ```
 
@@ -158,12 +162,10 @@ Les plugins étendent GWEN avec de nouveaux systèmes, composants ou crochets de
 **src/plugins/InputPlugin.ts**
 ```typescript
 import { definePlugin } from '@gwenjs/kit/plugin'
-import { InputSystem } from '../systems/Input'
 
 export const InputPlugin = definePlugin(() => ({
   name: 'input',
-  systems: [InputSystem],
-  install: (engine) => {
+  setup(engine) {
     console.log('Plugin d\'entrée installé')
   },
 }))

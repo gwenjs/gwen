@@ -395,11 +395,81 @@ function extractModuleNamesFromConfig(configPath: string): string[] {
   return names;
 }
 
-function generateEntryModule(hasScenesDir: boolean, moduleNames: string[] = []): string {
-  const lines = [
+/**
+ * Extract `globalCss` file paths from a `gwen.config.ts` file.
+ *
+ * @param configPath - Absolute path to `gwen.config.ts`.
+ * @returns Array of CSS file path strings.
+ */
+function extractGlobalCssFromConfig(configPath: string): string[] {
+  if (!fs.existsSync(configPath)) return [];
+  const src = fs.readFileSync(configPath, "utf-8");
+
+  const parsed = parseSource(configPath, src);
+  if (!parsed) return [];
+
+  const files: string[] = [];
+
+  walk(parsed.program, {
+    enter(node) {
+      if (node.type !== "ObjectExpression") return;
+
+      for (const prop of getObjectProperties(node as ObjectExpression)) {
+        if (getPropertyKeyName(prop) !== "globalCss") continue;
+
+        const { value } = prop as ObjectProperty;
+        if (value.type !== "ArrayExpression") continue;
+
+        for (const el of (value as ArrayExpression).elements) {
+          if (!el || el.type === "SpreadElement") continue;
+          if (el.type === "Literal" && typeof (el as StringLiteral).value === "string") {
+            files.push((el as StringLiteral).value);
+          }
+        }
+
+        this.skip();
+        return;
+      }
+    },
+  });
+
+  return files;
+}
+
+/**
+ * Convert a user-supplied CSS path (relative to project root, or absolute) to a
+ * root-relative import path that Vite can resolve from a virtual module.
+ *
+ * Virtual modules have no real directory, so relative imports like `"./src/..."` are
+ * resolved from the project root when they start with `"/"`. Files outside the project
+ * root are served via Vite's `/@fs/` prefix.
+ */
+function toRootRelative(filePath: string, projectRoot: string): string {
+  if (filePath.startsWith("/")) return filePath; // already root-relative or absolute URL
+  const abs = path.resolve(projectRoot, filePath);
+  if (abs.startsWith(projectRoot)) {
+    return "/" + path.relative(projectRoot, abs).replace(/\\/g, "/");
+  }
+  // File is outside project root (e.g. a monorepo sibling) — use /@fs/ prefix
+  return "/@fs" + abs;
+}
+
+function generateEntryModule(
+  hasScenesDir: boolean,
+  moduleNames: string[] = [],
+  cssFiles: string[] = [],
+): string {
+  const lines: string[] = [];
+
+  // Inject global CSS imports first so they are processed early by Vite
+  for (const css of cssFiles) {
+    lines.push(`import ${JSON.stringify(css)};`);
+  }
+
+  lines.push(
     'import { initWasm, createEngine, detectCoreVariant, detectSharedMemoryRequired, engineContext } from "@gwenjs/core";',
     'import gwenConfig from "/gwen.config.ts";',
-  ];
+  );
 
   if (hasScenesDir) {
     lines.push('import { registerScenes, mainSceneFactory } from "/@gwenjs/gwen-scenes";');
@@ -788,7 +858,10 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
         const hasScenesDir = fs.existsSync(path.join(projectRoot, "src", "scenes"));
         const configPath = path.join(projectRoot, "gwen.config.ts");
         const moduleNames = extractModuleNamesFromConfig(configPath);
-        return generateEntryModule(hasScenesDir, moduleNames);
+        const cssFiles = extractGlobalCssFromConfig(configPath).map((f) =>
+          toRootRelative(f, projectRoot),
+        );
+        return generateEntryModule(hasScenesDir, moduleNames, cssFiles);
       }
 
       if (id === RESOLVED_SCENES) {
@@ -965,7 +1038,12 @@ export { gwenTransform } from "./transform";
 export type { GwenTransformOptions } from "./transform";
 
 /** @internal Exported for unit tests only */
-export { generateEntryModule, generateScenesModule, extractModuleNamesFromConfig };
+export {
+  generateEntryModule,
+  generateScenesModule,
+  extractModuleNamesFromConfig,
+  extractGlobalCssFromConfig,
+};
 
 export default gwen;
 

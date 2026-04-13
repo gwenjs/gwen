@@ -44,21 +44,23 @@ export default defineConfig({
 
 **Propriétés:**
 
-| Propriété | Type | Description |
-|---|---|---|
-| `modules` | `GwenModuleEntry[]` | Liste des modules à activer (par ex., `['@gwenjs/physics2d']` ou `[['@gwenjs/input', { gamepad: true }]]`) |
-| `engine.maxEntities` | `number` | Max d'entités simultanées (défaut 10_000) |
-| `engine.targetFPS` | `number` | FPS cible (défaut 60) |
-| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger |
-| `engine.loop` | `'internal' \| 'external'` | Propriétaire de la boucle de jeu (défaut 'internal') |
-| `engine.maxDeltaSeconds` | `number` | Max delta time par frame (défaut 0.1s) |
-| `vite` | `Record<string, unknown>` | Extension de configuration Vite directe |
-| `hooks` | `Partial<GwenBuildHooks>` | Abonnements aux hooks de build |
-| `plugins` | `GwenPlugin[]` | Plugins à enregistrer directement (échappatoire) |
+| Propriété | Type | Défaut | Description |
+|---|---|---|---|
+| `modules` | `GwenModuleEntry[]` | `[]` | Modules à activer. Chaque entrée est un nom de paquet ou un tuple `[nom, options]`. |
+| `engine.maxEntities` | `number` | `10_000` | Nombre maximum d'entités simultanées. |
+| `engine.targetFPS` | `number` | `60` | Fréquence d'images cible. |
+| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | auto | Variante WASM à charger. Détectée automatiquement depuis `modules` si omise. |
+| `engine.loop` | `'internal' \| 'external'` | `'internal'` | Qui gère la boucle de jeu (`requestAnimationFrame`). |
+| `engine.maxDeltaSeconds` | `number` | `0.1` | Clamp maximum du delta time par frame (secondes). |
+| `engine.debug` | `boolean` | `false` | Active les logs verbeux, les vérifications sentinelles par frame, les avertissements de timing de phase et les logs d'initialisation des plugins. |
+| `globalCss` | `string[]` | `[]` | Fichiers CSS injectés dans chaque page, relatifs à la racine du projet (ex. `'./src/styles/global.css'`). |
+| `viewports` | `Record<string, ViewportRegion>` | — | Déclarations statiques de viewports (régions normalisées 0–1). Si absent, un viewport `'main'` plein écran est créé automatiquement. |
+| `hooks` | `Partial<GwenBuildHooks>` | — | Abonnements aux hooks de build. |
+| `plugins` | `GwenPlugin[]` | — | Plugins runtime à enregistrer directement, sans module wrapper. |
 
 **Exemple:**
 ```ts
-const config: GwenUserConfig = {
+export default defineConfig({
   modules: [
     '@gwenjs/physics2d',
     ['@gwenjs/input', { gamepad: true }],
@@ -67,62 +69,57 @@ const config: GwenUserConfig = {
     maxEntities: 5_000,
     targetFPS: 60,
     variant: 'physics2d',
+    debug: true,
   },
-}
+  globalCss: ['./src/styles/reset.css'],
+  viewports: {
+    main: { x: 0, y: 0, width: 1, height: 1 },
+  },
+})
 ```
 
 ### ResolvedGwenConfig
 
 **Signature:**
 ```ts
-interface ResolvedGwenConfig extends GwenUserConfig {
-  // Identique à GwenUserConfig mais avec tous les defaults appliqués
+type ResolvedGwenConfig = GwenUserConfig & {
+  engine: Required<NonNullable<GwenUserConfig['engine']>>
+  modules: GwenModuleEntry[]
 }
 ```
 
-**Description.** Configuration entièrement résolue avec tous les defaults appliqués. Utilisée en interne.
-
-### GwenModuleOptions
-
-**Signature:**
-```ts
-interface GwenModuleOptions {
-  name: string;
-  version?: string;
-  auto?: AutoImport[];
-  [key: string]: any;
-}
-```
-
-**Description.** Options pour un module GWEN enregistré dans le système de build.
-
-| Propriété | Type | Description |
-|---|---|---|
-| `name` | `string` | Identifiant du module |
-| `version` | `string` | Version du module (optionnel) |
-| `auto` | `AutoImport[]` | Règles d'auto-import pour le build |
+**Description.** Configuration entièrement résolue avec tous les defaults appliqués. Utilisée en interne et transmise aux fonctions `setup()` des modules.
 
 ### GwenBuildHooks
 
 **Signature:**
 ```ts
 interface GwenBuildHooks {
-  'app:config': Hook<(config: ResolvedGwenConfig) => void>;
-  'app:resolved': Hook<(config: ResolvedGwenConfig) => void>;
-  // Hooks de build additionnels
+  'build:before': () => void
+  'build:done':   () => void
+  'module:before': (mod: { meta: { name: string } }) => void
+  'module:done':   (mod: { meta: { name: string } }) => void
+  'vite:extendConfig': (config: ViteUserConfig) => void
 }
 ```
 
-**Description.** Hooks de build pour l'initialisation d'app et la résolution de configuration.
+**Description.** Hooks de build disponibles dans `gwen.config.ts` via le champ `hooks`, ou dans un module via `gwen.hook()`.
+
+| Événement | Se déclenche quand |
+|---|---|
+| `build:before` | Avant qu'un `setup()` de module ne s'exécute |
+| `build:done` | Après que tous les modules ont été configurés |
+| `module:before` | Avant le `setup()` de chaque module individuel |
+| `module:done` | Après le `setup()` de chaque module individuel |
+| `vite:extendConfig` | Quand un module appelle `gwen.extendViteConfig()` |
 
 **Exemple:**
 ```ts
-const plugin: PluginDef = {
-  name: 'my-plugin',
+export default defineConfig({
   hooks: {
-    'app:config': (config) => {
-      console.log('App config resolved:', config);
-    }
-  }
-};
+    'build:done': () => {
+      console.log('Tous les modules chargés')
+    },
+  },
+})
 ```

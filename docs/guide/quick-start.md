@@ -106,12 +106,11 @@ export const MovementSystem = defineSystem(function MovementSystem() {
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem } from '@gwenjs/core/scene'
 import { MovementSystem } from '../systems/Movement'
 
-export const GameScene = defineScene({
-  name: 'Game',
-  systems: [MovementSystem],
+export const GameScene = defineScene('Game', () => {
+  useSystem(MovementSystem())
 })
 ```
 

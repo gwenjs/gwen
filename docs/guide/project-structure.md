@@ -102,12 +102,13 @@ Scenes are functions that set up gameplay and register systems:
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
 import { MovementSystem, CollisionSystem, RenderSystem } from '../systems'
 
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, CollisionSystem, RenderSystem],
+export const GameScene = defineScene('game', () => {
+    useSystem(MovementSystem())
+    useSystem(CollisionSystem())
+    useSystem(RenderSystem())
 })
 ```
 

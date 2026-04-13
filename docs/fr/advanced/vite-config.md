@@ -7,49 +7,20 @@ description: Comment étendre la configuration Vite de GWEN sans fichier vite.co
 
 GWEN gère votre configuration Vite en interne via `@gwenjs/vite`. Vous n'avez pas besoin d'un fichier `vite.config.ts`. Étendez plutôt Vite via `gwen.config.ts`.
 
-## Surcharges simples
+## CSS global
 
-Utilisez le champ `vite` pour des fusions directes de configuration :
+Utilisez le champ `globalCss` pour injecter des fichiers CSS dans chaque page. Les chemins sont **relatifs à la racine du projet** (là où se trouve `gwen.config.ts`) :
 
 ```typescript
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: ['@gwenjs/physics2d'],
-  vite: {
-    resolve: {
-      alias: { '~assets': './src/assets' },
-    },
-    server: {
-      port: 3000,
-    },
-  },
+  globalCss: ['./src/styles/reset.css', './src/styles/global.css'],
 })
 ```
 
-L'objet `vite` est fusionné avec la configuration interne de GWEN via `defu` (les valeurs utilisateur ont la priorité).
-
-## Build Hooks
-
-Pour plus de contrôle, abonnez-vous au build hook `vite:extendConfig` :
-
-```typescript
-// gwen.config.ts
-export default defineConfig({
-  hooks: {
-    'vite:extendConfig': (config) => {
-      config.resolve ??= {}
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        '~assets': './src/assets',
-      }
-    },
-  },
-})
-```
-
-Utilisez `vite` pour la configuration statique. Utilisez `hooks['vite:extendConfig']` lorsque vous avez besoin d'une configuration conditionnelle ou programmatique.
+Ces fichiers sont injectés comme des instructions `import` statiques dans le module d'entrée virtuel, donc Vite les traite via son pipeline CSS normal (PostCSS, CSS Modules, etc.).
 
 ## Depuis un module
 

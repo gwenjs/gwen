@@ -70,12 +70,15 @@ Un composant est une donnée. Définissons un composant `Position` :
 
 **src/components/Position.ts**
 ```typescript
-import { defineComponent } from '@gwenjs/core'
+import { defineComponent, Types } from '@gwenjs/core'
 
-export const Position = defineComponent('Position', () => ({
-  x: 0,
-  y: 0,
-}))
+export const Position = defineComponent({
+  name: 'Position',
+  schema: {
+    x: Types.f32,
+    y: Types.f32,
+  },
+})
 ```
 
 ## Votre premier système
@@ -87,17 +90,16 @@ Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position } from '../components/Position'
 
-export const MovementSystem = defineSystem(() => {
-  const query = useQuery({ with: [Position] })
+export const MovementSystem = defineSystem(function MovementSystem() {
+  const query = useQuery([Position])
 
-  onUpdate(() => {
-    // Chaque frame, déplacez chaque entité avec une Position
-    query.each(({ c }) => {
-      const pos = c[Position]
-      pos.x += 0.5  // Déplacer à droite
-      pos.y += 0.1  // Déplacer légèrement vers le bas
-    })
+  onUpdate((dt) => {
+    for (const id of query) {
+      Position.x[id] += 0.5
+      Position.y[id] += 0.1
+    }
   })
+})
 })
 ```
 
@@ -105,12 +107,11 @@ export const MovementSystem = defineSystem(() => {
 
 **src/scenes/GameScene.ts**
 ```typescript
-import { defineScene } from '@gwenjs/core/scene'
+import { defineScene, useSystem } from '@gwenjs/core/scene'
 import { MovementSystem } from '../systems/Movement'
 
-export const GameScene = defineScene({
-  name: 'Game',
-  systems: [MovementSystem],
+export const GameScene = defineScene('Game', () => {
+  useSystem(MovementSystem())
 })
 ```
 

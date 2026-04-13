@@ -79,6 +79,17 @@ export interface GwenUserConfig {
     debug?: boolean;
   };
 
+  /**
+   * Global CSS files to inject into every page.
+   * Paths are relative to the project root (e.g. `'./src/styles/global.css'`).
+   *
+   * @example
+   * ```ts
+   * globalCss: ['./src/styles/reset.css', './src/styles/global.css']
+   * ```
+   */
+  globalCss?: string[];
+
   /** Direct Vite config extension (simple case). */
   vite?: Record<string, unknown>;
 
