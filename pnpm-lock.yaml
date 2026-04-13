@@ -248,6 +248,9 @@ importers:
       '@gwenjs/core':
         specifier: workspace:^
         version: link:../core
+      '@gwenjs/kit':
+        specifier: workspace:^
+        version: link:../kit
     devDependencies:
       happy-dom:
         specifier: ^18.0.0
