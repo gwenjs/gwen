@@ -251,7 +251,7 @@ Prefix event names with a namespace: `'enemy:hit'`, `'player:die'`, `'ui:open'`.
 
 ## Accessing Components
 
-Use `useComponent()` to get and mutate a component:
+Use `useComponent()` inside a `defineActor` factory to get a live handle on a component's fields:
 
 ```ts
 import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
@@ -261,7 +261,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   const health = useComponent(Health)
 
   onUpdate(() => {
-    if (health.value <= 0) {
+    if (health.hp <= 0) {
       // Handle death
     }
   })
@@ -270,22 +270,24 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
+Fields are accessed and mutated directly on the returned object (`health.hp`, not `health.value.hp`).
+
 ## Accessing the Router
 
 Inside an actor, use `useSceneRouter()` to navigate between scenes:
 
 ```ts
-import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const nav = useSceneRouter(AppRouter)
   const health = useComponent(Health)
+  const nav = useSceneRouter(AppRouter)
 
   onUpdate(() => {
-    if (health.value <= 0) {
+    if (health.hp <= 0) {
       nav.send('DIE')  // Transition to game over
     }
   })
@@ -301,14 +303,14 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Health } from '../components'
 
-export const EnemyPrefab = definePrefab({
-  Position: { x: 0, y: 0 },
-  Velocity: { x: 0, y: 0 },
-  Health: { hp: 50, maxHp: 50 },
-})
+export const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Velocity, defaults: { x: 0, y: 0 } },
+  { def: Health,   defaults: { hp: 50, maxHp: 50 } },
+])
 
 // src/actors/Enemy.ts
-import { defineActor, onStart, onUpdate, onDestroy, useComponent } from '@gwenjs/core/actor'
+import { defineActor, useComponent, onStart, onUpdate, onDestroy } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs/Enemy'
 import { Health, Velocity } from '../components'
 
@@ -317,12 +319,12 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
   const velocity = useComponent(Velocity)
 
   onStart(() => {
-    console.log(`Enemy spawned with ${health.value.hp} HP`)
-    velocity.value.x = Math.random() * props.speed - props.speed / 2
+    console.log(`Enemy spawned with ${health.hp} HP`)
+    velocity.x = Math.random() * props.speed - props.speed / 2
   })
 
   onUpdate(() => {
-    if (health.value.hp <= 0) {
+    if (health.hp <= 0) {
       // Will be despawned
     }
   })
@@ -333,9 +335,9 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
 
   return {
     takeDamage: (amount: number) => {
-      health.value.hp = Math.max(0, health.value.hp - amount)
+      health.hp = Math.max(0, health.hp - amount)
     },
-    getHp: () => health.value.hp,
+    getHp: () => health.hp,
   }
 })
 ```
@@ -386,7 +388,8 @@ If you truly need to call a composable after `await` in `onStart`, use `withAsyn
 | `handle.get()` | Public API of the first live instance |
 | `handle.getAll()` | Public APIs of all live instances |
 | `handle.spawnOnce(props?)` | Spawn singleton (noop if already live) |
-| `useComponent(ComponentType)` | Access a component inside factory |
+| `useComponent(ComponentType)` | Live handle on a component's fields inside a factory — read/write directly (e.g. `health.hp`) |
+| `useEntityId()` | Entity ID of the current instance — use to index SoA arrays directly (e.g. `Position.x[id]`) |
 | `useTransform()` | Access the actor's spatial transform |
 | `useSceneRouter(router)` | Navigate between scenes |
 | `defineEvents(map)` | Declare a typed event contract (shared across actors and systems) |

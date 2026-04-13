@@ -122,12 +122,12 @@ schema: {
 
 **Signature:**
 ```ts
-function useComponent<T = {}>(def: ComponentDef<T>): void
+function useComponent<T extends Record<string, any>>(def: ComponentDef): T
 ```
 
-**Description.** Enregistre un composant pour utilisation dans l'acteur courant lors de l'initialisation.
+**Description.** Retourne un proxy live sur les données du composant de l'acteur courant. Les lectures et écritures de champs sont transmises directement à l'ECS. Doit être appelé pendant la phase de setup.
 
-**Retourne:** `void`
+**Retourne:** `T` — objet proxy exposant les champs du composant directement (ex. `health.hp`, pas `health.value.hp`).
 
 **Exemple:**
 ```ts
@@ -474,22 +474,27 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
   }
 })
 
-// Spawn et despawn via _plugin :
+// Enregistrer au démarrage
 await engine.use(EnemyActor._plugin)
-const id = EnemyActor._plugin.spawn({ hp: 50 })
-EnemyActor._plugin.despawn(id)
+
+// Spawn et despawn via useActor() dans un système ou acteur :
+const SpawnerSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor)
+  const id = enemies.spawn({ hp: 50 })
+  enemies.despawn(id)
+})
 ```
 
 ### useActor(ActorDef)
 
 **Signature:**
 ```ts
-function useActor(def: ActorDef): void
+function useActor<Props, PublicAPI>(def: ActorDefinition<Props, PublicAPI>): ActorHandle<Props, PublicAPI>
 ```
 
-**Description.** Enregistre un acteur pour utilisation au sein d'un autre acteur (composition).
+**Description.** Retourne un handle typé pour spawner, despawner et accéder aux instances d'un acteur. Doit être appelé pendant la phase de setup d'un système ou d'un acteur (pas dans les callbacks de cycle de vie).
 
-**Retourne:** `void`
+**Retourne:** `ActorHandle` — objet avec `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`.
 
 ### usePrefab(PrefabDef)
 
@@ -559,15 +564,11 @@ function placeGroup(actors: (ActorDef | () => ActorDef)[]): Entity[]
 
 ## Prefabs
 
-### definePrefab(options)
+### definePrefab(entries)
 
 **Signature:**
 ```ts
-function definePrefab(options: {
-  name: string;
-  components: ComponentDef[];
-  defaults?: Record<string, any>;
-}): PrefabDef
+function definePrefab(entries: Array<{ def: ComponentDef; defaults: Record<string, any> }>): PrefabDef
 ```
 
 **Description.** Définit un modèle d'entité réutilisable (prefab) avec des composants prédéfinis et des valeurs par défaut.
@@ -575,22 +576,16 @@ function definePrefab(options: {
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options.name | `string` | Nom de prefab unique |
-| options.components | `ComponentDef[]` | Composants à inclure |
-| options.defaults | `object` | Valeurs de propriétés de composants par défaut |
+| entries | `Array<{ def, defaults }>` | Liste de composants avec leurs valeurs par défaut |
 
 **Retourne:** `PrefabDef` — définition de prefab.
 
 **Exemple:**
 ```ts
-const BulletPrefab = definePrefab({
-  name: 'Bullet',
-  components: [Transform, Velocity],
-  defaults: {
-    transform: { x: 0, y: 0 },
-    velocity: { x: 0, y: 0 }
-  }
-});
+const BulletPrefab = definePrefab([
+  { def: Transform, defaults: { x: 0, y: 0 } },
+  { def: Velocity,  defaults: { x: 0, y: 0 } },
+])
 ```
 
 ## Interface utilisateur et mise en page

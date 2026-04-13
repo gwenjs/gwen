@@ -45,18 +45,18 @@ export const AppRouter = defineSceneRouter({
 Call `useSceneRouter()` inside an actor or system to get a handle, then call `.send()` to trigger transitions:
 
 ```typescript
-import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 import { PlayerPrefab } from './prefabs/Player'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const nav = useSceneRouter(AppRouter)
   const health = useComponent(Health)
+  const nav = useSceneRouter(AppRouter)
 
   onUpdate(async () => {
-    if (health.value <= 0) {
+    if (health.hp <= 0) {
       await nav.send('GAME_OVER')     // transitions to 'gameOver'
     }
   })

@@ -251,7 +251,7 @@ Préfixez les noms d'événements avec un espace de noms : `'enemy:hit'`, `'play
 
 ## Accéder aux composants
 
-Utilisez `useComponent()` pour obtenir et muter un composant :
+Utilisez `useComponent()` dans une factory `defineActor` pour obtenir un handle live sur les champs d'un composant :
 
 ```ts
 import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
@@ -261,7 +261,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   const health = useComponent(Health)
 
   onUpdate(() => {
-    if (health.value <= 0) {
+    if (health.hp <= 0) {
       // Gérer la mort
     }
   })
@@ -270,22 +270,24 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
+Les champs sont lus et mutés directement sur l'objet retourné (`health.hp`, pas `health.value.hp`).
+
 ## Accéder au routeur
 
 À l'intérieur d'un acteur, utilisez `useSceneRouter()` pour naviguer entre les scènes :
 
 ```ts
-import { defineActor, onUpdate, useComponent } from '@gwenjs/core/actor'
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 import { Health } from '../components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const nav = useSceneRouter(AppRouter)
   const health = useComponent(Health)
+  const nav = useSceneRouter(AppRouter)
 
   onUpdate(() => {
-    if (health.value <= 0) {
+    if (health.hp <= 0) {
       nav.send('DIE')  // Transition vers fin de jeu
     }
   })
@@ -301,14 +303,14 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Health } from '../components'
 
-export const EnemyPrefab = definePrefab({
-  Position: { x: 0, y: 0 },
-  Velocity: { x: 0, y: 0 },
-  Health: { hp: 50, maxHp: 50 },
-})
+export const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: Velocity, defaults: { x: 0, y: 0 } },
+  { def: Health,   defaults: { hp: 50, maxHp: 50 } },
+])
 
 // src/actors/Enemy.ts
-import { defineActor, onStart, onUpdate, onDestroy, useComponent } from '@gwenjs/core/actor'
+import { defineActor, useComponent, onStart, onUpdate, onDestroy } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs/Enemy'
 import { Health, Velocity } from '../components'
 
@@ -317,12 +319,12 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
   const velocity = useComponent(Velocity)
 
   onStart(() => {
-    console.log(`Enemy spawned with ${health.value.hp} HP`)
-    velocity.value.x = Math.random() * props.speed - props.speed / 2
+    console.log(`Enemy spawned with ${health.hp} HP`)
+    velocity.x = Math.random() * props.speed - props.speed / 2
   })
 
   onUpdate(() => {
-    if (health.value.hp <= 0) {
+    if (health.hp <= 0) {
       // Sera supprimé
     }
   })
@@ -333,9 +335,9 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
 
   return {
     takeDamage: (amount: number) => {
-      health.value.hp = Math.max(0, health.value.hp - amount)
+      health.hp = Math.max(0, health.hp - amount)
     },
-    getHp: () => health.value.hp,
+    getHp: () => health.hp,
   }
 })
 ```
@@ -386,7 +388,8 @@ Si vous avez vraiment besoin d'appeler un composable après `await` dans `onStar
 | `handle.get()` | API publique de la première instance vivante |
 | `handle.getAll()` | API publique de toutes les instances vivantes |
 | `handle.spawnOnce(props?)` | Spawn singleton (sans effet si déjà vivant) |
-| `useComponent(ComponentType)` | Accéder à un composant à l'intérieur de factory |
+| `useComponent(ComponentType)` | Handle live sur les champs d'un composant dans une factory — lecture/écriture directe (ex. `health.hp`) |
+| `useEntityId()` | ID d'entité de l'instance courante — pour indexer les tableaux SoA directement (ex. `Position.x[id]`) |
 | `useTransform()` | Accéder à la transform spatiale de l'acteur |
 | `useSceneRouter(router)` | Naviguer entre les scènes |
 | `defineEvents(map)` | Déclarer un contrat d'événements typé (partagé entre acteurs et systèmes) |

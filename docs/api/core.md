@@ -266,33 +266,38 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
   }
 })
 
-// Spawn and despawn via _plugin:
+// Register at startup
 await engine.use(EnemyActor._plugin)
-const id = EnemyActor._plugin.spawn({ hp: 50 })
-EnemyActor._plugin.despawn(id)
+
+// Spawn and despawn via useActor() inside a system or actor:
+const SpawnerSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor)
+  const id = enemies.spawn({ hp: 50 })
+  enemies.despawn(id)
+})
 ```
 
 #### useActor(ActorDef)
 
 **Signature:**
 ```ts
-function useActor(def: ActorDef): void
+function useActor<Props, PublicAPI>(def: ActorDefinition<Props, PublicAPI>): ActorHandle<Props, PublicAPI>
 ```
 
-**Description.** Registers an actor for use within another actor (composition).
+**Description.** Returns a typed handle for spawning, despawning, and accessing instances of an actor. Must be called during the setup phase of a system or actor (not inside lifecycle callbacks).
 
-**Returns:** `void`
+**Returns:** `ActorHandle` — object with `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`.
 
 #### useComponent(ComponentDef)
 
 **Signature:**
 ```ts
-function useComponent<T = {}>(def: ComponentDef<T>): void
+function useComponent<T extends Record<string, any>>(def: ComponentDef): T
 ```
 
-**Description.** Registers a component for use in the current actor during setup.
+**Description.** Returns a live proxy over the current actor's component data. Field reads and writes are forwarded directly to the ECS. Must be called during the setup phase.
 
-**Returns:** `void`
+**Returns:** `T` — proxy object exposing component fields directly (e.g. `health.hp`, not `health.value.hp`).
 
 **Example:**
 ```ts
@@ -372,15 +377,11 @@ function placeGroup(actors: (ActorDef | () => ActorDef)[]): Entity[]
 
 ### Prefabs
 
-#### definePrefab(options)
+#### definePrefab(entries)
 
 **Signature:**
 ```ts
-function definePrefab(options: {
-  name: string;
-  components: ComponentDef[];
-  defaults?: Record<string, any>;
-}): PrefabDef
+function definePrefab(entries: Array<{ def: ComponentDef; defaults: Record<string, any> }>): PrefabDef
 ```
 
 **Description.** Defines a reusable entity template (prefab) with predefined components and default values.
@@ -388,22 +389,16 @@ function definePrefab(options: {
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options.name | `string` | Unique prefab name |
-| options.components | `ComponentDef[]` | Components to include |
-| options.defaults | `object` | Default component property values |
+| entries | `Array<{ def, defaults }>` | List of components with their default values |
 
 **Returns:** `PrefabDef` — prefab definition.
 
 **Example:**
 ```ts
-const BulletPrefab = definePrefab({
-  name: 'Bullet',
-  components: [Transform, Velocity],
-  defaults: {
-    transform: { x: 0, y: 0 },
-    velocity: { x: 0, y: 0 }
-  }
-});
+const BulletPrefab = definePrefab([
+  { def: Transform, defaults: { x: 0, y: 0 } },
+  { def: Velocity,  defaults: { x: 0, y: 0 } },
+])
 ```
 
 ### Lifecycle Hooks
