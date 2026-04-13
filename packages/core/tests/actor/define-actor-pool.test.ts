@@ -11,6 +11,10 @@ import { onDestroy, onEvent } from "../../src/actor/defines/define-actor";
 import { onRelease, onReset } from "../../src/actor/defines/define-actor";
 import { defineActorPool } from "../../src/actor/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/pool/errors";
+import { useActorPool } from "../../src/actor/pool/use-actor-pool";
+import { defineScene } from "../../src/scene/defines/define-scene";
+import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
+import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 
 const Hp = { __name__: "Hp" };
 const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
@@ -651,5 +655,45 @@ describe("defineActorPool — scope", () => {
     await engine.stop();
 
     expect(unmountSpy).toHaveBeenCalledOnce();
+  });
+});
+
+describe("useActorPool — scene integration", () => {
+  it("calls destroyAll() automatically on scene exit", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(TestPrefab, () => {});
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 5 });
+    await engine.use(pool._plugin);
+
+    const destroySpy = vi.spyOn(pool, "destroyAll");
+
+    const SceneA = defineScene("a", () => {
+      useActorPool(pool);
+    });
+    const SceneB = defineScene("b", () => {});
+
+    const Router = defineSceneRouter({
+      initial: "a",
+      routes: {
+        a: { scene: SceneA, on: { GO: "b" } },
+        b: { scene: SceneB, on: {} },
+      },
+    });
+
+    await engine.run(async () => {
+      const nav = useSceneRouter(Router);
+      await nav.send("GO");
+    });
+
+    expect(destroySpy).toHaveBeenCalledOnce();
+  });
+
+  it("throws when called outside a defineScene factory", () => {
+    const pool = defineActorPool(
+      defineActor(TestPrefab, () => {}),
+      { size: 5 },
+    );
+    expect(() => useActorPool(pool)).toThrow("[GWEN]");
   });
 });
