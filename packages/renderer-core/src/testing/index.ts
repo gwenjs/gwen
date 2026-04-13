@@ -16,3 +16,5 @@
  * ```
  */
 export { runConformanceTests } from "./conformance-suite.js";
+export { MockSizeProvider } from "./mock-size-provider.js";
+export type { MockSizeProviderHandle } from "./mock-size-provider.js";
