@@ -72,6 +72,25 @@ export interface ActorInstance<PublicAPI = void> {
   _eventCleanups: VoidFn[];
   /** Dispose function from withCleanup() — fires all onCleanup() callbacks registered during factory. */
   _cleanupDispose?: () => void;
+  /**
+   * When `true`, this instance is dormant inside a pool.
+   * Frame dispatchers skip it; event handlers silently ignore it.
+   * Set by `defineActorPool` — do not mutate directly.
+   * @internal
+   */
+  _isDormant: boolean;
+  /**
+   * Callbacks registered via `onRelease()`.
+   * Called when the actor is returned to a pool. Not called by `despawn()`.
+   * @internal
+   */
+  _release: VoidFn[];
+  /**
+   * Callbacks registered via `onReset()`.
+   * Called with the new props when the actor is reacquired from a pool.
+   * @internal
+   */
+  _reset: ((props: unknown) => void)[];
   /** Public API returned by the factory and exposed via `ActorHandle.get()` / `getAll()`. */
   api: PublicAPI;
 }

@@ -421,7 +421,9 @@ export function defineActor<Props = void, PublicAPI = void>(
       _destroy: [],
       _eventCleanups: [],
       _cleanupDispose: undefined,
-      // api is filled after the factory runs.
+      _isDormant: false,
+      _release: [],
+      _reset: [],
       api: undefined as unknown as PublicAPI,
     };
 
