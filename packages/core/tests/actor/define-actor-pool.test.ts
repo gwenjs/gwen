@@ -8,6 +8,7 @@ import {
   onRender,
 } from "../../src/system/defines/define-system";
 import { onEvent } from "../../src/actor/defines/define-actor";
+import { onRelease, onReset } from "../../src/actor/defines/define-actor";
 
 const Hp = { __name__: "Hp" };
 const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
@@ -190,5 +191,60 @@ describe("onEvent dormant guard", () => {
     Actor._plugin.despawn!(id);
     engine.hooks.callHook("engine:tick", 16);
     expect(spy).toHaveBeenCalledOnce(); // still once
+  });
+});
+
+describe("onRelease composable", () => {
+  it("registers a callback on instance._release", async () => {
+    const engine = await createEngine();
+    const spy = vi.fn();
+    const Actor = defineActor(TestPrefab, () => {
+      onRelease(spy);
+    });
+    await engine.use(Actor._plugin);
+
+    const inst = Actor._instances.get(Actor._plugin.spawn!())!;
+
+    expect(inst._release).toHaveLength(1);
+    inst._release[0]!();
+    expect(spy).toHaveBeenCalledOnce();
+  });
+
+  it("multiple onRelease calls register multiple callbacks", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(TestPrefab, () => {
+      onRelease(vi.fn());
+      onRelease(vi.fn());
+      onRelease(vi.fn());
+    });
+    await engine.use(Actor._plugin);
+
+    const inst = Actor._instances.get(Actor._plugin.spawn!())!;
+    expect(inst._release).toHaveLength(3);
+  });
+
+  it("throws when called outside a defineActor factory", () => {
+    expect(() => onRelease(() => {})).toThrow("[GWEN]");
+  });
+});
+
+describe("onReset composable", () => {
+  it("registers a callback on instance._reset", async () => {
+    const engine = await createEngine();
+    const spy = vi.fn();
+    const Actor = defineActor(TestPrefab, () => {
+      onReset(spy);
+    });
+    await engine.use(Actor._plugin);
+
+    const inst = Actor._instances.get(Actor._plugin.spawn!())!;
+    expect(inst._reset).toHaveLength(1);
+
+    inst._reset[0]!({ value: 42 });
+    expect(spy).toHaveBeenCalledWith({ value: 42 });
+  });
+
+  it("throws when called outside a defineActor factory", () => {
+    expect(() => onReset(() => {})).toThrow("[GWEN]");
   });
 });

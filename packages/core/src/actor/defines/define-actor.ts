@@ -303,6 +303,44 @@ export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRunti
   });
 }
 
+/**
+ * Registers a callback invoked when this actor instance is returned to a pool
+ * via `pool.release(id)`. Use it to clean up external state such as physics
+ * bodies, audio, or tweens. Not called by `despawn()`.
+ *
+ * Must be called synchronously inside a `defineActor()` factory function.
+ *
+ * @param fn - Callback invoked on pool release.
+ */
+export function onRelease(fn: VoidFn): void {
+  if (!_currentActorInstance) {
+    throw new Error(
+      "[GWEN] onRelease() must be called synchronously inside a defineActor() factory function.",
+    );
+  }
+  _currentActorInstance._release.push(fn);
+}
+
+/**
+ * Registers a callback invoked when this actor instance is reacquired from a
+ * pool via `pool.acquire(props)`. Use it to reset component data and any
+ * internal state using the new props. Called after prefab defaults are
+ * re-applied automatically.
+ *
+ * Must be called synchronously inside a `defineActor()` factory function.
+ *
+ * @param fn - Callback receiving the new props passed to `acquire()`.
+ * @template Props - The props type inferred from `defineActor`.
+ */
+export function onReset<Props = unknown>(fn: (props: Props) => void): void {
+  if (!_currentActorInstance) {
+    throw new Error(
+      "[GWEN] onReset() must be called synchronously inside a defineActor() factory function.",
+    );
+  }
+  _currentActorInstance._reset.push(fn as (props: unknown) => void);
+}
+
 // ─── defineActor ─────────────────────────────────────────────────────────────
 
 // ─── Module-level plugin name counter ─────────────────────────────────────────
