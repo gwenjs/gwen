@@ -140,13 +140,14 @@ describe("GwenApp.prepare()", () => {
     expect(content).toContain("GwenProvides");
   });
 
-  it("with no auto-imports writes a comment-only placeholder", async () => {
+  it("with no module auto-imports still includes the built-in useScreen", async () => {
     const app = new GwenApp();
     await app.setupModules(makeConfig());
     await app.prepare(tmpRoot);
 
     const content = readFileSync(join(tmpRoot, ".gwen", "types", "auto-imports.d.ts"), "utf8");
-    expect(content).toContain("No auto-imports");
+    expect(content).toContain("useScreen");
+    expect(content).toContain("@gwenjs/renderer-core");
   });
 
   it("is idempotent — calling prepare() twice produces same files", async () => {

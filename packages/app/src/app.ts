@@ -15,6 +15,7 @@ import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ResolvedGwenConfig } from "./config";
 import { createViewportsPlugin } from "./viewports-plugin.js";
+import { createScreenPlugin } from "./create-screen-plugin.js";
 
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
 
@@ -125,6 +126,16 @@ export class GwenApp {
     } else {
       this._plugins.unshift(viewportsPlugin);
     }
+    // Register the screen plugin after gwen:viewports so ViewportManager exists.
+    const screenPlugin = createScreenPlugin(config.screen);
+    const existingScreenIndex = this._plugins.findIndex((plugin) => plugin.name === "gwen:screen");
+    if (existingScreenIndex >= 0) {
+      this._plugins[existingScreenIndex] = screenPlugin;
+    } else {
+      // Insert after gwen:viewports (index 1 if viewports is at 0, otherwise append near start)
+      const viewportsIndex = this._plugins.findIndex((p) => p.name === "gwen:viewports");
+      this._plugins.splice(viewportsIndex + 1, 0, screenPlugin);
+    }
 
     for (const entry of config.modules ?? []) {
       const [name, userOptions = {}] = Array.isArray(entry)
@@ -169,6 +180,8 @@ export class GwenApp {
     if (config.vite) {
       this._viteConfigExtenders.push(() => config.vite as Partial<ViteUserConfig>);
     }
+
+    this._autoImports.push({ name: "useScreen", from: "@gwenjs/renderer-core" });
 
     await this.buildHooks.callHook("build:done");
   }

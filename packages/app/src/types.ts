@@ -10,6 +10,7 @@ import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
+import type { ScreenSizeProvider } from "@gwenjs/renderer-core";
 
 // ─── GwenModuleOptions (augmentable) ─────────────────────────────────────────
 
@@ -115,6 +116,24 @@ export interface GwenUserConfig {
    * ```
    */
   viewports?: Record<string, ViewportRegion>;
+
+  /**
+   * Screen size configuration. By default, `ScreenPlugin` auto-detects the environment:
+   * - Browser with `ResizeObserver`: uses `BrowserSizeProvider()` on `document.documentElement`.
+   * - No DOM: logs a warning and uses size `{ width: 0, height: 0 }`.
+   *
+   * Provide a `sizeProvider` to override this behaviour for Node.js servers,
+   * Electron apps, or embedded games with a specific container element.
+   *
+   * @example Node.js game server
+   * ```ts
+   * import { StaticSizeProvider } from '@gwenjs/renderer-core'
+   * screen: { sizeProvider: StaticSizeProvider({ width: 1920, height: 1080 }) }
+   * ```
+   */
+  screen?: {
+    sizeProvider?: ScreenSizeProvider;
+  };
 
   /** Module-specific options (typed via GwenModuleOptions augmentation). */
   [key: string]: unknown;

@@ -16,6 +16,7 @@ const mockGetOrCreate = vi.fn((_engine: unknown) => mockVm);
 
 vi.mock("@gwenjs/renderer-core", () => ({
   getOrCreateViewportManager: (engine: unknown) => mockGetOrCreate(engine),
+  ScreenPlugin: vi.fn(() => ({ name: "gwen:screen", setup: vi.fn() })),
 }));
 
 // Import after mock registration

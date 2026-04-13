@@ -193,9 +193,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
 
-    // +1 for the built-in gwen:viewports plugin always registered at index 0
-    expect(app.plugins).toHaveLength(2);
-    expect(app.plugins[1]).toBe(fakePlugin);
+    // +2 for the built-in gwen:viewports and gwen:screen plugins at index 0 and 1
+    expect(app.plugins).toHaveLength(3);
+    expect(app.plugins[2]).toBe(fakePlugin);
   });
 
   it("collects plugins from multiple modules in order", async () => {
@@ -219,10 +219,10 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
 
-    // +1 for the built-in gwen:viewports plugin always registered at index 0
-    expect(app.plugins).toHaveLength(3);
-    expect(app.plugins[1]).toBe(pluginA);
-    expect(app.plugins[2]).toBe(pluginB);
+    // +2 for the built-in gwen:viewports and gwen:screen plugins at index 0 and 1
+    expect(app.plugins).toHaveLength(4);
+    expect(app.plugins[2]).toBe(pluginA);
+    expect(app.plugins[3]).toBe(pluginB);
   });
 
   it("unwraps factory functions passed to addPlugin()", async () => {
@@ -241,8 +241,8 @@ describe("GwenApp.setupModules — plugin collection", () => {
     await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
 
     expect(factory).toHaveBeenCalledOnce();
-    // gwen:viewports is at index 0, module plugins start at index 1
-    expect(app.plugins[1]).toBe(fakePlugin);
+    // gwen:viewports at 0, gwen:screen at 1, module plugins start at index 2
+    expect(app.plugins[2]).toBe(fakePlugin);
   });
 });
 
@@ -270,7 +270,8 @@ describe("GwenApp.setupModules — auto-imports and type templates", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/physics": modA, "@test/input": modB }));
 
-    expect(app.autoImports).toHaveLength(2);
+    // +1 for the built-in useScreen auto-import always added by setupModules
+    expect(app.autoImports).toHaveLength(3);
     expect(app.autoImports).toContainEqual(importA);
     expect(app.autoImports).toContainEqual(importB);
   });
@@ -560,6 +561,31 @@ describe("GwenApp — build hooks", () => {
 
     expect(hookFired).toHaveBeenCalledOnce();
   });
+
+  it("registers gwen:screen plugin automatically", async () => {
+    const app = new GwenApp();
+    const config = resolveConfig({});
+    await app.setupModules(config);
+    const names = app.plugins.map((p) => p.name);
+    expect(names).toContain("gwen:screen");
+  });
+
+  it("gwen:screen plugin appears after gwen:viewports", async () => {
+    const app = new GwenApp();
+    const config = resolveConfig({});
+    await app.setupModules(config);
+    const names = app.plugins.map((p) => p.name);
+    const viewportsIdx = names.indexOf("gwen:viewports");
+    const screenIdx = names.indexOf("gwen:screen");
+    expect(screenIdx).toBeGreaterThan(viewportsIdx);
+  });
+
+  it("includes useScreen in auto-imports", async () => {
+    const app = new GwenApp();
+    await app.setupModules(resolveConfig({}));
+    const names = app.autoImports.map((i) => i.name);
+    expect(names).toContain("useScreen");
+  });
 });
 
 // ─── GwenApp — Vite plugins collection ───────────────────────────────────────
@@ -605,8 +631,8 @@ describe("GwenApp — getter immutability", () => {
     snap1.push({ name: "injected" as const } as unknown as GwenPlugin);
 
     // The internal array should NOT have been mutated
-    // +1 for the built-in gwen:viewports plugin
-    expect(app.plugins).toHaveLength(2);
+    // +2 for the built-in gwen:viewports and gwen:screen plugins
+    expect(app.plugins).toHaveLength(3);
   });
 });
 
