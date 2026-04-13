@@ -111,6 +111,7 @@ const frSidebar = [
       { text: "Bus d'erreurs", link: '/fr/advanced/error-bus' },
       { text: 'Mode debug', link: '/fr/advanced/debug-mode' },
       { text: 'Détection de leaks d\'acteurs', link: '/fr/advanced/actor-leak-detection' },
+      { text: 'Pool d\'acteurs', link: '/fr/advanced/actor-pool' },
       { text: 'Étendre Vite', link: '/fr/advanced/vite-config' },
       { text: 'Contexte asynchrone', link: '/fr/advanced/async-context' },
     ],
