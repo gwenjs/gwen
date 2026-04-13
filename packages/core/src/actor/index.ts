@@ -28,6 +28,10 @@ export { useTransform } from "./uses/use-transform";
 export { watchActorLeaks } from "./uses/watch-actor-leaks";
 export { placeActor, placeGroup, placePrefab } from "./place";
 
+// Actor Pool
+export { defineActorPool, useActorPool, DormantTag, PoolExhaustedError } from "./pool/index";
+export type { ActorPool, PoolOptions, PoolStats, PoolHooks, CustomScope } from "./pool/index";
+
 // Types
 export type { ActorHandle, PrefabHandle } from "./uses/use-actor";
 export type { TransformHandle } from "./uses/use-transform";
