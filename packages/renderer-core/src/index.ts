@@ -108,6 +108,30 @@ export { ViewportManagerImpl } from "./viewport-manager.js";
 export { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 export { useViewportManager } from "./use-viewport-manager.js";
 
+// ── ScreenPlugin ─────────────────────────────────────────────────────────────
+export {
+  ScreenErrorCodes,
+  type ScreenErrorCode,
+  ScreenResizeObserverError,
+  ScreenViewportNotFoundError,
+} from "./screen-errors.js";
+
+export type { ScreenSizeProvider } from "./screen-size-providers.js";
+export { BrowserSizeProvider, StaticSizeProvider } from "./screen-size-providers.js";
+
+export type {
+  ViewportPixels,
+  ViewportBounds,
+  ViewportScreenInfo,
+  ViewportBoundsProvider,
+  ScreenService,
+} from "./screen-service.js";
+
+export { getOrCreateScreenService } from "./get-or-create-screen-service.js";
+export { ScreenPlugin } from "./screen-plugin.js";
+export type { ScreenPluginOptions } from "./screen-plugin.js";
+export { useScreen } from "./use-screen.js";
+
 // cameraManager, viewportManager and viewport:* hook augmentations live in
 // get-or-create-camera-manager.ts and get-or-create-viewport-manager.ts,
 // co-located with their implementations. They activate automatically via
