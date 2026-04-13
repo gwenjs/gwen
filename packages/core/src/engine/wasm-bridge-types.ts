@@ -238,6 +238,12 @@ export interface WasmEngineBase {
   get_entity_local_x(index: number): number;
   /** Get an entity's local Y position. */
   get_entity_local_y(index: number): number;
+  /**
+   * Propagate all local transforms through the parent hierarchy so that
+   * `get_entity_world_x/y/rotation` return up-to-date world values.
+   * Must be called once per frame before reading world positions.
+   */
+  update_transforms(): void;
   /** Get an entity's world X position (after parent chain propagation). */
   get_entity_world_x(index: number): number;
   /** Get an entity's world Y position (after parent chain propagation). */

@@ -1,8 +1,44 @@
 /**
  * @file `useTransform()` — ergonomic transform composable for actors.
  *
- * Provides local read/write helpers and world transform reads for the current
- * actor's entity. Must be called synchronously inside a `defineActor()` factory.
+ * ## Architecture: two-phase transform pipeline
+ *
+ * The WASM TransformSystem uses a **write-local / read-world** model:
+ *
+ * ### Phase 1 — local writes (any time during the frame)
+ * - `translate_entity(idx, dx, dy)` — adds a delta to local position
+ * - `set_entity_local_position(idx, x, y)` — sets local position absolutely
+ * - `set_entity_local_rotation(idx, angle)` — sets local rotation
+ * - `set_entity_local_scale(idx, sx, sy)` — sets local scale
+ *
+ * None of these update world transforms immediately.
+ *
+ * ### Registration prerequisite
+ * Before any write or read can work, the entity **must** be registered in
+ * the TransformSystem via `add_entity_transform(idx, x, y, rot, sx, sy)`.
+ * Without this call, all bridge functions are silent no-ops.
+ * `useTransform()` handles this registration automatically at spawn time.
+ *
+ * ### Phase 2 — world propagation (once per frame, phase 5 of `_runFrame`)
+ * `update_transforms()` walks the parent-child hierarchy and propagates
+ * local→world values. Only after this call do `get_entity_world_x/y/rotation`
+ * return up-to-date values.
+ *
+ * ### Frame loop order
+ * ```
+ * onBeforeUpdate  → user logic (reads world from previous frame)
+ * physics step    → physics integration
+ * update_transforms() ← phase 5: propagates local→world
+ * onUpdate        → user logic (reads current-frame world values,
+ *                              writes local via translate/setPosition)
+ * onAfterUpdate / onRender
+ * ```
+ *
+ * ### Consequence for onUpdate
+ * `world.x/y` read inside `onUpdate` reflects the state AFTER the previous
+ * frame's writes (not the writes done in the same `onUpdate` call). This
+ * is a one-frame lag, identical to most game engines. For immediate feedback,
+ * track position separately in a component.
  *
  * @example
  * ```typescript
@@ -10,7 +46,7 @@
  *   const t = useTransform()
  *   onUpdate((dt) => {
  *     t.translate(velocity.x * dt, velocity.y * dt)
- *     t.rotateTo(heading)
+ *     html.syncWorldPosition(t.world.x, t.world.y)  // one frame behind translate
  *   })
  * })
  * ```
@@ -56,6 +92,10 @@ export function useTransform(): TransformHandle {
   }
 
   const bridge = getWasmBridge().engine();
+
+  // Register the entity in the WASM TransformSystem if not already present.
+  // Without this call, translate_entity / get_entity_world_x are no-ops.
+  bridge.add_entity_transform?.(idx, 0, 0, 0, 1, 1);
 
   // Stable world-transform view — created once per actor spawn, not on every
   // `transform.world` access. Getter functions close over `bridge` and `idx`

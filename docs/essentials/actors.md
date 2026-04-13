@@ -107,31 +107,58 @@ These composables run inside the actor's factory function:
 
 ## Transform
 
-Each actor instance has access to its spatial transform via `useTransform()`. The handle operates directly on the shared WASM memory buffer — views are always live after `memory.grow()` calls.
+Call `useTransform()` during the synchronous factory phase to get a handle for reading and writing the actor's spatial transform.
 
 ```typescript
 import { defineActor, useTransform, onStart } from '@gwenjs/core/actor'
+import { onUpdate } from '@gwenjs/core/system'
 import { PlayerPrefab } from '../prefabs'
 
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
   const transform = useTransform()
 
   onStart(() => {
-    transform.setPosition(props.x, props.y, 0)
-    transform.setScale(1, 1, 1)
+    transform.setPosition(props.x, props.y)  // set initial position
+  })
+
+  onUpdate((dt) => {
+    transform.translate(vx * dt, vy * dt)         // move each frame
+    html.syncWorldPosition(transform.world.x, transform.world.y)
   })
 
   return {}
 })
 ```
 
-`TransformHandle` methods:
+**Write methods** — update local transform immediately:
 
 | Method | Description |
 |---|---|
-| `setPosition(x, y, z)` | Set world position |
-| `setRotation(rx, ry, rz)` | Set Euler rotation (radians) |
-| `setScale(sx, sy, sz)` | Set scale |
+| `translate(dx, dy)` | Move by delta each frame |
+| `setPosition(x, y)` | Set local position absolutely |
+| `rotateTo(angle)` | Set local rotation (radians) |
+| `rotate(delta)` | Add delta to local rotation |
+| `scaleTo(sx, sy?)` | Set local scale — `sy` defaults to `sx` |
+
+**Read properties** — world values, updated once per frame by the engine:
+
+| Property | Description |
+|---|---|
+| `world.x`, `world.y` | World position after parent hierarchy |
+| `world.rotation` | World rotation in radians |
+| `world.scaleX`, `world.scaleY` | World scale (always `1` in current version) |
+| `hasParent` | `true` if this entity has a parent |
+
+**Hierarchy:**
+
+| Method | Description |
+|---|---|
+| `setParent(handleOrId, keepWorldPos?)` | Attach to a parent entity |
+| `detach(keepWorldPos?)` | Detach from parent, become a root entity |
+
+::: info World reads are one frame behind
+`world.x/y` reflects the state from the **previous frame**. The engine propagates local→world transforms once per frame (before `onUpdate`), so writes made in the current `onUpdate` are visible on the next frame. For most movement code this is imperceptible.
+:::
 
 ## Typed Events
 

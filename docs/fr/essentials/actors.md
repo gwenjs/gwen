@@ -107,31 +107,58 @@ Ces composables s'exécutent à l'intérieur de la fonction factory de l'acteur 
 
 ## Transform
 
-Chaque instance d'acteur a accès à sa transform spatiale via `useTransform()`. Le handle opère directement sur le buffer mémoire WASM partagé — les vues restent toujours live après les appels `memory.grow()`.
+Appelez `useTransform()` pendant la phase factory synchrone pour obtenir un handle de lecture et d'écriture de la transform spatiale de l'acteur.
 
 ```typescript
 import { defineActor, useTransform, onStart } from '@gwenjs/core/actor'
+import { onUpdate } from '@gwenjs/core/system'
 import { PlayerPrefab } from '../prefabs'
 
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
   const transform = useTransform()
 
   onStart(() => {
-    transform.setPosition(props.x, props.y, 0)
-    transform.setScale(1, 1, 1)
+    transform.setPosition(props.x, props.y)  // position initiale
+  })
+
+  onUpdate((dt) => {
+    transform.translate(vx * dt, vy * dt)         // déplacement chaque frame
+    html.syncWorldPosition(transform.world.x, transform.world.y)
   })
 
   return {}
 })
 ```
 
-Méthodes du `TransformHandle` :
+**Méthodes d'écriture** — mettent à jour le transform local immédiatement :
 
 | Méthode | Description |
 |---|---|
-| `setPosition(x, y, z)` | Définir la position dans le monde |
-| `setRotation(rx, ry, rz)` | Définir la rotation Euler (radians) |
-| `setScale(sx, sy, sz)` | Définir l'échelle |
+| `translate(dx, dy)` | Déplacer par delta chaque frame |
+| `setPosition(x, y)` | Définir la position locale de façon absolue |
+| `rotateTo(angle)` | Définir la rotation locale (radians) |
+| `rotate(delta)` | Ajouter un delta à la rotation locale |
+| `scaleTo(sx, sy?)` | Définir l'échelle locale — `sy` vaut `sx` par défaut |
+
+**Propriétés en lecture** — valeurs monde, mises à jour une fois par frame par le moteur :
+
+| Propriété | Description |
+|---|---|
+| `world.x`, `world.y` | Position monde après hiérarchie de parents |
+| `world.rotation` | Rotation monde en radians |
+| `world.scaleX`, `world.scaleY` | Échelle monde (toujours `1` dans la version actuelle) |
+| `hasParent` | `true` si cette entité a un parent |
+
+**Hiérarchie :**
+
+| Méthode | Description |
+|---|---|
+| `setParent(handleOrId, keepWorldPos?)` | Attacher à une entité parente |
+| `detach(keepWorldPos?)` | Détacher du parent, devenir une entité racine |
+
+::: info Les lectures monde ont un frame de retard
+`world.x/y` reflète l'état du **frame précédent**. Le moteur propage les transforms locaux→monde une fois par frame (avant `onUpdate`), donc les écritures faites dans le `onUpdate` courant sont visibles au frame suivant. Pour la plupart du code de déplacement, c'est imperceptible.
+:::
 
 ## Événements typés
 

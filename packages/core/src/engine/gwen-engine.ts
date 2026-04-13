@@ -971,8 +971,16 @@ class GwenEngineImpl implements GwenEngine {
         }
       }
 
-      // Phase 5 — ECS query flush (dirty component marks resolved)
-      // Handled internally by the WASM core; stub for future explicit flush API.
+      // Phase 5 — ECS query flush + transform propagation
+      // update_transforms() propagates local→world transforms so that
+      // get_entity_world_x/y/rotation return up-to-date values in onUpdate.
+      try {
+        getWasmBridge().engine().update_transforms?.();
+      } catch (err) {
+        this.logger.error("update_transforms failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
 
       // Phase 6 — onUpdate (all plugins, registration order)
       for (const plugin of this._plugins) {
