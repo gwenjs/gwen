@@ -40,6 +40,7 @@ const enSidebar = [
     text: 'Rendering',
     items: [
       { text: 'Viewports', link: '/rendering/viewports' },
+      { text: 'Screen Info', link: '/rendering/screen' },
     ],
   },
   {
@@ -117,6 +118,7 @@ const frSidebar = [
     text: 'Rendu',
     items: [
       { text: 'Viewports', link: '/fr/rendering/viewports' },
+      { text: 'Infos Écran', link: '/fr/rendering/screen' },
     ],
   },
   {
