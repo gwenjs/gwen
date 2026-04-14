@@ -94,15 +94,18 @@ export function onCleanupIfActive(fn: () => void): void {
 /**
  * Registers a cleanup callback in the currently active lifecycle context.
  *
- * Works inside `defineActor()` factory functions, plugin `setup()` callbacks,
- * and any code wrapped by {@link withCleanup}. Silently no-ops outside of a
- * cleanup context — safe to call unconditionally.
+ * **Strict variant** — throws {@link Error} when called outside an active
+ * cleanup context. Use this in composables that always require a lifecycle
+ * context (actor factory, plugin `setup()`, `withCleanup()`). For composables
+ * that work both inside and outside a context, use {@link onCleanupIfActive}
+ * instead.
  *
- * Callbacks are executed in reverse order (LIFO) when the context is disposed,
- * ensuring proper cleanup of nested resources.
+ * Callbacks are executed in FIFO order when the context is disposed.
  *
  * @param fn - Callback to invoke when the active lifecycle ends (actor despawn,
  *   plugin teardown, or manual {@link withCleanup} dispose).
+ *
+ * @throws {Error} If called outside an active cleanup context.
  *
  * @example Inside a defineActor factory:
  * ```typescript
@@ -134,9 +137,18 @@ export function onCleanupIfActive(fn: () => void): void {
  * dispose() // Runs cleanup
  * ```
  *
+ * @see {@link onCleanupIfActive} — lenient variant, no-ops outside context
  * @see {@link withCleanup} — establishes a cleanup context
  * @since 1.0.0
  */
 export function onCleanup(fn: () => void): void {
-  onCleanupIfActive(fn);
+  const top = _cleanupStack[_cleanupStack.length - 1];
+  if (!top) {
+    throw new Error(
+      "[GWEN] onCleanup() called outside an active cleanup context. " +
+        "Call it inside a defineActor() factory, plugin setup(), or withCleanup(). " +
+        "For composables that work both inside and outside a context, use onCleanupIfActive() instead.",
+    );
+  }
+  top.push(fn);
 }

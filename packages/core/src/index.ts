@@ -20,10 +20,7 @@ export {
   CoreErrorCodes,
 } from "./engine/gwen-engine";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
-export {
-  GwenComposableError,
-  ComposableErrorCodes,
-} from "./engine/engine-errors.js";
+export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors.js";
 export type {
   GwenEngine,
   GwenPlugin,

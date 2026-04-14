@@ -2,31 +2,48 @@
  * @file cleanup-context unit tests
  *
  * Verifies:
- * - onCleanup() silently no-ops outside any cleanup context
+ * - onCleanup() throws when called outside any cleanup context
+ * - onCleanupIfActive() silently no-ops outside context (safe for dual-context composables)
  * - withCleanup() establishes a context and returns [result, dispose]
- * - dispose fires registered callbacks in LIFO order
+ * - dispose fires registered callbacks in FIFO order
  * - dispose cleans up context even when fn throws
  * - nested withCleanup() isolates inner and outer contexts
  * - onCleanup() registers in the innermost context
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { onCleanup, withCleanup } from "../../src/cleanup-context";
+import { onCleanup, onCleanupIfActive, withCleanup } from "../../src/cleanup-context";
 
-// ── onCleanup() outside context ──────────────────────────────────────────────
+// ── onCleanup() outside context — strict variant ─────────────────────────────
 
 describe("onCleanup() outside context", () => {
+  it("throws when no cleanup context is active", () => {
+    expect(() => {
+      onCleanup(() => {});
+    }).toThrow(/onCleanup.*context|context.*onCleanup/i);
+  });
+
+  it("does not invoke the callback when it throws", () => {
+    const callback = vi.fn();
+    expect(() => onCleanup(callback)).toThrow();
+    expect(callback).not.toHaveBeenCalled();
+  });
+});
+
+// ── onCleanupIfActive() outside context — lenient variant ────────────────────
+
+describe("onCleanupIfActive() outside context", () => {
   it("silently no-ops when called with no active context", () => {
     expect(() => {
-      onCleanup(() => {
+      onCleanupIfActive(() => {
         throw new Error("This should not run");
       });
     }).not.toThrow();
   });
 
-  it("does not throw", () => {
+  it("does not invoke the callback when no context is active", () => {
     const callback = vi.fn();
-    expect(() => onCleanup(callback)).not.toThrow();
+    expect(() => onCleanupIfActive(callback)).not.toThrow();
     expect(callback).not.toHaveBeenCalled();
   });
 });

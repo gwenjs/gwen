@@ -1,4 +1,4 @@
-import { onCleanup } from "../cleanup-context.js";
+import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { _tryGetActorInstance } from "../actor/defines/define-actor.js";
@@ -114,6 +114,10 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   }
 
   const unsubscribe: UnsubscribeFn = engine.hooks.hook(name, handler as never);
-  onCleanup(unsubscribe);
+  // Use the lenient variant: useHook() is valid both inside and outside a cleanup
+  // context. When a context is active (actor factory, plugin setup), the handler
+  // is auto-removed on despawn/teardown. When there is no context (e.g. engine.run()
+  // called directly), cleanup is the caller's responsibility via the returned fn.
+  onCleanupIfActive(unsubscribe);
   return unsubscribe;
 }

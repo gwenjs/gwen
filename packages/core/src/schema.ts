@@ -378,9 +378,7 @@ export type InferComponent<D extends ComponentDefinition<ComponentSchema>> = {
  * Used by {@link validateComponentSchema} for O(1) membership checks.
  * @internal
  */
-const _VALID_SCHEMA_TYPES = new Set<string>(
-  Object.values(Types).map((t) => t.type),
-);
+const _VALID_SCHEMA_TYPES = new Set<string>(Object.values(Types).map((t) => t.type));
 
 /**
  * Validates that every field in `schema` is a recognised {@link SchemaType} descriptor.
