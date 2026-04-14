@@ -62,3 +62,6 @@ coverage/
 # Verdaccio local registry (non commité)
 .npmrc
 .verdaccio/
+
+# Notes & analyses locales (non commitées)
+notes/
