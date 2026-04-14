@@ -229,6 +229,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   const pool: ActorPool<Props, PublicAPI> = {
     _plugin,
+    _actorPlugin: actor._plugin,
     actorName,
     acquire: acquire as ActorPool<Props, PublicAPI>["acquire"],
     release,

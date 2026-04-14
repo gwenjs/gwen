@@ -19,7 +19,7 @@ du CPU et sollicite le ramasse-miettes.
 
 ```ts
 // ❌ Chaque tir alloue une nouvelle entité — pression GC constante
-const bullets = useActor(BulletActor)  // capturé en phase de setup
+const bullets = useActor(BulletActor)
 
 onUpdate(() => {
   if (shooting) {
@@ -36,41 +36,115 @@ Un pool maintient un nombre fixe d'entités en vie. Quand on en "despawn" une, e
 instantanément, à coût d'allocation nul.
 
 ```ts
-import { defineActorPool, useActorPool } from '@gwenjs/core/actor'
+// pools/BulletPool.ts
+import { defineActorPool } from '@gwenjs/core/actor'
+import { BulletActor } from '../actors/BulletActor'
 
 export const BulletPool = defineActorPool(BulletActor, { size: 200 })
 ```
 
-## Utilisation
+## Intégration avec les scènes
 
-`acquire()` et `release()` sont appelés depuis les hooks de cycle de vie d'un acteur ou d'un système :
+Appelez `useActorPool()` dans une factory `defineScene`. Il installe le pool dans la scène,
+enregistre le nettoyage à la sortie, et **retourne le pool** pour que vous puissiez le passer
+aux systèmes et acteurs qui en ont besoin.
 
 ```ts
-// Dans l'acteur tireur — acquérir à l'appui de la gâchette
-const PlayerActor = defineActor(PlayerPrefab, () => {
-  const id = useEntityId()
+import { defineScene, onEnter, useSystem } from '@gwenjs/core/scene'
+import { useActor, useActorPool } from '@gwenjs/core/actor'
+import { BulletPool } from '../pools/BulletPool'
+import { ShootingSystem } from '../systems/ShootingSystem'
+import { PlayerActor } from '../actors/PlayerActor'
 
-  onUpdate(() => {
-    if (triggerPressed) {
-      BulletPool.acquire({ speed: 800, x: Position.x[id], y: Position.y[id] })
-    }
+export const GameScene = defineScene('game', () => {
+  const player = useActor(PlayerActor)
+  const bulletPool = useActorPool(BulletPool)
+
+  useSystem(ShootingSystem(bulletPool))
+
+  onEnter(() => {
+    player.spawnOnce()
+    // bulletPool.acquire() est prêt ici — tous les plugins sont installés
   })
-})
-
-// Dans l'acteur bullet — relâcher hors écran
-const BulletActor = defineActor(BulletPrefab, () => {
-  const id = useEntityId()
-
-  onUpdate(() => {
-    if (Position.x[id] > screenWidth) {
-      BulletPool.release(id)  // différé à fin de frame — sûr en mid-update
-    }
-  })
+  // bulletPool.destroyAll() est appelé automatiquement à la sortie de la scène
 })
 ```
 
-`acquire()` est synchrone et retourne un `EntityId` comme `spawn()`.
-`release()` est différé à `engine:afterTick` pour éviter les mutations mid-frame.
+::: tip Les pools sont gérés par la scène
+`useActorPool()` est la seule façon correcte d'utiliser un pool. N'importez pas la valeur
+de `defineActorPool` pour appeler `.acquire()` directement depuis les systèmes ou acteurs —
+passez plutôt le handle retourné par `useActorPool()`. Cela place l'installation des plugins,
+le cycle de vie et le nettoyage sous le contrôle de la scène.
+:::
+
+## Passer le pool aux systèmes
+
+Les systèmes qui ont besoin de spawner ou relâcher des acteurs poolés reçoivent le pool via
+injection de dépendances — le pattern standard des paramètres `defineSystem` :
+
+```ts
+// systems/ShootingSystem.ts
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import type { ActorPool } from '@gwenjs/core/actor'
+import type { BulletProps } from '../actors/BulletActor'
+
+export const ShootingSystem = defineSystem(
+  'ShootingSystem',
+  (bulletPool: ActorPool<BulletProps, void>) => {
+    onUpdate(() => {
+      if (triggerPressed) {
+        try {
+          bulletPool.acquire({ speed: 800, x: player.x, y: player.y })
+        } catch {
+          // Pool épuisé — tir ignoré
+        }
+      }
+    })
+  },
+)
+```
+
+```ts
+// GameScene.ts
+const bulletPool = useActorPool(BulletPool)
+useSystem(ShootingSystem(bulletPool))  // pool injecté en argument
+```
+
+## Passer le pool aux acteurs via les props
+
+Quand un acteur a besoin d'acquérir depuis un pool (ex. un acteur manager qui écoute des
+événements), passez le pool comme props de spawn :
+
+```ts
+// actors/ShooterManager.ts
+import { defineActor, onEvent } from '@gwenjs/core/actor'
+import type { ActorPool } from '@gwenjs/core/actor'
+import type { BulletProps } from './BulletActor'
+
+export const ShooterManagerActor = defineActor(
+  ShooterManagerPrefab,
+  (props: { bulletPool: ActorPool<BulletProps, void> }) => {
+    onEvent('player:shoot', (x, y) => {
+      try {
+        props.bulletPool.acquire({ x, y, speed: 800 })
+      } catch {
+        // Pool épuisé — tir ignoré
+      }
+    })
+    return {}
+  },
+)
+```
+
+```ts
+// GameScene.ts
+const manager = useActor(ShooterManagerActor)
+const bulletPool = useActorPool(BulletPool)
+
+onEnter(() => {
+  manager.spawnOnce({ bulletPool })
+})
+```
 
 ## Cycle de vie d'un acteur dans un pool
 
@@ -115,21 +189,20 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
 | `onReset` | Chaque `pool.acquire(props)` sur un slot réutilisé |
 | `onDestroy` | `pool.destroyAll()` ou arrêt du moteur |
 
-## Intégration avec les scènes
+## Se relâcher soi-même depuis l'acteur
 
-Utilisez `useActorPool()` dans une factory `defineScene` pour appeler `destroyAll()`
-automatiquement à la sortie de la scène :
+Un acteur peut se relâcher lui-même dans le pool en appelant `pool.release()` — par exemple
+quand il sort de l'écran. `release()` étant différé à `engine:afterTick`, il est sûr d'appeler
+depuis un callback `onUpdate` :
 
 ```ts
-import { defineScene, onEnter } from '@gwenjs/core/scene'
-import { useActorPool } from '@gwenjs/core/actor'
+export const BulletActor = defineActor(BulletPrefab, (props: { pool: ActorPool<BulletProps, void> }) => {
+  const id = useEntityId()
 
-export const GameScene = defineScene('game', () => {
-  useActorPool(BulletPool)
-  // BulletPool.destroyAll() est appelé automatiquement à la sortie de la scène
-
-  onEnter(() => {
-    // Le pool est prêt
+  onUpdate(() => {
+    if (Position.y[id] < 0) {
+      props.pool.release(id as EntityId)
+    }
   })
 })
 ```
@@ -160,7 +233,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 ## Statistiques et monitoring
 
 ```ts
-BulletPool.stats()
+bulletPool.stats()
 // {
 //   size: 200,        — capacité maximale
 //   active: 47,       — slots actuellement acquis
@@ -173,15 +246,43 @@ BulletPool.stats()
 `peakActive` est la métrique la plus utile pour calibrer `size` : jouez une session complète,
 puis réglez `size` sur `peakActive + 20%` de marge de sécurité.
 
+## Typer un paramètre pool
+
+Trois niveaux de précision selon le besoin :
+
+```ts
+import type { ActorPool } from '@gwenjs/core/actor'
+
+// Pool quelconque — quand les props concrètes n'ont pas d'importance
+function logStats(pool: ActorPool) {
+  console.log(pool.stats())
+}
+
+// Pool typé — quand tu appelles acquire() avec des props spécifiques
+function spawnBullet(pool: ActorPool<BulletProps>) {
+  pool.acquire({ speed: 800, x: 0, y: 0 })
+}
+
+// Pool exact — inféré depuis la définition, sans génériques à écrire
+function spawnBullet(pool: typeof BulletPool) {
+  pool.acquire({ speed: 800, x: 0, y: 0 })
+}
+```
+
+`typeof BulletPool` est le plus ergonomique quand on fait référence à un pool précis —
+TypeScript infère `Props` et `PublicAPI` automatiquement depuis l'appel à `defineActorPool`.
+Utilise `ActorPool<Props>` pour écrire un utilitaire qui fonctionne avec n'importe quel pool
+d'un type d'acteur donné.
+
 ## Hooks observables
 
 Réagissez aux événements du pool depuis l'extérieur :
 
 ```ts
-BulletPool.hooks.hook('pool:warn',     ({ ratio }) => console.warn('pool sous pression', ratio))
-BulletPool.hooks.hook('pool:critical', ({ active, size }) => spawnRateController.reduce())
-BulletPool.hooks.hook('pool:acquire',  ({ id }) => analytics.track('bullet-spawn'))
-BulletPool.hooks.hook('pool:release',  ({ id }) => analytics.track('bullet-release'))
+bulletPool.hooks.hook('pool:warn',     ({ ratio }) => console.warn('pool sous pression', ratio))
+bulletPool.hooks.hook('pool:critical', ({ active, size }) => spawnRateController.reduce())
+bulletPool.hooks.hook('pool:acquire',  ({ id }) => analytics.track('bullet-spawn'))
+bulletPool.hooks.hook('pool:release',  ({ id }) => analytics.track('bullet-release'))
 ```
 
 | Hook | Se déclenche quand |
@@ -199,7 +300,7 @@ Le logger du moteur émet aussi un message de niveau `error`. Gérez-le avec un 
 
 ```ts
 try {
-  const id = BulletPool.acquire({ speed: 800, x: player.x, y: player.y })
+  bulletPool.acquire({ speed: 800, x: player.x, y: player.y })
 } catch (e) {
   if (e instanceof PoolExhaustedError) {
     // Pool plein — ignorer ce spawn ou le mettre en file d'attente
@@ -226,12 +327,10 @@ Si votre jeu spawne un grand nombre d'acteurs d'un coup au début d'un niveau, e
 préchauffage manuel dans `onEnter` :
 
 ```ts
-const engine = useEngine()  // capturé en phase de setup de la scène
-
 onEnter(async () => {
   // Pré-remplir le pool avant le gameplay pour éviter les ralentissements
-  const ids = Array.from({ length: 50 }, () => BulletPool.acquire())
-  for (const id of ids) BulletPool.release(id)
+  const ids = Array.from({ length: 50 }, () => bulletPool.acquire())
+  for (const id of ids) bulletPool.release(id)
   await engine.advance(16) // vider la file de releases
 })
 ```
@@ -250,7 +349,7 @@ onEnter(async () => {
 | Export | Depuis |
 |---|---|
 | `defineActorPool(actor, options)` | `@gwenjs/core/actor` |
-| `useActorPool(pool)` | `@gwenjs/core/actor` |
+| `useActorPool(pool)` → `ActorPool` | `@gwenjs/core/actor` |
 | `onRelease(fn)` | `@gwenjs/core/actor` |
 | `onReset(fn)` | `@gwenjs/core/actor` |
 | `DormantTag` | `@gwenjs/core/actor` |
@@ -263,10 +362,13 @@ onEnter(async () => {
 ## Enregistrement manuel du plugin
 
 ::: info Automatique avec Gwen
-Dans un projet Gwen standard, les appels `engine.use()` sont générés automatiquement par le plugin Vite — vous n'avez pas besoin de les écrire vous-même.
+Dans un projet Gwen standard, l'installation des plugins est gérée automatiquement —
+`useActorPool()` les enregistre dans `ctx.systems` et le bootstrap Vite appelle `engine.use()`
+sur chacun. Vous n'écrivez rien de tout cela vous-même.
 :::
 
-Si vous utilisez le moteur directement (setup personnalisé, tests, ou hors d'un projet Gwen standard), enregistrez le plugin du pool manuellement **après** le plugin de l'acteur :
+Si vous utilisez le moteur directement (setup personnalisé, tests, ou hors d'un projet Gwen
+standard), enregistrez le plugin du pool manuellement **après** le plugin de l'acteur :
 
 ```ts
 // main.ts — seulement nécessaire hors d'un projet Gwen standard

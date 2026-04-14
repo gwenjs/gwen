@@ -87,9 +87,16 @@ export interface PoolStats {
  * @template Props - Props type forwarded to `onReset()` on reuse.
  * @template _PublicAPI - Actor public API type (matches `defineActor`). Carried for type inference — not used in the interface body directly.
  */
-export interface ActorPool<Props, _PublicAPI> {
+export interface ActorPool<Props = unknown, _PublicAPI = unknown> {
   /** Plugin to register with `engine.use()`. Must be installed before calling `acquire()`. */
   readonly _plugin: GwenPlugin;
+  /**
+   * The underlying actor's plugin. Must be installed before `_plugin`.
+   * Used by `useActorPool()` to register both plugins in the correct order
+   * during scene setup.
+   * @internal
+   */
+  readonly _actorPlugin: GwenPlugin;
   /** Name of the pooled actor, used in logs and diagnostics. */
   readonly actorName: string;
   /**

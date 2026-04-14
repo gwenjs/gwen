@@ -12,7 +12,7 @@ import { onRelease, onReset } from "../../src/actor/defines/define-actor";
 import { defineActorPool } from "../../src/actor/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/pool/errors";
 import { useActorPool } from "../../src/actor/pool/use-actor-pool";
-import { defineScene } from "../../src/scene/defines/define-scene";
+import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 
@@ -659,6 +659,21 @@ describe("defineActorPool — scope", () => {
 });
 
 describe("useActorPool — scene integration", () => {
+  it("returns the pool for dependency injection into systems and actors", () => {
+    // useActorPool() must return the pool so the scene factory can capture it
+    // and pass it to systems/actors as a dependency — consumers must never
+    // import and use the defineActorPool value directly.
+    const Actor = defineActor(TestPrefab, () => {});
+    const pool = defineActorPool(Actor, { size: 5 });
+
+    let handle: typeof pool | undefined;
+    defineScene("test", () => {
+      handle = useActorPool(pool);
+    })({ register: () => {} });
+
+    expect(handle).toBe(pool);
+  });
+
   it("calls destroyAll() automatically on scene exit", async () => {
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
@@ -695,5 +710,50 @@ describe("useActorPool — scene integration", () => {
       { size: 5 },
     );
     expect(() => useActorPool(pool)).toThrow("[GWEN]");
+  });
+
+  it("populates ctx.systems with actor and pool plugins — no manual engine.use() required", async () => {
+    // Regression test: useActorPool() must register both the actor plugin and
+    // the pool plugin in ctx.systems so that the Vite-generated bootstrap can
+    // install them via engine.use() without any manual calls from the user.
+    const engine = await createEngine();
+    const Actor = defineActor(TestPrefab, () => {});
+    const pool = defineActorPool(Actor, { size: 5 });
+
+    const Scene = defineScene("test", () => {
+      useActorPool(pool);
+    });
+
+    // Simulate the Vite-generated bootstrap: resolve the scene definition
+    // and install every plugin in scene.systems into the engine.
+    const sceneDef = engine.run(() => Scene({ register: () => {} }));
+    for (const sys of sceneDef.systems) {
+      await engine.use(sys);
+    }
+
+    // pool.acquire() must succeed — both plugins are now installed.
+    const id = pool.acquire();
+    expect(typeof id).toBe("bigint");
+    expect(pool.stats().active).toBe(1);
+  });
+
+  it("actor plugin is registered before the pool plugin in ctx.systems", async () => {
+    // The actor plugin must appear before the pool plugin in ctx.systems so
+    // that engine.use() installs them in the correct dependency order.
+    const engine = await createEngine();
+    const Actor = defineActor(TestPrefab, () => {});
+    const pool = defineActorPool(Actor, { size: 5 });
+
+    const Scene = defineScene("test", () => {
+      useActorPool(pool);
+    });
+
+    const sceneDef = engine.run(() => Scene({ register: () => {} }));
+    const actorIdx = sceneDef.systems.indexOf(pool._actorPlugin);
+    const poolIdx = sceneDef.systems.indexOf(pool._plugin);
+
+    expect(actorIdx).toBeGreaterThanOrEqual(0);
+    expect(poolIdx).toBeGreaterThanOrEqual(0);
+    expect(actorIdx).toBeLessThan(poolIdx);
   });
 });
