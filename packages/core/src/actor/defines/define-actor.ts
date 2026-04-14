@@ -37,6 +37,7 @@ import { _withSystemContext } from "../../system/defines/define-system";
 import type { SystemContext } from "../../system/defines/define-system";
 import { withCleanup } from "../../cleanup-context";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
+import type { GwenLogger } from "../../logger/types";
 import type {
   ActorDefinition,
   ActorInstance,
@@ -301,6 +302,31 @@ export function onDestroy(fn: VoidFn): void {
  * })
  * ```
  */
+/**
+ * Creates a dormancy-aware wrapper for an engine hook handler.
+ *
+ * The wrapper skips dispatch when `instance._isDormant` is `true` (i.e. the
+ * actor is currently held in a pool). The generic parameter `F` preserves the
+ * original handler's call signature so TypeScript can still verify argument
+ * types at the call site — unlike a plain `(...args: unknown[]) => unknown`
+ * cast that would silently accept any signature mismatch.
+ *
+ * @param instance - The {@link ActorInstance} whose dormancy flag is checked.
+ * @param fn       - The original typed handler to wrap.
+ * @returns A new function with the same signature as `fn`.
+ *
+ * @internal
+ */
+export function _createDormancyGuard<F extends (...args: never[]) => unknown>(
+  instance: ActorInstance<unknown>,
+  fn: F,
+): F {
+  return ((...args: Parameters<F>) => {
+    if (instance._isDormant) return;
+    return fn(...(args as Parameters<F>));
+  }) as F;
+}
+
 export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): void {
   if (!_currentActorInstance || !_currentEngine) {
     throw new Error(
@@ -309,11 +335,11 @@ export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRunti
   }
   const engine = _currentEngine;
   const instance = _currentActorInstance;
-  // Wrap the handler: silently skip dispatch when the actor is dormant in a pool.
-  const guardedFn = ((...args: unknown[]) => {
-    if (instance._isDormant) return;
-    return (fn as (...a: unknown[]) => unknown)(...args);
-  }) as GwenRuntimeHooks[K];
+  // Wrap the handler via a typed guard so the original signature is preserved.
+  const guardedFn = _createDormancyGuard(
+    instance,
+    fn as (...args: never[]) => unknown,
+  ) as GwenRuntimeHooks[K];
   engine.hooks.hook(name, guardedFn as never);
   instance._eventCleanups.push(() => {
     engine.hooks.removeHook(name, guardedFn as never);
@@ -390,6 +416,38 @@ type ActorFactory<Props, PublicAPI> = Props extends void
   : (props: Props) => PublicAPI;
 
 /**
+ * Optional configuration for {@link defineActor}.
+ *
+ * @template Props     - Props type forwarded to `spawn()`.
+ * @template PublicAPI - Public API type returned by the factory.
+ */
+export interface DefineActorOptions<
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  Props = void,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  PublicAPI = void,
+> {
+  /**
+   * Child actor definitions this actor's factory depends on via `useActor()`.
+   *
+   * When provided, `useActor()` will register the corresponding plugins
+   * automatically — exactly as the `@gwenjs/vite` transform does at build time.
+   * Use this in test environments or any context where the Vite transform is
+   * not active, to prevent silent dependency-registration mismatches between
+   * development and test runs.
+   *
+   * @example
+   * ```ts
+   * export const EnemyActor = defineActor(EnemyPrefab, (props) => {
+   *   const bullet = useActor(BulletActor);
+   *   // ...
+   * }, { deps: [BulletActor] });
+   * ```
+   */
+  deps?: ActorDefinition<unknown, unknown>[];
+}
+
+/**
  * Defines an actor type: a composable, instance-based game object backed by a
  * single ECS entity per instance.
  *
@@ -400,11 +458,14 @@ type ActorFactory<Props, PublicAPI> = Props extends void
  * @param prefab  - Prefab defining the ECS component layout for this actor.
  * @param factory - Per-instance setup function. May register lifecycle callbacks
  *                  and return a public API object.
+ * @param options - Optional configuration. Pass `{ deps: [...] }` to declare
+ *                  child actor dependencies explicitly.
  */
 export function defineActor<Props = void, PublicAPI = void>(
   name: string,
   prefab: PrefabDefinition,
   factory: ActorFactory<Props, PublicAPI>,
+  options?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI>;
 /**
  * @overload
@@ -412,23 +473,38 @@ export function defineActor<Props = void, PublicAPI = void>(
  * Without the Vite plugin, a stable counter-based name is generated (`actor-1`, `actor-2`, …).
  * @param prefab  - Prefab defining the ECS component layout for this actor.
  * @param factory - Per-instance setup function.
+ * @param options - Optional configuration. Pass `{ deps: [...] }` to declare
+ *                  child actor dependencies explicitly.
  */
 export function defineActor<Props = void, PublicAPI = void>(
   prefab: PrefabDefinition,
   factory: ActorFactory<Props, PublicAPI>,
+  options?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI>;
 export function defineActor<Props = void, PublicAPI = void>(
   nameOrPrefab: string | PrefabDefinition,
   prefabOrFactory: PrefabDefinition | ActorFactory<Props, PublicAPI>,
-  maybeFactory?: ActorFactory<Props, PublicAPI>,
+  factoryOrOptions?: ActorFactory<Props, PublicAPI> | DefineActorOptions<Props, PublicAPI>,
+  maybeOptions?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI> {
-  const pluginName =
-    typeof nameOrPrefab === "string" ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
-  const prefab =
-    typeof nameOrPrefab === "string"
-      ? (prefabOrFactory as PrefabDefinition)
-      : (nameOrPrefab as PrefabDefinition);
-  const factory = maybeFactory ?? (prefabOrFactory as ActorFactory<Props, PublicAPI>);
+  const isNamedForm = typeof nameOrPrefab === "string";
+  const pluginName = isNamedForm ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
+  const prefab = isNamedForm
+    ? (prefabOrFactory as PrefabDefinition)
+    : (nameOrPrefab as PrefabDefinition);
+
+  // Resolve factory and options from the variable-arity overloads.
+  let factory: ActorFactory<Props, PublicAPI>;
+  let options: DefineActorOptions<Props, PublicAPI> | undefined;
+  if (isNamedForm) {
+    // (name, prefab, factory[, options])
+    factory = factoryOrOptions as ActorFactory<Props, PublicAPI>;
+    options = maybeOptions;
+  } else {
+    // (prefab, factory[, options])
+    factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
+    options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
+  }
   const _instances = new Map<bigint, ActorInstance<PublicAPI>>();
 
   /**
@@ -440,6 +516,8 @@ export function defineActor<Props = void, PublicAPI = void>(
 
   /** The scoped-proxy engine captured during `setup()`. */
   let _engine: GwenEngine | null = null;
+  /** Logger scoped to this actor — set in `setup()`, used for cleanup error reporting. */
+  let _log: GwenLogger | null = null;
 
   // ─── spawn ───────────────────────────────────────────────────────────────
 
@@ -530,26 +608,49 @@ export function defineActor<Props = void, PublicAPI = void>(
     const instance = _instances.get(entityId);
     if (!instance) return;
 
-    // 1. Call destroy callbacks.
-    for (let i = 0; i < instance._destroy.length; i++) {
-      instance._destroy[i]!();
-    }
-
-    // 2. Run event cleanups (unregister onEvent handlers).
-    for (let i = 0; i < instance._eventCleanups.length; i++) {
-      instance._eventCleanups[i]!();
-    }
-
-    // 3. Fire onCleanup() callbacks registered during factory (via withCleanup).
-    instance._cleanupDispose?.();
-
-    // 4. Destroy the ECS entity.
-    _engine?.destroyEntity(entityId as unknown as EntityId);
-
-    // 4. Remove from both registries.
+    // 1. Remove from both registries FIRST.
+    //
+    //    Doing this before the callbacks serves two purposes:
+    //    a) Re-entrancy guard — a re-entrant `despawn(entityId)` call from inside
+    //       an `onDestroy` callback finds no instance and returns immediately,
+    //       preventing double-cleanup and infinite recursion.
+    //    b) Zombie prevention — if any callback throws, the instance is already
+    //       gone from the registries so it will never be iterated again or
+    //       returned by `_instances.get()`.
     _instances.delete(entityId);
     const arrIdx = _instanceArray.indexOf(instance);
     if (arrIdx !== -1) _instanceArray.splice(arrIdx, 1);
+
+    // 2. Call onDestroy callbacks.
+    //    Each callback is isolated: a throw logs the error but does not prevent
+    //    the remaining callbacks, event cleanups, or WASM entity destruction from
+    //    running.
+    for (let i = 0; i < instance._destroy.length; i++) {
+      try {
+        instance._destroy[i]!();
+      } catch (e) {
+        _log?.error("onDestroy threw during despawn", { error: String(e) });
+      }
+    }
+
+    // 3. Unregister onEvent handlers.
+    for (let i = 0; i < instance._eventCleanups.length; i++) {
+      try {
+        instance._eventCleanups[i]!();
+      } catch (e) {
+        _log?.error("onEvent cleanup threw during despawn", { error: String(e) });
+      }
+    }
+
+    // 4. Fire onCleanup() callbacks (registered via withCleanup during factory).
+    try {
+      instance._cleanupDispose?.();
+    } catch (e) {
+      _log?.error("onCleanup threw during despawn", { error: String(e) });
+    }
+
+    // 5. Destroy the ECS entity — always runs, even if TS-side callbacks threw.
+    _engine?.destroyEntity(entityId as unknown as EntityId);
   }
 
   // ─── Plugin ───────────────────────────────────────────────────────────────
@@ -557,8 +658,14 @@ export function defineActor<Props = void, PublicAPI = void>(
   const _plugin: ActorPlugin<Props> = {
     name: pluginName,
 
+    // Populate _deps from the explicit `options.deps` when provided.
+    // The Vite transform may later overwrite this with the injected array;
+    // explicit options take precedence during the current module evaluation.
+    _deps: options?.deps?.map((d) => d._plugin),
+
     setup(engine: GwenEngine): void {
       _engine = engine;
+      _log = engine.logger.child(`actor:${pluginName}`);
     },
 
     // Frame phase dispatchers — iterate all live instances each frame.

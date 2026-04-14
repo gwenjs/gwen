@@ -342,7 +342,7 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
  *
  *   when the component definition is not fully typed).
  * @param def - The component definition to target.
- * @returns A mutable proxy typed as `T`.
+ * @returns A mutable proxy typed as `T & { $set(values: Partial<T>): void }`.
  *
  * @throws {Error} If called outside an active actor spawn context.
  *
@@ -351,14 +351,19 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
  * const Actor = defineActor(PosPrefab, () => {
  *   const pos = useComponent<{ x: number; y: number }>(Position);
  *   onUpdate((dt) => {
- *     pos.x += 100 * dt; // writes via addComponent
- *     console.log(pos.y); // reads via getComponent
+ *     // Single-field write — one allocation:
+ *     pos.x += 100 * dt;
+ *
+ *     // Batch write — one allocation regardless of field count:
+ *     pos.$set({ x: pos.x + 100 * dt, y: pos.y + 50 * dt });
  *   });
  * });
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useComponent<T extends Record<string, any> = Record<string, any>>(def: unknown): T {
+export function useComponent<T extends Record<string, any> = Record<string, any>>(
+  def: unknown,
+): T & { $set(values: Partial<T>): void } {
   // Capture both entity ID and engine at factory-call time.
   // These are set by _withActorContext during spawn() and are valid here.
   const entityId = _getActorEntityId();
@@ -369,6 +374,37 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
 
   return new Proxy({} as T, {
     get(_target: T, prop: string | symbol): unknown {
+      /**
+       * `$set(values)` — batch-writes multiple component fields in a single
+       * `addComponent` call, producing one object allocation instead of one
+       * per property. Prefer this over repeated property assignments in hot
+       * paths (e.g. position updates inside `onUpdate`).
+       *
+       * @example
+       * ```ts
+       * // ❌ Two allocations per frame:
+       * pos.x += vx * dt;
+       * pos.y += vy * dt;
+       *
+       * // ✅ One allocation per frame:
+       * pos.$set({ x: pos.x + vx * dt, y: pos.y + vy * dt });
+       * ```
+       */
+      if (prop === "$set") {
+        return (values: Partial<T>) => {
+          const current =
+            (engine.getComponent(entityId as unknown as EntityId, typedDef) as Record<
+              string,
+              unknown
+            >) ?? {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          engine.addComponent(entityId as unknown as EntityId, typedDef, {
+            ...current,
+            ...(values as Record<string, unknown>),
+          } as any);
+        };
+      }
+
       if (typeof prop !== "string") return undefined;
       const comp = engine.getComponent(entityId as unknown as EntityId, typedDef) as
         | Record<string, unknown>
@@ -390,5 +426,5 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
       } as any);
       return true;
     },
-  }) as T;
+  }) as T & { $set(values: Partial<T>): void };
 }
