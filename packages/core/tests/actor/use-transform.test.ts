@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import type { EntityId } from "../../src/engine/engine-api";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { definePrefab } from "../../src/actor/defines/define-prefab";
 import { defineActor } from "../../src/actor/defines/define-actor";
@@ -344,7 +345,7 @@ describe("useTransform — hasParent", () => {
     await engine.use(Actor._plugin);
 
     await engine.run(() => {
-      const id = Actor._plugin.spawn() as unknown as bigint;
+      const id = Actor._plugin.spawn();
       result = Actor._instances.get(id)!.api.getHasParent();
     });
 
@@ -364,7 +365,7 @@ describe("useTransform — hasParent", () => {
     await engine.use(Actor._plugin);
 
     await engine.run(() => {
-      const id = Actor._plugin.spawn() as unknown as bigint;
+      const id = Actor._plugin.spawn();
       result = Actor._instances.get(id)!.api.getHasParent();
     });
 
@@ -461,7 +462,7 @@ describe("useTransform — setParent / detach", () => {
     }
     const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
 
-    let childEntityId: bigint | undefined;
+    let childEntityId: EntityId | undefined;
     const Child = defineActor(Prefab, () => {
       const t = useTransform();
       return { setParentTo: (id: bigint) => t.setParent(id) };
@@ -469,7 +470,7 @@ describe("useTransform — setParent / detach", () => {
     await engine.use(Child._plugin);
 
     await engine.run(() => {
-      childEntityId = Child._plugin.spawn() as unknown as bigint;
+      childEntityId = Child._plugin.spawn();
       Child._instances.get(childEntityId!)!.api.setParentTo(99n);
     });
 
@@ -489,7 +490,7 @@ describe("useTransform — setParent / detach", () => {
     }
     const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
 
-    let entityId: bigint | undefined;
+    let entityId: EntityId | undefined;
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
       return { doDetach: () => t.detach() };
@@ -497,7 +498,7 @@ describe("useTransform — setParent / detach", () => {
     await engine.use(Actor._plugin);
 
     await engine.run(() => {
-      entityId = Actor._plugin.spawn() as unknown as bigint;
+      entityId = Actor._plugin.spawn();
       Actor._instances.get(entityId!)!.api.doDetach();
     });
 

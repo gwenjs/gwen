@@ -142,7 +142,7 @@ describe("useHook() auto-cleanup in actor context", () => {
 
     await engine.use(Actor._plugin);
 
-    let entityId: bigint | undefined;
+    let entityId: EntityId | undefined;
     engine.run(() => {
       entityId = Actor._plugin.spawn?.();
     });
@@ -172,7 +172,7 @@ describe("useHook() auto-cleanup in actor context", () => {
 
     await engine.use(Actor._plugin);
 
-    let entityId: bigint | undefined;
+    let entityId: EntityId | undefined;
     engine.run(() => {
       entityId = Actor._plugin.spawn?.();
     });
@@ -224,7 +224,7 @@ describe("useHook() dormancy guard in actor context", () => {
     });
     await engine.use(Actor._plugin);
 
-    let id: bigint;
+    let id: EntityId;
     engine.run(() => {
       id = Actor._plugin.spawn!();
     });
@@ -247,7 +247,7 @@ describe("useHook() dormancy guard in actor context", () => {
     });
     await engine.use(Actor._plugin);
 
-    let id: bigint;
+    let id: EntityId;
     engine.run(() => {
       id = Actor._plugin.spawn!();
     });
@@ -298,7 +298,7 @@ describe("useHook() dormancy guard in actor context", () => {
     });
     await engine.use(Actor._plugin);
 
-    let id: bigint;
+    let id: EntityId;
     engine.run(() => {
       id = Actor._plugin.spawn!();
     });
@@ -328,7 +328,7 @@ describe("useHook() dormancy guard in actor context", () => {
     });
     await engine.use(Actor._plugin);
 
-    let id1: bigint, id2: bigint;
+    let id1: EntityId, id2: EntityId;
     engine.run(() => {
       id1 = Actor._plugin.spawn!();
       id2 = Actor._plugin.spawn!();

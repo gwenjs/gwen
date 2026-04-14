@@ -173,7 +173,10 @@ export function defineActorPool<Props, PublicAPI>(
         inst._reset[i]!(props as unknown);
       }
     } else if (_active.size < size) {
-      // spawn is typed as spread (...args) => EntityId; call via apply for clean typing.
+      // `ActorPlugin.spawn` uses a rest-tuple overload (`?[] | [Props]`) to enforce
+      // required props at the call site. TypeScript cannot collapse that into an
+      // optional-argument signature without a cast, so we use one here. The assertion
+      // is safe: the pool receives the same `Props` type that the actor was defined with.
       id = (actor._plugin.spawn as (props?: Props) => EntityId)(props);
     } else {
       // All slots are active: pool is exhausted.

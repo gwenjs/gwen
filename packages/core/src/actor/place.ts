@@ -28,6 +28,7 @@ import type { PrefabDefinition } from "./defines/define-prefab";
 import type { EntityId } from "../engine/engine-api";
 import type { PlacementBridge } from "../engine/engine-types";
 import { ContextSlot } from "../engine/context-slot.js";
+import { GwenComposableError, ComposableErrorCodes } from "../engine/engine-errors.js";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
@@ -109,7 +110,8 @@ export interface PlaceOptions<Props = Record<string, unknown>> {
  */
 export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
-    throw new Error(
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
       "[GWEN] placeGroup() must be called inside a defineLayout() factory. " +
         "See https://docs.gwen.sh/layouts for examples.",
     );
@@ -126,7 +128,7 @@ export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHand
     api: undefined as void,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge?.set_entity_local_position?.(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
     },
     despawn() {
       engine.destroyEntity(entityId);
@@ -155,7 +157,8 @@ export function placeActor<Props, API>(
   options: PlaceOptions<Props> = {},
 ): PlaceHandle<API> {
   if (!_isInLayoutContext()) {
-    throw new Error(
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
       "[GWEN] placeActor() must be called inside a defineLayout() factory. " +
         "See https://docs.gwen.sh/layouts for examples.",
     );
@@ -173,7 +176,7 @@ export function placeActor<Props, API>(
     api: instance?.api as API,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge?.set_entity_local_position?.(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
     },
     despawn() {
       actorDef._plugin.despawn(entityId);
@@ -202,7 +205,8 @@ export function placePrefab(
   options: PlaceOptions<Record<string, unknown>> = {},
 ): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
-    throw new Error(
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
       "[GWEN] placePrefab() must be called inside a defineLayout() factory. " +
         "See https://docs.gwen.sh/layouts for examples.",
     );
@@ -226,7 +230,7 @@ export function placePrefab(
     api: undefined as void,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge?.set_entity_local_position?.(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
     },
     despawn() {
       engine.destroyEntity(id);

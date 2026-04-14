@@ -97,3 +97,47 @@ describe("defineComponent metadata", () => {
     ]);
   });
 });
+
+// ─── validateComponentSchema ──────────────────────────────────────────────────
+
+describe("defineComponent — schema validation", () => {
+  it("accepts a valid flat schema", () => {
+    expect(() =>
+      defineComponent({ name: "Valid", schema: { x: Types.f32, alive: Types.bool } }),
+    ).not.toThrow();
+  });
+
+  it("throws when a field is a nested plain object instead of a SchemaType", () => {
+    expect(() =>
+      defineComponent({
+        name: "Bad",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        schema: { position: { x: Types.f32, y: Types.f32 } as any },
+      }),
+    ).toThrow(/Bad.*position.*nested|nested.*position.*Bad/i);
+  });
+
+  it("throws when a field value is a primitive (not a SchemaType object)", () => {
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      defineComponent({ name: "Prim", schema: { value: 42 as any } }),
+    ).toThrow(/Prim.*value/i);
+  });
+
+  it("throws when a field value is null", () => {
+    expect(() =>
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      defineComponent({ name: "Null", schema: { field: null as any } }),
+    ).toThrow(/Null.*field/i);
+  });
+
+  it("includes the component name and field name in the error message", () => {
+    expect(() =>
+      defineComponent({
+        name: "MyComp",
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        schema: { badField: { nested: Types.f32 } as any },
+      }),
+    ).toThrow(/MyComp/);
+  });
+});

@@ -54,6 +54,7 @@
 
 import { _getActorEntityId, _getActorEngine } from "../defines/define-actor";
 import { getWasmBridge } from "../../engine/wasm-bridge";
+import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors.js";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;
@@ -85,7 +86,8 @@ export function useTransform(): TransformHandle {
     _getActorEngine(); // Verify we're in actor context
     idx = Number(entityId) & 0xffffffff;
   } catch {
-    throw new Error(
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] useTransform() must be called synchronously inside a defineActor() factory. " +
         "Use it to capture the entity ID and engine reference at actor spawn time.",
     );

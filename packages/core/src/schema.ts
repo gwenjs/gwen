@@ -373,6 +373,56 @@ export type InferComponent<D extends ComponentDefinition<ComponentSchema>> = {
   [K in keyof D["schema"]]: InferSchemaType<D["schema"][K]>;
 };
 
+/**
+ * Set of all valid `SchemaType.type` string values.
+ * Used by {@link validateComponentSchema} for O(1) membership checks.
+ * @internal
+ */
+const _VALID_SCHEMA_TYPES = new Set<string>(
+  Object.values(Types).map((t) => t.type),
+);
+
+/**
+ * Validates that every field in `schema` is a recognised {@link SchemaType} descriptor.
+ *
+ * Catches the most common authoring mistake — using a nested plain object instead of
+ * a `Types.*` value — before the component reaches the WASM serialiser, where it
+ * would silently corrupt memory.
+ *
+ * @param componentName - Name passed to `defineComponent`, used in the error message.
+ * @param schema        - The schema object to validate.
+ *
+ * @throws {Error} When any field value is not a valid `SchemaType`.
+ *
+ * @example
+ * ```ts
+ * // ✅ Valid — each value is a Types.* descriptor:
+ * defineComponent({ name: 'Pos', schema: { x: Types.f32, y: Types.f32 } })
+ *
+ * // ❌ Invalid — nested object instead of SchemaType:
+ * defineComponent({ name: 'Pos', schema: { pos: { x: Types.f32 } } }) // throws
+ * ```
+ *
+ * @internal Called by {@link defineComponent}.
+ */
+function _validateComponentSchema(componentName: string, schema: ComponentSchema): void {
+  for (const [field, typeObj] of Object.entries(schema)) {
+    if (
+      typeObj === null ||
+      typeof typeObj !== "object" ||
+      !("type" in typeObj) ||
+      !_VALID_SCHEMA_TYPES.has((typeObj as SchemaType).type)
+    ) {
+      throw new Error(
+        `[GWEN] defineComponent('${componentName}'): field '${field}' is not a valid SchemaType. ` +
+          `Received ${JSON.stringify(typeObj)}. ` +
+          `Did you accidentally use a nested object instead of a Types.* value? ` +
+          `Example fix: { ${field}: Types.f32 } instead of { ${field}: { ... } }.`,
+      );
+    }
+  }
+}
+
 /** Monotonic counter for assigning unique numeric IDs to components at definition time. */
 let _nextTypeId = 1;
 
@@ -496,6 +546,8 @@ export function defineComponent<S extends ComponentSchema>(
     ComponentDefinition<S>,
     "_typeId" | "_byteSize" | "_f32Stride" | "_fields"
   > = typeof nameOrConfig === "string" ? { name: nameOrConfig, ...factory!() } : nameOrConfig;
+
+  _validateComponentSchema(config.name, config.schema);
 
   const _typeId = _nextTypeId++;
 

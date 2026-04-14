@@ -4,6 +4,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { watchActorLeaks } from "../../src/actor/uses/watch-actor-leaks";
 import type { ActorDefinition } from "../../src/actor/types";
+import type { EntityId } from "../../src/engine/engine-api";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { definePrefab } from "../../src/actor/defines/define-prefab";
 import { defineActor } from "../../src/actor/defines/define-actor";
@@ -11,9 +12,9 @@ import { defineActor } from "../../src/actor/defines/define-actor";
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function makeActorDef(name: string, initialCount = 0): ActorDefinition<void, void> {
-  const _instances = new Map<bigint, never>();
+  const _instances = new Map<EntityId, never>();
   for (let i = 0; i < initialCount; i++) {
-    _instances.set(BigInt(i), undefined as never);
+    _instances.set(BigInt(i) as unknown as EntityId, undefined as never);
   }
   return {
     __actorName__: name,
@@ -54,7 +55,7 @@ describe("watchActorLeaks", () => {
     const stop = watchActorLeaks([def], { intervalMs: 1_000, growthStreak: 3, onLeak });
 
     // Grow once — streak = 1, threshold = 3 → no warning yet
-    def._instances.set(BigInt(1), undefined as never);
+    def._instances.set(BigInt(1) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(1_000);
 
     expect(onLeak).not.toHaveBeenCalled();
@@ -68,7 +69,7 @@ describe("watchActorLeaks", () => {
     const stop = watchActorLeaks([def], { intervalMs: 1_000, growthStreak: 3, onLeak });
 
     for (let tick = 1; tick <= 3; tick++) {
-      def._instances.set(BigInt(tick), undefined as never);
+      def._instances.set(BigInt(tick) as unknown as EntityId, undefined as never);
       vi.advanceTimersByTime(1_000);
     }
 
@@ -84,20 +85,20 @@ describe("watchActorLeaks", () => {
     const stop = watchActorLeaks([def], { intervalMs: 1_000, growthStreak: 3, onLeak });
 
     // Grow twice (streak = 2)
-    def._instances.set(BigInt(1), undefined as never);
+    def._instances.set(BigInt(1) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(1_000);
-    def._instances.set(BigInt(2), undefined as never);
+    def._instances.set(BigInt(2) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(1_000);
 
     // Decrease (despawn) — streak resets
-    def._instances.delete(BigInt(1));
-    def._instances.delete(BigInt(2));
+    def._instances.delete(BigInt(1) as unknown as EntityId);
+    def._instances.delete(BigInt(2) as unknown as EntityId);
     vi.advanceTimersByTime(1_000);
 
     // Grow again — streak restarts from 0
-    def._instances.set(BigInt(3), undefined as never);
+    def._instances.set(BigInt(3) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(1_000);
-    def._instances.set(BigInt(4), undefined as never);
+    def._instances.set(BigInt(4) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(1_000);
 
     // Still below threshold (streak = 2 again)
@@ -114,7 +115,7 @@ describe("watchActorLeaks", () => {
 
     // Only ActorA grows
     for (let tick = 1; tick <= 2; tick++) {
-      defA._instances.set(BigInt(tick), undefined as never);
+      defA._instances.set(BigInt(tick) as unknown as EntityId, undefined as never);
       vi.advanceTimersByTime(1_000);
     }
 
@@ -131,7 +132,7 @@ describe("watchActorLeaks", () => {
     stop();
 
     // Grow after stopping — should not trigger
-    def._instances.set(BigInt(1), undefined as never);
+    def._instances.set(BigInt(1) as unknown as EntityId, undefined as never);
     vi.advanceTimersByTime(5_000);
 
     expect(onLeak).not.toHaveBeenCalled();
@@ -144,7 +145,7 @@ describe("watchActorLeaks", () => {
     const stop = watchActorLeaks([def], { intervalMs: 1_000, growthStreak: 2 });
 
     for (let tick = 1; tick <= 2; tick++) {
-      def._instances.set(BigInt(tick), undefined as never);
+      def._instances.set(BigInt(tick) as unknown as EntityId, undefined as never);
       vi.advanceTimersByTime(1_000);
     }
 
