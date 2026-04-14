@@ -21,7 +21,7 @@ const _cleanupStack: Array<(() => void)[]> = [];
  *
  * Establishes a new cleanup context before executing the function, pushes it to
  * the module-level stack, and pops it upon completion (even if the function throws).
- * All callbacks registered via {@link onCleanup} or {@link tryOnCleanup} during
+ * All callbacks registered via {@link onCleanup} or {@link onCleanupIfActive} during
  * execution are collected and returned as a dispose function.
  *
  * @internal
@@ -60,16 +60,31 @@ export function withCleanup<T>(fn: () => T): [result: T, dispose: () => void] {
 }
 
 /**
- * Internal helper that registers a cleanup callback if a cleanup context is active.
+ * Registers a cleanup callback only if a cleanup context is currently active.
  *
- * Pushes the callback to the topmost cleanup array on the module stack.
- * Silently no-ops if no cleanup context is active (stack is empty).
+ * Unlike {@link onCleanup}, this function does **not** throw when called outside
+ * a context — it silently skips the registration. This is intentional: it is
+ * designed for composables that are valid both inside and outside lifecycle
+ * contexts (e.g. utility helpers that optionally participate in actor cleanup).
  *
- * @internal
+ * If you always expect a context to be active, use {@link onCleanup} instead —
+ * it will throw with a clear error if the context is missing.
  *
- * @param fn - Cleanup callback to register
+ * @param fn - Callback to register if a context is active.
+ *
+ * @example
+ * ```ts
+ * // Safe to call anywhere — no-op if no context:
+ * onCleanupIfActive(() => socket.close());
+ *
+ * // Prefer onCleanup() if a context is always required:
+ * onCleanup(() => socket.close()); // throws if no context
+ * ```
+ *
+ * @see {@link onCleanup} — strict variant that requires an active context
+ * @see {@link withCleanup} — establish a cleanup context manually
  */
-export function tryOnCleanup(fn: () => void): void {
+export function onCleanupIfActive(fn: () => void): void {
   const top = _cleanupStack[_cleanupStack.length - 1];
   if (top) {
     top.push(fn);
@@ -123,5 +138,5 @@ export function tryOnCleanup(fn: () => void): void {
  * @since 1.0.0
  */
 export function onCleanup(fn: () => void): void {
-  tryOnCleanup(fn);
+  onCleanupIfActive(fn);
 }

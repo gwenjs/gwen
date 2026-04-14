@@ -779,7 +779,7 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Internal WASM bridge accessors ───────────────────────────────────────
 
-  _getPlacementBridge(): PlacementBridge {
+  getPlacementBridge(): PlacementBridge {
     // Return a graceful object that doesn't throw if WASM is uninitialized.
     // All methods are optional and use optional chaining at call sites.
     try {

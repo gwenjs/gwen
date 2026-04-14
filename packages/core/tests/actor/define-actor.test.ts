@@ -9,6 +9,7 @@ import {
 } from "../../src/actor/defines/define-actor";
 import { onUpdate } from "../../src/system/defines/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
+import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
 
 // Minimal component defs
 const Position = { __name__: "Position" };
@@ -314,5 +315,24 @@ describe("actor context — atomic save/restore", () => {
 
     // After the throw, context must be null — useEntityId must throw.
     expect(() => useEntityId()).toThrow();
+  });
+});
+
+describe("GwenComposableError — composable context guards", () => {
+  it("useEntityId throws GwenComposableError outside a factory", () => {
+    expect(() => useEntityId()).toThrow(GwenComposableError);
+  });
+
+  it("useEntityId error has OUTSIDE_ACTOR_CONTEXT code", () => {
+    try {
+      useEntityId();
+    } catch (e) {
+      expect(e).toBeInstanceOf(GwenComposableError);
+      expect((e as GwenComposableError).code).toBe(ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT);
+    }
+  });
+
+  it("onDestroy throws GwenComposableError outside a factory", () => {
+    expect(() => onDestroy(() => {})).toThrow(GwenComposableError);
   });
 });

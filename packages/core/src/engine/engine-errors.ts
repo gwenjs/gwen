@@ -115,3 +115,50 @@ export class GwenActorError extends Error {
     this.code = code;
   }
 }
+
+// ─── Composable error ───────────────────────────────────────────────────────
+
+/**
+ * Error codes emitted by GWEN composables when called outside their valid context.
+ *
+ * Use these codes with `instanceof GwenComposableError` to distinguish composable
+ * misuse from actor lifecycle errors or engine errors.
+ */
+export const ComposableErrorCodes = {
+  /** Composable called outside an active `defineActor()` factory. */
+  OUTSIDE_ACTOR_CONTEXT: "COMPOSABLE:OUTSIDE_ACTOR_CONTEXT",
+  /** Composable called outside an active engine context. */
+  OUTSIDE_ENGINE_CONTEXT: "COMPOSABLE:OUTSIDE_ENGINE_CONTEXT",
+  /** Composable called outside a `defineLayout()` factory. */
+  OUTSIDE_LAYOUT_CONTEXT: "COMPOSABLE:OUTSIDE_LAYOUT_CONTEXT",
+} as const;
+
+/**
+ * Thrown when a composable is called outside its valid context.
+ *
+ * All GWEN composables (`useEntityId`, `useComponent`, `onStart`, `onDestroy`,
+ * `onEvent`, etc.) throw this error when invoked at the wrong lifecycle phase.
+ * Catch it with `instanceof GwenComposableError` to handle composable misuse
+ * independently from engine or actor errors.
+ *
+ * @example
+ * ```ts
+ * try {
+ *   useEntityId(); // called outside a factory
+ * } catch (e) {
+ *   if (e instanceof GwenComposableError) {
+ *     console.error('Composable misuse:', e.code, e.message);
+ *   }
+ * }
+ * ```
+ */
+export class GwenComposableError extends Error {
+  /** Machine-readable error code from {@link ComposableErrorCodes}. */
+  readonly code: string;
+
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "GwenComposableError";
+    this.code = code;
+  }
+}

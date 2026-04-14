@@ -77,7 +77,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     if (!_active) return;
 
     if (_entityIds.length > 0) {
-      const bridge = engine._getPlacementBridge();
+      const bridge = engine.getPlacementBridge();
       if (bridge?.bulk_destroy) {
         const indices = new Uint32Array(_entityIds.map((id) => Number(id) & 0xffffffff));
         bridge.bulk_destroy(indices);

@@ -7,6 +7,57 @@ import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
 
 /**
+ * Manages the queue of actor pool slots scheduled for deferred release.
+ *
+ * Slots added via {@link enqueue} are held until {@link flush} is called
+ * (typically at `engine:afterTick`). Using a `Set` for the pending queue
+ * guarantees O(1) duplicate detection — an important property since
+ * `release()` can be called multiple times per frame for the same entity.
+ *
+ * @internal
+ */
+class DeferredReleaseQueue {
+  private readonly _pending = new Set<EntityId>();
+
+  /**
+   * Schedule `id` for release at the end of the current frame.
+   * Calling this multiple times with the same `id` in the same frame is safe —
+   * the second call is a no-op.
+   *
+   * @param id - The entity to release.
+   * @returns `true` if the id was newly enqueued, `false` if already pending.
+   */
+  enqueue(id: EntityId): boolean {
+    if (this._pending.has(id)) return false;
+    this._pending.add(id);
+    return true;
+  }
+
+  /** Returns `true` if `id` is already waiting for release. */
+  has(id: EntityId): boolean {
+    return this._pending.has(id);
+  }
+
+  /**
+   * Drain the queue, calling `releaseFn` for each pending id in insertion order.
+   * The queue is cleared atomically before any callback fires — re-entrant
+   * `enqueue` calls inside `releaseFn` will be processed on the next flush.
+   */
+  flush(releaseFn: (id: EntityId) => void): void {
+    const snapshot = Array.from(this._pending);
+    this._pending.clear();
+    for (const id of snapshot) {
+      releaseFn(id);
+    }
+  }
+
+  /** Number of ids currently waiting for release. */
+  get size(): number {
+    return this._pending.size;
+  }
+}
+
+/**
  * Creates an actor pool for reusing ECS entities instead of destroying and
  * recreating them on each spawn cycle.
  *
@@ -24,6 +75,20 @@ import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
  * @param actor - The actor definition to pool (result of `defineActor()`).
  * @param options - Pool configuration.
  * @returns A pool object with `acquire`, `release`, `destroyAll`, `stats`, and `hooks`.
+ * * ### Dormancy behaviour
+ *
+ * A released actor is marked **dormant** until re-acquired. While dormant:
+ *
+ * - {@link onEvent} handlers are **silently skipped** — the event fires but the
+ *   handler is never invoked. This is intentional: dormant actors should not
+ *   react to game events.
+ * - {@link useHook} handlers are also skipped, but emit a **one-time dev warning**
+ *   per instance. This warns you that `useHook` is not pool-safe; prefer
+ *   `onEvent` for pool-aware actors.
+ * - ECS queries exclude dormant entities (a `DormantTag` component is added at
+ *   release time and removed at re-acquire time).
+ * - `onRelease` callbacks fire immediately when `release()` is flushed.
+ * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
 export function defineActorPool<Props, PublicAPI>(
   actor: ActorDefinition<Props, PublicAPI>,
@@ -38,7 +103,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   const _available: EntityId[] = [];
   const _active = new Set<EntityId>();
-  const _pendingRelease: EntityId[] = [];
+  const _pendingRelease = new DeferredReleaseQueue();
 
   let _peakActive = 0;
   let _acquireCount = 0;
@@ -132,9 +197,8 @@ export function defineActorPool<Props, PublicAPI>(
   // ─── release (deferred to end of frame) ────────────────────────────────────
 
   function release(id: EntityId): void {
-    if (!_active.has(id)) return; // unknown or already released — no-op
-    if (_pendingRelease.includes(id)) return; // already queued — no-op
-    _pendingRelease.push(id);
+    if (!_active.has(id)) return;
+    _pendingRelease.enqueue(id); // enqueue is idempotent
   }
 
   function _doRelease(id: EntityId): void {
@@ -164,10 +228,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   function destroyAll(): void {
     // Flush any pending deferred releases first.
-    for (let i = 0; i < _pendingRelease.length; i++) {
-      _doRelease(_pendingRelease[i]!);
-    }
-    _pendingRelease.length = 0;
+    _pendingRelease.flush(_doRelease);
 
     // Destroy all dormant slots.
     for (let i = 0; i < _available.length; i++) {
@@ -207,10 +268,7 @@ export function defineActorPool<Props, PublicAPI>(
 
       // Flush deferred releases at the end of each frame (mid-frame safety).
       engine.hooks.hook("engine:afterTick", () => {
-        for (let i = 0; i < _pendingRelease.length; i++) {
-          _doRelease(_pendingRelease[i]!);
-        }
-        _pendingRelease.length = 0;
+        _pendingRelease.flush(_doRelease);
       });
 
       // Global scope: auto-cleanup when the engine stops.

@@ -14,6 +14,7 @@ import type { EntityId } from "../../src/engine/engine-api.js";
 import { createEngine, useHook, GwenContextError } from "../../src/index";
 import { definePrefab } from "../../src/actor/defines/define-prefab";
 import { defineActor } from "../../src/actor/defines/define-actor";
+import type { UnsubscribeFn } from "../../src/hooks/use-hook";
 
 // ── useHook() outside engine context ─────────────────────────────────────────
 
@@ -364,5 +365,30 @@ describe("useHook() dormancy guard in actor context", () => {
       ([msg]) => typeof msg === "string" && msg.includes("dormant actor"),
     );
     expect(dormancyWarnings).toHaveLength(0);
+  });
+});
+
+describe("UnsubscribeFn", () => {
+  it("UnsubscribeFn is exported and assignable from useHook return value", async () => {
+    const engine = await createEngine();
+    await engine.startExternal();
+
+    const handler = vi.fn();
+    let unsub: UnsubscribeFn | undefined;
+
+    engine.run(() => {
+      unsub = useHook("engine:afterTick" as never, handler as never);
+    });
+
+    // Before unsubscribe — handler fires.
+    await engine.advance(16);
+    expect(handler).toHaveBeenCalledOnce();
+
+    // After unsubscribe — handler no longer fires.
+    unsub!();
+    await engine.advance(16);
+    expect(handler).toHaveBeenCalledOnce(); // still once, not twice
+
+    await engine.stop();
   });
 });

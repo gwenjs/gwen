@@ -626,11 +626,15 @@ export interface GwenEngine {
   // ─── Internal WASM bridge accessors ───────────────────────────────────────
 
   /**
-   * @internal — Get a typed accessor for placement-related WASM bridge methods.
-   * Reserved for scene composables (place.ts, use-layout.ts). Do not use elsewhere.
-   * @returns A {@link PlacementBridge} exposing only transform methods.
+   * Returns a typed accessor for placement-related WASM bridge methods.
+   *
+   * Reserved for scene composables (`place.ts`, `use-layout.ts`).
+   * Do not call this from application code — use the placement composables
+   * (`placeActor`, `placePrefab`, `placeGroup`) instead.
+   *
+   * @internal
    */
-  _getPlacementBridge(): PlacementBridge;
+  getPlacementBridge(): PlacementBridge;
 
   // ─── Hooks ──────────────────────────────────────────────────────────────
   /** Typed hookable lifecycle instance. */

@@ -27,6 +27,7 @@
  */
 
 import type { ActorDefinition } from "../types";
+import type { GwenEngine } from "../../engine/gwen-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -34,34 +35,29 @@ import type { ActorDefinition } from "../types";
  * Options for {@link watchActorLeaks}.
  */
 export interface WatchActorLeaksOptions {
-  /**
-   * How often to poll instance counts, in milliseconds.
-   * @default 5_000
-   */
+  /** How often to poll, in ms. Ignored when `engine` is provided. @default 5_000 */
   intervalMs?: number;
-
   /**
-   * Number of consecutive growth observations required before a leak is
-   * reported. A value of `2` means the count must have grown in 2 consecutive
-   * polling intervals (i.e. for at least `2 × intervalMs` ms without any
-   * decrease).
-   *
-   * Increase this to suppress false positives during burst-spawn patterns.
+   * Number of consecutive growth observations before a leak is reported.
    * @default 3
    */
   growthStreak?: number;
-
-  /**
-   * Called when a leak is detected.
-   *
-   * Defaults to a `console.warn` that includes the actor name, current count,
-   * and the number of instances added since the last observation.
-   *
-   * @param name   - Actor name (from `__actorName__`).
-   * @param count  - Current live instance count.
-   * @param delta  - Instances added since the last poll.
-   */
+  /** Called when a leak is detected. Defaults to `console.warn`. */
   onLeak?: (name: string, count: number, delta: number) => void;
+  /**
+   * When provided, detection is driven by the engine's `engine:afterTick` hook
+   * instead of `setInterval`. This eliminates false positives from burst-spawn
+   * patterns and ensures checks are synchronised with the game loop.
+   *
+   * **Preferred over `intervalMs`** in any context where an engine instance is
+   * available (systems, scene callbacks, tests).
+   *
+   * @example
+   * ```ts
+   * watchActorLeaks([BulletActor, EnemyActor], { engine });
+   * ```
+   */
+  engine?: GwenEngine;
 }
 
 // ─── Default reporter ─────────────────────────────────────────────────────────
@@ -95,18 +91,20 @@ export function watchActorLeaks(
   actorDefs: ActorDefinition<any, any>[],
   options: WatchActorLeaksOptions = {},
 ): () => void {
-  const { intervalMs = 5_000, growthStreak = 3, onLeak = defaultLeak } = options;
+  const { intervalMs = 5_000, growthStreak = 3, onLeak = defaultLeak, engine } = options;
 
   const prevCounts = new Map<string, number>();
   const streaks = new Map<string, number>();
 
-  // Capture baseline immediately at call time so that any growth observed on
-  // the first interval tick already counts toward the streak.
   for (const def of actorDefs) {
     prevCounts.set(def.__actorName__, def._instances.size);
   }
 
-  const id = setInterval(() => {
+  /**
+   * Single observation tick — compare current counts against the last snapshot
+   * and report actors whose count has grown for `growthStreak` consecutive ticks.
+   */
+  function tick(): void {
     for (const def of actorDefs) {
       const name = def.__actorName__;
       const count = def._instances.size;
@@ -119,13 +117,20 @@ export function watchActorLeaks(
           onLeak(name, count, count - prev);
         }
       } else {
-        // count stable or decreased — reset the growth streak
         streaks.set(name, 0);
       }
 
       prevCounts.set(name, count);
     }
-  }, intervalMs);
+  }
 
+  if (engine) {
+    // Hook-based: synchronised with the game loop — no false positives from bursts.
+    const unsub = engine.hooks.hook("engine:afterTick", tick);
+    return unsub;
+  }
+
+  // Fallback: polling via setInterval when no engine is available.
+  const id = setInterval(tick, intervalMs);
   return () => clearInterval(id);
 }

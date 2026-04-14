@@ -1,11 +1,11 @@
 import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import MagicString from "magic-string";
 import { walk } from "oxc-walker";
 import type { VariableDeclarator } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
+import { createAstNameInjector } from "./ast-name-injector.js";
 
 const LAYOUTS_VIRTUAL = "virtual:gwen/layouts";
 const RESOLVED_LAYOUTS = "\0" + LAYOUTS_VIRTUAL;
@@ -66,31 +66,14 @@ export function generateLayoutsModule(layoutMap: Map<string, string>): string {
  * @param filename - File path for the parser.
  * @returns Transformed source, or the original if no changes were made.
  */
-export function transformLayoutNames(code: string, filename = "layout.ts"): string {
-  if (!code.includes("defineLayout")) return code;
-
-  const parsed = parseSource(filename, code);
-  if (!parsed) return code;
-
-  const s = new MagicString(code);
-  let changed = false;
-
-  walk(parsed.program, {
-    enter(node) {
-      if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node as VariableDeclarator;
-      if (id.type !== "Identifier") return;
-      if (!init || !isCallTo(init, "defineLayout")) return;
-
-      const varName = (id as { name: string }).name;
-      s.prependLeft(init.start, "Object.assign(");
-      s.appendRight(init.end, `, { __layoutName__: '${varName}' })`);
-      changed = true;
-    },
-  });
-
-  return changed ? s.toString() : code;
-}
+export const transformLayoutNames = createAstNameInjector(
+  "defineLayout",
+  (varName, _args, s, init) => {
+    s.prependLeft(init.start, "Object.assign(");
+    s.appendRight(init.end, `, { __layoutName__: '${varName}' })`);
+    return true;
+  },
+);
 
 /**
  * Extract all variable names bound to `defineLayout(...)` calls in the given source.

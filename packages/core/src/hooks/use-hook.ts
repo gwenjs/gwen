@@ -4,6 +4,29 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { _tryGetActorInstance } from "../actor/defines/define-actor.js";
 
 /**
+ * A function that removes a previously registered hook subscription.
+ *
+ * Returned by {@link useHook} and `engine.hooks.hook()`. Call it to unregister
+ * the handler before the owning context ends — for example to stop listening
+ * to an event mid-lifecycle without waiting for actor despawn.
+ *
+ * @example
+ * ```ts
+ * import type { UnsubscribeFn } from '@gwenjs/core'
+ *
+ * let unsub: UnsubscribeFn | undefined;
+ *
+ * const Actor = defineActor(MyPrefab, () => {
+ *   onStart(() => {
+ *     unsub = useHook('entity:create', handleCreate);
+ *   });
+ *   onDestroy(() => unsub?.());
+ * });
+ * ```
+ */
+export type UnsubscribeFn = () => void;
+
+/**
  * Subscribes to a {@link GwenRuntimeHooks} event and registers an automatic cleanup.
  *
  * When called inside a lifecycle context — a `defineActor()` factory, a plugin
@@ -61,7 +84,7 @@ import { _tryGetActorInstance } from "../actor/defines/define-actor.js";
 export function useHook<K extends keyof GwenRuntimeHooks>(
   name: K,
   fn: GwenRuntimeHooks[K],
-): () => void {
+): UnsubscribeFn {
   const engine = useEngine();
   const instance = _tryGetActorInstance();
 
@@ -88,7 +111,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
     }) as GwenRuntimeHooks[K];
   }
 
-  const unsubscribe = engine.hooks.hook(name, handler as never);
+  const unsubscribe: UnsubscribeFn = engine.hooks.hook(name, handler as never);
   onCleanup(unsubscribe);
   return unsubscribe;
 }

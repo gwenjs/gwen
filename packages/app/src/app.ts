@@ -361,7 +361,12 @@ function mergeDefaults(
     const userVal = user[key];
     const defaultVal = defaults[key];
 
-    if (
+    if (Array.isArray(userVal) && Array.isArray(defaultVal)) {
+      // Arrays are concatenated: defaults first, then user values.
+      // This lets modules add to built-in lists (e.g. plugins, routes) without
+      // having to repeat the defaults in every consumer config.
+      result[key] = [...defaultVal, ...userVal];
+    } else if (
       typeof userVal === "object" &&
       userVal !== null &&
       !Array.isArray(userVal) &&
@@ -392,10 +397,19 @@ function mergeDefaults(
  *   if the imported value has no `setup` function.
  */
 async function loadModule(name: string): Promise<GwenModule> {
-  const imported = (await import(/* @vite-ignore */ name)) as { default?: unknown } & Record<
-    string,
-    unknown
-  >;
+  let imported: { default?: unknown } & Record<string, unknown>;
+
+  try {
+    imported = (await import(/* @vite-ignore */ name)) as typeof imported;
+  } catch (cause) {
+    throw new Error(
+      `[GWEN] Failed to load module "${name}". ` +
+        `Check that the package is installed and the name is spelled correctly.\n` +
+        `Cause: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
+
   const definition: unknown = imported.default ?? imported;
 
   if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {

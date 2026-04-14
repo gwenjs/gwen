@@ -122,7 +122,7 @@ export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHand
   }
 
   const engine = useEngine();
-  const bridge = engine._getPlacementBridge();
+  const bridge = engine.getPlacementBridge();
   const entityId = engine.createEntity();
   applyTransform(bridge, entityId, options);
   _register(entityId);
@@ -168,7 +168,7 @@ export function placeActor<Props, API>(
   }
 
   const entityId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(options.props);
-  const bridge = useEngine()._getPlacementBridge();
+  const bridge = useEngine().getPlacementBridge();
   applyTransform(bridge, entityId, options);
   _register(entityId);
 
@@ -215,7 +215,7 @@ export function placePrefab(
   }
 
   const engine = useEngine();
-  const bridge = engine._getPlacementBridge();
+  const bridge = engine.getPlacementBridge();
   const id = engine.createEntity();
 
   for (const { def, defaults } of prefabDef.components ?? []) {

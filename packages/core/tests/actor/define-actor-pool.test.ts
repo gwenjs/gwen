@@ -757,3 +757,23 @@ describe("useActorPool — scene integration", () => {
     expect(actorIdx).toBeLessThan(poolIdx);
   });
 });
+
+describe("DeferredReleaseQueue — double-release guard", () => {
+  it("calling release() twice in the same frame does not double-despawn", async () => {
+    const engine = await createEngine();
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const Actor = defineActor(prefab, () => {});
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 2 });
+    await engine.use(pool._plugin);
+
+    const id = pool.acquire();
+    pool.release(id);
+    pool.release(id); // second call — must be a no-op
+
+    // Should not throw — only one actual _doRelease runs.
+    await expect(engine.advance(16)).resolves.not.toThrow();
+    expect(pool.stats().available).toBe(1); // one slot freed, not two
+  });
+});

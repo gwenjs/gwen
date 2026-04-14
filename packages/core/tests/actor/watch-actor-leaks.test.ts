@@ -4,6 +4,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { watchActorLeaks } from "../../src/actor/uses/watch-actor-leaks";
 import type { ActorDefinition } from "../../src/actor/types";
+import { createEngine } from "../../src/engine/gwen-engine";
+import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { defineActor } from "../../src/actor/defines/define-actor";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -151,5 +154,55 @@ describe("watchActorLeaks", () => {
 
     stop();
     warn.mockRestore();
+  });
+});
+
+describe("watchActorLeaks — hook-based mode", () => {
+  it("detects a leak via engine afterTick instead of setInterval", async () => {
+    const engine = await createEngine();
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const Actor = defineActor(prefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const leaks: string[] = [];
+    const stop = watchActorLeaks([Actor], {
+      engine,
+      growthStreak: 2,
+      onLeak: (name) => leaks.push(name),
+    });
+
+    // Spawn one per tick — 3 ticks ensures streak ≥ 2.
+    Actor._plugin.spawn();
+    await engine.advance(16);
+    Actor._plugin.spawn();
+    await engine.advance(16);
+    Actor._plugin.spawn();
+    await engine.advance(16);
+
+    expect(leaks).toContain(Actor.__actorName__);
+
+    stop();
+    await engine.stop();
+  });
+
+  it("stop() unregisters the afterTick handler", async () => {
+    const engine = await createEngine();
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const Actor = defineActor(prefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const onLeak = vi.fn();
+    const stop = watchActorLeaks([Actor], { engine, growthStreak: 1, onLeak });
+
+    stop(); // stop before any frames
+    Actor._plugin.spawn();
+    await engine.advance(16);
+    Actor._plugin.spawn();
+    await engine.advance(16);
+
+    expect(onLeak).not.toHaveBeenCalled();
+    await engine.stop();
   });
 });
