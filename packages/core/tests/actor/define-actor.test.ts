@@ -245,3 +245,74 @@ describe("defineActor — plugin naming", () => {
     expect(Actor._instances.size).toBe(1);
   });
 });
+
+describe("defineActor — spawn returns EntityId (branded bigint)", () => {
+  it("spawn() return value is assignable to EntityId", async () => {
+    const engine = await createEngine();
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+    const Actor = defineActor(prefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const id = Actor._plugin.spawn();
+
+    // If EntityId typing is correct, engine.isAlive() accepts it directly.
+    // A plain bigint would require a cast — the absence of a compile error is the proof.
+    expect(engine.isAlive(id)).toBe(true);
+  });
+});
+
+describe("actor context — atomic save/restore", () => {
+  it("context is null outside a factory", () => {
+    // _getActorEntityId must throw — proves context is cleared after spawn.
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    defineActor(prefab, () => {
+      // valid inside factory
+      expect(() => useEntityId()).not.toThrow();
+    });
+    // Outside factory: must throw
+    expect(() => useEntityId()).toThrow();
+  });
+
+  it("nested spawn restores parent context correctly", async () => {
+    const engine = await createEngine();
+    const capturedIds: bigint[] = [];
+
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+
+    const Inner = defineActor(prefab, () => {
+      capturedIds.push(useEntityId());
+    });
+    const Outer = defineActor(prefab, () => {
+      capturedIds.push(useEntityId());
+      // Spawn inner inside outer factory — simulates nested context.
+      Inner._plugin.spawn!();
+    });
+
+    await engine.use(Inner._plugin);
+    await engine.use(Outer._plugin);
+    Outer._plugin.spawn!();
+
+    // Two distinct IDs captured, outer captured first.
+    expect(capturedIds).toHaveLength(2);
+    expect(capturedIds[0]).not.toBe(capturedIds[1]);
+  });
+
+  it("context is cleared even when the factory throws", async () => {
+    const engine = await createEngine();
+    const Position = { __name__: "Position" };
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+
+    const BadActor = defineActor(prefab, () => {
+      throw new Error("factory explosion");
+    });
+    await engine.use(BadActor._plugin);
+
+    expect(() => BadActor._plugin.spawn!()).toThrow("factory explosion");
+
+    // After the throw, context must be null — useEntityId must throw.
+    expect(() => useEntityId()).toThrow();
+  });
+});

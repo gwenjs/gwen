@@ -1,5 +1,5 @@
 import { createHooks } from "hookable";
-import type { EntityId } from "../../types/entity";
+import type { EntityId } from "../../engine/engine-api";
 import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
 import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
@@ -89,7 +89,7 @@ export function defineActorPool<Props, PublicAPI>(
     if (_available.length > 0) {
       // Reuse a dormant slot — zero entity allocation cost.
       id = _available.pop()!;
-      const inst = actor._instances.get(id as unknown as bigint)!;
+      const inst = actor._instances.get(id)!;
 
       // 1. Re-apply prefab defaults to all components.
       for (let i = 0; i < actor._prefab.components.length; i++) {
@@ -109,7 +109,9 @@ export function defineActorPool<Props, PublicAPI>(
       }
     } else if (_active.size < size) {
       // Lazy allocation — first time this slot is used.
-      id = (actor._plugin.spawn as unknown as (p?: Props) => bigint)(props) as unknown as EntityId;
+      id = (actor._plugin.spawn as unknown as (p?: Props) => EntityId)(
+        props,
+      ) as unknown as EntityId;
     } else {
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);
@@ -137,7 +139,7 @@ export function defineActorPool<Props, PublicAPI>(
 
   function _doRelease(id: EntityId): void {
     if (!_engine) return;
-    const inst = actor._instances.get(id as unknown as bigint);
+    const inst = actor._instances.get(id);
     if (!inst) return;
 
     // 1. Call onRelease callbacks.
@@ -170,16 +172,16 @@ export function defineActorPool<Props, PublicAPI>(
     // Destroy all dormant slots.
     for (let i = 0; i < _available.length; i++) {
       const id = _available[i]!;
-      const inst = actor._instances.get(id as unknown as bigint);
+      const inst = actor._instances.get(id);
       // Temporarily clear _isDormant so that onDestroy can fire normally.
       if (inst) inst._isDormant = false;
-      actor._plugin.despawn!(id as unknown as bigint);
+      actor._plugin.despawn!(id);
     }
     _available.length = 0;
 
     // Destroy all active slots.
     for (const id of _active) {
-      actor._plugin.despawn!(id as unknown as bigint);
+      actor._plugin.despawn!(id);
     }
     _active.clear();
   }

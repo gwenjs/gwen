@@ -47,14 +47,14 @@ export interface ActorHandle<Props, PublicAPI> {
    *
    * @returns The ECS entity ID of the new instance.
    */
-  spawn(...args: Props extends void ? [] : [props: Props]): bigint;
+  spawn(...args: Props extends void ? [] : [props: Props]): EntityId;
 
   /**
    * Despawn the actor instance with the given entity ID.
    *
    * @param id - Entity ID returned by `spawn`.
    */
-  despawn(id: bigint): void;
+  despawn(id: EntityId): void;
 
   /**
    * Despawn every live instance of this actor type.
@@ -92,7 +92,7 @@ export interface ActorHandle<Props, PublicAPI> {
    *
    * @returns The singleton instance's entity ID.
    */
-  spawnOnce(...args: Props extends void ? [] : [props: Props]): bigint;
+  spawnOnce(...args: Props extends void ? [] : [props: Props]): EntityId;
 }
 
 /**
@@ -114,14 +114,14 @@ export interface PrefabHandle {
    * const id = spawn({ x: 99 }); // overrides Position.x
    * ```
    */
-  spawn(overrides?: Record<string, unknown>): bigint;
+  spawn(overrides?: Record<string, unknown>): EntityId;
 
   /**
    * Destroy the entity with the given ID.
    *
    * @param id - Entity ID returned by `spawn`.
    */
-  despawn(id: bigint): void;
+  despawn(id: EntityId): void;
 }
 
 /** @internal Methods on `ActorHandle` that take priority over `PublicAPI` in the Proxy. */
@@ -185,14 +185,14 @@ export function useActor<Props, PublicAPI>(
     }
   }
 
-  let _singletonId: bigint | undefined;
+  let _singletonId: EntityId | undefined;
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
-    spawn(props?: Props): bigint {
-      return (actorDef._plugin.spawn as (props?: Props) => bigint)(props);
+    spawn(props?: Props): EntityId {
+      return (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
     },
 
-    despawn(id: bigint): void {
+    despawn(id: EntityId): void {
       if (_singletonId === id) _singletonId = undefined;
       actorDef._plugin.despawn(id);
     },
@@ -220,11 +220,11 @@ export function useActor<Props, PublicAPI>(
       return result;
     },
 
-    spawnOnce(props?: Props): bigint {
+    spawnOnce(props?: Props): EntityId {
       if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
         return _singletonId;
       }
-      _singletonId = (actorDef._plugin.spawn as (props?: Props) => bigint)(props);
+      _singletonId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
       return _singletonId;
     },
   };
@@ -282,7 +282,7 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
   const engine = useEngine();
 
   return {
-    spawn(overrides: Record<string, unknown> = {}): bigint {
+    spawn(overrides: Record<string, unknown> = {}): EntityId {
       const id = engine.createEntity();
       for (const { def, defaults } of prefabDef.components) {
         engine.addComponent(id, def as ComponentDefinition<ComponentSchema>, {
@@ -293,8 +293,8 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
       return id;
     },
 
-    despawn(id: bigint): void {
-      engine.destroyEntity(id as unknown as EntityId);
+    despawn(id: EntityId): void {
+      engine.destroyEntity(id);
     },
   };
 }
@@ -393,12 +393,8 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
       if (prop === "$set") {
         return (values: Partial<T>) => {
           const current =
-            (engine.getComponent(entityId as unknown as EntityId, typedDef) as Record<
-              string,
-              unknown
-            >) ?? {};
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          engine.addComponent(entityId as unknown as EntityId, typedDef, {
+            (engine.getComponent(entityId, typedDef) as Record<string, unknown>) ?? {};
+          engine.addComponent(entityId, typedDef, {
             ...current,
             ...(values as Record<string, unknown>),
           } as any);
@@ -406,21 +402,14 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
       }
 
       if (typeof prop !== "string") return undefined;
-      const comp = engine.getComponent(entityId as unknown as EntityId, typedDef) as
-        | Record<string, unknown>
-        | undefined;
+      const comp = engine.getComponent(entityId, typedDef) as Record<string, unknown> | undefined;
       return comp?.[prop];
     },
 
     set(_target: T, prop: string | symbol, value: unknown): boolean {
       if (typeof prop !== "string") return false;
-      const current =
-        (engine.getComponent(entityId as unknown as EntityId, typedDef) as Record<
-          string,
-          unknown
-        >) ?? {};
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      engine.addComponent(entityId as unknown as EntityId, typedDef, {
+      const current = (engine.getComponent(entityId, typedDef) as Record<string, unknown>) ?? {};
+      engine.addComponent(entityId, typedDef, {
         ...current,
         [prop]: value,
       } as any);

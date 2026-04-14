@@ -551,6 +551,25 @@ export interface GwenEngine {
    */
   isAlive(id: EntityId): boolean;
 
+  /**
+   * Check whether `count` additional entities can be allocated right now
+   * without exceeding `maxEntities`.
+   *
+   * Call this before a batch spawn loop to ensure all-or-nothing semantics:
+   * if this returns `false`, skip the whole batch rather than spawning a
+   * partial set that leaves the simulation in an inconsistent state.
+   *
+   * @param count - Number of entities you intend to create.
+   * @returns `true` if `count` entities can be created without hitting the cap.
+   *
+   * @example
+   * ```ts
+   * if (!engine.canSpawn(projectiles.length)) return;
+   * for (const p of projectiles) spawnProjectile(p);
+   * ```
+   */
+  canSpawn(count: number): boolean;
+
   // ─── Component management ────────────────────────────────────────────────
   /**
    * Attach a component to an entity, merging supplied data over the definition defaults.

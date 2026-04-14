@@ -12,6 +12,7 @@ import type { GwenPlugin } from "../engine/gwen-engine";
 // Prefab types live in core — re-exported here for convenience
 export type { PrefabComponentEntry, PrefabDefinition } from "./defines/define-prefab";
 import type { PrefabDefinition } from "./defines/define-prefab";
+import type { EntityId } from "../engine/engine-api";
 
 // ─── Actor ────────────────────────────────────────────────────────────────────
 
@@ -55,7 +56,7 @@ export type VoidFn = () => void;
  */
 export interface ActorInstance<PublicAPI = void> {
   /** ECS entity ID assigned to this instance at spawn time. */
-  entityId: bigint;
+  entityId: EntityId;
   /** Callbacks registered via `onStart()` — fired once immediately after spawn. */
   _start: VoidFn[];
   /** Callbacks registered via `onBeforeUpdate()` — fired each frame before the main update. */
@@ -110,17 +111,16 @@ export interface ActorPlugin<Props = void> extends GwenPlugin {
    * When `Props` is `void` no argument is needed.
    * When `Props` is a concrete type the props argument is required.
    *
-   * @returns The ECS entity ID of the spawned instance.
+   * @returns The branded {@link EntityId} of the spawned instance.
    */
-  spawn(...args: Props extends void ? [] : [props: Props]): bigint;
+  spawn(...args: Props extends void ? [] : [props: Props]): EntityId;
 
   /**
    * Despawn the actor instance associated with the given entity ID.
-   * Calls all `_destroy` callbacks and event cleanups before destroying the entity.
    *
-   * @param entityId - The entity ID returned by `spawn`.
+   * @param entityId - The {@link EntityId} returned by `spawn`.
    */
-  despawn(entityId: bigint): void;
+  despawn(entityId: EntityId): void;
 
   /**
    * Optional array of actor plugins that this actor's factory depends on via
@@ -143,7 +143,7 @@ export interface ActorDefinition<Props = void, PublicAPI = void> {
   /** Internal ECS plugin — pass to `engine.use()`. */
   readonly _plugin: ActorPlugin<Props>;
   /** Live instance registry (entityId → instance). */
-  readonly _instances: Map<bigint, ActorInstance<PublicAPI>>;
+  readonly _instances: Map<EntityId, ActorInstance<PublicAPI>>;
   /** Prefab declaring memory layout. */
   readonly _prefab: PrefabDefinition;
   /** Debug name (injected by Vite transform, else 'anonymous'). @internal */
@@ -163,7 +163,7 @@ export interface ActorDefinition<Props = void, PublicAPI = void> {
  */
 export interface PlaceHandle<API = void> {
   /** ECS entity ID assigned at spawn time. */
-  readonly entityId: bigint;
+  readonly entityId: EntityId;
   /**
    * Public API returned by the actor factory.
    * `void` for groups and prefabs.

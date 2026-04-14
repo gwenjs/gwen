@@ -25,16 +25,17 @@
 import { useEngine } from "../engine/context";
 import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition } from "./defines/define-prefab";
+import type { EntityId } from "../engine/engine-api";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
-let _layoutEntities: bigint[] | null = null;
+let _layoutEntities: EntityId[] | null = null;
 
 /**
  * Run `fn` inside an active layout context.
  * @internal Used by `defineLayout`.
  */
-export function _withLayoutContext<T>(fn: () => T): { result: T; entities: bigint[] } {
+export function _withLayoutContext<T>(fn: () => T): { result: T; entities: EntityId[] } {
   const prev = _layoutEntities;
   _layoutEntities = [];
   try {
@@ -53,7 +54,7 @@ export function _isInLayoutContext(): boolean {
   return _layoutEntities !== null;
 }
 
-function _register(entityId: bigint): void {
+function _register(entityId: EntityId): void {
   _layoutEntities!.push(entityId);
 }
 
@@ -62,7 +63,7 @@ function _register(entityId: bigint): void {
 function applyTransform(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   bridge: any,
-  entityId: bigint,
+  entityId: EntityId,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   options: PlaceOptions<any>,
 ): void {
@@ -123,11 +124,11 @@ export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHand
   const engine = useEngine();
   const bridge = engine._getPlacementBridge();
   const entityId = engine.createEntity();
-  applyTransform(bridge, entityId as unknown as bigint, options);
-  _register(entityId as unknown as bigint);
+  applyTransform(bridge, entityId, options);
+  _register(entityId);
 
   const handle: PlaceHandle<void> = {
-    entityId: entityId as unknown as bigint,
+    entityId: entityId,
     api: undefined as void,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
@@ -166,9 +167,7 @@ export function placeActor<Props, API>(
     );
   }
 
-  const entityId = (actorDef._plugin.spawn as (props?: Props) => bigint)(
-    options.props,
-  ) as unknown as bigint;
+  const entityId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(options.props);
   const bridge = useEngine()._getPlacementBridge();
   applyTransform(bridge, entityId, options);
   _register(entityId);
@@ -224,7 +223,7 @@ export function placePrefab(
     engine.addComponent(id, def as any, { ...defaults, ...options.props });
   }
 
-  const entityId = id as unknown as bigint;
+  const entityId = id;
   applyTransform(bridge, entityId, options);
   _register(entityId);
 

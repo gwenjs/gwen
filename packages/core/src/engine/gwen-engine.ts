@@ -240,7 +240,6 @@ class GwenEngineImpl implements GwenEngine {
     },
   };
 
-  // ─── ECS world (RFC-005) ─────────────────────────────────────────────────
   private readonly _entityManager: EntityManager;
   private readonly _componentRegistry: ComponentRegistry;
   private readonly _queryEngine: QueryEngine;
@@ -444,6 +443,8 @@ class GwenEngineImpl implements GwenEngine {
     }
     await this.hooks.callHook("engine:stop");
     this._tracker.clearAll(this.hooks);
+    // Release the shared memory manager so the SAB view can be GC'd.
+    this._sharedMemory = null;
   }
 
   /**
@@ -645,6 +646,10 @@ class GwenEngineImpl implements GwenEngine {
    */
   createEntity(): EntityId {
     return this._entityManager.create();
+  }
+
+  canSpawn(count: number): boolean {
+    return this._entityManager.canSpawn(count);
   }
 
   /**

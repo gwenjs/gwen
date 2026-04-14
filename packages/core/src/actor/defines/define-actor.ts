@@ -50,27 +50,30 @@ import type {
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
-/**
- * The entity ID of the actor currently being spawned.
- * Set by `_withActorContext`, cleared afterwards.
- * @internal
- */
-let _currentActorEntityId: bigint | null = null;
+// ─── Module-level actor context ───────────────────────────────────────────────
 
 /**
- * The `ActorInstance` currently being built during `spawn()`.
- * Set by `_withActorContext`, cleared afterwards.
+ * Snapshot of a single actor spawn context: the three values that composables
+ * read during a `defineActor()` factory call.
+ *
+ * Storing them as one object prevents partial-save bugs where only one or two
+ * variables are restored after a throwing factory.
+ *
  * @internal
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _currentActorInstance: ActorInstance<any> | null = null;
+interface ActorContext {
+  entityId: EntityId;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  instance: ActorInstance<any>;
+  engine: GwenEngine;
+}
 
 /**
- * The `GwenEngine` belonging to the actor currently being spawned.
- * Set by `_withActorContext`, cleared afterwards.
+ * The active actor context, or `null` when no factory is running.
+ * Updated atomically by `_withActorContext`.
  * @internal
  */
-let _currentEngine: GwenEngine | null = null;
+let _activeContext: ActorContext | null = null;
 
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
@@ -83,56 +86,53 @@ let _currentEngine: GwenEngine | null = null;
  * @param fn - The factory callback to execute inside this context.
  * @internal
  */
+/**
+ * Run `fn` with an actor context active, restoring the previous context
+ * on completion — even if `fn` throws.
+ *
+ * Stores the full context as a single {@link ActorContext} object, so the
+ * save/restore is atomic: either all three fields are restored or none are.
+ * This prevents the "partial restore" bug where a throwing factory leaves
+ * `_activeContext.engine` pointing at a stale value.
+ *
+ * @param instance - The `ActorInstance` being built.
+ * @param engine   - The engine the actor belongs to.
+ * @param fn       - The factory callback to execute inside this context.
+ * @internal
+ */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function _withActorContext(instance: ActorInstance<any>, engine: GwenEngine, fn: () => void): void {
-  const prevId = _currentActorEntityId;
-  const prevInst = _currentActorInstance;
-  const prevEngine = _currentEngine;
-
-  _currentActorEntityId = instance.entityId;
-  _currentActorInstance = instance;
-  _currentEngine = engine;
-
+  const prev = _activeContext;
+  _activeContext = { entityId: instance.entityId, instance, engine };
   try {
     fn();
   } finally {
-    _currentActorEntityId = prevId;
-    _currentActorInstance = prevInst;
-    _currentEngine = prevEngine;
+    _activeContext = prev;
   }
 }
 
 /**
  * Returns the entity ID of the actor currently being spawned.
  *
- * Used by `useComponent()` to know which entity to target.
- *
- * @returns The active actor's entity ID as a `bigint`.
+ * @returns The active actor's entity ID as a `EntityId`.
  * @throws {Error} If called outside an active actor spawn context.
- *
- * @example
- * ```typescript
- * // Inside a composable called from an actor factory:
- * const entityId = _getActorEntityId()
- * ```
- *
  * @internal
  */
-export function _getActorEntityId(): bigint {
-  if (_currentActorEntityId === null) {
+export function _getActorEntityId(): EntityId {
+  if (_activeContext === null) {
     throw new Error(
       "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _currentActorEntityId;
+  return _activeContext.entityId;
 }
 
 /**
  * Returns the ECS entity ID of the actor currently being set up.
  *
  * Call this inside a `defineActor()` factory (or inside a composable called
- * from one) to obtain the `bigint` identifier that uniquely names this actor
+ * from one) to obtain the `EntityId` identifier that uniquely names this actor
  * instance in the ECS world. The value is stable for the entire lifetime of
  * the actor — from spawn to despawn.
  *
@@ -176,62 +176,44 @@ export function _getActorEntityId(): bigint {
  * not inside `onStart`, `onUpdate`, or other callbacks. Violating this throws
  * at runtime.
  *
- * @returns The `bigint` entity ID for the actor being set up.
+ * @returns The `EntityId` entity ID for the actor being set up.
  * @throws {Error} If called outside an active `defineActor()` factory context.
  */
-export function useEntityId(): bigint {
-  if (_currentActorEntityId === null) {
+export function useEntityId(): EntityId {
+  if (_activeContext?.entityId === null || _activeContext?.entityId === undefined) {
     throw new Error(
       "[GWEN] useEntityId() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _currentActorEntityId;
+  return _activeContext?.entityId;
 }
 
 /**
- * Returns the engine that owns the actor currently being spawned.
+ * Returns the engine of the actor currently being spawned.
  *
- * Used by `useComponent()` to capture the engine reference at factory call time,
- * so that component reads/writes can be performed without requiring an active
- * engine context inside frame callbacks.
- *
- * @returns The active actor's owning {@link GwenEngine}.
+ * @returns The active engine.
  * @throws {Error} If called outside an active actor spawn context.
- *
- * @example
- * ```typescript
- * // Inside a composable called from an actor factory:
- * const engine = _getActorEngine()
- * ```
- *
  * @internal
  */
 export function _getActorEngine(): GwenEngine {
-  if (_currentEngine === null) {
+  if (_activeContext === null) {
     throw new Error(
       "[GWEN] _getActorEngine() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _currentEngine;
+  return _activeContext.engine;
 }
 
 /**
- * Returns the {@link ActorInstance} currently being spawned, or `null` if
- * called outside any active actor spawn context.
- *
- * Used internally by {@link useHook} to detect whether a hook subscription is
- * being registered from inside an actor factory, so that a dormancy guard can
- * be attached at fire time.
- *
- * Do **not** call this from user-land code — use {@link useEntityId} instead.
- *
+ * Returns the current actor instance if inside a factory, otherwise `null`.
+ * Does not throw — safe to call anywhere.
  * @internal
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function _tryGetActorInstance(): ActorInstance<any> | null {
-  return _currentActorInstance;
+  return _activeContext?.instance ?? null;
 }
 
 // ─── Actor-level lifecycle composables ────────────────────────────────────────
@@ -252,12 +234,12 @@ export function _tryGetActorInstance(): ActorInstance<any> | null {
  * ```
  */
 export function onStart(fn: VoidFn): void {
-  if (!_currentActorInstance) {
+  if (!_activeContext?.instance) {
     throw new Error(
       "[GWEN] onStart() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _currentActorInstance._start.push(fn);
+  _activeContext.instance._start.push(fn);
 }
 
 /**
@@ -276,12 +258,12 @@ export function onStart(fn: VoidFn): void {
  * ```
  */
 export function onDestroy(fn: VoidFn): void {
-  if (!_currentActorInstance) {
+  if (!_activeContext?.instance) {
     throw new Error(
       "[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _currentActorInstance._destroy.push(fn);
+  _activeContext.instance._destroy.push(fn);
 }
 
 /**
@@ -328,13 +310,13 @@ export function _createDormancyGuard<F extends (...args: never[]) => unknown>(
 }
 
 export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): void {
-  if (!_currentActorInstance || !_currentEngine) {
+  if (!_activeContext?.instance || !_activeContext?.engine) {
     throw new Error(
       "[GWEN] onEvent() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  const engine = _currentEngine;
-  const instance = _currentActorInstance;
+  const engine = _activeContext.engine;
+  const instance = _activeContext.instance;
   // Wrap the handler via a typed guard so the original signature is preserved.
   const guardedFn = _createDormancyGuard(
     instance,
@@ -356,12 +338,12 @@ export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRunti
  * @param fn - Callback invoked on pool release.
  */
 export function onRelease(fn: VoidFn): void {
-  if (!_currentActorInstance) {
+  if (!_activeContext?.instance) {
     throw new Error(
       "[GWEN] onRelease() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _currentActorInstance._release.push(fn);
+  _activeContext.instance._release.push(fn);
 }
 
 /**
@@ -376,12 +358,12 @@ export function onRelease(fn: VoidFn): void {
  * @template Props - The props type inferred from `defineActor`.
  */
 export function onReset<Props = unknown>(fn: (props: Props) => void): void {
-  if (!_currentActorInstance) {
+  if (!_activeContext?.instance) {
     throw new Error(
       "[GWEN] onReset() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _currentActorInstance._reset.push(fn as (props: unknown) => void);
+  _activeContext.instance._reset.push(fn as (props: unknown) => void);
 }
 
 // ─── defineActor ─────────────────────────────────────────────────────────────
@@ -505,7 +487,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
     options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
   }
-  const _instances = new Map<bigint, ActorInstance<PublicAPI>>();
+  const _instances = new Map<EntityId, ActorInstance<PublicAPI>>();
 
   /**
    * Flat array mirror of `_instances` values, kept in sync with the Map.
@@ -521,7 +503,7 @@ export function defineActor<Props = void, PublicAPI = void>(
 
   // ─── spawn ───────────────────────────────────────────────────────────────
 
-  function spawn(props?: Props): bigint {
+  function spawn(props?: Props): EntityId {
     if (!_engine) {
       throw new GwenActorError(
         ActorErrorCodes.PLUGIN_NOT_READY,
@@ -604,7 +586,7 @@ export function defineActor<Props = void, PublicAPI = void>(
 
   // ─── despawn ─────────────────────────────────────────────────────────────
 
-  function despawn(entityId: bigint): void {
+  function despawn(entityId: EntityId): void {
     const instance = _instances.get(entityId);
     if (!instance) return;
 

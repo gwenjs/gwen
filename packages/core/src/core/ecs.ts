@@ -6,16 +6,16 @@
  */
 
 import type { ComponentDefinition, ComponentSchema } from "../schema";
-import type { EntityId } from "../types/entity";
+import type { EntityId } from "../engine/engine-api";
 import {
   buildQueryCacheKey,
   normalizeComponentTypesForQuery,
   type ComponentTypeInput,
 } from "./component-type-normalizer";
-import { createEntityId, unpackEntityId } from "../types/entity";
+import { createEntityId, unpackEntityId } from "../engine/engine-api";
 
 // Re-export EntityId as part of the ECS module's public API
-export type { EntityId } from "../types/entity";
+export type { EntityId } from "../engine/engine-api";
 
 /** A single component definition — shorthand for use in query descriptors. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -120,6 +120,10 @@ export class EntityManager {
   /** Number of currently alive entities. */
   count(): number {
     return this.liveCount;
+  }
+
+  canSpawn(count: number): boolean {
+    return count <= this.maxEntities - this.liveCount;
   }
 
   /** Get the current generation for a slot index. Returns 0 if out of bounds. */
