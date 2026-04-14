@@ -53,6 +53,21 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   return {}
 })
 ```
+::: warning useHook dans un acteur poolé
+Si votre acteur est géré par un [`ActorPool`](/fr/advanced/actor-pool), utilisez [`onEvent()`](#événements-de-jeu-personnalisés) à la place. `useHook()` détecte la dormance au moment du déclenchement et ignore le handler automatiquement, mais enregistre aussi un avertissement (dev uniquement) pour vous orienter vers la bonne API.
+
+```typescript
+// ❌ Fonctionne, mais produit un avertissement quand l'acteur est dormant dans un pool
+defineActor(EnemyPrefab, () => {
+  useHook('enemy:hit', handler)
+})
+
+// ✅ Correct — onEvent() gère la dormance silencieusement
+defineActor(EnemyPrefab, () => {
+  onEvent('enemy:hit', handler)
+})
+```
+:::
 
 Dans un **système** :
 
@@ -337,17 +352,17 @@ Les deux écoutent les événements, mais ils sont optimisés pour des contextes
 |---|---|---|
 | **Contexte** | Factory d'acteur uniquement | Acteur, système, configuration de plugin, `engine.run()` |
 | **Nettoyage automatique** | ✅ À la disparition de l'acteur | ✅ À la fin du contexte |
+| **Dormance pool** | ✅ Ignoré silencieusement | ⚠️ Ignoré + avertissement dev |
 | **Import** | `@gwenjs/core/actor` | `@gwenjs/core` |
-| **Cas d'usage** | Abonnements aux événements locaux à l'acteur | Abonnements intersectoriels depuis les systèmes |
-| **Raccourci ?** | Oui, spécifique aux acteurs | Non, universel |
+| **Cas d'usage** | Abonnements aux événements d'un acteur | Abonnements intersectoriels depuis les systèmes |
 
-Utilisez `onEvent()` à l'intérieur des acteurs pour la brièveté. Utilisez `useHook()` partout ailleurs, ou quand vous avez besoin d'écouter depuis un système.
+Utilisez `onEvent()` à l'intérieur des acteurs — surtout les acteurs poolés. Utilisez `useHook()` depuis les systèmes et les plugins.
 
 ## Résumé de l'API
 
 | Symbole | Description |
 |---|---|
-| `useHook(event, handler)` | S'abonner à un événement moteur ou personnalisé (nettoyage automatique) |
+| `useHook(event, handler)` | S'abonner à un événement moteur ou personnalisé (nettoyage automatique). Dans les acteurs, ignore l'exécution et avertit une fois (dev) si l'acteur est dormant. Préférer `onEvent()` pour les abonnements locaux à l'acteur. |
 | `onCleanup(fn)` | Enregistrer un callback de nettoyage dans le contexte de cycle de vie actif |
 | `defineEvents(map)` | Déclarer un contrat d'événements typé (retourne le même objet à l'exécution) |
 | `InferEvents<T>` | Aide de type pour extraire les signatures d'événements d'une carte retournée par `defineEvents()` |
