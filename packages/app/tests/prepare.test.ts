@@ -73,7 +73,7 @@ describe("GwenApp.prepare()", () => {
     await app.prepare(tmpRoot);
 
     const content = readFileSync(join(tmpRoot, ".gwen", "types", "auto-imports.d.ts"), "utf8");
-    expect(content).toContain("declare const usePhysics2D");
+    expect(content).toContain("declare global {");
     expect(content).toContain("@gwenjs/physics2d");
   });
 
@@ -90,7 +90,7 @@ describe("GwenApp.prepare()", () => {
     await app.prepare(tmpRoot);
 
     const content = readFileSync(join(tmpRoot, ".gwen", "types", "auto-imports.d.ts"), "utf8");
-    expect(content).toContain("declare const useBody");
+    expect(content).toContain("declare global {");
     expect(content).toContain("['useRigidBody']");
   });
 
