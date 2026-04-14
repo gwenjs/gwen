@@ -177,6 +177,14 @@ export function useActor<Props, PublicAPI>(
   useEngine();
   _registerScenePlugin(actorDef._plugin);
 
+  // Propagate child actor plugins injected by the Vite transform.
+  // _deps is undefined in test environments where no transform runs.
+  if (actorDef._plugin._deps) {
+    for (const dep of actorDef._plugin._deps) {
+      _registerScenePlugin(dep);
+    }
+  }
+
   let _singletonId: bigint | undefined;
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {

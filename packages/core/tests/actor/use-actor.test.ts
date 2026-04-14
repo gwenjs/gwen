@@ -124,4 +124,30 @@ describe("ActorPlugin._deps — type contract", () => {
     (Actor._plugin as { _deps?: unknown[] })._deps = [];
     expect((Actor._plugin as { _deps?: unknown[] })._deps).toHaveLength(0);
   });
+
+  it("useActor registers _deps plugins into the scene context", async () => {
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+
+    const ChildActor = defineActor(prefab, () => {});
+    const ParentActor = defineActor(prefab, () => {});
+
+    // Simulate what the Vite transform injects at build time
+    (ParentActor._plugin as { _deps?: unknown[] })._deps = [ChildActor._plugin];
+
+    // Access the internal scene context symbol the same way define-scene.test.ts does
+    const SCENE_CONTEXT_SYMBOL = Symbol.for("@gwenjs/core.scene-setup-context");
+    const sceneCtx = { systems: [] as { name: string }[] };
+    (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL] = sceneCtx;
+
+    engine.run(() => {
+      useActor(ParentActor);
+    });
+
+    // Both ParentActor and ChildActor plugins must be in the scene context
+    expect(sceneCtx.systems).toContain(ParentActor._plugin);
+    expect(sceneCtx.systems).toContain(ChildActor._plugin);
+
+    delete (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
+  });
 });
