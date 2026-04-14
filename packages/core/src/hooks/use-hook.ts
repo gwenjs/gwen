@@ -1,6 +1,7 @@
 import { onCleanup } from "../cleanup-context.js";
 import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
+import { _tryGetActorInstance } from "../actor/defines/define-actor.js";
 
 /**
  * Subscribes to a {@link GwenRuntimeHooks} event and registers an automatic cleanup.
@@ -14,6 +15,14 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
  * Must be called inside an active engine context (i.e., within `defineSystem()`,
  * `defineActor()`, plugin `setup()`, or `engine.run()`).
  *
+ * ### Actor pools and dormancy
+ *
+ * When called inside a `defineActor()` factory, `useHook` automatically wraps
+ * the handler with a dormancy guard. If the actor is returned to a pool via
+ * `pool.release()`, the handler is **skipped** when the hook fires and a warning
+ * is logged via `engine.logger` (once per actor instance, dev-only). Use
+ * {@link onEvent} instead to opt into this behaviour explicitly without the warning.
+ *
  * @typeParam K - The event name key from {@link GwenRuntimeHooks}.
  * @param name - The event to subscribe to.
  * @param fn - Handler invoked each time the event fires.
@@ -21,20 +30,6 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
  *   before the context ends.
  *
  * @throws {GwenContextError} If called outside any active engine context.
- *
- * @example Auto-cleanup in an actor factory:
- * ```typescript
- * import { defineActor } from '@gwenjs/core/actor'
- * import { useHook } from '@gwenjs/core'
- *
- * const MyActor = defineActor(MyPrefab, () => {
- *   // Automatically removed when the actor is despawned
- *   useHook('entity:spawn', (id) => {
- *     console.log('New entity:', id)
- *   })
- *   return {}
- * })
- * ```
  *
  * @example Auto-cleanup in a system:
  * ```typescript
@@ -58,6 +53,7 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
  * })
  * ```
  *
+ * @see {@link onEvent} — preferred API for event subscriptions inside actors
  * @see {@link onCleanup} — register any cleanup callback in the active context
  * @see {@link GwenRuntimeHooks} — all available event names
  * @since 1.0.0
@@ -67,7 +63,32 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   fn: GwenRuntimeHooks[K],
 ): () => void {
   const engine = useEngine();
-  const unsubscribe = engine.hooks.hook(name, fn as never);
+  const instance = _tryGetActorInstance();
+
+  let handler = fn;
+
+  if (instance !== null) {
+    // Inside a defineActor() factory: wrap with a dormancy guard.
+    // If the actor is dormant (returned to a pool), skip the handler and warn
+    // once so the developer knows to use onEvent() instead.
+    let hasWarned = false;
+    handler = ((...args: unknown[]) => {
+      if (instance._isDormant) {
+        if (!hasWarned && import.meta.env.DEV) {
+          engine.logger.warn(
+            `useHook('${name}') fired on a dormant actor. ` +
+              `Use onEvent() instead — it skips dormant actors silently.`,
+            { hook: name },
+          );
+          hasWarned = true;
+        }
+        return;
+      }
+      return (fn as (...a: unknown[]) => unknown)(...args);
+    }) as GwenRuntimeHooks[K];
+  }
+
+  const unsubscribe = engine.hooks.hook(name, handler as never);
   onCleanup(unsubscribe);
   return unsubscribe;
 }
