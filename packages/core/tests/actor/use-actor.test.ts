@@ -113,3 +113,15 @@ describe("usePrefab", () => {
     expect(pos?.x).toBe(99);
   });
 });
+
+describe("ActorPlugin._deps — type contract", () => {
+  it("_deps is an optional array on ActorPlugin", () => {
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+    const Actor = defineActor(prefab, () => {});
+    // _deps must not exist yet (no Vite transform in test env)
+    expect((Actor._plugin as { _deps?: unknown })._deps).toBeUndefined();
+    // assigning it must be structurally valid
+    (Actor._plugin as { _deps?: unknown[] })._deps = [];
+    expect((Actor._plugin as { _deps?: unknown[] })._deps).toHaveLength(0);
+  });
+});

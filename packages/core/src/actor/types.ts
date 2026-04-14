@@ -121,6 +121,19 @@ export interface ActorPlugin<Props = void> extends GwenPlugin {
    * @param entityId - The entity ID returned by `spawn`.
    */
   despawn(entityId: bigint): void;
+
+  /**
+   * Optional array of actor plugins that this actor's factory depends on via
+   * `useActor()`. Populated at build time by the `@gwenjs/vite` transform so
+   * that `useActor()` in a scene factory can transitively register all required
+   * plugins before the scene bootstraps.
+   *
+   * Not set in test environments (no Vite transform). Do not rely on this field
+   * being present at runtime — always check for `undefined` before iterating.
+   *
+   * @internal Set by the Vite actor transform; do not mutate manually.
+   */
+  _deps?: GwenPlugin[];
 }
 
 /**
