@@ -216,6 +216,23 @@ export function _getActorEngine(): GwenEngine {
   return _currentEngine;
 }
 
+/**
+ * Returns the {@link ActorInstance} currently being spawned, or `null` if
+ * called outside any active actor spawn context.
+ *
+ * Used internally by {@link useHook} to detect whether a hook subscription is
+ * being registered from inside an actor factory, so that a dormancy guard can
+ * be attached at fire time.
+ *
+ * Do **not** call this from user-land code — use {@link useEntityId} instead.
+ *
+ * @internal
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function _tryGetActorInstance(): ActorInstance<any> | null {
+  return _currentActorInstance;
+}
+
 // ─── Actor-level lifecycle composables ────────────────────────────────────────
 
 /**
