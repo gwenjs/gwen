@@ -54,6 +54,22 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
+::: warning useHook inside a pooled actor
+If your actor is managed by an [`ActorPool`](/advanced/actor-pool), use [`onEvent()`](#custom-game-events) instead. `useHook()` detects dormancy at fire time and skips the handler automatically, but it also logs a warning (dev only) to guide you toward the correct API.
+
+```typescript
+// ❌ Works, but logs a warning when the actor is dormant in a pool
+defineActor(EnemyPrefab, () => {
+    useHook('enemy:hit', handler)
+})
+
+// ✅ Correct — onEvent() is silently dormancy-aware
+defineActor(EnemyPrefab, () => {
+    onEvent('enemy:hit', handler)
+})
+```
+:::
+
 In a **system**:
 
 ```typescript
@@ -337,17 +353,17 @@ Both listen to events, but they're optimized for different contexts:
 |---|---|---|
 | **Context** | Actor factory only | Actor, system, plugin setup, `engine.run()` |
 | **Auto-cleanup** | ✅ On actor despawn | ✅ On context end |
+| **Pool dormancy** | ✅ Silent skip | ⚠️ Skip + dev warning |
 | **Import** | `@gwenjs/core/actor` | `@gwenjs/core` |
-| **Use case** | Actor-local event subscriptions | Cross-cutting subscriptions from systems |
-| **Shorthand?** | Yes, actor-specific | No, universal |
+| **Use case** | Actor event subscriptions | Cross-cutting subscriptions from systems |
 
-Use `onEvent()` inside actors for brevity. Use `useHook()` everywhere else, or when you need to listen from a system.
+Use `onEvent()` inside actors — especially pooled ones. Use `useHook()` from systems and plugins.
 
 ## API Summary
 
 | Symbol | Description |
 |---|---|
-| `useHook(event, handler)` | Subscribe to an engine or custom event (auto-cleanup) |
+| `useHook(event, handler)` | Subscribe to an engine or custom event (auto-cleanup). Inside actors, skips execution and warns once (dev) if the actor is dormant. Prefer `onEvent()` for actor-local subscriptions. |
 | `onCleanup(fn)` | Register a cleanup callback in the active lifecycle context |
 | `defineEvents(map)` | Declare a typed event contract (returns the same object at runtime) |
 | `InferEvents<T>` | Type helper to extract event signatures from a map returned by `defineEvents()` |
