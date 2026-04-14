@@ -4,11 +4,7 @@ import type { Plugin, ViteDevServer } from "vite";
 import MagicString from "magic-string";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
-import type {
-  CallExpression,
-  ArrowFunctionExpression,
-  Function as OxcFunction,
-} from "oxc-parser";
+import type { CallExpression, ArrowFunctionExpression, Function as OxcFunction } from "oxc-parser";
 import { walk } from "oxc-walker";
 
 const ACTORS_VIRTUAL = "virtual:gwen/actors";
@@ -151,13 +147,11 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
         // arrow function or regular function expression.
         const factoryArg = args[args.length - 1];
         if (
-            factoryArg &&
-            (factoryArg.type === "ArrowFunctionExpression" ||
-                factoryArg.type === "FunctionExpression")
+          factoryArg &&
+          (factoryArg.type === "ArrowFunctionExpression" ||
+            factoryArg.type === "FunctionExpression")
         ) {
-          const deps = extractUseActorNames(
-              factoryArg as ArrowFunctionExpression | OxcFunction,
-          );
+          const deps = extractUseActorNames(factoryArg as ArrowFunctionExpression | OxcFunction);
           if (deps.length > 0) {
             const depsList = deps.map((d) => `${d}._plugin`).join(", ");
             s.appendLeft(varDecl.end, `\n${varName}._plugin._deps = [${depsList}]`);
