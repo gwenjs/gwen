@@ -1,6 +1,8 @@
-# GWEN — Instructions pour agents AI
+# CLAUDE.md
 
-Ce fichier contient les règles critiques sur l'API GWEN. Ces patterns ont été validés contre le code source. Ne jamais les deviner — toujours se référer à ce fichier.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+GWEN is a composable TypeScript-first web game engine with a Rust/WebAssembly core. Component data lives in Structure-of-Arrays layout inside WASM linear memory; systems access it directly with entity IDs.
 
 ---
 
@@ -19,9 +21,77 @@ Never announce a task is done before all 4 commands pass without errors.
 
 ---
 
+## Repository structure
+
+```
+packages/           # TypeScript packages (@gwenjs/*)
+  core/             # ECS engine, components, systems, actors, scenes, router
+  app/              # Engine bootstrap and defineConfig()
+  kit/              # Plugin and module authoring API (definePlugin, defineGwenModule)
+  schema/           # Component schema primitives and shared types/hooks interfaces
+  math/             # Vectors, quaternions, colors, springs
+  physics2d/        # 2D rigid-body physics (Rapier via WASM)
+  physics3d/        # 3D rigid-body physics (Rapier via WASM)
+  vite/             # Vite plugin — WASM bundling, actor/system name injection, optimizer
+crates/             # Rust source (ECS + physics WASM)
+  gwen-core/        # Core ECS engine in Rust
+  gwen-wasm-utils/  # WASM build utilities
+  gwen-physics3d-fracture/
+docs/               # VitePress documentation site
+```
+
+## Key development commands
+
+```sh
+pnpm dev                          # start all TS packages in watch mode (+ Rust watcher)
+pnpm test:ts                      # TypeScript tests only (skip Rust)
+pnpm test:cargo                   # Rust tests only
+pnpm lint:fix                     # auto-fix lint issues
+pnpm docs:dev                     # start documentation site locally
+```
+
+To run a single test file within a package:
+```sh
+cd packages/core && pnpm exec vitest run src/path/to/file.test.ts
+# or from repo root:
+pnpm --filter @gwenjs/core exec vitest run src/path/to/file.test.ts
+```
+
+To rebuild WASM (requires Rust toolchain):
+```sh
+pnpm build:wasm    # production WASM
+pnpm build:wasm:tools  # WASM build tools
+```
+
+---
+
+## Architecture: layered ECS
+
+```
+Game code (TypeScript)
+  └─ @gwenjs/core         — ECS, components, systems, actors, scenes
+       ├─ /system         — defineSystem, onUpdate, useQuery
+       ├─ /actor          — defineActor, definePrefab, onStart, onDestroy
+       └─ /scene          — defineScene, defineSceneRouter, useSceneRouter
+  └─ @gwenjs/kit          — definePlugin, defineGwenModule (authoring)
+  └─ @gwenjs/app          — defineConfig, createEngine bootstrap
+  └─ @gwenjs/vite         — Vite plugin (WASM, auto-imports, name injection)
+                              WASM bridge
+gwen_core.wasm (Rust)     — ECS engine, SoA linear memory, Rapier physics
+```
+
+The `@gwenjs/vite` plugin handles critical code transforms at build time:
+- Injects readable system/actor names for devtools
+- Auto-discovers actors in `src/actors/` and scenes in `src/scenes/`
+- Generates virtual modules (`virtual:gwen/actors`, etc.)
+- Bundles and serves the WASM binary
+- Rewrites async context for actor lifecycle
+
+---
+
 ## useQuery
 
-**Signature correcte :** `useQuery(components: ComponentDef[]): LiveQuery`
+**Signature :** `useQuery(components: ComponentDef[]): LiveQuery`
 
 ```ts
 // ✅ CORRECT
@@ -151,30 +221,6 @@ router.goTo('Game')  // .goTo() n'existe pas
 Imports :
 - `defineSceneRouter` → `@gwenjs/core/scene`
 - `useSceneRouter` → `@gwenjs/core/scene` (pas `@gwenjs/core/actor`)
-
----
-
-## defineScene
-
-Deux formes valides :
-
-```ts
-// ✅ Forme objet
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, RenderSystem],
-  onEnter: async (params) => { ... },
-  onExit: () => { ... },
-})
-
-// ✅ Forme factory
-export const GameScene = defineScene('game', (registry) => ({
-  systems: [MovementSystem],
-}))
-
-// ❌ FAUX — classe inexistante
-export class GameScene extends defineScene { ... }
-```
 
 ---
 
