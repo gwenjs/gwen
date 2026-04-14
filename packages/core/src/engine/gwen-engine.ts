@@ -42,6 +42,7 @@ import { buildTransformImports } from "../hooks/wasm/transform-imports.js";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory.js";
 import { validateEngineConfig } from "./engine-config-validator.js";
 import type { TweenPoolPolicy } from "../tween/tween-pool.js";
+import { initWasm } from "./wasm-bridge.js";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -693,8 +694,18 @@ class GwenEngineImpl implements GwenEngine {
     def: D,
     data: Partial<InferComponent<D>>,
   ): void {
-    const merged = { ...def.defaults, ...data } as InferComponent<D>;
-    this._componentRegistry.add(id, def, merged);
+    const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
+    if (existing !== undefined) {
+      // Hot path — the component already exists: update its fields in place.
+      // The registry holds a direct reference to this object, so mutations are
+      // immediately visible to getComponent() callers. Zero allocation per call
+      // after the first spawn.
+      Object.assign(existing, data);
+    } else {
+      // Cold path — first add for this entity/component pair: allocate once.
+      const merged = Object.assign({}, def.defaults, data) as InferComponent<D>;
+      this._componentRegistry.add(id, def, merged);
+    }
     this._queryEngine.invalidate();
   }
 
@@ -783,15 +794,14 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Internal WASM bridge accessors ───────────────────────────────────────
 
   getPlacementBridge(): PlacementBridge {
-    // Return a graceful object that doesn't throw if WASM is uninitialized.
-    // All methods are optional and use optional chaining at call sites.
-    try {
-      return getWasmBridge().engine() as unknown as PlacementBridge;
-    } catch {
-      // If WASM is not initialized, return an empty object.
-      // Call sites use optional chaining (?.) so undefined methods silently fail.
-      return {};
+    const bridge = getWasmBridge().engine();
+    if (!bridge) {
+      throw new Error(
+        "[GWEN] getPlacementBridge() called before WASM is initialised. " +
+          "Await initWasm() before calling placement composables.",
+      );
     }
+    return bridge as unknown as PlacementBridge;
   }
 
   // ─── Stats ────────────────────────────────────────────────────────────────
@@ -1123,4 +1133,31 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
   return new GwenEngineImpl(options ?? {});
 }
 
-// #endregion
+/**
+ * Initialises the WASM core and creates a new engine in a single call.
+ *
+ * Equivalent to:
+ * ```ts
+ * await initWasm(options?.variant ?? 'light');
+ * const engine = await createEngine(options);
+ * ```
+ *
+ * Use this in application entry points. In tests or environments where WASM
+ * must be mocked, call {@link createEngine} directly and inject the mock bridge
+ * via `_injectMockWasmEngine` before calling `setupGwen`.
+ *
+ * @param options - Engine configuration. `variant` is forwarded to `initWasm`.
+ * @returns A fully initialised {@link GwenEngine} with WASM ready.
+ *
+ * @example
+ * ```ts
+ * import { setupGwen } from '@gwenjs/core'
+ *
+ * const engine = await setupGwen({ variant: 'physics2d', maxEntities: 5_000 })
+ * await engine.start()
+ * ```
+ */
+export async function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine> {
+  await initWasm(options?.variant ?? "light");
+  return createEngine(options);
+}

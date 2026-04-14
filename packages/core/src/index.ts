@@ -13,7 +13,12 @@ export { createGwenHooks, useHook, onCleanup, withCleanup } from "./hooks";
 export type { GwenHooks, GwenHookable } from "./hooks";
 
 // Engine
-export { createEngine, GwenPluginNotFoundError, CoreErrorCodes } from "./engine/gwen-engine";
+export {
+  createEngine,
+  setupGwen,
+  GwenPluginNotFoundError,
+  CoreErrorCodes,
+} from "./engine/gwen-engine";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export type {
   GwenEngine,

@@ -1,17 +1,3 @@
-/**
- * RFC-010: GwenApp.prepare() — .gwen/ directory generation.
- *
- * Covers:
- * - prepare() creates .gwen/types/ directory
- * - auto-imports.d.ts is generated for registered auto-imports
- * - auto-imports.d.ts uses `as` aliases when present
- * - env.d.ts declares virtual:gwen/* modules
- * - .gwen/tsconfig.json is written with correct shape
- * - per-module type templates are written via addTypeTemplate
- * - writeIfChanged: unchanged files are NOT rewritten
- * - prepare() with no auto-imports writes a comment-only file
- */
-
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdirSync, rmSync, readFileSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -178,6 +164,23 @@ describe("GwenApp.prepare()", () => {
     // The file should still have the original content
     expect(readFileSync(envPath, "utf8")).toBe(original);
     spy.mockRestore();
+  });
+
+  it("env.d.ts declares all virtual:gwen/* modules resolved by the Vite plugin", async () => {
+    const app = new GwenApp();
+    await app.setupModules(makeConfig());
+    await app.prepare(tmpRoot);
+
+    const content = readFileSync(join(tmpRoot, ".gwen", "types", "env.d.ts"), "utf8");
+
+    // These module names must stay in sync with the virtual module ids
+    // resolved by @gwenjs/vite. If you add a new virtual module to the Vite
+    // plugin, add it here too — this test is the cross-validation guard.
+    const expectedModules = ["virtual:gwen/wasm", "virtual:gwen/env", "virtual:gwen/auto-imports"];
+
+    for (const mod of expectedModules) {
+      expect(content, `env.d.ts must declare module '${mod}'`).toContain(`'${mod}'`);
+    }
   });
 });
 

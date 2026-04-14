@@ -1,10 +1,51 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { defineLayout } from "../../src/actor/defines/define-layout";
 import { useLayout } from "../../src/actor/uses/use-layout";
 import { definePrefab } from "../../src/actor/defines/define-prefab";
 import { defineActor } from "../../src/actor/defines/define-actor";
 import { placeActor, placeGroup } from "../../src/actor/place";
+import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
+import type { WasmEngine } from "../../src/engine/wasm-bridge";
+
+function makePlacementMock(): WasmEngine {
+  return {
+    add_entity_transform: () => {},
+    set_entity_parent: () => {},
+    set_entity_local_position: () => {},
+    bulk_destroy: () => {},
+    create_entity: () => 0n,
+    delete_entity: () => true,
+    is_alive: () => true,
+    count_entities: () => 0,
+    register_component_type: () => 0,
+    add_component: () => true,
+    remove_component: () => true,
+    has_component: () => false,
+    get_component_raw: () => new Uint8Array(0),
+    update_entity_archetype: () => {},
+    remove_entity_from_query: () => {},
+    query_entities: () => new Uint32Array(0),
+    query_entities_to_buffer: () => 0,
+    get_query_result_ptr: () => 0,
+    get_entity_generation: () => 0,
+    tick: () => {},
+    alloc_shared_buffer: () => 0,
+    free_shared_buffer: () => {},
+    query_read_bulk: () => {},
+    query_write_bulk: () => {},
+    update_transforms: () => {},
+    bulk_destroy_entities: () => {},
+  } as unknown as WasmEngine;
+}
+
+beforeEach(() => {
+  _injectMockWasmEngine(makePlacementMock());
+});
+
+afterEach(() => {
+  _resetWasmBridge();
+});
 
 const Pos = { __name__: "Position" };
 const SimplePrefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);

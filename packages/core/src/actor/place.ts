@@ -27,24 +27,20 @@ import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition } from "./defines/define-prefab";
 import type { EntityId } from "../engine/engine-api";
 import type { PlacementBridge } from "../engine/engine-types";
+import { ContextSlot } from "../engine/context-slot.js";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
-let _layoutEntities: EntityId[] | null = null;
+const _layoutCtx = new ContextSlot<EntityId[]>();
 
 /**
  * Run `fn` inside an active layout context.
  * @internal Used by `defineLayout`.
  */
 export function _withLayoutContext<T>(fn: () => T): { result: T; entities: EntityId[] } {
-  const prev = _layoutEntities;
-  _layoutEntities = [];
-  try {
-    const result = fn();
-    return { result, entities: _layoutEntities };
-  } finally {
-    _layoutEntities = prev;
-  }
+  const entities: EntityId[] = [];
+  const result = _layoutCtx.run(entities, fn);
+  return { result, entities };
 }
 
 /**
@@ -52,11 +48,11 @@ export function _withLayoutContext<T>(fn: () => T): { result: T; entities: Entit
  * @internal
  */
 export function _isInLayoutContext(): boolean {
-  return _layoutEntities !== null;
+  return _layoutCtx.isActive();
 }
 
 function _register(entityId: EntityId): void {
-  _layoutEntities!.push(entityId);
+  _layoutCtx.get()!.push(entityId);
 }
 
 // ─── WASM transform helpers ───────────────────────────────────────────────────
@@ -66,7 +62,6 @@ function applyTransform(
   entityId: EntityId,
   options: PlaceOptions<unknown>,
 ): void {
-  if (!bridge?.add_entity_transform) return;
   const [x = 0, y = 0] = options.at ?? [0, 0];
   const rotation = options.rotation ?? 0;
   const [sx, sy] = Array.isArray(options.scale)
@@ -76,7 +71,7 @@ function applyTransform(
   bridge.add_entity_transform(idx, x, y, rotation, sx, sy);
   if (options.parent) {
     const parentIdx = Number(options.parent.entityId) & 0xffffffff;
-    bridge.set_entity_parent?.(idx, parentIdx, false);
+    bridge.set_entity_parent(idx, parentIdx, false);
   }
 }
 

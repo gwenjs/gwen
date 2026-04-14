@@ -26,7 +26,7 @@ import { useEngine } from "../../engine/context";
 import { _getActorEntityId, _getActorEngine } from "../defines/define-actor";
 import { _registerScenePlugin } from "../../scene/scene-context";
 import type { ActorDefinition, PrefabDefinition } from "../types";
-import type { ComponentDefinition, ComponentSchema } from "../../schema";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import type { EntityId } from "../../engine/engine-api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -375,29 +375,31 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
   return new Proxy({} as T, {
     get(_target: T, prop: string | symbol): unknown {
       /**
-       * `$set(values)` — batch-writes multiple component fields in a single
-       * `addComponent` call, producing one object allocation instead of one
-       * per property. Prefer this over repeated property assignments in hot
-       * paths (e.g. position updates inside `onUpdate`).
+       * `$set(values)` — writes multiple fields in a single `addComponent` call,
+       * producing one query invalidation instead of one per field. Prefer over
+       * repeated property assignments when updating two or more fields per frame.
+       *
+       * Because `addComponent` now merges `values` into the existing component
+       * object in place, there is no need to read the current state first —
+       * fields absent from `values` are left untouched.
        *
        * @example
        * ```ts
-       * // ❌ Two allocations per frame:
+       * // ❌ Two addComponent calls, two query invalidations per frame:
        * pos.x += vx * dt;
        * pos.y += vy * dt;
        *
-       * // ✅ One allocation per frame:
+       * // ✅ One addComponent call, one query invalidation per frame:
        * pos.$set({ x: pos.x + vx * dt, y: pos.y + vy * dt });
        * ```
        */
       if (prop === "$set") {
         return (values: Partial<T>) => {
-          const current =
-            (engine.getComponent(entityId, typedDef) as Record<string, unknown>) ?? {};
-          engine.addComponent(entityId, typedDef, {
-            ...current,
-            ...(values as Record<string, unknown>),
-          } as any);
+          engine.addComponent(
+            entityId,
+            typedDef,
+            values as Partial<InferComponent<typeof typedDef>>,
+          );
         };
       }
 
@@ -408,11 +410,11 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
 
     set(_target: T, prop: string | symbol, value: unknown): boolean {
       if (typeof prop !== "string") return false;
-      const current = (engine.getComponent(entityId, typedDef) as Record<string, unknown>) ?? {};
-      engine.addComponent(entityId, typedDef, {
-        ...current,
-        [prop]: value,
-      } as any);
+      // Pass only the changed field — addComponent merges it into the existing
+      // component object in place. No read of current state needed.
+      engine.addComponent(entityId, typedDef, { [prop]: value } as Partial<
+        InferComponent<typeof typedDef>
+      >);
       return true;
     },
   }) as T & { $set(values: Partial<T>): void };

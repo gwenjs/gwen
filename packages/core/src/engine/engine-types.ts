@@ -173,21 +173,18 @@ export interface WasmModuleHandle<Exports extends WebAssembly.Exports = WebAssem
 
 /**
  * Minimal bridge surface needed by scene placement composables.
- * Exposes only the transform methods required by {@link placeActor}, {@link placeGroup},
- * {@link placePrefab}, and {@link useLayout}.
  *
- * @internal — for use by scene composables only (place.ts, use-layout.ts)
+ * All methods are required — `getPlacementBridge()` throws before returning
+ * if WASM is not initialised, so callers can assume a fully functional bridge.
  *
- * @remarks
- * This interface is intentionally minimal to decouple scene composables from the full
- * {@link WasmBridge} surface. Use {@link GwenEngine._getPlacementBridge} to access.
+ * @internal — for use by scene composables only (`place.ts`, `use-layout.ts`).
  */
 export interface PlacementBridge {
   /**
    * Attach a transform component to an entity (position, rotation, scale).
    * Must be called before any other transform operations on this entity.
    */
-  add_entity_transform?(
+  add_entity_transform(
     index: number,
     x: number,
     y: number,
@@ -198,16 +195,17 @@ export interface PlacementBridge {
 
   /**
    * Set the parent of `child_index` to `parent_index`.
-   * Pass `parent_index = 0xFFFFFFFF` (`2^32 - 1`) to detach from any parent.
+   * Pass `parent_index = 0xFFFFFFFF` to detach from any parent.
    */
-  set_entity_parent?(child_index: number, parent_index: number, keep_world_pos: boolean): void;
+  set_entity_parent(child_index: number, parent_index: number, keep_world_pos: boolean): void;
 
-  /** Set an entity's local position. */
-  set_entity_local_position?(index: number, x: number, y: number): void;
+  /** Set an entity's local position without touching rotation or scale. */
+  set_entity_local_position(index: number, x: number, y: number): void;
 
   /**
    * Destroy multiple entities by slot index in a single WASM call.
-   * Also removes their transforms.
+   * Also removes their transforms. Optional — falls back to per-entity destroy
+   * when not available (e.g. older WASM build).
    */
   bulk_destroy?(indices: Uint32Array): void;
 }

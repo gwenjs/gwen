@@ -28,6 +28,7 @@ import { useEngine } from "../../engine/context";
 import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
+import { ContextSlot } from "../../engine/context-slot.js";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -55,23 +56,18 @@ export interface SystemContext {
 
 // ─── Module-level context slot ───────────────────────────────────────────────
 
-/** @internal Active system context — set during defineSystem setup, cleared after. */
-let _currentSystemContext: SystemContext | null = null;
+const _systemCtx = new ContextSlot<SystemContext>();
 
 /**
- * Returns the active system registration context.
  *
  * @internal
  * @throws {Error} If called outside a `defineSystem()` (or `defineActor()`) setup function.
  */
 export function _getSystemContext(): SystemContext {
-  if (!_currentSystemContext) {
-    throw new Error(
-      "[GWEN] onUpdate/onRender/onBeforeUpdate/onAfterUpdate must be called " +
-        "inside a defineSystem() setup callback, not inside the lifecycle function itself.",
-    );
-  }
-  return _currentSystemContext;
+  return _systemCtx.require(
+    "[GWEN] onUpdate/onRender/onBeforeUpdate/onAfterUpdate must be called " +
+      "inside a defineSystem() setup callback, not inside the lifecycle function itself.",
+  );
 }
 
 /**
@@ -82,23 +78,11 @@ export function _getSystemContext(): SystemContext {
  * composables (`onUpdate`, `onRender`, etc.) resolve to the correct context.
  *
  * @internal
- * @param ctx - The {@link SystemContext} to activate for the duration of `fn`
- * @param fn  - The setup function to run inside the context
- *
- * @example
- * ```typescript
- * // Inside defineActor spawn():
- * _withSystemContext(ctx, () => factory(props))
- * ```
+ * @param ctx - The {@link SystemContext} to activate for the duration of `fn`.
+ * @param fn  - The setup function to run inside the context.
  */
 export function _withSystemContext(ctx: SystemContext, fn: () => void): void {
-  const previous = _currentSystemContext;
-  _currentSystemContext = ctx;
-  try {
-    fn();
-  } finally {
-    _currentSystemContext = previous;
-  }
+  _systemCtx.run(ctx, fn);
 }
 
 // ─── Lifecycle composables ───────────────────────────────────────────────────

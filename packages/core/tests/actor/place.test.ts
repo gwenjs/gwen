@@ -3,13 +3,19 @@
  *
  * Tests the layout context guard (_withLayoutContext, _isInLayoutContext)
  * and the three placement composables (placeGroup, placeActor, placePrefab).
+ *
+ * A minimal WASM bridge mock is injected via `_injectMockWasmEngine` so that
+ * `getPlacementBridge()` succeeds without a real WASM binary. The mock records
+ * calls to placement methods so tests can assert on transform application.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import type { PlaceHandle } from "../../src/actor/types";
 import { definePrefab } from "../../src/actor/defines/define-prefab";
 import { defineActor } from "../../src/actor/defines/define-actor";
 import { createEngine } from "../../src/engine/gwen-engine";
+import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
+import type { WasmEngine } from "../../src/engine/wasm-bridge";
 import {
   _withLayoutContext,
   _isInLayoutContext,
@@ -17,6 +23,57 @@ import {
   placeActor,
   placePrefab,
 } from "../../src/actor/place";
+
+// ─── Mock WASM bridge ─────────────────────────────────────────────────────────
+
+/**
+ * Minimal WasmEngine mock for placement tests.
+ * Provides no-op implementations of all required methods plus the placement
+ * methods used by getPlacementBridge() (add_entity_transform, set_entity_parent,
+ * set_entity_local_position, bulk_destroy).
+ */
+function makePlacementMock() {
+  return {
+    // Placement methods (cast to PlacementBridge by getPlacementBridge)
+    add_entity_transform: () => {},
+    set_entity_parent: () => {},
+    set_entity_local_position: () => {},
+    bulk_destroy: () => {},
+    // Minimal WasmEngineBase stubs
+    create_entity: () => 0n,
+    delete_entity: () => true,
+    is_alive: () => true,
+    count_entities: () => 0,
+    register_component_type: () => 0,
+    add_component: () => true,
+    remove_component: () => true,
+    has_component: () => false,
+    get_component_raw: () => new Uint8Array(0),
+    update_entity_archetype: () => {},
+    remove_entity_from_query: () => {},
+    query_entities: () => new Uint32Array(0),
+    query_entities_to_buffer: () => 0,
+    get_query_result_ptr: () => 0,
+    get_entity_generation: () => 0,
+    tick: () => {},
+    alloc_shared_buffer: () => 0,
+    free_shared_buffer: () => {},
+    query_read_bulk: () => {},
+    query_write_bulk: () => {},
+    update_transforms: () => {},
+    bulk_destroy_entities: () => {},
+  } as unknown as WasmEngine;
+}
+
+beforeEach(() => {
+  _injectMockWasmEngine(makePlacementMock());
+});
+
+afterEach(() => {
+  _resetWasmBridge();
+});
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
 
 const Position = { __name__: "Position" };
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
@@ -138,7 +195,6 @@ describe("PlaceHandle methods", () => {
       });
     });
 
-    // Should not throw
     expect(() => handle!.moveTo([10, 20])).not.toThrow();
     expect(() => handle!.moveTo([10, 20, 30])).not.toThrow();
   });
@@ -153,7 +209,6 @@ describe("PlaceHandle methods", () => {
       });
     });
 
-    // Should not throw
     expect(() => handle!.despawn()).not.toThrow();
   });
 });
@@ -176,7 +231,6 @@ describe("_withLayoutContext captures entities", () => {
 
   it("returns result from factory", () => {
     const result = _withLayoutContext(() => ({ foo: "bar" }));
-
     expect(result.result).toEqual({ foo: "bar" });
   });
 

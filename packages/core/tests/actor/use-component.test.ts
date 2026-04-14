@@ -54,3 +54,66 @@ describe("useComponent", () => {
     }
   });
 });
+
+describe("useComponent — in-place update behaviour", () => {
+  it("single-field write preserves other fields", async () => {
+    const engine = await createEngine();
+
+    const Actor = defineActor(PosPrefab, () => {
+      const pos = useComponent<{ x: number; y: number }>(Position);
+      onUpdate(() => {
+        pos.x = 42; // only x — y must stay at its default
+      });
+    });
+    await engine.use(Actor._plugin);
+    const id = Actor._plugin.spawn();
+    await engine.advance(16);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };
+    expect(comp.x).toBe(42);
+    expect(comp.y).toBe(0); // default preserved
+  });
+
+  it("$set with partial fields preserves untouched fields", async () => {
+    const engine = await createEngine();
+
+    const Actor = defineActor(PosPrefab, () => {
+      const pos = useComponent<{ x: number; y: number }>(Position);
+      onUpdate(() => {
+        pos.$set({ x: 10 }); // only x — y must stay
+      });
+    });
+    await engine.use(Actor._plugin);
+    const id = Actor._plugin.spawn();
+    await engine.advance(16);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };
+    expect(comp.x).toBe(10);
+    expect(comp.y).toBe(0); // default preserved
+  });
+
+  it("two consecutive single-field writes both take effect", async () => {
+    const engine = await createEngine();
+    let frame = 0;
+
+    const Actor = defineActor(PosPrefab, () => {
+      const pos = useComponent<{ x: number; y: number }>(Position);
+      onUpdate(() => {
+        frame++;
+        pos.x = frame * 10;
+        pos.y = frame * 5;
+      });
+    });
+    await engine.use(Actor._plugin);
+    const id = Actor._plugin.spawn();
+    await engine.advance(16);
+    await engine.advance(16);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };
+    expect(comp.x).toBe(20);
+    expect(comp.y).toBe(10);
+  });
+});
