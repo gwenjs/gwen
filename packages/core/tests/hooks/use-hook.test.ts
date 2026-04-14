@@ -190,3 +190,179 @@ describe("useHook() auto-cleanup in actor context", () => {
     expect(events).toEqual([10, 20]);
   });
 });
+
+// ── useHook() dormancy guard in actor context ────────────────────────────────
+
+describe("useHook() dormancy guard in actor context", () => {
+  const Hp = { __name__: "Hp" };
+  const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
+
+  it("handler fires normally when the actor is NOT dormant", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", handler);
+    });
+    await engine.use(Actor._plugin);
+
+    engine.run(() => {
+      Actor._plugin.spawn?.();
+    });
+
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledOnce();
+  });
+
+  it("handler is skipped when the actor is dormant", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", handler);
+    });
+    await engine.use(Actor._plugin);
+
+    let id: bigint;
+    engine.run(() => {
+      id = Actor._plugin.spawn!();
+    });
+
+    // Mark dormant (as the pool would)
+    Actor._instances.get(id!)!._isDormant = true;
+
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it("warns via engine.logger.warn once when the handler is skipped due to dormancy", async () => {
+    const engine = await createEngine();
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const handler = vi.fn();
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", handler);
+    });
+    await engine.use(Actor._plugin);
+
+    let id: bigint;
+    engine.run(() => {
+      id = Actor._plugin.spawn!();
+    });
+
+    Actor._instances.get(id!)!._isDormant = true;
+
+    // Fire the hook three times — warning must appear only once
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    await engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
+    await engine.hooks.callHook("entity:spawn", 3n as unknown as EntityId);
+
+    const dormancyWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("dormant actor"),
+    );
+    expect(dormancyWarnings).toHaveLength(1);
+    expect(dormancyWarnings[0]![1]).toEqual({ hook: "entity:spawn" });
+  });
+
+  it("does not warn when the actor is not dormant", async () => {
+    const engine = await createEngine();
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const handler = vi.fn();
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", handler);
+    });
+    await engine.use(Actor._plugin);
+
+    engine.run(() => {
+      Actor._plugin.spawn?.();
+    });
+
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledOnce();
+
+    const dormancyWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("dormant actor"),
+    );
+    expect(dormancyWarnings).toHaveLength(0);
+  });
+
+  it("handler fires again after the actor is reactivated (no longer dormant)", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", handler);
+    });
+    await engine.use(Actor._plugin);
+
+    let id: bigint;
+    engine.run(() => {
+      id = Actor._plugin.spawn!();
+    });
+    const inst = Actor._instances.get(id!)!;
+
+    // Active → fires
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Dormant → skipped
+    inst._isDormant = true;
+    await engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Reactivated → fires again
+    inst._isDormant = false;
+    await engine.hooks.callHook("entity:spawn", 3n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  it("warning is per-instance: two independent actors each warn once", async () => {
+    const engine = await createEngine();
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+
+    const Actor = defineActor(TestPrefab, () => {
+      useHook("entity:spawn", () => {});
+    });
+    await engine.use(Actor._plugin);
+
+    let id1: bigint, id2: bigint;
+    engine.run(() => {
+      id1 = Actor._plugin.spawn!();
+      id2 = Actor._plugin.spawn!();
+    });
+
+    Actor._instances.get(id1!)!._isDormant = true;
+    Actor._instances.get(id2!)!._isDormant = true;
+
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    await engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
+
+    const dormancyWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("dormant actor"),
+    );
+    // One warning per instance, not per hook call
+    expect(dormancyWarnings).toHaveLength(2);
+  });
+
+  it("useHook in non-actor context has no dormancy wrapping", async () => {
+    const engine = await createEngine();
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const handler = vi.fn();
+
+    await engine.use({
+      name: "test-no-wrapping",
+      setup() {
+        useHook("entity:spawn", handler);
+      },
+    });
+
+    await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledOnce();
+
+    const dormancyWarnings = warnSpy.mock.calls.filter(
+      ([msg]) => typeof msg === "string" && msg.includes("dormant actor"),
+    );
+    expect(dormancyWarnings).toHaveLength(0);
+  });
+});
