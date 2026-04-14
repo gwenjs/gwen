@@ -215,7 +215,7 @@ describe("useHook() dormancy guard in actor context", () => {
     expect(handler).toHaveBeenCalledOnce();
   });
 
-  it("handler is skipped when the actor is dormant", async () => {
+  it("handler still fires when the actor is dormant (warn-through behaviour)", async () => {
     const engine = await createEngine();
     const handler = vi.fn();
 
@@ -233,10 +233,11 @@ describe("useHook() dormancy guard in actor context", () => {
     Actor._instances.get(id!)!._isDormant = true;
 
     await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
-    expect(handler).not.toHaveBeenCalled();
+    // Unlike onEvent(), useHook() lets the call through — it only warns.
+    expect(handler).toHaveBeenCalledOnce();
   });
 
-  it("warns via engine.logger.warn once when the handler is skipped due to dormancy", async () => {
+  it("warns via engine.logger.warn once when the handler fires on a dormant actor", async () => {
     const engine = await createEngine();
     const warnSpy = vi.spyOn(engine.logger, "warn");
     const handler = vi.fn();
@@ -307,15 +308,15 @@ describe("useHook() dormancy guard in actor context", () => {
     await engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
     expect(handler).toHaveBeenCalledTimes(1);
 
-    // Dormant → skipped
+    // Dormant → still fires (warn-through), count increases
     inst._isDormant = true;
     await engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
-    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledTimes(2);
 
-    // Reactivated → fires again
+    // Reactivated → fires again, no change in call behaviour
     inst._isDormant = false;
     await engine.hooks.callHook("entity:spawn", 3n as unknown as EntityId);
-    expect(handler).toHaveBeenCalledTimes(2);
+    expect(handler).toHaveBeenCalledTimes(3);
   });
 
   it("warning is per-instance: two independent actors each warn once", async () => {

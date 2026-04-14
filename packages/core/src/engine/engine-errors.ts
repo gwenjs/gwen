@@ -162,3 +162,12 @@ export class GwenComposableError extends Error {
     this.code = code;
   }
 }
+
+/**
+ * All error code namespaces exported from a single entry point.
+ * Import from `@gwenjs/core` rather than from internal paths.
+ */
+export const ErrorCodes = {
+  Actor: ActorErrorCodes,
+  Composable: ComposableErrorCodes,
+} as const;

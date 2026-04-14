@@ -173,10 +173,8 @@ export function defineActorPool<Props, PublicAPI>(
         inst._reset[i]!(props as unknown);
       }
     } else if (_active.size < size) {
-      // Lazy allocation — first time this slot is used.
-      id = (actor._plugin.spawn as unknown as (p?: Props) => EntityId)(
-        props,
-      ) as unknown as EntityId;
+      // spawn is typed as spread (...args) => EntityId; call via apply for clean typing.
+      id = (actor._plugin.spawn as (props?: Props) => EntityId)(props);
     } else {
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);

@@ -104,3 +104,5 @@ export { detectSharedMemoryRequired } from "./utils/variant-detector";
 
 // Tween & Animation System
 export * from "./tween/index.js";
+
+export { ErrorCodes } from "./engine/engine-errors.js";

@@ -26,6 +26,7 @@ import { useEngine } from "../engine/context";
 import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition } from "./defines/define-prefab";
 import type { EntityId } from "../engine/engine-api";
+import type { PlacementBridge } from "../engine/engine-types";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
@@ -61,11 +62,9 @@ function _register(entityId: EntityId): void {
 // ─── WASM transform helpers ───────────────────────────────────────────────────
 
 function applyTransform(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  bridge: any,
+  bridge: PlacementBridge,
   entityId: EntityId,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  options: PlaceOptions<any>,
+  options: PlaceOptions<unknown>,
 ): void {
   if (!bridge?.add_entity_transform) return;
   const [x = 0, y = 0] = options.at ?? [0, 0];
@@ -77,7 +76,7 @@ function applyTransform(
   bridge.add_entity_transform(idx, x, y, rotation, sx, sy);
   if (options.parent) {
     const parentIdx = Number(options.parent.entityId) & 0xffffffff;
-    bridge.set_entity_parent(idx, parentIdx, false);
+    bridge.set_entity_parent?.(idx, parentIdx, false);
   }
 }
 

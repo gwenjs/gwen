@@ -1,14 +1,16 @@
-import { readdirSync, statSync, existsSync, readFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { walk } from "oxc-walker";
 import type { VariableDeclarator } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
 import { createAstNameInjector } from "./ast-name-injector.js";
+import { createVirtualModule } from "../shared/virtual-module.js";
+import { findComponentFiles } from "../optimizer/component-scanner.js";
 
-const LAYOUTS_VIRTUAL = "virtual:gwen/layouts";
-const RESOLVED_LAYOUTS = "\0" + LAYOUTS_VIRTUAL;
+const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =
+  createVirtualModule("virtual:gwen/layouts");
 
 /**
  * Options for the `gwen:layout` sub-plugin.
@@ -104,31 +106,6 @@ export function extractLayoutNames(code: string, filename = "layout.ts"): Set<st
 }
 
 /**
- * Recursively scans directories for layout source files (`.ts`, excluding
- * `.test.ts` and `.d.ts`).
- *
- * @param dir - Absolute path to the directory to scan.
- * @returns Array of absolute file paths.
- */
-function scanLayoutDir(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-
-  const result: string[] = [];
-
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-
-    if (statSync(full).isDirectory()) {
-      result.push(...scanLayoutDir(full));
-    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts") && !entry.endsWith(".d.ts")) {
-      result.push(full);
-    }
-  }
-
-  return result;
-}
-
-/**
  * GWEN sub-plugin for layout virtual module generation and debug name injection.
  *
  * **Phase 1 (current):**
@@ -189,7 +166,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
 
       // Scan layout directories for files
       for (const dir of layoutDirs) {
-        const files = scanLayoutDir(dir);
+        const files = findComponentFiles(dir);
 
         for (const file of files) {
           // Read the file to extract layout names

@@ -6,7 +6,10 @@
  * RFC-008 adds: 8-phase frame loop, `WasmModuleHandle`, `loadWasmModule`,
  * `getWasmModule`, and `startExternal` for external-loop integration.
  *
- * ⚠️  INTENTIONAL CO-LOCATION — Do not split the implementation.
+ * PERF: This file intentionally co-locates hot-path functions to help V8's
+ * inlining heuristics. Benchmark before splitting: packages/core/bench/engine-tick.bench.ts
+ * Last measured: ~12% throughput loss when split across module boundaries (V8 12.x).
+ * Do not split the implementation.
  * V8 inlines calls between functions in the same compilation unit.
  * A previous refactor attempt that split this file caused a measurable perf
  * regression on the hot path (frame loop + plugin dispatch at ~1000 entities/frame).

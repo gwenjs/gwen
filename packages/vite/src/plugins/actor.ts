@@ -1,14 +1,15 @@
-import { readdirSync, statSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import MagicString from "magic-string";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
 import type { CallExpression, ArrowFunctionExpression, Function as OxcFunction } from "oxc-parser";
 import { walk } from "oxc-walker";
+import { createVirtualModule } from "../shared/virtual-module.js";
+import { findComponentFiles } from "../optimizer/component-scanner.js";
 
-const ACTORS_VIRTUAL = "virtual:gwen/actors";
-const RESOLVED_ACTORS = "\0" + ACTORS_VIRTUAL;
+const { virtual: ACTORS_VIRTUAL, resolved: RESOLVED_ACTORS } =
+  createVirtualModule("virtual:gwen/actors");
 
 /**
  * Generates the `virtual:gwen/actors` module source.
@@ -175,27 +176,6 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
 }
 
 /**
- * Recursively scans a directory for actor source files (`.ts`, excluding
- * `.test.ts` and `.d.ts`).
- *
- * @param dir - Absolute path to the directory to scan.
- * @returns Sorted list of absolute file paths.
- */
-function scanActorDir(dir: string): string[] {
-  if (!existsSync(dir)) return [];
-  const result: string[] = [];
-  for (const entry of readdirSync(dir)) {
-    const full = join(dir, entry);
-    if (statSync(full).isDirectory()) {
-      result.push(...scanActorDir(full));
-    } else if (entry.endsWith(".ts") && !entry.endsWith(".test.ts") && !entry.endsWith(".d.ts")) {
-      result.push(full);
-    }
-  }
-  return result;
-}
-
-/**
  * GWEN sub-plugin for actor auto-discovery, virtual module generation, and HMR.
  *
  * - Provides `virtual:gwen/actors` with lazy imports for all files in `src/actors/`
@@ -239,7 +219,7 @@ export function gwenActorPlugin(options: GwenViteOptions): Plugin {
 
     load(id) {
       if (id !== RESOLVED_ACTORS) return;
-      return generateActorsModule(scanActorDir(resolve(root, actorDir)));
+      return generateActorsModule(findComponentFiles(resolve(root, actorDir)));
     },
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {

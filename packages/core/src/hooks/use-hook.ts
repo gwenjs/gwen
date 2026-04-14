@@ -91,23 +91,25 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   let handler = fn;
 
   if (instance !== null) {
-    // Inside a defineActor() factory: wrap with a dormancy guard.
-    // If the actor is dormant (returned to a pool), skip the handler and warn
+    // Inside a defineActor() factory: wrap with a dormancy-aware handler.
+    //
+    // When the actor is dormant (returned to a pool), skip the handler and warn
     // once so the developer knows to use onEvent() instead.
+    //
+    // Uses `Parameters<typeof fn>` rather than `unknown[]` so TypeScript still
+    // verifies argument types at the call site — unlike a plain spread cast that
+    // would silently accept any signature mismatch.
     let hasWarned = false;
-    handler = ((...args: unknown[]) => {
-      if (instance._isDormant) {
-        if (!hasWarned && import.meta.env.DEV) {
-          engine.logger.warn(
-            `useHook('${name}') fired on a dormant actor. ` +
-              `Use onEvent() instead — it skips dormant actors silently.`,
-            { hook: name },
-          );
-          hasWarned = true;
-        }
-        return;
+    handler = ((...args: Parameters<typeof fn>) => {
+      if (instance._isDormant && !hasWarned && import.meta.env.DEV) {
+        engine.logger.warn(
+          `useHook('${name}') fired on a dormant actor. ` +
+            `Use onEvent() instead — it skips dormant actors silently.`,
+          { hook: name },
+        );
+        hasWarned = true;
       }
-      return (fn as (...a: unknown[]) => unknown)(...args);
+      return (fn as (...a: Parameters<typeof fn>) => unknown)(...args);
     }) as GwenRuntimeHooks[K];
   }
 
