@@ -151,3 +151,74 @@ describe("extractUseActorNames", () => {
     expect(extractUseActorNames(factory)).toEqual(["LaserActor"]);
   });
 });
+
+describe("transformActorNames — _deps injection", () => {
+  it("injects _deps when factory contains a useActor call", () => {
+    const input = [
+      `const LaserManagerActor = defineActor(LaserManagerPrefab, () => {`,
+      `  const laser = useActor(LaserActor)`,
+      `  return {}`,
+      `})`,
+    ].join("\n")
+
+    const result = transformActorNames(input)
+
+    // Name injection still works
+    expect(result).toContain(`defineActor('LaserManagerActor',`)
+    // _deps injection is present
+    expect(result).toContain(`LaserManagerActor._plugin._deps = [LaserActor._plugin]`)
+  })
+
+  it("does not inject _deps when factory has no useActor calls", () => {
+    const input = `const PlayerActor = defineActor(PlayerPrefab, () => { return {} })`
+    const result = transformActorNames(input)
+    expect(result).not.toContain("_deps")
+  })
+
+  it("injects all deps when factory has multiple useActor calls", () => {
+    const input = [
+      `const ManagerActor = defineActor(ManagerPrefab, () => {`,
+      `  const a = useActor(LaserActor)`,
+      `  const b = useActor(ExplosionActor)`,
+      `  return {}`,
+      `})`,
+    ].join("\n")
+
+    const result = transformActorNames(input)
+    expect(result).toContain(`LaserActor._plugin`)
+    expect(result).toContain(`ExplosionActor._plugin`)
+    expect(result).toContain(`ManagerActor._plugin._deps = [`)
+  })
+
+  it("does not inject _deps for dynamic useActor arguments", () => {
+    const input = [
+      `const FooActor = defineActor(FooPrefab, () => {`,
+      `  const x = useActor(list[0])`,
+      `  return {}`,
+      `})`,
+    ].join("\n")
+
+    const result = transformActorNames(input)
+    expect(result).not.toContain("_deps")
+  })
+
+  it("does not inject _deps for definePrefab", () => {
+    const input = `const FooPrefab = definePrefab([{ def: Position, defaults: {} }])`
+    const result = transformActorNames(input)
+    expect(result).not.toContain("_deps")
+  })
+
+  it("handles multiple defineActor declarations in one file independently", () => {
+    const input = [
+      `const ManagerActor = defineActor(ManagerPrefab, () => {`,
+      `  const x = useActor(LaserActor)`,
+      `  return {}`,
+      `})`,
+      `const SimpleActor = defineActor(SimplePrefab, () => { return {} })`,
+    ].join("\n")
+
+    const result = transformActorNames(input)
+    expect(result).toContain(`ManagerActor._plugin._deps = [LaserActor._plugin]`)
+    expect(result).not.toMatch(/SimpleActor\._plugin\._deps/)
+  })
+})

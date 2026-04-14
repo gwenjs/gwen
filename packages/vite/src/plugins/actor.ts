@@ -5,7 +5,6 @@ import MagicString from "magic-string";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
 import type {
-  VariableDeclarator,
   CallExpression,
   ArrowFunctionExpression,
   Function as OxcFunction,
@@ -110,28 +109,63 @@ export function transformActorNames(code: string, filename = "actor.ts"): string
 
   walk(parsed.program, {
     enter(node) {
-      if (node.type !== "VariableDeclarator") return;
-      const { id, init } = node as VariableDeclarator;
-      if (id.type !== "Identifier") return;
+      // Walk VariableDeclaration (not VariableDeclarator) so we have the full
+      // statement end position, which is needed to cleanly append _deps on the
+      // next line without displacing the trailing semicolon.
+      if (node.type !== "VariableDeclaration") return;
+
+      // VariableDeclaration has a `declarations` array — only handle the
+      // simple single-declarator form (`const Foo = ...`).
+      const varDecl = node as {
+        end: number;
+        declarations: {
+          id: { type: string; name?: string };
+          init: import("oxc-parser").Expression | null;
+        }[];
+      };
+      if (varDecl.declarations.length !== 1) return;
+
+      const declarator = varDecl.declarations[0]!;
+      const { id, init } = declarator;
+      if (id.type !== "Identifier" || !id.name) return;
       if (!init) return;
       if (!isCallTo(init, "defineActor") && !isCallTo(init, "definePrefab")) return;
 
-      const varName = (id as { name: string }).name;
+      const varName = id.name;
       const callee = getIdentifierName((init as CallExpression).callee);
       const args = getCallArgs(init as CallExpression);
 
       if (callee === "defineActor") {
-        // Skip if the first argument is already a string literal (name already explicit).
-        if (args.length > 0 && args[0]!.type === "Literal") return;
-
-        if (args.length > 0) {
-          s.prependLeft(args[0]!.start, `'${varName}', `);
-        } else {
-          s.prependLeft((init as CallExpression).end - 1, `'${varName}'`);
+        // ── Name injection (unchanged behaviour) ──────────────────────────
+        if (args.length === 0 || args[0]!.type !== "Literal") {
+          if (args.length > 0) {
+            s.prependLeft(args[0]!.start, `'${varName}', `);
+          } else {
+            s.prependLeft((init as CallExpression).end - 1, `'${varName}'`);
+          }
+          changed = true;
         }
-        changed = true;
+
+        // ── _deps injection ───────────────────────────────────────────────
+        // Locate the factory argument: it is the last arg whose type is an
+        // arrow function or regular function expression.
+        const factoryArg = args[args.length - 1];
+        if (
+            factoryArg &&
+            (factoryArg.type === "ArrowFunctionExpression" ||
+                factoryArg.type === "FunctionExpression")
+        ) {
+          const deps = extractUseActorNames(
+              factoryArg as ArrowFunctionExpression | OxcFunction,
+          );
+          if (deps.length > 0) {
+            const depsList = deps.map((d) => `${d}._plugin`).join(", ");
+            s.appendLeft(varDecl.end, `\n${varName}._plugin._deps = [${depsList}]`);
+            changed = true;
+          }
+        }
       } else {
-        // definePrefab — keep comment injection (no name argument on the function).
+        // definePrefab — keep comment injection (unchanged behaviour)
         const metaKey = "__prefabName__";
         if (args.length > 0) {
           s.prependLeft(args[0]!.start, `/* ${metaKey}: "${varName}" */ `);
