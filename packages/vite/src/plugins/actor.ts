@@ -2,10 +2,15 @@ import { readdirSync, statSync, existsSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import MagicString from "magic-string";
-import { walk } from "oxc-walker";
-import type { VariableDeclarator, CallExpression } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo, getIdentifierName, getCallArgs } from "../oxc/index.js";
+import type {
+  VariableDeclarator,
+  CallExpression,
+  ArrowFunctionExpression,
+  Function as OxcFunction,
+} from "oxc-parser";
+import { walk } from "oxc-walker";
 
 const ACTORS_VIRTUAL = "virtual:gwen/actors";
 const RESOLVED_ACTORS = "\0" + ACTORS_VIRTUAL;
@@ -31,6 +36,42 @@ export function generateActorsModule(actorFiles: string[]): string {
   }
   const entries = actorFiles.map((f) => `  () => import('${f}')`).join(",\n");
   return `export const actors = [\n${entries},\n];\n`;
+}
+
+/**
+ * Walk the AST of a `defineActor` factory argument and collect the identifier
+ * names passed to `useActor()` calls at any depth.
+ *
+ * Only handles static identifiers — computed or dynamic arguments
+ * (e.g. `useActor(pool[i])`) are silently skipped.
+ *
+ * @param factory - The factory argument node (arrow function or function expression).
+ * @returns Deduplicated array of identifier names, e.g. `['LaserActor', 'ParticleActor']`.
+ *
+ * @example
+ * ```ts
+ * // Given: defineActor(Prefab, () => { const x = useActor(LaserActor); return {} })
+ * // Returns: ['LaserActor']
+ * ```
+ *
+ * @internal Exported for unit tests.
+ */
+export function extractUseActorNames(factory: ArrowFunctionExpression | OxcFunction): string[] {
+  const seen = new Set<string>();
+
+  walk(factory, {
+    enter(node) {
+      if (node.type !== "CallExpression") return;
+      const call = node as CallExpression;
+      if (!isCallTo(call as unknown as import("oxc-parser").Expression, "useActor")) return;
+      const args = getCallArgs(call);
+      if (args.length === 0) return;
+      const name = getIdentifierName(args[0]!);
+      if (name) seen.add(name);
+    },
+  });
+
+  return Array.from(seen);
 }
 
 /**

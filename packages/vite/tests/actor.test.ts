@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { generateActorsModule, transformActorNames } from "../src/plugins/actor.js";
+import {
+  generateActorsModule,
+  transformActorNames,
+  extractUseActorNames,
+} from "../src/plugins/actor.js";
+import { parseSource } from "../src/oxc/index.js";
+import type { ArrowFunctionExpression } from "oxc-parser";
 
 describe("generateActorsModule", () => {
   it("returns empty actors array when no files given", () => {
@@ -80,5 +86,68 @@ describe("transformActorNames — string literal injection", () => {
     const result = transformActorNames(code);
     expect(result).toContain(`defineActor('PlayerActor',`);
     expect(result).toContain(`defineActor('EnemyActor',`);
+  });
+});
+
+// Helper: parse a factory expression string and return it as an AST node.
+function parseFactory(src: string): ArrowFunctionExpression {
+  // Wrap in a variable declaration so the parser accepts it
+  const code = `const X = defineActor(P, ${src})`;
+  const parsed = parseSource("test.ts", code)!;
+  const decl = parsed.program.body[0] as {
+    type: string;
+    declarations: { init: { arguments: { type: string }[] } }[];
+  };
+  const call = decl.declarations[0]!.init;
+  // Last argument is the factory
+  const args = call.arguments;
+  return args[args.length - 1] as ArrowFunctionExpression;
+}
+
+describe("extractUseActorNames", () => {
+  it("returns empty array when factory has no useActor calls", () => {
+    const factory = parseFactory(`() => { return {} }`);
+    expect(extractUseActorNames(factory)).toEqual([]);
+  });
+
+  it("returns the identifier name of a single useActor call", () => {
+    const factory = parseFactory(`() => { const x = useActor(LaserActor); return {} }`);
+    expect(extractUseActorNames(factory)).toEqual(["LaserActor"]);
+  });
+
+  it("returns all identifier names for multiple useActor calls", () => {
+    const factory = parseFactory(`() => {
+      const a = useActor(LaserActor)
+      const b = useActor(ParticleActor)
+      return {}
+    }`);
+    expect(extractUseActorNames(factory)).toEqual(["LaserActor", "ParticleActor"]);
+  });
+
+  it("finds useActor calls nested inside callbacks", () => {
+    const factory = parseFactory(`() => {
+      onEvent('foo', () => {
+        const x = useActor(ExplosionActor)
+      })
+      return {}
+    }`);
+    expect(extractUseActorNames(factory)).toEqual(["ExplosionActor"]);
+  });
+
+  it("ignores dynamic useActor calls (non-identifier argument)", () => {
+    const factory = parseFactory(`() => {
+      const x = useActor(actors[0])
+      return {}
+    }`);
+    expect(extractUseActorNames(factory)).toEqual([]);
+  });
+
+  it("does not return duplicates when the same actor is referenced twice", () => {
+    const factory = parseFactory(`() => {
+      const a = useActor(LaserActor)
+      const b = useActor(LaserActor)
+      return {}
+    }`);
+    expect(extractUseActorNames(factory)).toEqual(["LaserActor"]);
   });
 });
