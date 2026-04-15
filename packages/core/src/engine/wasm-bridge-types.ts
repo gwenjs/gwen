@@ -289,6 +289,17 @@ export interface WasmEngineBase {
    */
   alloc_shared_buffer(byteLength: number): number;
   /**
+   * Deallocate a buffer previously allocated by `alloc_shared_buffer`.
+   *
+   * Must be called with the **exact same `byteLength`** that was passed to
+   * `alloc_shared_buffer` so the allocator can reconstruct the original
+   * `Layout`. Passing a different size is undefined behaviour in Rust.
+   *
+   * @param ptr        Raw pointer returned by `alloc_shared_buffer`.
+   * @param byteLength Exact byte count used during allocation.
+   */
+  free_shared_buffer(ptr: number, byteLength: number): void;
+  /**
    * Copy ECS transform data into the shared buffer so WASM plugins can read it.
    * @param ptr    Pointer returned by `alloc_shared_buffer`.
    * @param maxEntities  Number of entity slots to sync.
@@ -822,6 +833,17 @@ export interface WasmBridge {
   // ── Shared memory (WASM plugin bridge) ───────────────────────────────────
 
   allocSharedBuffer(byteLength: number): number;
+  /**
+   * Release a buffer previously obtained from `allocSharedBuffer`.
+   *
+   * Pass the exact `byteLength` used at allocation time — the Rust allocator
+   * needs it to reconstruct the original memory layout. After this call the
+   * pointer is invalid; any further reads or writes are undefined behaviour.
+   *
+   * @param ptr        Pointer returned by `allocSharedBuffer`.
+   * @param byteLength Byte count used during `allocSharedBuffer`.
+   */
+  freeSharedBuffer(ptr: number, byteLength: number): void;
   syncTransformsToBuffer(ptr: number, maxEntities: number): void;
   syncTransformsToBufferSparse(ptr: number): void;
   dirtyTransformCount(): number;

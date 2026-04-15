@@ -654,6 +654,10 @@ class WasmBridgeImpl implements WasmBridge {
     return ptr;
   }
 
+  freeSharedBuffer(ptr: number, byteLength: number): void {
+    requireWasm().free_shared_buffer(ptr, byteLength);
+  }
+
   syncTransformsToBuffer(ptr: number, maxEntities: number): void {
     requireWasm().sync_transforms_to_buffer(ptr, maxEntities);
   }

@@ -791,6 +791,32 @@ impl Engine {
         ptr as usize
     }
 
+    /// Release a buffer previously allocated by `alloc_shared_buffer`.
+    ///
+    /// # Safety contract
+    /// - `ptr` must have been returned by `alloc_shared_buffer` with the same
+    ///   `byte_length`.  Passing any other pointer is undefined behaviour.
+    /// - `byte_length` must be identical to the value passed to `alloc_shared_buffer`
+    ///   so the allocator can reconstruct the original `Layout`.
+    /// - Calling this function twice with the same `ptr` is undefined behaviour
+    ///   (double-free). The TypeScript caller is responsible for calling it once.
+    ///
+    /// # No-ops
+    /// - `ptr == 0`: silently ignored (null pointer sentinel).
+    /// - `byte_length == 0`: silently ignored (zero-size allocation sentinel).
+    pub fn free_shared_buffer(&mut self, ptr: usize, byte_length: usize) {
+        if ptr == 0 || byte_length == 0 {
+            return;
+        }
+        // SAFETY: layout must match the one used in alloc_shared_buffer (align=8).
+        // The TypeScript caller (SharedMemoryManager.dispose) guarantees this by
+        // recording totalBytes at creation time and passing it back here.
+        let Ok(layout) = std::alloc::Layout::from_size_align(byte_length, 8) else {
+            return; // layout construction failed — do nothing rather than panic
+        };
+        unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
+    }
+
     /// Copies Transform data from the ECS `ComponentStorage` into the shared
     /// buffer so plugin WASM modules (physics, AI…) can read up-to-date positions.
     ///

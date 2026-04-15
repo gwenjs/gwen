@@ -446,7 +446,10 @@ class GwenEngineImpl implements GwenEngine {
     }
     await this.hooks.callHook("engine:stop");
     this._tracker.clearAll(this.hooks);
-    // Release the shared memory manager so the SAB view can be GC'd.
+    // Free the WASM allocation and release the manager reference.
+    if (this._sharedMemory) {
+      this._sharedMemory.dispose(getWasmBridge());
+    }
     this._sharedMemory = null;
   }
 

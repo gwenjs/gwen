@@ -73,6 +73,7 @@ function makeMockBridge(totalBytes = 512 * 1024): {
     getEntityGeneration: vi.fn(),
     tick: vi.fn(),
     allocSharedBuffer: vi.fn(() => basePtr),
+    freeSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
     syncTransformsFromBuffer: vi.fn(),
     getLinearMemory: vi.fn(() => fakeMemory),
@@ -102,6 +103,7 @@ function makeNullMemoryBridge(): WasmBridge {
     getEntityGeneration: vi.fn(),
     tick: vi.fn(),
     allocSharedBuffer: vi.fn(() => 4096),
+    freeSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
     syncTransformsFromBuffer: vi.fn(),
     getLinearMemory: vi.fn(() => null),
@@ -408,5 +410,33 @@ describe("FLAG_PHYSICS_ACTIVE constant", () => {
 describe("FLAGS_OFFSET constant", () => {
   it("equals 20 bytes", () => {
     expect(FLAGS_OFFSET).toBe(20);
+  });
+});
+
+// ─── dispose() ───────────────────────────────────────────────────────────────
+
+describe("SharedMemoryManager.dispose()", () => {
+  it("calls freeSharedBuffer with the base pointer and total allocation size", () => {
+    const maxEntities = 1_000;
+    // Mirror the formula inside SharedMemoryManager.create():
+    //   totalBytes = maxEntities * TRANSFORM_STRIDE + 1024 (sentinel headroom)
+    const expectedTotalBytes = maxEntities * TRANSFORM_STRIDE + 1024;
+    const { bridge, basePtr } = makeMockBridge();
+
+    const mgr = SharedMemoryManager.create(bridge, maxEntities);
+    mgr.dispose(bridge);
+
+    expect(bridge.freeSharedBuffer).toHaveBeenCalledOnce();
+    expect(bridge.freeSharedBuffer).toHaveBeenCalledWith(basePtr, expectedTotalBytes);
+  });
+
+  it("is idempotent — calling dispose() twice only frees once", () => {
+    const { bridge } = makeMockBridge();
+    const mgr = SharedMemoryManager.create(bridge, 100);
+
+    mgr.dispose(bridge);
+    mgr.dispose(bridge);
+
+    expect(bridge.freeSharedBuffer).toHaveBeenCalledOnce();
   });
 });

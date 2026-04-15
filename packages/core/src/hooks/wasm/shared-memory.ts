@@ -148,6 +148,7 @@ export class SharedMemoryManager {
   private readonly totalBytes: number;
   private usedBytes = 0;
   private readonly regions = new Map<string, MemoryRegion>();
+  private _disposed = false;
 
   /** Sentinel addresses: region pluginId → address of the 4-byte guard. */
   private readonly sentinelAddrs = new Map<string, number>();
@@ -349,6 +350,25 @@ export class SharedMemoryManager {
       byteLength: this.totalBytes,
       byteOffset: 0,
     };
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+  /**
+   * Release the shared buffer back to the WASM allocator.
+   *
+   * Must be called when the engine stops so the Rust heap does not accumulate
+   * dead allocations across restarts. Safe to call multiple times — subsequent
+   * calls are no-ops.
+   *
+   * After `dispose()` the `SharedMemoryManager` instance must not be used.
+   *
+   * @param bridge  Active WasmBridge — must be the same bridge used at creation.
+   */
+  dispose(bridge: WasmBridge): void {
+    if (this._disposed) return;
+    this._disposed = true;
+    bridge.freeSharedBuffer(this.basePtr, this.totalBytes);
   }
 
   // ── Diagnostics ───────────────────────────────────────────────────────────
