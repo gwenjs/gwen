@@ -13,6 +13,7 @@
     "sourceMap": true,
     "rootDir": ".",
     "outDir": "dist",
+    "lib": ["ES2022", "esnext.disposable"],
     "customConditions": ["development"],
     // FIXME(type-safety): exactOptionalPropertyTypes disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
     "exactOptionalPropertyTypes": false,

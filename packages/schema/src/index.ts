@@ -27,20 +27,20 @@ export type {
 } from "./hooks";
 
 // ─── Runtime ─────────────────────────────────────────────────────────────────
-export { defaultOptions, resolveConfig } from "./defaults.js";
-export { validateResolvedConfig, assertModuleFirstInput } from "./validate.js";
+export { defaultOptions, resolveConfig } from "./defaults";
+export { validateResolvedConfig, assertModuleFirstInput } from "./validate";
 // ─── Disposable ──────────────────────────────────────────────────────────────
 
-export type { GwenDisposable, DisposableRegistryBase } from "./disposable.js";
+export type { GwenDisposable, DisposableRegistryBase } from "./disposable";
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
-export { GwenError } from "./errors.js";
-export type { GwenErrorLevel, GwenErrorPayload, GwenErrorBusBase } from "./errors.js";
+export { GwenError } from "./errors";
+export type { GwenErrorLevel, GwenErrorPayload, GwenErrorBusBase } from "./errors";
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
-export type { LogLevel, LogEntry, GwenLogger } from "./logger.js";
+export type { LogLevel, LogEntry, GwenLogger } from "./logger";
 
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,21 @@ export type {
   GwenEngineBase,
   PluginErrorContext,
   GwenPlugin,
-} from "./plugin.js";
+} from "./plugin";
+
+// ─── Module ──────────────────────────────────────────────────────────────────
+
+export type {
+  AutoImport,
+  GwenTypeTemplate,
+  VitePlugin,
+  ViteUserConfig,
+  GwenBuildHooks,
+  GwenBaseConfig,
+  GwenKit,
+  GwenModuleDefinition,
+  GwenModule,
+} from "./module";
 
 // ─── Backwards compat ────────────────────────────────────────────────────────
 
@@ -71,4 +85,4 @@ export type {
  *
  * Will be removed in v2.0.
  */
-export type { GwenPlugin as GwenPluginBase } from "./plugin.js";
+export type { GwenPlugin as GwenPluginBase } from "./plugin";
