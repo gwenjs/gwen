@@ -3,8 +3,6 @@
  *
  * Holds a {@link TweenPool} and registers an `engine:tick` hook to advance
  * all active tweens each frame. Provides the {@link getTweenManager} factory.
- *
- * @since 1.0.0
  */
 
 import { useEngine } from "../engine/context";
@@ -42,12 +40,12 @@ const TWEEN_MANAGER_KEY = Symbol("gwen.tweenManager");
  * // When done:
  * manager.release(slot);
  * ```
- *
- * @since 1.0.0
  */
 export class TweenManager {
+  private readonly _engine: GwenEngine;
   private _pool: TweenPool;
-  private _unregister: (() => void) | null = null;
+  private _unregisterTick: (() => void) | null = null;
+  private _unregisterStop: (() => void) | null = null;
 
   /**
    * Create a new TweenManager for the given engine.
@@ -59,7 +57,6 @@ export class TweenManager {
    * @param poolSize - Number of tween slots to pre-allocate (default: 256)
    * @param policy - Growth / exhaustion policy for the underlying {@link TweenPool}
    * @param logger - Optional structured logger for capacity warnings
-   * @since 1.0.0
    */
   constructor(
     engine: GwenEngine,
@@ -67,12 +64,17 @@ export class TweenManager {
     policy?: TweenPoolPolicy,
     logger?: GwenLogger,
   ) {
+    this._engine = engine;
     this._pool = new TweenPool(poolSize, policy, logger);
 
-    // Register the tick hook on the engine
-    // The hook fires at the start of every frame with the delta time
-    this._unregister = engine.hooks.hook("engine:tick", (dt: number) => {
+    // Advance all tweens each frame.
+    this._unregisterTick = engine.hooks.hook("engine:tick", (dt: number) => {
       this._tick(dt);
+    });
+
+    // Auto-shutdown when the engine stops: unregister hooks and clear cache.
+    this._unregisterStop = engine.hooks.hook("engine:stop", () => {
+      this._shutdown();
     });
   }
 
@@ -89,7 +91,6 @@ export class TweenManager {
    * @returns A configured tween slot ready to play, or `null` when policy is `'drop'`
    * @throws {GwenConfigError} If the pool is exhausted and the policy is `'throw'`
    *   or `'grow'` but `maxSize` has been reached.
-   * @since 1.0.0
    */
   claim(options: TweenOptions<TweenableValue>): TweenSlot | null {
     return this._pool.claim(options);
@@ -102,7 +103,6 @@ export class TweenManager {
    * a tween is no longer needed.
    *
    * @param slot - The slot to release
-   * @since 1.0.0
    */
   release(slot: TweenSlot): void {
     this._pool.release(slot);
@@ -115,10 +115,12 @@ export class TweenManager {
    * @internal
    */
   _shutdown(): void {
-    if (this._unregister) {
-      this._unregister();
-      this._unregister = null;
-    }
+    this._unregisterTick?.();
+    this._unregisterTick = null;
+    this._unregisterStop?.();
+    this._unregisterStop = null;
+    // Clear the per-engine cache so getTweenManager() creates a fresh instance on restart.
+    delete (this._engine as unknown as Record<symbol, unknown>)[TWEEN_MANAGER_KEY];
   }
 
   /**
@@ -145,7 +147,6 @@ export class TweenManager {
  * @param engine - The GWEN engine instance
  * @returns The singleton TweenManager for this engine
  * @throws If called outside an active engine context and engine is not provided
- * @since 1.0.0
  *
  * @example
  * ```typescript

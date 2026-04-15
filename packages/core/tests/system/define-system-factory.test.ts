@@ -102,7 +102,7 @@ describe("defineSystem — factory pattern", () => {
     expect(typeof (plugin as { _discover?: unknown })._discover).toBe("function");
   });
 
-  it("_discover() runs setup in no-op mode — onUpdate is not registered", async () => {
+  it("_discover() registers frame callbacks — setup() skips re-running the factory", async () => {
     const engine = await createEngine();
     const frames: number[] = [];
 
@@ -110,16 +110,16 @@ describe("defineSystem — factory pattern", () => {
       onUpdate((dt) => frames.push(dt));
     })();
 
-    // Run discover — should NOT register the onUpdate callback
+    // Run discover — registers the real onUpdate callback
     engine.run(() => {
       (plugin as { _discover(): void })._discover();
     });
 
-    // Now use the plugin for real
+    // setup() sees _discovered=true and skips the factory — onUpdate not registered twice
     await engine.use(plugin);
     await engine.advance(0.016);
 
-    // onUpdate registered only once (from real setup), not twice
+    // onUpdate registered exactly once
     expect(frames).toHaveLength(1);
   });
 
@@ -129,9 +129,9 @@ describe("defineSystem — factory pattern", () => {
 
     // Simulate a system that reads a dep in setup
     const Sys = defineSystem((label: string) => {
-      // This runs during both discover and real setup
+      // With the fix, the factory runs only once — during _discover()
       discovered.push(label);
-      onUpdate(() => {}); // no-op in discover mode
+      onUpdate(() => {});
     });
 
     const plugin = Sys("test-label");
@@ -142,5 +142,23 @@ describe("defineSystem — factory pattern", () => {
 
     // discover pass ran setup once
     expect(discovered).toContain("test-label");
+  });
+
+  it("setup factory runs exactly once when _discover() is called before engine.use()", async () => {
+    const engine = await createEngine();
+    const setupCount: number[] = [];
+
+    const plugin = defineSystem("SingleRun", () => {
+      setupCount.push(1); // side effect — must fire only once
+      onUpdate(() => {});
+    })();
+
+    engine.run(() => {
+      (plugin as { _discover(): void })._discover();
+    });
+    await engine.use(plugin);
+
+    // Before fix: setupCount = [1, 1] (ran twice). After fix: [1].
+    expect(setupCount).toHaveLength(1);
   });
 });

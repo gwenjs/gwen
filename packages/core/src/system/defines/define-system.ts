@@ -279,34 +279,36 @@ export function defineSystem<Args extends unknown[]>(
     const _afterUpdate: UpdateFn[] = [];
     const _render: RenderFn[] = [];
 
-    const noop = () => {};
+    // True once _discover() has run the factory. Prevents setup() from
+    // running the factory a second time and triggering side effects twice.
+    let _discovered = false;
+
+    const realCtx = (): SystemContext => ({
+      onBeforeUpdate: (fn) => _beforeUpdate.push(fn),
+      onUpdate: (fn) => _update.push(fn),
+      onAfterUpdate: (fn) => _afterUpdate.push(fn),
+      onRender: (fn) => _render.push(fn),
+    });
 
     const plugin: DiscoverablePlugin = {
       name: systemName || "anonymous-system",
 
       setup(): void {
-        // The engine context is already set by engine.use() wrapping.
-        // Activate the system registration context and run the user's setup.
-        const ctx: SystemContext = {
-          onBeforeUpdate: (fn) => _beforeUpdate.push(fn),
-          onUpdate: (fn) => _update.push(fn),
-          onAfterUpdate: (fn) => _afterUpdate.push(fn),
-          onRender: (fn) => _render.push(fn),
-        };
-        _withSystemContext(ctx, () => setupTemplate(...args));
+        if (_discovered) {
+          // _discover() already ran the factory and populated the callback arrays.
+          // Running it again would cause side effects to fire twice.
+          return;
+        }
+        // Normal path: _discover() was not called (e.g. direct engine.use()).
+        _withSystemContext(realCtx(), () => setupTemplate(...args));
       },
 
       _discover(): void {
-        // Collect mode: run setup with no-op frame callbacks so that
-        // useActor() calls register actor plugins as scene dependencies
-        // without registering any frame callbacks.
-        const dummyCtx: SystemContext = {
-          onBeforeUpdate: noop,
-          onUpdate: noop,
-          onAfterUpdate: noop,
-          onRender: noop,
-        };
-        _withSystemContext(dummyCtx, () => setupTemplate(...args));
+        // Run the factory with real callbacks so frame handlers are registered
+        // AND useActor() calls collect actor dependencies — all in one pass.
+        // setup() will skip the factory when it sees _discovered === true.
+        _discovered = true;
+        _withSystemContext(realCtx(), () => setupTemplate(...args));
       },
 
       onBeforeUpdate(dt: number): void {
