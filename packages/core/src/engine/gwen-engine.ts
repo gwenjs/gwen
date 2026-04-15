@@ -936,7 +936,8 @@ class GwenEngineImpl implements GwenEngine {
       await this.hooks.callHook("engine:tick", dt);
       const t2 = performance.now();
 
-      // Phase 2 — onBeforeUpdate (all plugins, registration order)
+      // Phase 2 — emit before-update hook, then call plugin methods (backward compat)
+      await this.hooks.callHook("engine:before-update", dt);
       for (const plugin of this._plugins) {
         try {
           plugin.onBeforeUpdate?.(dt);
@@ -1011,7 +1012,8 @@ class GwenEngineImpl implements GwenEngine {
         });
       }
 
-      // Phase 6 — onUpdate (all plugins, registration order)
+      // Phase 6 — emit update hook, then call plugin methods (backward compat)
+      await this.hooks.callHook("engine:update", dt);
       for (const plugin of this._plugins) {
         try {
           plugin.onUpdate?.(dt);
@@ -1021,7 +1023,8 @@ class GwenEngineImpl implements GwenEngine {
       }
       const t6 = performance.now();
 
-      // Phase 7 — onAfterUpdate + onRender (all plugins, registration order)
+      // Phase 7a — emit after-update hook, then call plugin methods (backward compat)
+      await this.hooks.callHook("engine:after-update", dt);
       for (const plugin of this._plugins) {
         try {
           plugin.onAfterUpdate?.(dt);
@@ -1029,6 +1032,9 @@ class GwenEngineImpl implements GwenEngine {
           await this._reportPluginError(plugin, "onAfterUpdate", err);
         }
       }
+
+      // Phase 7b — emit render hook, then call plugin methods (backward compat)
+      await this.hooks.callHook("engine:render");
       for (const plugin of this._plugins) {
         try {
           plugin.onRender?.();

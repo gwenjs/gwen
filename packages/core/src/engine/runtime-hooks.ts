@@ -56,6 +56,34 @@ declare module "@gwenjs/schema" {
     "entity:destroy": (id: EntityId) => void;
     /** Fired when the frame loop catches an unhandled error. */
     "engine:error": (payload: EngineErrorPayload) => void;
+    /** Fired at Phase 2 of the frame loop — before physics. Replaces plugin.onBeforeUpdate(). */
+    "engine:before-update": (dt: number) => void;
+    /** Fired at Phase 6 of the frame loop — after physics. Replaces plugin.onUpdate(). */
+    "engine:update": (dt: number) => void;
+    /** Fired at Phase 7a of the frame loop — after update. Replaces plugin.onAfterUpdate(). */
+    "engine:after-update": (dt: number) => void;
+    /** Fired at Phase 7b of the frame loop — render pass. Replaces plugin.onRender(). */
+    "engine:render": () => void;
+    /** Fired by the router when a scene becomes active. Payload: scene name. */
+    "scene:enter": (name: string) => void;
+    /** Fired by the router before leaving a scene. Payload: scene name. */
+    "scene:beforeLeave": (name: string) => void;
+    /** Fired by the router after a scene is fully left. Payload: scene name. */
+    "scene:leave": (name: string) => void;
+    /**
+     * Fired by the router before the leave animation. Async — awaited before
+     * `scene:beforeLeave`. Payload: { from, to }.
+     */
+    "scene:transition:leave": (payload: { from: string; to: string }) => void | Promise<void>;
+    /**
+     * Fired by the router after `scene:enter`. Async — awaited after scene is active.
+     * Payload: { from, to }.
+     */
+    "scene:transition:enter": (payload: { from: string; to: string }) => void | Promise<void>;
+    /** Fired when an actor scope is resumed (pool re-acquire or explicit enable). */
+    "actor:enable": (entityId: bigint) => void;
+    /** Fired when an actor scope is paused (pool release or explicit disable). */
+    "actor:disable": (entityId: bigint) => void;
 
     /**
      * Fired when a plugin lifecycle hook throws and the error is not recovered
