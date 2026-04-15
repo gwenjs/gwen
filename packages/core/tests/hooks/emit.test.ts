@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { emit } from "../../src/actor/emit";
+import { emit } from "../../src/hooks/emit";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { engineContext } from "../../src/engine/context";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";

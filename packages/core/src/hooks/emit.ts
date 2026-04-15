@@ -1,5 +1,5 @@
 /**
- * @file `emit()` — sugar over `engine.hooks.callHook` for RFC-011 Actor System.
+ * @file `emit()` — sugar over `engine.hooks.callHook`.
  *
  * Lets you fire engine/game events from anywhere that has an active engine
  * context (inside `defineSystem`, `defineActor` factory, or an engine
@@ -25,10 +25,10 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks";
  * arguments are inferred automatically. **Custom game events** (e.g.
  * `'enemy:died'`, `'player:damage'`) are accepted as plain strings without
  * any cast. To get argument type-checking for custom events, augment
- * `GwenRuntimeHooks` in your project:
+ * `GwenRuntimeHooks` via declaration merging in your project:
  *
  * ```typescript
- * declare module '@gwenjs/core' {
+ * declare module '@gwenjs/schema' {
  *   interface GwenRuntimeHooks {
  *     'player:damage': (amount: number) => void
  *   }

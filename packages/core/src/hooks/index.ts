@@ -71,6 +71,9 @@ export { useHook } from "./use-hook.js";
 // Re-export onCleanup from cleanup-context (hooks/index.ts is the logical home for hook-related composables)
 export { onCleanup, withCleanup } from "../cleanup-context.js";
 
+// emit — symmetric counterpart to useHook, works in any engine context
+export { emit } from "./emit.js";
+
 // ════════════════════════════════════════════════════════════════════════════
 // Factory
 // ════════════════════════════════════════════════════════════════════════════

@@ -18,7 +18,25 @@ export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/def
 // Prefab + events
 export { definePrefab } from "./defines/define-prefab";
 export { defineEvents } from "./defines/define-events";
-export { emit } from "./emit";
+
+/**
+ * @deprecated Import `emit` from `'@gwenjs/core'` instead.
+ *
+ * `emit` is not actor-specific — it works in any engine context (system,
+ * actor, plugin). It has been moved to the main `'@gwenjs/core'` entry point
+ * alongside its symmetric counterpart `useHook`.
+ *
+ * **Migration:**
+ * ```ts
+ * // Before:
+ * import { emit } from '@gwenjs/core/actor'
+ * // After:
+ * import { emit } from '@gwenjs/core'
+ * ```
+ *
+ * Will be removed in v2.0.
+ */
+export { emit } from "../hooks/emit";
 
 // Actor composables
 export { useActor, usePrefab, useComponent } from "./uses/use-actor";

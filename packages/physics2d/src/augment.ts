@@ -22,7 +22,9 @@ declare module "@gwenjs/core" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
   }
+}
 
+declare module "@gwenjs/schema" {
   /**
    * Physics 2D runtime hooks augmenting the engine hook bus.
    *

@@ -14,7 +14,7 @@
  */
 
 import { defineSystem, onAfterUpdate, useQuery } from "@gwenjs/core/system";
-import { useEngine } from "@gwenjs/core";
+import { useEngine, emit } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
 import type { CameraState } from "@gwenjs/renderer-core";
@@ -198,14 +198,12 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       }
     }
 
-    const hooks = engine.hooks;
-
     for (const [viewportId, entityId] of currentActivePerViewport) {
       const prev = activeEntityPerViewport.get(viewportId);
       if (prev === undefined) {
-        void hooks.callHook("camera:activate", { viewportId, entityId });
+        emit("camera:activate", { viewportId, entityId });
       } else if (prev !== entityId) {
-        void hooks.callHook("camera:switch", { viewportId, from: prev, to: entityId });
+        emit("camera:switch", { viewportId, from: prev, to: entityId });
       }
       activeEntityPerViewport.set(viewportId, entityId);
     }
@@ -213,7 +211,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
     for (const [viewportId] of activeEntityPerViewport) {
       if (!currentActivePerViewport.has(viewportId)) {
         activeEntityPerViewport.delete(viewportId);
-        void hooks.callHook("camera:deactivate", { viewportId });
+        emit("camera:deactivate", { viewportId });
       }
     }
   });

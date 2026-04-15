@@ -25,13 +25,6 @@ import { BrowserSizeProvider, StaticSizeProvider } from "./screen-size-providers
 import type { ScreenSizeProvider } from "./screen-size-providers.js";
 import { ScreenErrorCodes } from "./screen-errors.js";
 
-// Augment GwenRuntimeHooks if engine:afterTick is not already declared.
-declare module "@gwenjs/core" {
-  interface GwenRuntimeHooks {
-    "engine:afterTick": (dt: number) => void;
-  }
-}
-
 /** Options accepted by `ScreenPlugin`. */
 export interface ScreenPluginOptions {
   /**

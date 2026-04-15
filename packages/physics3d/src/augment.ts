@@ -22,7 +22,9 @@ declare module "@gwenjs/core" {
   interface GwenProvides {
     physics3d: Physics3DAPI;
   }
+}
 
+declare module "@gwenjs/schema" {
   /**
    * Physics 3D runtime hooks augmenting the engine hook bus.
    * Includes lifecycle hooks and all physics3d plugin hooks.

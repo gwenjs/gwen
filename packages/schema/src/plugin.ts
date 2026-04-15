@@ -15,34 +15,49 @@ import type { GwenLogger } from "./logger.js";
 import type { DisposableRegistryBase } from "./disposable.js";
 
 /**
+ * Extensible map of all GWEN runtime hook event names to their handler signatures.
+ *
+ * Populated by declaration merging. Core engine hooks are added by `@gwenjs/core`.
+ * Plugin packages add their own hooks the same way:
+ *
+ * ```ts
+ * declare module "@gwenjs/schema" {
+ *   interface GwenRuntimeHooks {
+ *     "my-plugin:event": (payload: MyPayload) => void;
+ *   }
+ * }
+ * ```
+ */
+export interface GwenRuntimeHooks {}
+
+/**
  * Minimal hook bus surface exposed to plugins via `GwenEngineBase.hooks`.
  *
  * The full `Hookable<GwenRuntimeHooks>` in `@gwenjs/core` satisfies this
  * interface structurally — no explicit `extends` needed.
  *
+ * The typed overloads give full callback inference for any event declared in
+ * `GwenRuntimeHooks`. Unknown event names fall through to the permissive
+ * string overload.
+ *
  * @example
  * ```ts
  * setup(engine: GwenEngineBase) {
  *   engine.hooks.hook('engine:init', () => { ... })
- *   engine.hooks.hook('engine:stop', () => { ... })
+ *   engine.hooks.hook('viewport:remove', ({ id }) => { ... }) // id: string ✓
  * }
  * ```
  */
 export interface HookBusBase {
-  /**
-   * Register a listener for `event`.
-   * Called every time the event is emitted.
-   *
-   * Uses `any` for the callback so typed callbacks (e.g.
-   * `(payload: { id: string }) => void`) are assignable without casts.
-   */
+  /** Register a typed listener for a known hook event. */
+  hook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
+  /** Register a listener for an unknown or dynamically-named event. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   hook(event: string, fn: (...args: any[]) => any): void;
 
-  /**
-   * Remove a previously registered listener.
-   * Silently ignored if the listener was never registered.
-   */
+  /** Remove a typed listener for a known hook event. */
+  removeHook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
+  /** Remove a listener for an unknown or dynamically-named event. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   removeHook(event: string, fn: (...args: any[]) => any): void;
 }

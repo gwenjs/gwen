@@ -1,405 +1,235 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+GWEN is a TypeScript-first **web game framework** (Nuxt-like) built on a Rust/WASM ECS core.
+The framework hides infrastructure complexity behind a composable API, generates boilerplate
+at build time, and ships pre-compiled WASM — users never touch Rust.
 
-GWEN is a composable TypeScript-first web game engine with a Rust/WebAssembly core. Component data lives in Structure-of-Arrays layout inside WASM linear memory; systems access it directly with entity IDs.
+> Full API reference → `docs/essentials/` · `docs/api/` · `docs/advanced/` · `docs/kit/`
 
 ---
 
 ## Absolute rules
 
-These rules apply to every task, without exception, before declaring it done.
+1. `pnpm format` — fix and retry if it fails
+2. `pnpm lint` — fix and retry if it fails
+3. `pnpm typecheck` — fix and retry if it fails
+4. `pnpm test` — fix and retry if it fails
 
-### Mandatory validation (in this order)
-
-1. `pnpm format` — oxfmt formatting. If it fails: fix and retry.
-2. `pnpm lint` — linting. If it fails: fix and retry.
-3. `pnpm typecheck` — type checking. If it fails: fix and retry.
-4. `pnpm test` — tests. If it fails: fix and retry.
-
-Never announce a task is done before all 4 commands pass without errors.
+Never declare a task done before all 4 pass.
 
 ---
 
 ## Repository structure
 
 ```
-packages/           # TypeScript packages (@gwenjs/*)
-  core/             # ECS engine, components, systems, actors, scenes, router
-  app/              # Engine bootstrap and defineConfig()
-  kit/              # Plugin and module authoring API (definePlugin, defineGwenModule)
-  schema/           # Component schema primitives and shared types/hooks interfaces
-  math/             # Vectors, quaternions, colors, springs
-  physics2d/        # 2D rigid-body physics (Rapier via WASM)
-  physics3d/        # 3D rigid-body physics (Rapier via WASM)
-  vite/             # Vite plugin — WASM bundling, actor/system name injection, optimizer
-crates/             # Rust source (ECS + physics WASM)
-  gwen-core/        # Core ECS engine in Rust
-  gwen-wasm-utils/  # WASM build utilities
-  gwen-physics3d-fracture/
-docs/               # VitePress documentation site
+packages/           @gwenjs/* TypeScript packages
+  core/             ECS engine: components, systems, actors, scenes, router
+  app/              defineConfig() + engine bootstrap
+  kit/              Plugin and module authoring (definePlugin, defineGwenModule)
+  schema/           Shared types (internal / plugin authors)
+  math/             Vec2, Vec3, Quat, Color, Spring — pure, allocation-free
+  physics2d/        Rapier 2D WASM wrapper + actor composables
+  physics3d/        Rapier 3D WASM wrapper + actor composables
+  vite/             Vite plugin — WASM, transforms, auto-imports, virtual modules
+crates/             Rust source
+  gwen-core/        ECS engine in Rust
+  gwen-wasm-utils/  WASM build utilities
+docs/               VitePress — full API reference
 ```
 
-## Key development commands
+## Dev commands
 
 ```sh
-pnpm dev                          # start all TS packages in watch mode (+ Rust watcher)
-pnpm test:ts                      # TypeScript tests only (skip Rust)
-pnpm test:cargo                   # Rust tests only
-pnpm lint:fix                     # auto-fix lint issues
-pnpm docs:dev                     # start documentation site locally
-```
+pnpm dev                  # watch mode (TS + Rust)
+pnpm test:ts              # TS tests only
+pnpm test:cargo           # Rust tests only
+pnpm lint:fix             # auto-fix lint
+pnpm build:wasm           # rebuild WASM
 
-To run a single test file within a package:
-```sh
-cd packages/core && pnpm exec vitest run src/path/to/file.test.ts
-# or from repo root:
+# Single test file
 pnpm --filter @gwenjs/core exec vitest run src/path/to/file.test.ts
 ```
 
-To rebuild WASM (requires Rust toolchain):
-```sh
-pnpm build:wasm    # production WASM
-pnpm build:wasm:tools  # WASM build tools
-```
-
 ---
 
-## Architecture: layered ECS
+## Architecture
 
 ```
 Game code (TypeScript)
-  └─ @gwenjs/core         — ECS, components, systems, actors, scenes
-       ├─ /system         — defineSystem, onUpdate, useQuery
-       ├─ /actor          — defineActor, definePrefab, onStart, onDestroy
-       └─ /scene          — defineScene, defineSceneRouter, useSceneRouter
-  └─ @gwenjs/kit          — definePlugin, defineGwenModule (authoring)
-  └─ @gwenjs/app          — defineConfig, createEngine bootstrap
-  └─ @gwenjs/vite         — Vite plugin (WASM, auto-imports, name injection)
-                              WASM bridge
-gwen_core.wasm (Rust)     — ECS engine, SoA linear memory, Rapier physics
+  └─ @gwenjs/core    Components, Systems, Actors, Scenes, Router
+  └─ @gwenjs/kit     Plugin + Module authoring
+  └─ @gwenjs/app     defineConfig() — build-time framework config
+  └─ @gwenjs/vite    Vite plugin: WASM, code transforms, virtual modules
+       ↕ WASM bridge (JS TypedArray ↔ Rust SharedArrayBuffer)
+gwen_core.wasm       SoA linear memory, ECS kernel, Rapier physics
 ```
 
-The `@gwenjs/vite` plugin handles critical code transforms at build time:
-- Injects readable system/actor names for devtools
-- Auto-discovers actors in `src/actors/` and scenes in `src/scenes/`
-- Generates virtual modules (`virtual:gwen/actors`, etc.)
+---
+
+## Design philosophy
+
+### Framework pattern (Nuxt-like)
+
+GWEN manages `index.html`, `main.ts`, and the Vite config. Users only write `gwen.config.ts`
+at the root. The framework reads it at build time to:
+- Register modules and plugins
+- Configure the WASM variant (`light | physics2d | physics3d`)
+- Generate type augmentations and virtual modules
+- Extend the Vite config
+
+**No `vite.config.ts`, no `main.ts`** — these are framework responsibilities. Extend Vite via
+the `vite` or `hooks` fields in `gwen.config.ts`.
+
+### Composable context system
+
+Every GWEN API is a **composable** — a function that works only when an engine context is
+active. The context is active inside:
+- `defineSystem(() => { ... })` — system factory
+- `defineActor(prefab, () => { ... })` — actor factory
+- `defineScene(name, () => { ... })` — scene factory
+- `definePlugin({ setup(engine) { ... } })` — plugin setup
+- `engine.run(() => { ... })` — explicit context block
+
+Outside these boundaries, composables throw `GwenContextError`. The Vite plugin propagates
+context across `await` boundaries automatically for `onEnter`/`onExit`. For other async
+contexts, the **capture pattern** is required:
+
+```ts
+// ✅ Capture handle synchronously in factory, use as closure after await
+const transform = useTransform()
+onStart(async () => {
+  await loadAssets()
+  transform.setPosition(400, 300)  // closure — context not needed
+})
+```
+
+### ECS — Structure of Arrays (SoA)
+
+Components are **pure data**, stored as TypedArrays in WASM linear memory. Each component
+field is a separate contiguous array; entity IDs are the index. No object allocation per entity.
+
+```ts
+// Component fields are TypedArrays — entity IDs are indices (bigint)
+Position.x[entityId] += Velocity.x[entityId] * dt
+```
+
+Systems query sets of entity IDs that match a component archetype (`useQuery`). Actors own a
+single entity and have their own lifecycle. A prefab is a component template; an actor wraps
+a prefab with lifecycle hooks and a public API.
+
+Entity IDs are `bigint`. Adding/removing components is expensive (buffer reallocation) — use
+it for state changes, never inside `onUpdate`.
+
+### Build-time transforms (@gwenjs/vite)
+
+The Vite plugin performs source-level transforms that would be impossible at runtime:
+- Injects readable system/actor names from exported variable names (devtools, debugging)
+- Auto-discovers `src/actors/` and `src/scenes/` and wires them into virtual modules
+- Propagates engine context across `await` in `onEnter` / `onExit` callbacks
 - Bundles and serves the WASM binary
-- Rewrites async context for actor lifecycle
+
+Virtual modules (`virtual:gwen/actors`, `virtual:gwen/scenes`, …) are consumed internally
+by the framework bootstrap — users rarely import them directly.
 
 ---
 
-## useQuery
+## Key patterns
 
-**Signature :** `useQuery(components: ComponentDef[]): LiveQuery`
+### Actor vs System
+
+| | Actor | System |
+|---|---|---|
+| Entity ownership | One entity per instance | Queries many entities |
+| Lifecycle | `onStart` / `onUpdate` / `onDestroy` per instance | `onUpdate` shared across all matching entities |
+| Use case | Named game objects (player, boss, HUD) | Bulk logic (movement, physics, AI sweep) |
+| State | Local to instance | Global / shared |
+
+Use actors for **unique, named objects**. Use systems for **batch operations**.
+
+### Lifecycle phases (execution order per frame)
+
+`onBeforeUpdate` → `onUpdate` → `onAfterUpdate` → `onRender`
+
+All four phases are valid in both systems and actors. `onStart` / `onDestroy` / `onEvent` are
+actor-only and never exist on systems.
+
+### Dependency injection in systems
+
+Systems receive external dependencies as factory arguments, keeping them decoupled:
 
 ```ts
-// ✅ CORRECT
-const entities = useQuery([Position, Velocity])
+// System accepts any object that satisfies the interface
+export const CombatSystem = defineSystem((target: { takeDamage(n: number): void }) => { ... })
 
-// ❌ FAUX — forme objet inexistante
-const entities = useQuery({ with: [Position, Velocity] })
-
-// ❌ FAUX — deuxième argument inexistant
-const entities = useQuery([Health], { exclude: [DeadTag] })
-const entities = useQuery([Health], { onChange: ... })
+// Scene wires the concrete actor at setup time
+useSystem(CombatSystem(player))
 ```
 
-- Un seul argument : un tableau de composants
-- Pas de `{ with: }`, pas de `{ exclude: }`, pas de `{ onChange: }`
-- Doit être appelé dans la **phase setup** (pas à l'intérieur d'un `onUpdate`)
+### Event system (`useHook` vs `onEvent`)
+
+| | `useHook(event, fn)` | `onEvent(event, fn)` |
+|---|---|---|
+| Valid in | any context (system, actor, plugin) | actor factory only |
+| Auto-cleanup | when context ends | when actor is despawned |
+| Pool dormancy | warns in dev if actor is dormant | silently skips |
+| Import | `@gwenjs/core` | `@gwenjs/core/actor` |
+
+Prefer `onEvent()` inside actors (especially pooled ones). Use `useHook()` from systems and plugins.
+
+Custom events must be declared with `defineEvents()` and merged into `GwenRuntimeHooks` via
+declaration merging (`InferEvents<T>`) for full type safety project-wide.
+Event names must follow `'namespace:action'` convention — `engine:*` and `entity:*` are
+reserved for internal hooks.
+
+### Plugin → service → consumer chain
+
+A plugin registers a service with `engine.provide('name', impl)` in its `setup()`.
+Any system or actor can retrieve it with `useService('name')` from `@gwenjs/core/system`.
+This is the canonical way to share runtime state between unrelated parts of the game.
+
+### Actor pool (high-frequency actors)
+
+For bullets, particles, and other high-frequency spawns, `defineActorPool` keeps a fixed set
+of entities alive and marks them dormant instead of destroying them — zero allocation cost.
+The pool handle is obtained via `useActorPool()` inside a scene and passed explicitly to the
+systems that need it. Never call `.acquire()` on the `defineActorPool` value directly.
+
+### Module system (framework extensions)
+
+`defineGwenModule` is the build-time equivalent of `definePlugin`. Modules run in Node.js
+(not the browser) and extend the framework itself: adding plugins, generating type templates,
+registering auto-imports, and extending the Vite config. They are declared by package name in
+`gwen.config.ts → modules`.
 
 ---
 
-## defineScene
+## File conventions
 
-**Signature :** `defineScene(name: string, setup: () => void): SceneFactory`
-
-```ts
-// ✅ CORRECT — forme unique, tout par composables
-export const GameScene = defineScene('game', () => {
-  useSystem([MovementSystem, RenderSystem])
-
-  const player = useActor(PlayerActor)
-  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
-  onExit(() => player.despawnAll())
-})
-
-// ❌ FAUX — forme objet supprimée
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem, RenderSystem],
-})
-
-// ❌ FAUX — la factory ne retourne rien
-export const GameScene = defineScene('game', () => ({
-  systems: [MovementSystem],
-}))
+```
+gwen.config.ts         Required — framework entry point
+src/
+  components/          One component per file; re-export from index.ts
+  systems/             One system per file; name the export (Vite injects it as display name)
+  scenes/              Auto-discovered: each file exports a defineScene()
+  actors/              Auto-discovered: each file exports a defineActor()
+  prefabs/             Entity templates used by actors and systems
+  router.ts            Single defineSceneRouter() for the app
+  plugins/             Optional custom plugins
+  events.ts            Custom event contracts + GwenRuntimeHooks augmentation
 ```
 
-Composables disponibles dans la factory :
+---
 
-| Composable | Rôle |
+## Subpath imports
+
+| What | From |
 |---|---|
-| `useSystem([...plugins])` | Déclare les systèmes actifs pour cette scène |
-| `onEnter(cb)` | Callback déclenché quand la scène devient active |
-| `onExit(cb)` | Callback déclenché quand la scène est quittée |
-
-Composables engine également disponibles dans la factory (contexte engine actif) :
-- `useEngine()`, `useActor()`, `usePrefab()`, `useSceneRouter()`
-
----
-
-## Accès aux données de composant
-
-Les composants utilisent le format Structure-of-Arrays (SoA). Accès par entity ID :
-
-```ts
-// ✅ CORRECT
-for (const id of entities) {
-  Position.x[id] += Velocity.x[id] * dt
-}
-
-// ❌ FAUX — les entités ne sont pas des objets
-for (const entity of entities) {
-  entity.get(Position)
-  entity.transform.x += ...
-}
-```
-
----
-
-## addComponent / removeComponent
-
-Ce sont des **méthodes de l'engine**, pas des exports standalone :
-
-```ts
-// ✅ CORRECT
-const engine = useEngine()
-engine.addComponent(entityId, Position, { x: 10, y: 20 })
-engine.removeComponent(entityId, Velocity)
-
-// ❌ FAUX — ces exports n'existent pas
-import { addComponent, removeComponent } from '@gwenjs/core'
-```
-
----
-
-## defineSceneRouter
-
-```ts
-// ✅ CORRECT — clé 'routes'
-defineSceneRouter({
-  initial: 'menu',
-  routes: {
-    menu: { scene: MenuScene, on: { START: 'game' } },
-    game: { scene: GameScene, on: { PAUSE: 'pause' } },
-  },
-})
-
-// ❌ FAUX — clé 'scenes' inexistante
-defineSceneRouter({ initial: 'menu', scenes: { ... } })
-```
-
----
-
-## useSceneRouter
-
-```ts
-// ✅ CORRECT — prend le routerDef en argument
-const nav = useSceneRouter(AppRouter)
-await nav.send('START')
-nav.can('START')
-nav.current
-nav.params
-
-// ❌ FAUX — sans argument
-const router = useSceneRouter()
-router.goTo('Game')  // .goTo() n'existe pas
-```
-
-Imports :
-- `defineSceneRouter` → `@gwenjs/core/scene`
-- `useSceneRouter` → `@gwenjs/core/scene` (pas `@gwenjs/core/actor`)
-
----
-
-## defineActor
-
-**Signature :** `defineActor(prefab: PrefabDefinition, factory: (props?) => PublicAPI)`
-
-```ts
-// ✅ CORRECT
-export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  onStart(() => { ... })
-  onUpdate((dt) => { ... })
-  onDestroy(() => { ... })
-  return { takeDamage: (n: number) => { ... } }
-})
-
-// Spawn / despawn via _plugin
-await engine.use(EnemyActor._plugin)
-const id = EnemyActor._plugin.spawn({ hp: 100 })
-EnemyActor._plugin.despawn(id)
-
-// ❌ FAUX — forme objet inexistante
-defineActor({ name: 'Enemy', setup() { ... } })
-```
-
----
-
-## definePrefab
-
-```ts
-// ✅ CORRECT — tableau de { def, defaults }
-export const EnemyPrefab = definePrefab([
-  { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Health, defaults: { hp: 100 } },
-])
-
-// ❌ FAUX — forme objet avec noms de composants comme clés
-definePrefab({ Position: { x: 0 }, Health: { hp: 100 } })
-```
-
----
-
-## defineEvents / emit / onEvent
-
-```ts
-// ✅ Déclarer le contrat une fois (src/events/enemy.ts)
-export const EnemyEvents = defineEvents({
-  'enemy:hit': (damage: number) => {},
-  'enemy:die': () => {},
-})
-
-// ✅ Émettre depuis un acteur ou système
-emit('enemy:hit', damage)
-
-// ✅ Écouter depuis un acteur (auto-removed à la destruction)
-onEvent('enemy:hit', (damage) => { ... })
-
-// ✅ Écouter depuis un système
-const engine = useEngine()
-engine.hooks.hook('enemy:hit', (damage) => { ... })
-```
-
-Convention : nommer les événements `'namespace:action'` pour éviter les collisions avec les hooks internes du moteur (`'engine:tick'`, `'entity:spawn'`, etc.).
-
----
-
-## definePlugin / @gwenjs/kit
-
-```ts
-// ✅ CORRECT — setup(engine), pas install, pas de clé 'systems'
-export const InputPlugin = definePlugin<{ deadzone?: number }>((opts = {}) => ({
-  name: 'input',
-  setup(engine) {
-    engine.provide('input', { ... })
-    engine.hooks.hook('engine:init', () => { ... })
-    engine.hooks.hook('engine:stop', () => { ... })
-  },
-}))
-
-// ❌ FAUX
-definePlugin(() => ({
-  name: 'input',
-  systems: [InputSystem],   // 'systems' n'existe pas sur PluginDef
-  install: (engine) => { }, // 'install' n'existe pas, c'est 'setup'
-}))
-```
-
----
-
-## defineGwenModule / @gwenjs/kit/module
-
-```ts
-// ✅ CORRECT — un seul argument objet avec meta + setup
-export default defineGwenModule<MyOptions>({
-  meta: { name: '@my-scope/module', configKey: 'module' },
-  defaults: { debug: false },
-  setup(options, gwen) {
-    gwen.addPlugin(MyPlugin(options))
-    gwen.addAutoImports([{ name: 'useMyService', from: '@my-scope/module' }])
-  },
-})
-
-// ❌ FAUX — deux arguments séparés
-defineGwenModule('@my-scope/module', { exports: { ... } })
-```
-
-**GwenKit methods :** `addPlugin`, `addAutoImports`, `addVitePlugin`, `extendViteConfig`, `addTypeTemplate`, `addModuleAugment`, `hook`
-
-**GwenBuildHooks events :** `'build:before'`, `'build:done'`, `'module:before'`, `'module:done'`, `'vite:extendConfig'`
-
----
-
-## AutoImport (type)
-
-```ts
-// ✅ CORRECT
-{ name: 'useInput', from: '@my-scope/input', as?: 'useInputAlias' }
-
-// ❌ FAUX — 'imports' n'existe pas, c'est 'as'
-{ name: 'useInput', from: '@my-scope/input', imports: [...] }
-```
-
----
-
-## Imports par subpath
-
-| Ce que tu importes | Depuis |
-|---|---|
-| `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `initWasm` | `@gwenjs/core` |
-| `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` | `@gwenjs/core/system` |
-| `defineActor`, `onStart`, `onDestroy`, `onEvent`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` | `@gwenjs/core/actor` |
-| `defineScene`, `defineSceneRouter`, `useSceneRouter`, `useSystem`, `onEnter`, `onExit` | `@gwenjs/core/scene` |
+| `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `initWasm` `useHook` `onCleanup` `emit` | `@gwenjs/core` |
+| `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` | `@gwenjs/core/system` |
+| `defineActor` `onStart` `onDestroy` `onEvent` `definePrefab` `defineEvents` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
+| `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
 | `defineGwenModule` | `@gwenjs/kit/module` |
 | `defineConfig` | `@gwenjs/app` |
-| `usePhysics2D` | `@gwenjs/physics2d` |
-
----
-
-## Lifecycle hooks : où ils sont valides
-
-| Hook | Contexte valide |
-|---|---|
-| `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender` | `defineSystem` ET `defineActor` |
-| `onStart`, `onDestroy`, `onEvent` | `defineActor` uniquement |
-
-```ts
-// ❌ FAUX — onStart n'existe pas dans defineSystem
-defineSystem(function MySystem() {
-  onStart(() => { ... }) // erreur runtime
-})
-```
-
----
-
-## useTween
-
-```ts
-// ✅ API correcte
-const opacity = useTween<number>({ duration: 0.5, easing: 'easeInOut', loop: false, yoyo: false })
-
-opacity.play({ from: 0, to: 1 })
-opacity.pause()
-opacity.reset()
-opacity.to({ value: 0, duration: 0.3 })
-opacity.onComplete(() => { ... })
-opacity.onLoop(() => { ... })
-opacity.value    // lecture seule
-opacity.playing  // lecture seule
-```
-
----
-
-## createLogger
-
-```ts
-// ✅ CORRECT
-const log = createLogger('game:my-system')
-
-// ❌ FAUX — le deuxième argument n'est pas un boolean
-const log = createLogger('game:my-system', engine.debug)
-```
+| `useDynamicBody` `useStaticBody` `useKinematicBody` `useBoxCollider` `useShape` … | `@gwenjs/physics2d` |
+| `usePhysics3D` … | `@gwenjs/physics3d` |

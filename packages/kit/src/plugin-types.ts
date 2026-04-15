@@ -1,8 +1,4 @@
-/**
- * @file RFC-002 — satisfiesPluginContract & definePluginTypes
- */
-
-import type { GwenPlugin } from "@gwenjs/core";
+import type { GwenPlugin } from "@gwenjs/schema";
 
 // ─── satisfiesPluginContract ─────────────────────────────────────────────────
 
@@ -29,8 +25,6 @@ import type { GwenPlugin } from "@gwenjs/core";
  * // Compile-time check — will error if AudioPlugin() does not match AudioContract:
  * export const instance = satisfiesPluginContract<AudioContract>(AudioPlugin())
  * ```
- *
- * @since 1.0.0
  */
 export function satisfiesPluginContract<Contract extends GwenPlugin>(plugin: Contract): Contract {
   return plugin;
@@ -43,8 +37,6 @@ export function satisfiesPluginContract<Contract extends GwenPlugin>(plugin: Con
  *
  * All fields are optional. Omitting both `provides` and `hooks` causes
  * `definePluginTypes` to return an empty string.
- *
- * @since 1.0.0
  */
 export interface PluginTypesOptions {
   /**
@@ -87,8 +79,6 @@ export interface PluginTypesOptions {
  * //   interface GwenRuntimeHooks { 'physics2d:step': (dt: number) => void }
  * // }
  * ```
- *
- * @since 1.0.0
  */
 export function definePluginTypes(options: PluginTypesOptions): string {
   const blocks: string[] = [];

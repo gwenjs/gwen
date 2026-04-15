@@ -12,6 +12,9 @@ export * from "./schema";
 export { createGwenHooks, useHook, onCleanup, withCleanup } from "./hooks";
 export type { GwenHooks, GwenHookable } from "./hooks";
 
+// Event emission — symmetric counterpart to useHook, works in any engine context
+export { emit } from "./hooks";
+
 // Engine
 export {
   createEngine,

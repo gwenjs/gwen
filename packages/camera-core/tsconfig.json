@@ -9,6 +9,7 @@
   },
   "include": ["src"],
   "references": [
+    { "path": "../schema" },
     { "path": "../core" },
     { "path": "../renderer-core" },
     { "path": "../math" },

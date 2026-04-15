@@ -17,6 +17,7 @@
  */
 
 import type { GwenEngine } from "@gwenjs/core";
+import type { GwenEngineBase } from "@gwenjs/schema";
 import { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 import { ScreenServiceImpl } from "./screen-service.js";
 import type { ScreenService } from "./screen-service.js";
@@ -38,11 +39,11 @@ declare module "@gwenjs/core" {
  * @param engine - The current engine instance.
  * @returns The shared `ScreenService`.
  */
-export function getOrCreateScreenService(engine: GwenEngine): ScreenService {
-  const existing = engine.tryInject("screenService");
+export function getOrCreateScreenService(engine: GwenEngineBase): ScreenService {
+  const existing = engine.tryInject("screenService") as ScreenService | undefined;
   if (existing) return existing;
 
-  const vm = getOrCreateViewportManager(engine);
+  const vm = getOrCreateViewportManager(engine as GwenEngine);
   const log = engine.logger.child("renderer-core:screen");
   const service = new ScreenServiceImpl(log, vm);
   engine.provide("screenService", service);

@@ -91,6 +91,7 @@ import type {
   EngineStats,
   GwenEngine,
 } from "./engine-types.js";
+import { DisposableRegistry } from "../disposable.js";
 
 // #region Internal helpers
 
@@ -137,6 +138,9 @@ class GwenEngineImpl implements GwenEngine {
   readonly tweenPoolSize: number;
   readonly tweenPoolPolicy: TweenPoolPolicy;
   readonly logger: GwenLogger;
+
+  // ─── Disposables ─────────────────────────────────────────────────────────
+  readonly disposables = new DisposableRegistry();
 
   // ─── Internal state ───────────────────────────────────────────────────────
   private readonly _plugins: GwenPlugin[] = [];

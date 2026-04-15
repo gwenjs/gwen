@@ -1,9 +1,8 @@
 /**
- * @file definePlugin — factory API for GWEN plugins (RFC-002).
+ * @file definePlugin — factory API for GWEN plugins.
  *
  * Returns a typed factory function. Plugin authors provide a factory that
  * returns a plain object conforming to the {@link GwenPlugin} interface
- * (RFC-001: `setup(engine)` / `teardown()`).
  *
  * @example TypeScript plugin
  * ```typescript
@@ -24,7 +23,8 @@
  * ```
  */
 
-import type { GwenPlugin, GwenEngine } from "@gwenjs/core";
+import type { GwenPlugin } from "@gwenjs/schema";
+import type { GwenEngine } from "@gwenjs/core";
 
 export type { GwenEngine };
 
@@ -37,8 +37,6 @@ export type { GwenEngine };
  *
  * @typeParam Options - Options the factory accepts (`void` = no options needed).
  * @typeParam P - The plugin type the factory produces.
- *
- * @since 1.0.0
  */
 export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends [void]
   ? () => P
@@ -116,8 +114,6 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
  * const plugin = MyPlugin({ debug: true })
  * await engine.use(plugin)
  * ```
- *
- * @since 1.0.0
  */
 export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
   factory: (options?: TOptions) => TPlugin,

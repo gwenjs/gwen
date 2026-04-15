@@ -23,6 +23,9 @@ declare module "@gwenjs/core" {
   interface GwenProvides {
     viewportManager: ViewportManager;
   }
+}
+
+declare module "@gwenjs/schema" {
   interface GwenRuntimeHooks {
     "viewport:add": (payload: { id: string; region: ViewportRegion }) => void;
     "viewport:resize": (payload: { id: string; region: ViewportRegion }) => void;
@@ -40,6 +43,7 @@ export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager 
 
   const manager = new ViewportManagerImpl((event, payload) => {
     // fire-and-forget — viewport hooks are synchronous listeners only
+    // cast mirrors emit.ts: callHook only accepts known keys statically
     (engine.hooks.callHook as (name: string, ...args: unknown[]) => void)(event, payload);
   });
   engine.provide("viewportManager", manager);

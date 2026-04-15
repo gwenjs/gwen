@@ -51,7 +51,7 @@ export { CameraCorePlugin } from "./camera-core-plugin.js";
 // viewport:* hooks are declared in @gwenjs/renderer-core.
 import type { EntityId } from "@gwenjs/core";
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   interface GwenRuntimeHooks {
     /**
      * Fired the first time a camera becomes active on a viewport.
