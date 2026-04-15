@@ -176,3 +176,33 @@ describe("useSceneRouter()", () => {
     expect(() => useSceneRouter(AppRouter)).toThrow(/useSceneRouter.*engine/i);
   });
 });
+
+describe("useSceneRouter — engine:stop cleanup", () => {
+  it("clears onTransition listeners when the engine stops", async () => {
+    const engine = await createEngine();
+    const A = defineScene("CleanupA", () => {});
+    const B = defineScene("CleanupB", () => {});
+    const SimpleRouter = defineSceneRouter({
+      initial: "a",
+      routes: {
+        a: { scene: A, on: { GO: "b" } },
+        b: { scene: B, on: {} },
+      },
+    });
+
+    let handle!: ReturnType<typeof useSceneRouter<typeof SimpleRouter.options.routes>>;
+    engine.run(() => {
+      handle = useSceneRouter(SimpleRouter);
+    });
+
+    const listener = vi.fn();
+    handle.onTransition(listener);
+
+    await engine.stop();
+
+    // Listeners array must have been cleared by the engine:stop hook.
+    // Calling send() now should not invoke the listener.
+    await handle.send("GO");
+    expect(listener).not.toHaveBeenCalled();
+  });
+});

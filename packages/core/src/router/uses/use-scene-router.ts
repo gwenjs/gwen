@@ -88,6 +88,13 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   const overlayStack: StatesOf<TRoutes>[] = [];
   const listeners: TransitionListener<TRoutes>[] = [];
 
+  // Clear listeners and the cache entry when the engine stops so closures captured
+  // by onTransition() handlers do not prevent garbage collection.
+  engine.hooks.hook("engine:stop", () => {
+    listeners.length = 0;
+    routerCacheByEngine.get(engine)?.delete(routerDef);
+  });
+
   // Activate initial scene (fire-and-forget with full context scope)
   const initialScene = resolveScene(routes[currentState as keyof TRoutes].scene);
   if (initialScene.onEnter) {

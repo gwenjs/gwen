@@ -29,6 +29,8 @@
  */
 
 import { createEntityId, unpackEntityId, type EntityId } from "./engine-api";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "./engine-errors";
 
 // ─── Re-exports from extracted type module ──────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -300,6 +302,8 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
     const blobUrl = URL.createObjectURL(blob);
 
     ctx[`${key}__resolve`] = () => {
+      // Delete the resolver reference so it doesn't linger on globalThis.
+      delete ctx[`${key}__resolve`];
       URL.revokeObjectURL(blobUrl);
       script.remove();
       resolve(ctx[key] as WasmGlueModule);
@@ -309,9 +313,16 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
     script.type = "module";
     script.src = blobUrl;
     script.onerror = (e) => {
+      // Delete the resolver reference that was set before the script ran.
+      delete ctx[`${key}__resolve`];
       URL.revokeObjectURL(blobUrl);
       script.remove();
-      reject(new Error(`[GWEN] Unable to load WASM glue: ${jsUrl}\n${e}`));
+      reject(
+        new GwenError(
+          CoreErrorCodes.WASM_LOAD_ERROR,
+          `[GWEN] Unable to load WASM glue: ${jsUrl}\n${e}`,
+        ),
+      );
     };
 
     document.head.appendChild(script);
@@ -823,6 +834,11 @@ export function _resetWasmBridge(): void {
   _queryResultView = null;
   _maxEntities = 10_000;
   _bridge._resetBulkBuffers();
+  // Clear the globalThis glue cache so the next initWasm() re-loads cleanly (between tests).
+  const ctx = globalThis as Record<string, unknown>;
+  for (const key of Object.keys(ctx)) {
+    if (key.startsWith("__gwenGlue_")) delete ctx[key];
+  }
 }
 
 // #endregion

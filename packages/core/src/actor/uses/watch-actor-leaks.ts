@@ -127,7 +127,15 @@ export function watchActorLeaks(
   if (engine) {
     // Hook-based: synchronised with the game loop — no false positives from bursts.
     const unsub = engine.hooks.hook("engine:afterTick", tick);
-    return unsub;
+    // Auto-unsubscribe when the engine stops so callers don't need to save the return value.
+    const stopOnEngineStop = engine.hooks.hook("engine:stop", () => {
+      unsub();
+      stopOnEngineStop();
+    });
+    return () => {
+      unsub();
+      stopOnEngineStop();
+    };
   }
 
   // Fallback: polling via setInterval when no engine is available.
