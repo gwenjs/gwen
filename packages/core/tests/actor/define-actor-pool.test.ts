@@ -777,3 +777,43 @@ describe("DeferredReleaseQueue — double-release guard", () => {
     expect(pool.stats().available).toBe(1); // one slot freed, not two
   });
 });
+
+// ─── teardown ────────────────────────────────────────────────────────────────
+
+describe("defineActorPool — teardown", () => {
+  it("acquire() throws after engine.unuse(pool._plugin.name)", async () => {
+    const { engine, pool } = await makePool(5);
+    pool.acquire(); // ensure at least one slot is active
+
+    await engine.unuse(pool._plugin.name);
+
+    expect(() => pool.acquire()).toThrow("[GWEN]");
+  });
+
+  it("resets stats to zero after teardown", async () => {
+    const { engine, pool } = await makePool(5);
+    pool.acquire();
+    pool.acquire();
+
+    await engine.unuse(pool._plugin.name);
+
+    const s = pool.stats();
+    expect(s.active).toBe(0);
+    expect(s.available).toBe(0);
+    expect(s.acquireCount).toBe(0);
+    expect(s.peakActive).toBe(0);
+  });
+
+  it("pool can be re-registered on the same engine after teardown", async () => {
+    const { engine, pool } = await makePool(5);
+    pool.acquire();
+
+    await engine.unuse(pool._plugin.name);
+
+    // Re-register — must succeed and produce a working pool
+    await engine.use(pool._plugin);
+    const id = pool.acquire();
+    expect(typeof id).toBe("bigint");
+    expect(pool.stats().active).toBe(1);
+  });
+});

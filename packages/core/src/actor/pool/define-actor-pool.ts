@@ -264,6 +264,17 @@ export function defineActorPool<Props, PublicAPI>(
 
   const _plugin: GwenPlugin = {
     name: `pool:${actorName}`,
+    teardown(): void {
+      // Reset all mutable state so the pool closure is ready for re-registration.
+      // Entities were already destroyed by the engine:stop hook (scope: "global") or
+      // by an explicit destroyAll() call before unuse(). We only need to clear
+      // the internal bookkeeping here.
+      _engine = null;
+      _available.length = 0;
+      _active.clear();
+      _peakActive = 0;
+      _acquireCount = 0;
+    },
     setup(engine: GwenEngine): void {
       _engine = engine;
 
