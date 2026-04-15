@@ -14,7 +14,6 @@ import { GwenContextError, engineContext } from "../../engine/context";
 import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
-import { _withComposableContext } from "../../composable/context";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -61,7 +60,7 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   _currentSceneCtx = ctx;
   if (engine) engine[_SCENE_CONTEXT_SYMBOL] = ctx;
   try {
-    _withComposableContext("scene", factory);
+    factory();
   } finally {
     _currentSceneCtx = prev;
     if (engine) {

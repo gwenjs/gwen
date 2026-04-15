@@ -115,7 +115,3 @@ export { detectSharedMemoryRequired } from "./utils/variant-detector";
 export * from "./tween/index";
 
 export { ErrorCodes } from "./engine/engine-errors";
-
-// Composable context — declare context requirements for reusable composables
-export { defineComposable } from "./composable/context";
-export type { ComposableContext } from "./composable/context";

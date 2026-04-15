@@ -48,7 +48,6 @@ import type {
   RenderFn,
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
-import { _withComposableContext } from "../../composable/context";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -566,11 +565,9 @@ export function defineActor<Props = void, PublicAPI = void>(
     //    Wrapped in withCleanup so any onCleanup() calls are collected and fired on despawn.
     let api: PublicAPI | undefined;
     const [, cleanupDispose] = withCleanup(() => {
-      _withComposableContext("actor", () => {
-        _withActorContext(instance, _engine!, () => {
-          _withSystemContext(ctx, () => {
-            api = (factory as (props?: Props) => PublicAPI)(props);
-          });
+      _withActorContext(instance, _engine!, () => {
+        _withSystemContext(ctx, () => {
+          api = (factory as (props?: Props) => PublicAPI)(props);
         });
       });
     });

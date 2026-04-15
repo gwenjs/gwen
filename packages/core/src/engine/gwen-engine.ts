@@ -38,7 +38,6 @@ import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memo
 import { validateEngineConfig } from "./engine-config-validator";
 import type { TweenPoolPolicy } from "../tween/runtime/tween-pool";
 import { initWasm } from "./wasm-bridge";
-import { _withComposableContext } from "../composable/context";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -293,9 +292,7 @@ class GwenEngineImpl implements GwenEngine {
       // engineContext.call() saves and restores the previous context (safe for nesting).
       let setupResult: void | Promise<void>;
       const [, dispose] = withCleanup(() => {
-        setupResult = engineContext.call(this, () =>
-          _withComposableContext("engine", () => plugin.setup(engineWithScopedHooks)),
-        );
+        setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
       });
       this._pluginCleanups.set(plugin.name, dispose);
       if (setupResult! instanceof Promise) await setupResult!;
@@ -375,7 +372,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   run<T>(fn: () => T): T {
-    return engineContext.call(this, () => _withComposableContext("engine", fn));
+    return engineContext.call(this, fn);
   }
 
   /**
