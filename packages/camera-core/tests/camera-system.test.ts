@@ -72,7 +72,7 @@ describe("CameraSystem — follow target", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16); // one frame
+    await engine.advance(0.016); // one frame
 
     const cameras = engine.inject("cameraManager");
     const state = cameras.get("main");
@@ -139,7 +139,7 @@ describe("CameraSystem — bounds clamp", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.worldTransform.position.x).toBeCloseTo(200); // clamped
@@ -177,7 +177,7 @@ describe("CameraSystem — shake", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // Camera.x must remain 50 (shake does not write back to Camera component)
     expect(engine.getComponent(camId, Camera)?.x).toBe(50);
@@ -218,7 +218,7 @@ describe("CameraSystem — shake", () => {
     cameraViewportMap.set(camId, "main");
 
     // trauma starts at 1.0, decay=1.0 per second, dt=16ms → should be near 0.984
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(engine.getComponent(camId, CameraShake)?.trauma).toBeLessThan(1.0);
   });
 });
@@ -248,7 +248,7 @@ describe("CameraSystem — inactive camera", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(engine.inject("cameraManager").get("main")).toBeUndefined();
   });
@@ -282,7 +282,7 @@ describe("CameraSystem — semantic hooks", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(activateSpy).toHaveBeenCalledWith({ viewportId: "main", entityId: camId });
   });
@@ -314,7 +314,7 @@ describe("CameraSystem — semantic hooks", () => {
     });
     cameraViewportMap.set(cam1, "main");
 
-    await engine.advance(16); // cam1 becomes active
+    await engine.advance(0.016); // cam1 becomes active
 
     const cam2 = engine.createEntity();
     engine.addComponent(cam2, Camera, {
@@ -338,7 +338,7 @@ describe("CameraSystem — semantic hooks", () => {
     const cam1Data = engine.getComponent(cam1, Camera)!;
     engine.addComponent(cam1, Camera, { ...cam1Data, active: 0 });
 
-    await engine.advance(16); // cam2 takes over
+    await engine.advance(0.016); // cam2 takes over
 
     expect(switchSpy).toHaveBeenCalledWith(
       expect.objectContaining({ viewportId: "main", from: cam1, to: cam2 }),
@@ -394,7 +394,7 @@ describe("CameraSystem — follow offset", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.worldTransform.position.x).toBeCloseTo(110);
@@ -448,7 +448,7 @@ describe("CameraSystem — follow offset", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     // lerp=0.5 → 0 + (100 - 0) * 0.5 = 50
@@ -512,7 +512,7 @@ describe("CameraSystem — bounds min clamp", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.worldTransform.position.x).toBeCloseTo(-100);
@@ -544,7 +544,7 @@ describe("CameraSystem — projection type", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.projection.type).toBe("orthographic");
@@ -578,7 +578,7 @@ describe("CameraSystem — projection type", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.projection.type).toBe("perspective");
@@ -620,7 +620,7 @@ describe("CameraSystem — shake offset affects position", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const state = engine.inject("cameraManager").get("main");
     expect(state).toBeDefined();
@@ -673,7 +673,7 @@ describe("CameraSystem — multi-camera priority", () => {
     });
     cameraViewportMap.set(highCam, "main");
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // CameraManager should hold the state from highCam (priority wins)
     const state = engine.inject("cameraManager").get("main");
@@ -709,13 +709,13 @@ describe("CameraSystem — camera:deactivate hook", () => {
     });
     cameraViewportMap.set(camId, "main");
 
-    await engine.advance(16); // camera becomes active
+    await engine.advance(0.016); // camera becomes active
 
     // Deactivate the camera
     const camData = engine.getComponent(camId, Camera)!;
     engine.addComponent(camId, Camera, { ...camData, active: 0 });
 
-    await engine.advance(16); // no active camera → deactivate
+    await engine.advance(0.016); // no active camera → deactivate
 
     expect(deactivateSpy).toHaveBeenCalledWith({ viewportId: "main" });
   });
@@ -753,7 +753,7 @@ describe("CameraSystem — CameraPath", () => {
       elapsed: 0,
     });
 
-    await engine.advance(16); // 16ms > 10ms duration → progress=1 → snap
+    await engine.advance(0.016); // 16ms > 10ms duration → progress=1 → snap
 
     const state = engine.inject("cameraManager").get("main");
     expect(state?.worldTransform.position.x).toBeCloseTo(200);
@@ -792,7 +792,7 @@ describe("CameraSystem — CameraPath", () => {
       elapsed: 0,
     });
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(onComplete).toHaveBeenCalledOnce();
     // path data should be removed after completion
@@ -829,7 +829,7 @@ describe("CameraSystem — CameraPath", () => {
       elapsed: 0,
     });
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // After looping, index resets to 0 and path data is still present
     expect(cameraPathStore.has(camId)).toBe(true);
@@ -860,7 +860,7 @@ describe("CameraSystem — CameraPath", () => {
     });
     // NOT setting cameraViewportMap
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(engine.inject("cameraManager").get("main")).toBeUndefined();
   });

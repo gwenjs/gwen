@@ -52,7 +52,7 @@ describe("defineSystem — factory pattern", () => {
     expect(plugin.name).toBeDefined();
 
     await engine.use(plugin);
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(receivedDeps).toEqual(["hello"]);
   });
@@ -74,10 +74,10 @@ describe("defineSystem — factory pattern", () => {
     });
 
     await engine.use(Sys());
-    await engine.advance(16);
-    await engine.advance(32);
+    await engine.advance(0.016);
+    await engine.advance(0.032);
 
-    expect(frames).toEqual([16, 32]);
+    expect(frames).toEqual([0.016, 0.032]);
   });
 
   it("onBeforeUpdate and onAfterUpdate callbacks run in correct phase", async () => {
@@ -92,7 +92,7 @@ describe("defineSystem — factory pattern", () => {
       })(),
     );
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(order).toEqual(["before", "update", "after"]);
   });
@@ -117,7 +117,7 @@ describe("defineSystem — factory pattern", () => {
 
     // Now use the plugin for real
     await engine.use(plugin);
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // onUpdate registered only once (from real setup), not twice
     expect(frames).toHaveLength(1);

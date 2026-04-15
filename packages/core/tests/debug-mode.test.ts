@@ -135,7 +135,7 @@ describe("over-budget phase warning", () => {
     let callCount = 0;
     vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
 
-    await engine.advance(16.67);
+    await engine.advance(1 / 60);
 
     expect(warnings.length).toBe(0);
   });
@@ -151,7 +151,7 @@ describe("over-budget phase warning", () => {
     let callCount = 0;
     vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
 
-    await engine.advance(16.67);
+    await engine.advance(1 / 60);
 
     expect(warnings.length).toBeGreaterThan(0);
     // Each warning message should contain the word "exceeded"
@@ -168,7 +168,7 @@ describe("over-budget phase warning", () => {
     let callCount = 0;
     vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
 
-    await engine.advance(16.67);
+    await engine.advance(1 / 60);
 
     // At least one warning entry should carry structured context
     const withData = entries.filter((e) => e.data !== undefined);
@@ -184,6 +184,6 @@ describe("over-budget phase warning", () => {
     const engine = await createEngine({ debug: true, targetFPS: 60 });
     engine.logger.setSink(() => {}); // silence output
 
-    await expect(engine.advance(16.67)).resolves.not.toThrow();
+    await expect(engine.advance(1 / 60)).resolves.not.toThrow();
   });
 });

@@ -42,7 +42,6 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
 
   onAfterUpdate((dt) => {
     _frame++;
-    const dtSeconds = dt / 1000;
 
     cameras.clearFrame();
 
@@ -82,7 +81,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
         if (!pathComp) continue;
         const wp = pathData.waypoints[pathComp.index as number];
         if (wp) {
-          pathData.elapsed += dtSeconds;
+          pathData.elapsed += dt;
           const progress = Math.min(pathData.elapsed / wp.duration, 1);
           engine.addComponent(id, CameraPath, { ...pathComp, progress });
           if (progress >= 1) {
@@ -135,7 +134,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       if (shake && shake.trauma > 0) {
         shakeX = shakeOffset(shake.trauma, _frame) * shake.maxX;
         shakeY = shakeOffset(shake.trauma, _frame + 100) * shake.maxY;
-        const newTrauma = Math.max(0, shake.trauma - shake.decay * dtSeconds);
+        const newTrauma = Math.max(0, shake.trauma - shake.decay * dt);
         engine.addComponent(id, CameraShake, { ...shake, trauma: newTrauma });
       }
 

@@ -1,23 +1,3 @@
-/**
- * RFC-008: Frame Loop v2 — 8-phase loop, WasmModuleHandle, and external-loop API.
- *
- * Covers:
- * - All 8 phases execute in the documented order
- * - engine.advance(dt) drives the loop from outside
- * - engine:tick hook fires before any onBeforeUpdate call
- * - engine:afterTick hook fires after all onRender calls
- * - stats.frameCount increments by 1 per advance() call
- * - stats.fps is updated after each frame (1000 / dt)
- * - WasmModuleHandle is returned from loadWasmModule (mock fetch)
- * - loadWasmModule deduplication: same name returns same handle
- * - getWasmModule returns the handle after loading
- * - getWasmModule throws if module not loaded
- * - startExternal() initialises without RAF
- * - Phase 4 WASM module step is called with handle + dt
- * - dt is capped at maxDeltaSeconds * 1000 ms
- * - re-entrant advance() throws
- */
-
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createEngine } from "../src/index.js";
 import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
@@ -125,7 +105,7 @@ function recordingPlugin(name: string, log: string[]): GwenPlugin {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-describe("RFC-008 — Frame Loop v2", () => {
+describe("Frame Loop v2", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
@@ -149,7 +129,7 @@ describe("RFC-008 — Frame Loop v2", () => {
       // Register a plugin that records each lifecycle call
       await engine.use(recordingPlugin("p1", log));
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(log).toEqual([
         "p1:setup", // setup happens in use(), not in advance()
@@ -180,7 +160,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(order.indexOf("tick-hook")).toBeLessThan(order.indexOf("onBeforeUpdate"));
     });
@@ -201,7 +181,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const renderIdx = order.indexOf("onRender");
       const afterTickIdx = order.indexOf("afterTick-hook");
@@ -223,7 +203,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(order.indexOf("before")).toBeLessThan(order.indexOf("update"));
     });
@@ -247,7 +227,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(order).toEqual(["first:update", "second:update"]);
     });
@@ -265,41 +245,41 @@ describe("RFC-008 — Frame Loop v2", () => {
     it("frameCount increments by 1 per advance() call", async () => {
       const engine = await makeEngine();
 
-      await engine.advance(16);
+      await engine.advance(0.016);
       expect(engine.frameCount).toBe(1);
 
-      await engine.advance(16);
+      await engine.advance(0.016);
       expect(engine.frameCount).toBe(2);
 
-      await engine.advance(16);
+      await engine.advance(0.016);
       expect(engine.frameCount).toBe(3);
     });
 
     it("getStats().frameCount matches frameCount getter", async () => {
       const engine = await makeEngine();
-      await engine.advance(16);
+      await engine.advance(0.016);
       expect(engine.getStats().frameCount).toBe(engine.frameCount);
     });
 
     it("getFPS() returns 1000 / dt after each frame", async () => {
       const engine = await makeEngine();
-      await engine.advance(16);
-      expect(engine.getFPS()).toBeCloseTo(1000 / 16, 5);
+      await engine.advance(0.016);
+      expect(engine.getFPS()).toBeCloseTo(1 / 0.016, 0);
     });
 
     it("getFPS() returns 0 when dt is 0", async () => {
       const engine = await makeEngine();
-      // dt=0 → capped to 0 (0 < maxDeltaSeconds*1000=100), so dt=0
+      // dt=0 → capped to 0 (0 < maxDeltaSeconds=0.1), so dt=0
       await engine.advance(0);
       expect(engine.getFPS()).toBe(0);
     });
 
-    it("getStats() includes fps and deltaTime", async () => {
+    it("getStats() includes fps and deltaTime in seconds", async () => {
       const engine = await makeEngine();
-      await engine.advance(20);
+      await engine.advance(0.02); // 20ms in seconds
       const stats = engine.getStats();
-      expect(stats.fps).toBeCloseTo(1000 / 20, 5);
-      expect(stats.deltaTime).toBe(20);
+      expect(stats.fps).toBeCloseTo(1 / 0.02, 5); // 50 fps
+      expect(stats.deltaTime).toBeCloseTo(0.02);
       expect(stats.frameCount).toBe(1);
     });
   });
@@ -307,6 +287,30 @@ describe("RFC-008 — Frame Loop v2", () => {
   // ── advance() behaviour ─────────────────────────────────────────────────────
 
   describe("advance()", () => {
+    it("caps dt at maxDeltaSeconds in seconds — proves dt is seconds not ms", async () => {
+      // With maxDeltaSeconds=0.1 and advance(1):
+      //   If dt is seconds: min(1, 0.1) = 0.1  ← correct
+      //   If dt is ms:      min(1, 100) = 1     ← bug: not capped
+      const engine = await makeEngine({ maxDeltaSeconds: 0.1 });
+      let receivedDt = -1;
+      await engine.use({
+        name: "probe",
+        setup() {},
+        onUpdate(dt) {
+          receivedDt = dt;
+        },
+      });
+      await engine.advance(1); // 1 second — well above the 0.1s cap
+      expect(receivedDt).toBeCloseTo(0.1, 5);
+    });
+
+    it("advance(1/60) produces fps ≈ 60 — proves fps formula uses seconds", async () => {
+      // fps = 1/dt when dt is seconds, or 1000/dt when dt is ms.
+      // With advance(1/60): if seconds, fps ≈ 60; if ms, fps ≈ 60000.
+      const engine = await makeEngine({ maxDeltaSeconds: 1 });
+      await engine.advance(1 / 60);
+      expect(engine.getFPS()).toBeCloseTo(60, 0);
+    });
     it("passes dt in milliseconds to plugin.onUpdate", async () => {
       const engine = await makeEngine();
       let receivedDt = -1;
@@ -319,11 +323,11 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16.67);
-      expect(receivedDt).toBeCloseTo(16.67, 5);
+      await engine.advance(1 / 60);
+      expect(receivedDt).toBeCloseTo(1 / 60, 5);
     });
 
-    it("caps dt at maxDeltaSeconds * 1000 ms", async () => {
+    it("aps dt at maxDeltaSeconds (seconds)", async () => {
       const engine = await makeEngine({ maxDeltaSeconds: 0.05 }); // cap = 50 ms
       let receivedDt = -1;
 
@@ -335,11 +339,11 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(999); // way above cap
-      expect(receivedDt).toBeCloseTo(50, 5);
+      await engine.advance(1); // 1s — well above the 0.05s cap
+      expect(receivedDt).toBeCloseTo(0.05, 5);
     });
 
-    it("does not cap dt below maxDeltaSeconds * 1000", async () => {
+    it("does not cap dt below maxDeltaSeconds", async () => {
       const engine = await makeEngine({ maxDeltaSeconds: 0.1 }); // cap = 100 ms
       let receivedDt = -1;
 
@@ -351,8 +355,8 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
-      expect(receivedDt).toBeCloseTo(16, 5);
+      await engine.advance(0.016);
+      expect(receivedDt).toBeCloseTo(0.016, 5);
     });
 
     it("throws on re-entrant calls", async () => {
@@ -370,17 +374,17 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      const first = engine.advance(16);
+      const first = engine.advance(0.016);
       // Calling advance while the first one is pending must throw
-      await expect(engine.advance(16)).rejects.toThrow(/re-entrantly/);
+      await expect(engine.advance(0.016)).rejects.toThrow(/re-entrantly/);
       resolveBlock();
       await first;
     });
 
     it("clears re-entrancy flag after normal completion", async () => {
       const engine = await makeEngine();
-      await engine.advance(16);
-      await expect(engine.advance(16)).resolves.toBeUndefined();
+      await engine.advance(0.016);
+      await expect(engine.advance(0.016)).resolves.toBeUndefined();
     });
   });
 
@@ -417,7 +421,7 @@ describe("RFC-008 — Frame Loop v2", () => {
     it("allows advance() to be called immediately after startExternal()", async () => {
       const engine = await makeEngine();
       await engine.startExternal();
-      await expect(engine.advance(16)).resolves.toBeUndefined();
+      await expect(engine.advance(0.016)).resolves.toBeUndefined();
     });
   });
 
@@ -565,10 +569,10 @@ describe("RFC-008 — Frame Loop v2", () => {
         step: stepFn,
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(stepFn).toHaveBeenCalledOnce();
-      expect(stepFn).toHaveBeenCalledWith(handle, 16);
+      expect(stepFn).toHaveBeenCalledWith(handle, 0.016);
     });
 
     it("calls step for multiple modules in registration order", async () => {
@@ -590,7 +594,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(order).toEqual(["first", "second"]);
     });
@@ -618,7 +622,7 @@ describe("RFC-008 — Frame Loop v2", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const beforeIdx = order.indexOf("onBeforeUpdate");
       const wasmIdx = order.indexOf("wasmStep");
@@ -633,7 +637,7 @@ describe("RFC-008 — Frame Loop v2", () => {
 
       // Should not throw even with no step
       await engine.loadWasmModule({ name: "nostep", url: "http://x/nostep.wasm" });
-      await expect(engine.advance(16)).resolves.toBeUndefined();
+      await expect(engine.advance(0.016)).resolves.toBeUndefined();
     });
 
     it("passes the capped dt to the step function", async () => {
@@ -650,7 +654,7 @@ describe("RFC-008 — Frame Loop v2", () => {
 
       await engine.advance(999); // above cap
 
-      expect(receivedDts[0]).toBeCloseTo(50, 5);
+      expect(receivedDts[0]).toBeCloseTo(0.05, 5);
     });
   });
 

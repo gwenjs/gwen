@@ -204,7 +204,7 @@ describe("useComponent — $set batch write", () => {
     await engine.use(Actor._plugin);
     const entityId = Actor._plugin.spawn!();
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = engine.getComponent(entityId! as never, Position as any) as any;
@@ -230,7 +230,7 @@ describe("useComponent — $set batch write", () => {
     await engine.use(Actor._plugin);
     const entityId = Actor._plugin.spawn!();
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = engine.getComponent(entityId as never, Position as any) as any;
@@ -272,7 +272,7 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
     const id = pool.acquire();
     pool.release(id);
     // release() is deferred — advance one frame to flush it and set _isDormant.
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // Actor is now dormant — hook must not invoke the handler.
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 99n);
@@ -294,7 +294,7 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
     const id = pool.acquire();
     pool.release(id);
     // Flush deferred release so the slot becomes available.
-    await engine.advance(16);
+    await engine.advance(0.016);
     pool.acquire(); // re-acquire — _isDormant set back to false
 
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 1n);

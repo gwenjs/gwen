@@ -78,7 +78,7 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       await engine.startExternal();
 
       // Should be able to call advance() without error
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       // Should be able to call stop()
       await engine.stop();
@@ -94,9 +94,9 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       });
 
       await engine.startExternal();
-      await engine.advance(16);
-      await engine.advance(16);
-      await engine.advance(16);
+      await engine.advance(0.016);
+      await engine.advance(0.016);
+      await engine.advance(0.016);
 
       expect(tickCount).toBe(3);
       await engine.stop();
@@ -214,7 +214,7 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       });
 
       await engine.startExternal();
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(tickCount).toBe(1);
       await engine.stop();

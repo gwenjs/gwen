@@ -292,7 +292,7 @@ describe("getTweenManager() singleton", () => {
 
 describe("engine.advance() drives tween via engine:tick hook", () => {
   it("tween value updates when engine advances", async () => {
-    const engine = await createEngine({ maxEntities: 100 });
+    const engine = await createEngine({ maxEntities: 100, maxDeltaSeconds: 1 });
     let capturedTween: ReturnType<typeof useTween<number>> | null = null;
 
     await engine.use({

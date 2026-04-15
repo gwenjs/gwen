@@ -382,12 +382,12 @@ describe("UnsubscribeFn", () => {
     });
 
     // Before unsubscribe — handler fires.
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(handler).toHaveBeenCalledOnce();
 
     // After unsubscribe — handler no longer fires.
     unsub!();
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(handler).toHaveBeenCalledOnce(); // still once, not twice
 
     await engine.stop();

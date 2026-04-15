@@ -150,7 +150,7 @@ describe("useSystem — SystemHandle gating within scene", () => {
     await engine.use(MyScene({ register: () => {} }).systems[0]!);
 
     handle.pause();
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(spy).not.toHaveBeenCalled();
   });
 });

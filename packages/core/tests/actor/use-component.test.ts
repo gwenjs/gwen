@@ -25,7 +25,7 @@ describe("useComponent", () => {
     Actor._plugin.spawn();
 
     // Advance one full frame — triggers plugin.onUpdate → instance._update callbacks
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // Component x defaults to 0 from prefab; 0 is defined (not undefined)
     expect(capturedX).toBeDefined();
@@ -45,7 +45,7 @@ describe("useComponent", () => {
     const entityId = Actor._plugin.spawn();
 
     // Advance one full frame — proxy setter runs inside onUpdate
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const component = engine.getComponent(entityId! as never, Position as any);
@@ -67,7 +67,7 @@ describe("useComponent — in-place update behaviour", () => {
     });
     await engine.use(Actor._plugin);
     const id = Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };
@@ -86,7 +86,7 @@ describe("useComponent — in-place update behaviour", () => {
     });
     await engine.use(Actor._plugin);
     const id = Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };
@@ -108,8 +108,8 @@ describe("useComponent — in-place update behaviour", () => {
     });
     await engine.use(Actor._plugin);
     const id = Actor._plugin.spawn();
-    await engine.advance(16);
-    await engine.advance(16);
+    await engine.advance(0.016);
+    await engine.advance(0.016);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const comp = engine.getComponent(id as never, Position as any) as { x: number; y: number };

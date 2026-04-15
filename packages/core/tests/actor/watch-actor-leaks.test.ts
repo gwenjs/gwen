@@ -175,11 +175,11 @@ describe("watchActorLeaks — hook-based mode", () => {
 
     // Spawn one per tick — 3 ticks ensures streak ≥ 2.
     Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
     Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
     Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(leaks).toContain(Actor.__actorName__);
 
@@ -199,9 +199,9 @@ describe("watchActorLeaks — hook-based mode", () => {
 
     stop(); // stop before any frames
     Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
     Actor._plugin.spawn();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(onLeak).not.toHaveBeenCalled();
     await engine.stop();

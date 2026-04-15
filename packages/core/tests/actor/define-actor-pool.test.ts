@@ -47,7 +47,7 @@ describe("dormant frame skip", () => {
     Actor._instances.get(id)!._isDormant = true;
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).not.toHaveBeenCalled();
@@ -64,7 +64,7 @@ describe("dormant frame skip", () => {
     Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ describe("dormant frame skip", () => {
     Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).not.toHaveBeenCalled();
@@ -98,7 +98,7 @@ describe("dormant frame skip", () => {
     Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).not.toHaveBeenCalled();
@@ -116,11 +116,11 @@ describe("dormant frame skip", () => {
     inst._isDormant = true;
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(spy).not.toHaveBeenCalled();
 
     inst._isDormant = false;
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).toHaveBeenCalledOnce();
@@ -136,7 +136,7 @@ describe("dormant frame skip", () => {
     Actor._plugin.spawn!();
 
     await engine.start();
-    await engine.advance(16);
+    await engine.advance(0.016);
     await engine.stop();
 
     expect(spy).toHaveBeenCalled();
@@ -267,7 +267,7 @@ async function makePool(size: number, opts?: Partial<Parameters<typeof defineAct
 }
 
 async function flush(engine: Awaited<ReturnType<typeof createEngine>>) {
-  await engine.advance(16);
+  await engine.advance(0.016);
 }
 
 // ─── acquire ─────────────────────────────────────────────────────────────────
@@ -773,7 +773,7 @@ describe("DeferredReleaseQueue — double-release guard", () => {
     pool.release(id); // second call — must be a no-op
 
     // Should not throw — only one actual _doRelease runs.
-    await expect(engine.advance(16)).resolves.not.toThrow();
+    await expect(engine.advance(0.016)).resolves.not.toThrow();
     expect(pool.stats().available).toBe(1); // one slot freed, not two
   });
 });

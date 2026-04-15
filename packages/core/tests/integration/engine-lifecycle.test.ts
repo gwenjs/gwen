@@ -55,11 +55,11 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
     const log: string[] = [];
     await engine.use(makeRecorder("B", log));
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
-    expect(log).toContain("B:beforeUpdate:16");
-    expect(log).toContain("B:update:16");
-    expect(log).toContain("B:afterUpdate:16");
+    expect(log).toContain("B:beforeUpdate:0.016");
+    expect(log).toContain("B:update:0.016");
+    expect(log).toContain("B:afterUpdate:0.016");
     expect(log).toContain("B:render");
   });
 
@@ -68,7 +68,7 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
     const log: string[] = [];
     await engine.use(makeRecorder("C", log));
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     const phases = log.filter((e) => e.startsWith("C:")).map((e) => e.split(":")[1]);
     expect(phases).toEqual(["setup", "beforeUpdate", "update", "afterUpdate", "render"]);
@@ -90,7 +90,7 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
     await engine.unuse("E");
     log.length = 0; // reset after teardown
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(log).toHaveLength(0);
   });
 
@@ -120,7 +120,7 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
       },
     });
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(updateOrder).toEqual(["first", "second", "third"]);
   });
 
@@ -128,11 +128,11 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
     const engine = await createEngine();
     expect(engine.frameCount).toBe(0);
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(engine.frameCount).toBe(1);
 
-    await engine.advance(16);
-    await engine.advance(16);
+    await engine.advance(0.016);
+    await engine.advance(0.016);
     expect(engine.frameCount).toBe(3);
   });
 
@@ -148,8 +148,8 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
       },
     });
 
-    await engine.advance(10_000); // far above cap
-    expect(dts[0]).toBe(50);
+    await engine.advance(10); // far above cap
+    expect(dts[0]).toBe(0.05);
   });
 });
 
@@ -182,7 +182,7 @@ describe("Engine lifecycle — startExternal + advance", () => {
     });
 
     await engine.startExternal();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(calls).toContain("update");
   });
@@ -200,7 +200,7 @@ describe("Engine lifecycle — startExternal + advance", () => {
       },
     });
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(calls).toContain("update");
   });
 });
@@ -242,8 +242,8 @@ describe("Engine lifecycle — engine hooks fire during advance()", () => {
     let ticks = 0;
     engine.hooks.hook("engine:tick", () => ticks++);
 
-    await engine.advance(16);
-    await engine.advance(16);
+    await engine.advance(0.016);
+    await engine.advance(0.016);
 
     expect(ticks).toBe(2);
   });
@@ -253,9 +253,9 @@ describe("Engine lifecycle — engine hooks fire during advance()", () => {
     let afterTicks = 0;
     engine.hooks.hook("engine:afterTick", () => afterTicks++);
 
-    await engine.advance(16);
-    await engine.advance(16);
-    await engine.advance(16);
+    await engine.advance(0.016);
+    await engine.advance(0.016);
+    await engine.advance(0.016);
 
     expect(afterTicks).toBe(3);
   });
@@ -275,7 +275,7 @@ describe("Engine lifecycle — engine hooks fire during advance()", () => {
       },
     });
 
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(order.indexOf("tick")).toBeLessThan(order.indexOf("update"));
     expect(order.indexOf("update")).toBeLessThan(order.indexOf("afterTick"));

@@ -127,8 +127,8 @@ describe("engine.advance()", () => {
         dts.push(dt);
       },
     });
-    await engine.advance(1000); // 1000ms (1s) > 50ms cap (maxDeltaSeconds=0.05s → 50ms)
-    expect(dts[0]).toBe(50); // capped to 0.05 * 1000 = 50ms
+    await engine.advance(1); // 1s > maxDeltaSeconds cap of 0.05s
+    expect(dts[0]).toBe(0.05); // capped to maxDeltaSeconds
   });
 
   it("throws on re-entrant advance()", async () => {

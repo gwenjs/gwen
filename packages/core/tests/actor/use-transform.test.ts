@@ -117,10 +117,10 @@ describe("frame loop — update_transforms() called each frame (regression)", ()
     const bridge = getWasmBridge().engine();
     const spy = vi.spyOn(bridge, "update_transforms").mockImplementation(() => {});
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(spy).toHaveBeenCalledOnce();
 
-    await engine.advance(16);
+    await engine.advance(0.016);
     expect(spy).toHaveBeenCalledTimes(2);
   });
 });
@@ -148,7 +148,7 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
     handle!.translate(50, 30);
 
     // update_transforms() runs inside advance() — world should now reflect the translate
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(handle!.world.x).toBe(50);
     expect(handle!.world.y).toBe(30);
@@ -165,7 +165,7 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
     await engine.run(() => Actor._plugin.spawn());
 
     handle!.setPosition(100, 200);
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(handle!.world.x).toBe(100);
     expect(handle!.world.y).toBe(200);
@@ -182,9 +182,9 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
     await engine.run(() => Actor._plugin.spawn());
 
     handle!.translate(10, 0);
-    await engine.advance(16);
+    await engine.advance(0.016);
     handle!.translate(10, 0);
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(handle!.world.x).toBe(20);
   });

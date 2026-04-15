@@ -232,7 +232,7 @@ describe("useQuery()", () => {
 
     await engine.use(system());
     await engine.startExternal();
-    await engine.advance(16);
+    await engine.advance(0.016);
 
     expect(visited).toHaveLength(1);
     expect(visited[0]!.id).toBe(e);

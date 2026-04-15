@@ -1,10 +1,5 @@
 /**
  * Provides the new `createEngine(options?) → Promise<GwenEngine>` API
- * described in RFC-001. Internally delegates to the existing `Engine` class
- * so no existing behaviour is changed.
- *
- * RFC-008 adds: 8-phase frame loop, `WasmModuleHandle`, `loadWasmModule`,
- * `getWasmModule`, and `startExternal` for external-loop integration.
  *
  * PERF: This file intentionally co-locates hot-path functions to help V8's
  * inlining heuristics. Benchmark before splitting: packages/core/bench/engine-tick.bench.ts
@@ -415,7 +410,7 @@ class GwenEngineImpl implements GwenEngine {
       }
 
       const rawDt = now - this._lastFrameTime;
-      const dt = Math.min(rawDt, this.maxDeltaSeconds * 1000);
+      const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds);
       this._lastFrameTime = now;
       this._deltaTime = dt;
       try {
@@ -464,7 +459,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```typescript
    * await engine.startExternal()
    * // In a game loop / R3F useFrame:
-   * engine.advance(16.67)
+   * engine.advance(1 / 60)
    * ```
    */
   async startExternal(): Promise<void> {
@@ -479,8 +474,8 @@ class GwenEngineImpl implements GwenEngine {
       throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }
     this._advancing = true;
-    // Cap dt (ms) at maxDeltaSeconds converted to ms to prevent spiral-of-death.
-    const cappedDt = Math.min(dt, this.maxDeltaSeconds * 1000);
+    // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
+    const cappedDt = Math.min(dt, this.maxDeltaSeconds);
     this._deltaTime = cappedDt;
     try {
       await this._runFrame(cappedDt);
@@ -1033,7 +1028,7 @@ class GwenEngineImpl implements GwenEngine {
 
       // Phase 8 — update stats, then fire engine:afterTick hook
       this._frameCountOwn++;
-      this._fps = dt > 0 ? 1000 / dt : 0;
+      this._fps = dt > 0 ? 1 / dt : 0;
       await this.hooks.callHook("engine:afterTick", dt);
       const t8 = performance.now();
 

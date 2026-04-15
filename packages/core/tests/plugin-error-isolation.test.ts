@@ -35,7 +35,7 @@ describe("plugin error isolation", () => {
       };
       const engine = await createEngine();
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(onError).toHaveBeenCalledOnce();
       const [err, ctx] = onError.mock.calls[0]!;
@@ -57,7 +57,7 @@ describe("plugin error isolation", () => {
       };
       const engine = await createEngine({ errorBus: bus });
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const runtimeErrors = bus.emitted.filter(
         (e) => e.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
@@ -76,7 +76,7 @@ describe("plugin error isolation", () => {
       };
       const engine = await createEngine({ errorBus: bus });
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const runtimeErrors = bus.emitted.filter(
         (e) => e.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
@@ -103,7 +103,7 @@ describe("plugin error isolation", () => {
       };
       const engine = await createEngine();
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(capturedPhase).toBe("onRender");
       expect(typeof capturedFrame).toBe("number");
@@ -128,7 +128,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine();
       await engine.use(crasher);
       await engine.use(survivor);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(secondPluginCalled).toHaveBeenCalledOnce();
     });
@@ -152,7 +152,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine();
       await engine.use(crasher);
       await engine.use(survivor);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(secondPluginCalled).toHaveBeenCalledOnce();
     });
@@ -176,7 +176,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine();
       await engine.use(crasher);
       await engine.use(survivor);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(secondPluginCalled).toHaveBeenCalledOnce();
     });
@@ -197,7 +197,7 @@ describe("plugin error isolation", () => {
       await engine.use(plugin);
 
       // Should not throw
-      await expect(engine.advance(16)).resolves.toBeUndefined();
+      await expect(engine.advance(0.016)).resolves.toBeUndefined();
 
       // The PLUGIN_RUNTIME_ERROR should still be emitted (since recover was not called before onError threw)
       const runtimeErrors = bus.emitted.filter(
@@ -266,7 +266,7 @@ describe("plugin error isolation", () => {
         throw new WebAssembly.RuntimeError("unreachable executed");
       };
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const wasmPanics = bus.emitted.filter((e) => e.code === CoreErrorCodes.WASM_PANIC);
       expect(wasmPanics).toHaveLength(1);
@@ -282,7 +282,7 @@ describe("plugin error isolation", () => {
         throw new TypeError("not a wasm error");
       };
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const frameErrors = bus.emitted.filter((e) => e.code === CoreErrorCodes.FRAME_LOOP_ERROR);
       expect(frameErrors).toHaveLength(1);
@@ -312,7 +312,7 @@ describe("plugin error isolation", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       const wasmErrors = bus.emitted.filter((e) => e.source === "wasm:my-audio-mod");
       expect(wasmErrors).toHaveLength(1);
@@ -334,7 +334,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine();
       engine.hooks.hook("plugin:error", hookFired);
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(hookFired).toHaveBeenCalledOnce();
     });
@@ -354,7 +354,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine();
       engine.hooks.hook("plugin:error", hookFired);
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(hookFired).not.toHaveBeenCalled();
     });
@@ -381,7 +381,7 @@ describe("plugin error isolation", () => {
         payload = p;
       });
       await engine.use(plugin);
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(payload).toBeDefined();
       expect(payload!.pluginName).toBe("payload-check-plugin");
@@ -434,7 +434,7 @@ describe("plugin error isolation", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
       expect(secondCalled).toHaveBeenCalledOnce();
     });
 
@@ -469,7 +469,7 @@ describe("plugin error isolation", () => {
         },
       });
 
-      await engine.advance(16);
+      await engine.advance(0.016);
 
       expect(calls).toContain("onBeforeUpdate");
       expect(calls).toContain("onUpdate");
