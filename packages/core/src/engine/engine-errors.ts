@@ -5,6 +5,8 @@
  * engine dependencies. Safe to import without pulling in the full engine module.
  */
 
+import { GwenError } from "@gwenjs/schema";
+
 // ─── Error options ──────────────────────────────────────────────────────────
 
 /**
@@ -20,38 +22,19 @@ export interface GwenPluginNotFoundErrorOptions {
   docsUrl: string;
 }
 
-// ─── Error class ────────────────────────────────────────────────────────────
-
-/**
- * Thrown when a required plugin/service has not been registered with the engine.
- *
- * Provides an actionable error message with a hint for fixing the problem
- * and a link to the plugin documentation.
- *
- * throw new GwenPluginNotFoundError({
- *   pluginName: 'physics2d',
- *   hint: 'Call engine.use(physics2dPlugin()) before accessing this service.',
- *   docsUrl: 'https://gwenengine.dev/docs/plugins'
- * })
- * throw new GwenPluginNotFoundError({
- *   pluginName: '@gwenjs/physics2d',
- *   hint: 'Add @gwenjs/physics2d to the modules array in gwen.config.ts',
- *   docsUrl: 'https://gwenengine.dev/modules/physics2d',
- * })
- * ```
- */
-export class GwenPluginNotFoundError extends Error {
+export class GwenPluginNotFoundError extends GwenError {
   readonly pluginName: string;
-  /** Human-readable hint explaining how to fix the issue. */
   readonly hint: string;
-  /** URL to relevant documentation. */
   readonly docsUrl: string;
 
   constructor(opts: GwenPluginNotFoundErrorOptions) {
     const hint =
       opts.hint || `Add the "${opts.pluginName}" plugin via engine.use() or in gwen.config.ts.`;
     const docsUrl = opts.docsUrl || "https://gwenengine.dev/docs/plugins";
-    super(`[GwenEngine] Plugin/service "${opts.pluginName}" not found. ${hint}`);
+    super(
+      "GWEN_PLUGIN_NOT_FOUND",
+      `[GwenEngine] Plugin/service "${opts.pluginName}" not found. ${hint}`,
+    );
     this.name = "GwenPluginNotFoundError";
     this.pluginName = opts.pluginName;
     this.hint = hint;
@@ -105,14 +88,10 @@ export const ActorErrorCodes = {
  * }
  * ```
  */
-export class GwenActorError extends Error {
-  /** Machine-readable error code. */
-  readonly code: string;
-
+export class GwenActorError extends GwenError {
   constructor(code: string, message: string) {
-    super(message);
+    super(code, message);
     this.name = "GwenActorError";
-    this.code = code;
   }
 }
 
@@ -152,14 +131,10 @@ export const ComposableErrorCodes = {
  * }
  * ```
  */
-export class GwenComposableError extends Error {
-  /** Machine-readable error code from {@link ComposableErrorCodes}. */
-  readonly code: string;
-
+export class GwenComposableError extends GwenError {
   constructor(code: string, message: string) {
-    super(message);
+    super(code, message);
     this.name = "GwenComposableError";
-    this.code = code;
   }
 }
 

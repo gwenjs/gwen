@@ -2,6 +2,8 @@
  * @file Typed error for invalid engine configuration.
  */
 
+import { GwenError } from "@gwenjs/schema";
+
 /**
  * Thrown by {@link validateEngineConfig} when a config value is invalid or
  * out of the accepted range.
@@ -16,10 +18,8 @@
  *   }
  * }
  * ```
- *
- * @since 1.0.0
  */
-export class GwenConfigError extends Error {
+export class GwenConfigError extends GwenError {
   /** The name of the invalid config field (e.g. `'maxEntities'`). */
   readonly field: string;
   /** The value that was rejected. */
@@ -31,8 +31,7 @@ export class GwenConfigError extends Error {
   readonly hint: string;
 
   constructor(field: string, value: unknown, hint: string) {
-    super(`[GWEN] Invalid config — "${field}": ${String(value)}. ${hint}`);
-    Object.setPrototypeOf(this, GwenConfigError.prototype);
+    super("GWEN_CONFIG_ERROR", `[GWEN] Invalid config — "${field}": ${String(value)}. ${hint}`);
     this.name = "GwenConfigError";
     this.field = field;
     this.value = value;

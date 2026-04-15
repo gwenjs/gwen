@@ -14,12 +14,13 @@ import type { EntityId } from "./engine-api.js";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
 import type { TweenPoolPolicy } from "../tween/tween-pool.js";
-import type { PluginErrorContext } from "./engine-errors.js";
+import type { GwenPlugin, GwenEngineBase, GwenErrorBusBase } from "@gwenjs/schema";
+import { DisposableRegistry } from "../disposable";
 
-// Re-export so consumers can access via this module
-export type { PluginErrorContext } from "./engine-errors.js";
+// Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
+export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
 
-// ─── WASM module types (RFC-008) ────────────────────────────────────────────
+// ─── WASM module types ────────────────────────────────────────────
 
 /**
  * Options for loading a community WASM module via {@link GwenEngine.loadWasmModule}.
@@ -224,7 +225,7 @@ export interface PlacementBridge {
  * const engine = await createEngine({ errorBus: createErrorBus() })
  * ```
  */
-export interface EngineErrorBus {
+export interface EngineErrorBus extends GwenErrorBusBase {
   /**
    * Emit a structured error event.
    * Matches the signature of `GwenErrorBus.emit()` in `@gwenjs/kit`.
@@ -326,53 +327,6 @@ export interface GwenProvides {
 }
 
 /**
- * A GWEN plugin. Registered via {@link GwenEngine.use}.
- *
- * @example
- * ```typescript
- * const myPlugin: GwenPlugin = {
- *   name: 'my-plugin',
- *   setup(engine) {
- *     engine.provide('myService', new MyService())
- *   },
- *   onUpdate(dt) { ... },
- * }
- * ```
- */
-export interface GwenPlugin {
-  /** Unique plugin identifier. Used for deduplication and lookup. */
-  name: string;
-  /** Called once when the plugin is registered via `engine.use()`. */
-  setup(engine: GwenEngine): void | Promise<void>;
-  /** Called when the plugin is removed via `engine.unuse()`. */
-  teardown?(): void | Promise<void>;
-  /** Called every frame before physics/WASM step. */
-  onBeforeUpdate?(dt: number): void;
-  /** Called every frame after the WASM step. */
-  onUpdate?(dt: number): void;
-  /** Called every frame after `onUpdate`. */
-  onAfterUpdate?(dt: number): void;
-  /** Called every frame at the render phase. */
-  onRender?(): void;
-  /**
-   * Called when an error is thrown inside this plugin's lifecycle hooks.
-   * Implement to handle or recover from plugin-specific errors gracefully.
-   *
-   * Call `context.recover()` to suppress forwarding to the engine error bus.
-   *
-   * @example
-   * ```typescript
-   * onError(error, context) {
-   *   if (context.phase === 'onRender' && error instanceof DOMException) {
-   *     context.recover() // canvas context lost — handled
-   *   }
-   * }
-   * ```
-   */
-  onError?(error: unknown, context: PluginErrorContext): void;
-}
-
-/**
  * Per-phase timing breakdown for a single frame (in milliseconds).
  * Measured with `performance.now()` around each phase of `_runFrame`.
  */
@@ -421,23 +375,36 @@ export interface EngineStats {
  * engine.start()
  * ```
  */
-export interface GwenEngine {
+export interface GwenEngine extends GwenEngineBase {
   // ─── Plugin runner ──────────────────────────────────────────────────────
   /** Register and initialise a plugin. Deduplicates by `plugin.name`. */
   use(plugin: GwenPlugin): Promise<void>;
   /** Tear down and unregister a plugin by name. Safe to call with unknown names. */
   unuse(name: string): Promise<void>;
 
-  // ─── Typed provide/inject ───────────────────────────────────────────────
-  /** Register a named value in the typed service registry. */
+  // ─── Typed provide/inject (narrows GwenEngineBase to typed keys) ────────
   provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void;
-  /** Retrieve a value from the registry, throwing {@link GwenPluginNotFoundError} if absent. */
   inject<K extends keyof GwenProvides>(key: K): GwenProvides[K];
-  /** Retrieve a value from the registry, returning `undefined` if absent. */
   tryInject<K extends keyof GwenProvides>(key: K): GwenProvides[K] | undefined;
 
-  // ─── WASM bridge stub ───────────────────────────────────────────────────
-  /** Low-level WASM bridge. Physics2D/3D filled in by RFC-009. */
+  // ─── Hooks (narrows HookBusBase to full Hookable) ────────────────────────
+  readonly hooks: Hookable<GwenRuntimeHooks>;
+
+  // ─── Logger (inherited from GwenEngineBase, concrete type stays GwenLogger)
+  readonly logger: GwenLogger;
+
+  // ─── Context ─────────────────────────────────────────────────────────────
+  run<T>(fn: () => T): T;
+  activate(): void;
+  deactivate(): void;
+
+  // ─── Lifecycle ───────────────────────────────────────────────────────────
+  start(): Promise<void>;
+  stop(): Promise<void>;
+  startExternal(): Promise<void>;
+  advance(dt: number): Promise<void>;
+
+  // ─── WASM bridge ─────────────────────────────────────────────────────────
   readonly wasmBridge: {
     physics2d: {
       enabled: boolean;
@@ -452,222 +419,50 @@ export interface GwenEngine {
       step(dt: number): void;
     };
   };
-
-  // ─── Context (unctx — RFC-005) ──────────────────────────────────────────
-  /** Execute `fn` within this engine's context. `useEngine()` resolves inside `fn`. */
-  run<T>(fn: () => T): T;
-  /** Set this engine as the global active context. */
-  activate(): void;
-  /** Clear this engine from the active context. */
-  deactivate(): void;
-
-  // ─── Lifecycle ──────────────────────────────────────────────────────────
-  /** Initialise all plugins and start the RAF loop. */
-  start(): Promise<void>;
-  /** Stop the RAF loop and tear down all plugins. */
-  stop(): Promise<void>;
-  /**
-   * Start the engine without launching a RAF loop.
-   * Use this when an external host (e.g. React Three Fiber's `useFrame`, a
-   * test harness) drives the loop and calls {@link GwenEngine.advance} manually.
-   *
-   * @example
-   * ```typescript
-   * await engine.startExternal()
-   * useFrame(({ clock }) => engine.advance(clock.getDelta() * 1000))
-   * ```
-   */
-  startExternal(): Promise<void>;
-  /**
-   * Manually advance one tick (external loop mode).
-   * Delta time in **milliseconds** is capped at `maxDeltaSeconds * 1000`.
-   * Throws if called re-entrantly.
-   * @param dt - Delta time in **milliseconds** since the last frame.
-   */
-  advance(dt: number): Promise<void>;
-
-  // ─── WASM modules (RFC-008) ──────────────────────────────────────────────
-  /**
-   * Fetch and instantiate a community WASM module (Cas B).
-   * Registers it under `options.name` and returns a typed handle.
-   * Calling twice with the same name returns the same handle without re-fetching.
-   *
-   * @param options - Load options including URL and optional per-frame step.
-   * @returns A live {@link WasmModuleHandle} with typed exports and memory access.
-   * @throws {Error} If the fetch or instantiation fails.
-   *
-   * @example
-   * ```typescript
-   * const handle = await engine.loadWasmModule({
-   *   name: 'audio',
-   *   url: new URL('./audio.wasm', import.meta.url),
-   *   step: (h, dt) => (h.exports as { tick: (dt: number) => void }).tick(dt),
-   * })
-   * ```
-   */
   loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>>;
-  /**
-   * Retrieve a previously loaded WASM module by name.
-   *
-   * @param name - The name used when calling {@link GwenEngine.loadWasmModule}.
-   * @returns The live {@link WasmModuleHandle}.
-   * @throws {Error} If no module with the given name has been loaded.
-   *
-   * @example
-   * ```typescript
-   * const audio = engine.getWasmModule<AudioExports>('audio')
-   * audio.exports.playSound(42)
-   * ```
-   */
   getWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     name: string,
   ): WasmModuleHandle<Exports>;
 
-  // ─── ECS (RFC-005) ──────────────────────────────────────────────────────
-  // ─── Entity management ──────────────────────────────────────────────────
-  /**
-   * Create a new entity and return its unique ID.
-   * @returns A fresh {@link EntityId} guaranteed to be alive.
-   */
+  // ─── ECS ─────────────────────────────────────────────────────────────────
   createEntity(): EntityId;
-
-  /**
-   * Destroy an entity and remove all its components.
-   *
-   * @param id - The entity to destroy
-   * @returns `true` if the entity was alive and has been destroyed, `false` if it was already dead
-   */
   destroyEntity(id: EntityId): boolean;
-
-  /**
-   * Check whether an entity is still alive (i.e. has not been destroyed).
-   *
-   * @param id - The entity to check
-   * @returns `true` if alive
-   */
   isAlive(id: EntityId): boolean;
-
-  /**
-   * Check whether `count` additional entities can be allocated right now
-   * without exceeding `maxEntities`.
-   *
-   * Call this before a batch spawn loop to ensure all-or-nothing semantics:
-   * if this returns `false`, skip the whole batch rather than spawning a
-   * partial set that leaves the simulation in an inconsistent state.
-   *
-   * @param count - Number of entities you intend to create.
-   * @returns `true` if `count` entities can be created without hitting the cap.
-   *
-   * @example
-   * ```ts
-   * if (!engine.canSpawn(projectiles.length)) return;
-   * for (const p of projectiles) spawnProjectile(p);
-   * ```
-   */
   canSpawn(count: number): boolean;
-
-  // ─── Component management ────────────────────────────────────────────────
-  /**
-   * Attach a component to an entity, merging supplied data over the definition defaults.
-   *
-   * @param id - Target entity
-   * @param def - Component definition produced by {@link defineComponent}
-   * @param data - Partial component data — merged with `def.defaults`
-   */
   addComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
     data: Partial<InferComponent<D>>,
   ): void;
-
-  /**
-   * Retrieve the component data for an entity.
-   *
-   * @param id - Target entity
-   * @param def - Component definition to look up
-   * @returns The component data, or `undefined` if the entity does not have it
-   */
   getComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
   ): InferComponent<D> | undefined;
-
-  /**
-   * Check whether an entity has a specific component attached.
-   *
-   * @param id - Target entity
-   * @param def - Component definition to check
-   * @returns `true` if the component is present
-   */
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
-
-  /**
-   * Remove a component from an entity.
-   *
-   * @param id - Target entity
-   * @param def - Component definition to remove
-   * @returns `true` if the component was present and has been removed
-   */
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
-
-  /**
-   * Create a live query over the ECS world. Called by `useQuery()`.
-   * Returns an iterable that reflects the current ECS state each time you iterate.
-   *
-   * @param components - Component selectors to match against.
-   * @returns A live iterable of {@link EntityAccessor} objects.
-   */
   createLiveQuery<T extends ComponentDef>(components: T[]): LiveQuery<EntityAccessor>;
-
-  // ─── Internal WASM bridge accessors ───────────────────────────────────────
-
-  /**
-   * Returns a typed accessor for placement-related WASM bridge methods.
-   *
-   * Reserved for scene composables (`place.ts`, `use-layout.ts`).
-   * Do not call this from application code — use the placement composables
-   * (`placeActor`, `placePrefab`, `placeGroup`) instead.
-   *
-   * @internal
-   */
   getPlacementBridge(): PlacementBridge;
 
-  // ─── Hooks ──────────────────────────────────────────────────────────────
-  /** Typed hookable lifecycle instance. */
-  readonly hooks: Hookable<GwenRuntimeHooks>;
-
-  // ─── Config ─────────────────────────────────────────────────────────────
+  // ─── Config ──────────────────────────────────────────────────────────────
   readonly maxEntities: number;
   readonly targetFPS: number;
   readonly maxDeltaSeconds: number;
-  /**
-   * Identifies which core WASM binary is actively loaded running the engine.
-   *
-   * This is a **read-only reflection** of the state established during engine creation.
-   * It is not a runtime configuration property. The loaded variant dictates whether
-   * physics hooks (via `wasmBridge`) use fast native Rust code or TypeScript fallbacks.
-   */
   readonly variant: "light" | "physics2d" | "physics3d";
-
-  /** Whether debug mode is active. Reflects the `debug` option passed to `createEngine()`. */
   readonly debug: boolean;
-
-  /** Number of pre-allocated tween slots. Reflects `tweenPoolSize` from `createEngine()`. */
   readonly tweenPoolSize: number;
-
-  /** Growth and exhaustion policy for the tween pool. Reflects `tweenPoolPolicy` from `createEngine()`. */
   readonly tweenPoolPolicy: TweenPoolPolicy;
 
+  // ─── Disposables (concrete type for internal use) ─────────────────────────
   /**
-   * Structured logger for this engine instance.
-   * Call `engine.logger.child('@my/plugin')` to get a scoped child logger.
-   * The logger is also injectable: `engine.inject('logger')`.
+   * Named LIFO registry of engine-level disposables.
+   * Typed as `DisposableRegistry` (concrete class) here; exposed as
+   * `DisposableRegistryBase` via `GwenEngineBase` to plugin authors.
    */
-  readonly logger: GwenLogger;
+  readonly disposables: DisposableRegistry;
 
-  // ─── Stats ──────────────────────────────────────────────────────────────
+  // ─── Stats ───────────────────────────────────────────────────────────────
   readonly deltaTime: number;
   readonly frameCount: number;
   getFPS(): number;

@@ -44,7 +44,13 @@ export type { LogLevel, LogEntry, GwenLogger } from "./logger.js";
 
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
-export type { GwenRuntimeHooks, HookBusBase, GwenEngineBase, PluginErrorContext, GwenPlugin } from "./plugin.js";
+export type {
+  GwenRuntimeHooks,
+  HookBusBase,
+  GwenEngineBase,
+  PluginErrorContext,
+  GwenPlugin,
+} from "./plugin.js";
 
 // ─── Backwards compat ────────────────────────────────────────────────────────
 
