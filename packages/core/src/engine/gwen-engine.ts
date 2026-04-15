@@ -22,22 +22,23 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
-import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks.js";
+import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
 import { engineContext } from "./context";
-import { withCleanup } from "../cleanup-context.js";
+import { withCleanup } from "../cleanup-context";
 import { createLogger } from "../logger/index";
 import type { GwenLogger } from "../logger/index";
-import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
-import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs.js";
-import { getWasmBridge } from "./wasm-bridge.js";
-import type { EntityId } from "./engine-api.js";
-import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
+import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
+import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
+import { getWasmBridge } from "./wasm-bridge";
+import type { EntityId } from "./engine-api";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
-import { buildTransformImports } from "../hooks/wasm/transform-imports.js";
-import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory.js";
-import { validateEngineConfig } from "./engine-config-validator.js";
-import type { TweenPoolPolicy } from "../tween/tween-pool.js";
-import { initWasm } from "./wasm-bridge.js";
+import { buildTransformImports } from "../hooks/wasm/transform-imports";
+import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory";
+import { validateEngineConfig } from "./engine-config-validator";
+import type { TweenPoolPolicy } from "../tween/tween-pool";
+import { initWasm } from "./wasm-bridge";
+import { _withComposableContext } from "../composable/context";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -292,7 +293,9 @@ class GwenEngineImpl implements GwenEngine {
       // engineContext.call() saves and restores the previous context (safe for nesting).
       let setupResult: void | Promise<void>;
       const [, dispose] = withCleanup(() => {
-        setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
+        setupResult = engineContext.call(this, () =>
+          _withComposableContext("engine", () => plugin.setup(engineWithScopedHooks)),
+        );
       });
       this._pluginCleanups.set(plugin.name, dispose);
       if (setupResult! instanceof Promise) await setupResult!;
@@ -372,7 +375,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   run<T>(fn: () => T): T {
-    return engineContext.call(this, fn);
+    return engineContext.call(this, () => _withComposableContext("engine", fn));
   }
 
   /**

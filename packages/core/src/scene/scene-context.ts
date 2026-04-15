@@ -11,9 +11,10 @@
  */
 
 import { GwenContextError, engineContext } from "../engine/context";
-import type { GwenEngine, GwenPlugin } from "../engine/gwen-engine.js";
+import type { GwenEngine, GwenPlugin } from "../engine/gwen-engine";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
+import { _withComposableContext } from "../composable/context";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -60,7 +61,7 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   _currentSceneCtx = ctx;
   if (engine) engine[_SCENE_CONTEXT_SYMBOL] = ctx;
   try {
-    factory();
+    _withComposableContext("scene", factory);
   } finally {
     _currentSceneCtx = prev;
     if (engine) {

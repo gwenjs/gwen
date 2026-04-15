@@ -23,7 +23,7 @@ export {
   CoreErrorCodes,
 } from "./engine/gwen-engine";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
-export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors.js";
+export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";
 export type {
   GwenEngine,
   GwenPlugin,
@@ -43,8 +43,8 @@ export type {
 export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./engine/gwen-engine";
 
 // Logger
-export { createLogger } from "./logger/index.js";
-export type { GwenLogger, LogLevel, LogEntry } from "./logger/index.js";
+export { createLogger } from "./logger/index";
+export type { GwenLogger, LogLevel, LogEntry } from "./logger/index";
 
 // Runtime hooks interface
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
@@ -87,12 +87,12 @@ export {
   FLAGS3D_OFFSET,
   SENTINEL,
   MAX_SAB_BYTES,
-} from "./hooks/wasm/shared-memory.js";
-export type { MemoryRegion } from "./hooks/wasm/shared-memory.js";
+} from "./hooks/wasm/shared-memory";
+export type { MemoryRegion } from "./hooks/wasm/shared-memory";
 
 // WASM transform buffer host imports
-export { buildTransformImports } from "./hooks/wasm/transform-imports.js";
-export type { GwenTransformImports } from "./hooks/wasm/transform-imports.js";
+export { buildTransformImports } from "./hooks/wasm/transform-imports";
+export type { GwenTransformImports } from "./hooks/wasm/transform-imports";
 
 // 3D Transform component
 export {
@@ -112,6 +112,10 @@ export { detectCoreVariant } from "./utils/variant-detector";
 export { detectSharedMemoryRequired } from "./utils/variant-detector";
 
 // Tween & Animation System
-export * from "./tween/index.js";
+export * from "./tween/index";
 
-export { ErrorCodes } from "./engine/engine-errors.js";
+export { ErrorCodes } from "./engine/engine-errors";
+
+// Composable context — declare context requirements for reusable composables
+export { defineComposable } from "./composable/context";
+export type { ComposableContext } from "./composable/context";

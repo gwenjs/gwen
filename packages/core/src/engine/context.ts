@@ -116,7 +116,7 @@ export function withAsyncContext<T extends (...args: unknown[]) => Promise<unkno
  *   without context propagation).
  * - `ACTOR_SETUP_ONLY` — composable is only valid during an actor factory phase.
  */
-export type GwenContextErrorCode = "OUTSIDE_ENGINE" | "ACTOR_SETUP_ONLY";
+export type GwenContextErrorCode = "OUTSIDE_ENGINE" | "ACTOR_SETUP_ONLY" | "WRONG_CONTEXT";
 
 // ─── GwenContextError ────────────────────────────────────────────────────────
 

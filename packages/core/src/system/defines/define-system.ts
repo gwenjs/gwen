@@ -28,7 +28,8 @@ import { useEngine } from "../../engine/context";
 import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
-import { ContextSlot } from "../../engine/context-slot.js";
+import { ContextSlot } from "../../engine/context-slot";
+import { _withComposableContext } from "../../composable/context";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -300,7 +301,9 @@ export function defineSystem<Args extends unknown[]>(
           return;
         }
         // Normal path: _discover() was not called (e.g. direct engine.use()).
-        _withSystemContext(realCtx(), () => setupTemplate(...args));
+        _withComposableContext("system", () =>
+          _withSystemContext(realCtx(), () => setupTemplate(...args)),
+        );
       },
 
       _discover(): void {
@@ -308,7 +311,9 @@ export function defineSystem<Args extends unknown[]>(
         // AND useActor() calls collect actor dependencies — all in one pass.
         // setup() will skip the factory when it sees _discovered === true.
         _discovered = true;
-        _withSystemContext(realCtx(), () => setupTemplate(...args));
+        _withComposableContext("system", () =>
+          _withSystemContext(realCtx(), () => setupTemplate(...args)),
+        );
       },
 
       onBeforeUpdate(dt: number): void {
