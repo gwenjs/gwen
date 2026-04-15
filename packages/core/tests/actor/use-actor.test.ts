@@ -151,3 +151,31 @@ describe("ActorPlugin._deps — type contract", () => {
     delete (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
   });
 });
+
+describe("useActor — Proxy PublicAPI delegation", () => {
+  it("throws GwenActorError when a PublicAPI method is called with no live instance", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({ shoot: () => "pew" }));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor)) as ReturnType<
+      typeof useActor<void, { shoot(): string }>
+    >;
+
+    // No instance has been spawned yet — must throw, not silently return undefined
+    expect(() => (handle as unknown as { shoot(): string }).shoot()).toThrow("[GWEN]");
+  });
+
+  it("delegates to the first live instance PublicAPI after spawn", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({ shoot: () => "pew" }));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor)) as ReturnType<
+      typeof useActor<void, { shoot(): string }>
+    >;
+    handle.spawn();
+
+    expect((handle as unknown as { shoot(): string }).shoot()).toBe("pew");
+  });
+});

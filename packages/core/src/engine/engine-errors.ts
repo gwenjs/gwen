@@ -75,6 +75,8 @@ export const CoreErrorCodes = {
 /** Error codes emitted by the GWEN actor system. */
 export const ActorErrorCodes = {
   PLUGIN_NOT_READY: "ACTOR:PLUGIN_NOT_READY",
+  /** A PublicAPI method was called via the `useActor` handle but no live instance exists. */
+  NO_LIVE_INSTANCE: "ACTOR:NO_LIVE_INSTANCE",
 } as const;
 
 /**

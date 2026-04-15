@@ -29,7 +29,7 @@ describe("ActorHandle Proxy — method delegation", () => {
     expect(takeDamageSpy).toHaveBeenCalledOnce();
   });
 
-  it("returns undefined for PublicAPI method calls when no instance is alive", async () => {
+  it("throws GwenActorError for PublicAPI method calls when no instance is alive", async () => {
     const engine = await createEngine();
     const PlayerActor = defineActor("PlayerNoInst", SimplePrefab, () => {
       return { heal: () => 42 };
@@ -37,17 +37,14 @@ describe("ActorHandle Proxy — method delegation", () => {
 
     await engine.use(PlayerActor._plugin);
 
-    let handle!: typeof useActor<void, { heal(): number }> extends (...a: infer _) => infer R
-      ? R
-      : never;
+    let handle!: ReturnType<typeof useActor<void, { heal(): number }>>;
 
     engine.run(() => {
-      handle = useActor(PlayerActor) as unknown as typeof handle;
+      handle = useActor(PlayerActor);
     });
 
-    // No instance spawned — should return undefined, not throw
-    const result = (handle as unknown as { heal(): number | undefined }).heal();
-    expect(result).toBeUndefined();
+    // No instance spawned — must throw GwenActorError, not silently return undefined
+    expect(() => (handle as unknown as { heal(): number }).heal()).toThrow("[GWEN]");
   });
 
   it("ActorHandle methods take priority over PublicAPI methods", async () => {

@@ -28,6 +28,7 @@ import { _registerScenePlugin } from "../../scene/scene-context";
 import type { ActorDefinition, PrefabDefinition } from "../types";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import type { EntityId } from "../../engine/engine-api";
+import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -242,7 +243,17 @@ export function useActor<Props, PublicAPI>(
         const api = actorDef._instances.values().next().value?.api as
           | Record<string, unknown>
           | undefined;
-        if (!api) return () => undefined;
+        if (!api) {
+          return () => {
+            throw new GwenActorError(
+              ActorErrorCodes.NO_LIVE_INSTANCE,
+              `[GWEN] useActor(${actorDef.__actorName__}) — no live instance. ` +
+                `Spawn an instance before calling PublicAPI methods via the handle proxy.\n` +
+                `  Handle methods (spawn, despawn, count, get, getAll, despawnAll, spawnOnce) ` +
+                `are always available regardless of instance state.`,
+            );
+          };
+        }
         const value = api[prop];
         if (typeof value === "function") {
           return (...args: unknown[]): unknown =>
