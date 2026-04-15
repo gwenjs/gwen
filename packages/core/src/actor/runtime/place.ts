@@ -22,13 +22,13 @@
  * ```
  */
 
-import { useEngine } from "../engine/context";
+import { useEngine } from "../../engine/context";
 import type { PlaceHandle, ActorDefinition } from "./types";
-import type { PrefabDefinition } from "./defines/define-prefab";
-import type { EntityId } from "../engine/engine-api";
-import type { PlacementBridge } from "../engine/engine-types";
-import { ContextSlot } from "../engine/context-slot.js";
-import { GwenComposableError, ComposableErrorCodes } from "../engine/engine-errors.js";
+import type { PrefabDefinition } from "./define-prefab";
+import type { EntityId } from "../../engine/engine-api";
+import type { PlacementBridge } from "../../engine/engine-types";
+import { ContextSlot } from "../../engine/context-slot";
+import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 

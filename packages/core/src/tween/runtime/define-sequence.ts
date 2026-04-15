@@ -8,9 +8,9 @@
  */
 
 import { useEngine } from "../../engine/context";
-import { getTweenManager } from "../tween-manager";
-import { TweenSlot } from "../tween-pool";
-import type { SequenceHandle, SequenceStep, TweenableValue } from "../tween-types";
+import { getTweenManager } from "./tween-manager";
+import { TweenSlot } from "./tween-pool";
+import type { SequenceHandle, SequenceStep, TweenableValue } from "./tween-types";
 
 // ── defineSequence ────────────────────────────────────────────────────────────
 

@@ -10,8 +10,8 @@
 
 import { describe, it, expect, vi, expectTypeOf } from "vitest";
 import { createEngine } from "../../src";
-import { defineEvents, emit } from "@gwenjs/core/actor";
-import type { InferEvents } from "@gwenjs/core/actor";
+import { defineEvents, emit } from "../../src/actor";
+import type { InferEvents } from "../../src/actor";
 
 // Simulated user-land declaration (what the user writes in their game)
 const GameEvents = defineEvents({

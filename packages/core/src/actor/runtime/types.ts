@@ -7,13 +7,12 @@
  */
 
 // packages/core/src/scene/types.ts
-import type { GwenPlugin } from "../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { PrefabDefinition } from "./define-prefab";
+import type { EntityId } from "../../engine/engine-api";
 
 // Prefab types live in core — re-exported here for convenience
-export type { PrefabComponentEntry, PrefabDefinition } from "./defines/define-prefab";
-import type { PrefabDefinition } from "./defines/define-prefab";
-import type { EntityId } from "../engine/engine-api";
-
+export type { PrefabComponentEntry, PrefabDefinition } from "./define-prefab";
 // ─── Actor ────────────────────────────────────────────────────────────────────
 
 /**

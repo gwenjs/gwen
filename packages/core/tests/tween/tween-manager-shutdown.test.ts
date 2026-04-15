@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { getTweenManager, TweenManager } from "../../src/tween/tween-manager";
+import { getTweenManager, TweenManager } from "../../src/tween/runtime/tween-manager";
 import type { GwenEngine } from "../../src/engine/gwen-engine";
 
 describe("TweenManager — shutdown on engine stop", () => {

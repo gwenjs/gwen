@@ -15,8 +15,8 @@
  */
 
 import { useEngine, engineContext } from "../../engine/context";
-import { _withLayoutContext } from "../place";
-import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from "../types";
+import { _withLayoutContext } from "./place";
+import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from "./types";
 
 /**
  * Returns a handle for loading and disposing a layout instance.

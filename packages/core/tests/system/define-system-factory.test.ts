@@ -4,7 +4,7 @@ import {
   onUpdate,
   onBeforeUpdate,
   onAfterUpdate,
-} from "../../src/system/defines/define-system";
+} from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 
 describe("defineSystem — factory pattern", () => {

@@ -32,11 +32,11 @@ import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
 import { getWasmBridge } from "./wasm-bridge";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
 import { buildTransformImports } from "../hooks/wasm/transform-imports";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory";
 import { validateEngineConfig } from "./engine-config-validator";
-import type { TweenPoolPolicy } from "../tween/tween-pool";
+import type { TweenPoolPolicy } from "../tween/runtime/tween-pool";
 import { initWasm } from "./wasm-bridge";
 import { _withComposableContext } from "../composable/context";
 

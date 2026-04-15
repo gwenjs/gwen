@@ -1,6 +1,6 @@
 import type { Hookable } from "hookable";
-import type { EntityId } from "../../engine/engine-api";
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { EntityId } from "../../../engine/engine-api";
+import type { GwenPlugin } from "../../../engine/gwen-engine";
 
 /**
  * Options accepted by `defineActorPool()`.

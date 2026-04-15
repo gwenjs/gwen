@@ -10,9 +10,9 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import type { PlaceHandle } from "../../src/actor/types";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import { defineActor } from "../../src/actor/defines/define-actor";
+import type { PlaceHandle } from "../../src/actor/runtime/types";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import { defineActor } from "../../src/actor/runtime/define-actor";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
 import type { WasmEngine } from "../../src/engine/wasm-bridge";
@@ -22,7 +22,7 @@ import {
   placeGroup,
   placeActor,
   placePrefab,
-} from "../../src/actor/place";
+} from "../../src/actor/runtime/place";
 
 // ─── Mock WASM bridge ─────────────────────────────────────────────────────────
 

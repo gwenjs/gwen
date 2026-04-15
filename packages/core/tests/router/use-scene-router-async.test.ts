@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { createEngine, engineContext } from "../../src";
-import { defineScene } from "../../src/scene/defines/define-scene";
-import { onEnter, onExit } from "../../src/scene/scene-context.js";
+import { defineScene } from "../../src/scene/runtime/define-scene";
+import { onEnter, onExit } from "../../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 

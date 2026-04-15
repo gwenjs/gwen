@@ -1,6 +1,6 @@
 import { createHooks } from "hookable";
-import type { EntityId } from "../../engine/engine-api";
-import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
+import type { EntityId } from "../../../engine/engine-api";
+import type { GwenEngine, GwenPlugin } from "../../../engine/gwen-engine";
 import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";

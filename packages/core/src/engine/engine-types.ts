@@ -7,13 +7,13 @@
  */
 
 import type { Hookable } from "hookable";
-import type { GwenRuntimeHooks } from "./runtime-hooks.js";
+import type { GwenRuntimeHooks } from "./runtime-hooks";
 import type { GwenLogger } from "../logger/index";
-import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
-import type { EntityId } from "./engine-api.js";
-import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema.js";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/defines/define-system";
-import type { TweenPoolPolicy } from "../tween/tween-pool.js";
+import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
+import type { EntityId } from "./engine-api";
+import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
+import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
+import type { TweenPoolPolicy } from "../tween/runtime/tween-pool";
 import type { GwenPlugin, GwenEngineBase, GwenErrorBusBase } from "@gwenjs/schema";
 import { DisposableRegistry } from "../disposable";
 

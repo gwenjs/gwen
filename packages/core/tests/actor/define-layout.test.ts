@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { defineLayout } from "../../src/actor/defines/define-layout";
-import { placeGroup } from "../../src/actor/place";
+import { defineLayout } from "../../src/actor/runtime/define-layout";
+import { placeGroup } from "../../src/actor/runtime/place";
 
 describe("defineLayout", () => {
   it("returns a LayoutDefinition with _factory and __layoutName__", () => {

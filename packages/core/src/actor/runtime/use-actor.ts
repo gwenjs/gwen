@@ -23,9 +23,9 @@
  */
 
 import { useEngine } from "../../engine/context";
-import { _getActorEntityId, _getActorEngine } from "../defines/define-actor";
-import { _registerScenePlugin } from "../../scene/scene-context";
-import type { ActorDefinition, PrefabDefinition } from "../types";
+import { _getActorEntityId, _getActorEngine } from "./define-actor";
+import { _registerScenePlugin } from "../../scene/runtime/scene-context";
+import type { ActorDefinition, PrefabDefinition } from "./types";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import type { EntityId } from "../../engine/engine-api";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";

@@ -40,7 +40,7 @@ import {
   spring,
   EASING_MAP,
   type EasingName,
-} from "../../src/tween/easing";
+} from "../../src/tween/runtime/easing";
 
 // ── Boundary checks for all functions ────────────────────────────────────────
 

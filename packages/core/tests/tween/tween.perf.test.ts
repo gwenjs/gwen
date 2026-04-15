@@ -12,9 +12,9 @@
 
 import { describe, it, expect } from "vitest";
 import { ciThreshold } from "../helpers/perf";
-import { TweenPool, TweenSlot } from "../../src/tween/tween-pool";
+import { TweenPool, TweenSlot } from "../../src/tween/runtime/tween-pool";
 import { createEngine } from "../../src/index";
-import { defineSequence } from "../../src/tween/defines/define-sequence";
+import { defineSequence } from "../../src/tween/runtime/define-sequence";
 
 // ── 1,000 tweens per frame < 0.5ms ───────────────────────────────────────────
 

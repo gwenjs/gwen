@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { defineScene } from "../../src/scene/defines/define-scene";
+import { defineScene } from "../../src/scene/runtime/define-scene";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 
 const MenuScene = defineScene("Menu", () => {});

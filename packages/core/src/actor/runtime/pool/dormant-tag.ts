@@ -1,4 +1,4 @@
-import { defineComponent } from "../../schema";
+import { defineComponent } from "../../../schema";
 
 /**
  * Zero-data tag component added to dormant pool slots.

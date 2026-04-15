@@ -10,7 +10,7 @@ import type {
   LayoutDefinition,
   LayoutHandle,
   UseLayoutOptions,
-} from "../../src/actor/types";
+} from "../../src/actor/runtime/types";
 
 // PlaceHandle is generic on API
 declare const handle: PlaceHandle<{ hp: number }>;

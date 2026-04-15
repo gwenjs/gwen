@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
 
 // Minimal component-like objects for testing (no real ECS needed)
 const Position = { __componentName__: "Position" };

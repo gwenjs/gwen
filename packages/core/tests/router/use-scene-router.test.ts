@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine.js";
-import { defineScene } from "../../src/scene/defines/define-scene";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { useActor } from "../../src/actor/uses/use-actor";
-import { onEnter, onExit } from "../../src/scene/scene-context.js";
+import { defineScene } from "../../src/scene/runtime/define-scene";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { useActor } from "../../src/actor/runtime/use-actor";
+import { onEnter, onExit } from "../../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 

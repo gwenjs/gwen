@@ -1,7 +1,7 @@
 import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
-import { _tryGetActorInstance } from "../actor/defines/define-actor.js";
+import { _tryGetActorInstance } from "../actor/runtime/define-actor.js";
 
 /**
  * A function that removes a previously registered hook subscription.

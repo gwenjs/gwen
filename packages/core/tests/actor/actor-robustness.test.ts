@@ -14,19 +14,19 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import {
   defineActor,
   onStart,
   onDestroy,
   onEvent,
   useEntityId,
-} from "../../src/actor/defines/define-actor";
-import { onUpdate } from "../../src/system/defines/define-system";
-import { useComponent } from "../../src/actor/uses/use-actor";
-import { defineActorPool } from "../../src/actor/pool/define-actor-pool";
+} from "../../src/actor/runtime/define-actor";
+import { onUpdate } from "../../src/system/runtime/define-system";
+import { useComponent } from "../../src/actor/runtime/use-actor";
+import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { createEngine } from "../../src/engine/gwen-engine";
-import type { ActorDefinition } from "../../src/actor/types";
+import type { ActorDefinition } from "../../src/actor/runtime/types";
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 

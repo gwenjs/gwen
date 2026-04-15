@@ -8,5 +8,5 @@ export {
   useQuery,
   useService,
   useWasmModule,
-} from "./defines/define-system";
-export type { LiveQuery, ComponentDef, EntityAccessor } from "./defines/define-system";
+} from "./runtime/define-system";
+export type { LiveQuery, ComponentDef, EntityAccessor } from "./runtime/define-system";

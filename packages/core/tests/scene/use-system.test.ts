@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { defineScene } from "../../src/scene/defines/define-scene";
-import { useSystem } from "../../src/scene/scene-context.js";
+import { defineScene } from "../../src/scene/runtime/define-scene";
+import { useSystem } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
 import { createEngine } from "../../src/engine/gwen-engine.js";
-import { defineSystem, onUpdate } from "../../src/system/defines/define-system";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { useActor } from "../../src/actor/uses/use-actor";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import type { SystemHandle } from "../../src/scene/system-handle";
+import { defineSystem, onUpdate } from "../../src/system/runtime/define-system";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { useActor } from "../../src/actor/runtime/use-actor";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import type { SystemHandle } from "../../src/scene/runtime/system-handle";
 import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
 
 const Position = { __name__: "Position" };

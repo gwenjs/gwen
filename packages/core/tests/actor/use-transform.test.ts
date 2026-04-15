@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { useTransform } from "../../src/actor/uses/use-transform";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { useTransform } from "../../src/actor/runtime/use-transform";
 import { defineLayout, placeActor, useLayout } from "@gwenjs/core/actor";
 import {
   getWasmBridge,

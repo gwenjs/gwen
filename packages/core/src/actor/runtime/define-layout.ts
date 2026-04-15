@@ -20,7 +20,7 @@
  * ```
  */
 
-import type { LayoutDefinition, PlaceHandle } from "../types";
+import type { LayoutDefinition, PlaceHandle } from "./types";
 
 /**
  * Define a layout — a declarative factory describing the initial composition of a scene.

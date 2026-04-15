@@ -33,8 +33,8 @@
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type { GwenRuntimeHooks } from "../../engine/runtime-hooks";
 import type { EntityId } from "../../engine/engine-api";
-import { _withSystemContext } from "../../system/defines/define-system";
-import type { SystemContext } from "../../system/defines/define-system";
+import { _withSystemContext } from "../../system/runtime/define-system";
+import type { SystemContext } from "../../system/runtime/define-system";
 import { withCleanup } from "../../cleanup-context";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 import type { GwenLogger } from "../../logger/types";
@@ -46,7 +46,7 @@ import type {
   VoidFn,
   UpdateFn,
   RenderFn,
-} from "../types";
+} from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { _withComposableContext } from "../../composable/context";
 

@@ -5,12 +5,12 @@
  * all active tweens each frame. Provides the {@link getTweenManager} factory.
  */
 
-import { useEngine } from "../engine/context";
-import type { GwenEngine } from "../engine/gwen-engine.js";
-import type { TweenOptions, TweenableValue } from "./tween-types.js";
-import { TweenPool, type TweenSlot } from "./tween-pool.js";
-import type { TweenPoolPolicy } from "./tween-pool.js";
-import type { GwenLogger } from "../logger/types.js";
+import { useEngine } from "../../engine/context";
+import type { GwenEngine } from "../../engine/gwen-engine";
+import type { TweenOptions, TweenableValue } from "./tween-types";
+import { TweenPool, type TweenSlot } from "./tween-pool";
+import type { TweenPoolPolicy } from "./tween-pool";
+import type { GwenLogger } from "../../logger/types";
 
 // ── Cache symbol ────────────────────────────────────────────────────────────
 

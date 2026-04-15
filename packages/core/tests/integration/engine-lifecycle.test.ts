@@ -224,7 +224,6 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
     await engine.use({
       name: "consumer",
       setup(eng) {
-        // @ts-expect-error — dynamic key not in GwenProvides union in this test file
         const svc = eng.tryInject("counter") as { count: number } | undefined;
         injectedCount = svc?.count;
       },

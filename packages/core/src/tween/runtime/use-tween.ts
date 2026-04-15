@@ -8,8 +8,8 @@
  */
 
 import { useEngine } from "../../engine/context";
-import { getTweenManager } from "../tween-manager";
-import type { TweenableValue, TweenOptions, TweenHandle } from "../tween-types";
+import { getTweenManager } from "./tween-manager";
+import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
 
 // ── useTween ──────────────────────────────────────────────────────────────────
 

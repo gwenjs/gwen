@@ -6,12 +6,12 @@ import {
   onBeforeUpdate,
   onAfterUpdate,
   onRender,
-} from "../../src/system/defines/define-system";
-import { onDestroy, onEvent } from "../../src/actor/defines/define-actor";
-import { onRelease, onReset } from "../../src/actor/defines/define-actor";
-import { defineActorPool } from "../../src/actor/pool/define-actor-pool";
-import { PoolExhaustedError } from "../../src/actor/pool/errors";
-import { useActorPool } from "../../src/actor/pool/use-actor-pool";
+} from "../../src/system/runtime/define-system";
+import { onDestroy, onEvent } from "../../src/actor/runtime/define-actor";
+import { onRelease, onReset } from "../../src/actor/runtime/define-actor";
+import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
+import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";

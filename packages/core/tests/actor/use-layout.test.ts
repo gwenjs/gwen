@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { defineLayout } from "../../src/actor/defines/define-layout";
-import { useLayout } from "../../src/actor/uses/use-layout";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { placeActor, placeGroup } from "../../src/actor/place";
+import { defineLayout } from "../../src/actor/runtime/define-layout";
+import { useLayout } from "../../src/actor/runtime/use-layout";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { placeActor, placeGroup } from "../../src/actor/runtime/place";
 import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
 import type { WasmEngine } from "../../src/engine/wasm-bridge";
 

@@ -10,14 +10,14 @@ export {
   onReset,
   useEntityId,
   _getActorEntityId,
-} from "./defines/define-actor";
+} from "./runtime/define-actor";
 
 // Frame hooks (re-exported — also valid in system context)
-export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/defines/define-system";
+export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/runtime/define-system";
 
 // Prefab + events
-export { definePrefab } from "./defines/define-prefab";
-export { defineEvents } from "./defines/define-events";
+export { definePrefab } from "./runtime/define-prefab";
+export { defineEvents } from "./runtime/define-events";
 
 /**
  * @deprecated Import `emit` from `'@gwenjs/core'` instead.
@@ -39,23 +39,34 @@ export { defineEvents } from "./defines/define-events";
 export { emit } from "../hooks/emit";
 
 // Actor composables
-export { useActor, usePrefab, useComponent } from "./uses/use-actor";
-export { defineLayout } from "./defines/define-layout";
-export { useLayout } from "./uses/use-layout";
-export { useTransform } from "./uses/use-transform";
-export { watchActorLeaks } from "./uses/watch-actor-leaks";
-export { placeActor, placeGroup, placePrefab } from "./place";
+export { useActor, usePrefab, useComponent } from "./runtime/use-actor";
+export { defineLayout } from "./runtime/define-layout";
+export { useLayout } from "./runtime/use-layout";
+export { useTransform } from "./runtime/use-transform";
+export { watchActorLeaks } from "./runtime/watch-actor-leaks";
+export { placeActor, placeGroup, placePrefab } from "./runtime/place";
 
 // Actor Pool
-export { defineActorPool, useActorPool, DormantTag, PoolExhaustedError } from "./pool/index";
-export type { ActorPool, PoolOptions, PoolStats, PoolHooks, CustomScope } from "./pool/index";
+export {
+  defineActorPool,
+  useActorPool,
+  DormantTag,
+  PoolExhaustedError,
+} from "./runtime/pool/index";
+export type {
+  ActorPool,
+  PoolOptions,
+  PoolStats,
+  PoolHooks,
+  CustomScope,
+} from "./runtime/pool/index";
 
 // Types
-export type { ActorHandle, PrefabHandle } from "./uses/use-actor";
-export type { TransformHandle } from "./uses/use-transform";
-export type { WatchActorLeaksOptions } from "./uses/watch-actor-leaks";
-export type { PrefabDefinition, PrefabComponentEntry } from "./defines/define-prefab";
-export type { InferEvents, EventHandlerMap } from "./defines/define-events";
+export type { ActorHandle, PrefabHandle } from "./runtime/use-actor";
+export type { TransformHandle } from "./runtime/use-transform";
+export type { WatchActorLeaksOptions } from "./runtime/watch-actor-leaks";
+export type { PrefabDefinition, PrefabComponentEntry } from "./runtime/define-prefab";
+export type { InferEvents, EventHandlerMap } from "./runtime/define-events";
 export type {
   ActorDefinition,
   ActorInstance,
@@ -67,4 +78,4 @@ export type {
   UpdateFn,
   RenderFn,
   VoidFn,
-} from "./types";
+} from "./runtime/types";

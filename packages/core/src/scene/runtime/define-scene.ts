@@ -26,7 +26,7 @@
  * ```
  */
 
-import { _withSceneContext } from "../scene-context";
+import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin } from "../../engine/gwen-engine";
 
 // ── Types ─────────────────────────────────────────────────────────────────────

@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import { TweenPool } from "../../src/tween/tween-pool";
+import { TweenPool } from "../../src/tween/runtime/tween-pool";
 import type { GwenLogger } from "../../src/logger/types";
 
 // ── Helper: build a minimal mock GwenLogger ───────────────────────────────────

@@ -7,9 +7,9 @@
  * @since 1.0.0
  */
 
-export * from "./easing.js";
-export * from "./tween-types.js";
-export { TweenPool, type TweenSlot, type TweenPoolPolicy } from "./tween-pool.js";
-export { TweenManager, getTweenManager } from "./tween-manager.js";
-export { useTween } from "./uses/use-tween";
-export { defineSequence } from "./defines/define-sequence";
+export * from "./runtime/easing";
+export * from "./runtime/tween-types";
+export { TweenPool, type TweenSlot, type TweenPoolPolicy } from "./runtime/tween-pool";
+export { TweenManager, getTweenManager } from "./runtime/tween-manager";
+export { useTween } from "./runtime/use-tween";
+export { defineSequence } from "./runtime/define-sequence";

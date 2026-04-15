@@ -8,11 +8,11 @@
  * @since 1.0.0
  */
 
-import { EASING_MAP, type EasingName } from "./easing.js";
-import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types.js";
+import { EASING_MAP, type EasingName } from "./easing";
+import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types";
 import { lerp } from "@gwenjs/math";
-import type { GwenLogger } from "../logger/types.js";
-import { GwenConfigError } from "../engine/config-error.js";
+import type { GwenLogger } from "../../logger/types";
+import { GwenConfigError } from "../../engine/config-error";
 
 // ── TweenPoolPolicy ──────────────────────────────────────────────────────────
 

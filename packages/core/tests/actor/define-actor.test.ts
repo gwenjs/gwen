@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import {
   defineActor,
   onStart,
   onDestroy,
   onEvent,
   useEntityId,
-} from "../../src/actor/defines/define-actor";
-import { onUpdate } from "../../src/system/defines/define-system";
+} from "../../src/actor/runtime/define-actor";
+import { onUpdate } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
 

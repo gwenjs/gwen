@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createSystemHandle } from "../../src/scene/system-handle";
+import { createSystemHandle } from "../../src/scene/runtime/system-handle";
 import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
 
 function makeInnerPlugin(onUpdateSpy = vi.fn()): GwenPlugin {

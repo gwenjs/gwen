@@ -52,9 +52,9 @@
  * ```
  */
 
-import { _getActorEntityId, _getActorEngine } from "../defines/define-actor";
+import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { getWasmBridge } from "../../engine/wasm-bridge";
-import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors.js";
+import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;

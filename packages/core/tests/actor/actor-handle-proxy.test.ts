@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { useActor } from "../../src/actor/uses/use-actor";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { useActor } from "../../src/actor/runtime/use-actor";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { createEngine } from "../../src/engine/gwen-engine";
 
 const Position = { __name__: "Position" };

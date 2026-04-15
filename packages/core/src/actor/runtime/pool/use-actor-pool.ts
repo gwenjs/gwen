@@ -1,4 +1,4 @@
-import { onExit, _registerScenePlugin } from "../../scene/scene-context";
+import { onExit, _registerScenePlugin } from "../../../scene/runtime/scene-context";
 import type { ActorPool } from "./types";
 
 /**

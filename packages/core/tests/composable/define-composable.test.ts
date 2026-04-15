@@ -8,10 +8,10 @@
 
 import { describe, it, expect } from "vitest";
 import { createEngine, GwenContextError } from "../../src/index";
-import { defineSystem, onUpdate } from "../../src/system/defines/define-system";
-import { defineActor } from "../../src/actor/defines/define-actor";
-import { definePrefab } from "../../src/actor/defines/define-prefab";
-import { defineScene } from "../../src/scene/defines/define-scene";
+import { defineSystem, onUpdate } from "../../src/system/runtime/define-system";
+import { defineActor } from "../../src/actor/runtime/define-actor";
+import { definePrefab } from "../../src/actor/runtime/define-prefab";
+import { defineScene } from "../../src/scene/runtime/define-scene";
 import { defineComposable } from "../../src/composable/context";
 
 const Pos = { __name__: "Pos" };

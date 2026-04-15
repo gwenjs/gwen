@@ -28,7 +28,7 @@ import type {
   EventsOf,
   StatesOf,
 } from "../router-types";
-import type { SceneDefinition, SceneFactory } from "../../scene/defines/define-scene";
+import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
 
 // Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
 // WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.

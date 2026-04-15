@@ -26,7 +26,7 @@
  * ```
  */
 
-import type { ActorDefinition } from "../types";
+import type { ActorDefinition } from "./types";
 import type { GwenEngine } from "../../engine/gwen-engine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
