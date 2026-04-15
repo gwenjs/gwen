@@ -360,6 +360,13 @@ class WasmBridgeImpl implements WasmBridge {
   /** Reusable static buffer for bulk component data. */
   private _bulkBuf?: Uint8Array;
 
+  /** @internal */
+  _resetBulkBuffers(): void {
+    this._bulkSlots = undefined;
+    this._bulkGens = undefined;
+    this._bulkBuf = undefined;
+  }
+
   // ── Status ───────────────────────────────────────────────────────────────
 
   isActive(): boolean {
@@ -490,15 +497,13 @@ class WasmBridgeImpl implements WasmBridge {
    * ~350× faster than N individual `getComponentRaw` calls for 1 000 entities.
    *
    * @throws If `initWasm()` has not been called.
-   *
-   * @since 1.0.0
    */
   queryReadBulk(
     componentTypeIds: number[],
     readTypeId: number,
     f32Stride: number,
   ): { entityCount: number; data: Float32Array; slots: Uint32Array; gens: Uint32Array } {
-    const maxEntities = 10_000;
+    const maxEntities = _maxEntities;
     const byteStride = f32Stride * 4;
 
     // Lazily allocate static views — reused every frame to avoid GC pressure.
@@ -544,8 +549,6 @@ class WasmBridgeImpl implements WasmBridge {
    * @performance One WASM boundary crossing for any number of entities.
    *
    * @throws If `initWasm()` has not been called.
-   *
-   * @since 1.0.0
    */
   queryWriteBulk(
     slots: Uint32Array,
@@ -619,7 +622,11 @@ class WasmBridgeImpl implements WasmBridge {
     }
 
     if (!_queryResultView || _queryResultView.buffer !== mem.buffer) {
-      _queryResultView = new Uint32Array(mem.buffer, requireWasm().get_query_result_ptr(), 10_000);
+      _queryResultView = new Uint32Array(
+        mem.buffer,
+        requireWasm().get_query_result_ptr(),
+        _maxEntities,
+      );
     }
     return _queryResultView;
   }
@@ -762,9 +769,12 @@ export function getWasmBridge(): WasmBridge {
  *
  * @param mock - A `WasmEngine` mock (typically built with `vi.fn()`).
  */
-export function _injectMockWasmEngine(mock: WasmEngine): void {
+export function _injectMockWasmEngine(mock: WasmEngine, maxEntities?: number): void {
   _wasmEngine = mock;
   _initPromise = Promise.resolve();
+  if (maxEntities !== undefined) {
+    _maxEntities = maxEntities;
+  }
 }
 
 /**
@@ -807,6 +817,8 @@ export function _resetWasmBridge(): void {
   _initPromise = null;
   _lastMemoryBuffer = null;
   _queryResultView = null;
+  _maxEntities = 10_000;
+  _bridge._resetBulkBuffers();
 }
 
 // #endregion
