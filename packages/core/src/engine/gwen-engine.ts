@@ -297,6 +297,12 @@ class GwenEngineImpl implements GwenEngine {
       this._pluginCleanups.set(plugin.name, dispose);
       if (setupResult! instanceof Promise) await setupResult!;
     } catch (err) {
+      // Roll back any onCleanup() callbacks and scoped hooks registered during
+      // the synchronous phase of setup — they must not leak on rejection.
+      this._pluginCleanups.get(plugin.name)?.();
+      this._pluginCleanups.delete(plugin.name);
+      this._tracker.removeAll(plugin.name, this.hooks);
+
       const message = err instanceof Error ? err.message : String(err);
       this._errorBus?.emit({
         level: "fatal",
