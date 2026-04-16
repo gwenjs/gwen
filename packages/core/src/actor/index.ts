@@ -5,7 +5,6 @@ export {
   defineActor,
   onStart,
   onDestroy,
-  onEvent,
   onRelease,
   onReset,
   useEntityId,

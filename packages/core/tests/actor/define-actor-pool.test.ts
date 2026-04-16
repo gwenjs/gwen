@@ -7,7 +7,8 @@ import {
   onAfterUpdate,
   onRender,
 } from "../../src/system/runtime/define-system";
-import { onDestroy, onEvent } from "../../src/actor/runtime/define-actor";
+import { onDestroy } from "../../src/actor/runtime/define-actor";
+import { useHook } from "../../src/hooks/use-hook";
 import { onRelease, onReset } from "../../src/actor/runtime/define-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
@@ -20,7 +21,7 @@ const Hp = { __name__: "Hp" };
 const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
 
 describe("ActorInstance pool fields", () => {
-  it("instance has _isDormant=false, _release=[], _reset=[] after spawn", async () => {
+  it("instance has _scope, _release=[], _reset=[] after spawn", async () => {
     const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
@@ -28,7 +29,7 @@ describe("ActorInstance pool fields", () => {
     const id = Actor._plugin.spawn!();
     const inst = Actor._instances.get(id)!;
 
-    expect(inst._isDormant).toBe(false);
+    expect(inst._scope).toBeDefined();
     expect(inst._release).toEqual([]);
     expect(inst._reset).toEqual([]);
   });
@@ -44,7 +45,7 @@ describe("dormant frame skip", () => {
     await engine.use(Actor._plugin);
 
     const id = Actor._plugin.spawn!();
-    Actor._instances.get(id)!._isDormant = true;
+    Actor._instances.get(id)!._scope.pause();
 
     await engine.start();
     await engine.advance(0.016);
@@ -61,7 +62,7 @@ describe("dormant frame skip", () => {
     });
     await engine.use(Actor._plugin);
 
-    Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
+    Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
     await engine.start();
     await engine.advance(0.016);
@@ -78,7 +79,7 @@ describe("dormant frame skip", () => {
     });
     await engine.use(Actor._plugin);
 
-    Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
+    Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
     await engine.start();
     await engine.advance(0.016);
@@ -95,7 +96,7 @@ describe("dormant frame skip", () => {
     });
     await engine.use(Actor._plugin);
 
-    Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
+    Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
     await engine.start();
     await engine.advance(0.016);
@@ -104,7 +105,7 @@ describe("dormant frame skip", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("callbacks resume when _isDormant is set back to false", async () => {
+  it("callbacks resume when scope is resumed", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
     const Actor = defineActor(TestPrefab, () => {
@@ -113,13 +114,13 @@ describe("dormant frame skip", () => {
     await engine.use(Actor._plugin);
 
     const inst = Actor._instances.get(Actor._plugin.spawn!())!;
-    inst._isDormant = true;
+    inst._scope.pause();
 
     await engine.start();
     await engine.advance(0.016);
     expect(spy).not.toHaveBeenCalled();
 
-    inst._isDormant = false;
+    inst._scope.resume();
     await engine.advance(0.016);
     await engine.stop();
 
@@ -143,26 +144,26 @@ describe("dormant frame skip", () => {
   });
 });
 
-describe("onEvent dormant guard", () => {
-  it("event handler is NOT called when actor is dormant", async () => {
+describe("useHook dormant guard via ScopedHookable", () => {
+  it("event handler is NOT called when scope is paused", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
     const Actor = defineActor(TestPrefab, () => {
-      onEvent("engine:tick", spy);
+      useHook("engine:tick", spy);
     });
     await engine.use(Actor._plugin);
 
-    Actor._instances.get(Actor._plugin.spawn!())!._isDormant = true;
+    Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
     engine.hooks.callHook("engine:tick", 16);
 
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("event handler IS called when actor is not dormant", async () => {
+  it("event handler IS called when scope is active", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
     const Actor = defineActor(TestPrefab, () => {
-      onEvent("engine:tick", spy);
+      useHook("engine:tick", spy);
     });
     await engine.use(Actor._plugin);
     Actor._plugin.spawn!();
@@ -172,28 +173,28 @@ describe("onEvent dormant guard", () => {
     expect(spy).toHaveBeenCalledOnce();
   });
 
-  it("event cleanup still works correctly after dormant/active cycle", async () => {
+  it("event cleanup works after pause/resume cycle", async () => {
     const engine = await createEngine();
     const spy = vi.fn();
     const Actor = defineActor(TestPrefab, () => {
-      onEvent("engine:tick", spy);
+      useHook("engine:tick", spy);
     });
     await engine.use(Actor._plugin);
 
     const id = Actor._plugin.spawn!();
     const inst = Actor._instances.get(id)!;
 
-    // Mark dormant → event is silenced
-    inst._isDormant = true;
+    // Pause → event is silenced
+    inst._scope.pause();
     engine.hooks.callHook("engine:tick", 16);
     expect(spy).not.toHaveBeenCalled();
 
-    // Mark active → event fires again
-    inst._isDormant = false;
+    // Resume → event fires again
+    inst._scope.resume();
     engine.hooks.callHook("engine:tick", 16);
     expect(spy).toHaveBeenCalledOnce();
 
-    // Despawn → handler removed, no more calls
+    // Despawn → scope.dispose() removes the handler
     Actor._plugin.despawn!(id);
     engine.hooks.callHook("engine:tick", 16);
     expect(spy).toHaveBeenCalledOnce(); // still once

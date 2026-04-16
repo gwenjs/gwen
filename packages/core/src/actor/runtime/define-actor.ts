@@ -31,11 +31,7 @@
  */
 
 import type { GwenEngine } from "../../engine/gwen-engine";
-import type { GwenRuntimeHooks } from "../../engine/runtime-hooks";
 import type { EntityId } from "../../engine/engine-api";
-import { _withSystemContext } from "../../system/runtime/define-system";
-import type { SystemContext } from "../../system/runtime/define-system";
-import { withCleanup } from "../../cleanup-context";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 import type { GwenLogger } from "../../logger/types";
 import type {
@@ -44,10 +40,9 @@ import type {
   ActorPlugin,
   PrefabDefinition,
   VoidFn,
-  UpdateFn,
-  RenderFn,
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
+import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -208,16 +203,6 @@ export function _getActorEngine(): GwenEngine {
   return _activeContext.engine;
 }
 
-/**
- * Returns the current actor instance if inside a factory, otherwise `null`.
- * Does not throw — safe to call anywhere.
- * @internal
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function _tryGetActorInstance(): ActorInstance<any> | null {
-  return _activeContext?.instance ?? null;
-}
-
 // ─── Actor-level lifecycle composables ────────────────────────────────────────
 
 /**
@@ -268,69 +253,6 @@ export function onDestroy(fn: VoidFn): void {
     );
   }
   _activeContext.instance._destroy.push(fn);
-}
-
-/**
- * Registers a handler on a named engine hook and schedules its removal when
- * the actor is despawned.
- *
- * Must be called synchronously inside a {@link defineActor} factory function.
- *
- * @param name - The hook name (must be a key of {@link GwenRuntimeHooks} or a
- *   declaration-merged extension).
- * @param fn - The handler to register.
- * @throws {Error} If called outside an active actor factory.
- *
- * @example
- * ```typescript
- * defineActor(MyPrefab, () => {
- *   onEvent('entity:spawn', (id) => console.log('entity spawned', id))
- * })
- * ```
- */
-/**
- * Creates a dormancy-aware wrapper for an engine hook handler.
- *
- * The wrapper skips dispatch when `instance._isDormant` is `true` (i.e. the
- * actor is currently held in a pool). The generic parameter `F` preserves the
- * original handler's call signature so TypeScript can still verify argument
- * types at the call site — unlike a plain `(...args: unknown[]) => unknown`
- * cast that would silently accept any signature mismatch.
- *
- * @param instance - The {@link ActorInstance} whose dormancy flag is checked.
- * @param fn       - The original typed handler to wrap.
- * @returns A new function with the same signature as `fn`.
- *
- * @internal
- */
-export function _createDormancyGuard<F extends (...args: never[]) => unknown>(
-  instance: ActorInstance<unknown>,
-  fn: F,
-): F {
-  return ((...args: Parameters<F>) => {
-    if (instance._isDormant) return;
-    return fn(...(args as Parameters<F>));
-  }) as F;
-}
-
-export function onEvent<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): void {
-  if (!_activeContext?.instance || !_activeContext?.engine) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onEvent() must be called synchronously inside a defineActor() factory function.",
-    );
-  }
-  const engine = _activeContext.engine;
-  const instance = _activeContext.instance;
-  // Wrap the handler via a typed guard so the original signature is preserved.
-  const guardedFn = _createDormancyGuard(
-    instance,
-    fn as (...args: never[]) => unknown,
-  ) as GwenRuntimeHooks[K];
-  engine.hooks.hook(name, guardedFn as never);
-  instance._eventCleanups.push(() => {
-    engine.hooks.removeHook(name, guardedFn as never);
-  });
 }
 
 /**
@@ -538,51 +460,33 @@ export function defineActor<Props = void, PublicAPI = void>(
     // 3. Build a blank instance.
     const instance: ActorInstance<PublicAPI> = {
       entityId,
+      _scope: new ScopedHookable(_engine!.hooks),
       _start: [],
-      _beforeUpdate: [],
-      _update: [],
-      _afterUpdate: [],
-      _render: [],
       _destroy: [],
-      _eventCleanups: [],
-      _cleanupDispose: undefined,
-      _isDormant: false,
+      _enable: [],
+      _disable: [],
       _release: [],
       _reset: [],
       api: undefined as unknown as PublicAPI,
     };
 
-    // 4. Build a SystemContext that pushes into the instance's per-phase arrays.
-    const ctx: SystemContext = {
-      onBeforeUpdate: (fn: UpdateFn) => instance._beforeUpdate.push(fn),
-      onUpdate: (fn: UpdateFn) => instance._update.push(fn),
-      onAfterUpdate: (fn: UpdateFn) => instance._afterUpdate.push(fn),
-      onRender: (fn: RenderFn) => instance._render.push(fn),
-    };
-
-    // 5. Run the factory inside the actor context (for onStart/onDestroy/onEvent)
-    //    AND the system context (for onUpdate/onBeforeUpdate/onAfterUpdate/onRender).
-    //    Wrapped in withCleanup so any onCleanup() calls are collected and fired on despawn.
+    // 4. Run the factory inside the actor context and the active scope slot.
+    //    The scope is set so that onUpdate/onBeforeUpdate/onRender etc register
+    //    their handlers into this instance's scope instead of a SystemContext.
     let api: PublicAPI | undefined;
-    const [, cleanupDispose] = withCleanup(() => {
-      _withActorContext(instance, _engine!, () => {
-        _withSystemContext(ctx, () => {
-          api = (factory as (props?: Props) => PublicAPI)(props);
-        });
+    _withActorContext(instance, _engine!, () => {
+      _activeScopeSlot.run(instance._scope, () => {
+        api = (factory as (props?: Props) => PublicAPI)(props);
       });
     });
-    instance._cleanupDispose = cleanupDispose;
 
     instance.api = api as PublicAPI;
 
-    // 6. Register the instance in both the Map (for O(1) keyed lookup) and the
-    //    flat array (for zero-allocation frame-phase iteration).
+    // 5. Register instance.
     _instances.set(entityId, instance);
     _instanceArray.push(instance);
 
-    // 7. Fire _start callbacks immediately after setup, then release the
-    //    array so onStart closures (which often capture composable handles
-    //    like TransformHandle) are not retained for the actor's lifetime.
+    // 6. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
       instance._start[i]!();
     }
@@ -597,23 +501,12 @@ export function defineActor<Props = void, PublicAPI = void>(
     const instance = _instances.get(entityId);
     if (!instance) return;
 
-    // 1. Remove from both registries FIRST.
-    //
-    //    Doing this before the callbacks serves two purposes:
-    //    a) Re-entrancy guard — a re-entrant `despawn(entityId)` call from inside
-    //       an `onDestroy` callback finds no instance and returns immediately,
-    //       preventing double-cleanup and infinite recursion.
-    //    b) Zombie prevention — if any callback throws, the instance is already
-    //       gone from the registries so it will never be iterated again or
-    //       returned by `_instances.get()`.
+    // 1. Remove from registries FIRST (re-entrancy guard).
     _instances.delete(entityId);
     const arrIdx = _instanceArray.indexOf(instance);
     if (arrIdx !== -1) _instanceArray.splice(arrIdx, 1);
 
     // 2. Call onDestroy callbacks.
-    //    Each callback is isolated: a throw logs the error but does not prevent
-    //    the remaining callbacks, event cleanups, or WASM entity destruction from
-    //    running.
     for (let i = 0; i < instance._destroy.length; i++) {
       try {
         instance._destroy[i]!();
@@ -622,23 +515,10 @@ export function defineActor<Props = void, PublicAPI = void>(
       }
     }
 
-    // 3. Unregister onEvent handlers.
-    for (let i = 0; i < instance._eventCleanups.length; i++) {
-      try {
-        instance._eventCleanups[i]!();
-      } catch (e) {
-        _log?.error("onEvent cleanup threw during despawn", { error: String(e) });
-      }
-    }
+    // 3. Dispose the scope — unregisters all engine:update/render/etc handlers.
+    instance._scope.dispose();
 
-    // 4. Fire onCleanup() callbacks (registered via withCleanup during factory).
-    try {
-      instance._cleanupDispose?.();
-    } catch (e) {
-      _log?.error("onCleanup threw during despawn", { error: String(e) });
-    }
-
-    // 5. Destroy the ECS entity — always runs, even if TS-side callbacks threw.
+    // 4. Destroy the ECS entity.
     _engine?.destroyEntity(entityId as unknown as EntityId);
   }
 
@@ -655,48 +535,6 @@ export function defineActor<Props = void, PublicAPI = void>(
     setup(engine: GwenEngine): void {
       _engine = engine;
       _log = engine.logger.child(`actor:${pluginName}`);
-    },
-
-    // Frame phase dispatchers — iterate all live instances each frame.
-
-    onBeforeUpdate(dt: number): void {
-      for (let j = 0; j < _instanceArray.length; j++) {
-        const inst = _instanceArray[j]!;
-        if (inst._isDormant) continue;
-        for (let i = 0; i < inst._beforeUpdate.length; i++) {
-          inst._beforeUpdate[i]!(dt);
-        }
-      }
-    },
-
-    onUpdate(dt: number): void {
-      for (let j = 0; j < _instanceArray.length; j++) {
-        const inst = _instanceArray[j]!;
-        if (inst._isDormant) continue;
-        for (let i = 0; i < inst._update.length; i++) {
-          inst._update[i]!(dt);
-        }
-      }
-    },
-
-    onAfterUpdate(dt: number): void {
-      for (let j = 0; j < _instanceArray.length; j++) {
-        const inst = _instanceArray[j]!;
-        if (inst._isDormant) continue;
-        for (let i = 0; i < inst._afterUpdate.length; i++) {
-          inst._afterUpdate[i]!(dt);
-        }
-      }
-    },
-
-    onRender(): void {
-      for (let j = 0; j < _instanceArray.length; j++) {
-        const inst = _instanceArray[j]!;
-        if (inst._isDormant) continue;
-        for (let i = 0; i < inst._render.length; i++) {
-          inst._render[i]!();
-        }
-      }
     },
 
     spawn,

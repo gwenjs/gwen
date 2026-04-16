@@ -10,6 +10,7 @@
 import type { GwenPlugin } from "../../engine/gwen-engine";
 import type { PrefabDefinition } from "./define-prefab";
 import type { EntityId } from "../../engine/engine-api";
+import type { ScopedHookable } from "../../hooks/scoped-hookable";
 
 // Prefab types live in core — re-exported here for convenience
 export type { PrefabComponentEntry, PrefabDefinition } from "./define-prefab";
@@ -58,36 +59,33 @@ export interface ActorInstance<PublicAPI = void> {
   entityId: EntityId;
   /** Callbacks registered via `onStart()` — fired once immediately after spawn. */
   _start: VoidFn[];
-  /** Callbacks registered via `onBeforeUpdate()` — fired each frame before the main update. */
-  _beforeUpdate: UpdateFn[];
-  /** Callbacks registered via `onUpdate()` — fired each frame during the main update phase. */
-  _update: UpdateFn[];
-  /** Callbacks registered via `onAfterUpdate()` — fired each frame after the main update. */
-  _afterUpdate: UpdateFn[];
-  /** Callbacks registered via `onRender()` — fired each render frame. */
-  _render: RenderFn[];
-  /** Callbacks registered via `onDestroy()` — fired once immediately before despawn. */
-  _destroy: VoidFn[];
-  /** Cleanup fns for onEvent() — called on despawn to unregister engine hook handlers. */
-  _eventCleanups: VoidFn[];
-  /** Dispose function from withCleanup() — fires all onCleanup() callbacks registered during factory. */
-  _cleanupDispose?: () => void;
   /**
-   * When `true`, this instance is dormant inside a pool.
-   * Frame dispatchers skip it; event handlers silently ignore it.
-   * Set by `defineActorPool` — do not mutate directly.
+   * The `ScopedHookable` that owns all frame-phase subscriptions for this instance.
+   * Paused by the pool on release; resumed on acquire; disposed on despawn.
    * @internal
    */
-  _isDormant: boolean;
+  _scope: ScopedHookable;
+  /** Callbacks registered via `onDestroy()` — fired once immediately before despawn. */
+  _destroy: VoidFn[];
   /**
-   * Callbacks registered via `onRelease()`.
-   * Called when the actor is returned to a pool. Not called by `despawn()`.
+   * Callbacks registered via `onEnable()` — fired when the actor's scope is resumed
+   * (pool re-acquire or explicit enable). Not called on initial spawn.
+   * @internal
+   */
+  _enable: VoidFn[];
+  /**
+   * Callbacks registered via `onDisable()` — fired when the actor's scope is paused
+   * (pool release or explicit disable).
+   * @internal
+   */
+  _disable: VoidFn[];
+  /**
+   * Callbacks registered via `onRelease()` — fired on pool release. Not called by `despawn()`.
    * @internal
    */
   _release: VoidFn[];
   /**
-   * Callbacks registered via `onReset()`.
-   * Called with the new props when the actor is reacquired from a pool.
+   * Callbacks registered via `onReset()` — fired on pool re-acquire with new props.
    * @internal
    */
   _reset: ((props: unknown) => void)[];

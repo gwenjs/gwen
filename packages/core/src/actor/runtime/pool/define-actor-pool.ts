@@ -165,8 +165,9 @@ export function defineActorPool<Props, PublicAPI>(
       // 2. Remove DormantTag so ECS queries include this entity again.
       engine.removeComponent(id, DormantTag);
 
-      // 3. Mark the instance as active.
-      inst._isDormant = false;
+      // 3. Resume the scope and fire onEnable callbacks.
+      inst._scope.resume();
+      for (let i = 0; i < inst._enable.length; i++) inst._enable[i]!();
 
       // 4. Call onReset callbacks with the new props.
       for (let i = 0; i < inst._reset.length; i++) {
@@ -215,8 +216,9 @@ export function defineActorPool<Props, PublicAPI>(
     // 2. Add DormantTag so ECS queries exclude this entity.
     _engine.addComponent(id, DormantTag, {});
 
-    // 3. Mark the instance dormant.
-    inst._isDormant = true;
+    // 3. Fire onDisable callbacks and pause the scope.
+    for (let i = 0; i < inst._disable.length; i++) inst._disable[i]!();
+    inst._scope.pause();
 
     // 4. Move from active to available.
     _active.delete(id);
@@ -235,8 +237,8 @@ export function defineActorPool<Props, PublicAPI>(
     for (let i = 0; i < _available.length; i++) {
       const id = _available[i]!;
       const inst = actor._instances.get(id);
-      // Temporarily clear _isDormant so that onDestroy can fire normally.
-      if (inst) inst._isDormant = false;
+      // Resume the scope so onDestroy can fire normally during despawn.
+      if (inst) inst._scope.resume();
       actor._plugin.despawn!(id);
     }
     _available.length = 0;

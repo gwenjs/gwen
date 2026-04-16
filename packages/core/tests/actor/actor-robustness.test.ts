@@ -15,13 +15,8 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
-import {
-  defineActor,
-  onStart,
-  onDestroy,
-  onEvent,
-  useEntityId,
-} from "../../src/actor/runtime/define-actor";
+import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
+import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { useComponent } from "../../src/actor/runtime/use-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
@@ -85,7 +80,7 @@ describe("despawn — cleanup chain robustness", () => {
     expect(thirdSpy).toHaveBeenCalledOnce();
   });
 
-  it("runs event cleanups even when onDestroy throws", async () => {
+  it("runs scope cleanup even when onDestroy throws", async () => {
     const engine = await createEngine();
     const handler = vi.fn();
 
@@ -93,14 +88,14 @@ describe("despawn — cleanup chain robustness", () => {
       onDestroy(() => {
         throw new Error("boom");
       });
-      onEvent("entity:create" as never, handler as never);
+      useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
     const id = Actor._plugin.spawn!();
 
     Actor._plugin.despawn!(id);
 
-    // Handler should have been cleaned up — calling the hook must not invoke it.
+    // scope.dispose() removes all handlers even when onDestroy throws.
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 0n);
     expect(handler).not.toHaveBeenCalled();
   });
@@ -239,15 +234,15 @@ describe("useComponent — $set batch write", () => {
   });
 });
 
-// ─── 5. onEvent dormancy guard ────────────────────────────────────────────────
+// ─── 5. ScopedHookable dormancy — handler silenced via scope.pause() ──────────
 
-describe("onEvent — dormancy guard preserves handler behaviour", () => {
+describe("useHook — ScopedHookable silences dormant actors", () => {
   it("handler is called when actor is active", async () => {
     const engine = await createEngine();
     const handler = vi.fn();
 
     const Actor = defineActor(SimplePrefab, () => {
-      onEvent("entity:create" as never, handler as never);
+      useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
     Actor._plugin.spawn!();
@@ -258,12 +253,12 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
     expect(handler).toHaveBeenCalledWith(42n);
   });
 
-  it("handler is NOT called when actor is dormant", async () => {
+  it("handler is NOT called when actor is dormant (pool release)", async () => {
     const engine = await createEngine();
     const handler = vi.fn();
 
     const Actor = defineActor(SimplePrefab, () => {
-      onEvent("entity:create" as never, handler as never);
+      useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 1 });
@@ -271,10 +266,10 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
 
     const id = pool.acquire();
     pool.release(id);
-    // release() is deferred — advance one frame to flush it and set _isDormant.
+    // release() is deferred — advance one frame to flush it and pause the scope.
     await engine.advance(0.016);
 
-    // Actor is now dormant — hook must not invoke the handler.
+    // Scope is paused — hook must not invoke the handler.
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 99n);
 
     expect(handler).not.toHaveBeenCalled();
@@ -285,7 +280,7 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
     const handler = vi.fn();
 
     const Actor = defineActor(SimplePrefab, () => {
-      onEvent("entity:create" as never, handler as never);
+      useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 1 });
@@ -295,7 +290,7 @@ describe("onEvent — dormancy guard preserves handler behaviour", () => {
     pool.release(id);
     // Flush deferred release so the slot becomes available.
     await engine.advance(0.016);
-    pool.acquire(); // re-acquire — _isDormant set back to false
+    pool.acquire(); // re-acquire — scope.resume() called
 
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 1n);
 

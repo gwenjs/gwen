@@ -1,7 +1,7 @@
 import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
-import { _tryGetActorInstance } from "../actor/runtime/define-actor.js";
+import { _activeScopeSlot } from "./scoped-hookable.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -85,39 +85,19 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   name: K,
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
-  const engine = useEngine();
-  const instance = _tryGetActorInstance();
+  const scope = _activeScopeSlot.get();
 
-  let handler = fn;
-
-  if (instance !== null) {
-    // Inside a defineActor() factory: wrap with a dormancy-aware handler.
-    //
-    // When the actor is dormant (returned to a pool), skip the handler and warn
-    // once so the developer knows to use onEvent() instead.
-    //
-    // Uses `Parameters<typeof fn>` rather than `unknown[]` so TypeScript still
-    // verifies argument types at the call site — unlike a plain spread cast that
-    // would silently accept any signature mismatch.
-    let hasWarned = false;
-    handler = ((...args: Parameters<typeof fn>) => {
-      if (instance._isDormant && !hasWarned && import.meta.env.DEV) {
-        engine.logger.warn(
-          `useHook('${name}') fired on a dormant actor. ` +
-            `Use onEvent() instead — it skips dormant actors silently.`,
-          { hook: name },
-        );
-        hasWarned = true;
-      }
-      return (fn as (...a: Parameters<typeof fn>) => unknown)(...args);
-    }) as GwenRuntimeHooks[K];
+  if (scope) {
+    // Inside a scoped context (actor, system, scene): register through the scope.
+    // Dormancy is handled transparently by scope.pause() — no per-handler flag needed.
+    // Cleanup is handled by scope.dispose() on despawn/teardown.
+    return scope.hook(name, fn);
   }
 
-  const unsubscribe: UnsubscribeFn = engine.hooks.hook(name, handler as never);
-  // Use the lenient variant: useHook() is valid both inside and outside a cleanup
-  // context. When a context is active (actor factory, plugin setup), the handler
-  // is auto-removed on despawn/teardown. When there is no context (e.g. engine.run()
-  // called directly), cleanup is the caller's responsibility via the returned fn.
+  // Outside any scope (e.g. engine.run() or plugin setup): register directly and
+  // rely on the cleanup context for auto-removal when available.
+  const engine = useEngine();
+  const unsubscribe: UnsubscribeFn = engine.hooks.hook(name, fn as never);
   onCleanupIfActive(unsubscribe);
   return unsubscribe;
 }

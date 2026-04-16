@@ -1,12 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
-import {
-  defineActor,
-  onStart,
-  onDestroy,
-  onEvent,
-  useEntityId,
-} from "../../src/actor/runtime/define-actor";
+import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
+import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
@@ -78,23 +73,27 @@ describe("lifecycle hooks inside factory", () => {
     expect(destroySpy).toHaveBeenCalledOnce();
   });
 
-  it("onUpdate callback is collected from factory", async () => {
+  it("onUpdate callback fires each frame after spawn", async () => {
     const engine = await createEngine();
     const updateSpy = vi.fn();
     const Actor = defineActor(SimplePrefab, () => {
       onUpdate(updateSpy);
     });
     await engine.use(Actor._plugin);
-    const id = Actor._plugin.spawn?.();
-    const instance = Actor._instances.get(id!);
-    expect(instance?._update).toHaveLength(1);
+    Actor._plugin.spawn?.();
+
+    await engine.start();
+    await engine.advance(0.016);
+    await engine.stop();
+
+    expect(updateSpy).toHaveBeenCalled();
   });
 
-  it("onEvent registers and cleans up on despawn", async () => {
+  it("useHook registers and cleans up on despawn", async () => {
     const engine = await createEngine();
     const handler = vi.fn();
     const Actor = defineActor(SimplePrefab, () => {
-      onEvent("entity:create" as never, handler as never);
+      useHook("entity:create" as never, handler as never);
     });
     await engine.use(Actor._plugin);
     const id = Actor._plugin.spawn?.();
@@ -103,7 +102,7 @@ describe("lifecycle hooks inside factory", () => {
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 0n);
     expect(handler).toHaveBeenCalledOnce();
 
-    // after despawn — cleanup should have removed the handler
+    // after despawn — scope.dispose() removes the handler
     Actor._plugin.despawn?.(id!);
     (engine.hooks as { callHook(e: string, ...a: unknown[]): void }).callHook("entity:create", 1n);
     expect(handler).toHaveBeenCalledOnce(); // still 1 — not called again
