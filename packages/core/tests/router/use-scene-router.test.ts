@@ -4,7 +4,7 @@ import { defineScene } from "../../src/scene/runtime/define-scene";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
-import { onEnter, onExit } from "../../src/scene/runtime/scene-context";
+import { onEnter, onExit, onTransitionLeave, onTransitionEnter } from "../../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 
@@ -170,6 +170,50 @@ describe("useSceneRouter()", () => {
     });
 
     expect(PlayerActor._instances.size).toBe(1);
+  });
+
+  it("onTransitionLeave fires before leave with correct payload", async () => {
+    const leaveSpy = vi.fn();
+    const SceneFrom = defineScene("TransFrom", () => {
+      onTransitionLeave(leaveSpy);
+    });
+    const SceneTo = defineScene("TransTo", () => {});
+    const router = defineSceneRouter({
+      initial: "from",
+      routes: {
+        from: { scene: SceneFrom, on: { GO: "to" } },
+        to: { scene: SceneTo, on: {} },
+      },
+    });
+    const engine = await createEngine();
+    await engine.run(async () => {
+      const nav = useSceneRouter(router);
+      await nav.send("GO");
+    });
+    expect(leaveSpy).toHaveBeenCalledOnce();
+    expect(leaveSpy).toHaveBeenCalledWith({ from: "TransFrom", to: "TransTo" });
+  });
+
+  it("onTransitionEnter fires after enter with correct payload", async () => {
+    const enterSpy = vi.fn();
+    const SceneFrom = defineScene("TransEnterFrom", () => {});
+    const SceneTo = defineScene("TransEnterTo", () => {
+      onTransitionEnter(enterSpy);
+    });
+    const router = defineSceneRouter({
+      initial: "from",
+      routes: {
+        from: { scene: SceneFrom, on: { GO: "to" } },
+        to: { scene: SceneTo, on: {} },
+      },
+    });
+    const engine = await createEngine();
+    await engine.run(async () => {
+      const nav = useSceneRouter(router);
+      await nav.send("GO");
+    });
+    expect(enterSpy).toHaveBeenCalledOnce();
+    expect(enterSpy).toHaveBeenCalledWith({ from: "TransEnterFrom", to: "TransEnterTo" });
   });
 
   it("throws if used outside engine context", () => {

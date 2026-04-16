@@ -19,7 +19,7 @@
  * ```
  */
 
-import { useEngine, engineContext } from "../../engine/context";
+import { useEngine } from "../../engine/context";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type {
   RouteConfig,
@@ -95,22 +95,18 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     routerCacheByEngine.get(engine)?.delete(routerDef);
   });
 
-  // Activate initial scene (fire-and-forget with full context scope)
-  const initialScene = resolveScene(routes[currentState as keyof TRoutes].scene);
-  if (initialScene.onEnter) {
-    const _onEnter = initialScene.onEnter;
-    (async () => {
-      engineContext.set(engine, true);
-      try {
-        await _onEnter();
-      } catch (e) {
-        // eslint-disable-next-line no-console
-        console.error(e);
-      } finally {
-        engineContext.unset();
-      }
-    })();
+  // Resolve all scene factories eagerly — each factory runs once, registering
+  // its onEnter/onExit handlers on engine.hooks. Must happen before the first
+  // scene:enter emission so handlers are in place when the event fires.
+  // Build a route-key → scene-name map so hook emissions use the scene's canonical name.
+  const sceneNameByRoute = new Map<string, string>();
+  for (const routeKey of Object.keys(routes)) {
+    const def = resolveScene(routes[routeKey as keyof TRoutes].scene);
+    sceneNameByRoute.set(routeKey, def.name);
   }
+
+  // Activate the initial scene (fire-and-forget — onEnter may be async).
+  void engine.hooks.callHook("scene:enter", sceneNameByRoute.get(String(currentState)) ?? String(currentState));
 
   const handle: SceneRouterHandle<TRoutes> = {
     get current() {
@@ -130,20 +126,16 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       const target = route?.on?.[event as string] as StatesOf<TRoutes> | undefined;
 
       if (!target) {
-        if (!import.meta.env.PROD) {
-          // Silently ignore in production, warn in dev
-          // eslint-disable-next-line no-console
-          console.warn(
-            `[GWEN] useSceneRouter: event "${String(event)}" has no transition in state "${String(currentState)}". Ignoring.`,
-          );
-        }
+        engine.logger.warn(
+          `useSceneRouter: event "${String(event)}" has no transition in state "${String(currentState)}". Ignoring.`,
+        );
         return;
       }
 
       const fromState = currentState;
-      const fromScene = resolveScene(routes[fromState as keyof TRoutes].scene);
+      const fromName = sceneNameByRoute.get(String(fromState)) ?? String(fromState);
+      const toName = sceneNameByRoute.get(String(target)) ?? String(target);
       const toConfig = routes[target as keyof TRoutes];
-      const toScene = resolveScene(toConfig.scene);
 
       if (toConfig.overlay) {
         // Push onto overlay stack — do NOT exit current scene
@@ -156,35 +148,29 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         for (const l of listeners) l(fromState, target, params);
         return;
       } else {
-        // Normal transition — exit current, clear any overlay stack
-        overlayStack.length = 0;
-        // Emit scene:beforeLeave so useActorPool and other composables can react.
-        await engine.hooks.callHook("scene:beforeLeave", fromState as string);
-        if (fromScene.onExit) {
-          // Keep engine context alive for the full async duration of onExit.
-          // engineContext.set() keeps currentInstance set across every await
-          // inside onExit without requiring the @gwenjs/vite async transform.
-          engineContext.set(engine, true);
-          try {
-            await fromScene.onExit!();
-          } finally {
-            engineContext.unset();
-          }
-        }
+        // Normal transition — full lifecycle sequence per the spec:
+        // 1. Async leave animation
+        await engine.hooks.callHook("scene:transition:leave", {
+          from: fromName,
+          to: toName,
+        });
+        // 2. Systems pause + onExit callbacks (awaited for async safety)
+        await engine.hooks.callHook("scene:beforeLeave", fromName);
+        // 3. Scene fully left
+        engine.hooks.callHook("scene:leave", fromName);
       }
 
       currentState = target;
       currentParams = params;
 
-      if (toScene.onEnter) {
-        // Same pattern: keep engine context alive for the full async duration.
-        engineContext.set(engine, true);
-        try {
-          await toScene.onEnter!(params);
-        } finally {
-          engineContext.unset();
-        }
-      }
+      // 4. Systems resume + onEnter callbacks (awaited for async safety)
+      await engine.hooks.callHook("scene:enter", toName, params);
+
+      // 5. Async enter animation
+      await engine.hooks.callHook("scene:transition:enter", {
+        from: fromName,
+        to: toName,
+      });
 
       for (const l of listeners) l(fromState, target, params);
     },

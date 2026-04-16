@@ -4,7 +4,5 @@
 export { defineScene } from "./runtime/define-scene";
 export type { SceneDefinition, SceneFactory, SceneRegistry } from "./runtime/define-scene";
 
-export { useSystem, onEnter, onExit } from "./runtime/scene-context";
+export { useSystem, onEnter, onExit, onTransitionLeave, onTransitionEnter } from "./runtime/scene-context";
 export type { SystemHandle } from "./runtime/system-handle";
-
-export * from "../router/index.js";

@@ -23,6 +23,8 @@ export interface SceneSetupContext {
   systems: GwenPlugin[];
   onEnterCb?: (params?: Record<string, unknown>) => void | Promise<void>;
   onExitCb?: () => void | Promise<void>;
+  onTransitionLeaveCb?: (payload: { from: string; to: string }) => void | Promise<void>;
+  onTransitionEnterCb?: (payload: { from: string; to: string }) => void | Promise<void>;
   registrar?: SceneRegistrar;
 }
 
@@ -200,4 +202,68 @@ export function onExit(cb: () => void | Promise<void>): void {
     throw new GwenContextError("[GWEN] onExit() must be called inside a defineScene() factory.");
   }
   ctx.onExitCb = cb;
+}
+
+/**
+ * Register an async callback that runs before the leave animation for this scene.
+ *
+ * Fires on `scene:transition:leave` when this scene is the one being left.
+ * Awaited before `onExit` — use it to play a fade-out or slide animation.
+ *
+ * Must be called inside a `defineScene()` factory.
+ *
+ * @param cb - Receives `{ from, to }` — the scene names involved in the transition.
+ * @throws {GwenContextError} If called outside a `defineScene()` factory.
+ *
+ * @example
+ * ```ts
+ * defineScene('Game', () => {
+ *   onTransitionLeave(async ({ to }) => {
+ *     await fadeOut(300)
+ *   })
+ * })
+ * ```
+ */
+export function onTransitionLeave(
+  cb: (payload: { from: string; to: string }) => void | Promise<void>,
+): void {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
+    throw new GwenContextError(
+      "[GWEN] onTransitionLeave() must be called inside a defineScene() factory.",
+    );
+  }
+  ctx.onTransitionLeaveCb = cb;
+}
+
+/**
+ * Register an async callback that runs after the scene becomes active.
+ *
+ * Fires on `scene:transition:enter` after `onEnter` completes.
+ * Awaited — use it to play a fade-in or slide-in animation.
+ *
+ * Must be called inside a `defineScene()` factory.
+ *
+ * @param cb - Receives `{ from, to }` — the scene names involved in the transition.
+ * @throws {GwenContextError} If called outside a `defineScene()` factory.
+ *
+ * @example
+ * ```ts
+ * defineScene('Game', () => {
+ *   onTransitionEnter(async ({ from }) => {
+ *     await slideIn(400)
+ *   })
+ * })
+ * ```
+ */
+export function onTransitionEnter(
+  cb: (payload: { from: string; to: string }) => void | Promise<void>,
+): void {
+  const ctx = _getActiveSceneContext();
+  if (!ctx) {
+    throw new GwenContextError(
+      "[GWEN] onTransitionEnter() must be called inside a defineScene() factory.",
+    );
+  }
+  ctx.onTransitionEnterCb = cb;
 }

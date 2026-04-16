@@ -1,6 +1,12 @@
 import { describe, it, expect, vi } from "vitest";
 import { defineScene } from "../../src/scene/runtime/define-scene";
-import { useSystem, onEnter, onExit } from "../../src/scene/runtime/scene-context";
+import {
+  useSystem,
+  onEnter,
+  onExit,
+  onTransitionLeave,
+  onTransitionEnter,
+} from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
@@ -74,6 +80,32 @@ describe("defineScene composable API", () => {
 
   it("onExit throws GwenContextError if called outside a factory", () => {
     expect(() => onExit(() => {})).toThrow(GwenContextError);
+  });
+
+  it("onTransitionLeave throws GwenContextError if called outside a factory", () => {
+    expect(() => onTransitionLeave(() => {})).toThrow(GwenContextError);
+  });
+
+  it("onTransitionEnter throws GwenContextError if called outside a factory", () => {
+    expect(() => onTransitionEnter(() => {})).toThrow(GwenContextError);
+  });
+
+  it("onTransitionLeave callback is captured and stored", () => {
+    const cb = vi.fn();
+    const MyScene = defineScene("Test", () => {
+      onTransitionLeave(cb);
+    });
+    const def = MyScene(REGISTRY);
+    expect(def.onTransitionLeave).toBe(cb);
+  });
+
+  it("onTransitionEnter callback is captured and stored", () => {
+    const cb = vi.fn();
+    const MyScene = defineScene("Test", () => {
+      onTransitionEnter(cb);
+    });
+    const def = MyScene(REGISTRY);
+    expect(def.onTransitionEnter).toBe(cb);
   });
 
   it("useActor can register actor plugins through engine-backed scene context", async () => {

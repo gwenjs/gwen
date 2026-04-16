@@ -27,7 +27,8 @@
  */
 
 import { _withSceneContext } from "./scene-context";
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
+import { engineContext } from "../../engine/context";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -47,6 +48,10 @@ export interface SceneDefinition {
   readonly onEnter?: (params?: Record<string, unknown>) => void | Promise<void>;
   /** Optional callback fired when the engine routes away from this scene. */
   readonly onExit?: () => void | Promise<void>;
+  /** Optional async callback fired before the leave animation (scene:transition:leave). */
+  readonly onTransitionLeave?: (payload: { from: string; to: string }) => void | Promise<void>;
+  /** Optional async callback fired after the enter animation (scene:transition:enter). */
+  readonly onTransitionEnter?: (payload: { from: string; to: string }) => void | Promise<void>;
 }
 
 /**
@@ -75,11 +80,15 @@ export interface SceneFactory {
  * - `onEnter(cb)` — called when the engine routes to this scene
  * - `onExit(cb)` — called when the engine routes away from this scene
  *
- * The factory runs inside an active engine context so `useEngine()`,
- * `useActor()`, `usePrefab()`, and `useSceneRouter()` are all available.
- *
  * The factory result is **cached** — the function is only executed once
  * regardless of how many times the returned `SceneFactory` is called.
+ *
+ * Lifecycle wiring (decoupled from router): when an engine context is active at
+ * factory call time, `onEnter` / `onExit` are wired to `scene:enter` /
+ * `scene:beforeLeave` engine hooks with full async engine-context propagation.
+ * Calling the factory without an engine context (e.g. in tests that access
+ * `SceneDefinition.onEnter` directly) still works — the callbacks remain
+ * accessible on the returned definition.
  *
  * @param name    Unique scene name (used by the engine router).
  * @param factory Called once at bootstrap to declare systems and hooks.
@@ -96,18 +105,89 @@ export interface SceneFactory {
  * ```
  */
 export function defineScene(name: string, factory: () => void): SceneFactory {
-  let _cached: SceneDefinition | null = null;
+  // The SceneDefinition is engine-independent — factory runs once.
+  let _def: SceneDefinition | null = null;
+  // Hook registration is per-engine — tracked so each engine gets its own listeners.
+  const _registeredEngines = new WeakSet<GwenEngine>();
+
+  function _registerHooks(engine: GwenEngine, def: SceneDefinition): void {
+    if (_registeredEngines.has(engine)) return;
+    _registeredEngines.add(engine);
+
+    if (def.onEnter) {
+      const enterCb = def.onEnter;
+      engine.hooks.hook("scene:enter", async (sceneName, params) => {
+        if (sceneName !== name) return;
+        engineContext.set(engine, true);
+        try {
+          await enterCb(params);
+        } finally {
+          engineContext.unset();
+        }
+      });
+    }
+
+    if (def.onExit) {
+      const exitCb = def.onExit;
+      engine.hooks.hook("scene:beforeLeave", async (sceneName) => {
+        if (sceneName !== name) return;
+        engineContext.set(engine, true);
+        try {
+          await exitCb();
+        } finally {
+          engineContext.unset();
+        }
+      });
+    }
+
+    if (def.onTransitionLeave) {
+      const leaveCb = def.onTransitionLeave;
+      engine.hooks.hook("scene:transition:leave", async (payload) => {
+        if (payload.from !== name) return;
+        engineContext.set(engine, true);
+        try {
+          await leaveCb(payload);
+        } finally {
+          engineContext.unset();
+        }
+      });
+    }
+
+    if (def.onTransitionEnter) {
+      const enterCb = def.onTransitionEnter;
+      engine.hooks.hook("scene:transition:enter", async (payload) => {
+        if (payload.to !== name) return;
+        engineContext.set(engine, true);
+        try {
+          await enterCb(payload);
+        } finally {
+          engineContext.unset();
+        }
+      });
+    }
+  }
 
   const fn = (_registry: SceneRegistry): SceneDefinition => {
-    if (_cached) return _cached;
-    const ctx = _withSceneContext(factory);
-    _cached = {
-      name,
-      systems: ctx.systems,
-      onEnter: ctx.onEnterCb,
-      onExit: ctx.onExitCb,
-    };
-    return _cached;
+    // Run factory only once — SceneDefinition is engine-independent.
+    if (!_def) {
+      const ctx = _withSceneContext(factory);
+      _def = {
+        name,
+        systems: ctx.systems,
+        onEnter: ctx.onEnterCb,
+        onExit: ctx.onExitCb,
+        onTransitionLeave: ctx.onTransitionLeaveCb,
+        onTransitionEnter: ctx.onTransitionEnterCb,
+      };
+    }
+
+    // Wire lifecycle hooks for the current engine (if any). Each engine gets
+    // its own hook registrations so module-level scene definitions work correctly
+    // across multiple engine instances in tests.
+    const engine = engineContext.tryUse() as GwenEngine | null;
+    if (engine) _registerHooks(engine, _def);
+
+    return _def;
   };
 
   Object.defineProperty(fn, "sceneName", { value: name, writable: false });
