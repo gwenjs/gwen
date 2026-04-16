@@ -152,11 +152,10 @@ export function defineActorPool<Props, PublicAPI>(
     let id: EntityId;
 
     if (_available.length > 0) {
-      // Reuse a dormant slot — zero entity allocation cost.
       id = _available.pop()!;
       const inst = actor._instances.get(id)!;
 
-      // 1. Re-apply prefab defaults to all components.
+      // 1. Re-apply prefab defaults.
       for (let i = 0; i < actor._prefab.components.length; i++) {
         const entry = actor._prefab.components[i]!;
         engine.addComponent(id, entry.def, entry.defaults);
@@ -165,13 +164,17 @@ export function defineActorPool<Props, PublicAPI>(
       // 2. Remove DormantTag so ECS queries include this entity again.
       engine.removeComponent(id, DormantTag);
 
-      // 3. Resume the scope and fire onEnable callbacks.
+      // 3. Resume the scope — frame handlers become active again.
       inst._scope.resume();
-      for (let i = 0; i < inst._enable.length; i++) inst._enable[i]!();
 
-      // 4. Call onReset callbacks with the new props.
+      // 4. Fire onReset callbacks with new props.
       for (let i = 0; i < inst._reset.length; i++) {
         inst._reset[i]!(props as unknown);
+      }
+
+      // 5. Fire onEnable callbacks.
+      for (let i = 0; i < inst._enable.length; i++) {
+        inst._enable[i]!();
       }
     } else if (_active.size < size) {
       // `ActorPlugin.spawn` uses a rest-tuple overload (`?[] | [Props]`) to enforce
@@ -208,19 +211,23 @@ export function defineActorPool<Props, PublicAPI>(
     const inst = actor._instances.get(id);
     if (!inst) return;
 
-    // 1. Call onRelease callbacks.
+    // 1. Fire onDisable callbacks — before scope is paused.
+    for (let i = 0; i < inst._disable.length; i++) {
+      inst._disable[i]!();
+    }
+
+    // 2. Fire onRelease callbacks.
     for (let i = 0; i < inst._release.length; i++) {
       inst._release[i]!();
     }
 
-    // 2. Add DormantTag so ECS queries exclude this entity.
-    _engine.addComponent(id, DormantTag, {});
-
-    // 3. Fire onDisable callbacks and pause the scope.
-    for (let i = 0; i < inst._disable.length; i++) inst._disable[i]!();
+    // 3. Pause the scope — silences all frame handlers.
     inst._scope.pause();
 
-    // 4. Move from active to available.
+    // 4. Add DormantTag so ECS queries exclude this entity.
+    _engine.addComponent(id, DormantTag, {});
+
+    // 5. Move from active to available.
     _active.delete(id);
     _available.push(id);
 

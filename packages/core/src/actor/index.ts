@@ -7,6 +7,8 @@ export {
   onDestroy,
   onRelease,
   onReset,
+  onEnable,
+  onDisable,
   useEntityId,
   _getActorEntityId,
 } from "./runtime/define-actor";

@@ -43,6 +43,7 @@ import type {
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
+import { engineContext } from "../../engine/context";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -295,6 +296,50 @@ export function onReset<Props = unknown>(fn: (props: Props) => void): void {
   _activeContext.instance._reset.push(fn as (props: unknown) => void);
 }
 
+/**
+ * Registers a callback fired when this actor's scope is resumed — either
+ * because the actor was re-acquired from a pool via `pool.acquire()` or
+ * because `scope.resume()` was called explicitly.
+ *
+ * Use this to reset visual or audio state when a pooled actor becomes active
+ * again. Called after `onReset` when re-acquiring from a pool.
+ *
+ * Must be called synchronously inside a `defineActor()` factory function.
+ *
+ * @param fn - Callback invoked when the actor is enabled.
+ */
+export function onEnable(fn: VoidFn): void {
+  if (!_activeContext?.instance) {
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
+      "[GWEN] onEnable() must be called synchronously inside a defineActor() factory function.",
+    );
+  }
+  _activeContext.instance._enable.push(fn);
+}
+
+/**
+ * Registers a callback fired when this actor's scope is paused — either
+ * because the actor was returned to a pool via `pool.release()` or because
+ * `scope.pause()` was called explicitly.
+ *
+ * Use this to clean up or hide visual state when a pooled actor becomes
+ * dormant. Called before `onRelease` when releasing to a pool.
+ *
+ * Must be called synchronously inside a `defineActor()` factory function.
+ *
+ * @param fn - Callback invoked when the actor is disabled.
+ */
+export function onDisable(fn: VoidFn): void {
+  if (!_activeContext?.instance) {
+    throw new GwenComposableError(
+      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
+      "[GWEN] onDisable() must be called synchronously inside a defineActor() factory function.",
+    );
+  }
+  _activeContext.instance._disable.push(fn);
+}
+
 // ─── defineActor ─────────────────────────────────────────────────────────────
 
 // ─── Module-level plugin name counter ─────────────────────────────────────────
@@ -471,13 +516,21 @@ export function defineActor<Props = void, PublicAPI = void>(
     };
 
     // 4. Run the factory inside the actor context and the active scope slot.
-    //    The scope is set so that onUpdate/onBeforeUpdate/onRender etc register
-    //    their handlers into this instance's scope instead of a SystemContext.
+    //    Also activate the engine context so that composables like useHook()
+    //    that call useEngine() work even when spawn() is called outside engine.run().
+    //    Only set/unset the engine context when it is not already active — we must
+    //    not clobber an outer engine.run() context.
     let api: PublicAPI | undefined;
     _withActorContext(instance, _engine!, () => {
-      _activeScopeSlot.run(instance._scope, () => {
-        api = (factory as (props?: Props) => PublicAPI)(props);
-      });
+      const needsEngineCtx = !engineContext.tryUse();
+      if (needsEngineCtx) engineContext.set(_engine!);
+      try {
+        _activeScopeSlot.run(instance._scope, () => {
+          api = (factory as (props?: Props) => PublicAPI)(props);
+        });
+      } finally {
+        if (needsEngineCtx) engineContext.unset();
+      }
     });
 
     instance.api = api as PublicAPI;
