@@ -1,83 +1,65 @@
 import { onCleanupIfActive } from "../cleanup-context.js";
-import { useEngine } from "../engine/context";
+import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { _activeScopeSlot } from "./scoped-hookable.js";
 
 /**
  * A function that removes a previously registered hook subscription.
  *
- * Returned by {@link useHook} and `engine.hooks.hook()`. Call it to unregister
- * the handler before the owning context ends — for example to stop listening
- * to an event mid-lifecycle without waiting for actor despawn.
+ * Returned by {@link useHook}. Call it to unregister the handler before the
+ * owning context ends — for example to stop listening to an event mid-lifecycle
+ * without waiting for actor despawn.
  *
  * @example
  * ```ts
  * import type { UnsubscribeFn } from '@gwenjs/core'
  *
- * let unsub: UnsubscribeFn | undefined;
- *
- * const Actor = defineActor(MyPrefab, () => {
- *   onStart(() => {
- *     unsub = useHook('entity:create', handleCreate);
- *   });
- *   onDestroy(() => unsub?.());
- * });
+ * const unsub = useHook('entity:spawn', handleSpawn);
+ * // later:
+ * unsub();
  * ```
  */
 export type UnsubscribeFn = () => void;
 
 /**
- * Subscribes to a {@link GwenRuntimeHooks} event and registers an automatic cleanup.
+ * Subscribes to a {@link GwenRuntimeHooks} event from any engine context
+ * (system, actor, plugin, or `engine.run()`).
  *
- * When called inside a lifecycle context — a `defineActor()` factory, a plugin
- * `setup()`, or any function wrapped with {@link withCleanup} — the subscription
- * is automatically removed when the context ends (actor despawn, plugin teardown).
- * Outside any context, `useHook` still works but cleanup must be managed manually
- * via the returned unsubscribe function.
+ * **Automatic cleanup:** when called inside an active scope context (a
+ * `defineSystem()` factory, a `defineActor()` factory, or a `defineScene()`
+ * factory), the subscription is automatically removed when the scope is
+ * disposed — no manual cleanup needed. When called outside a scope (e.g.
+ * directly in a plugin `setup()` via `onCleanupIfActive`), the returned
+ * unsubscribe function must be called manually.
  *
- * Must be called inside an active engine context (i.e., within `defineSystem()`,
- * `defineActor()`, plugin `setup()`, or `engine.run()`).
+ * **Pool dormancy:** when called inside a `defineActor()` factory for a pooled
+ * actor, the handler is automatically silenced while the actor is dormant
+ * (returned to the pool). No warning is emitted — dormancy is handled
+ * transparently by the actor's {@link ScopedHookable}.
  *
- * ### Actor pools and dormancy
- *
- * When called inside a `defineActor()` factory, `useHook` automatically wraps
- * the handler with a dormancy guard. If the actor is returned to a pool via
- * `pool.release()`, the handler is **skipped** when the hook fires and a warning
- * is logged via `engine.logger` (once per actor instance, dev-only). Use
- * {@link onEvent} instead to opt into this behaviour explicitly without the warning.
+ * Must be called inside an active engine context.
  *
  * @typeParam K - The event name key from {@link GwenRuntimeHooks}.
  * @param name - The event to subscribe to.
- * @param fn - Handler invoked each time the event fires.
- * @returns An unsubscribe function. Call it to remove the handler early,
- *   before the context ends.
+ * @param fn   - Handler invoked each time the event fires.
+ * @returns An unsubscribe function. Call it to remove the handler early.
  *
  * @throws {GwenContextError} If called outside any active engine context.
  *
- * @example Auto-cleanup in a system:
- * ```typescript
- * import { defineSystem } from '@gwenjs/core/system'
- * import { useHook } from '@gwenjs/core'
+ * @example
+ * ```ts
+ * // In a system — auto-removed when the system's scene exits
+ * const TrackingSystem = defineSystem(() => {
+ *   useHook('entity:spawn', (id) => console.log('spawned', id));
+ * });
  *
- * export const TrackingSystem = defineSystem(function TrackingSystem() {
- *   // Automatically removed when the engine stops
- *   useHook('entity:spawn', (id) => {
- *     console.log('Entity spawned:', id)
- *   })
- * })
+ * // In an actor — auto-removed on despawn; silent when dormant in a pool
+ * const BulletActor = defineActor(BulletPrefab, () => {
+ *   useHook('player:fire', handleFire);
+ * });
  * ```
  *
- * @example Manual unsubscribe:
- * ```typescript
- * const unsubscribe = useHook('engine:tick', (dt) => {
- *   if (someCondition) {
- *     unsubscribe() // Remove early
- *   }
- * })
- * ```
- *
- * @see {@link onEvent} — preferred API for event subscriptions inside actors
- * @see {@link onCleanup} — register any cleanup callback in the active context
+ * @see {@link onEnable} / {@link onDisable} — callbacks for pool acquire/release
  * @see {@link GwenRuntimeHooks} — all available event names
  * @since 1.0.0
  */
@@ -85,19 +67,20 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   name: K,
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
+  const engine = useEngine();
   const scope = _activeScopeSlot.get();
 
   if (scope) {
-    // Inside a scoped context (actor, system, scene): register through the scope.
-    // Dormancy is handled transparently by scope.pause() — no per-handler flag needed.
-    // Cleanup is handled by scope.dispose() on despawn/teardown.
+    // Inside a scoped context (actor, system, scene):
+    // — dormancy is handled by scope.pause() — no guard needed
+    // — cleanup is handled by scope.dispose()
     return scope.hook(name, fn);
   }
 
-  // Outside any scope (e.g. engine.run() or plugin setup): register directly and
-  // rely on the cleanup context for auto-removal when available.
-  const engine = useEngine();
-  const unsubscribe: UnsubscribeFn = engine.hooks.hook(name, fn as never);
+  // Outside a scope (plugin setup, engine.run(), manual use):
+  // — register directly on engine.hooks
+  // — use onCleanupIfActive so cleanup is automatic if a cleanup context is active
+  const unsubscribe = engine.hooks.hook(name, fn as never);
   onCleanupIfActive(unsubscribe);
   return unsubscribe;
 }
