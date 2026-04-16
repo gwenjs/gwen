@@ -24,11 +24,12 @@
  * ```
  */
 
-import { useEngine } from "../../engine/context";
+import { useEngine, GwenContextError } from "../../engine/context";
 import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import { ContextSlot } from "../../engine/context-slot";
+import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -88,85 +89,100 @@ export function _withSystemContext(ctx: SystemContext, fn: () => void): void {
 // ─── Lifecycle composables ───────────────────────────────────────────────────
 
 /**
- * Registers a callback to run every frame **before** the physics/WASM step.
+ * Registers a callback to run every frame during the `engine:before-update`
+ * phase — before physics. Must be called synchronously inside a
+ * {@link defineSystem} setup callback or a {@link defineActor} factory.
  *
- * Must be called synchronously inside a {@link defineSystem} setup callback.
- *
- * @param fn - Callback receiving delta time in seconds
- *
- * @example
- * ```typescript
- * defineSystem(() => {
- *   onBeforeUpdate((dt) => {
- *     // runs before physics each frame
- *   })
- * })
- * ```
+ * @param fn - Callback receiving delta time in seconds.
+ * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onBeforeUpdate(fn: UpdateFn): void {
-  _getSystemContext().onBeforeUpdate(fn);
+  const scope = _activeScopeSlot.get();
+  if (scope) {
+    scope.hook("engine:before-update", fn);
+    return;
+  }
+  // Fallback: support legacy SystemContext (actor factory still uses it during Task 4)
+  const ctx = _systemCtx.get();
+  if (ctx) {
+    ctx.onBeforeUpdate(fn);
+    return;
+  }
+  throw new GwenContextError(
+    "[GWEN] onBeforeUpdate() must be called inside a defineSystem() or defineActor() factory.",
+  );
 }
 
 /**
- * Registers a callback to run every frame **during** the update phase
- * (after the physics/WASM step).
+ * Registers a callback to run every frame during the `engine:update` phase —
+ * after physics. Must be called synchronously inside a {@link defineSystem}
+ * setup callback or a {@link defineActor} factory.
  *
- * Must be called synchronously inside a {@link defineSystem} setup callback.
- *
- * @param fn - Callback receiving delta time in seconds
- *
- * @example
- * ```typescript
- * defineSystem(() => {
- *   onUpdate((dt) => {
- *     // main game logic here
- *   })
- * })
- * ```
+ * @param fn - Callback receiving delta time in seconds.
+ * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onUpdate(fn: UpdateFn): void {
-  _getSystemContext().onUpdate(fn);
+  const scope = _activeScopeSlot.get();
+  if (scope) {
+    scope.hook("engine:update", fn);
+    return;
+  }
+  const ctx = _systemCtx.get();
+  if (ctx) {
+    ctx.onUpdate(fn);
+    return;
+  }
+  throw new GwenContextError(
+    "[GWEN] onUpdate() must be called inside a defineSystem() or defineActor() factory.",
+  );
 }
 
 /**
- * Registers a callback to run every frame **after** the update phase.
+ * Registers a callback to run every frame during the `engine:after-update`
+ * phase. Must be called synchronously inside a {@link defineSystem} setup
+ * callback or a {@link defineActor} factory.
  *
- * Must be called synchronously inside a {@link defineSystem} setup callback.
- *
- * @param fn - Callback receiving delta time in seconds
- *
- * @example
- * ```typescript
- * defineSystem(() => {
- *   onAfterUpdate((dt) => {
- *     // post-update cleanup or sync here
- *   })
- * })
- * ```
+ * @param fn - Callback receiving delta time in seconds.
+ * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onAfterUpdate(fn: UpdateFn): void {
-  _getSystemContext().onAfterUpdate(fn);
+  const scope = _activeScopeSlot.get();
+  if (scope) {
+    scope.hook("engine:after-update", fn);
+    return;
+  }
+  const ctx = _systemCtx.get();
+  if (ctx) {
+    ctx.onAfterUpdate(fn);
+    return;
+  }
+  throw new GwenContextError(
+    "[GWEN] onAfterUpdate() must be called inside a defineSystem() or defineActor() factory.",
+  );
 }
 
 /**
- * Registers a callback to run every frame during the **render** phase.
- * No delta time is provided — use for drawing operations only.
+ * Registers a callback to run every frame during the `engine:render` phase.
+ * No delta time — use for draw calls only. Must be called synchronously inside
+ * a {@link defineSystem} setup callback or a {@link defineActor} factory.
  *
- * Must be called synchronously inside a {@link defineSystem} setup callback.
- *
- * @param fn - Render callback
- *
- * @example
- * ```typescript
- * defineSystem(() => {
- *   onRender(() => {
- *     canvas.drawSprite(...)
- *   })
- * })
- * ```
+ * @param fn - Render callback.
+ * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onRender(fn: RenderFn): void {
-  _getSystemContext().onRender(fn);
+  const scope = _activeScopeSlot.get();
+  if (scope) {
+    scope.hook("engine:render", fn);
+    return;
+  }
+  const ctx = _systemCtx.get();
+  if (ctx) {
+    ctx.onRender(fn);
+    return;
+  }
+  throw new GwenContextError(
+    "[GWEN] onRender() must be called inside a defineSystem() or defineActor() factory.",
+  );
 }
 
 // ─── DiscoverablePlugin ───────────────────────────────────────────────────────
@@ -198,6 +214,20 @@ export interface DiscoverablePlugin extends GwenPlugin {
    * documented behaviour.
    */
   _discover(): void;
+
+  /**
+   * Pause the system's ScopedHookable, silencing all registered frame handlers.
+   * Called by `SystemHandle.pause()`.
+   * @internal
+   */
+  _pause(): void;
+
+  /**
+   * Resume the system's ScopedHookable, re-enabling frame handlers.
+   * Called by `SystemHandle.resume()`.
+   * @internal
+   */
+  _resume(): void;
 }
 
 // ─── defineSystem ─────────────────────────────────────────────────────────────
@@ -274,58 +304,57 @@ export function defineSystem<Args extends unknown[]>(
   }
 
   return (...args: Args): DiscoverablePlugin => {
-    const _beforeUpdate: UpdateFn[] = [];
-    const _update: UpdateFn[] = [];
-    const _afterUpdate: UpdateFn[] = [];
-    const _render: RenderFn[] = [];
-
-    // True once _discover() has run the factory. Prevents setup() from
-    // running the factory a second time and triggering side effects twice.
+    let _scope: ScopedHookable | null = null;
     let _discovered = false;
-
-    const realCtx = (): SystemContext => ({
-      onBeforeUpdate: (fn) => _beforeUpdate.push(fn),
-      onUpdate: (fn) => _update.push(fn),
-      onAfterUpdate: (fn) => _afterUpdate.push(fn),
-      onRender: (fn) => _render.push(fn),
-    });
 
     const plugin: DiscoverablePlugin = {
       name: systemName || "anonymous-system",
 
       setup(): void {
-        if (_discovered) {
-          // _discover() already ran the factory and populated the callback arrays.
-          // Running it again would cause side effects to fire twice.
-          return;
-        }
-        // Normal path: _discover() was not called (e.g. direct engine.use()).
-        _withSystemContext(realCtx(), () => setupTemplate(...args));
+        if (_discovered) return;
+        const engine = useEngine();
+        _scope = new ScopedHookable(engine.hooks);
+        _withSystemContext(
+          {
+            onBeforeUpdate: () => {},
+            onUpdate: () => {},
+            onAfterUpdate: () => {},
+            onRender: () => {},
+          },
+          () => _activeScopeSlot.run(_scope!, () => setupTemplate(...args)),
+        );
       },
 
       _discover(): void {
-        // Run the factory with real callbacks so frame handlers are registered
-        // AND useActor() calls collect actor dependencies — all in one pass.
-        // setup() will skip the factory when it sees _discovered === true.
         _discovered = true;
-        _withSystemContext(realCtx(), () => setupTemplate(...args));
+        const engine = useEngine();
+        _scope = new ScopedHookable(engine.hooks);
+        _withSystemContext(
+          {
+            onBeforeUpdate: () => {},
+            onUpdate: () => {},
+            onAfterUpdate: () => {},
+            onRender: () => {},
+          },
+          () => _activeScopeSlot.run(_scope!, () => setupTemplate(...args)),
+        );
       },
 
-      onBeforeUpdate(dt: number): void {
-        for (let i = 0; i < _beforeUpdate.length; i++) _beforeUpdate[i]!(dt);
+      teardown(): void {
+        _scope?.dispose();
+        _scope = null;
       },
 
-      onUpdate(dt: number): void {
-        for (let i = 0; i < _update.length; i++) _update[i]!(dt);
+      _pause(): void {
+        _scope?.pause();
       },
 
-      onAfterUpdate(dt: number): void {
-        for (let i = 0; i < _afterUpdate.length; i++) _afterUpdate[i]!(dt);
+      _resume(): void {
+        _scope?.resume();
       },
 
-      onRender(): void {
-        for (let i = 0; i < _render.length; i++) _render[i]!();
-      },
+      // NO onBeforeUpdate / onUpdate / onAfterUpdate / onRender methods.
+      // Dispatch goes through engine.hooks → scope → registered handlers.
     };
 
     return plugin;

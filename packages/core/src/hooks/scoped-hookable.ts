@@ -74,9 +74,8 @@ export class ScopedHookable {
    *   before the scope is disposed.
    */
   hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
-    const self = this;
     const wrapped = ((...args: Parameters<GwenRuntimeHooks[K]>) => {
-      if (self._paused) return;
+      if (this._paused) return;
       return (fn as (...a: Parameters<GwenRuntimeHooks[K]>) => unknown)(...args);
     }) as GwenRuntimeHooks[K];
 

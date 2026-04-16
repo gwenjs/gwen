@@ -31,6 +31,12 @@
  */
 
 import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { DiscoverablePlugin } from "../../system/runtime/define-system";
+
+/** Duck-typed check — true when the plugin exposes ScopedHookable-level pause/resume. */
+function isScopedPlugin(p: GwenPlugin): p is DiscoverablePlugin {
+  return typeof (p as DiscoverablePlugin)._pause === "function";
+}
 
 // ─── Public interface ─────────────────────────────────────────────────────────
 
@@ -133,10 +139,12 @@ export function createSystemHandle(inner: GwenPlugin): {
   const handle: SystemHandle = {
     pause(): void {
       _userPaused = true;
+      if (isScopedPlugin(inner)) inner._pause();
     },
 
     resume(): void {
       _userPaused = false;
+      if (isActive() && isScopedPlugin(inner)) inner._resume();
     },
 
     destroy(): void {
@@ -149,13 +157,17 @@ export function createSystemHandle(inner: GwenPlugin): {
 
     _scenePause(): void {
       _scenePaused = true;
+      if (isScopedPlugin(inner)) inner._pause();
     },
 
     _sceneResume(): void {
       // Only clear the scene flag — never touch _userPaused.
       // A system the developer paused before the scene freeze must
       // remain paused when the scene unfreezes.
-      if (!_destroyed) _scenePaused = false;
+      if (!_destroyed) {
+        _scenePaused = false;
+        if (isActive() && isScopedPlugin(inner)) inner._resume();
+      }
     },
   };
 
