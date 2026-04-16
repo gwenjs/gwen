@@ -6,13 +6,14 @@ import { createEngine } from "../../src/engine/gwen-engine.js";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
+import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
 import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
+import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
 
 const dummyPlugin = (name: string) =>
   ({ name, apiVersion: 1, setup() {} }) as unknown as GwenPlugin;
 
 const REGISTRY = { register: () => {} };
-const SCENE_CONTEXT_SYMBOL = Symbol.for("@gwenjs/core.scene-setup-context");
 const Position = { __name__: "Position" };
 
 describe("defineScene composable API", () => {
@@ -79,14 +80,18 @@ describe("defineScene composable API", () => {
     const engine = await createEngine();
     const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
     const Actor = defineActor(prefab, () => ({}));
-    const sceneCtx = { systems: [] as GwenPlugin[] };
+    const systems: GwenPlugin[] = [];
+    const registrar: SceneRegistrar = {
+      register: (p) => {
+        if (!systems.includes(p)) systems.push(p);
+      },
+    };
 
-    (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL] = sceneCtx;
     engine.run(() => {
+      engine.provide(SCENE_REGISTRAR_KEY, registrar);
       useActor(Actor);
     });
 
-    expect(sceneCtx.systems).toContain(Actor._plugin);
-    delete (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
+    expect(systems).toContain(Actor._plugin);
   });
 });

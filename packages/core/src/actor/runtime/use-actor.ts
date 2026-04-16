@@ -24,7 +24,7 @@
 
 import { useEngine } from "../../engine/context";
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
-import { _registerScenePlugin } from "../../scene/runtime/scene-context";
+import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import type { ActorDefinition, PrefabDefinition } from "./types";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import type { EntityId } from "../../engine/engine-api";
@@ -175,15 +175,19 @@ const HANDLE_OWN_KEYS = new Set<string>([
 export function useActor<Props, PublicAPI>(
   actorDef: ActorDefinition<Props, PublicAPI>,
 ): ActorHandle<Props, PublicAPI> & (PublicAPI extends void ? unknown : PublicAPI) {
-  useEngine();
-  _registerScenePlugin(actorDef._plugin);
-
-  // Propagate child actor plugins injected by the Vite transform.
-  // _deps is undefined in test environments where no transform runs.
-  if (actorDef._plugin._deps) {
-    for (const dep of actorDef._plugin._deps) {
-      _registerScenePlugin(dep);
+  const engine = useEngine();
+  try {
+    const registrar = engine.inject(SCENE_REGISTRAR_KEY);
+    registrar.register(actorDef._plugin);
+    if (actorDef._plugin._deps) {
+      for (const dep of actorDef._plugin._deps) {
+        registrar.register(dep);
+      }
     }
+  } catch {
+    // No scene:registrar available (e.g. called in a non-scene context such as a
+    // plugin setup or direct engine.run()). This is valid — the actor plugin was
+    // already installed externally.
   }
 
   let _singletonId: EntityId | undefined;

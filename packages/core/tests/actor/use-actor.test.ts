@@ -3,6 +3,9 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor, usePrefab } from "../../src/actor/runtime/use-actor";
 import { createEngine } from "../../src/engine/gwen-engine";
+import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
+import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
+import type { GwenPlugin } from "../../src/engine/gwen-engine";
 
 const Position = { __name__: "Position" };
 
@@ -135,20 +138,21 @@ describe("ActorPlugin._deps — type contract", () => {
     // Simulate what the Vite transform injects at build time
     (ParentActor._plugin as { _deps?: unknown[] })._deps = [ChildActor._plugin];
 
-    // Access the internal scene context symbol the same way define-scene.test.ts does
-    const SCENE_CONTEXT_SYMBOL = Symbol.for("@gwenjs/core.scene-setup-context");
-    const sceneCtx = { systems: [] as { name: string }[] };
-    (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL] = sceneCtx;
+    const systems: GwenPlugin[] = [];
+    const registrar: SceneRegistrar = {
+      register: (p) => {
+        if (!systems.includes(p)) systems.push(p);
+      },
+    };
 
     engine.run(() => {
+      engine.provide(SCENE_REGISTRAR_KEY, registrar);
       useActor(ParentActor);
     });
 
     // Both ParentActor and ChildActor plugins must be in the scene context
-    expect(sceneCtx.systems).toContain(ParentActor._plugin);
-    expect(sceneCtx.systems).toContain(ChildActor._plugin);
-
-    delete (engine as unknown as Record<symbol, unknown>)[SCENE_CONTEXT_SYMBOL];
+    expect(systems).toContain(ParentActor._plugin);
+    expect(systems).toContain(ChildActor._plugin);
   });
 });
 

@@ -660,17 +660,22 @@ describe("defineActorPool — scope", () => {
 });
 
 describe("useActorPool — scene integration", () => {
-  it("returns the pool for dependency injection into systems and actors", () => {
+  it("returns the pool for dependency injection into systems and actors", async () => {
     // useActorPool() must return the pool so the scene factory can capture it
     // and pass it to systems/actors as a dependency — consumers must never
     // import and use the defineActorPool value directly.
+    const engine = await createEngine();
     const Actor = defineActor(TestPrefab, () => {});
+    await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
+    await engine.use(pool._plugin);
 
     let handle: typeof pool | undefined;
-    defineScene("test", () => {
-      handle = useActorPool(pool);
-    })({ register: () => {} });
+    engine.run(() => {
+      defineScene("test-di-return", () => {
+        handle = useActorPool(pool);
+      })({ register: () => {} });
+    });
 
     expect(handle).toBe(pool);
   });

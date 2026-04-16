@@ -14,6 +14,8 @@ import { GwenContextError, engineContext } from "../../engine/context";
 import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
+import { SCENE_REGISTRAR_KEY } from "./scene-registrar";
+import type { SceneRegistrar } from "./scene-registrar";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -21,6 +23,7 @@ export interface SceneSetupContext {
   systems: GwenPlugin[];
   onEnterCb?: (params?: Record<string, unknown>) => void | Promise<void>;
   onExitCb?: () => void | Promise<void>;
+  registrar?: SceneRegistrar;
 }
 
 // ─── Module-level context slot ────────────────────────────────────────────────
@@ -53,21 +56,32 @@ function _getActiveSceneContext(): SceneSetupContext | null {
  * @internal
  */
 export function _withSceneContext(factory: () => void): SceneSetupContext {
-  const prev = _currentSceneCtx;
-  const engine = engineContext.tryUse() as SceneContextEngine | undefined;
-  const prevEngineCtx = engine?.[_SCENE_CONTEXT_SYMBOL];
   const ctx: SceneSetupContext = { systems: [] };
+
+  // Build an idempotent registrar and expose it via engine.provide() so that
+  // useActor() / useActorPool() can call engine.inject(SCENE_REGISTRAR_KEY)
+  // without importing anything from this module (no actor→scene coupling).
+  const registrar: SceneRegistrar = {
+    register(plugin: GwenPlugin): void {
+      if (ctx.systems.includes(plugin)) return;
+      ctx.systems.push(plugin);
+    },
+  };
+  ctx.registrar = registrar;
+
+  // Provide the registrar for the duration of the factory call.
+  // engine.provide() is a simple Map.set — safe to call each time.
+  const engine = engineContext.tryUse() as GwenEngine | null;
+  if (engine) engine.provide(SCENE_REGISTRAR_KEY, registrar);
+
+  const prev = _currentSceneCtx;
   _currentSceneCtx = ctx;
-  if (engine) engine[_SCENE_CONTEXT_SYMBOL] = ctx;
   try {
     factory();
   } finally {
     _currentSceneCtx = prev;
-    if (engine) {
-      if (prevEngineCtx) engine[_SCENE_CONTEXT_SYMBOL] = prevEngineCtx;
-      else delete engine[_SCENE_CONTEXT_SYMBOL];
-    }
   }
+
   return ctx;
 }
 

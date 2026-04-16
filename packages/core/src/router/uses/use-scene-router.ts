@@ -158,6 +158,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       } else {
         // Normal transition — exit current, clear any overlay stack
         overlayStack.length = 0;
+        // Emit scene:beforeLeave so useActorPool and other composables can react.
+        await engine.hooks.callHook("scene:beforeLeave", fromState as string);
         if (fromScene.onExit) {
           // Keep engine context alive for the full async duration of onExit.
           // engineContext.set() keeps currentInstance set across every await
