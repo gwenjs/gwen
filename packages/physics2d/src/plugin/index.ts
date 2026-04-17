@@ -442,67 +442,73 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       });
 
       currentEngine = engine;
-    },
 
-    onBeforeUpdate(deltaTime: number): void {
-      cachedCollisionBatch = null;
-      (bridge?.getPhysicsBridge() as WasmEnginePhysics2D | undefined)?.physics_step(deltaTime);
-    },
+      engine.hooks.hook("engine:before-update", (deltaTime: number) => {
+        cachedCollisionBatch = null;
+        (bridge?.getPhysicsBridge() as WasmEnginePhysics2D | undefined)?.physics_step(deltaTime);
+      });
 
-    onUpdate(_dt: number): void {
-      if (!physicsService) return;
-      const batch = physicsService.getCollisionEventsBatch();
-      if (batch.count === 0) return;
+      engine.hooks.hook("engine:update", (_dt: number) => {
+        if (!physicsService) return;
+        const batch = physicsService.getCollisionEventsBatch();
+        if (batch.count === 0) return;
 
-      if (cfg.eventMode === "hybrid")
-        void currentEngine?.hooks.callHook("physics:collision:batch", batch);
+        if (cfg.eventMode === "hybrid")
+          void currentEngine?.hooks.callHook("physics:collision:batch", batch);
 
-      // Cast to internal type to access slot indices, which are not on the public CollisionEvent.
-      const internalEvents = batch.events as unknown as InternalCollisionEvent[];
+        // Cast to internal type to access slot indices, which are not on the public CollisionEvent.
+        const internalEvents = batch.events as unknown as InternalCollisionEvent[];
 
-      for (const event of internalEvents) {
-        for (const item of [
-          { slot: event.slotA, id: processSensorId(activeSensors, event.slotA, event.aColliderId) },
-          { slot: event.slotB, id: processSensorId(activeSensors, event.slotB, event.bColliderId) },
-        ]) {
-          if (item.id === undefined) continue;
-          const generation = bridge!.getEntityGeneration(item.slot);
-          if (generation === undefined) continue;
-          const entityId = createEntityId(item.slot, generation);
-          const prevState = physicsService.getSensorState(entityId, item.id);
-          physicsService.updateSensorState(entityId, item.id, event.started);
-          const nextState = physicsService.getSensorState(entityId, item.id);
-          if (prevState.isActive !== nextState.isActive)
-            void currentEngine?.hooks.callHook(
-              "physics:sensor:changed",
-              entityId,
-              item.id,
-              nextState,
-            );
+        for (const event of internalEvents) {
+          for (const item of [
+            {
+              slot: event.slotA,
+              id: processSensorId(activeSensors, event.slotA, event.aColliderId),
+            },
+            {
+              slot: event.slotB,
+              id: processSensorId(activeSensors, event.slotB, event.bColliderId),
+            },
+          ]) {
+            if (item.id === undefined) continue;
+            const generation = bridge!.getEntityGeneration(item.slot);
+            if (generation === undefined) continue;
+            const entityId = createEntityId(item.slot, generation);
+            const prevState = physicsService.getSensorState(entityId, item.id);
+            physicsService.updateSensorState(entityId, item.id, event.started);
+            const nextState = physicsService.getSensorState(entityId, item.id);
+            if (prevState.isActive !== nextState.isActive)
+              void currentEngine?.hooks.callHook(
+                "physics:sensor:changed",
+                entityId,
+                item.id,
+                nextState,
+              );
+          }
         }
-      }
 
-      const contacts: CollisionContact[] = [];
-      for (const ev of internalEvents) {
-        const genA = bridge!.getEntityGeneration(ev.slotA);
-        const genB = bridge!.getEntityGeneration(ev.slotB);
-        if (genA === undefined || genB === undefined) continue;
-        contacts.push({
-          entityA: createEntityId(ev.slotA, genA),
-          entityB: createEntityId(ev.slotB, genB),
-          ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
-          ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
-          started: ev.started,
-        });
-      }
+        const contacts: CollisionContact[] = [];
+        for (const ev of internalEvents) {
+          const genA = bridge!.getEntityGeneration(ev.slotA);
+          const genB = bridge!.getEntityGeneration(ev.slotB);
+          if (genA === undefined || genB === undefined) continue;
+          contacts.push({
+            entityA: createEntityId(ev.slotA, genA),
+            entityB: createEntityId(ev.slotB, genB),
+            ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
+            ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
+            started: ev.started,
+          });
+        }
 
-      void currentEngine?.hooks.callHook("physics:collision", contacts);
-      for (const contact of contacts) {
-        const slotA = unpackEntityId(contact.entityA).index;
-        const slotB = unpackEntityId(contact.entityB).index;
-        entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
-        entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
-      }
+        void currentEngine?.hooks.callHook("physics:collision", contacts);
+        for (const contact of contacts) {
+          const slotA = unpackEntityId(contact.entityA).index;
+          const slotB = unpackEntityId(contact.entityB).index;
+          entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
+          entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
+        }
+      });
     },
 
     teardown(): void {

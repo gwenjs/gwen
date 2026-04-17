@@ -204,7 +204,7 @@ describe("Physics2DPlugin", () => {
   it("onBeforeUpdate calls wasm.physics_step with deltaTime", async () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
-    plugin.onBeforeUpdate!(0.016);
+    await mockEngine.hooks._trigger("engine:before-update", 0.016);
     expect(mockWasmPlugin.physics_step).toHaveBeenCalledWith(0.016);
   });
 
@@ -1220,7 +1220,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     seedSingleCollisionEvent(3, 4);
 
     await initPlugin(plugin, mockBridge, engine);
-    plugin.onUpdate!(0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
 
     expect(engine.hooks.callHook).not.toHaveBeenCalledWith(
       "physics:collision:batch",
@@ -1235,7 +1235,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     mockWasmPlugin.physics_consume_event_metrics.mockReturnValue([33, 1, 2, 1]);
 
     await initPlugin(plugin, mockBridge, engine);
-    plugin.onUpdate!(0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
       "physics:collision:batch",
@@ -1260,7 +1260,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     seedSingleCollisionEventV2(7, 8, 0xf007, 0xbeef);
 
     await initPlugin(plugin, mockBridge, engine);
-    plugin.onUpdate!(0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
 
     const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
 
@@ -1291,7 +1291,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
       },
     });
 
-    plugin.onUpdate!(0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
 
     const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
 
@@ -1313,7 +1313,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
       },
     });
 
-    plugin.onUpdate!(0.016);
+    await engine.hooks._trigger("engine:update", 0.016);
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
       "physics:collision",
