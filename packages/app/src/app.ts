@@ -497,6 +497,10 @@ declare module 'virtual:gwen/auto-imports' {
   const autoImports: Record<string, unknown>;
   export default autoImports;
 }
+
+declare module '#gwen' {
+  export * from 'virtual:gwen/auto-imports';
+}
 `;
 
 /**

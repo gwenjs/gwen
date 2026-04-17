@@ -41,7 +41,7 @@ export function gwenAutoImportsPlugin(options: GwenViteOptions): Plugin {
     },
 
     resolveId(id) {
-      if (id === AUTO_IMPORTS_VIRTUAL) return RESOLVED_AUTO_IMPORTS;
+      if (id === "#gwen" || id === AUTO_IMPORTS_VIRTUAL) return RESOLVED_AUTO_IMPORTS;
     },
 
     load(id) {
