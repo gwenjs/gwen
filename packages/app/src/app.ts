@@ -16,6 +16,7 @@ import { resolve, join } from "node:path";
 import type { ResolvedGwenConfig } from "./config";
 import { createViewportsPlugin } from "./viewports-plugin.js";
 import { createScreenPlugin } from "./create-screen-plugin.js";
+import { BUILT_IN_MODULES } from "./built-in-modules.js";
 
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
 
@@ -115,6 +116,31 @@ export class GwenApp {
   ): Promise<void> {
     await this.buildHooks.callHook("build:before");
 
+    // 1. Built-in modules — loaded first, same code path as user modules.
+    //    configKey determines the config key (e.g. "tween" → config.tween).
+    for (const mod of BUILT_IN_MODULES) {
+      const configKey = mod.meta.configKey;
+      const userOptions = configKey
+        ? ((config as unknown as Record<string, unknown>)[configKey] ?? {})
+        : {};
+      const options = mergeDefaults(
+        userOptions as Record<string, unknown>,
+        (mod.defaults ?? {}) as Record<string, unknown>,
+      );
+      const kit = this._createKit(config);
+      await this.buildHooks.callHook("module:before", mod);
+      try {
+        await mod.setup(options as Record<string, unknown>, kit);
+      } catch (cause) {
+        throw new Error(
+          `[gwen] Built-in module "${mod.meta.name}" setup() threw: ${cause instanceof Error ? cause.message : String(cause)}`,
+          { cause },
+        );
+      }
+      await this.buildHooks.callHook("module:done", mod);
+    }
+
+    // 2. viewports + screen plugins (existing code, unchanged)
     // Register the viewports plugin first so it runs before camera/renderer plugins.
     // This ensures ViewportManager is populated by engine:init, when camera systems
     // expect viewports to already exist.
@@ -137,6 +163,7 @@ export class GwenApp {
       this._plugins.splice(viewportsIndex + 1, 0, screenPlugin);
     }
 
+    // 3. User modules
     for (const entry of config.modules ?? []) {
       const [name, userOptions = {}] = Array.isArray(entry)
         ? entry

@@ -39,6 +39,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@gwenjs/core": "workspace:*",
     "@gwenjs/kit": "workspace:*",
     "@gwenjs/renderer-core": "workspace:*",
     "c12": "4.0.0-beta.3",

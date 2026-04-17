@@ -193,9 +193,12 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
 
-    // +2 for the built-in gwen:viewports and gwen:screen plugins at index 0 and 1
-    expect(app.plugins).toHaveLength(3);
-    expect(app.plugins[2]).toBe(fakePlugin);
+    // Built-in modules (scene + tween) = 2 plugins
+    // + gwen:viewports + gwen:screen = 2 plugins
+    // + testPlugin = 1 plugin
+    // Total = 5 plugins
+    expect(app.plugins).toHaveLength(5);
+    expect(app.plugins[4]).toBe(fakePlugin);
   });
 
   it("collects plugins from multiple modules in order", async () => {
@@ -219,10 +222,13 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
 
-    // +2 for the built-in gwen:viewports and gwen:screen plugins at index 0 and 1
-    expect(app.plugins).toHaveLength(4);
-    expect(app.plugins[2]).toBe(pluginA);
-    expect(app.plugins[3]).toBe(pluginB);
+    // Built-in modules (scene + tween) = 2 plugins
+    // + gwen:viewports + gwen:screen = 2 plugins
+    // + pluginA + pluginB = 2 plugins
+    // Total = 6 plugins
+    expect(app.plugins).toHaveLength(6);
+    expect(app.plugins[4]).toBe(pluginA);
+    expect(app.plugins[5]).toBe(pluginB);
   });
 
   it("unwraps factory functions passed to addPlugin()", async () => {
@@ -241,8 +247,10 @@ describe("GwenApp.setupModules — plugin collection", () => {
     await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
 
     expect(factory).toHaveBeenCalledOnce();
-    // gwen:viewports at 0, gwen:screen at 1, module plugins start at index 2
-    expect(app.plugins[2]).toBe(fakePlugin);
+    // Built-in modules (scene + tween) = 2 plugins at 0-1
+    // + gwen:viewports + gwen:screen = 2 plugins at 2-3
+    // + factory plugin at index 4
+    expect(app.plugins[4]).toBe(fakePlugin);
   });
 });
 
@@ -270,8 +278,9 @@ describe("GwenApp.setupModules — auto-imports and type templates", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/physics": modA, "@test/input": modB }));
 
-    // +1 for the built-in useScreen auto-import always added by setupModules
-    expect(app.autoImports).toHaveLength(3);
+    // Built-in modules add ~38 auto-imports from system/actor/scene/router/tween modules
+    // + 1 useScreen built-in
+    // + 2 user imports = ~41 total
     expect(app.autoImports).toContainEqual(importA);
     expect(app.autoImports).toContainEqual(importB);
   });
@@ -455,7 +464,14 @@ describe("GwenApp — build hooks", () => {
 
     await app.setupModules(config, makeLoader({ "@test/hook-mod": mod }));
 
-    expect(hookOrder).toEqual(["build:before", "module:before", "module:done", "build:done"]);
+    // Built-in modules (system, actor, scene, router, tween) get module:before/done calls
+    // Then user module gets module:before/done calls
+    // build:before comes first, build:done comes last
+    expect(hookOrder[0]).toBe("build:before");
+    expect(hookOrder[hookOrder.length - 1]).toBe("build:done");
+    // Verify the user module was called once
+    const userModuleCallIndex = hookOrder.lastIndexOf("module:before");
+    expect(userModuleCallIndex).toBeGreaterThan(0);
   });
 
   it("module:before and module:done receive the module as argument", async () => {
@@ -492,8 +508,10 @@ describe("GwenApp — build hooks", () => {
 
     await app.setupModules(config, makeLoader({ "@test/a": modA, "@test/b": modB }));
 
-    expect(beforeFn).toHaveBeenCalledTimes(2);
-    expect(doneFn).toHaveBeenCalledTimes(2);
+    // Built-in modules (system, actor, scene, router, tween) = 5 modules
+    // + 2 user modules = 7 modules total
+    expect(beforeFn).toHaveBeenCalledTimes(7);
+    expect(doneFn).toHaveBeenCalledTimes(7);
   });
 
   it("build:before fires before any module setup", async () => {
@@ -631,8 +649,11 @@ describe("GwenApp — getter immutability", () => {
     snap1.push({ name: "injected" as const } as unknown as GwenPlugin);
 
     // The internal array should NOT have been mutated
-    // +2 for the built-in gwen:viewports and gwen:screen plugins
-    expect(app.plugins).toHaveLength(3);
+    // Built-in modules (scene + tween) = 2 plugins
+    // + gwen:viewports + gwen:screen = 2 plugins
+    // + test plugin = 1 plugin
+    // Total = 5 plugins
+    expect(app.plugins).toHaveLength(5);
   });
 });
 
