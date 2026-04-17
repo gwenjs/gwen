@@ -380,7 +380,7 @@ export function useComponent<T extends Record<string, any> = Record<string, any>
   def: unknown,
 ): T & { $set(values: Partial<T>): void } {
   // Capture both entity ID and engine at factory-call time.
-  // These are set by _withActorContext during spawn() and are valid here.
+  // These are set by _actorCtx.run() during spawn() and are valid here.
   const entityId = _getActorEntityId();
   const engine = _getActorEngine();
 
