@@ -11,7 +11,7 @@
  * - Lifecycle composables (`onStart`, `onDestroy`, `onEvent`) read from the
  *   module-level actor context set during `spawn`.
  * - Frame-phase composables (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
- *   `onRender`) work via `_withSystemContext` from `system.ts`.
+ *   `onRender`) work via `_activeScopeSlot` from `scoped-hookable.ts`.
  *
  * @example
  * ```typescript
@@ -44,6 +44,7 @@ import type {
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
 import { engineContext } from "../../engine/context";
+import { ContextSlot } from "../../engine/context-slot";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -64,47 +65,14 @@ interface ActorContext {
 }
 
 /**
- * The active actor context, or `null` when no factory is running.
- * Updated atomically by `_withActorContext`.
+ * Slot containing the active actor context, or `null` when no factory is running.
+ * Updated atomically via {@link ContextSlot.run}.
  * @internal
  */
-let _activeContext: ActorContext | null = null;
+const _actorCtx = new ContextSlot<ActorContext>();
 
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
-/**
- * Run `fn` with an actor context slot active, restoring the previous context
- * on completion (supports nested / re-entrant spawns).
- *
- * @param instance - The `ActorInstance` being built.
- * @param engine - The engine the actor belongs to.
- * @param fn - The factory callback to execute inside this context.
- * @internal
- */
-/**
- * Run `fn` with an actor context active, restoring the previous context
- * on completion — even if `fn` throws.
- *
- * Stores the full context as a single {@link ActorContext} object, so the
- * save/restore is atomic: either all three fields are restored or none are.
- * This prevents the "partial restore" bug where a throwing factory leaves
- * `_activeContext.engine` pointing at a stale value.
- *
- * @param instance - The `ActorInstance` being built.
- * @param engine   - The engine the actor belongs to.
- * @param fn       - The factory callback to execute inside this context.
- * @internal
- */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function _withActorContext(instance: ActorInstance<any>, engine: GwenEngine, fn: () => void): void {
-  const prev = _activeContext;
-  _activeContext = { entityId: instance.entityId, instance, engine };
-  try {
-    fn();
-  } finally {
-    _activeContext = prev;
-  }
-}
 
 /**
  * Returns the entity ID of the actor currently being spawned.
@@ -114,14 +82,15 @@ function _withActorContext(instance: ActorInstance<any>, engine: GwenEngine, fn:
  * @internal
  */
 export function _getActorEntityId(): EntityId {
-  if (_activeContext === null) {
+  const ctx = _actorCtx.get();
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _activeContext.entityId;
+  return ctx.entityId;
 }
 
 /**
@@ -176,14 +145,15 @@ export function _getActorEntityId(): EntityId {
  * @throws {Error} If called outside an active `defineActor()` factory context.
  */
 export function useEntityId(): EntityId {
-  if (_activeContext?.entityId === null || _activeContext?.entityId === undefined) {
+  const ctx = _actorCtx.get();
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] useEntityId() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _activeContext?.entityId;
+  return ctx.entityId;
 }
 
 /**
@@ -194,14 +164,15 @@ export function useEntityId(): EntityId {
  * @internal
  */
 export function _getActorEngine(): GwenEngine {
-  if (_activeContext === null) {
+  const ctx = _actorCtx.get();
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] _getActorEngine() must be called inside a defineActor() factory function. " +
         "It is only valid during actor spawn.",
     );
   }
-  return _activeContext.engine;
+  return ctx.engine;
 }
 
 // ─── Actor-level lifecycle composables ────────────────────────────────────────
@@ -222,13 +193,14 @@ export function _getActorEngine(): GwenEngine {
  * ```
  */
 export function onStart(fn: VoidFn): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onStart() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._start.push(fn);
+  ctx.instance._start.push(fn);
 }
 
 /**
@@ -247,13 +219,14 @@ export function onStart(fn: VoidFn): void {
  * ```
  */
 export function onDestroy(fn: VoidFn): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._destroy.push(fn);
+  ctx.instance._destroy.push(fn);
 }
 
 /**
@@ -266,13 +239,14 @@ export function onDestroy(fn: VoidFn): void {
  * @param fn - Callback invoked on pool release.
  */
 export function onRelease(fn: VoidFn): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onRelease() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._release.push(fn);
+  ctx.instance._release.push(fn);
 }
 
 /**
@@ -287,13 +261,14 @@ export function onRelease(fn: VoidFn): void {
  * @template Props - The props type inferred from `defineActor`.
  */
 export function onReset<Props = unknown>(fn: (props: Props) => void): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onReset() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._reset.push(fn as (props: unknown) => void);
+  ctx.instance._reset.push(fn as (props: unknown) => void);
 }
 
 /**
@@ -309,13 +284,14 @@ export function onReset<Props = unknown>(fn: (props: Props) => void): void {
  * @param fn - Callback invoked when the actor is enabled.
  */
 export function onEnable(fn: VoidFn): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onEnable() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._enable.push(fn);
+  ctx.instance._enable.push(fn);
 }
 
 /**
@@ -331,13 +307,14 @@ export function onEnable(fn: VoidFn): void {
  * @param fn - Callback invoked when the actor is disabled.
  */
 export function onDisable(fn: VoidFn): void {
-  if (!_activeContext?.instance) {
+  const ctx = _actorCtx.get();
+  if (!ctx?.instance) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onDisable() must be called synchronously inside a defineActor() factory function.",
     );
   }
-  _activeContext.instance._disable.push(fn);
+  ctx.instance._disable.push(fn);
 }
 
 // ─── defineActor ─────────────────────────────────────────────────────────────
@@ -521,7 +498,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     //    Only set/unset the engine context when it is not already active — we must
     //    not clobber an outer engine.run() context.
     let api: PublicAPI | undefined;
-    _withActorContext(instance, _engine!, () => {
+    _actorCtx.run({ entityId: instance.entityId, instance, engine: _engine! }, () => {
       const needsEngineCtx = !engineContext.tryUse();
       if (needsEngineCtx) engineContext.set(_engine!);
       try {
