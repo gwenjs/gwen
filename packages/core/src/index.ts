@@ -26,6 +26,10 @@ export {
 } from "./engine/gwen-engine";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";
+
+// Disposable pattern
+export { createDisposable } from "./disposable";
+export type { GwenDisposable } from "@gwenjs/schema";
 export type {
   GwenEngine,
   GwenPlugin,
