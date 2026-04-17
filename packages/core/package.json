@@ -26,6 +26,26 @@
       "types": "./src/scene/index.ts",
       "import": "./src/scene/index.ts"
     },
+    "./system/module": {
+      "types": "./src/system/module.ts",
+      "import": "./src/system/module.ts"
+    },
+    "./actor/module": {
+      "types": "./src/actor/module.ts",
+      "import": "./src/actor/module.ts"
+    },
+    "./scene/module": {
+      "types": "./src/scene/module.ts",
+      "import": "./src/scene/module.ts"
+    },
+    "./router/module": {
+      "types": "./src/router/module.ts",
+      "import": "./src/router/module.ts"
+    },
+    "./tween/module": {
+      "types": "./src/tween/module.ts",
+      "import": "./src/tween/module.ts"
+    },
     "./shared-memory": {
       "types": "./src/hooks/wasm/shared-memory.ts",
       "import": "./src/hooks/wasm/shared-memory.ts"
@@ -72,6 +92,26 @@
       "./scene": {
         "types": "./dist/scene/index.d.ts",
         "import": "./dist/scene/index.js"
+      },
+      "./system/module": {
+        "types": "./dist/system/module.d.ts",
+        "import": "./dist/system/module.js"
+      },
+      "./actor/module": {
+        "types": "./dist/actor/module.d.ts",
+        "import": "./dist/actor/module.js"
+      },
+      "./scene/module": {
+        "types": "./dist/scene/module.d.ts",
+        "import": "./dist/scene/module.js"
+      },
+      "./router/module": {
+        "types": "./dist/router/module.d.ts",
+        "import": "./dist/router/module.js"
+      },
+      "./tween/module": {
+        "types": "./dist/tween/module.d.ts",
+        "import": "./dist/tween/module.js"
       },
       "./shared-memory": {
         "types": "./dist/hooks/wasm/shared-memory.d.ts",
