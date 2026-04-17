@@ -193,10 +193,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
 
-    // Built-in modules (scene + tween) = 2 plugins
-    // + gwen:viewports + gwen:screen = 2 plugins
-    // + testPlugin = 1 plugin
-    // Total = 5 plugins
+    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
+    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
+    // + testPlugin = 1 plugin at index 4
     expect(app.plugins).toHaveLength(5);
     expect(app.plugins[4]).toBe(fakePlugin);
   });
@@ -222,10 +221,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
 
-    // Built-in modules (scene + tween) = 2 plugins
-    // + gwen:viewports + gwen:screen = 2 plugins
-    // + pluginA + pluginB = 2 plugins
-    // Total = 6 plugins
+    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
+    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
+    // + pluginA + pluginB = 2 plugins at indices 4-5
     expect(app.plugins).toHaveLength(6);
     expect(app.plugins[4]).toBe(pluginA);
     expect(app.plugins[5]).toBe(pluginB);
@@ -247,8 +245,8 @@ describe("GwenApp.setupModules — plugin collection", () => {
     await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
 
     expect(factory).toHaveBeenCalledOnce();
-    // Built-in modules (scene + tween) = 2 plugins at 0-1
-    // + gwen:viewports + gwen:screen = 2 plugins at 2-3
+    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
+    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
     // + factory plugin at index 4
     expect(app.plugins[4]).toBe(fakePlugin);
   });
