@@ -4,7 +4,12 @@ import { defineScene } from "../../src/scene/runtime/define-scene";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
-import { onEnter, onExit, onTransitionLeave, onTransitionEnter } from "../../src/scene/runtime/scene-context";
+import {
+  onEnter,
+  onExit,
+  onTransitionLeave,
+  onTransitionEnter,
+} from "../../src/scene/runtime/scene-context";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 

@@ -106,7 +106,10 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   }
 
   // Activate the initial scene (fire-and-forget — onEnter may be async).
-  void engine.hooks.callHook("scene:enter", sceneNameByRoute.get(String(currentState)) ?? String(currentState));
+  void engine.hooks.callHook(
+    "scene:enter",
+    sceneNameByRoute.get(String(currentState)) ?? String(currentState),
+  );
 
   const handle: SceneRouterHandle<TRoutes> = {
     get current() {

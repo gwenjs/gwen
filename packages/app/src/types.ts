@@ -134,15 +134,14 @@ export interface GwenUserConfig {
   screen?: {
     sizeProvider?: ScreenSizeProvider;
   };
-
-  /** Module-specific options (typed via GwenModuleOptions augmentation). */
-  [key: string]: unknown;
 }
 
 /** Fully resolved config (same shape as user config, with defaults filled in). */
 export type ResolvedGwenConfig = GwenUserConfig & {
   engine: Required<NonNullable<GwenUserConfig["engine"]>>;
   modules: GwenModuleEntry[];
+  /** Module-specific options (typed via GwenUserConfig augmentation). */
+  [key: string]: unknown;
 };
 
 /**
