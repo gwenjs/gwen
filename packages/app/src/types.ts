@@ -140,8 +140,6 @@ export interface GwenUserConfig {
 export type ResolvedGwenConfig = GwenUserConfig & {
   engine: Required<NonNullable<GwenUserConfig["engine"]>>;
   modules: GwenModuleEntry[];
-  /** Module-specific options (typed via GwenUserConfig augmentation). */
-  [key: string]: unknown;
 };
 
 /**

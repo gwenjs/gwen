@@ -334,7 +334,7 @@ export class GwenApp {
 
       /** The fully resolved project config. */
       get options() {
-        return config;
+        return config as unknown as Record<string, unknown>;
       },
     };
   }
