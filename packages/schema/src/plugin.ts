@@ -259,8 +259,8 @@ export interface GwenPlugin {
    * @example
    * ```ts
    * onError(error, context) {
-   *   if (context.phase === 'onRender' && error instanceof DOMException) {
-   *     context.recover() // Canvas context lost — handled gracefully
+   *   if (context.phase === 'setup' && error instanceof DOMException) {
+   *     context.recover() // DOM not ready during setup — handled gracefully
    *   }
    * }
    * ```
