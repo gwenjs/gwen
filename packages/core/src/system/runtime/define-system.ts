@@ -28,7 +28,6 @@ import { useEngine, GwenContextError } from "../../engine/context";
 import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
-import { ContextSlot } from "../../engine/context-slot";
 import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
 
 /** A component selector accepted by {@link useQuery}. */
@@ -42,50 +41,6 @@ type UpdateFn = (dt: number) => void;
 /** A render callback (no delta time — called every frame at render phase). */
 type RenderFn = () => void;
 
-/**
- * Context used internally by `defineSystem()` and `defineActor()` to collect
- * lifecycle registrations. Only valid while a setup function is executing.
- *
- * @internal
- */
-export interface SystemContext {
-  onBeforeUpdate(fn: UpdateFn): void;
-  onUpdate(fn: UpdateFn): void;
-  onAfterUpdate(fn: UpdateFn): void;
-  onRender(fn: RenderFn): void;
-}
-
-// ─── Module-level context slot ───────────────────────────────────────────────
-
-const _systemCtx = new ContextSlot<SystemContext>();
-
-/**
- *
- * @internal
- * @throws {Error} If called outside a `defineSystem()` (or `defineActor()`) setup function.
- */
-export function _getSystemContext(): SystemContext {
-  return _systemCtx.require(
-    "[GWEN] onUpdate/onRender/onBeforeUpdate/onAfterUpdate must be called " +
-      "inside a defineSystem() setup callback, not inside the lifecycle function itself.",
-  );
-}
-
-/**
- * Runs `fn` with `ctx` as the active system registration context, then restores
- * the previous context (supporting nested / re-entrant calls).
- *
- * Used internally by `defineSystem()` and `defineActor()` so that lifecycle
- * composables (`onUpdate`, `onRender`, etc.) resolve to the correct context.
- *
- * @internal
- * @param ctx - The {@link SystemContext} to activate for the duration of `fn`.
- * @param fn  - The setup function to run inside the context.
- */
-export function _withSystemContext(ctx: SystemContext, fn: () => void): void {
-  _systemCtx.run(ctx, fn);
-}
-
 // ─── Lifecycle composables ───────────────────────────────────────────────────
 
 /**
@@ -98,19 +53,12 @@ export function _withSystemContext(ctx: SystemContext, fn: () => void): void {
  */
 export function onBeforeUpdate(fn: UpdateFn): void {
   const scope = _activeScopeSlot.get();
-  if (scope) {
-    scope.hook("engine:before-update", fn);
-    return;
+  if (!scope) {
+    throw new GwenContextError(
+      "[GWEN] onBeforeUpdate() must be called inside a defineSystem() or defineActor() factory.",
+    );
   }
-  // Fallback: support legacy SystemContext (actor factory still uses it during Task 4)
-  const ctx = _systemCtx.get();
-  if (ctx) {
-    ctx.onBeforeUpdate(fn);
-    return;
-  }
-  throw new GwenContextError(
-    "[GWEN] onBeforeUpdate() must be called inside a defineSystem() or defineActor() factory.",
-  );
+  scope.hook("engine:before-update", fn);
 }
 
 /**
@@ -123,18 +71,12 @@ export function onBeforeUpdate(fn: UpdateFn): void {
  */
 export function onUpdate(fn: UpdateFn): void {
   const scope = _activeScopeSlot.get();
-  if (scope) {
-    scope.hook("engine:update", fn);
-    return;
+  if (!scope) {
+    throw new GwenContextError(
+      "[GWEN] onUpdate() must be called inside a defineSystem() or defineActor() factory.",
+    );
   }
-  const ctx = _systemCtx.get();
-  if (ctx) {
-    ctx.onUpdate(fn);
-    return;
-  }
-  throw new GwenContextError(
-    "[GWEN] onUpdate() must be called inside a defineSystem() or defineActor() factory.",
-  );
+  scope.hook("engine:update", fn);
 }
 
 /**
@@ -147,18 +89,12 @@ export function onUpdate(fn: UpdateFn): void {
  */
 export function onAfterUpdate(fn: UpdateFn): void {
   const scope = _activeScopeSlot.get();
-  if (scope) {
-    scope.hook("engine:after-update", fn);
-    return;
+  if (!scope) {
+    throw new GwenContextError(
+      "[GWEN] onAfterUpdate() must be called inside a defineSystem() or defineActor() factory.",
+    );
   }
-  const ctx = _systemCtx.get();
-  if (ctx) {
-    ctx.onAfterUpdate(fn);
-    return;
-  }
-  throw new GwenContextError(
-    "[GWEN] onAfterUpdate() must be called inside a defineSystem() or defineActor() factory.",
-  );
+  scope.hook("engine:after-update", fn);
 }
 
 /**
@@ -171,18 +107,12 @@ export function onAfterUpdate(fn: UpdateFn): void {
  */
 export function onRender(fn: RenderFn): void {
   const scope = _activeScopeSlot.get();
-  if (scope) {
-    scope.hook("engine:render", fn);
-    return;
+  if (!scope) {
+    throw new GwenContextError(
+      "[GWEN] onRender() must be called inside a defineSystem() or defineActor() factory.",
+    );
   }
-  const ctx = _systemCtx.get();
-  if (ctx) {
-    ctx.onRender(fn);
-    return;
-  }
-  throw new GwenContextError(
-    "[GWEN] onRender() must be called inside a defineSystem() or defineActor() factory.",
-  );
+  scope.hook("engine:render", fn);
 }
 
 // ─── DiscoverablePlugin ───────────────────────────────────────────────────────
@@ -314,30 +244,14 @@ export function defineSystem<Args extends unknown[]>(
         if (_discovered) return;
         const engine = useEngine();
         _scope = new ScopedHookable(engine.hooks);
-        _withSystemContext(
-          {
-            onBeforeUpdate: () => {},
-            onUpdate: () => {},
-            onAfterUpdate: () => {},
-            onRender: () => {},
-          },
-          () => _activeScopeSlot.run(_scope!, () => setupTemplate(...args)),
-        );
+        _activeScopeSlot.run(_scope, () => setupTemplate(...args));
       },
 
       _discover(): void {
         _discovered = true;
         const engine = useEngine();
         _scope = new ScopedHookable(engine.hooks);
-        _withSystemContext(
-          {
-            onBeforeUpdate: () => {},
-            onUpdate: () => {},
-            onAfterUpdate: () => {},
-            onRender: () => {},
-          },
-          () => _activeScopeSlot.run(_scope!, () => setupTemplate(...args)),
-        );
+        _activeScopeSlot.run(_scope, () => setupTemplate(...args));
       },
 
       teardown(): void {
