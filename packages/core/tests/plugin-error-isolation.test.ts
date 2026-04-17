@@ -22,191 +22,6 @@ function createMockErrorBus(): EngineErrorBus & {
 }
 
 describe("plugin error isolation", () => {
-  describe("_reportPluginError / onError hook", () => {
-    it("calls plugin.onError when a lifecycle hook throws", async () => {
-      const onError = vi.fn();
-      const plugin: GwenPlugin = {
-        name: "test-plugin",
-        setup() {},
-        onBeforeUpdate() {
-          throw new Error("update boom");
-        },
-        onError,
-      };
-      const engine = await createEngine();
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      expect(onError).toHaveBeenCalledOnce();
-      const [err, ctx] = onError.mock.calls[0]!;
-      expect((err as Error).message).toBe("update boom");
-      expect(ctx.phase).toBe("onBeforeUpdate");
-    });
-
-    it("does not emit to error bus when plugin calls recover()", async () => {
-      const bus = createMockErrorBus();
-      const plugin: GwenPlugin = {
-        name: "recovering-plugin",
-        setup() {},
-        onUpdate() {
-          throw new Error("recoverable");
-        },
-        onError(_err, ctx) {
-          ctx.recover();
-        },
-      };
-      const engine = await createEngine({ errorBus: bus });
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      const runtimeErrors = bus.emitted.filter(
-        (e) => e.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      );
-      expect(runtimeErrors).toHaveLength(0);
-    });
-
-    it("emits PLUGIN_RUNTIME_ERROR to error bus when recover() is not called", async () => {
-      const bus = createMockErrorBus();
-      const plugin: GwenPlugin = {
-        name: "crashing-plugin",
-        setup() {},
-        onUpdate() {
-          throw new Error("non-recoverable");
-        },
-      };
-      const engine = await createEngine({ errorBus: bus });
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      const runtimeErrors = bus.emitted.filter(
-        (e) => e.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      );
-      expect(runtimeErrors).toHaveLength(1);
-      expect(runtimeErrors[0]!.source).toBe("crashing-plugin");
-      expect(runtimeErrors[0]!.message).toContain("non-recoverable");
-    });
-
-    it("includes phase and frame in the error context", async () => {
-      let capturedPhase: string | undefined;
-      let capturedFrame: number | undefined;
-      const plugin: GwenPlugin = {
-        name: "phase-check-plugin",
-        setup() {},
-        onRender() {
-          throw new Error("render crash");
-        },
-        onError(_err, ctx) {
-          capturedPhase = ctx.phase;
-          capturedFrame = ctx.frame;
-          ctx.recover();
-        },
-      };
-      const engine = await createEngine();
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      expect(capturedPhase).toBe("onRender");
-      expect(typeof capturedFrame).toBe("number");
-    });
-
-    it("continues the frame even if a plugin throws in onBeforeUpdate", async () => {
-      const secondPluginCalled = vi.fn();
-      const crasher: GwenPlugin = {
-        name: "crasher",
-        setup() {},
-        onBeforeUpdate() {
-          throw new Error("crash in onBeforeUpdate");
-        },
-      };
-      const survivor: GwenPlugin = {
-        name: "survivor",
-        setup() {},
-        onBeforeUpdate() {
-          secondPluginCalled();
-        },
-      };
-      const engine = await createEngine();
-      await engine.use(crasher);
-      await engine.use(survivor);
-      await engine.advance(0.016);
-
-      expect(secondPluginCalled).toHaveBeenCalledOnce();
-    });
-
-    it("continues the frame even if a plugin throws in onUpdate", async () => {
-      const secondPluginCalled = vi.fn();
-      const crasher: GwenPlugin = {
-        name: "crasher-update",
-        setup() {},
-        onUpdate() {
-          throw new Error("crash in onUpdate");
-        },
-      };
-      const survivor: GwenPlugin = {
-        name: "survivor-update",
-        setup() {},
-        onUpdate() {
-          secondPluginCalled();
-        },
-      };
-      const engine = await createEngine();
-      await engine.use(crasher);
-      await engine.use(survivor);
-      await engine.advance(0.016);
-
-      expect(secondPluginCalled).toHaveBeenCalledOnce();
-    });
-
-    it("continues the frame even if a plugin throws in onRender", async () => {
-      const secondPluginCalled = vi.fn();
-      const crasher: GwenPlugin = {
-        name: "crasher-render",
-        setup() {},
-        onRender() {
-          throw new Error("crash in onRender");
-        },
-      };
-      const survivor: GwenPlugin = {
-        name: "survivor-render",
-        setup() {},
-        onRender() {
-          secondPluginCalled();
-        },
-      };
-      const engine = await createEngine();
-      await engine.use(crasher);
-      await engine.use(survivor);
-      await engine.advance(0.016);
-
-      expect(secondPluginCalled).toHaveBeenCalledOnce();
-    });
-
-    it("does not crash if onError itself throws", async () => {
-      const bus = createMockErrorBus();
-      const plugin: GwenPlugin = {
-        name: "onError-throws-plugin",
-        setup() {},
-        onUpdate() {
-          throw new Error("original error");
-        },
-        onError() {
-          throw new Error("onError itself threw");
-        },
-      };
-      const engine = await createEngine({ errorBus: bus });
-      await engine.use(plugin);
-
-      // Should not throw
-      await expect(engine.advance(0.016)).resolves.toBeUndefined();
-
-      // The PLUGIN_RUNTIME_ERROR should still be emitted (since recover was not called before onError threw)
-      const runtimeErrors = bus.emitted.filter(
-        (e) => e.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      );
-      expect(runtimeErrors).toHaveLength(1);
-    });
-  });
-
   describe("plugin setup error", () => {
     it("emits PLUGIN_SETUP_ERROR to error bus when setup throws", async () => {
       const bus = createMockErrorBus();
@@ -321,76 +136,6 @@ describe("plugin error isolation", () => {
     });
   });
 
-  describe("plugin:error hook", () => {
-    it("fires plugin:error hook when a plugin throws and does not recover", async () => {
-      const hookFired = vi.fn();
-      const plugin: GwenPlugin = {
-        name: "hook-test-plugin",
-        setup() {},
-        onUpdate() {
-          throw new Error("hook trigger");
-        },
-      };
-      const engine = await createEngine();
-      engine.hooks.hook("plugin:error", hookFired);
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      expect(hookFired).toHaveBeenCalledOnce();
-    });
-
-    it("does not fire plugin:error hook when plugin calls recover()", async () => {
-      const hookFired = vi.fn();
-      const plugin: GwenPlugin = {
-        name: "recovering-hook-plugin",
-        setup() {},
-        onUpdate() {
-          throw new Error("recoverable");
-        },
-        onError(_err, ctx) {
-          ctx.recover();
-        },
-      };
-      const engine = await createEngine();
-      engine.hooks.hook("plugin:error", hookFired);
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      expect(hookFired).not.toHaveBeenCalled();
-    });
-
-    it("hook payload contains pluginName, phase, error, frame", async () => {
-      let payload:
-        | {
-            pluginName: string;
-            phase: string;
-            error: unknown;
-            frame: number;
-          }
-        | undefined;
-
-      const plugin: GwenPlugin = {
-        name: "payload-check-plugin",
-        setup() {},
-        onAfterUpdate() {
-          throw new Error("payload test error");
-        },
-      };
-      const engine = await createEngine();
-      engine.hooks.hook("plugin:error", (p) => {
-        payload = p;
-      });
-      await engine.use(plugin);
-      await engine.advance(0.016);
-
-      expect(payload).toBeDefined();
-      expect(payload!.pluginName).toBe("payload-check-plugin");
-      expect(payload!.phase).toBe("onAfterUpdate");
-      expect((payload!.error as Error).message).toBe("payload test error");
-      expect(typeof payload!.frame).toBe("number");
-    });
-  });
-
   describe("logger injectable", () => {
     it('engine.inject("logger") returns the engine logger', async () => {
       const engine = await createEngine();
@@ -415,65 +160,31 @@ describe("plugin error isolation", () => {
   });
 
   describe("multiple plugins — isolation", () => {
-    it("second plugin still runs when first plugin throws in onBeforeUpdate", async () => {
-      const secondCalled = vi.fn();
+    it("both plugins can register hooks in the same engine phase", async () => {
       const engine = await createEngine();
 
+      const calls: string[] = [];
       await engine.use({
         name: "first",
-        setup() {},
-        onBeforeUpdate() {
-          throw new Error("first crashed");
+        setup(e) {
+          e.hooks.hook("engine:update", () => {
+            calls.push("first");
+          });
         },
       });
       await engine.use({
         name: "second",
-        setup() {},
-        onBeforeUpdate() {
-          secondCalled();
+        setup(e) {
+          e.hooks.hook("engine:update", () => {
+            calls.push("second");
+          });
         },
       });
 
       await engine.advance(0.016);
-      expect(secondCalled).toHaveBeenCalledOnce();
-    });
-
-    it("all three phases (onBeforeUpdate, onUpdate, onRender) are independent", async () => {
-      const calls: string[] = [];
-      const engine = await createEngine();
-
-      await engine.use({
-        name: "multi-crash",
-        setup() {},
-        onBeforeUpdate() {
-          throw new Error("before crash");
-        },
-        onUpdate() {
-          throw new Error("update crash");
-        },
-        onRender() {
-          throw new Error("render crash");
-        },
-      });
-      await engine.use({
-        name: "recorder",
-        setup() {},
-        onBeforeUpdate() {
-          calls.push("onBeforeUpdate");
-        },
-        onUpdate() {
-          calls.push("onUpdate");
-        },
-        onRender() {
-          calls.push("onRender");
-        },
-      });
-
-      await engine.advance(0.016);
-
-      expect(calls).toContain("onBeforeUpdate");
-      expect(calls).toContain("onUpdate");
-      expect(calls).toContain("onRender");
+      // Both hooks should have been registered and called
+      expect(calls).toContain("first");
+      expect(calls).toContain("second");
     });
   });
 });

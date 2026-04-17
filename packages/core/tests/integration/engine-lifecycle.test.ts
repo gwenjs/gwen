@@ -19,20 +19,20 @@ afterEach(() => {
 function makeRecorder(name: string, log: string[]): GwenPlugin {
   return {
     name,
-    setup(_engine) {
+    setup(engine) {
       log.push(`${name}:setup`);
-    },
-    onBeforeUpdate(dt) {
-      log.push(`${name}:beforeUpdate:${dt}`);
-    },
-    onUpdate(dt) {
-      log.push(`${name}:update:${dt}`);
-    },
-    onAfterUpdate(dt) {
-      log.push(`${name}:afterUpdate:${dt}`);
-    },
-    onRender() {
-      log.push(`${name}:render`);
+      engine.hooks.hook("engine:before-update", (dt) => {
+        log.push(`${name}:beforeUpdate:${dt}`);
+      });
+      engine.hooks.hook("engine:update", (dt) => {
+        log.push(`${name}:update:${dt}`);
+      });
+      engine.hooks.hook("engine:after-update", (dt) => {
+        log.push(`${name}:afterUpdate:${dt}`);
+      });
+      engine.hooks.hook("engine:render", () => {
+        log.push(`${name}:render`);
+      });
     },
     teardown() {
       log.push(`${name}:teardown`);
@@ -100,23 +100,26 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
 
     await engine.use({
       name: "first",
-      setup() {},
-      onUpdate() {
-        updateOrder.push("first");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          updateOrder.push("first");
+        });
       },
     });
     await engine.use({
       name: "second",
-      setup() {},
-      onUpdate() {
-        updateOrder.push("second");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          updateOrder.push("second");
+        });
       },
     });
     await engine.use({
       name: "third",
-      setup() {},
-      onUpdate() {
-        updateOrder.push("third");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          updateOrder.push("third");
+        });
       },
     });
 
@@ -142,9 +145,10 @@ describe("Engine lifecycle — createEngine → use → advance → unuse", () =
 
     await engine.use({
       name: "cap-check",
-      setup() {},
-      onUpdate(dt) {
-        dts.push(dt);
+      setup(e) {
+        e.hooks.hook("engine:update", (dt) => {
+          dts.push(dt);
+        });
       },
     });
 
@@ -175,9 +179,10 @@ describe("Engine lifecycle — startExternal + advance", () => {
 
     await engine.use({
       name: "pre-start",
-      setup() {},
-      onUpdate() {
-        calls.push("update");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          calls.push("update");
+        });
       },
     });
 
@@ -194,9 +199,10 @@ describe("Engine lifecycle — startExternal + advance", () => {
     const calls: string[] = [];
     await engine.use({
       name: "post-start",
-      setup() {},
-      onUpdate() {
-        calls.push("update");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          calls.push("update");
+        });
       },
     });
 
@@ -259,7 +265,7 @@ describe("Engine lifecycle — engine hooks fire during advance()", () => {
     expect(afterTicks).toBe(3);
   });
 
-  it("engine:tick fires before plugin onUpdate, engine:afterTick fires after", async () => {
+  it("engine:tick fires before plugin engine:update, engine:afterTick fires after", async () => {
     const engine = await createEngine();
     const order: string[] = [];
 
@@ -268,9 +274,10 @@ describe("Engine lifecycle — engine hooks fire during advance()", () => {
 
     await engine.use({
       name: "p",
-      setup() {},
-      onUpdate() {
-        order.push("update");
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          order.push("update");
+        });
       },
     });
 

@@ -101,9 +101,10 @@ Common causes and fixes:
     let captured: unknown;
     await engine.use({
       name: "test-update-context",
-      setup() {},
-      onUpdate() {
-        captured = useEngine();
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          captured = useEngine();
+        });
       },
     });
     await engine.advance(0.016);
@@ -115,9 +116,10 @@ Common causes and fixes:
     let captured: unknown;
     await engine.use({
       name: "test-before-update-context",
-      setup() {},
-      onBeforeUpdate() {
-        captured = useEngine();
+      setup(e) {
+        e.hooks.hook("engine:before-update", () => {
+          captured = useEngine();
+        });
       },
     });
     await engine.advance(0.016);
@@ -129,9 +131,10 @@ Common causes and fixes:
     let captured: unknown;
     await engine.use({
       name: "test-after-update-context",
-      setup() {},
-      onAfterUpdate() {
-        captured = useEngine();
+      setup(e) {
+        e.hooks.hook("engine:after-update", () => {
+          captured = useEngine();
+        });
       },
     });
     await engine.advance(0.016);
@@ -143,9 +146,10 @@ Common causes and fixes:
     let captured: unknown;
     await engine.use({
       name: "test-render-context",
-      setup() {},
-      onRender() {
-        captured = useEngine();
+      setup(e) {
+        e.hooks.hook("engine:render", () => {
+          captured = useEngine();
+        });
       },
     });
     await engine.advance(0.016);
@@ -361,12 +365,13 @@ describe("defineSystem()", () => {
     const order: string[] = [];
     await engine.use({
       name: "tracker",
-      setup() {},
-      onBeforeUpdate() {
-        order.push("before");
-      },
-      onUpdate() {
-        order.push("update");
+      setup(e) {
+        e.hooks.hook("engine:before-update", () => {
+          order.push("before");
+        });
+        e.hooks.hook("engine:update", () => {
+          order.push("update");
+        });
       },
     });
     await engine.advance(0.016);

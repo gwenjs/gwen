@@ -59,18 +59,19 @@ describe("engine.use / engine.unuse", () => {
     const engine = await createEngine();
     await engine.use({
       name: "Hooks",
-      setup() {},
-      onBeforeUpdate() {
-        calls.push("before");
-      },
-      onUpdate() {
-        calls.push("update");
-      },
-      onAfterUpdate() {
-        calls.push("after");
-      },
-      onRender() {
-        calls.push("render");
+      setup(e) {
+        e.hooks.hook("engine:before-update", () => {
+          calls.push("before");
+        });
+        e.hooks.hook("engine:update", () => {
+          calls.push("update");
+        });
+        e.hooks.hook("engine:after-update", () => {
+          calls.push("after");
+        });
+        e.hooks.hook("engine:render", () => {
+          calls.push("render");
+        });
       },
     });
     await engine.advance(1 / 60);
@@ -122,9 +123,10 @@ describe("engine.advance()", () => {
     const engine = await createEngine({ maxDeltaSeconds: 0.05 });
     await engine.use({
       name: "dt",
-      setup() {},
-      onUpdate(dt) {
-        dts.push(dt);
+      setup(e) {
+        e.hooks.hook("engine:update", (dt) => {
+          dts.push(dt);
+        });
       },
     });
     await engine.advance(1); // 1s > maxDeltaSeconds cap of 0.05s
@@ -136,10 +138,11 @@ describe("engine.advance()", () => {
     let secondCallError: Error | null = null;
     await engine.use({
       name: "reentrant",
-      setup() {},
-      onUpdate() {
-        engine.advance(0.016).catch((e: Error) => {
-          secondCallError = e;
+      setup(e) {
+        e.hooks.hook("engine:update", () => {
+          engine.advance(0.016).catch((e: Error) => {
+            secondCallError = e;
+          });
         });
       },
     });

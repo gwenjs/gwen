@@ -85,20 +85,20 @@ async function makeEngine(opts?: Parameters<typeof createEngine>[0]): Promise<Gw
 function recordingPlugin(name: string, log: string[]): GwenPlugin {
   return {
     name,
-    setup(_engine) {
+    setup(engine) {
       log.push(`${name}:setup`);
-    },
-    onBeforeUpdate(_dt) {
-      log.push(`${name}:onBeforeUpdate`);
-    },
-    onUpdate(_dt) {
-      log.push(`${name}:onUpdate`);
-    },
-    onAfterUpdate(_dt) {
-      log.push(`${name}:onAfterUpdate`);
-    },
-    onRender() {
-      log.push(`${name}:onRender`);
+      engine.hooks.hook("engine:before-update", (_dt) => {
+        log.push(`${name}:onBeforeUpdate`);
+      });
+      engine.hooks.hook("engine:update", (_dt) => {
+        log.push(`${name}:onUpdate`);
+      });
+      engine.hooks.hook("engine:after-update", (_dt) => {
+        log.push(`${name}:onAfterUpdate`);
+      });
+      engine.hooks.hook("engine:render", () => {
+        log.push(`${name}:onRender`);
+      });
     },
   };
 }
@@ -154,9 +154,10 @@ describe("Frame Loop v2", () => {
       });
       await engine.use({
         name: "p",
-        setup() {},
-        onBeforeUpdate() {
-          order.push("onBeforeUpdate");
+        setup(e) {
+          e.hooks.hook("engine:before-update", () => {
+            order.push("onBeforeUpdate");
+          });
         },
       });
 
@@ -175,9 +176,10 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onRender() {
-          order.push("onRender");
+        setup(e) {
+          e.hooks.hook("engine:render", () => {
+            order.push("onRender");
+          });
         },
       });
 
@@ -194,12 +196,13 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onBeforeUpdate() {
-          order.push("before");
-        },
-        onUpdate() {
-          order.push("update");
+        setup(e) {
+          e.hooks.hook("engine:before-update", () => {
+            order.push("before");
+          });
+          e.hooks.hook("engine:update", () => {
+            order.push("update");
+          });
         },
       });
 
@@ -214,16 +217,18 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "first",
-        setup() {},
-        onUpdate() {
-          order.push("first:update");
+        setup(e) {
+          e.hooks.hook("engine:update", () => {
+            order.push("first:update");
+          });
         },
       });
       await engine.use({
         name: "second",
-        setup() {},
-        onUpdate() {
-          order.push("second:update");
+        setup(e) {
+          e.hooks.hook("engine:update", () => {
+            order.push("second:update");
+          });
         },
       });
 
@@ -295,9 +300,10 @@ describe("Frame Loop v2", () => {
       let receivedDt = -1;
       await engine.use({
         name: "probe",
-        setup() {},
-        onUpdate(dt) {
-          receivedDt = dt;
+        setup(e) {
+          e.hooks.hook("engine:update", (dt) => {
+            receivedDt = dt;
+          });
         },
       });
       await engine.advance(1); // 1 second — well above the 0.1s cap
@@ -317,9 +323,10 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onUpdate(dt) {
-          receivedDt = dt;
+        setup(e) {
+          e.hooks.hook("engine:update", (dt) => {
+            receivedDt = dt;
+          });
         },
       });
 
@@ -333,9 +340,10 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onUpdate(dt) {
-          receivedDt = dt;
+        setup(e) {
+          e.hooks.hook("engine:update", (dt) => {
+            receivedDt = dt;
+          });
         },
       });
 
@@ -349,9 +357,10 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onUpdate(dt) {
-          receivedDt = dt;
+        setup(e) {
+          e.hooks.hook("engine:update", (dt) => {
+            receivedDt = dt;
+          });
         },
       });
 
@@ -365,11 +374,12 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onUpdate() {
-          // block inside onUpdate so advance() is still "running"
-          return new Promise<void>((resolve) => {
-            resolveBlock = resolve;
+        setup(e) {
+          e.hooks.hook("engine:update", () => {
+            // block inside onUpdate so advance() is still "running"
+            return new Promise<void>((resolve) => {
+              resolveBlock = resolve;
+            });
           });
         },
       });
@@ -605,12 +615,13 @@ describe("Frame Loop v2", () => {
 
       await engine.use({
         name: "p",
-        setup() {},
-        onBeforeUpdate() {
-          order.push("onBeforeUpdate");
-        },
-        onUpdate() {
-          order.push("onUpdate");
+        setup(e) {
+          e.hooks.hook("engine:before-update", () => {
+            order.push("onBeforeUpdate");
+          });
+          e.hooks.hook("engine:update", () => {
+            order.push("onUpdate");
+          });
         },
       });
 

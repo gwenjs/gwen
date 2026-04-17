@@ -62,9 +62,10 @@ describe("Scoped hooks proxy", () => {
     });
     await engine.use({
       name: "ord",
-      setup() {},
-      onBeforeUpdate() {
-        order.push("before");
+      setup(e) {
+        e.hooks.hook("engine:before-update", () => {
+          order.push("before");
+        });
       },
     });
     await engine.advance(0.016);
@@ -77,9 +78,10 @@ describe("Scoped hooks proxy", () => {
     const engine = await createEngine();
     await engine.use({
       name: "ord2",
-      setup() {},
-      onRender() {
-        order.push("render");
+      setup(e) {
+        e.hooks.hook("engine:render", () => {
+          order.push("render");
+        });
       },
     });
     engine.hooks.hook("engine:afterTick", () => {
