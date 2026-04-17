@@ -184,54 +184,6 @@ describe("validateEngineConfig — maxDeltaSeconds", () => {
   });
 });
 
-describe("validateEngineConfig — tweenPoolSize", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  describe("invalid values — must throw", () => {
-    it("throws on tweenPoolSize: 0", () => {
-      expect(() => validateEngineConfig({ tweenPoolSize: 0 })).toThrow(GwenConfigError);
-      try {
-        validateEngineConfig({ tweenPoolSize: 0 });
-      } catch (err) {
-        const e = err as GwenConfigError;
-        expect(e.field).toBe("tweenPoolSize");
-      }
-    });
-
-    it("throws on tweenPoolSize: 1.5 (not integer)", () => {
-      expect(() => validateEngineConfig({ tweenPoolSize: 1.5 })).toThrow(GwenConfigError);
-    });
-  });
-
-  describe("unusual values — must warn only", () => {
-    it("warns on tweenPoolSize: 5000 but does not throw", () => {
-      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-      expect(() => validateEngineConfig({ tweenPoolSize: 5000 })).not.toThrow();
-      expect(warnSpy).toHaveBeenCalled();
-    });
-  });
-
-  describe("valid values — must not throw", () => {
-    it("accepts tweenPoolSize: 1 (minimum)", () => {
-      expect(() => validateEngineConfig({ tweenPoolSize: 1 })).not.toThrow();
-    });
-
-    it("accepts tweenPoolSize: 4096 (maximum)", () => {
-      expect(() => validateEngineConfig({ tweenPoolSize: 4096 })).not.toThrow();
-    });
-
-    it("accepts tweenPoolSize: 256 (default)", () => {
-      expect(() => validateEngineConfig({ tweenPoolSize: 256 })).not.toThrow();
-    });
-  });
-
-  it("does not validate tweenPoolSize if undefined", () => {
-    expect(() => validateEngineConfig({})).not.toThrow();
-    expect(() => validateEngineConfig({ tweenPoolSize: undefined })).not.toThrow();
-  });
-});
 
 describe("validateEngineConfig — all fields optional", () => {
   it("accepts empty config object", () => {

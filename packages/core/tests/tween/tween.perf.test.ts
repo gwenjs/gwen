@@ -15,6 +15,7 @@ import { ciThreshold } from "../helpers/perf";
 import { TweenPool, TweenSlot } from "../../src/tween/runtime/tween-pool";
 import { createEngine } from "../../src/index";
 import { defineSequence } from "../../src/tween/runtime/define-sequence";
+import { TweenPlugin } from "../../src/tween/engine-plugin";
 
 // ── 1,000 tweens per frame < 0.5ms ───────────────────────────────────────────
 
@@ -95,6 +96,7 @@ describe("Performance: GC pressure from play() calls", () => {
 describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
   it("creates and starts 1,000 sequences with 10 tween steps each in < 2ms", async () => {
     const engine = await createEngine({ maxEntities: 100 });
+    await engine.use(TweenPlugin());
 
     // Pre-allocate 10,100 TweenSlots from a large pool outside the engine
     // (avoids exhausting the engine's default 256-slot TweenManager pool).
