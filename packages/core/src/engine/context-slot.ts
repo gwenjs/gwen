@@ -2,8 +2,8 @@
  * A typed, nestable context slot.
  *
  * Encapsulates the save/restore pattern used throughout the engine to pass
- * implicit context to composables (`_withSystemContext`, `_withLayoutContext`,
- * `_withActorContext`). Using a shared primitive ensures every context slot
+ * implicit context to composables (`_actorCtx`, `_sceneCtx`, `_withLayoutContext`).
+ * Using a shared primitive ensures every context slot
  * behaves identically and re-entrant calls are always safe.
  *
  * @template T - The type of value stored in this slot.
