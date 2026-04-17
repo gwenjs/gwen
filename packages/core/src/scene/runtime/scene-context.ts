@@ -12,6 +12,7 @@
 
 import { GwenContextError, engineContext } from "../../engine/context";
 import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
+import { ContextSlot } from "../../engine/context-slot";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
 import { SCENE_REGISTRAR_KEY } from "./scene-registrar";
@@ -34,20 +35,10 @@ export interface SceneSetupContext {
  * The active scene setup context. Set by `_withSceneContext`, cleared after.
  * @internal
  */
-let _currentSceneCtx: SceneSetupContext | null = null;
-const _SCENE_CONTEXT_SYMBOL = Symbol.for("@gwenjs/core.scene-setup-context");
-
-type SceneContextEngine = GwenEngine & {
-  [_SCENE_CONTEXT_SYMBOL]?: SceneSetupContext;
-};
-
-function _getEngineSceneContext(): SceneSetupContext | null {
-  const engine = engineContext.tryUse() as SceneContextEngine | undefined;
-  return engine?.[_SCENE_CONTEXT_SYMBOL] ?? null;
-}
+const _sceneCtx = new ContextSlot<SceneSetupContext>();
 
 function _getActiveSceneContext(): SceneSetupContext | null {
-  return _currentSceneCtx ?? _getEngineSceneContext();
+  return _sceneCtx.get();
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
@@ -76,14 +67,7 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   const engine = engineContext.tryUse() as GwenEngine | null;
   if (engine) engine.provide(SCENE_REGISTRAR_KEY, registrar);
 
-  const prev = _currentSceneCtx;
-  _currentSceneCtx = ctx;
-  try {
-    factory();
-  } finally {
-    _currentSceneCtx = prev;
-  }
-
+  _sceneCtx.run(ctx, factory);
   return ctx;
 }
 
