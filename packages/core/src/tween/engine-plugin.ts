@@ -5,14 +5,6 @@ import type { TweenPoolPolicy } from "./runtime/tween-pool.js";
 import type { GwenPlugin, GwenEngineBase } from "@gwenjs/schema";
 import type { GwenEngine } from "../engine/gwen-engine.js";
 
-// ── GwenProvides augmentation ─────────────────────────────────────────────────
-// Declared here (not in engine-types.ts): each engine-plugin owns its own key.
-declare module "@gwenjs/core" {
-  interface GwenProvides {
-    "tween:manager": TweenManager;
-  }
-}
-
 // ── Options ───────────────────────────────────────────────────────────────────
 
 export interface TweenPluginOptions {

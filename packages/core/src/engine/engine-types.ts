@@ -19,16 +19,6 @@ import { DisposableRegistry } from "../disposable";
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
 export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
 
-// Import TweenManager for GwenProvides augmentation
-import type { TweenManager } from "../tween/runtime/tween-manager";
-
-// Augment GwenProvides with tween:manager service provided by TweenPlugin
-declare module "@gwenjs/core" {
-  interface GwenProvides {
-    "tween:manager": TweenManager;
-  }
-}
-
 // ─── WASM module types ────────────────────────────────────────────
 
 /**
@@ -320,6 +310,11 @@ export interface GwenProvides {
   errors: EngineErrorBus;
   /** The engine-level structured logger. Inject via `engine.inject('logger')`. */
   logger: GwenLogger;
+  /**
+   * The per-engine TweenManager singleton. Provided by TweenPlugin.
+   * Retrieve via `engine.inject('tween:manager')` or `getTweenManager(engine)`.
+   */
+  "tween:manager": import("../tween/runtime/tween-manager.js").TweenManager;
 }
 
 /**

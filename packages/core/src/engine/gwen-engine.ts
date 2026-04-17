@@ -86,7 +86,7 @@ import type {
   EngineStats,
   GwenEngine,
 } from "./engine-types.js";
-import { DisposableRegistry } from "../disposable.js";
+import { DisposableRegistry, createDisposable } from "../disposable.js";
 
 // #region Internal helpers
 
@@ -448,11 +448,7 @@ class GwenEngineImpl implements GwenEngine {
     }
     await this.hooks.callHook("engine:stop");
     this._tracker.clearAll(this.hooks);
-    // Free the WASM allocation and release the manager reference.
-    if (this._sharedMemory) {
-      this._sharedMemory.dispose(getWasmBridge());
-    }
-    this._sharedMemory = null;
+    this.disposables.disposeAll(); // LIFO — last registered, first disposed
   }
 
   /**
@@ -855,6 +851,13 @@ class GwenEngineImpl implements GwenEngine {
     }
     if (!this._sharedMemory) {
       this._sharedMemory = SharedMemoryManager.create(bridge, this.maxEntities);
+      this.disposables.add(
+        "wasm:shared-memory",
+        createDisposable(() => {
+          this._sharedMemory?.dispose(getWasmBridge());
+          this._sharedMemory = null;
+        }),
+      );
     }
     return this._sharedMemory.transformBufferPtr;
   }
