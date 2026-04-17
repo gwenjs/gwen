@@ -1,15 +1,5 @@
 import type { GwenModule } from "@gwenjs/schema";
 
-// @ts-expect-error augmenting @gwenjs/app from @gwenjs/core (intentional, activated at app build time)
-declare module "@gwenjs/app" {
-  interface GwenUserConfig {
-    actor?: {
-      /** Warn in dev when actors are likely leaking. @default true */
-      warnOnLeak?: boolean;
-    };
-  }
-}
-
 export default {
   meta: { name: "@gwenjs/core:actor" },
   setup(_opts, gwen) {
