@@ -29,6 +29,7 @@
 import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
 import { engineContext } from "../../engine/context";
+import type { SceneHookRegistry } from "../engine-plugin.js";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -110,10 +111,13 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
   // Hook registration is per-engine — tracked so each engine gets its own listeners.
   const _registeredEngines = new WeakSet<GwenEngine>();
 
-  function _registerHooks(engine: GwenEngine, def: SceneDefinition): void {
-    if (_registeredEngines.has(engine)) return;
-    _registeredEngines.add(engine);
-
+  /**
+   * @deprecated Fallback without SceneEnginePlugin. Will be removed in v2.0.
+   *
+   * Direct hook registration bypassing SceneHookRegistry.
+   * Caller must handle deduplication via _registeredEngines.
+   */
+  function _registerHooksDirect(engine: GwenEngine, def: SceneDefinition): void {
     if (def.onEnter) {
       const enterCb = def.onEnter;
       engine.hooks.hook("scene:enter", async (sceneName, params) => {
@@ -185,7 +189,16 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
     // its own hook registrations so module-level scene definitions work correctly
     // across multiple engine instances in tests.
     const engine = engineContext.tryUse() as GwenEngine | null;
-    if (engine) _registerHooks(engine, _def);
+    if (engine && !_registeredEngines.has(engine)) {
+      _registeredEngines.add(engine);
+      const hookRegistry = engine.tryInject("scene:hook-registry") as SceneHookRegistry | undefined;
+      if (hookRegistry) {
+        hookRegistry.hookScene(engine, _def);
+      } else {
+        // Fallback for tests without SceneEnginePlugin — direct registration (untracked).
+        _registerHooksDirect(engine, _def);
+      }
+    }
 
     return _def;
   };
