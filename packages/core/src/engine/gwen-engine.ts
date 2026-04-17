@@ -932,15 +932,8 @@ class GwenEngineImpl implements GwenEngine {
       await this.hooks.callHook("engine:tick", dt);
       const t2 = performance.now();
 
-      // Phase 2 — emit before-update hook, then call plugin methods (backward compat)
+      // Phase 2 — emit before-update hook
       await this.hooks.callHook("engine:before-update", dt);
-      for (const plugin of this._plugins) {
-        try {
-          plugin.onBeforeUpdate?.(dt);
-        } catch (err) {
-          await this._reportPluginError(plugin, "onBeforeUpdate", err);
-        }
-      }
       const t3 = performance.now();
 
       // Phase 3 — built-in physics step (Cas A: wasmBridge physics)
@@ -1008,36 +1001,15 @@ class GwenEngineImpl implements GwenEngine {
         });
       }
 
-      // Phase 6 — emit update hook, then call plugin methods (backward compat)
+      // Phase 6 — emit update hook
       await this.hooks.callHook("engine:update", dt);
-      for (const plugin of this._plugins) {
-        try {
-          plugin.onUpdate?.(dt);
-        } catch (err) {
-          await this._reportPluginError(plugin, "onUpdate", err);
-        }
-      }
       const t6 = performance.now();
 
-      // Phase 7a — emit after-update hook, then call plugin methods (backward compat)
+      // Phase 7a — emit after-update hook
       await this.hooks.callHook("engine:after-update", dt);
-      for (const plugin of this._plugins) {
-        try {
-          plugin.onAfterUpdate?.(dt);
-        } catch (err) {
-          await this._reportPluginError(plugin, "onAfterUpdate", err);
-        }
-      }
 
-      // Phase 7b — emit render hook, then call plugin methods (backward compat)
+      // Phase 7b — emit render hook
       await this.hooks.callHook("engine:render");
-      for (const plugin of this._plugins) {
-        try {
-          plugin.onRender?.();
-        } catch (err) {
-          await this._reportPluginError(plugin, "onRender", err);
-        }
-      }
       const t7 = performance.now();
 
       // Phase 8 — update stats, then fire engine:afterTick hook

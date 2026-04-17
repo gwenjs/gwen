@@ -171,7 +171,7 @@ export interface PluginErrorContext {
   /**
    * The lifecycle phase in which the error occurred.
    */
-  phase: "setup" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender" | "teardown";
+  phase: "setup" | "teardown";
 
   /** Engine frame index at the time of the error. */
   frame: number;
@@ -194,11 +194,9 @@ export interface PluginErrorContext {
  * **Lifecycle:**
  * 1. `setup(engine)` — called once when `engine.use(plugin)` is awaited.
  *    Acquire resources; register them in `engine.disposables`.
- * 2. Frame hooks (`onBeforeUpdate`, `onUpdate`, `onAfterUpdate`, `onRender`) —
- *    called every frame in registration order.
- * 3. `teardown()` — called when `engine.unuse(name)` or `engine.teardown()`.
+ * 2. `teardown()` — called when `engine.unuse(name)` or `engine.teardown()`.
  *    Optional: prefer `engine.disposables` for cleanup.
- * 4. `onError(error, context)` — called when a frame-level error is caught.
+ * 3. `onError(error, context)` — called when an error is caught during setup or teardown.
  *    Call `context.recover()` to suppress escalation.
  *
  * @example Minimal plugin:
@@ -212,7 +210,7 @@ export interface PluginErrorContext {
  * await engine.use(plugin)
  * ```
  *
- * @example With options via definePlugin():
+ * @example With error handling via definePlugin():
  * ```ts
  * import { definePlugin } from '@gwenjs/kit'
  *
@@ -222,7 +220,7 @@ export interface PluginErrorContext {
  *     if (opts.debug) engine.logger.child('MyPlugin').info('setup')
  *   },
  *   onError(error, context) {
- *     if (context.phase === 'onRender') context.recover()
+ *     if (context.phase === 'setup') context.recover()
  *   },
  * }))
  * ```
@@ -250,30 +248,6 @@ export interface GwenPlugin {
    * `setup()` so teardown order is guaranteed and explicit.
    */
   teardown?(): void | Promise<void>;
-
-  /**
-   * Called every frame before the WASM step, in plugin registration order.
-   * `dt` is delta time in **seconds** since the last frame.
-   */
-  onBeforeUpdate?(dt: number): void;
-
-  /**
-   * Called every frame after the WASM step, in plugin registration order.
-   * `dt` is delta time in **seconds** since the last frame.
-   */
-  onUpdate?(dt: number): void;
-
-  /**
-   * Called every frame after `onUpdate`, in plugin registration order.
-   * `dt` is delta time in **seconds** since the last frame.
-   */
-  onAfterUpdate?(dt: number): void;
-
-  /**
-   * Called every frame at the render phase (after `onAfterUpdate`).
-   * No `dt` — use `onAfterUpdate` if you need it.
-   */
-  onRender?(): void;
 
   /**
    * Called when an error is thrown inside this plugin's frame-level hooks.
