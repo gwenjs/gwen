@@ -7,12 +7,14 @@
 
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { getTweenManager, TweenManager } from "../../src/tween/runtime/tween-manager";
+import { getTweenManager } from "../../src/tween/runtime/tween-manager";
+import { TweenPlugin } from "../../src/tween/engine-plugin";
 import type { GwenEngine } from "../../src/engine/gwen-engine";
 
 describe("TweenManager — shutdown on engine stop", () => {
   it("tween stops advancing after engine.stop()", async () => {
     const engine = await createEngine();
+    await engine.use(TweenPlugin());
     const manager = getTweenManager(engine as GwenEngine);
 
     const slot = manager.claim({ duration: 1.0 });
@@ -32,15 +34,16 @@ describe("TweenManager — shutdown on engine stop", () => {
     expect(slot!.value).toBe(valueMid);
   });
 
-  it("getTweenManager returns a fresh instance after engine.stop()", async () => {
+  it("engine.stop() calls disposeAll() — disposables registry is empty after stop", async () => {
     const engine = await createEngine();
-    const manager1 = getTweenManager(engine as GwenEngine);
+    await engine.use(TweenPlugin());
+
+    // Before stop: tween:manager disposable is registered
+    expect(engine.disposables.size).toBeGreaterThan(0);
 
     await engine.stop();
 
-    // Cache was cleared by _shutdown() — new instance must be created
-    const manager2 = getTweenManager(engine as GwenEngine);
-    expect(manager2).not.toBe(manager1);
-    expect(manager2).toBeInstanceOf(TweenManager);
+    // After stop: disposeAll() was called — registry is empty
+    expect(engine.disposables.size).toBe(0);
   });
 });
