@@ -13,3 +13,4 @@ export { TweenPool, type TweenSlot, type TweenPoolPolicy } from "./runtime/tween
 export { TweenManager, getTweenManager } from "./runtime/tween-manager";
 export { useTween } from "./runtime/use-tween";
 export { defineSequence } from "./runtime/define-sequence";
+export { TweenPlugin, type TweenPluginOptions } from "./engine-plugin";

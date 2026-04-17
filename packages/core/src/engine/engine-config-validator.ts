@@ -15,7 +15,6 @@ import { GwenConfigError } from "./config-error.js";
  * - `maxEntities`: Must be a positive integer [1, 2_000_000]. Warns if > 500_000.
  * - `targetFPS`: Must be in range [1, 300] and finite. Warns if > 144.
  * - `maxDeltaSeconds`: Must be > 0 and ≤ 10, and finite.
- * - `tweenPoolSize`: (if provided) Must be a positive integer. Warns if > 4096.
  *
  * Fields that are undefined are skipped (will use defaults).
  *
@@ -86,24 +85,6 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
         "maxDeltaSeconds",
         v,
         "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
-      );
-    }
-  }
-
-  // tweenPoolSize validation (only if provided)
-  if (opts.tweenPoolSize !== undefined) {
-    const v = opts.tweenPoolSize;
-    if (!Number.isInteger(v) || v < 1) {
-      throw new GwenConfigError(
-        "tweenPoolSize",
-        v,
-        "Must be a positive integer. Default 256 suits most games.",
-      );
-    }
-    if (v > 4096) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[GWEN] config warning: tweenPoolSize value ${v} is unusual. Default 256 suits most games.`,
       );
     }
   }

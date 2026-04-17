@@ -13,12 +13,21 @@ import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
-import type { TweenPoolPolicy } from "../tween/runtime/tween-pool";
 import type { GwenPlugin, GwenEngineBase, GwenErrorBusBase } from "@gwenjs/schema";
 import { DisposableRegistry } from "../disposable";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
 export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
+
+// Import TweenManager for GwenProvides augmentation
+import type { TweenManager } from "../tween/runtime/tween-manager";
+
+// Augment GwenProvides with tween:manager service provided by TweenPlugin
+declare module "@gwenjs/core" {
+  interface GwenProvides {
+    "tween:manager": TweenManager;
+  }
+}
 
 // ─── WASM module types ────────────────────────────────────────────
 
@@ -290,19 +299,6 @@ export interface GwenEngineOptions {
    * @default false
    */
   debug?: boolean;
-
-  /**
-   * Number of pre-allocated tween slots.
-   * @default 256
-   */
-  tweenPoolSize?: number;
-
-  /**
-   * Growth and exhaustion policy for the tween pool.
-   * Controls what happens when all tween slots are in use.
-   * @default `{ onExhausted: 'grow' }`
-   */
-  tweenPoolPolicy?: TweenPoolPolicy;
 }
 
 /**
@@ -451,8 +447,6 @@ export interface GwenEngine extends GwenEngineBase {
   readonly maxDeltaSeconds: number;
   readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
-  readonly tweenPoolSize: number;
-  readonly tweenPoolPolicy: TweenPoolPolicy;
 
   // ─── Disposables (concrete type for internal use) ─────────────────────────
   /**

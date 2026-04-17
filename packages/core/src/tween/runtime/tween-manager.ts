@@ -53,5 +53,5 @@ export class TweenManager {
  */
 export function getTweenManager(engine?: GwenEngine): TweenManager {
   const resolvedEngine = engine ?? (useEngine() as GwenEngine);
-  return resolvedEngine.inject("tween:manager") as TweenManager;
+  return resolvedEngine.inject("tween:manager" as any) as TweenManager;
 }

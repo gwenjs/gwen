@@ -36,7 +36,6 @@ import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/
 import { buildTransformImports } from "../hooks/wasm/transform-imports";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory";
 import { validateEngineConfig } from "./engine-config-validator";
-import type { TweenPoolPolicy } from "../tween/runtime/tween-pool";
 import { initWasm } from "./wasm-bridge";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
@@ -74,6 +73,7 @@ import { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
 import type { PluginErrorContext } from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
+
 import type {
   WasmModuleOptions,
   WasmModuleHandle,
@@ -130,8 +130,6 @@ class GwenEngineImpl implements GwenEngine {
   readonly maxDeltaSeconds: number;
   readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
-  readonly tweenPoolSize: number;
-  readonly tweenPoolPolicy: TweenPoolPolicy;
   readonly logger: GwenLogger;
 
   // ─── Disposables ─────────────────────────────────────────────────────────
@@ -253,8 +251,6 @@ class GwenEngineImpl implements GwenEngine {
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
     this.variant = opts.variant ?? "light";
     this.debug = opts.debug ?? false;
-    this.tweenPoolSize = opts.tweenPoolSize ?? 256;
-    this.tweenPoolPolicy = opts.tweenPoolPolicy ?? { onExhausted: "grow" };
     this.logger = createLogger("gwen:core", this.debug, () => this._frameCountOwn);
     this.provide("logger", this.logger);
     this._entityManager = new EntityManager(this.maxEntities);
