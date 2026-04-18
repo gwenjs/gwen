@@ -194,7 +194,7 @@ export function _getActorEngine(): GwenEngine {
  */
 export function onStart(fn: VoidFn): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onStart() must be called synchronously inside a defineActor() factory function.",
@@ -220,7 +220,7 @@ export function onStart(fn: VoidFn): void {
  */
 export function onDestroy(fn: VoidFn): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.",
@@ -240,7 +240,7 @@ export function onDestroy(fn: VoidFn): void {
  */
 export function onRelease(fn: VoidFn): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onRelease() must be called synchronously inside a defineActor() factory function.",
@@ -262,7 +262,7 @@ export function onRelease(fn: VoidFn): void {
  */
 export function onReset<Props = unknown>(fn: (props: Props) => void): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onReset() must be called synchronously inside a defineActor() factory function.",
@@ -285,7 +285,7 @@ export function onReset<Props = unknown>(fn: (props: Props) => void): void {
  */
 export function onEnable(fn: VoidFn): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onEnable() must be called synchronously inside a defineActor() factory function.",
@@ -308,7 +308,7 @@ export function onEnable(fn: VoidFn): void {
  */
 export function onDisable(fn: VoidFn): void {
   const ctx = _actorCtx.get();
-  if (!ctx?.instance) {
+  if (ctx === null) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
       "[GWEN] onDisable() must be called synchronously inside a defineActor() factory function.",

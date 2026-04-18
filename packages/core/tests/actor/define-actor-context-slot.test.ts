@@ -35,7 +35,7 @@ describe("define-actor — ContextSlot<ActorContext>", () => {
     await engine.stop();
   });
 
-  it("nested spawns restore context correctly", async () => {
+  it("sequential spawns each get their own context", async () => {
     const engine = await createEngine({});
     const log: string[] = [];
     const Inner = defineActor("Inner", EmptyPrefab, () => {
