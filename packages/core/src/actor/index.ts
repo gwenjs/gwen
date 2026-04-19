@@ -16,9 +16,8 @@ export {
 // Frame hooks (re-exported — also valid in system context)
 export { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../system/runtime/define-system";
 
-// Prefab + events
+// Prefab
 export { definePrefab } from "./runtime/define-prefab";
-export { defineEvents } from "./runtime/define-events";
 
 /**
  * @deprecated Import `emit` from `'@gwenjs/core'` instead.
@@ -67,7 +66,6 @@ export type { ActorHandle, PrefabHandle } from "./runtime/use-actor";
 export type { TransformHandle } from "./runtime/use-transform";
 export type { WatchActorLeaksOptions } from "./runtime/watch-actor-leaks";
 export type { PrefabDefinition, PrefabComponentEntry } from "./runtime/define-prefab";
-export type { InferEvents, EventHandlerMap } from "./runtime/define-events";
 export type {
   ActorDefinition,
   ActorInstance,

@@ -23,7 +23,7 @@ export default {
       { name: "placeActor", from: "@gwenjs/core/actor" },
       { name: "placeGroup", from: "@gwenjs/core/actor" },
       { name: "placePrefab", from: "@gwenjs/core/actor" },
-      { name: "defineEvents", from: "@gwenjs/core/actor" },
+      { name: "defineHooks", from: "@gwenjs/core" },
     ]);
   },
 } satisfies GwenModule;
