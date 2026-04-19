@@ -193,18 +193,18 @@ const MyActor = defineActor(MyPrefab, () => {
 
 ## Événements de jeu personnalisés
 
-Déclarez les événements de votre jeu en un seul endroit. Définissez-les avec `defineEvents()`, augmentez `GwenRuntimeHooks` via la fusion de déclaration TypeScript, et profitez de la sécurité de type complète partout où vous émettez ou écoutez.
+Déclarez les événements de votre jeu en un seul endroit. Définissez-les avec `defineHooks()`, augmentez `GwenRuntimeHooks` via la fusion de déclaration TypeScript, et profitez de la sécurité de type complète partout où vous émettez ou écoutez.
 
 ### Définition des événements
 
 Créez un fichier partagé avec vos types d'événements personnalisés :
 
 ```typescript
-// src/events.ts
-import { defineEvents } from '@gwenjs/core/actor'
-import type { InferEvents } from '@gwenjs/core/actor'
+// src/hooks.ts
+import { defineHooks } from '@gwenjs/core'
+import type { InferHooks } from '@gwenjs/core'
 
-export const GameEvents = defineEvents({
+export const GameHooks = defineHooks({
   'enemy:hit': (damage: number) => {},
   'enemy:die': (entityId: bigint) => {},
   'player:score': (points: number) => {},
@@ -212,11 +212,11 @@ export const GameEvents = defineEvents({
 
 // Augment GwenRuntimeHooks for type safety across the project
 declare module '@gwenjs/core' {
-  interface GwenRuntimeHooks extends InferEvents<typeof GameEvents> {}
+  interface GwenRuntimeHooks extends InferHooks<typeof GameHooks> {}
 }
 ```
 
-`defineEvents()` est un outil de déclaration — il n'exécute aucun code à l'exécution. Sa valeur est la signature TypeScript. Associez-le à `InferEvents` pour plier vos événements personnalisés dans `GwenRuntimeHooks`.
+`defineHooks()` est un outil de déclaration — il n'exécute aucun code à l'exécution. Sa valeur est la signature TypeScript. Associez-le à `InferHooks` pour plier vos événements personnalisés dans `GwenRuntimeHooks`.
 
 ### Émission d'événements
 
@@ -364,8 +364,8 @@ Utilisez `onEvent()` à l'intérieur des acteurs — surtout les acteurs poolés
 |---|---|
 | `useHook(event, handler)` | S'abonner à un événement moteur ou personnalisé (nettoyage automatique). Dans les acteurs, ignore l'exécution et avertit une fois (dev) si l'acteur est dormant. Préférer `onEvent()` pour les abonnements locaux à l'acteur. |
 | `onCleanup(fn)` | Enregistrer un callback de nettoyage dans le contexte de cycle de vie actif |
-| `defineEvents(map)` | Déclarer un contrat d'événements typé (retourne le même objet à l'exécution) |
-| `InferEvents<T>` | Aide de type pour extraire les signatures d'événements d'une carte retournée par `defineEvents()` |
+| `defineHooks(map)` | Déclarer un contrat d'événements typé (retourne le même objet à l'exécution) |
+| `InferHooks<T>` | Aide de type pour extraire les signatures d'événements d'une carte retournée par `defineHooks()` |
 | `emit(event, ...args)` | Déclencher un événement depuis à l'intérieur d'un acteur ou d'un système |
 | `onEvent(event, handler)` | Écouter un événement à l'intérieur d'un acteur (raccourci pour `useHook()`) |
 | `GwenRuntimeHooks` | L'interface de tous les événements du cycle de vie du moteur (augmentée par les plugins et les événements personnalisés via la fusion de déclaration) |

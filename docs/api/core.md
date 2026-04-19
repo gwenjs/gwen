@@ -213,12 +213,12 @@ function useWasmModule(name: string): any
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEvent`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEvent`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`
 
 **Usage:**
 ```ts
 import { defineActor, onStart, onDestroy, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/actor'
-import { definePrefab, defineEvents, emit, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
+import { definePrefab, emit, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
 import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePrefab } from '@gwenjs/core/actor'
 ```
 
@@ -507,25 +507,25 @@ function onRender(cb: () => void): void
 
 ### Events
 
-#### defineEvents(map)
+#### defineHooks(map)
 
 **Signature:**
 ```ts
-function defineEvents(map: Record<string, any>): EventDef
+function defineHooks(map: Record<string, any>): HookDef
 ```
 
-**Description.** Defines event types for your game.
+**Description.** Defines hook types for your game.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| map | `object` | Event type definitions |
+| map | `object` | Hook type definitions |
 
-**Returns:** `EventDef`
+**Returns:** `HookDef`
 
 **Example:**
 ```ts
-const Events = defineEvents({
+const Hooks = defineHooks({
   'player-hit': { damage: Number },
   'level-complete': { time: Number }
 });

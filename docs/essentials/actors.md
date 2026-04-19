@@ -162,19 +162,19 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 
 ## Typed Events
 
-Use `defineEvents()` to declare your game's event contracts in one place, then share them across actors and systems.
+Use `defineHooks()` to declare your game's event contracts in one place, then share them across actors and systems.
 
 ```ts
-// src/events/enemy.ts
-import { defineEvents } from '@gwenjs/core/actor'
+// src/hooks/enemy.ts
+import { defineHooks } from '@gwenjs/core'
 
-export const EnemyEvents = defineEvents({
+export const EnemyHooks = defineHooks({
   'enemy:hit': (damage: number) => {},
   'enemy:die': () => {},
 })
 ```
 
-`defineEvents` is a declaration tool — it names and groups your events so every part of your code works from the same contract.
+`defineHooks` is a declaration tool — it names and groups your events so every part of your code works from the same contract.
 
 ### Emitting Events
 
@@ -392,7 +392,7 @@ If you truly need to call a composable after `await` in `onStart`, use `withAsyn
 | `useEntityId()` | Entity ID of the current instance — use to index SoA arrays directly (e.g. `Position.x[id]`) |
 | `useTransform()` | Access the actor's spatial transform |
 | `useSceneRouter(router)` | Navigate between scenes |
-| `defineEvents(map)` | Declare a typed event contract (shared across actors and systems) |
+| `defineHooks(map)` | Declare a typed event contract (shared across actors and systems) |
 | `emit(event, ...args)` | Dispatch an event from any active engine context |
 | `onEvent(event, handler)` | Listen to an event inside an actor (auto-removed on destroy) |
 | `useHook(event, handler)` | Subscribe to an engine or game event (auto-cleanup) — import from `@gwenjs/core` |

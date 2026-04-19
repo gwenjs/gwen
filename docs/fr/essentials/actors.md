@@ -162,19 +162,19 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 
 ## Événements typés
 
-Utilisez `defineEvents()` pour déclarer votre contrat d'événements de jeu en un seul endroit, puis partagez-le entre acteurs et systèmes.
+Utilisez `defineHooks()` pour déclarer votre contrat d'événements de jeu en un seul endroit, puis partagez-le entre acteurs et systèmes.
 
 ```ts
-// src/events/enemy.ts
-import { defineEvents } from '@gwenjs/core/actor'
+// src/hooks/enemy.ts
+import { defineHooks } from '@gwenjs/core'
 
-export const EnemyEvents = defineEvents({
+export const EnemyHooks = defineHooks({
   'enemy:hit': (damage: number) => {},
   'enemy:die': () => {},
 })
 ```
 
-`defineEvents` est un outil de déclaration — il nomme et groupe vos événements pour que chaque partie de votre code fonctionne à partir du même contrat.
+`defineHooks` est un outil de déclaration — il nomme et groupe vos événements pour que chaque partie de votre code fonctionne à partir du même contrat.
 
 ### Émission d'événements
 
@@ -392,7 +392,7 @@ Si vous avez vraiment besoin d'appeler un composable après `await` dans `onStar
 | `useEntityId()` | ID d'entité de l'instance courante — pour indexer les tableaux SoA directement (ex. `Position.x[id]`) |
 | `useTransform()` | Accéder à la transform spatiale de l'acteur |
 | `useSceneRouter(router)` | Naviguer entre les scènes |
-| `defineEvents(map)` | Déclarer un contrat d'événements typé (partagé entre acteurs et systèmes) |
+| `defineHooks(map)` | Déclarer un contrat d'événements typé (partagé entre acteurs et systèmes) |
 | `emit(event, ...args)` | Déclencher un événement depuis un contexte moteur actif |
 | `onEvent(event, handler)` | Écouter un événement à l'intérieur d'un acteur (supprimé automatiquement à la destruction) |
 | `useHook(event, handler)` | S'abonner à un événement moteur ou de jeu (nettoyage automatique) — importer depuis `@gwenjs/core` |

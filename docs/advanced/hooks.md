@@ -194,18 +194,18 @@ const MyActor = defineActor(MyPrefab, () => {
 
 ## Custom Game Events
 
-Declare your game's events in one place. Define them with `defineEvents()`, augment `GwenRuntimeHooks` via TypeScript declaration merging, and enjoy full type safety everywhere you emit or listen.
+Declare your game's events in one place. Define them with `defineHooks()`, augment `GwenRuntimeHooks` via TypeScript declaration merging, and enjoy full type safety everywhere you emit or listen.
 
 ### Defining Events
 
 Create a shared file with your custom event types:
 
 ```typescript
-// src/events.ts
-import { defineEvents } from '@gwenjs/core/actor'
-import type { InferEvents } from '@gwenjs/core/actor'
+// src/hooks.ts
+import { defineHooks } from '@gwenjs/core'
+import type { InferHooks } from '@gwenjs/core'
 
-export const GameEvents = defineEvents({
+export const GameHooks = defineHooks({
   'enemy:hit': (damage: number) => {},
   'enemy:die': (entityId: bigint) => {},
   'player:score': (points: number) => {},
@@ -213,11 +213,11 @@ export const GameEvents = defineEvents({
 
 // Augment GwenRuntimeHooks for type safety across the project
 declare module '@gwenjs/core' {
-  interface GwenRuntimeHooks extends InferEvents<typeof GameEvents> {}
+  interface GwenRuntimeHooks extends InferHooks<typeof GameHooks> {}
 }
 ```
 
-`defineEvents()` is a declaration tool—it doesn't execute any code at runtime. Its value is the TypeScript signature. Pair it with `InferEvents` to fold your custom events into `GwenRuntimeHooks`.
+`defineHooks()` is a declaration tool—it doesn't execute any code at runtime. Its value is the TypeScript signature. Pair it with `InferHooks` to fold your custom events into `GwenRuntimeHooks`.
 
 ### Emitting Events
 
@@ -365,8 +365,8 @@ Use `onEvent()` inside actors — especially pooled ones. Use `useHook()` from s
 |---|---|
 | `useHook(event, handler)` | Subscribe to an engine or custom event (auto-cleanup). Inside actors, skips execution and warns once (dev) if the actor is dormant. Prefer `onEvent()` for actor-local subscriptions. |
 | `onCleanup(fn)` | Register a cleanup callback in the active lifecycle context |
-| `defineEvents(map)` | Declare a typed event contract (returns the same object at runtime) |
-| `InferEvents<T>` | Type helper to extract event signatures from a map returned by `defineEvents()` |
+| `defineHooks(map)` | Declare a typed event contract (returns the same object at runtime) |
+| `InferHooks<T>` | Type helper to extract event signatures from a map returned by `defineHooks()` |
 | `emit(event, ...args)` | Fire an event from inside an actor or system |
 | `onEvent(event, handler)` | Listen to an event inside an actor (shorthand for `useHook()`) |
 | `GwenRuntimeHooks` | The interface of all engine lifecycle events (extended by plugins and custom events via declaration merging) |

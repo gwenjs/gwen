@@ -696,25 +696,25 @@ transform.x += 10;
 
 ## Événements
 
-### defineEvents(map)
+### defineHooks(map)
 
 **Signature:**
 ```ts
-function defineEvents(map: Record<string, any>): EventDef
+function defineHooks(map: Record<string, any>): HookDef
 ```
 
-**Description.** Définit les types d'événements pour votre jeu.
+**Description.** Définit les types de hooks pour votre jeu.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| map | `object` | Définitions de types d'événements |
+| map | `object` | Définitions de types de hooks |
 
-**Retourne:** `EventDef`
+**Retourne:** `HookDef`
 
 **Exemple:**
 ```ts
-const Events = defineEvents({
+const Hooks = defineHooks({
   'player-hit': { damage: Number },
   'level-complete': { time: Number }
 });
