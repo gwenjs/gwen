@@ -15,7 +15,6 @@
  *
  * NAVIGATION (use IDE region folding — Ctrl+Shift+[ / Cmd+Shift+[):
  *   wasm-bridge-types.ts                        — variant type contracts (WasmEngine*)
- *   #region Internal state & hot-path buffers   — module-level singletons, zero-alloc views
  *   #region Module loading & initialization     — variant detection, fetch, instantiation
  *   #region WasmBridge implementation           — hot path: entity/component/query calls
  *   #region Singleton management & test utils   — getWasmBridge(), _inject*, _reset*
@@ -31,6 +30,7 @@
 import { createEntityId, unpackEntityId, type EntityId } from "./engine-api";
 import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes } from "./engine-errors";
+import { engineContext } from "./context";
 
 // ─── Re-exports from extracted type module ──────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -62,25 +62,7 @@ import type {
   WasmBridge,
 } from "./wasm-bridge-types.js";
 
-// #region Internal state & hot-path static buffers ───────────────────────────
-
-let _wasmEngine: WasmEngine | null = null;
-let _wasmModule: GwenCoreWasm | null = null;
-let _wasmExports: { memory?: WebAssembly.Memory } | null = null; // raw WASM instance exports
-let _initPromise: Promise<void> | null = null;
-let _maxEntities = 10_000;
-let _activeVariant: CoreVariant = "light";
-
-/** Track the last seen ArrayBuffer to detect memory.grow() events. */
-let _lastMemoryBuffer: ArrayBuffer | null = null;
-
-/** Static view for zero-alloc query results. Recreated on memory.grow(). */
-let _queryResultView: Uint32Array | null = null;
-
-/** Static buffer for type IDs to avoid allocations on every query. */
-const _typeIdBuffer = new Uint32Array(16);
-/** Pre-allocated views for common type ID counts (0-16). */
-const _typeIdViews = Array.from({ length: 17 }, (_, i) => _typeIdBuffer.subarray(0, i));
+// #region Module loading & initialization ─────────────────────────────────────
 
 /**
  * Base URL for WASM artifacts (auto-resolved in browser, null in Node).
@@ -105,128 +87,7 @@ const _pkgWasmBase: string | null = (() => {
   return null;
 })();
 
-// #endregion
-
-// #region Module loading & initialization ─────────────────────────────────────
-
 // InitWasmOptions — extracted to ./wasm-bridge-types.ts
-
-/**
- * Load and initialize the gwen_core WASM module. **REQUIRED** before any Engine usage.
- *
- * **Without arguments**: Auto-resolves from `@gwenjs/core/wasm/light/`
- * (pre-compiled artifacts published in the package — no Rust build needed).
- *
- * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
- * @param options Initialization options (urls, max entities, SAB requirement)
- * @throws {Error} If WASM cannot be loaded or has invalid format
- */
-export async function initWasm(
-  variant: CoreVariant = "light",
-  options: InitWasmOptions = {},
-): Promise<void> {
-  if (_wasmEngine) return;
-  if (_initPromise) return _initPromise;
-
-  const { maxEntities = 10_000, requireSAB = false, jsUrl, wasmUrl } = options;
-
-  // ── P0: Validate SharedArrayBuffer availability ────────────────────────────
-  if (requireSAB && typeof SharedArrayBuffer === "undefined") {
-    throw new Error(
-      "[GWEN] SharedArrayBuffer is required by a WASM plugin but not available.\n" +
-        "Your server MUST send COOP/COEP headers to enable SharedArrayBuffer.\n" +
-        "See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer",
-    );
-  }
-
-  _maxEntities = maxEntities;
-  _activeVariant = variant;
-
-  const variantPath = `${variant}/`;
-  const resolvedJsUrl =
-    jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core.js` : null);
-  const resolvedWasmUrl =
-    wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
-
-  if (!resolvedJsUrl) {
-    throw new Error(
-      `[GWEN] initWasm(): unable to resolve WASM glue URL for variant "${variant}".\n` +
-        "Make sure @gwenjs/core is correctly installed.",
-    );
-  }
-
-  _initPromise = (async () => {
-    const glue = await loadWasmGlue(resolvedJsUrl);
-
-    const _fetchController = new AbortController();
-    const _fetchTimeoutId = setTimeout(() => _fetchController.abort(), 10_000);
-
-    let wasmInput: Response | undefined;
-    try {
-      if (resolvedWasmUrl) {
-        wasmInput = await fetch(resolvedWasmUrl, { signal: _fetchController.signal });
-        if (!wasmInput.ok) {
-          throw new Error(
-            `[GWEN] WASM fetch failed with HTTP ${wasmInput.status} ${wasmInput.statusText}`,
-          );
-        }
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === "AbortError") {
-        throw new Error(
-          `[CORE:WASM_TIMEOUT] initWasm() timed out after 10s waiting for WASM binary.`,
-        );
-      }
-      throw err;
-    } finally {
-      clearTimeout(_fetchTimeoutId);
-    }
-
-    if (typeof glue.default === "function") {
-      // glue.default() returns the raw WASM instance exports (including memory)
-      _wasmExports = await glue.default({ module_or_path: wasmInput });
-    } else if (typeof glue.initSync === "function") {
-      const buf = await (await fetch(resolvedWasmUrl!)).arrayBuffer();
-      _wasmExports = glue.initSync({ module: buf });
-    } else {
-      throw new Error("[GWEN] WASM glue has no init() function — corrupted file?");
-    }
-
-    if (typeof glue.Engine !== "function") {
-      throw new Error("[GWEN] WASM glue loaded but Engine class not found.");
-    }
-
-    _wasmModule = glue as GwenCoreWasm;
-    _wasmEngine = new glue.Engine(maxEntities);
-
-    if (variant === "physics2d") {
-      if (import.meta.env?.DEV) {
-        // eslint-disable-next-line no-console
-        console.log("[GWEN] WASM core loaded — Physics2D variant active");
-      }
-    } else if (variant === "physics3d") {
-      if (import.meta.env?.DEV) {
-        // eslint-disable-next-line no-console
-        console.log("[GWEN] WASM core loaded — Physics3D variant active");
-      }
-    } else {
-      if (import.meta.env?.DEV) {
-        // eslint-disable-next-line no-console
-        console.log("[GWEN] WASM core loaded — Light variant active");
-      }
-    }
-  })().catch((err) => {
-    _initPromise = null;
-    _wasmEngine = null;
-    _wasmModule = null;
-    _wasmExports = null;
-    const tagged = err instanceof Error ? err : new Error(String(err));
-    (tagged as Error & { code?: string }).code = "CORE:WASM_LOAD_ERROR";
-    throw tagged;
-  });
-
-  return _initPromise;
-}
 
 // ── Internal types for DOM-based glue loading ─────────────────────────────────
 
@@ -336,33 +197,46 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
 // #region WasmBridge implementation (hot path — do not split) ─────────────────
 
 /**
- * Guard that returns the active WasmEngine or throws a descriptive error.
- * All bridge methods call this so the error message is consistent and actionable.
- *
- * @throws {Error} If `initWasm()` has not been called yet.
- * @internal
- */
-function requireWasm(): WasmEngine {
-  if (!_wasmEngine) {
-    throw new Error(
-      "[GWEN] WASM core not initialized.\n" + "Call `await initWasm()` before starting the Engine.",
-    );
-  }
-  return _wasmEngine;
-}
-
-/**
  * Concrete implementation of `WasmBridge`.
  *
- * Every public method delegates to the `_wasmEngine` singleton via
- * `requireWasm()`, which throws a clear error if WASM is not yet loaded.
+ * Every public method delegates to the `_wasmEngine` instance via
+ * `_requireWasm()`, which throws a clear error if WASM is not yet loaded.
  * All type conversions (e.g. `number[] → Uint32Array`, packed EntityId
  * reconstruction) happen here so callers never touch raw Rust types.
  *
- * @internal — Obtain the singleton via `getWasmBridge()`.
+ * All WASM state is stored as instance fields — multiple independent bridge
+ * instances are fully isolated from each other.
+ *
+ * @internal — Obtain via `getWasmBridge()` or `new WasmBridgeImpl()`.
  */
-class WasmBridgeImpl implements WasmBridge {
-  // ── Private static buffers (zero-alloc query bulk optimization) ──────────
+export class WasmBridgeImpl implements WasmBridge {
+  // ── Per-instance state (was module-level) ─────────────────────────────────
+  private _wasmEngine: WasmEngine | null = null;
+  private _wasmModule: GwenCoreWasm | null = null;
+  private _wasmExports: { memory?: WebAssembly.Memory } | null = null;
+  private _initPromise: Promise<void> | null = null;
+  private _maxEntities = 10_000;
+  private _activeVariant: CoreVariant = "light";
+
+  /** Track the last seen ArrayBuffer to detect memory.grow() events. */
+  private _lastMemoryBuffer: ArrayBuffer | null = null;
+
+  /** Static view for zero-alloc query results. Recreated on memory.grow(). */
+  private _queryResultView: Uint32Array | null = null;
+
+  /** Static buffer for type IDs to avoid allocations on every query. */
+  private readonly _typeIdBuffer = new Uint32Array(16);
+  /** Pre-allocated views for common type ID counts (0-16). */
+  private readonly _typeIdViews: Uint32Array[];
+
+  constructor() {
+    this._typeIdViews = Array.from(
+      { length: 17 },
+      (_, i) => this._typeIdBuffer.subarray(0, i),
+    );
+  }
+
+  // ── Bulk buffers (zero-alloc query optimization) ──────────────────────────
 
   /** Reusable static buffer for query results (entity slots). */
   private _bulkSlots?: Uint32Array;
@@ -378,72 +252,227 @@ class WasmBridgeImpl implements WasmBridge {
     this._bulkBuf = undefined;
   }
 
+  // ── Init ─────────────────────────────────────────────────────────────────
+
+  /**
+   * Load and initialize the gwen_core WASM module for this bridge instance.
+   *
+   * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
+   * @param options Initialization options (urls, max entities, SAB requirement)
+   * @throws {Error} If WASM cannot be loaded or has invalid format
+   */
+  async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
+    if (this._wasmEngine) return;
+    if (this._initPromise) return this._initPromise;
+
+    const { maxEntities = 10_000, requireSAB = false, jsUrl, wasmUrl } = options;
+
+    // ── P0: Validate SharedArrayBuffer availability ──────────────────────────
+    if (requireSAB && typeof SharedArrayBuffer === "undefined") {
+      throw new Error(
+        "[GWEN] SharedArrayBuffer is required by a WASM plugin but not available.\n" +
+          "Your server MUST send COOP/COEP headers to enable SharedArrayBuffer.\n" +
+          "See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer",
+      );
+    }
+
+    this._maxEntities = maxEntities;
+    this._activeVariant = variant;
+
+    const variantPath = `${variant}/`;
+    const resolvedJsUrl =
+      jsUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core.js` : null);
+    const resolvedWasmUrl =
+      wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
+
+    if (!resolvedJsUrl) {
+      throw new Error(
+        `[GWEN] initWasm(): unable to resolve WASM URL for variant "${variant}".\n` +
+          "Make sure @gwenjs/core is correctly installed.",
+      );
+    }
+
+    this._initPromise = (async () => {
+      const glue = await loadWasmGlue(resolvedJsUrl);
+
+      const _fetchController = new AbortController();
+      const _fetchTimeoutId = setTimeout(() => _fetchController.abort(), 10_000);
+
+      let wasmInput: Response | undefined;
+      try {
+        if (resolvedWasmUrl) {
+          wasmInput = await fetch(resolvedWasmUrl, { signal: _fetchController.signal });
+          if (!wasmInput.ok) {
+            throw new Error(
+              `[GWEN] WASM fetch failed with HTTP ${wasmInput.status} ${wasmInput.statusText}`,
+            );
+          }
+        }
+      } catch (err) {
+        if (err instanceof Error && err.name === "AbortError") {
+          throw new Error(
+            `[CORE:WASM_TIMEOUT] initWasm() timed out after 10s waiting for WASM binary.`,
+          );
+        }
+        throw err;
+      } finally {
+        clearTimeout(_fetchTimeoutId);
+      }
+
+      if (typeof glue.default === "function") {
+        // glue.default() returns the raw WASM instance exports (including memory)
+        this._wasmExports = await glue.default({ module_or_path: wasmInput });
+      } else if (typeof glue.initSync === "function") {
+        const buf = await (await fetch(resolvedWasmUrl!)).arrayBuffer();
+        this._wasmExports = glue.initSync({ module: buf });
+      } else {
+        throw new Error("[GWEN] WASM glue has no init() function — corrupted file?");
+      }
+
+      if (typeof glue.Engine !== "function") {
+        throw new Error("[GWEN] WASM glue loaded but Engine class not found.");
+      }
+
+      this._wasmModule = glue as GwenCoreWasm;
+      this._wasmEngine = new glue.Engine(maxEntities);
+
+      if (import.meta.env?.DEV) {
+        const label =
+          variant === "physics2d"
+            ? "Physics2D"
+            : variant === "physics3d"
+              ? "Physics3D"
+              : "Light";
+        // eslint-disable-next-line no-console
+        console.log(`[GWEN] WASM core loaded — ${label} variant active`);
+      }
+    })().catch((err) => {
+      this._initPromise = null;
+      this._wasmEngine = null;
+      this._wasmModule = null;
+      this._wasmExports = null;
+      const tagged = err instanceof Error ? err : new Error(String(err));
+      (tagged as Error & { code?: string }).code = "CORE:WASM_LOAD_ERROR";
+      throw tagged;
+    });
+
+    return this._initPromise;
+  }
+
+  // ── Internal guard ────────────────────────────────────────────────────────
+
+  /**
+   * Guard that returns the active WasmEngine or throws a descriptive error.
+   * All bridge methods call this so the error message is consistent and actionable.
+   *
+   * @throws {Error} If `init()` has not been called yet.
+   * @internal
+   */
+  private _requireWasm(): WasmEngine {
+    if (!this._wasmEngine) {
+      throw new Error(
+        "[GWEN] WASM core not initialized.\n" +
+          "Call `await initWasm()` before starting the Engine.",
+      );
+    }
+    return this._wasmEngine;
+  }
+
+  // ── Test utilities ────────────────────────────────────────────────────────
+
+  /** @internal — test only */
+  _injectMock(mock: WasmEngine, maxEntities?: number): void {
+    this._wasmEngine = mock;
+    this._initPromise = Promise.resolve();
+    if (maxEntities !== undefined) this._maxEntities = maxEntities;
+  }
+
+  /** @internal — test only */
+  _injectMockExports(exports: { memory?: WebAssembly.Memory }): void {
+    this._wasmExports = exports;
+  }
+
+  /** @internal — test only */
+  _reset(): void {
+    this._wasmEngine = null;
+    this._wasmExports = null;
+    this._initPromise = null;
+    this._lastMemoryBuffer = null;
+    this._queryResultView = null;
+    this._maxEntities = 10_000;
+    this._resetBulkBuffers();
+    const ctx = globalThis as Record<string, unknown>;
+    for (const key of Object.keys(ctx)) {
+      if (key.startsWith("__gwenGlue_")) delete ctx[key];
+    }
+  }
+
   // ── Status ───────────────────────────────────────────────────────────────
 
   isActive(): boolean {
-    return _wasmEngine !== null;
+    return this._wasmEngine !== null;
   }
 
   get variant(): CoreVariant {
-    return _activeVariant;
+    return this._activeVariant;
   }
 
   hasPhysics(): boolean {
-    return _activeVariant === "physics2d" || _activeVariant === "physics3d";
+    return this._activeVariant === "physics2d" || this._activeVariant === "physics3d";
   }
 
   getPhysicsBridge(): WasmEnginePhysics2D | WasmEnginePhysics3D {
     if (!this.hasPhysics()) {
       throw new Error(
-        `[GWEN] getPhysicsBridge(): physics is not available in variant "${_activeVariant}". ` +
+        `[GWEN] getPhysicsBridge(): physics is not available in variant "${this._activeVariant}". ` +
           'Use "physics2d" or "physics3d" variant instead.',
       );
     }
-    return requireWasm() as WasmEnginePhysics2D | WasmEnginePhysics3D;
+    return this._requireWasm() as WasmEnginePhysics2D | WasmEnginePhysics3D;
   }
 
   engine(): WasmEngine {
-    return requireWasm();
+    return this._requireWasm();
   }
 
   // ── Entity ───────────────────────────────────────────────────────────────
 
   createEntity(): WasmEntityId {
-    return requireWasm().create_entity();
+    return this._requireWasm().create_entity();
   }
 
   deleteEntity(index: number, generation: number): boolean {
-    return requireWasm().delete_entity(index, generation);
+    return this._requireWasm().delete_entity(index, generation);
   }
 
   isAlive(index: number, generation: number): boolean {
-    return requireWasm().is_alive(index, generation);
+    return this._requireWasm().is_alive(index, generation);
   }
 
   countEntities(): number {
-    return requireWasm().count_entities();
+    return this._requireWasm().count_entities();
   }
 
   // ── Component ────────────────────────────────────────────────────────────
 
   registerComponentType(): number {
-    return requireWasm().register_component_type();
+    return this._requireWasm().register_component_type();
   }
 
   addComponent(index: number, generation: number, typeId: number, data: Uint8Array): boolean {
-    return requireWasm().add_component(index, generation, typeId, data);
+    return this._requireWasm().add_component(index, generation, typeId, data);
   }
 
   removeComponent(index: number, generation: number, typeId: number): boolean {
-    return requireWasm().remove_component(index, generation, typeId);
+    return this._requireWasm().remove_component(index, generation, typeId);
   }
 
   hasComponent(index: number, generation: number, typeId: number): boolean {
-    return requireWasm().has_component(index, generation, typeId);
+    return this._requireWasm().has_component(index, generation, typeId);
   }
 
   getComponentRaw(index: number, generation: number, typeId: number): Uint8Array {
-    return requireWasm().get_component_raw(index, generation, typeId);
+    return this._requireWasm().get_component_raw(index, generation, typeId);
   }
 
   readComponentsBulk(
@@ -465,7 +494,7 @@ class WasmBridgeImpl implements WasmBridge {
 
     // Pre-allocate the output buffer (pre-zeroed by the JS runtime).
     const outBuf = new Uint8Array(n * componentSize);
-    requireWasm().get_components_bulk(slots, gens, componentTypeId, outBuf);
+    this._requireWasm().get_components_bulk(slots, gens, componentTypeId, outBuf);
 
     // Return a Float32Array view over the same buffer — no copy.
     return new Float32Array(outBuf.buffer, outBuf.byteOffset, outBuf.byteLength / 4);
@@ -485,7 +514,7 @@ class WasmBridgeImpl implements WasmBridge {
 
     // Pass data as a Uint8Array view over the Float32Array buffer — no copy.
     const dataBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    requireWasm().set_components_bulk(slots, gens, componentTypeId, dataBytes);
+    this._requireWasm().set_components_bulk(slots, gens, componentTypeId, dataBytes);
   }
 
   /**
@@ -514,7 +543,7 @@ class WasmBridgeImpl implements WasmBridge {
     readTypeId: number,
     f32Stride: number,
   ): { entityCount: number; data: Float32Array; slots: Uint32Array; gens: Uint32Array } {
-    const maxEntities = _maxEntities;
+    const maxEntities = this._maxEntities;
     const byteStride = f32Stride * 4;
 
     // Lazily allocate static views — reused every frame to avoid GC pressure.
@@ -527,7 +556,7 @@ class WasmBridgeImpl implements WasmBridge {
       this._bulkBuf = new Uint8Array(maxEntities * byteStride);
     }
 
-    const result = requireWasm().query_read_bulk(
+    const result = this._requireWasm().query_read_bulk(
       new Uint32Array(componentTypeIds),
       readTypeId,
       this._bulkSlots,
@@ -568,17 +597,17 @@ class WasmBridgeImpl implements WasmBridge {
     data: Float32Array,
   ): void {
     const dataBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    requireWasm().query_write_bulk(slots, gens, writeTypeId, dataBytes);
+    this._requireWasm().query_write_bulk(slots, gens, writeTypeId, dataBytes);
   }
 
   // ── Query ────────────────────────────────────────────────────────────────
 
   updateEntityArchetype(index: number, typeIds: number[]): void {
-    requireWasm().update_entity_archetype(index, new Uint32Array(typeIds));
+    this._requireWasm().update_entity_archetype(index, new Uint32Array(typeIds));
   }
 
   removeEntityFromQuery(index: number): void {
-    requireWasm().remove_entity_from_query(index);
+    this._requireWasm().remove_entity_from_query(index);
   }
 
   /**
@@ -592,9 +621,9 @@ class WasmBridgeImpl implements WasmBridge {
    * @returns Array of EntityIds for matching entities
    */
   queryEntities(typeIds: number[]): EntityId[] {
-    const indices = Array.from(requireWasm().query_entities(new Uint32Array(typeIds)));
+    const indices = Array.from(this._requireWasm().query_entities(new Uint32Array(typeIds)));
     return indices.map((idx) => {
-      const gen = requireWasm().get_entity_generation(idx);
+      const gen = this._requireWasm().get_entity_generation(idx);
       return createEntityId(idx, gen);
     });
   }
@@ -604,13 +633,13 @@ class WasmBridgeImpl implements WasmBridge {
     // Fast path for common component counts (0-16) using zero-alloc views
     if (count <= 16) {
       for (let i = 0; i < count; i++) {
-        _typeIdBuffer[i] = typeIds[i] ?? 0;
+        this._typeIdBuffer[i] = typeIds[i] ?? 0;
       }
-      const fastView = _typeIdViews[count];
-      return requireWasm().query_entities_to_buffer(fastView ?? new Uint32Array(typeIds));
+      const fastView = this._typeIdViews[count];
+      return this._requireWasm().query_entities_to_buffer(fastView ?? new Uint32Array(typeIds));
     }
     // Fallback for very complex queries (rare in game engines)
-    return requireWasm().query_entities_to_buffer(new Uint32Array(typeIds));
+    return this._requireWasm().query_entities_to_buffer(new Uint32Array(typeIds));
   }
 
   forEachQueryResultRaw(typeIds: number[], callback: (entityIndex: number) => void): void {
@@ -627,35 +656,35 @@ class WasmBridgeImpl implements WasmBridge {
    * @internal
    */
   private _getQueryResultView(): Uint32Array {
-    const mem = _wasmExports?.memory;
+    const mem = this._wasmExports?.memory;
     if (!mem) {
       throw new Error("[GWEN] Cannot access WASM memory (not initialized or mock).");
     }
 
-    if (!_queryResultView || _queryResultView.buffer !== mem.buffer) {
-      _queryResultView = new Uint32Array(
+    if (!this._queryResultView || this._queryResultView.buffer !== mem.buffer) {
+      this._queryResultView = new Uint32Array(
         mem.buffer,
-        requireWasm().get_query_result_ptr(),
-        _maxEntities,
+        this._requireWasm().get_query_result_ptr(),
+        this._maxEntities,
       );
     }
-    return _queryResultView;
+    return this._queryResultView;
   }
 
   getEntityGeneration(index: number): number {
-    return requireWasm().get_entity_generation(index);
+    return this._requireWasm().get_entity_generation(index);
   }
 
   // ── Game loop ────────────────────────────────────────────────────────────
 
   tick(deltaMs: number): void {
-    requireWasm().tick(deltaMs);
+    this._requireWasm().tick(deltaMs);
   }
 
   // ── Shared memory ────────────────────────────────────────────────────────
 
   allocSharedBuffer(byteLength: number): number {
-    const ptr = requireWasm().alloc_shared_buffer(byteLength);
+    const ptr = this._requireWasm().alloc_shared_buffer(byteLength);
     if (ptr === 0) {
       throw new Error(
         `[GwenBridge] alloc_shared_buffer failed: requested ${byteLength} bytes. ` +
@@ -666,27 +695,27 @@ class WasmBridgeImpl implements WasmBridge {
   }
 
   freeSharedBuffer(ptr: number, byteLength: number): void {
-    requireWasm().free_shared_buffer(ptr, byteLength);
+    this._requireWasm().free_shared_buffer(ptr, byteLength);
   }
 
   syncTransformsToBuffer(ptr: number, maxEntities: number): void {
-    requireWasm().sync_transforms_to_buffer(ptr, maxEntities);
+    this._requireWasm().sync_transforms_to_buffer(ptr, maxEntities);
   }
 
   syncTransformsToBufferSparse(ptr: number): void {
-    requireWasm().sync_transforms_to_buffer_sparse(ptr);
+    this._requireWasm().sync_transforms_to_buffer_sparse(ptr);
   }
 
   dirtyTransformCount(): number {
-    return requireWasm().dirty_transform_count();
+    return this._requireWasm().dirty_transform_count();
   }
 
   clearTransformDirty(): void {
-    requireWasm().clear_transform_dirty();
+    this._requireWasm().clear_transform_dirty();
   }
 
   syncTransformsFromBuffer(ptr: number, maxEntities: number): void {
-    requireWasm().sync_transforms_from_buffer(ptr, maxEntities);
+    this._requireWasm().sync_transforms_from_buffer(ptr, maxEntities);
   }
 
   // ── Linear memory ────────────────────────────────────────────────────────
@@ -702,7 +731,7 @@ class WasmBridgeImpl implements WasmBridge {
    * in a test environment that injects a mock without a real memory export.
    */
   getLinearMemory(): WebAssembly.Memory | null {
-    return _wasmExports?.memory ?? null;
+    return this._wasmExports?.memory ?? null;
   }
 
   /**
@@ -723,20 +752,20 @@ class WasmBridgeImpl implements WasmBridge {
    * @internal
    */
   checkMemoryGrow(): boolean {
-    const mem = _wasmExports?.memory;
+    const mem = this._wasmExports?.memory;
     if (!mem) return false;
 
     const currentBuffer = mem.buffer;
 
     // First call: initialize state
-    if (_lastMemoryBuffer === null) {
-      _lastMemoryBuffer = currentBuffer;
+    if (this._lastMemoryBuffer === null) {
+      this._lastMemoryBuffer = currentBuffer;
       return false;
     }
 
     // Grow detected: buffer reference changed
-    if (_lastMemoryBuffer !== currentBuffer) {
-      _lastMemoryBuffer = currentBuffer;
+    if (this._lastMemoryBuffer !== currentBuffer) {
+      this._lastMemoryBuffer = currentBuffer;
       return true;
     }
 
@@ -747,7 +776,7 @@ class WasmBridgeImpl implements WasmBridge {
   // ── Stats ────────────────────────────────────────────────────────────────
 
   stats(): string {
-    return requireWasm().stats();
+    return this._requireWasm().stats();
   }
 }
 
@@ -755,23 +784,48 @@ class WasmBridgeImpl implements WasmBridge {
 
 // #region Singleton management & test utilities ────────────────────────────────
 
-const _bridge = new WasmBridgeImpl();
+// ── Backward-compat default bridge (for initWasm() / getWasmBridge() callers) ─
+let _defaultBridge: WasmBridgeImpl | null = null;
+
+function _getDefaultBridge(): WasmBridgeImpl {
+  if (!_defaultBridge) _defaultBridge = new WasmBridgeImpl();
+  return _defaultBridge;
+}
 
 /**
- * Return the `WasmBridge` singleton.
+ * Return the active `WasmBridge` for the current context.
  *
- * The bridge is always available — it is created eagerly at module load time.
- * Methods will throw if `initWasm()` has not been called yet.
- *
- * @example
- * ```typescript
- * await initWasm();
- * const bridge = getWasmBridge();
- * bridge.isActive(); // true
- * ```
+ * When called inside an engine context (actor spawn, plugin setup, engine.run()),
+ * returns the per-engine bridge registered via `engine.provide("wasm:bridge")`.
+ * Falls back to the default module-level bridge for backward compatibility.
  */
 export function getWasmBridge(): WasmBridge {
-  return _bridge;
+  const engine = engineContext.tryUse();
+  if (engine) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bridge = (engine as any).tryInject("wasm:bridge") as WasmBridgeImpl | undefined;
+    if (bridge) return bridge;
+  }
+  return _getDefaultBridge();
+}
+
+/**
+ * Load and initialize the gwen_core WASM module. **REQUIRED** before any Engine usage.
+ *
+ * **Without arguments**: Auto-resolves from `@gwenjs/core/wasm/light/`
+ * (pre-compiled artifacts published in the package — no Rust build needed).
+ *
+ * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
+ * @param options Initialization options (urls, max entities, SAB requirement)
+ * @throws {Error} If WASM cannot be loaded or has invalid format
+ * @deprecated Use `new WasmBridgeImpl()` + `bridge.init()` instead.
+ */
+export async function initWasm(
+  variant: CoreVariant = "light",
+  options: InitWasmOptions = {},
+): Promise<void> {
+  _defaultBridge = new WasmBridgeImpl();
+  return _defaultBridge.init(variant, options);
 }
 
 /**
@@ -783,13 +837,10 @@ export function getWasmBridge(): WasmBridge {
  * skipped, which is the correct behaviour in a Node.js test environment.
  *
  * @param mock - A `WasmEngine` mock (typically built with `vi.fn()`).
+ * @deprecated Use `bridge._injectMock()` on a `WasmBridgeImpl` instance instead.
  */
 export function _injectMockWasmEngine(mock: WasmEngine, maxEntities?: number): void {
-  _wasmEngine = mock;
-  _initPromise = Promise.resolve();
-  if (maxEntities !== undefined) {
-    _maxEntities = maxEntities;
-  }
+  _getDefaultBridge()._injectMock(mock, maxEntities);
 }
 
 /**
@@ -814,9 +865,10 @@ export function _injectMockWasmEngine(mock: WasmEngine, maxEntities?: number): v
  * ```
  *
  * @internal
+ * @deprecated Use `bridge._injectMockExports()` on a `WasmBridgeImpl` instance instead.
  */
 export function _injectMockWasmExports(exports: { memory?: WebAssembly.Memory }): void {
-  _wasmExports = exports;
+  _getDefaultBridge()._injectMockExports(exports);
 }
 
 /**
@@ -825,20 +877,10 @@ export function _injectMockWasmExports(exports: { memory?: WebAssembly.Memory })
  * Clears `_wasmEngine`, `_wasmExports`, `_initPromise`, and `_lastMemoryBuffer`
  * so that the next `initWasm()` call starts from a clean slate.
  * Call this in `afterEach` to prevent state leaking between tests.
+ * @deprecated Use `bridge._reset()` on a `WasmBridgeImpl` instance instead.
  */
 export function _resetWasmBridge(): void {
-  _wasmEngine = null;
-  _wasmExports = null;
-  _initPromise = null;
-  _lastMemoryBuffer = null;
-  _queryResultView = null;
-  _maxEntities = 10_000;
-  _bridge._resetBulkBuffers();
-  // Clear the globalThis glue cache so the next initWasm() re-loads cleanly (between tests).
-  const ctx = globalThis as Record<string, unknown>;
-  for (const key of Object.keys(ctx)) {
-    if (key.startsWith("__gwenGlue_")) delete ctx[key];
-  }
+  _getDefaultBridge()._reset();
 }
 
 // #endregion
