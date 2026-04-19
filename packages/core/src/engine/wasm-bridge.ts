@@ -395,6 +395,7 @@ export class WasmBridgeImpl implements WasmBridge {
   /** @internal — test only */
   _reset(): void {
     this._wasmEngine = null;
+    this._wasmModule = null;
     this._wasmExports = null;
     this._initPromise = null;
     this._lastMemoryBuffer = null;
