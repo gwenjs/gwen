@@ -322,6 +322,8 @@ export interface GwenProvides {
    * Retrieve via `engine.inject('tween:manager')` or `getTweenManager(engine)`.
    */
   "tween:manager": import("../tween/runtime/tween-manager.js").TweenManager;
+  /** Per-engine WASM bridge. Retrieve via `engine.tryInject("wasm:bridge")`. @internal */
+  "wasm:bridge": WasmBridgeImpl;
 }
 
 /**

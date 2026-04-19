@@ -248,8 +248,7 @@ class GwenEngineImpl implements GwenEngine {
 
   constructor(opts: GwenEngineOptions) {
     this._bridge = opts._bridge ?? (getWasmBridge() as WasmBridgeImpl);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this as any).provide("wasm:bridge", this._bridge);
+    this.provide("wasm:bridge", this._bridge);
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
@@ -1131,8 +1130,8 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
  * ```
  *
  * Use this in application entry points. In tests or environments where WASM
- * must be mocked, call {@link createEngine} directly and inject the mock bridge
- * via `_injectMockWasmEngine` before calling `setupGwen`.
+ * must be mocked, call {@link createEngine} directly and pass a pre-configured
+ * `WasmBridgeImpl` via the `_bridge` option (e.g. `createEngine({ _bridge: myBridge })`).
  *
  * @param options - Engine configuration. `variant` is forwarded to `initWasm`.
  * @returns A fully initialised {@link GwenEngine} with WASM ready.

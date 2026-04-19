@@ -58,15 +58,25 @@ function makeMock(entityCount = 0): WasmEngine {
 
 describe("GwenEngine — per-engine bridge isolation", () => {
   it("two engines created with separate bridges are independent", async () => {
+    const mockA = makeMock(5);
+    const mockB = makeMock(99);
     const bridgeA = new WasmBridgeImpl();
     const bridgeB = new WasmBridgeImpl();
-    bridgeA._injectMock(makeMock(5));
-    bridgeB._injectMock(makeMock(99));
+    bridgeA._injectMock(mockA);
+    bridgeB._injectMock(mockB);
 
     const engineA = await createEngine({ _bridge: bridgeA });
     const engineB = await createEngine({ _bridge: bridgeB });
 
-    // Each engine uses its own bridge — entity counts are independent
+    // Exercise engineA — advance one frame so _runFrame routes through bridgeA
+    // Phase 5 of _runFrame calls this._bridge.engine().update_transforms?.()
+    await engineA.advance(1 / 60);
+
+    // bridgeA's update_transforms was called; bridgeB's was not touched
+    expect(mockA.update_transforms).toHaveBeenCalled();
+    expect(mockB.update_transforms).not.toHaveBeenCalled();
+
+    // Entity counts remain as injected — bridges are fully isolated
     expect(bridgeA.countEntities()).toBe(5);
     expect(bridgeB.countEntities()).toBe(99);
 
@@ -79,7 +89,7 @@ describe("GwenEngine — per-engine bridge isolation", () => {
     bridge._injectMock(makeMock());
     const engine = await createEngine({ _bridge: bridge });
 
-    const injected = (engine as any).tryInject("wasm:bridge");
+    const injected = engine.tryInject("wasm:bridge");
     expect(injected).toBe(bridge);
 
     await engine.stop();
