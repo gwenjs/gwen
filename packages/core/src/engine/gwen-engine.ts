@@ -29,7 +29,7 @@ import { createLogger } from "../logger/index";
 import type { GwenLogger } from "../logger/index";
 import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
-import { WasmBridgeImpl, getWasmBridge } from "./wasm-bridge";
+import { WasmBridgeImpl } from "./wasm-bridge";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
@@ -247,7 +247,7 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _queryEngine: QueryEngine;
 
   constructor(opts: GwenEngineOptions) {
-    this._bridge = opts._bridge ?? (getWasmBridge() as WasmBridgeImpl);
+    this._bridge = opts._bridge ?? new WasmBridgeImpl();
     this.provide("wasm:bridge", this._bridge);
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
