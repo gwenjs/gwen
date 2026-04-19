@@ -6,6 +6,7 @@ import { gwenActorPlugin } from "./actor.js";
 import { gwenLayoutPlugin } from "./layout.js";
 import { gwenSceneRouterPlugin } from "./scene-router.js";
 import { gwenTweenPlugin } from "./tween.js";
+import { gwenHooksPlugin } from "./hooks.js";
 import { gwenOptimizerPlugin } from "./optimizer.js";
 import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
@@ -29,6 +30,8 @@ export {
   transformRouterNames,
 } from "./scene-router.js";
 export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from "./tween.js";
+export { gwenHooksPlugin, extractDefineHooksExports, generateHooksDts } from "./hooks.js";
+export type { HooksPluginOptions } from "./hooks.js";
 export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.js";
 
@@ -82,6 +85,7 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenLayoutPlugin(options),
     gwenSceneRouterPlugin(options),
     gwenTweenPlugin(options),
+    gwenHooksPlugin(options),
     gwenSystemPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenAsyncContextPlugin(),

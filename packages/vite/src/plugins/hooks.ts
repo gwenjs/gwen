@@ -4,6 +4,7 @@ import type { Plugin } from "vite";
 import type { VariableDeclarator } from "oxc-parser";
 import { walk } from "oxc-walker";
 import { parseSource, isCallTo } from "../oxc/index.js";
+import type { GwenViteOptions } from "../types.js";
 
 /**
  * Extract variable names bound to `defineHooks(...)` calls in the given source.
@@ -84,7 +85,7 @@ export interface HooksPluginOptions {
  * changes. Silently does nothing when the hooks file does not exist or contains
  * no `defineHooks` calls.
  */
-export function gwenHooksPlugin(options: { hooks?: HooksPluginOptions; gwenDir?: string }): Plugin {
+export function gwenHooksPlugin(options: GwenViteOptions): Plugin {
   const hooksFile = options.hooks?.file ?? "src/hooks.ts";
   const gwenDir = options.gwenDir ?? ".gwen";
   let root = process.cwd();

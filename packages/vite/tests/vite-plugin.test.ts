@@ -331,3 +331,15 @@ describe("gwenVitePlugin — async-context plugin included", () => {
     expect(names).toContain("gwen:async-context");
   });
 });
+
+describe("gwenVitePlugin — hooks plugin included", () => {
+  it("includes gwen:hooks plugin in the composite", () => {
+    const plugins = (gwenVitePlugin() as unknown[]).flat(Infinity);
+    const names = plugins
+      .filter(
+        (p): p is { name: string } => !!p && typeof (p as { name?: string }).name === "string",
+      )
+      .map((p) => p.name);
+    expect(names).toContain("gwen:hooks");
+  });
+});

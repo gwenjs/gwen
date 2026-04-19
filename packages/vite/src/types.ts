@@ -1,6 +1,7 @@
 import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
 import type { GwenSceneRouterOptions } from "./plugins/scene-router.js";
 import type { GwenTweenOptions } from "./plugins/tween.js";
+import type { HooksPluginOptions } from "./plugins/hooks.js";
 import type { WasmTier } from "./optimizer/types.js";
 
 /**
@@ -112,6 +113,12 @@ export interface GwenViteOptions {
 
   /** Options for the tween easing analysis sub-plugin. */
   tween?: GwenTweenOptions;
+
+  /**
+   * Options for the `gwen:hooks` sub-plugin.
+   * When omitted the plugin uses `'src/hooks.ts'` as the default hooks file.
+   */
+  hooks?: HooksPluginOptions;
 
   /**
    * Enable the ECS bulk optimizer.
