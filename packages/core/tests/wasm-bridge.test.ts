@@ -179,9 +179,9 @@ describe("WasmBridge — with injected mock", () => {
     expect(count).toBe(5);
 
     // Verify typeIdBuffer was used (it should contain [10, 20])
-    const callArg = (mock.query_entities_to_buffer as any).mock.calls[0][0];
-    expect(callArg).toBeInstanceOf(Uint32Array);
-    expect(Array.from(callArg)).toEqual([10, 20]);
+    const lastCall = (mock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mock.calls.at(-1);
+    expect(lastCall?.[0]).toBeInstanceOf(Uint32Array);
+    expect(Array.from(lastCall?.[0] as Uint32Array)).toEqual([10, 20]);
   });
 
   it("forEachQueryResultRaw() iterates over static buffer", () => {

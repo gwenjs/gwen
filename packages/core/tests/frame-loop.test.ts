@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createEngine } from "../src/index.js";
 import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
-import { getWasmBridge } from "../src/engine/wasm-bridge.js";
+import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
 import { SharedMemoryManager } from "@gwenjs/core/shared-memory.js";
 
 // ─── Minimal valid WASM binary ────────────────────────────────────────────────
@@ -438,11 +438,12 @@ describe("Frame Loop v2", () => {
   // ── WasmModuleHandle — loadWasmModule ───────────────────────────────────────
 
   describe("loadWasmModule()", () => {
+    let bridge: WasmBridgeImpl;
+
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
-      // Mock the WASM bridge to be active for these tests (they don't test actual WASM initialization,
-      // just the loadWasmModule mechanism and WasmModuleHandle properties)
-      const bridge = getWasmBridge();
+      // Per-instance bridge — avoids touching the global singleton
+      bridge = new WasmBridgeImpl();
       vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
       vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
@@ -451,14 +452,14 @@ describe("Frame Loop v2", () => {
     });
 
     it("returns a WasmModuleHandle with the correct name", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({ name: "test", url: "http://x/test.wasm" });
 
       expect(handle.name).toBe("test");
     });
 
     it("returns a WasmModuleHandle with an exports object", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({ name: "mod", url: "http://x/mod.wasm" });
 
       expect(handle.exports).toBeDefined();
@@ -466,7 +467,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("returns memory=undefined when the module does not export memory", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({ name: "noMem", url: "http://x/nomem.wasm" });
 
       expect(handle.memory).toBeUndefined();
@@ -474,14 +475,14 @@ describe("Frame Loop v2", () => {
 
     it("returns memory instance when module exports memory", async () => {
       mockFetch(WASM_WITH_MEMORY);
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({ name: "withMem", url: "http://x/mem.wasm" });
 
       expect(handle.memory).toBeInstanceOf(WebAssembly.Memory);
     });
 
     it("deduplicates: calling twice with the same name returns the same handle", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const h1 = await engine.loadWasmModule({ name: "dedup", url: "http://x/dedup.wasm" });
       const h2 = await engine.loadWasmModule({ name: "dedup", url: "http://x/dedup.wasm" });
 
@@ -492,7 +493,7 @@ describe("Frame Loop v2", () => {
 
     it("throws with a descriptive error when fetch returns non-ok status", async () => {
       mockFetchFail(404);
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
 
       await expect(
         engine.loadWasmModule({ name: "missing", url: "http://x/missing.wasm" }),
@@ -501,7 +502,7 @@ describe("Frame Loop v2", () => {
 
     it("throws with a descriptive error when fetch rejects", async () => {
       vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("network error")));
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
 
       await expect(
         engine.loadWasmModule({ name: "net", url: "http://x/net.wasm" }),
@@ -509,7 +510,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("accepts a URL object as url option", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({
         name: "urlobj",
         url: new URL("http://x/urlobj.wasm"),
@@ -522,10 +523,12 @@ describe("Frame Loop v2", () => {
   // ── WasmModuleHandle — getWasmModule ────────────────────────────────────────
 
   describe("getWasmModule()", () => {
+    let bridge: WasmBridgeImpl;
+
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
-      // Mock the WASM bridge to be active for these tests
-      const bridge = getWasmBridge();
+      // Per-instance bridge — avoids touching the global singleton
+      bridge = new WasmBridgeImpl();
       vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
       vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
@@ -534,7 +537,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("returns the handle after it has been loaded", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const loaded = await engine.loadWasmModule({ name: "g", url: "http://x/g.wasm" });
       const retrieved = engine.getWasmModule("g");
 
@@ -542,7 +545,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("throws a descriptive error when the module has not been loaded", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
 
       expect(() => engine.getWasmModule("nope")).toThrow(/getWasmModule.*nope/);
     });
@@ -558,10 +561,12 @@ describe("Frame Loop v2", () => {
   // ── Phase 4 — WASM module step ──────────────────────────────────────────────
 
   describe("Phase 4 — WASM module step", () => {
+    let bridge: WasmBridgeImpl;
+
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
-      // Mock the WASM bridge to be active for these tests
-      const bridge = getWasmBridge();
+      // Per-instance bridge — avoids touching the global singleton
+      bridge = new WasmBridgeImpl();
       vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
       vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
@@ -570,7 +575,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("calls the step function with the handle and dt each frame", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
 
       const stepFn = vi.fn();
       const handle = await engine.loadWasmModule<WebAssembly.Exports>({
@@ -586,7 +591,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("calls step for multiple modules in registration order", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const order: string[] = [];
 
       await engine.loadWasmModule({
@@ -610,7 +615,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("step runs in Phase 4, after onBeforeUpdate and before onUpdate", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const order: string[] = [];
 
       await engine.use({
@@ -644,7 +649,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("skips step for modules loaded without a step function", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
 
       // Should not throw even with no step
       await engine.loadWasmModule({ name: "nostep", url: "http://x/nostep.wasm" });
@@ -652,7 +657,7 @@ describe("Frame Loop v2", () => {
     });
 
     it("passes the capped dt to the step function", async () => {
-      const engine = await makeEngine({ maxDeltaSeconds: 0.05 }); // cap = 50 ms
+      const engine = await makeEngine({ maxDeltaSeconds: 0.05, _bridge: bridge }); // cap = 50 ms
       const receivedDts: number[] = [];
 
       await engine.loadWasmModule({
@@ -672,10 +677,12 @@ describe("Frame Loop v2", () => {
   // ── Handle type safety ──────────────────────────────────────────────────────
 
   describe("WasmModuleHandle type contracts", () => {
+    let bridge: WasmBridgeImpl;
+
     beforeEach(() => {
       mockFetch(MINIMAL_WASM);
-      // Mock the WASM bridge to be active for these tests
-      const bridge = getWasmBridge();
+      // Per-instance bridge — avoids touching the global singleton
+      bridge = new WasmBridgeImpl();
       vi.spyOn(bridge, "isActive").mockReturnValue(true);
       // Mock SharedMemoryManager.create to avoid needing actual WASM initialization
       vi.spyOn(SharedMemoryManager, "create").mockReturnValue({
@@ -684,14 +691,14 @@ describe("Frame Loop v2", () => {
     });
 
     it("handle.name matches the options.name", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle = await engine.loadWasmModule({ name: "typed", url: "http://x/t.wasm" });
 
       expect(handle.name).toBe("typed");
     });
 
     it("handle is readonly — name cannot be reassigned (type-level check)", async () => {
-      const engine = await makeEngine();
+      const engine = await makeEngine({ _bridge: bridge });
       const handle: WasmModuleHandle = await engine.loadWasmModule({
         name: "ro",
         url: "http://x/ro.wasm",
