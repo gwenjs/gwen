@@ -1,11 +1,11 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { defineLayout } from "../../src/actor/runtime/define-layout";
 import { useLayout } from "../../src/actor/runtime/use-layout";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { placeActor, placeGroup } from "../../src/actor/runtime/place";
-import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
+import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import type { WasmEngine } from "../../src/engine/wasm-bridge";
 
 function makePlacementMock(): WasmEngine {
@@ -39,12 +39,11 @@ function makePlacementMock(): WasmEngine {
   } as unknown as WasmEngine;
 }
 
-beforeEach(() => {
-  _injectMockWasmEngine(makePlacementMock());
-});
+let bridge: WasmBridgeImpl;
 
-afterEach(() => {
-  _resetWasmBridge();
+beforeEach(() => {
+  bridge = new WasmBridgeImpl();
+  bridge._injectMock(makePlacementMock());
 });
 
 const Pos = { __name__: "Position" };
@@ -52,7 +51,7 @@ const SimplePrefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);
 
 describe("useLayout — lazy mode", () => {
   it("load() makes active true and provides refs", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     const Actor = defineActor(SimplePrefab, () => ({}));
     await engine.use(Actor._plugin);
 
@@ -70,7 +69,7 @@ describe("useLayout — lazy mode", () => {
   });
 
   it("dispose() makes active false", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     const Actor = defineActor(SimplePrefab, () => ({}));
     await engine.use(Actor._plugin);
 
@@ -84,7 +83,7 @@ describe("useLayout — lazy mode", () => {
   });
 
   it("dispose() is idempotent — safe to call twice", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     await engine.run(async () => {
       const Layout = defineLayout(() => ({ g: placeGroup({ at: [0, 0] }) }));
       const handle = useLayout(Layout, { lazy: true });
@@ -95,7 +94,7 @@ describe("useLayout — lazy mode", () => {
   });
 
   it("two instances of the same layout definition are independent", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     const Actor = defineActor(SimplePrefab, () => ({}));
     await engine.use(Actor._plugin);
 

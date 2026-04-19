@@ -1,15 +1,11 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useTransform } from "../../src/actor/runtime/use-transform";
 import { defineLayout, placeActor, useLayout } from "@gwenjs/core/actor";
-import {
-  getWasmBridge,
-  _injectMockWasmEngine,
-  _resetWasmBridge,
-} from "../../src/engine/wasm-bridge";
+import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 
 // Helper to create a minimal mock WASM engine (stateless — all writes are no-ops)
 function createMockEngine() {
@@ -80,18 +76,17 @@ const Prefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);
 //      get_entity_world_x/y always return 0 regardless of translate() calls.
 
 describe("useTransform — registration in TransformSystem (regression)", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("calls add_entity_transform on spawn so translate/world are not silent no-ops", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    const spy = vi.spyOn(bridge, "add_entity_transform").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    const spy = vi.spyOn(wasmEngine, "add_entity_transform").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       useTransform();
@@ -104,18 +99,17 @@ describe("useTransform — registration in TransformSystem (regression)", () => 
 });
 
 describe("frame loop — update_transforms() called each frame (regression)", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("calls update_transforms() on every engine.advance() tick", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    const spy = vi.spyOn(bridge, "update_transforms").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    const spy = vi.spyOn(wasmEngine, "update_transforms").mockImplementation(() => {});
 
     await engine.advance(0.016);
     expect(spy).toHaveBeenCalledOnce();
@@ -126,16 +120,15 @@ describe("frame loop — update_transforms() called each frame (regression)", ()
 });
 
 describe("useTransform — end-to-end: translate reflects in world after frame tick", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createStatefulMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createStatefulMockEngine() as any);
   });
 
   it("world.x/y update after translate() + engine.advance()", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof useTransform> | undefined;
 
     const Actor = defineActor(Prefab, () => {
@@ -155,7 +148,7 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
   });
 
   it("setPosition() is reflected in world.x/y after engine.advance()", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof useTransform> | undefined;
 
     const Actor = defineActor(Prefab, () => {
@@ -172,7 +165,7 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
   });
 
   it("successive translates accumulate correctly", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof useTransform> | undefined;
 
     const Actor = defineActor(Prefab, () => {
@@ -191,36 +184,27 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
 });
 
 describe("useTransform context guard", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
-
-  afterEach(() => {
-    _resetWasmBridge();
-  });
-
   it("throws with descriptive message when called outside defineActor", () => {
     expect(() => useTransform()).toThrow(/useTransform.*defineActor/);
   });
 });
 
 describe("useTransform — local write operations", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("translate() calls translate_entity on the bridge", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
     // Ensure the method exists before spying
-    if (!bridge.translate_entity) {
-      bridge.translate_entity = () => {};
+    if (!wasmEngine.translate_entity) {
+      wasmEngine.translate_entity = () => {};
     }
-    const spy = vi.spyOn(bridge, "translate_entity").mockImplementation(() => {});
+    const spy = vi.spyOn(wasmEngine, "translate_entity").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -233,13 +217,13 @@ describe("useTransform — local write operations", () => {
   });
 
   it("setPosition() calls set_entity_local_position on the bridge", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
     // Ensure the method exists before spying
-    if (!bridge.set_entity_local_position) {
-      bridge.set_entity_local_position = () => {};
+    if (!wasmEngine.set_entity_local_position) {
+      wasmEngine.set_entity_local_position = () => {};
     }
-    const spy = vi.spyOn(bridge, "set_entity_local_position").mockImplementation(() => {});
+    const spy = vi.spyOn(wasmEngine, "set_entity_local_position").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -253,18 +237,17 @@ describe("useTransform — local write operations", () => {
 });
 
 describe("useTransform — rotation and scale", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("rotateTo() calls set_entity_local_rotation with the given angle", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    const spy = vi.spyOn(bridge, "set_entity_local_rotation").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    const spy = vi.spyOn(wasmEngine, "set_entity_local_rotation").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -277,10 +260,12 @@ describe("useTransform — rotation and scale", () => {
   });
 
   it("rotate() reads current rotation and adds delta", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    vi.spyOn(bridge, "get_entity_local_rotation").mockReturnValue(1.0);
-    const writeSpy = vi.spyOn(bridge, "set_entity_local_rotation").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    vi.spyOn(wasmEngine, "get_entity_local_rotation").mockReturnValue(1.0);
+    const writeSpy = vi
+      .spyOn(wasmEngine, "set_entity_local_rotation")
+      .mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -293,9 +278,9 @@ describe("useTransform — rotation and scale", () => {
   });
 
   it("scaleTo(sx, sy) calls set_entity_local_scale with both values", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    const spy = vi.spyOn(bridge, "set_entity_local_scale").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    const spy = vi.spyOn(wasmEngine, "set_entity_local_scale").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -308,9 +293,9 @@ describe("useTransform — rotation and scale", () => {
   });
 
   it("scaleTo(sx) defaults sy to sx for uniform scale", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    const spy = vi.spyOn(bridge, "set_entity_local_scale").mockImplementation(() => {});
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    const spy = vi.spyOn(wasmEngine, "set_entity_local_scale").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -324,18 +309,17 @@ describe("useTransform — rotation and scale", () => {
 });
 
 describe("useTransform — hasParent", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("hasParent returns false when bridge reports no parent", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    vi.spyOn(bridge, "has_entity_parent").mockReturnValue(false);
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    vi.spyOn(wasmEngine, "has_entity_parent").mockReturnValue(false);
 
     let result: boolean | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -353,9 +337,9 @@ describe("useTransform — hasParent", () => {
   });
 
   it("hasParent returns true when bridge reports a parent", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    vi.spyOn(bridge, "has_entity_parent").mockReturnValue(true);
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    vi.spyOn(wasmEngine, "has_entity_parent").mockReturnValue(true);
 
     let result: boolean | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -374,19 +358,18 @@ describe("useTransform — hasParent", () => {
 });
 
 describe("useTransform — world read values", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("world.x and world.y reflect bridge values", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    vi.spyOn(bridge, "get_entity_world_x").mockReturnValue(42);
-    vi.spyOn(bridge, "get_entity_world_y").mockReturnValue(99);
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    vi.spyOn(wasmEngine, "get_entity_world_x").mockReturnValue(42);
+    vi.spyOn(wasmEngine, "get_entity_world_y").mockReturnValue(99);
 
     let handle: ReturnType<typeof useTransform> | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -401,9 +384,9 @@ describe("useTransform — world read values", () => {
   });
 
   it("world.rotation reflects bridge value", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
-    vi.spyOn(bridge, "get_entity_world_rotation").mockReturnValue(Math.PI);
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    vi.spyOn(wasmEngine, "get_entity_world_rotation").mockReturnValue(Math.PI);
 
     let handle: ReturnType<typeof useTransform> | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -417,7 +400,7 @@ describe("useTransform — world read values", () => {
   });
 
   it("world.z is always 0 (2D engine)", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof useTransform> | undefined;
     const Actor = defineActor(Prefab, () => {
       handle = useTransform();
@@ -430,7 +413,7 @@ describe("useTransform — world read values", () => {
   });
 
   it("world.scaleX and world.scaleY are always 1 (not yet implemented in WASM)", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof useTransform> | undefined;
     const Actor = defineActor(Prefab, () => {
       handle = useTransform();
@@ -445,22 +428,21 @@ describe("useTransform — world read values", () => {
 });
 
 describe("useTransform — setParent / detach", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("setParent() calls set_entity_parent with correct indices", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
     // Ensure the method exists before spying
-    if (!bridge.set_entity_parent) {
-      bridge.set_entity_parent = () => {};
+    if (!wasmEngine.set_entity_parent) {
+      wasmEngine.set_entity_parent = () => {};
     }
-    const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
+    const spy = vi.spyOn(wasmEngine, "set_entity_parent").mockImplementation(() => {});
 
     let childEntityId: EntityId | undefined;
     const Child = defineActor(Prefab, () => {
@@ -482,13 +464,13 @@ describe("useTransform — setParent / detach", () => {
   });
 
   it("detach() calls set_entity_parent with u32::MAX (0xffffffff) as parent index", async () => {
-    const engine = await createEngine();
-    const bridge = getWasmBridge().engine();
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
     // Ensure the method exists before spying
-    if (!bridge.set_entity_parent) {
-      bridge.set_entity_parent = () => {};
+    if (!wasmEngine.set_entity_parent) {
+      wasmEngine.set_entity_parent = () => {};
     }
-    const spy = vi.spyOn(bridge, "set_entity_parent").mockImplementation(() => {});
+    const spy = vi.spyOn(wasmEngine, "set_entity_parent").mockImplementation(() => {});
 
     let entityId: EntityId | undefined;
     const Actor = defineActor(Prefab, () => {
@@ -507,16 +489,15 @@ describe("useTransform — setParent / detach", () => {
 });
 
 describe("useTransform — world reads", () => {
-  beforeEach(() => {
-    _injectMockWasmEngine(createMockEngine() as any);
-  });
+  let bridge: WasmBridgeImpl;
 
-  afterEach(() => {
-    _resetWasmBridge();
+  beforeEach(() => {
+    bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine() as any);
   });
 
   it("world reads return values from the bridge", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
 
     let worldHandle: any;
     const SimplePrefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);

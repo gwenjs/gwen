@@ -184,7 +184,6 @@ describe("validateEngineConfig — maxDeltaSeconds", () => {
   });
 });
 
-
 describe("validateEngineConfig — all fields optional", () => {
   it("accepts empty config object", () => {
     expect(() => validateEngineConfig({})).not.toThrow();

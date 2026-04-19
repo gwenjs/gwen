@@ -5,8 +5,8 @@
  * are sized to `maxEntities`, not the previously hardcoded 10_000.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
-import { getWasmBridge, _injectMockWasmEngine, _resetWasmBridge } from "../wasm-bridge.js";
+import { describe, it, expect, vi } from "vitest";
+import { WasmBridgeImpl } from "../wasm-bridge.js";
 import type { WasmEngine } from "../wasm-bridge-types.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -37,18 +37,13 @@ function makeMockEngine(capturedSlots: Uint32Array[], capturedGens: Uint32Array[
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-afterEach(() => {
-  _resetWasmBridge();
-});
-
 describe("queryReadBulk — buffer sizing", () => {
   it("sizes _bulkSlots and _bulkGens to maxEntities, not hardcoded 10_000", () => {
     const capturedSlots: Uint32Array[] = [];
     const capturedGens: Uint32Array[] = [];
 
-    _injectMockWasmEngine(makeMockEngine(capturedSlots, capturedGens), 20_000);
-
-    const bridge = getWasmBridge();
+    const bridge = new WasmBridgeImpl();
+    bridge._injectMock(makeMockEngine(capturedSlots, capturedGens), 20_000);
     bridge.queryReadBulk([1], 1, 4); // f32Stride=4
 
     expect(capturedSlots[0]!.length).toBe(20_000);
@@ -59,33 +54,34 @@ describe("queryReadBulk — buffer sizing", () => {
     // We can't inspect _bulkBuf directly, but we can verify
     // query_read_bulk is called successfully with a correctly sized buffer
     // by checking it does not throw for a high-entity configuration.
-    _injectMockWasmEngine(
+    const bridge = new WasmBridgeImpl();
+    bridge._injectMock(
       {
         query_read_bulk: vi.fn(() => new Uint32Array([0, 0])),
       } as unknown as WasmEngine,
       50_000,
     );
 
-    const bridge = getWasmBridge();
     expect(() => bridge.queryReadBulk([1, 2], 1, 8)).not.toThrow();
   });
 
-  it("_resetWasmBridge resets _maxEntities to 10_000 (no leakage)", () => {
+  it("_reset() resets _maxEntities to 10_000 (no leakage)", () => {
     const capturedSlots: Uint32Array[] = [];
     const capturedGens: Uint32Array[] = [];
 
     // First call with 20_000
-    _injectMockWasmEngine(makeMockEngine(capturedSlots, capturedGens), 20_000);
-    getWasmBridge().queryReadBulk([1], 1, 4);
+    const bridge1 = new WasmBridgeImpl();
+    bridge1._injectMock(makeMockEngine(capturedSlots, capturedGens), 20_000);
+    bridge1.queryReadBulk([1], 1, 4);
     expect(capturedSlots[0]!.length).toBe(20_000);
 
     capturedSlots.length = 0;
     capturedGens.length = 0;
 
-    // Reset then re-inject — _maxEntities must return to default 10_000
-    _resetWasmBridge();
-    _injectMockWasmEngine(makeMockEngine(capturedSlots, capturedGens)); // no maxEntities arg
-    getWasmBridge().queryReadBulk([1], 1, 4);
+    // Fresh bridge with default maxEntities (10_000)
+    const bridge2 = new WasmBridgeImpl();
+    bridge2._injectMock(makeMockEngine(capturedSlots, capturedGens)); // no maxEntities arg
+    bridge2.queryReadBulk([1], 1, 4);
     expect(capturedSlots[0]!.length).toBe(10_000);
   });
 });

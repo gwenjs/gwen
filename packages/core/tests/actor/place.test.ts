@@ -4,17 +4,17 @@
  * Tests the layout context guard (_withLayoutContext, _isInLayoutContext)
  * and the three placement composables (placeGroup, placeActor, placePrefab).
  *
- * A minimal WASM bridge mock is injected via `_injectMockWasmEngine` so that
+ * A minimal WASM bridge mock is injected via `bridge._injectMock()` so that
  * `getPlacementBridge()` succeeds without a real WASM binary. The mock records
  * calls to placement methods so tests can assert on transform application.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { _injectMockWasmEngine, _resetWasmBridge } from "../../src/engine/wasm-bridge";
+import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import type { WasmEngine } from "../../src/engine/wasm-bridge";
 import {
   _withLayoutContext,
@@ -65,12 +65,11 @@ function makePlacementMock() {
   } as unknown as WasmEngine;
 }
 
-beforeEach(() => {
-  _injectMockWasmEngine(makePlacementMock());
-});
+let bridge: WasmBridgeImpl;
 
-afterEach(() => {
-  _resetWasmBridge();
+beforeEach(() => {
+  bridge = new WasmBridgeImpl();
+  bridge._injectMock(makePlacementMock());
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -107,7 +106,7 @@ describe("layout context guard", () => {
 
 describe("placeGroup", () => {
   it("returns a PlaceHandle with a valid entityId inside layout context", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof placeGroup> | undefined;
 
     await engine.run(async () => {
@@ -121,7 +120,7 @@ describe("placeGroup", () => {
   });
 
   it("places entity at specified position", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof placeGroup> | undefined;
 
     await engine.run(async () => {
@@ -137,7 +136,7 @@ describe("placeGroup", () => {
 
 describe("placeActor", () => {
   it("spawns an actor entity and returns a PlaceHandle with api", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     const Actor = defineActor(SimplePrefab, () => ({ greet: () => "hello" }));
     await engine.use(Actor._plugin);
     let handle: PlaceHandle<{ greet(): string }> | undefined;
@@ -153,7 +152,7 @@ describe("placeActor", () => {
   });
 
   it("tracks spawned actor in instances", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     const Actor = defineActor(SimplePrefab, () => ({}));
     await engine.use(Actor._plugin);
     let handle: ReturnType<typeof placeActor> | undefined;
@@ -170,7 +169,7 @@ describe("placeActor", () => {
 
 describe("placePrefab", () => {
   it("creates an entity with prefab components", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof placePrefab> | undefined;
 
     await engine.run(async () => {
@@ -186,7 +185,7 @@ describe("placePrefab", () => {
 
 describe("PlaceHandle methods", () => {
   it("moveTo updates entity position", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof placeGroup> | undefined;
 
     await engine.run(async () => {
@@ -200,7 +199,7 @@ describe("PlaceHandle methods", () => {
   });
 
   it("despawn removes entity", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let handle: ReturnType<typeof placeGroup> | undefined;
 
     await engine.run(async () => {
@@ -215,7 +214,7 @@ describe("PlaceHandle methods", () => {
 
 describe("_withLayoutContext captures entities", () => {
   it("returns entities list from context", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: bridge });
     let result: ReturnType<typeof _withLayoutContext> | undefined;
 
     await engine.run(async () => {

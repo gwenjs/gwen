@@ -2,24 +2,20 @@
  * WasmBridge tests
  *
  * WASM is mandatory — bridge methods throw if not initialized.
- * Tests with a mock use _injectMockWasmEngine().
+ * Tests with a mock use bridge._injectMock().
  *
  * Coverage:
  *   - Uninitialized bridge throws on all methods
  *   - Initialized bridge (mock) delegates correctly
  *   - SAB methods: allocSharedBuffer, syncTransformsToBuffer, syncTransformsFromBuffer
  *   - getLinearMemory() returns null with mock, live WebAssembly.Memory with real module
- *   - Singleton identity and reset
+ *   - Per-instance isolation and reset
  *   - Engine integration
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
-  getWasmBridge,
-  _injectMockWasmEngine,
-  _injectMockWasmExports,
-  _resetWasmBridge,
-  type WasmBridge,
+  WasmBridgeImpl,
   type WasmEngine,
   type WasmEntityId,
 } from "../src/engine/wasm-bridge";
@@ -61,63 +57,55 @@ function createMockEngine(): WasmEngine {
 // ── Without WASM (not initialized) ───────────────────────────────────────────
 
 describe("WasmBridge — not initialized", () => {
-  beforeEach(() => _resetWasmBridge());
+  const bridge = new WasmBridgeImpl();
 
   it("isActive() returns false", () => {
-    expect(getWasmBridge().isActive()).toBe(false);
+    expect(bridge.isActive()).toBe(false);
   });
 
   it("engine() throws", () => {
-    expect(() => getWasmBridge().engine()).toThrow("WASM");
+    expect(() => bridge.engine()).toThrow("WASM");
   });
 
   it("createEntity() throws", () => {
-    expect(() => getWasmBridge().createEntity()).toThrow("WASM");
+    expect(() => bridge.createEntity()).toThrow("WASM");
   });
 
   it("deleteEntity() throws", () => {
-    expect(() => getWasmBridge().deleteEntity(0, 0)).toThrow("WASM");
+    expect(() => bridge.deleteEntity(0, 0)).toThrow("WASM");
   });
 
   it("isAlive() throws", () => {
-    expect(() => getWasmBridge().isAlive(0, 0)).toThrow("WASM");
+    expect(() => bridge.isAlive(0, 0)).toThrow("WASM");
   });
 
   it("countEntities() throws", () => {
-    expect(() => getWasmBridge().countEntities()).toThrow("WASM");
+    expect(() => bridge.countEntities()).toThrow("WASM");
   });
 
   it("registerComponentType() throws", () => {
-    expect(() => getWasmBridge().registerComponentType()).toThrow("WASM");
+    expect(() => bridge.registerComponentType()).toThrow("WASM");
   });
 
   it("addComponent() throws", () => {
-    expect(() => getWasmBridge().addComponent(0, 0, 0, new Uint8Array(4))).toThrow("WASM");
+    expect(() => bridge.addComponent(0, 0, 1, new Uint8Array(4))).toThrow("WASM");
   });
 
   it("tick() throws", () => {
-    expect(() => getWasmBridge().tick(16)).toThrow("WASM");
+    expect(() => bridge.tick(16)).toThrow("WASM");
   });
 
   it("stats() throws", () => {
-    expect(() => getWasmBridge().stats()).toThrow("WASM");
+    expect(() => bridge.stats()).toThrow("WASM");
   });
 });
 
 // ── With injected mock ────────────────────────────────────────────────────────
 
 describe("WasmBridge — with injected mock", () => {
-  let bridge: WasmBridge;
-  let mock: WasmEngine;
-
-  beforeEach(() => {
-    _resetWasmBridge();
-    mock = createMockEngine();
-    _injectMockWasmEngine(mock);
-    bridge = getWasmBridge();
-  });
-
-  afterEach(() => _resetWasmBridge());
+  const bridge = new WasmBridgeImpl();
+  const mock = createMockEngine();
+  bridge._injectMock(mock);
 
   it("isActive() returns true", () => {
     expect(bridge.isActive()).toBe(true);
@@ -199,7 +187,7 @@ describe("WasmBridge — with injected mock", () => {
   it("forEachQueryResultRaw() iterates over static buffer", () => {
     const buf = new ArrayBuffer(100_000);
     const mockMemory = { buffer: buf } as WebAssembly.Memory;
-    _injectMockWasmExports({ memory: mockMemory });
+    bridge._injectMockExports({ memory: mockMemory });
 
     // Mock query result: 3 entities with indices [100, 200, 300]
     (mock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mockReturnValueOnce(3);
@@ -223,21 +211,26 @@ describe("WasmBridge — with injected mock", () => {
     const buf1 = new ArrayBuffer(100_000);
     const buf2 = new ArrayBuffer(200_000);
     const mockMemory = { buffer: buf1 } as any;
-    _injectMockWasmExports({ memory: mockMemory });
 
-    (mock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mockReturnValue(1);
-    (mock.get_query_result_ptr as ReturnType<typeof vi.fn>).mockReturnValue(0);
+    // Fresh bridge to avoid state from previous test
+    const growBridge = new WasmBridgeImpl();
+    const growMock = createMockEngine();
+    growBridge._injectMock(growMock);
+    growBridge._injectMockExports({ memory: mockMemory });
+
+    (growMock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mockReturnValue(1);
+    (growMock.get_query_result_ptr as ReturnType<typeof vi.fn>).mockReturnValue(0);
 
     // 1. Initial call
     new Uint32Array(buf1, 0, 1)[0] = 42;
     let result = 0;
-    bridge.forEachQueryResultRaw([10], (idx) => (result = idx));
+    growBridge.forEachQueryResultRaw([10], (idx) => (result = idx));
     expect(result).toBe(42);
 
     // 2. Grow
     mockMemory.buffer = buf2;
     new Uint32Array(buf2, 0, 1)[0] = 99;
-    bridge.forEachQueryResultRaw([10], (idx) => (result = idx));
+    growBridge.forEachQueryResultRaw([10], (idx) => (result = idx));
     expect(result).toBe(99);
   });
 
@@ -260,8 +253,18 @@ describe("WasmBridge — with injected mock", () => {
   });
 
   it("allocSharedBuffer() with 0 bytes delegates to mock", () => {
-    bridge.allocSharedBuffer(0);
-    expect(mock.alloc_shared_buffer).toHaveBeenCalledWith(0);
+    // Use a separate bridge because allocSharedBuffer throws on ptr=0
+    const zeroBridge = new WasmBridgeImpl();
+    const zeroMock = createMockEngine();
+    (zeroMock.alloc_shared_buffer as ReturnType<typeof vi.fn>).mockReturnValue(0);
+    zeroBridge._injectMock(zeroMock);
+    // The bridge throws when alloc returns 0 — we just verify the call was made
+    try {
+      zeroBridge.allocSharedBuffer(0);
+    } catch {
+      // expected
+    }
+    expect(zeroMock.alloc_shared_buffer).toHaveBeenCalledWith(0);
   });
 
   it("syncTransformsToBuffer() delegates ptr and maxEntities to mock", () => {
@@ -284,57 +287,57 @@ describe("WasmBridge — with injected mock", () => {
   // ── getLinearMemory() ────────────────────────────────────────────────────
 
   it("getLinearMemory() returns null with a mock engine (no real WASM module)", () => {
-    // _injectMockWasmEngine leaves _wasmModule null intentionally —
-    // test environments must not depend on a real WebAssembly.Memory.
-    expect(bridge.getLinearMemory()).toBeNull();
+    // A fresh bridge with only _injectMock (no _injectMockExports) has null memory
+    const freshBridge = new WasmBridgeImpl();
+    freshBridge._injectMock(createMockEngine());
+    expect(freshBridge.getLinearMemory()).toBeNull();
   });
 });
 
-// ── Singleton ─────────────────────────────────────────────────────────────────
+// ── Per-instance isolation ────────────────────────────────────────────────────
 
-describe("WasmBridge — singleton", () => {
-  it("getWasmBridge() always returns the same instance", () => {
-    _resetWasmBridge();
-    const a = getWasmBridge();
-    const b = getWasmBridge();
-    expect(a).toBe(b);
+describe("WasmBridge — per-instance isolation", () => {
+  it("two WasmBridgeImpl instances are fully independent", () => {
+    const bridge1 = new WasmBridgeImpl();
+    const bridge2 = new WasmBridgeImpl();
+
+    bridge1._injectMock(createMockEngine());
+
+    // bridge2 was not injected — must remain inactive
+    expect(bridge1.isActive()).toBe(true);
+    expect(bridge2.isActive()).toBe(false);
   });
 
-  it("_resetWasmBridge() resets isActive() to false", () => {
-    _injectMockWasmEngine(createMockEngine());
-    expect(getWasmBridge().isActive()).toBe(true);
-    _resetWasmBridge();
-    expect(getWasmBridge().isActive()).toBe(false);
+  it("_reset() resets isActive() to false", () => {
+    const bridge = new WasmBridgeImpl();
+    bridge._injectMock(createMockEngine());
+    expect(bridge.isActive()).toBe(true);
+    bridge._reset();
+    expect(bridge.isActive()).toBe(false);
   });
 });
-
-// ── Engine integration ────────────────────────────────────────────────────────
 
 // ── checkMemoryGrow() tests ───────────────────────────────────────────────────
 
 describe("WasmBridge — checkMemoryGrow()", () => {
-  afterEach(() => {
-    _resetWasmBridge();
-  });
-
   it("should return false on first call (initializes state)", () => {
+    const bridge = new WasmBridgeImpl();
     const buf1 = new ArrayBuffer(100);
     const mockMemory = { buffer: buf1 } as WebAssembly.Memory;
 
-    _injectMockWasmExports({ memory: mockMemory });
+    bridge._injectMockExports({ memory: mockMemory });
 
-    const bridge = getWasmBridge();
     expect(bridge.checkMemoryGrow()).toBe(false);
   });
 
   it("should return true when buffer reference changes", () => {
+    const bridge = new WasmBridgeImpl();
     const buf1 = new ArrayBuffer(100);
     const buf2 = new ArrayBuffer(200);
     const mockMemory = { buffer: buf1 } as any;
 
-    _injectMockWasmExports({ memory: mockMemory });
+    bridge._injectMockExports({ memory: mockMemory });
 
-    const bridge = getWasmBridge();
     bridge.checkMemoryGrow(); // initialise _lastMemoryBuffer = buf1
 
     // Simulate a grow
@@ -343,30 +346,29 @@ describe("WasmBridge — checkMemoryGrow()", () => {
   });
 
   it("should return false if called twice without grow", () => {
+    const bridge = new WasmBridgeImpl();
     const buf1 = new ArrayBuffer(100);
     const mockMemory = { buffer: buf1 } as WebAssembly.Memory;
 
-    _injectMockWasmExports({ memory: mockMemory });
+    bridge._injectMockExports({ memory: mockMemory });
 
-    const bridge = getWasmBridge();
     bridge.checkMemoryGrow(); // init
     expect(bridge.checkMemoryGrow()).toBe(false); // no grow
   });
 
   it("should return false if bridge is inactive", () => {
-    _resetWasmBridge();
-    const bridge = getWasmBridge();
+    const bridge = new WasmBridgeImpl();
     expect(bridge.checkMemoryGrow()).toBe(false);
   });
 
   it("should be idempotent after a grow detection", () => {
+    const bridge = new WasmBridgeImpl();
     const buf1 = new ArrayBuffer(100);
     const buf2 = new ArrayBuffer(200);
     const mockMemory = { buffer: buf1 } as any;
 
-    _injectMockWasmExports({ memory: mockMemory });
+    bridge._injectMockExports({ memory: mockMemory });
 
-    const bridge = getWasmBridge();
     bridge.checkMemoryGrow(); // init
 
     mockMemory.buffer = buf2; // simulate grow
