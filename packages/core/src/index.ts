@@ -9,8 +9,8 @@ export * from "./types";
 export * from "./schema";
 
 // Hooks system
-export { createGwenHooks, useHook, onCleanup, withCleanup } from "./hooks";
-export type { GwenHooks, GwenHookable } from "./hooks";
+export { createGwenHooks, useHook, onCleanup, withCleanup, defineHooks } from "./hooks";
+export type { GwenHooks, GwenHookable, HookHandlerMap, InferHooks } from "./hooks";
 
 export { onEnable, onDisable } from "./actor/index";
 
@@ -72,7 +72,7 @@ export { WasmBridgeImpl } from "./engine/wasm-bridge";
 export {
   initWasm,
   getWasmBridge,
-  _resetWasmBridge,      // @deprecated — use bridge._reset()
+  _resetWasmBridge, // @deprecated — use bridge._reset()
   _injectMockWasmEngine, // @deprecated — use bridge._injectMock()
 } from "./engine/wasm-bridge";
 export type {

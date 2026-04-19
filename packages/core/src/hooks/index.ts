@@ -74,6 +74,10 @@ export { onCleanup, withCleanup } from "../cleanup-context.js";
 // emit — symmetric counterpart to useHook, works in any engine context
 export { emit } from "./emit.js";
 
+// defineHooks — typed custom hook declaration
+export { defineHooks } from "./define-hooks.js";
+export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
+
 // ════════════════════════════════════════════════════════════════════════════
 // Factory
 // ════════════════════════════════════════════════════════════════════════════
