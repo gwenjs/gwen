@@ -106,7 +106,7 @@ export function gwenHooksPlugin(options: GwenViteOptions): Plugin {
     const content = generateHooksDts(exportNames, importPath);
     if (!content) return;
 
-    if (!existsSync(typesDir)) mkdirSync(typesDir, { recursive: true });
+    mkdirSync(typesDir, { recursive: true });
 
     const existing = existsSync(dtsDest) ? readFileSync(dtsDest, "utf-8") : "";
     if (existing !== content) writeFileSync(dtsDest, content, "utf-8");
