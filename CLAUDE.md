@@ -176,9 +176,9 @@ useSystem(CombatSystem(player))
 
 Prefer `onEvent()` inside actors (especially pooled ones). Use `useHook()` from systems and plugins.
 
-Custom events must be declared with `defineEvents()` and merged into `GwenRuntimeHooks` via
-declaration merging (`InferEvents<T>`) for full type safety project-wide.
-Event names must follow `'namespace:action'` convention — `engine:*` and `entity:*` are
+Custom hooks must be declared with `defineHooks()` and merged into `GwenRuntimeHooks` via
+declaration merging (`InferHooks<T>`) for full type safety project-wide.
+Hook names must follow `'namespace:action'` convention — `engine:*` and `entity:*` are
 reserved for internal hooks.
 
 ### Plugin → service → consumer chain
@@ -215,7 +215,7 @@ src/
   prefabs/             Entity templates used by actors and systems
   router.ts            Single defineSceneRouter() for the app
   plugins/             Optional custom plugins
-  events.ts            Custom event contracts + GwenRuntimeHooks augmentation
+  hooks.ts             Custom hook contracts + GwenRuntimeHooks augmentation
 ```
 
 ---
@@ -224,9 +224,9 @@ src/
 
 | What | From |
 |---|---|
-| `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `initWasm` `useHook` `onCleanup` `emit` | `@gwenjs/core` |
+| `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `initWasm` `useHook` `onCleanup` `emit` `defineHooks` | `@gwenjs/core` |
 | `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` | `@gwenjs/core/system` |
-| `defineActor` `onStart` `onDestroy` `onEvent` `definePrefab` `defineEvents` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
+| `defineActor` `onStart` `onDestroy` `onEvent` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
 | `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
 | `defineGwenModule` | `@gwenjs/kit/module` |
