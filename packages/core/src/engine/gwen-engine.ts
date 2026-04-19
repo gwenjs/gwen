@@ -29,14 +29,13 @@ import { createLogger } from "../logger/index";
 import type { GwenLogger } from "../logger/index";
 import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
-import { getWasmBridge } from "./wasm-bridge";
+import { WasmBridgeImpl, getWasmBridge } from "./wasm-bridge";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
 import { buildTransformImports } from "../hooks/wasm/transform-imports";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory";
 import { validateEngineConfig } from "./engine-config-validator";
-import { initWasm } from "./wasm-bridge";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -241,11 +240,16 @@ class GwenEngineImpl implements GwenEngine {
     },
   };
 
+  /** @internal */ readonly _bridge: WasmBridgeImpl;
+
   private readonly _entityManager: EntityManager;
   private readonly _componentRegistry: ComponentRegistry;
   private readonly _queryEngine: QueryEngine;
 
   constructor(opts: GwenEngineOptions) {
+    this._bridge = opts._bridge ?? (getWasmBridge() as WasmBridgeImpl);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (this as any).provide("wasm:bridge", this._bridge);
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
@@ -794,7 +798,7 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Internal WASM bridge accessors ───────────────────────────────────────
 
   getPlacementBridge(): PlacementBridge {
-    const bridge = getWasmBridge().engine();
+    const bridge = this._bridge.engine();
     if (!bridge) {
       throw new Error(
         "[GWEN] getPlacementBridge() called before WASM is initialised. " +
@@ -842,7 +846,7 @@ class GwenEngineImpl implements GwenEngine {
    * @internal
    */
   private _getOrCreateTransformPtr(): number {
-    const bridge = getWasmBridge();
+    const bridge = this._bridge;
     if (!bridge.isActive()) {
       throw new Error(
         "[GWEN] loadWasmModule() was called before initWasm() completed. " +
@@ -854,7 +858,7 @@ class GwenEngineImpl implements GwenEngine {
       this.disposables.add(
         "wasm:shared-memory",
         createDisposable(() => {
-          this._sharedMemory?.dispose(getWasmBridge());
+          this._sharedMemory?.dispose(this._bridge);
           this._sharedMemory = null;
         }),
       );
@@ -981,8 +985,7 @@ class GwenEngineImpl implements GwenEngine {
       // Only runs in debug mode and only when a SharedMemoryManager is active.
       if (this.debug && this._sharedMemory) {
         try {
-          const bridge = getWasmBridge();
-          this._sharedMemory.checkSentinels(bridge);
+          this._sharedMemory.checkSentinels(this._bridge);
         } catch (err) {
           this.logger.error("WASM memory sentinel violation", {
             error: err instanceof Error ? err.message : String(err),
@@ -994,7 +997,7 @@ class GwenEngineImpl implements GwenEngine {
       // update_transforms() propagates local→world transforms so that
       // get_entity_world_x/y/rotation return up-to-date values in onUpdate.
       try {
-        getWasmBridge().engine().update_transforms?.();
+        this._bridge.engine().update_transforms?.();
       } catch (err) {
         this.logger.error("update_transforms failed", {
           error: err instanceof Error ? err.message : String(err),
@@ -1143,6 +1146,7 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
  * ```
  */
 export async function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine> {
-  await initWasm(options?.variant ?? "light");
-  return createEngine(options);
+  const bridge = new WasmBridgeImpl();
+  await bridge.init(options?.variant ?? "light", options);
+  return createEngine({ ...options, _bridge: bridge });
 }

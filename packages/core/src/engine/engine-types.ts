@@ -14,6 +14,7 @@ import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
 import type { GwenPlugin, GwenEngineBase, GwenErrorBusBase } from "@gwenjs/schema";
+import type { WasmBridgeImpl } from "./wasm-bridge";
 import { DisposableRegistry } from "../disposable";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
@@ -289,6 +290,12 @@ export interface GwenEngineOptions {
    * @default false
    */
   debug?: boolean;
+
+  /**
+   * Pre-configured WasmBridgeImpl to use instead of creating a new one.
+   * @internal — for testing only. Do not use in production code.
+   */
+  _bridge?: WasmBridgeImpl;
 }
 
 /**
