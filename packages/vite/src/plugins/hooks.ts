@@ -1,3 +1,6 @@
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { resolve, relative, join } from "node:path";
+import type { Plugin } from "vite";
 import type { VariableDeclarator } from "oxc-parser";
 import { walk } from "oxc-walker";
 import { parseSource, isCallTo } from "../oxc/index.js";
@@ -57,4 +60,71 @@ export function generateHooksDts(exportNames: string[], importPath: string): str
     "}",
     "",
   ].join("\n");
+}
+
+/**
+ * Options for the `gwen:hooks` sub-plugin.
+ */
+export interface HooksPluginOptions {
+  /**
+   * Path to the hooks file, relative to the project root.
+   * @default 'src/hooks.ts'
+   */
+  file?: string;
+}
+
+/**
+ * Vite sub-plugin that auto-generates `.gwen/types/hooks.d.ts`.
+ *
+ * Scans the configured hooks file for `const X = defineHooks(...)` declarations
+ * and writes a `declare module '@gwenjs/schema'` augmentation so users never
+ * have to write the boilerplate by hand.
+ *
+ * Runs at `buildStart` and re-runs on `handleHotUpdate` when the hooks file
+ * changes. Silently does nothing when the hooks file does not exist or contains
+ * no `defineHooks` calls.
+ */
+export function gwenHooksPlugin(options: { hooks?: HooksPluginOptions; gwenDir?: string }): Plugin {
+  const hooksFile = options.hooks?.file ?? "src/hooks.ts";
+  const gwenDir = options.gwenDir ?? ".gwen";
+  let root = process.cwd();
+
+  function regenerate(): void {
+    const hooksAbsPath = resolve(root, hooksFile);
+    if (!existsSync(hooksAbsPath)) return;
+
+    const code = readFileSync(hooksAbsPath, "utf-8");
+    const exportNames = extractDefineHooksExports(code, hooksAbsPath);
+
+    const typesDir = resolve(root, gwenDir, "types");
+    const dtsDest = join(typesDir, "hooks.d.ts");
+
+    // importPath: relative from typesDir to hooksAbsPath, without .ts extension
+    const importPath = relative(typesDir, hooksAbsPath).replace(/\.ts$/, "").replace(/\\/g, "/");
+
+    const content = generateHooksDts(exportNames, importPath);
+    if (!content) return;
+
+    if (!existsSync(typesDir)) mkdirSync(typesDir, { recursive: true });
+
+    const existing = existsSync(dtsDest) ? readFileSync(dtsDest, "utf-8") : "";
+    if (existing !== content) writeFileSync(dtsDest, content, "utf-8");
+  }
+
+  return {
+    name: "gwen:hooks",
+
+    configResolved(config) {
+      root = config.root;
+    },
+
+    buildStart() {
+      regenerate();
+    },
+
+    handleHotUpdate({ file }: { file: string }) {
+      if (file !== resolve(root, hooksFile)) return;
+      regenerate();
+    },
+  };
 }
