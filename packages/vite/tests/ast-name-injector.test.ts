@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createAstNameInjector } from "../src/plugins/ast-name-injector";
+import { createAstNameInjector } from "../src/shared/ast-name-injector";
 
 describe("createAstNameInjector", () => {
   it("injects name into matching call", () => {

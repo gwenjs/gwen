@@ -1,5 +1,5 @@
 import type { Plugin } from "vite";
-import { createAstNameInjector } from "./ast-name-injector.js";
+import { createAstNameInjector } from "../shared/ast-name-injector.js";
 
 /**
  * Transform `defineSystem` variable declarations to inject a name string as the

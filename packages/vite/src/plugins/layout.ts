@@ -5,7 +5,7 @@ import { walk } from "oxc-walker";
 import type { VariableDeclarator } from "oxc-parser";
 import type { GwenViteOptions } from "../types.js";
 import { parseSource, isCallTo } from "../oxc/index.js";
-import { createAstNameInjector } from "./ast-name-injector.js";
+import { createAstNameInjector } from "../shared/ast-name-injector.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 import { findComponentFiles } from "../optimizer/component-scanner.js";
 
