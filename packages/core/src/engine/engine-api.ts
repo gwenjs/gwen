@@ -6,7 +6,7 @@
 import { createEntityId, unpackEntityId, type EntityId } from "../types/entity";
 
 // ── EntityId Re-exports ────────────────────────────────────────────────────────
-export { createEntityId, unpackEntityId, type EntityId } from "../types/entity";
+export { createEntityId, unpackEntityId, entityIndex, type EntityId } from "../types/entity";
 
 /**
  * Check structural equality of two EntityIds.

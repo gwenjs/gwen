@@ -42,6 +42,16 @@ export function unpackEntityId(id: EntityId): { index: number; generation: numbe
   };
 }
 
+/**
+ * Extract the entity index (lower 32 bits) from an EntityId.
+ *
+ * Masks in BigInt space before converting to Number to avoid the precision
+ * loss that occurs with `Number(id) & 0xffffffff` when generation >= 2^21.
+ */
+export function entityIndex(id: EntityId): number {
+  return Number(id & 0xffffffffn);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /** String name identifying a component type (e.g. `'Transform'`, `'Velocity'`). */
