@@ -126,7 +126,7 @@ export interface PrefabHandle {
 }
 
 /** @internal Methods on `ActorHandle` that take priority over `PublicAPI` in the Proxy. */
-const HANDLE_OWN_KEYS = new Set<string>([
+const _HANDLE_OWN_KEYS = new Set<string>([
   "spawn",
   "despawn",
   "despawnAll",
@@ -191,6 +191,7 @@ export function useActor<Props, PublicAPI>(
   }
 
   let _singletonId: EntityId | undefined;
+  const _methodCache = new Map<string, (...args: unknown[]) => unknown>();
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): EntityId {
@@ -198,12 +199,16 @@ export function useActor<Props, PublicAPI>(
     },
 
     despawn(id: EntityId): void {
-      if (_singletonId === id) _singletonId = undefined;
+      if (_singletonId === id) {
+        _singletonId = undefined;
+        _methodCache.clear();
+      }
       actorDef._plugin.despawn(id);
     },
 
     despawnAll(): void {
       _singletonId = undefined;
+      _methodCache.clear();
       for (const id of Array.from(actorDef._instances.keys())) {
         actorDef._plugin.despawn(id);
       }
@@ -238,12 +243,16 @@ export function useActor<Props, PublicAPI>(
   return new Proxy(baseHandle as object, {
     get(target, prop: string | symbol): unknown {
       // Priority 1: ActorHandle own methods
-      if (typeof prop === "string" && HANDLE_OWN_KEYS.has(prop)) {
+      if (typeof prop === "string" && _HANDLE_OWN_KEYS.has(prop)) {
         return (target as Record<string, unknown>)[prop];
       }
 
       // Priority 2: PublicAPI property / method delegation
       if (typeof prop === "string") {
+        // Check cache first for PublicAPI methods
+        const cached = _methodCache.get(prop);
+        if (cached) return cached;
+
         const api = actorDef._instances.values().next().value?.api as
           | Record<string, unknown>
           | undefined;
@@ -260,8 +269,10 @@ export function useActor<Props, PublicAPI>(
         }
         const value = api[prop];
         if (typeof value === "function") {
-          return (...args: unknown[]): unknown =>
+          const wrapped = (...args: unknown[]): unknown =>
             (value as (...a: unknown[]) => unknown).apply(api, args);
+          _methodCache.set(prop, wrapped);
+          return wrapped;
         }
         return value;
       }
