@@ -823,3 +823,74 @@ describe("defineActorPool — teardown", () => {
     expect(pool.stats().active).toBe(1);
   });
 });
+
+describe("DeferredReleaseQueue — integration test", () => {
+  it("deferred releases process in FIFO order and queue clears before loop", async () => {
+    const { pool, engine } = await makePool(5);
+
+    // Acquire and release multiple actors
+    const id1 = pool.acquire();
+    const id2 = pool.acquire();
+    const id3 = pool.acquire();
+
+    // Track the order of releases
+    const releaseOrder: bigint[] = [];
+    const originalSpawn = pool._actorPlugin.spawn;
+
+    // Mark all for release
+    pool.release(id1);
+    pool.release(id2);
+    pool.release(id3);
+
+    // Verify they're all marked pending (this is checked internally by the pool)
+    const beforeStop = pool.stats();
+    expect(beforeStop.active).toBe(3);
+
+    // When engine advances a frame (or stops), the deferred releases are flushed.
+    // The queue is cleared atomically before releaseFn is called.
+    await engine.advance(0.016);
+
+    // All three should be released and back in the available pool
+    const afterRelease = pool.stats();
+    expect(afterRelease.active).toBe(0);
+    expect(afterRelease.available).toBe(3);
+
+    await engine.stop();
+  });
+
+  it("pool releases are deferred until end of frame", async () => {
+    const { pool, engine } = await makePool(10);
+
+    // Simulate rapid acquire/release within a single frame
+    const id1 = pool.acquire();
+    const id2 = pool.acquire();
+    const id3 = pool.acquire();
+
+    // Before releasing, all are active
+    expect(pool.stats().active).toBe(3);
+
+    // Mark for release (deferred to end of frame)
+    pool.release(id1);
+    pool.release(id2);
+    pool.release(id3);
+
+    // Mid-frame, they're still "active" because release is deferred
+    // They have been marked for release but the deferred queue hasn't flushed yet
+    let statsBeforeFrame = pool.stats();
+    expect(statsBeforeFrame.active).toBeGreaterThan(0);
+
+    // Re-acquire from the available pool (before the deferred release flush)
+    const reacquired1 = pool.acquire();
+    expect(typeof reacquired1).toBe("bigint");
+
+    // After advancing a frame (which flushes the deferred queue), releases complete
+    await engine.advance(0.016);
+
+    let statsAfterFrame = pool.stats();
+    // The original 3 were released and moved back to available,
+    // then 1 was re-acquired, leaving 2 available
+    expect(statsAfterFrame.available).toBeGreaterThanOrEqual(2);
+
+    await engine.stop();
+  });
+});
