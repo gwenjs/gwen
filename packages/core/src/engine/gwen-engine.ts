@@ -451,6 +451,15 @@ class GwenEngineImpl implements GwenEngine {
     }
     await this.hooks.callHook("engine:stop");
     this._tracker.clearAll(this.hooks);
+
+    // Clean up WASM modules and globalThis glue cache
+    // Clear all __gwenGlue_* keys from globalThis so that next init reloads fresh
+    const ctx = globalThis as Record<string, unknown>;
+    for (const key of Object.keys(ctx)) {
+      if (key.startsWith("__gwenGlue_")) delete ctx[key];
+    }
+    this._wasmModules.clear();
+
     this.disposables.disposeAll(); // LIFO — last registered, first disposed
   }
 
