@@ -833,10 +833,6 @@ describe("DeferredReleaseQueue — integration test", () => {
     const id2 = pool.acquire();
     const id3 = pool.acquire();
 
-    // Track the order of releases
-    const releaseOrder: bigint[] = [];
-    const originalSpawn = pool._actorPlugin.spawn;
-
     // Mark all for release
     pool.release(id1);
     pool.release(id2);
@@ -876,7 +872,7 @@ describe("DeferredReleaseQueue — integration test", () => {
 
     // Mid-frame, they're still "active" because release is deferred
     // They have been marked for release but the deferred queue hasn't flushed yet
-    let statsBeforeFrame = pool.stats();
+    const statsBeforeFrame = pool.stats();
     expect(statsBeforeFrame.active).toBeGreaterThan(0);
 
     // Re-acquire from the available pool (before the deferred release flush)
@@ -886,7 +882,7 @@ describe("DeferredReleaseQueue — integration test", () => {
     // After advancing a frame (which flushes the deferred queue), releases complete
     await engine.advance(0.016);
 
-    let statsAfterFrame = pool.stats();
+    const statsAfterFrame = pool.stats();
     // The original 3 were released and moved back to available,
     // then 1 was re-acquired, leaving 2 available
     expect(statsAfterFrame.available).toBeGreaterThanOrEqual(2);
