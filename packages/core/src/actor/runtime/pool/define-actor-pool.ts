@@ -5,6 +5,7 @@ import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
+import { useHook } from "../../../hooks/use-hook";
 
 /**
  * Manages the queue of actor pool slots scheduled for deferred release.
@@ -288,20 +289,20 @@ export function defineActorPool<Props, PublicAPI>(
       _engine = engine;
 
       // Flush deferred releases at the end of each frame (mid-frame safety).
-      engine.hooks.hook("engine:afterTick", () => {
+      useHook("engine:afterTick", () => {
         _pendingRelease.flush(_doRelease);
       });
 
       // Global scope: auto-cleanup when the engine stops.
       if (options.scope === "global") {
-        engine.hooks.hook("engine:stop", () => destroyAll());
+        useHook("engine:stop", () => destroyAll());
       }
 
       // Custom scope: delegate mount/unmount to the caller.
       if (options.scope && typeof options.scope === "object") {
         const scope = options.scope;
         scope.onMount(pool as ActorPool<unknown, unknown>);
-        engine.hooks.hook("engine:stop", () => {
+        useHook("engine:stop", () => {
           scope.onUnmount(pool as ActorPool<unknown, unknown>);
         });
       }
