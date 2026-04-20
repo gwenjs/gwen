@@ -14,11 +14,7 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
-import {
-  WasmBridgeImpl,
-  type WasmEngine,
-  type WasmEntityId,
-} from "../src/engine/wasm-bridge";
+import { WasmBridgeImpl, type WasmEngine, type WasmEntityId } from "../src/engine/wasm-bridge";
 
 // ── Mock helper ───────────────────────────────────────────────────────────────
 
@@ -376,5 +372,24 @@ describe("WasmBridge — checkMemoryGrow()", () => {
 
     // State is now updated to buf2, so next call returns false
     expect(bridge.checkMemoryGrow()).toBe(false);
+  });
+});
+
+// ── Dynamic _typeIdBuffer ────────────────────────────────────────────────────
+
+describe("WasmBridge — dynamic _typeIdBuffer", () => {
+  it("getTypeIdView handles more than 16 component types without throwing", () => {
+    const bridge = new WasmBridgeImpl();
+    const view = (bridge as any)._getTypeIdView(17);
+    expect(view).toBeInstanceOf(Uint32Array);
+    expect(view.length).toBe(17);
+  });
+
+  it("getTypeIdView returns a subarray view for n <= current capacity", () => {
+    const bridge = new WasmBridgeImpl();
+    const view8 = (bridge as any)._getTypeIdView(8);
+    const view4 = (bridge as any)._getTypeIdView(4);
+    expect(view8.length).toBe(8);
+    expect(view4.length).toBe(4);
   });
 });

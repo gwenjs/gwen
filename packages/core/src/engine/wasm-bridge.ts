@@ -224,16 +224,28 @@ export class WasmBridgeImpl implements WasmBridge {
   /** Static view for zero-alloc query results. Recreated on memory.grow(). */
   private _queryResultView: Uint32Array | null = null;
 
-  /** Static buffer for type IDs to avoid allocations on every query. */
-  private readonly _typeIdBuffer = new Uint32Array(16);
-  /** Pre-allocated views for common type ID counts (0-16). */
-  private readonly _typeIdViews: Uint32Array[];
+  /** Dynamic buffer for type IDs to avoid allocations on every query. */
+  private _typeIdBuffer = new Uint32Array(16);
 
   constructor() {
-    this._typeIdViews = Array.from(
-      { length: 17 },
-      (_, i) => this._typeIdBuffer.subarray(0, i),
-    );
+    // Buffer initialization is now done on-demand in _getTypeIdView()
+  }
+
+  /**
+   * Get or create a subarray view of the type ID buffer.
+   * Grows the buffer to the next power of 2 if needed.
+   *
+   * @param n The number of type IDs needed
+   * @returns A Uint32Array view of size n over the internal buffer
+   * @internal
+   */
+  private _getTypeIdView(n: number): Uint32Array {
+    if (n > this._typeIdBuffer.length) {
+      // Grow to next power of 2 above n
+      const newSize = Math.pow(2, Math.ceil(Math.log2(n)));
+      this._typeIdBuffer = new Uint32Array(newSize);
+    }
+    return this._typeIdBuffer.subarray(0, n);
   }
 
   // ── Bulk buffers (zero-alloc query optimization) ──────────────────────────
@@ -338,11 +350,7 @@ export class WasmBridgeImpl implements WasmBridge {
 
       if (import.meta.env?.DEV) {
         const label =
-          variant === "physics2d"
-            ? "Physics2D"
-            : variant === "physics3d"
-              ? "Physics3D"
-              : "Light";
+          variant === "physics2d" ? "Physics2D" : variant === "physics3d" ? "Physics3D" : "Light";
         // eslint-disable-next-line no-console
         console.log(`[GWEN] WASM core loaded — ${label} variant active`);
       }
@@ -631,16 +639,13 @@ export class WasmBridgeImpl implements WasmBridge {
 
   queryEntitiesRaw(typeIds: number[]): number {
     const count = typeIds.length;
-    // Fast path for common component counts (0-16) using zero-alloc views
-    if (count <= 16) {
-      for (let i = 0; i < count; i++) {
-        this._typeIdBuffer[i] = typeIds[i] ?? 0;
-      }
-      const fastView = this._typeIdViews[count];
-      return this._requireWasm().query_entities_to_buffer(fastView ?? new Uint32Array(typeIds));
+    // Copy type IDs into the dynamic buffer
+    for (let i = 0; i < count; i++) {
+      this._typeIdBuffer[i] = typeIds[i] ?? 0;
     }
-    // Fallback for very complex queries (rare in game engines)
-    return this._requireWasm().query_entities_to_buffer(new Uint32Array(typeIds));
+    // Get a view sized to the actual count, growing the buffer if needed
+    const view = this._getTypeIdView(count);
+    return this._requireWasm().query_entities_to_buffer(view);
   }
 
   forEachQueryResultRaw(typeIds: number[], callback: (entityIndex: number) => void): void {
