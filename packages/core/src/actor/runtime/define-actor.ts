@@ -73,7 +73,6 @@ const _actorCtx = new ContextSlot<ActorContext>();
 
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
-
 /**
  * Returns the entity ID of the actor currently being spawned.
  *
@@ -440,13 +439,6 @@ export function defineActor<Props = void, PublicAPI = void>(
   }
   const _instances = new Map<EntityId, ActorInstance<PublicAPI>>();
 
-  /**
-   * Flat array mirror of `_instances` values, kept in sync with the Map.
-   * Iterating a plain indexed array avoids the `MapIterator` allocation that
-   * `_instances.values()` would create on every frame-phase dispatch.
-   */
-  const _instanceArray: ActorInstance<PublicAPI>[] = [];
-
   /** The scoped-proxy engine captured during `setup()`. */
   let _engine: GwenEngine | null = null;
   /** Logger scoped to this actor — set in `setup()`, used for cleanup error reporting. */
@@ -514,7 +506,6 @@ export function defineActor<Props = void, PublicAPI = void>(
 
     // 5. Register instance.
     _instances.set(entityId, instance);
-    _instanceArray.push(instance);
 
     // 6. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
@@ -533,8 +524,6 @@ export function defineActor<Props = void, PublicAPI = void>(
 
     // 1. Remove from registries FIRST (re-entrancy guard).
     _instances.delete(entityId);
-    const arrIdx = _instanceArray.indexOf(instance);
-    if (arrIdx !== -1) _instanceArray.splice(arrIdx, 1);
 
     // 2. Call onDestroy callbacks.
     for (let i = 0; i < instance._destroy.length; i++) {
