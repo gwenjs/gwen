@@ -258,7 +258,7 @@ class GwenEngineImpl implements GwenEngine {
     this.provide("logger", this.logger);
     this._entityManager = new EntityManager(this.maxEntities);
     this._componentRegistry = new ComponentRegistry();
-    this._queryEngine = new QueryEngine();
+    this._queryEngine = new QueryEngine(opts.queryCacheSize ?? 256);
 
     if (opts.errorBus) {
       this._errorBus = opts.errorBus;

@@ -296,6 +296,14 @@ export interface GwenEngineOptions {
    * @internal — for testing only. Do not use in production code.
    */
   _bridge?: WasmBridgeImpl;
+
+  /**
+   * Maximum number of unique component-type query signatures to cache.
+   * When full, the least-recently-used signature is evicted.
+   * @default 256
+   * @minimum 1
+   */
+  queryCacheSize?: number;
 }
 
 /**

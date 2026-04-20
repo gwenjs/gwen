@@ -13,6 +13,7 @@ import {
   type ComponentTypeInput,
 } from "./component-type-normalizer";
 import { createEntityId, unpackEntityId } from "../engine/engine-api";
+import { LRUMap } from "../utils/lru-map.js";
 
 // Re-export EntityId as part of the ECS module's public API
 export type { EntityId } from "../engine/engine-api";
@@ -224,8 +225,12 @@ export class ComponentRegistry {
  * Caches results and invalidates on component mutations.
  */
 export class QueryEngine {
-  private cache = new Map<string, EntityId[]>();
+  private cache: LRUMap<string, EntityId[]>;
   private dirty = true;
+
+  constructor(maxCacheSize = 256) {
+    this.cache = new LRUMap(maxCacheSize);
+  }
 
   invalidate(): void {
     this.dirty = true;
