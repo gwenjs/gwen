@@ -26,6 +26,7 @@ import { useEngine } from "../../engine/context";
 import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition } from "./define-prefab";
 import type { EntityId } from "../../engine/engine-api";
+import { entityIndex } from "../../engine/engine-api";
 import type { PlacementBridge } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
@@ -68,10 +69,10 @@ function applyTransform(
   const [sx, sy] = Array.isArray(options.scale)
     ? (options.scale as [number, number])
     : [options.scale ?? 1, options.scale ?? 1];
-  const idx = Number(entityId) & 0xffffffff;
+  const idx = entityIndex(entityId);
   bridge.add_entity_transform(idx, x, y, rotation, sx, sy);
   if (options.parent) {
-    const parentIdx = Number(options.parent.entityId) & 0xffffffff;
+    const parentIdx = entityIndex(options.parent.entityId);
     bridge.set_entity_parent(idx, parentIdx, false);
   }
 }
@@ -128,7 +129,7 @@ export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHand
     api: undefined as void,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(entityIndex(entityId), x, y);
     },
     despawn() {
       engine.destroyEntity(entityId);
@@ -176,7 +177,7 @@ export function placeActor<Props, API>(
     api: instance?.api as API,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(entityIndex(entityId), x, y);
     },
     despawn() {
       actorDef._plugin.despawn(entityId);
@@ -230,7 +231,7 @@ export function placePrefab(
     api: undefined as void,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(Number(entityId) & 0xffffffff, x, y);
+      bridge.set_entity_local_position(entityIndex(entityId), x, y);
     },
     despawn() {
       engine.destroyEntity(id);

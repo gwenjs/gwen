@@ -16,6 +16,8 @@
 
 import { useEngine, engineContext } from "../../engine/context";
 import { _withLayoutContext } from "./place";
+import { entityIndex } from "../../engine/engine-api";
+import type { EntityId } from "../../engine/engine-api";
 import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from "./types";
 
 /**
@@ -79,7 +81,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     if (_entityIds.length > 0) {
       const bridge = engine.getPlacementBridge();
       if (bridge?.bulk_destroy) {
-        const indices = new Uint32Array(_entityIds.map((id) => Number(id) & 0xffffffff));
+        const indices = new Uint32Array(_entityIds.map((id) => entityIndex(id as EntityId)));
         bridge.bulk_destroy(indices);
       } else {
         // Fallback: destroy entities one-by-one if bulk_destroy is not available
