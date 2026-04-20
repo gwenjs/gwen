@@ -111,6 +111,41 @@ describe("Frame Loop v2", () => {
     vi.restoreAllMocks();
   });
 
+  // ── stop() cancellation ─────────────────────────────────────────────────────
+
+  describe("stop() lifecycle", () => {
+    it("stop() cancels the RAF/setTimeout frame handle — no zombie callbacks after stop", async () => {
+      const engine = await makeEngine();
+
+      // Stub RAF and setTimeout to track calls
+      const rafCalls: Function[] = [];
+      const clearTimeoutCalls: number[] = [];
+      const cancelRAFCalls: number[] = [];
+
+      vi.stubGlobal("requestAnimationFrame", vi.fn((cb: Function) => {
+        rafCalls.push(cb);
+        return rafCalls.length as unknown as number;
+      }));
+      vi.stubGlobal("clearTimeout", vi.fn((handle: number) => {
+        clearTimeoutCalls.push(handle);
+      }));
+      vi.stubGlobal("cancelAnimationFrame", vi.fn((handle: number) => {
+        cancelRAFCalls.push(handle);
+      }));
+
+      await engine.start();
+      const callCountBeforeStop = rafCalls.length;
+
+      // stop() should set _running to false and cancel the frame handle
+      await engine.stop();
+
+      // After stop, no additional frame callbacks should be scheduled
+      expect(rafCalls.length).toBe(callCountBeforeStop);
+      // At least one of the cancel methods should have been called
+      expect(cancelRAFCalls.length + clearTimeoutCalls.length).toBeGreaterThan(0);
+    });
+  });
+
   // ── Phase ordering ──────────────────────────────────────────────────────────
 
   describe("8-phase frame loop ordering", () => {

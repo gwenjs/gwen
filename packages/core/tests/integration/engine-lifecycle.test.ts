@@ -239,6 +239,73 @@ describe("Engine lifecycle — provide / inject across plugins", () => {
   });
 });
 
+// ─── stop() lifecycle ──────────────────────────────────────────────────────
+
+describe("Engine lifecycle — stop()", () => {
+  it("stop() calls disposables in reverse (LIFO) order", async () => {
+    const engine = await createEngine();
+    const order: number[] = [];
+
+    (engine as any).disposables.add("first", {
+      disposed: false,
+      dispose: () => order.push(1),
+      [Symbol.dispose]() { this.dispose(); },
+    });
+    (engine as any).disposables.add("second", {
+      disposed: false,
+      dispose: () => order.push(2),
+      [Symbol.dispose]() { this.dispose(); },
+    });
+    (engine as any).disposables.add("third", {
+      disposed: false,
+      dispose: () => order.push(3),
+      [Symbol.dispose]() { this.dispose(); },
+    });
+
+    await engine.stop();
+
+    expect(order).toEqual([3, 2, 1]);
+  });
+
+  it("stop() cancels the RAF/setTimeout frame handle — no zombie callbacks after stop", async () => {
+    vi.useFakeTimers();
+    const engine = await createEngine();
+
+    // Stub RAF and setTimeout to count calls
+    const rafCalls: Function[] = [];
+    const timeoutCalls: Function[] = [];
+
+    vi.stubGlobal("requestAnimationFrame", vi.fn((cb: Function) => {
+      rafCalls.push(cb);
+      return rafCalls.length;
+    }));
+    vi.stubGlobal("clearTimeout", vi.fn());
+    vi.stubGlobal("cancelAnimationFrame", vi.fn());
+
+    // Track setTimeout (used as RAF fallback in some environments)
+    vi.stubGlobal("setTimeout", vi.fn((cb: Function) => {
+      timeoutCalls.push(cb);
+      return timeoutCalls.length as unknown as ReturnType<typeof setTimeout>;
+    }));
+
+    await engine.start();
+    const initialCallCount = rafCalls.length + timeoutCalls.length;
+    expect(initialCallCount).toBeGreaterThan(0);
+
+    await engine.stop();
+
+    // After stop(), no more frame callbacks should be scheduled
+    const afterStopCallCount = rafCalls.length + timeoutCalls.length;
+    expect(afterStopCallCount).toBe(initialCallCount);
+
+    // Verify cancelAnimationFrame or clearTimeout was called
+    expect(vi.mocked(cancelAnimationFrame).mock.calls.length +
+           vi.mocked(clearTimeout).mock.calls.length).toBeGreaterThan(0);
+
+    vi.useRealTimers();
+  });
+});
+
 // ─── Engine:tick / engine:afterTick hooks ─────────────────────────────────────
 
 describe("Engine lifecycle — engine hooks fire during advance()", () => {
