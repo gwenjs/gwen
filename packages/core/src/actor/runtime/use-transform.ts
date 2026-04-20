@@ -55,6 +55,7 @@
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { getWasmBridge } from "../../engine/wasm-bridge";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
+import { entityIndex, type EntityId } from "../../engine/engine-api";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;
@@ -78,13 +79,13 @@ const DETACH_SENTINEL = 0xffffffff;
  * ```
  */
 export function useTransform(): TransformHandle {
-  let entityId: bigint;
+  let entityId: EntityId;
   let idx: number;
 
   try {
     entityId = _getActorEntityId();
     _getActorEngine(); // Verify we're in actor context
-    idx = Number(entityId) & 0xffffffff;
+    idx = entityIndex(entityId);
   } catch {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
@@ -156,7 +157,7 @@ export function useTransform(): TransformHandle {
     setParent(handleOrId, keepWorldPos = false) {
       const parentId =
         typeof handleOrId === "bigint" ? handleOrId : (handleOrId as { entityId: bigint }).entityId;
-      bridge.set_entity_parent?.(idx, Number(parentId) & 0xffffffff, keepWorldPos);
+      bridge.set_entity_parent(idx, entityIndex(parentId as any), keepWorldPos);
     },
 
     detach(keepWorldPos = false) {

@@ -263,9 +263,7 @@ describe("useTransform — rotation and scale", () => {
     const engine = await createEngine({ _bridge: bridge });
     const wasmEngine = bridge.engine();
     vi.spyOn(wasmEngine, "get_entity_local_rotation").mockReturnValue(1.0);
-    const writeSpy = vi
-      .spyOn(wasmEngine, "set_entity_local_rotation")
-      .mockImplementation(() => {});
+    const writeSpy = vi.spyOn(wasmEngine, "set_entity_local_rotation").mockImplementation(() => {});
 
     const Actor = defineActor(Prefab, () => {
       const t = useTransform();
@@ -433,6 +431,40 @@ describe("useTransform — setParent / detach", () => {
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
     bridge._injectMock(createMockEngine() as any);
+  });
+
+  it("setParent works correctly with high-generation entity id", async () => {
+    const engine = await createEngine({ _bridge: bridge });
+    const wasmEngine = bridge.engine();
+    // Ensure the method exists before spying
+    if (!wasmEngine.set_entity_parent) {
+      wasmEngine.set_entity_parent = () => {};
+    }
+    const spy = vi.spyOn(wasmEngine, "set_entity_parent").mockImplementation(() => {});
+
+    // Arrange: parent with generation = 2^21 (triggers precision bug)
+    const generation = 2097152n;
+    const index = 3n;
+    const parentId = (generation << 32n) | index;
+
+    let childEntityId: EntityId | undefined;
+    const Child = defineActor(Prefab, () => {
+      const t = useTransform();
+      return { setParentTo: (id: bigint) => t.setParent(id) };
+    });
+    await engine.use(Child._plugin);
+
+    await engine.run(() => {
+      childEntityId = Child._plugin.spawn();
+      Child._instances.get(childEntityId!)!.api.setParentTo(parentId);
+    });
+
+    // The bridge call should receive index=3, not a corrupted value.
+    expect(spy).toHaveBeenCalledWith(
+      Number(childEntityId!) & 0xffffffff,
+      3, // should be exactly 3, not corrupted
+      false,
+    );
   });
 
   it("setParent() calls set_entity_parent with correct indices", async () => {
