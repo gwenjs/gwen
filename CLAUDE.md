@@ -17,6 +17,8 @@ at build time, and ships pre-compiled WASM — users never touch Rust.
 
 Never declare a task done before all 4 pass.
 
+5. Never commit `docs/superpowers/` — specs and plans are local-only (gitignored).
+
 ---
 
 ## Repository structure
