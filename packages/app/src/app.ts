@@ -18,6 +18,22 @@ import { createViewportsPlugin } from "./viewports-plugin.js";
 import { createScreenPlugin } from "./create-screen-plugin.js";
 import { BUILT_IN_MODULES } from "./built-in-modules.js";
 
+// ─── Constants ─────────────────────────────────────────────────────────────────
+
+/** Keys reserved by GwenUserConfig — must not be used as module configKey. */
+const RESERVED_KEYS = new Set([
+  "modules",
+  "engine",
+  "logger",
+  "debug",
+  "vite",
+  "hooks",
+  "plugins",
+  "viewports",
+  "screen",
+  "globalCss",
+]);
+
 // ─── GwenApp ──────────────────────────────────────────────────────────────────
 
 /**
@@ -120,13 +136,15 @@ export class GwenApp {
     //    configKey determines the config key (e.g. "tween" → config.tween).
     for (const mod of BUILT_IN_MODULES) {
       const configKey = mod.meta.configKey;
-      const userOptions = configKey
-        ? ((config as unknown as Record<string, unknown>)[configKey] ?? {})
-        : {};
-      const options = mergeDefaults(
-        userOptions as Record<string, unknown>,
-        (mod.defaults ?? {}) as Record<string, unknown>,
-      );
+      let userOptions: Record<string, unknown> = {};
+      if (configKey) {
+        userOptions = ((config as unknown as Record<string, unknown>)[configKey] ?? {}) as Record<
+          string,
+          unknown
+        >;
+      }
+
+      const options = mergeDefaults(userOptions, (mod.defaults ?? {}) as Record<string, unknown>);
       const kit = this._createKit(config);
       await this.buildHooks.callHook("module:before", mod);
       try {
@@ -164,11 +182,7 @@ export class GwenApp {
     }
 
     // 3. User modules
-    for (const entry of config.modules ?? []) {
-      const [name, userOptions = {}] = Array.isArray(entry)
-        ? entry
-        : [entry, {} as Record<string, unknown>];
-
+    for (const name of config.modules ?? []) {
       let mod: GwenModule;
       try {
         mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
@@ -183,11 +197,23 @@ export class GwenApp {
         );
       }
 
-      // Deep-merge user options with module defaults (user values take precedence).
-      const options = mergeDefaults(
-        userOptions as Record<string, unknown>,
-        (mod.defaults ?? {}) as Record<string, unknown>,
-      );
+      const configKey = mod.meta.configKey;
+      let userOptions: Record<string, unknown> = {};
+      if (configKey) {
+        if (RESERVED_KEYS.has(configKey)) {
+          // eslint-disable-next-line no-console
+          console.warn(
+            `[gwen] Module "${name}" declares configKey "${configKey}" which conflicts with a reserved GwenUserConfig key. Options will be ignored. Hint: rename the module's configKey to something other than: ${[...RESERVED_KEYS].join(", ")}.`,
+          );
+        } else {
+          userOptions = ((config as unknown as Record<string, unknown>)[configKey] ?? {}) as Record<
+            string,
+            unknown
+          >;
+        }
+      }
+
+      const options = mergeDefaults(userOptions, (mod.defaults ?? {}) as Record<string, unknown>);
 
       const kit = this._createKit(config);
 
