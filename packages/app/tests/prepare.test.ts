@@ -19,6 +19,12 @@ function makeConfig(overrides: Partial<ResolvedGwenConfig> = {}): ResolvedGwenCo
       maxDeltaSeconds: 0.1,
       debug: false,
     },
+    logger: {
+      minLevel: "warn",
+    },
+    debug: {
+      perf: false,
+    },
     ...overrides,
   };
 }
