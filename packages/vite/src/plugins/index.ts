@@ -10,6 +10,7 @@ import { gwenHooksPlugin } from "./hooks.js";
 import { gwenOptimizerPlugin } from "./optimizer.js";
 import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
+import { gwenQueryHoistPlugin } from "./query-hoist.js";
 import type { GwenViteOptions, GwenOptimizerUserOptions } from "../types.js";
 import type { PluginOption } from "vite";
 
@@ -34,6 +35,7 @@ export { gwenHooksPlugin, extractDefineHooksExports, generateHooksDts } from "./
 export type { HooksPluginOptions } from "./hooks.js";
 export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.js";
+export { gwenQueryHoistPlugin } from "./query-hoist.js";
 
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:
@@ -45,6 +47,7 @@ export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.j
  * - `gwen:actor` — actor auto-discovery and name injection
  * - `gwen:layout` — layout virtual module and name injection
  * - `gwen:tween` — easing tree-shake analysis via `virtual:gwen/used-easings`
+ * - `gwen:query-hoist` — hoists useQuery arrays and pre-computes cache keys
  *
  * @param options - Plugin configuration. All sub-options are optional.
  *
@@ -87,6 +90,7 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenTweenPlugin(options),
     gwenHooksPlugin(options),
     gwenSystemPlugin(),
+    gwenQueryHoistPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenAsyncContextPlugin(),
   ];
