@@ -54,6 +54,38 @@ export interface ActorPluginOptions {
 }
 
 /**
+ * Options for the `gwen:local-plugins` sub-plugin.
+ */
+export interface LocalPluginsOptions {
+  /**
+   * Directory (relative to project root) scanned for local plugin files.
+   * @default 'src/plugins'
+   */
+  dir?: string;
+  /**
+   * Enable HMR invalidation when files are added, removed, or renamed.
+   * @default true
+   */
+  hmr?: boolean;
+}
+
+/**
+ * Options for the `gwen:local-modules` sub-plugin.
+ */
+export interface LocalModulesOptions {
+  /**
+   * Directory (relative to project root) scanned for local module files.
+   * @default 'src/modules'
+   */
+  dir?: string;
+  /**
+   * Enable HMR invalidation when files are added, removed, or renamed.
+   * @default true
+   */
+  hmr?: boolean;
+}
+
+/**
  * Options for the `gwen:layout` sub-plugin.
  */
 export interface GwenLayoutOptions {
@@ -119,6 +151,20 @@ export interface GwenViteOptions {
    * When omitted the plugin uses `'src/hooks.ts'` as the default hooks file.
    */
   hooks?: HooksPluginOptions;
+
+  /**
+   * Options for the `gwen:local-plugins` sub-plugin.
+   * Set to `false` to disable auto-discovery of `src/plugins/`.
+   * @default { dir: 'src/plugins', hmr: true }
+   */
+  localPlugins?: LocalPluginsOptions | false;
+
+  /**
+   * Options for the `gwen:local-modules` sub-plugin.
+   * Set to `false` to disable auto-discovery of `src/modules/`.
+   * @default { dir: 'src/modules', hmr: true }
+   */
+  localModules?: LocalModulesOptions | false;
 
   /**
    * Enable the ECS bulk optimizer.
