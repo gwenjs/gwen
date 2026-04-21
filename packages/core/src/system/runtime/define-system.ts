@@ -29,6 +29,7 @@ import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gw
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import { ScopedHookable, _currentScopeSlot } from "../../hooks/scoped-hookable";
+import { GwenScope } from "../../context/scope.js";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -235,6 +236,7 @@ export function defineSystem<Args extends unknown[]>(
 
   return (...args: Args): DiscoverablePlugin => {
     let _scope: ScopedHookable | null = null;
+    let _gwenScope: GwenScope | null = null;
     let _discovered = false;
 
     const plugin: DiscoverablePlugin = {
@@ -244,7 +246,13 @@ export function defineSystem<Args extends unknown[]>(
         if (_discovered) return;
         const engine = useEngine();
         _scope = new ScopedHookable(engine.hooks);
-        _currentScopeSlot.run(_scope, () => setupTemplate(...args));
+        _gwenScope = new GwenScope(engine as any, {
+          type: "system",
+          name: systemName || "anonymous-system",
+        });
+        _currentScopeSlot.run(_scope, () => {
+          _gwenScope!.run(() => setupTemplate(...args));
+        });
       },
 
       _discover(): void {
@@ -257,6 +265,8 @@ export function defineSystem<Args extends unknown[]>(
       teardown(): void {
         _scope?.dispose();
         _scope = null;
+        _gwenScope?.dispose();
+        _gwenScope = null;
       },
 
       _pause(): void {

@@ -17,6 +17,7 @@ import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
 import { SCENE_REGISTRAR_KEY } from "./scene-registrar";
 import type { SceneRegistrar } from "./scene-registrar";
+import { GwenScope } from "../../context/scope.js";
 
 // ─── Internal context type ────────────────────────────────────────────────────
 
@@ -67,7 +68,17 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
   const engine = engineContext.tryUse() as GwenEngine | null;
   if (engine) engine.provide(SCENE_REGISTRAR_KEY, registrar);
 
-  _sceneCtx.run(ctx, factory);
+  // Phase 4: Create a GwenScope for the scene factory
+  const sceneScope = engine ? new GwenScope(engine as any, { type: "scene" }) : null;
+
+  _sceneCtx.run(ctx, () => {
+    if (sceneScope) {
+      sceneScope.run(factory);
+    } else {
+      factory();
+    }
+  });
+
   return ctx;
 }
 

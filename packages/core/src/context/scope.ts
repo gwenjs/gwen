@@ -70,12 +70,13 @@ export class GwenScope implements IGwenScope {
     engine: any,
     meta: Omit<GwenScopeMeta, "id"> & { id?: string },
     parent: GwenScope | null = null,
+    customHookable?: ScopedHookable,
   ) {
     const id = meta.id ?? `${meta.type}#${++_scopeIdCounter}`;
     this.engine = engine;
     this.meta = Object.freeze({ ...meta, id } as GwenScopeMeta);
     this.parent = parent;
-    this._hookable = new ScopedHookable(engine.hooks);
+    this._hookable = customHookable || new ScopedHookable(engine.hooks);
     if (parent) parent._children.push(this);
   }
 

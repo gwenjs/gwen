@@ -45,6 +45,7 @@ import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-e
 import { ScopedHookable, _currentScopeSlot } from "../../hooks/scoped-hookable";
 import { engineContext } from "../../engine/context";
 import { ContextSlot } from "../../engine/context-slot";
+import { GwenScope } from "../../context/scope.js";
 
 // ─── Module-level actor context ───────────────────────────────────────────────
 
@@ -70,6 +71,12 @@ interface ActorContext {
  * @internal
  */
 const _actorCtx = new ContextSlot<ActorContext>();
+
+/**
+ * Maps ActorInstance to its GwenScope for cleanup during despawn.
+ * @internal
+ */
+const _actorScopes = new WeakMap<ActorInstance<unknown>, GwenScope>();
 
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
@@ -484,7 +491,22 @@ export function defineActor<Props = void, PublicAPI = void>(
       api: undefined as unknown as PublicAPI,
     };
 
-    // 4. Run the factory inside the actor context and the active scope slot.
+    // 4. Create the actor scope (Phase 4 — GwenScope.current() support).
+    // Pass instance._scope as the custom hookable so that hooks registered
+    // via useHook() use the same _scope, enabling dormancy via pause/resume.
+    const actorScope = new GwenScope(
+      _engine!,
+      {
+        type: "actor",
+        name: pluginName,
+        entityId: instance.entityId,
+      },
+      null,
+      instance._scope,
+    );
+    _actorScopes.set(instance, actorScope);
+
+    // 5. Run the factory inside the actor context, scope slot, and GwenScope.
     //    Also activate the engine context so that composables like useHook()
     //    that call useEngine() work even when spawn() is called outside engine.run().
     //    Only set/unset the engine context when it is not already active — we must
@@ -495,7 +517,9 @@ export function defineActor<Props = void, PublicAPI = void>(
       if (needsEngineCtx) engineContext.set(_engine!);
       try {
         _currentScopeSlot.run(instance._scope, () => {
-          api = (factory as (props?: Props) => PublicAPI)(props);
+          actorScope.run(() => {
+            api = (factory as (props?: Props) => PublicAPI)(props);
+          });
         });
       } finally {
         if (needsEngineCtx) engineContext.unset();
@@ -504,10 +528,10 @@ export function defineActor<Props = void, PublicAPI = void>(
 
     instance.api = api as PublicAPI;
 
-    // 5. Register instance.
+    // 6. Register instance.
     _instances.set(entityId, instance);
 
-    // 6. Fire _start callbacks immediately after setup.
+    // 7. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
       instance._start[i]!();
     }
@@ -537,7 +561,14 @@ export function defineActor<Props = void, PublicAPI = void>(
     // 3. Dispose the scope — unregisters all engine:update/render/etc handlers.
     instance._scope.dispose();
 
-    // 4. Destroy the ECS entity.
+    // 4. Dispose the GwenScope (Phase 4).
+    const actorScope = _actorScopes.get(instance);
+    if (actorScope) {
+      actorScope.dispose();
+      _actorScopes.delete(instance);
+    }
+
+    // 5. Destroy the ECS entity.
     _engine?.destroyEntity(entityId as unknown as EntityId);
   }
 
