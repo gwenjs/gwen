@@ -147,6 +147,20 @@ export interface GwenUserConfig extends GwenModuleOptions {
   plugins?: GwenPlugin[];
 
   /**
+   * Override the directory scanned for local plugins.
+   * Set to `false` to disable auto-discovery.
+   * @default 'src/plugins'
+   */
+  localPluginsDir?: string | false;
+
+  /**
+   * Override the directory scanned for local modules.
+   * Set to `false` to disable auto-discovery.
+   * @default 'src/modules'
+   */
+  localModulesDir?: string | false;
+
+  /**
    * Static viewport declarations — normalized [0–1] screen regions.
    *
    * `@gwenjs/app` passes these to `ViewportManager` at engine startup.
