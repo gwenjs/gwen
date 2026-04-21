@@ -88,12 +88,7 @@ export type { GwenContextErrorCode } from "./engine/context";
 export { WasmBridgeImpl } from "./engine/wasm-bridge";
 
 // Backward-compat — prefer WasmBridgeImpl instances
-export {
-  initWasm,
-  getWasmBridge,
-  _resetWasmBridge, // @deprecated — use bridge._reset()
-  _injectMockWasmEngine, // @deprecated — use bridge._injectMock()
-} from "./engine/wasm-bridge";
+export { initWasm, getWasmBridge } from "./engine/wasm-bridge";
 export type {
   WasmBridge,
   WasmEntityId,

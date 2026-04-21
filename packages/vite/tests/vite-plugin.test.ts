@@ -173,16 +173,16 @@ describe("generateBundle", () => {
 // ── generateEntryModule ───────────────────────────────────────────────────────
 
 describe("generateEntryModule — bootstrap correctness", () => {
-  it("uses createEngine directly (not destructured)", () => {
+  it("uses setupGwen to create the engine", () => {
     const code = generateEntryModule(false);
     expect(code).not.toContain("const { engine }");
-    expect(code).toContain("const engine = await createEngine(");
+    expect(code).toContain("const engine = await setupGwen(");
   });
 
-  it("passes gwenConfig.engine to createEngine, not gwenConfig", () => {
+  it("passes gwenConfig to setupGwen (not .engine)", () => {
     const code = generateEntryModule(false);
-    expect(code).toContain("createEngine(gwenConfig.engine");
-    expect(code).not.toMatch(/createEngine\(gwenConfig[^.]/);
+    expect(code).toContain("setupGwen(gwenConfig)");
+    expect(code).not.toContain("setupGwen(gwenConfig.engine");
   });
 
   it("no modules: no dynamic import, no @vite-ignore, empty registry", () => {
@@ -211,14 +211,12 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("def.setup");
   });
 
-  it("registers module plugins before direct plugins and before start", () => {
+  it("registers module plugins and then starts the engine", () => {
     const code = generateEntryModule(false, ["@gwenjs/input"]);
     const modulePluginsIdx = code.indexOf("for (const p of modulePlugins)");
-    const directPluginsIdx = code.indexOf("gwenConfig.plugins");
     const startIdx = code.indexOf("engine.start()");
     expect(modulePluginsIdx).toBeGreaterThan(0);
-    expect(directPluginsIdx).toBeGreaterThan(modulePluginsIdx);
-    expect(startIdx).toBeGreaterThan(directPluginsIdx);
+    expect(startIdx).toBeGreaterThan(modulePluginsIdx);
   });
 
   it("kit stub provides all GwenKit methods as no-ops for build-only methods", () => {

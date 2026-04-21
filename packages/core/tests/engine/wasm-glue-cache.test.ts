@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { _resetWasmBridge } from "../../src/engine/wasm-bridge";
+import { _resetWasmBridge } from "../../src/testing";
 import { createEngine } from "../../src/engine/gwen-engine";
 
 describe("_resetWasmBridge — globalThis glue cache eviction", () => {

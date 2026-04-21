@@ -41,4 +41,13 @@ describe("createEngine", () => {
   it("rejects with GwenConfigError on invalid maxEntities", async () => {
     await expect(createEngine({ maxEntities: -1 })).rejects.toThrow(GwenConfigError);
   });
+
+  it("accepts an explicit bridge instance via _bridge option", async () => {
+    const { WasmBridgeImpl } = await import("../src/engine/wasm-bridge");
+    const bridge = new WasmBridgeImpl();
+    const engine = await createEngine({ _bridge: bridge });
+    expect(engine).toBeDefined();
+    // Verify the engine is using the injected bridge
+    expect((engine as any)._bridge).toBe(bridge);
+  });
 });

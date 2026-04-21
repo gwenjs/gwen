@@ -19,6 +19,10 @@
  * ```
  */
 
+// ─── Runtime bootstrap ───────────────────────────────────────────────────────
+
+export { setupGwen } from "./setup";
+
 // ─── Runtime plugins (browser-safe) ──────────────────────────────────────────
 
 export { createViewportsPlugin } from "./viewports-plugin";

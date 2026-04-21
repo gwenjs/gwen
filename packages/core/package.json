@@ -77,6 +77,10 @@
     "./wasm/physics3d": {
       "types": "./wasm/physics3d/gwen_core.d.ts",
       "import": "./wasm/physics3d/gwen_core.js"
+    },
+    "./testing": {
+      "types": "./src/testing.ts",
+      "import": "./src/testing.ts"
     }
   },
   "publishConfig": {
