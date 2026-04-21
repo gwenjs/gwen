@@ -26,7 +26,9 @@ describe("define-actor — ContextSlot<ActorContext>", () => {
     let capturedId: bigint | undefined;
     const MyActor = defineActor("MyActor", EmptyPrefab, () => {
       const id = useEntityId();
-      onStart(() => { capturedId = id; });
+      onStart(() => {
+        capturedId = id;
+      });
     });
     await engine.use(MyActor._plugin);
     const spawnedId = MyActor._plugin.spawn?.();

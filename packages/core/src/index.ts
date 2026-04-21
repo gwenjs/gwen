@@ -16,10 +16,7 @@ export type {
 
 export { createEntityId, unpackEntityId, entityIndex } from "./types";
 
-export {
-  Types,
-  defineComponent,
-} from "./schema";
+export { Types, defineComponent } from "./schema";
 export type {
   SchemaType,
   ComponentSchema,

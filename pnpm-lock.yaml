@@ -35,6 +35,9 @@ importers:
 
   packages/app:
     dependencies:
+      '@gwenjs/core':
+        specifier: workspace:*
+        version: link:../core
       '@gwenjs/kit':
         specifier: workspace:*
         version: link:../kit

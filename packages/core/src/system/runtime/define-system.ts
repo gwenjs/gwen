@@ -28,7 +28,7 @@ import { useEngine, GwenContextError } from "../../engine/context";
 import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
-import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
+import { ScopedHookable, _currentScopeSlot } from "../../hooks/scoped-hookable";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -52,7 +52,7 @@ type RenderFn = () => void;
  * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onBeforeUpdate(fn: UpdateFn): void {
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
   if (!scope) {
     throw new GwenContextError(
       "[GWEN] onBeforeUpdate() must be called inside a defineSystem() or defineActor() factory.",
@@ -70,7 +70,7 @@ export function onBeforeUpdate(fn: UpdateFn): void {
  * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onUpdate(fn: UpdateFn): void {
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
   if (!scope) {
     throw new GwenContextError(
       "[GWEN] onUpdate() must be called inside a defineSystem() or defineActor() factory.",
@@ -88,7 +88,7 @@ export function onUpdate(fn: UpdateFn): void {
  * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onAfterUpdate(fn: UpdateFn): void {
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
   if (!scope) {
     throw new GwenContextError(
       "[GWEN] onAfterUpdate() must be called inside a defineSystem() or defineActor() factory.",
@@ -106,7 +106,7 @@ export function onAfterUpdate(fn: UpdateFn): void {
  * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onRender(fn: RenderFn): void {
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
   if (!scope) {
     throw new GwenContextError(
       "[GWEN] onRender() must be called inside a defineSystem() or defineActor() factory.",
@@ -244,14 +244,14 @@ export function defineSystem<Args extends unknown[]>(
         if (_discovered) return;
         const engine = useEngine();
         _scope = new ScopedHookable(engine.hooks);
-        _activeScopeSlot.run(_scope, () => setupTemplate(...args));
+        _currentScopeSlot.run(_scope, () => setupTemplate(...args));
       },
 
       _discover(): void {
         _discovered = true;
         const engine = useEngine();
         _scope = new ScopedHookable(engine.hooks);
-        _activeScopeSlot.run(_scope, () => setupTemplate(...args));
+        _currentScopeSlot.run(_scope, () => setupTemplate(...args));
       },
 
       teardown(): void {

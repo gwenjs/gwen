@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
-import { onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from "../../src/system/runtime/define-system";
+import {
+  onUpdate,
+  onBeforeUpdate,
+  onAfterUpdate,
+  onRender,
+} from "../../src/system/runtime/define-system";
 
 describe("system lifecycle composables — context guard", () => {
   it("onUpdate throws outside context", () => {

@@ -249,17 +249,23 @@ describe("Engine lifecycle — stop()", () => {
     (engine as any).disposables.add("first", {
       disposed: false,
       dispose: () => order.push(1),
-      [Symbol.dispose]() { this.dispose(); },
+      [Symbol.dispose]() {
+        this.dispose();
+      },
     });
     (engine as any).disposables.add("second", {
       disposed: false,
       dispose: () => order.push(2),
-      [Symbol.dispose]() { this.dispose(); },
+      [Symbol.dispose]() {
+        this.dispose();
+      },
     });
     (engine as any).disposables.add("third", {
       disposed: false,
       dispose: () => order.push(3),
-      [Symbol.dispose]() { this.dispose(); },
+      [Symbol.dispose]() {
+        this.dispose();
+      },
     });
 
     await engine.stop();
@@ -275,18 +281,24 @@ describe("Engine lifecycle — stop()", () => {
     const rafCalls: Function[] = [];
     const timeoutCalls: Function[] = [];
 
-    vi.stubGlobal("requestAnimationFrame", vi.fn((cb: Function) => {
-      rafCalls.push(cb);
-      return rafCalls.length;
-    }));
+    vi.stubGlobal(
+      "requestAnimationFrame",
+      vi.fn((cb: Function) => {
+        rafCalls.push(cb);
+        return rafCalls.length;
+      }),
+    );
     vi.stubGlobal("clearTimeout", vi.fn());
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
 
     // Track setTimeout (used as RAF fallback in some environments)
-    vi.stubGlobal("setTimeout", vi.fn((cb: Function) => {
-      timeoutCalls.push(cb);
-      return timeoutCalls.length as unknown as ReturnType<typeof setTimeout>;
-    }));
+    vi.stubGlobal(
+      "setTimeout",
+      vi.fn((cb: Function) => {
+        timeoutCalls.push(cb);
+        return timeoutCalls.length as unknown as ReturnType<typeof setTimeout>;
+      }),
+    );
 
     await engine.start();
     const initialCallCount = rafCalls.length + timeoutCalls.length;
@@ -299,8 +311,9 @@ describe("Engine lifecycle — stop()", () => {
     expect(afterStopCallCount).toBe(initialCallCount);
 
     // Verify cancelAnimationFrame or clearTimeout was called
-    expect(vi.mocked(cancelAnimationFrame).mock.calls.length +
-           vi.mocked(clearTimeout).mock.calls.length).toBeGreaterThan(0);
+    expect(
+      vi.mocked(cancelAnimationFrame).mock.calls.length + vi.mocked(clearTimeout).mock.calls.length,
+    ).toBeGreaterThan(0);
 
     vi.useRealTimers();
   });

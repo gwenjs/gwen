@@ -11,7 +11,7 @@
  * - Lifecycle composables (`onStart`, `onDestroy`, `onEvent`) read from the
  *   module-level actor context set during `spawn`.
  * - Frame-phase composables (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
- *   `onRender`) work via `_activeScopeSlot` from `scoped-hookable.ts`.
+ *   `onRender`) work via `_currentScopeSlot` from `scoped-hookable.ts`.
  *
  * @example
  * ```typescript
@@ -42,7 +42,7 @@ import type {
   VoidFn,
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
-import { ScopedHookable, _activeScopeSlot } from "../../hooks/scoped-hookable";
+import { ScopedHookable, _currentScopeSlot } from "../../hooks/scoped-hookable";
 import { engineContext } from "../../engine/context";
 import { ContextSlot } from "../../engine/context-slot";
 
@@ -494,7 +494,7 @@ export function defineActor<Props = void, PublicAPI = void>(
       const needsEngineCtx = !engineContext.tryUse();
       if (needsEngineCtx) engineContext.set(_engine!);
       try {
-        _activeScopeSlot.run(instance._scope, () => {
+        _currentScopeSlot.run(instance._scope, () => {
           api = (factory as (props?: Props) => PublicAPI)(props);
         });
       } finally {

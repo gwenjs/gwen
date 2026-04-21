@@ -122,16 +122,25 @@ describe("Frame Loop v2", () => {
       const clearTimeoutCalls: number[] = [];
       const cancelRAFCalls: number[] = [];
 
-      vi.stubGlobal("requestAnimationFrame", vi.fn((cb: Function) => {
-        rafCalls.push(cb);
-        return rafCalls.length as unknown as number;
-      }));
-      vi.stubGlobal("clearTimeout", vi.fn((handle: number) => {
-        clearTimeoutCalls.push(handle);
-      }));
-      vi.stubGlobal("cancelAnimationFrame", vi.fn((handle: number) => {
-        cancelRAFCalls.push(handle);
-      }));
+      vi.stubGlobal(
+        "requestAnimationFrame",
+        vi.fn((cb: Function) => {
+          rafCalls.push(cb);
+          return rafCalls.length as unknown as number;
+        }),
+      );
+      vi.stubGlobal(
+        "clearTimeout",
+        vi.fn((handle: number) => {
+          clearTimeoutCalls.push(handle);
+        }),
+      );
+      vi.stubGlobal(
+        "cancelAnimationFrame",
+        vi.fn((handle: number) => {
+          cancelRAFCalls.push(handle);
+        }),
+      );
 
       await engine.start();
       const callCountBeforeStop = rafCalls.length;

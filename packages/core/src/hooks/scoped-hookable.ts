@@ -7,7 +7,7 @@
  * registered handlers without unregistering them — used by actor pools to
  * implement dormancy with zero per-handler overhead.
  *
- * The module-level `_activeScopeSlot` is set by `defineActor`, `defineSystem`,
+ * The module-level `_currentScopeSlot` is set by `defineActor`, `defineSystem`,
  * and `defineScene` around their factory calls so that lifecycle composables
  * (`onUpdate`, `onStart`, …) can register into the correct scope without
  * receiving an explicit reference.
@@ -146,4 +146,4 @@ export class ScopedHookable {
  *
  * @internal
  */
-export const _activeScopeSlot = new ContextSlot<ScopedHookable>();
+export const _currentScopeSlot = new ContextSlot<ScopedHookable>();

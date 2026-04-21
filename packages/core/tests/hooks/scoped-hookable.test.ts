@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createHooks } from "hookable";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
-import { ScopedHookable, _activeScopeSlot } from "../../src/hooks/scoped-hookable";
+import { ScopedHookable, _currentScopeSlot } from "../../src/hooks/scoped-hookable";
 
 function makeParent() {
   return createHooks<GwenRuntimeHooks>();
@@ -127,9 +127,9 @@ describe("ScopedHookable — dispose()", () => {
   });
 });
 
-describe("_activeScopeSlot", () => {
+describe("_currentScopeSlot", () => {
   it("returns null when no scope is active", () => {
-    expect(_activeScopeSlot.get()).toBeNull();
+    expect(_currentScopeSlot.get()).toBeNull();
   });
 
   it("returns the scope while inside ContextSlot.run()", () => {
@@ -137,12 +137,12 @@ describe("_activeScopeSlot", () => {
     const scope = new ScopedHookable(parent);
     let captured: ScopedHookable | null = null;
 
-    _activeScopeSlot.run(scope, () => {
-      captured = _activeScopeSlot.get();
+    _currentScopeSlot.run(scope, () => {
+      captured = _currentScopeSlot.get();
     });
 
     expect(captured).toBe(scope);
-    expect(_activeScopeSlot.get()).toBeNull(); // restored after run
+    expect(_currentScopeSlot.get()).toBeNull(); // restored after run
   });
 
   it("restores the previous scope on nested run() calls", () => {
@@ -151,17 +151,17 @@ describe("_activeScopeSlot", () => {
     const innerScope = new ScopedHookable(parent);
     const captured: Array<ScopedHookable | null> = [];
 
-    _activeScopeSlot.run(outerScope, () => {
-      captured.push(_activeScopeSlot.get());
-      _activeScopeSlot.run(innerScope, () => {
-        captured.push(_activeScopeSlot.get());
+    _currentScopeSlot.run(outerScope, () => {
+      captured.push(_currentScopeSlot.get());
+      _currentScopeSlot.run(innerScope, () => {
+        captured.push(_currentScopeSlot.get());
       });
-      captured.push(_activeScopeSlot.get());
+      captured.push(_currentScopeSlot.get());
     });
 
     expect(captured[0]).toBe(outerScope);
     expect(captured[1]).toBe(innerScope);
     expect(captured[2]).toBe(outerScope);
-    expect(_activeScopeSlot.get()).toBeNull();
+    expect(_currentScopeSlot.get()).toBeNull();
   });
 });

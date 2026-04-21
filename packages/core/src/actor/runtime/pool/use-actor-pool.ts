@@ -26,7 +26,7 @@
  */
 import { useEngine } from "../../../engine/context";
 import { SCENE_REGISTRAR_KEY } from "../../../scene/runtime/scene-registrar";
-import { _activeScopeSlot } from "../../../hooks/scoped-hookable";
+import { _currentScopeSlot } from "../../../hooks/scoped-hookable";
 import type { ActorPool } from "./types";
 
 export function useActorPool<Props, PublicAPI>(
@@ -41,7 +41,7 @@ export function useActorPool<Props, PublicAPI>(
 
   // Auto-destroy pool when the scene leaves.
   // Use the active scope (the scene's ScopedHookable) to register the cleanup hook.
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
   if (scope) {
     scope.hook("scene:beforeLeave", () => {
       pool.destroyAll();

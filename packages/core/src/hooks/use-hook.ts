@@ -1,7 +1,7 @@
 import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
-import { _activeScopeSlot } from "./scoped-hookable.js";
+import { _currentScopeSlot } from "./scoped-hookable.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -68,7 +68,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
   const engine = useEngine();
-  const scope = _activeScopeSlot.get();
+  const scope = _currentScopeSlot.get();
 
   if (scope) {
     // Inside a scoped context (actor, system, scene):
