@@ -248,20 +248,20 @@ export class WasmBridgeImpl implements WasmBridge {
     return this._typeIdBuffer.subarray(0, n);
   }
 
-  // ── Bulk buffers (zero-alloc query optimization) ──────────────────────────
+  // ── Query buffers (zero-alloc query optimization) ──────────────────────────
 
   /** Reusable static buffer for query results (entity slots). */
-  private _bulkSlots?: Uint32Array;
+  private _querySlotsBuf?: Uint32Array;
   /** Reusable static buffer for query results (entity generations). */
-  private _bulkGens?: Uint32Array;
+  private _queryGensBuf?: Uint32Array;
   /** Reusable static buffer for bulk component data. */
-  private _bulkBuf?: Uint8Array;
+  private _queryDataBuf?: Uint8Array;
 
   /** @internal */
-  _resetBulkBuffers(): void {
-    this._bulkSlots = undefined;
-    this._bulkGens = undefined;
-    this._bulkBuf = undefined;
+  _resetQueryBuffers(): void {
+    this._querySlotsBuf = undefined;
+    this._queryGensBuf = undefined;
+    this._queryDataBuf = undefined;
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────
@@ -409,7 +409,7 @@ export class WasmBridgeImpl implements WasmBridge {
     this._lastMemoryBuffer = null;
     this._queryResultView = null;
     this._maxEntities = 10_000;
-    this._resetBulkBuffers();
+    this._resetQueryBuffers();
     const ctx = globalThis as Record<string, unknown>;
     for (const key of Object.keys(ctx)) {
       if (key.startsWith("__gwenGlue_")) delete ctx[key];
@@ -556,21 +556,21 @@ export class WasmBridgeImpl implements WasmBridge {
     const byteStride = f32Stride * 4;
 
     // Lazily allocate static views — reused every frame to avoid GC pressure.
-    if (!this._bulkSlots) {
-      this._bulkSlots = new Uint32Array(maxEntities);
-      this._bulkGens = new Uint32Array(maxEntities);
-      this._bulkBuf = new Uint8Array(maxEntities * byteStride);
-    } else if ((this._bulkBuf?.length ?? 0) < maxEntities * byteStride) {
+    if (!this._querySlotsBuf) {
+      this._querySlotsBuf = new Uint32Array(maxEntities);
+      this._queryGensBuf = new Uint32Array(maxEntities);
+      this._queryDataBuf = new Uint8Array(maxEntities * byteStride);
+    } else if ((this._queryDataBuf?.length ?? 0) < maxEntities * byteStride) {
       // Re-allocate if stride increased (different component on same bridge).
-      this._bulkBuf = new Uint8Array(maxEntities * byteStride);
+      this._queryDataBuf = new Uint8Array(maxEntities * byteStride);
     }
 
     const result = this._requireWasm().query_read_bulk(
       new Uint32Array(componentTypeIds),
       readTypeId,
-      this._bulkSlots,
-      this._bulkGens!,
-      this._bulkBuf!,
+      this._querySlotsBuf,
+      this._queryGensBuf!,
+      this._queryDataBuf!,
     );
 
     // result is a Uint32Array [entityCount, bytesWritten]
@@ -578,9 +578,9 @@ export class WasmBridgeImpl implements WasmBridge {
 
     return {
       entityCount,
-      data: new Float32Array(this._bulkBuf!.buffer, 0, entityCount * f32Stride),
-      slots: this._bulkSlots.subarray(0, entityCount),
-      gens: this._bulkGens!.subarray(0, entityCount),
+      data: new Float32Array(this._queryDataBuf!.buffer, 0, entityCount * f32Stride),
+      slots: this._querySlotsBuf.subarray(0, entityCount),
+      gens: this._queryGensBuf!.subarray(0, entityCount),
     };
   }
 
