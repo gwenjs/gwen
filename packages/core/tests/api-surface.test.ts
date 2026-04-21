@@ -7,8 +7,8 @@ import * as actor from "../src/actor/index";
 describe("API surface (RFC-V2-013)", () => {
   it("exports stable V2 runtime entrypoints", () => {
     expect(typeof core.createEngine).toBe("function");
-    expect(typeof core.initWasm).toBe("function");
     expect(typeof core.getWasmBridge).toBe("function");
+    expect(typeof core.WasmBridgeImpl).toBe("function");
     expect(typeof system.defineSystem).toBe("function");
     expect(typeof scene.defineScene).toBe("function");
     expect(typeof actor.definePrefab).toBe("function");

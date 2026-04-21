@@ -821,7 +821,7 @@ class GwenEngineImpl implements GwenEngine {
     if (!bridge) {
       throw new Error(
         "[GWEN] getPlacementBridge() called before WASM is initialised. " +
-          "Await initWasm() before calling placement composables.",
+          "Await bridge.init() before calling placement composables.",
       );
     }
     return bridge as unknown as PlacementBridge;
@@ -868,8 +868,8 @@ class GwenEngineImpl implements GwenEngine {
     const bridge = this._bridge;
     if (!bridge.isActive()) {
       throw new Error(
-        "[GWEN] loadWasmModule() was called before initWasm() completed. " +
-          "Await initWasm() (or createEngine()) before loading community WASM modules.",
+        "[GWEN] loadWasmModule() was called before WASM bridge initialisation. " +
+          "Await bridge.init() (or setupGwen()) before loading community WASM modules.",
       );
     }
     if (!this._sharedMemory) {
@@ -1145,15 +1145,16 @@ export async function createEngine(options?: GwenEngineOptions): Promise<GwenEng
  *
  * Equivalent to:
  * ```ts
- * await initWasm(options?.variant ?? 'light');
- * const engine = await createEngine(options);
+ * const bridge = new WasmBridgeImpl();
+ * await bridge.init(options?.variant ?? 'light', options);
+ * const engine = await createEngine({ ...options, _bridge: bridge });
  * ```
  *
  * Use this in application entry points. In tests or environments where WASM
  * must be mocked, call {@link createEngine} directly and pass a pre-configured
  * `WasmBridgeImpl` via the `_bridge` option (e.g. `createEngine({ _bridge: myBridge })`).
  *
- * @param options - Engine configuration. `variant` is forwarded to `initWasm`.
+ * @param options - Engine configuration. `variant` is forwarded to `bridge.init`.
  * @returns A fully initialised {@link GwenEngine} with WASM ready.
  *
  * @example

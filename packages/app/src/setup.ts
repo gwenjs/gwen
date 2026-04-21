@@ -19,9 +19,9 @@
 
 import {
   createEngine,
+  WasmBridgeImpl,
   detectCoreVariant,
   detectSharedMemoryRequired,
-  initWasm,
   GwenLogger,
   consoleLogProvider,
 } from "@gwenjs/core";
@@ -64,13 +64,15 @@ export async function setupGwen(config: ResolvedGwenConfig): Promise<GwenEngine>
   const variant = detectCoreVariant(variantConfig);
   const requireSAB = detectSharedMemoryRequired(variantConfig);
 
-  // Initialize WASM (must happen before engine creation)
-  await initWasm(variant, { requireSAB });
+  // Initialize WASM and pass the bridge directly to the engine
+  const bridge = new WasmBridgeImpl();
+  await bridge.init(variant, { requireSAB });
 
   // Create the engine with user config options
   const engine = await createEngine({
     ...config.engine,
     variant,
+    _bridge: bridge,
   });
 
   // Create and register logger

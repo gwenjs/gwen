@@ -224,7 +224,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (ctx._variant !== "physics3d") {
         throw new Error(
           `[GWEN:Physics3D] Active core variant is "${ctx._variant}". ` +
-            'Use initWasm("physics3d") before starting the engine.',
+            'Pass variant: "physics3d" when initialising WasmBridgeImpl.',
         );
       }
 

@@ -790,7 +790,8 @@ export class WasmBridgeImpl implements WasmBridge {
 
 // #region Singleton management & test utilities ────────────────────────────────
 
-// ── Backward-compat default bridge (for initWasm() / getWasmBridge() callers) ─
+// Module-level fallback bridge — used by getWasmBridge() outside engine context
+// (benchmarks, test utilities) and by _injectMock* / _resetWasmBridge helpers.
 let _defaultBridge: WasmBridgeImpl | null = null;
 
 function _getDefaultBridge(): WasmBridgeImpl {
@@ -803,7 +804,7 @@ function _getDefaultBridge(): WasmBridgeImpl {
  *
  * When called inside an engine context (actor spawn, plugin setup, engine.run()),
  * returns the per-engine bridge registered via `engine.provide("wasm:bridge")`.
- * Falls back to the default module-level bridge for backward compatibility.
+ * Falls back to the module-level default bridge when outside any engine context.
  */
 export function getWasmBridge(): WasmBridge {
   const engine = engineContext.tryUse();
@@ -813,25 +814,6 @@ export function getWasmBridge(): WasmBridge {
     if (bridge) return bridge;
   }
   return _getDefaultBridge();
-}
-
-/**
- * Load and initialize the gwen_core WASM module. **REQUIRED** before any Engine usage.
- *
- * **Without arguments**: Auto-resolves from `@gwenjs/core/wasm/light/`
- * (pre-compiled artifacts published in the package — no Rust build needed).
- *
- * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
- * @param options Initialization options (urls, max entities, SAB requirement)
- * @throws {Error} If WASM cannot be loaded or has invalid format
- * @deprecated Use `new WasmBridgeImpl()` + `bridge.init()` instead.
- */
-export async function initWasm(
-  variant: CoreVariant = "light",
-  options: InitWasmOptions = {},
-): Promise<void> {
-  _defaultBridge = new WasmBridgeImpl();
-  return _defaultBridge.init(variant, options);
 }
 
 /**
@@ -880,8 +862,7 @@ export function _injectMockWasmExports(exports: { memory?: WebAssembly.Memory })
 /**
  * Fully reset the bridge state — **reserved for unit tests only**.
  *
- * Clears `_wasmEngine`, `_wasmExports`, `_initPromise`, and `_lastMemoryBuffer`
- * so that the next `initWasm()` call starts from a clean slate.
+ * Clears `_wasmEngine`, `_wasmExports`, `_initPromise`, and `_lastMemoryBuffer`.
  * Call this in `afterEach` to prevent state leaking between tests.
  * @deprecated Use `bridge._reset()` on a `WasmBridgeImpl` instance instead.
  */
