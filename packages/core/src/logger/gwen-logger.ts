@@ -1,7 +1,10 @@
-import type { IGwenLogger, IGwenLogProvider, GwenLogEntry, GwenLogLevel } from '@gwenjs/schema';
+import type { IGwenLogger, IGwenLogProvider, GwenLogEntry, GwenLogLevel } from "@gwenjs/schema";
 
 const LEVELS: Record<GwenLogLevel, number> = {
-  debug: 0, info: 1, warn: 2, error: 3,
+  debug: 0,
+  info: 1,
+  warn: 2,
+  error: 3,
 };
 
 /**
@@ -22,10 +25,18 @@ export class GwenLogger implements IGwenLogger {
     private readonly _entityId?: string,
   ) {}
 
-  debug(message: string, payload?: Record<string, unknown>): void { this._emit('debug', message, payload); }
-  info (message: string, payload?: Record<string, unknown>): void { this._emit('info',  message, payload); }
-  warn (message: string, payload?: Record<string, unknown>): void { this._emit('warn',  message, payload); }
-  error(message: string, payload?: Record<string, unknown>): void { this._emit('error', message, payload); }
+  debug(message: string, payload?: Record<string, unknown>): void {
+    this._emit("debug", message, payload);
+  }
+  info(message: string, payload?: Record<string, unknown>): void {
+    this._emit("info", message, payload);
+  }
+  warn(message: string, payload?: Record<string, unknown>): void {
+    this._emit("warn", message, payload);
+  }
+  error(message: string, payload?: Record<string, unknown>): void {
+    this._emit("error", message, payload);
+  }
 
   child(tag: string, entityId?: string): IGwenLogger {
     return new GwenLogger(this._providers, this._minLevel, tag, entityId);
@@ -37,8 +48,8 @@ export class GwenLogger implements IGwenLogger {
       level,
       message,
       payload,
-      tag:       this._tag,
-      entityId:  this._entityId,
+      tag: this._tag,
+      entityId: this._entityId,
       timestamp: performance.now(),
     };
     for (const p of this._providers) p.handle(entry);

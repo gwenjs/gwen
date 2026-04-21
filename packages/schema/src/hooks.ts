@@ -14,7 +14,11 @@ export interface EngineLifecycleHooks {
   "engine:runtimeError": (error: RuntimeErrorRecord) => void;
   "engine:perf:tick": (data: { dt: number; durationMs: number }) => void;
   "engine:perf:system": (data: { name: string; durationMs: number }) => void;
-  "engine:perf:plugin": (data: { name: string; phase: 'setup' | 'teardown'; durationMs: number }) => void;
+  "engine:perf:plugin": (data: {
+    name: string;
+    phase: "setup" | "teardown";
+    durationMs: number;
+  }) => void;
 }
 
 /**

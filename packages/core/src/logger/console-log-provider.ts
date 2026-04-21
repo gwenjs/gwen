@@ -1,4 +1,4 @@
-import type { IGwenLogProvider } from '@gwenjs/schema';
+import type { IGwenLogProvider } from "@gwenjs/schema";
 
 /**
  * Creates a log provider that writes to the browser/Node.js console.
@@ -12,11 +12,9 @@ import type { IGwenLogProvider } from '@gwenjs/schema';
 export function consoleLogProvider(): IGwenLogProvider {
   return {
     handle({ level, message, tag, entityId, payload }) {
-      const prefix = tag
-        ? `[${tag}${entityId ? `#${entityId}` : ''}]`
-        : '[gwen]';
+      const prefix = tag ? `[${tag}${entityId ? `#${entityId}` : ""}]` : "[gwen]";
       const args: unknown[] = payload ? [prefix, message, payload] : [prefix, message];
       console[level](...args);
-    }
+    },
   };
 }
