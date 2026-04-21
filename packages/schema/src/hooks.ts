@@ -12,6 +12,9 @@ export interface EngineLifecycleHooks {
   "engine:stop": () => void;
   "engine:tick": (deltaTime: number) => void;
   "engine:runtimeError": (error: RuntimeErrorRecord) => void;
+  "engine:perf:tick": (data: { dt: number; durationMs: number }) => void;
+  "engine:perf:system": (data: { name: string; durationMs: number }) => void;
+  "engine:perf:plugin": (data: { name: string; phase: 'setup' | 'teardown'; durationMs: number }) => void;
 }
 
 /**
