@@ -58,3 +58,6 @@ export type { GwenEngineBase } from "@gwenjs/schema";
 
 // Observability composables for plugin authors
 export { useLogger, useErrorReporter, usePerfMark } from "./observability.js";
+
+// Scope API for plugin authors
+export { useCurrentScope, createChildScope } from "./context.js";
