@@ -1,7 +1,7 @@
 import { readdirSync, statSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
-import type { GwenViteOptions } from "../types.js";
+import type { GwenViteOptions, LocalPluginsOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 
 const { virtual: LOCAL_PLUGINS_VIRTUAL, resolved: RESOLVED_LOCAL_PLUGINS } = createVirtualModule(
@@ -85,8 +85,9 @@ export function gwenLocalPluginsPlugin(options: GwenViteOptions): Plugin {
     return { name: "gwen:local-plugins" };
   }
 
-  const pluginsDir = (options.localPlugins as { dir?: string } | undefined)?.dir ?? "src/plugins";
-  const hmrEnabled = (options.localPlugins as { hmr?: boolean } | undefined)?.hmr !== false;
+  const opts = options.localPlugins as LocalPluginsOptions | undefined;
+  const pluginsDir = opts?.dir ?? "src/plugins";
+  const hmrEnabled = opts?.hmr !== false;
   let root = process.cwd();
 
   return {
