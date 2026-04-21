@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { GwenLogger } from "../../src/logger/gwen-logger";
 import type { IGwenLogProvider, GwenLogEntry } from "@gwenjs/schema";
 
