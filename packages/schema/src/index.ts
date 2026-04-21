@@ -43,6 +43,7 @@ export type { GwenErrorCode as GwenErrorCodeValue } from "./error-codes";
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
 export type { LogLevel, LogEntry, GwenLogger } from "./logger";
+export type { GwenLogLevel, GwenLogEntry, IGwenLogProvider, IGwenLogger } from "./logger-structured";
 
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
