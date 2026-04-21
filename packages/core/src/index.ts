@@ -5,8 +5,30 @@
 //   @gwenjs/core/scene   — defineScene, defineSceneRouter, ...
 
 // Shared types
-export * from "./types";
-export * from "./schema";
+export type {
+  EntityId,
+  ComponentType,
+  ComponentAccessor,
+  Vector2D,
+  Color,
+  EngineConfig,
+} from "./types";
+
+export { createEntityId, unpackEntityId, entityIndex } from "./types";
+
+export {
+  Types,
+  defineComponent,
+} from "./schema";
+export type {
+  SchemaType,
+  ComponentSchema,
+  SchemaLayout,
+  InferSchemaType,
+  InferComponent,
+  ComponentDefinition,
+  ComponentBody,
+} from "./schema";
 
 // Hooks system
 export { createGwenHooks, useHook, onCleanup, withCleanup, defineHooks } from "./hooks";
@@ -121,6 +143,42 @@ export { detectCoreVariant } from "./utils/variant-detector";
 export { detectSharedMemoryRequired } from "./utils/variant-detector";
 
 // Tween & Animation System
-export * from "./tween/index";
+export type { EasingName, TweenableValue, TweenOptions, TweenHandle } from "./tween/index";
+export {
+  linear,
+  easeInQuad,
+  easeOutQuad,
+  easeInOutQuad,
+  easeInCubic,
+  easeOutCubic,
+  easeInOutCubic,
+  easeInQuart,
+  easeOutQuart,
+  easeInOutQuart,
+  easeInSine,
+  easeOutSine,
+  easeInOutSine,
+  easeInExpo,
+  easeOutExpo,
+  easeInOutExpo,
+  easeInBack,
+  easeOutBack,
+  easeInOutBack,
+  easeInElastic,
+  easeOutElastic,
+  easeInOutElastic,
+  easeInBounce,
+  easeOutBounce,
+  easeInOutBounce,
+  spring,
+  EASING_MAP,
+  TweenPool,
+  TweenManager,
+  getTweenManager,
+  useTween,
+  defineSequence,
+  TweenPlugin,
+} from "./tween/index";
+export type { TweenSlot, TweenPoolPolicy, TweenPluginOptions } from "./tween/index";
 
 export { ErrorCodes } from "./engine/engine-errors";
