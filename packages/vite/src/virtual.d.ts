@@ -32,3 +32,17 @@ declare module "virtual:gwen/env" {
   /** `true` when running under `vite dev`, `false` during `vite build`. */
   export const GWEN_DEV: boolean;
 }
+
+declare module "virtual:gwen/local-plugins" {
+  import type { GwenPlugin } from "@gwenjs/core";
+
+  /** Factories for each file found in `src/plugins/`. Call each factory to get a plugin instance. */
+  export const plugins: Array<() => GwenPlugin>;
+}
+
+declare module "virtual:gwen/local-modules" {
+  import type { GwenModule } from "@gwenjs/schema";
+
+  /** Module definitions found in `src/modules/`, with names inferred from filenames. */
+  export const modules: GwenModule[];
+}
