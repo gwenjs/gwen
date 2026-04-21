@@ -81,6 +81,10 @@
     "./testing": {
       "types": "./src/testing.ts",
       "import": "./src/testing.ts"
+    },
+    "./logger": {
+      "types": "./src/logger/index.ts",
+      "import": "./src/logger/index.ts"
     }
   },
   "publishConfig": {
@@ -152,6 +156,14 @@
       "./wasm/physics3d": {
         "types": "./wasm/physics3d/gwen_core.d.ts",
         "import": "./wasm/physics3d/gwen_core.js"
+      },
+      "./testing": {
+        "types": "./dist/testing.d.ts",
+        "import": "./dist/testing.js"
+      },
+      "./logger": {
+        "types": "./dist/logger/index.d.ts",
+        "import": "./dist/logger/index.js"
       }
     },
     "main": "./dist/index.js",

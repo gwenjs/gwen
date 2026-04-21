@@ -55,3 +55,6 @@ export type { GwenPlugin } from "@gwenjs/schema";
  * ```
  */
 export type { GwenEngineBase } from "@gwenjs/schema";
+
+// Observability composables for plugin authors
+export { useLogger, useErrorReporter, usePerfMark } from "./observability.js";

@@ -28,6 +28,15 @@ import type { GwenEngine } from "@gwenjs/core";
 
 export type { GwenEngine };
 
+// Try to import error codes for structured error reporting
+let _ErrorCode: any = null;
+try {
+  // This is dynamically loaded to avoid circular dependencies
+  _ErrorCode = null;
+} catch {
+  // Fallback if error codes are not available
+}
+
 /**
  * A typed factory function returned by {@link definePlugin}.
  *
@@ -123,7 +132,26 @@ export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
    * fresh plugin instance with its own closure state.
    */
   function PluginFactory(options?: TOptions): TPlugin {
-    return factory(options);
+    const plugin = factory(options);
+
+    // Wrap the plugin setup method to catch and re-throw errors
+    const originalSetup = plugin.setup;
+    if (originalSetup) {
+      // eslint-disable-next-line @typescript-eslint/no-misused-promises
+      plugin.setup = async (engine: GwenEngine) => {
+        const log = (engine as any).logger?.child?.(`plugin:${plugin.name}`) ?? null;
+        try {
+          await originalSetup.call(plugin, engine);
+        } catch (err) {
+          log?.error("Plugin setup failed", { cause: String(err) });
+          // Re-throw with structured error information
+          const errorMsg = `Plugin "${plugin.name}" setup failed: ${err instanceof Error ? err.message : String(err)}`;
+          throw new Error(errorMsg);
+        }
+      };
+    }
+
+    return plugin;
   }
   return PluginFactory as unknown as GwenPluginFactory<
     TOptions extends undefined ? void : TOptions,

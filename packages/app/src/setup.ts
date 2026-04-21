@@ -22,6 +22,8 @@ import {
   detectCoreVariant,
   detectSharedMemoryRequired,
   initWasm,
+  GwenLogger,
+  consoleLogProvider,
 } from "@gwenjs/core";
 import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
@@ -70,6 +72,15 @@ export async function setupGwen(config: ResolvedGwenConfig): Promise<GwenEngine>
     ...config.engine,
     variant,
   });
+
+  // Create and register logger
+  const loggerConfig = config.logger ?? {};
+  const logger = new GwenLogger(
+    loggerConfig.providers ?? [consoleLogProvider()],
+    loggerConfig.minLevel ?? "warn",
+  );
+  // Assign to engine instance (if engine.logger property exists)
+  (engine as any).logger = logger;
 
   // Register built-in plugins (viewports first, then screen which depends on viewports)
   await engine.use(createViewportsPlugin(config.viewports));

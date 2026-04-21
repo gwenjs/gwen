@@ -28,6 +28,15 @@ const DEFAULT_ENGINE = {
   debug: false,
 };
 
+const DEFAULT_LOGGER = {
+  providers: undefined,
+  minLevel: "warn" as const,
+};
+
+const DEFAULT_DEBUG = {
+  perf: false,
+};
+
 /**
  * Merge defaults into user config to produce a {@link ResolvedGwenConfig}.
  * Used internally by `GwenApp` and tests.
@@ -39,6 +48,8 @@ export function resolveConfig(config: GwenUserConfig): ResolvedGwenConfig {
     ...config,
     modules: config.modules ?? [],
     engine: { ...DEFAULT_ENGINE, ...config.engine },
+    logger: { ...DEFAULT_LOGGER, ...config.logger },
+    debug: { ...DEFAULT_DEBUG, ...config.debug },
   };
 }
 
@@ -66,10 +77,14 @@ export async function resolveGwenConfig(rootDir?: string): Promise<ResolvedGwenC
       ...userConfig,
       modules: userConfig.modules ?? [],
       engine: userConfig.engine ?? {},
+      logger: userConfig.logger ?? {},
+      debug: userConfig.debug ?? {},
     },
     {
       modules: [] as GwenModuleEntry[],
       engine: DEFAULT_ENGINE,
+      logger: DEFAULT_LOGGER,
+      debug: DEFAULT_DEBUG,
     },
   ) as ResolvedGwenConfig;
 }

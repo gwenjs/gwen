@@ -8,9 +8,48 @@
 import type { GwenPlugin } from "@gwenjs/core";
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
+import type { IGwenLogProvider, GwenLogLevel } from "@gwenjs/schema";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ScreenSizeProvider } from "@gwenjs/renderer-core";
+
+// ─── Logger and Debug Config ────────────────────────────────────────────────
+
+/**
+ * Logger configuration block in `gwen.config.ts`.
+ *
+ * @example
+ * ```typescript
+ * logger: {
+ *   providers: [consoleLogProvider(), myCustomProvider()],
+ *   minLevel: 'info'
+ * }
+ * ```
+ */
+export interface GwenLoggerConfig {
+  /**
+   * One or more providers that receive every log entry.
+   * @default [consoleLogProvider()]
+   */
+  providers?: IGwenLogProvider[];
+  /**
+   * Entries below this level are silently dropped before reaching providers.
+   * @default 'warn'
+   */
+  minLevel?: GwenLogLevel;
+}
+
+/**
+ * Debug / profiling options in `gwen.config.ts`.
+ */
+export interface GwenDebugConfig {
+  /**
+   * When `true`, the engine emits `engine:perf:tick`, `engine:perf:system`, and
+   * `engine:perf:plugin` hooks with timing data.
+   * @default false
+   */
+  perf?: boolean;
+}
 
 // ─── GwenModuleOptions (augmentable) ─────────────────────────────────────────
 
@@ -80,6 +119,12 @@ export interface GwenUserConfig {
     debug?: boolean;
   };
 
+  /** Logger configuration. */
+  logger?: GwenLoggerConfig;
+
+  /** Debug / profiling configuration. */
+  debug?: GwenDebugConfig;
+
   /**
    * Global CSS files to inject into every page.
    * Paths are relative to the project root (e.g. `'./src/styles/global.css'`).
@@ -140,6 +185,8 @@ export interface GwenUserConfig {
 export type ResolvedGwenConfig = GwenUserConfig & {
   engine: Required<NonNullable<GwenUserConfig["engine"]>>;
   modules: GwenModuleEntry[];
+  logger: GwenLoggerConfig & { minLevel: GwenLogLevel };
+  debug: GwenDebugConfig & { perf: boolean };
 };
 
 /**
