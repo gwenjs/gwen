@@ -85,6 +85,10 @@
     "./logger": {
       "types": "./src/logger/index.ts",
       "import": "./src/logger/index.ts"
+    },
+    "./context": {
+      "types": "./src/context/scope.ts",
+      "import": "./src/context/scope.ts"
     }
   },
   "publishConfig": {
@@ -164,6 +168,10 @@
       "./logger": {
         "types": "./dist/logger/index.d.ts",
         "import": "./dist/logger/index.js"
+      },
+      "./context": {
+        "types": "./dist/context/scope.d.ts",
+        "import": "./dist/context/scope.js"
       }
     },
     "main": "./dist/index.js",
