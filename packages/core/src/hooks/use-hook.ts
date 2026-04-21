@@ -2,6 +2,7 @@ import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { _currentScopeSlot } from "./scoped-hookable.js";
+import { GwenScope } from "../context/scope.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -25,17 +26,21 @@ export type UnsubscribeFn = () => void;
  * Subscribes to a {@link GwenRuntimeHooks} event from any engine context
  * (system, actor, plugin, or `engine.run()`).
  *
- * **Automatic cleanup:** when called inside an active scope context (a
- * `defineSystem()` factory, a `defineActor()` factory, or a `defineScene()`
- * factory), the subscription is automatically removed when the scope is
- * disposed — no manual cleanup needed. When called outside a scope (e.g.
- * directly in a plugin `setup()` via `onCleanupIfActive`), the returned
- * unsubscribe function must be called manually.
+ * **Automatic cleanup:** when called inside an active {@link GwenScope}
+ * (via `scope.run()`, or inside a `defineSystem()` / `defineActor()` /
+ * `defineScene()` factory), the subscription is automatically removed when
+ * the scope is disposed — no manual cleanup needed. When called outside a
+ * scope (e.g. directly in a plugin `setup()` via `onCleanupIfActive`), the
+ * returned unsubscribe function must be called manually.
  *
  * **Pool dormancy:** when called inside a `defineActor()` factory for a pooled
  * actor, the handler is automatically silenced while the actor is dormant
  * (returned to the pool). No warning is emitted — dormancy is handled
- * transparently by the actor's {@link ScopedHookable}.
+ * transparently by the scope's {@link ScopedHookable}.
+ *
+ * **Phase 3 (GwenScope):** Delegates to {@link GwenScope.current} when a
+ * scope is active, falling back to the legacy `_currentScopeSlot` mechanism
+ * for backward compatibility.
  *
  * Must be called inside an active engine context.
  *
@@ -68,16 +73,26 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   fn: GwenRuntimeHooks[K],
 ): UnsubscribeFn {
   const engine = useEngine();
-  const scope = _currentScopeSlot.get();
 
-  if (scope) {
+  // Phase 3: Try GwenScope.current() first (unified context system)
+  const gwenScope = GwenScope.current();
+  if (gwenScope) {
+    // Inside a GwenScope (via scope.run()):
+    // — dormancy is handled by scope.pause() — no guard needed
+    // — cleanup is handled by scope.dispose()
+    return gwenScope.hook(name, fn);
+  }
+
+  // Fallback: Legacy _currentScopeSlot (for backward compatibility during migration)
+  const scopedHookable = _currentScopeSlot.get();
+  if (scopedHookable) {
     // Inside a scoped context (actor, system, scene):
     // — dormancy is handled by scope.pause() — no guard needed
     // — cleanup is handled by scope.dispose()
-    return scope.hook(name, fn);
+    return scopedHookable.hook(name, fn);
   }
 
-  // Outside a scope (plugin setup, engine.run(), manual use):
+  // Outside any scope (plugin setup via engine.run(), manual use):
   // — register directly on engine.hooks
   // — use onCleanupIfActive so cleanup is automatic if a cleanup context is active
   const unsubscribe = engine.hooks.hook(name, fn as never);

@@ -7,6 +7,7 @@ import {
   engineContext,
   GwenContextError,
 } from "../../src";
+import { GwenScope } from "../../src/context/scope.js";
 
 describe("GwenContextError — error codes", () => {
   it("has code OUTSIDE_ENGINE when called outside any context", () => {
@@ -110,5 +111,31 @@ describe("withAsyncContext", () => {
     await wrappedFn();
     // context should be falsy after completion — no leak
     expect(engineContext.tryUse()).toBeFalsy();
+  });
+});
+
+// ─── Phase 3: GwenScope propagation across async boundaries ────────────────
+
+describe("executeAsync — GwenScope propagation", () => {
+  it("captures the current GwenScope", async () => {
+    const engine = await createEngine();
+    const scope = new GwenScope(engine, { type: "plugin", name: "test" });
+
+    let capturedScope: GwenScope | null = null;
+    engine.run(() => {
+      scope.run(() => {
+        const [_promise, restore] = executeAsync(async () => {
+          // scope will be captured by executeAsync
+        });
+        capturedScope = GwenScope.current();
+        // Clear the scope
+        GwenScope._setCurrent(null);
+        // Restore should restore the scope
+        restore();
+        expect(GwenScope.current()).toBe(scope);
+      });
+    });
+
+    expect(capturedScope).toBe(scope);
   });
 });

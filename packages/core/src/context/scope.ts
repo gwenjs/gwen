@@ -12,9 +12,9 @@
  * @module
  */
 
-import type { GwenScopeMeta, IGwenScope } from '@gwenjs/schema';
-import type { GwenRuntimeHooks } from '@gwenjs/schema';
-import { ScopedHookable } from '../hooks/scoped-hookable.js';
+import type { GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
+import type { GwenRuntimeHooks } from "@gwenjs/schema";
+import { ScopedHookable } from "../hooks/scoped-hookable.js";
 
 let _scopeIdCounter = 0;
 
@@ -68,8 +68,8 @@ export class GwenScope implements IGwenScope {
 
   constructor(
     engine: any,
-    meta: Omit<GwenScopeMeta, 'id'> & { id?: string },
-    parent: GwenScope | null = null
+    meta: Omit<GwenScopeMeta, "id"> & { id?: string },
+    parent: GwenScope | null = null,
   ) {
     const id = meta.id ?? `${meta.type}#${++_scopeIdCounter}`;
     this.engine = engine;
@@ -89,10 +89,7 @@ export class GwenScope implements IGwenScope {
     }
   }
 
-  hook<K extends keyof GwenRuntimeHooks>(
-    name: K,
-    fn: GwenRuntimeHooks[K]
-  ): () => void {
+  hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
     this._hookCount++;
     const unsub = this._hookable.hook(name, fn);
     return () => {

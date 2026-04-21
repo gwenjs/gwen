@@ -8,10 +8,10 @@
  * @module
  */
 
-import type { GwenRuntimeHooks } from './plugin.js';
+import type { GwenRuntimeHooks } from "./plugin.js";
 
 /** Discriminant for the runtime object that owns a scope. */
-export type GwenScopeType = 'engine' | 'plugin' | 'scene' | 'actor' | 'system';
+export type GwenScopeType = "engine" | "plugin" | "scene" | "actor" | "system";
 
 /** Immutable identity metadata attached to every `GwenScope`. */
 export interface GwenScopeMeta {
@@ -45,10 +45,7 @@ export interface IGwenScope {
   /** Number of pending cleanup callbacks. */
   readonly cleanupCount: number;
   /** Subscribe to a runtime hook. Returns an unsubscribe function. */
-  hook<K extends keyof GwenRuntimeHooks>(
-    name: K,
-    fn: GwenRuntimeHooks[K]
-  ): () => void;
+  hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void;
   /** Register a cleanup callback — executed LIFO when this scope is disposed. */
   onCleanup(fn: () => void): void;
   /** Execute `fn` with this scope as the active scope. Always restores the previous scope. */

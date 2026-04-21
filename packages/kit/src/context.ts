@@ -7,8 +7,8 @@
  * @module
  */
 
-import type { IGwenScope, GwenScopeMeta } from '@gwenjs/schema';
-import { GwenScope } from '@gwenjs/core/context';
+import type { IGwenScope, GwenScopeMeta } from "@gwenjs/schema";
+import { GwenScope } from "@gwenjs/core/context";
 
 /**
  * Returns the currently active scope, or null if outside any context.
@@ -63,8 +63,8 @@ export function createChildScope(engine: any, meta: GwenScopeMeta): IGwenScope {
   const parent = GwenScope.current();
   if (!parent) {
     throw new Error(
-      'createChildScope() called outside an active scope context. ' +
-        'This function is only valid inside plugin setup, system factories, actor factories, scene factories, or engine.run().'
+      "createChildScope() called outside an active scope context. " +
+        "This function is only valid inside plugin setup, system factories, actor factories, scene factories, or engine.run().",
     );
   }
   return new GwenScope(engine, meta, parent);

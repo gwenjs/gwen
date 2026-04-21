@@ -7,6 +7,8 @@
  * - useHook() returns an unsubscribe function
  * - Handler is auto-removed when plugin is unregistered (plugin context cleanup)
  * - Handler is auto-removed when actor is despawned (actor context cleanup)
+ * - useHook() delegates to GwenScope.current() when a scope is active
+ * - Hooks registered via GwenScope are auto-disposed when scope is disposed
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -15,6 +17,7 @@ import { createEngine, useHook, GwenContextError } from "../../src/index";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import type { UnsubscribeFn } from "../../src/hooks/use-hook";
+import { GwenScope } from "../../src/context/scope.js";
 
 // ── useHook() outside engine context ─────────────────────────────────────────
 
@@ -334,5 +337,73 @@ describe("UnsubscribeFn", () => {
     expect(handler).toHaveBeenCalledOnce(); // still once, not twice
 
     await engine.stop();
+  });
+});
+
+// ── useHook() with GwenScope.current() ───────────────────────────────────────
+
+describe("useHook() delegates to GwenScope.current()", () => {
+  it("useHook called inside scope.run() registers hook via scope", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+    const scope = new GwenScope(engine, { type: "plugin", name: "test-scope" });
+
+    engine.run(() => {
+      scope.run(() => {
+        useHook("entity:spawn", handler);
+      });
+    });
+
+    // Call the hook — handler should fire
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenCalledWith(1n);
+  });
+
+  it("hooks registered via scope are auto-disposed when scope is disposed", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+    const scope = new GwenScope(engine, { type: "plugin", name: "test-scope-dispose" });
+
+    engine.run(() => {
+      scope.run(() => {
+        useHook("entity:spawn", handler);
+      });
+    });
+
+    // Call the hook — handler should fire
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Dispose scope — handler should be removed
+    scope.dispose();
+    engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1); // still once, not twice
+  });
+
+  it("scope.hook() via useHook respects scope pause/resume", async () => {
+    const engine = await createEngine();
+    const handler = vi.fn();
+    const scope = new GwenScope(engine, { type: "plugin", name: "test-scope-pause" });
+
+    engine.run(() => {
+      scope.run(() => {
+        useHook("entity:spawn", handler);
+      });
+    });
+
+    // Active — handler fires
+    engine.hooks.callHook("entity:spawn", 1n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Paused — handler silenced
+    scope.pause();
+    engine.hooks.callHook("entity:spawn", 2n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(1);
+
+    // Resumed — handler fires again
+    scope.resume();
+    engine.hooks.callHook("entity:spawn", 3n as unknown as EntityId);
+    expect(handler).toHaveBeenCalledTimes(2);
   });
 });
