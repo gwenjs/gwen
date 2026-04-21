@@ -5,8 +5,14 @@
  * via {@link onCleanup}, supporting nested contexts for complex cleanup scenarios.
  * Used internally by the actor system and available for manual lifecycle management.
  *
+ * Phase 2 (GwenScope): onCleanup() now delegates to GwenScope.current() when
+ * a scope is active, falling back to the legacy _cleanupStack for backward
+ * compatibility.
+ *
  * @module
  */
+
+import { GwenScope } from "./context/scope.js";
 
 /**
  * Module-level stack of cleanup callback arrays.
@@ -100,7 +106,13 @@ export function onCleanupIfActive(fn: () => void): void {
  * that work both inside and outside a context, use {@link onCleanupIfActive}
  * instead.
  *
- * Callbacks are executed in FIFO order when the context is disposed.
+ * Phase 2: When a {@link GwenScope} is active (via `scope.run()`), the callback
+ * is registered on the scope. When no scope is active, falls back to the legacy
+ * `_cleanupStack` mechanism.
+ *
+ * Callbacks are executed in LIFO order when the context is disposed (Phase 1
+ * `GwenScope.dispose()` runs cleanups in LIFO; legacy `_cleanupStack` returns
+ * callbacks in FIFO order via the dispose closure).
  *
  * @param fn - Callback to invoke when the active lifecycle ends (actor despawn,
  *   plugin teardown, or manual {@link withCleanup} dispose).
@@ -142,6 +154,14 @@ export function onCleanupIfActive(fn: () => void): void {
  * @since 1.0.0
  */
 export function onCleanup(fn: () => void): void {
+  // Phase 2: Prefer active GwenScope
+  const scope = GwenScope.current();
+  if (scope) {
+    scope.onCleanup(fn);
+    return;
+  }
+
+  // Fallback: legacy _cleanupStack (will be removed in Phase 5)
   const top = _cleanupStack[_cleanupStack.length - 1];
   if (!top) {
     throw new Error(
