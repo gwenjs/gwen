@@ -85,10 +85,7 @@ export {
 export type { GwenContextErrorCode } from "./engine/context";
 
 // WASM Bridge
-export { WasmBridgeImpl } from "./engine/wasm-bridge";
-
-// Backward-compat — prefer WasmBridgeImpl instances
-export { initWasm, getWasmBridge } from "./engine/wasm-bridge";
+export { WasmBridgeImpl, initWasm, getWasmBridge } from "./engine/wasm-bridge";
 export type {
   WasmBridge,
   WasmEntityId,
