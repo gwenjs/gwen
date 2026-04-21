@@ -2,9 +2,9 @@
  * @file definePlugin — factory API for GWEN plugins.
  *
  * Returns a typed factory function. Plugin authors provide a factory that
- * returns a plain object conforming to the {@link GwenPlugin} interface
+ * returns a plain object conforming to the {@link GwenPlugin} interface.
  *
- * @example TypeScript plugin
+ * @example
  * ```typescript
  * import { definePlugin } from '@gwenjs/kit'
  *
@@ -24,18 +24,11 @@
  */
 
 import type { GwenPlugin } from "@gwenjs/schema";
+import { GwenErrorCode } from "@gwenjs/schema";
+import { GwenComposableError } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 
 export type { GwenEngine };
-
-// Try to import error codes for structured error reporting
-let _ErrorCode: any = null;
-try {
-  // This is dynamically loaded to avoid circular dependencies
-  _ErrorCode = null;
-} catch {
-  // Fallback if error codes are not available
-}
 
 /**
  * A typed factory function returned by {@link definePlugin}.
@@ -55,40 +48,9 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
  * Define a GWEN plugin via a factory function.
  *
  * The factory receives optional options and returns a plain object conforming
- * to the {@link GwenPlugin} interface. `definePlugin` wraps this factory and
- * returns a typed factory function.
- *
- * @param factory - A function that receives options and returns a `GwenPlugin`
- *   object. The factory is called fresh each time the returned factory function
- *   is invoked, giving every plugin instance its own closure state.
- * @returns A typed {@link GwenPluginFactory}. Call it (with options if required)
- *   to get a plugin instance ready for `engine.use()`.
- *
- * @example
- * ```typescript
- * import { definePlugin } from '@gwenjs/kit'
- *
- * export const MyPlugin = definePlugin((opts: { debug?: boolean } = {}) => ({
- *   name: 'MyPlugin',
- *   setup(engine) {
- *     if (opts.debug) console.log('[MyPlugin] setup')
- *   },
- *   teardown() {
- *     if (opts.debug) console.log('[MyPlugin] teardown')
- *   },
- * }))
- *
- * // Instantiate and register:
- * const plugin = MyPlugin({ debug: true })
- * await engine.use(plugin)
- * ```
- *
- /**
- * Define a GWEN plugin via a factory function.
- *
- * The factory receives optional options and returns a plain object conforming
- * to the {@link GwenPlugin} interface. `definePlugin` wraps this factory and
- * returns a typed factory function.
+ * to the {@link GwenPlugin} interface. `definePlugin` wraps the factory and
+ * returns a typed factory function. Plugin setup errors are automatically
+ * caught, logged, and re-thrown as structured {@link GwenComposableError}s.
  *
  * @typeParam TOptions - The type of options the factory accepts. Inferred from
  *   the factory parameter — leave it unspecified for automatic inference.
@@ -127,14 +89,9 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
 export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
   factory: (options?: TOptions) => TPlugin,
 ): GwenPluginFactory<TOptions extends undefined ? void : TOptions, TPlugin> {
-  /**
-   * Plugin factory function. Calling it (with or without options) returns a
-   * fresh plugin instance with its own closure state.
-   */
   function PluginFactory(options?: TOptions): TPlugin {
     const plugin = factory(options);
 
-    // Wrap the plugin setup method to catch and re-throw errors
     const originalSetup = plugin.setup;
     if (originalSetup) {
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
@@ -144,15 +101,17 @@ export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
           await originalSetup.call(plugin, engine);
         } catch (err) {
           log?.error("Plugin setup failed", { cause: String(err) });
-          // Re-throw with structured error information
-          const errorMsg = `Plugin "${plugin.name}" setup failed: ${err instanceof Error ? err.message : String(err)}`;
-          throw new Error(errorMsg);
+          throw new GwenComposableError(
+            GwenErrorCode.Engine.PLUGIN_SETUP_FAILED,
+            `Plugin "${plugin.name}" setup failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       };
     }
 
     return plugin;
   }
+
   return PluginFactory as unknown as GwenPluginFactory<
     TOptions extends undefined ? void : TOptions,
     TPlugin

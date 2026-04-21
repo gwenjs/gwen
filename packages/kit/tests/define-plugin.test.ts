@@ -9,6 +9,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { definePlugin } from "../src/plugin";
+import { GwenComposableError } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -168,6 +169,44 @@ describe("definePlugin() — TS-only plugin", () => {
     p.teardown!();
 
     expect(log).toEqual(["setup", "update", "teardown"]);
+  });
+});
+
+// ─── Error reporting ──────────────────────────────────────────────────────────
+
+describe("definePlugin() — setup error reporting", () => {
+  it("wraps setup errors as GwenComposableError with PLUGIN_SETUP_FAILED code", async () => {
+    const P = definePlugin(() => ({
+      name: "Broken",
+      setup() {
+        throw new Error("boom");
+      },
+    }));
+    await expect(P().setup(mockEngine())).rejects.toBeInstanceOf(GwenComposableError);
+    await expect(P().setup(mockEngine())).rejects.toMatchObject({
+      code: "engine:plugin-setup-failed",
+    });
+  });
+
+  it("re-throws — does not swallow setup errors", async () => {
+    const P = definePlugin(() => ({
+      name: "Broken",
+      setup() {
+        throw new Error("boom");
+      },
+    }));
+    await expect(P().setup(mockEngine())).rejects.toThrow();
+  });
+
+  it("error message includes plugin name and original message", async () => {
+    const P = definePlugin(() => ({
+      name: "Broken",
+      setup() {
+        throw new Error("original cause");
+      },
+    }));
+    await expect(P().setup(mockEngine())).rejects.toThrow(/Broken/);
+    await expect(P().setup(mockEngine())).rejects.toThrow(/original cause/);
   });
 });
 
