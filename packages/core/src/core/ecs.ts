@@ -245,17 +245,22 @@ export class QueryEngine {
    *
    * Used by tests and the pure-TS ECS path. The engine itself delegates to the
    * WASM bridge for production query execution.
+   *
+   * @param precomputedKey - Optional cache key pre-computed by the Vite transform.
+   *   When provided, `normalizeComponentTypesForQuery` is skipped entirely.
+   *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
    */
   resolve(
     queryDesc: SystemQuery,
     entities: EntityManager,
     components: ComponentRegistry,
+    precomputedKey?: string,
   ): EntityId[] {
     const desc: SystemQueryDescriptor = Array.isArray(queryDesc) ? { all: queryDesc } : queryDesc;
 
     // 1. 'all' filter — primary requirement
     const allRequired = (desc.all ?? []).map((d) => (typeof d === "string" ? d : d.name));
-    let results = this.query(allRequired, entities, components);
+    let results = this.query(allRequired, entities, components, precomputedKey);
 
     // 2. 'any' filter — at least one
     if (desc.any && desc.any.length > 0) {

@@ -784,7 +784,12 @@ class GwenEngineImpl implements GwenEngine {
     const componentRegistry = this._componentRegistry;
     return {
       [Symbol.iterator](): Iterator<EntityAccessor> {
-        const results = queryEngine.resolve(components, entityManager, componentRegistry);
+        const results = queryEngine.resolve(
+          components,
+          entityManager,
+          componentRegistry,
+          _precomputedKey,
+        );
         let i = 0;
         return {
           next(): IteratorResult<EntityAccessor> {
