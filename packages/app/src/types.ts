@@ -70,18 +70,18 @@ export interface GwenDebugConfig {
 export interface GwenModuleOptions {}
 
 /**
- * A module entry in `gwen.config.ts`.
- * Either a string (package name) or a `[name, options]` tuple.
+ * A module entry in `gwen.config.ts` — the npm package name of the module.
+ *
+ * Module-specific options are declared as a top-level key in `gwen.config.ts`,
+ * using the `configKey` declared in the module's `meta`.
  *
  * @example
  * ```typescript
- * modules: [
- *   '@gwenjs/physics2d',
- *   ['@gwenjs/input', { gamepad: true }],
- * ]
+ * modules: ['@gwenjs/physics2d'],
+ * physics2d: { gravity: { x: 0, y: -9.81, z: 0 } }
  * ```
  */
-export type GwenModuleEntry = string | [name: string, options?: Record<string, unknown>];
+export type GwenModuleEntry = string;
 
 /**
  * The full GWEN framework configuration shape.
@@ -98,9 +98,10 @@ export type GwenModuleEntry = string | [name: string, options?: Record<string, u
  * })
  * ```
  */
-export interface GwenUserConfig {
+export interface GwenUserConfig extends GwenModuleOptions {
   /**
-   * List of modules to activate. Each entry is either a string or a `[name, options]` tuple.
+   * List of modules to activate. Each entry is the npm package name.
+   * Module options are declared as a top-level key — see {@link GwenModuleOptions}.
    */
   modules?: GwenModuleEntry[];
 
@@ -184,7 +185,7 @@ export interface GwenUserConfig {
 /** Fully resolved config (same shape as user config, with defaults filled in). */
 export type ResolvedGwenConfig = GwenUserConfig & {
   engine: Required<NonNullable<GwenUserConfig["engine"]>>;
-  modules: GwenModuleEntry[];
+  modules: string[];
   logger: GwenLoggerConfig & { minLevel: GwenLogLevel };
   debug: GwenDebugConfig & { perf: boolean };
 };
@@ -198,6 +199,7 @@ export type ResolvedGwenConfig = GwenUserConfig & {
  * import { defineConfig } from '@gwenjs/app'
  * export default defineConfig({
  *   modules: ['@gwenjs/physics2d'],
+ *   physics2d: { gravity: { x: 0, y: -9.81, z: 0 } },
  *   engine: { maxEntities: 5_000 },
  * })
  * ```

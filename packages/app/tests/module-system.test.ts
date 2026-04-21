@@ -681,7 +681,19 @@ describe("resolveConfig", () => {
   });
 
   it("preserves user-provided modules array", () => {
-    const cfg = resolveConfig({ modules: ["@test/mod-a", ["@test/mod-b", { x: 1 }]] });
+    const cfg = resolveConfig({ modules: ["@test/mod-a", "@test/mod-b"] });
     expect(cfg.modules).toHaveLength(2);
+  });
+});
+
+describe("resolveConfig — module entry as string only", () => {
+  it("accepts string entries in modules array", () => {
+    const cfg = resolveConfig({ modules: ["@test/mod-a", "@test/mod-b"] });
+    expect(cfg.modules).toEqual(["@test/mod-a", "@test/mod-b"]);
+  });
+
+  it("modules defaults to empty array", () => {
+    const cfg = resolveConfig({});
+    expect(cfg.modules).toEqual([]);
   });
 });
