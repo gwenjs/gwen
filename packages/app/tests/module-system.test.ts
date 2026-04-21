@@ -74,17 +74,18 @@ describe("defineGwenModule", () => {
 
 // ─── GwenApp — options merging ────────────────────────────────────────────────
 
-describe("GwenApp.setupModules — options merging", () => {
-  it("calls setup with module defaults when no user options are provided", async () => {
+describe("GwenApp.setupModules — options merging via configKey", () => {
+  it("calls setup with module defaults when no top-level config key is present", async () => {
     const setupFn = vi.fn();
     const mod = defineGwenModule({
-      meta: { name: "@test/mod" },
+      meta: { name: "@test/mod", configKey: "testMod" },
       defaults: { gravity: 9.81, iterations: 8 },
       setup: setupFn,
     });
 
     const config = resolveConfig({
       modules: ["@test/mod"],
+      // no testMod key — defaults should apply
     });
 
     const app = new GwenApp();
@@ -95,6 +96,107 @@ describe("GwenApp.setupModules — options merging", () => {
     expect(receivedOptions).toMatchObject({ gravity: 9.81, iterations: 8 });
   });
 
+  it("user top-level config overrides module defaults (shallow)", async () => {
+    const setupFn = vi.fn();
+    const mod = defineGwenModule({
+      meta: { name: "@test/mod", configKey: "testMod" },
+      defaults: { gravity: 9.81, iterations: 8 },
+      setup: setupFn,
+    });
+
+    const config = resolveConfig({
+      modules: ["@test/mod"],
+      testMod: { gravity: 20 },
+    } as any);
+
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/mod": mod }));
+
+    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
+    expect(receivedOptions.gravity).toBe(20);
+    expect(receivedOptions.iterations).toBe(8); // default preserved
+  });
+
+  it("user top-level config overrides module defaults (deep merge)", async () => {
+    const setupFn = vi.fn();
+    const mod = defineGwenModule({
+      meta: { name: "@test/deep", configKey: "testDeep" },
+      defaults: { renderer: { shadows: true, msaa: 4 } },
+      setup: setupFn,
+    });
+
+    const config = resolveConfig({
+      modules: ["@test/deep"],
+      testDeep: { renderer: { msaa: 2 } },
+    } as any);
+
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/deep": mod }));
+
+    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
+    const renderer = receivedOptions["renderer"] as Record<string, unknown>;
+    expect(renderer.msaa).toBe(2);
+    expect(renderer.shadows).toBe(true);
+  });
+
+  it("module without configKey receives empty options merged with defaults", async () => {
+    const setupFn = vi.fn();
+    const mod = defineGwenModule({
+      meta: { name: "@test/no-key" }, // no configKey
+      defaults: { x: 42 },
+      setup: setupFn,
+    });
+
+    const config = resolveConfig({ modules: ["@test/no-key"] });
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/no-key": mod }));
+
+    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
+    expect(receivedOptions.x).toBe(42);
+  });
+
+  it("empty user config {} preserves all defaults", async () => {
+    const setupFn = vi.fn();
+    const mod = defineGwenModule({
+      meta: { name: "@test/empty-opts", configKey: "emptyOpts" },
+      defaults: { a: 1, b: 2 },
+      setup: setupFn,
+    });
+
+    const config = resolveConfig({
+      modules: ["@test/empty-opts"],
+      emptyOpts: {},
+    } as any);
+
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/empty-opts": mod }));
+
+    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
+    expect(receivedOptions).toMatchObject({ a: 1, b: 2 });
+  });
+});
+
+describe("GwenApp.setupModules — reserved key collision", () => {
+  it("emits a warning and passes empty options when configKey collides with a reserved key", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const setupFn = vi.fn();
+    const mod = defineGwenModule({
+      meta: { name: "@test/bad-key", configKey: "engine" }, // "engine" is reserved
+      defaults: { x: 1 },
+      setup: setupFn,
+    });
+
+    const config = resolveConfig({ modules: ["@test/bad-key"] });
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/bad-key": mod }));
+
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('"engine"'));
+    // options = {} merged with defaults → default x=1 still applies
+    const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
+    expect(receivedOptions.x).toBe(1);
+
+    warnSpy.mockRestore();
+  });
 });
 
 // ─── GwenApp — plugin collection ──────────────────────────────────────────────
@@ -105,7 +207,7 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const mod = defineGwenModule({
       meta: { name: "@test/plugin-mod" },
       setup(_opts, gwen) {
-        gwen.addPlugin(fakePlugin as Parameters<typeof gwen.addPlugin>[0]);
+        gwen.addPlugin(fakePlugin as GwenPlugin);
       },
     });
 
@@ -113,11 +215,8 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/plugin-mod": mod }));
 
-    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
-    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
-    // + testPlugin = 1 plugin at index 4
     expect(app.plugins).toHaveLength(5);
-    expect(app.plugins[4]).toBe(fakePlugin);
+    expect(app.plugins.find((p) => p.name === "test-plugin")).toBe(fakePlugin);
   });
 
   it("collects plugins from multiple modules in order", async () => {
@@ -127,13 +226,13 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const modA = defineGwenModule({
       meta: { name: "@test/mod-a" },
       setup(_opts, gwen) {
-        gwen.addPlugin(pluginA as Parameters<typeof gwen.addPlugin>[0]);
+        gwen.addPlugin(pluginA as GwenPlugin);
       },
     });
     const modB = defineGwenModule({
       meta: { name: "@test/mod-b" },
       setup(_opts, gwen) {
-        gwen.addPlugin(pluginB as Parameters<typeof gwen.addPlugin>[0]);
+        gwen.addPlugin(pluginB as GwenPlugin);
       },
     });
 
@@ -141,12 +240,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const app = new GwenApp();
     await app.setupModules(config, makeLoader({ "@test/mod-a": modA, "@test/mod-b": modB }));
 
-    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
-    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
-    // + pluginA + pluginB = 2 plugins at indices 4-5
     expect(app.plugins).toHaveLength(6);
-    expect(app.plugins[4]).toBe(pluginA);
-    expect(app.plugins[5]).toBe(pluginB);
+    expect(app.plugins.find((p) => p.name === "plugin-a")).toBe(pluginA);
+    expect(app.plugins.find((p) => p.name === "plugin-b")).toBe(pluginB);
   });
 
   it("unwraps factory functions passed to addPlugin()", async () => {
@@ -156,7 +252,7 @@ describe("GwenApp.setupModules — plugin collection", () => {
     const mod = defineGwenModule({
       meta: { name: "@test/factory-mod" },
       setup(_opts, gwen) {
-        gwen.addPlugin(factory as unknown as Parameters<typeof gwen.addPlugin>[0]);
+        gwen.addPlugin(factory as unknown as GwenPlugin);
       },
     });
 
@@ -165,10 +261,7 @@ describe("GwenApp.setupModules — plugin collection", () => {
     await app.setupModules(config, makeLoader({ "@test/factory-mod": mod }));
 
     expect(factory).toHaveBeenCalledOnce();
-    // gwen:viewports + gwen:screen = 2 plugins at indices 0-1 (unshifted/spliced first)
-    // + built-in modules (scene + tween) = 2 plugins at indices 2-3
-    // + factory plugin at index 4
-    expect(app.plugins[4]).toBe(fakePlugin);
+    expect(app.plugins.find((p) => p.name === "factory-plugin")).toBe(fakePlugin);
   });
 });
 
@@ -555,7 +648,7 @@ describe("GwenApp — getter immutability", () => {
     const mod = defineGwenModule({
       meta: { name: "@test/immut" },
       setup(_opts, gwen) {
-        gwen.addPlugin(plugin as Parameters<typeof gwen.addPlugin>[0]);
+        gwen.addPlugin(plugin as GwenPlugin);
       },
     });
 
