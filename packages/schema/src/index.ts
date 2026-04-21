@@ -60,6 +60,10 @@ export type {
   GwenPlugin,
 } from "./plugin";
 
+// ─── Scope ───────────────────────────────────────────────────────────────────
+
+export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";
+
 // ─── Module ──────────────────────────────────────────────────────────────────
 
 export type {
