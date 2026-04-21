@@ -8,7 +8,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createHooks } from "hookable";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
-import { ScopedHookable, _currentScopeSlot } from "../../src/hooks/scoped-hookable";
+import { ScopedHookable } from "../../src/hooks/scoped-hookable";
 
 function makeParent() {
   return createHooks<GwenRuntimeHooks>();
@@ -124,44 +124,5 @@ describe("ScopedHookable — dispose()", () => {
 
     expect(a).toHaveBeenCalledTimes(1); // only the new subscription fires
     expect(b).not.toHaveBeenCalled();
-  });
-});
-
-describe("_currentScopeSlot", () => {
-  it("returns null when no scope is active", () => {
-    expect(_currentScopeSlot.get()).toBeNull();
-  });
-
-  it("returns the scope while inside ContextSlot.run()", () => {
-    const parent = makeParent();
-    const scope = new ScopedHookable(parent);
-    let captured: ScopedHookable | null = null;
-
-    _currentScopeSlot.run(scope, () => {
-      captured = _currentScopeSlot.get();
-    });
-
-    expect(captured).toBe(scope);
-    expect(_currentScopeSlot.get()).toBeNull(); // restored after run
-  });
-
-  it("restores the previous scope on nested run() calls", () => {
-    const parent = makeParent();
-    const outerScope = new ScopedHookable(parent);
-    const innerScope = new ScopedHookable(parent);
-    const captured: Array<ScopedHookable | null> = [];
-
-    _currentScopeSlot.run(outerScope, () => {
-      captured.push(_currentScopeSlot.get());
-      _currentScopeSlot.run(innerScope, () => {
-        captured.push(_currentScopeSlot.get());
-      });
-      captured.push(_currentScopeSlot.get());
-    });
-
-    expect(captured[0]).toBe(outerScope);
-    expect(captured[1]).toBe(innerScope);
-    expect(captured[2]).toBe(outerScope);
-    expect(_currentScopeSlot.get()).toBeNull();
   });
 });

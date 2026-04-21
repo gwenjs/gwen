@@ -7,17 +7,14 @@
  * registered handlers without unregistering them — used by actor pools to
  * implement dormancy with zero per-handler overhead.
  *
- * The module-level `_currentScopeSlot` is set by `defineActor`, `defineSystem`,
- * and `defineScene` around their factory calls so that lifecycle composables
- * (`onUpdate`, `onStart`, …) can register into the correct scope without
- * receiving an explicit reference.
+ * Phase 5 (GwenScope unified): The legacy `_currentScopeSlot` has been removed.
+ * Composables like `onUpdate()` now use `GwenScope.current()` directly.
  *
  * @module
  */
 
 import type { Hookable } from "hookable";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
-import { ContextSlot } from "../engine/context-slot.js";
 
 // ─── ScopedHookable ───────────────────────────────────────────────────────────
 
@@ -130,20 +127,3 @@ export class ScopedHookable {
     this._disposers = [];
   }
 }
-
-// ─── Active scope slot ────────────────────────────────────────────────────────
-
-/**
- * Module-level context slot tracking the currently active `ScopedHookable`.
- *
- * Set by `defineSystem`, `defineActor`, and `defineScene` around their factory
- * calls. Lifecycle composables (`onUpdate`, `onStart`, `onEnter`, …) read from
- * this slot to register their handlers into the correct scope without requiring
- * an explicit reference.
- *
- * Outside any factory context the slot holds `null` — composables that require
- * an active scope throw {@link GwenContextError} in that case.
- *
- * @internal
- */
-export const _currentScopeSlot = new ContextSlot<ScopedHookable>();

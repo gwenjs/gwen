@@ -1,7 +1,6 @@
 import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
-import { _currentScopeSlot } from "./scoped-hookable.js";
 import { GwenScope } from "../context/scope.js";
 
 /**
@@ -38,9 +37,9 @@ export type UnsubscribeFn = () => void;
  * (returned to the pool). No warning is emitted — dormancy is handled
  * transparently by the scope's {@link ScopedHookable}.
  *
- * **Phase 3 (GwenScope):** Delegates to {@link GwenScope.current} when a
- * scope is active, falling back to the legacy `_currentScopeSlot` mechanism
- * for backward compatibility.
+ * **Phase 5 (GwenScope unified):** Always delegates to {@link GwenScope.current}
+ * when inside any factory context. Falls back to direct hook registration for
+ * plugin setup code outside factory contexts.
  *
  * Must be called inside an active engine context.
  *
@@ -74,22 +73,13 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
 ): UnsubscribeFn {
   const engine = useEngine();
 
-  // Phase 3: Try GwenScope.current() first (unified context system)
+  // Phase 5: GwenScope is the unified context system
   const gwenScope = GwenScope.current();
   if (gwenScope) {
     // Inside a GwenScope (via scope.run()):
     // — dormancy is handled by scope.pause() — no guard needed
     // — cleanup is handled by scope.dispose()
     return gwenScope.hook(name, fn);
-  }
-
-  // Fallback: Legacy _currentScopeSlot (for backward compatibility during migration)
-  const scopedHookable = _currentScopeSlot.get();
-  if (scopedHookable) {
-    // Inside a scoped context (actor, system, scene):
-    // — dormancy is handled by scope.pause() — no guard needed
-    // — cleanup is handled by scope.dispose()
-    return scopedHookable.hook(name, fn);
   }
 
   // Outside any scope (plugin setup via engine.run(), manual use):

@@ -42,7 +42,7 @@ import type {
   VoidFn,
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
-import { ScopedHookable, _currentScopeSlot } from "../../hooks/scoped-hookable";
+import { ScopedHookable } from "../../hooks/scoped-hookable";
 import { engineContext } from "../../engine/context";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenScope } from "../../context/scope.js";
@@ -516,10 +516,8 @@ export function defineActor<Props = void, PublicAPI = void>(
       const needsEngineCtx = !engineContext.tryUse();
       if (needsEngineCtx) engineContext.set(_engine!);
       try {
-        _currentScopeSlot.run(instance._scope, () => {
-          actorScope.run(() => {
-            api = (factory as (props?: Props) => PublicAPI)(props);
-          });
+        actorScope.run(() => {
+          api = (factory as (props?: Props) => PublicAPI)(props);
         });
       } finally {
         if (needsEngineCtx) engineContext.unset();
