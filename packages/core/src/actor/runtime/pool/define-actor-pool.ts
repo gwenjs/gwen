@@ -81,12 +81,9 @@ class DeferredReleaseQueue {
  *
  * A released actor is marked **dormant** until re-acquired. While dormant:
  *
- * - {@link onEvent} handlers are **silently skipped** — the event fires but the
- *   handler is never invoked. This is intentional: dormant actors should not
- *   react to game events.
- * - {@link useHook} handlers are also skipped, but emit a **one-time dev warning**
- *   per instance. This warns you that `useHook` is not pool-safe; prefer
- *   `onEvent` for pool-aware actors.
+ * - {@link useHook} handlers are **silently skipped** — the event fires but the
+ *   handler is never invoked while the actor is dormant. This is intentional:
+ *   dormant actors should not react to game events.
  * - ECS queries exclude dormant entities (a `DormantTag` component is added at
  *   release time and removed at re-acquire time).
  * - `onRelease` callbacks fire immediately when `release()` is flushed.

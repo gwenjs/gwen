@@ -10,7 +10,6 @@ export default {
       { name: "onDestroy", from: "@gwenjs/core/actor" },
       { name: "onEnable", from: "@gwenjs/core/actor" },
       { name: "onDisable", from: "@gwenjs/core/actor" },
-      { name: "onEvent", from: "@gwenjs/core/actor" },
       { name: "useActor", from: "@gwenjs/core/actor" },
       { name: "useTransform", from: "@gwenjs/core/actor" },
       { name: "useComponent", from: "@gwenjs/core/actor" },

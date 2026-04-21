@@ -8,7 +8,7 @@
  * - `spawn(props?)` creates an entity, runs the factory inside both the actor
  *   context and the system context, then calls `_start` callbacks immediately.
  * - `despawn(entityId)` calls `_destroy`, runs event cleanups, then destroys the entity.
- * - Lifecycle composables (`onStart`, `onDestroy`, `onEvent`) read from the
+ * - Lifecycle composables (`onStart`, `onDestroy`) read from the
  *   module-level actor context set during `spawn`.
  * - Frame-phase composables (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
  *   `onRender`) work via `GwenScope.current()` unified context system.
