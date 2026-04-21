@@ -1,5 +1,5 @@
 import { readdirSync, statSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
+import { resolve, join, sep } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import type { GwenViteOptions, LocalPluginsOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
@@ -108,7 +108,7 @@ export function gwenLocalPluginsPlugin(options: GwenViteOptions): Plugin {
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       if (!hmrEnabled) return;
-      if (!file.startsWith(resolve(root, pluginsDir) + "/")) return;
+      if (!file.startsWith(resolve(root, pluginsDir) + sep)) return;
       const mod = server.moduleGraph.getModuleById(RESOLVED_LOCAL_PLUGINS);
       if (mod) {
         server.moduleGraph.invalidateModule(mod);

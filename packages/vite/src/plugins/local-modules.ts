@@ -1,5 +1,5 @@
 import { readdirSync, statSync, existsSync } from "node:fs";
-import { resolve, join, relative, basename } from "node:path";
+import { resolve, join, relative, basename, sep } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import type { GwenViteOptions, LocalModulesOptions } from "../types.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
@@ -32,7 +32,7 @@ const { virtual: LOCAL_MODULES_VIRTUAL, resolved: RESOLVED_LOCAL_MODULES } = cre
  */
 export function inferModuleName(filePath: string, dir: string): string {
   const rel = relative(dir, filePath);
-  const parts = rel.split("/");
+  const parts = rel.split(sep);
   if (parts.length === 2 && (parts[1] === "index.ts" || parts[1] === "index.tsx")) {
     return `local:${parts[0]}`;
   }
@@ -167,7 +167,7 @@ export function gwenLocalModulesPlugin(options: GwenViteOptions): Plugin {
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       if (!hmrEnabled) return;
-      if (!file.startsWith(resolve(root, modulesDir) + "/")) return;
+      if (!file.startsWith(resolve(root, modulesDir) + sep)) return;
       const mod = server.moduleGraph.getModuleById(RESOLVED_LOCAL_MODULES);
       if (mod) {
         server.moduleGraph.invalidateModule(mod);
