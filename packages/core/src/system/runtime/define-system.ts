@@ -325,6 +325,8 @@ export type LiveQuery<T = EntityAccessor> = Iterable<T>;
  * entities that match all supplied component definitions at the time you iterate.
  *
  * @param components - List of component definitions to match
+ * @param _cacheKey - Pre-computed cache key injected by the Vite transform.
+ *                    Internal — do not pass manually.
  * @returns A live query iterable of {@link EntityAccessor} objects
  *
  * @throws {GwenContextError} If called outside an active engine context
@@ -343,9 +345,9 @@ export type LiveQuery<T = EntityAccessor> = Iterable<T>;
  * })
  * ```
  */
-export function useQuery(components: ComponentDef[]): LiveQuery {
+export function useQuery(components: ComponentDef[], _cacheKey?: string): LiveQuery {
   const engine = useEngine();
-  return engine.createLiveQuery(components);
+  return engine.createLiveQuery(components, _cacheKey);
 }
 
 // ─── useService ───────────────────────────────────────────────────────────────

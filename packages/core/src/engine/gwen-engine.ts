@@ -768,9 +768,15 @@ class GwenEngineImpl implements GwenEngine {
    * iterated — no stale cache is exposed to the caller.
    *
    * @param components - Array of component definitions all matched entities must have
+   * @param precomputedKey - Optional cache key pre-computed by the Vite transform.
+   *   When provided, `normalizeComponentTypesForQuery` is skipped.
+   *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
    * @returns A live {@link LiveQuery} of {@link EntityAccessor} objects
    */
-  createLiveQuery<T extends ComponentDef>(components: T[]): LiveQuery<EntityAccessor> {
+  createLiveQuery<T extends ComponentDef>(
+    components: T[],
+    _precomputedKey?: string,
+  ): LiveQuery<EntityAccessor> {
     // Capture specific members once — avoids both closure allocation on every
     // iteration start and the no-this-alias lint rule.
     const queryEngine = this._queryEngine;

@@ -450,7 +450,10 @@ export interface GwenEngine extends GwenEngineBase {
   ): InferComponent<D> | undefined;
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
-  createLiveQuery<T extends ComponentDef>(components: T[]): LiveQuery<EntityAccessor>;
+  createLiveQuery<T extends ComponentDef>(
+    components: T[],
+    _precomputedKey?: string,
+  ): LiveQuery<EntityAccessor>;
   getPlacementBridge(): PlacementBridge;
 
   // ─── Config ──────────────────────────────────────────────────────────────
