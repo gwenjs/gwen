@@ -354,4 +354,40 @@ describe("QueryEngine", () => {
       "Invalid component type. Expected string or ComponentDefinition",
     );
   });
+
+  it("should use precomputedKey when provided", () => {
+    const e = em.create();
+    reg.add(e, Position, { x: 1, y: 2 });
+    reg.add(e, Velocity, { vx: 1, vy: 0 });
+    qe.invalidate();
+
+    // Query with precomputedKey skips normalization
+    const precomputedKey = "Position|Velocity";
+    const resultsWithKey = qe.query([Position, Velocity], em, reg, precomputedKey);
+    expect(resultsWithKey).toContain(e);
+  });
+
+  it("precomputedKey should hit cache on subsequent calls", () => {
+    const e = em.create();
+    reg.add(e, Position, { x: 1, y: 2 });
+    qe.invalidate();
+
+    const precomputedKey = "Position";
+    const r1 = qe.query([Position], em, reg, precomputedKey);
+    const r2 = qe.query([Position], em, reg, precomputedKey);
+    expect(r1).toBe(r2); // same array reference (cache hit)
+  });
+
+  it("precomputedKey should work with different component orders", () => {
+    const e = em.create();
+    reg.add(e, Position, { x: 1, y: 2 });
+    reg.add(e, Velocity, { vx: 1, vy: 0 });
+    qe.invalidate();
+
+    // When components are in different order, precomputedKey should still work
+    // because it contains the sorted canonical form
+    const precomputedKey = "Position|Velocity"; // alphabetically sorted
+    const resultsWithKey = qe.query([Velocity, Position], em, reg, precomputedKey);
+    expect(resultsWithKey).toContain(e);
+  });
 });

@@ -283,20 +283,37 @@ export class QueryEngine {
    * Results are cached until next invalidation.
    *
    * Accepts both string names and ComponentDefinition objects.
+   *
+   * @param required - Component type inputs.
+   * @param entities - Entity manager to iterate.
+   * @param components - Component registry to check membership.
+   * @param precomputedKey - Optional cache key pre-computed by the Vite transform.
+   *   When provided, `normalizeComponentTypesForQuery` is skipped entirely.
+   *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
    */
   query(
     required: ComponentTypeInput[],
     entities: EntityManager,
     components: ComponentRegistry,
+    precomputedKey?: string,
   ): EntityId[] {
-    const normalizedRequired = normalizeComponentTypesForQuery(required);
+    let cacheKey: string;
+    let normalizedRequired: string[];
+
+    if (precomputedKey) {
+      // Fast path: use pre-computed key and split it to get normalized component names
+      cacheKey = precomputedKey;
+      normalizedRequired = precomputedKey.split("|");
+    } else {
+      // Slow path: normalize the required array and build the cache key
+      normalizedRequired = normalizeComponentTypesForQuery(required);
+      cacheKey = buildQueryCacheKey(normalizedRequired);
+    }
 
     if (normalizedRequired.length === 0) {
       // Return all alive entities
       return [...entities];
     }
-
-    const cacheKey = buildQueryCacheKey(normalizedRequired);
 
     if (!this.dirty && this.cache.has(cacheKey)) {
       return this.cache.get(cacheKey)!;
