@@ -5,7 +5,8 @@
  */
 
 import { createEntityId } from "@gwenjs/core";
-import type { EntityId, GwenLogger } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/core";
+import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type { Physics3DColliderShape, JointHandle3D } from "../types";
 import type { PluginContext } from "./plugin-context";
 

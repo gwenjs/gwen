@@ -6,7 +6,8 @@
  * Physics3DPlugin closure. The context is created once per plugin instance.
  */
 
-import type { GwenEngine, GwenLogger } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
+import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type {
   Physics3DBodyHandle,
   Physics3DBodyState,

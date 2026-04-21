@@ -1,6 +1,7 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
 import type { GwenEngine, GwenPlugin } from "../../../engine/gwen-engine";
+import type { GwenEngineBase } from "@gwenjs/schema";
 import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
@@ -285,8 +286,8 @@ export function defineActorPool<Props, PublicAPI>(
       _peakActive = 0;
       _acquireCount = 0;
     },
-    setup(engine: GwenEngine): void {
-      _engine = engine;
+    setup(engine: GwenEngineBase): void {
+      _engine = engine as GwenEngine;
 
       // Flush deferred releases at the end of each frame (mid-frame safety).
       useHook("engine:afterTick", () => {

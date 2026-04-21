@@ -26,7 +26,7 @@ import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
 import { engineContext } from "./context";
 import { withCleanup } from "../cleanup-context";
 import { createLogger } from "../logger/index";
-import type { GwenLogger } from "../logger/index";
+import type { IGwenLogger } from "@gwenjs/schema";
 import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
 import { WasmBridgeImpl } from "./wasm-bridge";
@@ -129,7 +129,7 @@ class GwenEngineImpl implements GwenEngine {
   readonly maxDeltaSeconds: number;
   readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
-  readonly logger: GwenLogger;
+  readonly logger: IGwenLogger;
 
   // ─── Disposables ─────────────────────────────────────────────────────────
   readonly disposables = new DisposableRegistry();

@@ -171,37 +171,46 @@ export function createSystemHandle(inner: GwenPlugin): {
     },
   };
 
-  const plugin: GwenPlugin = {
+  // Frame-phase methods are forwarded and gated behind isActive().
+  // They are not part of the GwenPlugin schema contract (which uses hooks internally)
+  // but remain present for backward compatibility and testing.
+  const plugin = {
     name: inner.name,
 
-    setup: (engine) => inner.setup(engine),
+    setup: (engine: Parameters<GwenPlugin["setup"]>[0]) => inner.setup(engine),
 
-    onBeforeUpdate: inner.onBeforeUpdate
+    teardown: inner.teardown ? () => inner.teardown!() : undefined,
+
+    onBeforeUpdate: (inner as unknown as { onBeforeUpdate?: (dt: number) => void }).onBeforeUpdate
       ? (dt: number): void => {
-          if (isActive()) inner.onBeforeUpdate!(dt);
+          if (isActive())
+            (inner as unknown as { onBeforeUpdate: (dt: number) => void }).onBeforeUpdate(dt);
         }
       : undefined,
 
-    onUpdate: inner.onUpdate
+    onUpdate: (inner as unknown as { onUpdate?: (dt: number) => void }).onUpdate
       ? (dt: number): void => {
-          if (isActive()) inner.onUpdate!(dt);
+          if (isActive()) (inner as unknown as { onUpdate: (dt: number) => void }).onUpdate(dt);
         }
       : undefined,
 
-    onAfterUpdate: inner.onAfterUpdate
+    onAfterUpdate: (inner as unknown as { onAfterUpdate?: (dt: number) => void }).onAfterUpdate
       ? (dt: number): void => {
-          if (isActive()) inner.onAfterUpdate!(dt);
+          if (isActive())
+            (inner as unknown as { onAfterUpdate: (dt: number) => void }).onAfterUpdate(dt);
         }
       : undefined,
 
-    onRender: inner.onRender
+    onRender: (inner as unknown as { onRender?: () => void }).onRender
       ? (): void => {
-          if (isActive()) inner.onRender!();
+          if (isActive()) (inner as unknown as { onRender: () => void }).onRender();
         }
       : undefined,
 
-    onError: inner.onError ? (...args) => inner.onError!(...args) : undefined,
-  };
+    onError: inner.onError
+      ? (...args: Parameters<NonNullable<GwenPlugin["onError"]>>) => inner.onError!(...args)
+      : undefined,
+  } as GwenPlugin;
 
   return { plugin, handle };
 }

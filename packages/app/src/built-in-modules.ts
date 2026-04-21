@@ -8,15 +8,10 @@
  */
 
 import type { GwenModule } from "@gwenjs/schema";
-// @ts-expect-error — TS cannot resolve subpath exports in workspace during tsc --noEmit
 import SystemModule from "@gwenjs/core/system/module";
-// @ts-expect-error — TS cannot resolve subpath exports in workspace during tsc --noEmit
 import ActorModule from "@gwenjs/core/actor/module";
-// @ts-expect-error — TS cannot resolve subpath exports in workspace during tsc --noEmit
 import SceneModule from "@gwenjs/core/scene/module";
-// @ts-expect-error — TS cannot resolve subpath exports in workspace during tsc --noEmit
 import RouterModule from "@gwenjs/core/router/module";
-// @ts-expect-error — TS cannot resolve subpath exports in workspace during tsc --noEmit
 import TweenModule from "@gwenjs/core/tween/module";
 
 /**

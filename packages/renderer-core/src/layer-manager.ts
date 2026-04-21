@@ -8,7 +8,7 @@
  */
 
 import { createLogger } from "@gwenjs/core";
-import type { GwenLogger } from "@gwenjs/core";
+import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import {
   EmptyLayersError,
   RendererAlreadyRegisteredError,

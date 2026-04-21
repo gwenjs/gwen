@@ -11,7 +11,7 @@
  * @module
  */
 
-import type { GwenLogger } from "./logger.js";
+import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
 
 /**
@@ -132,7 +132,7 @@ export interface GwenEngineBase {
    * Call `.child('@my/plugin')` to get a scoped logger that tags all entries
    * with your plugin name.
    */
-  readonly logger: GwenLogger;
+  readonly logger: IGwenLogger;
 
   /**
    * Execute `fn` within the engine's composable context.
@@ -171,7 +171,7 @@ export interface PluginErrorContext {
   /**
    * The lifecycle phase in which the error occurred.
    */
-  phase: "setup" | "teardown";
+  phase: "setup" | "teardown" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender";
 
   /** Engine frame index at the time of the error. */
   frame: number;

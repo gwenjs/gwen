@@ -11,7 +11,7 @@
 import { EASING_MAP, type EasingName } from "./easing";
 import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types";
 import { lerp } from "@gwenjs/math";
-import type { GwenLogger } from "../../logger/types";
+import type { IGwenLogger } from "@gwenjs/schema";
 import { GwenConfigError } from "../../engine/config-error";
 
 // ── TweenPoolPolicy ──────────────────────────────────────────────────────────
@@ -417,18 +417,18 @@ export class TweenPool {
   /** Resolved growth policy for this pool instance. @internal */
   private readonly _policy: ResolvedTweenPoolPolicy;
   /** Optional structured logger for capacity warnings. @internal */
-  private readonly _logger: GwenLogger | undefined;
+  private readonly _logger: IGwenLogger | undefined;
 
   /**
    * Create a new TweenPool with a fixed initial capacity and optional growth policy.
    *
    * @param size - Number of pre-allocated slots (default: 256)
    * @param policy - Growth / exhaustion policy (default: `{ onExhausted: 'grow' }`)
-   * @param logger - Optional {@link GwenLogger} for capacity warnings and debug output
+   * @param logger - Optional {@link IGwenLogger} for capacity warnings and debug output
    * @throws {GwenConfigError} If `size` is less than 1
    * @since 1.0.0
    */
-  constructor(size: number = 256, policy?: TweenPoolPolicy, logger?: GwenLogger) {
+  constructor(size: number = 256, policy?: TweenPoolPolicy, logger?: IGwenLogger) {
     if (size < 1) {
       throw new GwenConfigError(
         "tweenPoolSize",
@@ -468,7 +468,7 @@ export class TweenPool {
    * - `'drop'`  — returns `null`; the caller is responsible for handling it.
    *
    * When active usage reaches the `warnAt` fraction of total capacity a
-   * `debug` log is emitted via the injected {@link GwenLogger}.
+   * `debug` log is emitted via the injected {@link IGwenLogger}.
    *
    * @param options - Tween configuration
    * @returns A configured {@link TweenSlot} ready to use, or `null` when

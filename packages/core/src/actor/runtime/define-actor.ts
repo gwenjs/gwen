@@ -11,7 +11,7 @@
  * - Lifecycle composables (`onStart`, `onDestroy`, `onEvent`) read from the
  *   module-level actor context set during `spawn`.
  * - Frame-phase composables (`onUpdate`, `onBeforeUpdate`, `onAfterUpdate`,
- *   `onRender`) work via `_currentScopeSlot` from `scoped-hookable.ts`.
+ *   `onRender`) work via `GwenScope.current()` unified context system.
  *
  * @example
  * ```typescript
@@ -31,9 +31,10 @@
  */
 
 import type { GwenEngine } from "../../engine/gwen-engine";
+import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
-import type { GwenLogger } from "../../logger/types";
+import type { IGwenLogger } from "@gwenjs/schema";
 import type {
   ActorDefinition,
   ActorInstance,
@@ -449,7 +450,7 @@ export function defineActor<Props = void, PublicAPI = void>(
   /** The scoped-proxy engine captured during `setup()`. */
   let _engine: GwenEngine | null = null;
   /** Logger scoped to this actor — set in `setup()`, used for cleanup error reporting. */
-  let _log: GwenLogger | null = null;
+  let _log: IGwenLogger | null = null;
 
   // ─── spawn ───────────────────────────────────────────────────────────────
 
@@ -580,8 +581,8 @@ export function defineActor<Props = void, PublicAPI = void>(
     // explicit options take precedence during the current module evaluation.
     _deps: options?.deps?.map((d) => d._plugin),
 
-    setup(engine: GwenEngine): void {
-      _engine = engine;
+    setup(engine: GwenEngineBase): void {
+      _engine = engine as GwenEngine;
       _log = engine.logger.child(`actor:${pluginName}`);
     },
 

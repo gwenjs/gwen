@@ -69,12 +69,7 @@ export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./
 
 // Logger
 export { createLogger, GwenLogger, consoleLogProvider } from "./logger/index";
-export type {
-  LegacyGwenLogger as GwenLogger,
-  LogLevel,
-  LogEntry,
-  IGwenLogger,
-} from "./logger/index";
+export type { LegacyGwenLogger, LogLevel, LogEntry, IGwenLogger } from "./logger/index";
 
 // Runtime hooks interface
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";

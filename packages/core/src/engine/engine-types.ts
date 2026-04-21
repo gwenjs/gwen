@@ -8,7 +8,7 @@
 
 import type { Hookable } from "hookable";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
-import type { GwenLogger } from "../logger/index";
+import type { IGwenLogger } from "@gwenjs/schema";
 import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
@@ -324,7 +324,7 @@ export interface GwenProvides {
   /** The engine-level error bus. Inject via `engine.inject('errors')`. */
   errors: EngineErrorBus;
   /** The engine-level structured logger. Inject via `engine.inject('logger')`. */
-  logger: GwenLogger;
+  logger: IGwenLogger;
   /**
    * The per-engine TweenManager singleton. Provided by TweenPlugin.
    * Retrieve via `engine.inject('tween:manager')` or `getTweenManager(engine)`.
@@ -398,8 +398,7 @@ export interface GwenEngine extends GwenEngineBase {
   // ─── Hooks (narrows HookBusBase to full Hookable) ────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks>;
 
-  // ─── Logger (inherited from GwenEngineBase, concrete type stays GwenLogger)
-  readonly logger: GwenLogger;
+  readonly logger: IGwenLogger;
 
   // ─── Context ─────────────────────────────────────────────────────────────
   run<T>(fn: () => T): T;

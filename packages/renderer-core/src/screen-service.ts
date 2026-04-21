@@ -6,7 +6,7 @@
  * Plugin authors access it through `getOrCreateScreenService(engine)`.
  */
 
-import type { GwenLogger } from "@gwenjs/core";
+import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import { ScreenErrorCodes } from "./screen-errors.js";
 import type { ViewportManager } from "./viewport-manager.js";
 

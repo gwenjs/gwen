@@ -7,7 +7,7 @@ import type { GwenEngine } from "../../engine/gwen-engine.js";
 import type { TweenOptions, TweenableValue } from "./tween-types.js";
 import { TweenPool, type TweenSlot } from "./tween-pool.js";
 import type { TweenPoolPolicy } from "./tween-pool.js";
-import type { GwenLogger } from "../../logger/types.js";
+import type { IGwenLogger } from "@gwenjs/schema";
 
 export class TweenManager {
   private _pool: TweenPool;
@@ -16,7 +16,7 @@ export class TweenManager {
     engine: GwenEngine,
     poolSize: number = 256,
     policy?: TweenPoolPolicy,
-    logger?: GwenLogger,
+    logger?: IGwenLogger,
   ) {
     this._pool = new TweenPool(poolSize, policy, logger);
     // Hook registered via the scoped proxy provided by engine.use() —
