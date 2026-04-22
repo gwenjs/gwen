@@ -8,7 +8,7 @@ description: Group systems and actors into discrete game states — menus, gamep
 A **scene** groups the active systems and actors for one game state. Swap scenes to change what runs — pause menu, gameplay, cutscene.
 
 ::: info Auto-imports
-`defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionLeave`, `onTransitionEnter` are all auto-imported. `useActor` and `usePrefab` are also auto-imported (from `@gwenjs/core/actor`).
+In a GWEN project, composables are available without any `import` statement — the framework generates global type declarations at build time. You write `defineScene(...)`, `useSystem(...)`, `onEnter(...)` directly, with no import.
 :::
 
 ## The Basics
@@ -16,7 +16,6 @@ A **scene** groups the active systems and actors for one game state. Swap scenes
 Use `defineScene()` to declare a scene. The factory body is a setup context — declare systems and actors via composables.
 
 ```ts
-import { defineScene, useSystem } from '@gwenjs/core/scene'
 import { MovementSystem, RenderSystem } from './systems'
 
 export const GameScene = defineScene('game', () => {
@@ -30,8 +29,6 @@ export const GameScene = defineScene('game', () => {
 Use `onEnter` and `onExit` to run code when the scene activates or deactivates:
 
 ```ts
-import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
-
 export const GameScene = defineScene('game', () => {
   useSystem(MovementSystem())
 
@@ -63,8 +60,6 @@ Async callbacks work seamlessly when `@gwenjs/vite` is configured. The Vite plug
 Use `useActor(def)` in a scene to register an actor and get a handle for spawning:
 
 ```ts
-import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
-import { useActor } from '@gwenjs/core/actor'
 import { PlayerActor } from './actors/player'
 
 export const GameScene = defineScene('game', () => {
@@ -121,8 +116,6 @@ If a scene overlay pauses the underlying scene, systems are automatically scene-
 Use `onTransitionLeave` and `onTransitionEnter` to run animation logic around scene changes:
 
 ```ts
-import { defineScene, onTransitionLeave, onTransitionEnter } from '@gwenjs/core/scene'
-
 export const GameScene = defineScene('game', () => {
   onTransitionLeave(async ({ from, to }) => {
     // awaited before onExit — play leave animation here
@@ -144,8 +137,6 @@ export const GameScene = defineScene('game', () => {
 Use `useSceneRouter(router)` inside `onEnter` to read params passed during the transition:
 
 ```ts
-import { defineScene, onEnter } from '@gwenjs/core/scene'
-import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 
 export const GameScene = defineScene('game', () => {

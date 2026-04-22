@@ -8,7 +8,12 @@ description: Systems are where all game logic lives in GWEN. Learn to define the
 A **system** is a function that runs every frame and reads/writes component data. Systems are the game logic layer of GWEN's ECS.
 
 ::: info Auto-imports
-`defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` are auto-imported. `useHook` and `emit` are **not** auto-imported — import them explicitly from `@gwenjs/core`.
+In a GWEN project, composables are available without any `import` statement — the framework generates global type declarations at build time. You write `defineSystem(...)`, `useQuery(...)`, `onUpdate(...)` directly, with no import.
+
+One exception requires an explicit import:
+```ts
+import { useHook, emit } from '@gwenjs/core'  // event system
+```
 :::
 
 ## The Basics
@@ -16,8 +21,6 @@ A **system** is a function that runs every frame and reads/writes component data
 Use `defineSystem()` to declare a system. It returns a **factory function** — you call it to produce a plugin, then pass that plugin to `useSystem()` inside a scene.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-
 export const ClockSystem = defineSystem(() => {
   let elapsed = 0
 
@@ -35,7 +38,6 @@ useSystem(ClockSystem())
 Use `useQuery()` to get a live collection of entities that have a specific set of components. The query updates automatically as entities are spawned and despawned.
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
@@ -102,8 +104,6 @@ useSystem(CombatSystem(player))  // player satisfies the interface
 Use `useService(key)` to access a value provided by a plugin. Resolved once at setup time, used as a closure in callbacks.
 
 ```ts
-import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
-
 export const AudioSystem = defineSystem(() => {
   const audio = useService('audio')  // provided by an audio plugin
 
@@ -118,7 +118,6 @@ export const AudioSystem = defineSystem(() => {
 Use `useHook()` to subscribe to an engine or game event. The subscription is automatically removed when the scene exits.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const ScoreSystem = defineSystem(() => {
@@ -134,8 +133,8 @@ export const ScoreSystem = defineSystem(() => {
 })
 ```
 
-::: info Not auto-imported
-`useHook` is not auto-imported. Always import it explicitly from `@gwenjs/core`.
+::: info Explicit import required
+`useHook` and `emit` are not auto-imported — always import them from `@gwenjs/core`.
 :::
 
 ## Using Actors in a System
@@ -143,8 +142,6 @@ export const ScoreSystem = defineSystem(() => {
 Use `useActor(def)` inside a system body to get a handle for spawning and despawning actor instances. GWEN auto-discovers and installs the actor plugin — no separate scene declaration needed.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useActor } from '@gwenjs/core/actor'
 import { AsteroidActor } from './actors/asteroid'
 
 export const SpawnSystem = defineSystem(() => {
@@ -163,8 +160,6 @@ export const SpawnSystem = defineSystem(() => {
 Use `useSceneRouter(router)` to access the scene router from a system. Call `nav.send()` to trigger transitions.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 
 export const GameOverSystem = defineSystem(() => {
@@ -220,7 +215,7 @@ If a scene overlay (e.g. a pause menu) freezes the underlying scene, systems are
 | `onAfterUpdate(fn)` | After-update frame callback |
 | `onRender(fn)` | Render frame callback |
 | `useService(key)` | Access a service provided by a plugin |
-| `useHook(name, fn)` | Subscribe to an event (import from `@gwenjs/core`) |
+| `useHook(name, fn)` | Subscribe to an event — `import { useHook } from '@gwenjs/core'` |
 | `useActor(def)` | Spawn/despawn actor instances |
 | `usePrefab(def)` | Spawn/despawn prefab entities |
 | `useSceneRouter(router)` | Access scene router handle |

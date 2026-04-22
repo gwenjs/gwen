@@ -8,7 +8,12 @@ description: Les systèmes contiennent toute la logique de jeu dans GWEN. Appren
 Un **système** est une fonction qui s'exécute à chaque frame et lit/écrit les données des composants. Les systèmes sont la couche de logique de jeu de l'ECS de GWEN.
 
 ::: info Auto-imports
-`defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` sont auto-importés. `useHook` et `emit` ne le sont **pas** — importez-les explicitement depuis `@gwenjs/core`.
+Dans un projet GWEN, les composables sont disponibles sans aucune ligne `import` — le framework génère les déclarations de types globaux au moment du build. Vous écrivez `defineSystem(...)`, `useQuery(...)`, `onUpdate(...)` directement, sans import.
+
+Une exception nécessite un import explicite :
+```ts
+import { useHook, emit } from '@gwenjs/core'  // système d'événements
+```
 :::
 
 ## Les bases
@@ -16,8 +21,6 @@ Un **système** est une fonction qui s'exécute à chaque frame et lit/écrit le
 Utilisez `defineSystem()` pour déclarer un système. Il retourne une **fonction factory** — vous l'appelez pour produire un plugin, puis vous passez ce plugin à `useSystem()` dans une scène.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-
 export const ClockSystem = defineSystem(() => {
   let elapsed = 0
 
@@ -35,7 +38,6 @@ useSystem(ClockSystem())
 Utilisez `useQuery()` pour obtenir une collection live d'entités ayant un ensemble spécifique de composants. La requête se met à jour automatiquement lorsque des entités sont créées ou détruites.
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
@@ -102,8 +104,6 @@ useSystem(CombatSystem(player))  // player satisfait l'interface
 Utilisez `useService(key)` pour accéder à une valeur fournie par un plugin. Résolu une fois au moment de l'initialisation, utilisé en closure dans les callbacks.
 
 ```ts
-import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
-
 export const AudioSystem = defineSystem(() => {
   const audio = useService('audio')  // fourni par un plugin audio
 
@@ -118,7 +118,6 @@ export const AudioSystem = defineSystem(() => {
 Utilisez `useHook()` pour vous abonner à un événement moteur ou de jeu. L'abonnement est automatiquement supprimé quand la scène se termine.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const ScoreSystem = defineSystem(() => {
@@ -134,8 +133,8 @@ export const ScoreSystem = defineSystem(() => {
 })
 ```
 
-::: info Non auto-importé
-`useHook` n'est pas auto-importé. Importez-le toujours explicitement depuis `@gwenjs/core`.
+::: info Import explicite requis
+`useHook` et `emit` ne sont pas auto-importés — importez-les toujours depuis `@gwenjs/core`.
 :::
 
 ## Utiliser des acteurs dans un système
@@ -143,8 +142,6 @@ export const ScoreSystem = defineSystem(() => {
 Utilisez `useActor(def)` dans le corps d'un système pour obtenir un handle de spawn et de despawn d'instances d'acteur. GWEN auto-découvre et installe le plugin d'acteur — aucune déclaration séparée dans la scène n'est nécessaire.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useActor } from '@gwenjs/core/actor'
 import { AsteroidActor } from './actors/asteroid'
 
 export const SpawnSystem = defineSystem(() => {
@@ -163,8 +160,6 @@ export const SpawnSystem = defineSystem(() => {
 Utilisez `useSceneRouter(router)` pour accéder au routeur de scènes depuis un système. Appelez `nav.send()` pour déclencher des transitions.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 
 export const GameOverSystem = defineSystem(() => {
@@ -220,7 +215,7 @@ Si une superposition de scène (ex : un menu pause) fige la scène sous-jacente,
 | `onAfterUpdate(fn)` | Callback de frame après la mise à jour |
 | `onRender(fn)` | Callback de frame de rendu |
 | `useService(key)` | Accéder à un service fourni par un plugin |
-| `useHook(name, fn)` | S'abonner à un événement (import depuis `@gwenjs/core`) |
+| `useHook(name, fn)` | S'abonner à un événement — `import { useHook } from '@gwenjs/core'` |
 | `useActor(def)` | Spawn/despawn d'instances d'acteur |
 | `usePrefab(def)` | Spawn/despawn d'entités prefab |
 | `useSceneRouter(router)` | Accéder au handle du routeur de scènes |
