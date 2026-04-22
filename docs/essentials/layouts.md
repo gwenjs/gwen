@@ -8,7 +8,7 @@ description: Persistent UI layers that survive scene transitions — perfect for
 A **layout** is a persistent layer that lives above all scenes. Unlike scenes (which load and unload), a layout persists across scene transitions. Use layouts for HUDs, menu bars, pause dialogs, and any UI that should survive when you change scenes.
 
 ::: info Auto-imports
-`defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` are auto-imported in a GWEN project.
+In a GWEN project, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, and `placePrefab` are auto-imported — no `import` statement needed.
 :::
 
 ## The Basics
@@ -16,7 +16,6 @@ A **layout** is a persistent layer that lives above all scenes. Unlike scenes (w
 Use `defineLayout()` to declare a persistent layer. Inside the factory, place actors using `placeActor()`:
 
 ```ts
-import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from './actors/hud'
 import { MinimapActor } from './actors/minimap'
 
@@ -34,9 +33,6 @@ The returned object becomes `layout.refs` — handles for each placed actor.
 Use `useLayout(def)` inside a scene to get a control handle:
 
 ```ts
-import { defineScene, onEnter, onExit } from '@gwenjs/core/scene'
-import { useLayout } from '@gwenjs/core/actor'
-
 export const GameScene = defineScene('game', () => {
   const layout = useLayout(GameLayout)
 
@@ -105,7 +101,6 @@ A realistic HUD that stays alive across scenes:
 
 ```ts
 // src/actors/hud.ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { HUDPrefab } from '../prefabs/hud'
 import { HUDData } from '../components/hud'
 
@@ -126,7 +121,6 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 })
 
 // src/layouts/game-layout.ts
-import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from '../actors/hud'
 
 export const GameLayout = defineLayout(() => {

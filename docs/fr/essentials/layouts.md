@@ -8,7 +8,7 @@ description: Couches d'UI persistantes qui survivent aux transitions de scènes 
 Un **layout** est une couche persistante qui vit au-dessus de toutes les scènes. Contrairement aux scènes (qui se chargent et se déchargent), un layout persiste lors des transitions de scènes. Utilisez les layouts pour les HUD, les barres de menu, les boîtes de dialogue de pause et toute UI qui devrait survivre lorsque vous changez de scènes.
 
 ::: info Auto-imports
-`defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` sont auto-importés dans un projet GWEN.
+Dans un projet GWEN, `defineLayout`, `useLayout`, `placeActor`, `placeGroup` et `placePrefab` sont auto-importés — aucune ligne `import` nécessaire.
 :::
 
 ## Les bases
@@ -16,7 +16,6 @@ Un **layout** est une couche persistante qui vit au-dessus de toutes les scènes
 Utilisez `defineLayout()` pour déclarer une couche persistante. À l'intérieur de la factory, placez des acteurs en utilisant `placeActor()` :
 
 ```ts
-import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from './actors/hud'
 import { MinimapActor } from './actors/minimap'
 
@@ -34,9 +33,6 @@ L'objet retourné devient `layout.refs` — les handles pour chaque acteur plac�
 Utilisez `useLayout(def)` à l'intérieur d'une scène pour obtenir un handle de contrôle :
 
 ```ts
-import { defineScene, onEnter, onExit } from '@gwenjs/core/scene'
-import { useLayout } from '@gwenjs/core/actor'
-
 export const GameScene = defineScene('game', () => {
   const layout = useLayout(GameLayout)
 
@@ -105,7 +101,6 @@ Un HUD réaliste qui reste actif lors des transitions de scènes :
 
 ```ts
 // src/actors/hud.ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { HUDPrefab } from '../prefabs/hud'
 import { HUDData } from '../components/hud'
 
@@ -126,7 +121,6 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 })
 
 // src/layouts/game-layout.ts
-import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from '../actors/hud'
 
 export const GameLayout = defineLayout(() => {

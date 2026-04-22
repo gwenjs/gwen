@@ -10,7 +10,10 @@ The **scene router** orchestrates transitions between scenes using a finite stat
 > Scenes are defined separately with `defineScene()`. See [Scenes](/essentials/scenes).
 
 ::: info Auto-imports
-`defineSceneRouter` and `useSceneRouter` are auto-imported. Create your router in `src/router.ts` and import it wherever you call `useSceneRouter`.
+In a GWEN project, `defineSceneRouter` and `useSceneRouter` are auto-imported — no `import` statement needed for the composables themselves. Create your router object in `src/router.ts` and import **that object** wherever you call `useSceneRouter`:
+```ts
+import { AppRouter } from './router'  // import the router object, not the composable
+```
 :::
 
 ## The Basics
@@ -18,7 +21,6 @@ The **scene router** orchestrates transitions between scenes using a finite stat
 `defineSceneRouter()` declares states and transitions. All state targets are validated at definition time — errors throw immediately, not at runtime.
 
 ```ts
-import { defineSceneRouter } from '@gwenjs/core/scene'
 import { MenuScene, GameScene, GameOverScene } from './scenes'
 
 export const AppRouter = defineSceneRouter({
@@ -51,8 +53,6 @@ Call `useSceneRouter(router)` inside a system or scene to get the handle, then u
 **From a system:**
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 
 export const GameOverSystem = defineSystem(() => {
@@ -69,8 +69,6 @@ export const GameOverSystem = defineSystem(() => {
 **From a scene:**
 
 ```ts
-import { defineScene, onEnter } from '@gwenjs/core/scene'
-import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
 
 export const MenuScene = defineScene('menu', () => {
