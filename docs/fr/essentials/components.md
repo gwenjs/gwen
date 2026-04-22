@@ -147,6 +147,10 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
+::: warning Contexte acteur uniquement
+`useComponent()` ne fonctionne que dans `defineActor`. Dans les systèmes, utilisez `entity.get(def)` ou l'accès direct aux tableaux SoA (`Component.field[entity.id]`) à la place.
+:::
+
 Voir [Acteurs](/fr/essentials/actors) pour la documentation complète de `useComponent`.
 
 ## Re-exporter les composants

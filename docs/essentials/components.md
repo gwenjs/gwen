@@ -147,6 +147,10 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 })
 ```
 
+::: warning Actor context only
+`useComponent()` only works inside `defineActor`. In systems, use `entity.get(def)` or direct SoA access (`Component.field[entity.id]`) instead.
+:::
+
 See [Actors](/essentials/actors) for full documentation of `useComponent`.
 
 ## Re-exporting Components
