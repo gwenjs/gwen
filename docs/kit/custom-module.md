@@ -96,20 +96,20 @@ export default defineConfig({
 
 For project-specific modules, drop a file in `src/modules/`. GWEN discovers all `.ts` files there (and `*/index.ts` one level deep) and loads them automatically — no `gwen.config.ts` entry required.
 
-### Minimal local module
+### Minimal Local Module
 
-```typescript
+```ts
 // src/modules/score.ts
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-const ScorePlugin = definePlugin<{ maxScore: number }>((opts) => ({
+const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
   name: 'score',
   setup(engine) {
     let score = 0
     engine.provide('score', {
       get: () => score,
-      add: (n: number) => { score = Math.min(score + n, opts.maxScore) },
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
       reset: () => { score = 0 },
     })
   },
@@ -126,7 +126,7 @@ export default defineGwenModule({
 
 Drop this file and the module is active. No `gwen.config.ts` change needed.
 
-### Name inference
+### Name Inference
 
 `meta.name` is optional for local modules. The name is inferred from the filename:
 
@@ -140,7 +140,7 @@ Drop this file and the module is active. No `gwen.config.ts` change needed.
 
 Set `meta.configKey` to receive options from the matching top-level key. Augment `GwenModuleOptions` in the same file for TypeScript auto-complete:
 
-```typescript
+```ts
 // src/modules/score.ts
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
@@ -173,14 +173,13 @@ export default defineGwenModule<ScoreOptions>({
   defaults: { initialScore: 0, maxScore: 999 },
   setup(options, gwen) {
     gwen.addPlugin(ScorePlugin(options))
-    gwen.addAutoImports([{ name: 'useScore', from: '@gwenjs/core/system' }])
   },
 })
 ```
 
-Users configure it with the top-level key — TypeScript auto-completes the options:
+Local modules are auto-discovered — no `modules:` entry is needed. Only the options key appears in `gwen.config.ts`:
 
-```typescript
+```ts
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
@@ -193,7 +192,7 @@ export default defineConfig({
 Unlike npm packages, your project already has `@gwenjs/app` as a direct dependency. The `declare module "@gwenjs/app"` augmentation works without any suppression comment.
 :::
 
-### Subdirectory support
+### Subdirectory Support
 
 ```
 src/modules/
@@ -206,7 +205,7 @@ src/modules/
 `src/modules/hud/index.ts` ✅ — `src/modules/ui/hud/index.ts` ❌. Only one level of nesting is supported.
 :::
 
-### Hot reload in dev
+### Hot Reload in Dev
 
 Adding or removing a file in `src/modules/` triggers a full page reload. Editing an existing file uses normal Vite HMR.
 
@@ -444,7 +443,7 @@ Create a build-time module:
 ```ts
 export default defineGwenModule<Options>({
   meta: {
-    name: string
+    name?: string     // optional for local modules — inferred from filename
     configKey?: string
     version?: string
   }
