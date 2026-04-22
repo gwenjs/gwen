@@ -8,7 +8,13 @@ description: Composable, instance-based game objects with their own entity and l
 An **actor** is a composable, instance-based game object. Each instance owns a single ECS entity and runs its own lifecycle hooks. Actors are defined with `defineActor()` and declared in scenes via `useActor()`.
 
 ::: info Auto-imports
-`defineActor`, `definePrefab`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `useActor`, `useTransform`, `useComponent`, `useEntityId`, `usePrefab` are all auto-imported. `onRelease` and `onReset` are **not** auto-imported — import them from `@gwenjs/core/actor`. `useHook` and `emit` are **not** auto-imported — import them from `@gwenjs/core`.
+In a GWEN project, composables are available without any `import` statement — the framework generates global type declarations at build time. You write `defineActor(...)`, `onStart(...)`, `useTransform()` directly, with no import.
+
+Two groups require an explicit import:
+```ts
+import { useHook, emit } from '@gwenjs/core'            // event system
+import { onRelease, onReset } from '@gwenjs/core/actor' // pool hooks only
+```
 :::
 
 ## The Basics
@@ -16,7 +22,6 @@ An **actor** is a composable, instance-based game object. Each instance owns a s
 `defineActor(prefab, factory)` takes a prefab (component layout) and a factory that sets up lifecycle hooks:
 
 ```ts
-import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs'
 
 export const EnemyActor = defineActor(EnemyPrefab, () => {
@@ -35,9 +40,6 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 Declare the actor in a scene using `useActor()` — this registers it and returns a handle:
 
 ```ts
-import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
-import { useActor } from '@gwenjs/core/actor'
-
 export const GameScene = defineScene('game', () => {
   const enemy = useActor(EnemyActor)
 
@@ -114,7 +116,6 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 Use `useComponent(def)` to get a reactive proxy for a component's fields on this actor instance:
 
 ```ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { Health, Velocity } from './components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -142,8 +143,6 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 Use `useTransform()` to read and write the actor's spatial transform:
 
 ```ts
-import { defineActor, useTransform, onStart, onUpdate } from '@gwenjs/core/actor'
-
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
   const transform = useTransform()
   let vx = 0
@@ -195,7 +194,6 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 Use `useEntityId()` to get the stable `bigint` ID of this actor instance:
 
 ```ts
-import { defineActor, useEntityId, onUpdate } from '@gwenjs/core/actor'
 import { Position } from './components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -217,7 +215,6 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 Use `useHook(name, fn)` to subscribe to engine or game events. The subscription is automatically removed when the actor is despawned. If the actor is pool-dormant, the handler is silenced (not removed).
 
 ```ts
-import { defineActor, onStart } from '@gwenjs/core/actor'
 import { useHook } from '@gwenjs/core'
 
 export const HUDActor = defineActor(HUDPrefab, () => {
@@ -236,7 +233,6 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 Use `emit(name, ...args)` to fire events from an actor. All registered handlers run synchronously before `emit` returns.
 
 ```ts
-import { defineActor, useComponent } from '@gwenjs/core/actor'
 import { emit } from '@gwenjs/core'
 import { Health } from './components'
 
@@ -258,9 +254,6 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 Use `useService(key)` to access a value provided by a plugin:
 
 ```ts
-import { defineActor, onStart } from '@gwenjs/core/actor'
-import { useService } from '@gwenjs/core/system'
-
 export const AudioActor = defineActor(AudioPrefab, () => {
   const audio = useService('audio')
 
@@ -275,9 +268,7 @@ export const AudioActor = defineActor(AudioPrefab, () => {
 These hooks are only relevant when using `defineActorPool`. They manage the dormancy cycle of pool-managed actors.
 
 ```ts
-import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
 import { onRelease, onReset } from '@gwenjs/core/actor'
-import { onEnable, onDisable } from '@gwenjs/core'
 
 export const BulletActor = defineActor(BulletPrefab, () => {
   onStart(() => { /* first spawn only */ })
@@ -312,8 +303,11 @@ export const BulletActor = defineActor(BulletPrefab, () => {
 | `onRelease` | After `onDisable` — clean up external state |
 | `onDestroy` | Pool is destroyed entirely |
 
-::: info Import paths for pool hooks
-`onRelease` and `onReset` are from `@gwenjs/core/actor` but are **not** auto-imported — add them explicitly. `onEnable` and `onDisable` are from `@gwenjs/core`, also not auto-imported.
+::: info Pool hook imports
+`onEnable` and `onDisable` are auto-imported. Only `onRelease` and `onReset` require an explicit import:
+```ts
+import { onRelease, onReset } from '@gwenjs/core/actor'
+```
 :::
 
 ## Async Composables
@@ -362,14 +356,14 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 | `useComponent(def)` | Reactive component proxy — read/write fields, `$set` for batch |
 | `useTransform()` | Spatial transform handle |
 | `useService(key)` | Access a plugin-provided service |
-| `useHook(name, fn)` | Subscribe to an event (import from `@gwenjs/core`) |
-| `emit(name, ...args)` | Fire an event (import from `@gwenjs/core`) |
+| `useHook(name, fn)` | Subscribe to an event — `import { useHook } from '@gwenjs/core'` |
+| `emit(name, ...args)` | Fire an event — `import { emit } from '@gwenjs/core'` |
 | `onStart(fn)` | Runs once at first spawn |
 | `onDestroy(fn)` | Runs at despawn |
-| `onEnable(fn)` | Pool: after re-acquiring (import from `@gwenjs/core`) |
-| `onDisable(fn)` | Pool: before releasing (import from `@gwenjs/core`) |
-| `onReset(fn)` | Pool: called with new props (import from `@gwenjs/core/actor`) |
-| `onRelease(fn)` | Pool: clean up external state (import from `@gwenjs/core/actor`) |
+| `onEnable(fn)` | Pool: after re-acquiring — auto-imported |
+| `onDisable(fn)` | Pool: before releasing — auto-imported |
+| `onReset(fn)` | Pool: called with new props — `import { onReset } from '@gwenjs/core/actor'` |
+| `onRelease(fn)` | Pool: clean up external state — `import { onRelease } from '@gwenjs/core/actor'` |
 
 ## Next Steps
 
