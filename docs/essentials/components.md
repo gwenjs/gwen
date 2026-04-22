@@ -5,11 +5,13 @@ description: Components are the data layer of GWEN's ECS. Learn to define and us
 
 # Components
 
-In GWEN's ECS, **components are pure data**. They hold typed fields but contain no logic or methods. Multiple components attach to the same entity to describe it completely. This guide shows you how to define components, understand their memory layout, and use them in systems.
+In GWEN's ECS, **components are pure data**. They hold typed fields but contain no logic or methods. Multiple components attach to the same entity to describe it completely.
+
+::: info Auto-imports
+All symbols shown here are auto-imported in a GWEN project. Explicit imports are only needed in tests or environments without the Vite plugin.
+:::
 
 ## The Basics
-
-### Defining a Component
 
 Use `defineComponent()` to declare a component with a typed schema:
 
@@ -18,14 +20,6 @@ import { defineComponent, Types } from '@gwenjs/core'
 
 export const Position = defineComponent({
   name: 'Position',
-  schema: {
-    x: Types.f32,
-    y: Types.f32,
-  },
-})
-
-export const Velocity = defineComponent({
-  name: 'Velocity',
   schema: {
     x: Types.f32,
     y: Types.f32,
@@ -41,9 +35,32 @@ export const Health = defineComponent({
 })
 ```
 
-### Tag Components
+Each field is stored as a contiguous typed array in WASM memory. Entities are the index:
 
-A tag component has an empty schema—it's a marker that an entity has a certain property:
+```ts
+// Inside a system — entity.id is a bigint
+Position.x[entity.id] = 100
+Position.y[entity.id] = 200
+```
+
+## Available Types
+
+| Type | TypeScript | Description |
+|---|---|---|
+| `Types.f32` | `number` | 32-bit float — positions, rotations, scales |
+| `Types.f64` | `number` | 64-bit float — high-precision math |
+| `Types.i32` | `number` | Signed 32-bit integer — health, counters, IDs |
+| `Types.i64` | `bigint` | Signed 64-bit integer — large counters |
+| `Types.u32` | `number` | Unsigned 32-bit integer — timers, indices |
+| `Types.u64` | `bigint` | Unsigned 64-bit integer — large unsigned values |
+| `Types.bool` | `boolean` | Boolean flag |
+| `Types.string` | `string` | Interned string — use sparingly, not for hot paths |
+
+Choose types carefully: smaller types use less memory and improve cache efficiency.
+
+## Tag Components
+
+A tag component has an empty schema — it marks an entity without storing data:
 
 ```ts
 export const PlayerTag = defineComponent({
@@ -59,183 +76,114 @@ export const DeadTag = defineComponent({
 
 Tags are useful for filtering entities in queries without storing data.
 
-### Accessing Component Data
+## Default Values
 
-Once a component is defined, you access its fields using array indexing by entity ID:
-
-```ts
-// Inside a system
-const entities = useQuery([Position])
-
-onUpdate(() => {
-  for (const id of entities) {
-    Position.x[id] = 100
-    Position.y[id] = 200
-    console.log(Position.x[id]) // 100
-  }
-})
-```
-
-Each field (e.g., `Position.x`, `Position.y`) is a `TypedArray` in WASM linear memory. You index it like a normal array.
-
-## Available Types
-
-GWEN supports these primitive types in component schemas:
-
-| Type | TypeScript | Range | Use Case |
-|---|---|---|---|
-| `Types.f32` | `number` | 32-bit float | Positions, scales, rotations |
-| `Types.f64` | `number` | 64-bit float | High-precision math |
-| `Types.i32` | `number` | -2³¹ to 2³¹ - 1 | Counts, IDs, health |
-| `Types.ui32` | `number` | 0 to 2³² - 1 | Unsigned counters, timers |
-| `Types.i16` | `number` | -32768 to 32767 | Packed data, offsets |
-| `Types.ui16` | `number` | 0 to 65535 | Packed data, texture indices |
-| `Types.i8` | `number` | -128 to 127 | Byte flags, small counts |
-| `Types.ui8` | `number` | 0 to 255 | Byte flags, char codes |
-
-Choose types carefully: smaller types use less memory and improve cache efficiency.
-
-## In Practice
-
-### Composing Multiple Components
-
-An entity gains behavior by combining components. Here's a common pattern:
+Use `defaults` to declare initial values for each field. These are applied when a prefab spawns an entity without an explicit override:
 
 ```ts
-import { defineComponent, Types } from '@gwenjs/core'
-
-export const Position = defineComponent({
-  name: 'Position',
-  schema: { x: Types.f32, y: Types.f32 },
-})
-
 export const Health = defineComponent({
   name: 'Health',
-  schema: { current: Types.i32, max: Types.i32 },
+  schema: {
+    current: Types.i32,
+    max: Types.i32,
+  },
+  defaults: {
+    current: 100,
+    max: 100,
+  },
 })
-
-export const Armor = defineComponent({
-  name: 'Armor',
-  schema: { value: Types.f32 },
-})
-
-export const DeadTag = defineComponent({
-  name: 'DeadTag',
-  schema: {},
-})
-
-// Spawn an entity with multiple components
-const engine = useEngine()
-const enemyId = engine.spawn([
-  [Position, { x: 100, y: 50 }],
-  [Health, { current: 50, max: 50 }],
-  [Armor, { value: 2.5 }],
-])
 ```
 
-Now systems can read and write this data:
+::: tip Prefab overrides take priority
+When a prefab declares its own `defaults`, they override the component's `defaults`. Both are overridden by values passed to `spawn()`.
+:::
+
+## Reading Component Data in a System
+
+Systems iterate over a `LiveQuery<EntityAccessor>`. Each entity has `.id` (bigint) for direct SoA access:
 
 ```ts
 import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { Position, Velocity } from './components'
 
-export const DamageSystem = defineSystem(() => {
-  const enemies = useQuery([Health, Armor])
+export const MovementSystem = defineSystem(() => {
+  const entities = useQuery([Position, Velocity])
 
-  onUpdate(() => {
-    for (const id of enemies) {
-      const armor = Armor.value[id]
-      if (armor > 0) {
-        Armor.value[id] *= 0.99 // Armor degrades over time
-      }
-
-      if (Health.current[id] <= 0) {
-        // Mark as dead
-        engine.addComponent(id, DeadTag)
-      }
+  onUpdate((dt) => {
+    for (const entity of entities) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+      Position.y[entity.id] += Velocity.y[entity.id] * dt
     }
   })
 })
 ```
 
-### Adding and Removing Components
-
-Sometimes you need to add or remove a component from a living entity:
+You can also read a component as a plain object using `entity.get(def)`:
 
 ```ts
-import { useEngine } from '@gwenjs/core'
-
-const engine = useEngine()
-
-// Add a component
-engine.addComponent(entityId, Position, { x: 10, y: 20 })
-
-// Remove a component
-engine.removeComponent(entityId, Velocity)
+onUpdate(() => {
+  for (const entity of entities) {
+    const pos = entity.get(Position) // { x: number, y: number } | undefined
+  }
+})
 ```
 
-**Note:** Adding/removing components is relatively expensive (reallocates buffers), so do it sparingly, not every frame.
+## Reading Component Data in an Actor
 
-## Deep Dive
+Inside a `defineActor` factory, use `useComponent()` to get a live reactive proxy:
 
-### Structure-of-Arrays Layout
+```ts
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
+import { Health } from './components'
 
-GWEN stores components in **Structure-of-Arrays** (SoA) format in WASM memory. This is different from a typical object-oriented approach.
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const health = useComponent(Health)
 
-**Object-Oriented (Inefficient):**
+  onUpdate(() => {
+    if (health.current <= 0) {
+      // handle death
+    }
+  })
+})
 ```
-Entity 0: { x: 10, y: 20, vx: 1, vy: 0, health: 100 }
-Entity 1: { x: 30, y: 40, vx: 2, vy: 1, health: 80 }
-Entity 2: { x: 50, y: 60, vx: 1, vy: 1, health: 60 }
-// Bad: different data types mixed; poor cache locality
+
+See [Actors](/essentials/actors) for full documentation of `useComponent`.
+
+## Re-exporting Components
+
+Use a barrel file so that imports stay clean across your project:
+
+```ts
+// src/components/index.ts
+export * from './Position'
+export * from './Velocity'
+export * from './Health'
 ```
 
-**Structure-of-Arrays (Efficient):**
+## Structure-of-Arrays Layout
+
+GWEN stores components in **Structure-of-Arrays** (SoA) format in WASM memory:
+
 ```
-Position.x:  [10, 30, 50, ...]
+Position.x:  [10, 30, 50, ...]    ← contiguous Float32Array
 Position.y:  [20, 40, 60, ...]
 Velocity.x:  [1,  2,  1,  ...]
-Velocity.y:  [0,  1,  1,  ...]
-Health:      [100, 80, 60, ...]
-// Good: homogeneous arrays; great cache locality
+Health.current: [100, 80, 60, ...]
 ```
 
-When a system iterates over entities and reads `Position.x[id]`, it's accessing a contiguous array. The CPU's cache loads several values at once. This is why ECS is faster than OOP for game logic.
-
-### TypedArray Views
-
-Component fields are JavaScript `TypedArray` objects pointing directly at WASM linear memory:
-
-```ts
-const pos = Position.x
-// pos is a Float32Array backed by SharedArrayBuffer
-console.log(pos[0])     // Read first entity's X position
-pos[0] = 100            // Write directly to WASM memory (no overhead)
-```
-
-There's no serialization, no copying, no allocation. Just direct memory access.
-
-### Memory Efficiency
-
-Choosing the right types saves memory and improves performance:
-
-- Health is at most 999? Use `Types.i16` instead of `Types.i32` (half the memory)
-- Rotation only needs 0–360? Use `Types.f32` instead of `Types.f64`
-- Storing 1000 entities with position + health + armor:
-  - `f32 + f32 + i32 + i32 + f32` = 20 bytes per entity = 20 KB total
-  - Much better than JavaScript objects!
+When a system iterates and reads `Position.x[entity.id]`, the CPU loads several values at once from a contiguous array. This is why ECS is faster than storing objects per entity.
 
 ## API Summary
 
-| Function | Description |
+| | |
 |---|---|
-| `defineComponent(options)` | Declare a component with a typed schema |
-| `Types.f32`, `Types.f64`, etc. | Type descriptors for schema fields |
-| `Component.field[entityId]` | Read or write a component field |
-| `engine.addComponent(id, Component, data)` | Add a component to a living entity |
-| `engine.removeComponent(id, Component)` | Remove a component from an entity |
+| `defineComponent({ name, schema, defaults? })` | Declare a component type |
+| `Types.f32 / f64 / i32 / i64 / u32 / u64 / bool / string` | Field type descriptors |
+| `Component.field[entity.id]` | Read or write a component field (in a system) |
+| `useComponent(def)` | Reactive component proxy inside `defineActor` |
 
 ## Next Steps
 
 - **[Systems](/essentials/systems)** — Write systems that read and write component data.
-- **[Architecture](/essentials/architecture)** — Understand how components fit into GWEN's ECS.
-- **[Scenes and Actors](/essentials/scenes)** — Learn how to spawn entities in scenes.
+- **[Actors](/essentials/actors)** — Use `useComponent()` for reactive component access inside actors.
+- **[Prefabs](/essentials/prefabs)** — Bundle components into reusable spawn templates.

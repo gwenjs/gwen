@@ -1,48 +1,48 @@
 ---
 title: Architecture
-description: Comment GWEN répartit les responsabilités entre Rust/WASM et TypeScript, et comment la couche ECS les rassemble.
+description: Comment GWEN répartit les responsabilités entre Rust/WASM et TypeScript, et comment le modèle ECS relie les deux.
 ---
 
 # Architecture
 
-L'architecture de GWEN repose sur une division fondamentale : **TypeScript pour la logique de jeu, Rust/WASM pour la performance**. Ce guide vous explique les deux couches, comment elles communiquent, et comment le modèle Entity-Component-System (ECS) rassemble tout.
+L'architecture de GWEN repose sur une séparation fondamentale : **TypeScript pour la logique de jeu, Rust/WASM pour la performance**. Ce guide vous présente les deux couches, leur mode de communication et la façon dont le modèle Entité-Composant-Système (ECS) relie le tout.
 
 ## Les deux couches
 
-### Cœur Rust/WASM
+### Noyau Rust/WASM
 
-Le cœur de GWEN est un module WebAssembly pré-compilé (`gwen_core.wasm`) écrit en Rust. Cette couche gère tout ce qui doit être rapide :
+Le cœur de GWEN est un module WebAssembly précompilé (`gwen_core.wasm`) écrit en Rust. Cette couche gère tout ce qui doit être rapide :
 
-- **Moteur ECS** — Stocke les entités, les composants et gère les requêtes efficacement
-- **Tableaux de composants** — Les données des composants vivent dans la mémoire linéaire de WASM en disposition Structure-of-Arrays (SoA) pour l'efficacité du cache
-- **Physique** — La simulation physique (via Rapier) s'exécute dans WASM
-- **Primitives mathématiques** — Les mathématiques vectorielles, matricielles et les quaternions pour le chemin critique
+- **Moteur ECS** — Stocke les entités, les composants et gère efficacement les requêtes
+- **Tableaux de composants** — Les données de composants résident dans la mémoire linéaire WASM en Structure-of-Arrays (SoA) pour l'efficacité du cache
+- **Physique** — La simulation physique (via Rapier) s'exécute en WASM
+- **Primitives mathématiques** — Vecteurs, matrices et quaternions pour le chemin critique
 
-Vous n'écrivez jamais de Rust. Le module WASM arrive pré-compilé dans les paquets npm (`@gwenjs/core`, `@gwenjs/physics2d`, etc.).
+Vous n'écrivez jamais de Rust. Le module WASM est livré précompilé dans les paquets npm (`@gwenjs/core`, `@gwenjs/physics2d`, etc.).
 
 ### Couche TypeScript
 
 Toute la logique de jeu que vous écrivez vit en TypeScript. Cela inclut :
 
-- **Systèmes** — Fonctions qui lisent et écrivent les données de composants chaque frame
-- **Graphe de scène** — Acteurs, préfabriqués et gestion de scène
-- **Cycle de vie du plugin** — `mount()`, `onStart()`, `onUpdate()`, `onDestroy()`, `unmount()`
+- **Systèmes** — Fonctions qui lisent et écrivent les données des composants à chaque frame
+- **Graphe de scène** — Acteurs, prefabs et gestion des scènes
+- **Cycle de vie des plugins** — Initialisation, hooks de frame, démontage
 - **Outils Vite** — Serveur de développement, HMR, bundling
 
-La couche TypeScript appelle WASM pour interroger les entités, lire les données de composants et appliquer les mises à jour physiques.
+La couche TypeScript appelle WASM pour interroger les entités, lire les données des composants et appliquer les mises à jour physiques.
 
 ## Le pont WASM
 
-La communication entre TypeScript et WASM se fait via **la mémoire partagée et les appels de fonctions**. Il n'y a pas de sérialisation ; au lieu de cela, la mémoire linéaire de WASM est exposée à TypeScript via `SharedArrayBuffer` et les vues `TypedArray`.
+La communication entre TypeScript et WASM s'effectue via **la mémoire partagée et des appels de fonctions**. Il n'y a pas de sérialisation ; la mémoire linéaire WASM est exposée à TypeScript via `SharedArrayBuffer` et des vues `TypedArray`.
 
 ```
 ┌──────────────────────────────────────┐
-│ TypeScript Code                      │
+│ Code TypeScript                      │
 │ - defineSystem()                     │
 │ - useQuery()                         │
 │ - Position.x[entityId] = 10          │
 └──────────────┬───────────────────────┘
-               │ Accès direct à la mémoire (pas de copie)
+               │ Accès direct à la mémoire (sans copie)
 ┌──────────────┴───────────────────────┐
 │ SharedArrayBuffer                    │
 │ ┌────────────────────────────────┐   │
@@ -55,26 +55,19 @@ La communication entre TypeScript et WASM se fait via **la mémoire partagée et
 └──────────────────────────────────────┘
 ```
 
-Quand vous écrivez `Position.x[entityId] = 10` dans un système, vous écrivez directement dans la mémoire de WASM sans surcharge. Pas de marshaling, pas d'allocations, pas de garbage collection.
+Quand vous écrivez `Position.x[entityId] = 10` dans un système, vous écrivez directement dans la mémoire WASM sans aucun surcoût. Pas de marshaling, pas d'allocation, pas de garbage collection.
 
 ## Aperçu de l'ECS
 
-GWEN utilise le modèle **Entity-Component-System** (ECS) pour organiser les données et la logique du jeu :
+GWEN utilise le pattern **Entité-Composant-Système** (ECS) pour organiser les données et la logique de jeu :
 
 ### Entités
 
-Une **entité** est un ID entier qui regroupe les composants associés.
-
-```ts
-// En interne, une entité est juste un nombre
-const playerId = 42
-```
-
-Il n'y a pas de hiérarchie d'héritage, pas de hiérarchie de classes. Une entité est juste un conteneur.
+Une **entité** est un identifiant `bigint` qui regroupe des composants associés. Il n'y a pas de hiérarchie de classes — une entité est juste un nombre.
 
 ### Composants
 
-Un **composant** est une structure de données typée contenant des données pures — aucune logique, aucune méthode.
+Un **composant** est une structure de données typée contenant uniquement des données — pas de logique, pas de méthodes.
 
 ```ts
 import { defineComponent, Types } from '@gwenjs/core'
@@ -90,11 +83,11 @@ export const Health = defineComponent({
 })
 ```
 
-Plusieurs composants s'attachent à la même entité pour la décrire. Un joueur peut avoir `Position`, `Health`, `Velocity`, et `PlayerTag`.
+Plusieurs composants s'attachent à la même entité pour la décrire complètement. Un joueur pourrait avoir `Position`, `Health`, `Velocity` et `PlayerTag`.
 
 ### Systèmes
 
-Un **système** est une fonction qui s'exécute chaque frame sur toutes les entités correspondant à une requête. Les systèmes lisent et écrivent les données de composants.
+Un **système** est une fonction qui s'exécute à chaque frame sur toutes les entités correspondant à une requête. Les systèmes lisent et écrivent les données des composants.
 
 ```ts
 import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
@@ -104,87 +97,40 @@ export const MovementSystem = defineSystem(() => {
   const entities = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-      Position.y[id] += Velocity.y[id] * dt
+    for (const entity of entities) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+      Position.y[entity.id] += Velocity.y[entity.id] * dt
     }
   })
 })
 ```
 
-La requête `[Position, Velocity]` retourne tous les ID d'entités qui ont les deux composants. Le système met à jour leurs positions en fonction de la vélocité.
+`useQuery` retourne une collection live de valeurs `EntityAccessor`. Chaque élément a un `.id` (bigint) pour l'accès direct aux tableaux SoA, et une méthode `.get(def)` pour lire un composant comme un objet simple.
 
 ### Pourquoi l'ECS ?
 
-Pas d'héritage, pas de maux de tête du polymorphisme. Juste des données + logique. Les systèmes sont des fonctions pures qui lisent et écrivent les données. Cela rend GWEN :
+Pas d'héritage, pas de problèmes de polymorphisme. Juste des données et de la logique. Cela rend GWEN :
 
-- **Rapide** — Disposition de la mémoire efficace pour le cache (SoA) et exécution data-parallel
+- **Rapide** — Disposition mémoire efficace pour le cache (SoA) et exécution parallèle des données
 - **Flexible** — Composez n'importe quelle combinaison de composants ; ajoutez de nouveaux systèmes à tout moment
 - **Testable** — Les systèmes ne dépendent pas d'une hiérarchie de classes ; ce sont juste des fonctions
 
-## Cycle de vie du plugin
+## Boucle de jeu
 
-Les moteurs GWEN chargent des plugins, qui se montent et se démontent pendant le cycle de vie du jeu :
-
-```
-Boot
-  ↓
-engine.start()
-  ↓
-mount() sur chaque plugin
-  ↓
-Charger la scène initiale
-  ↓
-onStart() sur chaque acteur → onStart() sur chaque système
-  ↓
-Boucle de jeu :
-  - onUpdate(dt) sur chaque système
-  - Rendu (via votre renderer)
-  ↓
-onDestroy() sur chaque acteur → onDestroy() sur chaque système
-  ↓
-Décharger la scène
-  ↓
-unmount() sur chaque plugin
-  ↓
-Arrêt
-```
-
-Les systèmes enregistrent les callbacks pendant leur phase de configuration (`defineSystem(() => { ... })`). Ces callbacks se déclenchent pendant les étapes de cycle de vie appropriées.
-
-## Flux de données : De TypeScript à WASM et retour
-
-Voici comment un frame typique s'exécute :
+À chaque frame, GWEN exécute les callbacks dans cet ordre :
 
 ```
-1. Le code TypeScript crée une nouvelle entité
-   → Appel de la fonction WASM : spawn(components...)
-   → WASM alloue l'ID de l'entité, initialise les données de composant
-
-2. Le frame commence
-   → TypeScript appelle useQuery([Position, Velocity])
-   → La requête retourne un tableau d'ID d'entités correspondantes
-   → Le code TypeScript itère et lit/écrit les données de composant
-   → Les données vivent dans la mémoire de WASM ; TypeScript y accède via la vue TypedArray
-
-3. Tick physique
-   → Le moteur physique WASM (Rapier) s'exécute
-   → Met à jour les composants Rigidbody et Transform
-
-4. Rendu
-   → TypeScript lit Position, Rotation, etc.
-   → Passe au renderer (Babylon.js, Three.js, Canvas 2D, etc.)
-
-5. Fin du frame
-   → Synchronisation de l'état physique et graphique
-   → Le frame suivant commence
+engine:before-update  →  onBeforeUpdate(dt)   — lecture des entrées, pré-simulation
+engine:update         →  onUpdate(dt)          — logique principale, IA, mouvement
+engine:after-update   →  onAfterUpdate(dt)     — synchronisation d'état, score
+engine:render         →  onRender()            — appels de rendu
 ```
 
-L'idée clé : **pas de copie de données**. TypeScript accède directement à la mémoire de WASM. Votre boucle de jeu est efficace en mémoire.
+Les systèmes et acteurs enregistrent des callbacks dans la phase appropriée via des composables (`onUpdate`, `onRender`, etc.).
 
-## Prochaines étapes
+## Étapes suivantes
 
-- **[Le moteur](/fr/essentials/engine)** — Créer et configurer votre premier moteur GWEN.
-- **[Composants](/fr/essentials/components)** — Définir les structures de données que votre jeu utilisera.
-- **[Systèmes](/fr/essentials/systems)** — Écrire les systèmes qui donnent vie aux composants.
-- **[Structure du projet](/fr/guide/project-structure)** — Voir comment un vrai projet GWEN organise les systèmes et les composants.
+- **[Le moteur](/fr/essentials/engine)** — Configurez votre jeu avec `gwen.config.ts`.
+- **[Composants](/fr/essentials/components)** — Définissez les structures de données de votre jeu.
+- **[Systèmes](/fr/essentials/systems)** — Écrivez des systèmes qui donnent vie aux composants.
+- **[Structure du projet](/fr/guide/project-structure)** — Voyez comment un vrai projet GWEN organise ses systèmes et composants.
