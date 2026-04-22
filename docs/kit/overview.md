@@ -50,6 +50,10 @@ export const InputPlugin = definePlugin(() => ({
 }))
 ```
 
+::: info Named vs default export
+This named-export form is used when a module registers the plugin via `gwen.addPlugin(InputPlugin())`. For `src/plugins/` auto-discovery, use `export default definePlugin(...)` instead — see [Register in Project](#register-in-project) below.
+:::
+
 ### Module
 
 A module that sets up the Input plugin and auto-imports:
@@ -74,7 +78,7 @@ export default defineGwenModule({
 
 Drop a file in `src/plugins/`. GWEN discovers and registers it automatically:
 
-```typescript
+```ts
 // src/plugins/input.ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
@@ -91,9 +95,15 @@ export default definePlugin(() => ({
 }))
 ```
 
+Local plugins run after `config.plugins` — see [Load Order](/guide/project-structure#load-order) for the full sequence.
+
+::: tip Flat files only
+`src/plugins/input.ts` ✅ — `src/plugins/input/index.ts` ❌. Subdirectories are not scanned.
+:::
+
 **Option B — Module in `gwen.config.ts` (npm packages or options from config):**
 
-```typescript
+```ts
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
@@ -102,6 +112,8 @@ export default defineConfig({
   input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
 })
 ```
+
+The module package itself calls `gwen.addPlugin()` in its `setup()`. The `gwen.config.ts` entry only tells GWEN which module to load.
 
 ## When to Use Each
 
