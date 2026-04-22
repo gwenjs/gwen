@@ -19,7 +19,7 @@ Together they allow you to extend GWEN with custom or third-party capabilities.
 | Aspect | Plugin | Module |
 |--------|--------|--------|
 | Defined with | `definePlugin()` from `@gwenjs/kit` | `defineGwenModule()` from `@gwenjs/kit` |
-| Registered in | `engine.use(Plugin())` in `main.ts` | `defineConfig({ modules })` in `gwen.config.ts` |
+| Registered in | `src/plugins/` (auto-discovered) or `gwen.addPlugin()` inside a module | `src/modules/` (auto-discovered) or `modules` key in `gwen.config.ts` |
 | Execution context | Runtime (browser) | Build-time (Node.js: `gwen dev`, `gwen build`, `gwen prepare`) |
 | Scope | Engine-wide lifecycle | Feature setup, configuration, code generation |
 | Example | Input handling, physics simulation | Registering plugins, auto-imports, Vite extensions, type templates |
@@ -70,25 +70,37 @@ export default defineGwenModule({
 
 ### Register in Project
 
-In `gwen.config.ts`:
+**Option A — Local file (project-specific, no config needed):**
 
-```ts
+Drop a file in `src/plugins/`. GWEN discovers and registers it automatically:
+
+```typescript
+// src/plugins/input.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+export default definePlugin(() => ({
+  name: 'input',
+  setup(engine) {
+    const keys = new Set<string>()
+    engine.hooks.hook('engine:init', () => {
+      window.addEventListener('keydown', (e) => keys.add(e.key))
+      window.addEventListener('keyup', (e) => keys.delete(e.key))
+    })
+    engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
+  },
+}))
+```
+
+**Option B — Module in `gwen.config.ts` (npm packages or options from config):**
+
+```typescript
+// gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
   modules: ['@my-scope/input'],
+  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
 })
-```
-
-In `main.ts`, register the plugin that the module provides:
-
-```ts
-import { createEngine } from '@gwenjs/core'
-import { InputPlugin } from '@my-scope/input'
-
-const engine = await createEngine()
-await engine.use(InputPlugin())
-await engine.start()
 ```
 
 ## When to Use Each
