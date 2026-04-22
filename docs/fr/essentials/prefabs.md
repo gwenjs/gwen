@@ -8,7 +8,7 @@ description: Les prefabs sont des modèles d'entités réutilisables qui vous pe
 Un **prefab** est un modèle réutilisable pour générer des entités. Au lieu de générer manuellement la même combinaison de composants et de valeurs par défaut encore et encore, définissez un prefab une seule fois et générez-le plusieurs fois. Les prefabs sont essentiels pour générer des balles, des ennemis, des objets collectibles et d'autres éléments répétés dans votre jeu.
 
 ::: info Auto-imports
-`definePrefab` et `usePrefab` sont auto-importés dans un projet GWEN. Les imports explicites ne sont nécessaires que dans les tests ou les environnements sans le plugin Vite.
+Dans un projet GWEN, `definePrefab` et `usePrefab` sont auto-importés — aucune ligne `import` nécessaire.
 :::
 
 ## Les bases
@@ -18,7 +18,6 @@ Un **prefab** est un modèle réutilisable pour générer des entités. Au lieu 
 Utilisez `definePrefab()` pour déclarer un modèle d'entité réutilisable :
 
 ```ts
-import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Damage } from './components'
 
 export const BulletPrefab = definePrefab([
@@ -37,8 +36,6 @@ Les surcharges de `spawn()` sont un merge **flat** appliqué à tous les composa
 Utilisez `usePrefab()` pour obtenir un handle pour générer et supprimer des entités :
 
 ```ts
-import { usePrefab } from '@gwenjs/core/actor'
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { BulletPrefab } from './prefabs'
 
 export const FireSystem = defineSystem(function FireSystem() {
@@ -91,7 +88,6 @@ const id = bullet.spawn()
 Voici un prefab réaliste pour les ennemis dans un jeu de tir :
 
 ```ts
-import { definePrefab } from '@gwenjs/core/actor'
 import { Position, Velocity, Health, AI } from './components'
 
 export const EnemyPrefab = definePrefab([
@@ -105,8 +101,6 @@ export const EnemyPrefab = definePrefab([
 Dans votre système de génération :
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { usePrefab } from '@gwenjs/core/actor'
 import { EnemyPrefab } from './prefabs'
 
 export const EnemySpawnerSystem = defineSystem(() => {

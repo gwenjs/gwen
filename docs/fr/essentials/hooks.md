@@ -7,12 +7,11 @@ description: Communiquez entre acteurs et systèmes avec des événements typés
 
 Le système de hooks de GWEN vous permet à toute partie de votre jeu d'écouter et de déclencher des événements typés — sans références directes entre acteurs, systèmes et plugins. C'est le canal de communication principal pour le code de jeu découplé.
 
-::: info Chemins d'import
-`useHook` et `emit` ne sont **pas** auto-importés. Importez-les toujours explicitement :
+::: info Imports
+Dans un projet GWEN, `defineHooks` est auto-importé. Seuls `useHook` et `emit` nécessitent un import explicite :
 ```ts
-import { useHook, emit, defineHooks } from '@gwenjs/core'
+import { useHook, emit } from '@gwenjs/core'
 ```
-`defineHooks` est auto-importé.
 :::
 
 ## Écouter des événements
@@ -20,7 +19,6 @@ import { useHook, emit, defineHooks } from '@gwenjs/core'
 Utilisez `useHook(name, fn)` à l'intérieur d'une fabrique de système, acteur ou scène pour vous abonner à un événement. L'abonnement est nettoyé automatiquement quand le contexte se termine.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const ScoreSystem = defineSystem(() => {
@@ -46,7 +44,6 @@ stop()
 Utilisez `emit(name, ...args)` pour déclencher un événement à partir de n'importe quel contexte moteur. Tous les handlers enregistrés s'exécutent de manière synchrone avant que `emit` ne retourne.
 
 ```ts
-import { defineActor, useComponent } from '@gwenjs/core/actor'
 import { emit } from '@gwenjs/core'
 import { Health } from './components'
 
@@ -69,8 +66,6 @@ Utilisez `defineHooks()` pour déclarer des contrats typés pour vos événement
 
 ```ts
 // src/hooks.ts
-import { defineHooks } from '@gwenjs/core'
-
 export const GameHooks = defineHooks({
   'enemy:die':  (): void => undefined,
   'enemy:hit':  (_damage: number): void => undefined,
@@ -87,7 +82,6 @@ Pour obtenir la sécurité complète des types sur `useHook` et `emit` dans l'en
 
 ```ts
 // src/hooks.ts
-import { defineHooks } from '@gwenjs/core'
 import type { InferHooks } from '@gwenjs/core'
 
 export const GameHooks = defineHooks({
