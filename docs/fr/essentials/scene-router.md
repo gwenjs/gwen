@@ -1,19 +1,23 @@
 ---
 title: Routeur de scènes
-description: Navigation FSM basée sur les scènes avec transitions typées.
+description: Navigation entre scènes basée sur un automate fini avec des transitions typées.
 ---
 
 # Routeur de scènes
 
-Le **routeur de scènes** orchestre les transitions entre scènes à l'aide d'un automate fini. Définissez des états, des transitions et naviguez par programmation.
+Le **routeur de scènes** orchestre les transitions entre scènes à l'aide d'un automate fini. Définissez des états et des transitions une fois ; naviguez par programmation depuis les systèmes ou les scènes.
 
 > Les scènes sont définies séparément avec `defineScene()`. Voir [Scènes](/fr/essentials/scenes).
 
-## Définir un routeur
+::: info Auto-imports
+`defineSceneRouter` et `useSceneRouter` sont auto-importés. Créez votre routeur dans `src/router.ts` et importez-le là où vous appelez `useSceneRouter`.
+:::
 
-`defineSceneRouter()` déclare les états et les transitions :
+## Les bases
 
-```typescript
+`defineSceneRouter()` déclare les états et les transitions. Toutes les cibles d'état sont validées au moment de la définition — les erreurs sont levées immédiatement, pas au runtime.
+
+```ts
 import { defineSceneRouter } from '@gwenjs/core/scene'
 import { MenuScene, GameScene, GameOverScene } from './scenes'
 
@@ -36,102 +40,92 @@ export const AppRouter = defineSceneRouter({
 })
 ```
 
-- `initial` — l'état de démarrage (doit être une clé dans `routes`)
-- `on` — mappe les noms d'événements aux états cibles
-- `overlay: true` — la scène est rendue par-dessus la scène précédente (utile pour les menus de pause)
+::: tip Aucune inscription nécessaire
+`defineSceneRouter` est autonome. Créez-le simplement dans `src/router.ts` et importez-le là où vous avez besoin de `useSceneRouter`. Aucune entrée dans `gwen.config.ts` n'est requise.
+:::
 
 ## Naviguer
 
-Appelez `useSceneRouter()` à l'intérieur d'un acteur ou système pour obtenir un handle, puis appelez `.send()` pour déclencher les transitions :
+Appelez `useSceneRouter(router)` à l'intérieur d'un système ou d'une scène pour obtenir le handle, puis utilisez `nav.send()` pour déclencher les transitions.
 
-```typescript
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
+**Depuis un système :**
+
+```ts
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 import { useSceneRouter } from '@gwenjs/core/scene'
 import { AppRouter } from '../router'
-import { Health } from '../components'
-import { PlayerPrefab } from './prefabs/Player'
 
-export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const health = useComponent(Health)
+export const GameOverSystem = defineSystem(() => {
   const nav = useSceneRouter(AppRouter)
 
-  onUpdate(async () => {
-    if (health.hp <= 0) {
-      await nav.send('GAME_OVER')     // transition vers 'gameOver'
+  onUpdate(() => {
+    if (noLivesRemaining) {
+      nav.send('GAME_OVER')
     }
   })
-
-  return {}
 })
 ```
 
-## API Handle
+**Depuis une scène :**
 
-```typescript
-const nav = useSceneRouter(AppRouter)
+```ts
+import { defineScene, onEnter } from '@gwenjs/core/scene'
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { AppRouter } from '../router'
 
-await nav.send('START')   // déclencher une transition
-nav.can('START')          // vérifier si la transition est valide
-nav.current               // nom de l'état actuel
-nav.params                // paramètres passés lors de la transition
+export const MenuScene = defineScene('menu', () => {
+  const nav = useSceneRouter(AppRouter)
+
+  onEnter(() => {
+    const { difficulty } = nav.params  // lire les paramètres de la transition précédente
+  })
+})
 ```
+
+## API du handle
+
+| | |
+|---|---|
+| `nav.send(event, params?)` | Déclencher une transition (async) |
+| `nav.can(event)` | Vérifier si la transition est valide dans l'état actuel |
+| `nav.current` | Nom de l'état actuel |
+| `nav.params` | Paramètres passés à l'état actuel |
+| `nav.onTransition(fn)` | S'abonner aux changements d'état ; retourne une fonction de désabonnement |
 
 ## Passer des paramètres
 
-Passez des données lors de l'envoi d'un événement :
+Passez des données lors du déclenchement d'une transition. Lisez-la dans la scène cible via `nav.params` ou dans `onEnter(params)` :
 
-```typescript
-async () => {
-  await nav.send('START', { level: 2, difficulty: 'hard' })
-}
+```ts
+// Déclencher avec des paramètres
+nav.send('START', { level: 2, difficulty: 'hard' })
 
-// Dans la GameScene :
+// Lire dans la scène cible via le callback onEnter
 export const GameScene = defineScene('game', () => {
-  useSystem(GameSystem)
-  onEnter(async () => {
-    const nav = useSceneRouter(AppRouter)
-    const params = nav.params
-    console.log('Starting level', params.level)
+  onEnter((params) => {
+    console.log('Level:', params?.level)
   })
+})
+
+// Ou via nav.params
+const nav = useSceneRouter(AppRouter)
+onEnter(() => {
+  const { level } = nav.params
 })
 ```
 
-## Cycle de vie des scènes
-
-Quand une transition se déclenche :
-1. `onExit` de la scène actuelle est appelé (sauf si `overlay: true`)
-2. `onEnter` de la scène cible est appelé
-3. Les systèmes de l'ancienne scène sont désenregistrés, les nouveaux sont enregistrés
-
-```typescript
-export const GameScene = defineScene('Game', () => {
-    useSystem(PlayerSystem())
-    useSystem(EnemySystem())
-  
-  onEnter(async () => {
-    console.log('Game scene loaded!')
-    await loadAssets()
-  })
-  
-  onExit(() => {
-    console.log('Game scene unloading')
-    cleanup()
-  })
-})
-```
-
-## Scènes en superposition
+## Scènes superposées
 
 Définissez `overlay: true` pour garder la scène précédente chargée et rendue derrière la nouvelle :
 
-```typescript
-const AppRouter = defineSceneRouter({
+```ts
+export const AppRouter = defineSceneRouter({
   initial: 'game',
   routes: {
     game: { scene: GameScene, on: { PAUSE: 'pause' } },
     pause: {
       scene: PauseScene,
-      overlay: true,  // Le jeu continue de s'exécuter derrière le menu de pause
+      overlay: true,
       on: { RESUME: 'game' },
     },
   },
@@ -140,95 +134,52 @@ const AppRouter = defineSceneRouter({
 
 Lors de la transition vers `pause` :
 - La scène du jeu **reste chargée** (les systèmes continuent de s'exécuter)
-- La scène du jeu **continue de se rendre** (derrière l'UI de pause)
 - `onExit` n'est **pas appelé** sur la scène du jeu
 - `onEnter` **est appelé** sur la scène de pause
-- La physique et la logique de mise à jour continuent pour la scène du jeu
 
 Quand vous revenez de `pause` :
 - `onExit` est appelé sur la scène de pause
 - La scène du jeu **reprend immédiatement** (`onEnter` n'est pas appelé à nouveau)
 
+## Écouter les transitions
+
+`nav.onTransition(fn)` s'abonne à tous les changements d'état. Elle retourne une fonction de désabonnement :
+
+```ts
+const unsubscribe = nav.onTransition((from, to, params) => {
+  console.log(`Transitioned from ${from} to ${to}`)
+})
+
+// Plus tard, pour arrêter l'écoute :
+unsubscribe()
+```
+
+## Animations de transition
+
+Pour jouer des animations autour des changements de scène, utilisez `onTransitionLeave` et `onTransitionEnter` dans la scène. Voir [Scènes — Animations de transition](/fr/essentials/scenes#animations-de-transition).
+
 ## Validation
 
 `defineSceneRouter()` valide au moment de la définition :
 - `initial` doit être une clé dans `routes`
-- Tous les cibles de transition doivent être des clés de route valides
+- Toutes les cibles de transition doivent être des clés de route valides
 
-Les erreurs sont levées immédiatement (pas au runtime), donc les routeurs mal configurés sont détectés pendant le développement.
-
-## Enregistrer le routeur
-
-Enregistrez le routeur dans `gwen.config.ts` en tant qu'option de module :
-
-```typescript
-// gwen.config.ts
-export default defineConfig({
-  modules: [
-    ['@gwenjs/core', { router: AppRouter }],
-  ],
-})
-```
-
-Le routeur est passé comme option de module, pas via un appel `engine.use()` standalone.
-
-## Exemple complet
-
-```typescript
-// src/router.ts
-import { defineSceneRouter } from '@gwenjs/core/scene'
-import { MenuScene, GameScene, GameOverScene } from './scenes'
-
-export const AppRouter = defineSceneRouter({
-  initial: 'menu',
-  routes: {
-    menu: {
-      scene: MenuScene,
-      on: { START: 'game' },
-    },
-    game: {
-      scene: GameScene,
-      on: { PAUSE: 'pause', GAME_OVER: 'gameOver' },
-    },
-    gameOver: {
-      scene: GameOverScene,
-      on: { RESTART: 'game', MENU: 'menu' },
-    },
-  },
-})
-
-// gwen.config.ts
-import { defineConfig } from '@gwenjs/core'
-import { AppRouter } from './router'
-
-export default defineConfig({
-  modules: [
-    ['@gwenjs/core', { router: AppRouter }],
-  ],
-})
-```
+Les erreurs sont levées immédiatement au démarrage du développement, pas au runtime.
 
 ## Résumé de l'API
 
 | | |
 |---|---|
-| `defineSceneRouter(options)` | Déclarer la FSM |
-| `useSceneRouter(router)` | Obtenir le handle au runtime à l'intérieur d'un acteur/système |
+| `defineSceneRouter(options)` | Déclarer la FSM avec les routes et l'état initial |
+| `useSceneRouter(router)` | Obtenir le handle au runtime (contexte système ou scène) |
 | `nav.send(event, params?)` | Déclencher une transition (async) |
 | `nav.can(event)` | Vérifier si la transition est valide |
-| `nav.current` | Nom d'état actuel |
+| `nav.current` | Nom de l'état actuel |
 | `nav.params` | Paramètres passés à l'état actuel |
-| `nav.onTransition(fn)` | S'abonner aux changements d'état |
+| `nav.onTransition(fn)` | S'abonner aux changements d'état ; retourne une fonction de désabonnement |
 
-```typescript
-nav.onTransition((from, to) => {
-  // appelé à chaque transition
-  console.log(`Transitioned from ${from} to ${to}`)
-})
-```
+## Étapes suivantes
 
-## Prochaines étapes
-
-- **[Scènes](/fr/essentials/scenes)** — Détails de `defineScene` et du cycle de vie.
-- **[Acteurs](/fr/essentials/actors)** — Naviguer depuis l'intérieur des acteurs en utilisant `useSceneRouter()`.
-- **[Systèmes](/fr/essentials/systems)** — Naviguer depuis l'intérieur des systèmes.
+- **[Scènes](/fr/essentials/scenes)** — Hooks de cycle de vie et d'animation de transition.
+- **[Systèmes](/fr/essentials/systems)** — Naviguer depuis les systèmes.
+- **[Hooks](/fr/essentials/hooks)** — Réagir aux événements `scene:enter` et `scene:leave`.
