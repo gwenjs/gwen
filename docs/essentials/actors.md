@@ -17,6 +17,26 @@ import { onRelease, onReset } from '@gwenjs/core/actor' // pool hooks only
 ```
 :::
 
+## Setup vs Runtime
+
+Like scenes, actors follow a **declare-then-use** pattern. The factory body is the *setup phase* — it runs once per spawn, synchronously. Frame callbacks (`onUpdate`, etc.) are the *runtime phase* — they run every frame while the actor is alive.
+
+```ts
+export const EnemyActor = defineActor(EnemyPrefab, () => {
+
+  // ── Setup phase (once per spawn) ──────────────────────────────────
+  const health    = useComponent(Health)     // capture component handle
+  const transform = useTransform()           // capture transform handle
+
+  // ── Runtime phase (every frame) ───────────────────────────────────
+  onUpdate((dt) => {
+    if (health.current <= 0) emit('enemy:die')
+  })
+})
+```
+
+Composable handles (`useComponent`, `useTransform`, etc.) must always be captured in the setup phase and used as closures in callbacks.
+
 ## The Basics
 
 `defineActor(prefab, factory)` takes a prefab (component layout) and a factory that sets up lifecycle hooks:
@@ -269,50 +289,22 @@ export const AudioActor = defineActor(AudioPrefab, () => {
 
 ## Pool Lifecycle Hooks
 
-These hooks are only relevant when using `defineActorPool`. They manage the dormancy cycle of pool-managed actors.
+When using `defineActorPool`, actors are recycled instead of destroyed. Two extra hooks manage dormancy: `onEnable` (re-acquired from pool) and `onDisable` (released to pool). Use `onReset(props)` to re-initialise component data on re-acquisition, and `onRelease` to clean up external state (physics bodies, audio, tweens).
 
 ```ts
 import { onRelease, onReset } from '@gwenjs/core/actor'
 
 export const BulletActor = defineActor(BulletPrefab, () => {
-  onStart(() => { /* first spawn only */ })
-
-  onReset((props) => {
-    // Called with new props when re-acquired from pool
-    // Reset component data here
-  })
-
-  onEnable(() => {
-    // Called after onReset — actor is now active
-  })
-
-  onDisable(() => {
-    // Called when released to pool — actor goes dormant
-  })
-
-  onRelease(() => {
-    // Called after onDisable — clean up physics, audio, tweens
-  })
-
-  onDestroy(() => { /* pool destroyed entirely */ })
+  onStart(()       => { /* first spawn only */ })
+  onReset((props)  => { /* re-acquired — reset data here */ })
+  onEnable(()      => { /* actor is now active */ })
+  onDisable(()     => { /* actor goes dormant */ })
+  onRelease(()     => { /* clean up physics, audio, tweens */ })
+  onDestroy(()     => { /* pool destroyed entirely */ })
 })
 ```
 
-| Hook | When |
-|---|---|
-| `onStart` | First spawn only |
-| `onReset(props)` | When re-acquired from pool — reset component data here |
-| `onEnable` | After `onReset` — actor is active |
-| `onDisable` | When released to pool — actor goes dormant |
-| `onRelease` | After `onDisable` — clean up external state |
-| `onDestroy` | Pool is destroyed entirely |
-
-::: info Pool hook imports
-`onEnable` and `onDisable` are auto-imported. Only `onRelease` and `onReset` require an explicit import:
-```ts
-import { onRelease, onReset } from '@gwenjs/core/actor'
-```
-:::
+See [Actor Pools](/advanced/actor-pools) for the full guide.
 
 ## Async Composables
 

@@ -16,7 +16,15 @@ import { useHook, emit } from '@gwenjs/core'
 
 ## Définir les événements en premier
 
-Avant d'émettre ou d'écouter, déclarez vos contrats d'événements avec `defineHooks()`. C'est le point de départ — il donne à TypeScript la forme de chaque nom d'événement et de ses arguments.
+Sans `defineHooks`, les noms d'événements sont des strings brutes et les arguments ne sont pas vérifiés — les fautes de frappe et les mauvais types d'arguments sont invisibles pour TypeScript :
+
+```ts
+emit('ennemy:hit', 50)           // faute de frappe — aucune erreur
+emit('enemy:hit', 'fifty')       // mauvais type — aucune erreur
+useHook('enemy:hit', (n) => {})  // n est unknown
+```
+
+`defineHooks()` déclare des contrats typés qui corrigent tout cela. Créez un fichier dédié pour vos événements, par exemple `src/events/game.ts` :
 
 Créez un fichier dédié pour vos événements, par exemple `src/events/game.ts` :
 

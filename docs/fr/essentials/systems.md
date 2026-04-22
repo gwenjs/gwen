@@ -16,21 +16,31 @@ import { useHook, emit } from '@gwenjs/core'  // système d'événements
 ```
 :::
 
-## Les bases
+## Setup vs Runtime
 
-Utilisez `defineSystem()` pour déclarer un système. Il retourne une **fonction factory** — vous l'appelez pour produire un plugin, puis vous passez ce plugin à `useSystem()` dans une scène.
+Le corps de la factory de `defineSystem` s'exécute **une seule fois** à l'installation du système — c'est la *phase de setup*. Les callbacks de frame (`onUpdate`, etc.) s'exécutent à chaque frame — c'est la *phase d'exécution*.
 
 ```ts
-export const ClockSystem = defineSystem(() => {
-  let elapsed = 0
+export const MovementSystem = defineSystem(() => {
 
+  // ── Phase de setup (une fois à l'installation) ──────────────────
+  const entities = useQuery([Position, Velocity])  // requête live, mise à jour automatique
+  const audio    = useService('audio')             // résolu une seule fois
+
+  // ── Phase d'exécution (chaque frame) ────────────────────────────
   onUpdate((dt) => {
-    elapsed += dt
+    for (const entity of entities) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+    }
   })
 })
+```
 
+`defineSystem()` retourne une **fonction factory** — appelez-la pour produire un plugin, puis passez-le à `useSystem()` dans une scène :
+
+```ts
 // Dans une scène :
-useSystem(ClockSystem())
+useSystem(MovementSystem())
 ```
 
 ## Interroger des entités
@@ -217,7 +227,6 @@ Si une superposition de scène (ex : un menu pause) fige la scène sous-jacente,
 | `useService(key)` | Accéder à un service fourni par un plugin |
 | `useHook(name, fn)` | S'abonner à un événement — `import { useHook } from '@gwenjs/core'` |
 | `useActor(def)` | Spawn/despawn d'instances d'acteur |
-| `usePrefab(def)` | Spawn/despawn d'entités prefab |
 | `useSceneRouter(router)` | Accéder au handle du routeur de scènes |
 | `SystemHandle.pause()` | Mettre en pause les callbacks de frame |
 | `SystemHandle.resume()` | Reprendre les callbacks de frame |

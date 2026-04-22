@@ -16,21 +16,31 @@ import { useHook, emit } from '@gwenjs/core'  // event system
 ```
 :::
 
-## The Basics
+## Setup vs Runtime
 
-Use `defineSystem()` to declare a system. It returns a **factory function** — you call it to produce a plugin, then pass that plugin to `useSystem()` inside a scene.
+The `defineSystem` factory body runs **once** when the system is installed — this is the *setup phase*. Frame callbacks (`onUpdate`, etc.) run every frame — this is the *runtime phase*.
 
 ```ts
-export const ClockSystem = defineSystem(() => {
-  let elapsed = 0
+export const MovementSystem = defineSystem(() => {
 
+  // ── Setup phase (once at install) ──────────────────────────────
+  const entities = useQuery([Position, Velocity])  // live query, updates automatically
+  const audio    = useService('audio')             // resolved once
+
+  // ── Runtime phase (every frame) ────────────────────────────────
   onUpdate((dt) => {
-    elapsed += dt
+    for (const entity of entities) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+    }
   })
 })
+```
 
+`defineSystem()` returns a **factory function** — call it to produce a plugin, then pass that to `useSystem()` inside a scene:
+
+```ts
 // In a scene:
-useSystem(ClockSystem())
+useSystem(MovementSystem())
 ```
 
 ## Querying Entities
@@ -217,7 +227,6 @@ If a scene overlay (e.g. a pause menu) freezes the underlying scene, systems are
 | `useService(key)` | Access a service provided by a plugin |
 | `useHook(name, fn)` | Subscribe to an event — `import { useHook } from '@gwenjs/core'` |
 | `useActor(def)` | Spawn/despawn actor instances |
-| `usePrefab(def)` | Spawn/despawn prefab entities |
 | `useSceneRouter(router)` | Access scene router handle |
 | `SystemHandle.pause()` | Pause frame callbacks |
 | `SystemHandle.resume()` | Resume frame callbacks |
