@@ -59,10 +59,15 @@ export { gwenQueryHoistPlugin } from "./query-hoist.js";
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
  * - `gwen:actor` — actor auto-discovery and name injection
  * - `gwen:layout` — layout virtual module and name injection
+ * - `gwen:scene-router` — scene router virtual module and name injection
  * - `gwen:tween` — easing tree-shake analysis via `virtual:gwen/used-easings`
- * - `gwen:query-hoist` — hoists useQuery arrays and pre-computes cache keys
+ * - `gwen:hooks` — generates `hooks.d.ts` from `src/hooks.ts`
  * - `gwen:local-plugins` — auto-discovers `src/plugins/`, generates `virtual:gwen/local-plugins`
  * - `gwen:local-modules` — auto-discovers `src/modules/`, generates `virtual:gwen/local-modules`
+ * - `gwen:system` — system name injection
+ * - `gwen:query-hoist` — hoists useQuery arrays and pre-computes cache keys
+ * - `gwen:optimizer` — ECS bulk optimizer
+ * - `gwen:async-context` — propagates engine context across await boundaries
  *
  * @param options - Plugin configuration. All sub-options are optional.
  *
