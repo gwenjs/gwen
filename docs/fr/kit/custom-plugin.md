@@ -14,6 +14,7 @@ Un **plugin** est un objet TypeScript conforme à l'interface `GwenPlugin`. Vous
 Voici un plugin de gestion d'entrée basique :
 
 ```ts
+// Exemple de plugin
 import { definePlugin } from '@gwenjs/kit/plugin'
 
 const keys = new Set<string>()
@@ -39,6 +40,7 @@ export const InputPlugin = definePlugin(() => ({
 Acceptez la configuration lors de l'instanciation du plugin :
 
 ```ts
+// Exemple de plugin
 interface InputOptions {
   repeatDelay?: number
   preventDefault?: string[] // Keys to prevent default on
@@ -78,21 +80,116 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
 })
 ```
 
-Enregistrez et montez le plugin dans votre main.ts :
+### Enregistrer un plugin
+
+Il existe deux façons d'enregistrer un plugin dans GWEN. Pour les plugins locaux et spécifiques au projet, déposez un fichier dans `src/plugins/` — aucune configuration nécessaire. Pour les plugins qui ont besoin d'options de `gwen.config.ts`, encapsulez-les dans un module local dans `src/modules/`.
+
+Voir [Plugin local (auto-découverte)](#plugin-local-auto-decouverte) ci-dessous pour les détails complets et les contraintes.
+
+## Plugin local (auto-découverte)
+
+La façon la plus simple d'ajouter un plugin à votre projet : déposez un fichier `.ts` dans `src/plugins/`. GWEN découvre tous les fichiers du répertoire alphabétiquement et les enregistre automatiquement après `config.plugins`.
+
+### Exemple minimal
 
 ```ts
-import { createEngine } from '@gwenjs/core'
-import { InputPlugin } from './plugins/input'
+// src/plugins/analytics.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
 
-const engine = await createEngine({ variant: 'physics2d' })
-
-// Mount the plugin with options
-await engine.use(InputPlugin({
-  preventDefault: ['ArrowUp', 'ArrowDown'],
+export default definePlugin(() => ({
+  name: 'analytics',
+  setup(engine) {
+    engine.hooks.hook('engine:init', () => {
+      console.log('[analytics] session démarrée')
+    })
+  },
 }))
-
-await engine.start()
 ```
+
+Deux règles pour les plugins locaux :
+1. **`export default`** — pas un export nommé. Le framework importe l'export par défaut.
+2. **Factory, pas instance** — exportez le résultat de `definePlugin(...)`, pas le résultat de son appel.
+
+### Patterns d'enregistrement
+
+**Option A — Plugin sans config externe (déposer dans `src/plugins/`) :**
+
+```ts
+// src/plugins/input.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+const keys = new Set<string>()
+
+export default definePlugin(() => ({
+  name: 'input',
+  setup(engine) {
+    engine.hooks.hook('engine:init', () => {
+      window.addEventListener('keydown', (e) => keys.add(e.key))
+      window.addEventListener('keyup', (e) => keys.delete(e.key))
+    })
+    engine.provide('input', {
+      isKeyDown: (key: string) => keys.has(key),
+    })
+  },
+}))
+```
+
+**Option B — Plugin avec options de `gwen.config.ts` (utiliser un module local) :**
+
+```ts
+// src/modules/input.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { InputPlugin } from '../plugins/input'
+
+interface InputOptions {
+  repeatDelay?: number
+  preventDefault?: string[]
+}
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    input?: InputOptions
+  }
+}
+
+export default defineGwenModule<InputOptions>({
+  meta: { configKey: 'input' }, // nom inféré depuis le fichier → 'local:input'
+  defaults: { repeatDelay: 50, preventDefault: [] },
+  setup(options, gwen) {
+    gwen.addPlugin(InputPlugin(options))
+  },
+})
+```
+
+Configurer dans `gwen.config.ts` :
+
+```ts
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
+})
+```
+
+### Quand utiliser un module local à la place
+
+| Besoin | Solution |
+|---|---|
+| Plugin sans config | `src/plugins/mon-plugin.ts` |
+| Plugin avec options de `gwen.config.ts` | `src/modules/mon-plugin.ts` encapsulant le plugin |
+
+Voir [Créer un module personnalisé](/fr/kit/custom-module) pour l'approche module.
+
+### Rechargement à chaud en dev
+
+L'ajout ou la suppression d'un fichier dans `src/plugins/` déclenche un rechargement complet de la page en mode dev. La modification d'un fichier existant utilise le HMR normal de Vite — pas de rechargement requis.
+
+### Contraintes
+
+::: warning Fichiers plats uniquement
+`src/plugins/audio.ts` ✅ — `src/plugins/audio/index.ts` ❌. Les sous-répertoires ne sont pas scannés.
+:::
 
 ## Cycle de vie du plugin
 

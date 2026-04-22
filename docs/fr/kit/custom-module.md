@@ -87,12 +87,127 @@ Enregistrez dans `gwen.config.ts` :
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: [['@my-scope/my-module', {
-    debug: true,
-    apiUrl: 'https://dev.api.example.com',
-  }]],
+  modules: ['@my-scope/my-module'],
+  myModule: { debug: true, apiUrl: 'https://dev.api.example.com' },
 })
 ```
+
+## Module local (auto-découverte)
+
+Pour les modules spécifiques au projet, déposez un fichier dans `src/modules/`. GWEN découvre tous les fichiers `.ts` (et `*/index.ts` à un niveau de profondeur) et les charge automatiquement — aucune entrée dans `gwen.config.ts` n'est requise.
+
+### Module local minimal
+
+```ts
+// src/modules/score.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+  name: 'score',
+  setup(engine) {
+    let score = 0
+    engine.provide('score', {
+      get: () => score,
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+      reset: () => { score = 0 },
+    })
+  },
+}))
+
+export default defineGwenModule({
+  meta: { configKey: 'score' }, // nom inféré → 'local:score'
+  defaults: { maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+  },
+})
+```
+
+Déposez ce fichier et le module est actif. Aucune modification de `gwen.config.ts` n'est nécessaire.
+
+### Inférence du nom
+
+`meta.name` est optionnel. Le nom est inféré depuis le nom de fichier :
+
+| Fichier | Nom inféré |
+|---|---|
+| `src/modules/score.ts` | `local:score` |
+| `src/modules/score/index.ts` | `local:score` |
+| `meta: { name: 'my-score' }` explicite | `my-score` (la valeur déclarée l'emporte) |
+
+### Recevoir des options de `gwen.config.ts`
+
+Définissez `meta.configKey` pour recevoir des options depuis la clé de premier niveau correspondante. Augmentez `GwenModuleOptions` dans le même fichier pour l'auto-complétion TypeScript :
+
+```ts
+// src/modules/score.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+interface ScoreOptions {
+  initialScore?: number
+  maxScore?: number
+}
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    score?: ScoreOptions
+  }
+}
+
+const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+  name: 'score',
+  setup(engine) {
+    let score = opts.initialScore ?? 0
+    engine.provide('score', {
+      get: () => score,
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+      reset: () => { score = opts.initialScore ?? 0 },
+    })
+  },
+}))
+
+export default defineGwenModule<ScoreOptions>({
+  meta: { configKey: 'score' },
+  defaults: { initialScore: 0, maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+  },
+})
+```
+
+Les modules locaux sont auto-découverts — aucune entrée `modules:` n'est nécessaire. Seule la clé d'options apparaît dans `gwen.config.ts` :
+
+```ts
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  score: { initialScore: 0, maxScore: 9999 }, // entièrement typé
+})
+```
+
+::: tip Pas de `@ts-expect-error` pour les modules locaux
+Contrairement aux packages npm, votre projet a déjà `@gwenjs/app` comme dépendance directe. L'augmentation `declare module "@gwenjs/app"` fonctionne sans commentaire de suppression.
+:::
+
+### Support des sous-répertoires
+
+```
+src/modules/
+├── score.ts              # → local:score
+└── hud/
+    └── index.ts          # → local:hud
+```
+
+::: warning Un seul niveau
+`src/modules/hud/index.ts` ✅ — `src/modules/ui/hud/index.ts` ❌. Seul un niveau d'imbrication est supporté.
+:::
+
+### Rechargement à chaud en dev
+
+L'ajout ou la suppression d'un fichier dans `src/modules/` déclenche un rechargement complet de la page. La modification d'un fichier existant utilise le HMR normal de Vite.
 
 ## API à la compilation (GwenKit)
 
@@ -312,10 +427,8 @@ Enregistrez le module dans `gwen.config.ts` :
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: [['@my-scope/score', {
-    initialScore: 0,
-    maxScore: 9999,
-  }]],
+  modules: ['@my-scope/score'],
+  score: { initialScore: 0, maxScore: 9999 },
 })
 ```
 
@@ -328,7 +441,7 @@ Créez un module à la compilation :
 ```ts
 export default defineGwenModule<Options>({
   meta: {
-    name: string
+    name?: string     // optionnel pour les modules locaux — inféré depuis le nom de fichier
     configKey?: string
     version?: string
   }

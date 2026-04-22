@@ -19,7 +19,7 @@ Ensemble, ils vous permettent d'étendre GWEN avec des capacités personnalisée
 | Aspect | Plugin | Module |
 |--------|--------|--------|
 | Défini avec | `definePlugin()` depuis `@gwenjs/kit` | `defineGwenModule()` depuis `@gwenjs/kit` |
-| Enregistré dans | `engine.use(Plugin())` dans `main.ts` | `defineConfig({ modules })` dans `gwen.config.ts` |
+| Enregistré dans | `src/plugins/` (auto-découvert) ou `gwen.addPlugin()` dans un module | `src/modules/` (auto-découvert) ou clé `modules` dans `gwen.config.ts` |
 | Contexte d'exécution | Runtime (navigateur) | Compile-time (Node.js: `gwen dev`, `gwen build`, `gwen prepare`) |
 | Portée | Cycle de vie moteur | Configuration des fonctionnalités, génération de code |
 | Exemple | Gestion des entrées, simulation physique | Enregistrement de plugins, auto-imports, extensions Vite, modèles de type |
@@ -50,6 +50,10 @@ export const InputPlugin = definePlugin(() => ({
 }))
 ```
 
+::: info Export nommé vs export par défaut
+Cette forme avec export nommé est utilisée quand un module enregistre le plugin via `gwen.addPlugin(InputPlugin())`. Pour l'auto-découverte via `src/plugins/`, utilisez `export default definePlugin(...)` à la place — voir [Enregistrer dans le projet](#enregistrer-dans-le-projet) ci-dessous.
+:::
+
 ### Module
 
 Un module qui configure le plugin Input et les auto-imports :
@@ -70,26 +74,46 @@ export default defineGwenModule({
 
 ### Enregistrer dans le projet
 
-Dans `gwen.config.ts` :
+**Option A — Fichier local (spécifique au projet, pas de config nécessaire) :**
+
+Déposez un fichier dans `src/plugins/`. GWEN le découvre et l'enregistre automatiquement :
 
 ```ts
+// src/plugins/input.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+export default definePlugin(() => ({
+  name: 'input',
+  setup(engine) {
+    const keys = new Set<string>()
+    engine.hooks.hook('engine:init', () => {
+      window.addEventListener('keydown', (e) => keys.add(e.key))
+      window.addEventListener('keyup', (e) => keys.delete(e.key))
+    })
+    engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
+  },
+}))
+```
+
+Les plugins locaux s'exécutent après `config.plugins` — voir [Ordre de chargement](/fr/guide/project-structure#ordre-de-chargement) pour la séquence complète.
+
+::: tip Fichiers plats uniquement
+`src/plugins/input.ts` ✅ — `src/plugins/input/index.ts` ❌. Les sous-répertoires ne sont pas scannés.
+:::
+
+**Option B — Module dans `gwen.config.ts` (packages npm ou options depuis la config) :**
+
+```ts
+// gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
   modules: ['@my-scope/input'],
+  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
 })
 ```
 
-Dans `main.ts`, enregistrez le plugin que le module fournit :
-
-```ts
-import { createEngine } from '@gwenjs/core'
-import { InputPlugin } from '@my-scope/input'
-
-const engine = await createEngine()
-await engine.use(InputPlugin())
-await engine.start()
-```
+Le package module lui-même appelle `gwen.addPlugin()` dans son `setup()`. L'entrée `gwen.config.ts` indique seulement à GWEN quel module charger.
 
 ## Quand utiliser l'un ou l'autre
 
@@ -103,6 +127,10 @@ await engine.start()
 - Vous enregistrez plusieurs plugins ou auto-imports en tant que fonctionnalité cohérente
 - Vous voulez étendre le pipeline de compilation Vite
 - Vous avez besoin de générer des définitions de type pour l'auto-complète IDE
+
+**Enregistrer un module :**
+- Déposez un fichier dans `src/modules/` pour les modules locaux au projet (auto-découverts)
+- Ajoutez dans `modules` dans `gwen.config.ts` pour les packages npm
 
 ## Prochaines étapes
 

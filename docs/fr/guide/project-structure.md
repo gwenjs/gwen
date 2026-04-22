@@ -24,7 +24,8 @@ my-game/
     ├── prefabs/             # definePrefab() — modèles d'entités
     │   └── Bullet.ts
     ├── router.ts            # defineSceneRouter() — FSM de navigation des scènes
-    ├── plugins/             # definePlugin() — plugins personnalisés (optionnel)
+    ├── plugins/             # definePlugin() — plugins locaux
+    ├── modules/             # defineGwenModule() — modules locaux
     ├── assets/              # images, audio, polices...
     └── utils/               # utilitaires partagés
 ```
@@ -155,21 +156,111 @@ export const BulletPrefab = definePrefab([
 ])
 ```
 
-### `src/plugins/` — Plugins personnalisés
+### `src/plugins/` — Plugins locaux
 
-Les plugins étendent GWEN avec de nouveaux systèmes, composants ou crochets de cycle de vie. Utilisez-les pour des fonctionnalités réutilisables comme la gestion des entrées, l'audio ou l'analytique.
+Les fichiers de ce répertoire sont **auto-découverts et enregistrés automatiquement** — aucune entrée dans `gwen.config.ts` n'est nécessaire.
 
-**src/plugins/InputPlugin.ts**
-```typescript
+Chaque fichier doit exporter une factory `definePlugin` comme **export par défaut** :
+
+**src/plugins/audio.ts**
+```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 
-export const InputPlugin = definePlugin(() => ({
-  name: 'input',
+export default definePlugin(() => ({
+  name: 'audio',
   setup(engine) {
-    console.log('Plugin d\'entrée installé')
+    const manager = createAudioManager() // votre propre implémentation
+    engine.provide('audio', manager)
+    engine.hooks.hook('engine:stop', () => manager.dispose())
   },
 }))
 ```
+
+::: info Export par défaut, pas nommé
+Le framework appelle la factory sans arguments au moment de l'enregistrement. Si votre plugin a besoin d'options de `gwen.config.ts`, utilisez un module local à la place (voir `src/modules/` ci-dessous).
+:::
+
+::: tip Fichiers plats uniquement
+`src/plugins/audio.ts` ✅ — `src/plugins/audio/index.ts` ❌. Les sous-répertoires ne sont pas scannés. Les plugins sont conçus pour être dans un seul fichier — si un plugin devient trop volumineux, encapsulez-le dans un module local (`src/modules/`).
+:::
+
+### `src/modules/` — Modules locaux
+
+Les fichiers de ce répertoire sont **auto-découverts et chargés avant** `config.plugins`. Ils fonctionnent exactement comme les modules npm déclarés dans `gwen.config.ts`, mais vivent dans votre projet — pas de package à publier, pas d'entrée de config requise.
+
+Chaque fichier doit exporter une définition `defineGwenModule` comme **export par défaut** :
+
+**src/modules/score.ts**
+```ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+const ScorePlugin = definePlugin<{ maxScore?: number }>((opts = {}) => ({
+  name: 'score',
+  setup(engine) {
+    let score = 0
+    engine.provide('score', {
+      get: () => score,
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+      reset: () => { score = 0 },
+    })
+  },
+}))
+
+export default defineGwenModule({
+  meta: { configKey: 'score' }, // nom inféré → 'local:score'
+  defaults: { maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+  },
+})
+```
+
+**Inférence du nom** — `meta.name` est optionnel pour les modules locaux :
+
+| Fichier | Nom inféré |
+|---|---|
+| `src/modules/score.ts` | `local:score` |
+| `src/modules/score/index.ts` | `local:score` |
+| `meta: { name: 'my-score' }` explicite | `my-score` |
+
+**Recevoir des options de `gwen.config.ts`** — quand `meta.configKey` est défini, utilisez l'augmentation `GwenModuleOptions` dans le même fichier pour l'auto-complétion TypeScript :
+
+```ts
+// src/modules/score.ts
+interface ScoreOptions {
+  maxScore?: number
+}
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    score?: ScoreOptions
+  }
+}
+
+export default defineGwenModule<ScoreOptions>({
+  meta: { configKey: 'score' },
+  defaults: { maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+  },
+})
+```
+
+Les modules locaux sont auto-découverts — aucune entrée `modules:` n'est nécessaire. Seule la clé d'options apparaît dans `gwen.config.ts` :
+
+```ts
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  score: { maxScore: 9999 },
+})
+```
+
+::: tip Support des sous-répertoires
+`src/modules/score/index.ts` est supporté et inféré comme `local:score`. Utilisez-le pour diviser un module complexe en plusieurs fichiers.
+:::
 
 ### `src/assets/` — Fichiers statiques
 
@@ -203,6 +294,17 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
   return Math.sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 }
 ```
+
+## Ordre de chargement
+
+Les plugins et modules sont appliqués dans cet ordre à chaque démarrage du moteur :
+
+1. Plugins framework intégrés (viewports, screen)
+2. `config.plugins` — inclut les plugins contribués par les modules npm au moment de la compilation
+3. `src/modules/` — modules locaux (ordre alphabétique par nom de module)
+4. `src/plugins/` — plugins locaux (ordre alphabétique par nom de fichier)
+
+Les modules npm déclarés dans `gwen.config.ts → modules` s'exécutent au **moment de la compilation** et enregistrent leurs plugins via `gwen.addPlugin()`. Ces plugins atterrissent dans `config.plugins` et s'exécutent avant tout module ou plugin local.
 
 ## Modèles de mise à l'échelle
 
