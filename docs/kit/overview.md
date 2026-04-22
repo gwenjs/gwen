@@ -79,18 +79,14 @@ export default defineGwenModule({
 Drop a file in `src/plugins/`. GWEN discovers and registers it automatically:
 
 ```ts
-// src/plugins/input.ts
+// src/plugins/input.ts — export default, not a named export
 import { definePlugin } from '@gwenjs/kit/plugin'
 
 export default definePlugin(() => ({
   name: 'input',
   setup(engine) {
-    const keys = new Set<string>()
-    engine.hooks.hook('engine:init', () => {
-      window.addEventListener('keydown', (e) => keys.add(e.key))
-      window.addEventListener('keyup', (e) => keys.delete(e.key))
-    })
-    engine.provide('input', { isKeyDown: (k: string) => keys.has(k) })
+    // same setup as any plugin
+    engine.provide('input', { /* ... */ })
   },
 }))
 ```
@@ -127,6 +123,10 @@ The module package itself calls `gwen.addPlugin()` in its `setup()`. The `gwen.c
 - You're registering multiple plugins or auto-imports as a cohesive feature
 - You want to extend the Vite build pipeline
 - You need to generate type definitions for IDE auto-complete
+
+**Register a module:**
+- Drop a file in `src/modules/` for project-local modules (auto-discovered)
+- Add to `modules` in `gwen.config.ts` for npm packages
 
 ## Next Steps
 
