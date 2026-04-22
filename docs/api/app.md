@@ -46,7 +46,7 @@ export default defineConfig({
 
 | Property | Type | Default | Description |
 |---|---|---|---|
-| `modules` | `GwenModuleEntry[]` | `[]` | Modules to activate. Each entry is a package name or `[name, options]` tuple. |
+| `modules` | `string[]` | `[]` | Modules to activate. Each entry is the npm package name. Module options are declared as a top-level key (e.g. `physics2d: { gravity: -9.81 }`). |
 | `engine.maxEntities` | `number` | `10_000` | Max simultaneous entities. |
 | `engine.targetFPS` | `number` | `60` | Target frames per second. |
 | `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | auto | WASM core variant to load. Auto-detected from `modules` when omitted. |
@@ -62,10 +62,8 @@ export default defineConfig({
 **Example:**
 ```ts
 export default defineConfig({
-  modules: [
-    '@gwenjs/physics2d',
-    ['@gwenjs/input', { gamepad: true }],
-  ],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: { gravity: -9.81 },
   engine: {
     maxEntities: 5_000,
     targetFPS: 60,

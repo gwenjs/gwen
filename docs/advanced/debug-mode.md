@@ -29,11 +29,12 @@ export default defineConfig({
 
 ### Module Debug
 
-Individual modules may also expose their own `debug` option via the module tuple:
+Individual modules may also expose their own `debug` option. Set it at the module's top-level config key:
 
 ```typescript
 export default defineConfig({
-  modules: [['@gwenjs/physics2d', { debug: true }]],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: { debug: true },
 })
 ```
 
@@ -46,7 +47,8 @@ Enable debug mode in your engine configuration:
 ```ts
 // gwen.config.ts
 export default defineConfig({
-  modules: [['@gwenjs/physics2d', { debug: true }]],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: { debug: true },
 })
 ```
 
@@ -201,7 +203,7 @@ export default defineConfig({
   engine: {
     debug: process.env.NODE_ENV !== 'production',
   },
-  modules: [['@gwenjs/physics2d', {}]],
+  modules: ['@gwenjs/physics2d'],
 })
 ```
 

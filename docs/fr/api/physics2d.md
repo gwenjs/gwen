@@ -448,10 +448,14 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 
 > **Note:** Lors de l'utilisation de la config du module, passez les options du plugin Vite via la sous-clé `vite` :
 > ```ts
-> modules: [['@gwenjs/physics2d', {
->   gravity: -9.81,
->   vite: { debug: true }  // Options du plugin Vite (build uniquement)
-> }]]
+> // gwen.config.ts
+> export default defineConfig({
+>   modules: ['@gwenjs/physics2d'],
+>   physics2d: {
+>     gravity: -9.81,
+>     vite: { debug: true },  // Options du plugin Vite (build uniquement)
+>   },
+> })
 > ```
 
 ## Définitions de type
