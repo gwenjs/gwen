@@ -80,55 +80,9 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
 
 ### Registering a Plugin
 
-**Option A — Local file (`src/plugins/`, options use defaults):**
+There are two ways to register a plugin in GWEN. For local, project-specific plugins, drop a file in `src/plugins/` — no configuration needed. For plugins that need options from `gwen.config.ts`, wrap them in a local module at `src/modules/`.
 
-```typescript
-// src/plugins/input.ts — no config needed, all options default
-import { definePlugin } from '@gwenjs/kit/plugin'
-
-export default definePlugin<InputOptions>((opts = {}) => {
-  const { repeatDelay = 50, preventDefault = [] } = opts
-  // ...plugin body unchanged...
-  return { name: 'input', setup(engine) { /* ... */ } }
-})
-```
-
-::: warning Options from `gwen.config.ts` require a module
-The factory is called with no arguments when auto-discovered. Use Option B if you need user-configurable options.
-:::
-
-**Option B — Local module (`src/modules/`, options from `gwen.config.ts`):**
-
-```typescript
-// src/modules/input.ts
-import { defineGwenModule } from '@gwenjs/kit/module'
-import { InputPlugin } from '../plugins/input-plugin'
-
-declare module '@gwenjs/app' {
-  interface GwenModuleOptions {
-    input?: InputOptions
-  }
-}
-
-export default defineGwenModule<InputOptions>({
-  meta: { configKey: 'input' },
-  defaults: { repeatDelay: 50, preventDefault: [] },
-  setup(options, gwen) {
-    gwen.addPlugin(InputPlugin(options))
-  },
-})
-```
-
-Then configure in `gwen.config.ts`:
-
-```typescript
-// gwen.config.ts
-import { defineConfig } from '@gwenjs/app'
-
-export default defineConfig({
-  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
-})
-```
+See [Local Plugin (Auto-Discovery)](#local-plugin-auto-discovery) below for the full details and constraints.
 
 ## Local Plugin (Auto-Discovery)
 
@@ -153,6 +107,72 @@ export default definePlugin(() => ({
 Two rules for local plugins:
 1. **`export default`** — not a named export. The framework imports the default export.
 2. **Factory, not instance** — export the `definePlugin(...)` result, not the result of calling it.
+
+### Registration patterns
+
+**Option A — Plugin with no external config (drop in `src/plugins/`):**
+
+```typescript
+// src/plugins/input.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+const keys = new Set<string>()
+
+export default definePlugin(() => ({
+  name: 'input',
+  setup(engine) {
+    engine.hooks.hook('engine:init', () => {
+      window.addEventListener('keydown', (e) => keys.add(e.key))
+      window.addEventListener('keyup', (e) => keys.delete(e.key))
+    })
+    engine.provide('input', {
+      isKeyDown: (key: string) => keys.has(key),
+    })
+  },
+}))
+```
+
+**Option B — Plugin that needs `gwen.config.ts` options (use a local module):**
+
+```typescript
+// src/modules/input.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { InputPlugin } from '../plugins/input'
+
+interface InputOptions {
+  repeatDelay?: number
+  preventDefault?: string[]
+}
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    input?: InputOptions
+  }
+}
+
+export default defineGwenModule<InputOptions>({
+  meta: { configKey: 'input' }, // name inferred from filename → 'local:input'
+  defaults: { repeatDelay: 50, preventDefault: [] },
+  setup(options, gwen) {
+    gwen.addPlugin(InputPlugin(options))
+  },
+})
+```
+
+Configure in `gwen.config.ts`:
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
+})
+```
+
+::: warning No external config via `src/plugins/`
+The factory in `src/plugins/` is called with no arguments. All options must have defaults. If you need user-configurable options, use Option B (local module) instead.
+:::
 
 ### When to use a local module instead
 
