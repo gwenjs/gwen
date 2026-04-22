@@ -181,7 +181,7 @@ Le framework appelle la factory sans arguments au moment de l'enregistrement. Si
 :::
 
 ::: tip Fichiers plats uniquement
-`src/plugins/audio.ts` ✅ — `src/plugins/audio/index.ts` ❌. Les sous-répertoires ne sont pas scannés. Les plugins sont conçus pour être dans un seul fichier — si un plugin devient trop volumineux, encapsulez-le dans un module local (`src/modules/`).
+`src/plugins/audio.ts` ✅ — `src/plugins/audio/index.ts` ❌. Les sous-répertoires ne sont pas scannés. Les plugins sont conçus pour tenir dans un seul fichier — si un plugin devient trop volumineux, encapsulez-le dans un module local (`src/modules/`).
 :::
 
 ### `src/modules/` — Modules locaux
@@ -297,7 +297,7 @@ export function distance(x1: number, y1: number, x2: number, y2: number) {
 
 ## Ordre de chargement
 
-Les plugins et modules sont appliqués dans cet ordre à chaque démarrage du moteur :
+Au démarrage, les plugins et modules sont appliqués dans cet ordre :
 
 1. Plugins framework intégrés (viewports, screen)
 2. `config.plugins` — inclut les plugins contribués par les modules npm au moment de la compilation

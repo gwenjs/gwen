@@ -126,11 +126,11 @@ Le package module lui-même appelle `gwen.addPlugin()` dans son `setup()`. L'ent
 - Vous devez configurer le comportement à la compilation
 - Vous enregistrez plusieurs plugins ou auto-imports en tant que fonctionnalité cohérente
 - Vous voulez étendre le pipeline de compilation Vite
-- Vous avez besoin de générer des définitions de type pour l'auto-complète IDE
+- Vous avez besoin de générer des définitions de type pour l'auto-complétion de l'IDE
 
 **Enregistrer un module :**
 - Déposez un fichier dans `src/modules/` pour les modules locaux au projet (auto-découverts)
-- Ajoutez dans `modules` dans `gwen.config.ts` pour les packages npm
+- Ajoutez `'@my-scope/module'` à `modules` dans `gwen.config.ts` pour les packages npm
 
 ## Prochaines étapes
 

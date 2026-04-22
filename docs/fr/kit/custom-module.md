@@ -235,10 +235,13 @@ gwen.addAutoImports([
 Dans le code du jeu, `useMyService` est disponible sans import :
 
 ```ts
-// No import needed!
-export const MySystem = defineSystem(() => {
+// Aucun import nécessaire !
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+
+export const MySystem = defineSystem(function MySystem() {
   const service = useMyService()
-  return (ctx) => { /* ... */ }
+
+  onUpdate(() => { /* ... */ })
 })
 ```
 
@@ -269,7 +272,7 @@ gwen.addVitePlugin({
 
 ### Modèles de type
 
-Générez les fichiers de déclaration TypeScript pour l'auto-complète IDE et la vérification de type :
+Générez les fichiers de déclaration TypeScript pour l'auto-complétion de l'IDE et la vérification de type :
 
 ```ts
 gwen.addTypeTemplate({
@@ -369,27 +372,26 @@ export default defineGwenModule<ScoreModuleOptions>({
 Utilisez le système de score dans un système de jeu :
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const ScoreDisplaySystem = defineSystem(() => {
-  const { get } = useEngine()
-  const scoreService = get('score')
+export const ScoreDisplaySystem = defineSystem(function ScoreDisplaySystem() {
+  const scoreService = useService('score')
 
-  return (ctx) => {
+  onUpdate(() => {
     const currentScore = scoreService.get()
     // Render score on screen
-  }
+  })
 })
 
 // Or use auto-import
-export const RewardSystem = defineSystem(() => {
+export const RewardSystem = defineSystem(function RewardSystem() {
   const score = useScore()
 
-  return (ctx) => {
+  onUpdate(() => {
     if (playerCollectedCoin) {
       score.add(10)
     }
-  }
+  })
 })
 ```
 

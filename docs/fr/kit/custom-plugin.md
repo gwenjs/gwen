@@ -27,7 +27,7 @@ export const InputPlugin = definePlugin(() => ({
       window.addEventListener('keyup', (e) => keys.delete(e.key))
     })
 
-    // Expose a service to systems
+    // Expose un service aux systèmes
     engine.provide('input', {
       isKeyDown: (key: string) => keys.has(key),
     })
@@ -84,7 +84,7 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
 
 Il existe deux façons d'enregistrer un plugin dans GWEN. Pour les plugins locaux et spécifiques au projet, déposez un fichier dans `src/plugins/` — aucune configuration nécessaire. Pour les plugins qui ont besoin d'options de `gwen.config.ts`, encapsulez-les dans un module local dans `src/modules/`.
 
-Voir [Plugin local (auto-découverte)](#plugin-local-auto-decouverte) ci-dessous pour les détails complets et les contraintes.
+Voir [Plugin local (auto-découverte)](#plugin-local-auto-découverte) ci-dessous pour les détails complets et les contraintes.
 
 ## Plugin local (auto-découverte)
 
@@ -233,18 +233,17 @@ engine.provide('myService', {
 })
 ```
 
-Accédez au service dans un système en utilisant `useEngine().get()` :
+Accédez au service dans un système en utilisant `useService()` :
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const MySystem = defineSystem(() => {
-  const { get } = useEngine()
-  const myService = get('myService')
+export const MySystem = defineSystem(function MySystem() {
+  const myService = useService('myService')
 
-  return (ctx) => {
+  onUpdate(() => {
     const data = myService.getData()
-  }
+  })
 })
 ```
 
@@ -442,18 +441,17 @@ export default defineGwenModule({
 Utilisez dans un système :
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
 
-export const SoundEffectSystem = defineSystem(() => {
-  const { get } = useEngine()
-  const audio = get('audio')
+export const SoundEffectSystem = defineSystem(function SoundEffectSystem() {
+  const audio = useService('audio')
 
   audio.load('jump', '/sounds/jump.mp3')
   audio.load('coin', '/sounds/coin.mp3')
 
-  return (ctx) => {
+  onUpdate(() => {
     // Play sounds based on game events
-  }
+  })
 })
 ```
 
