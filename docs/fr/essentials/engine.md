@@ -100,14 +100,7 @@ export const DebugSystem = defineSystem(() => {
 | `entityCount` | `number` | Nombre d'entités actives |
 | `deltaTime` | `number` | Delta de la dernière frame en secondes |
 
-## Mettre en pause et reprendre
-
-```ts
-engine.pause()   // arrêter la boucle de frames
-engine.resume()  // redémarrer la boucle de frames
-```
-
-En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement :
+En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement avec `engine.advance(delta)` :
 
 ```ts
 engine.advance(delta)  // exécuter une frame avec le delta donné (en secondes)
@@ -120,9 +113,7 @@ engine.advance(delta)  // exécuter une frame avec le delta donné (en secondes)
 | `defineConfig(options)` | Configuration du framework au moment du build |
 | `useEngine()` | Accéder au moteur brut (tout contexte moteur) |
 | `engine.getStats()` | Métriques de performance en direct |
-| `engine.pause()` | Mettre la boucle de frames en pause |
-| `engine.resume()` | Reprendre la boucle de frames |
-| `engine.advance(delta)` | Avance manuelle d'une frame (mode boucle externe) |
+| `engine.advance(delta)` | Avance manuelle d'une frame (mode boucle externe uniquement) |
 
 ## Étapes suivantes
 

@@ -100,14 +100,7 @@ export const DebugSystem = defineSystem(() => {
 | `entityCount` | `number` | Active entity count |
 | `deltaTime` | `number` | Last frame delta in seconds |
 
-## Pausing and Resuming
-
-```ts
-engine.pause()   // stop the frame loop
-engine.resume()  // restart the frame loop
-```
-
-For external loop mode (`engine.loop: 'external'`), advance frames manually:
+For external loop mode (`engine.loop: 'external'`), advance frames manually with `engine.advance(delta)`:
 
 ```ts
 engine.advance(delta)  // tick one frame with the given delta (seconds)
@@ -120,9 +113,7 @@ engine.advance(delta)  // tick one frame with the given delta (seconds)
 | `defineConfig(options)` | Build-time framework configuration |
 | `useEngine()` | Access raw engine (any engine context) |
 | `engine.getStats()` | Live performance metrics |
-| `engine.pause()` | Pause the frame loop |
-| `engine.resume()` | Resume the frame loop |
-| `engine.advance(delta)` | Manual frame tick (external loop mode) |
+| `engine.advance(delta)` | Manual frame tick (external loop mode only) |
 
 ## Next Steps
 
