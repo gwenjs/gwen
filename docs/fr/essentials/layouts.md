@@ -1,197 +1,173 @@
 ---
 title: Layouts
-description: Les layouts sont des couches d'interface utilisateur persistantes qui survivent aux transitions de scènes, parfaits pour les HUD, les menus et les éléments d'interface utilisateur persistants.
+description: Couches d'UI persistantes qui survivent aux transitions de scènes — idéales pour les HUD, barres de menus et l'UI globale.
 ---
 
 # Layouts
 
-Un **layout** est une couche d'interface utilisateur persistante qui existe au-dessus de toutes les scènes. Contrairement aux scènes (qui se chargent et se déchargent), un layout persiste lors des transitions de scènes. Utilisez les layouts pour les HUD, les barres de menu, les boîtes de dialogue de pause et toute interface utilisateur qui devrait survivre lorsque vous changez de scènes.
+Un **layout** est une couche persistante qui vit au-dessus de toutes les scènes. Contrairement aux scènes (qui se chargent et se déchargent), un layout persiste lors des transitions de scènes. Utilisez les layouts pour les HUD, les barres de menu, les boîtes de dialogue de pause et toute UI qui devrait survivre lorsque vous changez de scènes.
+
+::: info Auto-imports
+`defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` sont auto-importés dans un projet GWEN.
+:::
 
 ## Les bases
 
-### Définir un layout
-
-Utilisez `defineLayout()` pour créer une couche d'interface utilisateur persistante :
+Utilisez `defineLayout()` pour déclarer une couche persistante. À l'intérieur de la factory, placez des acteurs en utilisant `placeActor()` :
 
 ```ts
 import { defineLayout, placeActor } from '@gwenjs/core/actor'
 import { HUDActor } from './actors/hud'
+import { MinimapActor } from './actors/minimap'
 
 export const GameLayout = defineLayout(() => {
   const hud = placeActor(HUDActor)
-  return { hud }
+  const minimap = placeActor(MinimapActor)
+  return { hud, minimap }
 })
 ```
 
-### Charger un layout
+L'objet retourné devient `layout.refs` — les handles pour chaque acteur placé.
 
-Les layouts sont généralement chargés au démarrage ou lors de l'entrée du gameplay :
+## Charger et décharger
+
+Utilisez `useLayout(def)` à l'intérieur d'un système ou d'une scène pour obtenir un handle de contrôle :
 
 ```ts
 import { defineSystem } from '@gwenjs/core/system'
 import { useLayout } from '@gwenjs/core/actor'
 import { GameLayout } from './layouts'
 
-export const LayoutInitSystem = defineSystem(() => {
-  const level = useLayout(GameLayout)
+export const LayoutSystem = defineSystem(() => {
+  const layout = useLayout(GameLayout)
 
-  onUpdate(() => {
-    if (!level.active && shouldLoadLayout) {
-      level.load() // Persister ce HUD dans toutes les scènes
-    }
-  })
+  onEnter(() => layout.load())
+  onExit(() => layout.dispose())
 })
 ```
 
-Ou à partir d'une initialisation du routeur de scènes :
+Ou à partir d'une scène :
 
 ```ts
-import { defineSceneRouter } from '@gwenjs/core/scene'
-import { GameLayout } from './layouts'
-
-export const router = defineSceneRouter({
-  scenes: { menu: MenuScene, game: GameScene },
-  initial: 'menu',
-  onRouterInit: async (router) => {
-    // Charger le layout au démarrage du jeu
-    const level = useLayout(GameLayout)
-    await level.load()
-  },
-})
-```
-
-## En pratique
-
-### HUD avec santé et score
-
-Un exemple de HUD réaliste :
-
-```ts
-// components/hud.ts
-import { defineComponent, Types } from '@gwenjs/core'
-
-export const HUDData = defineComponent({
-  name: 'HUDData',
-  schema: {
-    score: Types.i32,
-    health: Types.i32,
-  },
-})
-```
-
-```ts
-// actors/hud.ts
-import { defineActor, onStart, onUpdate } from '@gwenjs/core/actor'
-import { useQuery, useEngine } from '@gwenjs/core'
-import { HUDData } from '../components/hud'
-import { Health, Position } from '../components'
-
-export const HUDActor = defineActor({
-  name: 'HUD',
-  setup() {
-    let hudEntity: bigint
-
-    onStart(() => {
-      const engine = useEngine()
-      // Générer l'entité HUD
-      hudEntity = engine.spawn([
-        [HUDData, { score: 0, health: 100 }],
-      ])
-    })
-
-    onUpdate(() => {
-      // Mettre à jour le HUD à partir de l'état du jeu
-      const players = useQuery([Health, Position])
-
-      for (const playerId of players) {
-        HUDData.score[hudEntity] += 10
-        HUDData.health[hudEntity] = Health.current[playerId]
-      }
-
-      // Afficher le HUD (canvas, DOM, etc.)
-      renderHUD({
-        score: HUDData.score[hudEntity],
-        health: HUDData.health[hudEntity],
-      })
-    })
-  },
-})
-```
-
-### Le layout persiste lors des changements de scènes
-
-Voici l'avantage clé : le layout reste actif lorsque vous changez de scènes :
-
-```ts
-// Commencer dans MenuScene (pas de HUD)
-router.push('menu')
-
-// Passer à GameScene (HUD apparaît)
-router.push('game') // GameLayout est toujours actif, HUD est rendu
-
-// Passer à PauseScene (HUD reste)
-router.push('pause') // Même HUD, mêmes données
-
-// Retour à GameScene (HUD continue)
-router.pop() // Le HUD est toujours là avec les mêmes valeurs
-```
-
-### Mise à jour des données du layout à partir des systèmes
-
-Les layouts fournissent une couche de données partagées que tout système de scène peut lire et écrire :
-
-```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
+import { defineScene, onEnter, onExit } from '@gwenjs/core/scene'
 import { useLayout } from '@gwenjs/core/actor'
-import { GameLayout } from './layouts'
-import { Health } from './components'
-import { HUDData } from './components/hud'
 
-export const HealthSyncSystem = defineSystem(() => {
-  const players = useQuery([Health])
-  const level = useLayout(GameLayout)
+export const GameScene = defineScene('game', () => {
+  const layout = useLayout(GameLayout)
+
+  onEnter(() => layout.load())
+  onExit(() => layout.dispose())
+})
+```
+
+API `LayoutHandle` :
+
+| | |
+|---|---|
+| `layout.load()` | Activer le layout — spawn tous les acteurs placés |
+| `layout.dispose()` | Désactiver — despawn tous les acteurs placés |
+| `layout.active` | `true` si le layout est chargé |
+| `layout.refs` | Objet avec le handle de chaque acteur placé |
+
+## Placer plusieurs acteurs
+
+Utilisez `placeGroup()` pour placer plusieurs acteurs ensemble :
+
+```ts
+export const GameLayout = defineLayout(() => {
+  const ui = placeGroup([HUDActor, MinimapActor, ChatActor])
+  return { ui }
+})
+```
+
+Utilisez `placePrefab()` pour placer une entité prefab (pas un acteur) dans le layout :
+
+```ts
+export const GameLayout = defineLayout(() => {
+  const cursor = placePrefab(CursorPrefab)
+  return { cursor }
+})
+```
+
+## Accéder aux acteurs placés
+
+`layout.refs` expose les handles retournés par `placeActor()` :
+
+```ts
+const layout = useLayout(GameLayout)
+
+// Accéder au handle de l'acteur HUD
+const hud = layout.refs.hud
+
+// Appeler des méthodes sur le HUD
+hud.get()?.updateScore(100)
+```
+
+## Exemple de HUD
+
+Un HUD réaliste qui reste actif lors des transitions de scènes :
+
+```ts
+// src/actors/hud.ts
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
+import { HUDPrefab } from '../prefabs/hud'
+import { HUDData } from '../components/hud'
+
+export const HUDActor = defineActor(HUDPrefab, () => {
+  const data = useComponent(HUDData)
 
   onUpdate(() => {
-    for (const playerId of players) {
-      // Mettre à jour le HUD directement à partir du système de n'importe quelle scène
-      if (level.active && level.refs.hud) {
-        const hudEntity = level.refs.hud // Référence à l'entité HUD générée
-        HUDData.health[hudEntity] = Health.current[playerId]
-      }
-    }
+    renderHUD({
+      score: data.score,
+      health: data.health,
+    })
   })
+
+  return {
+    setScore: (n: number) => { data.score = n },
+    setHealth: (n: number) => { data.health = n },
+  }
 })
+
+// src/layouts/game-layout.ts
+import { defineLayout, placeActor } from '@gwenjs/core/actor'
+import { HUDActor } from '../actors/hud'
+
+export const GameLayout = defineLayout(() => {
+  const hud = placeActor(HUDActor)
+  return { hud }
+})
+
+// À partir du système de n'importe quelle scène — mettez à jour le HUD :
+const layout = useLayout(GameLayout)
+layout.refs.hud.get()?.setScore(newScore)
 ```
 
 ## Layout vs Scène
 
-- **Les scènes** se chargent/déchargent en tant qu'unité. Une nouvelle scène signifie de nouveaux systèmes, de nouveaux acteurs, de nouvelles données.
-- **Les layouts** persistent dans toutes les scènes. Un layout, un ensemble d'acteurs d'interface utilisateur, données partagées.
-
-Utilisez **les layouts** pour :
-- HUD de santé/score/chrono
-- Barres de menu ou navigation en haut
-- Boîtes de dialogue persistantes ou notifications
-- Gestionnaires audio ou d'entrée globaux
-
-Utilisez **les scènes** pour :
-- États du jeu (menu, gameplay, fin de partie)
-- Logique et entités spécifiques au niveau
-- Nettoyage et gestion de la mémoire entre les états
+| | Layout | Scène |
+|---|---|---|
+| **Persistance** | Survit aux transitions de scènes | Se charge/décharge par scène |
+| **Systèmes** | — | S'exécutent pendant que la scène est active |
+| **Acteurs** | Placés via `placeActor` | Enregistrés via `useActor` |
+| **Cas d'usage** | HUD, barres de menu, UI globale | États du jeu, logique de niveau |
 
 ## Résumé de l'API
 
-| Fonction | Description |
+| | |
 |---|---|
-| `defineLayout(factory)` | Déclarer une couche d'interface utilisateur persistante |
-| `useLayout(LayoutDef, opts?)` | Obtenir le contrôle du layout à partir d'un système ou d'un acteur |
-| `layout.load()` | Charger/activer le layout |
-| `layout.dispose()` | Décharger/désactiver le layout |
-| `layout.active` | Booléen indiquant si le layout est chargé |
-| `layout.refs` | Objet contenant des références aux acteurs placés |
+| `defineLayout(factory)` | Déclarer une couche d'UI persistante |
+| `placeActor(def)` | Placer un acteur dans le layout → handle dans `refs` |
+| `placeGroup([...defs])` | Placer plusieurs acteurs comme un groupe |
+| `placePrefab(def)` | Placer une entité prefab dans le layout |
+| `useLayout(def)` | Obtenir le handle de contrôle du layout |
+| `layout.load()` | Activer le layout |
+| `layout.dispose()` | Désactiver le layout |
+| `layout.active` | `true` si le layout est chargé |
+| `layout.refs` | Objet avec les handles des acteurs placés |
 
-## Prochaines étapes
+## Étapes suivantes
 
-- **[Scènes](/fr/essentials/scenes)** — Découvrez comment les scènes fonctionnent avec les layouts.
-- **[Prefabs](/fr/essentials/prefabs)** — Générer les éléments de l'interface utilisateur à l'aide de prefabs.
-- **[Acteurs](/essentials/actors)** — Créer des acteurs d'interface utilisateur personnalisés pour votre layout.
+- **[Scènes](/fr/essentials/scenes)** — Comment les scènes fonctionnent avec les layouts.
+- **[Acteurs](/fr/essentials/actors)** — Construire les acteurs d'UI placés dans votre layout.
+- **[Prefabs](/fr/essentials/prefabs)** — Placer des entités prefab dans les layouts.
