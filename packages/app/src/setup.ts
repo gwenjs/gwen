@@ -25,10 +25,14 @@ import {
   GwenLogger,
   consoleLogProvider,
 } from "@gwenjs/core";
+import { defu } from "defu";
 import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
 import type { ResolvedGwenConfig } from "./types";
-import type { GwenEngine } from "@gwenjs/core";
+import type { GwenEngine, GwenPlugin } from "@gwenjs/core";
+import type { GwenKit } from "@gwenjs/schema";
+import { plugins as _localPlugins } from "virtual:gwen/local-plugins";
+import { modules as _localModules } from "virtual:gwen/local-modules";
 
 /**
  * Bootstrap the GWEN engine from a resolved config.
@@ -91,6 +95,45 @@ export async function setupGwen(config: ResolvedGwenConfig): Promise<GwenEngine>
   // Register user plugins from config.plugins
   for (const plugin of config.plugins ?? []) {
     await engine.use(plugin);
+  }
+
+  // Register local modules from src/modules/ (auto-discovered by gwenLocalModulesPlugin).
+  // Only addPlugin() is meaningful at browser runtime — other GwenKit methods are no-ops.
+  for (const mod of _localModules) {
+    const collectedPlugins: GwenPlugin[] = [];
+    const runtimeKit = {
+      addPlugin(p: GwenPlugin | (() => GwenPlugin)) {
+        collectedPlugins.push(typeof p === "function" ? p() : p);
+      },
+      addAutoImports() {},
+      addVitePlugin() {},
+      extendViteConfig() {},
+      addTypeTemplate() {},
+      addModuleAugment() {},
+      hook() {},
+      options: config,
+    } as unknown as GwenKit;
+
+    const configKey = mod.meta?.configKey;
+    let userOptions: Record<string, unknown> = {};
+    if (configKey) {
+      userOptions =
+        ((config as unknown as Record<string, unknown>)[configKey] as Record<string, unknown>) ??
+        {};
+    }
+    const resolvedOptions = defu(userOptions, mod.defaults ?? {}) as Record<string, unknown>;
+
+    await mod.setup(resolvedOptions as never, runtimeKit);
+
+    for (const plugin of collectedPlugins) {
+      await engine.use(plugin);
+    }
+  }
+
+  // Register local plugins from src/plugins/ (auto-discovered by gwenLocalPluginsPlugin).
+  // Each default export is a definePlugin factory — call it with no arguments.
+  for (const factory of _localPlugins) {
+    await engine.use(factory());
   }
 
   return engine;
