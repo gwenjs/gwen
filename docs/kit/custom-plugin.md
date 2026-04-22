@@ -78,21 +78,102 @@ export const InputPlugin = definePlugin<InputOptions>((opts = {}) => {
 })
 ```
 
-Register and mount the plugin in your main.ts:
+### Registering a Plugin
 
-```ts
-import { createEngine } from '@gwenjs/core'
-import { InputPlugin } from './plugins/input'
+**Option A — Local file (`src/plugins/`, options use defaults):**
 
-const engine = await createEngine({ variant: 'physics2d' })
+```typescript
+// src/plugins/input.ts — no config needed, all options default
+import { definePlugin } from '@gwenjs/kit/plugin'
 
-// Mount the plugin with options
-await engine.use(InputPlugin({
-  preventDefault: ['ArrowUp', 'ArrowDown'],
-}))
-
-await engine.start()
+export default definePlugin<InputOptions>((opts = {}) => {
+  const { repeatDelay = 50, preventDefault = [] } = opts
+  // ...plugin body unchanged...
+  return { name: 'input', setup(engine) { /* ... */ } }
+})
 ```
+
+::: warning Options from `gwen.config.ts` require a module
+The factory is called with no arguments when auto-discovered. Use Option B if you need user-configurable options.
+:::
+
+**Option B — Local module (`src/modules/`, options from `gwen.config.ts`):**
+
+```typescript
+// src/modules/input.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { InputPlugin } from '../plugins/input-plugin'
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    input?: InputOptions
+  }
+}
+
+export default defineGwenModule<InputOptions>({
+  meta: { configKey: 'input' },
+  defaults: { repeatDelay: 50, preventDefault: [] },
+  setup(options, gwen) {
+    gwen.addPlugin(InputPlugin(options))
+  },
+})
+```
+
+Then configure in `gwen.config.ts`:
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
+})
+```
+
+## Local Plugin (Auto-Discovery)
+
+The simplest way to add a plugin to your project: drop a `.ts` file in `src/plugins/`. GWEN discovers all files in that directory alphabetically and registers them automatically after `config.plugins`.
+
+### Minimal example
+
+```typescript
+// src/plugins/analytics.ts
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+export default definePlugin(() => ({
+  name: 'analytics',
+  setup(engine) {
+    engine.hooks.hook('engine:init', () => {
+      console.log('[analytics] session started')
+    })
+  },
+}))
+```
+
+Two rules for local plugins:
+1. **`export default`** — not a named export. The framework imports the default export.
+2. **Factory, not instance** — export the `definePlugin(...)` result, not the result of calling it.
+
+### When to use a local module instead
+
+If your plugin needs options from `gwen.config.ts`, wrap it in a local module at `src/modules/`. Local plugins are always called with no arguments — all options must have defaults baked in.
+
+| Need | Use |
+|---|---|
+| Plugin with no config | `src/plugins/my-plugin.ts` |
+| Plugin with `gwen.config.ts` options | `src/modules/my-plugin.ts` wrapping the plugin |
+
+See [Writing a Custom Module](/kit/custom-module) for the module approach.
+
+### Hot reload in dev
+
+Adding or removing a file in `src/plugins/` triggers a full page reload in dev mode. Editing an existing file uses normal Vite HMR — no reload required.
+
+### Constraints
+
+::: warning Flat files only
+`src/plugins/audio.ts` ✅ — `src/plugins/audio/index.ts` ❌. Subdirectories are not scanned.
+:::
 
 ## Plugin Lifecycle
 
