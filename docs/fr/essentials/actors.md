@@ -146,6 +146,8 @@ import { defineActor, useTransform, onStart, onUpdate } from '@gwenjs/core/actor
 
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
   const transform = useTransform()
+  let vx = 0
+  let vy = 0
 
   onStart(() => {
     transform.setPosition(props.x, props.y)
