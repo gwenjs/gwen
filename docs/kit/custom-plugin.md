@@ -14,6 +14,7 @@ A **plugin** is a TypeScript object conforming to the `GwenPlugin` interface. Yo
 Here's a basic input handling plugin:
 
 ```ts
+// Example plugin
 import { definePlugin } from '@gwenjs/kit/plugin'
 
 const keys = new Set<string>()
@@ -39,6 +40,7 @@ export const InputPlugin = definePlugin(() => ({
 Accept configuration when the plugin is instantiated:
 
 ```ts
+// Example plugin
 interface InputOptions {
   repeatDelay?: number
   preventDefault?: string[] // Keys to prevent default on
@@ -169,10 +171,6 @@ export default defineConfig({
   input: { preventDefault: ['ArrowUp', 'ArrowDown'] },
 })
 ```
-
-::: warning No external config via `src/plugins/`
-The factory in `src/plugins/` is called with no arguments. All options must have defaults. If you need user-configurable options, use Option B (local module) instead.
-:::
 
 ### When to use a local module instead
 
