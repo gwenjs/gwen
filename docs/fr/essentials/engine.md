@@ -7,8 +7,11 @@ description: Configurer le moteur GWEN avec gwen.config.ts et y accéder à l'ex
 
 Le **moteur GWEN** est le runtime qui démarre votre jeu, charge le WASM, gère les scènes et exécute vos systèmes à chaque frame. La configuration se fait dans **`gwen.config.ts`** au moment du build — vous ne démarrez jamais le moteur manuellement.
 
-::: info Auto-imports
-`useEngine` est auto-importé dans un projet GWEN. L'import explicite n'est nécessaire que dans les tests ou sans le plugin Vite.
+::: info Import explicite requis
+`useEngine` n'est pas auto-importé. Importez-le explicitement quand vous avez besoin d'accéder directement au moteur :
+```ts
+import { useEngine } from '@gwenjs/core'
+```
 :::
 
 ## Configuration de build
@@ -76,7 +79,6 @@ export default defineConfig({
 Dans une factory de système ou d'acteur, appelez `useEngine()` pour obtenir l'instance brute du moteur. C'est rarement nécessaire — les composables comme `useQuery`, `useService` et `useHook` couvrent la plupart des cas d'usage.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 
 export const DebugSystem = defineSystem(() => {

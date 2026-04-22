@@ -7,8 +7,11 @@ description: Configuring the GWEN engine with gwen.config.ts and accessing it at
 
 The **GWEN engine** is the runtime that boots your game, loads WASM, manages scenes, and runs your systems each frame. Configuration happens in **`gwen.config.ts`** at build time — you never bootstrap the engine manually.
 
-::: info Auto-imports
-`useEngine` is auto-imported in a GWEN project. Explicit import is only needed in tests or without the Vite plugin.
+::: info Import required
+`useEngine` is not auto-imported. Import it explicitly when you need direct engine access:
+```ts
+import { useEngine } from '@gwenjs/core'
+```
 :::
 
 ## Build Configuration
@@ -76,7 +79,6 @@ export default defineConfig({
 Inside a system or actor factory, call `useEngine()` to get the raw engine instance. This is rarely needed — composables like `useQuery`, `useService`, and `useHook` cover most use cases.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 
 export const DebugSystem = defineSystem(() => {

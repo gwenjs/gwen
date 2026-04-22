@@ -7,8 +7,11 @@ description: Components are the data layer of GWEN's ECS. Learn to define and us
 
 In GWEN's ECS, **components are pure data**. They hold typed fields but contain no logic or methods. Multiple components attach to the same entity to describe it completely.
 
-::: info Auto-imports
-All symbols shown here are auto-imported in a GWEN project. Explicit imports are only needed in tests or environments without the Vite plugin.
+::: info Import required
+`defineComponent` and `Types` are not auto-imported — they are used when defining your component files, outside of any engine context. Always import them explicitly:
+```ts
+import { defineComponent, Types } from '@gwenjs/core'
+```
 :::
 
 ## The Basics
@@ -103,7 +106,6 @@ When a prefab declares its own `defaults`, they override the component's `defaul
 Systems iterate over a `LiveQuery<EntityAccessor>`. Each entity has `.id` (bigint) for direct SoA access:
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
@@ -133,7 +135,6 @@ onUpdate(() => {
 Inside a `defineActor` factory, use `useComponent()` to get a live reactive proxy:
 
 ```ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
 import { Health } from './components'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {

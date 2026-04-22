@@ -7,12 +7,11 @@ description: Communicate across actors and systems with typed events using useHo
 
 GWEN's hook system lets any part of your game listen to and fire typed events — without direct references between actors, systems, and plugins. It's the primary communication channel for decoupled game code.
 
-::: info Import paths
-`useHook` and `emit` are **not** auto-imported. Always import them explicitly:
+::: info Imports
+In a GWEN project, `defineHooks` is auto-imported. Only `useHook` and `emit` require an explicit import:
 ```ts
-import { useHook, emit, defineHooks } from '@gwenjs/core'
+import { useHook, emit } from '@gwenjs/core'
 ```
-`defineHooks` is auto-imported.
 :::
 
 ## Listening to Events
@@ -20,7 +19,6 @@ import { useHook, emit, defineHooks } from '@gwenjs/core'
 Use `useHook(name, fn)` inside a system, actor, or scene factory to subscribe to an event. The subscription is cleaned up automatically when the context ends.
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const ScoreSystem = defineSystem(() => {
@@ -46,7 +44,6 @@ stop()
 Use `emit(name, ...args)` to fire an event from any engine context. All registered handlers run synchronously before `emit` returns.
 
 ```ts
-import { defineActor, useComponent } from '@gwenjs/core/actor'
 import { emit } from '@gwenjs/core'
 import { Health } from './components'
 
@@ -69,8 +66,6 @@ Use `defineHooks()` to declare typed contracts for your game events. This gives 
 
 ```ts
 // src/hooks.ts
-import { defineHooks } from '@gwenjs/core'
-
 export const GameHooks = defineHooks({
   'enemy:die':  (): void => undefined,
   'enemy:hit':  (_damage: number): void => undefined,
@@ -87,7 +82,6 @@ To get full type safety on `useHook` and `emit` project-wide, augment `GwenRunti
 
 ```ts
 // src/hooks.ts
-import { defineHooks } from '@gwenjs/core'
 import type { InferHooks } from '@gwenjs/core'
 
 export const GameHooks = defineHooks({

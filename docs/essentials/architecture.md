@@ -90,7 +90,6 @@ Multiple components attach to the same entity to describe it. A player might hav
 A **system** is a function that runs each frame over all entities matching a query. Systems read and write component data.
 
 ```ts
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
