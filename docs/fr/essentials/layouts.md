@@ -11,93 +11,101 @@ Un **layout** est une couche persistante qui vit au-dessus de toutes les scènes
 Dans un projet GWEN, `defineLayout`, `useLayout`, `placeActor`, `placeGroup` et `placePrefab` sont auto-importés — aucune ligne `import` nécessaire.
 :::
 
-## Les bases
+## Définir un layout
 
-Utilisez `defineLayout()` pour déclarer une couche persistante. À l'intérieur de la factory, placez des acteurs en utilisant `placeActor()` :
+Utilisez `defineLayout()` pour déclarer une couche persistante. Dans la factory, placez des acteurs avec `placeActor()` en indiquant leur position initiale et leurs props :
 
 ```ts
 import { HUDActor } from './actors/hud'
 import { MinimapActor } from './actors/minimap'
 
 export const GameLayout = defineLayout(() => {
-  const hud = placeActor(HUDActor)
-  const minimap = placeActor(MinimapActor)
+  const hud     = placeActor(HUDActor,     { at: [0, 0] })
+  const minimap = placeActor(MinimapActor, { at: [700, 16] })
   return { hud, minimap }
 })
 ```
 
-L'objet retourné devient `layout.refs` — les handles pour chaque acteur placé.
+L'objet retourné par la factory devient `layout.refs` — un record typé de valeurs `PlaceHandle`, une par acteur placé.
+
+## PlaceHandle
+
+`placeActor()` retourne un `PlaceHandle` avec un accès direct à l'entité placée :
+
+| Propriété / Méthode | Description |
+|---|---|
+| `handle.api` | L'API publique de l'acteur (valeur de retour de la factory d'acteur) |
+| `handle.entityId` | L'ID `bigint` de l'entité |
+| `handle.moveTo([x, y])` | Repositionner l'entité en espace monde |
+| `handle.despawn()` | Despawner cette entité immédiatement |
+
+```ts
+const layout = useLayout(GameLayout, { lazy: true })
+await layout.load()
+
+// Appeler une méthode sur l'acteur HUD
+layout.refs.hud.api.setScore(100)
+
+// Déplacer la minimap
+layout.refs.minimap.moveTo([680, 16])
+```
+
+## Options de placement
+
+Tous les composables `place*` acceptent un second argument avec des options de placement :
+
+| Option | Type | Description |
+|---|---|---|
+| `at` | `[x, y]` | Position locale. Défaut `[0, 0]` |
+| `rotation` | `number` | Rotation locale en radians. Défaut `0` |
+| `scale` | `number \| [sx, sy]` | Échelle uniforme ou par axe. Défaut `1` |
+| `parent` | `PlaceHandle` | Handle parent — la position est relative au parent |
+| `props` | `object` | Props transmises à l'acteur au moment du spawn |
+
+```ts
+export const GameLayout = defineLayout(() => {
+  const hud = placeActor(HUDActor, {
+    at: [0, 0],
+    props: { initialScore: 0 },
+  })
+
+  // Groupe d'ancrage — les enfants héritent de sa transform
+  const topBar = placeGroup({ at: [0, 0] })
+  const timer  = placeActor(TimerActor, { at: [400, 8], parent: topBar })
+
+  return { hud, topBar, timer }
+})
+```
 
 ## Charger et décharger
 
-Utilisez `useLayout(def)` à l'intérieur d'une scène pour obtenir un handle de contrôle :
+Utilisez `useLayout(def, { lazy: true })` dans une scène pour obtenir un handle de contrôle sans charger immédiatement. Appelez `await layout.load()` et `await layout.dispose()` pour activer et désactiver :
 
 ```ts
 export const GameScene = defineScene('game', () => {
-  const layout = useLayout(GameLayout)
+  const layout = useLayout(GameLayout, { lazy: true })
 
-  onEnter(() => layout.load())
-  onExit(() => layout.dispose())
+  onEnter(async () => await layout.load())
+  onExit(async ()  => await layout.dispose())
 })
 ```
+
+::: tip Sans `lazy`, le layout charge immédiatement
+`useLayout(GameLayout)` sans `{ lazy: true }` appelle `load()` automatiquement. Utilisez `lazy: true` pour contrôler explicitement le moment d'activation du layout.
+:::
 
 API `LayoutHandle` :
 
 | | |
 |---|---|
-| `layout.load()` | Activer le layout — spawn tous les acteurs placés |
-| `layout.dispose()` | Désactiver — despawn tous les acteurs placés |
+| `layout.load()` | Activer — spawne tous les acteurs placés. Retourne `Promise<void>` |
+| `layout.dispose()` | Désactiver — despawne tous les acteurs placés. Retourne `Promise<void>` |
 | `layout.active` | `true` si le layout est chargé |
-| `layout.refs` | Objet avec le handle de chaque acteur placé |
+| `layout.refs` | Record typé de valeurs `PlaceHandle` |
 
-## Groupes et prefabs
+## Exemple complet — HUD de jeu
 
-Utilisez `placeGroup()` pour créer une entité d'ancrage de transform uniquement — utile comme conteneur parent que vous pouvez positionner ou faire pivoter pour déplacer plusieurs enfants ensemble :
-
-```ts
-export const GameLayout = defineLayout(() => {
-  const group = placeGroup({ at: [200, 0] })
-  return { group }
-})
-```
-
-Pour placer plusieurs acteurs, appelez simplement `placeActor()` pour chacun :
-
-```ts
-export const GameLayout = defineLayout(() => {
-  const hud = placeActor(HUDActor)
-  const minimap = placeActor(MinimapActor)
-  const chat = placeActor(ChatActor)
-  return { hud, minimap, chat }
-})
-```
-
-Utilisez `placePrefab()` pour placer une entité prefab (pas un acteur) dans le layout :
-
-```ts
-export const GameLayout = defineLayout(() => {
-  const cursor = placePrefab(CursorPrefab)
-  return { cursor }
-})
-```
-
-## Accéder aux acteurs placés
-
-`layout.refs` expose les handles retournés par `placeActor()` :
-
-```ts
-const layout = useLayout(GameLayout)
-
-// Accéder au handle de l'acteur HUD
-const hud = layout.refs.hud
-
-// Appeler des méthodes sur le HUD
-hud.get()?.updateScore(100)
-```
-
-## Exemple de HUD
-
-Un HUD réaliste qui reste actif lors des transitions de scènes :
+Un acteur HUD qui met à jour le score et la santé, placé dans un layout qui persiste entre les scènes :
 
 ```ts
 // src/actors/hud.ts
@@ -108,14 +116,11 @@ export const HUDActor = defineActor(HUDPrefab, () => {
   const data = useComponent(HUDData)
 
   onUpdate(() => {
-    renderHUD({
-      score: data.score,
-      health: data.health,
-    })
+    renderHUD({ score: data.score, health: data.health })
   })
 
   return {
-    setScore: (n: number) => { data.score = n },
+    setScore:  (n: number) => { data.score  = n },
     setHealth: (n: number) => { data.health = n },
   }
 })
@@ -124,13 +129,22 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 import { HUDActor } from '../actors/hud'
 
 export const GameLayout = defineLayout(() => {
-  const hud = placeActor(HUDActor)
+  const hud = placeActor(HUDActor, { at: [0, 0] })
   return { hud }
 })
 
-// À partir du système de n'importe quelle scène — mettez à jour le HUD :
-const layout = useLayout(GameLayout)
-layout.refs.hud.get()?.setScore(newScore)
+// src/scenes/game-scene.ts
+import { GameLayout } from '../layouts/game-layout'
+
+export const GameScene = defineScene('game', () => {
+  const layout = useLayout(GameLayout, { lazy: true })
+
+  onEnter(async () => await layout.load())
+  onExit(async ()  => await layout.dispose())
+})
+
+// Mettre à jour le HUD depuis un autre système — via refs.api
+layout.refs.hud.api.setScore(newScore)
 ```
 
 ## Layout vs Scène
@@ -147,17 +161,20 @@ layout.refs.hud.get()?.setScore(newScore)
 | | |
 |---|---|
 | `defineLayout(factory)` | Déclarer une couche d'UI persistante |
-| `placeActor(def)` | Placer un acteur dans le layout → handle dans `refs` |
-| `placeGroup(options?)` | Créer une entité d'ancrage de transform uniquement |
-| `placePrefab(def)` | Placer une entité prefab dans le layout |
-| `useLayout(def)` | Obtenir le handle de contrôle du layout |
-| `layout.load()` | Activer le layout |
-| `layout.dispose()` | Désactiver le layout |
+| `placeActor(def, options?)` | Placer un acteur — retourne `PlaceHandle<API>` |
+| `placeGroup(options?)` | Créer une entité d'ancrage transform uniquement — retourne `PlaceHandle<void>` |
+| `placePrefab(def, options?)` | Placer une entité prefab — retourne `PlaceHandle<void>` |
+| `useLayout(def, options?)` | Obtenir le handle de contrôle du layout (`{ lazy }` pour différer le chargement) |
+| `layout.load()` | Activer le layout (`Promise<void>`) |
+| `layout.dispose()` | Désactiver le layout (`Promise<void>`) |
 | `layout.active` | `true` si le layout est chargé |
-| `layout.refs` | Objet avec les handles des acteurs placés |
+| `layout.refs` | Record typé des handles placés |
+| `handle.api` | API publique de l'acteur |
+| `handle.moveTo([x, y])` | Repositionner l'entité |
+| `handle.despawn()` | Despawner cette entité |
 
 ## Étapes suivantes
 
 - **[Scènes](/fr/essentials/scenes)** — Comment les scènes fonctionnent avec les layouts.
 - **[Acteurs](/fr/essentials/actors)** — Construire les acteurs d'UI placés dans votre layout.
-- **[Prefabs](/fr/essentials/prefabs)** — Placer des entités prefab dans les layouts.
+- **[Prefabs](/fr/essentials/prefabs)** — Définir la disposition des composants pour vos acteurs.
