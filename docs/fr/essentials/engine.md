@@ -1,142 +1,55 @@
 ---
 title: Le moteur
-description: Créer et configurer l'instance du moteur GWEN et comment il gère la boucle de jeu.
+description: Configurer le moteur GWEN avec gwen.config.ts et y accéder à l'exécution.
 ---
 
 # Le moteur
 
-Le **moteur GWEN** est le runtime qui démarre votre jeu, charge WASM, gère les scènes et exécute vos systèmes chaque frame. La configuration du moteur se fait dans **`gwen.config.ts`** à la compilation — vous ne démarrez jamais le moteur manuellement.
+Le **moteur GWEN** est le runtime qui démarre votre jeu, charge le WASM, gère les scènes et exécute vos systèmes à chaque frame. La configuration se fait dans **`gwen.config.ts`** au moment du build — vous ne démarrez jamais le moteur manuellement.
 
-## Configuration à la compilation — `gwen.config.ts`
+::: info Auto-imports
+`useEngine` est auto-importé dans un projet GWEN. L'import explicite n'est nécessaire que dans les tests ou sans le plugin Vite.
+:::
 
-Utilisez `defineConfig()` depuis `@gwenjs/app` pour déclarer les modules, la variante WASM et les paramètres de compilation :
+## Configuration de build
 
-```ts
-import { defineConfig } from '@gwenjs/app'
-
-export default defineConfig({
-  modules: ['@gwenjs/physics2d'],        // Active le module physique
-  engine: {
-    maxEntities: 10_000,                  // Configuration du moteur (optionnelle)
-    variant: 'physics2d',                 // Variante WASM
-  },
-})
-```
-
-Le fichier de configuration est traité **à la compilation** par Vite et configure la résolution des modules.
-
-## Configuration à la compilation : `GwenUserConfig`
-
-Utilisée **uniquement dans `gwen.config.ts`**. Configure les modules, la variante WASM et les crochets de compilation.
-
-| Propriété                | Type                                    | Description                                                |
-|--------------------------|-----------------------------------------|------------------------------------------------------------|
-| `modules`                | `GwenModuleEntry[]`                     | Liste des modules à activer (ex. : `['@gwenjs/physics2d']`) |
-| `engine.maxEntities`     | `number`                                | Nombre maximal d'entités simultanées (par défaut 10_000)   |
-| `engine.targetFPS`       | `number`                                | FPS cibles (par défaut 60)                                 |
-| `engine.variant`         | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger                                    |
-| `engine.loop`            | `'internal' \| 'external'`              | Propriétaire de la boucle de jeu (par défaut 'internal')   |
-| `engine.maxDeltaSeconds` | `number`                                | Delta temps max par frame (par défaut 0.1s)                |
-| `engine.debug`           | `boolean`                               | Activer le debug globalement                               |
-| `vite`                   | `Record<string, unknown>`               | Extension directe de la configuration Vite                 |
-| `hooks`                  | `Partial<GwenBuildHooks>`               | Souscriptions aux crochets de compilation                  |
-| `plugins`                | `GwenPlugin[]`                          | Enregistrement direct de plugins (porte de secours)        |
-
-**Exemple :**
-```ts
-export default defineConfig({
-  modules: [
-    '@gwenjs/physics2d',
-    ['@gwenjs/input', { gamepad: true }],
-  ],
-  engine: {
-    maxEntities: 5_000,
-    targetFPS: 60,
-    variant: 'physics2d',
-  },
-  vite: {
-    // Configuration Vite directe
-  },
-})
-```
-
-## Accéder au moteur dans les systèmes
-
-À l'intérieur de la fonction de configuration d'un système, utilisez `useEngine()` pour accéder à l'instance du moteur :
+Utilisez `defineConfig()` depuis `@gwenjs/app` pour déclarer les modules et les options du moteur :
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { useEngine } from '@gwenjs/core'
-
-export const InputSystem = defineSystem(() => {
-  const engine = useEngine()
-
-  onUpdate(() => {
-    // Exécuter chaque frame
-  })
-})
-```
-
-Depuis le moteur, vous pouvez :
-
-- Obtenir les **statistiques** — `engine.getStats()` (fps, frameCount, entityCount, etc.)
-- **Créer/détruire des entités** — `engine.spawn()`, `engine.destroy()`
-- Accéder aux **plugins** — `engine.getPlugin(PhysicsPlugin)`
-- **Contrôler la boucle** — `engine.pause()`, `engine.resume()`, `engine.advance(delta)` (mode externe)
-
-## Cycle de vie du moteur
-
-Quand le jeu démarre :
-
-1. **Initialisation** — Configurer la mémoire WASM, les systèmes internes
-2. **Configuration des plugins** — Appeler la configuration sur chaque plugin monté
-3. **Entrée dans la scène initiale** — Charger le premier état du routeur ou de la scène
-4. **Boucle de jeu** — Chaque frame :
-   - Appeler `onUpdate(dt)` sur tous les systèmes
-   - Mettre à jour les composants
-   - Rendu (si un canvas est attaché)
-   - Simulation physique (si le plugin Physics est monté)
-
-## Tâches courantes du moteur
-
-### Obtenir les statistiques du moteur
-
-```ts
-const stats = engine.getStats()
-console.log(`FPS: ${stats.fps}`)
-console.log(`Entités: ${stats.entityCount}`)
-console.log(`Delta: ${stats.deltaTime}s`)
-```
-
-### Mettre en pause et reprendre
-
-```ts
-engine.pause()
-engine.resume()
-```
-
-## Résumé de l'API
-
-| Fonction | Retour | Description |
-|---|---|---|
-| `engine.pause()` | `void` | Mettre en pause la boucle de jeu |
-| `engine.resume()` | `void` | Reprendre la boucle de jeu |
-| `engine.advance(delta)` | `void` | Avancer manuellement d'une frame (mode boucle externe) |
-| `engine.getStats()` | `EngineStats` | Obtenir les métriques de performance |
-| `engine.spawn(components)` | `number` | Créer une nouvelle entité |
-| `engine.destroy(id)` | `void` | Supprimer une entité |
-| `useEngine()` | `GwenEngine` | Accéder au moteur depuis l'intérieur d'un système |
-
-## Étendre Vite
-
-GWEN gère votre configuration Vite en interne — vous n'avez pas besoin d'un fichier `vite.config.ts`. Pour l'étendre, utilisez le champ `vite` dans `gwen.config.ts` :
-
-```typescript
-// gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
   modules: ['@gwenjs/physics2d'],
+  engine: {
+    maxEntities: 10_000,
+    targetFPS: 60,
+  },
+})
+```
+
+Ce fichier est traité au moment du build par le plugin Vite.
+
+## Référence de configuration
+
+| Propriété | Type | Description |
+|---|---|---|
+| `modules` | `string[]` | Modules à activer (ex. `['@gwenjs/physics2d']`) |
+| `engine.maxEntities` | `number` | Nombre max d'entités simultanées (défaut `10_000`) |
+| `engine.targetFPS` | `number` | FPS cible (défaut `60`) |
+| `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger |
+| `engine.loop` | `'internal' \| 'external'` | Propriété de la boucle de jeu (défaut `'internal'`) |
+| `engine.maxDeltaSeconds` | `number` | Delta temps max par frame (défaut `0.1`) |
+| `engine.debug` | `boolean` | Activer le mode debug global |
+| `vite` | `object` | Extension statique de la config Vite |
+| `hooks` | `Partial<GwenBuildHooks>` | Abonnements aux hooks de build |
+| `plugins` | `GwenPlugin[]` | Inscription directe de plugins (escape hatch) |
+
+## Étendre Vite
+
+GWEN gère votre configuration Vite — pas besoin de `vite.config.ts`. Utilisez le champ `vite` pour une config statique :
+
+```ts
+export default defineConfig({
   vite: {
     resolve: {
       alias: { '~assets': './src/assets' },
@@ -145,11 +58,9 @@ export default defineConfig({
 })
 ```
 
-Pour les crochets de compilation, utilisez le champ `hooks` :
+Pour une config conditionnelle ou programmatique, utilisez le hook de build :
 
-Utilisez `vite` pour une configuration statique. Utilisez `hooks['vite:extendConfig']` pour une configuration conditionnelle ou programmatique.
-
-```typescript
+```ts
 export default defineConfig({
   hooks: {
     'vite:extendConfig': (config) => {
@@ -160,11 +71,62 @@ export default defineConfig({
 })
 ```
 
-Pour les modèles d'extension Vite complets (y compris l'extension au niveau des modules), voir [Étendre Vite](/fr/advanced/vite-config).
+## Accéder au moteur à l'exécution
 
-## Prochaines étapes
+Dans une factory de système ou d'acteur, appelez `useEngine()` pour obtenir l'instance brute du moteur. C'est rarement nécessaire — les composables comme `useQuery`, `useService` et `useHook` couvrent la plupart des cas d'usage.
 
-- **[Composants](/fr/essentials/components)** — Définir les structures de données pour vos entités.
-- **[Systèmes](/fr/essentials/systems)** — Écrire des systèmes pour déplacer et mettre à jour les entités.
-- **[Scènes](/fr/essentials/scenes)** — Organiser votre jeu en états distincts.
-- **[Acteurs](/fr/essentials/actors)** — Créer des objets de jeu composables basés sur des instances.
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
+
+export const DebugSystem = defineSystem(() => {
+  const engine = useEngine()
+
+  onUpdate(() => {
+    const stats = engine.getStats()
+    console.log(`FPS: ${stats.fps}, entités: ${stats.entityCount}`)
+  })
+})
+```
+
+## Statistiques de frame
+
+`engine.getStats()` retourne des métriques de performance en direct :
+
+| Champ | Type | Description |
+|---|---|---|
+| `fps` | `number` | Images par seconde |
+| `frameCount` | `number` | Total de frames depuis le démarrage |
+| `entityCount` | `number` | Nombre d'entités actives |
+| `deltaTime` | `number` | Delta de la dernière frame en secondes |
+
+## Mettre en pause et reprendre
+
+```ts
+engine.pause()   // arrêter la boucle de frames
+engine.resume()  // redémarrer la boucle de frames
+```
+
+En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement :
+
+```ts
+engine.advance(delta)  // exécuter une frame avec le delta donné (en secondes)
+```
+
+## Résumé de l'API
+
+| | |
+|---|---|
+| `defineConfig(options)` | Configuration du framework au moment du build |
+| `useEngine()` | Accéder au moteur brut (tout contexte moteur) |
+| `engine.getStats()` | Métriques de performance en direct |
+| `engine.pause()` | Mettre la boucle de frames en pause |
+| `engine.resume()` | Reprendre la boucle de frames |
+| `engine.advance(delta)` | Avance manuelle d'une frame (mode boucle externe) |
+
+## Étapes suivantes
+
+- **[Composants](/fr/essentials/components)** — Définissez les structures de données de votre jeu.
+- **[Systèmes](/fr/essentials/systems)** — Écrivez des systèmes pour déplacer et mettre à jour les entités.
+- **[Scènes](/fr/essentials/scenes)** — Organisez votre jeu en états distincts.
+- **[Acteurs](/fr/essentials/actors)** — Créez des objets de jeu composables basés sur des instances.
