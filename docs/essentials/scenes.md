@@ -1,64 +1,183 @@
 ---
 title: Scenes
-description: Group systems into discrete game states — menus, gameplay, cutscenes — using defineScene().
+description: Group systems and actors into discrete game states — menus, gameplay, cutscenes — using defineScene().
 ---
 
 # Scenes
 
-A **scene** groups the active systems for one game state. Swap scenes to change what systems run — pause menu, gameplay, cutscene.
+A **scene** groups the active systems and actors for one game state. Swap scenes to change what runs — pause menu, gameplay, cutscene.
 
-## Defining a Scene
+::: info Auto-imports
+`defineScene`, `useSystem`, `onEnter`, `onExit`, `onTransitionLeave`, `onTransitionEnter` are all auto-imported. `useActor` and `usePrefab` are also auto-imported (from `@gwenjs/core/actor`).
+:::
 
-Use `defineScene()` to create a scene. The factory body is a setup context: declare systems and lifecycle hooks via composables.
+## The Basics
 
-```typescript
+Use `defineScene()` to declare a scene. The factory body is a setup context — declare systems and actors via composables.
+
+```ts
+import { defineScene, useSystem } from '@gwenjs/core/scene'
+import { MovementSystem, RenderSystem } from './systems'
+
+export const GameScene = defineScene('game', () => {
+  useSystem(MovementSystem())
+  useSystem(RenderSystem())
+})
+```
+
+## Scene Lifecycle
+
+Use `onEnter` and `onExit` to run code when the scene activates or deactivates:
+
+```ts
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
+
+export const GameScene = defineScene('game', () => {
+  useSystem(MovementSystem())
+
+  onEnter(() => {
+    console.log('scene activated')
+  })
+
+  onExit(() => {
+    console.log('scene deactivated')
+  })
+})
+```
+
+`onEnter` receives optional params passed by the router:
+
+```ts
+onEnter((params) => {
+  const level = params?.level ?? 1
+  console.log('Starting level', level)
+})
+```
+
+::: tip Async onEnter and onExit
+Async callbacks work seamlessly when `@gwenjs/vite` is configured. The Vite plugin propagates the engine context across `await`. See [Async Context](/advanced/async-context) for details.
+:::
+
+## Declaring Actors
+
+Use `useActor(def)` in a scene to register an actor and get a handle for spawning:
+
+```ts
 import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
 import { useActor } from '@gwenjs/core/actor'
-import { MovementSystem, RenderSystem } from './systems'
 import { PlayerActor } from './actors/player'
 
 export const GameScene = defineScene('game', () => {
-    useSystem(MovementSystem())
-    useSystem(RenderSystem())
+  useSystem(MovementSystem())
 
   const player = useActor(PlayerActor)
+
   onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
   onExit(() => player.despawnAll())
 })
 ```
 
-## Scene Composables
+`useActor()` returns an `ActorHandle`. See [Actors](/essentials/actors) for the full handle API.
 
-| Composable | When to use |
-|---|---|
-| `useSystem([...])` | Declare which systems run while this scene is active |
-| `onEnter(cb)` | Spawn actors, load resources, start music when the scene activates |
-| `onExit(cb)` | Despawn actors, release resources when leaving the scene |
+## Declaring Prefabs
 
-The factory runs inside an active engine context, so `useEngine()`, `useActor()`, `usePrefab()`, and `useSceneRouter()` are all available.
+Use `usePrefab(def)` to register a prefab type for this scene:
 
-::: tip Async onEnter and onExit
-Async `onEnter` and `onExit` callbacks work seamlessly when `@gwenjs/vite` is configured. Composables called after `await` are automatically propagated via the Vite transform. See [Async Context](/advanced/async-context) for details.
-:::
+```ts
+const bullet = usePrefab(BulletPrefab)
 
-## Minimal Scene
-
-A scene with no actors and no lifecycle hooks:
-
-```typescript
-import { defineScene, useSystem } from '@gwenjs/core/scene'
-import { MovementSystem, RenderSystem } from './systems'
-
-export const GameScene = defineScene('game', () => {
-    useSystem(MovementSystem())
-    useSystem(RenderSystem())
+onEnter(() => {
+  bullet.spawn({ x: 100, y: 200 })
 })
 ```
 
-To navigate between scenes, see [Scene Router](/essentials/scene-router).
+## Controlling Systems at Runtime
+
+`useSystem()` returns a `SystemHandle` you can use to pause and resume systems during the scene:
+
+```ts
+const combat = useSystem(CombatSystem(player))
+
+// During a cutscene:
+combat.pause()
+
+// After the cutscene:
+combat.resume()
+```
+
+| | |
+|---|---|
+| `SystemHandle.pause()` | Stop frame callbacks, preserve state |
+| `SystemHandle.resume()` | Restart callbacks |
+| `SystemHandle.destroy()` | Permanently remove system |
+| `SystemHandle.active` | `true` if system is running |
+
+::: warning Manual pause and overlays
+If a scene overlay pauses the underlying scene, systems are automatically scene-paused. A system you paused manually will not be auto-resumed when the overlay closes. Call `.resume()` explicitly.
+:::
+
+## Transition Animations
+
+Use `onTransitionLeave` and `onTransitionEnter` to run animation logic around scene changes:
+
+```ts
+import { defineScene, onTransitionLeave, onTransitionEnter } from '@gwenjs/core/scene'
+
+export const GameScene = defineScene('game', () => {
+  onTransitionLeave(async ({ from, to }) => {
+    // awaited before onExit — play leave animation here
+    await fadeOut()
+  })
+
+  onTransitionEnter(async ({ from, to }) => {
+    // awaited after onEnter — play enter animation here
+    await fadeIn()
+  })
+})
+```
+
+- `onTransitionLeave` — called before `onExit`, receives `{ from, to }` state names
+- `onTransitionEnter` — called after `onEnter`, receives `{ from, to }` state names
+
+## Reading Router Params in a Scene
+
+Use `useSceneRouter(router)` inside `onEnter` to read params passed during the transition:
+
+```ts
+import { defineScene, onEnter } from '@gwenjs/core/scene'
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { AppRouter } from '../router'
+
+export const GameScene = defineScene('game', () => {
+  const nav = useSceneRouter(AppRouter)
+
+  onEnter(() => {
+    const { level } = nav.params
+    console.log('Starting level', level)
+  })
+})
+```
+
+## API Summary
+
+| | |
+|---|---|
+| `defineScene(name, factory)` | Declare a scene |
+| `useSystem(plugin)` | Register a system → `SystemHandle` |
+| `useActor(def)` | Register actor for this scene → `ActorHandle` |
+| `usePrefab(def)` | Register prefab for this scene → `PrefabHandle` |
+| `onEnter(cb)` | Run when scene activates; receives optional params |
+| `onExit(cb)` | Run when scene deactivates |
+| `onTransitionLeave(cb)` | Before leave animation; receives `{ from, to }` |
+| `onTransitionEnter(cb)` | After enter animation; receives `{ from, to }` |
+| `useSceneRouter(router)` | Access scene router (e.g. to read `nav.params`) |
+| `SystemHandle.pause()` | Pause system frame callbacks |
+| `SystemHandle.resume()` | Resume system frame callbacks |
+| `SystemHandle.destroy()` | Permanently remove system |
+| `SystemHandle.active` | `true` if system is running |
 
 ## Next Steps
 
 - **[Scene Router](/essentials/scene-router)** — Navigate between scenes with an FSM.
 - **[Actors](/essentials/actors)** — Create named, instance-based entities within scenes.
-- **[Systems](/essentials/systems)** — Write systems that run in scenes.
+- **[Hooks](/essentials/hooks)** — React to scene lifecycle events from systems.
