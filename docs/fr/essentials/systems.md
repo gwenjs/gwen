@@ -1,85 +1,193 @@
 ---
 title: Systèmes
-description: Les systèmes contiennent toute la logique de jeu dans GWEN. Apprenez à les définir, injecter des dépendances, et contrôler leur cycle de vie.
+description: Les systèmes contiennent toute la logique de jeu dans GWEN. Apprenez à les définir, à interroger les entités et à utiliser tous les composables du contexte système.
 ---
 
 # Systèmes
 
-Un **système** est une fonction exécutée à chaque frame qui lit et écrit des données de composants. Les systèmes constituent la couche logique ECS de GWEN.
+Un **système** est une fonction qui s'exécute à chaque frame et lit/écrit les données des composants. Les systèmes sont la couche de logique de jeu de l'ECS de GWEN.
 
-## Définir un système
+::: info Auto-imports
+`defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule` sont auto-importés. `useHook` et `emit` ne le sont **pas** — importez-les explicitement depuis `@gwenjs/core`.
+:::
 
-Utilisez `defineSystem()` pour déclarer un système. Elle retourne une **fonction factory** — il faut l'appeler pour produire un plugin, puis passer ce plugin à `useSystem()` dans une scène.
+## Les bases
+
+Utilisez `defineSystem()` pour déclarer un système. Il retourne une **fonction factory** — vous l'appelez pour produire un plugin, puis vous passez ce plugin à `useSystem()` dans une scène.
 
 ```ts
-import { defineSystem, onUpdate, useQuery } from '@gwenjs/core/system'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+
+export const ClockSystem = defineSystem(() => {
+  let elapsed = 0
+
+  onUpdate((dt) => {
+    elapsed += dt
+  })
+})
+
+// Dans une scène :
+useSystem(ClockSystem())
+```
+
+## Interroger des entités
+
+Utilisez `useQuery()` pour obtenir une collection live d'entités ayant un ensemble spécifique de composants. La requête se met à jour automatiquement lorsque des entités sont créées ou détruites.
+
+```ts
+import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
 import { Position, Velocity } from './components'
 
 export const MovementSystem = defineSystem(() => {
   const entities = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.x[id] * dt
-      Position.y[id] += Velocity.y[id] * dt
+    for (const entity of entities) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+      Position.y[entity.id] += Velocity.y[entity.id] * dt
     }
   })
 })
 ```
 
-## Enregistrer des systèmes dans une scène
-
-Appelez `useSystem()` une fois par système à l'intérieur de `defineScene()`. Chaque appel retourne un `SystemHandle` :
+`entity.id` est un `bigint` utilisé pour indexer directement les tableaux typés du composant. Pour lire un composant comme un objet simple, utilisez `entity.get(def)` :
 
 ```ts
-import { defineScene, useSystem } from '@gwenjs/core/scene'
-
-export const GameScene = defineScene('game', () => {
-  const movement = useSystem(MovementSystem())
-  const render   = useSystem(RenderSystem())
+onUpdate(() => {
+  for (const entity of entities) {
+    const pos = entity.get(Position) // { x: number, y: number } | undefined
+  }
 })
 ```
 
-## Nommage des systèmes
+## Phases de frame
 
-Le moteur utilise un nom pour identifier chaque système (déduplication et débogage). Avec `gwenVitePlugin`, le nom est **injecté automatiquement** depuis la variable exportée. Sans le plugin Vite (tests, Node.js), passez-le explicitement :
+Enregistrez les callbacks dans la phase correcte selon votre cas d'usage :
+
+| Composable | Phase | Usage typique |
+|---|---|---|
+| `onBeforeUpdate(fn)` | Avant physique/WASM | Lecture des entrées, pré-simulation |
+| `onUpdate(fn)` | Mise à jour principale | Logique de jeu, IA, mouvement |
+| `onAfterUpdate(fn)` | Post-mise à jour | Synchronisation d'état, score |
+| `onRender(fn)` | Rendu | Appels de dessin (pas de `dt`) |
 
 ```ts
-// ✅ Avec le plugin Vite — nom déduit de export const
-export const MovementSystem = defineSystem(() => { ... })
-
-// ✅ Sans le plugin Vite — nom explicite
-export const MovementSystem = defineSystem('MovementSystem', () => { ... })
+export const InputSystem = defineSystem(() => {
+  onBeforeUpdate((dt) => { /* lire les entrées */ })
+  onUpdate((dt)       => { /* appliquer le mouvement */ })
+  onAfterUpdate((dt)  => { /* mettre à jour le HUD debug */ })
+  onRender(()         => { /* dessiner l'overlay debug */ })
+})
 ```
 
 ## Injection de dépendances
 
-Les systèmes peuvent déclarer des dépendances typées comme paramètres. La scène les câble à l'initialisation, gardant le système découplé des types d'acteurs concrets.
+Les systèmes déclarent des dépendances typées en paramètres. La scène les fournit au moment de l'initialisation, gardant le système découplé des implémentations concrètes.
 
 ```ts
-import { defineSystem, onUpdate } from '@gwenjs/core/system'
-
-// Accepte tout objet avec une méthode takeDamage — pas lié à PlayerActor
 export const CombatSystem = defineSystem((target: { takeDamage(n: number): void }) => {
   onUpdate(() => target.takeDamage(5))
 })
 ```
 
-Dans la scène :
+Dans la scène, passez la valeur concrète :
 
 ```ts
-import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
-import { useActor } from '@gwenjs/core/actor'
+const player = useActor(PlayerActor)
+useSystem(CombatSystem(player))  // player satisfait l'interface
+```
 
-export const GameScene = defineScene('game', () => {
-  const player = useActor(PlayerActor)
+## Accéder aux services
 
-  const movement = useSystem(MovementSystem())
-  const combat   = useSystem(CombatSystem(player))  // player implémente l'interface
+Utilisez `useService(key)` pour accéder à une valeur fournie par un plugin. Résolu une fois au moment de l'initialisation, utilisé en closure dans les callbacks.
 
-  onEnter(() => player.spawnOnce({ x: 400, y: 530 }))
-  onExit(() => player.despawnAll())
+```ts
+import { defineSystem, useService, onUpdate } from '@gwenjs/core/system'
+
+export const AudioSystem = defineSystem(() => {
+  const audio = useService('audio')  // fourni par un plugin audio
+
+  onUpdate(() => {
+    // utiliser le service audio
+  })
 })
+```
+
+## Écouter des événements
+
+Utilisez `useHook()` pour vous abonner à un événement moteur ou de jeu. L'abonnement est automatiquement supprimé quand la scène se termine.
+
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useHook } from '@gwenjs/core'
+
+export const ScoreSystem = defineSystem(() => {
+  let score = 0
+
+  useHook('enemy:die', () => {
+    score += 100
+  })
+
+  useHook('player:scored', (points: number) => {
+    score += points
+  })
+})
+```
+
+::: info Non auto-importé
+`useHook` n'est pas auto-importé. Importez-le toujours explicitement depuis `@gwenjs/core`.
+:::
+
+## Utiliser des acteurs dans un système
+
+Utilisez `useActor(def)` dans le corps d'un système pour obtenir un handle de spawn et de despawn d'instances d'acteur. GWEN auto-découvre et installe le plugin d'acteur — aucune déclaration séparée dans la scène n'est nécessaire.
+
+```ts
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { useActor } from '@gwenjs/core/actor'
+import { AsteroidActor } from './actors/asteroid'
+
+export const SpawnSystem = defineSystem(() => {
+  const asteroid = useActor(AsteroidActor)
+
+  onUpdate((dt) => {
+    if (shouldSpawn) {
+      asteroid.spawn({ x: randomX(), y: -10 })
+    }
+  })
+})
+```
+
+## Naviguer entre les scènes
+
+Utilisez `useSceneRouter(router)` pour accéder au routeur de scènes depuis un système. Appelez `nav.send()` pour déclencher des transitions.
+
+```ts
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { AppRouter } from '../router'
+
+export const GameOverSystem = defineSystem(() => {
+  const nav = useSceneRouter(AppRouter)
+
+  onUpdate(() => {
+    if (noLivesRemaining) {
+      nav.send('GAME_OVER')
+    }
+  })
+})
+```
+
+## Nommage des systèmes
+
+Le moteur utilise un nom pour la déduplication et le débogage. Avec `gwenVitePlugin`, le nom est **injecté automatiquement** depuis le nom de la variable exportée. Sans le plugin Vite (tests, Node.js), passez-le explicitement :
+
+```ts
+// ✅ Avec le plugin Vite — nom inféré depuis export const
+export const MovementSystem = defineSystem(() => { ... })
+
+// ✅ Sans le plugin Vite — nom explicite
+export const MovementSystem = defineSystem('MovementSystem', () => { ... })
 ```
 
 ## SystemHandle — Contrôle du cycle de vie
@@ -87,72 +195,42 @@ export const GameScene = defineScene('game', () => {
 `useSystem()` retourne un `SystemHandle` :
 
 ```ts
-interface SystemHandle {
-  pause(): void    // stopper les callbacks de frame, état préservé
-  resume(): void   // relancer les callbacks
-  destroy(): void  // retirer définitivement du frame loop
-  readonly active: boolean
-}
-```
-
-```ts
 const combat = useSystem(CombatSystem(player))
 
-// Pendant une cinématique — mettre combat en pause
-combat.pause()
-
-// Après la cinématique
-combat.resume()
+combat.pause()            // arrêter les callbacks de frame, préserver l'état
+combat.resume()           // redémarrer les callbacks
+combat.destroy()          // supprimer définitivement de la boucle de frame
+combat.active             // booléen — true si en cours d'exécution
 ```
 
-### Pause et overlays de scène
+::: warning Pause manuelle et superpositions de scènes
+Si une superposition de scène (ex : un menu pause) fige la scène sous-jacente, les systèmes sont automatiquement mis en pause par le moteur. Un système que vous avez mis en pause manuellement **ne sera pas** réactivé à la fermeture de la superposition — seule la mise en pause de la scène par le moteur est levée. Appelez `combat.resume()` explicitement quand votre cinématique se termine.
+:::
 
-Si un overlay de scène (ex. menu pause) gèle la scène sous-jacente, les systèmes sont automatiquement mis en pause par le moteur. Un système que vous avez mis en pause vous-même **ne sera pas** réactivé à la fermeture de l'overlay — seule la pause de scène du moteur est levée :
+## Résumé de l'API
 
-```ts
-combat.pause()           // vous mettez combat en pause pendant une cinématique
+| | |
+|---|---|
+| `defineSystem(factory)` | Déclare un système |
+| `useQuery([...defs])` | Collection live d'entités correspondant aux composants donnés |
+| `entity.id` | ID d'entité (`bigint`) pour l'accès aux tableaux SoA |
+| `entity.get(def)` | Lire un composant comme un objet simple |
+| `onBeforeUpdate(fn)` | Callback de frame avant la mise à jour |
+| `onUpdate(fn)` | Callback de frame de mise à jour principale |
+| `onAfterUpdate(fn)` | Callback de frame après la mise à jour |
+| `onRender(fn)` | Callback de frame de rendu |
+| `useService(key)` | Accéder à un service fourni par un plugin |
+| `useHook(name, fn)` | S'abonner à un événement (import depuis `@gwenjs/core`) |
+| `useActor(def)` | Spawn/despawn d'instances d'acteur |
+| `usePrefab(def)` | Spawn/despawn d'entités prefab |
+| `useSceneRouter(router)` | Accéder au handle du routeur de scènes |
+| `SystemHandle.pause()` | Mettre en pause les callbacks de frame |
+| `SystemHandle.resume()` | Reprendre les callbacks de frame |
+| `SystemHandle.destroy()` | Supprimer définitivement le système |
+| `SystemHandle.active` | `true` si le système est en cours d'exécution |
 
-// le joueur ouvre le menu pause → le moteur gèle tous les systèmes
-// le joueur ferme le menu pause → le moteur relance les systèmes non mis en pause par l'utilisateur
+## Étapes suivantes
 
-// combat est toujours en pause car VOUS l'avez mis en pause
-combat.resume()          // relancer explicitement à la fin de la cinématique
-```
-
-## Découverte automatique des dépendances d'acteurs
-
-Si un système utilise `useActor()` en interne (pour des acteurs qu'il possède), GWEN découvre et installe automatiquement le plugin d'acteur — inutile de le déclarer séparément dans la scène :
-
-```ts
-export const SpawnSystem = defineSystem(() => {
-  const asteroid = useActor(AsteroidActor)  // appartient à ce système
-  onUpdate((dt) => {
-    asteroid.spawn({ x: randomX(), y: -10 })
-  })
-})
-
-// Dans la scène — pas besoin de useActor(AsteroidActor) explicite :
-export const GameScene = defineScene('game', () => {
-  useSystem(SpawnSystem())  // AsteroidActor est auto-découvert et installé
-})
-```
-
-## Phases de frame
-
-Enregistrez les callbacks dans la bonne phase :
-
-| Composable | Phase | Utilisation typique |
-|---|---|---|
-| `onBeforeUpdate(dt)` | Avant physique/WASM | Lecture des inputs, pré-simulation |
-| `onUpdate(dt)` | Mise à jour principale | Logique de jeu, IA, déplacement |
-| `onAfterUpdate(dt)` | Post-mise à jour | Synchronisation d'état, score |
-| `onRender()` | Rendu | Appels de dessin (pas de `dt`) |
-
-```ts
-export const InputSystem = defineSystem(() => {
-  onBeforeUpdate((dt) => { /* lire les inputs */ })
-  onUpdate((dt)       => { /* appliquer les déplacements */ })
-  onAfterUpdate((dt)  => { /* mettre à jour le HUD de debug */ })
-  onRender(()         => { /* dessiner l'overlay de debug */ })
-})
-```
+- **[Acteurs](/fr/essentials/actors)** — Objets de jeu par instance avec leur propre cycle de vie.
+- **[Scènes](/fr/essentials/scenes)** — Inscrivez les systèmes et contrôlez-les à l'exécution.
+- **[Hooks](/fr/essentials/hooks)** — Définissez et utilisez des événements typés personnalisés.
