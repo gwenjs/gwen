@@ -120,14 +120,18 @@ export const EnemySpawnerSystem = defineSystem(() => {
 
 ### Prefabs vs Acteurs
 
-**Les prefabs** sont pour générer beaucoup d'entités similaires (balles, ennemis, pièces). **Les acteurs** sont pour les entités uniques et nommées (le joueur, un boss, un panneau d'interface utilisateur).
+Pour la plupart des objets de jeu, **préférez les acteurs aux prefabs bruts**. Les acteurs enveloppent un prefab avec des hooks de cycle de vie, une API publique et gèrent le nettoyage automatiquement. Utilisez un prefab brut uniquement quand vous avez besoin du minimum absolu de surcoût et qu'il n'y a aucune logique de cycle de vie.
 
-::: info Contexte de usePrefab
-`usePrefab()` est valide aussi bien dans le setup d'un système que dans le corps d'une factory d'acteur. Dans les deux cas, GWEN enregistre automatiquement le prefab — aucune déclaration séparée dans la scène n'est nécessaire.
+| | Acteur (`defineActor`) | Prefab brut (`usePrefab`) |
+|---|---|---|
+| **Cycle de vie** | `onStart`, `onUpdate`, `onDestroy` | Aucun |
+| **API publique** | Oui — méthodes appelables depuis l'extérieur | Non |
+| **Support pool** | Oui (`defineActorPool`) | Non |
+| **Cas d'usage** | Ennemis, balles, éléments HUD, tout objet de jeu | Tampons d'entités simples sans logique |
+
+::: tip Quand utiliser `usePrefab` directement
+`usePrefab` est utile quand vous écrivez un système qui tamponne des entités uniquement pour les données — par exemple, peupler une carte avec des entités d'obstacles statiques que les systèmes interrogeront. Pour tout ce qui a un cycle de vie ou une identité, enveloppez-le dans un acteur.
 :::
-
-- **Utilisez un prefab** si : Vous générez 0 à plusieurs de ces entités pendant le jeu
-- **Utilisez un acteur** si : Exactement une instance existe, ou elle a une gestion du cycle de vie spéciale (comme le joueur ou le menu principal)
 
 Voir [Scènes et acteurs](/fr/essentials/scenes) pour en savoir plus sur les acteurs.
 

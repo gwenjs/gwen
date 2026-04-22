@@ -14,6 +14,36 @@ import { useHook, emit } from '@gwenjs/core'
 ```
 :::
 
+## Defining Events First
+
+Before you emit or listen, declare your event contracts with `defineHooks()`. This is the starting point — it gives TypeScript the shape of every event name and its arguments.
+
+Create a dedicated file for your events, for example `src/events/game.ts`:
+
+```ts
+// src/events/game.ts
+import type { InferHooks } from '@gwenjs/core'
+
+export const GameEvents = defineHooks({
+  'enemy:die':  (): void => undefined,
+  'enemy:hit':  (_damage: number): void => undefined,
+  'score:add':  (_points: number): void => undefined,
+  'player:die': (): void => undefined,
+})
+
+declare module '@gwenjs/schema' {
+  interface GwenRuntimeHooks extends InferHooks<typeof GameEvents> {}
+}
+```
+
+`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. The `declare module` block merges your events into `GwenRuntimeHooks`, which makes `useHook` and `emit` fully typed project-wide.
+
+::: warning Use `@gwenjs/schema`, not `@gwenjs/app`
+The interface to augment is `GwenRuntimeHooks` in `@gwenjs/schema`. Augmenting `@gwenjs/app` has no effect.
+:::
+
+After this, wrong event names or argument types are caught at compile time — across every actor, system, and plugin in the project.
+
 ## Listening to Events
 
 Use `useHook(name, fn)` inside a system, actor, or scene factory to subscribe to an event. The subscription is cleaned up automatically when the context ends.
@@ -60,46 +90,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
-## Defining Custom Hooks
-
-Use `defineHooks()` to declare typed contracts for your game events. This gives you full TypeScript autocomplete on event names and argument types across the entire project.
-
-```ts
-// src/hooks.ts
-export const GameHooks = defineHooks({
-  'enemy:die':  (): void => undefined,
-  'enemy:hit':  (_damage: number): void => undefined,
-  'score:add':  (_points: number): void => undefined,
-  'player:die': (): void => undefined,
-})
-```
-
-`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. The value is its type signature.
-
-## Augmenting GwenRuntimeHooks
-
-To get full type safety on `useHook` and `emit` project-wide, augment `GwenRuntimeHooks` in `@gwenjs/schema`:
-
-```ts
-// src/hooks.ts
-import type { InferHooks } from '@gwenjs/core'
-
-export const GameHooks = defineHooks({
-  'enemy:die':  (): void => undefined,
-  'enemy:hit':  (_damage: number): void => undefined,
-  'score:add':  (_points: number): void => undefined,
-})
-
-declare module '@gwenjs/schema' {
-  interface GwenRuntimeHooks extends InferHooks<typeof GameHooks> {}
-}
-```
-
-After this, `useHook('enemy:die', () => {})` and `emit('enemy:hit', 50)` are fully typed — wrong event names or argument types are caught at compile time.
-
-::: warning Use `@gwenjs/schema`, not `@gwenjs/app`
-The interface to augment is `GwenRuntimeHooks` in `@gwenjs/schema`. Augmenting `@gwenjs/app` has no effect.
-:::
+Events emitted here — `enemy:hit` and `enemy:die` — must be declared in `defineHooks` first. Without the declaration, TypeScript treats the names as `string` and no argument types are enforced.
 
 ## Auto-Cleanup
 
@@ -153,10 +144,10 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 
 | | |
 |---|---|
-| `useHook(name, fn)` | Subscribe to an event; returns unsubscribe fn |
-| `emit(name, ...args)` | Fire an event synchronously |
 | `defineHooks(map)` | Declare a typed event contract |
 | `InferHooks<T>` | Map `defineHooks` result to `GwenRuntimeHooks` shape |
+| `useHook(name, fn)` | Subscribe to an event; returns unsubscribe fn |
+| `emit(name, ...args)` | Fire an event synchronously |
 
 ## Next Steps
 

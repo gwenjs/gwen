@@ -14,6 +14,36 @@ import { useHook, emit } from '@gwenjs/core'
 ```
 :::
 
+## Définir les événements en premier
+
+Avant d'émettre ou d'écouter, déclarez vos contrats d'événements avec `defineHooks()`. C'est le point de départ — il donne à TypeScript la forme de chaque nom d'événement et de ses arguments.
+
+Créez un fichier dédié pour vos événements, par exemple `src/events/game.ts` :
+
+```ts
+// src/events/game.ts
+import type { InferHooks } from '@gwenjs/core'
+
+export const GameEvents = defineHooks({
+  'enemy:die':  (): void => undefined,
+  'enemy:hit':  (_damage: number): void => undefined,
+  'score:add':  (_points: number): void => undefined,
+  'player:die': (): void => undefined,
+})
+
+declare module '@gwenjs/schema' {
+  interface GwenRuntimeHooks extends InferHooks<typeof GameEvents> {}
+}
+```
+
+`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Le bloc `declare module` fusionne vos événements dans `GwenRuntimeHooks`, ce qui rend `useHook` et `emit` entièrement typés dans l'ensemble du projet.
+
+::: warning Utilisez `@gwenjs/schema`, pas `@gwenjs/app`
+L'interface à augmenter est `GwenRuntimeHooks` dans `@gwenjs/schema`. Augmenter `@gwenjs/app` n'a aucun effet.
+:::
+
+Après cela, les noms d'événements incorrects ou les types d'arguments sont détectés à la compilation — dans chaque acteur, système et plugin du projet.
+
 ## Écouter des événements
 
 Utilisez `useHook(name, fn)` à l'intérieur d'une fabrique de système, acteur ou scène pour vous abonner à un événement. L'abonnement est nettoyé automatiquement quand le contexte se termine.
@@ -60,46 +90,7 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
-## Définir des hooks personnalisés
-
-Utilisez `defineHooks()` pour déclarer des contrats typés pour vos événements de jeu. Cela vous donne l'auto-complétion TypeScript complet sur les noms d'événements et les types d'arguments dans l'ensemble du projet.
-
-```ts
-// src/hooks.ts
-export const GameHooks = defineHooks({
-  'enemy:die':  (): void => undefined,
-  'enemy:hit':  (_damage: number): void => undefined,
-  'score:add':  (_points: number): void => undefined,
-  'player:die': (): void => undefined,
-})
-```
-
-`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. La valeur est sa signature de type.
-
-## Augmenter GwenRuntimeHooks
-
-Pour obtenir la sécurité complète des types sur `useHook` et `emit` dans l'ensemble du projet, augmentez `GwenRuntimeHooks` dans `@gwenjs/schema` :
-
-```ts
-// src/hooks.ts
-import type { InferHooks } from '@gwenjs/core'
-
-export const GameHooks = defineHooks({
-  'enemy:die':  (): void => undefined,
-  'enemy:hit':  (_damage: number): void => undefined,
-  'score:add':  (_points: number): void => undefined,
-})
-
-declare module '@gwenjs/schema' {
-  interface GwenRuntimeHooks extends InferHooks<typeof GameHooks> {}
-}
-```
-
-Après cela, `useHook('enemy:die', () => {})` et `emit('enemy:hit', 50)` sont entièrement typés — les noms d'événements incorrects ou les types d'arguments sont détectés à la compilation.
-
-::: warning Utilisez `@gwenjs/schema`, pas `@gwenjs/app`
-L'interface à augmenter est `GwenRuntimeHooks` dans `@gwenjs/schema`. Augmenter `@gwenjs/app` n'a aucun effet.
-:::
+Les événements émis ici — `enemy:hit` et `enemy:die` — doivent être déclarés dans `defineHooks` au préalable. Sans la déclaration, TypeScript traite les noms comme des `string` et aucun type d'argument n'est vérifié.
 
 ## Nettoyage automatique
 
@@ -153,10 +144,10 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 
 | | |
 |---|---|
-| `useHook(name, fn)` | S'abonner à un événement ; retourne une fonction de désabonnement |
-| `emit(name, ...args)` | Déclencher un événement de manière synchrone |
 | `defineHooks(map)` | Déclarer un contrat d'événement typé |
 | `InferHooks<T>` | Mapper le résultat de `defineHooks` à la forme `GwenRuntimeHooks` |
+| `useHook(name, fn)` | S'abonner à un événement ; retourne une fonction de désabonnement |
+| `emit(name, ...args)` | Déclencher un événement de manière synchrone |
 
 ## Étapes suivantes
 

@@ -249,6 +249,10 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
+::: tip Declare events before emitting
+`enemy:hit` and `enemy:die` must be declared with `defineHooks` before `emit` is type-safe. Without the declaration, TypeScript treats the name as `string` and argument types are not enforced. See [Hooks](/essentials/hooks).
+:::
+
 ## Accessing Services
 
 Use `useService(key)` to access a value provided by a plugin:
@@ -312,7 +316,9 @@ import { onRelease, onReset } from '@gwenjs/core/actor'
 
 ## Async Composables
 
-Composable handles (`useTransform()`, `useComponent()`, etc.) must be called during the **synchronous factory phase** — not inside async callbacks after `await`. Capture them during setup and use them as closures:
+Composable handles (`useTransform()`, `useComponent()`, etc.) must be called during the **synchronous factory phase** — not inside async callbacks after `await`. There are two patterns:
+
+**Pattern 1 — capture before `await` (preferred):** Call the composable synchronously and use the captured handle as a closure.
 
 ```ts
 const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -324,6 +330,23 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
   })
 })
 ```
+
+**Pattern 2 — `withAsyncContext` (when composables must be called after `await`):** Wrap the callback to restore the engine context after each `await`.
+
+```ts
+import { withAsyncContext } from '@gwenjs/core'
+
+const PlayerActor = defineActor(PlayerPrefab, () => {
+  onStart(withAsyncContext(async () => {
+    await loadPlayerSprite()
+    useTransform().setPosition(400, 300)  // ✅ context restored
+  }))
+})
+```
+
+::: info `onEnter` / `onExit` are handled automatically
+The Vite plugin instruments `await` inside `onEnter` and `onExit` callbacks automatically — no `withAsyncContext` needed there. Use `withAsyncContext` only for `onStart` and other custom async callbacks.
+:::
 
 ::: warning Not valid in actors
 - ❌ `useSceneRouter` — actors don't navigate. Use `emit` to signal intent; handle navigation in a system.
@@ -358,6 +381,7 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 | `useService(key)` | Access a plugin-provided service |
 | `useHook(name, fn)` | Subscribe to an event — `import { useHook } from '@gwenjs/core'` |
 | `emit(name, ...args)` | Fire an event — `import { emit } from '@gwenjs/core'` |
+| `withAsyncContext(fn)` | Wrap async callback to restore context after `await` — `import { withAsyncContext } from '@gwenjs/core'` |
 | `onStart(fn)` | Runs once at first spawn |
 | `onDestroy(fn)` | Runs at despawn |
 | `onEnable(fn)` | Pool: after re-acquiring — auto-imported |

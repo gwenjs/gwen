@@ -120,14 +120,18 @@ export const EnemySpawnerSystem = defineSystem(() => {
 
 ### Prefabs vs Actors
 
-**Prefabs** are for spawning many similar entities (bullets, enemies, coins). **Actors** are for unique, named entities (the player, a boss, a UI panel).
+For most game objects, **prefer actors over raw prefabs**. Actors wrap a prefab with lifecycle hooks, a public API, and handle cleanup automatically. Use a raw prefab only when you need the absolute minimum overhead and have no lifecycle logic.
 
-::: info usePrefab context
-`usePrefab()` is valid in both system setup and actor factory bodies. In both cases, GWEN auto-registers the prefab — no separate scene declaration needed.
+| | Actor (`defineActor`) | Raw prefab (`usePrefab`) |
+|---|---|---|
+| **Lifecycle** | `onStart`, `onUpdate`, `onDestroy` | None |
+| **Public API** | Yes — methods callable from outside | No |
+| **Pool support** | Yes (`defineActorPool`) | No |
+| **Use case** | Enemies, bullets, HUD elements, any game object | Simple entity stamps with no logic |
+
+::: tip When to use `usePrefab` directly
+`usePrefab` is useful when you are writing a system that stamps entities purely for data — for example seeding a map with static obstacle entities that systems will query. For anything with lifecycle or identity, wrap it in an actor instead.
 :::
-
-- **Use a prefab** if: You spawn 0 to many of these entities during gameplay
-- **Use an actor** if: Exactly one instance exists, or it has special lifecycle handling (like the player or main menu)
 
 See [Scenes and Actors](/essentials/scenes) to learn about actors.
 

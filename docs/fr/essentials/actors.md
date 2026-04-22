@@ -249,6 +249,10 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
 })
 ```
 
+::: tip Déclarez les événements avant d'émettre
+`enemy:hit` et `enemy:die` doivent être déclarés avec `defineHooks` pour que `emit` soit typé. Sans la déclaration, TypeScript traite le nom comme une `string` et les types d'arguments ne sont pas vérifiés. Voir [Hooks](/fr/essentials/hooks).
+:::
+
 ## Accéder aux services
 
 Utilisez `useService(key)` pour accéder à une valeur fournie par un plugin :
@@ -312,7 +316,9 @@ import { onRelease, onReset } from '@gwenjs/core/actor'
 
 ## Composables asynchrones
 
-Les handles de composables (`useTransform()`, `useComponent()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans les callbacks asynchrones après `await`. Capturez-les pendant le setup et utilisez-les comme closures :
+Les handles de composables (`useTransform()`, `useComponent()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans les callbacks asynchrones après `await`. Deux patterns existent :
+
+**Pattern 1 — capturer avant `await` (recommandé) :** Appelez le composable de manière synchrone et utilisez le handle capturé comme closure.
 
 ```ts
 const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -324,6 +330,23 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
   })
 })
 ```
+
+**Pattern 2 — `withAsyncContext` (quand des composables doivent être appelés après `await`) :** Enveloppez le callback pour restaurer le contexte moteur après chaque `await`.
+
+```ts
+import { withAsyncContext } from '@gwenjs/core'
+
+const PlayerActor = defineActor(PlayerPrefab, () => {
+  onStart(withAsyncContext(async () => {
+    await loadPlayerSprite()
+    useTransform().setPosition(400, 300)  // ✅ contexte restauré
+  }))
+})
+```
+
+::: info `onEnter` / `onExit` sont gérés automatiquement
+Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnter` et `onExit` — pas besoin de `withAsyncContext` ici. Utilisez `withAsyncContext` uniquement pour `onStart` et les autres callbacks asynchrones personnalisés.
+:::
 
 ::: warning Non valide dans les acteurs
 - ❌ `useSceneRouter` — les acteurs ne naviguent pas. Utilisez `emit` pour signaler une intention ; gérez la navigation dans un système.
@@ -358,6 +381,7 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 | `useService(key)` | Accéder à un service fourni par un plugin |
 | `useHook(name, fn)` | S'abonner à un événement — `import { useHook } from '@gwenjs/core'` |
 | `emit(name, ...args)` | Déclencher un événement — `import { emit } from '@gwenjs/core'` |
+| `withAsyncContext(fn)` | Envelopper un callback async pour restaurer le contexte après `await` — `import { withAsyncContext } from '@gwenjs/core'` |
 | `onStart(fn)` | S'exécute une fois à la première génération |
 | `onDestroy(fn)` | S'exécute à la suppression |
 | `onEnable(fn)` | Pool: après ré-acquisition — auto-importé |
