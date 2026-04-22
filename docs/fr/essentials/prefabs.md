@@ -7,6 +7,10 @@ description: Les prefabs sont des modèles d'entités réutilisables qui vous pe
 
 Un **prefab** est un modèle réutilisable pour générer des entités. Au lieu de générer manuellement la même combinaison de composants et de valeurs par défaut encore et encore, définissez un prefab une seule fois et générez-le plusieurs fois. Les prefabs sont essentiels pour générer des balles, des ennemis, des objets collectibles et d'autres éléments répétés dans votre jeu.
 
+::: info Auto-imports
+`definePrefab` et `usePrefab` sont auto-importés dans un projet GWEN. Les imports explicites ne sont nécessaires que dans les tests ou les environnements sans le plugin Vite.
+:::
+
 ## Les bases
 
 ### Définir un prefab
@@ -76,6 +80,10 @@ const id = bullet.spawn({ x: 100, y: 100, vx: -5 })
 const id = bullet.spawn()
 ```
 
+::: tip Defaults du composant vs defaults du prefab
+`defineComponent` accepte un champ `defaults` pour des valeurs par défaut au niveau du composant. Les `defaults` du prefab les remplacent, et les valeurs passées à `spawn()` remplacent tout. La chaîne de priorité est : arguments de `spawn()` → defaults du prefab → defaults du composant.
+:::
+
 ## En pratique
 
 ### Prefab ennemi avec plusieurs composants
@@ -119,6 +127,10 @@ export const EnemySpawnerSystem = defineSystem(() => {
 ### Prefabs vs Acteurs
 
 **Les prefabs** sont pour générer beaucoup d'entités similaires (balles, ennemis, pièces). **Les acteurs** sont pour les entités uniques et nommées (le joueur, un boss, un panneau d'interface utilisateur).
+
+::: info Contexte de usePrefab
+`usePrefab()` est valide aussi bien dans le setup d'un système que dans le corps d'une factory d'acteur. Dans les deux cas, GWEN enregistre automatiquement le prefab — aucune déclaration séparée dans la scène n'est nécessaire.
+:::
 
 - **Utilisez un prefab** si : Vous générez 0 à plusieurs de ces entités pendant le jeu
 - **Utilisez un acteur** si : Exactement une instance existe, ou elle a une gestion du cycle de vie spéciale (comme le joueur ou le menu principal)

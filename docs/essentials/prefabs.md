@@ -7,6 +7,10 @@ description: Prefabs are reusable entity blueprints that let you spawn multiple 
 
 A **prefab** is a reusable template for spawning entities. Instead of manually spawning the same combination of components and defaults over and over, define a prefab once and spawn it many times. Prefabs are essential for spawning bullets, enemies, collectibles, and other repeated elements in your game.
 
+::: info Auto-imports
+`definePrefab` and `usePrefab` are auto-imported in a GWEN project. Explicit imports are only needed in tests or environments without the Vite plugin.
+:::
+
 ## The Basics
 
 ### Defining a Prefab
@@ -76,6 +80,10 @@ const id = bullet.spawn({ x: 100, y: 100, vx: -5 })
 const id = bullet.spawn()
 ```
 
+::: tip Component defaults vs prefab defaults
+`defineComponent` accepts a `defaults` field for component-level fallbacks. Prefab `defaults` override those, and values passed to `spawn()` override everything. The priority chain is: `spawn()` args → prefab defaults → component defaults.
+:::
+
 ## In Practice
 
 ### Enemy Prefab with Multiple Components
@@ -119,6 +127,10 @@ export const EnemySpawnerSystem = defineSystem(() => {
 ### Prefabs vs Actors
 
 **Prefabs** are for spawning many similar entities (bullets, enemies, coins). **Actors** are for unique, named entities (the player, a boss, a UI panel).
+
+::: info usePrefab context
+`usePrefab()` is valid in both system setup and actor factory bodies. In both cases, GWEN auto-registers the prefab — no separate scene declaration needed.
+:::
 
 - **Use a prefab** if: You spawn 0 to many of these entities during gameplay
 - **Use an actor** if: Exactly one instance exists, or it has special lifecycle handling (like the player or main menu)
