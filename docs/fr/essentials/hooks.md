@@ -147,6 +147,7 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 | `entity:spawn` | `id: EntityId` | Entité créée |
 | `entity:destroy` | `id: EntityId` | Entité détruite |
 | `scene:enter` | `name, params?` | Scène activée |
+| `scene:beforeLeave` | `name` | Avant la désactivation de la scène |
 | `scene:leave` | `name` | Scène désactivée |
 | `scene:transition:leave` | `{ from, to }` | Avant l'animation de sortie |
 | `scene:transition:enter` | `{ from, to }` | Après l'animation d'entrée |

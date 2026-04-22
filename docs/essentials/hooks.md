@@ -147,6 +147,7 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `entity:spawn` | `id: EntityId` | Entity created |
 | `entity:destroy` | `id: EntityId` | Entity destroyed |
 | `scene:enter` | `name, params?` | Scene activated |
+| `scene:beforeLeave` | `name` | Before scene deactivation |
 | `scene:leave` | `name` | Scene deactivated |
 | `scene:transition:leave` | `{ from, to }` | Before leave animation |
 | `scene:transition:enter` | `{ from, to }` | After enter animation |
