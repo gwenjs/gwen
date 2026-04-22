@@ -1,14 +1,14 @@
 /**
  * @file GWEN Module for @gwenjs/physics2d.
  *
- * Default export — register this in `modules` inside `gwen.config.ts`:
+ * Register by package name in `gwen.config.ts`. Options go at the top-level
+ * `physics2d` key — TypeScript infers them via `GwenModuleOptions` augmentation.
  *
  * ```ts
- * import physics2d from '@gwenjs/physics2d/module'
- * // or via top-level re-export:
- * import physics2d from '@gwenjs/physics2d'
- *
- * export default defineConfig({ modules: [physics2d()] })
+ * export default defineConfig({
+ *   modules: ['@gwenjs/physics2d'],
+ *   physics2d: { gravity: -9.81 },
+ * })
  * ```
  */
 
@@ -26,8 +26,16 @@ import type { Physics2DConfig } from "./types";
  * 2. Adds `usePhysics2D`, `useRigidBody`, `useCollider` as auto-imports.
  * 3. Generates `.gwen/types/physics2d.d.ts` with typed service/hook declarations.
  */
+// @ts-expect-error augmenting @gwenjs/app (intentional, activated at app build time)
+declare module "@gwenjs/app" {
+  interface GwenModuleOptions {
+    /** Options for `@gwenjs/physics2d`. Configure gravity and physics quality. */
+    physics2d?: Physics2DConfig;
+  }
+}
+
 export default defineGwenModule<Physics2DConfig>({
-  meta: { name: "@gwenjs/physics2d" },
+  meta: { name: "@gwenjs/physics2d", configKey: "physics2d" },
   defaults: {
     gravity: -9.81,
     gravityX: 0,

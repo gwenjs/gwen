@@ -123,7 +123,14 @@ export async function setupGwen(config: ResolvedGwenConfig): Promise<GwenEngine>
     }
     const resolvedOptions = defu(userOptions, mod.defaults ?? {}) as Record<string, unknown>;
 
-    await mod.setup(resolvedOptions as never, runtimeKit);
+    try {
+      await mod.setup(resolvedOptions as never, runtimeKit);
+    } catch (cause) {
+      throw new Error(
+        `[gwen] Local module "${mod.meta?.name ?? "(unnamed)"}" setup() failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        { cause },
+      );
+    }
 
     for (const plugin of collectedPlugins) {
       await engine.use(plugin);

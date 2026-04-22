@@ -1,11 +1,14 @@
 /**
  * @file GWEN Module for @gwenjs/physics3d.
  *
- * Default export — register this in `modules` inside `gwen.config.ts`:
+ * Register by package name in `gwen.config.ts`. Options go at the top-level
+ * `physics3d` key — TypeScript infers them via `GwenModuleOptions` augmentation.
  *
  * ```ts
- * import physics3d from '@gwenjs/physics3d/module'
- * export default defineConfig({ modules: [physics3d()] })
+ * export default defineConfig({
+ *   modules: ['@gwenjs/physics3d'],
+ *   physics3d: { gravity: { x: 0, y: -9.81, z: 0 } },
+ * })
  * ```
  */
 
@@ -19,8 +22,17 @@ import { physics3dVitePlugin } from "./vite-plugin";
 /**
  * GWEN module for the Physics 3D plugin.
  */
+
+// @ts-expect-error augmenting @gwenjs/app (intentional, activated at app build time)
+declare module "@gwenjs/app" {
+  interface GwenModuleOptions {
+    /** Options for `@gwenjs/physics3d`. Configure gravity and physics quality. */
+    physics3d?: Physics3DConfig;
+  }
+}
+
 export default defineGwenModule<Physics3DConfig>({
-  meta: { name: "@gwenjs/physics3d" },
+  meta: { name: "@gwenjs/physics3d", configKey: "physics3d" },
   defaults: {
     gravity: { x: 0, y: -9.81, z: 0 },
   },

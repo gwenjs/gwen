@@ -3,7 +3,8 @@ import { TweenPlugin, type TweenPluginOptions } from "./engine-plugin.js";
 
 // @ts-expect-error augmenting @gwenjs/app from @gwenjs/core (intentional, activated at app build time)
 declare module "@gwenjs/app" {
-  interface GwenUserConfig {
+  interface GwenModuleOptions {
+    /** Options for the built-in tween system. */
     tween?: TweenPluginOptions;
   }
 }
