@@ -316,22 +316,7 @@ import { onRelease, onReset } from '@gwenjs/core/actor'
 
 ## Composables asynchrones
 
-Les handles de composables (`useTransform()`, `useComponent()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans les callbacks asynchrones après `await`. Deux patterns existent :
-
-**Pattern 1 — capturer avant `await` (recommandé) :** Appelez le composable de manière synchrone et utilisez le handle capturé comme closure.
-
-```ts
-const PlayerActor = defineActor(PlayerPrefab, () => {
-  const transform = useTransform()  // ✅ capturé de manière synchrone
-
-  onStart(async () => {
-    await loadPlayerSprite()
-    transform.setPosition(400, 300)  // ✅ closure — aucun contexte nécessaire
-  })
-})
-```
-
-**Pattern 2 — `withAsyncContext` (quand des composables doivent être appelés après `await`) :** Enveloppez le callback pour restaurer le contexte moteur après chaque `await`.
+Pour tout callback `onStart` asynchrone, enveloppez-le avec `withAsyncContext`. Sans cela, le contexte moteur et le scope sont perdus après le premier `await` — les composables, hooks et cleanups enregistrés après seront silencieusement ignorés.
 
 ```ts
 import { withAsyncContext } from '@gwenjs/core'
@@ -339,13 +324,13 @@ import { withAsyncContext } from '@gwenjs/core'
 const PlayerActor = defineActor(PlayerPrefab, () => {
   onStart(withAsyncContext(async () => {
     await loadPlayerSprite()
-    useTransform().setPosition(400, 300)  // ✅ contexte restauré
+    useTransform().setPosition(400, 300)  // ✅ contexte préservé
   }))
 })
 ```
 
 ::: info `onEnter` / `onExit` sont gérés automatiquement
-Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnter` et `onExit` — pas besoin de `withAsyncContext` ici. Utilisez `withAsyncContext` uniquement pour `onStart` et les autres callbacks asynchrones personnalisés.
+Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnter` et `onExit` — pas besoin de `withAsyncContext` ici. Utilisez `withAsyncContext` pour `onStart` et tous les autres callbacks asynchrones personnalisés.
 :::
 
 ::: warning Non valide dans les acteurs

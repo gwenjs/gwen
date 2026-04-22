@@ -316,22 +316,7 @@ import { onRelease, onReset } from '@gwenjs/core/actor'
 
 ## Async Composables
 
-Composable handles (`useTransform()`, `useComponent()`, etc.) must be called during the **synchronous factory phase** — not inside async callbacks after `await`. There are two patterns:
-
-**Pattern 1 — capture before `await` (preferred):** Call the composable synchronously and use the captured handle as a closure.
-
-```ts
-const PlayerActor = defineActor(PlayerPrefab, () => {
-  const transform = useTransform()  // ✅ captured synchronously
-
-  onStart(async () => {
-    await loadPlayerSprite()
-    transform.setPosition(400, 300)  // ✅ closure — no context needed
-  })
-})
-```
-
-**Pattern 2 — `withAsyncContext` (when composables must be called after `await`):** Wrap the callback to restore the engine context after each `await`.
+For any async `onStart` callback, wrap it with `withAsyncContext`. Without it, the engine context and scope are lost after the first `await` — composables, hooks, and cleanup registered after that point will silently fail.
 
 ```ts
 import { withAsyncContext } from '@gwenjs/core'
@@ -339,13 +324,13 @@ import { withAsyncContext } from '@gwenjs/core'
 const PlayerActor = defineActor(PlayerPrefab, () => {
   onStart(withAsyncContext(async () => {
     await loadPlayerSprite()
-    useTransform().setPosition(400, 300)  // ✅ context restored
+    useTransform().setPosition(400, 300)  // ✅ context preserved
   }))
 })
 ```
 
 ::: info `onEnter` / `onExit` are handled automatically
-The Vite plugin instruments `await` inside `onEnter` and `onExit` callbacks automatically — no `withAsyncContext` needed there. Use `withAsyncContext` only for `onStart` and other custom async callbacks.
+The Vite plugin instruments `await` inside `onEnter` and `onExit` callbacks automatically — no `withAsyncContext` needed there. Use `withAsyncContext` for `onStart` and any other custom async callbacks.
 :::
 
 ::: warning Not valid in actors
