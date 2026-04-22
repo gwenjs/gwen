@@ -16,20 +16,19 @@ Enregistrez le module dans `gwen.config.ts` :
 ```ts
 // gwen.config.ts
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics3d', {
-      gravity: { x: 0, y: -9.81, z: 0 },
-      maxEntities: 10_000,
-      qualityPreset: 'medium',
+  modules: ['@gwenjs/physics3d'],
+  physics3d: {
+    gravity: { x: 0, y: -9.81, z: 0 },
+    maxEntities: 10_000,
+    qualityPreset: 'medium',
+    debug: false,
+    coalesceEvents: true,
+    layers: ['default', 'player', 'enemy'],
+    vite: {
+      bvhPrebake: false,
       debug: false,
-      coalesceEvents: true,
-      layers: ['default', 'player', 'enemy'],
-      vite: {
-        bvhPrebake: false,
-        debug: false,
-      },
-    }],
-  ],
+    },
+  },
 })
 ```
 

@@ -15,7 +15,7 @@ Configuration d'app haut niveau et système de modules pour les projets GWEN. S'
 
 **Signature:**
 ```ts
-function defineConfig(input: GwenConfigInput): GwenUserConfig
+function defineConfig(input: GwenUserConfig): GwenUserConfig
 ```
 
 **Description.** Définit la configuration GWEN de haut niveau. Utilisé dans votre fichier de configuration d'app (typiquement `gwen.config.ts`).
@@ -23,7 +23,7 @@ function defineConfig(input: GwenConfigInput): GwenUserConfig
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| input | `GwenConfigInput` | Objet de configuration |
+| input | `GwenUserConfig` | Objet de configuration |
 
 **Retourne:** `GwenUserConfig` — configuration validée.
 

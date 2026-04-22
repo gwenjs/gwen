@@ -398,9 +398,8 @@ For complex terrain, use pre-baked BVH for efficiency:
 ```ts
 // gwen.config.ts — enable BVH pre-baking via the module vite sub-key
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics3d', { vite: { bvhPrebake: true } }],
-  ],
+  modules: ['@gwenjs/physics3d'],
+  physics3d: { vite: { bvhPrebake: true } },
 })
 
 // In actor — the Vite plugin rewrites the path to a pre-baked BVH handle at build time

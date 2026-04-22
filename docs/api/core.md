@@ -213,7 +213,7 @@ function useWasmModule(name: string): any
 
 Actor definition, instance lifecycle, and all actor composables.
 
-**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEvent`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`
+**Exports:** `defineActor`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `definePrefab`, `useActor`, `useComponent`, `usePrefab`, `useEntityId`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab`, `defineActorPool`, `useActorPool`
 
 **Usage:**
 ```ts
@@ -234,7 +234,7 @@ function defineActor<Props = void>(
 ): ActorDef
 ```
 
-**Description.** Defines an actor — an entity template with lifecycle hooks and a public API. The `factory` runs once per spawned instance; register lifecycle hooks (`onStart`, `onUpdate`, `onDestroy`, `onEvent`) inside it. The returned object becomes the actor's public API.
+**Description.** Defines an actor — an entity template with lifecycle hooks and a public API. The `factory` runs once per spawned instance; register lifecycle hooks (`onStart`, `onUpdate`, `onDestroy`) inside it. The returned object becomes the actor's public API.
 
 **Parameters:**
 | Param | Type | Description |
@@ -425,30 +425,6 @@ function onDestroy(cb: () => void): void
 
 **Returns:** `void`
 
-#### onEvent(type, handler)
-
-**Signature:**
-```ts
-function onEvent<T = any>(type: string, handler: (payload: T) => void): void
-```
-
-**Description.** Registers a handler for custom events emitted with [`emit()`](#emitevent-payload).
-
-**Parameters:**
-| Param | Type | Description |
-|---|---|---|
-| type | `string` | Event type identifier |
-| handler | `function` | Handler receiving the event payload |
-
-**Returns:** `void`
-
-**Example:**
-```ts
-onEvent('player-hit', (damage) => {
-  console.log('Player took', damage, 'damage');
-});
-```
-
 #### onUpdate(cb)
 
 **Signature:**
@@ -538,7 +514,7 @@ const Hooks = defineHooks({
 function emit(event: string, payload?: any): void
 ```
 
-**Description.** Emits a custom event to all listeners registered with [`onEvent()`](#oneventtype-handler).
+**Description.** Emits a custom event to all listeners registered with [`useHook()`](#usehookevent-handler).
 
 **Parameters:**
 | Param | Type | Description |

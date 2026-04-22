@@ -16,12 +16,11 @@ Toutes les options sont passées comme second élément du tuple de module dans 
 ```typescript
 // gwen.config.ts
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics2d', {
-      gravity: -9.81,
-      qualityPreset: 'medium',
-    }]
-  ],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: {
+    gravity: -9.81,
+    qualityPreset: 'medium',
+  },
 })
 ```
 
@@ -46,16 +45,15 @@ Le plugin Vite `gwen:physics2d` émet un avertissement pendant le build si une c
 
 ```typescript
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics2d', {
-      layers: {
-        player:  0,
-        enemy:   1,
-        terrain: 2,
-        sensor:  3,
-      }
-    }]
-  ],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: {
+    layers: {
+      player:  0,
+      enemy:   1,
+      terrain: 2,
+      sensor:  3,
+    },
+  },
 })
 ```
 

@@ -278,30 +278,6 @@ function onDestroy(cb: () => void): void
 
 **Retourne:** `void`
 
-### onEvent(type, handler)
-
-**Signature:**
-```ts
-function onEvent<T = any>(type: string, handler: (payload: T) => void): void
-```
-
-**Description.** Enregistre un gestionnaire pour les événements personnalisés émis avec [`emit()`](#emitevent-payload).
-
-**Paramètres:**
-| Paramètre | Type | Description |
-|---|---|---|
-| type | `string` | Identifiant du type d'événement |
-| handler | `function` | Gestionnaire recevant la charge utile de l'événement |
-
-**Retourne:** `void`
-
-**Exemple:**
-```ts
-onEvent('player-hit', (damage) => {
-  console.log('Player took', damage, 'damage');
-});
-```
-
 ## Scènes
 
 ### defineScene(name, factory)
@@ -442,7 +418,7 @@ function defineActor<Props = void>(
 ): ActorDef
 ```
 
-**Description.** Définit un acteur — un modèle d'entité avec des hooks de cycle de vie et une API publique. La `factory` s'exécute une fois par instance générée ; les hooks de cycle de vie (`onStart`, `onUpdate`, `onDestroy`, `onEvent`) sont enregistrés à l'intérieur. L'objet retourné devient l'API publique de l'acteur.
+**Description.** Définit un acteur — un modèle d'entité avec des hooks de cycle de vie et une API publique. La `factory` s'exécute une fois par instance générée ; les hooks de cycle de vie (`onStart`, `onUpdate`, `onDestroy`) sont enregistrés à l'intérieur. L'objet retourné devient l'API publique de l'acteur.
 
 **Paramètres:**
 | Paramètre | Type | Description |
@@ -727,7 +703,7 @@ const Hooks = defineHooks({
 function emit(event: string, payload?: any): void
 ```
 
-**Description.** Émet un événement personnalisé à tous les écouteurs enregistrés avec [`onEvent()`](#oneventtype-handler).
+**Description.** Émet un événement personnalisé à tous les écouteurs enregistrés avec [`useHook()`](#usehookevent-handler).
 
 **Paramètres:**
 | Paramètre | Type | Description |

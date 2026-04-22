@@ -157,14 +157,13 @@ Options for this plugin can be passed through the module configuration in `gwen.
 ```ts
 // gwen.config.ts
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics2d', {
-      gravity: -9.81,
-      vite: {
-        debug: true,  // passed to physics2dVitePlugin
-      },
-    }],
-  ],
+  modules: ['@gwenjs/physics2d'],
+  physics2d: {
+    gravity: -9.81,
+    vite: {
+      debug: true,  // passed to physics2dVitePlugin
+    },
+  },
 })
 ```
 
@@ -208,15 +207,14 @@ When you use the `@gwenjs/physics3d` module in `gwen.config.ts`, this plugin is 
 ```ts
 // gwen.config.ts
 export default defineConfig({
-  modules: [
-    ['@gwenjs/physics3d', {
-      gravity: { y: -9.81 },
-      vite: {
-        bvhPrebake: true,
-        debug: false,  // passed to physics3dVitePlugin
-      },
-    }],
-  ],
+  modules: ['@gwenjs/physics3d'],
+  physics3d: {
+    gravity: { y: -9.81 },
+    vite: {
+      bvhPrebake: true,
+      debug: false,  // passed to physics3dVitePlugin
+    },
+  },
 })
 ```
 

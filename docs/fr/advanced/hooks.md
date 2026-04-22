@@ -53,20 +53,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   return {}
 })
 ```
-::: warning useHook dans un acteur poolé
-Si votre acteur est géré par un [`ActorPool`](/fr/advanced/actor-pool), utilisez [`onEvent()`](#événements-de-jeu-personnalisés) à la place. `useHook()` détecte la dormance au moment du déclenchement et ignore le handler automatiquement, mais enregistre aussi un avertissement (dev uniquement) pour vous orienter vers la bonne API.
-
-```typescript
-// ❌ Fonctionne, mais produit un avertissement quand l'acteur est dormant dans un pool
-defineActor(EnemyPrefab, () => {
-  useHook('enemy:hit', handler)
-})
-
-// ✅ Correct — onEvent() gère la dormance silencieusement
-defineActor(EnemyPrefab, () => {
-  onEvent('enemy:hit', handler)
-})
-```
+::: info useHook dans un acteur poolé
+`useHook()` à l'intérieur d'un acteur gère la dormance du pool automatiquement — le handler est silencieux pendant que l'acteur est dormant et reprend quand il est réactivé. Aucune API supplémentaire n'est nécessaire.
 :::
 
 Dans un **système** :
@@ -243,21 +231,21 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
 
 ### Écoute des événements
 
-Écoutez depuis un acteur avec `onEvent()` :
+Écoutez depuis un acteur avec `useHook()` :
 
 ```typescript
-import { defineActor, onEvent } from '@gwenjs/core/actor'
+import { useHook } from '@gwenjs/core'
 import { HUDPrefab } from '../prefabs'
 
 export const HUDActor = defineActor(HUDPrefab, () => {
   let hits = 0
 
-  onEvent('enemy:hit', (damage) => {
+  useHook('enemy:hit', (damage) => {
     hits++
     console.log(`Hit for ${damage} (total: ${hits})`)
   })
 
-  onEvent('enemy:die', (id) => {
+  useHook('enemy:die', (id) => {
     console.log('Enemy eliminated')
   })
 
@@ -344,28 +332,13 @@ export default defineGwenModule({
 })
 ```
 
-## onEvent() vs useHook()
-
-Les deux écoutent les événements, mais ils sont optimisés pour des contextes différents :
-
-| | `onEvent()` | `useHook()` |
-|---|---|---|
-| **Contexte** | Factory d'acteur uniquement | Acteur, système, configuration de plugin, `engine.run()` |
-| **Nettoyage automatique** | ✅ À la disparition de l'acteur | ✅ À la fin du contexte |
-| **Dormance pool** | ✅ Ignoré silencieusement | ⚠️ Ignoré + avertissement dev |
-| **Import** | `@gwenjs/core/actor` | `@gwenjs/core` |
-| **Cas d'usage** | Abonnements aux événements d'un acteur | Abonnements intersectoriels depuis les systèmes |
-
-Utilisez `onEvent()` à l'intérieur des acteurs — surtout les acteurs poolés. Utilisez `useHook()` depuis les systèmes et les plugins.
-
 ## Résumé de l'API
 
 | Symbole | Description |
 |---|---|
-| `useHook(event, handler)` | S'abonner à un événement moteur ou personnalisé (nettoyage automatique). Dans les acteurs, ignore l'exécution et avertit une fois (dev) si l'acteur est dormant. Préférer `onEvent()` pour les abonnements locaux à l'acteur. |
+| `useHook(event, handler)` | S'abonner à un événement moteur ou personnalisé (nettoyage automatique à la fin du contexte ; silencieux pendant la dormance pool) |
 | `onCleanup(fn)` | Enregistrer un callback de nettoyage dans le contexte de cycle de vie actif |
 | `defineHooks(map)` | Déclarer un contrat d'événements typé (retourne le même objet à l'exécution) |
 | `InferHooks<T>` | Aide de type pour extraire les signatures d'événements d'une carte retournée par `defineHooks()` |
 | `emit(event, ...args)` | Déclencher un événement depuis à l'intérieur d'un acteur ou d'un système |
-| `onEvent(event, handler)` | Écouter un événement à l'intérieur d'un acteur (raccourci pour `useHook()`) |
 | `GwenRuntimeHooks` | L'interface de tous les événements du cycle de vie du moteur (augmentée par les plugins et les événements personnalisés via la fusion de déclaration) |

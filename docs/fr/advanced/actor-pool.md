@@ -117,14 +117,14 @@ Quand un acteur a besoin d'acqu√©rir depuis un pool (ex. un acteur manager qui √
 
 ```ts
 // actors/ShooterManager.ts
-import { defineActor, onEvent } from '@gwenjs/core/actor'
+import { useHook } from '@gwenjs/core'
 import type { ActorPool } from '@gwenjs/core/actor'
 import type { BulletProps } from './BulletActor'
 
 export const ShooterManagerActor = defineActor(
   ShooterManagerPrefab,
   (props: { bulletPool: ActorPool<BulletProps, void> }) => {
-    onEvent('player:shoot', (x, y) => {
+    useHook('player:shoot', (x, y) => {
       try {
         props.bulletPool.acquire({ x, y, speed: 800 })
       } catch {

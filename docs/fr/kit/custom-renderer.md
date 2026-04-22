@@ -326,14 +326,13 @@ describe('@gwenjs/renderer-mytech conformité', () => {
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: [
-    ['@gwenjs/renderer-mytech', {
-      layers: {
-        background: { order: 0  },
-        game:       { order: 10 },
-      }
-    }],
-  ]
+  modules: ['@gwenjs/renderer-mytech'],
+  rendererMytech: {
+    layers: {
+      background: { order: 0  },
+      game:       { order: 10 },
+    },
+  },
 })
 ```
 

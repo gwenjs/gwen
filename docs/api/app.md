@@ -15,7 +15,7 @@ High-level app configuration and module system for GWEN projects. Integrates wit
 
 **Signature:**
 ```ts
-function defineConfig(input: GwenConfigInput): GwenUserConfig
+function defineConfig(input: GwenUserConfig): GwenUserConfig
 ```
 
 **Description.** Defines the top-level GWEN app configuration. Used in your app config file (typically `gwen.config.ts`).
@@ -23,7 +23,7 @@ function defineConfig(input: GwenConfigInput): GwenUserConfig
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| input | `GwenConfigInput` | Configuration object |
+| input | `GwenUserConfig` | Configuration object |
 
 **Returns:** `GwenUserConfig` — validated configuration.
 

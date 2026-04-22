@@ -9,10 +9,12 @@ Quand un acteur gère d'autres acteurs — un `BulletManagerActor` qui spawn des
 `BulletActor`, par exemple — `useActor()` est appelé dans le corps du factory :
 
 ```ts
+import { useHook } from '@gwenjs/core'
+
 export const BulletManagerActor = defineActor(BulletManagerPrefab, () => {
   const bullet = useActor(BulletActor)  // ← dépendance sur BulletActor
 
-  onEvent('player:shoot', (x, y) => {
+  useHook('player:shoot', (x, y) => {
     bullet.spawn({ x, y })
   })
 
@@ -101,7 +103,7 @@ l'acteur géré est un détail d'implémentation.
 export const LaserManagerActor = defineActor(LaserManagerPrefab, () => {
   const laser = useActor(LaserActor)  // LaserActor enregistré automatiquement
 
-  onEvent('player:shoot', (x, y) => laser.spawn({ x, y }))
+  useHook('player:shoot', (x, y) => laser.spawn({ x, y }))
 
   return {}
 })
