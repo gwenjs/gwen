@@ -22,6 +22,7 @@ const enSidebar = [
       { text: 'Scenes', link: '/essentials/scenes' },
       { text: 'Scene Router', link: '/essentials/scene-router' },
       { text: 'Layouts', link: '/essentials/layouts' },
+      { text: 'Hooks', link: '/essentials/hooks' },
     ],
   },
   {
@@ -102,6 +103,7 @@ const frSidebar = [
       { text: 'Scènes', link: '/fr/essentials/scenes' },
       { text: 'Routeur de scènes', link: '/fr/essentials/scene-router' },
       { text: 'Layouts', link: '/fr/essentials/layouts' },
+      { text: 'Hooks', link: '/fr/essentials/hooks' },
     ],
   },
   {
