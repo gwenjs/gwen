@@ -77,21 +77,36 @@ export const GameLayout = defineLayout(() => {
 })
 ```
 
-## Charger et décharger
+## Layouts et cycle de vie des scènes
 
-Utilisez `useLayout(def, { lazy: true })` dans une scène pour obtenir un handle de contrôle sans charger immédiatement. Appelez `await layout.load()` et `await layout.dispose()` pour activer et désactiver :
+La factory `defineScene` s'exécute **une seule fois au bootstrap** — pas à chaque navigation. `useLayout` appelé dans la factory crée le handle et le capture dans une closure, mais ne charge pas encore le layout. `onEnter` et `onExit` s'exécutent à chaque navigation et c'est là que vous chargez et disposez :
 
 ```ts
 export const GameScene = defineScene('game', () => {
+  // La factory s'exécute UNE fois au bootstrap — handle capturé, layout pas encore chargé
   const layout = useLayout(GameLayout, { lazy: true })
 
+  // S'exécute à chaque activation de la scène
   onEnter(async () => await layout.load())
-  onExit(async ()  => await layout.dispose())
+
+  // S'exécute à chaque désactivation de la scène
+  onExit(async () => await layout.dispose())
 })
 ```
 
-::: tip Sans `lazy`, le layout charge immédiatement
-`useLayout(GameLayout)` sans `{ lazy: true }` appelle `load()` automatiquement. Utilisez `lazy: true` pour contrôler explicitement le moment d'activation du layout.
+**Ordre de transition** lors d'une navigation de la scène A vers la scène B :
+
+```
+onTransitionLeave({ from: A, to: B })   ← jouer l'animation de sortie
+onExit()                                 ← layout.dispose() — acteurs despawnés
+scene:leave
+scene:enter
+onEnter()                                ← layout.load() — acteurs spawnés
+onTransitionEnter({ from: A, to: B })   ← jouer l'animation d'entrée
+```
+
+::: warning Utilisez toujours `lazy: true` dans les factories de scène
+Sans `{ lazy: true }`, `useLayout` appelle `load()` immédiatement pendant la factory — au bootstrap, avant qu'aucune scène ne soit active. Utilisez `lazy: true` chaque fois que le layout doit se charger et se décharger avec le cycle de vie de la scène.
 :::
 
 API `LayoutHandle` :

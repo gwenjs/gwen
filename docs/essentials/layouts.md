@@ -77,21 +77,36 @@ export const GameLayout = defineLayout(() => {
 })
 ```
 
-## Loading and Unloading
+## Layouts and Scene Lifecycle
 
-Use `useLayout(def, { lazy: true })` inside a scene to get a control handle without loading immediately. Call `await layout.load()` and `await layout.dispose()` to activate and deactivate:
+The `defineScene` factory runs **once at bootstrap** — not on every scene navigation. `useLayout` called in the factory body creates the handle and captures it in a closure, but does not load the layout yet. `onEnter` and `onExit` run on every navigation and are where you load and dispose:
 
 ```ts
 export const GameScene = defineScene('game', () => {
+  // Factory runs ONCE at bootstrap — handle is captured, layout not loaded yet
   const layout = useLayout(GameLayout, { lazy: true })
 
+  // Runs each time the scene activates
   onEnter(async () => await layout.load())
+
+  // Runs each time the scene deactivates
   onExit(async () => await layout.dispose())
 })
 ```
 
-::: tip Without `lazy`, the layout loads immediately
-`useLayout(GameLayout)` without `{ lazy: true }` calls `load()` automatically. Use `lazy: true` when you want explicit control over when the layout activates.
+**Transition order** when navigating from scene A to scene B:
+
+```
+onTransitionLeave({ from: A, to: B })   ← play leave animation
+onExit()                                 ← layout.dispose() — actors despawned
+scene:leave
+scene:enter
+onEnter()                                ← layout.load() — actors spawned
+onTransitionEnter({ from: A, to: B })   ← play enter animation
+```
+
+::: warning Always use `lazy: true` in scene factories
+Without `{ lazy: true }`, `useLayout` calls `load()` immediately during the factory — at bootstrap, before any scene is active. Use `lazy: true` whenever the layout should load and unload with the scene lifecycle.
 :::
 
 `LayoutHandle` API:
