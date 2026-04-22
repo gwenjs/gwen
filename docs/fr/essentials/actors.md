@@ -1,346 +1,338 @@
 ---
 title: Acteurs
-description: Objets de jeu composables basés sur des instances, avec leur propre entité et cycle de vie.
+description: Objets de jeu composables et basés sur des instances, avec leur propre entité et cycle de vie.
 ---
 
 # Acteurs
 
-Un **acteur** est un objet de jeu composable basé sur des instances. Chaque instance d'acteur possède une seule entité ECS et exécute des crochets de cycle de vie (`onStart`, `onUpdate`, `onDestroy`) indépendamment. Les acteurs sont définis avec `defineActor()` et enregistrés avec `engine.use()`.
+Un **acteur** est un objet de jeu composable basé sur des instances. Chaque instance possède une seule entité ECS et exécute ses propres crochets de cycle de vie. Les acteurs sont définis avec `defineActor()` et déclarés dans les scènes via `useActor()`.
 
-## Définir un acteur
+::: info Auto-imports
+`defineActor`, `definePrefab`, `onStart`, `onDestroy`, `onEnable`, `onDisable`, `useActor`, `useTransform`, `useComponent`, `useEntityId`, `usePrefab` sont tous auto-importés. `onRelease` et `onReset` ne sont **pas** auto-importés — importez-les depuis `@gwenjs/core/actor`. `useHook` et `emit` ne sont **pas** auto-importés — importez-les depuis `@gwenjs/core`.
+:::
 
-`defineActor(prefab, factory)` prend un préfabriqué (disposition des composants) et une fonction factory qui configure les crochets de cycle de vie et retourne une API publique :
+## Les bases
+
+`defineActor(prefab, factory)` prend un préfabriqué (disposition des composants) et une factory qui configure les crochets de cycle de vie :
 
 ```ts
-import { defineActor, onStart, onDestroy, onUpdate } from '@gwenjs/core/actor'
+import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs'
 
-export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  let hp = props.hp
-
+export const EnemyActor = defineActor(EnemyPrefab, () => {
   onStart(() => {
-    console.log('Enemy spawned, hp:', hp)
-  })
-
-  onUpdate((dt) => {
-    // runs every frame for this instance
+    console.log('spawned')
   })
 
   onDestroy(() => {
-    console.log('Enemy destroyed')
+    console.log('destroyed')
   })
-
-  return {
-    takeDamage: (amount: number) => { hp -= amount },
-    getHp: () => hp,
-  }
 })
 ```
 
-La fonction factory reçoit :
-- `props` — Données personnalisées passées lors de la génération
-- Crochets de cycle de vie — `onStart`, `onUpdate`, `onDestroy`, etc.
+## Déclarer dans une scène
 
-L'objet retourné est l'**API publique** — les méthodes que le code externe peut appeler sur l'acteur.
-
-## Enregistrement
-
-Enregistrez le plugin de l'acteur avec le moteur avant de générer. Passez `actor._plugin` à `engine.use()` au démarrage.
-
-## Génération et suppression
-
-Utilisez `useActor()` dans la phase de setup d'un système ou d'un acteur pour obtenir un handle typé :
+Déclarez l'acteur dans une scène en utilisant `useActor()` — cela l'enregistre et retourne un handle :
 
 ```ts
+import { defineScene, useSystem, onEnter, onExit } from '@gwenjs/core/scene'
 import { useActor } from '@gwenjs/core/actor'
-import { defineSystem } from '@gwenjs/core/system'
-import { EnemyActor } from './actors/enemy'
 
-export const SpawnerSystem = defineSystem(() => {
-  const enemies = useActor(EnemyActor)
+export const GameScene = defineScene('game', () => {
+  const enemy = useActor(EnemyActor)
 
-  // Générer — retourne l'ID d'entité
-  const id = enemies.spawn({ hp: 100 })
-
-  // Supprimer — appelle onDestroy et retire l'entité
-  enemies.despawn(id)
-
-  // Obtenir l'API publique de la première instance vivante
-  const enemy = enemies.get()
-  enemy?.takeDamage(10)
-
-  // Obtenir toutes les instances vivantes
-  for (const e of enemies.getAll()) {
-    e.takeDamage(5)
-  }
-
-  // Supprimer toutes les instances d'un coup
-  enemies.despawnAll()
+  onEnter(() => enemy.spawn({ hp: 100 }))
+  onExit(() => enemy.despawnAll())
 })
 ```
 
-`useActor()` retourne un `ActorHandle` avec :
+## API de l'ActorHandle
+
+`useActor()` retourne un `ActorHandle` combiné avec l'API publique de l'acteur :
 
 | Méthode | Description |
 |---|---|
-| `spawn(props?)` | Créer une instance, retourne l'ID d'entité |
+| `spawn(props?)` | Créer une instance, retourne l'ID d'entité (`bigint`) |
+| `spawnOnce(props?)` | Générer seulement s'aucune instance vivante n'existe |
 | `despawn(id)` | Supprimer une instance spécifique |
 | `despawnAll()` | Supprimer toutes les instances vivantes |
 | `count()` | Nombre d'instances vivantes |
 | `get()` | API publique de la première instance vivante (`undefined` si aucune) |
 | `getAll()` | API publique de toutes les instances vivantes |
-| `spawnOnce(props?)` | Spawn singleton (sans effet si déjà vivant) |
 
-## Composables de cycle de vie
+## Props
 
-Ces composables s'exécutent à l'intérieur de la fonction factory de l'acteur :
+Passez des données typées lors de la génération :
 
-| Composable | Quand elle s'exécute |
-|---|---|
-| `onStart(fn)` | Une fois, immédiatement après la génération |
-| `onUpdate(fn)` | Chaque frame (reçoit `dt` en ms) |
-| `onBeforeUpdate(fn)` | Avant la phase de mise à jour principale |
-| `onAfterUpdate(fn)` | Après la phase de mise à jour principale |
-| `onRender(fn)` | Pendant la phase de rendu |
-| `onDestroy(fn)` | Une fois, avant que l'entité ne soit supprimée |
-| `onEvent(name, fn)` | Quand un crochet du moteur nommé se déclenche |
+```ts
+export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number; speed: number }) => {
+  let hp = props.hp
+  let speed = props.speed
 
-## Transform
+  // ...
+})
 
-Appelez `useTransform()` pendant la phase factory synchrone pour obtenir un handle de lecture et d'écriture de la transform spatiale de l'acteur.
+// Dans la scène :
+enemy.spawn({ hp: 50, speed: 2 })
+```
 
-```typescript
-import { defineActor, useTransform, onStart } from '@gwenjs/core/actor'
-import { onUpdate } from '@gwenjs/core/system'
-import { PlayerPrefab } from '../prefabs'
+## API publique
+
+Retournez un objet depuis la factory pour exposer des méthodes sur le handle :
+
+```ts
+export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
+  let hp = props.hp
+
+  return {
+    takeDamage: (n: number) => { hp -= n },
+    getHp: () => hp,
+  }
+})
+
+// Dans un système ou une scène :
+const enemy = useActor(EnemyActor)
+enemy.get()?.takeDamage(10)     // première instance vivante
+for (const e of enemy.getAll()) e.takeDamage(5)  // toutes les instances
+```
+
+## Hooks de frame
+
+Les acteurs supportent les mêmes phases de frame que les systèmes :
+
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  onBeforeUpdate((dt) => { /* lire l'entrée */ })
+  onUpdate((dt)       => { /* appliquer le mouvement */ })
+  onAfterUpdate((dt)  => { /* post-traitement */ })
+  onRender(()         => { /* dessiner */ })
+})
+```
+
+## Lire les données d'un composant
+
+Utilisez `useComponent(def)` pour obtenir un proxy réactif des champs d'un composant sur cette instance d'acteur :
+
+```ts
+import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
+import { Health, Velocity } from './components'
+
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const health = useComponent(Health)
+  const velocity = useComponent(Velocity)
+
+  onUpdate((dt) => {
+    if (health.current <= 0) {
+      // gérer la mort
+    }
+
+    // Écriture de champ unique
+    velocity.x += 1
+
+    // Écriture par lot — plus efficace pour plusieurs champs
+    health.$set({ current: 80, max: 100 })
+  })
+})
+```
+
+`$set(values)` écrit tous les champs spécifiés en une seule opération — plus efficace que d'écrire les champs un par un lors de la mise à jour de plusieurs valeurs.
+
+## Transformer
+
+Utilisez `useTransform()` pour lire et écrire la transform spatiale de l'acteur :
+
+```ts
+import { defineActor, useTransform, onStart, onUpdate } from '@gwenjs/core/actor'
 
 export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: number }) => {
   const transform = useTransform()
 
   onStart(() => {
-    transform.setPosition(props.x, props.y)  // position initiale
+    transform.setPosition(props.x, props.y)
   })
 
   onUpdate((dt) => {
-    transform.translate(vx * dt, vy * dt)         // déplacement chaque frame
-    html.syncWorldPosition(transform.world.x, transform.world.y)
+    transform.translate(vx * dt, vy * dt)
+    console.log(transform.world.x, transform.world.y)
   })
-
-  return {}
 })
 ```
 
-**Méthodes d'écriture** — mettent à jour le transform local immédiatement :
+**Méthodes d'écriture** — mettent à jour la transform locale immédiatement :
 
 | Méthode | Description |
 |---|---|
-| `translate(dx, dy)` | Déplacer par delta chaque frame |
-| `setPosition(x, y)` | Définir la position locale de façon absolue |
+| `translate(dx, dy)` | Déplacer par delta |
+| `setPosition(x, y)` | Définir la position locale |
 | `rotateTo(angle)` | Définir la rotation locale (radians) |
 | `rotate(delta)` | Ajouter un delta à la rotation locale |
-| `scaleTo(sx, sy?)` | Définir l'échelle locale — `sy` vaut `sx` par défaut |
+| `scaleTo(sx, sy?)` | Définir l'échelle locale (`sy` par défaut `sx`) |
 
-**Propriétés en lecture** — valeurs monde, mises à jour une fois par frame par le moteur :
+**Propriétés en lecture** — valeurs monde, mises à jour une fois par frame :
 
 | Propriété | Description |
 |---|---|
-| `world.x`, `world.y` | Position monde après hiérarchie de parents |
-| `world.rotation` | Rotation monde en radians |
-| `world.scaleX`, `world.scaleY` | Échelle monde (toujours `1` dans la version actuelle) |
-| `hasParent` | `true` si cette entité a un parent |
+| `world.x`, `world.y` | Position monde |
+| `world.rotation` | Rotation monde (radians) |
+| `world.scaleX`, `world.scaleY` | Échelle monde |
+| `hasParent` | `true` si attaché à un parent |
 
 **Hiérarchie :**
 
 | Méthode | Description |
 |---|---|
 | `setParent(handleOrId, keepWorldPos?)` | Attacher à une entité parente |
-| `detach(keepWorldPos?)` | Détacher du parent, devenir une entité racine |
+| `detach(keepWorldPos?)` | Détacher du parent |
 
 ::: info Les lectures monde ont un frame de retard
-`world.x/y` reflète l'état du **frame précédent**. Le moteur propage les transforms locaux→monde une fois par frame (avant `onUpdate`), donc les écritures faites dans le `onUpdate` courant sont visibles au frame suivant. Pour la plupart du code de déplacement, c'est imperceptible.
+`world.x/y` reflète l'état du **frame précédent**. Les écritures faites en `onUpdate` sont visibles au frame suivant.
 :::
 
-## Événements typés
+## Identifiant d'entité
 
-Utilisez `defineHooks()` pour déclarer votre contrat d'événements de jeu en un seul endroit, puis partagez-le entre acteurs et systèmes.
-
-```ts
-// src/hooks/enemy.ts
-import { defineHooks } from '@gwenjs/core'
-
-export const EnemyHooks = defineHooks({
-  'enemy:hit': (damage: number) => {},
-  'enemy:die': () => {},
-})
-```
-
-`defineHooks` est un outil de déclaration — il nomme et groupe vos événements pour que chaque partie de votre code fonctionne à partir du même contrat.
-
-### Émission d'événements
-
-Appelez `emit()` depuis à l'intérieur d'un acteur ou d'un système pour déclencher un événement :
+Utilisez `useEntityId()` pour obtenir l'ID stable `bigint` de cette instance d'acteur :
 
 ```ts
-import { defineActor, emit } from '@gwenjs/core/actor'
-import { EnemyEvents } from '../events/enemy'
-import { EnemyPrefab } from '../prefabs'
+import { defineActor, useEntityId, onUpdate } from '@gwenjs/core/actor'
+import { Position } from './components'
 
-export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  let hp = props.hp
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const entityId = useEntityId()
 
-  return {
-    takeDamage: (damage: number) => {
-      hp -= damage
-      emit('enemy:hit', damage)
-      if (hp <= 0) emit('enemy:die')
-    },
-  }
-})
-```
-
-### Écoute depuis un acteur
-
-Utilisez `onEvent()` à l'intérieur d'une factory `defineActor` pour écouter. Le handler est automatiquement supprimé quand l'acteur est détruit — aucun nettoyage nécessaire :
-
-```ts
-import { defineActor, onEvent, onStart } from '@gwenjs/core/actor'
-import { HUDPrefab } from '../prefabs'
-
-export const HUDActor = defineActor(HUDPrefab, () => {
-  let hits = 0
-
-  onEvent('enemy:hit', (damage) => {
-    hits++
-    console.log(`Enemy hit for ${damage} damage (total hits: ${hits})`)
+  onUpdate((dt) => {
+    // Accès SoA direct — chemin le plus rapide
+    Position.x[entityId] += Velocity.x[entityId] * dt
   })
-
-  onEvent('enemy:die', () => {
-    console.log('Enemy eliminated')
-  })
-
-  return {}
 })
 ```
 
-### Écoute depuis un système
+::: info Temps de setup uniquement
+`useEntityId()` doit être appelé pendant le corps de la factory synchrone, pas dans un callback.
+:::
 
-Utilisez `useHook()` à l'intérieur d'une configuration `defineSystem` pour écouter depuis un système. Il se désabonne automatiquement quand le moteur s'arrête :
+## Écouter des événements
+
+Utilisez `useHook(name, fn)` pour vous abonner aux événements du moteur ou du jeu. L'abonnement est automatiquement supprimé quand l'acteur est despawné. Si l'acteur est dormant (pool), le handler est silencié (non supprimé).
 
 ```ts
-import { defineSystem } from '@gwenjs/core/system'
+import { defineActor, onStart } from '@gwenjs/core/actor'
 import { useHook } from '@gwenjs/core'
 
-export const ScoreSystem = defineSystem(function ScoreSystem() {
-  let score = 0
-
-  // Auto-cleanup when the engine stops
+export const HUDActor = defineActor(HUDPrefab, () => {
   useHook('enemy:die', () => {
-    score += 100
-    console.log('Score:', score)
+    console.log('enemy killed')
   })
 
-  useHook('enemy:hit', (damage) => {
-    score += damage
+  useHook('score:add', (points: number) => {
+    updateScoreDisplay(points)
   })
 })
 ```
 
-::: tip Convention de nommage
-Préfixez les noms d'événements avec un espace de noms : `'enemy:hit'`, `'player:die'`, `'ui:open'`. Cela évite les collisions avec les hooks moteur intégrés comme `'engine:tick'` ou `'entity:spawn'`.
-:::
+## Émettre des événements
 
-## Accéder aux composants
-
-Utilisez `useComponent()` dans une factory `defineActor` pour obtenir un handle live sur les champs d'un composant :
+Utilisez `emit(name, ...args)` pour déclencher des événements depuis un acteur. Tous les handlers enregistrés s'exécutent de manière synchrone avant le retour de `emit`.
 
 ```ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
-import { Health } from '../components'
+import { defineActor, useComponent } from '@gwenjs/core/actor'
+import { emit } from '@gwenjs/core'
+import { Health } from './components'
 
-export const PlayerActor = defineActor(PlayerPrefab, () => {
+export const EnemyActor = defineActor(EnemyPrefab, () => {
   const health = useComponent(Health)
-
-  onUpdate(() => {
-    if (health.hp <= 0) {
-      // Gérer la mort
-    }
-  })
-
-  return {}
-})
-```
-
-Les champs sont lus et mutés directement sur l'objet retourné (`health.hp`, pas `health.value.hp`).
-
-## Accéder au routeur
-
-À l'intérieur d'un acteur, utilisez `useSceneRouter()` pour naviguer entre les scènes :
-
-```ts
-import { defineActor, useComponent, onUpdate } from '@gwenjs/core/actor'
-import { useSceneRouter } from '@gwenjs/core/scene'
-import { AppRouter } from '../router'
-import { Health } from '../components'
-
-export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const health = useComponent(Health)
-  const nav = useSceneRouter(AppRouter)
-
-  onUpdate(() => {
-    if (health.hp <= 0) {
-      nav.send('DIE')  // Transition vers fin de jeu
-    }
-  })
-
-  return {}
-})
-```
-
-## Exemple complet
-
-```ts
-// src/prefabs/Enemy.ts
-import { definePrefab } from '@gwenjs/core/actor'
-import { Position, Velocity, Health } from '../components'
-
-export const EnemyPrefab = definePrefab([
-  { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Velocity, defaults: { x: 0, y: 0 } },
-  { def: Health,   defaults: { hp: 50, maxHp: 50 } },
-])
-
-// src/actors/Enemy.ts
-import { defineActor, useComponent, onStart, onUpdate, onDestroy } from '@gwenjs/core/actor'
-import { EnemyPrefab } from '../prefabs/Enemy'
-import { Health, Velocity } from '../components'
-
-export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) => {
-  const health = useComponent(Health)
-  const velocity = useComponent(Velocity)
-
-  onStart(() => {
-    console.log(`Enemy spawned with ${health.hp} HP`)
-    velocity.x = Math.random() * props.speed - props.speed / 2
-  })
-
-  onUpdate(() => {
-    if (health.hp <= 0) {
-      // Sera supprimé
-    }
-  })
-
-  onDestroy(() => {
-    console.log('Enemy destroyed')
-  })
 
   return {
-    takeDamage: (amount: number) => {
-      health.hp = Math.max(0, health.hp - amount)
+    takeDamage: (n: number) => {
+      health.current -= n
+      emit('enemy:hit', n)
+      if (health.current <= 0) emit('enemy:die')
     },
-    getHp: () => health.hp,
   }
 })
 ```
+
+## Accéder aux services
+
+Utilisez `useService(key)` pour accéder à une valeur fournie par un plugin :
+
+```ts
+import { defineActor, onStart } from '@gwenjs/core/actor'
+import { useService } from '@gwenjs/core/system'
+
+export const AudioActor = defineActor(AudioPrefab, () => {
+  const audio = useService('audio')
+
+  onStart(() => {
+    audio.play('spawn')
+  })
+})
+```
+
+## Hooks du cycle de vie du pool
+
+Ces hooks ne sont pertinents que lors de l'utilisation de `defineActorPool`. Ils gèrent le cycle de dormance des acteurs gérés par le pool.
+
+```ts
+import { defineActor, onStart, onDestroy } from '@gwenjs/core/actor'
+import { onRelease, onReset } from '@gwenjs/core/actor'
+import { onEnable, onDisable } from '@gwenjs/core'
+
+export const BulletActor = defineActor(BulletPrefab, () => {
+  onStart(() => { /* première génération seulement */ })
+
+  onReset((props) => {
+    // Appelé avec de nouvelles props lors de la ré-acquisition du pool
+    // Réinitialisez les données des composants ici
+  })
+
+  onEnable(() => {
+    // Appelé après onReset — l'acteur est maintenant actif
+  })
+
+  onDisable(() => {
+    // Appelé quand libéré au pool — l'acteur devient dormant
+  })
+
+  onRelease(() => {
+    // Appelé après onDisable — nettoyer la physique, l'audio, les tweens
+  })
+
+  onDestroy(() => { /* pool complètement détruit */ })
+})
+```
+
+| Hook | Quand |
+|---|---|
+| `onStart` | Première génération seulement |
+| `onReset(props)` | Lors de la ré-acquisition du pool — réinitialisez les données des composants ici |
+| `onEnable` | Après `onReset` — l'acteur est actif |
+| `onDisable` | Quand libéré au pool — l'acteur devient dormant |
+| `onRelease` | Après `onDisable` — nettoyer l'état externe |
+| `onDestroy` | Pool complètement détruit |
+
+::: info Chemins d'import pour les hooks du pool
+`onRelease` et `onReset` sont depuis `@gwenjs/core/actor` mais ne sont **pas** auto-importés — ajoutez-les explicitement. `onEnable` et `onDisable` sont depuis `@gwenjs/core`, également non auto-importés.
+:::
+
+## Composables asynchrones
+
+Les handles de composables (`useTransform()`, `useComponent()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans les callbacks asynchrones après `await`. Capturez-les pendant le setup et utilisez-les comme closures :
+
+```ts
+const PlayerActor = defineActor(PlayerPrefab, () => {
+  const transform = useTransform()  // ✅ capturé de manière synchrone
+
+  onStart(async () => {
+    await loadPlayerSprite()
+    transform.setPosition(400, 300)  // ✅ closure — aucun contexte nécessaire
+  })
+})
+```
+
+::: warning Non valide dans les acteurs
+- ❌ `useSceneRouter` — les acteurs ne naviguent pas. Utilisez `emit` pour signaler une intention ; gérez la navigation dans un système.
+- ❌ `useWasmModule` — API de niveau plugin, pas pour le code de jeu.
+:::
 
 ## Acteurs vs Systèmes
 
@@ -348,60 +340,38 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { speed: number }) =>
 |---|---|---|
 | **Portée** | Par instance | Global |
 | **Entité** | Possède une entité | Interroge plusieurs entités |
-| **Cas d'usage** | Objets de jeu individuels (joueur, ennemis, projectiles) | Logique en masse (physique, balayage IA, collision) |
-| **État** | Local à l'instance | Global |
-
-Utilisez les acteurs pour les **entités uniques et nommées**. Utilisez les systèmes pour les **opérations en masse** sur des ensembles d'entités.
-
-## Composables dans les callbacks asynchrones
-
-Les handles de composables (`useTransform()`, `useHTML()`, etc.) doivent être appelés pendant la **phase factory synchrone** — pas dans un `async onStart` après un `await`. La factory s'exécute avec le contexte moteur actif ; les callbacks s'exécutent plus tard et peuvent ne pas avoir de contexte.
-
-Le pattern correct est de capturer les handles pendant le setup et de les utiliser comme closures :
-
-```ts
-const PlayerActor = defineActor(PlayerPrefab, () => {
-  const transform = useTransform()  // ✅ capturé dans la factory sync
-  const html = useHTML()
-
-  onStart(async () => {
-    await loadPlayerSprite()
-    transform.setPosition(400, 300)  // ✅ closure — aucun contexte requis
-    html.show('player-hud')
-  })
-})
-```
-
-Si vous avez vraiment besoin d'appeler un composable après `await` dans `onStart`, utilisez `withAsyncContext()` — voir [Contexte asynchrone](/fr/advanced/async-context).
+| **Cas d'usage** | Objets de jeu nommés (joueur, boss, HUD) | Logique par lot (mouvement, IA, collision) |
+| **État** | Local à l'instance | Global ou par requête |
 
 ## Résumé de l'API
 
 | | |
 |---|---|
-| `defineActor(prefab, factory)` | Créer un type d'acteur |
-| `actor._plugin` | Le plugin à enregistrer avec `engine.use()` |
-| `useActor(actorDef)` | Obtenir un handle typé (appeler en phase de setup) |
-| `handle.spawn(props?)` | Générer une instance, retourne l'ID d'entité |
-| `handle.despawn(id)` | Supprimer une instance spécifique |
-| `handle.despawnAll()` | Supprimer toutes les instances vivantes |
+| `defineActor(prefab, factory)` | Déclarer un type d'acteur |
+| `useActor(def)` | Obtenir un handle typé (dans scène, système ou setup d'acteur) |
+| `handle.spawn(props?)` | Générer une instance |
+| `handle.spawnOnce(props?)` | Générer un singleton (sans effet si déjà vivant) |
+| `handle.despawn(id)` | Despawner une instance spécifique |
+| `handle.despawnAll()` | Despawner toutes les instances vivantes |
 | `handle.count()` | Nombre d'instances vivantes |
 | `handle.get()` | API publique de la première instance vivante |
 | `handle.getAll()` | API publique de toutes les instances vivantes |
-| `handle.spawnOnce(props?)` | Spawn singleton (sans effet si déjà vivant) |
-| `useComponent(ComponentType)` | Handle live sur les champs d'un composant dans une factory — lecture/écriture directe (ex. `health.hp`) |
-| `useEntityId()` | ID d'entité de l'instance courante — pour indexer les tableaux SoA directement (ex. `Position.x[id]`) |
-| `useTransform()` | Accéder à la transform spatiale de l'acteur |
-| `useSceneRouter(router)` | Naviguer entre les scènes |
-| `defineHooks(map)` | Déclarer un contrat d'événements typé (partagé entre acteurs et systèmes) |
-| `emit(event, ...args)` | Déclencher un événement depuis un contexte moteur actif |
-| `onEvent(event, handler)` | Écouter un événement à l'intérieur d'un acteur (supprimé automatiquement à la destruction) |
-| `useHook(event, handler)` | S'abonner à un événement moteur ou de jeu (nettoyage automatique) — importer depuis `@gwenjs/core` |
-| `onStart(fn)` | S'exécute une fois à la génération |
-| `onUpdate(fn)` | S'exécute chaque frame |
+| `useEntityId()` | ID stable `bigint` pour cette instance (temps de setup) |
+| `useComponent(def)` | Proxy réactif du composant — lire/écrire des champs, `$set` pour lot |
+| `useTransform()` | Handle de transform spatiale |
+| `useService(key)` | Accéder à un service fourni par un plugin |
+| `useHook(name, fn)` | S'abonner à un événement (importer depuis `@gwenjs/core`) |
+| `emit(name, ...args)` | Déclencher un événement (importer depuis `@gwenjs/core`) |
+| `onStart(fn)` | S'exécute une fois à la première génération |
 | `onDestroy(fn)` | S'exécute à la suppression |
+| `onEnable(fn)` | Pool: après ré-acquisition (importer depuis `@gwenjs/core`) |
+| `onDisable(fn)` | Pool: avant libération (importer depuis `@gwenjs/core`) |
+| `onReset(fn)` | Pool: appelé avec de nouvelles props (importer depuis `@gwenjs/core/actor`) |
+| `onRelease(fn)` | Pool: nettoyer l'état externe (importer depuis `@gwenjs/core/actor`) |
 
 ## Prochaines étapes
 
-- **[Préfabriqués](/fr/essentials/prefabs)** — Définir la disposition des composants pour les acteurs.
-- **[Routeur de scènes](/fr/essentials/scene-router)** — Naviguer entre les scènes depuis les acteurs.
-- **[Systèmes](/fr/essentials/systems)** — Implémenter la logique en masse qui s'exécute sur plusieurs entités.
+- **[Prefabs](/fr/essentials/prefabs)** — Définir la disposition des composants pour les acteurs.
+- **[Scènes](/fr/essentials/scenes)** — Déclarer et contrôler les acteurs depuis une scène.
+- **[Hooks](/fr/essentials/hooks)** — Définir des événements typés personnalisés.
+- **[Systèmes](/fr/essentials/systems)** — Implémenter la logique par lot sur de nombreuses entités.
