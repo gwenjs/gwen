@@ -31,22 +31,7 @@ The returned object becomes `layout.refs` — handles for each placed actor.
 
 ## Loading and Unloading
 
-Use `useLayout(def)` inside a system or scene to get a control handle:
-
-```ts
-import { defineSystem } from '@gwenjs/core/system'
-import { useLayout } from '@gwenjs/core/actor'
-import { GameLayout } from './layouts'
-
-export const LayoutSystem = defineSystem(() => {
-  const layout = useLayout(GameLayout)
-
-  onEnter(() => layout.load())
-  onExit(() => layout.dispose())
-})
-```
-
-Or from a scene:
+Use `useLayout(def)` inside a scene to get a control handle:
 
 ```ts
 import { defineScene, onEnter, onExit } from '@gwenjs/core/scene'
@@ -69,14 +54,25 @@ export const GameScene = defineScene('game', () => {
 | `layout.active` | `true` if the layout is loaded |
 | `layout.refs` | Object with each placed actor's handle |
 
-## Placing Multiple Actors
+## Grouping and Prefabs
 
-Use `placeGroup()` to place several actors together:
+Use `placeGroup()` to create a transform-only anchor entity — useful as a parent container that you can position or rotate to move multiple children together:
 
 ```ts
 export const GameLayout = defineLayout(() => {
-  const ui = placeGroup([HUDActor, MinimapActor, ChatActor])
-  return { ui }
+  const group = placeGroup({ at: [200, 0] })
+  return { group }
+})
+```
+
+To place multiple actors, simply call `placeActor()` for each one:
+
+```ts
+export const GameLayout = defineLayout(() => {
+  const hud = placeActor(HUDActor)
+  const minimap = placeActor(MinimapActor)
+  const chat = placeActor(ChatActor)
+  return { hud, minimap, chat }
 })
 ```
 
@@ -158,7 +154,7 @@ layout.refs.hud.get()?.setScore(newScore)
 |---|---|
 | `defineLayout(factory)` | Declare a persistent UI layer |
 | `placeActor(def)` | Place an actor in the layout → handle in `refs` |
-| `placeGroup([...defs])` | Place multiple actors as a group |
+| `placeGroup(options?)` | Create a transform-only anchor entity |
 | `placePrefab(def)` | Place a prefab entity in the layout |
 | `useLayout(def)` | Get layout control handle |
 | `layout.load()` | Activate the layout |

@@ -31,22 +31,7 @@ L'objet retourné devient `layout.refs` — les handles pour chaque acteur plac�
 
 ## Charger et décharger
 
-Utilisez `useLayout(def)` à l'intérieur d'un système ou d'une scène pour obtenir un handle de contrôle :
-
-```ts
-import { defineSystem } from '@gwenjs/core/system'
-import { useLayout } from '@gwenjs/core/actor'
-import { GameLayout } from './layouts'
-
-export const LayoutSystem = defineSystem(() => {
-  const layout = useLayout(GameLayout)
-
-  onEnter(() => layout.load())
-  onExit(() => layout.dispose())
-})
-```
-
-Ou à partir d'une scène :
+Utilisez `useLayout(def)` à l'intérieur d'une scène pour obtenir un handle de contrôle :
 
 ```ts
 import { defineScene, onEnter, onExit } from '@gwenjs/core/scene'
@@ -69,14 +54,25 @@ API `LayoutHandle` :
 | `layout.active` | `true` si le layout est chargé |
 | `layout.refs` | Objet avec le handle de chaque acteur placé |
 
-## Placer plusieurs acteurs
+## Groupes et prefabs
 
-Utilisez `placeGroup()` pour placer plusieurs acteurs ensemble :
+Utilisez `placeGroup()` pour créer une entité d'ancrage de transform uniquement — utile comme conteneur parent que vous pouvez positionner ou faire pivoter pour déplacer plusieurs enfants ensemble :
 
 ```ts
 export const GameLayout = defineLayout(() => {
-  const ui = placeGroup([HUDActor, MinimapActor, ChatActor])
-  return { ui }
+  const group = placeGroup({ at: [200, 0] })
+  return { group }
+})
+```
+
+Pour placer plusieurs acteurs, appelez simplement `placeActor()` pour chacun :
+
+```ts
+export const GameLayout = defineLayout(() => {
+  const hud = placeActor(HUDActor)
+  const minimap = placeActor(MinimapActor)
+  const chat = placeActor(ChatActor)
+  return { hud, minimap, chat }
 })
 ```
 
@@ -158,7 +154,7 @@ layout.refs.hud.get()?.setScore(newScore)
 |---|---|
 | `defineLayout(factory)` | Déclarer une couche d'UI persistante |
 | `placeActor(def)` | Placer un acteur dans le layout → handle dans `refs` |
-| `placeGroup([...defs])` | Placer plusieurs acteurs comme un groupe |
+| `placeGroup(options?)` | Créer une entité d'ancrage de transform uniquement |
 | `placePrefab(def)` | Placer une entité prefab dans le layout |
 | `useLayout(def)` | Obtenir le handle de contrôle du layout |
 | `layout.load()` | Activer le layout |
