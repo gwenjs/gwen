@@ -1,29 +1,27 @@
 ---
 title: Prefabs
-description: Prefabs are reusable entity blueprints that let you spawn multiple entities with the same components and initial values.
+description: Prefabs define the component layout for an entity. They are the data blueprint that actors build on.
 ---
 
 # Prefabs
 
-A **prefab** is a reusable template for spawning entities. Instead of manually spawning the same combination of components and defaults over and over, define a prefab once and spawn it many times. Prefabs are essential for spawning bullets, enemies, collectibles, and other repeated elements in your game.
+A **prefab** defines the component layout for an entity — which components it has and their initial values. The typical use is as the first argument to `defineActor`: the prefab declares the data shape, the actor adds lifecycle hooks and a public API.
 
 ::: info Auto-imports
 In a GWEN project, `definePrefab` and `usePrefab` are auto-imported — no `import` statement needed.
 :::
 
-## The Basics
-
-### Defining a Prefab
+## Defining a Prefab
 
 Use `definePrefab()` to declare a reusable entity template:
 
 ```ts
-import { Position, Velocity, Damage } from './components'
+import { Position, Velocity, Health } from './components'
 
-export const BulletPrefab = definePrefab([
+export const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Velocity, defaults: { vx: 5, vy: 0 } },
-  { def: Damage,   defaults: { value: 10 } },
+  { def: Velocity, defaults: { vx: 0, vy: 0 } },
+  { def: Health,   defaults: { current: 50, max: 50 } },
 ])
 ```
 
@@ -31,121 +29,94 @@ export const BulletPrefab = definePrefab([
 `spawn()` overrides are a **flat** merge applied to all components. If two components share a field name (e.g. both have `x`), a single override hits both. Use distinct field names across components — `x`/`y` for position, `vx`/`vy` for velocity — to keep overrides unambiguous.
 :::
 
-### Spawning from a Prefab
+## Using a Prefab in an Actor
 
-Use `usePrefab()` to get a handle for spawning and despawning entities:
+Pass the prefab as the first argument to `defineActor`. The actor gets lifecycle hooks, a public API, and full spawn/despawn control — this is the standard way to bring a prefab to life:
 
 ```ts
-import { BulletPrefab } from './prefabs'
+import { EnemyPrefab } from './prefabs'
 
-export const FireSystem = defineSystem(function FireSystem() {
-  const bullet = usePrefab(BulletPrefab)
+export const EnemyActor = defineActor(EnemyPrefab, (props: { x: number; y: number }) => {
+  const health = useComponent(Health)
+
+  onStart(() => {
+    useTransform().setPosition(props.x, props.y)
+  })
 
   onUpdate(() => {
-    if (shouldFire) {
-      // Override Position.x/y at spawn — Velocity.vx/vy use their defaults
-      const id = bullet.spawn({ x: playerX, y: playerY })
-    }
+    // movement, AI, etc.
   })
+
+  return {
+    takeDamage: (n: number) => { health.current -= n },
+    getHp: () => health.current,
+  }
 })
 ```
 
-`usePrefab()` returns a `PrefabHandle` with two methods:
-- `spawn(overrides?)` — Create an entity, returns its ID as `bigint`
-- `despawn(id)` — Destroy an entity by ID
+Then in a scene, spawn instances through the actor handle:
 
 ```ts
-// Spawn at a specific position; velocity and damage use prefab defaults
-const bulletId = bullet.spawn({ x: 100, y: 50 })
+export const GameScene = defineScene('game', () => {
+  const enemy = useActor(EnemyActor)
 
-// Later, despawn the bullet
-bullet.despawn(bulletId)
+  onEnter(() => {
+    enemy.spawn({ x: 400, y: 300 })
+    enemy.spawn({ x: 600, y: 200 })
+  })
+
+  onExit(() => enemy.despawnAll())
+})
 ```
 
-### Partial Overrides
+See [Actors](/essentials/actors) for the full actor API.
 
-Overrides are **shallow-merged** into each component's defaults. Only fields you pass are changed; the rest keep their declared defaults:
+## Spawn Overrides
+
+When spawning, pass overrides to set field values for that instance. Overrides are **shallow-merged** into each component's defaults — only the fields you pass change:
 
 ```ts
-// Position overridden, Velocity.vx/vy and Damage.value stay at defaults
-const id = bullet.spawn({ x: 200, y: 300 })
+// Position overridden, Health stays at defaults
+enemy.spawn({ x: 200, y: 300 })
 
-// Override both position and velocity direction
-const id = bullet.spawn({ x: 100, y: 100, vx: -5 })
+// Override position and give this enemy more health
+enemy.spawn({ x: 100, y: 100, current: 100, max: 100 })
 
-// Use every default — spawn at origin moving right, 10 damage
-const id = bullet.spawn()
+// Use every prefab default
+enemy.spawn()
 ```
 
 ::: tip Component defaults vs prefab defaults
 `defineComponent` accepts a `defaults` field for component-level fallbacks. Prefab `defaults` override those, and values passed to `spawn()` override everything. The priority chain is: `spawn()` args → prefab defaults → component defaults.
 :::
 
-## In Practice
+## Direct Spawning with `usePrefab`
 
-### Enemy Prefab with Multiple Components
-
-Here's a realistic prefab for enemies in a shooter:
+For entities that are pure data — no lifecycle, no public API, queried only by systems — you can use `usePrefab()` directly to get a low-level spawn handle:
 
 ```ts
-import { Position, Velocity, Health, AI } from './components'
+import { ObstaclePrefab } from './prefabs'
 
-export const EnemyPrefab = definePrefab([
-  { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Velocity, defaults: { vx: 0, vy: 0 } },
-  { def: Health,   defaults: { current: 50, max: 50 } },
-  { def: AI,       defaults: { state: 0 } }, // State 0 = patrolling
-])
+// Inside an actor or system factory:
+const obstacle = usePrefab(ObstaclePrefab)
+const id = obstacle.spawn({ x: 100, y: 200 })
+obstacle.despawn(id)
 ```
 
-In your spawning system:
-
-```ts
-import { EnemyPrefab } from './prefabs'
-
-export const EnemySpawnerSystem = defineSystem(() => {
-  const enemy = usePrefab(EnemyPrefab)
-
-  onUpdate(() => {
-    // Spawn enemies at random locations
-    for (let i = 0; i < enemiesToSpawn; i++) {
-      enemy.spawn({
-        x: Math.random() * 800,
-        y: Math.random() * 600,
-      })
-    }
-  })
-})
-```
-
-### Prefabs vs Actors
-
-For most game objects, **prefer actors over raw prefabs**. Actors wrap a prefab with lifecycle hooks, a public API, and handle cleanup automatically. Use a raw prefab only when you need the absolute minimum overhead and have no lifecycle logic.
-
-| | Actor (`defineActor`) | Raw prefab (`usePrefab`) |
-|---|---|---|
-| **Lifecycle** | `onStart`, `onUpdate`, `onDestroy` | None |
-| **Public API** | Yes — methods callable from outside | No |
-| **Pool support** | Yes (`defineActorPool`) | No |
-| **Use case** | Enemies, bullets, HUD elements, any game object | Simple entity stamps with no logic |
-
-::: tip When to use `usePrefab` directly
-`usePrefab` is useful when you are writing a system that stamps entities purely for data — for example seeding a map with static obstacle entities that systems will query. For anything with lifecycle or identity, wrap it in an actor instead.
-:::
-
-See [Scenes and Actors](/essentials/scenes) to learn about actors.
+This is an escape hatch for cases like static map geometry or data seeds. **For anything with rendering, movement, or lifecycle, wrap it in an actor.**
 
 ## API Summary
 
 | Function | Description |
 |---|---|
-| `definePrefab(components)` | Declare a reusable entity template with array syntax |
-| `usePrefab(PrefabDef)` | Get a handle for a prefab instance |
-| `handle.spawn(overrides?)` | Create an entity from the prefab, returns entity ID |
-| `handle.despawn(id)` | Remove an entity spawned from the prefab |
+| `definePrefab(components)` | Declare a component layout |
+| `defineActor(prefab, factory)` | Wrap a prefab with lifecycle and public API — primary use |
+| `usePrefab(PrefabDef)` | Low-level spawn handle (no lifecycle) |
+| `handle.spawn(overrides?)` | Create an entity, returns entity ID |
+| `handle.despawn(id)` | Remove a spawned entity |
 
 ## Next Steps
 
-- **[Scenes and Actors](/essentials/scenes)** — Learn how actors complement prefabs for unique entities.
-- **[Layouts](/essentials/layouts)** — Persist UI across multiple scenes using layouts.
-- **[Systems](/essentials/systems)** — Write systems that interact with spawned entities.
+- **[Actors](/essentials/actors)** — Add lifecycle, update logic, and a public API to your prefab.
+- **[Scenes](/essentials/scenes)** — Register and control actors from a scene.
+- **[Systems](/essentials/systems)** — Write batch logic over all entities matching a prefab's components.
