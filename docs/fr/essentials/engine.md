@@ -84,7 +84,7 @@ export const DebugSystem = defineSystem(() => {
 
   onUpdate(() => {
     const stats = engine.getStats()
-    console.log(`FPS: ${stats.fps}, entités: ${stats.entityCount}`)
+    console.log(`FPS: ${stats.fps}, frame : ${stats.frameCount}`)
   })
 })
 ```
@@ -97,8 +97,8 @@ export const DebugSystem = defineSystem(() => {
 |---|---|---|
 | `fps` | `number` | Images par seconde |
 | `frameCount` | `number` | Total de frames depuis le démarrage |
-| `entityCount` | `number` | Nombre d'entités actives |
 | `deltaTime` | `number` | Delta de la dernière frame en secondes |
+| `overBudget` | `boolean` | `true` si la dernière frame a dépassé le budget FPS |
 
 En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement avec `engine.advance(delta)` :
 
