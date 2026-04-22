@@ -87,12 +87,128 @@ Register in `gwen.config.ts`:
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: [['@my-scope/my-module', {
-    debug: true,
-    apiUrl: 'https://dev.api.example.com',
-  }]],
+  modules: ['@my-scope/my-module'],
+  myModule: { debug: true, apiUrl: 'https://dev.api.example.com' },
 })
 ```
+
+## Local Module (Auto-Discovery)
+
+For project-specific modules, drop a file in `src/modules/`. GWEN discovers all `.ts` files there (and `*/index.ts` one level deep) and loads them automatically — no `gwen.config.ts` entry required.
+
+### Minimal local module
+
+```typescript
+// src/modules/score.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+const ScorePlugin = definePlugin<{ maxScore: number }>((opts) => ({
+  name: 'score',
+  setup(engine) {
+    let score = 0
+    engine.provide('score', {
+      get: () => score,
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore) },
+      reset: () => { score = 0 },
+    })
+  },
+}))
+
+export default defineGwenModule({
+  meta: { configKey: 'score' }, // name inferred → 'local:score'
+  defaults: { maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+  },
+})
+```
+
+Drop this file and the module is active. No `gwen.config.ts` change needed.
+
+### Name inference
+
+`meta.name` is optional for local modules. The name is inferred from the filename:
+
+| File | Inferred name |
+|---|---|
+| `src/modules/score.ts` | `local:score` |
+| `src/modules/score/index.ts` | `local:score` |
+| explicit `meta: { name: 'my-score' }` | `my-score` (declared value wins) |
+
+### Receiving options from `gwen.config.ts`
+
+Set `meta.configKey` to receive options from the matching top-level key. Augment `GwenModuleOptions` in the same file for TypeScript auto-complete:
+
+```typescript
+// src/modules/score.ts
+import { defineGwenModule } from '@gwenjs/kit/module'
+import { definePlugin } from '@gwenjs/kit/plugin'
+
+interface ScoreOptions {
+  initialScore?: number
+  maxScore?: number
+}
+
+declare module '@gwenjs/app' {
+  interface GwenModuleOptions {
+    score?: ScoreOptions
+  }
+}
+
+const ScorePlugin = definePlugin<ScoreOptions>((opts = {}) => ({
+  name: 'score',
+  setup(engine) {
+    let score = opts.initialScore ?? 0
+    engine.provide('score', {
+      get: () => score,
+      add: (n: number) => { score = Math.min(score + n, opts.maxScore ?? 999) },
+      reset: () => { score = opts.initialScore ?? 0 },
+    })
+  },
+}))
+
+export default defineGwenModule<ScoreOptions>({
+  meta: { configKey: 'score' },
+  defaults: { initialScore: 0, maxScore: 999 },
+  setup(options, gwen) {
+    gwen.addPlugin(ScorePlugin(options))
+    gwen.addAutoImports([{ name: 'useScore', from: '@gwenjs/core/system' }])
+  },
+})
+```
+
+Users configure it with the top-level key — TypeScript auto-completes the options:
+
+```typescript
+// gwen.config.ts
+import { defineConfig } from '@gwenjs/app'
+
+export default defineConfig({
+  score: { initialScore: 0, maxScore: 9999 },
+})
+```
+
+::: tip No `@ts-expect-error` for local modules
+Unlike npm packages, your project already has `@gwenjs/app` as a direct dependency. The `declare module "@gwenjs/app"` augmentation works without any suppression comment.
+:::
+
+### Subdirectory support
+
+```
+src/modules/
+├── score.ts              # → local:score
+└── hud/
+    └── index.ts          # → local:hud
+```
+
+::: warning One level only
+`src/modules/hud/index.ts` ✅ — `src/modules/ui/hud/index.ts` ❌. Only one level of nesting is supported.
+:::
+
+### Hot reload in dev
+
+Adding or removing a file in `src/modules/` triggers a full page reload. Editing an existing file uses normal Vite HMR.
 
 ## Build-Time API (GwenKit)
 
@@ -314,10 +430,8 @@ Register the module in `gwen.config.ts`:
 import { defineConfig } from '@gwenjs/app'
 
 export default defineConfig({
-  modules: [['@my-scope/score', {
-    initialScore: 0,
-    maxScore: 9999,
-  }]],
+  modules: ['@my-scope/score'],
+  score: { initialScore: 0, maxScore: 9999 },
 })
 ```
 
