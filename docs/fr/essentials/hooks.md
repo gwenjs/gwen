@@ -24,33 +24,23 @@ emit('enemy:hit', 'fifty')       // mauvais type — aucune erreur
 useHook('enemy:hit', (n) => {})  // n est unknown
 ```
 
-`defineHooks()` déclare des contrats typés qui corrigent tout cela. Créez un fichier dédié pour vos événements, par exemple `src/events/game.ts` :
-
-Créez un fichier dédié pour vos événements, par exemple `src/events/game.ts` :
+`defineHooks()` déclare des contrats typés qui corrigent tout cela. Placez vos déclarations de hooks dans `src/hooks.ts` ou répartissez-les dans des fichiers sous `src/hooks/` :
 
 ```ts
-// src/events/game.ts
-import type { InferHooks } from '@gwenjs/core'
-
-export const GameEvents = defineHooks({
+// src/hooks/game.ts
+export const GameHooks = defineHooks({
   'enemy:die':  (): void => undefined,
   'enemy:hit':  (_damage: number): void => undefined,
   'score:add':  (_points: number): void => undefined,
   'player:die': (): void => undefined,
 })
-
-declare module '@gwenjs/schema' {
-  interface GwenRuntimeHooks extends InferHooks<typeof GameEvents> {}
-}
 ```
 
-`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Le bloc `declare module` fusionne vos événements dans `GwenRuntimeHooks`, ce qui rend `useHook` et `emit` entièrement typés dans l'ensemble du projet.
-
-::: warning Utilisez `@gwenjs/schema`, pas `@gwenjs/app`
-L'interface à augmenter est `GwenRuntimeHooks` dans `@gwenjs/schema`. Augmenter `@gwenjs/app` n'a aucun effet.
+::: info Augmentation auto-générée
+`gwenHooksPlugin` (inclus dans `@gwenjs/vite`) scanne `src/hooks.ts` et `src/hooks/*.ts` et génère automatiquement le bloc `declare module '@gwenjs/schema'` dans `.gwen/types/hooks.d.ts`. Vous n'écrivez jamais ce bloc à la main.
 :::
 
-Après cela, les noms d'événements incorrects ou les types d'arguments sont détectés à la compilation — dans chaque acteur, système et plugin du projet.
+`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Une fois l'augmentation générée, les noms d'événements incorrects ou les types d'arguments sont détectés à la compilation — dans chaque acteur, système et plugin du projet.
 
 ## Écouter des événements
 

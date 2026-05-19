@@ -24,31 +24,23 @@ emit('enemy:hit', 'fifty')       // wrong type — no error
 useHook('enemy:hit', (n) => {})  // n is unknown
 ```
 
-`defineHooks()` declares typed contracts that fix all of this. Create a dedicated file for your events, for example `src/events/game.ts`:
+`defineHooks()` declares typed contracts that fix all of this. Place your hook declarations in `src/hooks.ts` or split them across files in `src/hooks/`:
 
 ```ts
-// src/events/game.ts
-import type { InferHooks } from '@gwenjs/core'
-
-export const GameEvents = defineHooks({
+// src/hooks/game.ts
+export const GameHooks = defineHooks({
   'enemy:die':  (): void => undefined,
   'enemy:hit':  (_damage: number): void => undefined,
   'score:add':  (_points: number): void => undefined,
   'player:die': (): void => undefined,
 })
-
-declare module '@gwenjs/schema' {
-  interface GwenRuntimeHooks extends InferHooks<typeof GameEvents> {}
-}
 ```
 
-`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. The `declare module` block merges your events into `GwenRuntimeHooks`, which makes `useHook` and `emit` fully typed project-wide.
-
-::: warning Use `@gwenjs/schema`, not `@gwenjs/app`
-The interface to augment is `GwenRuntimeHooks` in `@gwenjs/schema`. Augmenting `@gwenjs/app` has no effect.
+::: info Auto-generated augmentation
+`gwenHooksPlugin` (part of `@gwenjs/vite`) scans `src/hooks.ts` and `src/hooks/*.ts` and auto-generates the `declare module '@gwenjs/schema'` augmentation in `.gwen/types/hooks.d.ts`. You never write this block by hand.
 :::
 
-After this, wrong event names or argument types are caught at compile time — across every actor, system, and plugin in the project.
+`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. After the augmentation is generated, wrong event names or argument types are caught at compile time — across every actor, system, and plugin in the project.
 
 ## Listening to Events
 
