@@ -470,7 +470,46 @@ function useActor<Props, PublicAPI>(def: ActorDefinition<Props, PublicAPI>): Act
 
 **Description.** Retourne un handle typé pour spawner, despawner et accéder aux instances d'un acteur. Doit être appelé pendant la phase de setup d'un système ou d'un acteur (pas dans les callbacks de cycle de vie).
 
-**Retourne:** `ActorHandle` — objet avec `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`.
+**Retourne:** `ActorHandle` — objet avec `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`. Implémente `Iterable<PublicAPI>` — supporte `for...of` directement.
+
+### useActorQuery(def, query)
+
+**Signature:**
+```ts
+function useActorQuery<P, A>(
+  def: ActorDefinition<P, A>,
+  query: Iterable<{ readonly id: EntityId }>,
+): Iterable<A>
+```
+
+**Description.** Retourne un itérable paresseux sur les APIs publiques des instances d'acteur dont l'entité sous-jacente est présente dans `query`. Réévalué à chaque `for...of` — reflète l'état ECS en temps réel. Aucun tableau intermédiaire n'est alloué.
+
+À utiliser avec `useQuery` de `@gwenjs/core/system` pour filtrer par composant :
+
+```ts
+defineSystem(() => {
+  const inRange = useQuery([InRangeTag])
+  const nearby = useActorQuery(EnemyActor, inRange)
+
+  onUpdate(() => {
+    for (const enemy of nearby) {
+      enemy.takeDamage(10)
+    }
+  })
+})
+```
+
+**Paramètres:**
+| Param | Type | Description |
+|---|---|---|
+| `def` | `ActorDefinition<P, A>` | Définition d'acteur produite par `defineActor` |
+| `query` | `Iterable<{ readonly id: EntityId }>` | Tout itérable exposant des IDs d'entité — typiquement un `LiveQuery` de `useQuery` |
+
+**Retourne:** `Iterable<A>` — paresseux, zéro allocation. Les entités présentes dans `query` sans instance d'acteur vivante sont silencieusement ignorées.
+
+::: tip Pourquoi accepter une query plutôt que des définitions de composants ?
+`useActorQuery` appartient à `@gwenjs/core/actor` et ne dépend pas de la couche système. Accepter un `LiveQuery` pré-construit découple les deux couches et rend la fonction composable avec tout itérable exposant un `id`.
+:::
 
 ### usePrefab(PrefabDef)
 

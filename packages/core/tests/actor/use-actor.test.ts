@@ -183,3 +183,57 @@ describe("useActor — Proxy PublicAPI delegation", () => {
     expect((handle as unknown as { shoot(): string }).shoot()).toBe("pew");
   });
 });
+
+describe("ActorHandle[Symbol.iterator]", () => {
+  it("yields nothing when no instances exist", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({ value: 1 }));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor));
+    expect(Array.from(handle as Iterable<{ value: number }>)).toHaveLength(0);
+  });
+
+  it("yields all live instance APIs", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({ value: 42 }));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor));
+    handle.spawn();
+    handle.spawn();
+
+    const apis = Array.from(handle as Iterable<{ value: number }>);
+    expect(apis).toHaveLength(2);
+    expect(apis[0].value).toBe(42);
+  });
+
+  it("reflects despawn — despawned instance is no longer yielded", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({}));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor));
+    const id = handle.spawn();
+    handle.spawn();
+    expect(Array.from(handle as Iterable<unknown>)).toHaveLength(2);
+
+    handle.despawn(id);
+    expect(Array.from(handle as Iterable<unknown>)).toHaveLength(1);
+  });
+
+  it("works via for...of", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => ({ mark: () => "x" }));
+    await engine.use(Actor._plugin);
+
+    const handle = engine.run(() => useActor(Actor));
+    handle.spawn();
+
+    const collected: string[] = [];
+    for (const api of handle as Iterable<{ mark(): string }>) {
+      collected.push(api.mark());
+    }
+    expect(collected).toEqual(["x"]);
+  });
+});

@@ -78,3 +78,4 @@ export type {
   RenderFn,
   VoidFn,
 } from "./runtime/types";
+export { useActorQuery } from "./runtime/use-actor-query";

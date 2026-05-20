@@ -94,6 +94,23 @@ export interface ActorHandle<Props, PublicAPI> {
    * @returns The singleton instance's entity ID.
    */
   spawnOnce(...args: Props extends void ? [] : [props: Props]): EntityId;
+
+  /**
+   * Allows iterating over all live instances with `for...of`.
+   *
+   * Re-evaluated on every iteration — reflects the current set of live instances
+   * at the time of the loop, not at the time the handle was obtained.
+   *
+   * @returns An iterator over the public APIs of all live instances.
+   *
+   * @example
+   * ```ts
+   * for (const unit of selectedUnits) {
+   *   unit.moveTo(targetX, targetY)
+   * }
+   * ```
+   */
+  [Symbol.iterator](): IterableIterator<PublicAPI>;
 }
 
 /**
@@ -228,6 +245,14 @@ export function useActor<Props, PublicAPI>(
         result.push(instance.api);
       }
       return result;
+    },
+
+    [Symbol.iterator](): IterableIterator<PublicAPI> {
+      const result: PublicAPI[] = [];
+      for (const instance of actorDef._instances.values()) {
+        result.push(instance.api);
+      }
+      return result.values();
     },
 
     spawnOnce(props?: Props): EntityId {

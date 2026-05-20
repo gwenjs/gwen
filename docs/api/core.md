@@ -286,7 +286,46 @@ function useActor<Props, PublicAPI>(def: ActorDefinition<Props, PublicAPI>): Act
 
 **Description.** Returns a typed handle for spawning, despawning, and accessing instances of an actor. Must be called during the setup phase of a system or actor (not inside lifecycle callbacks).
 
-**Returns:** `ActorHandle` — object with `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`.
+**Returns:** `ActorHandle` — object with `spawn`, `despawn`, `despawnAll`, `count`, `get`, `getAll`, `spawnOnce`. Implements `Iterable<PublicAPI>` — supports `for...of` directly.
+
+#### useActorQuery(def, query)
+
+**Signature:**
+```ts
+function useActorQuery<P, A>(
+  def: ActorDefinition<P, A>,
+  query: Iterable<{ readonly id: EntityId }>,
+): Iterable<A>
+```
+
+**Description.** Returns a lazy iterable over the public APIs of actor instances whose underlying entity is present in `query`. Re-evaluated on every `for...of` — reflects the live ECS state at iteration time. No intermediate array is allocated.
+
+Pair with `useQuery` from `@gwenjs/core/system` to filter by component:
+
+```ts
+defineSystem(() => {
+  const inRange = useQuery([InRangeTag])
+  const nearby = useActorQuery(EnemyActor, inRange)
+
+  onUpdate(() => {
+    for (const enemy of nearby) {
+      enemy.takeDamage(10)
+    }
+  })
+})
+```
+
+**Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| `def` | `ActorDefinition<P, A>` | Actor definition produced by `defineActor` |
+| `query` | `Iterable<{ readonly id: EntityId }>` | Any iterable exposing entity IDs — typically a `LiveQuery` from `useQuery` |
+
+**Returns:** `Iterable<A>` — lazy, zero-allocation. Entities in `query` with no live actor instance are silently skipped.
+
+::: tip Why does it accept a query instead of component definitions?
+`useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting a pre-built `LiveQuery` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.
+:::
 
 #### useComponent(ComponentDef)
 
