@@ -55,6 +55,39 @@ const MySystem = defineSystem('MySystem', () => {
 })
 ```
 
+### engine.timeScale
+
+**Type :** `number` — mutable, défaut `1`.
+
+Multiplicateur de temps global appliqué au delta time de chaque frame avant qu'il n'atteigne les systèmes et les acteurs.
+
+| Valeur | Effet |
+|---|---|
+| `1` | Vitesse normale (défaut) |
+| `0` | Pause — tous les systèmes reçoivent `dt = 0` |
+| `0.5` | Demi-vitesse (slow motion) |
+| `2` | Vitesse double |
+
+Limité à `[0, 100]` à l'exécution. Appliqué après le cap de sécurité `maxDeltaSeconds` — la dilatation temporelle ne cause jamais d'instabilité physique.
+
+```ts
+// Mettre en pause
+engine.timeScale = 0
+
+// Bullet time
+engine.timeScale = 0.2
+
+// Avance rapide SimCity
+engine.timeScale = 4
+
+// Reprendre
+engine.timeScale = 1
+```
+
+::: tip Pause vs arrêt complet
+`timeScale = 0` met en pause tous les systèmes en envoyant `dt = 0` — les hooks continuent de s'exécuter. Pour stopper entièrement le traitement des frames, utiliser `engine.stop()`.
+:::
+
 ## Composants
 
 ### defineComponent(options)

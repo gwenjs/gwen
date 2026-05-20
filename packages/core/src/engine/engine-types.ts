@@ -456,11 +456,33 @@ export interface GwenEngine extends GwenEngineBase {
   getPlacementBridge(): PlacementBridge;
 
   // ─── Config ──────────────────────────────────────────────────────────────
+  readonly variant: "light" | "physics2d" | "physics3d";
+  readonly debug: boolean;
   readonly maxEntities: number;
   readonly targetFPS: number;
   readonly maxDeltaSeconds: number;
-  readonly variant: "light" | "physics2d" | "physics3d";
-  readonly debug: boolean;
+  /**
+   * Global time multiplier applied to every frame's delta time.
+   *
+   * - `1` — normal speed (default)
+   * - `0` — paused (all systems receive `dt = 0`)
+   * - `0.5` — half speed (slow motion)
+   * - `2` — double speed
+   *
+   * Clamped to `[0, 100]` at runtime — values outside this range are silently
+   * clamped. Applied after the `maxDeltaSeconds` safety cap.
+   *
+   * @example
+   * ```ts
+   * // Bullet time
+   * engine.timeScale = 0.2
+   * // Resume
+   * engine.timeScale = 1
+   * // Pause
+   * engine.timeScale = 0
+   * ```
+   */
+  timeScale: number;
 
   // ─── Disposables (concrete type for internal use) ─────────────────────────
   /**

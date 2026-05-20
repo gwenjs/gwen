@@ -86,6 +86,7 @@ import type {
   GwenEngine,
 } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
+import { clamp } from "@gwenjs/math";
 
 // #region Internal helpers
 
@@ -127,6 +128,7 @@ class GwenEngineImpl implements GwenEngine {
   readonly maxEntities: number;
   readonly targetFPS: number;
   readonly maxDeltaSeconds: number;
+  timeScale: number = 1;
   readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
   readonly logger: IGwenLogger;
@@ -415,7 +417,7 @@ class GwenEngineImpl implements GwenEngine {
       }
 
       const rawDt = now - this._lastFrameTime;
-      const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds);
+      const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
       this._lastFrameTime = now;
       this._deltaTime = dt;
       try {
@@ -488,7 +490,7 @@ class GwenEngineImpl implements GwenEngine {
     }
     this._advancing = true;
     // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
-    const cappedDt = Math.min(dt, this.maxDeltaSeconds);
+    const cappedDt = Math.min(dt, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
     this._deltaTime = cappedDt;
     try {
       await this._runFrame(cappedDt);
