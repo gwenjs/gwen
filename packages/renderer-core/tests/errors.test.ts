@@ -4,6 +4,8 @@ import {
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
   UnknownLayerError,
+  UnavailableCameraError,
+  ScreenToWorldPerspectiveError,
 } from "../src/errors.js";
 
 describe("RendererErrorCodes", () => {
@@ -19,6 +21,10 @@ describe("RendererErrorCodes", () => {
     expect(RendererErrorCodes.UNKNOWN_LAYER).toBe("RENDERER:UNKNOWN_LAYER");
     expect(RendererErrorCodes.LAYER_ORDER_CONFLICT).toBe("RENDERER:LAYER_ORDER_CONFLICT");
     expect(RendererErrorCodes.MISSING_LAYER).toBe("RENDERER:MISSING_LAYER");
+    expect(RendererErrorCodes.UNAVAILABLE_CAMERA).toBe("RENDERER:UNAVAILABLE_CAMERA");
+    expect(RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE).toBe(
+      "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
+    );
   });
 });
 
@@ -112,5 +118,79 @@ describe("UnknownLayerError", () => {
     const err = new UnknownLayerError("hud", "renderer:html");
     expect(err.layerName).toBe("hud");
     expect(err.rendererName).toBe("renderer:html");
+  });
+});
+
+describe("UnavailableCameraError", () => {
+  it("is an instance of Error", () => {
+    expect(new UnavailableCameraError()).toBeInstanceOf(Error);
+  });
+
+  it("has the correct name", () => {
+    expect(new UnavailableCameraError().name).toBe("UnavailableCameraError");
+  });
+
+  it("has the correct error code", () => {
+    expect(new UnavailableCameraError().code).toBe(RendererErrorCodes.UNAVAILABLE_CAMERA);
+  });
+
+  it("message includes the viewport id when provided", () => {
+    expect(new UnavailableCameraError("main").message).toContain("main");
+  });
+
+  it("message is valid when no viewport id is provided", () => {
+    const err = new UnavailableCameraError();
+    expect(err.message).not.toContain("undefined");
+    expect(err.message.length).toBeGreaterThan(0);
+  });
+
+  it("exposes viewportId as a public field", () => {
+    expect(new UnavailableCameraError("p1").viewportId).toBe("p1");
+  });
+
+  it("viewportId is undefined when not provided", () => {
+    expect(new UnavailableCameraError().viewportId).toBeUndefined();
+  });
+
+  it("has a non-empty hint and docsUrl", () => {
+    const err = new UnavailableCameraError();
+    expect(err.hint.length).toBeGreaterThan(0);
+    expect(err.docsUrl.length).toBeGreaterThan(0);
+  });
+});
+
+describe("ScreenToWorldPerspectiveError", () => {
+  it("is an instance of Error", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective")).toBeInstanceOf(Error);
+  });
+
+  it("has the correct name", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective").name).toBe(
+      "ScreenToWorldPerspectiveError",
+    );
+  });
+
+  it("has the correct error code", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective").code).toBe(
+      RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE,
+    );
+  });
+
+  it("includes the projection type in the message", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective").message).toContain("perspective");
+  });
+
+  it("exposes projectionType as a public field", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective").projectionType).toBe("perspective");
+  });
+
+  it("has a non-empty hint and docsUrl", () => {
+    const err = new ScreenToWorldPerspectiveError("perspective");
+    expect(err.hint.length).toBeGreaterThan(0);
+    expect(err.docsUrl.length).toBeGreaterThan(0);
+  });
+
+  it("hint mentions screenToRay", () => {
+    expect(new ScreenToWorldPerspectiveError("perspective").hint).toContain("screenToRay");
   });
 });

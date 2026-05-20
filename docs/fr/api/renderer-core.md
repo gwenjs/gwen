@@ -395,15 +395,101 @@ setup(engine) {
 
 ---
 
+## Utilitaires écran
+
+### `screenToWorld()`
+
+```ts
+function screenToWorld(px: number, py: number, viewportId?: string): Vec3
+```
+
+Convertit une coordonnée pixel (espace écran) en position monde.
+
+Le centre du viewport correspond exactement à la position monde de la caméra. Les
+offsets en pixels sont mis à l'échelle par le facteur `zoom` de la caméra.
+
+**Uniquement les caméras orthographiques sont supportées.** Pour les caméras en
+perspective, utilisez [`screenToRay()`](#screentoway) — un pixel en perspective
+correspond à un rayon, pas à un point unique dans le monde.
+
+| Paramètre | Type | Description |
+|---|---|---|
+| `px` | `number` | Coordonnée X en pixels. Origine en **haut-gauche** du viewport. |
+| `py` | `number` | Coordonnée Y en pixels. Origine en **haut-gauche** du viewport. |
+| `viewportId` | `string?` | Viewport cible. Si absent, la caméra active avec la priorité la plus haute est utilisée. |
+
+**Retourne** `Vec3` — position en coordonnées monde. Pour les caméras orthographiques
+2D, `z` vaut la position Z monde de la caméra.
+
+**Erreurs levées**
+
+| Erreur | Quand |
+|---|---|
+| `UnavailableCameraError` | Aucune caméra active trouvée, ou le `viewportId` fourni n'est associé à aucune caméra. |
+| `ScreenToWorldPerspectiveError` | La caméra active utilise une projection perspective. Utiliser `screenToRay()` à la place. |
+
+::: tip Quand passer `viewportId` ?
+Dans un jeu à viewport unique, ce paramètre n'est jamais nécessaire — la caméra active
+est résolue automatiquement. Passez `viewportId` en split-screen ou avec une minimap
+pour convertir des coordonnées relatives à un viewport spécifique.
+:::
+
+::: warning Caméras inactives et `viewportId` explicite
+Quand `viewportId` est fourni explicitement, le flag `active` de la caméra **n'est pas
+vérifié** — la caméra est utilisée telle quelle. C'est intentionnel : nommer un viewport
+explicitement signifie qu'on le demande directement.
+:::
+
+```ts
+import { screenToWorld } from '@gwenjs/renderer-core'
+
+// RTS — déplacer les unités vers la position cliquée
+onEvent('input:click', ({ x, y }) => {
+  const worldPos = screenToWorld(x, y)
+  for (const unit of selectedUnits) {
+    unit.moveTo(worldPos.x, worldPos.y)
+  }
+})
+
+// Diablo — déplacer le joueur vers le curseur
+onEvent('input:click', ({ x, y }) => {
+  const target = screenToWorld(x, y)
+  player.setDestination(target.x, target.y)
+})
+
+// Split-screen — conversion relative au viewport du joueur 2
+const worldPos = screenToWorld(x, y, 'p2')
+```
+
+### `screenToRay()` <Badge type="warning" text="bientôt disponible" />
+
+```ts
+function screenToRay(px: number, py: number, viewportId?: string): { origin: Vec3; direction: Vec3 }
+```
+
+Convertit une coordonnée pixel en rayon monde pour les caméras en perspective.
+Utilisez `origin` et `direction` retournés avec `useRaycast()` de `@gwenjs/physics3d`.
+
+::: info Pourquoi deux fonctions ?
+En projection orthographique, chaque pixel correspond à exactement un point monde.
+En projection perspective, il correspond à un rayon infini — un point unique n'existe
+qu'en intersectant ce rayon avec de la géométrie ou un plan. Deux fonctions avec des
+types de retour distincts rend ce contrat explicite.
+:::
+
+---
+
 ## Codes d'erreur
 
 ```ts
 const RendererErrorCodes = {
-  ALREADY_REGISTERED:   'RENDERER:ALREADY_REGISTERED',
-  CONTRACT_VERSION:     'RENDERER:CONTRACT_VERSION',
-  UNKNOWN_LAYER:        'RENDERER:UNKNOWN_LAYER',
-  LAYER_ORDER_CONFLICT: 'RENDERER:LAYER_ORDER_CONFLICT',
-  MISSING_LAYER:        'RENDERER:MISSING_LAYER',
+  ALREADY_REGISTERED:          'RENDERER:ALREADY_REGISTERED',
+  CONTRACT_VERSION:            'RENDERER:CONTRACT_VERSION',
+  UNKNOWN_LAYER:               'RENDERER:UNKNOWN_LAYER',
+  LAYER_ORDER_CONFLICT:        'RENDERER:LAYER_ORDER_CONFLICT',
+  MISSING_LAYER:               'RENDERER:MISSING_LAYER',
+  UNAVAILABLE_CAMERA:          'RENDERER:UNAVAILABLE_CAMERA',
+  SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
 }
 ```
 
@@ -413,6 +499,8 @@ const RendererErrorCodes = {
 | `CONTRACT_VERSION` | Version du contrat incompatible |
 | `UNKNOWN_LAYER` | `getLayerElement()` appelé avec un layer non déclaré |
 | `LAYER_ORDER_CONFLICT` | Deux layers avec le même `order` — warning uniquement |
+| `UNAVAILABLE_CAMERA` | `screenToWorld()` ou `screenToRay()` sans caméra active |
+| `SCREEN_TO_WORLD_PERSPECTIVE` | `screenToWorld()` appelé avec une caméra perspective |
 | `MISSING_LAYER` | Layer déclaré mais élément DOM manquant |
 
 ## Stats (dev uniquement)

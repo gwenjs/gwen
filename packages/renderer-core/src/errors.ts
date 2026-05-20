@@ -18,6 +18,10 @@ export const RendererErrorCodes = {
   LAYER_ORDER_CONFLICT: "RENDERER:LAYER_ORDER_CONFLICT",
   /** A renderer declared zero layers — at least one layer is required. */
   MISSING_LAYER: "RENDERER:MISSING_LAYER",
+  /** Camera not available */
+  UNAVAILABLE_CAMERA: "RENDERER:UNAVAILABLE_CAMERA",
+  /** Projection not supported for screen to world*/
+  SCREEN_TO_WORLD_PERSPECTIVE: "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
 } as const;
 
 /** Union of all renderer error code string literals. */
@@ -122,5 +126,70 @@ export class UnknownLayerError extends Error {
     this.rendererName = rendererName;
     this.hint = `Declare a layer named "${layerName}" in gwen.config.ts under the "${rendererName}" module config.`;
     this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
+  }
+}
+
+/**
+ * Thrown when {@link screenToWorld} or {@link screenToRay} cannot find an active
+ * camera — either because no camera exists in the scene, or because the given
+ * viewport id is not bound to any active camera.
+ *
+ * @example
+ * ```ts
+ * // Ensure CameraSystem is registered and a Camera entity is active:
+ * useSystem(CameraSystem)
+ *
+ * const cam = defineActor(CameraActor, () => {
+ *   const camera = useCamera({ active: true, viewportId: 'main' })
+ * })
+ * ```
+ *
+ * @see {@link screenToWorld}
+ * @see {@link screenToRay}
+ */
+export class UnavailableCameraError extends Error {
+  readonly code = RendererErrorCodes.UNAVAILABLE_CAMERA;
+  readonly viewportId: string | undefined;
+  readonly hint: string;
+  readonly docsUrl: string;
+
+  constructor(viewportId?: string) {
+    super(
+      `[GwenRenderer] No active camera found${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}.`,
+    );
+    this.name = "UnavailableCameraError";
+    this.viewportId = viewportId;
+    this.hint = `Ensure a Camera component with active: true exists in the scene${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}. Check that CameraSystem is registered via useSystem().`;
+    this.docsUrl = "https://gwenengine.dev/docs/renderer#cameras";
+  }
+}
+
+/**
+ * Thrown when {@link screenToWorld} is called with a perspective camera.
+ * Perspective projection maps a screen pixel to a ray, not a unique world point.
+ *
+ * @example
+ * ```ts
+ * // Instead of screenToWorld(), use screenToRay():
+ * const { origin, direction } = screenToRay(px, py)
+ * const hit = useRaycast({ origin, direction })
+ * ```
+ *
+ * @see {@link screenToRay} — returns `{ origin, direction }` for perspective cameras
+ */
+export class ScreenToWorldPerspectiveError extends Error {
+  readonly code = RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE;
+  readonly projectionType: string;
+  readonly hint: string;
+  readonly docsUrl: string;
+
+  constructor(projectionType: string) {
+    super(
+      `[GwenRenderer] screenToWorld() cannot be used with "${projectionType}" projection — a screen pixel maps to a ray, not a unique world point.`,
+    );
+    this.name = "ScreenToWorldPerspectiveError";
+    this.projectionType = projectionType;
+    this.hint = `Use screenToRay() instead — it returns { origin, direction } for use with useRaycast().`;
+    this.docsUrl = "https://gwenengine.dev/docs/renderer#screen-to-world";
   }
 }

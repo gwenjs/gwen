@@ -439,15 +439,101 @@ setup(engine) {
 
 ---
 
+## Screen utilities
+
+### `screenToWorld()`
+
+```ts
+function screenToWorld(px: number, py: number, viewportId?: string): Vec3
+```
+
+Converts a screen-space pixel coordinate to a world-space position.
+
+The center of the viewport maps exactly to the camera's world position. Pixel
+offsets are scaled by the camera's `zoom` factor.
+
+**Only orthographic cameras are supported.** For perspective cameras, use
+[`screenToRay()`](#screentoway) instead — a perspective pixel maps to a ray, not
+a unique world point.
+
+| Parameter | Type | Description |
+|---|---|---|
+| `px` | `number` | X coordinate in pixels. Origin is the **top-left** of the viewport. |
+| `py` | `number` | Y coordinate in pixels. Origin is the **top-left** of the viewport. |
+| `viewportId` | `string?` | Target viewport. When omitted, the active camera with the highest priority is used. |
+
+**Returns** `Vec3` — world-space position. For 2D orthographic cameras, `z` equals
+the camera's world Z.
+
+**Throws**
+
+| Error | When |
+|---|---|
+| `UnavailableCameraError` | No active camera was found, or the given `viewportId` is not bound to any camera. |
+| `ScreenToWorldPerspectiveError` | The active camera uses perspective projection. Use `screenToRay()` instead. |
+
+::: tip When is `viewportId` needed?
+In a single-viewport game you never need to pass it — the active camera is resolved
+automatically. Pass `viewportId` when you have multiple viewports (split-screen,
+minimap) and need to convert coordinates relative to a specific one.
+:::
+
+::: warning Inactive cameras and explicit `viewportId`
+When `viewportId` is provided explicitly, the `active` flag on the camera is **not**
+checked — the camera is used regardless. This is intentional: if you name a viewport,
+you are requesting it directly.
+:::
+
+```ts
+import { screenToWorld } from '@gwenjs/renderer-core'
+
+// RTS — move selected units to the clicked world position
+onEvent('input:click', ({ x, y }) => {
+  const worldPos = screenToWorld(x, y)
+  for (const unit of selectedUnits) {
+    unit.moveTo(worldPos.x, worldPos.y)
+  }
+})
+
+// Diablo — move player toward cursor
+onEvent('input:click', ({ x, y }) => {
+  const target = screenToWorld(x, y)
+  player.setDestination(target.x, target.y)
+})
+
+// Split-screen — convert relative to player 2's viewport
+const worldPos = screenToWorld(x, y, 'p2')
+```
+
+### `screenToRay()` <Badge type="warning" text="coming soon" />
+
+```ts
+function screenToRay(px: number, py: number, viewportId?: string): { origin: Vec3; direction: Vec3 }
+```
+
+Converts a screen-space pixel coordinate to a world-space ray for perspective cameras.
+Use the returned `origin` and `direction` with `useRaycast()` from `@gwenjs/physics3d`.
+
+::: info Why two functions?
+In an orthographic projection every screen pixel maps to exactly one world point.
+In a perspective projection it maps to an infinite ray — a unique point only exists
+once you intersect the ray with geometry or a plane. Two functions with different
+return types makes this contract explicit.
+:::
+
+---
+
 ## Error codes
 
 ```ts
 const RendererErrorCodes = {
-  ALREADY_REGISTERED:   'RENDERER:ALREADY_REGISTERED',
-  CONTRACT_VERSION:     'RENDERER:CONTRACT_VERSION',
-  UNKNOWN_LAYER:        'RENDERER:UNKNOWN_LAYER',
-  LAYER_ORDER_CONFLICT: 'RENDERER:LAYER_ORDER_CONFLICT',
-  MISSING_LAYER:        'RENDERER:MISSING_LAYER',
+  ALREADY_REGISTERED:        'RENDERER:ALREADY_REGISTERED',
+  CONTRACT_VERSION:          'RENDERER:CONTRACT_VERSION',
+  UNKNOWN_LAYER:             'RENDERER:UNKNOWN_LAYER',
+  LAYER_ORDER_CONFLICT:      'RENDERER:LAYER_ORDER_CONFLICT',
+  MISSING_LAYER:             'RENDERER:MISSING_LAYER',
+  UNAVAILABLE_CAMERA:        'RENDERER:UNAVAILABLE_CAMERA',
+  SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
 }
 ```
 
