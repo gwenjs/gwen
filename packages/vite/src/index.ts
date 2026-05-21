@@ -542,7 +542,11 @@ function generateEntryModule(
   }
 
   bootstrapLines.push(
-    "  await engine.start();",
+    '  if (gwenConfig.engine?.loop === "external") {',
+    "    await engine.startExternal();",
+    "  } else {",
+    "    await engine.start();",
+    "  }",
     "}",
     "",
     "bootstrap().catch(err => {",

@@ -40,8 +40,10 @@ Ce fichier est traité au moment du build par le plugin Vite.
 | `engine.maxEntities` | `number` | Nombre max d'entités simultanées (défaut `10_000`) |
 | `engine.targetFPS` | `number` | FPS cible (défaut `60`) |
 | `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | Variante WASM à charger |
-| `engine.loop` | `'internal' \| 'external'` | Propriété de la boucle de jeu (défaut `'internal'`) |
+| `engine.loop` | `'internal' \| 'external'` | Mode de boucle de jeu (défaut `'internal'`) |
 | `engine.maxDeltaSeconds` | `number` | Delta temps max par frame (défaut `0.1`) |
+| `engine.physicsHz` | `number` | Fréquence de simulation fixe en Hz. `0` = delta variable (défaut) |
+| `engine.maxCatchupSteps` | `number` | Nombre max de pas fixes par frame réelle (défaut `2`) |
 | `engine.debug` | `boolean` | Activer le mode debug global |
 | `vite` | `object` | Extension statique de la config Vite |
 | `hooks` | `Partial<GwenBuildHooks>` | Abonnements aux hooks de build |
@@ -107,6 +109,66 @@ En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellem
 ```ts
 engine.advance(delta)  // exécuter une frame avec le delta donné (en secondes)
 ```
+
+## Modes de boucle
+
+GWEN supporte trois configurations de boucle, définies via `engine.loop` et `engine.physicsHz` dans `gwen.config.ts`.
+
+### Boucle interne (défaut)
+
+Le framework appelle `requestAnimationFrame` en interne. `onUpdate` reçoit un `dt` variable à chaque frame.
+
+```ts
+// gwen.config.ts
+export default defineConfig({
+  engine: { loop: 'internal', targetFPS: 60 },
+})
+```
+
+### Boucle externe
+
+Utilisez `loop: 'external'` quand vous contrôlez la boucle vous-même — par exemple dans un rendu personnalisé, un harnais de test, ou une simulation côté serveur.
+
+```ts
+// gwen.config.ts
+export default defineConfig({
+  engine: { loop: 'external' },
+})
+```
+
+Le framework appelle `engine.startExternal()` au lieu de `engine.start()`. Avancez les frames manuellement :
+
+```ts
+// votre boucle
+function tick(dt: number) {
+  engine.advance(dt) // secondes
+  requestAnimationFrame(() => tick(getDelta()))
+}
+```
+
+### Pas fixe
+
+Définissez `physicsHz` à une valeur non nulle pour activer une boucle à pas fixe. `onUpdate` reçoit toujours `1 / physicsHz` comme `dt`, quelle que soit la cadence réelle.
+
+```ts
+export default defineConfig({
+  engine: {
+    physicsHz: 60,      // 60 pas fixes par seconde
+    maxCatchupSteps: 2, // au plus 2 pas par frame réelle
+  },
+})
+```
+
+Le pattern accumulateur :
+1. À chaque frame réelle, le temps écoulé s'accumule.
+2. Pour chaque `1 / physicsHz` secondes accumulées, un pas de simulation est déclenché.
+3. Si la machine prend du retard, `maxCatchupSteps` évite une spirale de rattrapage.
+
+`engine.timeScale` s'applique toujours : un `timeScale` de `0.5` divise par deux la vitesse de simulation effective.
+
+::: tip Quand utiliser physicsHz
+Utilisez `physicsHz` quand votre simulation nécessite des pas déterministes et reproductibles — physique, réseau, replay. Pour la logique de rendu uniquement, la boucle à delta variable est plus simple.
+:::
 
 ## Résumé de l'API
 

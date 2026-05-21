@@ -132,6 +132,8 @@ class GwenEngineImpl implements GwenEngine {
   readonly variant: "light" | "physics2d" | "physics3d";
   readonly debug: boolean;
   readonly logger: IGwenLogger;
+  physicsHz: number;
+  maxCatchupSteps: number;
 
   // ─── Disposables ─────────────────────────────────────────────────────────
   readonly disposables = new DisposableRegistry();
@@ -256,6 +258,8 @@ class GwenEngineImpl implements GwenEngine {
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
     this.variant = opts.variant ?? "light";
     this.debug = opts.debug ?? false;
+    this.physicsHz = opts.physicsHz ?? 0;
+    this.maxCatchupSteps = opts.maxCatchupSteps ?? 2;
     this.logger = createLogger("gwen:core", this.debug, () => this._frameCountOwn);
     this.provide("logger", this.logger);
     this._entityManager = new EntityManager(this.maxEntities);
@@ -396,6 +400,24 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
+  private async _handleFrameLoopError(err: unknown): Promise<void> {
+    const payload: EngineErrorPayload = {
+      code: CoreErrorCodes.FRAME_LOOP_ERROR,
+      message: err instanceof Error ? err.message : String(err),
+      cause: err,
+      frame: this._frameCountOwn,
+    };
+    await this.hooks.callHook("engine:error", payload);
+    this._errorBus?.emit({
+      level: "error",
+      code: CoreErrorCodes.FRAME_LOOP_ERROR,
+      message: payload.message,
+      source: "@gwenjs/core",
+      error: err,
+      context: { frame: this._frameCountOwn },
+    });
+  }
+
   async start(): Promise<void> {
     if (this._running) return;
     this._running = true;
@@ -404,45 +426,60 @@ class GwenEngineImpl implements GwenEngine {
     await this.hooks.callHook("engine:init");
     await this.hooks.callHook("engine:start");
 
-    // Drive the frame loop via _scheduleFrame (RAF on main thread, setTimeout in Workers).
-    const loop = async (now: number) => {
-      if (!this._running) return;
+    if (this.physicsHz) {
+      // Fixed timestep loop — accumulator pattern
+      const fixedDt = 1 / this.physicsHz;
+      let accumulator = 0;
 
-      // Throttle to targetFPS: skip frame if minimum interval hasn't elapsed.
-      // Use a 0.5ms tolerance to account for RAF timing jitter.
-      const frameBudgetMs = 1000 / this.targetFPS;
-      if (now - this._lastFrameTime < frameBudgetMs - 0.5) {
-        this._rafHandle = this._scheduleFrame(loop);
-        return;
-      }
+      const loop = async (now: number) => {
+        if (!this._running) return;
 
-      const rawDt = now - this._lastFrameTime;
-      const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
-      this._lastFrameTime = now;
-      this._deltaTime = dt;
-      try {
-        await this._runFrame(dt);
-      } catch (err) {
-        const payload: EngineErrorPayload = {
-          code: CoreErrorCodes.FRAME_LOOP_ERROR,
-          message: err instanceof Error ? err.message : String(err),
-          cause: err,
-          frame: this._frameCountOwn,
-        };
-        await this.hooks.callHook("engine:error", payload);
-        this._errorBus?.emit({
-          level: "error",
-          code: CoreErrorCodes.FRAME_LOOP_ERROR,
-          message: payload.message,
-          source: "@gwenjs/core",
-          error: err,
-          context: { frame: this._frameCountOwn },
-        });
-      } finally {
+        const rawDt = now - this._lastFrameTime;
+        this._lastFrameTime = now;
+        accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
+
+        let steps = 0;
+        while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
+          const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
+          this._deltaTime = scaledDt;
+          try {
+            await this._runFrame(scaledDt);
+          } catch (err) {
+            await this._handleFrameLoopError(err);
+          }
+          accumulator -= fixedDt;
+          steps++;
+        }
         if (this._running) this._rafHandle = this._scheduleFrame(loop);
-      }
-    };
-    this._rafHandle = this._scheduleFrame(loop);
+      };
+      this._rafHandle = this._scheduleFrame(loop);
+    } else {
+      // Variable dt loop — original behaviour
+      const loop = async (now: number) => {
+        if (!this._running) return;
+
+        // Throttle to targetFPS: skip frame if minimum interval hasn't elapsed.
+        // Use a 0.5ms tolerance to account for RAF timing jitter.
+        const frameBudgetMs = 1000 / this.targetFPS;
+        if (now - this._lastFrameTime < frameBudgetMs - 0.5) {
+          this._rafHandle = this._scheduleFrame(loop);
+          return;
+        }
+
+        const rawDt = now - this._lastFrameTime;
+        const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
+        this._lastFrameTime = now;
+        this._deltaTime = dt;
+        try {
+          await this._runFrame(dt);
+        } catch (err) {
+          await this._handleFrameLoopError(err);
+        } finally {
+          if (this._running) this._rafHandle = this._scheduleFrame(loop);
+        }
+      };
+      this._rafHandle = this._scheduleFrame(loop);
+    }
   }
 
   async stop(): Promise<void> {
@@ -495,21 +532,7 @@ class GwenEngineImpl implements GwenEngine {
     try {
       await this._runFrame(cappedDt);
     } catch (err) {
-      const payload: EngineErrorPayload = {
-        code: CoreErrorCodes.FRAME_LOOP_ERROR,
-        message: err instanceof Error ? err.message : String(err),
-        cause: err,
-        frame: this._frameCountOwn,
-      };
-      await this.hooks.callHook("engine:error", payload);
-      this._errorBus?.emit({
-        level: "error",
-        code: CoreErrorCodes.FRAME_LOOP_ERROR,
-        message: payload.message,
-        source: "@gwenjs/core",
-        error: err,
-        context: { frame: this._frameCountOwn },
-      });
+      await this._handleFrameLoopError(err);
     } finally {
       this._advancing = false;
     }

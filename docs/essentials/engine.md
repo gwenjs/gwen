@@ -40,8 +40,10 @@ This file is processed at build time by the Vite plugin.
 | `engine.maxEntities` | `number` | Max simultaneous entities (default `10_000`) |
 | `engine.targetFPS` | `number` | Target FPS (default `60`) |
 | `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | WASM variant to load |
-| `engine.loop` | `'internal' \| 'external'` | Game loop ownership (default `'internal'`) |
+| `engine.loop` | `'internal' \| 'external'` | Game loop mode (default `'internal'`) |
 | `engine.maxDeltaSeconds` | `number` | Max delta time per frame (default `0.1`) |
+| `engine.physicsHz` | `number` | Fixed simulation rate in Hz. `0` = variable dt (default) |
+| `engine.maxCatchupSteps` | `number` | Max fixed steps per real frame (default `2`) |
 | `engine.debug` | `boolean` | Enable global debug mode |
 | `vite` | `object` | Static Vite config extension |
 | `hooks` | `Partial<GwenBuildHooks>` | Build-time hook subscriptions |
@@ -107,6 +109,66 @@ For external loop mode (`engine.loop: 'external'`), advance frames manually with
 ```ts
 engine.advance(delta)  // tick one frame with the given delta (seconds)
 ```
+
+## Loop Modes
+
+GWEN supports three loop configurations, set via `engine.loop` and `engine.physicsHz` in `gwen.config.ts`.
+
+### Internal loop (default)
+
+The framework calls `requestAnimationFrame` internally. `onUpdate` receives a variable `dt` each frame.
+
+```ts
+// gwen.config.ts
+export default defineConfig({
+  engine: { loop: 'internal', targetFPS: 60 },
+})
+```
+
+### External loop
+
+Set `loop: 'external'` when you control the frame loop yourself — for example inside a custom renderer, a test harness, or a server-side simulation.
+
+```ts
+// gwen.config.ts
+export default defineConfig({
+  engine: { loop: 'external' },
+})
+```
+
+The framework calls `engine.startExternal()` instead of `engine.start()`. Drive frames manually:
+
+```ts
+// your loop
+function tick(dt: number) {
+  engine.advance(dt) // seconds
+  requestAnimationFrame(() => tick(getDelta()))
+}
+```
+
+### Fixed timestep
+
+Set `physicsHz` to a non-zero value to enable a fixed-step accumulator loop. `onUpdate` always receives `1 / physicsHz` as `dt`, regardless of actual frame pacing.
+
+```ts
+export default defineConfig({
+  engine: {
+    physicsHz: 60,      // 60 fixed steps per second
+    maxCatchupSteps: 2, // at most 2 steps per real frame
+  },
+})
+```
+
+The accumulator pattern:
+1. Each real frame, elapsed time accumulates.
+2. For each `1 / physicsHz` seconds accumulated, one simulation step fires.
+3. If the machine falls behind, `maxCatchupSteps` prevents a runaway catch-up spiral.
+
+`engine.timeScale` still applies: a `timeScale` of `0.5` halves the effective simulation speed.
+
+::: tip When to use physicsHz
+Use `physicsHz` when your simulation requires deterministic, reproducible steps — physics, networking, replay. For rendering-only logic, the default variable-dt loop is simpler.
+:::
 
 ## API Summary
 

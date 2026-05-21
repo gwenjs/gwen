@@ -52,6 +52,8 @@ export default defineConfig({
 | `engine.variant` | `'light' \| 'physics2d' \| 'physics3d'` | auto | WASM core variant to load. Auto-detected from `modules` when omitted. |
 | `engine.loop` | `'internal' \| 'external'` | `'internal'` | Who owns the game loop (`requestAnimationFrame`). |
 | `engine.maxDeltaSeconds` | `number` | `0.1` | Maximum delta time clamp per frame (seconds). |
+| `engine.physicsHz` | `number` | `0` | Fixed simulation rate in Hz. When non-zero, `start()` uses a fixed-step accumulator loop. |
+| `engine.maxCatchupSteps` | `number` | `2` | Maximum fixed steps dispatched per real frame (spiral-of-death prevention). |
 | `engine.debug` | `boolean` | `false` | Enables verbose logging, per-frame sentinel checks, phase timing warnings, and plugin setup logs. |
 | `globalCss` | `string[]` | `[]` | CSS files injected into every page, relative to project root (e.g. `'./src/styles/global.css'`). |
 | `viewports` | `Record<string, ViewportRegion>` | — | Static viewport declarations (normalized 0–1 screen regions). If absent, a fullscreen `'main'` viewport is created automatically. |

@@ -26,6 +26,8 @@ const DEFAULT_ENGINE = {
   loop: "internal" as const,
   maxDeltaSeconds: 0.1,
   debug: false,
+  physicsHz: 0,
+  maxCatchupSteps: 2,
 };
 
 const DEFAULT_LOGGER = {

@@ -110,7 +110,9 @@ export interface GwenUserConfig extends GwenModuleOptions {
     maxEntities?: number;
     targetFPS?: number;
     variant?: "light" | "physics2d" | "physics3d";
-    loop?: "internal" | "external";
+    loop?: "internal" | "external" | "fixed";
+    physicsHz?: number; // fréquence fixe, ex: 60
+    maxCatchupSteps?: number; // défaut 2
     maxDeltaSeconds?: number;
     /**
      * Enable global debug mode. Activates verbose logging, per-frame sentinel checks,

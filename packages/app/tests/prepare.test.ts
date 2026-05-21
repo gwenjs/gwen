@@ -18,6 +18,8 @@ function makeConfig(overrides: Partial<ResolvedGwenConfig> = {}): ResolvedGwenCo
       loop: "internal",
       maxDeltaSeconds: 0.1,
       debug: false,
+      physicsHz: 0,
+      maxCatchupSteps: 2,
     },
     logger: {
       minLevel: "warn",

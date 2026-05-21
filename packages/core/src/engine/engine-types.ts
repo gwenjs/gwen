@@ -304,6 +304,33 @@ export interface GwenEngineOptions {
    * @minimum 1
    */
   queryCacheSize?: number;
+  /**
+   * Fixed-timestep simulation rate in Hz.
+   *
+   * When non-zero, `engine.start()` switches from a variable-dt loop to a
+   * fixed-step accumulator loop. Each real frame accumulates elapsed time and
+   * dispatches as many fixed-dt steps as needed to consume it.
+   *
+   * Set this to your physics simulation rate (e.g. `60` for 60 Hz). Systems
+   * registered with `onUpdate` receive `1 / physicsHz` as `dt` regardless of
+   * actual frame pacing.
+   *
+   * @default 0 (variable dt — standard game loop)
+   * @see maxCatchupSteps
+   */
+  physicsHz?: number;
+
+  /**
+   * Maximum number of fixed simulation steps dispatched in a single real frame.
+   *
+   * Prevents the spiral-of-death: if the machine falls behind (e.g. tab
+   * hidden), accumulated time is capped so the engine does not attempt to
+   * catch up indefinitely.
+   *
+   * @default 2
+   * @see physicsHz
+   */
+  maxCatchupSteps?: number;
 }
 
 /**
