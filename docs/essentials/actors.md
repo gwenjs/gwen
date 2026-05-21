@@ -64,9 +64,22 @@ export const GameScene = defineScene('game', () => {
   const enemy = useActor(EnemyActor)
 
   onEnter(() => enemy.spawn({ hp: 100 }))
-  onExit(() => enemy.despawnAll())
+  onExit(() => enemy.despawnAll()) // explicit — recommended
 })
 ```
+
+::: info Auto-cleanup on scene exit
+`useActor()` registers a safety-net cleanup that automatically despawns any remaining instances when the scene exits. You do not need an explicit `onExit` for correctness.
+
+However, if you leave instances alive at exit without an explicit `onExit`, GWEN emits a dev warning (requires `engine.debug: true` in `gwen.config.ts`):
+
+```
+[auto-cleanup] 2 instance(s) of "EnemyActor" were not despawned before scene exit
+— cleaned up automatically. Add onExit(() => actor.despawnAll()) to silence this warning.
+```
+
+Add the explicit `onExit` call to silence the warning and make the cleanup intent visible in code.
+:::
 
 ## ActorHandle API
 

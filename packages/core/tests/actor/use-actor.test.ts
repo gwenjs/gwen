@@ -1,8 +1,9 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor, usePrefab } from "../../src/actor/runtime/use-actor";
 import { createEngine } from "../../src/engine/gwen-engine";
+import { GwenScope } from "../../src/context/scope";
 import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
 import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
 import type { GwenPlugin } from "../../src/engine/gwen-engine";
@@ -235,5 +236,97 @@ describe("ActorHandle[Symbol.iterator]", () => {
       collected.push(api.mark());
     }
     expect(collected).toEqual(["x"]);
+  });
+});
+
+describe("useActor — auto-cleanup on scene exit", () => {
+  it("despawns live instances when scene:beforeLeave fires", async () => {
+    const engine = await createEngine();
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const scope = new GwenScope(engine, { type: "scene" });
+    const handle = scope.run(() => engine.run(() => useActor(Actor)));
+
+    handle.spawn();
+    handle.spawn();
+    expect(handle.count()).toBe(2);
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(handle.count()).toBe(0);
+    scope.dispose();
+  });
+
+  it("does not fire warning when 0 instances remain at exit", async () => {
+    const engine = await createEngine({ debug: true });
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const scope = new GwenScope(engine, { type: "scene" });
+    const handle = scope.run(() => engine.run(() => useActor(Actor)));
+
+    const id = handle.spawn();
+    handle.despawn(id);
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+    scope.dispose();
+  });
+
+  it("logs a dev warning (debug: true) when auto-cleanup runs", async () => {
+    const engine = await createEngine({ debug: true });
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const scope = new GwenScope(engine, { type: "scene" });
+    const handle = scope.run(() => engine.run(() => useActor(Actor)));
+
+    handle.spawn();
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0]![0]).toMatch(/auto-cleanup/);
+    warnSpy.mockRestore();
+    scope.dispose();
+  });
+
+  it("does not log a warning when debug is false", async () => {
+    const engine = await createEngine({ debug: false });
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const scope = new GwenScope(engine, { type: "scene" });
+    const handle = scope.run(() => engine.run(() => useActor(Actor)));
+
+    handle.spawn();
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    expect(handle.count()).toBe(0); // cleaned up silently
+    warnSpy.mockRestore();
+    scope.dispose();
+  });
+
+  it("does not register cleanup when called outside a scene scope", async () => {
+    const engine = await createEngine({ debug: true });
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    // No active scope — no auto-cleanup hook registered
+    const handle = engine.run(() => useActor(Actor));
+    handle.spawn();
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(handle.count()).toBe(1);
+    handle.despawnAll();
   });
 });

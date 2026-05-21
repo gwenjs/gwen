@@ -25,6 +25,7 @@
 import { useEngine } from "../../engine/context";
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
+import { GwenScope } from "../../context/scope.js";
 import type { ActorDefinition, PrefabDefinition } from "./types";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import type { EntityId } from "../../engine/engine-api";
@@ -263,6 +264,26 @@ export function useActor<Props, PublicAPI>(
       return _singletonId;
     },
   };
+
+  // Auto-cleanup: despawn live instances when the enclosing scene exits.
+  // Mirrors the pattern used by useActorPool — scoped to the active GwenScope so
+  // the hook is removed as soon as the scene's scope is disposed.
+  const scope = GwenScope.current();
+  if (scope) {
+    scope.hook("scene:beforeLeave", () => {
+      const n = actorDef._instances.size;
+      if (n > 0) {
+        if (engine.debug) {
+          engine.logger.warn(
+            `[auto-cleanup] ${n} instance(s) of "${actorDef._plugin.name}" were not despawned ` +
+              `before scene exit — cleaned up automatically. ` +
+              `Add onExit(() => actor.despawnAll()) to silence this warning.`,
+          );
+        }
+        baseHandle.despawnAll();
+      }
+    });
+  }
 
   // Proxy: ActorHandle methods take priority; everything else delegates to PublicAPI.
   return new Proxy(baseHandle as object, {
