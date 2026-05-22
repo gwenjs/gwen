@@ -22,7 +22,7 @@ export {
   type CameraErrorCode,
   CameraViewportNotFoundError,
   CameraEmptyPathError,
-} from "./errors.js";
+} from "./errors";
 
 // Shared value types
 export type {
@@ -34,18 +34,29 @@ export type {
   FollowOpts,
   ShakeOpts,
   ShakeHandle,
-} from "./types.js";
+} from "./types";
 
 // ECS components
-export { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components.js";
+export { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components";
 
 // Side-car stores (consumed by camera2d and camera3d handles)
-export { cameraViewportMap } from "./camera-viewport-map.js";
-export { cameraPathStore } from "./camera-path-store.js";
+export { cameraViewportMap } from "./camera-viewport-map";
+export { cameraPathStore } from "./camera-path-store";
 
 // System and plugin
-export { CameraSystem } from "./camera-system.js";
-export { CameraCorePlugin } from "./camera-core-plugin.js";
+export { CameraSystem } from "./camera-system";
+export { CameraCorePlugin } from "./camera-core-plugin";
+
+export { OrthographicCameraPrefab, PerspectiveCameraPrefab } from "./camera-prefabs";
+export { useCamera } from "./use-camera";
+export type { Camera2DOpts, Camera3DOpts } from "./use-camera";
+export type {
+  CameraHandleBase,
+  Camera2DHandle,
+  Camera3DHandle,
+  BoundsOpts2D,
+  BoundsOpts3D,
+} from "./camera-handle";
 
 // ── GwenRuntimeHooks augmentation — camera:* hooks ───────────────────────────
 // viewport:* hooks are declared in @gwenjs/renderer-core.
