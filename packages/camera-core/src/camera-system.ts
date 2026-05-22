@@ -49,6 +49,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       const id = entity.id;
       const cam = engine.getComponent(id, Camera);
       if (!cam || cam.active !== 1) continue;
+      if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
 
       const viewportId = cameraViewportMap.get(id);
       if (!viewportId) continue;
@@ -184,6 +185,7 @@ export const CameraSystem = defineSystem("CameraSystem", () => {
       const id = entity.id;
       const cam = engine.getComponent(id, Camera);
       if (!cam || cam.active !== 1) continue;
+      if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
       const viewportId = cameraViewportMap.get(id);
       if (!viewportId) continue;
       if (!cameras.get(viewportId)) continue;

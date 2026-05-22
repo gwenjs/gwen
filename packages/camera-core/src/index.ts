@@ -58,6 +58,13 @@ export type {
   BoundsOpts3D,
 } from "./camera-handle";
 
+// XR cameras
+export { cameraMatrixStore } from "./camera-matrix-store";
+export { XRCameraPrefab } from "./xr-camera-prefab";
+export { useXRCamera } from "./use-xr-camera";
+export type { XRCameraOpts } from "./use-xr-camera";
+export type { XRViewData, XRCameraHandle } from "./xr-camera-handle";
+
 // ── GwenRuntimeHooks augmentation — camera:* hooks ───────────────────────────
 // viewport:* hooks are declared in @gwenjs/renderer-core.
 import type { EntityId } from "@gwenjs/core";

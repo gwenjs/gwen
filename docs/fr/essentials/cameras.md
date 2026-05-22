@@ -215,6 +215,54 @@ export const TopDownCameraActor = defineActor(OrthographicCameraPrefab, (props: 
 })
 ```
 
+## Caméras WebXR
+
+Pour les applications WebXR (VR/AR), utilisez `useXRCamera()` à la place de `useCamera()`. Une seule caméra logique représente le casque (le viewer). Le plugin XR renderer pilote le rendu par œil en interne en appelant `_setViews()` à chaque frame avec les données de `XRViewerPose.views` — vous ne gérez jamais directement les yeux gauche/droit.
+
+`CameraSystem` ignore entièrement les caméras XR (`projectionType === 2`). Le plugin XR renderer met à jour `CameraManager` directement.
+
+### Définir un acteur caméra XR
+
+```ts
+import { XRCameraPrefab, useXRCamera } from '@gwenjs/camera-core'
+
+export const XRViewerActor = defineActor(XRCameraPrefab, () => {
+  const cam = useXRCamera({ viewport: 'main', priority: 0 })
+
+  onUpdate(() => {
+    const head = cam.getHeadPosition()
+    if (head) updateHUDPosition(head.x, head.y, head.z)
+  })
+
+  // Exposer _setViews pour que le plugin XR renderer pilote la caméra à chaque frame.
+  return { cam }
+})
+```
+
+### XRCameraOpts
+
+| Option | Type | Défaut | Description |
+|---|---|---|---|
+| `viewport` | `string` | `'main'` | Viewport cible. |
+| `priority` | `number` | `0` | Priorité de rendu. |
+
+### API XRCameraHandle
+
+```ts
+cam.setViewport('main')       // réassigner à un autre viewport
+cam.getViewport()             // lire l'id du viewport actuel
+cam.setPriority(10)           // modifier la priorité de rendu
+cam.setActive(false)          // désactiver la caméra
+cam.getHeadPosition()         // position monde de la tête dérivée de la matrice de vue, ou undefined
+cam._setViews(views)          // appelé par le plugin XR renderer à chaque frame — ne pas appeler manuellement
+```
+
+`getHeadPosition()` dérive la position monde de la caméra depuis la première matrice de vue via la formule column-major `p = -Rᵀ · t`. Retourne `undefined` jusqu'au premier appel à `_setViews()`.
+
+::: info Acteur uniquement
+`useXRCamera()` nécessite un contexte `defineActor()` (même contrainte que `useCamera()`). Il utilise `useEntityId()` et `useComponent()` en interne.
+:::
+
 ## Résumé de l'API
 
 | | |
@@ -233,6 +281,11 @@ export const TopDownCameraActor = defineActor(OrthographicCameraPrefab, (props: 
 | `cam.setBounds(opts)` | Contraindre la position |
 | `cam.clearBounds()` | Supprimer la contrainte de position |
 | `cam.shake(intensity, opts?)` | Appliquer un screen shake, retourne un `ShakeHandle` |
+
+| `XRCameraPrefab` | Prefab pour caméras WebXR — inclut `Camera` avec `projectionType: 2` |
+| `useXRCamera(opts?)` | Composable acteur — retourne `XRCameraHandle` |
+| `cam.getHeadPosition()` | Position monde de la tête dérivée de la matrice de vue |
+| `cam._setViews(views)` | Appelé par le plugin XR renderer à chaque frame |
 
 ## Prochaines étapes
 
