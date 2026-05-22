@@ -6,18 +6,23 @@
  *
  * Before (ergonomic):
  * ```ts
- * for (const e of entities) {
- *   const pos = useComponent(e, Position)
- *   useComponent(e, Position, { x: pos.x + 1, y: pos.y })
+ * for (const entity of entities) {
+ *   const pos = useComponent(entity.id, Position)
+ *   const vel = useComponent(entity.id, Velocity)
+ *   pos.x += vel.x * dt
+ *   pos.y += vel.y * dt
  * }
  * ```
  *
  * After (optimized):
  * ```ts
  * const { entityCount: _count_position, data: _position, slots: _slots, gens: _gens } =
- *   __gwen_bridge__.queryReadBulk([1], 1, 2);
+ *   __gwen_bridge__.queryReadBulk([1, 2], 1, 2);
+ * const { data: _velocity } =
+ *   __gwen_bridge__.queryReadBulk([1, 2], 2, 2);
  * for (let _i = 0; _i < _count_position; _i++) {
- *   // reads: _position[_i * 2 + 0]  (was pos.x)
+ *   _position[_i * 2 + 0] += _velocity[_i * 2 + 0] * dt
+ *   _position[_i * 2 + 1] += _velocity[_i * 2 + 1] * dt
  * }
  * __gwen_bridge__.queryWriteBulk(_slots, _gens, 1, _position);
  * ```
@@ -34,11 +39,13 @@ import { CodeGenerator } from "./code-generator.js";
  *
  * Algorithm (applied in reverse source order to avoid offset invalidation):
  *  1. Replace property accesses: `pos.x` → `_position[_i * 2 + 0]`
- *  2. Remove write call statements (replaced by bulk write after the loop)
- *  3. Remove read declaration statements (data is now in the typed array)
- *  4. Replace the for-of loop header with a numeric for loop
- *  5. After the for-of closing `}`, insert `queryWriteBulk` calls
- *  6. Before the for-of loop, insert all `queryReadBulk` declarations
+ *  2. Remove read declaration statements (data is now in the typed array)
+ *  3. Replace the for-of loop header with a numeric for loop
+ *  4. After the for-of closing `}`, insert `queryWriteBulk` calls
+ *  5. Before the for-of loop, insert all `queryReadBulk` declarations
+ *
+ * Assignment statements (`pos.x += vel.x * dt`) are kept in place — only their
+ * member expressions are rewritten. No statement-level removal is needed for writes.
  *
  * @param s        - MagicString wrapping the original source.
  * @param pattern  - Detected optimizable pattern with source positions.
@@ -91,26 +98,24 @@ export function applyBulkTransform(
     s.overwrite(acc.start, acc.end, `${dataVar}[_i * ${entry.f32Stride} + ${fieldIndex}]`);
   }
 
-  // Steps 2 & 3: Remove write-call and read-declaration statements.
-  // Sort in reverse order so MagicString offset bookkeeping stays correct.
-  const toRemove = [
-    ...pos.writeCalls.map((w) => ({ start: w.start, end: w.end })),
-    ...pos.readDecls.map((d) => ({ start: d.start, end: d.end })),
-  ].sort((a, b) => b.start - a.start);
-  for (const range of toRemove) {
-    s.remove(range.start, range.end);
+  // Step 2: Remove read declaration statements in reverse order.
+  // Assignment statements (proxy mutations) are intentionally left in place —
+  // their member expressions were already rewritten in Step 1.
+  const sortedDecls = [...pos.readDecls].sort((a, b) => b.start - a.start);
+  for (const decl of sortedDecls) {
+    s.remove(decl.start, decl.end);
   }
 
-  // Step 4: Replace `for (const e of entities)` header with `for (let _i = 0; _i < _count; _i++)`.
+  // Step 3: Replace `for (const e of entities)` header with a numeric for loop.
   // `forOfStart` → `forBodyStart` covers exactly the loop header (everything before `{`).
   const firstComp = pattern.readComponents[0] ?? pattern.writeComponents[0];
   if (!firstComp) return false;
   const countVar = `_count_${firstComp.toLowerCase()}`;
   s.overwrite(pos.forOfStart, pos.forBodyStart, `for (let _i = 0; _i < ${countVar}; _i++) `);
 
-  // Step 5: Insert `queryWriteBulk` calls immediately after the closing `}` of the loop.
+  // Step 4: Insert `queryWriteBulk` calls immediately after the closing `}` of the loop.
   const writeLines: string[] = [];
-  for (const comp of pattern.writeComponents) {
+  for (const comp of pos.writeTargets) {
     const dataVar = compToDataVar.get(comp)!;
     writeLines.push("\n    " + gen.generateBulkWrite(comp, "_slots", "_gens", dataVar) + ";");
   }
@@ -118,7 +123,7 @@ export function applyBulkTransform(
     s.appendLeft(pos.forOfEnd, writeLines.join(""));
   }
 
-  // Step 6: Insert `queryReadBulk` declarations immediately before the for loop.
+  // Step 5: Insert `queryReadBulk` declarations immediately before the for loop.
   // The first read component gets the full destructuring including entityCount/slots/gens.
   // Subsequent components only destructure the `data` buffer.
   const readLines: string[] = [];
@@ -129,11 +134,9 @@ export function applyBulkTransform(
     if (!entry) continue;
     const dataVar = compToDataVar.get(comp)!;
     if (isFirst) {
-      // Full destructuring: entityCount, data, slots, gens
       readLines.push(gen.generateBulkRead(pattern.queryComponents, comp) + ";");
       isFirst = false;
     } else {
-      // Data-only destructuring for additional read components
       const typeIds = pattern.queryComponents.map((n) => manifest.get(n)!.typeId);
       readLines.push(
         `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
@@ -141,16 +144,15 @@ export function applyBulkTransform(
     }
   }
 
-  // Write-only components also need a queryReadBulk to obtain their data buffer and,
-  // for the first component overall, the entityCount / slots / gens.
-  for (const comp of pattern.writeComponents) {
+  // Write-only components (not in readComponents) also need a queryReadBulk
+  // to obtain their data buffer and, for the very first component, entityCount/slots/gens.
+  for (const comp of pos.writeTargets) {
     if (pattern.readComponents.includes(comp)) continue;
     const entry = manifest.get(comp);
     if (!entry) continue;
     const dataVar = compToDataVar.get(comp)!;
     const typeIds = pattern.queryComponents.map((n) => manifest.get(n)!.typeId);
     if (isFirst) {
-      // First component overall — include entityCount, slots, gens
       readLines.push(
         `const { entityCount: ${countVar}, data: ${dataVar}, slots: _slots, gens: _gens } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
       );

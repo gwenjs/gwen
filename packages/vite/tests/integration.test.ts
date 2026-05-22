@@ -26,21 +26,23 @@ function makeTmp(): string {
 }
 
 /** Minimal TypeScript source for a system that can be bulk-transformed. */
-const SYSTEM_SOURCE = `
-import { defineSystem, useQuery, onUpdate, useComponent } from '@gwenjs/core/system';
-import { Position, Velocity } from './components';
-
-export const MovementSystem = defineSystem(function MovementSystem() {
-  const entities = useQuery([Position, Velocity]);
-
-  onUpdate((dt) => {
-    for (const e of entities) {
-      const pos = useComponent(e, Position);
-      useComponent(e, Position, { x: pos.x + Velocity.x[e] * dt, y: pos.y + Velocity.y[e] * dt });
-    }
-  });
-});
-`;
+const SYSTEM_SOURCE = `                                                                                                                                                                                                                                                                                                                                                                                                      
+  import { defineSystem, useQuery, onUpdate, useComponent } from '@gwenjs/core/system';                                                                                                                                                                                                                                                                                                                                        
+  import { Position, Velocity } from './components';                                     
+                                                                                                                                                                                                                                                                                                                                                                                                                               
+  export const MovementSystem = defineSystem(function MovementSystem() {              
+    const entities = useQuery([Position, Velocity]);                                                                                                                                                                                                                                                                                                                                                                           
+                                                                                                                                                                                                                                                                                                                                                                                                                               
+    onUpdate((dt) => {                                                                
+      for (const e of entities) {                                                                                                                                                                                                                                                                                                                                                                                              
+        const pos = useComponent(e.id, Position);                                                                                                                                                                                                                                                                                                                                                                              
+        const vel = useComponent(e.id, Velocity);                                                                                                                                                                                                                                                                                                                                                                              
+        pos.x += vel.x * dt;                                                                                                                                                                                                                                                                                                                                                                                                   
+        pos.y += vel.y * dt;                                                                                                                                                                                                                                                                                                                                                                                                   
+      }                                                                                                                                                                                                                                                                                                                                                                                                                        
+    });                                                                                                                                                                                                                                                                                                                                                                                                                        
+  });                                                                                                                                                                                                                                                                                                                                                                                                                          
+  `;
 
 /** Minimal TypeScript source for a Position component (f32 fields). */
 const POSITION_SOURCE = `

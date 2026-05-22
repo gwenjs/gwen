@@ -1,4 +1,3 @@
-// packages/core/src/system/index.ts
 export {
   defineSystem,
   onUpdate,
@@ -10,3 +9,4 @@ export {
   useWasmModule,
 } from "./runtime/define-system";
 export type { LiveQuery, ComponentDef, EntityAccessor } from "./runtime/define-system";
+export { useComponent } from "./runtime/use-component";

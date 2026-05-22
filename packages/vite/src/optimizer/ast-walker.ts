@@ -3,6 +3,13 @@
  * `defineSystem` bodies.  Used by the GWEN Vite optimizer to find ECS
  * query patterns that can be pre-compiled to bulk WASM calls.
  *
+ * Detection strategy:
+ * 1. Find `useQuery([ComponentA, ComponentB])` calls — extract component names.
+ * 2. Find `onUpdate(() => { ... })` blocks — scan body for `useComponent` calls.
+ * 3. Classify each `useComponent(entityId, Comp)` (2-arg) as a read declaration.
+ * 4. Detect proxy mutations (`pos.x += vel.x * dt`) as write targets, using
+ *    the read-variable map to resolve variable names to component names.
+ *
  * Uses `oxc-parser` for fast, accurate TypeScript parsing and `oxc-walker`
  * for AST traversal without Babel as a dependency.
  */
@@ -16,8 +23,7 @@ import type {
   VariableDeclarator,
   ForOfStatement,
   ExpressionStatement,
-  ObjectExpression,
-  ObjectProperty,
+  AssignmentExpression,
   StaticMemberExpression,
   BindingIdentifier,
   Statement,
@@ -30,8 +36,6 @@ import {
   getIdentifierName,
   getFunctionBodyStatements,
   getArrayElements,
-  getObjectProperties,
-  getPropertyKeyName,
 } from "../oxc/index.js";
 
 // ─── AstWalker ────────────────────────────────────────────────────────────────
@@ -40,17 +44,13 @@ import {
  * Walks a TypeScript source file AST to find `useQuery + onUpdate` patterns
  * that the optimizer can replace with bulk WASM calls.
  *
- * Detection strategy:
- * 1. Find `useQuery([ComponentA, ComponentB])` calls — extract component names.
- * 2. Find `onUpdate(() => { ... })` blocks — scan body for `useComponent` calls.
- * 3. Classify each `useComponent(e, Comp)` (2-arg) as a read, and
- *    `useComponent(e, Comp, newValue)` (3-arg) as a write.
- *
  * @example
  * ```ts
  * const walker = new AstWalker('src/systems/movement.ts');
  * const patterns = walker.walk(sourceCode);
  * // patterns[0].queryComponents → ['Position', 'Velocity']
+ * // patterns[0].readComponents  → ['Position', 'Velocity']
+ * // patterns[0].writeComponents → ['Position']
  * ```
  */
 export class AstWalker {
@@ -61,7 +61,7 @@ export class AstWalker {
 
   /**
    * Parse and walk `source`, returning all detected `OptimizablePattern`
-   * candidates.  Returns an empty array if the source has no `useQuery` calls
+   * candidates. Returns an empty array if the source has no `useQuery` calls
    * or cannot be parsed.
    *
    * @param source - TypeScript source code to analyze.
@@ -74,8 +74,6 @@ export class AstWalker {
     if (!parsed) return [];
 
     const patterns: OptimizablePattern[] = [];
-    // Capture `filename` in a closure variable — inside the `walk` callback,
-    // `this` refers to `WalkerThisContextEnter`, not `AstWalker`.
     const filename = this.filename;
 
     walk(parsed.program, {
@@ -100,7 +98,6 @@ export class AstWalker {
           filename,
         );
         patterns.push({ queryComponents, readComponents, writeComponents, loc, positions });
-        // Do not recurse into the defineSystem callback body.
         this.skip();
       },
     });
@@ -114,9 +111,6 @@ export class AstWalker {
 /**
  * Extract component names from `useQuery([ComponentA, ComponentB])` calls
  * inside the outer function body.
- *
- * @param fn - The function/arrow expression body to search.
- * @returns Array of component identifier names found in `useQuery` calls.
  */
 function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression): string[] {
   const names: string[] = [];
@@ -143,12 +137,10 @@ function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression
 
 /**
  * Extract read and write component usage from `onUpdate` callback bodies.
- * Also extracts source positions (Phase 2) for bulk transformation.
  *
- * @param fn       - The `defineSystem` function containing `onUpdate` calls.
- * @param filename - Source filename for location metadata.
- * @returns Sets of read/write component names, source location of the
- *   `onUpdate` call, and optional source positions for bulk transformation.
+ * Reads are detected from `useComponent(entityId, Comp)` 2-arg declarations.
+ * Writes are detected from proxy mutations (`pos.x += ...`) using the
+ * read-variable map built from the read declarations.
  */
 function extractUpdateUsage(
   fn: FunctionExpression | ArrowFunctionExpression,
@@ -171,9 +163,6 @@ function extractUpdateUsage(
     if (exprStmt.expression.type !== "CallExpression") continue;
     if (!isCallTo(exprStmt.expression as CallExpression, "onUpdate")) continue;
 
-    // OXC provides byte spans (.start/.end), not line/column.
-    // The optimizer only uses this for human-readable diagnostics, so
-    // defaulting to line 1 is acceptable.
     loc = { line: 1, column: 0, file: filename };
 
     const updateArgs = getCallArgs(exprStmt.expression as CallExpression);
@@ -184,15 +173,21 @@ function extractUpdateUsage(
     }
 
     const onUpdateCb = updateCb as FunctionExpression | ArrowFunctionExpression;
-
     const innerStmts = getFunctionBodyStatements(onUpdateCb);
+
+    // Pass 1: collect read declarations (2-arg useComponent calls).
     for (const innerStmt of innerStmts) {
-      collectUseComponentCalls(innerStmt, reads, writes);
+      collectUseComponentReads(innerStmt, reads);
     }
 
-    // Phase 2: build the read-variable → component map and extract source positions
-    // for BulkTransformer to perform MagicString-based code rewrites.
+    // Build the variable → component map from read declarations.
     const readVarMap = buildReadVarMap(onUpdateCb, filename);
+
+    // Pass 2: collect write targets from proxy mutations using the read-var map.
+    for (const innerStmt of innerStmts) {
+      collectAssignmentWrites(innerStmt, readVarMap, writes);
+    }
+
     positions = extractForOfPositions(onUpdateCb, readVarMap, filename);
   }
 
@@ -200,29 +195,22 @@ function extractUpdateUsage(
 }
 
 /**
- * Recursively collect `useComponent` read and write calls from a statement.
+ * Recursively collect 2-arg `useComponent` read declarations from a statement.
  * Handles `for-of` loops that wrap the component access calls.
  *
- * Classification:
- * - `useComponent(entity, Comp)` — **read** (2 args)
- * - `useComponent(entity, Comp, value)` — **write** (3 args)
- *
- * @param node   - AST statement node to inspect.
- * @param reads  - Accumulator set for read component names.
- * @param writes - Accumulator set for write component names.
+ * Classification: `useComponent(entityId, Comp)` — **read** (2 args).
  */
-function collectUseComponentCalls(node: Statement, reads: Set<string>, writes: Set<string>): void {
-  // Recurse into for-of loop bodies (the common ECS iteration pattern).
+function collectUseComponentReads(node: Statement, reads: Set<string>): void {
   if (node.type === "ForOfStatement") {
     const forOf = node as ForOfStatement;
     if (forOf.body.type === "BlockStatement") {
       const block = forOf.body as unknown as { body: Statement[] };
-      for (const s of block.body) collectUseComponentCalls(s, reads, writes);
+      for (const s of block.body) collectUseComponentReads(s, reads);
     }
     return;
   }
 
-  // `const pos = useComponent(e, Position)` — read (2 args)
+  // `const pos = useComponent(entityId, Position)` — read (2 args)
   if (node.type === "VariableDeclaration") {
     const varDecl = node as VariableDeclaration;
     for (const decl of varDecl.declarations) {
@@ -230,38 +218,61 @@ function collectUseComponentCalls(node: Statement, reads: Set<string>, writes: S
       if (!d.init || d.init.type !== "CallExpression") continue;
       if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
       const args = getCallArgs(d.init as CallExpression);
-      if (args.length >= 2) {
+      if (args.length === 2) {
         const name = getIdentifierName(args[1]!);
         if (name) reads.add(name);
       }
     }
   }
+}
 
-  // `useComponent(e, Position, newValue)` — write (3 args)
+/**
+ * Recursively collect write targets from proxy mutation assignments.
+ * Handles `for-of` loops that wrap the assignments.
+ *
+ * A write target is a component whose proxy variable appears on the left-hand
+ * side of an assignment expression (`pos.x = value` or `pos.x += value`).
+ *
+ * @param node       - AST statement node to inspect.
+ * @param readVarMap - Map of variable name → component name (from read declarations).
+ * @param writes     - Accumulator set for written component names.
+ */
+function collectAssignmentWrites(
+  node: Statement,
+  readVarMap: Map<string, string>,
+  writes: Set<string>,
+): void {
+  if (node.type === "ForOfStatement") {
+    const forOf = node as ForOfStatement;
+    if (forOf.body.type === "BlockStatement") {
+      const block = forOf.body as unknown as { body: Statement[] };
+      for (const s of block.body) collectAssignmentWrites(s, readVarMap, writes);
+    }
+    return;
+  }
+
+  // `pos.x = value` or `pos.x += value * dt` — proxy mutation
   if (node.type === "ExpressionStatement") {
     const exprStmt = node as ExpressionStatement;
-    if (exprStmt.expression.type !== "CallExpression") return;
-    const call = exprStmt.expression as CallExpression;
-    if (!isCallTo(call, "useComponent")) return;
-    const args = getCallArgs(call);
-    if (args.length >= 3) {
-      const name = getIdentifierName(args[1]!);
-      if (name) writes.add(name);
-    }
+    if (exprStmt.expression.type !== "AssignmentExpression") return;
+    const assign = exprStmt.expression as AssignmentExpression;
+    if (assign.left.type !== "MemberExpression") return;
+    const mem = assign.left as StaticMemberExpression;
+    if (mem.computed) return;
+    if (mem.object.type !== "Identifier") return;
+    const varName = (mem.object as BindingIdentifier).name;
+    const component = readVarMap.get(varName);
+    if (component) writes.add(component);
   }
 }
 
 // ─── Phase 2 helpers ──────────────────────────────────────────────────────────
 
 /**
- * Scan the body of an `onUpdate` callback (including any for-of loop body) and
- * build a map from read-variable names to their component names.
+ * Scan the body of an `onUpdate` callback and build a map from read-variable
+ * names to their component names.
  *
- * Example: `const pos = useComponent(e, Position)` → `{ 'pos' → 'Position' }`.
- *
- * @param onUpdateCallback - The `onUpdate(() => { ... })` arrow/function expression.
- * @param _filename        - Source filename (reserved for future diagnostics).
- * @returns Map of variable name → component name for all 2-argument `useComponent` reads.
+ * Example: `const pos = useComponent(entity.id, Position)` → `{ 'pos' → 'Position' }`.
  */
 function buildReadVarMap(
   onUpdateCallback: FunctionExpression | ArrowFunctionExpression,
@@ -271,7 +282,6 @@ function buildReadVarMap(
 
   function collect(statements: Statement[]): void {
     for (const s of statements) {
-      // Recurse into for-of bodies (reads live inside the loop).
       if (s.type === "ForOfStatement") {
         const forOf = s as ForOfStatement;
         if (forOf.body.type === "BlockStatement") {
@@ -280,7 +290,6 @@ function buildReadVarMap(
         continue;
       }
 
-      // `const varName = useComponent(e, ComponentName)` — 2-arg read
       if (s.type !== "VariableDeclaration") continue;
       const varDecl = s as VariableDeclaration;
       for (const decl of varDecl.declarations) {
@@ -288,7 +297,7 @@ function buildReadVarMap(
         if (!d.init || d.init.type !== "CallExpression") continue;
         if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
         const args = getCallArgs(d.init as CallExpression);
-        if (args.length !== 2) continue; // exactly 2 args = read
+        if (args.length !== 2) continue;
         if (d.id.type !== "Identifier") continue;
         const varName = (d.id as BindingIdentifier).name;
         const component = getIdentifierName(args[1]!);
@@ -303,17 +312,13 @@ function buildReadVarMap(
 
 /**
  * Walk the `onUpdate` callback to find the first for-of loop and extract all
- * source byte-offset positions needed by `BulkTransformer` to rewrite the pattern.
+ * source byte-offset positions needed by `BulkTransformer`.
  *
- * Returns `undefined` when:
- * - No `ForOfStatement` is found in the callback body.
- * - The for-of `left` side is not a `VariableDeclaration`.
- * - The loop body is not a `BlockStatement`.
+ * - `readDecls`    — `const pos = useComponent(entity.id, Position)` statements to remove.
+ * - `writeTargets` — component names mutated via proxy assignment (for `queryWriteBulk`).
+ * - `propAccesses` — all `varName.field` member expressions to rewrite as flat-buffer indices.
  *
- * @param onUpdateCallback - The `onUpdate(() => { ... })` function expression.
- * @param readVarMap       - Map of read-variable name → component name (from `buildReadVarMap`).
- * @param _filename        - Source filename (reserved for future diagnostics).
- * @returns Extracted source positions, or `undefined` if the pattern is unrecognised.
+ * Returns `undefined` when no recognisable for-of pattern is found.
  */
 function extractForOfPositions(
   onUpdateCallback: FunctionExpression | ArrowFunctionExpression,
@@ -326,7 +331,6 @@ function extractForOfPositions(
     if (stmt.type !== "ForOfStatement") continue;
     const forOf = stmt as ForOfStatement;
 
-    // entityVar — the `e` in `for (const e of entities)`
     if (forOf.left.type !== "VariableDeclaration") continue;
     const leftDecl = forOf.left as VariableDeclaration;
     if (leftDecl.declarations.length === 0) continue;
@@ -334,90 +338,64 @@ function extractForOfPositions(
     if (firstDecl.id.type !== "Identifier") continue;
     const entityVar = (firstDecl.id as BindingIdentifier).name;
 
-    // forBodyStart — byte offset of the `{` opening the BlockStatement
     if (forOf.body.type !== "BlockStatement") continue;
     const forBodyStart = forOf.body.start;
     const forOfStart = forOf.start;
     const forOfEnd = forOf.end;
 
-    // Scan the loop body for read-declarations and write-calls
     const bodyStmts = (forOf.body as unknown as { body: Statement[] }).body;
+
+    // Read declarations: `const pos = useComponent(entity.id, Position)` — to be removed.
     const readDecls: { varName: string; component: string; start: number; end: number }[] = [];
-    const writeCalls: {
-      component: string;
-      fields: { name: string; valueStart: number; valueEnd: number }[];
-      start: number;
-      end: number;
-    }[] = [];
-
     for (const s of bodyStmts) {
-      // readDecl: `const pos = useComponent(e, Position)` — 2-arg call
-      if (s.type === "VariableDeclaration") {
-        const varDecl = s as VariableDeclaration;
-        for (const decl of varDecl.declarations) {
-          const d = decl as VariableDeclarator;
-          if (!d.init || d.init.type !== "CallExpression") continue;
-          if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
-          const args = getCallArgs(d.init as CallExpression);
-          if (args.length !== 2) continue; // 2-arg = read
-          if (d.id.type !== "Identifier") continue;
-          const varName = (d.id as BindingIdentifier).name;
-          const component = getIdentifierName(args[1]!);
-          if (!component) continue;
-          readDecls.push({ varName, component, start: s.start, end: s.end });
-        }
-      }
-
-      // writeCall: `useComponent(e, Position, { x: ..., y: ... })` — 3-arg call
-      if (s.type === "ExpressionStatement") {
-        const exprStmt = s as ExpressionStatement;
-        if (exprStmt.expression.type !== "CallExpression") continue;
-        const call = exprStmt.expression as CallExpression;
-        if (!isCallTo(call, "useComponent")) continue;
-        const args = getCallArgs(call);
-        if (args.length !== 3) continue; // 3-arg = write
+      if (s.type !== "VariableDeclaration") continue;
+      const varDecl = s as VariableDeclaration;
+      for (const decl of varDecl.declarations) {
+        const d = decl as VariableDeclarator;
+        if (!d.init || d.init.type !== "CallExpression") continue;
+        if (!isCallTo(d.init as CallExpression, "useComponent")) continue;
+        const args = getCallArgs(d.init as CallExpression);
+        if (args.length !== 2) continue;
+        if (d.id.type !== "Identifier") continue;
+        const varName = (d.id as BindingIdentifier).name;
         const component = getIdentifierName(args[1]!);
         if (!component) continue;
-        const objArg = args[2]!;
-        if (objArg.type !== "ObjectExpression") continue;
-        const fields: { name: string; valueStart: number; valueEnd: number }[] = [];
-        for (const prop of getObjectProperties(objArg as ObjectExpression)) {
-          const key = getPropertyKeyName(prop as ObjectProperty);
-          if (!key) continue;
-          const propNode = prop as ObjectProperty;
-          fields.push({
-            name: key,
-            valueStart: propNode.value.start,
-            valueEnd: propNode.value.end,
-          });
-        }
-        writeCalls.push({ component, fields, start: s.start, end: s.end });
+        readDecls.push({ varName, component, start: s.start, end: s.end });
       }
     }
 
-    // propAccesses — all `varName.fieldName` member expressions in the loop body
-    // where `varName` is in `readVarMap`. Excludes nodes inside write-call ranges
-    // (those will be removed, not rewritten).
+    // Write targets: component names mutated via proxy assignment (`pos.x += ...`).
+    const writeTargetSet = new Set<string>();
+    for (const s of bodyStmts) {
+      if (s.type !== "ExpressionStatement") continue;
+      const exprStmt = s as ExpressionStatement;
+      if (exprStmt.expression.type !== "AssignmentExpression") continue;
+      const assign = exprStmt.expression as AssignmentExpression;
+      if (assign.left.type !== "MemberExpression") continue;
+      const mem = assign.left as StaticMemberExpression;
+      if (mem.computed) continue;
+      if (mem.object.type !== "Identifier") continue;
+      const varName = (mem.object as BindingIdentifier).name;
+      const component = readVarMap.get(varName);
+      if (component) writeTargetSet.add(component);
+    }
+    const writeTargets = [...writeTargetSet];
+
+    // Property accesses: all `varName.field` member expressions in the loop body
+    // where `varName` is in `readVarMap`. These are rewritten to flat-buffer indices.
+    // No exclusion ranges needed — assignment statements stay in place, only their
+    // member expressions are rewritten.
     const propAccesses: { varName: string; fieldName: string; start: number; end: number }[] = [];
-    const writeCallRanges = writeCalls.map((w) => ({ start: w.start, end: w.end }));
 
     walk(forOf.body, {
       enter(node) {
         if (node.type !== "MemberExpression") return;
-        // Cast to StaticMemberExpression: only non-computed member access (varName.field)
         const mem = node as StaticMemberExpression;
         if (mem.computed) return;
         if (mem.object.type !== "Identifier") return;
-        // After type guard, `.name` is accessible via cast to the Identifier sub-type
         const varName = (mem.object as BindingIdentifier).name;
         if (!readVarMap.has(varName)) return;
         const fieldName = mem.property.name;
-        // Skip member expressions that are inside a write-call range — they will be
-        // deleted wholesale rather than individually rewritten.
-        const isInWriteCall = writeCallRanges.some(
-          (r) => node.start >= r.start && node.end <= r.end,
-        );
-        if (isInWriteCall) return;
         propAccesses.push({ varName, fieldName, start: node.start, end: node.end });
       },
     });
@@ -428,7 +406,7 @@ function extractForOfPositions(
       forOfEnd,
       entityVar,
       readDecls,
-      writeCalls,
+      writeTargets,
       propAccesses,
     };
   }

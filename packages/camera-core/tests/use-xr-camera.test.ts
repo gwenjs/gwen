@@ -12,8 +12,13 @@ function makeViewMatrix(tx: number, ty: number, tz: number): Float32Array {
   // Identity rotation + translation — column-major 4×4
   // R = I, t = [tx, ty, tz] → position = -R^T * t = -[tx, ty, tz]
   const m = new Float32Array(16);
-  m[0] = 1; m[5] = 1; m[10] = 1; m[15] = 1; // identity rotation
-  m[12] = tx; m[13] = ty; m[14] = tz;         // translation
+  m[0] = 1;
+  m[5] = 1;
+  m[10] = 1;
+  m[15] = 1; // identity rotation
+  m[12] = tx;
+  m[13] = ty;
+  m[14] = tz; // translation
   return m;
 }
 
@@ -25,9 +30,7 @@ beforeEach(() => {
 describe("useXRCamera", () => {
   it("registers viewport and sets projectionType 2", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    const Actor = defineActor(XRCameraPrefab, () =>
-      useXRCamera({ viewport: "main" }),
-    );
+    const Actor = defineActor(XRCameraPrefab, () => useXRCamera({ viewport: "main" }));
     await engine.use(Actor._plugin);
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
@@ -49,9 +52,7 @@ describe("useXRCamera", () => {
 
   it("applies custom priority", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    const Actor = defineActor(XRCameraPrefab, () =>
-      useXRCamera({ priority: 10 }),
-    );
+    const Actor = defineActor(XRCameraPrefab, () => useXRCamera({ priority: 10 }));
     await engine.use(Actor._plugin);
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
@@ -61,9 +62,7 @@ describe("useXRCamera", () => {
 
   it("setViewport updates cameraViewportMap and getViewport", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    const Actor = defineActor(XRCameraPrefab, () =>
-      useXRCamera({ viewport: "main" }),
-    );
+    const Actor = defineActor(XRCameraPrefab, () => useXRCamera({ viewport: "main" }));
     await engine.use(Actor._plugin);
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
@@ -103,8 +102,16 @@ describe("useXRCamera", () => {
     const id = actor.spawn();
 
     const views = [
-      { eye: "left" as const, viewMatrix: makeViewMatrix(1, 2, 3), projectionMatrix: new Float32Array(16) },
-      { eye: "right" as const, viewMatrix: makeViewMatrix(1, 2, 3), projectionMatrix: new Float32Array(16) },
+      {
+        eye: "left" as const,
+        viewMatrix: makeViewMatrix(1, 2, 3),
+        projectionMatrix: new Float32Array(16),
+      },
+      {
+        eye: "right" as const,
+        viewMatrix: makeViewMatrix(1, 2, 3),
+        projectionMatrix: new Float32Array(16),
+      },
     ];
     actor.get()!._setViews(views);
 
@@ -132,7 +139,11 @@ describe("useXRCamera", () => {
     // Identity rotation + translation [5, 3, -2]
     // Camera world pos = -R^T * t = -I * [5,3,-2] = [-5, -3, 2]
     actor.get()!._setViews([
-      { eye: "left", viewMatrix: makeViewMatrix(5, 3, -2), projectionMatrix: new Float32Array(16) },
+      {
+        eye: "left",
+        viewMatrix: makeViewMatrix(5, 3, -2),
+        projectionMatrix: new Float32Array(16),
+      },
     ]);
 
     const pos = actor.get()!.getHeadPosition()!;
@@ -149,7 +160,11 @@ describe("useXRCamera", () => {
     const id = actor.spawn();
 
     actor.get()!._setViews([
-      { eye: "none", viewMatrix: makeViewMatrix(0, 0, 0), projectionMatrix: new Float32Array(16) },
+      {
+        eye: "none",
+        viewMatrix: makeViewMatrix(0, 0, 0),
+        projectionMatrix: new Float32Array(16),
+      },
     ]);
     expect(cameraViewportMap.has(id)).toBe(true);
     expect(cameraMatrixStore.has(id)).toBe(true);
@@ -163,9 +178,8 @@ describe("useXRCamera", () => {
 describe("CameraSystem — XR cameras are skipped", () => {
   it("XR camera is not processed by CameraSystem", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    const { getOrCreateCameraManager, getOrCreateViewportManager } = await import(
-      "@gwenjs/renderer-core"
-    );
+    const { getOrCreateCameraManager, getOrCreateViewportManager } =
+      await import("@gwenjs/renderer-core");
     getOrCreateCameraManager(engine);
     getOrCreateViewportManager(engine);
     const { CameraSystem } = await import("../src/camera-system.js");

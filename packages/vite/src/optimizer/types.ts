@@ -45,8 +45,8 @@ export interface PatternPositions {
   /** The iteration variable name (e.g. `'e'` from `for (const e of entities)`). */
   readonly entityVar: string;
   /**
-   * Each `const varName = useComponent(entity, ComponentName)` read declaration.
-   * start/end cover the entire VariableDeclaration statement.
+   * Each `const varName = useComponent(entityId, ComponentName)` read declaration.
+   * start/end cover the entire VariableDeclaration statement (removed by BulkTransformer).
    */
   readonly readDecls: ReadonlyArray<{
     readonly varName: string;
@@ -55,19 +55,11 @@ export interface PatternPositions {
     readonly end: number;
   }>;
   /**
-   * Each `useComponent(entity, ComponentName, { ... })` write call.
-   * start/end cover the entire ExpressionStatement.
+   * Component names that are mutated inside the loop via proxy assignment
+   * (e.g. `pos.x += vel.x * dt` where `pos` maps to `Position`).
+   * Used by BulkTransformer to generate `queryWriteBulk` calls after the loop.
    */
-  readonly writeCalls: ReadonlyArray<{
-    readonly component: string;
-    readonly fields: ReadonlyArray<{
-      readonly name: string;
-      readonly valueStart: number;
-      readonly valueEnd: number;
-    }>;
-    readonly start: number;
-    readonly end: number;
-  }>;
+  readonly writeTargets: ReadonlyArray<string>;
   /**
    * Each `varName.fieldName` MemberExpression inside the loop body where
    * `varName` maps to a read component. Used to rewrite `pos.x` → `_position[_i * 2 + 0]`.

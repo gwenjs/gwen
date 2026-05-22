@@ -46,18 +46,19 @@ const VELOCITY_ENTRY = {
 
 /**
  * Minimal system source that matches the optimizable pattern:
- * - read Position inside the for-of loop
- * - write Position back with updated values
+ * - read Position via useComponent proxy (2-arg)
+ * - mutate Position fields directly on the proxy
  */
-const SYSTEM_SOURCE = `defineSystem(() => {
-  const entities = useQuery([Position]);
-  onUpdate(() => {
-    for (const e of entities) {
-      const pos = useComponent(e, Position);
-      useComponent(e, Position, { x: pos.x + 1, y: pos.y });
-    }
-  });
-});`;
+const SYSTEM_SOURCE = `defineSystem(() => {                                  
+    const entities = useQuery([Position]);                                                                                                                                                                                                                                                                                                                                                                                     
+    onUpdate(() => {                                                                  
+      for (const e of entities) {                                                     
+        const pos = useComponent(e.id, Position);                                                                                                                                                                                                                                                                                                                                                                              
+        pos.x += 1;                                                                                                                                                                                                                                                                                                                                                                                                            
+        pos.y += 0;                                                                                                                                                                                                                                                                                                                                                                                                            
+      }                                                                                                                                                                                                                                                                                                                                                                                                                        
+    });                                                                            
+  });`;
 
 // ─── Unit tests ───────────────────────────────────────────────────────────────
 
@@ -105,7 +106,6 @@ describe("applyBulkTransform", () => {
     const patterns = walker.walk(SYSTEM_SOURCE);
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
-    // Skip gracefully if walker didn't extract positions yet
     if (!pattern.positions) return;
 
     const s = new MagicString(SYSTEM_SOURCE);
@@ -130,7 +130,6 @@ describe("applyBulkTransform", () => {
     const forIdx = output.indexOf("for (let _i");
     expect(readIdx).toBeGreaterThanOrEqual(0);
     expect(forIdx).toBeGreaterThanOrEqual(0);
-    // queryReadBulk must appear before the numeric for loop
     expect(readIdx).toBeLessThan(forIdx);
   });
 
@@ -147,7 +146,6 @@ describe("applyBulkTransform", () => {
     const writeIdx = output.indexOf("queryWriteBulk");
     const forIdx = output.lastIndexOf("for (let _i");
     expect(writeIdx).toBeGreaterThanOrEqual(0);
-    // queryWriteBulk must appear after the numeric for loop
     expect(writeIdx).toBeGreaterThan(forIdx);
   });
 
@@ -175,11 +173,10 @@ describe("applyBulkTransform", () => {
     applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    // The original `const pos = useComponent(e, Position)` must be gone
     expect(output).not.toContain("const pos = useComponent");
   });
 
-  it("removes the per-entity write call (useComponent(e, Position, {...}))", () => {
+  it("transforms proxy mutation assignments in place", () => {
     const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
@@ -189,37 +186,25 @@ describe("applyBulkTransform", () => {
     applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    // The original 3-arg useComponent write call must be gone
-    expect(output).not.toContain("useComponent(e, Position, {");
+    // proxy member expressions are rewritten — no `pos.x` or `pos.y` remain
+    expect(output).not.toContain("pos.x");
+    expect(output).not.toContain("pos.y");
+    // assignment operators and RHS values are preserved in place
+    expect(output).toContain("_position[_i * 2 + 0] += 1");
+    expect(output).toContain("_position[_i * 2 + 1] += 0");
   });
 
   it("rewrites pos.x property access to typed-array accessor", () => {
-    // Use a source where pos.x appears OUTSIDE the write call so it ends up
-    // in propAccesses and is rewritten by the transformer. In SYSTEM_SOURCE,
-    // pos.x only appears inside the write call (which is removed entirely);
-    // this source places pos.x in a standalone variable declaration first.
-    const sourceWithExternalRead = `defineSystem(() => {
-  const entities = useQuery([Position]);
-  onUpdate(() => {
-    for (const e of entities) {
-      const pos = useComponent(e, Position);
-      const next = pos.x + 1;
-      useComponent(e, Position, { x: next, y: 0 });
-    }
-  });
-});`;
     const walker = new AstWalker("test.ts");
-    const patterns = walker.walk(sourceWithExternalRead);
+    const patterns = walker.walk(SYSTEM_SOURCE);
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
-    // Skip gracefully if walker didn't extract positions
     if (!pattern.positions) return;
 
-    const s = new MagicString(sourceWithExternalRead);
+    const s = new MagicString(SYSTEM_SOURCE);
     applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    // pos.x (outside the write call) must be rewritten to a typed-array accessor
     expect(output).not.toContain("pos.x");
     expect(output).toContain("_position[_i * 2 + 0]");
   });
@@ -245,11 +230,7 @@ describe("applyBulkTransform", () => {
     expect(patterns.length).toBeGreaterThan(0);
     const pattern = patterns[0]!;
 
-    // The walker should populate positions for recognisable patterns
-    if (!pattern.positions) {
-      // Soft skip — the walker may not yet populate positions in all cases
-      return;
-    }
+    if (!pattern.positions) return;
 
     const { positions } = pattern;
     expect(positions.forOfStart).toBeGreaterThanOrEqual(0);
@@ -257,6 +238,7 @@ describe("applyBulkTransform", () => {
     expect(positions.forOfEnd).toBeGreaterThan(positions.forBodyStart);
     expect(positions.entityVar).toBe("e");
     expect(positions.readDecls.length).toBeGreaterThan(0);
-    expect(positions.writeCalls.length).toBeGreaterThan(0);
+    // writeTargets replaces writeCalls — Position is mutated via proxy
+    expect(positions.writeTargets).toContain("Position");
   });
 });

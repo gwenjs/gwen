@@ -24,19 +24,45 @@ describe("gwenOptimizerPlugin", () => {
     expect(result).toBeNull();
   });
 
-  it("mode detect — returns null even for a file containing useQuery + onUpdate patterns", async () => {
+  it("mode detect — direct SoA pattern returns null (not detected — already optimal)", async () => {
     const plugin = gwenOptimizerPlugin({ mode: "detect" });
-    // Minimal code that passes the quick-check guards (contains both keywords)
-    // but the AST walker will find no fully-formed patterns — still must return null.
-    const code = `
-      import { useQuery, onUpdate } from '@gwenjs/core/system';
-      const entities = useQuery([Position, Velocity]);
-      onUpdate((dt) => {
-        for (const id of entities) {
-          Position.x[id] += Velocity.x[id] * dt;
-        }
-      });
-    `;
+    // Direct TypedArray access (`Position.x[id] += ...`) is already optimal and is
+    // intentionally not detected by the optimizer — no transformation needed.
+    const code = `                                                                  
+        import { useQuery, onUpdate } from '@gwenjs/core/system';                                                                                                                                                                                                                                                                                                                                                              
+        const entities = useQuery([Position, Velocity]);                                                                                                                                                                                                                                                                                                                                                                       
+        onUpdate((dt) => {                                                            
+          for (const id of entities) {                                                                                                                                                                                                                                                                                                                                                                                         
+            Position.x[id] += Velocity.x[id] * dt;                                                                                                                                                                                                                                                                                                                                                                             
+          }                                                                    
+        });                                                                                                                                                                                                                                                                                                                                                                                                                    
+      `;
+    const ctx = { warn: vi.fn() };
+    const result = await (plugin.transform as Function).call(ctx, code, "src/systems/movement.ts");
+    expect(result).toBeNull();
+  });
+
+  it("mode detect — proxy pattern is detected by walker but returns null without a populated manifest", async () => {
+    const plugin = gwenOptimizerPlugin({ mode: "detect" });
+    // The AST walker finds a fully-formed proxy pattern, but `buildStart()` has not
+    // been called in this unit test — the component manifest is empty.
+    // PatternDetector therefore marks it non-optimizable and the plugin returns null.
+    // Full transformation is covered by integration / build-level tests.
+    const code = `                                                                                                                                                                                                                                                                                                                                                                                                           
+        import { useQuery, onUpdate, useComponent } from '@gwenjs/core/system';       
+        import { Position, Velocity } from './components';                
+        export const s = defineSystem(() => {                                                                                                                                                                                                                                                                                                                                                                                  
+          const entities = useQuery([Position, Velocity]);                            
+          onUpdate((dt) => {                                                                                                                                                                                                                                                                                                                                                                                                   
+            for (const e of entities) {                                            
+              const pos = useComponent(e.id, Position);                               
+              const vel = useComponent(e.id, Velocity);                                                                                                                                                                                                                                                                                                                                                                        
+              pos.x += vel.x * dt;                                                                                                                                                                                                                                                                                                                                                                                             
+              pos.y += vel.y * dt;                                                                                                                                                                                                                                                                                                                                                                                             
+            }                                                                                                                                                                                                                                                                                                                                                                                                                  
+          });                                                                                                                                                                                                                                                                                                                                                                                                                  
+        });                                                                                                                                                                                                                                                                                                                                                                                                                    
+      `;
     const ctx = { warn: vi.fn() };
     const result = await (plugin.transform as Function).call(ctx, code, "src/systems/movement.ts");
     expect(result).toBeNull();
@@ -44,7 +70,6 @@ describe("gwenOptimizerPlugin", () => {
 
   it("mode transform — is the default when mode is not specified", () => {
     const plugin = gwenOptimizerPlugin();
-    // Default mode should be 'transform'; the plugin should still have a transform hook.
     expect(typeof plugin.transform).toBe("function");
   });
 });
