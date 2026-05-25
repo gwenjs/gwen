@@ -79,6 +79,35 @@ const _actorCtx = new ContextSlot<ActorContext>();
  */
 const _actorScopes = new WeakMap<ActorInstance<unknown>, GwenScope>();
 
+/**
+ * Maps every live entity ID to its actor plugin.
+ * Used by `useChildren()` to cascade `despawn()` without knowing the actor type.
+ * @internal
+ */
+export const _actorRegistry = new Map<EntityId, ActorPlugin<unknown>>();
+
+/**
+ * Maps every live entity ID to its `ActorInstance`.
+ * Used by `useChildren()` to update `_children` when ownership is transferred.
+ * @internal
+ */
+export const _instanceRegistry = new Map<EntityId, ActorInstance<unknown>>();
+
+/**
+ * Maps a child entity ID to its current owner's entity ID.
+ * Used to clean up `_children` when a child is directly despawned.
+ * @internal
+ */
+export const _ownerRegistry = new Map<EntityId, EntityId>();
+
+/**
+ * Maps a pooled entity ID to the pool's `release` function.
+ * Populated by `define-actor-pool.ts` on slot creation.
+ * Used in `_doRelease()` to release pooled children instead of despawning them.
+ * @internal
+ */
+export const _poolReleaseRegistry = new Map<EntityId, (id: EntityId) => void>();
+
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
 /**
@@ -161,6 +190,24 @@ export function useEntityId(): EntityId {
     );
   }
   return ctx.entityId;
+}
+
+/**
+ * Returns the full actor context (entityId + instance + engine) for the currently
+ * spawning actor, or `null` if no factory is running.
+ *
+ * @internal Used by composables that need access to the full actor context.
+ */
+export function _getActorContext(): {
+  entityId: EntityId;
+  instance: ActorInstance<unknown>;
+  engine: GwenEngine;
+} | null {
+  return _actorCtx.get() as {
+    entityId: EntityId;
+    instance: ActorInstance<unknown>;
+    engine: GwenEngine;
+  } | null;
 }
 
 /**
@@ -530,6 +577,14 @@ export function defineActor<Props = void, PublicAPI = void>(
     // 6. Register instance.
     _instances.set(entityId, instance);
 
+    // Register in module-level lookup tables for useChildren() cascade.
+    // Clear stale entries for this entity ID — IDs are reused across engine
+    // instances in tests. A freshly spawned entity is never owned or pooled.
+    _ownerRegistry.delete(entityId);
+    _poolReleaseRegistry.delete(entityId);
+    _actorRegistry.set(entityId, _plugin as ActorPlugin<unknown>);
+    _instanceRegistry.set(entityId, instance as ActorInstance<unknown>);
+
     // 7. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
       instance._start[i]!();
@@ -544,6 +599,17 @@ export function defineActor<Props = void, PublicAPI = void>(
   function despawn(entityId: EntityId): void {
     const instance = _instances.get(entityId);
     if (!instance) return;
+
+    // ── Children cascade ────────────────────────────────────────────────────
+    // Cascade despawn to all owned children before removing from registries.
+    // Always full despawn (not pool release) because the parent is being destroyed.
+    if (instance._children) {
+      const childIds = [...instance._children];
+      instance._children.clear(); // relinquish ownership before children despawn
+      for (const childId of childIds) {
+        _actorRegistry.get(childId)?.despawn(childId);
+      }
+    }
 
     // 1. Remove from registries FIRST (re-entrancy guard).
     _instances.delete(entityId);
@@ -569,6 +635,19 @@ export function defineActor<Props = void, PublicAPI = void>(
 
     // 5. Destroy the ECS entity.
     _engine?.destroyEntity(entityId as unknown as EntityId);
+
+    // ── Registry cleanup ────────────────────────────────────────────────────
+    // Resolve parent link before deleting own entries (ownerId !== entityId — no conflict).
+    const ownerId = _ownerRegistry.get(entityId);
+    _actorRegistry.delete(entityId);
+    _instanceRegistry.delete(entityId);
+    _poolReleaseRegistry.delete(entityId);
+
+    if (ownerId !== undefined) {
+      _ownerRegistry.delete(entityId);
+      const ownerInstance = _instanceRegistry.get(ownerId);
+      ownerInstance?._children?.delete(entityId);
+    }
   }
 
   // ─── Plugin ───────────────────────────────────────────────────────────────

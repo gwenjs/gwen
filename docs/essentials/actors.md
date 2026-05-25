@@ -222,6 +222,49 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 `world.x/y` reflects state from the **previous frame**. Writes made in `onUpdate` are visible on the next frame.
 :::
 
+## Child actors
+
+Use `useChildren()` to make an actor own one or more child actors. Owned children are
+automatically despawned (or released if pooled) when the parent is despawned or released.
+
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const children = useChildren()
+
+  onStart(() => {
+    // Spawn a child and own it — despawned with the parent automatically
+    const weapon = children.add(WeaponActor, { props: { damage: 10 } })
+
+    // Detach without destroying — the child survives the parent
+    children.detach(weapon)
+  })
+})
+```
+
+To adopt an actor that is already alive (e.g. a weapon picked up from the ground):
+
+```ts
+onStart(() => {
+  children.adopt(droppedWeaponHandle)
+})
+```
+
+**Cascade rules:**
+
+| Parent event | Child is pooled | Child is not pooled |
+|---|---|---|
+| `despawn()` | `despawn()` | `despawn()` |
+| `release()` (pool) | `release()` | `despawn()` |
+| `detach(child)` | nothing | nothing |
+
+Cascade is recursive: if a child also calls `useChildren()`, its own children are cascaded too.
+
+::: info Ownership vs transform parent
+`useChildren()` and `useTransform().setParent()` are independent. Ownership governs
+lifecycle (who gets despawned with whom). Transform parenting governs spatial position
+(whose world coordinates are relative to whose). You can use both together or independently.
+:::
+
 ## Entity ID
 
 Use `useEntityId()` to get the stable `bigint` ID of this actor instance:
@@ -368,6 +411,7 @@ The Vite plugin instruments `await` inside `onEnter` and `onExit` callbacks auto
 | `useEntityId()` | Stable `bigint` ID for this instance (setup-time) |
 | `useComponent(def)` | Reactive component proxy — read/write fields, `$set` for batch |
 | `useTransform()` | Spatial transform handle |
+| `useChildren()` | Own child actors — auto-despawned/released with parent |
 | `useService(key)` | Access a plugin-provided service |
 | `useHook(name, fn)` | Subscribe to an event — `import { useHook } from '@gwenjs/core'` |
 | `emit(name, ...args)` | Fire an event — `import { emit } from '@gwenjs/core'` |

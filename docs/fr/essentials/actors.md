@@ -222,6 +222,52 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 `world.x/y` reflète l'état du **frame précédent**. Les écritures faites en `onUpdate` sont visibles au frame suivant.
 :::
 
+## Acteurs enfants
+
+Utilisez `useChildren()` pour qu'un acteur possède un ou plusieurs acteurs enfants. Les
+enfants possédés sont automatiquement dépawnés (ou relâchés s'ils sont poolés) lorsque le
+parent est dépawné ou relâché.
+
+```ts
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const children = useChildren()
+
+  onStart(() => {
+    // Spawn un enfant et en prend possession — dépawné avec le parent automatiquement
+    const weapon = children.add(WeaponActor, { props: { damage: 10 } })
+
+    // Détacher sans détruire — l'enfant survit au parent
+    children.detach(weapon)
+  })
+})
+```
+
+Pour adopter un acteur déjà en vie (ex: une arme ramassée par terre) :
+
+```ts
+onStart(() => {
+  children.adopt(droppedWeaponHandle)
+})
+```
+
+**Règles de cascade :**
+
+| Événement parent | Enfant poolé | Enfant non-poolé |
+|---|---|---|
+| `despawn()` | `despawn()` | `despawn()` |
+| `release()` (pool) | `release()` | `despawn()` |
+| `detach(child)` | rien | rien |
+
+La cascade est récursive : si un enfant utilise aussi `useChildren()`, ses propres enfants
+sont également cascadés.
+
+::: info Ownership vs parent transform
+`useChildren()` et `useTransform().setParent()` sont indépendants. L'ownership gouverne le
+cycle de vie (qui est dépawné avec qui). Le parent transform gouverne la position spatiale
+(dont les coordonnées monde sont relatives à qui). Vous pouvez utiliser les deux ensemble ou
+indépendamment.
+:::
+
 ## Identifiant d'entité
 
 Utilisez `useEntityId()` pour obtenir l'ID stable `bigint` de cette instance d'acteur :
@@ -368,6 +414,7 @@ Le plugin Vite instrumente automatiquement les `await` dans les callbacks `onEnt
 | `useEntityId()` | ID stable `bigint` pour cette instance (temps de setup) |
 | `useComponent(def)` | Proxy réactif du composant — lire/écrire des champs, `$set` pour lot |
 | `useTransform()` | Handle de transform spatiale |
+| `useChildren()` | Posséder des acteurs enfants — dépawnés/relâchés automatiquement avec le parent |
 | `useService(key)` | Accéder à un service fourni par un plugin |
 | `useHook(name, fn)` | S'abonner à un événement — `import { useHook } from '@gwenjs/core'` |
 | `emit(name, ...args)` | Déclencher un événement — `import { emit } from '@gwenjs/core'` |

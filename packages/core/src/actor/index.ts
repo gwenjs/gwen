@@ -43,6 +43,8 @@ export { useActor, usePrefab, useComponent } from "./runtime/use-actor";
 export { defineLayout } from "./runtime/define-layout";
 export { useLayout } from "./runtime/use-layout";
 export { useTransform } from "./runtime/use-transform";
+export { useChildren } from "./runtime/use-children";
+export type { ChildrenHandle } from "./runtime/use-children";
 export { watchActorLeaks } from "./runtime/watch-actor-leaks";
 export { placeActor, placeGroup, placePrefab } from "./runtime/place";
 

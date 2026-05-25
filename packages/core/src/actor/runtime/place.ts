@@ -59,7 +59,12 @@ function _register(entityId: EntityId): void {
 
 // ─── WASM transform helpers ───────────────────────────────────────────────────
 
-function applyTransform(
+/**
+ * Apply transform options (position, rotation, scale, parent) to an entity.
+ * Registers the entity in the TransformSystem if any option is provided.
+ * @internal Used by `placeActor`, `placeGroup`, `placePrefab`, and `useChildren`.
+ */
+export function _applyTransformOpts(
   bridge: PlacementBridge,
   entityId: EntityId,
   options: PlaceOptions<unknown>,
@@ -121,7 +126,7 @@ export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHand
   const engine = useEngine();
   const bridge = engine.getPlacementBridge();
   const entityId = engine.createEntity();
-  applyTransform(bridge, entityId, options);
+  _applyTransformOpts(bridge, entityId, options);
   _register(entityId);
 
   const handle: PlaceHandle<void> = {
@@ -167,7 +172,7 @@ export function placeActor<Props, API>(
 
   const entityId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(options.props);
   const bridge = useEngine().getPlacementBridge();
-  applyTransform(bridge, entityId, options);
+  _applyTransformOpts(bridge, entityId, options);
   _register(entityId);
 
   const instance = actorDef._instances?.get(entityId);
@@ -223,7 +228,7 @@ export function placePrefab(
   }
 
   const entityId = id;
-  applyTransform(bridge, entityId, options);
+  _applyTransformOpts(bridge, entityId, options);
   _register(entityId);
 
   const handle: PlaceHandle<void> = {

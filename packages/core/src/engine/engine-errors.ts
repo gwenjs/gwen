@@ -77,6 +77,8 @@ export const ActorErrorCodes = {
   PLUGIN_NOT_READY: "ACTOR:PLUGIN_NOT_READY",
   /** A PublicAPI method was called via the `useActor` handle but no live instance exists. */
   NO_LIVE_INSTANCE: "ACTOR:NO_LIVE_INSTANCE",
+  /** Circular actor ownership detected via `useChildren()`. */
+  CIRCULAR_OWNERSHIP: "ACTOR:CIRCULAR_OWNERSHIP",
 } as const;
 
 /**

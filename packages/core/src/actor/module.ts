@@ -12,6 +12,7 @@ export default {
       { name: "onDisable", from: "@gwenjs/core/actor" },
       { name: "useActor", from: "@gwenjs/core/actor" },
       { name: "useTransform", from: "@gwenjs/core/actor" },
+      { name: "useChildren", from: "@gwenjs/core/actor" },
       { name: "useComponent", from: "@gwenjs/core/actor" },
       { name: "useEntityId", from: "@gwenjs/core/actor" },
       { name: "usePrefab", from: "@gwenjs/core/actor" },

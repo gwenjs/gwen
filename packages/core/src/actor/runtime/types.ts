@@ -89,6 +89,12 @@ export interface ActorInstance<PublicAPI = void> {
    * @internal
    */
   _reset: ((props: unknown) => void)[];
+  /**
+   * Entity IDs of owned child actors registered via `useChildren()`.
+   * `undefined` when `useChildren()` was never called — zero overhead.
+   * @internal
+   */
+  _children?: Set<EntityId>;
   /** Public API returned by the factory and exposed via `ActorHandle.get()` / `getAll()`. */
   api: PublicAPI;
 }

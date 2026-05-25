@@ -7,6 +7,7 @@ import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
+import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
 
 /**
  * Manages the queue of actor pool slots scheduled for deferred release.
@@ -181,6 +182,11 @@ export function defineActorPool<Props, PublicAPI>(
       // optional-argument signature without a cast, so we use one here. The assertion
       // is safe: the pool receives the same `Props` type that the actor was defined with.
       id = (actor._plugin.spawn as (props?: Props) => EntityId)(props);
+      // Store immediate release (bypasses deferred queue) so cascade in a parent's _doRelease
+      // completes synchronously within the same afterTick handler.
+      _poolReleaseRegistry.set(id, (childId: EntityId) => {
+        if (_active.has(childId)) _doRelease(childId);
+      });
     } else {
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);
@@ -220,13 +226,27 @@ export function defineActorPool<Props, PublicAPI>(
       inst._release[i]!();
     }
 
-    // 3. Pause the scope — silences all frame handlers.
+    // 3. Cascade to owned children: pooled children are released, others are despawned.
+    if (inst._children && inst._children.size > 0) {
+      const childIds = [...inst._children];
+      inst._children.clear();
+      for (const childId of childIds) {
+        const childRelease = _poolReleaseRegistry.get(childId);
+        if (childRelease) {
+          childRelease(childId);
+        } else {
+          _actorRegistry.get(childId)?.despawn(childId);
+        }
+      }
+    }
+
+    // 5. Pause the scope — silences all frame handlers.
     inst._scope.pause();
 
-    // 4. Add DormantTag so ECS queries exclude this entity.
+    // 6. Add DormantTag so ECS queries exclude this entity.
     _engine.addComponent(id, DormantTag, {});
 
-    // 5. Move from active to available.
+    // 7. Move from active to available.
     _active.delete(id);
     _available.push(id);
 
