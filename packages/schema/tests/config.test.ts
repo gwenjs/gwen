@@ -11,7 +11,7 @@ import {
   validateResolvedConfig,
   assertModuleFirstInput,
 } from "../src";
-import type { GwenConfigInput, GwenPluginBase } from "../src";
+import type { GwenConfigInput, GwenPlugin } from "../src";
 
 describe("@gwenjs/schema - Configuration", () => {
   describe("defaultOptions", () => {
@@ -63,7 +63,7 @@ describe("@gwenjs/schema - Configuration", () => {
     });
 
     it("should unify legacy tsPlugins into plugins array", () => {
-      const plugin: GwenPluginBase = { name: "test-plugin" };
+      const plugin: GwenPlugin = { name: "test-plugin" };
       const input: GwenConfigInput = {
         tsPlugins: [plugin],
       };
@@ -72,7 +72,7 @@ describe("@gwenjs/schema - Configuration", () => {
     });
 
     it("should unify legacy wasmPlugins into plugins array", () => {
-      const plugin: GwenPluginBase = { name: "wasm-plugin", wasm: {} };
+      const plugin: GwenPlugin = { name: "wasm-plugin", wasm: {} };
       const input: GwenConfigInput = {
         wasmPlugins: [plugin],
       };
@@ -81,8 +81,8 @@ describe("@gwenjs/schema - Configuration", () => {
     });
 
     it("should merge tsPlugins and wasmPlugins together", () => {
-      const tsPlugin: GwenPluginBase = { name: "ts-plugin" };
-      const wasmPlugin: GwenPluginBase = { name: "wasm-plugin", wasm: {} };
+      const tsPlugin: GwenPlugin = { name: "ts-plugin" };
+      const wasmPlugin: GwenPlugin = { name: "wasm-plugin", wasm: {} };
       const input: GwenConfigInput = {
         tsPlugins: [tsPlugin],
         wasmPlugins: [wasmPlugin],
@@ -207,7 +207,7 @@ describe("@gwenjs/schema - Configuration", () => {
       expect(() => {
         validateResolvedConfig({
           ...defaultOptions,
-          plugins: {} as unknown as GwenPluginBase[],
+          plugins: {} as unknown as GwenPlugin[],
         });
       }).toThrow("plugins must be an array");
     });

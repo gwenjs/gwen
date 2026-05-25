@@ -38,7 +38,6 @@ export type { GwenDisposable, DisposableRegistryBase } from "./disposable";
 export { GwenError } from "./errors";
 export type { GwenErrorLevel, GwenErrorPayload, GwenErrorBusBase } from "./errors";
 export { GwenErrorCode } from "./error-codes";
-export type { GwenErrorCode as GwenErrorCodeValue } from "./error-codes";
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
@@ -78,23 +77,3 @@ export type {
   GwenModule,
 } from "./module";
 
-// ─── Backwards compat ────────────────────────────────────────────────────────
-
-/**
- * @deprecated Use {@link GwenPlugin} from `'@gwenjs/schema'` instead.
- *
- * `GwenPluginBase` was the legacy name for the plugin contract defined in
- * `@gwenjs/schema`. The name was unified with `GwenPlugin` (the name used
- * by `@gwenjs/core`) to eliminate the two-interface confusion.
- *
- * **Migration:** Replace `GwenPluginBase` with `GwenPlugin`.
- * ```ts
- * // Before:
- * import type { GwenPluginBase } from '@gwenjs/schema'
- * // After:
- * import type { GwenPlugin } from '@gwenjs/schema'
- * ```
- *
- * Will be removed in v2.0.
- */
-export type { GwenPlugin as GwenPluginBase } from "./plugin";
