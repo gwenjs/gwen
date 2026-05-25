@@ -69,9 +69,11 @@ import { CoreErrorCodes } from '@gwenjs/core'
 
 // Available codes:
 CoreErrorCodes.FRAME_LOOP_ERROR     // Something went wrong during frame advance
-CoreErrorCodes.PLUGIN_NOT_FOUND     // Plugin requested but not registered
+CoreErrorCodes.PLUGIN_SETUP_ERROR   // Plugin threw during engine.use()
+CoreErrorCodes.PLUGIN_RUNTIME_ERROR // Plugin threw during a frame callback
 CoreErrorCodes.WASM_LOAD_ERROR      // WASM module failed to load
-CoreErrorCodes.CONTEXT_ERROR        // useX() called outside valid context
+CoreErrorCodes.WASM_TIMEOUT         // WASM module did not initialise in time
+CoreErrorCodes.WASM_PANIC           // Rust panic propagated from WASM
 ```
 
 Plugins define their own error codes following the same pattern: `'PLUGIN_NAME:ERROR_TYPE'`.

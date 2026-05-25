@@ -11,19 +11,6 @@ Shared type definitions and configuration utilities for GWEN. Primarily used int
 
 ## Type Definitions
 
-### GwenPluginBase
-
-**Signature:**
-```ts
-interface GwenPluginBase {
-  name: string;
-  version?: string;
-  description?: string;
-}
-```
-
-**Description.** Base interface for all plugins. Must include name and optional version/description.
-
 ### GwenHookHandler
 
 **Signature:**

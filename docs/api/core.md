@@ -251,7 +251,7 @@ Actor definition, instance lifecycle, and all actor composables.
 **Usage:**
 ```ts
 import { defineActor, onStart, onDestroy, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/actor'
-import { definePrefab, emit, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
+import { definePrefab, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
 import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePrefab } from '@gwenjs/core/actor'
 ```
 

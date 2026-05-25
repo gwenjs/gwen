@@ -212,7 +212,8 @@ declare module '@gwenjs/core' {
 Call `emit()` from inside an actor or system to fire an event:
 
 ```typescript
-import { defineActor, emit } from '@gwenjs/core/actor'
+import { emit } from '@gwenjs/core'
+import { defineActor } from '@gwenjs/core/actor'
 import { EnemyPrefab } from '../prefabs'
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {

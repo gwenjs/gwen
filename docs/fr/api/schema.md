@@ -11,19 +11,6 @@ Définitions de types partagées et utilitaires de configuration pour GWEN. Prin
 
 ## Définitions de type
 
-### GwenPluginBase
-
-**Signature:**
-```ts
-interface GwenPluginBase {
-  name: string;
-  version?: string;
-  description?: string;
-}
-```
-
-**Description.** Interface de base pour tous les plugins. Doit inclure un nom et une version/description optionnelle.
-
 ### GwenHookHandler
 
 **Signature:**

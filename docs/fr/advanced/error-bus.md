@@ -68,10 +68,12 @@ Le moteur émet des erreurs en utilisant `CoreErrorCodes` :
 import { CoreErrorCodes } from '@gwenjs/core'
 
 // Codes disponibles :
-CoreErrorCodes.FRAME_LOOP_ERROR     // Quelque chose s'est mal passé lors de l'avancement de l'image
-CoreErrorCodes.PLUGIN_NOT_FOUND     // Plugin demandé mais non enregistré
-CoreErrorCodes.WASM_LOAD_ERROR      // Le module WASM n'a pas pu se charger
-CoreErrorCodes.CONTEXT_ERROR        // useX() appelé en dehors du contexte valide
+CoreErrorCodes.FRAME_LOOP_ERROR     // Erreur lors de l'avancement d'une frame
+CoreErrorCodes.PLUGIN_SETUP_ERROR   // Le plugin a levé une exception dans engine.use()
+CoreErrorCodes.PLUGIN_RUNTIME_ERROR // Le plugin a levé une exception dans un callback de frame
+CoreErrorCodes.WASM_LOAD_ERROR      // Échec du chargement du module WASM
+CoreErrorCodes.WASM_TIMEOUT         // Le module WASM n'a pas initialisé à temps
+CoreErrorCodes.WASM_PANIC           // Panic Rust propagé depuis le WASM
 ```
 
 Les plugins définissent leurs propres codes d'erreur en suivant le même modèle : `'PLUGIN_NAME:ERROR_TYPE'`.
