@@ -69,7 +69,7 @@ export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./
 
 // Logger
 export { createLogger, GwenLogger, consoleLogProvider } from "./logger/index";
-export type { LegacyGwenLogger, LogLevel, LogEntry, IGwenLogger } from "./logger/index";
+export type { LogLevel, LogEntry, IGwenLogger } from "./logger/index";
 
 // Runtime hooks interface
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
@@ -82,7 +82,7 @@ export {
   executeAsync,
   withAsyncContext,
 } from "./engine/context";
-export type { GwenContextErrorCode } from "./engine/context";
+
 
 // WASM Bridge
 export { WasmBridgeImpl, getWasmBridge } from "./engine/wasm-bridge";
@@ -104,7 +104,6 @@ export {
   TRANSFORM3D_STRIDE,
   FLAG_PHYSICS_ACTIVE,
   FLAGS_OFFSET,
-  FLAGS3D_OFFSET,
   SENTINEL,
   MAX_SAB_BYTES,
 } from "./hooks/wasm/shared-memory";
@@ -170,4 +169,3 @@ export {
 } from "./tween/index";
 export type { TweenSlot, TweenPoolPolicy, TweenPluginOptions } from "./tween/index";
 
-export { ErrorCodes } from "./engine/engine-errors";

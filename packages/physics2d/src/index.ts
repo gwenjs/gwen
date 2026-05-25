@@ -77,10 +77,6 @@ export type {
   TilemapPhysicsChunkMap,
 } from "./types";
 
-export {
-  PHYSICS2D_BRIDGE_SCHEMA_VERSION,
-  PHYSICS_QUALITY_PRESET_CODE,
-  PHYSICS2D_WASM_EVENT_STRIDE,
-} from "./types";
+export { PHYSICS2D_BRIDGE_SCHEMA_VERSION } from "./types";
 
 export { default } from "./module";
