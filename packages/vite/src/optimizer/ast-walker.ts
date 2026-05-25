@@ -1,10 +1,11 @@
 /**
  * @file AST walker for detecting `useQuery + onUpdate` patterns inside
- * `defineSystem` bodies.  Used by the GWEN Vite optimizer to find ECS
- * query patterns that can be pre-compiled to bulk WASM calls.
+ * `defineSystem` and `defineActor` bodies.  Used by the GWEN Vite optimizer
+ * to find ECS query patterns that can be pre-compiled to bulk WASM calls.
  *
  * Detection strategy:
- * 1. Find `useQuery([ComponentA, ComponentB])` calls — extract component names.
+ * 1. Find `useQuery([ComponentA, ComponentB])` or
+ *    `useActorQuery(ActorDef, [ComponentA, ComponentB])` calls — extract component names.
  * 2. Find `onUpdate(() => { ... })` blocks — scan body for `useComponent` calls.
  * 3. Classify each `useComponent(entityId, Comp)` (2-arg) as a read declaration.
  * 4. Detect proxy mutations (`pos.x += vel.x * dt`) as write targets, using
@@ -44,6 +45,16 @@ import {
  * Walks a TypeScript source file AST to find `useQuery + onUpdate` patterns
  * that the optimizer can replace with bulk WASM calls.
  *
+ * Supports both `defineSystem` and `defineActor` bodies:
+ * - `defineSystem(() => { ... })` — factory is the first (and only) argument.
+ * - `defineActor(Prefab, factory)` or `defineActor('Name', Prefab, factory)` —
+ *   factory is the last function-typed argument (name may have been injected by
+ *   the Vite actor name transform before this plugin runs).
+ *
+ * Also detects `useActorQuery(ActorDef, [ComponentA, ComponentB])` in addition
+ * to `useQuery([ComponentA, ComponentB])` — extracting components from the
+ * second argument in the actor-query form.
+ *
  * @example
  * ```ts
  * const walker = new AstWalker('src/systems/movement.ts');
@@ -68,7 +79,7 @@ export class AstWalker {
    * @returns Array of detected optimizable patterns (may be empty).
    */
   walk(source: string): OptimizablePattern[] {
-    if (!source.includes("useQuery")) return [];
+    if (!source.includes("useQuery") && !source.includes("useActorQuery")) return [];
 
     const parsed = parseSource(this.filename, source);
     if (!parsed) return [];
@@ -80,11 +91,24 @@ export class AstWalker {
       enter(node) {
         if (node.type !== "CallExpression") return;
         const call = node as CallExpression;
-        if (!isCallTo(call, "defineSystem")) return;
+
+        const isSystem = isCallTo(call, "defineSystem");
+        const isActor = isCallTo(call, "defineActor");
+        if (!isSystem && !isActor) return;
 
         const args = getCallArgs(call);
         if (args.length === 0) return;
-        const callback = args[0];
+
+        // For actors the factory is always the last function-typed argument.
+        // The actor name transform (gwenActorPlugin) may prepend a string literal
+        // before this plugin runs, so we cannot assume a fixed position.
+        // For systems the factory is always args[0].
+        const callback = isActor
+          ? [...args]
+              .reverse()
+              .find((a) => a.type === "ArrowFunctionExpression" || a.type === "FunctionExpression")
+          : args[0];
+        if (!callback) return;
         if (callback.type !== "ArrowFunctionExpression" && callback.type !== "FunctionExpression") {
           return;
         }
@@ -109,8 +133,11 @@ export class AstWalker {
 // ─── Private helpers ──────────────────────────────────────────────────────────
 
 /**
- * Extract component names from `useQuery([ComponentA, ComponentB])` calls
- * inside the outer function body.
+ * Extract component names from query calls inside the outer function body.
+ *
+ * Handles two forms:
+ * - `useQuery([ComponentA, ComponentB])` — components at arg 0.
+ * - `useActorQuery(ActorDef, [ComponentA, ComponentB])` — components at arg 1.
  */
 function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression): string[] {
   const names: string[] = [];
@@ -122,10 +149,18 @@ function extractQueryComponents(fn: FunctionExpression | ArrowFunctionExpression
     for (const decl of varDecl.declarations) {
       const varDeclarator = decl as VariableDeclarator;
       if (!varDeclarator.init) continue;
-      if (!isCallTo(varDeclarator.init, "useQuery")) continue;
+
+      const isUseQuery = isCallTo(varDeclarator.init, "useQuery");
+      const isUseActorQuery = isCallTo(varDeclarator.init, "useActorQuery");
+      if (!isUseQuery && !isUseActorQuery) continue;
+
       const callArgs = getCallArgs(varDeclarator.init as CallExpression);
-      if (callArgs.length === 0) continue;
-      for (const el of getArrayElements(callArgs[0]!)) {
+      // useQuery([A, B])           → components at arg 0
+      // useActorQuery(Def, [A, B]) → components at arg 1
+      const componentArg = isUseActorQuery ? callArgs[1] : callArgs[0];
+      if (!componentArg) continue;
+
+      for (const el of getArrayElements(componentArg)) {
         const name = getIdentifierName(el);
         if (name) names.push(name);
       }

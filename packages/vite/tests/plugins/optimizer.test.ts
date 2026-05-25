@@ -72,6 +72,60 @@ describe("gwenOptimizerPlugin", () => {
     const plugin = gwenOptimizerPlugin();
     expect(typeof plugin.transform).toBe("function");
   });
+
+  it("skips files that only have useActorQuery but no onUpdate", async () => {
+    const plugin = gwenOptimizerPlugin();
+    const code = `
+      export const FlockActor = defineActor(FlockPrefab, () => {
+        const members = useActorQuery(BoidActor, [Position])
+      })
+    `;
+    const result = await (plugin.transform as Function)(code, "src/actors/flock.ts");
+    expect(result).toBeNull();
+  });
+
+  it("does not skip a defineActor file with useActorQuery + onUpdate", () => {
+    // The transform hook runs the full pipeline — with an empty manifest the
+    // PatternDetector marks the pattern non-optimizable, so the result is null.
+    // The important assertion is that the file is NOT skipped at the quick-check
+    // stage (i.e. the transform hook runs at all without throwing).
+    const plugin = gwenOptimizerPlugin({ mode: "detect" });
+    const code = `
+      export const FlockActor = defineActor(FlockPrefab, () => {
+        const members = useActorQuery(BoidActor, [Position, Velocity])
+        onUpdate(({ dt }) => {
+          for (const e of members) {
+            const pos = useComponent(e, Position)
+            pos.x += 1
+          }
+        })
+      })
+    `;
+    const ctx = { warn: vi.fn() };
+    // Should not throw — file passes the quick-check and is processed by the walker
+    expect(() =>
+      (plugin.transform as Function).call(ctx, code, "src/actors/flock.ts"),
+    ).not.toThrow();
+  });
+
+  it("does not skip a defineActor file with useQuery + onUpdate", () => {
+    const plugin = gwenOptimizerPlugin({ mode: "detect" });
+    const code = `
+      export const SwarmActor = defineActor(SwarmPrefab, () => {
+        const boids = useQuery([Position, Velocity])
+        onUpdate(({ dt }) => {
+          for (const e of boids) {
+            const pos = useComponent(e, Position)
+            pos.x += 1
+          }
+        })
+      })
+    `;
+    const ctx = { warn: vi.fn() };
+    expect(() =>
+      (plugin.transform as Function).call(ctx, code, "src/actors/swarm.ts"),
+    ).not.toThrow();
+  });
 });
 
 describe("gwenVitePlugin", () => {

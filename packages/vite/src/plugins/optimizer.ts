@@ -38,12 +38,16 @@ export interface GwenOptimizerOptions {
 }
 
 /**
- * `gwen:optimizer` — opt-in Vite plugin that transforms ergonomic ECS systems
+ * `gwen:optimizer` — opt-in Vite plugin that transforms ergonomic ECS patterns
  * into zero-copy bulk WASM calls at build time.
  *
  * Detects `useQuery + onUpdate + useComponent` patterns inside `defineSystem`
- * bodies and rewrites them to use `queryReadBulk` / `queryWriteBulk` — reducing
- * JS↔WASM boundary crossings from 3N to 4 per frame (regardless of entity count).
+ * **and `defineActor`** bodies and rewrites them to use `queryReadBulk` /
+ * `queryWriteBulk` — reducing JS↔WASM boundary crossings from 3N to 4 per frame
+ * (regardless of entity count).
+ *
+ * Also handles `useActorQuery(Def, [Components])` as a query source — useful
+ * for actors that act as local systems over a group of entities (swarms, pools).
  *
  * **Opt-in:** Add explicitly to your Vite config alongside `gwenVitePlugin()`:
  *
@@ -146,7 +150,8 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
      */
     transform(code: string, id: string) {
       if (!id.endsWith(".ts") && !id.endsWith(".tsx")) return null;
-      if (!code.includes("useQuery") || !code.includes("onUpdate")) return null;
+      const hasQuery = code.includes("useQuery") || code.includes("useActorQuery");
+      if (!hasQuery || !code.includes("onUpdate")) return null;
 
       const walker = new AstWalker(id);
       const patterns = walker.walk(code);
