@@ -267,6 +267,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           opts.colliderId,
           opts.offsetX,
           opts.offsetY,
+          opts.oneWay ? 1 : 0,
         ),
       addBallCollider: (handle, radius, opts = {}) =>
         pb.physics_add_ball_collider(
@@ -316,6 +317,79 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       getCollisionContacts: (opts) => {
         const batch = readCollisionEvents(opts?.max);
         return resolveContacts(batch.events as unknown as InternalCollisionEvent[]);
+      },
+      /**
+       * Update the linear damping coefficient of a dynamic body at runtime.
+       * @param entityId - The entity whose body to update.
+       * @param damping  - New damping value ≥ 0. 0 = no damping.
+       */
+      setLinearDamping: (entityId, damping) =>
+        pb.physics_set_linear_damping?.(slot(entityId), damping),
+
+      /**
+       * Return all entities whose colliders intersect a circle.
+       * @param x      - World-space centre X in metres.
+       * @param y      - World-space centre Y in metres.
+       * @param radius - Radius in metres.
+       * @param opts   - Optional layer filter.
+       */
+      queryRadius: (x, y, radius, opts) => {
+        const membership =
+          typeof opts?.membershipLayers === "number"
+            ? opts.membershipLayers
+            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+        const filter =
+          typeof opts?.filterLayers === "number"
+            ? opts.filterLayers
+            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+        return (pb.physics_query_radius?.(x, y, radius, membership, filter) ?? []).flatMap((s) => {
+          const g = bridge!.getEntityGeneration(s);
+          return g !== undefined ? [createEntityId(s, g)] : [];
+        });
+      },
+
+      /**
+       * Return all entities whose colliders intersect an axis-aligned rectangle.
+       * @param x  - World-space centre X in metres.
+       * @param y  - World-space centre Y in metres.
+       * @param hw - Half-width in metres.
+       * @param hh - Half-height in metres.
+       * @param opts - Optional layer filter.
+       */
+      queryRect: (x, y, hw, hh, opts) => {
+        const membership =
+          typeof opts?.membershipLayers === "number"
+            ? opts.membershipLayers
+            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+        const filter =
+          typeof opts?.filterLayers === "number"
+            ? opts.filterLayers
+            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+        return (pb.physics_query_rect?.(x, y, hw, hh, membership, filter) ?? []).flatMap((s) => {
+          const g = bridge!.getEntityGeneration(s);
+          return g !== undefined ? [createEntityId(s, g)] : [];
+        });
+      },
+
+      /**
+       * Return all entities whose colliders contain the given point.
+       * @param x    - World-space X in metres.
+       * @param y    - World-space Y in metres.
+       * @param opts - Optional layer filter.
+       */
+      pointQuery: (x, y, opts) => {
+        const membership =
+          typeof opts?.membershipLayers === "number"
+            ? opts.membershipLayers
+            : layerRegistry.resolve(opts?.membershipLayers as string[] | undefined, "membership");
+        const filter =
+          typeof opts?.filterLayers === "number"
+            ? opts.filterLayers
+            : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
+        return (pb.physics_point_query?.(x, y, membership, filter) ?? []).flatMap((s) => {
+          const g = bridge!.getEntityGeneration(s);
+          return g !== undefined ? [createEntityId(s, g)] : [];
+        });
       },
       buildNavmesh: () =>
         pb.physics_build_navmesh ? pb.physics_build_navmesh() : pb.build_navmesh?.(),

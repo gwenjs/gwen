@@ -1024,6 +1024,7 @@ impl Engine {
         collider_id: Option<u32>,
         offset_x: Option<f32>,
         offset_y: Option<f32>,
+        one_way: Option<u32>,
     ) {
         if let Some(ref mut world) = self.physics_world {
             let opts = ColliderOptions {
@@ -1037,6 +1038,7 @@ impl Engine {
                 collider_id: collider_id.unwrap_or(u32::MAX),
                 offset_x: offset_x.unwrap_or(0.0),
                 offset_y: offset_y.unwrap_or(0.0),
+                is_one_way: one_way.unwrap_or(0) != 0,
             };
             world.add_box_collider(handle, hw, hh, opts);
         }
@@ -1069,6 +1071,7 @@ impl Engine {
                 collider_id: collider_id.unwrap_or(u32::MAX),
                 offset_x: offset_x.unwrap_or(0.0),
                 offset_y: offset_y.unwrap_or(0.0),
+                is_one_way: false,
             };
             world.add_ball_collider(handle, radius, opts);
         }
@@ -1152,6 +1155,28 @@ impl Engine {
     #[cfg(feature = "physics2d")]
     pub fn physics_update_sensor_state(&mut self, _slot: u32, _collider_id: u32, _active: u32) {
         // Implementation logic
+    }
+
+    #[cfg(feature = "physics2d")]
+    pub fn physics_set_linear_damping(&mut self, slot: u32, damping: f32) {
+        if let Some(ref mut world) = self.physics_world {
+            world.set_linear_damping(slot, damping);
+        }
+    }
+
+    #[cfg(feature = "physics2d")]
+    pub fn physics_query_radius(&self, x: f32, y: f32, radius: f32, membership: u32, filter: u32) -> Vec<u32> {
+        self.physics_world.as_ref().map(|w| w.query_radius(x, y, radius, membership, filter)).unwrap_or_default()
+    }
+
+    #[cfg(feature = "physics2d")]
+    pub fn physics_query_rect(&self, x: f32, y: f32, hw: f32, hh: f32, membership: u32, filter: u32) -> Vec<u32> {
+        self.physics_world.as_ref().map(|w| w.query_rect(x, y, hw, hh, membership, filter)).unwrap_or_default()
+    }
+
+    #[cfg(feature = "physics2d")]
+    pub fn physics_point_query(&self, x: f32, y: f32, membership: u32, filter: u32) -> Vec<u32> {
+        self.physics_world.as_ref().map(|w| w.point_query(x, y, membership, filter)).unwrap_or_default()
     }
 
     #[cfg(feature = "physics2d")]

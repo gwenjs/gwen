@@ -377,6 +377,7 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
     colliderId?: number,
     offsetX?: number,
     offsetY?: number,
+    oneWay?: number,
   ): void;
   /** Add a ball collider. */
   physics_add_ball_collider(
@@ -397,6 +398,7 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
   physics_remove_rigid_body(slot: number): void;
   /** Set kinematic position. */
   physics_set_kinematic_position(slot: number, x: number, y: number, angle: number): number;
+  /** Integrate N kinematic body positions in one WASM call. Returns number of bodies updated. */
   physics_bulk_step_kinematics(
     slots: Uint32Array,
     vx: Float32Array,
@@ -413,6 +415,28 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
   physics_get_position(slot: number): Float32Array;
   /** Get sensor state. Returns [contactCount, isActive]. */
   physics_get_sensor_state(slot: number, sensorId: number): Int32Array;
+  /** Set linear damping coefficient of a dynamic body at runtime. */
+  physics_set_linear_damping?(slot: number, damping: number): void;
+  /** Return entity slot indices whose colliders intersect a circle at (x, y) with the given radius. */
+  physics_query_radius?(
+    x: number,
+    y: number,
+    radius: number,
+    membership: number,
+    filter: number,
+  ): number[];
+  /** Return entity slot indices whose colliders intersect an AABB centred at (x, y) with half-extents (hw, hh). */
+  physics_query_rect?(
+    x: number,
+    y: number,
+    hw: number,
+    hh: number,
+    membership: number,
+    filter: number,
+  ): number[];
+  /** Return entity slot indices whose colliders contain the point (x, y). */
+  physics_point_query?(x: number, y: number, membership: number, filter: number): number[];
+
   /** Update sensor state manually. */
   physics_update_sensor_state(slot: number, sensorId: number, started: number): void;
 

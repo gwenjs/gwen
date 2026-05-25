@@ -8,7 +8,7 @@ use crate::ecs::storage::ArchetypeStorage;
 use crate::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use crate::physics2d::events::{clear_collision_events, push_collision_event, PhysicsCollisionEvent as StaticCollisionEvent};
 use rapier2d::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
 const COLLIDER_ID_ABSENT: u32 = u32::MAX;
@@ -149,6 +149,23 @@ pub struct PhysicsWorld {
     handle_by_raw: HashMap<u32, RigidBodyHandle>,
     quality_preset: PhysicsQualityPreset,
     global_ccd_enabled: bool,
+    pub one_way_colliders: HashSet<ColliderHandle>,
+}
+
+struct OneWayHooks<'a> {
+    set: &'a HashSet<ColliderHandle>,
+}
+
+impl PhysicsHooks for OneWayHooks<'_> {
+    fn modify_solver_contacts(&self, context: &mut ContactModificationContext) {
+        let is_c1 = self.set.contains(&context.collider1);
+        let is_c2 = self.set.contains(&context.collider2);
+        if !is_c1 && !is_c2 { return; }
+        // Platform is c1 → allowed_local_n1 = +Y (normal points up from platform toward character)
+        // Platform is c2 → allowed_local_n1 = -Y (local_n1 is from c1/character perspective, points down)
+        let allowed = if is_c1 { Vector::y() } else { -Vector::y() };
+        context.update_as_oneway_platform(&allowed, std::f32::consts::FRAC_PI_4);
+    }
 }
 
 impl PhysicsWorld {
@@ -172,6 +189,7 @@ impl PhysicsWorld {
             handle_by_raw: HashMap::new(),
             quality_preset: PhysicsQualityPreset::Medium,
             global_ccd_enabled: false,
+            one_way_colliders: HashSet::new(),
         };
         world.set_quality_preset(PhysicsQualityPreset::Medium);
         world
@@ -258,9 +276,13 @@ impl PhysicsWorld {
                 .sensor(opts.is_sensor)
                 .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
                 .user_data(pack_collider_user_data(entity_index, opts.collider_id))
-                .active_events(ActiveEvents::COLLISION_EVENTS);
+                .active_events(ActiveEvents::COLLISION_EVENTS)
+                .active_hooks(if opts.is_one_way { ActiveHooks::MODIFY_SOLVER_CONTACTS } else { ActiveHooks::empty() });
             let collider = builder.build();
-            self.collider_set.insert_with_parent(collider, handle, &mut self.rigid_body_set);
+            let handle = self.collider_set.insert_with_parent(collider, handle, &mut self.rigid_body_set);
+            if opts.is_one_way {
+                self.one_way_colliders.insert(handle);
+            }
         }
     }
 
@@ -300,9 +322,13 @@ impl PhysicsWorld {
                 .sensor(opts.is_sensor)
                 .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
                 .user_data(pack_collider_user_data(entity_index, opts.collider_id))
-                .active_events(ActiveEvents::COLLISION_EVENTS);
+                .active_events(ActiveEvents::COLLISION_EVENTS)
+                .active_hooks(if opts.is_one_way { ActiveHooks::MODIFY_SOLVER_CONTACTS } else { ActiveHooks::empty() });
             let collider = builder.build();
-            self.collider_set.insert_with_parent(collider, handle, &mut self.rigid_body_set);
+            let collider_handle = self.collider_set.insert_with_parent(collider, handle, &mut self.rigid_body_set);
+            if opts.is_one_way {
+                self.one_way_colliders.insert(collider_handle);
+            }
         }
     }
 
@@ -403,6 +429,58 @@ impl PhysicsWorld {
         (0, false)
     }
 
+    pub fn set_linear_damping(&mut self, entity_index: u32, damping: f32) {
+        if let Some(&handle) = self.entity_to_body.get(&entity_index) {
+            if let Some(body) = self.rigid_body_set.get_mut(handle) {
+                body.set_linear_damping(damping);
+            }
+        }
+    }
+
+    pub fn query_radius(&self, x: f32, y: f32, radius: f32, membership: u32, filter: u32) -> Vec<u32> {
+        self.intersect_shape(&Ball::new(radius), Isometry::translation(x, y), membership, filter)
+    }
+
+    pub fn query_rect(&self, x: f32, y: f32, hw: f32, hh: f32, membership: u32, filter: u32) -> Vec<u32> {
+        self.intersect_shape(&Cuboid::new(vector![hw, hh]), Isometry::translation(x, y), membership, filter)
+    }
+
+    pub fn point_query(&self, x: f32, y: f32, membership: u32, filter: u32) -> Vec<u32> {
+        let qf = Self::make_query_filter(membership, filter);
+        let mut results = Vec::new();
+        self.query_pipeline.intersections_with_point(
+            &self.rigid_body_set, &self.collider_set, &Point::new(x, y), qf,
+            |handle| { self.collect_entity(handle, &mut results); true },
+        );
+        results
+    }
+
+    fn intersect_shape(&self, shape: &dyn Shape, pos: Isometry<f32>, membership: u32, filter: u32) -> Vec<u32> {
+        let qf = Self::make_query_filter(membership, filter);
+        let mut results = Vec::new();
+        self.query_pipeline.intersections_with_shape(
+            &self.rigid_body_set, &self.collider_set, &pos, shape, qf,
+            |handle| { self.collect_entity(handle, &mut results); true },
+        );
+        results
+    }
+
+    #[inline]
+    fn make_query_filter(membership: u32, filter: u32) -> QueryFilter<'static> {
+        QueryFilter::new().groups(InteractionGroups::new(
+            Group::from_bits_truncate(membership),
+            Group::from_bits_truncate(filter),
+        ))
+    }
+
+    #[inline]
+    fn collect_entity(&self, handle: ColliderHandle, results: &mut Vec<u32>) {
+        if let Some(c) = self.collider_set.get(handle) {
+            let (idx, _) = unpack_collider_user_data(c.user_data);
+            if idx != u32::MAX { results.push(idx); }
+        }
+    }
+
     /// Advances the simulation by `delta` seconds.
     pub fn step(&mut self, delta: f32) {
         self.integration_params.dt = delta;
@@ -420,7 +498,7 @@ impl PhysicsWorld {
             &mut self.multibody_joint_set,
             &mut self.ccd_solver,
             Some(&mut self.query_pipeline),
-            &(),
+            &OneWayHooks { set: &self.one_way_colliders },
             &EventCollector,
         );
     }

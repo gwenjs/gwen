@@ -42,6 +42,8 @@ export interface ColliderOptions {
   offsetX?: number;
   /** Local collider offset Y in metres. */
   offsetY?: number;
+  /** If true, only blocks collision from above (one-way platform). @default false */
+  oneWay?: boolean;
 }
 
 export type ColliderShape = "box" | "ball";

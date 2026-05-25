@@ -129,6 +129,7 @@ function useBoxCollider(options: BoxColliderOptions): void
 | options.mask | `number` | Collision filter mask bitmask |
 | options.offsetX | `number` | Local X offset from actor origin |
 | options.offsetY | `number` | Local Y offset from actor origin |
+| options.oneWay | `boolean` | If true, bodies can only collide from above (one-way platform) |
 
 **Returns:** `BoxColliderHandle`
 
@@ -306,11 +307,15 @@ physics.applyImpulse(entityId, 10, 0);
 |---|---|---|
 | `applyImpulse` | `(entityId: EntityId, x: number, y: number) => void` | Apply an instantaneous linear impulse |
 | `setLinearVelocity` | `(entityId: EntityId, vx: number, vy: number) => void` | Override linear velocity (m/s) |
+| `setLinearDamping` | `(entityId: EntityId, damping: number) => void` | Update linear damping coefficient at runtime (≥ 0) |
 | `getLinearVelocity` | `(entityId: EntityId) => { x: number; y: number } \| null` | Read current linear velocity |
 | `getPosition` | `(entityId: EntityId) => { x: number; y: number; rotation: number } \| null` | Read body position and angle |
 | `getCollisionEventsBatch` | `(opts?) => CollisionEventsBatch` | Pull all collision events for this frame |
 | `getCollisionContacts` | `(opts?) => ReadonlyArray<ResolvedCollisionContact>` | Read active contact pairs |
 | `getSensorState` | `(entityId: EntityId, sensorId: number) => SensorState` | Read sensor overlap state |
+| `queryRadius` | `(x, y, radius, opts?) => EntityId[]` | Return all entities whose colliders intersect a circle |
+| `queryRect` | `(x, y, hw, hh, opts?) => EntityId[]` | Return all entities whose colliders intersect an AABB |
+| `pointQuery` | `(x, y, opts?) => EntityId[]` | Return all entities whose colliders contain a point |
 
 :::tip
 Most body manipulation (forces, velocities, impulses) is done through the handle returned by `useDynamicBody()` — not through `usePhysics2D()` directly. The service API is primarily used for collision event polling and spatial queries.
@@ -327,6 +332,52 @@ physics.applyImpulse(entityId, 0, 500)
 onUpdate(() => {
   const batch = physics.getCollisionEventsBatch()
   // process batch...
+})
+```
+
+### Spatial queries
+
+`queryRadius`, `queryRect`, and `pointQuery` return all entities overlapping the given shape. All three accept an optional `QueryFilterOpts` to restrict results by collision layer.
+
+```ts
+const physics = usePhysics2D();
+
+// All enemies within 5 metres of the player
+const nearby = physics.queryRadius(player.x, player.y, 5, {
+  filterLayers: ['enemy'],
+})
+
+// Everything overlapping a 4×2 trigger zone
+const inZone = physics.queryRect(doorX, doorY, 2, 1, {
+  filterLayers: ['player', 'item'],
+})
+
+// What is at the cursor position?
+const underCursor = physics.pointQuery(worldX, worldY)
+```
+
+### setLinearDamping
+
+Adjust linear damping on a live dynamic body without removing and re-adding it. Useful for ice/water surface transitions.
+
+```ts
+const physics = usePhysics2D();
+
+// Entering water — slow down gradually
+physics.setLinearDamping(entityId, 4.0)
+
+// Back on land — restore default
+physics.setLinearDamping(entityId, 0.0)
+```
+
+### One-way platforms
+
+Set `oneWay: true` on a box collider to make it passable from below — only the top face blocks. Bodies approaching from any other direction pass through.
+
+```ts
+export const PlatformActor = defineActor(PlatformPrefab, () => {
+  useStaticBody()
+  useBoxCollider({ w: 4, h: 0.2, oneWay: true })
 })
 ```
 
@@ -522,3 +573,18 @@ interface StaticBodyOptions {
   friction?: number;
 }
 ```
+
+### QueryFilterOpts
+
+Optional layer filter accepted by `queryRadius`, `queryRect`, and `pointQuery`.
+
+```ts
+interface QueryFilterOpts {
+  /** Layers the querying shape belongs to. Number (bitmask) or string[] of named layers. */
+  membershipLayers?: string[] | number;
+  /** Layers the query can hit. Number (bitmask) or string[] of named layers. */
+  filterLayers?: string[] | number;
+}
+```
+
+When omitted, both fields default to `0xFFFFFFFF` (all layers).

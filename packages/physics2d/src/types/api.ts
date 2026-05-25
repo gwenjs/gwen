@@ -49,6 +49,11 @@ export function readCollisionEventsFromBuffer(bufOrView: ArrayBuffer | DataView)
   return events;
 }
 
+export interface QueryFilterOpts {
+  membershipLayers?: string[] | number;
+  filterLayers?: string[] | number;
+}
+
 export interface Physics2DAPI {
   isDebugEnabled?(): boolean;
   addRigidBody(
@@ -97,6 +102,10 @@ export interface Physics2DAPI {
   getLinearVelocity(entityId: EntityId): { x: number; y: number } | null;
   getCollisionEventsBatch(opts?: { max?: number; coalesced?: boolean }): CollisionEventsBatch;
   getCollisionContacts(opts?: { max?: number }): ReadonlyArray<ResolvedCollisionContact>;
+  queryRadius(x: number, y: number, radius: number, opts?: QueryFilterOpts): EntityId[];
+  queryRect(x: number, y: number, hw: number, hh: number, opts?: QueryFilterOpts): EntityId[];
+  pointQuery(x: number, y: number, opts?: QueryFilterOpts): EntityId[];
+  setLinearDamping(entityId: EntityId, damping: number): void;
   getPosition(entityId: EntityId): { x: number; y: number; rotation: number } | null;
   getSensorState(entityId: EntityId, sensorId: number): SensorState;
   updateSensorState(entityId: EntityId, sensorId: number, started: boolean): void;
@@ -196,4 +205,21 @@ export interface WasmPhysics2DPlugin {
   ): number;
   unload_tilemap_chunk_body?(chunkId: number): void;
   free?(): void;
+  physics_set_linear_damping?(slot: number, damping: number): void;
+  physics_query_radius?(
+    x: number,
+    y: number,
+    radius: number,
+    membership: number,
+    filter: number,
+  ): number[];
+  physics_query_rect?(
+    x: number,
+    y: number,
+    hw: number,
+    hh: number,
+    membership: number,
+    filter: number,
+  ): number[];
+  physics_point_query?(x: number, y: number, membership: number, filter: number): number[];
 }

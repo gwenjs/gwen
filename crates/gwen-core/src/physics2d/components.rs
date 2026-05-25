@@ -107,6 +107,8 @@ pub struct ColliderOptions {
     pub offset_x: f32,
     /// Local collider offset in metres.
     pub offset_y: f32,
+    /// if true, the collider detect only one way.
+    pub is_one_way: bool,
 }
 
 impl Default for ColliderOptions {
@@ -119,6 +121,7 @@ impl Default for ColliderOptions {
             collider_id: u32::MAX,
             offset_x: 0.0,
             offset_y: 0.0,
+            is_one_way: false
         }
     }
 }

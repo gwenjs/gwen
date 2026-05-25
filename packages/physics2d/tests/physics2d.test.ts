@@ -308,6 +308,7 @@ describe("Physics2DPlugin", () => {
       undefined,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -359,6 +360,7 @@ describe("Physics2DPlugin", () => {
       0xf007,
       undefined,
       0.34,
+      0,
     );
   });
 
@@ -387,6 +389,7 @@ describe("Physics2DPlugin", () => {
       0xf007,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -763,6 +766,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       0,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -1042,6 +1046,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       0,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -1071,6 +1076,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       0,
       undefined,
       undefined,
+      0,
     );
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       42,
@@ -1166,6 +1172,7 @@ describe("Physics2DPlugin — prefab:instantiate hook", () => {
       0,
       undefined,
       undefined,
+      0,
     );
   });
 });
@@ -1361,6 +1368,7 @@ describe("LayerRegistry — layer resolution", () => {
       undefined,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -1416,6 +1424,7 @@ describe("LayerRegistry — layer resolution", () => {
       undefined,
       undefined,
       undefined,
+      0,
     );
   });
 
@@ -1536,6 +1545,7 @@ describe("Physics2DPlugin — tilemap chunk runtime", () => {
       0,
       16 / 50,
       8 / 50,
+      0,
     );
   });
 
@@ -1592,6 +1602,214 @@ describe("Physics2DPlugin — tilemap chunk runtime", () => {
       0,
       undefined,
       undefined,
+    );
+  });
+});
+
+// ── Physics2DAPI — setLinearDamping, shape queries, oneWay ───────────────────
+
+describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
+  let mockWasmPlugin: ReturnType<typeof makeMockWasmPlugin>;
+  let mockEngine: ReturnType<typeof makeMockEngine>;
+  let mockBridge: ReturnType<typeof makeMockBridge>;
+
+  beforeEach(() => {
+    mockWasmPlugin = makeMockWasmPlugin();
+    mockBridge = makeMockBridge(mockWasmPlugin);
+    mockEngine = makeMockEngine(mockWasmPlugin);
+  });
+
+  afterEach(() => vi.clearAllMocks());
+
+  // ── setLinearDamping ──────────────────────────────────────────────────────
+
+  it("setLinearDamping delegates to wasm with slot conversion", async () => {
+    (mockWasmPlugin as any).physics_set_linear_damping = vi.fn();
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.setLinearDamping(10, 0.3);
+    expect((mockWasmPlugin as any).physics_set_linear_damping).toHaveBeenCalledWith(10, 0.3);
+  });
+
+  it("setLinearDamping is a no-op when WASM method is absent", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    expect(() => physics.setLinearDamping(10, 0.3)).not.toThrow();
+  });
+
+  // ── Physics2DAPI — queryRadius ────────────────────────────────────────────
+
+  it("queryRadius returns EntityIds converted from WASM slots", async () => {
+    (mockWasmPlugin as any).physics_query_radius = vi.fn().mockReturnValue([42, 7]);
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    const result = physics.queryRadius(1.0, 2.0, 5.0);
+    expect((mockWasmPlugin as any).physics_query_radius).toHaveBeenCalledWith(
+      1.0,
+      2.0,
+      5.0,
+      0xffffffff,
+      0xffffffff,
+    );
+    expect(result).toEqual([createEntityId(42, 0), createEntityId(7, 0)]);
+  });
+
+  it("queryRadius returns empty array when WASM method is absent", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    expect(physics.queryRadius(0, 0, 1.0)).toEqual([]);
+  });
+
+  it("queryRadius forwards numeric layer filters to WASM", async () => {
+    (mockWasmPlugin as any).physics_query_radius = vi.fn().mockReturnValue([]);
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.queryRadius(0, 0, 1.0, { membershipLayers: 0b0011, filterLayers: 0b0101 });
+    expect((mockWasmPlugin as any).physics_query_radius).toHaveBeenCalledWith(
+      0,
+      0,
+      1.0,
+      0b0011,
+      0b0101,
+    );
+  });
+
+  it("queryRadius skips slots whose generation is undefined", async () => {
+    (mockWasmPlugin as any).physics_query_radius = vi.fn().mockReturnValue([42, 99]);
+    mockBridge.getEntityGeneration.mockImplementation((slot: number) =>
+      slot === 99 ? undefined : 0,
+    );
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    const result = physics.queryRadius(0, 0, 1.0);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual(createEntityId(42, 0));
+  });
+
+  // ── Physics2DAPI — queryRect ──────────────────────────────────────────────
+
+  it("queryRect returns EntityIds converted from WASM slots", async () => {
+    (mockWasmPlugin as any).physics_query_rect = vi.fn().mockReturnValue([5]);
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    const result = physics.queryRect(0, 0, 2.0, 1.0);
+    expect((mockWasmPlugin as any).physics_query_rect).toHaveBeenCalledWith(
+      0,
+      0,
+      2.0,
+      1.0,
+      0xffffffff,
+      0xffffffff,
+    );
+    expect(result).toEqual([createEntityId(5, 0)]);
+  });
+
+  it("queryRect returns empty array when WASM method is absent", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    expect(physics.queryRect(0, 0, 1.0, 1.0)).toEqual([]);
+  });
+
+  it("queryRect forwards named layer filters via layerRegistry", async () => {
+    (mockWasmPlugin as any).physics_query_rect = vi.fn().mockReturnValue([]);
+    const plugin = Physics2DPlugin({ layers: { ground: 0, player: 1 } });
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.queryRect(0, 0, 1.0, 1.0, { membershipLayers: ["ground"], filterLayers: ["player"] });
+    expect((mockWasmPlugin as any).physics_query_rect).toHaveBeenCalledWith(
+      0,
+      0,
+      1.0,
+      1.0,
+      0b01,
+      0b10,
+    );
+  });
+
+  // ── Physics2DAPI — pointQuery ─────────────────────────────────────────────
+
+  it("pointQuery returns EntityIds converted from WASM slots", async () => {
+    (mockWasmPlugin as any).physics_point_query = vi.fn().mockReturnValue([3, 8]);
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    const result = physics.pointQuery(4.0, -1.5);
+    expect((mockWasmPlugin as any).physics_point_query).toHaveBeenCalledWith(
+      4.0,
+      -1.5,
+      0xffffffff,
+      0xffffffff,
+    );
+    expect(result).toEqual([createEntityId(3, 0), createEntityId(8, 0)]);
+  });
+
+  it("pointQuery returns empty array when WASM method is absent", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    expect(physics.pointQuery(0, 0)).toEqual([]);
+  });
+
+  it("pointQuery forwards named layer filters via layerRegistry", async () => {
+    (mockWasmPlugin as any).physics_point_query = vi.fn().mockReturnValue([]);
+    const plugin = Physics2DPlugin({ layers: { ground: 0, player: 1 } });
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.pointQuery(0, 0, { membershipLayers: ["ground"], filterLayers: ["player"] });
+    expect((mockWasmPlugin as any).physics_point_query).toHaveBeenCalledWith(0, 0, 0b01, 0b10);
+  });
+
+  // ── Physics2DAPI — addBoxCollider oneWay ──────────────────────────────────
+
+  it("addBoxCollider passes oneWay=1 when oneWay:true", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addBoxCollider(0, 1.0, 2.0, { oneWay: true });
+    expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
+      0,
+      1.0,
+      2.0,
+      0,
+      0.5,
+      0,
+      1.0,
+      0xffffffff,
+      0xffffffff,
+      undefined,
+      undefined,
+      undefined,
+      1,
+    );
+  });
+
+  it("addBoxCollider passes oneWay=0 when oneWay:false", async () => {
+    const plugin = Physics2DPlugin();
+    await initPlugin(plugin, mockBridge, mockEngine);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addBoxCollider(0, 1.0, 2.0, { oneWay: false });
+    expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
+      0,
+      1.0,
+      2.0,
+      0,
+      0.5,
+      0,
+      1.0,
+      0xffffffff,
+      0xffffffff,
+      undefined,
+      undefined,
+      undefined,
+      0,
     );
   });
 });
