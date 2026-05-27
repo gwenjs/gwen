@@ -11,4 +11,5 @@ export type {
   GwenKit,
   GwenBuildHooks,
   GwenBaseConfig,
+  PluginDeclaration,
 } from "@gwenjs/schema";

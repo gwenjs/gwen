@@ -75,5 +75,5 @@ export type {
   GwenKit,
   GwenModuleDefinition,
   GwenModule,
+  PluginDeclaration,
 } from "./module";
-

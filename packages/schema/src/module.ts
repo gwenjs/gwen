@@ -158,6 +158,31 @@ export interface GwenBaseConfig {
   [key: string]: unknown;
 }
 
+// ─── PluginDeclaration ────────────────────────────────────────────────────────
+
+/**
+ * A path-based plugin declaration used by module `setup()` functions.
+ *
+ * Instead of passing a runtime instance to `kit.addPlugin()`, modules declare
+ * WHERE the plugin lives. `@gwenjs/vite` reads these declarations at build time
+ * and generates a static `import` in the virtual entry — no esbuild duplication.
+ *
+ * @example
+ * ```ts
+ * setup(_opts, gwen) {
+ *   gwen.addPlugin({ src: '@gwenjs/renderer-core', export: 'ScreenPlugin', options: { fov: 75 } })
+ * }
+ * ```
+ */
+export interface PluginDeclaration {
+  /** npm package name or project-root-relative file path. */
+  src: string;
+  /** Named export to import. Omit to use the default export. */
+  export?: string;
+  /** Options passed as the first argument to the factory. Must be JSON-serializable. */
+  options?: unknown;
+}
+
 // ─── GwenKit ─────────────────────────────────────────────────────────────────
 
 /**
@@ -188,7 +213,7 @@ export interface GwenKit {
    * @example
    * gwen.addPlugin(createPhysics2DPlugin(options))
    */
-  addPlugin(plugin: GwenPlugin | (() => GwenPlugin)): void;
+  addPlugin(plugin: GwenPlugin | (() => GwenPlugin) | PluginDeclaration): void;
 
   /**
    * Registers composables or utilities for auto-import via the `#gwen`
