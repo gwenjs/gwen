@@ -47,6 +47,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@gwenjs/app": "workspace:*",
     "@gwenjs/kit": "workspace:*",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.123.0",

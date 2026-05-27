@@ -8,15 +8,16 @@
  */
 
 import type { GwenPlugin } from "@gwenjs/core";
+import type { PluginDeclaration } from "@gwenjs/schema";
 import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
 import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
 import { resolve, join } from "node:path";
 import type { ResolvedGwenConfig } from "./config";
-import { createViewportsPlugin } from "./viewports-plugin.js";
-import { createScreenPlugin } from "./create-screen-plugin.js";
-import { BUILT_IN_MODULES } from "./built-in-modules.js";
+import { createViewportsPlugin } from "./viewports-plugin";
+import { createScreenPlugin } from "./create-screen-plugin";
+import { BUILT_IN_MODULES } from "./built-in-modules";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -60,6 +61,8 @@ export class GwenApp {
   private readonly _typeTemplates: GwenTypeTemplate[] = [];
   /** Collected module-augmentation snippets (e.g. `GwenProvides` / `GwenRuntimeHooks` extensions). */
   private readonly _moduleAugments: string[] = [];
+  /** Collected path-based plugin declarations (used by @gwenjs/vite for static imports). */
+  private readonly _pluginDeclarations: PluginDeclaration[] = [];
 
   /**
    * Build-time hook bus. Subscribe with `app.buildHooks.hook(event, fn)` or
@@ -91,6 +94,14 @@ export class GwenApp {
    */
   get vitePlugins(): VitePlugin[] {
     return [...this._vitePlugins];
+  }
+
+  /**
+   * Returns a snapshot of all path-based plugin declarations registered by modules.
+   * Each call returns a fresh array — safe to mutate.
+   */
+  get pluginDeclarations(): PluginDeclaration[] {
+    return [...this._pluginDeclarations];
   }
 
   /**
@@ -334,8 +345,14 @@ export class GwenApp {
        * Registers a runtime plugin. Accepts a plugin instance or a zero-arg
        * factory function that returns a plugin instance.
        */
-      addPlugin(plugin: GwenPlugin | (() => GwenPlugin)): void {
-        app._plugins.push(typeof plugin === "function" ? plugin() : plugin);
+      addPlugin(plugin: GwenPlugin | (() => GwenPlugin) | PluginDeclaration): void {
+        if (typeof plugin === "function") {
+          app._plugins.push(plugin());
+        } else if ("src" in plugin) {
+          app._pluginDeclarations.push(plugin as PluginDeclaration);
+        } else {
+          app._plugins.push(plugin as GwenPlugin);
+        }
       },
 
       /** Registers composables/utilities for auto-import. */

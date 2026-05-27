@@ -174,6 +174,24 @@ describe("GwenApp.setupModules — options merging via configKey", () => {
     const [receivedOptions] = setupFn.mock.calls[0] as [Record<string, unknown>];
     expect(receivedOptions).toMatchObject({ a: 1, b: 2 });
   });
+  it("stores PluginDeclaration objects in pluginDeclarations (not in plugins)", async () => {
+    const decl = { src: "@gwenjs/renderer-core", export: "ScreenPlugin", options: { fov: 75 } };
+    const mod = defineGwenModule({
+      meta: { name: "@test/decl-mod" },
+      setup(_opts, gwen) {
+        gwen.addPlugin(decl);
+      },
+    });
+
+    const config = resolveConfig({ modules: ["@test/decl-mod"] });
+    const app = new GwenApp();
+    await app.setupModules(config, makeLoader({ "@test/decl-mod": mod }));
+
+    expect(app.pluginDeclarations).toHaveLength(1);
+    expect(app.pluginDeclarations[0]).toEqual(decl);
+    // Runtime plugins count unchanged — decl does NOT go into _plugins
+    expect(app.plugins.find((p) => p.name === "test-decl-runtime")).toBeUndefined();
+  });
 });
 
 describe("GwenApp.setupModules — reserved key collision", () => {

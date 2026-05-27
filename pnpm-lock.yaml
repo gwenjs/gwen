@@ -292,6 +292,9 @@ importers:
 
   packages/vite:
     dependencies:
+      '@gwenjs/app':
+        specifier: workspace:*
+        version: link:../app
       '@gwenjs/kit':
         specifier: workspace:*
         version: link:../kit

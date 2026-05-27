@@ -52,6 +52,8 @@ import {
   getObjectProperties,
   getPropertyKeyName,
 } from "./oxc/index.js";
+import { resolveGwenConfig, GwenApp } from "@gwenjs/app/resolve";
+import type { PluginDeclaration } from "@gwenjs/schema";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -617,6 +619,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
    * - With Rust crate: wasm-pack output directory (in .gwen/wasm/)
    */
   let wasmSourceDir: string | null = null;
+  let _declarations: PluginDeclaration[] = [];
 
   function log(msg: string) {
     // eslint-disable-next-line no-console
@@ -826,6 +829,26 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     name: "gwen",
     enforce: "pre",
 
+    configResolved(config) {
+      projectRoot = config.root;
+    },
+
+    async buildStart() {
+      // Load module declarations for static entry generation
+      try {
+        const config = await resolveGwenConfig(projectRoot);
+        const app = new GwenApp();
+        await app.setupModules(config);
+        _declarations = app.pluginDeclarations;
+      } catch {
+        _declarations = [];
+      }
+      // Ensure WASM source dir is resolved for builds without a dev server
+      if (!wasmSourceDir) {
+        buildWasm(projectRoot);
+      }
+    },
+
     // ── COOP/COEP headers for Vite preview (production) ───────────────────
     config() {
       return {
@@ -1015,13 +1038,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
           });
         }
         if (files.length > 0) log(`Emitted ${files.length} WASM plugin assets from ${pluginDir}`);
-      }
-    },
-
-    // ── Build SSR/preview: ensure wasmSourceDir is known ─────────────────
-    buildStart() {
-      if (!wasmSourceDir) {
-        buildWasm(projectRoot);
       }
     },
 
