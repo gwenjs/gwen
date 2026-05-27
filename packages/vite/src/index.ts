@@ -459,7 +459,7 @@ function toRootRelative(filePath: string, projectRoot: string): string {
 /**
  * Generates the `/@gwenjs/gwen-entry` virtual module source.
  *
- * Imports `@gwenjs/core` directly (no `setupGwen` from `@gwenjs/app`) to prevent
+ * Imports `@gwenjs/core` directly to prevent
  * esbuild from pre-bundling `@gwenjs/app` and creating duplicate `engineContext` singletons.
  *
  * @param hasScenesDir - Whether `src/scenes/` exists in the project.
@@ -866,6 +866,17 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     // ── COOP/COEP headers for Vite preview (production) ───────────────────
     config() {
       return {
+        optimizeDeps: {
+          include: [
+            "@gwenjs/core",
+            "@gwenjs/core/system",
+            "@gwenjs/core/actor",
+            "@gwenjs/core/scene",
+          ],
+        },
+        resolve: {
+          dedupe: ["@gwenjs/core"],
+        },
         preview: {
           headers: {
             "Cross-Origin-Opener-Policy": "same-origin",

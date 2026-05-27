@@ -43,6 +43,23 @@ describe("gwen() plugin factory", () => {
   });
 });
 
+describe("gwen() config hook — optimizeDeps", () => {
+  it("includes @gwenjs/core and subpaths in optimizeDeps.include", () => {
+    const plugin = gwen();
+    const config = (plugin.config as Function)({}, { command: "serve" });
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/system");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/actor");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/scene");
+  });
+
+  it("deduplicates @gwenjs/core in resolve.dedupe", () => {
+    const plugin = gwen();
+    const config = (plugin.config as Function)({}, { command: "serve" });
+    expect(config.resolve.dedupe).toContain("@gwenjs/core");
+  });
+});
+
 // ── Virtual module — resolveId ────────────────────────────────────────────────
 
 describe("virtual:gwen-manifest — resolveId", () => {
