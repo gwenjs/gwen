@@ -456,83 +456,96 @@ function toRootRelative(filePath: string, projectRoot: string): string {
   return "/@fs" + abs;
 }
 
+/**
+ * Generates the `/@gwenjs/gwen-entry` virtual module source.
+ *
+ * Imports `@gwenjs/core` directly (no `setupGwen` from `@gwenjs/app`) to prevent
+ * esbuild from pre-bundling `@gwenjs/app` and creating duplicate `engineContext` singletons.
+ *
+ * @param hasScenesDir - Whether `src/scenes/` exists in the project.
+ * @param declarations - Path-based plugin declarations collected from module setup().
+ * @param cssFiles     - Root-relative CSS paths to inject as top-level imports.
+ */
 function generateEntryModule(
   hasScenesDir: boolean,
-  moduleNames: string[] = [],
+  declarations: PluginDeclaration[] = [],
   cssFiles: string[] = [],
 ): string {
   const lines: string[] = [];
 
-  // Inject global CSS imports first so they are processed early by Vite
   for (const css of cssFiles) {
     lines.push(`import ${JSON.stringify(css)};`);
   }
 
   lines.push(
-    'import { engineContext } from "@gwenjs/core";',
-    'import { setupGwen } from "@gwenjs/app";',
+    'import { engineContext, createEngine, WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
+    'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
+    'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
+    'import { modules as _localModules } from "virtual:gwen/local-modules";',
   );
 
   if (hasScenesDir) {
     lines.push('import { registerScenes, mainSceneFactory } from "/@gwenjs/gwen-scenes";');
   }
 
-  // Generate static imports for each module — Vite can pre-bundle these
-  const localVars: string[] = moduleNames.map((name, i) => {
-    const localVar = `_gwenMod${i}`;
-    lines.push(`import ${localVar} from ${JSON.stringify(name + "/module")};`);
-    return localVar;
-  });
+  for (let i = 0; i < declarations.length; i++) {
+    const d = declarations[i]!;
+    if (d.export) {
+      lines.push(`import { ${d.export} as _gwenPlugin${i} } from ${JSON.stringify(d.src)};`);
+    } else {
+      lines.push(`import _gwenPlugin${i} from ${JSON.stringify(d.src)};`);
+    }
+  }
 
-  // Build a static registry mapping name → imported module object
-  const registryEntries = moduleNames
-    .map((name, i) => `  ${JSON.stringify(name)}: ${localVars[i]}`)
-    .join(",\n");
-  const registryCode =
-    moduleNames.length > 0
-      ? `const _gwenModRegistry = {\n${registryEntries}\n};\n`
-      : "const _gwenModRegistry = {};\n";
-
-  const bootstrapLines = [
+  const bootstrapLines: string[] = [
     "",
-    registryCode,
     "async function bootstrap() {",
-    "  // setupGwen handles: WASM init, engine creation, built-in plugins (viewports, screen)",
-    "  const engine = await setupGwen(gwenConfig);",
+    "  const variant = detectCoreVariant(gwenConfig);",
+    "  const requireSAB = detectSharedMemoryRequired(gwenConfig);",
+    "  const bridge = new WasmBridgeImpl();",
+    "  await bridge.init(variant, { requireSAB });",
+    "  const engine = await createEngine({ ...gwenConfig.engine, variant, _bridge: bridge });",
+    "  const _logCfg = gwenConfig.logger ?? {};",
+    '  engine.logger = new GwenLogger(_logCfg.providers ?? [consoleLogProvider()], _logCfg.minLevel ?? "warn");',
     "",
-    "  // Load runtime plugins declared via modules: []",
-    "  const modulePlugins = [];",
-    "  const kit = {",
-    '    addPlugin(p) { modulePlugins.push(typeof p === "function" ? p() : p); },',
-    "    addAutoImports() {},",
-    "    addVitePlugin() {},",
-    "    extendViteConfig() {},",
-    "    addTypeTemplate() {},",
-    "    addModuleAugment() {},",
-    "    hook() {},",
-    "    options: gwenConfig,",
-    "  };",
-    "  for (const entry of (gwenConfig.modules ?? [])) {",
-    "    const [name, opts] = Array.isArray(entry) ? entry : [entry, {}];",
-    "    const mod = _gwenModRegistry[name];",
-    "    if (mod) {",
-    "      const def = mod.default ?? mod;",
-    '      if (def && typeof def.setup === "function") await def.setup(opts ?? {}, kit);',
-    "    }",
-    "  }",
-    "  for (const p of modulePlugins) await engine.use(p);",
+    "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
+    "  await engine.use(createScreenPlugin(gwenConfig.screen));",
+    "",
+    "  for (const p of gwenConfig.plugins ?? []) await engine.use(p);",
+    "",
   ];
+
+  for (let i = 0; i < declarations.length; i++) {
+    const d = declarations[i]!;
+    const opts = d.options !== undefined ? JSON.stringify(d.options) : undefined;
+    bootstrapLines.push(
+      opts !== undefined
+        ? `  await engine.use(_gwenPlugin${i}(${opts}));`
+        : `  await engine.use(_gwenPlugin${i}());`,
+    );
+  }
+
+  bootstrapLines.push(
+    "",
+    "  for (const mod of _localModules) {",
+    "    const _lmPlugins = [];",
+    '    const _lmKit = { addPlugin(p) { _lmPlugins.push(typeof p === "function" ? p() : p); }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, addTypeTemplate() {}, addModuleAugment() {}, hook() {}, options: gwenConfig };',
+    "    const _lmKey = mod.meta?.configKey;",
+    "    const _lmOpts = Object.assign({}, mod.defaults ?? {}, _lmKey ? (gwenConfig[_lmKey] ?? {}) : {});",
+    "    await mod.setup(_lmOpts, _lmKit);",
+    "    for (const p of _lmPlugins) await engine.use(p);",
+    "  }",
+    "  for (const factory of _localPlugins) await engine.use(factory());",
+  );
 
   if (hasScenesDir) {
     bootstrapLines.push(
       "",
-      "  // Wire scenes: collect system plugins via SceneRegistry adapter",
-      "  const usages = [];",
-      "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) usages.push(engine.use(s)); } }));",
-      "  await Promise.all(usages);",
+      "  const _sceneUsages = [];",
+      "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) _sceneUsages.push(engine.use(s)); } }));",
+      "  await Promise.all(_sceneUsages);",
       "",
-      "  // Activate initial scene: fire onEnter for the main scene with engine context",
       "  if (mainSceneFactory) {",
       "    const _mainDef = mainSceneFactory({ register() {} });",
       "    if (_mainDef.onEnter) {",
@@ -544,6 +557,7 @@ function generateEntryModule(
   }
 
   bootstrapLines.push(
+    "",
     '  if (gwenConfig.engine?.loop === "external") {',
     "    await engine.startExternal();",
     "  } else {",
@@ -878,11 +892,10 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
       if (id === RESOLVED_ENTRY) {
         const hasScenesDir = fs.existsSync(path.join(projectRoot, "src", "scenes"));
         const configPath = path.join(projectRoot, "gwen.config.ts");
-        const moduleNames = extractModuleNamesFromConfig(configPath);
         const cssFiles = extractGlobalCssFromConfig(configPath).map((f) =>
           toRootRelative(f, projectRoot),
         );
-        return generateEntryModule(hasScenesDir, moduleNames, cssFiles);
+        return generateEntryModule(hasScenesDir, _declarations, cssFiles);
       }
 
       if (id === RESOLVED_SCENES) {

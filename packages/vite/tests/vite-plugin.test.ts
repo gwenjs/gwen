@@ -173,60 +173,77 @@ describe("generateBundle", () => {
 // ── generateEntryModule ───────────────────────────────────────────────────────
 
 describe("generateEntryModule — bootstrap correctness", () => {
-  it("uses setupGwen to create the engine", () => {
+  it("imports @gwenjs/core directly — no setupGwen", () => {
     const code = generateEntryModule(false);
-    expect(code).not.toContain("const { engine }");
-    expect(code).toContain("const engine = await setupGwen(");
+    expect(code).toContain('from "@gwenjs/core"');
+    expect(code).not.toContain("setupGwen");
   });
 
-  it("passes gwenConfig to setupGwen (not .engine)", () => {
+  it("imports createEngine and WasmBridgeImpl from @gwenjs/core", () => {
     const code = generateEntryModule(false);
-    expect(code).toContain("setupGwen(gwenConfig)");
-    expect(code).not.toContain("setupGwen(gwenConfig.engine");
+    expect(code).toContain("createEngine");
+    expect(code).toContain("WasmBridgeImpl");
   });
 
-  it("no modules: no dynamic import, no @vite-ignore, empty registry", () => {
+  it("imports createViewportsPlugin and createScreenPlugin from @gwenjs/app", () => {
+    const code = generateEntryModule(false);
+    expect(code).toContain('from "@gwenjs/app"');
+    expect(code).toContain("createViewportsPlugin");
+    expect(code).toContain("createScreenPlugin");
+  });
+
+  it("imports virtual:gwen/local-plugins and virtual:gwen/local-modules", () => {
+    const code = generateEntryModule(false);
+    expect(code).toContain('from "virtual:gwen/local-plugins"');
+    expect(code).toContain('from "virtual:gwen/local-modules"');
+  });
+
+  it("no declarations: no extra static plugin imports", () => {
     const code = generateEntryModule(false, []);
-    expect(code).not.toContain("@vite-ignore");
-    expect(code).not.toContain("import(");
-    expect(code).toContain("const _gwenModRegistry = {}");
+    expect(code).not.toContain("_gwenPlugin0");
   });
 
-  it("with modules: generates static top-level imports (no dynamic import)", () => {
-    const code = generateEntryModule(false, ["@gwenjs/input", "@gwenjs/ui"]);
-    expect(code).not.toContain("@vite-ignore");
-    expect(code).not.toContain("import(");
-    expect(code).toContain('import _gwenMod0 from "@gwenjs/input/module"');
-    expect(code).toContain('import _gwenMod1 from "@gwenjs/ui/module"');
+  it("declaration with named export: generates named import", () => {
+    const code = generateEntryModule(false, [
+      { src: "@gwenjs/renderer-core", export: "ScreenPlugin" },
+    ]);
+    expect(code).toContain('import { ScreenPlugin as _gwenPlugin0 } from "@gwenjs/renderer-core"');
   });
 
-  it("with modules: registry maps name to local var", () => {
-    const code = generateEntryModule(false, ["@gwenjs/input"]);
-    expect(code).toContain('"@gwenjs/input": _gwenMod0');
+  it("declaration without export: generates default import", () => {
+    const code = generateEntryModule(false, [{ src: "@gwenjs/audio" }]);
+    expect(code).toContain('import _gwenPlugin0 from "@gwenjs/audio"');
   });
 
-  it("with modules: bootstrap looks up registry by name and calls setup", () => {
-    const code = generateEntryModule(false, ["@gwenjs/input"]);
-    expect(code).toContain("_gwenModRegistry[name]");
-    expect(code).toContain("def.setup");
+  it("declaration with options: serializes options as JSON in the use() call", () => {
+    const code = generateEntryModule(false, [
+      { src: "@gwenjs/renderer-core", export: "ScreenPlugin", options: { fov: 75 } },
+    ]);
+    expect(code).toContain('await engine.use(_gwenPlugin0({"fov":75}))');
   });
 
-  it("registers module plugins and then starts the engine", () => {
-    const code = generateEntryModule(false, ["@gwenjs/input"]);
-    const modulePluginsIdx = code.indexOf("for (const p of modulePlugins)");
-    const startIdx = code.indexOf("engine.start()");
-    expect(modulePluginsIdx).toBeGreaterThan(0);
-    expect(startIdx).toBeGreaterThan(modulePluginsIdx);
+  it("declaration without options: calls factory with no arguments", () => {
+    const code = generateEntryModule(false, [{ src: "@gwenjs/audio", export: "AudioPlugin" }]);
+    expect(code).toContain("await engine.use(_gwenPlugin0())");
   });
 
-  it("kit stub provides all GwenKit methods as no-ops for build-only methods", () => {
+  it("multiple declarations: generates sequential static imports and use() calls", () => {
+    const code = generateEntryModule(false, [
+      { src: "@gwenjs/input", export: "InputPlugin" },
+      { src: "@gwenjs/audio" },
+    ]);
+    expect(code).toContain("_gwenPlugin0");
+    expect(code).toContain("_gwenPlugin1");
+    const use0Idx = code.indexOf("engine.use(_gwenPlugin0");
+    const use1Idx = code.indexOf("engine.use(_gwenPlugin1");
+    expect(use0Idx).toBeGreaterThan(0);
+    expect(use1Idx).toBeGreaterThan(use0Idx);
+  });
+
+  it("registers user config plugins via gwenConfig.plugins loop", () => {
     const code = generateEntryModule(false);
-    expect(code).toContain("addAutoImports() {}");
-    expect(code).toContain("addVitePlugin() {}");
-    expect(code).toContain("extendViteConfig() {}");
-    expect(code).toContain("addTypeTemplate() {}");
-    expect(code).toContain("addModuleAugment() {}");
-    expect(code).toContain("hook() {}");
+    expect(code).toContain("gwenConfig.plugins");
+    expect(code).toContain("for (const p of gwenConfig.plugins");
   });
 
   it("awaits engine.start()", () => {
