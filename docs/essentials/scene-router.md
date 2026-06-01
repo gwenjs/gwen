@@ -48,9 +48,9 @@ export const AppRouter = defineSceneRouter({
 
 ## Navigating
 
-Call `useSceneRouter(router)` inside a system or scene to get the handle, then use `nav.send()` to trigger transitions.
+Call `useSceneRouter(router)` inside a system or plugin to get the handle, then use `nav.send()` to trigger transitions.
 
-**From a system:**
+**From a system (recommended):**
 
 ```ts
 import { AppRouter } from '../router'
@@ -66,16 +66,49 @@ export const GameOverSystem = defineSystem(() => {
 })
 ```
 
-**From a scene:**
+**From a local plugin (`src/plugins/`):**
+
+When the system that needs to navigate lives inside a scene that is itself referenced by the router, importing `AppRouter` would create a circular import. Wire navigation in a local plugin instead — it sits outside the scene graph:
 
 ```ts
+// src/plugins/navigation.ts
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { useHook } from '@gwenjs/core'
 import { AppRouter } from '../router'
 
-export const MenuScene = defineScene('menu', () => {
-  const nav = useSceneRouter(AppRouter)
+export default () => ({
+  name: 'app:navigation',
+  setup() {
+    const nav = useSceneRouter(AppRouter)
+    useHook('nav:toGame', () => nav.send('START'))
+  },
+})
+```
 
-  onEnter(() => {
-    const { difficulty } = nav.params  // read params from previous transition
+The scene just emits the event without knowing about the router:
+
+```ts
+// src/systems/TitleSystem.ts
+export const TitleSystem = defineSystem(() => {
+  const kb = useKeyboard()
+  onUpdate(() => {
+    if (kb.isPressed(Keys.Space)) emit('nav:toGame')
+  })
+})
+```
+
+::: warning Circular import pitfall
+`router.ts` imports your scene files. If any scene (or anything it imports) also imports `router.ts`, you get a circular ES module dependency → `ReferenceError: Cannot access before initialization`.
+
+**Rule:** scenes and their systems must never import `router.ts`. Put navigation wiring in `src/plugins/` or in systems that are not transitively imported by the router.
+:::
+
+**Reading params from a scene:**
+
+```ts
+export const GameScene = defineScene('game', () => {
+  onEnter((params) => {
+    const level = params?.level  // passed by nav.send('START', { level: 2 })
   })
 })
 ```

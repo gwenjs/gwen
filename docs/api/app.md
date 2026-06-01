@@ -46,6 +46,7 @@ export default defineConfig({
 
 | Property | Type | Default | Description |
 |---|---|---|---|
+| `mainScene` | `string` | first scene file | Name of the initial scene (must match the first argument of a `defineScene()` call). By default the framework picks the first scene file alphabetically — set this explicitly when your initial scene is not the first one. |
 | `modules` | `string[]` | `[]` | Modules to activate. Each entry is the npm package name. Module options are declared as a top-level key (e.g. `physics2d: { gravity: -9.81 }`). |
 | `engine.maxEntities` | `number` | `10_000` | Max simultaneous entities. |
 | `engine.targetFPS` | `number` | `60` | Target frames per second. |

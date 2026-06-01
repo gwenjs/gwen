@@ -21,8 +21,8 @@ This is the most important concept in GWEN: the `defineScene` factory runs **onc
 export const GameScene = defineScene('game', () => {
 
   // ── Setup phase (once at bootstrap) ──────────────────────────────
-  const player = useActor(PlayerActor)        // register — does not spawn yet
-  const move   = useSystem(MovementSystem())  // register — does not run yet
+  const player = useActor(PlayerActor)        // registered — actor does not exist yet
+  const move   = useSystem(MovementSystem())  // registered — system does not tick yet
 
   // ── Runtime phase (on every navigation) ──────────────────────────
   onEnter(() => player.spawnOnce({ x: 400, y: 530 }))  // now it spawns
@@ -31,6 +31,10 @@ export const GameScene = defineScene('game', () => {
 ```
 
 The handles captured in setup (`player`, `move`) are available as closures in the runtime callbacks. This declare-then-use pattern is consistent across scenes, actors, systems, and layouts.
+
+::: info Scene isolation is automatic
+All scene systems are installed at bootstrap time, but the framework automatically **pauses** the systems of every scene that is not the initial one. When `scene:enter` fires, that scene's systems resume. When `scene:beforeLeave` fires, they pause again. You never manage this yourself — `onEnter` / `onExit` handle actors and DOM; the framework handles system ticking.
+:::
 
 ## Lifecycle Order
 

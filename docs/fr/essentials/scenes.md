@@ -32,6 +32,10 @@ export const GameScene = defineScene('game', () => {
 
 Les handles capturés dans le setup (`player`, `move`) sont disponibles en closure dans les callbacks d'exécution. Ce pattern déclarer-puis-utiliser est cohérent dans les scènes, acteurs, systèmes et layouts.
 
+::: info L'isolation des scènes est automatique
+Tous les systèmes de toutes les scènes sont installés au bootstrap, mais le framework **met en pause** automatiquement les systèmes de chaque scène qui n'est pas la scène initiale. Quand `scene:enter` se déclenche, les systèmes de cette scène reprennent. Quand `scene:beforeLeave` se déclenche, ils se remettent en pause. Vous n'avez pas à gérer cela — `onEnter` / `onExit` gèrent les acteurs et le DOM ; le framework gère les ticks système.
+:::
+
 ## Ordre du cycle de vie
 
 Lors d'une navigation de la scène **A** vers la scène **B**, les callbacks se déclenchent dans cet ordre :

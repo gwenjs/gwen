@@ -48,9 +48,9 @@ export const AppRouter = defineSceneRouter({
 
 ## Naviguer
 
-Appelez `useSceneRouter(router)` à l'intérieur d'un système ou d'une scène pour obtenir le handle, puis utilisez `nav.send()` pour déclencher les transitions.
+Appelez `useSceneRouter(router)` à l'intérieur d'un système ou d'un plugin pour obtenir le handle, puis utilisez `nav.send()` pour déclencher les transitions.
 
-**Depuis un système :**
+**Depuis un système (recommandé) :**
 
 ```ts
 import { AppRouter } from '../router'
@@ -66,16 +66,49 @@ export const GameOverSystem = defineSystem(() => {
 })
 ```
 
-**Depuis une scène :**
+**Depuis un plugin local (`src/plugins/`) :**
+
+Quand le système qui navigue fait partie d'une scène référencée par le router, importer `AppRouter` créerait une dépendance circulaire. Câblez la navigation dans un plugin local à la place — il se situe en dehors du graphe de scènes :
 
 ```ts
+// src/plugins/navigation.ts
+import { useSceneRouter } from '@gwenjs/core/scene'
+import { useHook } from '@gwenjs/core'
 import { AppRouter } from '../router'
 
-export const MenuScene = defineScene('menu', () => {
-  const nav = useSceneRouter(AppRouter)
+export default () => ({
+  name: 'app:navigation',
+  setup() {
+    const nav = useSceneRouter(AppRouter)
+    useHook('nav:toGame', () => nav.send('START'))
+  },
+})
+```
 
-  onEnter(() => {
-    const { difficulty } = nav.params  // lire les paramètres de la transition précédente
+La scène émet simplement l'événement sans connaître le router :
+
+```ts
+// src/systems/TitleSystem.ts
+export const TitleSystem = defineSystem(() => {
+  const kb = useKeyboard()
+  onUpdate(() => {
+    if (kb.isPressed(Keys.Space)) emit('nav:toGame')
+  })
+})
+```
+
+::: warning Piège de la dépendance circulaire
+`router.ts` importe vos fichiers de scènes. Si une scène (ou quelque chose qu'elle importe) importe également `router.ts`, vous obtenez une dépendance circulaire ES module → `ReferenceError: Cannot access before initialization`.
+
+**Règle :** les scènes et leurs systèmes ne doivent jamais importer `router.ts`. Placez le câblage de navigation dans `src/plugins/` ou dans des systèmes qui ne sont pas importés transitivement par le router.
+:::
+
+**Lire les paramètres depuis une scène :**
+
+```ts
+export const GameScene = defineScene('game', () => {
+  onEnter((params) => {
+    const level = params?.level  // passé par nav.send('START', { level: 2 })
   })
 })
 ```
