@@ -45,18 +45,18 @@ describe("gwen() plugin factory", () => {
 });
 
 describe("gwen() config hook — optimizeDeps", () => {
-  it("includes @gwenjs/core and subpaths in optimizeDeps.include", () => {
+  it("includes @gwenjs/core and subpaths in optimizeDeps.include", async () => {
     const [plugin] = gwen();
-    const config = (plugin.config as Function)({}, { command: "serve" });
+    const config = await (plugin.config as Function)({}, { command: "serve" });
     expect(config.optimizeDeps.include).toContain("@gwenjs/core");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/system");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/actor");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/scene");
   });
 
-  it("deduplicates @gwenjs/core in resolve.dedupe", () => {
+  it("deduplicates @gwenjs/core in resolve.dedupe", async () => {
     const [plugin] = gwen();
-    const config = (plugin.config as Function)({}, { command: "serve" });
+    const config = await (plugin.config as Function)({}, { command: "serve" });
     expect(config.resolve.dedupe).toContain("@gwenjs/core");
   });
 });
@@ -282,7 +282,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
 
   it("with scenes: imports registerScenes and mainSceneFactory", () => {
     const code = generateEntryModule(true);
-    expect(code).toContain("import { registerScenes, mainSceneFactory }");
+    expect(code).toContain("import { registerScenes, mainSceneFactory, mainScene }");
   });
 
   it("with scenes: wires systems via SceneRegistry adapter before start", () => {
@@ -292,7 +292,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(scenesIdx).toBeGreaterThan(0);
     expect(startIdx).toBeGreaterThan(scenesIdx);
     expect(code).toContain("register(scene)");
-    expect(code).toContain("engine.use(s)");
+    expect(code).toContain("engine.use(_s)");
   });
 
   it("without scenes: no registerScenes import or call", () => {

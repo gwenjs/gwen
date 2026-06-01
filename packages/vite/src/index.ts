@@ -28,7 +28,7 @@
 
 import fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import type { Plugin, ViteDevServer } from "vite";
 import { walk } from "oxc-walker";
@@ -53,8 +53,14 @@ import {
   getPropertyKeyName,
 } from "./oxc/index.js";
 import { resolveGwenConfig, GwenApp } from "@gwenjs/app/resolve";
-import type { PluginDeclaration } from "@gwenjs/schema";
-import { gwenLocalPluginsPlugin, gwenLocalModulesPlugin } from "./plugins/index.js";
+import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
+import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+import {
+  gwenLocalPluginsPlugin,
+  gwenLocalModulesPlugin,
+  gwenAutoImportsPlugin,
+  gwenTypesPlugin,
+} from "./plugins/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -508,7 +514,7 @@ function generateEntryModule(
   );
 
   if (hasScenesDir) {
-    lines.push('import { registerScenes, mainSceneFactory } from "/@gwenjs/gwen-scenes";');
+    lines.push('import { registerScenes, mainSceneFactory, mainScene } from "/@gwenjs/gwen-scenes";');
   }
 
   for (let i = 0; i < declarations.length; i++) {
@@ -578,8 +584,17 @@ function generateEntryModule(
     bootstrapLines.push(
       "",
       "  const _sceneUsages = [];",
-      "  engine.run(() => registerScenes({ register(scene) { for (const s of scene.systems ?? []) _sceneUsages.push(engine.use(s)); } }));",
+      "  const _sceneHandleMap = new Map();",
+      "  engine.run(() => registerScenes({ register(scene) { _sceneHandleMap.set(scene.name, scene.handles ?? []); for (const _s of scene.systems ?? []) _sceneUsages.push(engine.use(_s)); } }));",
       "  await Promise.all(_sceneUsages);",
+      "",
+      "  // Pause systems of every scene except the initial one.",
+      "  // scene:enter / scene:beforeLeave resume and pause them during transitions.",
+      "  for (const [_sName, _sHandles] of _sceneHandleMap.entries()) {",
+      "    if (_sName !== mainScene) for (const _h of _sHandles) _h._scenePause();",
+      "  }",
+      "  engine.hooks.hook('scene:enter', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._sceneResume(); });",
+      "  engine.hooks.hook('scene:beforeLeave', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._scenePause(); });",
       "",
       "  if (mainSceneFactory) {",
       "    const _mainDef = mainSceneFactory({ register() {} });",
@@ -669,6 +684,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
    */
   let wasmSourceDir: string | null = null;
   let _declarations: PluginDeclaration[] = [];
+  let _modulesLoaded = false;
+  const _sharedAutoImports: AutoImport[] = [];
+  const _sharedTypeTemplates: GwenTypeTemplate[] = [];
 
   function log(msg: string) {
     // eslint-disable-next-line no-console
@@ -874,33 +892,73 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     return JSON.stringify({ version: "0.1.0", plugins: [], engine: {} });
   }
 
+  /**
+   * Resolves a bare package name to its ESM entry point by reading the
+   * project's local node_modules. Uses the package's `exports["."].import`
+   * (or `.default`, then `main`) so ESM-only packages are handled correctly —
+   * createRequire / require.resolve cannot resolve `"import"`-only exports.
+   */
+  function resolveProjectModuleEntry(root: string, name: string): string {
+    const parts = name.startsWith("@") ? name.split("/").slice(0, 2) : [name];
+    const pkgDir = path.join(root, "node_modules", ...parts);
+    const pkgJson = JSON.parse(fs.readFileSync(path.join(pkgDir, "package.json"), "utf-8")) as {
+      exports?: unknown;
+      main?: string;
+    };
+
+    let entry: string | undefined;
+    const exp = pkgJson.exports;
+    if (exp) {
+      const main = typeof exp === "string" ? exp : (exp as Record<string, unknown>)["."];
+      if (typeof main === "string") {
+        entry = main;
+      } else if (main && typeof main === "object") {
+        const m = main as Record<string, unknown>;
+        entry = (m["import"] ?? m["default"] ?? m["require"]) as string | undefined;
+      }
+    }
+    if (!entry) entry = pkgJson.main ?? "index.js";
+    return path.join(pkgDir, entry);
+  }
+
+  async function _loadModules(root: string): Promise<void> {
+    if (_modulesLoaded) return;
+    _modulesLoaded = true;
+    try {
+      const gwenConfig = await resolveGwenConfig(root);
+      const app = new GwenApp();
+
+      // @gwenjs/app lives in the pnpm store with only its own deps visible.
+      // Resolve user modules (e.g. @gwenjs/physics2d) directly from the project's
+      // node_modules, handling ESM-only "exports" maps that createRequire can't resolve.
+      const moduleLoader = async (name: string): Promise<GwenModule> => {
+        const entry = resolveProjectModuleEntry(root, name);
+        const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
+        return (mod.default ?? mod) as GwenModule;
+      };
+
+      await app.setupModules(gwenConfig, moduleLoader);
+      _declarations = app.pluginDeclarations;
+      _sharedAutoImports.push(...app.autoImports);
+      _sharedTypeTemplates.push(...app.typeTemplates);
+      _moduleVitePlugins.push(...(app.vitePlugins as unknown as Plugin[]));
+    } catch (err) {
+      console.warn(`[gwen-vite] Failed to setup modules: ${err}`);
+      _declarations = [];
+    }
+  }
+
+  const _moduleVitePlugins: Plugin[] = [];
+
   const mainPlugin: Plugin = {
     name: "gwen",
     enforce: "pre",
 
-    configResolved(config) {
-      projectRoot = config.root;
-    },
-
-    async buildStart() {
-      // Load module declarations for static entry generation
-      try {
-        const config = await resolveGwenConfig(projectRoot);
-        const app = new GwenApp();
-        await app.setupModules(config);
-        _declarations = app.pluginDeclarations;
-      } catch {
-        _declarations = [];
-      }
-      // Ensure WASM source dir is resolved for builds without a dev server
-      if (!wasmSourceDir) {
-        buildWasm(projectRoot);
-      }
-    },
-
-    // ── COOP/COEP headers for Vite preview (production) ───────────────────
-    config() {
+    async config(userConfig) {
+      const root = userConfig.root ?? process.cwd();
+      await _loadModules(root);
       return {
+        plugins: _moduleVitePlugins.length > 0 ? _moduleVitePlugins : undefined,
         optimizeDeps: {
           include: [
             "@gwenjs/core",
@@ -919,6 +977,19 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
           },
         },
       };
+    },
+
+    configResolved(config) {
+      projectRoot = config.root;
+    },
+
+    async buildStart() {
+      // Ensure modules are loaded (fallback if config hook didn't run)
+      await _loadModules(projectRoot);
+      // Ensure WASM source dir is resolved for builds without a dev server
+      if (!wasmSourceDir) {
+        buildWasm(projectRoot);
+      }
     },
 
     // ── Virtual module resolution ──────────────────────────────────────
@@ -1112,7 +1183,13 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     // Nothing more to do here.
   };
 
-  return [mainPlugin, gwenLocalPluginsPlugin({}), gwenLocalModulesPlugin({})];
+  return [
+    mainPlugin,
+    gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
+    gwenTypesPlugin({ typeTemplates: _sharedTypeTemplates }),
+    gwenLocalPluginsPlugin({}),
+    gwenLocalModulesPlugin({}),
+  ];
 }
 
 // Default export for CommonJS compatibility
