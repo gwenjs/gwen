@@ -1119,6 +1119,22 @@ impl Engine {
             .unwrap_or(0)
     }
 
+    /// Apply a linear impulse to a 2D dynamic rigid body.
+    ///
+    /// Instantly changes the body's velocity by `impulse / mass` and wakes it
+    /// if sleeping. Use this for **dynamic** bodies only (e.g. explosions,
+    /// jumps, knockback). Has no effect on kinematic or static bodies.
+    ///
+    /// # Parameters
+    /// * `slot`     — Entity slot index (packed entity id stripped of generation bits).
+    /// * `ix`, `iy` — Impulse vector in newton-seconds (kg·m/s).
+    #[cfg(feature = "physics2d")]
+    pub fn physics_apply_impulse(&mut self, slot: u32, ix: f32, iy: f32) {
+        if let Some(ref mut world) = self.physics_world {
+            world.apply_impulse(slot, ix, iy);
+        }
+    }
+
     #[cfg(feature = "physics2d")]
     pub fn physics_get_sensor_state(&self, slot: u32, collider_id: u32) -> Vec<u32> {
         if let Some(ref world) = self.physics_world {

@@ -377,6 +377,29 @@ impl PhysicsWorld {
         true
     }
 
+    /// Apply a linear impulse to a dynamic 2D rigid body.
+    ///
+    /// Instantly changes the body's velocity by `impulse / mass`. Wakes the
+    /// body if sleeping. Intended for **dynamic** bodies only.
+    ///
+    /// # Parameters
+    /// * `entity_index` — Entity slot index.
+    /// * `ix`, `iy`    — Impulse vector in newton-seconds (kg·m/s).
+    ///
+    /// # Returns
+    /// `true` if the body was found and updated; `false` if no rigid body is
+    /// registered for this entity.
+    pub fn apply_impulse(&mut self, entity_index: u32, ix: f32, iy: f32) -> bool {
+        let Some(&handle) = self.entity_to_body.get(&entity_index) else {
+            return false;
+        };
+        let Some(body) = self.rigid_body_set.get_mut(handle) else {
+            return false;
+        };
+        body.apply_impulse(vector![ix, iy], true);
+        true
+    }
+
     /// Set the next kinematic position and orientation of a 2D body.
     ///
     /// Only has an effect on bodies created with [`BodyType::Kinematic`].
@@ -624,6 +647,33 @@ mod tests {
         let pos1 = world.get_position(1).unwrap();
         assert!((pos0.0 - 1.0).abs() < 0.01, "slot 0 x should be ~1.0");
         assert!((pos1.1 - 2.0).abs() < 0.01, "slot 1 y should be ~2.0");
+    }
+
+    // ── apply_impulse ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_apply_impulse_returns_true_for_dynamic_body() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        assert!(world.apply_impulse(0, 10.0, 0.0));
+    }
+
+    #[test]
+    fn test_apply_impulse_unknown_entity_returns_false() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        assert!(!world.apply_impulse(42, 1.0, 0.0));
+    }
+
+    /// Impulse changes velocity immediately (no step needed).
+    /// The body needs a collider attached to have nonzero mass — mass comes from collider density.
+    #[test]
+    fn test_apply_impulse_changes_velocity() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let handle = world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default());
+        world.apply_impulse(0, 5.0, 0.0);
+        let (vx, _vy) = world.get_linear_velocity(0).expect("velocity readable");
+        assert!(vx > 0.0, "impulse should have increased vx, got {vx}");
     }
 
     // ── set_linear_velocity ───────────────────────────────────────────────────
