@@ -305,7 +305,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
     const code = generateEntryModule(false);
     expect(code).toContain("_lmDecls");
     expect(code).toContain('"src" in p');
-    expect(code).toContain("await import(d.src)");
+    expect(code).toContain("await import(/* @vite-ignore */ d.src)");
   });
 
   it("local module kit: handles factory function and direct plugin alongside PluginDeclaration", () => {
