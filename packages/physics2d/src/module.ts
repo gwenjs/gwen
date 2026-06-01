@@ -63,6 +63,7 @@ export default defineGwenModule<Physics2DConfig>({
       { name: "onSensorEnter", from: "@gwenjs/physics2d" },
       { name: "onSensorExit", from: "@gwenjs/physics2d" },
       { name: "useShape", from: "@gwenjs/physics2d" },
+      { name: "useKinematicBody", from: "@gwenjs/physics2d" },
     ]);
 
     kit.addTypeTemplate({

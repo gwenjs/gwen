@@ -52,6 +52,14 @@ export default defineGwenModule<Physics3DConfig>({
       { name: "onContact", from: "@gwenjs/physics3d" },
       { name: "onSensorEnter", from: "@gwenjs/physics3d" },
       { name: "onSensorExit", from: "@gwenjs/physics3d" },
+      { name: "useKinematicBody", from: "@gwenjs/physics3d" },
+      { name: "useCompoundCollider", from: "@gwenjs/physics3d" },
+      { name: "useHeightfieldCollider", from: "@gwenjs/physics3d" },
+      { name: "useBulkStaticBoxes", from: "@gwenjs/physics3d" },
+      { name: "useRaycast", from: "@gwenjs/physics3d" },
+      { name: "useShapeCast", from: "@gwenjs/physics3d" },
+      { name: "useOverlap", from: "@gwenjs/physics3d" },
+      { name: "useJoint", from: "@gwenjs/physics3d" },
     ]);
 
     kit.addVitePlugin(
