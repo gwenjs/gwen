@@ -288,6 +288,21 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).not.toContain("registerScenes");
     expect(code).not.toContain("gwen-scenes");
   });
+
+  it("local module kit: handles PluginDeclaration via dynamic import", () => {
+    const code = generateEntryModule(false);
+    expect(code).toContain("_lmDecls");
+    expect(code).toContain('"src" in p');
+    expect(code).toContain("await import(d.src)");
+  });
+
+  it("local module kit: handles factory function and direct plugin alongside PluginDeclaration", () => {
+    const code = generateEntryModule(false);
+    expect(code).toContain('typeof p === "function"');
+    expect(code).toContain("_lmPlugins.push(p())");
+    expect(code).toContain("_lmPlugins.push(p)");
+    expect(code).toContain("_lmDecls.push(p)");
+  });
 });
 
 // ── extractModuleNamesFromConfig ──────────────────────────────────────────────
