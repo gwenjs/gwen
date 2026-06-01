@@ -41,7 +41,7 @@ export interface GwenOptimizerOptions {
  * `gwen:optimizer` — opt-in Vite plugin that transforms ergonomic ECS patterns
  * into zero-copy bulk WASM calls at build time.
  *
- * Detects `useQuery + onUpdate + useComponent` patterns inside `defineSystem`
+ * Detects `useQuery + onUpdate + useComponentFor` patterns inside `defineSystem`
  * **and `defineActor`** bodies and rewrites them to use `queryReadBulk` /
  * `queryWriteBulk` — reducing JS↔WASM boundary crossings from 3N to 4 per frame
  * (regardless of entity count).
@@ -67,8 +67,8 @@ export interface GwenOptimizerOptions {
  * Before (ergonomic, 3N WASM crossings per frame):
  * ```ts
  * for (const e of entities) {
- *   const pos = useComponent(e, Position)
- *   useComponent(e, Position, { x: pos.x + vel.x * dt, y: pos.y + vel.y * dt })
+ *   const pos = useComponentFor(e, Position)
+ *   useComponentFor(e, Position, { x: pos.x + vel.x * dt, y: pos.y + vel.y * dt })
  * }
  * ```
  *
@@ -136,7 +136,7 @@ export function gwenOptimizerPlugin(options: GwenOptimizerOptions = {}): Plugin 
      * Only processes `.ts` and `.tsx` files. Non-matching or unoptimizable files
      * return `null` (Vite convention: null = skip transformation).
      *
-     * For each file, `AstWalker.walk()` extracts `useQuery + onUpdate + useComponent`
+     * For each file, `AstWalker.walk()` extracts `useQuery + onUpdate + useComponentFor`
      * patterns along with their source positions (forOfStart, readDecls, propAccesses,
      * etc.). `PatternDetector.classify()` then verifies all referenced components are
      * in the manifest and have only numeric fields. Finally, `applyBulkTransform()`

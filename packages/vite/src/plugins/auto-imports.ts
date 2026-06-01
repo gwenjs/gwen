@@ -1,6 +1,7 @@
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type { Plugin } from "vite";
+import { createUnimport, type Unimport } from "unimport";
 import type { AutoImport } from "@gwenjs/kit";
 import type { GwenViteOptions } from "../types.js";
 
@@ -8,24 +9,32 @@ const AUTO_IMPORTS_VIRTUAL = "virtual:gwen/auto-imports";
 const RESOLVED_AUTO_IMPORTS = "\0" + AUTO_IMPORTS_VIRTUAL;
 
 /**
- * Generates a virtual module for auto-imports collected from GWEN modules.
+ * Provides auto-imports for all composables registered by GWEN modules.
  *
- * The virtual module `virtual:gwen/auto-imports` re-exports every registered
- * composable so that game files can import from the virtual module directly,
- * or rely on unplugin-auto-import with the generated stub.
- *
- * @example vite.config.ts
- * ```ts
- * gwenAutoImportsPlugin({
- *   autoImports: [
- *     { name: 'usePhysics2D', from: '@gwenjs/physics2d' },
- *   ],
- * })
- * ```
+ * Two mechanisms:
+ * 1. **Transform injection** — scans user files and injects `import { … } from '…'`
+ *    for any registered composable used without an explicit import.
+ * 2. **Virtual module** — `virtual:gwen/auto-imports` / `#gwen` re-exports everything
+ *    for explicit barrel-style imports.
+ * 3. **DTS** — writes `.gwen/types/auto-imports.d.ts` so TypeScript sees the globals.
  */
 export function gwenAutoImportsPlugin(options: GwenViteOptions): Plugin {
   const entries = options.autoImports ?? [];
   let root = process.cwd();
+  let ui: Unimport | null = null;
+
+  function getUnimport(): Unimport {
+    if (!ui) {
+      ui = createUnimport({
+        imports: entries.map((e) => ({
+          name: e.name,
+          as: e.as ?? e.name,
+          from: e.from,
+        })),
+      });
+    }
+    return ui;
+  }
 
   return {
     name: "gwen:auto-imports",
@@ -35,6 +44,8 @@ export function gwenAutoImportsPlugin(options: GwenViteOptions): Plugin {
     },
 
     buildStart() {
+      // Reset so getUnimport() picks up the fully-populated entries array.
+      ui = null;
       if (options.dts !== false) {
         writeDts(root, options.gwenDir ?? ".gwen", entries);
       }
@@ -48,38 +59,30 @@ export function gwenAutoImportsPlugin(options: GwenViteOptions): Plugin {
       if (id !== RESOLVED_AUTO_IMPORTS) return;
       return generateAutoImportsModule(entries);
     },
+
+    async transform(code, id) {
+      if (!id.match(/\.(ts|tsx|js|jsx)$/)) return;
+      if (id.includes("/node_modules/")) return;
+      if (id.startsWith("\0")) return;
+      if (entries.length === 0) return;
+
+      const result = await getUnimport().injectImports(code, id);
+      if (!result.s?.hasChanged()) return;
+
+      return {
+        code: result.s.toString(),
+        map: result.s.generateMap({ hires: true, source: id, includeContent: true }),
+      };
+    },
   };
 }
 
 /**
  * Generates the virtual module source that re-exports all auto-imports.
- *
- * Entries are grouped by their `from` field so that multiple exports from
- * the same package are combined into a single `export { … } from '…'` line.
- * Aliased imports use the `name as alias` syntax.
- *
- * @param entries - The list of {@link AutoImport} entries to codegen.
- * @returns A string of ESM re-export statements, or a comment when empty.
- *
- * @example Empty
- * ```ts
- * generateAutoImportsModule([])
- * // => '// no auto-imports registered\n'
- * ```
- *
- * @example Grouped
- * ```ts
- * generateAutoImportsModule([
- *   { name: 'useEngine', from: '@gwenjs/core' },
- *   { name: 'defineSystem', from: '@gwenjs/core' },
- * ])
- * // => "export { useEngine, defineSystem } from '@gwenjs/core'\n"
- * ```
  */
 export function generateAutoImportsModule(entries: AutoImport[]): string {
   if (entries.length === 0) return "// no auto-imports registered\n";
 
-  // Group by source package
   const grouped = new Map<string, Array<{ name: string; as?: string }>>();
   for (const entry of entries) {
     const list = grouped.get(entry.from) ?? [];
@@ -97,12 +100,7 @@ export function generateAutoImportsModule(entries: AutoImport[]): string {
 }
 
 /**
- * Writes `.gwen/types/auto-imports.d.ts` with global type declarations
- * so TypeScript knows about auto-imported symbols without explicit imports.
- *
- * @param root - Project root directory (from Vite's `config.root`).
- * @param gwenDir - Relative path to the GWEN output directory.
- * @param entries - The auto-import entries to declare.
+ * Writes `.gwen/types/auto-imports.d.ts` with global type declarations.
  */
 function writeDts(root: string, gwenDir: string, entries: AutoImport[]): void {
   if (entries.length === 0) return;

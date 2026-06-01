@@ -52,7 +52,8 @@
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.123.0",
     "oxc-walker": "^0.7.0",
-    "unctx": "^2.5.0"
+    "unctx": "^2.5.0",
+    "unimport": "^6.3.0"
   },
   "devDependencies": {
     "@types/node": "^20",
