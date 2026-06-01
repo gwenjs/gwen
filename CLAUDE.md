@@ -227,7 +227,7 @@ src/
 | What | From |
 |---|---|
 | `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `initWasm` `useHook` `onCleanup` `emit` `defineHooks` | `@gwenjs/core` |
-| `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` | `@gwenjs/core/system` |
+| `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` `useComponentFor` | `@gwenjs/core/system` |
 | `defineActor` `onStart` `onDestroy` `onEvent` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
 | `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
