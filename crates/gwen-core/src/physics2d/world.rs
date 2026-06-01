@@ -473,10 +473,10 @@ impl PhysicsWorld {
         updated
     }
 
-    /// Get sensor state (contact count and isActive).
+    /// Returns sensor state — always `(0, false)` because sensor contact tracking is
+    /// implemented in the JavaScript plugin layer (not in Rapier). This stub satisfies
+    /// the `physics_get_sensor_state` WASM binding but is never called by the plugin.
     pub fn get_sensor_state(&self, _entity_index: u32, _collider_id: u32) -> (u32, bool) {
-        // This requires tracking contact counts per collider.
-        // For now, let's return a placeholder or implement tracking if critical.
         (0, false)
     }
 

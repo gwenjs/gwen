@@ -129,6 +129,10 @@ export interface Physics2DAPI {
   ): void;
 }
 
+/**
+ * @deprecated Legacy type from the standalone Rapier WASM era.
+ * Physics2D is now integrated into gwen-core WASM — use `WasmEnginePhysics2D` from `@gwenjs/core` instead.
+ */
 export interface Physics2DWasmModule {
   Physics2DPlugin: new (
     gravityX: number,
@@ -140,6 +144,11 @@ export interface Physics2DWasmModule {
   default?: (init?: unknown) => Promise<void>;
 }
 
+/**
+ * @deprecated Legacy interface for the standalone Rapier WASM plugin (pre-gwen-core integration).
+ * `set_linear_velocity` and `get_linear_velocity` on this interface are never called — the plugin
+ * uses `physics_set_linear_velocity` / `physics_get_linear_velocity` on `WasmEnginePhysics2D`.
+ */
 export interface WasmPhysics2DPlugin {
   add_rigid_body(
     entityIndex: number,

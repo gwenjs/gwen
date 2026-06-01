@@ -1230,10 +1230,11 @@ impl Engine {
             .unwrap_or(0)
     }
 
+    /// No-op stub — sensor contact state is tracked entirely in the JavaScript plugin layer
+    /// via the `sensorContacts` Map. This function is exported for WASM ABI compatibility
+    /// but is never called by the plugin.
     #[cfg(feature = "physics2d")]
-    pub fn physics_update_sensor_state(&mut self, _slot: u32, _collider_id: u32, _active: u32) {
-        // Implementation logic
-    }
+    pub fn physics_update_sensor_state(&mut self, _slot: u32, _collider_id: u32, _active: u32) {}
 
     #[cfg(feature = "physics2d")]
     pub fn physics_set_linear_damping(&mut self, slot: u32, damping: f32) {
