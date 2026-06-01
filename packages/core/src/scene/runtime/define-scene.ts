@@ -30,6 +30,7 @@ import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
 import { engineContext } from "../../engine/context";
 import type { SceneHookRegistry } from "../engine-plugin.js";
+import type { SystemHandle } from "./system-handle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,13 @@ export interface SceneDefinition {
   readonly name: string;
   /** Systems that run each frame while this scene is active. */
   readonly systems: GwenPlugin[];
+  /**
+   * Runtime handles for all systems registered via `useSystem()`.
+   * Used by the framework bootstrap to pause inactive scenes and resume them
+   * on `scene:enter`. Do not call `_scenePause` / `_sceneResume` from game code.
+   * @internal
+   */
+  readonly handles: SystemHandle[];
   /** Optional callback fired when the engine routes to this scene. */
   readonly onEnter?: (params?: Record<string, unknown>) => void | Promise<void>;
   /** Optional callback fired when the engine routes away from this scene. */
@@ -178,6 +186,7 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
       _def = {
         name,
         systems: ctx.systems,
+        handles: ctx.handles,
         onEnter: ctx.onEnterCb,
         onExit: ctx.onExitCb,
         onTransitionLeave: ctx.onTransitionLeaveCb,

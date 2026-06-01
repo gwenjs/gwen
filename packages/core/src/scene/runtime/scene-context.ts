@@ -23,6 +23,7 @@ import { GwenScope } from "../../context/scope.js";
 
 export interface SceneSetupContext {
   systems: GwenPlugin[];
+  handles: SystemHandle[];
   onEnterCb?: (params?: Record<string, unknown>) => void | Promise<void>;
   onExitCb?: () => void | Promise<void>;
   onTransitionLeaveCb?: (payload: { from: string; to: string }) => void | Promise<void>;
@@ -50,7 +51,7 @@ function _getActiveSceneContext(): SceneSetupContext | null {
  * @internal
  */
 export function _withSceneContext(factory: () => void): SceneSetupContext {
-  const ctx: SceneSetupContext = { systems: [] };
+  const ctx: SceneSetupContext = { systems: [], handles: [] };
 
   // Build an idempotent registrar and expose it via engine.provide() so that
   // useActor() / useActorPool() can call engine.inject(SCENE_REGISTRAR_KEY)
@@ -147,6 +148,7 @@ export function useSystem(plugin: GwenPlugin): SystemHandle {
   // Wrap the plugin with pause/resume/destroy lifecycle gates.
   const { plugin: wrappedPlugin, handle } = createSystemHandle(plugin);
   ctx.systems.push(wrappedPlugin);
+  ctx.handles.push(handle);
 
   return handle;
 }
