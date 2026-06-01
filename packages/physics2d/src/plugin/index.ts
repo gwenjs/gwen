@@ -342,7 +342,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
             : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
-        return (pb.physics_query_radius?.(x, y, radius, membership, filter) ?? []).flatMap((s) => {
+        return Array.from(pb.physics_query_radius?.(x, y, radius, membership, filter) ?? []).flatMap((s) => {
           const g = bridge!.getEntityGeneration(s);
           return g !== undefined ? [createEntityId(s, g)] : [];
         });
@@ -365,7 +365,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
             : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
-        return (pb.physics_query_rect?.(x, y, hw, hh, membership, filter) ?? []).flatMap((s) => {
+        return Array.from(pb.physics_query_rect?.(x, y, hw, hh, membership, filter) ?? []).flatMap((s) => {
           const g = bridge!.getEntityGeneration(s);
           return g !== undefined ? [createEntityId(s, g)] : [];
         });
@@ -386,7 +386,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           typeof opts?.filterLayers === "number"
             ? opts.filterLayers
             : layerRegistry.resolve(opts?.filterLayers as string[] | undefined, "filter");
-        return (pb.physics_point_query?.(x, y, membership, filter) ?? []).flatMap((s) => {
+        return Array.from(pb.physics_point_query?.(x, y, membership, filter) ?? []).flatMap((s) => {
           const g = bridge!.getEntityGeneration(s);
           return g !== undefined ? [createEntityId(s, g)] : [];
         });
