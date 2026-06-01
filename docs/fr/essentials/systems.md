@@ -72,6 +72,33 @@ onUpdate(() => {
 })
 ```
 
+## Lire et écrire un composant individuel
+
+`useComponentFor(entityId, Def)` retourne un proxy mutable pour le composant d'une entité spécifique. Lire un champ lit depuis le stockage ECS ; écrire un champ appelle `addComponent` pour persister le changement. Utilisez `$set({ ... })` pour grouper plusieurs champs en une seule écriture.
+
+```ts
+export const InputSystem = defineSystem(() => {
+  const players = useQuery([Position, Velocity, PlayerTag])
+
+  onUpdate((dt) => {
+    for (const entity of players) {
+      const pos = useComponentFor(entity.id, Position)
+      const vel = useComponentFor(entity.id, Velocity)
+
+      vel.vx = kb.isPressed(Keys.Left) ? -200 : kb.isPressed(Keys.Right) ? 200 : 0
+      pos.x = Math.max(0, Math.min(800, pos.x + vel.vx * dt))
+
+      // Écriture groupée — un seul appel ECS pour les deux champs :
+      pos.$set({ x: pos.x + vel.vx * dt, y: pos.y + vel.vy * dt })
+    }
+  })
+})
+```
+
+::: tip Optimizer
+`useComponentFor` dans une boucle `for...of` sur un query est détecté par l'optimizer Vite de GWEN et réécrit automatiquement en appels WASM groupés. Écrivez du code clair — l'optimizer gère la performance.
+:::
+
 ## Phases de frame
 
 Enregistrez les callbacks dans la phase correcte selon votre cas d'usage :
@@ -220,6 +247,7 @@ Si une superposition de scène (ex : un menu pause) fige la scène sous-jacente,
 | `useQuery([...defs])` | Collection live d'entités correspondant aux composants donnés |
 | `entity.id` | ID d'entité (`bigint`) pour l'accès aux tableaux SoA |
 | `entity.get(def)` | Lire un composant comme un objet simple |
+| `useComponentFor(id, Def)` | Proxy mutable pour le composant d'une entité ; `.field` lit, `.field = v` écrit, `.$set({...})` groupe |
 | `onBeforeUpdate(fn)` | Callback de frame avant la mise à jour |
 | `onUpdate(fn)` | Callback de frame de mise à jour principale |
 | `onAfterUpdate(fn)` | Callback de frame après la mise à jour |

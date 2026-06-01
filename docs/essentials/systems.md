@@ -72,6 +72,33 @@ onUpdate(() => {
 })
 ```
 
+## Reading and Writing a Single Component
+
+`useComponentFor(entityId, Def)` returns a mutable proxy for a specific entity's component. Reading a field fetches from ECS storage; writing a field calls `addComponent` to persist the change. Use `$set({ ... })` to batch multiple fields in a single write.
+
+```ts
+export const InputSystem = defineSystem(() => {
+  const players = useQuery([Position, Velocity, PlayerTag])
+
+  onUpdate((dt) => {
+    for (const entity of players) {
+      const pos = useComponentFor(entity.id, Position)
+      const vel = useComponentFor(entity.id, Velocity)
+
+      vel.vx = kb.isPressed(Keys.Left) ? -200 : kb.isPressed(Keys.Right) ? 200 : 0
+      pos.x = Math.max(0, Math.min(800, pos.x + vel.vx * dt))
+
+      // Batch write — one ECS call for both fields:
+      pos.$set({ x: pos.x + vel.vx * dt, y: pos.y + vel.vy * dt })
+    }
+  })
+})
+```
+
+::: tip Optimizer
+`useComponentFor` inside a `for...of` query loop is detected by the GWEN Vite optimizer and rewritten to bulk WASM calls automatically. Write clear code — the optimizer handles the performance.
+:::
+
 ## Frame Phases
 
 Register callbacks in the correct phase for your use case:
@@ -220,6 +247,7 @@ If a scene overlay (e.g. a pause menu) freezes the underlying scene, systems are
 | `useQuery([...defs])` | Live entity collection matching given components |
 | `entity.id` | Entity ID (`bigint`) for SoA array access |
 | `entity.get(def)` | Read component as plain object |
+| `useComponentFor(id, Def)` | Mutable proxy for a single entity's component; `.field` reads, `.field = v` writes, `.$set({...})` batches |
 | `onBeforeUpdate(fn)` | Before-update frame callback |
 | `onUpdate(fn)` | Main update frame callback |
 | `onAfterUpdate(fn)` | After-update frame callback |
