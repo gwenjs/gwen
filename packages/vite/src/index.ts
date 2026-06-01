@@ -54,6 +54,7 @@ import {
 } from "./oxc/index.js";
 import { resolveGwenConfig, GwenApp } from "@gwenjs/app/resolve";
 import type { PluginDeclaration } from "@gwenjs/schema";
+import { gwenLocalPluginsPlugin, gwenLocalModulesPlugin } from "./plugins/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -619,7 +620,7 @@ function collectWasmPluginDirs(root: string): string[] {
   return dirs;
 }
 
-export function gwen(options: GwenPluginOptions = {}): Plugin {
+export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   const { wasmPublicPath = "/wasm", wasmMode = "debug", verbose = false, manifestPath } = options;
 
   let projectRoot = process.cwd();
@@ -839,7 +840,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     return JSON.stringify({ version: "0.1.0", plugins: [], engine: {} });
   }
 
-  return {
+  const mainPlugin: Plugin = {
     name: "gwen",
     enforce: "pre",
 
@@ -1069,6 +1070,8 @@ export function gwen(options: GwenPluginOptions = {}): Plugin {
     // (handled automatically by Vite as dist/ is the build folder)
     // Nothing more to do here.
   };
+
+  return [mainPlugin, gwenLocalPluginsPlugin({}), gwenLocalModulesPlugin({})];
 }
 
 // Default export for CommonJS compatibility
