@@ -11,6 +11,7 @@ import {
   gwen,
   generateEntryModule,
   generateScenesModule,
+  generateConfigModulesVirtualModule,
   extractModuleNamesFromConfig,
 } from "../src/index";
 import { gwenVitePlugin } from "../src/plugins/index.js";
@@ -209,10 +210,21 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("createScreenPlugin");
   });
 
-  it("imports virtual:gwen/local-plugins and virtual:gwen/local-modules", () => {
+  it("imports virtual:gwen/local-plugins, local-modules and config-modules", () => {
     const code = generateEntryModule(false);
     expect(code).toContain('from "virtual:gwen/local-plugins"');
     expect(code).toContain('from "virtual:gwen/local-modules"');
+    expect(code).toContain('from "virtual:gwen/config-modules"');
+  });
+
+  it("config modules: runs setup() for each npm module before local modules", () => {
+    const code = generateEntryModule(false);
+    expect(code).toContain("_cfgModules");
+    expect(code).toContain("_cmMod.setup");
+    const cfgIdx = code.indexOf("_cfgModules");
+    const localIdx = code.indexOf("_localModules");
+    expect(cfgIdx).toBeGreaterThan(0);
+    expect(localIdx).toBeGreaterThan(cfgIdx);
   });
 
   it("no declarations: no extra static plugin imports", () => {
@@ -302,6 +314,27 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("_lmPlugins.push(p())");
     expect(code).toContain("_lmPlugins.push(p)");
     expect(code).toContain("_lmDecls.push(p)");
+  });
+});
+
+// ── generateConfigModulesVirtualModule ───────────────────────────────────────
+
+describe("generateConfigModulesVirtualModule", () => {
+  it("returns empty export for no modules", () => {
+    const code = generateConfigModulesVirtualModule([]);
+    expect(code).toBe("export const configModules = [];\n");
+  });
+
+  it("generates static import for each module via /module subpath", () => {
+    const code = generateConfigModulesVirtualModule(["@gwenjs/input", "@gwenjs/physics2d"]);
+    expect(code).toContain('import _cm0 from "@gwenjs/input/module"');
+    expect(code).toContain('import _cm1 from "@gwenjs/physics2d/module"');
+  });
+
+  it("exports configModules array with .default fallback", () => {
+    const code = generateConfigModulesVirtualModule(["@gwenjs/input"]);
+    expect(code).toContain("export const configModules");
+    expect(code).toContain("_cm0.default ?? _cm0");
   });
 });
 

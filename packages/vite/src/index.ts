@@ -110,6 +110,8 @@ const GWEN_ENTRY_ID = "/@gwenjs/gwen-entry";
 const GWEN_SCENES_ID = "/@gwenjs/gwen-scenes";
 const RESOLVED_ENTRY = "\0/@gwenjs/gwen-entry";
 const RESOLVED_SCENES = "\0/@gwenjs/gwen-scenes";
+const CONFIG_MODULES_VIRTUAL = "virtual:gwen/config-modules";
+const RESOLVED_CONFIG_MODULES = "\0virtual:gwen/config-modules";
 
 // ── Scan src/scenes/ ──────────────────────────────────────────────────────────
 
@@ -458,6 +460,24 @@ function toRootRelative(filePath: string, projectRoot: string): string {
 }
 
 /**
+ * Generates the `virtual:gwen/config-modules` virtual module source.
+ *
+ * Statically imports each npm module declared in `gwen.config.ts` via its
+ * `/module` subpath, so the browser bootstrap can call `setup()` at runtime.
+ *
+ * @param moduleNames - Package names from `gwen.config.ts → modules`.
+ * @returns ESM source string.
+ */
+function generateConfigModulesVirtualModule(moduleNames: string[]): string {
+  if (moduleNames.length === 0) return "export const configModules = [];\n";
+  const imports = moduleNames
+    .map((n, i) => `import _cm${i} from ${JSON.stringify(n + "/module")};`)
+    .join("\n");
+  const entries = moduleNames.map((_, i) => `  _cm${i}.default ?? _cm${i}`).join(",\n");
+  return `${imports}\nexport const configModules = [\n${entries},\n];\n`;
+}
+
+/**
  * Generates the `/@gwenjs/gwen-entry` virtual module source.
  *
  * Imports `@gwenjs/core` directly to prevent
@@ -482,6 +502,7 @@ function generateEntryModule(
     'import { engineContext, createEngine, WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
+    'import { configModules as _cfgModules } from "virtual:gwen/config-modules";',
     'import { plugins as _localPlugins } from "virtual:gwen/local-plugins";',
     'import { modules as _localModules } from "virtual:gwen/local-modules";',
   );
@@ -528,6 +549,17 @@ function generateEntryModule(
   }
 
   bootstrapLines.push(
+    "",
+    "  for (const _cmMod of _cfgModules) {",
+    "    const _cmPlugins = [];",
+    "    const _cmDecls = [];",
+    '    const _cmKit = { addPlugin(p) { if (typeof p === "function") { _cmPlugins.push(p()); } else if (p && "src" in p) { _cmDecls.push(p); } else { _cmPlugins.push(p); } }, addAutoImports() {}, addVitePlugin() {}, extendViteConfig() {}, addTypeTemplate() {}, addModuleAugment() {}, hook() {}, options: gwenConfig };',
+    "    const _cmKey = _cmMod.meta?.configKey;",
+    "    const _cmOpts = Object.assign({}, _cmMod.defaults ?? {}, _cmKey ? (gwenConfig[_cmKey] ?? {}) : {});",
+    "    await _cmMod.setup(_cmOpts, _cmKit);",
+    "    for (const p of _cmPlugins) await engine.use(p);",
+    '    for (const d of _cmDecls) { const _m = await import(d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }',
+    "  }",
     "",
     "  for (const mod of _localModules) {",
     "    const _lmPlugins = [];",
@@ -894,6 +926,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       if (id === VIRTUAL_MANIFEST_ID) return RESOLVED_VIRTUAL_MANIFEST;
       if (id === GWEN_ENTRY_ID) return RESOLVED_ENTRY;
       if (id === GWEN_SCENES_ID) return RESOLVED_SCENES;
+      if (id === CONFIG_MODULES_VIRTUAL) return RESOLVED_CONFIG_MODULES;
       return null;
     },
 
@@ -921,6 +954,12 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
           mainSceneFromConfig = src.match(/mainScene\s*:\s*['"]([^'"]+)['"]/)?.[1];
         }
         return generateScenesModule(scenes, resolveMainScene(scenes, mainSceneFromConfig));
+      }
+
+      if (id === RESOLVED_CONFIG_MODULES) {
+        const configPath = path.join(projectRoot, "gwen.config.ts");
+        const moduleNames = extractModuleNamesFromConfig(configPath);
+        return generateConfigModulesVirtualModule(moduleNames);
       }
 
       return null;
@@ -1084,6 +1123,7 @@ export type { GwenTransformOptions } from "./transform";
 export {
   generateEntryModule,
   generateScenesModule,
+  generateConfigModulesVirtualModule,
   extractModuleNamesFromConfig,
   extractGlobalCssFromConfig,
 };
