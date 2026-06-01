@@ -3,7 +3,7 @@ import { defineScene } from "../../src/scene/runtime/define-scene";
 import { useSystem } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
 import { createEngine } from "../../src/engine/gwen-engine.js";
-import { defineSystem, onUpdate } from "../../src/system/runtime/define-system";
+import { defineSystem, onUpdate, onRender } from "../../src/system/runtime/define-system";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
@@ -152,5 +152,46 @@ describe("useSystem — SystemHandle gating within scene", () => {
     handle.pause();
     await engine.advance(0.016);
     expect(spy).not.toHaveBeenCalled();
+  });
+
+  it("onRender fires via useSystem + registerScenes pattern (playground scenario)", async () => {
+    const engine = await createEngine();
+    const updateLog: string[] = [];
+    const renderLog: string[] = [];
+
+    const TitleSystem = defineSystem("TitleSystem", () => {
+      onUpdate(() => updateLog.push("update"));
+      onRender(() => renderLog.push("render"));
+    });
+
+    const GameSystem = defineSystem("GameSystem", () => {
+      onUpdate(() => updateLog.push("game-update"));
+    });
+
+    const MenuScene = defineScene("menu", () => {
+      useSystem(TitleSystem());
+    });
+
+    const GameScene = defineScene("game", () => {
+      useSystem(GameSystem());
+    });
+
+    // Mirrors entry module: engine.run(() => registerScenes(...))
+    const sceneSystems: ReturnType<typeof MenuScene>["systems"][number][] = [];
+    engine.run(() => {
+      const register = (scene: ReturnType<typeof MenuScene>) => {
+        for (const s of scene.systems ?? []) sceneSystems.push(s);
+      };
+      register(GameScene({ register: () => {} }));
+      register(MenuScene({ register: () => {} }));
+    });
+
+    // Mirrors entry module: for (const _s of _sceneSystems) engine.use(_s)
+    await Promise.all(sceneSystems.map((s) => engine.use(s)));
+
+    await engine.advance(0.016);
+
+    expect(updateLog).toContain("update");
+    expect(renderLog).toContain("render");
   });
 });

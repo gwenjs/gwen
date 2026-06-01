@@ -4,6 +4,7 @@ import {
   onUpdate,
   onBeforeUpdate,
   onAfterUpdate,
+  onRender,
 } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 
@@ -95,6 +96,56 @@ describe("defineSystem — factory pattern", () => {
     await engine.advance(0.016);
 
     expect(order).toEqual(["before", "update", "after"]);
+  });
+
+  it("onRender callbacks run each frame after engine.use()", async () => {
+    const engine = await createEngine();
+    const renders: number[] = [];
+
+    const Sys = defineSystem("RenderTest", () => {
+      onRender(() => renders.push(1));
+    });
+
+    await engine.use(Sys());
+    await engine.advance(0.016);
+    await engine.advance(0.032);
+
+    expect(renders).toHaveLength(2);
+  });
+
+  it("onRender fires via _discover() path (scene-like registration)", async () => {
+    const engine = await createEngine();
+    const renders: number[] = [];
+
+    const plugin = defineSystem("RenderDiscover", () => {
+      onRender(() => renders.push(1));
+    })();
+
+    engine.run(() => {
+      (plugin as { _discover(): void })._discover();
+    });
+
+    await engine.use(plugin);
+    await engine.advance(0.016);
+    await engine.advance(0.032);
+
+    expect(renders).toHaveLength(2);
+  });
+
+  it("onUpdate and onRender both fire in same system", async () => {
+    const engine = await createEngine();
+    const order: string[] = [];
+
+    await engine.use(
+      defineSystem("UpdateRenderTest", () => {
+        onUpdate(() => order.push("update"));
+        onRender(() => order.push("render"));
+      })(),
+    );
+
+    await engine.advance(0.016);
+
+    expect(order).toEqual(["update", "render"]);
   });
 
   it("plugin has internal _discover() method", () => {
