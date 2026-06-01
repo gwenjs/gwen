@@ -46,14 +46,14 @@ const VELOCITY_ENTRY = {
 
 /**
  * Minimal system source that matches the optimizable pattern:
- * - read Position via useComponent proxy (2-arg)
+ * - read Position via useComponentFor proxy
  * - mutate Position fields directly on the proxy
  */
 const SYSTEM_SOURCE = `defineSystem(() => {                                  
     const entities = useQuery([Position]);                                                                                                                                                                                                                                                                                                                                                                                     
     onUpdate(() => {                                                                  
       for (const e of entities) {                                                     
-        const pos = useComponent(e.id, Position);                                                                                                                                                                                                                                                                                                                                                                              
+        const pos = useComponentFor(e.id, Position);                                                                                                                                                                                                                                                                                                                                                                              
         pos.x += 1;                                                                                                                                                                                                                                                                                                                                                                                                            
         pos.y += 0;                                                                                                                                                                                                                                                                                                                                                                                                            
       }                                                                                                                                                                                                                                                                                                                                                                                                                        
@@ -163,7 +163,7 @@ describe("applyBulkTransform", () => {
     expect(output).toContain("for (let _i = 0;");
   });
 
-  it("removes the per-entity read declaration (const pos = useComponent(...))", () => {
+  it("removes the per-entity read declaration (const pos = useComponentFor(...))", () => {
     const walker = new AstWalker("test.ts");
     const patterns = walker.walk(SYSTEM_SOURCE);
     const pattern = patterns[0]!;
@@ -173,7 +173,7 @@ describe("applyBulkTransform", () => {
     applyBulkTransform(s, pattern, manifest, "core");
     const output = s.toString();
 
-    expect(output).not.toContain("const pos = useComponent");
+    expect(output).not.toContain("const pos = useComponentFor");
   });
 
   it("transforms proxy mutation assignments in place", () => {

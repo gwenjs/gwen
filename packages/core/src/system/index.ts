@@ -9,4 +9,4 @@ export {
   useWasmModule,
 } from "./runtime/define-system";
 export type { LiveQuery, ComponentDef, EntityAccessor } from "./runtime/define-system";
-export { useComponent } from "./runtime/use-component";
+export { useComponentFor } from "./runtime/use-component";

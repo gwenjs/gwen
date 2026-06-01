@@ -170,7 +170,7 @@ export interface GwenViteOptions {
    * Enable the ECS bulk optimizer.
    *
    * - `false` (default) — detect-only mode: logs optimizable patterns without modifying code.
-   * - `true` — transform mode: rewrites `useQuery + onUpdate + useComponent` loops to bulk
+   * - `true` — transform mode: rewrites `useQuery + onUpdate + useComponentFor` loops to bulk
    *   WASM calls with default settings (`componentsDir: 'src'`, `tier: 'core'`).
    * - `{ ... }` — transform mode with explicit options. Providing an object always enables
    *   the optimizer in `'transform'` mode.

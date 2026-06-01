@@ -27,8 +27,8 @@ import type { ComponentDefinition, ComponentSchema, InferComponent } from "../..
  *
  *   onUpdate((dt) => {
  *     for (const entity of entities) {
- *       const pos = useComponent(entity.id, Position)
- *       const vel = useComponent(entity.id, Velocity)
+ *       const pos = useComponentFor(entity.id, Position)
+ *       const vel = useComponentFor(entity.id, Velocity)
  *       pos.x += vel.x * dt
  *       pos.y += vel.y * dt
  *     }
@@ -42,7 +42,7 @@ import type { ComponentDefinition, ComponentSchema, InferComponent } from "../..
  * pos.$set({ x: pos.x + vel.x * dt, y: pos.y + vel.y * dt })
  * ```
  */
-export function useComponent<S extends ComponentSchema, D extends ComponentDefinition<S>>(
+export function useComponentFor<S extends ComponentSchema, D extends ComponentDefinition<S>>(
   entityId: EntityId,
   def: D,
 ): InferComponent<D> & { $set(values: Partial<InferComponent<D>>): void } {

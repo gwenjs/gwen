@@ -12,8 +12,8 @@ import type { WasmTier } from "./types";
  * Input pattern (ergonomic):
  * ```ts
  * for (const e of entities) {
- *   const pos = useComponent(e, Position)
- *   useComponent(e, Position, { x: pos.x + 1, y: pos.y })
+ *   const pos = useComponentFor(e, Position)
+ *   useComponentFor(e, Position, { x: pos.x + 1, y: pos.y })
  * }
  * ```
  *

@@ -45,7 +45,7 @@ export interface PatternPositions {
   /** The iteration variable name (e.g. `'e'` from `for (const e of entities)`). */
   readonly entityVar: string;
   /**
-   * Each `const varName = useComponent(entityId, ComponentName)` read declaration.
+   * Each `const varName = useComponentFor(entityId, ComponentName)` read declaration.
    * start/end cover the entire VariableDeclaration statement (removed by BulkTransformer).
    */
   readonly readDecls: ReadonlyArray<{
