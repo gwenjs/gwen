@@ -1097,6 +1097,28 @@ impl Engine {
         Vec::new()
     }
 
+    /// Set the linear velocity of a 2D dynamic rigid body.
+    ///
+    /// Immediately overwrites the body's velocity and wakes it if sleeping.
+    /// Use this for **dynamic** bodies only. For kinematic bodies, use
+    /// [`physics_set_kinematic_position`] or [`physics_bulk_step_kinematics`]
+    /// instead — setting velocity on a kinematic body has no effect on its motion.
+    ///
+    /// # Parameters
+    /// * `slot`     — Entity slot index (packed entity id stripped of generation bits).
+    /// * `vx`, `vy` — New linear velocity in metres per second.
+    ///
+    /// # Returns
+    /// `1` if the body was found and updated; `0` if no rigid body is registered
+    /// for `slot` or the physics world is not initialised.
+    #[cfg(feature = "physics2d")]
+    pub fn physics_set_linear_velocity(&mut self, slot: u32, vx: f32, vy: f32) -> u32 {
+        self.physics_world
+            .as_mut()
+            .map(|w| w.set_linear_velocity(slot, vx, vy) as u32)
+            .unwrap_or(0)
+    }
+
     #[cfg(feature = "physics2d")]
     pub fn physics_get_sensor_state(&self, slot: u32, collider_id: u32) -> Vec<u32> {
         if let Some(ref world) = self.physics_world {

@@ -352,6 +352,31 @@ impl PhysicsWorld {
         })
     }
 
+    /// Set the linear velocity of a dynamic 2D rigid body.
+    ///
+    /// Immediately overwrites the body's current velocity and wakes it if sleeping.
+    /// Intended for **dynamic** bodies. For kinematic bodies, drive movement through
+    /// [`set_kinematic_position`] or [`bulk_step_kinematics`] instead — calling this
+    /// on a kinematic body is a no-op in Rapier2D's velocity-based kinematic mode.
+    ///
+    /// # Parameters
+    /// * `entity_index` — Entity slot index.
+    /// * `vx`, `vy`    — New linear velocity in metres per second.
+    ///
+    /// # Returns
+    /// `true` if the body was found and updated; `false` if no rigid body is
+    /// registered for this entity.
+    pub fn set_linear_velocity(&mut self, entity_index: u32, vx: f32, vy: f32) -> bool {
+        let Some(&handle) = self.entity_to_body.get(&entity_index) else {
+            return false;
+        };
+        let Some(body) = self.rigid_body_set.get_mut(handle) else {
+            return false;
+        };
+        body.set_linvel(vector![vx, vy], true);
+        true
+    }
+
     /// Set the next kinematic position and orientation of a 2D body.
     ///
     /// Only has an effect on bodies created with [`BodyType::Kinematic`].
@@ -599,5 +624,45 @@ mod tests {
         let pos1 = world.get_position(1).unwrap();
         assert!((pos0.0 - 1.0).abs() < 0.01, "slot 0 x should be ~1.0");
         assert!((pos1.1 - 2.0).abs() < 0.01, "slot 1 y should be ~2.0");
+    }
+
+    // ── set_linear_velocity ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_set_linear_velocity_returns_true_for_dynamic_body() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        assert!(world.set_linear_velocity(0, 2.0, -3.0));
+    }
+
+    #[test]
+    fn test_set_linear_velocity_unknown_entity_returns_false() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        assert!(!world.set_linear_velocity(42, 1.0, 0.0));
+    }
+
+    /// Verify the velocity is immediately readable back via [`get_linear_velocity`]
+    /// without requiring a physics step.
+    #[test]
+    fn test_set_linear_velocity_readable_via_getter() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.set_linear_velocity(0, 3.5, -1.2);
+        let (vx, vy) = world.get_linear_velocity(0).expect("velocity should be readable");
+        assert!((vx - 3.5).abs() < 1e-4, "vx={vx}");
+        assert!((vy + 1.2).abs() < 1e-4, "vy={vy}");
+    }
+
+    /// Verify the body actually moves in the expected direction after a physics step.
+    #[test]
+    fn test_set_linear_velocity_affects_position_after_step() {
+        let mut world = PhysicsWorld::new(0.0, 0.0); // no gravity
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.set_linear_velocity(0, 10.0, 5.0);
+        world.step(0.1);
+        let (x, y, _) = world.get_position(0).expect("body should exist");
+        // position = v * dt = (1.0, 0.5), allow some solver tolerance
+        assert!(x > 0.5, "expected x > 0.5, got {x}");
+        assert!(y > 0.2, "expected y > 0.2, got {y}");
     }
 }
