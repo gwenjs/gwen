@@ -115,6 +115,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   // State management
   const loadedTilemapChunks = new Map<string, { chunkId: number; checksum: string }>();
   const activeSensors = new Map<number, Set<number>>();
+  // Sensor contact counts tracked in JS — key: `${entitySlot}:${colliderId}`
+  const sensorContacts = new Map<string, number>();
   const entityCollisionCallbacks = new Map<
     number,
     NonNullable<Physics2DPrefabExtension["onCollision"]>
@@ -307,12 +309,17 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         return { x: res[0], y: res[1], rotation: res[2] };
       },
       getSensorState: (entityId, colliderId) => {
-        const res = pb.physics_get_sensor_state(slot(entityId), colliderId);
-        if (!res || res.length === 0) return { contactCount: 0, isActive: false };
-        return { contactCount: res[0], isActive: res[1] !== 0 };
+        const key = `${slot(entityId)}:${colliderId}`;
+        const count = sensorContacts.get(key) ?? 0;
+        return { contactCount: count, isActive: count > 0 };
       },
-      updateSensorState: (entityId, colliderId, active) =>
-        pb.physics_update_sensor_state(slot(entityId), colliderId, active ? 1 : 0),
+      updateSensorState: (entityId, colliderId, active) => {
+        const key = `${slot(entityId)}:${colliderId}`;
+        const current = sensorContacts.get(key) ?? 0;
+        const next = active ? current + 1 : Math.max(0, current - 1);
+        if (next === 0) sensorContacts.delete(key);
+        else sensorContacts.set(key, next);
+      },
       getCollisionEventsBatch: (opts) => readCollisionEvents(opts?.max),
       getCollisionContacts: (opts) => {
         const batch = readCollisionEvents(opts?.max);
@@ -406,10 +413,14 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         return path;
       },
       loadTilemapPhysicsChunk(chunk, x, y, opts = {}) {
+        if (!pb.physics_load_tilemap_chunk_body) {
+          log.warn("loadTilemapPhysicsChunk: not available in this WASM build");
+          return;
+        }
         const existing = loadedTilemapChunks.get(chunk.key);
         if (existing?.checksum === chunk.checksum) return;
         if (existing) {
-          pb.physics_unload_tilemap_chunk_body(existing.chunkId);
+          pb.physics_unload_tilemap_chunk_body?.(existing.chunkId);
           loadedTilemapChunks.delete(chunk.key);
         }
         const chunkId = tilemapChunkIdFromKey(chunk.key);
@@ -431,7 +442,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       unloadTilemapPhysicsChunk(key) {
         const loaded = loadedTilemapChunks.get(key);
         if (!loaded) return;
-        pb.physics_unload_tilemap_chunk_body(loaded.chunkId);
+        pb.physics_unload_tilemap_chunk_body?.(loaded.chunkId);
         loadedTilemapChunks.delete(key);
       },
       patchTilemapPhysicsChunk(chunk, x, y, opts) {
@@ -592,6 +603,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       currentEngine = null;
       entityCollisionCallbacks.clear();
       activeSensors.clear();
+      sensorContacts.clear();
       loadedTilemapChunks.clear();
       bridge = null;
     },

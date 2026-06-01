@@ -440,15 +440,15 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
   /** Update sensor state manually. */
   physics_update_sensor_state(slot: number, sensorId: number, started: number): void;
 
-  /** Load tilemap chunk. */
-  physics_load_tilemap_chunk_body(
+  /** Load tilemap chunk — present only in tilemap-enabled WASM builds. */
+  physics_load_tilemap_chunk_body?(
     chunkId: number,
     pseudoEntityIndex: number,
     x: number,
     y: number,
   ): number;
-  /** Unload tilemap chunk. */
-  physics_unload_tilemap_chunk_body(chunkId: number): void;
+  /** Unload tilemap chunk — present only in tilemap-enabled WASM builds. */
+  physics_unload_tilemap_chunk_body?(chunkId: number): void;
 
   /** Get pointer to the static collision event buffer. */
   physics_get_collision_events_ptr(): number;
