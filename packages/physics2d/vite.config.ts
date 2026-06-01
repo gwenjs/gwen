@@ -31,13 +31,7 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
-      external: ["@gwenjs/core", "@gwenjs/kit"],
-      output: {
-        globals: {
-          "@gwenjs/core": "GwenEngineCore",
-          "@gwenjs/kit": "GwenKit",
-        },
-      },
+      external: (id) => !id.startsWith(".") && !id.startsWith("/"),
     },
   },
 });
