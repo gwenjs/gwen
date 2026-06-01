@@ -144,7 +144,13 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         // Push onto overlay stack — do NOT exit current scene
         overlayStack.push(fromState);
       } else if (overlayStack.length > 0 && target === overlayStack[overlayStack.length - 1]) {
-        // Popping back to underlying scene — restore without calling onEnter
+        // Popping back to underlying scene — run overlay exit lifecycle, skip underlying onEnter.
+        // The underlying scene was never paused (scene:beforeLeave was not fired on enter),
+        // so we must not fire scene:enter either — it would double-resume its systems.
+        await engine.hooks.callHook("scene:transition:leave", { from: fromName, to: toName });
+        await engine.hooks.callHook("scene:beforeLeave", fromName);
+        engine.hooks.callHook("scene:leave", fromName);
+
         overlayStack.pop();
         currentState = target;
         currentParams = params;

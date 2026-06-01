@@ -131,6 +131,33 @@ describe("useSceneRouter()", () => {
     });
   });
 
+  it("overlay dismiss: onExit fires on the overlay, onEnter does not fire on the underlying scene", async () => {
+    const onExitPause = vi.fn();
+    const onEnterGameSpy = vi.fn();
+
+    const Pause = defineScene("PauseExit", () => { onExit(onExitPause); });
+    const Game = defineScene("GameUnder", () => { onEnter(onEnterGameSpy); });
+    const router = defineSceneRouter({
+      initial: "game",
+      routes: {
+        game: { scene: Game, on: { PAUSE: "pause" } },
+        pause: { scene: Pause, overlay: true, on: { RESUME: "game" } },
+      },
+    });
+
+    const engine = await createEngine();
+    await engine.run(async () => {
+      const nav = useSceneRouter(router);
+      // initial scene:enter fires onEnterGame once
+      const initialCallCount = onEnterGameSpy.mock.calls.length;
+      await nav.send("PAUSE");
+      await nav.send("RESUME");
+      expect(onExitPause).toHaveBeenCalledTimes(1);
+      // underlying onEnter must NOT fire again after overlay dismissal
+      expect(onEnterGameSpy.mock.calls.length).toBe(initialCallCount);
+    });
+  });
+
   it("params are stored and accessible after send()", async () => {
     const engine = await createEngine();
     await engine.run(async () => {
