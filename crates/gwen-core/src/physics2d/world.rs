@@ -147,6 +147,8 @@ pub struct PhysicsWorld {
     pub entity_to_body: HashMap<u32, RigidBodyHandle>,
     pub body_to_entity: HashMap<RigidBodyHandle, u32>,
     handle_by_raw: HashMap<u32, RigidBodyHandle>,
+    /// Maps tilemap chunk IDs to their pseudo-entity indices for unload/lookup.
+    tilemap_chunk_to_entity: HashMap<u32, u32>,
     quality_preset: PhysicsQualityPreset,
     global_ccd_enabled: bool,
     pub one_way_colliders: HashSet<ColliderHandle>,
@@ -187,6 +189,7 @@ impl PhysicsWorld {
             entity_to_body: HashMap::new(),
             body_to_entity: HashMap::new(),
             handle_by_raw: HashMap::new(),
+            tilemap_chunk_to_entity: HashMap::new(),
             quality_preset: PhysicsQualityPreset::Medium,
             global_ccd_enabled: false,
             one_way_colliders: HashSet::new(),
@@ -485,6 +488,47 @@ impl PhysicsWorld {
         }
     }
 
+    // ── Tilemap chunk bodies ──────────────────────────────────────────────────
+
+    /// Create a static rigid body for a tilemap chunk and register it by chunk ID.
+    ///
+    /// Tilemap chunks use pseudo-entity indices derived from their chunk ID
+    /// (`(chunk_id | 0x80000000)`) so they never collide with real entity slots.
+    /// Colliders are added separately via [`add_box_collider`] using the returned
+    /// raw body handle.
+    ///
+    /// # Parameters
+    /// * `chunk_id`      — Unique chunk identifier (fnv1a32 of the chunk key).
+    /// * `pseudo_entity` — Pseudo-entity index derived from `chunk_id`.
+    /// * `x`, `y`        — World-space origin of the chunk in metres.
+    ///
+    /// # Returns
+    /// The raw body handle to use when attaching colliders.
+    pub fn load_tilemap_chunk_body(
+        &mut self,
+        chunk_id: u32,
+        pseudo_entity: u32,
+        x: f32,
+        y: f32,
+    ) -> u32 {
+        let handle_raw = self.add_rigid_body(pseudo_entity, x, y, BodyType::Fixed, BodyOptions::default());
+        self.tilemap_chunk_to_entity.insert(chunk_id, pseudo_entity);
+        handle_raw
+    }
+
+    /// Remove the static rigid body associated with a tilemap chunk.
+    ///
+    /// Removes the body and all attached colliders from the simulation.
+    /// A no-op if the chunk has not been loaded.
+    ///
+    /// # Parameters
+    /// * `chunk_id` — Unique chunk identifier previously passed to [`load_tilemap_chunk_body`].
+    pub fn unload_tilemap_chunk_body(&mut self, chunk_id: u32) {
+        if let Some(pseudo_entity) = self.tilemap_chunk_to_entity.remove(&chunk_id) {
+            self.remove_rigid_body(pseudo_entity);
+        }
+    }
+
     pub fn query_radius(&self, x: f32, y: f32, radius: f32, membership: u32, filter: u32) -> Vec<u32> {
         self.intersect_shape(&Ball::new(radius), Isometry::translation(x, y), membership, filter)
     }
@@ -647,6 +691,42 @@ mod tests {
         let pos1 = world.get_position(1).unwrap();
         assert!((pos0.0 - 1.0).abs() < 0.01, "slot 0 x should be ~1.0");
         assert!((pos1.1 - 2.0).abs() < 0.01, "slot 1 y should be ~2.0");
+    }
+
+    // ── tilemap chunk bodies ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_load_tilemap_chunk_body_registers_pseudo_entity() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let pseudo_entity = 0x80000001u32;
+        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 10.0, 20.0);
+        assert!(world.entity_to_body.contains_key(&pseudo_entity));
+    }
+
+    #[test]
+    fn test_load_tilemap_chunk_body_creates_static_body_at_position() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let pseudo_entity = 0x80000001u32;
+        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 5.0, 8.0);
+        let (x, y, _) = world.get_position(pseudo_entity).expect("body should exist");
+        assert!((x - 5.0).abs() < 1e-4, "x={x}");
+        assert!((y - 8.0).abs() < 1e-4, "y={y}");
+    }
+
+    #[test]
+    fn test_unload_tilemap_chunk_body_removes_body() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let pseudo_entity = 0x80000002u32;
+        world.load_tilemap_chunk_body(0xBEEF, pseudo_entity, 0.0, 0.0);
+        assert!(world.entity_to_body.contains_key(&pseudo_entity));
+        world.unload_tilemap_chunk_body(0xBEEF);
+        assert!(!world.entity_to_body.contains_key(&pseudo_entity));
+    }
+
+    #[test]
+    fn test_unload_tilemap_chunk_body_unknown_chunk_is_noop() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        world.unload_tilemap_chunk_body(0x1234); // should not panic
     }
 
     // ── apply_impulse ─────────────────────────────────────────────────────────

@@ -1135,6 +1135,46 @@ impl Engine {
         }
     }
 
+    /// Create a static rigid body for a tilemap chunk at world position `(x, y)`.
+    ///
+    /// Tilemap chunks use a `pseudo_entity` index derived from `chunk_id` so they
+    /// coexist with real entity slots without overlap. Colliders are attached
+    /// separately with [`physics_add_box_collider`] using the returned handle.
+    ///
+    /// # Parameters
+    /// * `chunk_id`      — Unique chunk identifier (fnv1a32 of the chunk key).
+    /// * `pseudo_entity` — `(chunk_id | 0x80000000)` — prevents overlap with real entities.
+    /// * `x`, `y`        — World-space origin of the chunk in metres.
+    ///
+    /// # Returns
+    /// Raw body handle — pass to `physics_add_box_collider` to attach colliders.
+    #[cfg(feature = "physics2d")]
+    pub fn physics_load_tilemap_chunk_body(
+        &mut self,
+        chunk_id: u32,
+        pseudo_entity: u32,
+        x: f32,
+        y: f32,
+    ) -> u32 {
+        self.physics_world
+            .as_mut()
+            .map(|w| w.load_tilemap_chunk_body(chunk_id, pseudo_entity, x, y))
+            .unwrap_or(0)
+    }
+
+    /// Remove the static rigid body for a tilemap chunk and all its colliders.
+    ///
+    /// No-op if the chunk was not loaded or the physics world is not initialised.
+    ///
+    /// # Parameters
+    /// * `chunk_id` — The same identifier passed to [`physics_load_tilemap_chunk_body`].
+    #[cfg(feature = "physics2d")]
+    pub fn physics_unload_tilemap_chunk_body(&mut self, chunk_id: u32) {
+        if let Some(ref mut world) = self.physics_world {
+            world.unload_tilemap_chunk_body(chunk_id);
+        }
+    }
+
     #[cfg(feature = "physics2d")]
     pub fn physics_get_sensor_state(&self, slot: u32, collider_id: u32) -> Vec<u32> {
         if let Some(ref world) = self.physics_world {

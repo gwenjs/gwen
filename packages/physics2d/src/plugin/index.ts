@@ -413,14 +413,10 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         return path;
       },
       loadTilemapPhysicsChunk(chunk, x, y, opts = {}) {
-        if (!pb.physics_load_tilemap_chunk_body) {
-          log.warn("loadTilemapPhysicsChunk: not available in this WASM build");
-          return;
-        }
         const existing = loadedTilemapChunks.get(chunk.key);
         if (existing?.checksum === chunk.checksum) return;
         if (existing) {
-          pb.physics_unload_tilemap_chunk_body?.(existing.chunkId);
+          pb.physics_unload_tilemap_chunk_body(existing.chunkId);
           loadedTilemapChunks.delete(chunk.key);
         }
         const chunkId = tilemapChunkIdFromKey(chunk.key);
@@ -442,7 +438,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       unloadTilemapPhysicsChunk(key) {
         const loaded = loadedTilemapChunks.get(key);
         if (!loaded) return;
-        pb.physics_unload_tilemap_chunk_body?.(loaded.chunkId);
+        pb.physics_unload_tilemap_chunk_body(loaded.chunkId);
         loadedTilemapChunks.delete(key);
       },
       patchTilemapPhysicsChunk(chunk, x, y, opts) {
