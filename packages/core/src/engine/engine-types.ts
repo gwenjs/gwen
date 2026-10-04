@@ -412,6 +412,19 @@ export interface EngineStats {
   overBudget: boolean;
 }
 
+/** Lifecycle state of a {@link GwenEngine}. */
+export type EngineState = "idle" | "running" | "paused" | "faulted" | "stopped";
+
+/**
+ * Payload of the `engine:state-change` hook.
+ * `from` and `to` are the states around one transition.
+ */
+export interface EngineStateChange {
+  readonly from: EngineState;
+  readonly to: EngineState;
+  readonly reason: string;
+}
+
 /**
  * The GWEN engine instance returned by {@link createEngine}.
  *
@@ -424,6 +437,8 @@ export interface EngineStats {
  * ```
  */
 export interface GwenEngine extends GwenEngineBase {
+  /** Current lifecycle state. Starts at `idle`. */
+  readonly state: EngineState;
   // ─── Plugin runner ──────────────────────────────────────────────────────
   /** Register and initialise a plugin. Deduplicates by `plugin.name`. */
   use(plugin: GwenPlugin): Promise<void>;

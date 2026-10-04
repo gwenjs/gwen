@@ -55,6 +55,7 @@ export type {
   GwenPlugin,
   EngineFramePhaseMs,
   EngineStats,
+  EngineState,
   GwenEngine,
 } from "./engine-types.js";
 
@@ -84,6 +85,7 @@ import type {
   GwenPlugin,
   EngineFramePhaseMs,
   EngineStats,
+  EngineState,
   GwenEngine,
 } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
@@ -149,9 +151,7 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _running = false;
-  /** Set on a WASM panic. `advance()` stays a no-op until Task 2.1 throws instead. */
-  private _fatalFault = false;
-  private _fatalAdvanceWarned = false;
+  private _state: EngineState = "idle";
   private _uninstallErrorBus: (() => void) | null = null;
   private _rafHandle = 0;
   private _lastFrameTime = 0;
@@ -160,6 +160,28 @@ class GwenEngineImpl implements GwenEngine {
 
   get errors(): EngineErrorBus {
     return this._errorBus;
+  }
+
+  get state(): EngineState {
+    return this._state;
+  }
+
+  /**
+   * One place for lifecycle transitions.
+   * Allowed: idle|stopped|paused → running, any except an equal state → stopped,
+   * running → faulted. `paused` is part of the state set and has no setter yet.
+   * Mutating methods refuse work while faulted. Reads stay available in every state.
+   */
+  private async _transition(to: EngineState, reason: string): Promise<void> {
+    const from = this._state;
+    if (from === to) return;
+    this._state = to;
+    await this.hooks.callHook("engine:state-change", { from, to, reason });
+  }
+
+  private _assertNotFaulted(method: string): void {
+    if (this._state !== "faulted") return;
+    throw new Error(`[GwenEngine] ${method}() is not allowed while the engine is faulted.`);
   }
 
   // ─── WASM module registry (RFC-008) ───────────────────────────────────────
@@ -237,23 +259,31 @@ class GwenEngineImpl implements GwenEngine {
   readonly wasmBridge = {
     physics2d: {
       enabled: false,
-      enable(_opts: unknown) {
-        this.enabled = true;
+      enable: (_opts: unknown): void => {
+        this._assertNotFaulted("wasmBridge.physics2d.enable");
+        this.wasmBridge.physics2d.enabled = true;
       },
-      disable() {
-        this.enabled = false;
+      disable: (): void => {
+        this._assertNotFaulted("wasmBridge.physics2d.disable");
+        this.wasmBridge.physics2d.enabled = false;
       },
-      step(_dt: number) {},
+      step: (_dt: number): void => {
+        this._assertNotFaulted("wasmBridge.physics2d.step");
+      },
     },
     physics3d: {
       enabled: false,
-      enable(_opts: unknown) {
-        this.enabled = true;
+      enable: (_opts: unknown): void => {
+        this._assertNotFaulted("wasmBridge.physics3d.enable");
+        this.wasmBridge.physics3d.enabled = true;
       },
-      disable() {
-        this.enabled = false;
+      disable: (): void => {
+        this._assertNotFaulted("wasmBridge.physics3d.disable");
+        this.wasmBridge.physics3d.enabled = false;
       },
-      step(_dt: number) {},
+      step: (_dt: number): void => {
+        this._assertNotFaulted("wasmBridge.physics3d.step");
+      },
     },
   };
 
@@ -301,6 +331,7 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Plugin runner ────────────────────────────────────────────────────────
 
   async use(plugin: GwenPlugin): Promise<void> {
+    this._assertNotFaulted("use");
     if (this._pluginNames.has(plugin.name)) return;
 
     const scopedHooks = this._createScopedHooks(plugin.name);
@@ -342,6 +373,7 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async unuse(name: string): Promise<void> {
+    this._assertNotFaulted("unuse");
     const idx = this._plugins.findIndex((p) => p.name === name);
     if (idx === -1) return;
 
@@ -357,6 +389,7 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Typed provide/inject ─────────────────────────────────────────────────
 
   provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void {
+    this._assertNotFaulted("provide");
     this._services.set(key as string, value);
   }
 
@@ -391,6 +424,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   run<T>(fn: () => T): T {
+    this._assertNotFaulted("run");
     return engineContext.call(this, fn);
   }
 
@@ -401,6 +435,7 @@ class GwenEngineImpl implements GwenEngine {
    * (e.g., a custom game loop outside `advance()`).
    */
   activate(): void {
+    this._assertNotFaulted("activate");
     engineContext.set(this, true);
   }
 
@@ -409,6 +444,7 @@ class GwenEngineImpl implements GwenEngine {
    * Must be called after {@link activate} when the frame is complete.
    */
   deactivate(): void {
+    this._assertNotFaulted("deactivate");
     engineContext.unset();
   }
 
@@ -420,7 +456,7 @@ class GwenEngineImpl implements GwenEngine {
     // function returns, so `_running` must already be false.
     if (isWasmPanic) {
       this._running = false;
-      this._fatalFault = true;
+      await this._transition("faulted", "wasm-panic");
     }
     const code = isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR;
     const message = err instanceof Error ? err.message : String(err);
@@ -446,9 +482,11 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async start(): Promise<void> {
+    this._assertNotFaulted("start");
     if (this._running) return;
     this._running = true;
     this._lastFrameTime = performance.now();
+    await this._transition("running", "start");
 
     await this.hooks.callHook("engine:init");
     await this.hooks.callHook("engine:start");
@@ -517,6 +555,9 @@ class GwenEngineImpl implements GwenEngine {
 
   async stop(): Promise<void> {
     this._running = false;
+    // State is updated before the first await so `engine:stop` listeners still run
+    // in the same turn as a non-awaited `onFatal` callback.
+    const pending = this._transition("stopped", "stop");
     this._uninstallErrorBus?.();
     this._uninstallErrorBus = null;
     if (this._rafHandle) {
@@ -524,6 +565,7 @@ class GwenEngineImpl implements GwenEngine {
       this._rafHandle = 0;
     }
     await this.hooks.callHook("engine:stop");
+    await pending;
     this._tracker.clearAll(this.hooks);
 
     // Clean up WASM modules and globalThis glue cache
@@ -550,21 +592,16 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   async startExternal(): Promise<void> {
+    this._assertNotFaulted("startExternal");
     this._running = true;
+    await this._transition("running", "start-external");
     await this.hooks.callHook("engine:init");
     await this.hooks.callHook("engine:start");
     // Intentionally skip RAF — the caller drives the loop via advance().
   }
 
   async advance(dt: number): Promise<void> {
-    // Task 2.1 replaces this no-op with a throw once `engine.state` is `faulted`.
-    if (this._fatalFault) {
-      if (this.debug && !this._fatalAdvanceWarned) {
-        this._fatalAdvanceWarned = true;
-        this.logger.warn("advance() ignored after a fatal fault");
-      }
-      return;
-    }
+    this._assertNotFaulted("advance");
     if (this._advancing) {
       throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }
@@ -595,6 +632,7 @@ class GwenEngineImpl implements GwenEngine {
   async loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>> {
+    this._assertNotFaulted("loadWasmModule");
     // Deduplication — same name returns existing handle without re-fetching.
     const existing = this._wasmModules.get(options.name);
     if (existing) {
@@ -730,6 +768,7 @@ class GwenEngineImpl implements GwenEngine {
    * @throws {Error} If the entity capacity is exceeded.
    */
   createEntity(): EntityId {
+    this._assertNotFaulted("createEntity");
     return this._entityManager.create();
   }
 
@@ -744,6 +783,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if it was alive and is now destroyed
    */
   destroyEntity(id: EntityId): boolean {
+    this._assertNotFaulted("destroyEntity");
     if (!this._entityManager.destroy(id)) return false;
     this._componentRegistry.removeAll(id);
     this._queryEngine.invalidate();
@@ -775,6 +815,7 @@ class GwenEngineImpl implements GwenEngine {
     def: D,
     data: Partial<InferComponent<D>>,
   ): void {
+    this._assertNotFaulted("addComponent");
     const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
     if (existing !== undefined) {
       // Hot path — the component already exists: update its fields in place.
@@ -823,6 +864,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if the component existed and was removed
    */
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean {
+    this._assertNotFaulted("removeComponent");
     const removed = this._componentRegistry.remove(id, def);
     if (removed) this._queryEngine.invalidate();
     return removed;

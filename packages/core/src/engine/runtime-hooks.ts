@@ -1,4 +1,5 @@
 import type { EntityId } from "./engine-api.js";
+import type { EngineStateChange } from "./engine-types.js";
 
 // Re-export so existing `import { GwenRuntimeHooks } from '@gwenjs/core'` still works.
 export type { GwenRuntimeHooks } from "@gwenjs/schema";
@@ -44,6 +45,8 @@ declare module "@gwenjs/schema" {
     "engine:start": () => void;
     /** Fired once when `engine.stop()` tears down the engine. */
     "engine:stop": () => void;
+    /** Fired after every lifecycle transition. */
+    "engine:state-change": (payload: EngineStateChange) => void;
     /** Fired after a plugin completes its `setup()` and is registered in the engine. */
     "plugin:registered": (pluginName: string) => void;
     /** Fired at the start of every tick, before any phase runs. */
