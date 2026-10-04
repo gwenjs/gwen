@@ -149,6 +149,10 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _running = false;
+  /** Set on a WASM panic. `advance()` stays a no-op until Task 2.1 throws instead. */
+  private _fatalFault = false;
+  private _fatalAdvanceWarned = false;
+  private _uninstallErrorBus: (() => void) | null = null;
   private _rafHandle = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
@@ -286,7 +290,7 @@ class GwenEngineImpl implements GwenEngine {
       this.stop().catch(() => {});
     });
     if (typeof globalThis.window !== "undefined") {
-      errorBus.install?.();
+      this._uninstallErrorBus = errorBus.install?.() ?? null;
     }
   }
 
@@ -410,7 +414,10 @@ class GwenEngineImpl implements GwenEngine {
     const isWasmPanic = err instanceof WebAssembly.RuntimeError;
     // `onFatal` calls async `stop()`. The loop `finally` runs as soon as this
     // function returns, so `_running` must already be false.
-    if (isWasmPanic) this._running = false;
+    if (isWasmPanic) {
+      this._running = false;
+      this._fatalFault = true;
+    }
     const code = isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR;
     const message = err instanceof Error ? err.message : String(err);
     const payload: EngineErrorPayload = {
@@ -504,6 +511,8 @@ class GwenEngineImpl implements GwenEngine {
 
   async stop(): Promise<void> {
     this._running = false;
+    this._uninstallErrorBus?.();
+    this._uninstallErrorBus = null;
     if (this._rafHandle) {
       this._cancelFrame(this._rafHandle);
       this._rafHandle = 0;
@@ -542,6 +551,14 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async advance(dt: number): Promise<void> {
+    // Task 2.1 replaces this no-op with a throw once `engine.state` is `faulted`.
+    if (this._fatalFault) {
+      if (this.debug && !this._fatalAdvanceWarned) {
+        this._fatalAdvanceWarned = true;
+        this.logger.warn("advance() ignored after a fatal fault");
+      }
+      return;
+    }
     if (this._advancing) {
       throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }

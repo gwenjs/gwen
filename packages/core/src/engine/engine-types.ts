@@ -249,8 +249,12 @@ export interface EngineErrorBus extends GwenErrorBusBase {
   on(handler: (event: GwenErrorPayload) => void): void;
   /** Register a callback that runs after `on` handlers when the level is `fatal`. */
   onFatal(cb: () => void): void;
-  /** Install global `window.onerror` / `unhandledrejection` handlers. */
-  install?(): void;
+  /**
+   * Install global `window.onerror` / `unhandledrejection` handlers.
+   * Returns a function that removes them.
+   * `createEngine()` calls this when `window` exists. `stop()` calls the result.
+   */
+  install?(): () => void;
 }
 
 /**

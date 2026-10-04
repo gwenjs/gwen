@@ -7,6 +7,7 @@
  *
  * `install` attaches `window.onerror` and `unhandledrejection`
  * and forwards those failures onto the bus.
+ * It returns a function that removes those handlers.
  */
 
 import type { GwenErrorPayload } from "@gwenjs/schema";
@@ -29,6 +30,7 @@ export function createErrorBus(reportHandlerError?: (error: unknown) => void): E
   const handlers: ErrorHandler[] = [];
   const fatalHandlers: Array<() => void> = [];
   let installed = false;
+  let uninstall = (): void => {};
 
   function isolate(run: () => void): void {
     try {
@@ -55,11 +57,20 @@ export function createErrorBus(reportHandlerError?: (error: unknown) => void): E
       fatalHandlers.push(callback);
     },
     install() {
-      if (installed) return;
-      if (typeof window === "undefined") return;
+      if (installed) return uninstall;
+      if (typeof window === "undefined") return () => {};
       installed = true;
 
       const previous = window.onerror;
+      const onUnhandled = (event: PromiseRejectionEvent): void => {
+        const reason: unknown = event.reason;
+        bus.emit({
+          level: "error",
+          code: UNHANDLED_REJECTION,
+          message: thrownMessage(reason),
+          error: reason,
+        });
+      };
       window.onerror = (message, source, lineno, colno, error) => {
         const context: Record<string, unknown> = {};
         if (typeof lineno === "number") context.line = lineno;
@@ -80,15 +91,15 @@ export function createErrorBus(reportHandlerError?: (error: unknown) => void): E
         return false;
       };
 
-      window.addEventListener("unhandledrejection", (event) => {
-        const reason: unknown = event.reason;
-        bus.emit({
-          level: "error",
-          code: UNHANDLED_REJECTION,
-          message: thrownMessage(reason),
-          error: reason,
-        });
-      });
+      window.addEventListener("unhandledrejection", onUnhandled);
+
+      uninstall = () => {
+        if (!installed) return;
+        installed = false;
+        window.onerror = previous;
+        window.removeEventListener("unhandledrejection", onUnhandled);
+      };
+      return uninstall;
     },
   };
 

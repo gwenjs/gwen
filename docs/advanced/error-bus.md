@@ -236,7 +236,7 @@ A custom bus passed as `errorBus` must implement `on()`. `onFatal` alone is not 
 
 `createEngine()` calls `install()` when `window` exists. You do not call it yourself.
 
-`install()` attaches `window.onerror` and `unhandledrejection`, and forwards those failures onto the bus.
+`install()` attaches `window.onerror` and `unhandledrejection`, and forwards those failures onto the bus. It returns a function that removes those handlers. `stop()` calls that function.
 
 ## API Summary
 

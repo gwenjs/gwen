@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   createEngine,
   createErrorBus,
@@ -49,6 +49,7 @@ function makeMockBus(): EngineErrorBus & {
     },
     install() {
       this._installed = true;
+      return () => {};
     },
   };
   return bus;
@@ -75,6 +76,44 @@ describe("createErrorBus", () => {
     bus.emit({ level: "error", code: "TEST:ERROR", message: "error" });
     expect(order).toEqual(["on-1", "on-2"]);
   });
+
+  it("returns a no-op uninstall when window is missing", () => {
+    const bus = createErrorBus();
+    const uninstall = bus.install?.();
+    expect(typeof uninstall).toBe("function");
+    uninstall?.();
+  });
+
+  it("returns the same uninstall and restores window.onerror", () => {
+    const listeners = new Map<string, Set<EventListener>>();
+    const fake = {
+      onerror: null as Window["onerror"],
+      addEventListener(type: string, listener: EventListener): void {
+        const set = listeners.get(type) ?? new Set<EventListener>();
+        set.add(listener);
+        listeners.set(type, set);
+      },
+      removeEventListener(type: string, listener: EventListener): void {
+        listeners.get(type)?.delete(listener);
+      },
+    };
+    vi.stubGlobal("window", fake);
+    try {
+      const bus = createErrorBus();
+      const uninstall = bus.install?.();
+      const again = bus.install?.();
+      expect(again).toBe(uninstall);
+      expect(typeof fake.onerror).toBe("function");
+      expect(listeners.get("unhandledrejection")?.size).toBe(1);
+      uninstall?.();
+      expect(fake.onerror).toBeNull();
+      expect(listeners.get("unhandledrejection")?.size).toBe(0);
+      uninstall?.();
+      expect(fake.onerror).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
 
 describe("GwenEngine + EngineErrorBus (Task 5)", () => {
@@ -95,6 +134,31 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       const bus = makeMockBus();
       await createEngine({ errorBus: bus });
       expect(bus._fatalCb).toBeTypeOf("function");
+    });
+
+    it("stop removes window handlers installed by createEngine", async () => {
+      const listeners = new Map<string, Set<EventListener>>();
+      const fake = {
+        onerror: null as Window["onerror"],
+        addEventListener(type: string, listener: EventListener): void {
+          const set = listeners.get(type) ?? new Set<EventListener>();
+          set.add(listener);
+          listeners.set(type, set);
+        },
+        removeEventListener(type: string, listener: EventListener): void {
+          listeners.get(type)?.delete(listener);
+        },
+      };
+      vi.stubGlobal("window", fake);
+      try {
+        const engine = await createEngine();
+        expect(typeof fake.onerror).toBe("function");
+        await engine.stop();
+        expect(fake.onerror).toBeNull();
+        expect(listeners.get("unhandledrejection")?.size ?? 0).toBe(0);
+      } finally {
+        vi.unstubAllGlobals();
+      }
     });
   });
 

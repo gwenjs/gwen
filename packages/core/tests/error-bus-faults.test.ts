@@ -81,3 +81,33 @@ describe("fixed-step loop", () => {
     }
   });
 });
+
+describe("advance after a fatal fault", () => {
+  it("does not call hooks again after a wasm panic", async () => {
+    const engine = await createEngine();
+    let updates = 0;
+    engine.hooks.hook("engine:update", () => {
+      updates += 1;
+      throw new WebAssembly.RuntimeError("panic");
+    });
+    await engine.startExternal();
+    await engine.advance(1 / 60);
+    await engine.advance(1 / 60);
+    expect(updates).toBe(1);
+    await engine.stop();
+  });
+
+  it("warns once when debug is on", async () => {
+    const engine = await createEngine({ debug: true });
+    const warn = vi.spyOn(engine.logger, "warn");
+    engine.hooks.hook("engine:update", () => {
+      throw new WebAssembly.RuntimeError("panic");
+    });
+    await engine.startExternal();
+    await engine.advance(1 / 60);
+    await engine.advance(1 / 60);
+    await engine.advance(1 / 60);
+    expect(warn).toHaveBeenCalledTimes(1);
+    await engine.stop();
+  });
+});

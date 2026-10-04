@@ -236,7 +236,7 @@ Un bus personnalisé passé via `errorBus` doit implémenter `on()`. `onFatal` s
 
 `createEngine()` appelle `install()` quand `window` existe. Vous n'avez pas à l'appeler vous-même.
 
-`install()` attache `window.onerror` et `unhandledrejection`, et transmet ces échecs au bus.
+`install()` attache `window.onerror` et `unhandledrejection`, et transmet ces échecs au bus. Il renvoie une fonction qui retire ces gestionnaires. `stop()` appelle cette fonction.
 
 ## Résumé de l'API
 
