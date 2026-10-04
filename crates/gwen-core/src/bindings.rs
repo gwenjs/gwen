@@ -28,9 +28,8 @@ use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
 
-/// Static buffer for query results to avoid allocations during JS bridge calls.
-/// Capped at 10,000 entities.
-static mut QUERY_RESULT_BUFFER: [u32; 10_000] = [0u32; 10_000];
+/// Message when a query has more matches than this engine's result buffer.
+const QUERY_EXCEEDED_BUFFER_CAPACITY: &str = "query exceeded the buffer capacity";
 
 // ─── Opaque entity handle exposed to JS ──────────────────────────────────────
 
@@ -76,6 +75,9 @@ pub struct Engine {
     pub(crate) entity_manager: EntityManager,
     pub(crate) storage: ArchetypeStorage,
     query_system: QuerySystem,
+    /// Entity ids from the last successful `query_entities_to_buffer` call.
+    /// Length is `max_entities` from construction and is never reallocated.
+    query_result_buffer: Vec<u32>,
     gameloop: GameLoop,
     /// Monotonically increasing counter used by `register_component_type`.
     /// Each call returns a fresh ID regardless of the underlying Rust type,
@@ -100,6 +102,7 @@ impl Engine {
             entity_manager: EntityManager::new(max_entities),
             storage: ArchetypeStorage::new(),
             query_system: QuerySystem::new(),
+            query_result_buffer: vec![0u32; max_entities as usize],
             gameloop: GameLoop::new(60),
             next_js_type_id: 0,
             dirty_transforms: DirtySet::new(max_entities),
@@ -465,48 +468,59 @@ impl Engine {
         self.query_system.query(&self.storage, query_id).entities().to_vec()
     }
 
-    /// Query entities and copy their indices into a static buffer.
-    /// Returns the number of entities found (capped at 10,000).
+    /// Query entities and copy every match into this engine's result buffer.
     ///
-    /// This is an optimized alternative to `query_entities` that avoids
-    /// allocating a new `Vec` or `Uint32Array` for the result. Use
-    /// `get_query_result_ptr` to get the pointer to the buffer.
+    /// The buffer length is fixed at construction (`max_entities`). Read it
+    /// with [`Self::get_query_result_capacity`] and the pointer with
+    /// [`Self::get_query_result_ptr`]. This avoids allocating a new result `Vec`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the number of matches exceeds the buffer capacity.
+    /// The buffer is left unchanged. The call does not report a truncated count.
     ///
     /// # Example
     /// ```rust
     /// # use gwen_core::bindings::Engine;
     /// # let mut engine = Engine::new(100);
-    /// let count = engine.query_entities_to_buffer(&[0, 1]);
+    /// let count = engine.query_entities_to_buffer(&[0, 1]).unwrap();
     /// let ptr = engine.get_query_result_ptr();
-    /// // Read count * 4 bytes from ptr in JS.
+    /// // Read `count` entity ids from `ptr` in JS. The view length is
+    /// // `engine.get_query_result_capacity()`, not a fixed 10_000.
+    /// let _ = (count, ptr);
     /// ```
-    pub fn query_entities_to_buffer(&mut self, component_type_ids: &[u32]) -> u32 {
+    pub fn query_entities_to_buffer(&mut self, component_type_ids: &[u32]) -> Result<u32, JsError> {
         let types: Vec<ComponentTypeId> = component_type_ids
             .iter()
             .map(|&id| ComponentTypeId::from_raw(id))
             .collect();
         let query_id = QueryId::new(types, self.storage.registry());
         let results = self.query_system.query(&self.storage, query_id);
-        let entities = results.entities();
-
-        let count = entities.len().min(10_000);
-        // SAFETY: Only one engine instance accesses this buffer at a time
-        // in a single-threaded WASM environment.
-        unsafe {
-            for (i, &entity_id) in entities.iter().enumerate().take(count) {
-                QUERY_RESULT_BUFFER[i] = entity_id;
-            }
+        let matches = results.len();
+        if matches > self.query_result_buffer.len() {
+            return Err(JsError::new(QUERY_EXCEEDED_BUFFER_CAPACITY));
         }
-        count as u32
+        self.query_result_buffer[..matches].copy_from_slice(results.entities());
+        Ok(matches as u32)
     }
 
-    /// Get a raw pointer to the static query result buffer.
+    /// Pointer to this engine's query result buffer.
     ///
-    /// Use this to read the results of the last `query_entities_to_buffer` call
-    /// from JavaScript without allocations.
+    /// Use this to read the results of the last successful
+    /// `query_entities_to_buffer` call from JavaScript without allocations.
+    /// Each `Engine` owns its buffer. The pointer stays valid for the life of
+    /// this engine because the buffer is never reallocated.
     pub fn get_query_result_ptr(&self) -> *const u32 {
-        // SAFETY: The buffer is static and lives for the duration of the module.
-        std::ptr::addr_of!(QUERY_RESULT_BUFFER) as *const u32
+        self.query_result_buffer.as_ptr()
+    }
+
+    /// Number of entity ids this engine's query result buffer can hold.
+    ///
+    /// This is the length allocated in [`Engine::new`] from `max_entities`.
+    /// JavaScript must use this value as the view length. It does not change,
+    /// and it is not inferred from the configured `maxEntities` on the JS side.
+    pub fn get_query_result_capacity(&self) -> u32 {
+        self.query_result_buffer.len() as u32
     }
 
     // ─── Game loop ────────────────────────────────────────────────────────────
@@ -3039,8 +3053,8 @@ impl Engine {
     /// `out_slots[0..entity_count]` and `out_gens[0..entity_count]` identify the matched
     /// entities, and `out_buf[0..bytes_written]` contains their packed component data.
     ///
-    /// If `entity_count == BULK_MAX_ENTITIES` (10 000), the result was truncated — the scene
-    /// has more matching entities than the buffer can hold.
+    /// `entity_count` is `min(matches, out_slots.len(), out_gens.len())`. A shorter
+    /// caller buffer truncates the result to that length. There is no fixed 10_000 cap.
     ///
     /// # Performance
     /// One WASM boundary crossing regardless of entity count.
@@ -3363,8 +3377,9 @@ mod tests {
         engine.add_component(e2.index(), e2.generation(), t1, &[0u8; 4]);
 
         // Query for t0
-        let count = engine.query_entities_to_buffer(&[t0]);
+        let count = engine.query_entities_to_buffer(&[t0]).unwrap();
         assert_eq!(count, 2);
+        assert_eq!(engine.get_query_result_capacity(), 100);
 
         let ptr = engine.get_query_result_ptr();
         unsafe {
@@ -3375,7 +3390,7 @@ mod tests {
         }
 
         // Query for both t0 and t1
-        let count = engine.query_entities_to_buffer(&[t0, t1]);
+        let count = engine.query_entities_to_buffer(&[t0, t1]).unwrap();
         assert_eq!(count, 1);
         unsafe {
             let slice = std::slice::from_raw_parts(ptr, count as usize);
@@ -3385,16 +3400,104 @@ mod tests {
 
     #[test]
     fn test_query_entities_to_buffer_cap() {
-        let mut engine = Engine::new(11000);
+        let max = 11_000u32;
+        let mut engine = Engine::new(max);
+        assert_eq!(engine.get_query_result_capacity(), max);
         let t0 = engine.register_component_type();
 
-        for _ in 0..11000 {
+        for _ in 0..max {
             let e = engine.create_entity();
             engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
         }
 
-        let count = engine.query_entities_to_buffer(&[t0]);
-        assert_eq!(count, 10_000); // Capped at 10,000
+        let count = engine
+            .query_entities_to_buffer(&[t0])
+            .expect("11_000 matches fit in a buffer of max_entities");
+        assert_eq!(count, max, "must not truncate at the old 10_000 cap");
+
+        let ptr = engine.get_query_result_ptr();
+        let slice = unsafe { std::slice::from_raw_parts(ptr, count as usize) };
+        assert_eq!(slice[0], 0);
+        assert_eq!(slice[max as usize - 1], max - 1);
+    }
+
+    #[test]
+    fn test_query_result_buffer_is_per_engine() {
+        let mut a = Engine::new(8);
+        let mut b = Engine::new(4);
+        assert_eq!(a.get_query_result_capacity(), 8);
+        assert_eq!(b.get_query_result_capacity(), 4);
+        assert_ne!(
+            a.get_query_result_ptr(),
+            b.get_query_result_ptr(),
+            "two engines must not share the query buffer"
+        );
+
+        let ta = a.register_component_type();
+        let tb = b.register_component_type();
+        let ea = a.create_entity();
+        a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0]);
+        let eb = b.create_entity();
+        b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0]);
+
+        assert_eq!(a.query_entities_to_buffer(&[ta]).unwrap(), 1);
+        let ptr_a = a.get_query_result_ptr();
+        let a_id = unsafe { *ptr_a };
+
+        assert_eq!(b.query_entities_to_buffer(&[tb]).unwrap(), 1);
+        let b_id = unsafe { *b.get_query_result_ptr() };
+
+        assert_eq!(
+            unsafe { *ptr_a },
+            a_id,
+            "engine B must not overwrite engine A"
+        );
+        assert_eq!(a_id, ea.index());
+        assert_eq!(b_id, eb.index());
+    }
+
+    #[test]
+    fn test_query_entities_to_buffer_exceeds_capacity() {
+        assert_eq!(
+            QUERY_EXCEEDED_BUFFER_CAPACITY,
+            "query exceeded the buffer capacity"
+        );
+
+        let mut engine = Engine::new(4);
+        let t0 = engine.register_component_type();
+        for _ in 0..4 {
+            let e = engine.create_entity();
+            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
+        }
+
+        // Force a buffer shorter than the match set. Production code never resizes it.
+        engine.query_result_buffer = vec![0xAAAA_AAAA, 0xBBBB_BBBB];
+        let before = engine.query_result_buffer.clone();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            engine.query_entities_to_buffer(&[t0])
+        }));
+
+        match result {
+            Ok(Ok(count)) => panic!("must not return a short count, got {count}"),
+            Ok(Err(err)) => {
+                let msg = format!("{err:?}");
+                assert!(
+                    msg.contains(QUERY_EXCEEDED_BUFFER_CAPACITY),
+                    "JsError message must say the query exceeded the buffer capacity, got {msg}"
+                );
+            }
+            Err(_panic) => {
+                // Native tests cannot construct JsError: the JS Error constructor
+                // panics off wasm. Reaching that panic means we took the error path
+                // instead of returning a truncated count.
+            }
+        }
+
+        assert_eq!(
+            engine.query_result_buffer, before,
+            "overflow must not write a partial result"
+        );
     }
 
     #[cfg(feature = "physics3d")]

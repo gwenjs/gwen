@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { createRealEngine } from "./harness.js";
 
 describe("P0 query cap", () => {
-  it.fails("D5 query cap: queryEntitiesRaw returns every match, not 10_000", async () => {
+  it("D5 query cap: queryEntitiesRaw returns every match, not 10_000", async () => {
     const { bridge } = await createRealEngine({
       variant: "light",
       maxEntities: 20_000,

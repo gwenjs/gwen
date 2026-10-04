@@ -13,7 +13,7 @@ function liveQuerySlots(bridge: WasmBridgeImpl, count: number): Uint32Array {
 }
 
 describe("P0 shared query buffer", () => {
-  it.fails("D8 two engines: a buffer query view stays private to its engine", async () => {
+  it("D8 two engines: a buffer query view stays private to its engine", async () => {
     const first = await createRealEngine({ variant: "light", maxEntities: 32 });
     const second = await createRealEngine({ variant: "light", maxEntities: 32 });
     const typeA = first.bridge.registerComponentType();

@@ -14,7 +14,9 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { WasmBridgeImpl, type WasmEngine, type WasmEntityId } from "../src/engine/wasm-bridge";
+import { CoreErrorCodes } from "../src/engine/engine-errors";
 
 // ── Mock helper ───────────────────────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ function createMockEngine(): WasmEngine {
     query_entities: vi.fn(() => new Uint32Array(0)),
     query_entities_to_buffer: vi.fn(() => 0),
     get_query_result_ptr: vi.fn(() => 8192),
+    get_query_result_capacity: vi.fn(() => 10_000),
     get_entity_generation: vi.fn(() => 0),
     tick: vi.fn(),
     frame_count: vi.fn(() => BigInt(1)),
@@ -228,6 +231,77 @@ describe("WasmBridge — with injected mock", () => {
     new Uint32Array(buf2, 0, 1)[0] = 99;
     growBridge.forEachQueryResultRaw([10], (idx) => (result = idx));
     expect(result).toBe(99);
+  });
+
+  it("forEachQueryResultRaw() recreates the view when the pointer or capacity changes", () => {
+    const buf = new ArrayBuffer(32);
+    const mockMemory = { buffer: buf } as WebAssembly.Memory;
+    const viewBridge = new WasmBridgeImpl();
+    const viewMock = createMockEngine();
+    viewBridge._injectMock(viewMock);
+    viewBridge._injectMockExports({ memory: mockMemory });
+
+    (viewMock.query_entities_to_buffer as ReturnType<typeof vi.fn>).mockReturnValue(1);
+    (viewMock.get_query_result_ptr as ReturnType<typeof vi.fn>).mockReturnValue(0);
+    (viewMock.get_query_result_capacity as ReturnType<typeof vi.fn>).mockReturnValue(4);
+
+    new Uint32Array(buf, 0, 1)[0] = 7;
+    let result = 0;
+    viewBridge.forEachQueryResultRaw([1], (idx) => {
+      result = idx;
+    });
+    expect(result).toBe(7);
+
+    // Offset 20 with the old length (4) would run past this 32-byte buffer.
+    (viewMock.get_query_result_ptr as ReturnType<typeof vi.fn>).mockReturnValue(20);
+    (viewMock.get_query_result_capacity as ReturnType<typeof vi.fn>).mockReturnValue(2);
+    new Uint32Array(buf, 20, 1)[0] = 9;
+    viewBridge.forEachQueryResultRaw([1], (idx) => {
+      result = idx;
+    });
+    expect(result).toBe(9);
+  });
+
+  it("queryReadBulk does not call query_entities when the buffer has room", () => {
+    const bulkBridge = new WasmBridgeImpl();
+    const bulkMock = createMockEngine();
+    bulkBridge._injectMock(bulkMock, 4);
+    const queryEntities = vi.fn((): Uint32Array => new Uint32Array(0));
+    bulkMock.query_entities = queryEntities;
+    bulkMock.query_read_bulk = vi.fn(() => new Uint32Array([1, 4]));
+
+    const result = bulkBridge.queryReadBulk([1], 1, 1);
+    expect(result.entityCount).toBe(1);
+    expect(queryEntities).not.toHaveBeenCalled();
+  });
+
+  it("queryReadBulk returns when the uncapped query matches the full buffer", () => {
+    const bulkBridge = new WasmBridgeImpl();
+    const bulkMock = createMockEngine();
+    bulkBridge._injectMock(bulkMock, 4);
+    bulkMock.query_read_bulk = vi.fn(() => new Uint32Array([4, 4]));
+    bulkMock.query_entities = vi.fn((): Uint32Array => new Uint32Array(4));
+
+    expect(bulkBridge.queryReadBulk([1], 1, 1).entityCount).toBe(4);
+    expect(bulkMock.query_entities).toHaveBeenCalledTimes(1);
+  });
+
+  it("queryReadBulk throws when the uncapped query is longer than the buffer", () => {
+    const bulkBridge = new WasmBridgeImpl();
+    const bulkMock = createMockEngine();
+    bulkBridge._injectMock(bulkMock, 4);
+    bulkMock.query_read_bulk = vi.fn(() => new Uint32Array([4, 4]));
+    bulkMock.query_entities = vi.fn((): Uint32Array => new Uint32Array(5));
+
+    let caught: GwenError | null = null;
+    try {
+      bulkBridge.queryReadBulk([1], 1, 1);
+    } catch (e: unknown) {
+      if (e instanceof GwenError) caught = e;
+      else throw e;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    expect(caught?.code).toBe(CoreErrorCodes.QUERY_CAPACITY_EXCEEDED);
   });
 
   it("tick() delegates to mock", () => {
