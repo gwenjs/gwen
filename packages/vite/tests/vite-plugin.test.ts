@@ -423,3 +423,85 @@ describe("gwenVitePlugin — hooks plugin included", () => {
     expect(names).toContain("gwen:hooks");
   });
 });
+
+// ── Dev-server WASM middleware — path containment ─────────────────────────────
+
+describe("gwen() WASM middleware — path traversal containment", () => {
+  let root: string;
+  let outsideSecret: string;
+  let handler: (
+    req: { url?: string },
+    res: { setHeader(k: string, v: string): void; end(b?: unknown): void },
+    next: () => void,
+  ) => void;
+
+  beforeEach(() => {
+    root = makeTmp();
+    const pluginWasm = path.join(root, "node_modules", "@gwenjs", "gwen-plugin-demo", "wasm");
+    fs.mkdirSync(pluginWasm, { recursive: true });
+    fs.writeFileSync(path.join(pluginWasm, "demo.wasm"), "WASM");
+    fs.writeFileSync(path.join(pluginWasm, "notes.txt"), "not servable");
+    outsideSecret = path.join(root, ".env");
+    fs.writeFileSync(outsideSecret, "SECRET=1");
+
+    const [plugin] = gwen({ watch: false });
+    const uses: Array<typeof handler> = [];
+    const fakeServer = {
+      config: { root },
+      watcher: { add() {}, on() {} },
+      moduleGraph: { getModuleById: () => null, invalidateModule() {} },
+      ws: { send() {} },
+      middlewares: { use: (fn: typeof handler) => uses.push(fn) },
+    };
+    (plugin.configureServer as (s: unknown) => void)(fakeServer);
+    const registered = uses[0];
+    if (!registered) throw new Error("configureServer did not register a middleware");
+    handler = registered;
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function request(url: string): { body: unknown; nextCalled: boolean } {
+    let body: unknown;
+    let nextCalled = false;
+    handler(
+      { url },
+      {
+        setHeader() {},
+        end(b) {
+          body = b;
+        },
+      },
+      () => {
+        nextCalled = true;
+      },
+    );
+    return { body, nextCalled };
+  }
+
+  it("serves a legitimate plugin .wasm file", () => {
+    const { body, nextCalled } = request("/wasm/demo.wasm");
+    expect(nextCalled).toBe(false);
+    expect(String(body)).toBe("WASM");
+  });
+
+  it("rejects `..` traversal out of the wasm directory", () => {
+    const { body, nextCalled } = request("/wasm/../../../../.env");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects URL-encoded traversal", () => {
+    const { body, nextCalled } = request("/wasm/..%2F..%2F..%2F..%2F.env");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects files with non-WASM extensions even inside the directory", () => {
+    const { body, nextCalled } = request("/wasm/notes.txt");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+});
