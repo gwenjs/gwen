@@ -218,7 +218,7 @@ engine.errors.on((event) => {
 
 ### Fatal Error Handler
 
-Register a callback that runs before a fatal error is thrown:
+Register a callback that runs after every `on` handler when the event level is `fatal`:
 
 ```ts
 engine.errors.onFatal(() => {
@@ -228,26 +228,24 @@ engine.errors.onFatal(() => {
 })
 ```
 
-This runs synchronously, before the error handler is invoked.
+`emit` runs every `on` handler first, then every `onFatal` callback. Both run synchronously inside `emit`. A handler that throws is caught. The other handlers still run, and the frame loop keeps going.
+
+A custom bus passed as `errorBus` must implement `on()`. `onFatal` alone is not enough.
 
 ### Installation
 
-GWEN can install global error handlers:
+`createEngine()` calls `install()` when `window` exists. You do not call it yourself.
 
-```ts
-engine.errors.install?.()
-```
-
-This attaches handlers to `window.onerror` and `unhandledrejection` events, forwarding uncaught errors to the error bus.
+`install()` attaches `window.onerror` and `unhandledrejection`, and forwards those failures onto the bus.
 
 ## API Summary
 
 | Method | Description |
 |---|---|
-| `engine.errors.emit(event)` | Emit a structured error event |
-| `engine.errors.on(handler)` | Register an error listener callback |
-| `engine.errors.onFatal(cb)` | Run cleanup before a fatal error |
-| `engine.errors.install?.()` | Install global error handlers |
+| `engine.errors.emit(event)` | Emit a structured error event. `on` handlers run first, then `onFatal` on a fatal event. A throwing handler is isolated. |
+| `engine.errors.on(handler)` | Register an error listener. Required on every bus, including a custom `errorBus`. |
+| `engine.errors.onFatal(cb)` | Run cleanup after `on` handlers when the level is `fatal` |
+| `engine.errors.install?.()` | Install global error handlers. `createEngine()` does this when `window` exists. |
 
 ## Next Steps
 

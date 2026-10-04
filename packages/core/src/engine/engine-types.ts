@@ -235,6 +235,7 @@ export interface EngineErrorBus extends GwenErrorBusBase {
    * Emit a structured error event.
    * Every `on` handler runs first. A fatal event then runs every `onFatal` callback.
    * Both run synchronously inside `emit`.
+   * A handler that throws is caught. The other handlers still run.
    */
   emit(event: {
     level: "fatal" | "error" | "warning" | "info" | "verbose";

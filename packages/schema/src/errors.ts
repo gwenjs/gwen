@@ -114,11 +114,13 @@ export interface GwenErrorBusBase {
    * Emit a structured error event.
    * Every `on` handler runs synchronously.
    * When `payload.level === 'fatal'`, every `onFatal` callback runs after those handlers, still inside `emit`.
+   * A handler that throws is caught. The other handlers still run.
    */
   emit(payload: GwenErrorPayload): void;
 
   /**
    * Register a handler invoked for every emitted event, including fatal ones.
+   * Required. A custom bus passed as `errorBus` must implement it.
    * `onFatal` callbacks run after these handlers.
    */
   on(handler: (payload: GwenErrorPayload) => void): void;
