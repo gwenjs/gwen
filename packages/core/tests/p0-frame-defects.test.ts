@@ -7,10 +7,12 @@ describe("P0 frame defects", () => {
     vi.restoreAllMocks();
   });
 
-  it.fails("D3 fatal stop: a WebAssembly.RuntimeError does not queue another frame", async () => {
+  it("D3 fatal stop: a WebAssembly.RuntimeError does not queue another frame", async () => {
     const queued: Array<() => unknown> = [];
     const originalSetTimeout = globalThis.setTimeout.bind(globalThis);
     const originalClearTimeout = globalThis.clearTimeout.bind(globalThis);
+    let clock = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
     const engine = await createEngine();
 
     vi.spyOn(globalThis, "setTimeout").mockImplementation((handler, timeout, ...args) => {
@@ -34,6 +36,7 @@ describe("P0 frame defects", () => {
       if (runFrame === undefined) {
         throw new Error("start() did not queue a frame");
       }
+      clock = 20;
       const result: unknown = runFrame();
       if (result instanceof Promise) {
         await result;

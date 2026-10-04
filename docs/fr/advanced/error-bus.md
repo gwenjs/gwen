@@ -218,7 +218,7 @@ engine.errors.on((event) => {
 
 ### Gestionnaire d'erreur fatale
 
-Enregistrez un rappel qui s'exécute avant qu'une erreur fatale soit levée :
+Enregistrez un rappel qui s'exécute après chaque gestionnaire `on` quand le niveau est `fatal` :
 
 ```ts
 engine.errors.onFatal(() => {
@@ -228,26 +228,24 @@ engine.errors.onFatal(() => {
 })
 ```
 
-Ceci s'exécute de manière synchrone, avant que le gestionnaire d'erreurs ne soit invoqué.
+`emit` exécute d'abord chaque gestionnaire `on`, puis chaque rappel `onFatal`. Les deux s'exécutent de façon synchrone dans `emit`. Une exception dans un gestionnaire est capturée. Les autres gestionnaires s'exécutent quand même, et la boucle de frames continue.
+
+Un bus personnalisé passé via `errorBus` doit implémenter `on()`. `onFatal` seul ne suffit pas.
 
 ### Installation
 
-GWEN peut installer des gestionnaires d'erreurs globaux :
+`createEngine()` appelle `install()` quand `window` existe. Vous n'avez pas à l'appeler vous-même.
 
-```ts
-engine.errors.install?.()
-```
-
-Ceci attache des gestionnaires aux événements `window.onerror` et `unhandledrejection`, en transmettant les erreurs non interceptées au bus d'erreurs.
+`install()` attache `window.onerror` et `unhandledrejection`, et transmet ces échecs au bus. Il renvoie une fonction qui retire ces gestionnaires. `stop()` appelle cette fonction.
 
 ## Résumé de l'API
 
 | Méthode | Description |
 |---|---|
-| `engine.errors.emit(event)` | Émettre un événement d'erreur structuré |
-| `engine.errors.on(handler)` | Enregistrer un rappel d'écouteur d'erreur |
-| `engine.errors.onFatal(cb)` | Exécuter le nettoyage avant une erreur fatale |
-| `engine.errors.install?.()` | Installer les gestionnaires d'erreurs globaux |
+| `engine.errors.emit(event)` | Émettre un événement d'erreur structuré. Les gestionnaires `on` passent d'abord, puis `onFatal` si l'événement est fatal. Une exception de gestionnaire est isolée. |
+| `engine.errors.on(handler)` | Enregistrer un écouteur. Obligatoire sur chaque bus, y compris un `errorBus` personnalisé. |
+| `engine.errors.onFatal(cb)` | Exécuter le nettoyage après les gestionnaires `on` quand le niveau est `fatal` |
+| `engine.errors.install?.()` | Installer les gestionnaires globaux. `createEngine()` le fait quand `window` existe. |
 
 ## Prochaines étapes
 

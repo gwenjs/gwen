@@ -92,32 +92,43 @@ export interface GwenErrorPayload {
  * Minimal engine-level error bus interface.
  *
  * Defined in schema so plugin authors can emit structured errors through the
- * bus without depending on `@gwenjs/core`. The concrete `GwenErrorBus` class
- * in `@gwenjs/kit` satisfies this interface.
+ * bus without depending on `@gwenjs/core`. `createErrorBus()` in `@gwenjs/core`
+ * implements this interface and is re-exported from `@gwenjs/kit`.
  *
- * Obtain it inside `plugin.setup()` via `engine.tryInject('errors')` — it may
- * be absent if the consumer did not provide an error bus at `createEngine()`.
+ * `createEngine()` always registers a bus. A caller can still pass their own
+ * via the `errorBus` option. Read it inside `plugin.setup()` with
+ * `engine.tryInject('errors')`.
  *
  * @example Inside a plugin:
  * ```ts
  * import type { GwenErrorBusBase } from '@gwenjs/schema'
  *
  * setup(engine) {
- *   const errors = engine.tryInject('errors') as GwenErrorBusBase | undefined
- *   errors?.emit({ level: 'warning', code: 'AUDIO:NO_CONTEXT', message: 'AudioContext missing' })
+ *   const errors = engine.tryInject('errors') as GwenErrorBusBase
+ *   errors.emit({ level: 'warning', code: 'AUDIO:NO_CONTEXT', message: 'AudioContext missing' })
  * }
  * ```
  */
 export interface GwenErrorBusBase {
   /**
    * Emit a structured error event.
-   * If `payload.level === 'fatal'`, all `onFatal` callbacks will be invoked.
+   * Every `on` handler runs synchronously.
+   * When `payload.level === 'fatal'`, every `onFatal` callback runs after those handlers, still inside `emit`.
+   * A handler that throws is caught. The other handlers still run.
    */
   emit(payload: GwenErrorPayload): void;
 
   /**
+   * Register a handler invoked for every emitted event, including fatal ones.
+   * Required. A custom bus passed as `errorBus` must implement it.
+   * `onFatal` callbacks run after these handlers.
+   */
+  on(handler: (payload: GwenErrorPayload) => void): void;
+
+  /**
    * Register a callback to invoke when a fatal error is emitted.
    * Use this to trigger engine shutdown or display a crash screen.
+   * Runs after `on` handlers, synchronously inside `emit`.
    */
   onFatal(cb: () => void): void;
 }

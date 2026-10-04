@@ -121,6 +121,7 @@ describe("GwenErrorBusBase (structural)", () => {
       emit(payload) {
         emitted.push(payload);
       },
+      on() {},
       onFatal(cb) {
         fatalCb = cb;
       },

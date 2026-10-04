@@ -72,6 +72,7 @@ import { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
 import type { PluginErrorContext } from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
+import { createErrorBus } from "./error-bus.js";
 
 import type {
   WasmModuleOptions,
@@ -148,10 +149,18 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _running = false;
+  /** Set on a WASM panic. `advance()` stays a no-op until Task 2.1 throws instead. */
+  private _fatalFault = false;
+  private _fatalAdvanceWarned = false;
+  private _uninstallErrorBus: (() => void) | null = null;
   private _rafHandle = 0;
   private _lastFrameTime = 0;
-  /** Error bus wired at construction time via `GwenEngineOptions.errorBus`. @internal */
-  private readonly _errorBus: EngineErrorBus | null = null;
+  /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
+  private readonly _errorBus: EngineErrorBus;
+
+  get errors(): EngineErrorBus {
+    return this._errorBus;
+  }
 
   // ─── WASM module registry (RFC-008) ───────────────────────────────────────
   /**
@@ -266,21 +275,22 @@ class GwenEngineImpl implements GwenEngine {
     this._componentRegistry = new ComponentRegistry();
     this._queryEngine = new QueryEngine(opts.queryCacheSize ?? 256);
 
-    if (opts.errorBus) {
-      this._errorBus = opts.errorBus;
-      // Register as 'errors' service so plugins can inject it.
-      this._services.set("errors", opts.errorBus);
-      // Stop the engine gracefully before a fatal error is thrown.
-      opts.errorBus.onFatal(() => {
-        this.stop().catch(() => {});
+    const errorBus =
+      opts.errorBus ??
+      createErrorBus((error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(`error bus handler failed: ${detail}`);
       });
-      // Install global window.onerror / unhandledrejection in production.
-      if (
-        typeof globalThis !== "undefined" &&
-        typeof (globalThis as Record<string, unknown>)["window"] !== "undefined"
-      ) {
-        opts.errorBus.install?.();
-      }
+    this._errorBus = errorBus;
+    this.provide("errors", errorBus);
+    // `stop()` is async. The frame loop also clears `_running` itself on a WASM panic.
+    // A setup failure happens before `start()`, so it must not tear the engine down.
+    errorBus.onFatal(() => {
+      if (!this._running) return;
+      this.stop().catch(() => {});
+    });
+    if (typeof globalThis.window !== "undefined") {
+      this._uninstallErrorBus = errorBus.install?.() ?? null;
     }
   }
 
@@ -309,14 +319,14 @@ class GwenEngineImpl implements GwenEngine {
       this._tracker.removeAll(plugin.name, this.hooks);
 
       const message = err instanceof Error ? err.message : String(err);
-      this._errorBus?.emit({
-        level: "fatal",
+      this._errorBus.emit({
+        level: "error",
         code: CoreErrorCodes.PLUGIN_SETUP_ERROR,
         message: `[${plugin.name}] setup failed: ${message}`,
         source: plugin.name,
         error: err,
       });
-      throw err; // setup failure is fatal — re-throw
+      throw err;
     }
 
     this._plugins.push(plugin);
@@ -401,21 +411,30 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   private async _handleFrameLoopError(err: unknown): Promise<void> {
+    const isWasmPanic = err instanceof WebAssembly.RuntimeError;
+    // `onFatal` calls async `stop()`. The loop `finally` runs as soon as this
+    // function returns, so `_running` must already be false.
+    if (isWasmPanic) {
+      this._running = false;
+      this._fatalFault = true;
+    }
+    const code = isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR;
+    const message = err instanceof Error ? err.message : String(err);
     const payload: EngineErrorPayload = {
-      code: CoreErrorCodes.FRAME_LOOP_ERROR,
-      message: err instanceof Error ? err.message : String(err),
+      code,
+      message,
       cause: err,
       frame: this._frameCountOwn,
     };
-    this.logger.error(payload.message, {
+    this.logger.error(message, {
       frame: this._frameCountOwn,
       cause: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
     await this.hooks.callHook("engine:error", payload);
-    this._errorBus?.emit({
-      level: "error",
-      code: CoreErrorCodes.FRAME_LOOP_ERROR,
-      message: payload.message,
+    this._errorBus.emit({
+      level: isWasmPanic ? "fatal" : "error",
+      code,
+      message,
       source: "@gwenjs/core",
       error: err,
       context: { frame: this._frameCountOwn },
@@ -438,23 +457,27 @@ class GwenEngineImpl implements GwenEngine {
       const loop = async (now: number) => {
         if (!this._running) return;
 
-        const rawDt = now - this._lastFrameTime;
-        this._lastFrameTime = now;
-        accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
+        try {
+          const rawDt = now - this._lastFrameTime;
+          this._lastFrameTime = now;
+          accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
 
-        let steps = 0;
-        while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
-          const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
-          this._deltaTime = scaledDt;
-          try {
-            await this._runFrame(scaledDt);
-          } catch (err) {
-            await this._handleFrameLoopError(err);
+          let steps = 0;
+          while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
+            const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
+            this._deltaTime = scaledDt;
+            try {
+              await this._runFrame(scaledDt);
+            } catch (err) {
+              await this._handleFrameLoopError(err);
+            }
+            if (!this._running) break;
+            accumulator -= fixedDt;
+            steps++;
           }
-          accumulator -= fixedDt;
-          steps++;
+        } finally {
+          if (this._running) this._rafHandle = this._scheduleFrame(loop);
         }
-        if (this._running) this._rafHandle = this._scheduleFrame(loop);
       };
       this._rafHandle = this._scheduleFrame(loop);
     } else {
@@ -488,6 +511,8 @@ class GwenEngineImpl implements GwenEngine {
 
   async stop(): Promise<void> {
     this._running = false;
+    this._uninstallErrorBus?.();
+    this._uninstallErrorBus = null;
     if (this._rafHandle) {
       this._cancelFrame(this._rafHandle);
       this._rafHandle = 0;
@@ -526,6 +551,14 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async advance(dt: number): Promise<void> {
+    // Task 2.1 replaces this no-op with a throw once `engine.state` is `faulted`.
+    if (this._fatalFault) {
+      if (this.debug && !this._fatalAdvanceWarned) {
+        this._fatalAdvanceWarned = true;
+        this.logger.warn("advance() ignored after a fatal fault");
+      }
+      return;
+    }
     if (this._advancing) {
       throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }
@@ -953,7 +986,7 @@ class GwenEngineImpl implements GwenEngine {
         phase,
         frame: this._frameCountOwn,
       });
-      this._errorBus?.emit({
+      this._errorBus.emit({
         level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         message: `[${plugin.name}] ${phase} threw: ${message}`,
@@ -997,7 +1030,7 @@ class GwenEngineImpl implements GwenEngine {
           err instanceof WebAssembly.RuntimeError
             ? CoreErrorCodes.WASM_PANIC
             : CoreErrorCodes.FRAME_LOOP_ERROR;
-        this._errorBus?.emit({
+        this._errorBus.emit({
           level: "fatal",
           code,
           message: `WASM step failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -1017,7 +1050,7 @@ class GwenEngineImpl implements GwenEngine {
             err instanceof WebAssembly.RuntimeError
               ? CoreErrorCodes.WASM_PANIC
               : CoreErrorCodes.FRAME_LOOP_ERROR;
-          this._errorBus?.emit({
+          this._errorBus.emit({
             level: "error",
             code,
             message: `WASM module "${name}" step failed: ${err instanceof Error ? err.message : String(err)}`,
