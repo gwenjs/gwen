@@ -514,7 +514,9 @@ function generateEntryModule(
   );
 
   if (hasScenesDir) {
-    lines.push('import { registerScenes, mainSceneFactory, mainScene } from "/@gwenjs/gwen-scenes";');
+    lines.push(
+      'import { registerScenes, mainSceneFactory, mainScene } from "/@gwenjs/gwen-scenes";',
+    );
   }
 
   for (let i = 0; i < declarations.length; i++) {
@@ -564,7 +566,7 @@ function generateEntryModule(
     "    const _cmOpts = Object.assign({}, _cmMod.defaults ?? {}, _cmKey ? (gwenConfig[_cmKey] ?? {}) : {});",
     "    await _cmMod.setup(_cmOpts, _cmKit);",
     "    for (const p of _cmPlugins) await engine.use(p);",
-    '    for (const d of _cmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }',
+    "    for (const d of _cmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
     "  }",
     "",
     "  for (const mod of _localModules) {",
@@ -575,7 +577,7 @@ function generateEntryModule(
     "    const _lmOpts = Object.assign({}, mod.defaults ?? {}, _lmKey ? (gwenConfig[_lmKey] ?? {}) : {});",
     "    await mod.setup(_lmOpts, _lmKit);",
     "    for (const p of _lmPlugins) await engine.use(p);",
-    '    for (const d of _lmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }',
+    "    for (const d of _lmDecls) { const _m = await import(/* @vite-ignore */ d.src); const _f = d.export ? _m[d.export] : _m.default; await engine.use(d.options !== undefined ? _f(d.options) : _f()); }",
     "  }",
     "  for (const factory of _localPlugins) await engine.use(factory());",
   );
