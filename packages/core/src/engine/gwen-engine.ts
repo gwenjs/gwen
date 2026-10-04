@@ -271,7 +271,12 @@ class GwenEngineImpl implements GwenEngine {
     this._componentRegistry = new ComponentRegistry();
     this._queryEngine = new QueryEngine(opts.queryCacheSize ?? 256);
 
-    const errorBus = opts.errorBus ?? createErrorBus();
+    const errorBus =
+      opts.errorBus ??
+      createErrorBus((error: unknown) => {
+        const detail = error instanceof Error ? error.message : String(error);
+        this.logger.error(`error bus handler failed: ${detail}`);
+      });
     this._errorBus = errorBus;
     this.provide("errors", errorBus);
     // `stop()` is async. The frame loop also clears `_running` itself on a WASM panic.
@@ -445,24 +450,27 @@ class GwenEngineImpl implements GwenEngine {
       const loop = async (now: number) => {
         if (!this._running) return;
 
-        const rawDt = now - this._lastFrameTime;
-        this._lastFrameTime = now;
-        accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
+        try {
+          const rawDt = now - this._lastFrameTime;
+          this._lastFrameTime = now;
+          accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
 
-        let steps = 0;
-        while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
-          const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
-          this._deltaTime = scaledDt;
-          try {
-            await this._runFrame(scaledDt);
-          } catch (err) {
-            await this._handleFrameLoopError(err);
+          let steps = 0;
+          while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
+            const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
+            this._deltaTime = scaledDt;
+            try {
+              await this._runFrame(scaledDt);
+            } catch (err) {
+              await this._handleFrameLoopError(err);
+            }
+            if (!this._running) break;
+            accumulator -= fixedDt;
+            steps++;
           }
-          if (!this._running) break;
-          accumulator -= fixedDt;
-          steps++;
+        } finally {
+          if (this._running) this._rafHandle = this._scheduleFrame(loop);
         }
-        if (this._running) this._rafHandle = this._scheduleFrame(loop);
       };
       this._rafHandle = this._scheduleFrame(loop);
     } else {

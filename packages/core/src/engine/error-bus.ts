@@ -3,6 +3,7 @@
  *
  * `emit` runs every `on` handler synchronously.
  * A fatal event then runs every `onFatal` callback, still inside `emit`.
+ * A handler that throws is reported and does not escape `emit`.
  *
  * `install` attaches `window.onerror` and `unhandledrejection`
  * and forwards those failures onto the bus.
@@ -24,19 +25,27 @@ function uncaughtMessage(message: string | Event): string {
   return typeof message === "string" ? message : "Uncaught error";
 }
 
-export function createErrorBus(): EngineErrorBus {
+export function createErrorBus(reportHandlerError?: (error: unknown) => void): EngineErrorBus {
   const handlers: ErrorHandler[] = [];
   const fatalHandlers: Array<() => void> = [];
   let installed = false;
 
+  function isolate(run: () => void): void {
+    try {
+      run();
+    } catch (error: unknown) {
+      reportHandlerError?.(error);
+    }
+  }
+
   const bus: EngineErrorBus = {
     emit(event) {
       for (const handler of handlers.slice()) {
-        handler(event);
+        isolate(() => handler(event));
       }
       if (event.level !== "fatal") return;
       for (const callback of fatalHandlers.slice()) {
-        callback();
+        isolate(callback);
       }
     },
     on(handler) {
