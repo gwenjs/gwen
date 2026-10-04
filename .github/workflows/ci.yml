@@ -82,12 +82,19 @@ jobs:
         with:
           name: physics3d-fracture-wasm
           path: packages/physics3d-fracture/wasm/
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
       - name: Build packages
         run: pnpm build:ts
       - name: Typecheck
         run: pnpm typecheck
       - name: Test packages
         run: pnpm test:ts
+      - name: Test WASM
+        run: pnpm test:wasm
 
   bench:
     name: Benchmarks
