@@ -55,8 +55,18 @@ function makeEngineMock(physicsMock: ReturnType<typeof makePhysicsMock>) {
     get: Mock;
   }> = [];
 
+  const hookMap = new Map<string, (dt: number) => void>();
+
   const engine = {
     inject: vi.fn((_key: string) => physicsMock),
+    hooks: {
+      hook(name: string, callback: (dt: number) => void): () => void {
+        hookMap.set(name, callback);
+        return () => {
+          if (hookMap.get(name) === callback) hookMap.delete(name);
+        };
+      },
+    },
     createLiveQuery: vi.fn(() => ({
       [Symbol.iterator]() {
         // Re-read the array on every iteration to simulate a live query.
@@ -90,7 +100,7 @@ function makeEngineMock(physicsMock: ReturnType<typeof makePhysicsMock>) {
     },
   };
 
-  return { engine, entityAccessors };
+  return { engine, entityAccessors, hookMap };
 }
 
 // ─── Physics2DKinematicSyncSystem — live query integration ────────────────────
@@ -99,7 +109,7 @@ describe("Physics2DKinematicSyncSystem", () => {
   describe("live query integration", () => {
     it("only iterates entities with both required components", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
 
       // One entity with a valid position, one with null (missing component).
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
@@ -107,7 +117,7 @@ describe("Physics2DKinematicSyncSystem", () => {
 
       const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
       system.setup(engine as Parameters<typeof system.setup>[0]);
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       // Only entity 1 has a valid Vec2 position — entity 2 returns null.
       expect(physics.setKinematicPosition).toHaveBeenCalledTimes(1);
@@ -116,7 +126,7 @@ describe("Physics2DKinematicSyncSystem", () => {
 
     it("picks up newly added entities on the next frame", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
 
       engine._addEntity(10n as EntityId, { x: 50, y: 50 });
 
@@ -124,14 +134,14 @@ describe("Physics2DKinematicSyncSystem", () => {
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
       // Frame 1 — only entity 10.
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
       expect(physics.setKinematicPosition).toHaveBeenCalledTimes(1);
 
       vi.clearAllMocks();
 
       // Add a second entity and advance one more frame.
       engine._addEntity(20n as EntityId, { x: 150, y: 75 });
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       expect(physics.setKinematicPosition).toHaveBeenCalledTimes(2);
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(10n as EntityId, 50 / 50, 50 / 50);
@@ -140,7 +150,7 @@ describe("Physics2DKinematicSyncSystem", () => {
 
     it("drops removed entities from the query on the next frame", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
 
       engine._addEntity(5n as EntityId, { x: 10, y: 20 });
       engine._addEntity(6n as EntityId, { x: 30, y: 40 });
@@ -149,14 +159,14 @@ describe("Physics2DKinematicSyncSystem", () => {
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
       // Frame 1 — both entities synced.
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
       expect(physics.setKinematicPosition).toHaveBeenCalledTimes(2);
 
       vi.clearAllMocks();
 
       // Remove entity 5; only entity 6 should be synced next frame.
       engine._removeEntity(5n as EntityId);
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       expect(physics.setKinematicPosition).toHaveBeenCalledTimes(1);
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(6n as EntityId, 30 / 50, 40 / 50);
@@ -172,12 +182,12 @@ describe("Physics2DKinematicSyncSystem", () => {
 
     it("uses default pixelsPerMeter of 50 when not specified", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
 
       const system = createPhysicsKinematicSyncSystem();
       system.setup(engine as Parameters<typeof system.setup>[0]);
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       // Default ppm = 50: 100/50 = 2, 200/50 = 4.
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 2, 4);
@@ -185,12 +195,12 @@ describe("Physics2DKinematicSyncSystem", () => {
 
     it("respects a custom pixelsPerMeter", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
 
       const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 100 });
       system.setup(engine as Parameters<typeof system.setup>[0]);
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       // ppm = 100: 100/100 = 1, 200/100 = 2.
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 1, 2);
@@ -212,23 +222,25 @@ describe("Physics2DKinematicSyncSystem", () => {
   // ─── Lifecycle ──────────────────────────────────────────────────────────────
 
   describe("lifecycle", () => {
-    it("is a no-op on onBeforeUpdate before setup is called", () => {
+    it("does not sync when engine:before-update fires before setup", () => {
       const physics = makePhysicsMock();
+      const { hookMap } = makeEngineMock(physics);
       const system = createPhysicsKinematicSyncSystem();
-      // Deliberately skip setup.
-      system.onBeforeUpdate(0);
+      // The hook is not registered until setup.
+      hookMap.get("engine:before-update")?.(0);
+      expect(system.name).toBe("PhysicsKinematicSyncSystem");
       expect(physics.setKinematicPosition).not.toHaveBeenCalled();
     });
 
     it("stops syncing after teardown", () => {
       const physics = makePhysicsMock();
-      const { engine } = makeEngineMock(physics);
+      const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 10, y: 20 });
 
       const system = createPhysicsKinematicSyncSystem();
       system.setup(engine as Parameters<typeof system.setup>[0]);
       system.teardown();
-      system.onBeforeUpdate(0);
+      hookMap.get("engine:before-update")?.(0);
 
       expect(physics.setKinematicPosition).not.toHaveBeenCalled();
     });

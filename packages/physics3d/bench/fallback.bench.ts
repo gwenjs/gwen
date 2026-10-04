@@ -34,11 +34,15 @@ import type { GwenEngine } from "@gwenjs/core";
 
 function makeEngine() {
   const services = new Map<string, unknown>();
+  const hookMap = new Map<string, (...args: unknown[]) => unknown>();
   const engine = {
     provide: (name: string, value: unknown) => services.set(name, value),
     inject: (name: string) => services.get(name),
     hooks: {
-      hook: (_name: string, _cb: unknown) => () => undefined,
+      hook: (name: string, cb: (...args: unknown[]) => unknown) => {
+        hookMap.set(name, cb);
+        return () => undefined;
+      },
       callHook: () => undefined,
     },
     getEntityGeneration: () => 0,
@@ -46,7 +50,7 @@ function makeEngine() {
     getComponent: () => null,
     wasmBridge: null,
   } as unknown as GwenEngine;
-  return { engine, services };
+  return { engine, services, hookMap };
 }
 
 /**
@@ -55,10 +59,10 @@ function makeEngine() {
  */
 function createPlugin(gravity = { x: 0, y: -9.81, z: 0 }) {
   const plugin = Physics3DPlugin({ gravity });
-  const { engine, services } = makeEngine();
+  const { engine, services, hookMap } = makeEngine();
   plugin.setup(engine);
   const service = services.get("physics3d") as Physics3DAPI;
-  return { plugin, service };
+  return { plugin, service, hookMap };
 }
 
 /**
@@ -88,30 +92,44 @@ function registerBodies(service: Physics3DAPI, count: number, spacing: number): 
 
 describe("Physics3D fallback — simulation step", () => {
   // ─── 50 dynamic bodies, no collisions ─────────────────────────────────────
-  let plugin50: ReturnType<typeof Physics3DPlugin>;
   let service50: Physics3DAPI;
+  let before50: (...args: unknown[]) => unknown;
+  let update50: (...args: unknown[]) => unknown;
 
   beforeAll(() => {
     const p = createPlugin({ x: 0, y: -9.81, z: 0 });
-    plugin50 = p.plugin;
     service50 = p.service;
+    const before = p.hookMap.get("engine:before-update");
+    const update = p.hookMap.get("engine:update");
+    if (before === undefined || update === undefined) {
+      throw new Error("physics frame hooks were not registered");
+    }
+    before50 = before;
+    update50 = update;
     // Space bodies 5 m apart — far enough that no box (half=0.5m) overlaps
     registerBodies(service50, 50, 5);
   });
 
   bench("step with 50 dynamic bodies (no collisions)", () => {
-    plugin50.onBeforeUpdate!(1 / 60);
-    plugin50.onUpdate!();
+    before50(1 / 60);
+    update50();
   });
 
   // ─── 50 dynamic bodies, worst-case all overlapping ────────────────────────
-  let plugin50overlap: ReturnType<typeof Physics3DPlugin>;
   let service50overlap: Physics3DAPI;
+  let before50overlap: (...args: unknown[]) => unknown;
+  let update50overlap: (...args: unknown[]) => unknown;
 
   beforeAll(() => {
     const p = createPlugin({ x: 0, y: 0, z: 0 });
-    plugin50overlap = p.plugin;
     service50overlap = p.service;
+    const before = p.hookMap.get("engine:before-update");
+    const update = p.hookMap.get("engine:update");
+    if (before === undefined || update === undefined) {
+      throw new Error("physics frame hooks were not registered");
+    }
+    before50overlap = before;
+    update50overlap = update;
     // Place all bodies at the origin — every pair of bodies overlaps
     for (let i = 0; i < 50; i++) {
       const id = BigInt(i + 1);
@@ -127,25 +145,32 @@ describe("Physics3D fallback — simulation step", () => {
   });
 
   bench("step with 50 dynamic bodies (all overlapping — worst case)", () => {
-    plugin50overlap.onBeforeUpdate!(1 / 60);
-    plugin50overlap.onUpdate!();
+    before50overlap(1 / 60);
+    update50overlap();
   });
 
   // ─── 200 bodies, realistic scene (some overlap, most separated) ───────────
-  let plugin200: ReturnType<typeof Physics3DPlugin>;
   let service200: Physics3DAPI;
+  let before200: (...args: unknown[]) => unknown;
+  let update200: (...args: unknown[]) => unknown;
 
   beforeAll(() => {
     const p = createPlugin({ x: 0, y: -9.81, z: 0 });
-    plugin200 = p.plugin;
     service200 = p.service;
+    const before = p.hookMap.get("engine:before-update");
+    const update = p.hookMap.get("engine:update");
+    if (before === undefined || update === undefined) {
+      throw new Error("physics frame hooks were not registered");
+    }
+    before200 = before;
+    update200 = update;
     // Bodies in a 20×10 grid, 2 m apart. Adjacent bodies are 1 m edge-to-edge
     // (box half=0.5 m, gap=1 m) — a realistic density where a few may drift into each other.
     registerBodies(service200, 200, 2);
   });
 
   bench("step with 200 bodies (realistic scene)", () => {
-    plugin200.onBeforeUpdate!(1 / 60);
-    plugin200.onUpdate!();
+    before200(1 / 60);
+    update200();
   });
 });

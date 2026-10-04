@@ -264,7 +264,7 @@ describe("Physics3D entity API (foundation)", () => {
 
     plugin.teardown!();
 
-    expect(offSpy).toHaveBeenCalledTimes(1);
+    expect(offSpy).toHaveBeenCalledTimes(3);
     expect(service.getBodyCount()).toBe(0);
     expect(service.isReady()).toBe(false);
   });
@@ -283,13 +283,13 @@ describe("Physics3D entity API (foundation)", () => {
   });
 
   it("auto-steps during onBeforeUpdate with positive delta", () => {
-    const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+    const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
     service.createBody(51n, {
       initialPosition: { x: 0, y: 1, z: 0 },
       initialLinearVelocity: { x: 0, y: -2, z: 0 },
     });
 
-    plugin.onBeforeUpdate!(1 / 120);
+    hookMap.get("engine:before-update")?.(1 / 120);
     expect(physics3dStep).toHaveBeenCalledWith(1 / 120);
     expect(service.getBodyState(51n)?.position.y).toBeCloseTo(1 - 2 / 120, 6);
   });
@@ -393,18 +393,18 @@ describe("Physics3D entity API (foundation)", () => {
   });
 
   it("does not auto-step for zero or negative delta", () => {
-    const { plugin } = setup();
+    const { hookMap } = setup();
 
-    plugin.onBeforeUpdate!(0);
-    plugin.onBeforeUpdate!(-0.01);
+    hookMap.get("engine:before-update")?.(0);
+    hookMap.get("engine:before-update")?.(-0.01);
     expect(physics3dStep).not.toHaveBeenCalled();
   });
 
   it("does not auto-step after destroy", () => {
-    const { plugin } = setup();
+    const { plugin, hookMap } = setup();
     plugin.teardown!();
 
-    plugin.onBeforeUpdate!(1 / 60);
+    hookMap.get("engine:before-update")?.(1 / 60);
     expect(physics3dStep).not.toHaveBeenCalled();
   });
 });

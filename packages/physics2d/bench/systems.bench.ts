@@ -51,8 +51,18 @@ function buildAccessors(count: number): FakeAccessor[] {
  * same amount of memory each frame — mimicking the real engine behaviour.
  */
 function makeEngineStub(accessors: FakeAccessor[]) {
+  const hookMap = new Map<string, (dt: number) => void>();
   return {
     inject: (_key: string) => makePhysicsStub(),
+    hooks: {
+      hook(name: string, callback: (dt: number) => void): () => void {
+        hookMap.set(name, callback);
+        return () => {
+          if (hookMap.get(name) === callback) hookMap.delete(name);
+        };
+      },
+    },
+    hookMap,
     createLiveQuery: (_components: unknown[]) => ({
       [Symbol.iterator]() {
         let i = 0;
@@ -74,9 +84,17 @@ const SPARSE_COUNT = 100;
 const MEDIUM_COUNT = 1_000;
 const DENSE_COUNT = 10_000;
 
-let system100: ReturnType<typeof createPhysicsKinematicSyncSystem>;
-let system1000: ReturnType<typeof createPhysicsKinematicSyncSystem>;
-let system10000: ReturnType<typeof createPhysicsKinematicSyncSystem>;
+let step100: (dt: number) => void;
+let step1000: (dt: number) => void;
+let step10000: (dt: number) => void;
+
+function registeredStep(hookMap: Map<string, (dt: number) => void>): (dt: number) => void {
+  const step = hookMap.get("engine:before-update");
+  if (step === undefined) {
+    throw new Error("engine:before-update was not registered");
+  }
+  return step;
+}
 
 beforeAll(() => {
   // Silence vi.fn mock overhead from polluting timings by using a bare function.
@@ -93,18 +111,24 @@ beforeAll(() => {
 
   // Sparse scenario: 100 matching bodies out of a conceptual pool of 10 000.
   const accessors100 = buildAccessors(SPARSE_COUNT);
-  system100 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
-  system100.setup(makeEngineStub(accessors100) as Parameters<typeof system100.setup>[0]);
+  const system100 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const engine100 = makeEngineStub(accessors100);
+  system100.setup(engine100 as Parameters<typeof system100.setup>[0]);
+  step100 = registeredStep(engine100.hookMap);
 
   // Medium scenario: 1 000 matching bodies.
   const accessors1000 = buildAccessors(MEDIUM_COUNT);
-  system1000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
-  system1000.setup(makeEngineStub(accessors1000) as Parameters<typeof system1000.setup>[0]);
+  const system1000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const engine1000 = makeEngineStub(accessors1000);
+  system1000.setup(engine1000 as Parameters<typeof system1000.setup>[0]);
+  step1000 = registeredStep(engine1000.hookMap);
 
   // Dense scenario: 10 000 matching bodies.
   const accessors10000 = buildAccessors(DENSE_COUNT);
-  system10000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
-  system10000.setup(makeEngineStub(accessors10000) as Parameters<typeof system10000.setup>[0]);
+  const system10000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const engine10000 = makeEngineStub(accessors10000);
+  system10000.setup(engine10000 as Parameters<typeof system10000.setup>[0]);
+  step10000 = registeredStep(engine10000.hookMap);
 
   // Suppress unused-variable lint for the bare mock factory.
   void makeBareMock;
@@ -114,14 +138,14 @@ beforeAll(() => {
 
 describe("Physics2DKinematicSyncSystem — live query performance", () => {
   bench("sync 100 bodies (sparse: 100 / 10 000 entities)", () => {
-    system100.onBeforeUpdate(0.016);
+    step100(0.016);
   });
 
   bench("sync 1 000 bodies", () => {
-    system1000.onBeforeUpdate(0.016);
+    step1000(0.016);
   });
 
   bench("sync 10 000 bodies (dense)", () => {
-    system10000.onBeforeUpdate(0.016);
+    step10000(0.016);
   });
 });

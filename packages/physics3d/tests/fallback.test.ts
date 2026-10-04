@@ -77,6 +77,11 @@ function setup(config?: Physics3DConfig) {
   return { plugin, service, engine, hookMap, callHook };
 }
 
+function runFrame(hookMap: Map<string, (...args: unknown[]) => unknown>, dt: number): void {
+  hookMap.get("engine:before-update")?.(dt);
+  hookMap.get("engine:update")?.();
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 describe("Physics3D TypeScript fallback", () => {
@@ -88,7 +93,7 @@ describe("Physics3D TypeScript fallback", () => {
 
   describe("collision detection", () => {
     it("detects overlap between two AABB bodies", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       // Two boxes at the origin — they overlap completely
       service.createBody(1n, { initialPosition: { x: 0, y: 0, z: 0 } });
@@ -103,8 +108,7 @@ describe("Physics3D TypeScript fallback", () => {
         colliderId: 0,
       });
 
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
 
       const contacts = service.getCollisionContacts();
       expect(contacts).toHaveLength(1);
@@ -112,7 +116,7 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("does not report contact when bodies are separated", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(10n, { initialPosition: { x: -10, y: 0, z: 0 } });
       service.addCollider(10n, {
@@ -126,14 +130,13 @@ describe("Physics3D TypeScript fallback", () => {
         colliderId: 0,
       });
 
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
 
       expect(service.getCollisionContacts()).toHaveLength(0);
     });
 
     it("emits contact events for overlapping bodies", () => {
-      const { plugin, service, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(20n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(20n, {
@@ -147,8 +150,7 @@ describe("Physics3D TypeScript fallback", () => {
         colliderId: 0,
       });
 
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
 
       expect(callHook).toHaveBeenCalledWith(
         "physics3d:collision",
@@ -157,7 +159,7 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("activates sensor state on overlap", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 42;
 
@@ -174,8 +176,7 @@ describe("Physics3D TypeScript fallback", () => {
         colliderId: 0,
       });
 
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
 
       const state = service.getSensorState(30n, SENSOR_ID);
       expect(state.isActive).toBe(true);
@@ -183,7 +184,7 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("deactivates sensor state when bodies separate", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 99;
 
@@ -201,22 +202,20 @@ describe("Physics3D TypeScript fallback", () => {
       });
 
       // Frame 1: bodies overlap → sensor active
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       expect(service.getSensorState(40n, SENSOR_ID).isActive).toBe(true);
 
       // Teleport body 41 far away → no longer overlapping
       service.setBodyState(41n, { position: { x: 100, y: 0, z: 0 } });
 
       // Frame 2: bodies separated → sensor ends
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       expect(service.getSensorState(40n, SENSOR_ID).isActive).toBe(false);
       expect(service.getSensorState(40n, SENSOR_ID).contactCount).toBe(0);
     });
 
     it("dispatches sensor:changed hook on activation and deactivation", () => {
-      const { plugin, service, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap, callHook } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       const SENSOR_ID = 55;
 
@@ -233,8 +232,7 @@ describe("Physics3D TypeScript fallback", () => {
       });
 
       // Activation frame
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       expect(callHook).toHaveBeenCalledWith(
         "physics3d:sensor:changed",
         BigInt(50),
@@ -247,8 +245,7 @@ describe("Physics3D TypeScript fallback", () => {
       vi.clearAllMocks();
 
       // Deactivation frame
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       expect(callHook).toHaveBeenCalledWith(
         "physics3d:sensor:changed",
         BigInt(50),
@@ -442,7 +439,7 @@ describe("Physics3D TypeScript fallback", () => {
 
   describe("event metrics", () => {
     it("getCollisionEventMetrics reflects AABB events in local mode", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
 
       service.createBody(80n, { initialPosition: { x: 0, y: 0, z: 0 } });
       service.addCollider(80n, {
@@ -457,8 +454,7 @@ describe("Physics3D TypeScript fallback", () => {
 
       expect(service.getCollisionEventMetrics().eventCount).toBe(0);
 
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
 
       expect(service.getCollisionEventMetrics().eventCount).toBe(1);
     });
@@ -468,85 +464,77 @@ describe("Physics3D TypeScript fallback", () => {
 
   describe("local physics state", () => {
     it("addForce accelerates a dynamic body (F=ma → Δv=F/m·dt)", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(1n, { kind: "dynamic", mass: 2 });
       // Apply force (2, 0, 0) — mass 2 → a = 1 → Δv = 1 * (1/60)
       service.addForce(1n, { x: 2, y: 0, z: 0 });
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(1n)!;
       expect(state.linearVelocity.x).toBeCloseTo(1 / 60, 5);
       expect(state.linearVelocity.y).toBeCloseTo(0, 5);
     });
 
     it("forces accumulate across multiple addForce calls before step", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(2n, { kind: "dynamic", mass: 1 });
       service.addForce(2n, { x: 1, y: 0, z: 0 });
       service.addForce(2n, { x: 1, y: 0, z: 0 });
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(2n)!;
       // 2N / 1kg * (1/60)s = 2/60 m/s
       expect(state.linearVelocity.x).toBeCloseTo(2 / 60, 5);
     });
 
     it("forces are consumed after one step", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(3n, { kind: "dynamic", mass: 1 });
       service.addForce(3n, { x: 10, y: 0, z: 0 });
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const v1 = service.getBodyState(3n)!.linearVelocity.x;
       // No new force — second step: velocity stays at v1 (no damping, no gravity)
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const v2 = service.getBodyState(3n)!.linearVelocity.x;
       // Force was consumed: no additional acceleration burst, velocity unchanged
       expect(v2).toBeCloseTo(v1, 5);
     });
 
     it("addTorque changes angular velocity", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(4n, { kind: "dynamic", mass: 2 });
       service.addTorque(4n, { x: 0, y: 2, z: 0 });
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(4n)!;
       // inertia approx = mass = 2 → α = τ/I = 1 → Δω = 1 * (1/60)
       expect(state.angularVelocity.y).toBeCloseTo(1 / 60, 5);
     });
 
     it("setGravityScale 0 disables gravity for a body", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(5n, { kind: "dynamic", mass: 1 });
       service.setGravityScale(5n, 0);
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(5n)!;
       expect(state.linearVelocity.y).toBeCloseTo(0, 5);
     });
 
     it("setGravityScale 2 doubles gravity for a body", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(6n, { kind: "dynamic", mass: 1 });
       service.setGravityScale(6n, 2);
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(6n)!;
       expect(state.linearVelocity.y).toBeCloseTo((-9.8 * 2) / 60, 5);
     });
 
     it("lockTranslations prevents movement on locked axes", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(7n, {
         kind: "dynamic",
         mass: 1,
         initialLinearVelocity: { x: 5, y: 5, z: 5 },
       });
       service.lockTranslations(7n, true, false, false); // lock X
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(7n)!;
       // X velocity was zeroed → X position unchanged from 0
       expect(state.position.x).toBeCloseTo(0, 5);
@@ -555,15 +543,14 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("lockRotations prevents rotation on locked axes", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: 0, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: 0, z: 0 } });
       service.createBody(8n, {
         kind: "dynamic",
         mass: 1,
         initialAngularVelocity: { x: 1, y: 1, z: 1 },
       });
       service.lockRotations(8n, false, true, false); // lock Y
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const _state = service.getBodyState(8n)!;
       // Y angular velocity was zeroed — quaternion should not have rotated on Y axis
       // Simple check: angularVelocity.y was cleared before integration
@@ -571,11 +558,10 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("sleeping bodies do not integrate", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(9n, { kind: "dynamic", mass: 1 });
       service.setBodySleeping(9n, true);
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(9n)!;
       // Gravity not applied, velocity remains 0, position unchanged
       expect(state.linearVelocity.y).toBeCloseTo(0, 5);
@@ -583,12 +569,11 @@ describe("Physics3D TypeScript fallback", () => {
     });
 
     it("wakeAll re-enables sleeping bodies", () => {
-      const { plugin, service } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
+      const { service, hookMap } = setup({ gravity: { x: 0, y: -9.8, z: 0 } });
       service.createBody(10n, { kind: "dynamic", mass: 1 });
       service.setBodySleeping(10n, true);
       service.wakeAll();
-      plugin.onBeforeUpdate!(1 / 60);
-      plugin.onUpdate!();
+      runFrame(hookMap, 1 / 60);
       const state = service.getBodyState(10n)!;
       // After wake, gravity applies again
       expect(state.linearVelocity.y).toBeCloseTo(-9.8 / 60, 5);

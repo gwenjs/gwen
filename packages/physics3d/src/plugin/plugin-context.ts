@@ -53,6 +53,8 @@ export interface PluginContext {
   _variant: "light" | "physics2d" | "physics3d";
   stepFn: ((delta: number) => void) | null;
   offEntityDestroyed: (() => void) | null;
+  offEngineBeforeUpdate: (() => void) | null;
+  offEngineUpdate: (() => void) | null;
   nextBodyId: number;
   backendMode: "wasm" | "local";
   wasmBridge: Physics3DWasmBridge | null;
@@ -155,6 +157,8 @@ export function createPluginContext(
     _variant: "light",
     stepFn: null,
     offEntityDestroyed: null,
+    offEngineBeforeUpdate: null,
+    offEngineUpdate: null,
     nextBodyId: 1,
     backendMode: "local",
     wasmBridge: null,
