@@ -190,15 +190,29 @@ export interface WasmEngineBase {
    */
   query_entities(typeIds: Uint32Array): Uint32Array;
   /**
-   * Execute a query and write the results into a static WASM buffer.
+   * Copy every match into this engine's query result buffer.
+   *
+   * The buffer belongs to this engine. Its length is fixed at construction.
+   * Read that length with `get_query_result_capacity` and the pointer with
+   * `get_query_result_ptr`.
+   *
    * @param typeIds Component type IDs to match.
-   * @returns Number of matching entities (capped at 10,000).
+   * @returns The number of matches copied. This is the full count, not a short count.
+   * @throws When the match count exceeds the buffer capacity. The message is
+   *   `query exceeded the buffer capacity`. Nothing was written.
    */
   query_entities_to_buffer(typeIds: Uint32Array): number;
   /**
-   * Return the pointer to the static WASM buffer used by `query_entities_to_buffer`.
+   * Pointer to this engine's query result buffer.
+   * Not a process-global buffer.
    */
   get_query_result_ptr(): number;
+  /**
+   * Number of entity ids this engine's query result buffer can hold.
+   * Allocated from `max_entities` at construction. It does not change.
+   * Use this as the view length. Do not guess it from `maxEntities`.
+   */
+  get_query_result_capacity(): number;
   /**
    * Return the current generation counter for a slot index.
    * Used to reconstruct a packed `EntityId` from a raw slot index.
@@ -811,7 +825,7 @@ export interface WasmBridge {
 
   /**
    * Query entities with ALL given component types and bulk-read one component
-   * type in a **single WASM call** (no per-entity crossings).
+   * type. One WASM call when the result fits in the slots buffer.
    *
    * @param componentTypeIds - Component type IDs every matching entity must have
    * @param readTypeId       - Which component type to read into the returned buffer
@@ -819,6 +833,8 @@ export interface WasmBridge {
    * @returns `{ entityCount, data, slots, gens }` where `data` is a zero-copy
    *   `Float32Array` view, and `slots`/`gens` are `Uint32Array` views for
    *   passing back to `queryWriteBulk`.
+   * @throws `CORE:QUERY_CAPACITY_EXCEEDED` when the match count is longer
+   *   than the slots buffer.
    */
   queryReadBulk(
     componentTypeIds: number[],

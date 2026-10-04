@@ -22,8 +22,8 @@ use crate::bindings::Engine;
 /// # Arguments
 /// * `engine`            — mutable engine reference (needed for archetype query cache)
 /// * `transform_type_id` — ComponentTypeId of the Transform component (3×f32 = 12 bytes)
-/// * `out_slots`         — pre-allocated slot buffer  (len ≥ [`BULK_MAX_ENTITIES`])
-/// * `out_gens`          — pre-allocated gen buffer   (len ≥ [`BULK_MAX_ENTITIES`])
+/// * `out_slots`         — pre-allocated slot buffer (its length caps the result)
+/// * `out_gens`          — pre-allocated gen buffer (its length caps the result)
 /// * `out_buf`           — byte buffer for packed transform data (len ≥ count × 12)
 ///
 /// # Returns
@@ -32,8 +32,6 @@ use crate::bindings::Engine;
 /// # Phase 0 note
 /// Delegates to the archetype-cached [`Engine::query_read_bulk`]. Future versions
 /// will iterate Rapier bodies directly, skipping ECS components for kinematic entities.
-///
-/// [`BULK_MAX_ENTITIES`]: crate::bulk_ops::BULK_MAX_ENTITIES
 pub fn physics2d_bulk_sync_from_rapier(
     engine: &mut Engine,
     transform_type_id: u32,

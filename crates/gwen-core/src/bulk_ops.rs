@@ -20,14 +20,6 @@
 
 use crate::bindings::Engine;
 
-/// Hard cap on entities processed by a single bulk call.
-///
-/// Matches the capacity of [`QUERY_RESULT_BUFFER`] in `bindings.rs`.
-/// Both must be updated together if the buffer size changes.
-///
-/// [`QUERY_RESULT_BUFFER`]: crate::bindings
-pub const BULK_MAX_ENTITIES: usize = 10_000;
-
 /// Fill `out_slots`/`out_gens` from a pre-queried entity list and bulk-read
 /// one component type into `out_buf` — all without additional WASM crossings.
 ///
@@ -39,16 +31,17 @@ pub const BULK_MAX_ENTITIES: usize = 10_000;
 /// * `engine`        — engine reference (for generation lookup + component read)
 /// * `entity_slots`  — slice of entity slot indices from the archetype query result
 /// * `read_type_id`  — component type whose bytes are packed into `out_buf`
-/// * `out_slots`     — caller buffer for slot indices   (len ≥ `entity_slots.len()`)
-/// * `out_gens`      — caller buffer for generations    (len ≥ `entity_slots.len()`)
+/// * `out_slots`     — caller buffer for slot indices (its length caps `entity_count`)
+/// * `out_gens`      — caller buffer for generations (its length caps `entity_count`)
 /// * `out_buf`       — caller buffer for component data (len ≥ count × component_size)
 ///
 /// # Returns
 /// `(entity_count, bytes_written)` — entities processed and bytes written to `out_buf`.
-/// `entity_count` is capped at `min(out_slots.len(), out_gens.len(), BULK_MAX_ENTITIES)`.
+/// `entity_count` is capped at `min(out_slots.len(), out_gens.len())`.
 ///
-/// If `entity_count == BULK_MAX_ENTITIES`, the scene has more matching entities than
-/// the buffer holds — the caller must partition the result set or increase buffer sizes.
+/// There is no fixed entity cap. If the scene has more matches than those slices
+/// hold, the result is truncated to the shorter caller buffer. Pass buffers large
+/// enough for the full result set, or partition the work.
 pub fn fill_and_read_bulk(
     engine: &Engine,
     entity_slots: &[u32],
@@ -57,7 +50,7 @@ pub fn fill_and_read_bulk(
     out_gens: &mut [u32],
     out_buf: &mut [u8],
 ) -> (u32, u32) {
-    let cap = out_slots.len().min(out_gens.len()).min(BULK_MAX_ENTITIES);
+    let cap = out_slots.len().min(out_gens.len());
     let count = entity_slots.len().min(cap);
 
     // Resolve generation for each slot and fill the output arrays.
@@ -166,19 +159,20 @@ mod tests {
 
     #[test]
     fn test_fill_and_read_bulk_respects_cap() {
-        let mut engine = Engine::new(BULK_MAX_ENTITIES as u32 + 100);
+        // More matches than the old 10_000 hard cap. Only the caller slices cap the result.
+        const MATCHES: usize = 10_050;
+        let mut engine = Engine::new(MATCHES as u32);
         let type_id = engine.register_component_type();
-        let entity_slots: Vec<u32> = (0..(BULK_MAX_ENTITIES + 50) as u32).collect();
+        let entity_slots: Vec<u32> = (0..MATCHES as u32).collect();
 
-        // Spawn + add components
-        for _ in 0..(BULK_MAX_ENTITIES + 50) {
+        for _ in 0..MATCHES {
             let e = engine.create_entity();
             engine.add_component(e.index(), e.generation(), type_id, &[0u8; 4]);
         }
 
-        let mut out_slots = vec![0u32; BULK_MAX_ENTITIES];
-        let mut out_gens  = vec![0u32; BULK_MAX_ENTITIES];
-        let mut out_buf   = vec![0u8; BULK_MAX_ENTITIES * 4];
+        let mut out_slots = vec![0u32; MATCHES];
+        let mut out_gens = vec![0u32; MATCHES];
+        let mut out_buf = vec![0u8; MATCHES * 4];
 
         let (count, _) = fill_and_read_bulk(
             &engine,
@@ -189,6 +183,29 @@ mod tests {
             &mut out_buf,
         );
 
-        assert_eq!(count, BULK_MAX_ENTITIES as u32, "must be capped at BULK_MAX_ENTITIES");
+        assert_eq!(
+            count, MATCHES as u32,
+            "a caller buffer longer than 10_000 must receive every match"
+        );
+
+        let short = 25;
+        let mut short_slots = vec![0u32; short];
+        let mut short_gens = vec![0u32; short];
+        let mut short_buf = vec![0u8; short * 4];
+
+        let (short_count, _) = fill_and_read_bulk(
+            &engine,
+            &entity_slots,
+            type_id,
+            &mut short_slots,
+            &mut short_gens,
+            &mut short_buf,
+        );
+
+        assert_eq!(
+            short_count, short as u32,
+            "a shorter caller buffer returns that buffer's length, not 10_000"
+        );
+        assert_ne!(short_count, 10_000);
     }
 }

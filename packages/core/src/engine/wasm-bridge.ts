@@ -221,7 +221,7 @@ export class WasmBridgeImpl implements WasmBridge {
   /** Track the last seen ArrayBuffer to detect memory.grow() events. */
   private _lastMemoryBuffer: ArrayBuffer | null = null;
 
-  /** Static view for zero-alloc query results. Recreated on memory.grow(). */
+  /** View over this engine's query result buffer. Recreated when memory, pointer, or capacity changes. */
   private _queryResultView: Uint32Array | null = null;
 
   /** Dynamic buffer for type IDs to avoid allocations on every query. */
@@ -250,11 +250,11 @@ export class WasmBridgeImpl implements WasmBridge {
 
   // ── Query buffers (zero-alloc query optimization) ──────────────────────────
 
-  /** Reusable static buffer for query results (entity slots). */
+  /** Reused buffer for bulk query slots. Sized to `maxEntities`. */
   private _querySlotsBuf?: Uint32Array;
-  /** Reusable static buffer for query results (entity generations). */
+  /** Reused buffer for bulk query generations. Sized to `maxEntities`. */
   private _queryGensBuf?: Uint32Array;
-  /** Reusable static buffer for bulk component data. */
+  /** Reused buffer for bulk component data. */
   private _queryDataBuf?: Uint8Array;
 
   /** @internal */
@@ -528,10 +528,14 @@ export class WasmBridgeImpl implements WasmBridge {
 
   /**
    * Query entities with ALL given component types and bulk-read one component
-   * type in a **single WASM call** (no per-entity crossings).
+   * type. One WASM call when the result fits in the slots buffer.
    *
-   * Internally allocates static buffers (reused across frames) to minimize GC pressure.
-   * Memory is lazily allocated and grown only if needed.
+   * Reuses buffers across frames to minimize GC pressure.
+   * Memory is lazily allocated and grown only if the component stride increases.
+   *
+   * Slots and generations are sized to `maxEntities`. When `entityCount` fills
+   * that buffer, the uncapped `query_entities` list is checked. A longer list
+   * throws `GwenError` (`CORE:QUERY_CAPACITY_EXCEEDED`).
    *
    * Dead entities or stale generation pairs are skipped by the Rust side.
    *
@@ -542,10 +546,13 @@ export class WasmBridgeImpl implements WasmBridge {
    *   `Float32Array` view, and `slots`/`gens` are `Uint32Array` views for
    *   passing back to `queryWriteBulk`.
    *
-   * @performance Crosses the WASM boundary **once** regardless of entity count.
+   * @performance One WASM crossing when the result fits. A full buffer checks
+   *   the uncapped query once more.
    * ~350× faster than N individual `getComponentRaw` calls for 1 000 entities.
    *
    * @throws If `initWasm()` has not been called.
+   * @throws {GwenError} `CORE:QUERY_CAPACITY_EXCEEDED` when more entities match
+   *   than the slots buffer can hold.
    */
   queryReadBulk(
     componentTypeIds: number[],
@@ -555,7 +562,7 @@ export class WasmBridgeImpl implements WasmBridge {
     const maxEntities = this._maxEntities;
     const byteStride = f32Stride * 4;
 
-    // Lazily allocate static views — reused every frame to avoid GC pressure.
+    // Lazily allocate reused views — kept across frames to avoid GC pressure.
     if (!this._querySlotsBuf) {
       this._querySlotsBuf = new Uint32Array(maxEntities);
       this._queryGensBuf = new Uint32Array(maxEntities);
@@ -565,22 +572,42 @@ export class WasmBridgeImpl implements WasmBridge {
       this._queryDataBuf = new Uint8Array(maxEntities * byteStride);
     }
 
+    const slotsBuf = this._querySlotsBuf;
+    const gensBuf = this._queryGensBuf;
+    const dataBuf = this._queryDataBuf;
+    if (slotsBuf === undefined || gensBuf === undefined || dataBuf === undefined) {
+      throw new Error("[GWEN] query buffers were not allocated.");
+    }
+
+    const typeIds = new Uint32Array(componentTypeIds);
     const result = this._requireWasm().query_read_bulk(
-      new Uint32Array(componentTypeIds),
+      typeIds,
       readTypeId,
-      this._querySlotsBuf,
-      this._queryGensBuf!,
-      this._queryDataBuf!,
+      slotsBuf,
+      gensBuf,
+      dataBuf,
     );
 
     // result is a Uint32Array [entityCount, bytesWritten]
     const entityCount = result[0] ?? 0;
 
+    // A full buffer may be an exact fit or a truncation. The uncapped query
+    // decides. Skip it when the buffer still has room.
+    if (entityCount === slotsBuf.length) {
+      const full = this._requireWasm().query_entities(typeIds);
+      if (full.length > entityCount) {
+        throw new GwenError(
+          CoreErrorCodes.QUERY_CAPACITY_EXCEEDED,
+          "[GWEN] queryReadBulk exceeded the buffer capacity.",
+        );
+      }
+    }
+
     return {
       entityCount,
-      data: new Float32Array(this._queryDataBuf!.buffer, 0, entityCount * f32Stride),
-      slots: this._querySlotsBuf.subarray(0, entityCount),
-      gens: this._queryGensBuf!.subarray(0, entityCount),
+      data: new Float32Array(dataBuf.buffer, 0, entityCount * f32Stride),
+      slots: slotsBuf.subarray(0, entityCount),
+      gens: gensBuf.subarray(0, entityCount),
     };
   }
 
@@ -645,6 +672,7 @@ export class WasmBridgeImpl implements WasmBridge {
     }
     // Get a view sized to the actual count, growing the buffer if needed
     const view = this._getTypeIdView(count);
+    // A capacity miss throws. Do not catch it and do not return a short count.
     return this._requireWasm().query_entities_to_buffer(view);
   }
 
@@ -657,8 +685,9 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   /**
-   * Helper to get or refresh the static query result view.
-   * Recreates the view if WASM memory has grown.
+   * View over this engine's query result buffer.
+   * Length is `get_query_result_capacity()`, not `maxEntities`.
+   * Recreated when WASM memory grows, or when the pointer or the capacity changes.
    * @internal
    */
   private _getQueryResultView(): Uint32Array {
@@ -667,14 +696,21 @@ export class WasmBridgeImpl implements WasmBridge {
       throw new Error("[GWEN] Cannot access WASM memory (not initialized or mock).");
     }
 
-    if (!this._queryResultView || this._queryResultView.buffer !== mem.buffer) {
-      this._queryResultView = new Uint32Array(
-        mem.buffer,
-        this._requireWasm().get_query_result_ptr(),
-        this._maxEntities,
-      );
+    const wasm = this._requireWasm();
+    const ptr = wasm.get_query_result_ptr();
+    const capacity = wasm.get_query_result_capacity();
+    const view = this._queryResultView;
+    if (
+      view === null ||
+      view.buffer !== mem.buffer ||
+      view.byteOffset !== ptr ||
+      view.length !== capacity
+    ) {
+      const next = new Uint32Array(mem.buffer, ptr, capacity);
+      this._queryResultView = next;
+      return next;
     }
-    return this._queryResultView;
+    return view;
   }
 
   getEntityGeneration(index: number): number {

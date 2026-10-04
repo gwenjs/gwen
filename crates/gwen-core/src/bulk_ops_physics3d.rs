@@ -18,14 +18,12 @@ use crate::bindings::Engine;
 /// # Arguments
 /// * `engine`            — mutable engine reference (archetype query cache)
 /// * `transform_type_id` — ComponentTypeId of the Transform3D component (7×f32 = 28 bytes)
-/// * `out_slots`         — pre-allocated slot buffer (len ≥ BULK_MAX_ENTITIES)
-/// * `out_gens`          — pre-allocated gen buffer  (len ≥ BULK_MAX_ENTITIES)
+/// * `out_slots`         — pre-allocated slot buffer (its length caps the result)
+/// * `out_gens`          — pre-allocated gen buffer (its length caps the result)
 /// * `out_buf`           — byte buffer for packed transform data (len ≥ count × 28)
 ///
 /// # Returns
 /// `(entity_count, bytes_written)`
-///
-/// [`BULK_MAX_ENTITIES`]: crate::bulk_ops::BULK_MAX_ENTITIES
 pub fn physics3d_bulk_sync_from_rapier(
     engine: &mut Engine,
     transform_type_id: u32,
