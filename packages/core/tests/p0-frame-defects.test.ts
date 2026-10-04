@@ -48,11 +48,32 @@ describe("P0 frame defects", () => {
     }
   });
 
-  it.fails("D14 FPS: getFPS reports the real frame rate, not the scaled dt", async () => {
+  it("D14 FPS: getFPS reports the real frame rate, not the scaled dt", async () => {
     const engine = await createEngine({ maxDeltaSeconds: 1 });
     engine.timeScale = 0.5;
     await engine.startExternal();
     await engine.advance(1 / 60);
     expect(engine.getFPS()).toBeCloseTo(60, 5);
+  });
+
+  it("D14 FPS: a longer second frame moves getFPS toward 30 without snapping", async () => {
+    const engine = await createEngine({ maxDeltaSeconds: 1 });
+    engine.timeScale = 0.5;
+    await engine.startExternal();
+    await engine.advance(1 / 60);
+    expect(engine.getFPS()).toBeCloseTo(60, 5);
+
+    const rawSeconds = 1 / 30;
+    await engine.advance(rawSeconds);
+    const sample = 1 / rawSeconds;
+    const alpha = 1 - Math.exp(-rawSeconds / 0.5);
+    const expected = alpha * sample + (1 - alpha) * 60;
+    const fps = engine.getFPS();
+    expect(fps).toBeCloseTo(expected, 5);
+    expect(fps).toBeGreaterThan(30);
+    expect(fps).toBeLessThan(60);
+    expect(engine.getStats().fps).toBe(fps);
+    expect(engine.rawFrameTime).toBe(rawSeconds);
+    expect(engine.deltaTime).toBeCloseTo(rawSeconds * 0.5, 5);
   });
 });

@@ -212,8 +212,12 @@ class GwenEngineImpl implements GwenEngine {
    * @internal
    */
   private _frameCountOwn = 0;
-  /** Most recent FPS estimate: `1000 / dt` computed after each frame. @internal */
+  /** Smoothed FPS. First positive raw sample is exact; later samples use a 0.5s EMA. @internal */
   private _fps = 0;
+  /** True after the first positive raw frame sample. @internal */
+  private _hasFpsSample = false;
+  /** Uncapped, unscaled wall-frame duration in seconds. @internal */
+  private _rawFrameTime = 0;
   /** Per-phase timing for the most recently completed frame. @internal */
   private _lastPhaseMs: EngineFramePhaseMs = {
     tick: 0,
@@ -458,9 +462,10 @@ class GwenEngineImpl implements GwenEngine {
         if (!this._running) return;
 
         try {
-          const rawDt = now - this._lastFrameTime;
+          const rawSeconds = (now - this._lastFrameTime) / 1000;
           this._lastFrameTime = now;
-          accumulator += Math.min(rawDt / 1000, this.maxDeltaSeconds);
+          this._recordRawFrameTime(rawSeconds);
+          accumulator += Math.min(rawSeconds, this.maxDeltaSeconds);
 
           let steps = 0;
           while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
@@ -493,8 +498,9 @@ class GwenEngineImpl implements GwenEngine {
           return;
         }
 
-        const rawDt = now - this._lastFrameTime;
-        const dt = Math.min(rawDt / 1000, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
+        const rawSeconds = (now - this._lastFrameTime) / 1000;
+        this._recordRawFrameTime(rawSeconds);
+        const dt = Math.min(rawSeconds, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
         this._lastFrameTime = now;
         this._deltaTime = dt;
         try {
@@ -563,6 +569,7 @@ class GwenEngineImpl implements GwenEngine {
       throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
     }
     this._advancing = true;
+    this._recordRawFrameTime(dt);
     // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
     const cappedDt = Math.min(dt, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
     this._deltaTime = cappedDt;
@@ -894,11 +901,15 @@ class GwenEngineImpl implements GwenEngine {
   get deltaTime(): number {
     return this._deltaTime;
   }
+  /** Uncapped, unscaled wall-frame duration in seconds. */
+  get rawFrameTime(): number {
+    return this._rawFrameTime;
+  }
   /** Frame counter — increments by 1 for each completed `_runFrame` call. */
   get frameCount(): number {
     return this._frameCountOwn;
   }
-  /** Most recent FPS estimate. Updated after every frame as `1000 / dt`. */
+  /** Smoothed frames per second from the raw wall-frame duration, not the scaled simulation dt. */
   getFPS(): number {
     return this._fps;
   }
@@ -1003,6 +1014,19 @@ class GwenEngineImpl implements GwenEngine {
     }
   }
 
+  private _recordRawFrameTime(rawSeconds: number): void {
+    this._rawFrameTime = rawSeconds;
+    if (!(rawSeconds > 0)) return;
+    const sample = 1 / rawSeconds;
+    if (!this._hasFpsSample) {
+      this._fps = sample;
+      this._hasFpsSample = true;
+      return;
+    }
+    const alpha = 1 - Math.exp(-rawSeconds / 0.5);
+    this._fps = alpha * sample + (1 - alpha) * this._fps;
+  }
+
   private async _runFrame(dt: number): Promise<void> {
     // All 8 frame phases run inside this engine's context.
     // engineContext.set(this, true) makes useEngine() resolve to this instance
@@ -1098,7 +1122,6 @@ class GwenEngineImpl implements GwenEngine {
 
       // Phase 8 — update stats, then fire engine:afterTick hook
       this._frameCountOwn++;
-      this._fps = dt > 0 ? 1 / dt : 0;
       await this.hooks.callHook("engine:afterTick", dt);
       const t8 = performance.now();
 
