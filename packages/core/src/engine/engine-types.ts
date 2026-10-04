@@ -13,7 +13,12 @@ import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
-import type { GwenPlugin, GwenEngineBase, GwenErrorBusBase } from "@gwenjs/schema";
+import type {
+  GwenPlugin,
+  GwenEngineBase,
+  GwenErrorBusBase,
+  GwenErrorPayload,
+} from "@gwenjs/schema";
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import { DisposableRegistry } from "../disposable";
 
@@ -214,21 +219,22 @@ export interface PlacementBridge {
 // ─── Public interfaces ──────────────────────────────────────────────────────
 
 /**
- * Minimal error bus interface required by the engine.
+ * Error bus used by the engine.
  *
- * Intentionally kept small to avoid a circular dependency with `@gwenjs/kit`.
- * The `GwenErrorBus` class in `@gwenjs/kit` satisfies this interface.
+ * Implemented by `createErrorBus()` in `@gwenjs/core` (re-exported from `@gwenjs/kit`).
+ * Core does not import kit.
  *
  * @example
  * ```typescript
- * import { createErrorBus } from '@gwenjs/kit'
+ * import { createErrorBus } from '@gwenjs/core'
  * const engine = await createEngine({ errorBus: createErrorBus() })
  * ```
  */
 export interface EngineErrorBus extends GwenErrorBusBase {
   /**
    * Emit a structured error event.
-   * Matches the signature of `GwenErrorBus.emit()` in `@gwenjs/kit`.
+   * Every `on` handler runs first. A fatal event then runs every `onFatal` callback.
+   * Both run synchronously inside `emit`.
    */
   emit(event: {
     level: "fatal" | "error" | "warning" | "info" | "verbose";
@@ -238,7 +244,9 @@ export interface EngineErrorBus extends GwenErrorBusBase {
     error?: unknown;
     context?: Record<string, unknown>;
   }): void;
-  /** Register a callback to invoke before a fatal error is thrown. */
+  /** Register a listener for every event, including fatal. Runs before `onFatal`. */
+  on(handler: (event: GwenErrorPayload) => void): void;
+  /** Register a callback that runs after `on` handlers when the level is `fatal`. */
   onFatal(cb: () => void): void;
   /** Install global `window.onerror` / `unhandledrejection` handlers. */
   install?(): void;
@@ -276,10 +284,10 @@ export interface GwenEngineOptions {
   variant?: "light" | "physics2d" | "physics3d";
 
   /**
-   * Optional error bus instance. When provided the engine emits all internal
-   * errors through it and calls `engine.stop()` on fatal errors.
-   *
-   * Create one with `createErrorBus()` from `@gwenjs/kit`.
+   * Error bus for structured engine errors.
+   * When omitted, `createEngine()` creates one with `createErrorBus()`.
+   * Pass an instance to share a bus or register handlers before startup.
+   * `createErrorBus()` is exported from `@gwenjs/core` and `@gwenjs/kit`.
    */
   errorBus?: EngineErrorBus;
 
@@ -426,6 +434,9 @@ export interface GwenEngine extends GwenEngineBase {
   readonly hooks: Hookable<GwenRuntimeHooks>;
 
   readonly logger: IGwenLogger;
+
+  /** Structured error bus. Always present. Same object as `inject("errors")`. */
+  readonly errors: EngineErrorBus;
 
   // ─── Context ─────────────────────────────────────────────────────────────
   run<T>(fn: () => T): T;

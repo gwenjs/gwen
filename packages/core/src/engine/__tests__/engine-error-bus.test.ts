@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createEngine,
+  createErrorBus,
   CoreErrorCodes,
   type EngineErrorBus,
   type EngineErrorPayload,
@@ -42,6 +43,7 @@ function makeMockBus(): EngineErrorBus & {
     }) {
       this._emitted.push(event);
     },
+    on() {},
     onFatal(cb: () => void) {
       this._fatalCb = cb;
     },
@@ -52,17 +54,41 @@ function makeMockBus(): EngineErrorBus & {
   return bus;
 }
 
+describe("createErrorBus", () => {
+  it("runs on handlers before onFatal when the event is fatal", () => {
+    const bus = createErrorBus();
+    const order: string[] = [];
+    bus.on(() => {
+      order.push("on-1");
+    });
+    bus.on(() => {
+      order.push("on-2");
+    });
+    bus.onFatal(() => {
+      order.push("onFatal");
+    });
+
+    bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
+    expect(order).toEqual(["on-1", "on-2", "onFatal"]);
+
+    order.length = 0;
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "error" });
+    expect(order).toEqual(["on-1", "on-2"]);
+  });
+});
+
 describe("GwenEngine + EngineErrorBus (Task 5)", () => {
   describe("Error bus service registration", () => {
     it('registers the error bus as the "errors" service when provided', async () => {
       const bus = makeMockBus();
       const engine = await createEngine({ errorBus: bus });
       expect(engine.inject("errors")).toBe(bus);
+      expect(engine.errors).toBe(bus);
     });
 
-    it("returns undefined for errors service when no error bus provided", async () => {
+    it("provides a default error bus when errorBus is omitted", async () => {
       const engine = await createEngine();
-      expect(engine.tryInject("errors")).toBeUndefined();
+      expect(engine.inject("errors")).toBe(engine.errors);
     });
 
     it("registers onFatal callback during construction", async () => {
@@ -220,9 +246,11 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       await engine.stop();
     });
 
-    it('engine.inject("errors") returns undefined without error bus', async () => {
+    it("engine.errors is the default bus returned by tryInject", async () => {
       const engine = await createEngine();
-      expect(engine.tryInject("errors")).toBeUndefined();
+      const bus = engine.tryInject("errors");
+      expect(bus).toBeDefined();
+      expect(engine.errors).toBe(bus);
     });
   });
 });

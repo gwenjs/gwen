@@ -43,6 +43,7 @@ export {
   GwenPluginNotFoundError,
   CoreErrorCodes,
 } from "./engine/gwen-engine";
+export { createErrorBus } from "./engine/error-bus";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";
 
