@@ -15,10 +15,12 @@ export default defineConfig({
   ],
   build: {
     lib: {
-      entry: resolve(__dirname, "src/index.ts"),
-      name: "GwenPluginPhysics3D",
+      entry: {
+        index: resolve(__dirname, "src/index.ts"),
+        module: resolve(__dirname, "src/module.ts"),
+      },
       formats: ["es"],
-      fileName: () => "index.js",
+      fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
       external: (id) => !id.startsWith(".") && !id.startsWith("/"),
