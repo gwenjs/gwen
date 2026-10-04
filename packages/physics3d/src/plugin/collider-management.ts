@@ -105,16 +105,15 @@ export function addColliderImpl(
           shape.halfX,
           shape.halfY,
           shape.halfZ,
-          friction,
-          restitution,
-          density,
-          isSensor,
-          membership,
-          filter,
-          colliderId,
           ox,
           oy,
           oz,
+          isSensor,
+          friction,
+          restitution,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }
@@ -123,16 +122,15 @@ export function addColliderImpl(
         ctx.wasmBridge!.physics3d_add_sphere_collider?.(
           idx,
           shape.radius,
-          friction,
-          restitution,
-          density,
-          isSensor,
-          membership,
-          filter,
-          colliderId,
           ox,
           oy,
           oz,
+          isSensor,
+          friction,
+          restitution,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }
@@ -142,16 +140,15 @@ export function addColliderImpl(
           idx,
           shape.radius,
           shape.halfHeight,
-          friction,
-          restitution,
-          density,
-          isSensor,
-          membership,
-          filter,
-          colliderId,
           ox,
           oy,
           oz,
+          isSensor,
+          friction,
+          restitution,
+          membership,
+          filter,
+          colliderId,
         ) ?? false
       );
     }

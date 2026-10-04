@@ -311,6 +311,139 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         }
       });
 
+      ctx.offEngineBeforeUpdate = engine.hooks.hook("engine:before-update", (deltaTime: number) => {
+        if (!ctx.ready || !ctx.stepFn) return;
+        if (!(deltaTime > 0)) return;
+        ctx.stepFn(deltaTime);
+        if (ctx.backendMode === "local") {
+          advanceLocalState(ctx, deltaTime);
+        }
+      });
+
+      ctx.offEngineUpdate = engine.hooks.hook("engine:update", (_dt: number) => {
+        if (!ctx.ready || !ctx._engine) return;
+
+        // Invalidate DataView if memory buffer changed (memory.grow event)
+        if (ctx.eventsView && ctx.backendMode === "wasm") {
+          const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? ctx.wasmBridge?.memory ?? null;
+          if (memory && ctx.eventsBufferRef !== memory.buffer) {
+            ctx.eventsView = null;
+            ctx.eventsBufferRef = null;
+          }
+        }
+
+        // Re-validate CC SAB view after WASM memory.grow
+        if (ctx.ccSABView.view !== null && ctx.backendMode === "wasm") {
+          const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
+          if (mem !== null && ctx.ccSABView.view.buffer !== mem.buffer) {
+            const ccSabPtr2 = ctx.wasmBridge!.physics3d_get_cc_sab_ptr?.() ?? 0;
+            const maxCC2 = ctx.wasmBridge!.physics3d_get_max_cc_entities?.() ?? 32;
+            if (ccSabPtr2 > 0) {
+              ctx.ccSABView.view = new Float32Array(
+                mem.buffer,
+                ccSabPtr2,
+                maxCC2 * ctx.CC_STATE_STRIDE,
+              );
+            } else {
+              ctx.ccSABView.view = null;
+            }
+          }
+        }
+
+        // Read events from WASM, or run local AABB collision detection
+        const rawEvents =
+          ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
+
+        // Build resolved contacts — in local mode entity ids are slot bigints
+        const contacts: Physics3DCollisionContact[] = rawEvents.map((ev) => {
+          let entityA: EntityId;
+          let entityB: EntityId;
+          if (ctx.backendMode === "wasm") {
+            const genA = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotA);
+            const genB = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotB);
+            entityA =
+              genA !== undefined ? createEntityId(ev.slotA, genA) : (BigInt(ev.slotA) as EntityId);
+            entityB =
+              genB !== undefined ? createEntityId(ev.slotB, genB) : (BigInt(ev.slotB) as EntityId);
+          } else {
+            entityA = BigInt(ev.slotA) as EntityId;
+            entityB = BigInt(ev.slotB) as EntityId;
+          }
+          return {
+            entityA,
+            entityB,
+            ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
+            ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
+            started: ev.started,
+          };
+        });
+
+        ctx.currentFrameContacts = contacts;
+
+        // Track event count for metrics (includes local AABB events in fallback mode)
+        if (ctx.backendMode === "local") ctx.lastFrameEventCount = rawEvents.length;
+
+        if (contacts.length === 0) return;
+
+        // Dispatch hook
+        void ctx._engine.hooks.callHook("physics3d:collision", contacts);
+
+        // Dispatch to composable onContact() callbacks
+        for (const contact of contacts) {
+          _dispatchContactEvent(contact);
+        }
+
+        // Update sensor states and dispatch sensor:changed hook
+        for (const ev of rawEvents) {
+          for (const { slot, colliderId } of [
+            { slot: ev.slotA, colliderId: ev.aColliderId },
+            { slot: ev.slotB, colliderId: ev.bColliderId },
+          ]) {
+            if (colliderId === undefined) continue;
+
+            let eid: EntityId;
+            if (ctx.backendMode === "wasm") {
+              const generation = ctx.bridgeRuntime?.getEntityGeneration?.(slot);
+              if (generation === undefined) continue;
+              eid = createEntityId(slot, generation);
+            } else {
+              eid = BigInt(slot) as EntityId;
+            }
+
+            const entitySlot = slot;
+            let sensorMap = ctx.localSensorStates.get(entitySlot);
+            if (!sensorMap) {
+              sensorMap = new Map();
+              ctx.localSensorStates.set(entitySlot, sensorMap);
+            }
+            const prev = sensorMap.get(colliderId) ?? { contactCount: 0, isActive: false };
+            const newCount = ev.started
+              ? prev.contactCount + 1
+              : Math.max(0, prev.contactCount - 1);
+            const newActive = newCount > 0;
+            const next: Physics3DSensorState = { contactCount: newCount, isActive: newActive };
+            sensorMap.set(colliderId, next);
+
+            if (prev.isActive !== newActive) {
+              void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
+              if (newActive) {
+                _dispatchSensorEnter(colliderId, eid as unknown as bigint);
+              } else {
+                _dispatchSensorExit(colliderId, eid as unknown as bigint);
+              }
+            }
+          }
+        }
+
+        // Dispatch per-entity collision callbacks
+        for (const contact of contacts) {
+          const slotA = unpackEntityId(contact.entityA).index;
+          const slotB = unpackEntityId(contact.entityB).index;
+          ctx.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
+          ctx.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
+        }
+      });
+
       engine.provide("physics3d", service);
 
       if (cfg.debug) {
@@ -318,141 +451,18 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       }
     },
 
-    onBeforeUpdate(deltaTime: number): void {
-      if (!ctx.ready || !ctx.stepFn) return;
-      if (!(deltaTime > 0)) return;
-      ctx.stepFn(deltaTime);
-      if (ctx.backendMode === "local") {
-        advanceLocalState(ctx, deltaTime);
-      }
-    },
-
-    onUpdate(): void {
-      if (!ctx.ready || !ctx._engine) return;
-
-      // Invalidate DataView if memory buffer changed (memory.grow event)
-      if (ctx.eventsView && ctx.backendMode === "wasm") {
-        const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? ctx.wasmBridge?.memory ?? null;
-        if (memory && ctx.eventsBufferRef !== memory.buffer) {
-          ctx.eventsView = null;
-          ctx.eventsBufferRef = null;
-        }
-      }
-
-      // Re-validate CC SAB view after WASM memory.grow
-      if (ctx.ccSABView.view !== null && ctx.backendMode === "wasm") {
-        const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
-        if (mem !== null && ctx.ccSABView.view.buffer !== mem.buffer) {
-          const ccSabPtr2 = ctx.wasmBridge!.physics3d_get_cc_sab_ptr?.() ?? 0;
-          const maxCC2 = ctx.wasmBridge!.physics3d_get_max_cc_entities?.() ?? 32;
-          if (ccSabPtr2 > 0) {
-            ctx.ccSABView.view = new Float32Array(
-              mem.buffer,
-              ccSabPtr2,
-              maxCC2 * ctx.CC_STATE_STRIDE,
-            );
-          } else {
-            ctx.ccSABView.view = null;
-          }
-        }
-      }
-
-      // Read events from WASM, or run local AABB collision detection
-      const rawEvents =
-        ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
-
-      // Build resolved contacts — in local mode entity ids are slot bigints
-      const contacts: Physics3DCollisionContact[] = rawEvents.map((ev) => {
-        let entityA: EntityId;
-        let entityB: EntityId;
-        if (ctx.backendMode === "wasm") {
-          const genA = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotA);
-          const genB = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotB);
-          entityA =
-            genA !== undefined ? createEntityId(ev.slotA, genA) : (BigInt(ev.slotA) as EntityId);
-          entityB =
-            genB !== undefined ? createEntityId(ev.slotB, genB) : (BigInt(ev.slotB) as EntityId);
-        } else {
-          entityA = BigInt(ev.slotA) as EntityId;
-          entityB = BigInt(ev.slotB) as EntityId;
-        }
-        return {
-          entityA,
-          entityB,
-          ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
-          ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
-          started: ev.started,
-        };
-      });
-
-      ctx.currentFrameContacts = contacts;
-
-      // Track event count for metrics (includes local AABB events in fallback mode)
-      if (ctx.backendMode === "local") ctx.lastFrameEventCount = rawEvents.length;
-
-      if (contacts.length === 0) return;
-
-      // Dispatch hook
-      void ctx._engine.hooks.callHook("physics3d:collision", contacts);
-
-      // Dispatch to composable onContact() callbacks
-      for (const contact of contacts) {
-        _dispatchContactEvent(contact);
-      }
-
-      // Update sensor states and dispatch sensor:changed hook
-      for (const ev of rawEvents) {
-        for (const { slot, colliderId } of [
-          { slot: ev.slotA, colliderId: ev.aColliderId },
-          { slot: ev.slotB, colliderId: ev.bColliderId },
-        ]) {
-          if (colliderId === undefined) continue;
-
-          let eid: EntityId;
-          if (ctx.backendMode === "wasm") {
-            const generation = ctx.bridgeRuntime?.getEntityGeneration?.(slot);
-            if (generation === undefined) continue;
-            eid = createEntityId(slot, generation);
-          } else {
-            eid = BigInt(slot) as EntityId;
-          }
-
-          const entitySlot = slot;
-          let sensorMap = ctx.localSensorStates.get(entitySlot);
-          if (!sensorMap) {
-            sensorMap = new Map();
-            ctx.localSensorStates.set(entitySlot, sensorMap);
-          }
-          const prev = sensorMap.get(colliderId) ?? { contactCount: 0, isActive: false };
-          const newCount = ev.started ? prev.contactCount + 1 : Math.max(0, prev.contactCount - 1);
-          const newActive = newCount > 0;
-          const next: Physics3DSensorState = { contactCount: newCount, isActive: newActive };
-          sensorMap.set(colliderId, next);
-
-          if (prev.isActive !== newActive) {
-            void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
-            if (newActive) {
-              _dispatchSensorEnter(colliderId, eid as unknown as bigint);
-            } else {
-              _dispatchSensorExit(colliderId, eid as unknown as bigint);
-            }
-          }
-        }
-      }
-
-      // Dispatch per-entity collision callbacks
-      for (const contact of contacts) {
-        const slotA = unpackEntityId(contact.entityA).index;
-        const slotB = unpackEntityId(contact.entityB).index;
-        ctx.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
-        ctx.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
-      }
-    },
-
     teardown(): void {
       if (ctx.offEntityDestroyed) {
         ctx.offEntityDestroyed();
         ctx.offEntityDestroyed = null;
+      }
+      if (ctx.offEngineBeforeUpdate) {
+        ctx.offEngineBeforeUpdate();
+        ctx.offEngineBeforeUpdate = null;
+      }
+      if (ctx.offEngineUpdate) {
+        ctx.offEngineUpdate();
+        ctx.offEngineUpdate = null;
       }
       ctx.ready = false;
       _clearContactCallbacks();

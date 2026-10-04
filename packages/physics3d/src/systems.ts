@@ -7,7 +7,7 @@
 
 import { definePlugin } from "@gwenjs/kit/plugin";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
-import type { Physics3DAPI } from "./types";
+import type { Physics3DAPI, Physics3DQuat, Physics3DVec3 } from "./types";
 import "./augment";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -49,20 +49,33 @@ export interface PhysicsKinematicSyncSystemOptions {
  *
  * @internal Do not use this type outside of this module.
  */
+interface StringQueryEntity {
+  readonly id: EntityId;
+  get(name: string): unknown;
+}
+
 interface GwenEngineStringComponentAccess {
   /**
-   * Look up all entities that have a component identified by the given string name.
-   * @param names - Component name(s) to query.
-   * @returns An iterable of entity IDs that satisfy the query.
+   * Look up entities that have a component identified by the given string name.
+   * The runtime yields accessors, not bare entity ids.
    */
-  createLiveQuery(names: string[]): Iterable<EntityId>;
-  /**
-   * Retrieve component data by string name.
-   * @param id - Entity to read from.
-   * @param name - Component name.
-   * @returns Component data, or undefined if the entity does not have it.
-   */
-  getComponent<T extends Record<string, unknown>>(id: EntityId, name: string): T | undefined;
+  createLiveQuery(names: string[]): Iterable<StringQueryEntity>;
+}
+
+function readVec3(value: unknown): Physics3DVec3 | null {
+  if (typeof value !== "object" || value === null) return null;
+  if (!("x" in value) || !("y" in value) || !("z" in value)) return null;
+  const { x, y, z } = value;
+  if (typeof x !== "number" || typeof y !== "number" || typeof z !== "number") return null;
+  return { x, y, z };
+}
+
+function readQuat(value: unknown): Physics3DQuat | null {
+  const xyz = readVec3(value);
+  if (xyz === null || typeof value !== "object" || value === null || !("w" in value)) return null;
+  const { w } = value;
+  if (typeof w !== "number") return null;
+  return { x: xyz.x, y: xyz.y, z: xyz.z, w };
 }
 
 // ─── Systems ──────────────────────────────────────────────────────────────────
@@ -89,6 +102,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
   return definePlugin(() => {
     let physics: Physics3DAPI | null = null;
     let _engine: GwenEngine | null = null;
+    let offBeforeUpdate: (() => void) | null = null;
 
     return {
       name: "Physics3DKinematicSyncSystem",
@@ -96,40 +110,38 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
       setup(engine: GwenEngine): void {
         _engine = engine;
         physics = engine.tryInject("physics3d") ?? null;
-      },
+        offBeforeUpdate = engine.hooks.hook("engine:before-update", () => {
+          if (!physics || !_engine) return;
 
-      onBeforeUpdate(): void {
-        if (!physics || !_engine) return;
+          // Access the runtime string-based query/component API.
+          // The GwenEngine public type accepts ComponentDefinition descriptors;
+          // the underlying runtime also accepts component name strings, which
+          // this generic sync system relies on.
+          const stringEngine = _engine as unknown as GwenEngineStringComponentAccess;
 
-        // Access the runtime string-based query/component API.
-        // The GwenEngine public type accepts ComponentDefinition descriptors;
-        // the underlying runtime also accepts component name strings, which
-        // this generic sync system relies on.
-        const stringEngine = _engine as unknown as GwenEngineStringComponentAccess;
+          for (const entity of stringEngine.createLiveQuery([positionComponent])) {
+            // perf: replaced [...spread] with for...of to avoid array allocation every frame
+            const entityId = entity.id;
+            if (!physics.hasBody(entityId)) continue;
+            if (physics.getBodyKind(entityId) !== "kinematic") continue;
 
-        for (const entityId of stringEngine.createLiveQuery([positionComponent])) {
-          // perf: replaced [...spread] with for...of to avoid array allocation every frame
-          if (!physics.hasBody(entityId)) continue;
-          if (physics.getBodyKind(entityId) !== "kinematic") continue;
+            const pos = readVec3(entity.get(positionComponent));
+            if (!pos) continue;
 
-          const pos = stringEngine.getComponent<{ x: number; y: number; z: number }>(
-            entityId,
-            positionComponent,
-          );
-          if (!pos) continue;
+            const rot = rotationComponent
+              ? (readQuat(entity.get(rotationComponent)) ?? undefined)
+              : undefined;
 
-          const rot = rotationComponent
-            ? (stringEngine.getComponent<{ x: number; y: number; z: number; w: number }>(
-                entityId,
-                rotationComponent,
-              ) ?? undefined)
-            : undefined;
-
-          physics.setKinematicPosition(entityId, pos, rot);
-        }
+            physics.setKinematicPosition(entityId, pos, rot);
+          }
+        });
       },
 
       teardown(): void {
+        if (offBeforeUpdate) {
+          offBeforeUpdate();
+          offBeforeUpdate = null;
+        }
         physics = null;
         _engine = null;
       },

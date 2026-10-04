@@ -80,6 +80,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
 
   let _physics: Physics2DAPI | null = null;
   let _liveQuery: LiveQuery<EntityAccessor> | null = null;
+  let _offBeforeUpdate: (() => void) | null = null;
 
   return {
     /** Unique plugin identifier consumed by the engine registry. */
@@ -97,29 +98,22 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
       // The ECS registry accepts string component names at runtime even though the
       // TypeScript overload expects a ComponentDefinition. The cast avoids `any`.
       _liveQuery = engine.createLiveQuery([_positionComponent as unknown as ComponentDef]);
-    },
 
-    /**
-     * Runs before the physics step each frame.
-     * Iterates the live query and pushes each entity's pixel-space position into
-     * the Rapier kinematic body as meter-space coordinates.
-     *
-     * @param _dt - Delta time in seconds (unused here; provided for interface compatibility).
-     */
-    onBeforeUpdate(_dt: number): void {
-      if (!_physics || !_liveQuery) return;
+      _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {
+        if (!_physics || !_liveQuery) return;
 
-      for (const entity of _liveQuery) {
-        // The ECS registry accepts string names at runtime; cast satisfies TypeScript.
-        const rawPos: unknown = entity.get(_positionComponent as unknown as ComponentDef);
-        if (!isVec2(rawPos)) continue;
+        for (const entity of _liveQuery) {
+          // The ECS registry accepts string names at runtime; cast satisfies TypeScript.
+          const rawPos: unknown = entity.get(_positionComponent as unknown as ComponentDef);
+          if (!isVec2(rawPos)) continue;
 
-        _physics.setKinematicPosition(
-          entity.id,
-          rawPos.x / _pixelsPerMeter,
-          rawPos.y / _pixelsPerMeter,
-        );
-      }
+          _physics.setKinematicPosition(
+            entity.id,
+            rawPos.x / _pixelsPerMeter,
+            rawPos.y / _pixelsPerMeter,
+          );
+        }
+      });
     },
 
     /**
@@ -127,6 +121,10 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
      * Must be called when the plugin is removed from the engine.
      */
     teardown(): void {
+      if (_offBeforeUpdate) {
+        _offBeforeUpdate();
+        _offBeforeUpdate = null;
+      }
       _physics = null;
       _liveQuery = null;
     },

@@ -33,9 +33,7 @@ function requireState(state: Physics3DBodyState | undefined): Physics3DBodyState
 }
 
 describe("P0 physics loop", () => {
-  it.fails("D1 physics3d steps: a dynamic body falls during engine frames", async () => {
-    // Setup rejects every variant except "physics3d". The Rapier step runs
-    // only from plugin.onBeforeUpdate, which the frame loop never calls.
+  it("D1 physics3d steps: a dynamic body falls during engine frames", async () => {
     const { engine, advance } = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
@@ -55,7 +53,7 @@ describe("P0 physics loop", () => {
     expect(requireState(physics.getBodyState(body)).position.y).toBeLessThan(startY);
   });
 
-  it.fails("D1 collision: overlapping bodies notify the prefab callback", async () => {
+  it("D1 collision: overlapping bodies notify the prefab callback", async () => {
     const { engine, advance } = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
@@ -90,7 +88,7 @@ describe("P0 physics loop", () => {
     expect(hits).toBeGreaterThan(0);
   });
 
-  it.fails("D2 kinematic sync 3D: an ECS move reaches the kinematic body", async () => {
+  it("D2 kinematic sync 3D: an ECS move reaches the kinematic body", async () => {
     const { engine, advance } = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
@@ -111,7 +109,7 @@ describe("P0 physics loop", () => {
     expect(requireState(physics.getBodyState(body)).position.x).toBeGreaterThan(1);
   });
 
-  it.fails("D2 kinematic sync 2D: an ECS move reaches the kinematic body", async () => {
+  it("D2 kinematic sync 2D: an ECS move reaches the kinematic body", async () => {
     const { engine, advance } = await createRealEngine({
       variant: "physics2d",
       maxEntities: 64,
