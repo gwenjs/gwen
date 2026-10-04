@@ -52,6 +52,7 @@ export { createDisposable } from "./disposable";
 export type { GwenDisposable } from "@gwenjs/schema";
 export type {
   GwenEngine,
+  EngineState,
   GwenPlugin,
   GwenProvides,
   GwenEngineOptions,

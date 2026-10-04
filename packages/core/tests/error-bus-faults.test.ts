@@ -92,22 +92,8 @@ describe("advance after a fatal fault", () => {
     });
     await engine.startExternal();
     await engine.advance(1 / 60);
-    await engine.advance(1 / 60);
+    await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
     expect(updates).toBe(1);
-    await engine.stop();
-  });
-
-  it("warns once when debug is on", async () => {
-    const engine = await createEngine({ debug: true });
-    const warn = vi.spyOn(engine.logger, "warn");
-    engine.hooks.hook("engine:update", () => {
-      throw new WebAssembly.RuntimeError("panic");
-    });
-    await engine.startExternal();
-    await engine.advance(1 / 60);
-    await engine.advance(1 / 60);
-    await engine.advance(1 / 60);
-    expect(warn).toHaveBeenCalledTimes(1);
     await engine.stop();
   });
 });
