@@ -137,7 +137,7 @@ describe("WasmBridge — with injected mock", () => {
     }
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught?.code).toBe(CoreErrorCodes.ENTITY_LIMIT_REACHED);
-    expect(caught?.code).toBe("ENTITY_LIMIT_REACHED");
+    expect(caught?.code).toBe("CORE:ENTITY_LIMIT_REACHED");
     expect(caught?.message).toMatch(/limit/i);
     expect(limitBridge.countEntities()).toBe(0);
   });

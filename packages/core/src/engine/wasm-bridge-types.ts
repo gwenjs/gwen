@@ -759,7 +759,7 @@ export interface WasmBridge {
   createEntity(): WasmEntityId;
   /**
    * Create N entities, each with a transform.
-   * @throws {GwenError} code `ENTITY_LIMIT_REACHED` when N exceeds the remaining capacity.
+   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining capacity.
    *   No entity is created in that case.
    */
   bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array;

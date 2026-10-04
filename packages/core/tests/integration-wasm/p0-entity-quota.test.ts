@@ -5,16 +5,6 @@ import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes } from "../../src/index.js";
 import { createRealEngine } from "./harness.js";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isEntityLimitError(value: unknown): value is Error {
-  if (!(value instanceof Error)) return false;
-  if (isRecord(value) && value["code"] === "ENTITY_LIMIT_REACHED") return true;
-  return /limit/i.test(value.message);
-}
-
 describe("P0 entity quota", () => {
   it("D7 entity quota: the extra create is a recoverable limit error", async () => {
     const maxEntities = 4;
@@ -32,7 +22,8 @@ describe("P0 entity quota", () => {
       caught = error;
     }
 
-    expect(isEntityLimitError(caught)).toBe(true);
+    expect(caught).toBeInstanceOf(GwenError);
+    expect(caught).toMatchObject({ code: CoreErrorCodes.ENTITY_LIMIT_REACHED });
     expect(bridge.countEntities()).toBe(maxEntities);
     expect(bridge.isAlive(0, 0)).toBe(true);
   });
