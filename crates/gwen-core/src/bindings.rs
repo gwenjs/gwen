@@ -11,6 +11,7 @@
 use crate::ecs::component::ComponentTypeId;
 use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
+use crate::ecs::error::EcsError;
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::ArchetypeStorage;
 use crate::gameloop::GameLoop;
@@ -3298,6 +3299,11 @@ impl Engine {
     /// # Returns
     /// `Vec<u32>` (exposed as `Uint32Array` to JavaScript) of N entity indices in the same order as `positions`.
     ///
+    /// # Errors
+    ///
+    /// Returns an error when N is greater than the remaining entity capacity.
+    /// Nothing is created in that case. The message contains `limit`.
+    ///
     /// # Description
     /// This method efficiently spawns multiple entities with transforms in a single operation.
     /// Each entity is created with a position (x, y) and an optional rotation. If the rotations
@@ -3316,12 +3322,19 @@ impl Engine {
         &mut self,
         positions: &[f32],
         rotations: &[f32],
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, JsError> {
         let count = positions.len() / 2;
+        if count > self.entity_manager.remaining_capacity() as usize {
+            let max = self.entity_manager.max_entities();
+            return Err(JsError::new(
+                &EcsError::EntityLimitReached { max }.to_string(),
+            ));
+        }
+
         let mut indices = Vec::with_capacity(count);
 
         for i in 0..count {
-            let js_id = self.create_entity().expect("entity limit");
+            let js_id = self.create_entity()?;
             let index = js_id.index();
             let x = positions[i * 2];
             let y = positions[i * 2 + 1];
@@ -3344,7 +3357,7 @@ impl Engine {
             indices.push(index);
         }
 
-        indices
+        Ok(indices)
     }
 }
 

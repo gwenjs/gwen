@@ -51,7 +51,9 @@ fn bulk_spawn_with_transforms_creates_correct_count() {
     let mut engine = Engine::new(100);
     let positions = [0.0f32, 0.0, 16.0, 0.0, 32.0, 0.0];
     let rotations = [0.0f32, 0.0, 0.0];
-    let ids = engine.bulk_spawn_with_transforms(&positions, &rotations);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &rotations)
+        .expect("entity limit");
     assert_eq!(ids.len(), 3);
     assert_eq!(engine.count_entities(), 3);
 }
@@ -60,7 +62,9 @@ fn bulk_spawn_with_transforms_creates_correct_count() {
 fn bulk_spawn_assigns_correct_positions() {
     let mut engine = Engine::new(100);
     let positions = [10.0f32, 20.0, 30.0, 40.0];
-    let ids = engine.bulk_spawn_with_transforms(&positions, &[]);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &[])
+        .expect("entity limit");
     engine.update_transforms();
 
     assert!((engine.get_entity_world_x(ids[0]) - 10.0).abs() < 1e-4);
@@ -74,7 +78,9 @@ fn bulk_spawn_assigns_correct_rotations() {
     let mut engine = Engine::new(100);
     let positions = [0.0f32, 0.0, 0.0, 0.0, 0.0, 0.0];
     let rotations = [0.5f32, 1.0, 1.5];
-    let ids = engine.bulk_spawn_with_transforms(&positions, &rotations);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &rotations)
+        .expect("entity limit");
     engine.update_transforms();
 
     // Verify entities were created
@@ -88,7 +94,9 @@ fn bulk_spawn_handles_fewer_rotations_than_entities() {
     // Create 4 entities but only provide 2 rotations
     let positions = [0.0f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let rotations = [0.5f32, 1.0]; // Only 2 rotations
-    let ids = engine.bulk_spawn_with_transforms(&positions, &rotations);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &rotations)
+        .expect("entity limit");
 
     // Should still create all 4 entities
     assert_eq!(ids.len(), 4);
@@ -99,7 +107,9 @@ fn bulk_spawn_handles_fewer_rotations_than_entities() {
 fn bulk_spawn_with_empty_rotations() {
     let mut engine = Engine::new(100);
     let positions = [5.0f32, 10.0, 15.0, 20.0];
-    let ids = engine.bulk_spawn_with_transforms(&positions, &[]);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &[])
+        .expect("entity limit");
     engine.update_transforms();
 
     // All rotations should default to 0.0
@@ -125,7 +135,9 @@ fn bulk_destroy_then_spawn_reuses_slots() {
 
     // Spawn 3 new ones with transforms
     let positions = [0.0f32, 0.0, 10.0, 0.0, 20.0, 0.0];
-    let new_ids = engine.bulk_spawn_with_transforms(&positions, &[]);
+    let new_ids = engine
+        .bulk_spawn_with_transforms(&positions, &[])
+        .expect("entity limit");
 
     // Should have 5 entities again (2 old + 3 new)
     assert_eq!(engine.count_entities(), 5);
@@ -143,7 +155,9 @@ fn bulk_spawn_large_batch() {
         positions.push(0.0);
     }
 
-    let ids = engine.bulk_spawn_with_transforms(&positions, &[]);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &[])
+        .expect("entity limit");
     assert_eq!(ids.len(), 100);
     assert_eq!(engine.count_entities(), 100);
 }
@@ -168,7 +182,9 @@ fn bulk_destroy_large_batch() {
 fn bulk_spawn_assigns_scale_one() {
     let mut engine = Engine::new(100);
     let positions = [0.0f32, 0.0];
-    let ids = engine.bulk_spawn_with_transforms(&positions, &[]);
+    let ids = engine
+        .bulk_spawn_with_transforms(&positions, &[])
+        .expect("entity limit");
     engine.update_transforms();
 
     // All bulk-spawned entities should have scale (1, 1)

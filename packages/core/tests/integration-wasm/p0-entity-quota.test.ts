@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { GwenError } from "@gwenjs/schema";
+
+import { CoreErrorCodes } from "../../src/index.js";
 import { createRealEngine } from "./harness.js";
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -32,5 +35,29 @@ describe("P0 entity quota", () => {
     expect(isEntityLimitError(caught)).toBe(true);
     expect(bridge.countEntities()).toBe(maxEntities);
     expect(bridge.isAlive(0, 0)).toBe(true);
+  });
+
+  it("bulk spawn over the quota is a typed error and writes nothing", async () => {
+    const { bridge } = await createRealEngine({
+      variant: "light",
+      maxEntities: 100,
+    });
+    const positions = new Float32Array(150 * 2);
+    const rotations = new Float32Array(150);
+
+    let caught: unknown;
+    try {
+      bridge.bulkSpawnWithTransforms(positions, rotations);
+    } catch (error: unknown) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(GwenError);
+    expect(caught).toMatchObject({ code: CoreErrorCodes.ENTITY_LIMIT_REACHED });
+    expect(bridge.countEntities()).toBe(0);
+
+    const created = bridge.createEntity();
+    expect(bridge.isAlive(created.index, created.generation)).toBe(true);
+    expect(bridge.countEntities()).toBe(1);
   });
 });

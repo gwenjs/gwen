@@ -122,7 +122,9 @@ fn bench_bulk_ops(c: &mut Criterion) {
             let positions: Vec<f32> = (0..200)
                 .flat_map(|i| [i as f32 * 16.0, 0.0])
                 .collect();
-            engine.bulk_spawn_with_transforms(&positions, &[]);
+            engine
+                .bulk_spawn_with_transforms(&positions, &[])
+                .expect("entity limit");
         })
     });
 
@@ -135,7 +137,9 @@ fn bench_bulk_ops(c: &mut Criterion) {
             let rotations: Vec<f32> = (0..500)
                 .map(|i| (i as f32) * 0.01)
                 .collect();
-            engine.bulk_spawn_with_transforms(&positions, &rotations);
+            engine
+                .bulk_spawn_with_transforms(&positions, &rotations)
+                .expect("entity limit");
         })
     });
 

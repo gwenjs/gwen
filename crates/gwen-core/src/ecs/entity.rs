@@ -131,6 +131,16 @@ impl EntityAllocator {
         self.num_live
     }
 
+    /// Slots that can still be allocated, including free-list reuse.
+    pub fn remaining_capacity(&self) -> u32 {
+        self.max_entities.saturating_sub(self.num_live)
+    }
+
+    /// Configured maximum number of entities.
+    pub fn max_entities(&self) -> u32 {
+        self.max_entities
+    }
+
     /// Get the generation for a slot index (None if out of bounds).
     pub fn get_generation(&self, index: u32) -> Option<u32> {
         self.records.get(index as usize).map(|r| r.generation)
@@ -185,6 +195,16 @@ impl EntityManager {
     /// Get count of live entities
     pub fn count_entities(&self) -> u32 {
         self.allocator.count_live()
+    }
+
+    /// Slots that can still be allocated, including free-list reuse.
+    pub fn remaining_capacity(&self) -> u32 {
+        self.allocator.remaining_capacity()
+    }
+
+    /// Configured maximum number of entities.
+    pub fn max_entities(&self) -> u32 {
+        self.allocator.max_entities()
     }
 
     /// Get the generation for a slot index
