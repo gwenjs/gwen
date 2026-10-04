@@ -536,8 +536,12 @@ export interface GwenEngine extends GwenEngineBase {
   readonly disposables: DisposableRegistry;
 
   // ─── Stats ───────────────────────────────────────────────────────────────
+  /** Scaled simulation dt in seconds, after the maxDeltaSeconds cap and timeScale. */
   readonly deltaTime: number;
+  /** Uncapped, unscaled wall-frame duration in seconds. */
+  readonly rawFrameTime: number;
   readonly frameCount: number;
+  /** Smoothed frames per second from the raw wall-frame duration. */
   getFPS(): number;
   getStats(): EngineStats;
 }
