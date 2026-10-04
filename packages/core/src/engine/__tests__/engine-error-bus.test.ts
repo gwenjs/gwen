@@ -149,8 +149,9 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
 
       const stopHookCalls: string[] = [];
       engine.hooks.hook("engine:stop", () => stopHookCalls.push("stop"));
+      await engine.startExternal();
 
-      // Trigger the fatal callback
+      // Trigger the fatal callback while the engine is running.
       if (bus._fatalCb) {
         await bus._fatalCb();
       }

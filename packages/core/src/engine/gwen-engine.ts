@@ -275,7 +275,9 @@ class GwenEngineImpl implements GwenEngine {
     this._errorBus = errorBus;
     this.provide("errors", errorBus);
     // `stop()` is async. The frame loop also clears `_running` itself on a WASM panic.
+    // A setup failure happens before `start()`, so it must not tear the engine down.
     errorBus.onFatal(() => {
+      if (!this._running) return;
       this.stop().catch(() => {});
     });
     if (typeof globalThis.window !== "undefined") {
@@ -309,13 +311,13 @@ class GwenEngineImpl implements GwenEngine {
 
       const message = err instanceof Error ? err.message : String(err);
       this._errorBus.emit({
-        level: "fatal",
+        level: "error",
         code: CoreErrorCodes.PLUGIN_SETUP_ERROR,
         message: `[${plugin.name}] setup failed: ${message}`,
         source: plugin.name,
         error: err,
       });
-      throw err; // setup failure is fatal — re-throw
+      throw err;
     }
 
     this._plugins.push(plugin);
