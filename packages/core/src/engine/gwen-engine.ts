@@ -409,7 +409,7 @@ class GwenEngineImpl implements GwenEngine {
     };
     this.logger.error(payload.message, {
       frame: this._frameCountOwn,
-      cause: err instanceof Error ? err.stack ?? err.message : String(err),
+      cause: err instanceof Error ? (err.stack ?? err.message) : String(err),
     });
     await this.hooks.callHook("engine:error", payload);
     this._errorBus?.emit({

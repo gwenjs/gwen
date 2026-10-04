@@ -135,8 +135,12 @@ describe("useSceneRouter()", () => {
     const onExitPause = vi.fn();
     const onEnterGameSpy = vi.fn();
 
-    const Pause = defineScene("PauseExit", () => { onExit(onExitPause); });
-    const Game = defineScene("GameUnder", () => { onEnter(onEnterGameSpy); });
+    const Pause = defineScene("PauseExit", () => {
+      onExit(onExitPause);
+    });
+    const Game = defineScene("GameUnder", () => {
+      onEnter(onEnterGameSpy);
+    });
     const router = defineSceneRouter({
       initial: "game",
       routes: {
