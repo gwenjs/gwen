@@ -5,7 +5,7 @@
  *
  * These tests measure the TypeScript-side overhead of core ECS operations and
  * fail CI if the operations regress beyond generous, machine-independent
- * thresholds. They run via `pnpm --filter @gwenjs/core test`.
+ * thresholds. They run via `vitest run --dir bench`, not the default unit suite.
  *
  * Thresholds are intentionally generous to avoid flakiness on slow CI runners
  * while still catching catastrophic regressions (e.g. accidental O(n²) loops).

@@ -120,6 +120,8 @@ jobs:
           path: packages/core/wasm/
       - name: Build packages
         run: pnpm build:ts
+      - name: Core perf gates
+        run: pnpm --filter @gwenjs/core exec vitest run --dir bench
       - name: ECS benchmarks — core
         run: pnpm bench:core:ci
       - name: Physics2D benchmarks
