@@ -118,7 +118,7 @@ mod tests {
         let mut engine = make_engine();
         let transform_type_id = engine.register_component_type();
 
-        let e = engine.create_entity();
+        let e = engine.create_entity().expect("entity limit");
         // Pack transform [x=1.0, y=2.0, z=3.0, qx=0.0, qy=0.0, qz=0.0, qw=1.0] = 28 bytes
         let mut transform_bytes = [0u8; 28];
         transform_bytes[0..4].copy_from_slice(&1.0f32.to_le_bytes());

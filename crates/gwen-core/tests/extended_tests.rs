@@ -11,24 +11,48 @@ mod tests {
 
         // Allocate max entities
         for _ in 0..10 {
-            let _ = em.create_entity();
+            em.create_entity().expect("entity limit");
         }
         assert_eq!(em.count_entities(), 10);
     }
 
     #[test]
     fn test_entity_manager_exceeds_capacity() {
-        let _em = EntityManager::new(5);
+        let mut em = EntityManager::new(5);
 
-        // Should panic on 6th entity
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            let mut em_copy = EntityManager::new(5);
-            for _ in 0..6 {
-                em_copy.create_entity();
-            }
-        }));
+        for _ in 0..5 {
+            em.create_entity().expect("entity limit");
+        }
 
-        assert!(result.is_err());
+        let err = em
+            .create_entity()
+            .expect_err("6th create must hit the entity limit");
+        assert_eq!(err, EcsError::EntityLimitReached { max: 5 });
+        assert!(
+            err.to_string().contains("limit"),
+            "display must contain the word limit, got {err}"
+        );
+        assert_eq!(em.count_entities(), 5);
+        assert!(em.is_alive(EntityId::from_parts(0, 0)));
+    }
+
+    #[test]
+    fn test_entity_manager_reuses_free_slot_then_hits_limit() {
+        let mut em = EntityManager::new(5);
+        let mut ids = Vec::new();
+        for _ in 0..5 {
+            ids.push(em.create_entity().expect("entity limit"));
+        }
+
+        assert!(em.delete_entity(ids[0]));
+        let reused = em.create_entity().expect("entity limit");
+        assert_eq!(reused.index(), ids[0].index());
+
+        assert_eq!(
+            em.create_entity(),
+            Err(EcsError::EntityLimitReached { max: 5 })
+        );
+        assert_eq!(em.count_entities(), 5);
     }
 
     #[test]
@@ -76,7 +100,7 @@ mod tests {
     fn test_delete_already_deleted_entity() {
         let mut em = EntityManager::new(100);
 
-        let e = em.create_entity();
+        let e = em.create_entity().expect("entity limit");
         assert!(em.delete_entity(e));
         assert!(!em.delete_entity(e)); // Second delete fails
     }
@@ -140,7 +164,7 @@ mod tests {
 
         let handle = ComponentHandle::<Position>::new(&mut storage);
 
-        let e = em.create_entity();
+        let e = em.create_entity().expect("entity limit");
         handle.add(&mut storage, e.index(), Position { x: 1.0, y: 2.0 });
 
         assert!(handle.has(&storage, e.index()));
@@ -154,7 +178,7 @@ mod tests {
         let mut loop_obj = GameLoop::new(60);
 
         // Create entity
-        let _e = em.create_entity();
+        let _e = em.create_entity().expect("entity limit");
 
         // Update game loop
         loop_obj.tick(0.016);
@@ -169,11 +193,11 @@ mod tests {
         let mut em = EntityManager::new(100);
         let mut loop_obj = GameLoop::new(60);
 
-        let e1 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
         loop_obj.tick(0.016);
 
         em.delete_entity(e1);
-        let e2 = em.create_entity();
+        let e2 = em.create_entity().expect("entity limit");
 
         // Should have reused slot
         assert_eq!(e1.index(), e2.index());
@@ -207,7 +231,7 @@ mod tests {
 
         let mut entities = Vec::new();
         for _ in 0..1000 {
-            entities.push(em.create_entity());
+            entities.push(em.create_entity().expect("entity limit"));
         }
 
         assert_eq!(em.count_entities(), 1000);

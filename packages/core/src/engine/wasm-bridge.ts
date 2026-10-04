@@ -446,8 +446,41 @@ export class WasmBridgeImpl implements WasmBridge {
 
   // ── Entity ───────────────────────────────────────────────────────────────
 
+  /**
+   * Create a new entity and return its packed handle (index + generation).
+   *
+   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when `maxEntities` is reached.
+   *   The bridge stays usable after that throw.
+   */
   createEntity(): WasmEntityId {
-    return this._requireWasm().create_entity();
+    const wasm = this._requireWasm();
+    try {
+      return wasm.create_entity();
+    } catch (error: unknown) {
+      throw this._entityLimitOrRethrow(error);
+    }
+  }
+
+  /**
+   * Create N entities, each with a transform.
+   *
+   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining
+   *   capacity. No entity is created in that case. The bridge stays usable.
+   */
+  bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array {
+    const wasm = this._requireWasm();
+    try {
+      return wasm.bulk_spawn_with_transforms(positions, rotations);
+    } catch (error: unknown) {
+      throw this._entityLimitOrRethrow(error);
+    }
+  }
+
+  private _entityLimitOrRethrow(error: unknown): never {
+    if (error instanceof Error && /limit/i.test(error.message)) {
+      throw new GwenError(CoreErrorCodes.ENTITY_LIMIT_REACHED, error.message);
+    }
+    throw error;
   }
 
   deleteEntity(index: number, generation: number): boolean {

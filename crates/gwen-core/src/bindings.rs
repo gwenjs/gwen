@@ -5,11 +5,13 @@
 //! # Stale-ID safety
 //! All entity operations take both `index` and `generation` so that JS
 //! cannot accidentally use a recycled slot (the classic stale-ID bug).
-//! `create_entity` returns a `JsEntityId` struct exposing both fields.
+//! `create_entity` returns a `JsEntityId` struct exposing both fields,
+//! or an error when the entity limit is reached.
 
 use crate::ecs::component::ComponentTypeId;
 use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
+use crate::ecs::error::EcsError;
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::ArchetypeStorage;
 use crate::gameloop::GameLoop;
@@ -120,8 +122,16 @@ impl Engine {
 
     /// Create a new entity. Returns a `JsEntityId` with both `index` and
     /// `generation` – keep the whole object, not just the index.
-    pub fn create_entity(&mut self) -> JsEntityId {
-        self.entity_manager.create_entity().into()
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the entity limit is reached. The message is the
+    /// display text of the ECS error and contains `limit`. No entity is created.
+    pub fn create_entity(&mut self) -> Result<JsEntityId, JsError> {
+        self.entity_manager
+            .create_entity()
+            .map(Into::into)
+            .map_err(|err| JsError::new(&err.to_string()))
     }
 
     /// Delete an entity. Requires the full `{index, generation}` pair so
@@ -3289,6 +3299,11 @@ impl Engine {
     /// # Returns
     /// `Vec<u32>` (exposed as `Uint32Array` to JavaScript) of N entity indices in the same order as `positions`.
     ///
+    /// # Errors
+    ///
+    /// Returns an error when N is greater than the remaining entity capacity.
+    /// Nothing is created in that case. The message contains `limit`.
+    ///
     /// # Description
     /// This method efficiently spawns multiple entities with transforms in a single operation.
     /// Each entity is created with a position (x, y) and an optional rotation. If the rotations
@@ -3307,12 +3322,19 @@ impl Engine {
         &mut self,
         positions: &[f32],
         rotations: &[f32],
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, JsError> {
         let count = positions.len() / 2;
+        if count > self.entity_manager.remaining_capacity() as usize {
+            let max = self.entity_manager.max_entities();
+            return Err(JsError::new(
+                &EcsError::EntityLimitReached { max }.to_string(),
+            ));
+        }
+
         let mut indices = Vec::with_capacity(count);
 
         for i in 0..count {
-            let js_id = self.create_entity();
+            let js_id = self.create_entity()?;
             let index = js_id.index();
             let x = positions[i * 2];
             let y = positions[i * 2 + 1];
@@ -3335,7 +3357,7 @@ impl Engine {
             indices.push(index);
         }
 
-        indices
+        Ok(indices)
     }
 }
 
@@ -3363,9 +3385,9 @@ mod tests {
         let t0 = engine.register_component_type();
         let t1 = engine.register_component_type();
 
-        let e0 = engine.create_entity();
-        let e1 = engine.create_entity();
-        let e2 = engine.create_entity();
+        let e0 = engine.create_entity().expect("entity limit");
+        let e1 = engine.create_entity().expect("entity limit");
+        let e2 = engine.create_entity().expect("entity limit");
 
         // Add components to entities
         // e0 has t0 and t1
@@ -3406,7 +3428,7 @@ mod tests {
         let t0 = engine.register_component_type();
 
         for _ in 0..max {
-            let e = engine.create_entity();
+            let e = engine.create_entity().expect("entity limit");
             engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
         }
 
@@ -3435,9 +3457,9 @@ mod tests {
 
         let ta = a.register_component_type();
         let tb = b.register_component_type();
-        let ea = a.create_entity();
+        let ea = a.create_entity().expect("entity limit");
         a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0]);
-        let eb = b.create_entity();
+        let eb = b.create_entity().expect("entity limit");
         b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0]);
 
         assert_eq!(a.query_entities_to_buffer(&[ta]).unwrap(), 1);
@@ -3466,7 +3488,7 @@ mod tests {
         let mut engine = Engine::new(4);
         let t0 = engine.register_component_type();
         for _ in 0..4 {
-            let e = engine.create_entity();
+            let e = engine.create_entity().expect("entity limit");
             engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
         }
 

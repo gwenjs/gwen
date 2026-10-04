@@ -6,9 +6,9 @@ mod tests {
     fn test_allocate_sequential() {
         let mut em = EntityManager::new(100);
 
-        let e1 = em.create_entity();
-        let e2 = em.create_entity();
-        let e3 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
+        let e2 = em.create_entity().expect("entity limit");
+        let e3 = em.create_entity().expect("entity limit");
 
         assert_eq!(e1.index(), 0);
         assert_eq!(e2.index(), 1);
@@ -21,16 +21,16 @@ mod tests {
     fn test_deallocate_and_reuse() {
         let mut em = EntityManager::new(100);
 
-        let _e1 = em.create_entity();
-        let e2 = em.create_entity();
-        let _e3 = em.create_entity();
+        let _e1 = em.create_entity().expect("entity limit");
+        let e2 = em.create_entity().expect("entity limit");
+        let _e3 = em.create_entity().expect("entity limit");
 
         assert!(em.delete_entity(e2));
         assert!(!em.is_alive(e2));
         assert_eq!(em.count_entities(), 2);
 
         // Allocate should reuse e2's slot
-        let e4 = em.create_entity();
+        let e4 = em.create_entity().expect("entity limit");
         assert_eq!(e4.index(), e2.index());
         assert_eq!(e4.generation(), e2.generation() + 1);
     }
@@ -39,7 +39,7 @@ mod tests {
     fn test_stale_id_detection() {
         let mut em = EntityManager::new(100);
 
-        let e1 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
         let old_id = e1;
 
         em.delete_entity(e1);
@@ -48,7 +48,7 @@ mod tests {
         assert!(!em.is_alive(old_id));
 
         // Reuse slot - generation increments
-        let e2 = em.create_entity();
+        let e2 = em.create_entity().expect("entity limit");
         assert_eq!(e2.index(), old_id.index());
         assert_ne!(e2.generation(), old_id.generation());
     }
@@ -57,7 +57,7 @@ mod tests {
     fn test_is_alive() {
         let mut em = EntityManager::new(100);
 
-        let e1 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
         assert!(em.is_alive(e1));
 
         em.delete_entity(e1);
@@ -70,13 +70,13 @@ mod tests {
 
         assert_eq!(em.count_entities(), 0);
 
-        let _e1 = em.create_entity();
+        let _e1 = em.create_entity().expect("entity limit");
         assert_eq!(em.count_entities(), 1);
 
-        let _e2 = em.create_entity();
+        let _e2 = em.create_entity().expect("entity limit");
         assert_eq!(em.count_entities(), 2);
 
-        let e3 = em.create_entity();
+        let e3 = em.create_entity().expect("entity limit");
         assert_eq!(em.count_entities(), 3);
 
         em.delete_entity(e3);
@@ -87,9 +87,9 @@ mod tests {
     fn test_iter_entities() {
         let mut em = EntityManager::new(100);
 
-        let e1 = em.create_entity();
-        let e2 = em.create_entity();
-        let e3 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
+        let e2 = em.create_entity().expect("entity limit");
+        let e3 = em.create_entity().expect("entity limit");
 
         em.delete_entity(e2);
 
@@ -106,7 +106,7 @@ mod tests {
 
         let start = std::time::Instant::now();
         for _ in 0..10000 {
-            let _ = em.create_entity();
+            em.create_entity().expect("entity limit");
         }
         let elapsed = start.elapsed();
 
@@ -122,7 +122,9 @@ mod tests {
     fn test_deallocate_1k() {
         let mut em = EntityManager::new(10000);
 
-        let entities: Vec<_> = (0..1000).map(|_| em.create_entity()).collect();
+        let entities: Vec<_> = (0..1000)
+            .map(|_| em.create_entity().expect("entity limit"))
+            .collect();
 
         let start = std::time::Instant::now();
         for e in entities {
@@ -146,7 +148,7 @@ mod tests {
 
         // Allocate 1000
         for _ in 0..1000 {
-            entities.push(em.create_entity());
+            entities.push(em.create_entity().expect("entity limit"));
         }
         assert_eq!(em.count_entities(), 1000);
 
@@ -158,7 +160,7 @@ mod tests {
 
         // Allocate 500 more (should reuse slots)
         for _ in 0..500 {
-            entities.push(em.create_entity());
+            entities.push(em.create_entity().expect("entity limit"));
         }
         assert_eq!(em.count_entities(), 1000);
     }
@@ -177,7 +179,7 @@ mod tests {
     fn test_double_delete() {
         let mut em = EntityManager::new(100);
 
-        let e = em.create_entity();
+        let e = em.create_entity().expect("entity limit");
         assert!(em.delete_entity(e));
         assert!(!em.delete_entity(e)); // Second delete should fail
     }

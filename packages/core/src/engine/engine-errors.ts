@@ -71,6 +71,7 @@ export const CoreErrorCodes = {
   WASM_TIMEOUT: "CORE:WASM_TIMEOUT",
   WASM_PANIC: "CORE:WASM_PANIC",
   QUERY_CAPACITY_EXCEEDED: "CORE:QUERY_CAPACITY_EXCEEDED",
+  ENTITY_LIMIT_REACHED: "CORE:ENTITY_LIMIT_REACHED",
 } as const;
 
 /** Error codes emitted by the GWEN actor system. */

@@ -123,7 +123,7 @@ mod tests {
         let mut engine = make_engine();
         let transform_type_id = engine.register_component_type();
 
-        let e = engine.create_entity();
+        let e = engine.create_entity().expect("entity limit");
         // Pack transform [x=1.0, y=2.0, angle=0.5] as little-endian f32 bytes
         let transform_bytes = {
             let mut b = [0u8; 12];

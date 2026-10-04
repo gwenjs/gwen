@@ -58,7 +58,10 @@ export interface GwenCoreWasm {
 export interface WasmEngineBase {
   // ── Entity ──────────────────────────────────────────────────────────────
 
-  /** Create a new entity and return its index + generation handle. */
+  /**
+   * Create a new entity and return its index + generation handle.
+   * The wasm export throws an `Error` whose message contains `limit` when the quota is hit.
+   */
   create_entity(): WasmEntityId;
   /**
    * Destroy an entity slot by index and generation.
@@ -754,6 +757,12 @@ export interface WasmBridge {
 
   /** Create a new entity and return its packed handle (index + generation). */
   createEntity(): WasmEntityId;
+  /**
+   * Create N entities, each with a transform.
+   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining capacity.
+   *   No entity is created in that case.
+   */
+  bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array;
   /**
    * Destroy an entity.
    * @returns `false` if the (index, generation) pair is stale.

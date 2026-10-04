@@ -101,7 +101,7 @@ mod tests {
         let mut engine = make_engine();
         let type_id = engine.register_component_type();
 
-        let e = engine.create_entity();
+        let e = engine.create_entity().expect("entity limit");
         engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0]);
 
         let mut out_slots = vec![0u32; 16];
@@ -129,9 +129,9 @@ mod tests {
         let mut engine = make_engine();
         let type_id = engine.register_component_type();
 
-        let e0 = engine.create_entity();
-        let e1 = engine.create_entity();
-        let e2 = engine.create_entity();
+        let e0 = engine.create_entity().expect("entity limit");
+        let e1 = engine.create_entity().expect("entity limit");
+        let e2 = engine.create_entity().expect("entity limit");
 
         let seed_slots = [e0.index(), e1.index(), e2.index()];
         let seed_gens  = [e0.generation(), e1.generation(), e2.generation()];
@@ -166,7 +166,7 @@ mod tests {
         let entity_slots: Vec<u32> = (0..MATCHES as u32).collect();
 
         for _ in 0..MATCHES {
-            let e = engine.create_entity();
+            let e = engine.create_entity().expect("entity limit");
             engine.add_component(e.index(), e.generation(), type_id, &[0u8; 4]);
         }
 

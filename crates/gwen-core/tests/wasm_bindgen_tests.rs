@@ -26,7 +26,7 @@ fn make_engine() -> Engine {
 #[wasm_bindgen_test]
 fn wasm_create_entity_returns_valid_id() {
     let mut engine = make_engine();
-    let id: JsEntityId = engine.create_entity();
+    let id: JsEntityId = engine.create_entity().expect("entity limit");
     // First entity always gets index 0, generation 0
     assert_eq!(id.index(), 0);
     assert_eq!(id.generation(), 0);
@@ -35,9 +35,9 @@ fn wasm_create_entity_returns_valid_id() {
 #[wasm_bindgen_test]
 fn wasm_multiple_entities_get_sequential_indices() {
     let mut engine = make_engine();
-    let a = engine.create_entity();
-    let b = engine.create_entity();
-    let c = engine.create_entity();
+    let a = engine.create_entity().expect("entity limit");
+    let b = engine.create_entity().expect("entity limit");
+    let c = engine.create_entity().expect("entity limit");
     assert_eq!(a.index(), 0);
     assert_eq!(b.index(), 1);
     assert_eq!(c.index(), 2);
@@ -47,29 +47,29 @@ fn wasm_multiple_entities_get_sequential_indices() {
 fn wasm_count_entities() {
     let mut engine = make_engine();
     assert_eq!(engine.count_entities(), 0);
-    engine.create_entity();
-    engine.create_entity();
+    engine.create_entity().expect("entity limit");
+    engine.create_entity().expect("entity limit");
     assert_eq!(engine.count_entities(), 2);
 }
 
 #[wasm_bindgen_test]
 fn wasm_is_alive_true_for_live_entity() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     assert!(engine.is_alive(id.index(), id.generation()));
 }
 
 #[wasm_bindgen_test]
 fn wasm_delete_entity_returns_true() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     assert!(engine.delete_entity(id.index(), id.generation()));
 }
 
 #[wasm_bindgen_test]
 fn wasm_is_alive_false_after_delete() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     engine.delete_entity(id.index(), id.generation());
     assert!(!engine.is_alive(id.index(), id.generation()));
 }
@@ -77,7 +77,7 @@ fn wasm_is_alive_false_after_delete() {
 #[wasm_bindgen_test]
 fn wasm_delete_same_entity_twice_returns_false() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     assert!(engine.delete_entity(id.index(), id.generation()));
     assert!(!engine.delete_entity(id.index(), id.generation()));
 }
@@ -89,11 +89,11 @@ fn wasm_stale_id_rejected_after_slot_reuse() {
     let mut engine = make_engine();
 
     // Create and delete entity at slot 0, generation 0
-    let old_id = engine.create_entity();
+    let old_id = engine.create_entity().expect("entity limit");
     engine.delete_entity(old_id.index(), old_id.generation());
 
     // Slot 0 is now reused — new entity gets generation 1
-    let new_id = engine.create_entity();
+    let new_id = engine.create_entity().expect("entity limit");
     assert_eq!(new_id.index(), 0);
     assert_eq!(new_id.generation(), 1);
 
@@ -106,7 +106,7 @@ fn wasm_stale_id_rejected_after_slot_reuse() {
 #[wasm_bindgen_test]
 fn wasm_delete_with_wrong_generation_rejected() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     // Pass a wrong generation — must be rejected without deleting
     let deleted = engine.delete_entity(id.index(), id.generation() + 1);
     assert!(!deleted);
@@ -127,7 +127,7 @@ fn wasm_register_component_type_returns_sequential_ids() {
 #[wasm_bindgen_test]
 fn wasm_add_component_and_has_component() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
 
     // Add 4 raw bytes (one u32)
@@ -139,7 +139,7 @@ fn wasm_add_component_and_has_component() {
 #[wasm_bindgen_test]
 fn wasm_add_component_stale_id_rejected() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
     engine.delete_entity(id.index(), id.generation());
 
@@ -151,7 +151,7 @@ fn wasm_add_component_stale_id_rejected() {
 #[wasm_bindgen_test]
 fn wasm_get_component_raw_returns_bytes() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
 
     let value: u32 = 0xDEAD_BEEF;
@@ -166,7 +166,7 @@ fn wasm_get_component_raw_returns_bytes() {
 #[wasm_bindgen_test]
 fn wasm_get_component_raw_empty_for_missing() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
 
     let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
@@ -176,7 +176,7 @@ fn wasm_get_component_raw_empty_for_missing() {
 #[wasm_bindgen_test]
 fn wasm_remove_component() {
     let mut engine = make_engine();
-    let id = engine.create_entity();
+    let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
     let data: &[u8] = &[1u8, 0, 0, 0];
     engine.add_component(id.index(), id.generation(), type_id, &data);
@@ -193,9 +193,9 @@ fn wasm_query_entities_returns_correct_set() {
     let t0 = engine.register_component_type();
     let t1 = engine.register_component_type();
 
-    let e0 = engine.create_entity();
-    let e1 = engine.create_entity();
-    let e2 = engine.create_entity();
+    let e0 = engine.create_entity().expect("entity limit");
+    let e1 = engine.create_entity().expect("entity limit");
+    let e2 = engine.create_entity().expect("entity limit");
 
     // e0: t0 + t1
     engine.add_component(e0.index(), e0.generation(), t0, &[]);
@@ -257,7 +257,7 @@ fn wasm_total_time_accumulates() {
 #[wasm_bindgen_test]
 fn wasm_stats_is_valid_json_string() {
     let mut engine = make_engine();
-    engine.create_entity();
+    engine.create_entity().expect("entity limit");
     engine.tick(16.0);
     let stats = engine.stats();
     // Should contain known fields

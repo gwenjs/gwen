@@ -8,6 +8,7 @@ pub mod bitset;
 pub mod component;
 pub mod dirty_set;
 pub mod entity;
+pub mod error;
 pub mod query;
 pub mod storage;
 
@@ -17,5 +18,6 @@ pub use bitset::*;
 pub use component::*;
 pub use dirty_set::*;
 pub use entity::*;
+pub use error::*;
 pub use query::*;
 pub use storage::*;

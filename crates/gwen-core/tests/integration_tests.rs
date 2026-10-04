@@ -50,7 +50,7 @@ mod tests {
         let vel_handle = ComponentHandle::<Velocity>::new(&mut storage);
 
         // Spawn 3 entities with Position + Velocity
-        let entities: Vec<_> = (0..3).map(|_| em.create_entity()).collect();
+        let entities: Vec<_> = (0..3).map(|_| em.create_entity().expect("entity limit")).collect();
         for (i, &e) in entities.iter().enumerate() {
             pos_handle.add(
                 &mut storage,
@@ -112,8 +112,8 @@ mod tests {
 
         let pos_handle = ComponentHandle::<Position>::new(&mut storage);
 
-        let e1 = em.create_entity();
-        let e2 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
+        let e2 = em.create_entity().expect("entity limit");
         for &e in &[e1, e2] {
             pos_handle.add(&mut storage, e.index(), Position { x: 0.0, y: 0.0 });
             qs.update_entity_archetype(e.index(), vec![pos_handle.type_id()]);
@@ -176,11 +176,12 @@ mod tests {
     fn test_stale_entity_id_rejected() {
         let mut em = EntityManager::new(100);
 
-        let e1 = em.create_entity();
+        let e1 = em.create_entity().expect("entity limit");
         let old_id = e1; // keep a copy
 
         em.delete_entity(e1);
-        let _e2 = em.create_entity(); // Reuses the same slot, bumped generation
+        // Reuses the same slot, bumped generation
+        let _e2 = em.create_entity().expect("entity limit");
 
         // The old handle (same index, old generation) must be rejected
         assert!(!em.is_alive(old_id));
@@ -246,7 +247,7 @@ mod tests {
         let pos_handle = ComponentHandle::<Position>::new(&mut storage);
         let vel_handle = ComponentHandle::<Velocity>::new(&mut storage);
 
-        let e = em.create_entity();
+        let e = em.create_entity().expect("entity limit");
         pos_handle.add(&mut storage, e.index(), Position { x: 0.0, y: 0.0 });
         vel_handle.add(&mut storage, e.index(), Velocity { dx: 1.0, dy: 0.0 });
 
