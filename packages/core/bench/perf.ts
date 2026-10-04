@@ -1,7 +1,6 @@
 /**
  * Returns `specMs * multiplier` when running in CI, otherwise `specMs`.
- * Use this for all timing-based performance assertions so spec values remain
- * readable while CI runners (which are slower) get appropriate headroom.
+ * Spec values stay readable; CI runners get headroom.
  *
  * @example
  * expect(elapsed).toBeLessThan(ciThreshold(5))       // 5ms local, 50ms CI

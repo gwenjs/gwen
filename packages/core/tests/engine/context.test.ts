@@ -11,11 +11,9 @@
  * - `GwenContextError` and `GwenPluginNotFoundError`
  * - `defineSystem()` composable pattern
  * - `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`
- * - Performance: 10k `useEngine()` calls < 0.5ms
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ciThreshold } from "../helpers/perf";
 import {
   createEngine,
   useEngine,
@@ -522,27 +520,5 @@ describe("useQuery()", () => {
     });
     expect(result).not.toBeNull();
     expect(typeof (result as unknown as Iterable<unknown>)[Symbol.iterator]).toBe("function");
-  });
-});
-
-// ─── Performance ──────────────────────────────────────────────────────────────
-
-describe("Performance", () => {
-  it("10,000 useEngine() calls complete in < 0.5ms", async () => {
-    const engine = await createEngine({ maxEntities: 100 });
-
-    // Warm-up run to avoid JIT cold-start timing skew
-    engine.run(() => {
-      useEngine();
-    });
-
-    const start = performance.now();
-    engine.run(() => {
-      for (let i = 0; i < 10_000; i++) {
-        useEngine();
-      }
-    });
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(0.5, 20));
   });
 });

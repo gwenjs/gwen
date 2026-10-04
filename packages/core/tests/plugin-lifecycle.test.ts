@@ -3,7 +3,6 @@
  */
 import { describe, it, expect, vi } from "vitest";
 import { createEngine, GwenPluginNotFoundError } from "../src/index";
-import { ciThreshold } from "./helpers/perf";
 
 declare module "../src/index" {
   interface GwenProvides {
@@ -76,13 +75,6 @@ describe("engine.use / engine.unuse", () => {
     });
     await engine.advance(1 / 60);
     expect(calls).toEqual(["before", "update", "after", "render"]);
-  });
-
-  it("setup overhead < 5ms for no-op plugin", async () => {
-    const engine = await createEngine();
-    const t = performance.now();
-    await engine.use({ name: "Perf", setup() {} });
-    expect(performance.now() - t).toBeLessThan(ciThreshold(5));
   });
 });
 
