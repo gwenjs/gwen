@@ -110,7 +110,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
         b.iter(|| {
             let mut engine = Engine::new(2_000);
             let ids: Vec<u32> = (0..1_000)
-                .map(|_| engine.create_entity().index())
+                .map(|_| engine.create_entity().expect("entity limit").index())
                 .collect();
             engine.bulk_destroy(&ids);
         })

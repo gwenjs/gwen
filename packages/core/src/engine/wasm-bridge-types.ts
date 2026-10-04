@@ -58,7 +58,10 @@ export interface GwenCoreWasm {
 export interface WasmEngineBase {
   // ── Entity ──────────────────────────────────────────────────────────────
 
-  /** Create a new entity and return its index + generation handle. */
+  /**
+   * Create a new entity and return its index + generation handle.
+   * The wasm export throws an `Error` whose message contains `limit` when the quota is hit.
+   */
   create_entity(): WasmEntityId;
   /**
    * Destroy an entity slot by index and generation.

@@ -10,9 +10,9 @@ use gwen_core::bindings::Engine;
 #[test]
 fn bulk_destroy_frees_all_provided_entities() {
     let mut engine = Engine::new(100);
-    let a = engine.create_entity().index();
-    let b = engine.create_entity().index();
-    let c = engine.create_entity().index();
+    let a = engine.create_entity().expect("entity limit").index();
+    let b = engine.create_entity().expect("entity limit").index();
+    let c = engine.create_entity().expect("entity limit").index();
 
     engine.bulk_destroy(&[a, b, c]);
     // After destroying 3 entities, count should be 0
@@ -22,7 +22,7 @@ fn bulk_destroy_frees_all_provided_entities() {
 #[test]
 fn bulk_destroy_skips_already_dead_entities() {
     let mut engine = Engine::new(100);
-    let a = engine.create_entity().index();
+    let a = engine.create_entity().expect("entity limit").index();
     let gen = engine.get_entity_generation(a);
     engine.delete_entity(a, gen);
     // Should not panic when bulk_destroy is called with a dead entity
@@ -33,9 +33,9 @@ fn bulk_destroy_skips_already_dead_entities() {
 #[test]
 fn bulk_destroy_with_mixed_alive_and_dead() {
     let mut engine = Engine::new(100);
-    let a = engine.create_entity().index();
-    let b = engine.create_entity().index();
-    let c = engine.create_entity().index();
+    let a = engine.create_entity().expect("entity limit").index();
+    let b = engine.create_entity().expect("entity limit").index();
+    let c = engine.create_entity().expect("entity limit").index();
 
     // Delete b
     let gen_b = engine.get_entity_generation(b);
@@ -113,7 +113,7 @@ fn bulk_destroy_then_spawn_reuses_slots() {
 
     // Create 5 entities
     let ids: Vec<u32> = (0..5)
-        .map(|_| engine.create_entity().index())
+        .map(|_| engine.create_entity().expect("entity limit").index())
         .collect();
 
     let initial_count = engine.count_entities();
@@ -154,7 +154,7 @@ fn bulk_destroy_large_batch() {
 
     // Create 100 entities
     let ids: Vec<u32> = (0..100)
-        .map(|_| engine.create_entity().index())
+        .map(|_| engine.create_entity().expect("entity limit").index())
         .collect();
 
     assert_eq!(engine.count_entities(), 100);

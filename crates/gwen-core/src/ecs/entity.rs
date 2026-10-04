@@ -2,6 +2,7 @@
 //!
 //! Handles entity spawning, deletion, and tracking using a sparse set with generation counter.
 
+use super::error::EcsError;
 use bytemuck::{Pod, Zeroable};
 
 /// Unique entity identifier with generation counter
@@ -54,8 +55,13 @@ impl EntityAllocator {
         }
     }
 
-    /// Allocate a new entity
-    pub fn allocate(&mut self) -> EntityId {
+    /// Allocate a new entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EcsError::EntityLimitReached`] when no free slot remains.
+    /// On that error, `records`, `free_list`, and `num_live` are unchanged.
+    pub fn allocate(&mut self) -> Result<EntityId, EcsError> {
         if let Some(index) = self.free_list.pop() {
             // Reuse deleted entity slot
             let record = &mut self.records[index as usize];
@@ -63,10 +69,10 @@ impl EntityAllocator {
             record.alive = true;
             self.num_live += 1;
 
-            EntityId {
+            Ok(EntityId {
                 index,
                 generation: record.generation,
-            }
+            })
         } else if (self.records.len() as u32) < self.max_entities {
             // Allocate new slot
             let index = self.records.len() as u32;
@@ -76,12 +82,14 @@ impl EntityAllocator {
             });
             self.num_live += 1;
 
-            EntityId {
+            Ok(EntityId {
                 index,
                 generation: 0,
-            }
+            })
         } else {
-            panic!("Entity limit reached: {}", self.max_entities);
+            Err(EcsError::EntityLimitReached {
+                max: self.max_entities,
+            })
         }
     }
 
@@ -154,8 +162,13 @@ impl EntityManager {
         }
     }
 
-    /// Create a new entity
-    pub fn create_entity(&mut self) -> EntityId {
+    /// Create a new entity.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`EcsError::EntityLimitReached`] when the entity limit is
+    /// reached. The manager is left unchanged.
+    pub fn create_entity(&mut self) -> Result<EntityId, EcsError> {
         self.allocator.allocate()
     }
 

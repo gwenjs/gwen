@@ -120,6 +120,47 @@ describe("WasmBridge — with injected mock", () => {
     expect(id).toEqual({ index: 0, generation: 0 });
   });
 
+  it("createEntity throws when the wasm entity limit is reached", () => {
+    const limitBridge = new WasmBridgeImpl();
+    const limitMock = createMockEngine();
+    limitBridge._injectMock(limitMock);
+    limitMock.create_entity = vi.fn(() => {
+      throw new Error("Entity limit reached: 4");
+    });
+
+    let caught: GwenError | null = null;
+    try {
+      limitBridge.createEntity();
+    } catch (e: unknown) {
+      if (e instanceof GwenError) caught = e;
+      else throw e;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    expect(caught?.code).toBe(CoreErrorCodes.ENTITY_LIMIT_REACHED);
+    expect(caught?.code).toBe("ENTITY_LIMIT_REACHED");
+    expect(caught?.message).toMatch(/limit/i);
+    expect(limitBridge.countEntities()).toBe(0);
+  });
+
+  it("createEntity rethrows a non-limit wasm error unchanged", () => {
+    const boomBridge = new WasmBridgeImpl();
+    const boomMock = createMockEngine();
+    boomBridge._injectMock(boomMock);
+    const boom = new Error("boom");
+    boomMock.create_entity = vi.fn(() => {
+      throw boom;
+    });
+
+    let caught: unknown;
+    try {
+      boomBridge.createEntity();
+    } catch (e: unknown) {
+      caught = e;
+    }
+    expect(caught).toBe(boom);
+    expect(caught).not.toBeInstanceOf(GwenError);
+  });
+
   it("deleteEntity() delegates to mock", () => {
     bridge.deleteEntity(0, 0);
     expect(mock.delete_entity).toHaveBeenCalledWith(0, 0);

@@ -71,6 +71,8 @@ export const CoreErrorCodes = {
   WASM_TIMEOUT: "CORE:WASM_TIMEOUT",
   WASM_PANIC: "CORE:WASM_PANIC",
   QUERY_CAPACITY_EXCEEDED: "CORE:QUERY_CAPACITY_EXCEEDED",
+  /** D7 wasm test requires this exact string, with no `CORE:` prefix. */
+  ENTITY_LIMIT_REACHED: "ENTITY_LIMIT_REACHED",
 } as const;
 
 /** Error codes emitted by the GWEN actor system. */

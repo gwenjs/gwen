@@ -13,7 +13,7 @@ function isEntityLimitError(value: unknown): value is Error {
 }
 
 describe("P0 entity quota", () => {
-  it.fails("D7 entity quota: the extra create is a recoverable limit error", async () => {
+  it("D7 entity quota: the extra create is a recoverable limit error", async () => {
     const maxEntities = 4;
     const { bridge } = await createRealEngine({
       variant: "light",
