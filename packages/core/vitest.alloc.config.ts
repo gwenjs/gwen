@@ -14,7 +14,7 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["bench/alloc/**/*.gate.ts"],
+    include: ["bench/alloc/**/*.gate.ts", "tests/alloc-gate/measure.test.ts"],
     pool: "forks",
     fileParallelism: false,
     execArgv: ["--expose-gc", "--max-semi-space-size=64"],

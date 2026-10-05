@@ -19,6 +19,7 @@ describe("measureAllocations", () => {
       { warmup: 1, ops: 64 },
     );
     expect(sink).toBe(0);
+    expect(report.allocatedBytes).toBeGreaterThan(0);
     expect(report.bytesPerOp).toBe(report.allocatedBytes / 64);
     expect(Number.isInteger(report.gcCount)).toBe(true);
     expect(report.gcCount).toBeGreaterThanOrEqual(0);

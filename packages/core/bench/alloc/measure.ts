@@ -118,6 +118,7 @@ export interface MeasureAllocOptions {
  * Generic heap window for #56 and #113.
  * The frame gate does not call this. A wrapper around `advance` moved
  * `pool.cycle` and `entity.index` over the recorded margin.
+ * `--expose-gc` must already be set. This function does not turn it on.
  */
 export async function measureAllocations(
   run: () => void | Promise<void>,
@@ -130,22 +131,7 @@ export async function measureAllocations(
     throw new Error("[ALLOC GATE] measureAllocations: ops must be > 0");
   }
 
-  const direct = (globalThis as { gc?: () => void }).gc;
-  let gc: () => void;
-  if (typeof direct === "function") {
-    gc = direct;
-  } else {
-    const { setFlagsFromString } = await import("node:v8");
-    const { runInNewContext } = await import("node:vm");
-    setFlagsFromString("--expose-gc");
-    const enabled: unknown = runInNewContext("gc");
-    if (typeof enabled !== "function") {
-      throw new Error("[ALLOC GATE] run via pnpm test:alloc (--expose-gc missing)");
-    }
-    gc = () => {
-      enabled();
-    };
-  }
+  const gc = requireGc();
 
   const gcStarts: number[] = [];
   const observer = new PerformanceObserver((list) => {
