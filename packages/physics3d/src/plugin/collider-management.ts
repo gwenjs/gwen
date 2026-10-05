@@ -26,6 +26,7 @@ import {
   registerBvhCallback,
 } from "./bvh";
 import { toEntityIndex, resolveColliderMaterial } from "./physics3d-utils";
+import { guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { nextColliderIdForEntity } from "./plugin-helpers";
 import { createBodyLocal } from "./body-management";
 import type { PluginContext } from "./plugin-context";
@@ -77,8 +78,9 @@ export function addColliderImpl(
   entityId: Physics3DEntityId,
   options: Physics3DColliderOptions,
 ): boolean {
-  const slot = toEntityIndex(entityId);
-  if (!ctx.bodyByEntity.has(slot)) return false;
+  const owned = guardOwned(ctx, entityId, "addCollider");
+  if (!owned) return false;
+  const slot = owned.slot;
 
   const colliderId = options.colliderId ?? nextColliderIdForEntity(ctx, slot);
   const finalOptions: Physics3DColliderOptions = { ...options, colliderId };
@@ -88,7 +90,7 @@ export function addColliderImpl(
   ctx.localColliders.get(slot)!.push(finalOptions);
 
   if (ctx.backendMode === "wasm") {
-    const idx = toEntityIndex(entityId);
+    const idx = slot;
     const { friction, restitution, density } = resolveColliderMaterial(finalOptions);
     const isSensor = finalOptions.isSensor ? 1 : 0;
     const membership = resolveLayerBits(finalOptions.layers, ctx.layerRegistry);
@@ -329,8 +331,9 @@ export function createAddCollider(ctx: PluginContext): Physics3DAPI["addCollider
 
 export function createRemoveCollider(ctx: PluginContext): Physics3DAPI["removeCollider"] {
   return (entityId, colliderId) => {
-    const slot = toEntityIndex(entityId);
-    if (!ctx.bodyByEntity.has(slot)) return false;
+    const owned = ownedSlot(ctx, entityId);
+    if (!owned) return false;
+    const slot = owned.slot;
 
     const colliders = ctx.localColliders.get(slot);
     if (colliders) {
@@ -348,8 +351,9 @@ export function createRemoveCollider(ctx: PluginContext): Physics3DAPI["removeCo
 
 export function createRebuildMeshCollider(ctx: PluginContext): Physics3DAPI["rebuildMeshCollider"] {
   return (entityId, colliderId, vertices, indices, options) => {
-    const slot = toEntityIndex(entityId);
-    if (!ctx.bodyByEntity.has(slot)) return false;
+    const owned = guardOwned(ctx, entityId, "rebuildMeshCollider");
+    if (!owned) return false;
+    const slot = owned.slot;
 
     const colliders = ctx.localColliders.get(slot);
     if (colliders) {
@@ -433,6 +437,7 @@ export function createBulkSpawnStaticBoxes(
           angularDamping: 0,
         };
         ctx.bodyByEntity.set(entityIndices[i]!, handle);
+        noteOwnerChange(ctx, entityIndices[i]!);
       }
       return { entityIds: entityIds.slice(0, spawned), count: spawned };
     }
@@ -471,8 +476,9 @@ export function createAddCompoundCollider(ctx: PluginContext): Physics3DAPI["add
   const removeCollider = createRemoveCollider(ctx);
 
   return (entityId, options) => {
-    const slot = toEntityIndex(entityId);
-    if (!ctx.bodyByEntity.has(slot)) return null;
+    const owned = guardOwned(ctx, entityId, "addCompoundCollider");
+    if (!owned) return null;
+    const slot = owned.slot;
 
     const { shapes, layers, mask } = options;
     const colliderIds = shapes.map(() => nextColliderId());

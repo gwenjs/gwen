@@ -2,9 +2,8 @@
  * @fileoverview Continuous forces, gravity scale, axis locks, and sleep control.
  */
 
-import type { EntityId } from "@gwenjs/core";
 import type { Physics3DAPI, Physics3DEntityId, Physics3DVec3 } from "../types";
-import { toEntityIndex } from "./physics3d-utils";
+import { guardOwned } from "./entity-owner";
 import type { PluginContext } from "./plugin-context";
 
 export function createForcesAndConstraints(
@@ -24,7 +23,9 @@ export function createForcesAndConstraints(
 > {
   return {
     addForce(entityId: Physics3DEntityId, force: Partial<Physics3DVec3>): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "addForce");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_add_force?.(slot, force.x ?? 0, force.y ?? 0, force.z ?? 0);
         return;
@@ -38,7 +39,9 @@ export function createForcesAndConstraints(
     },
 
     addTorque(entityId: Physics3DEntityId, torque: Partial<Physics3DVec3>): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "addTorque");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_add_torque?.(slot, torque.x ?? 0, torque.y ?? 0, torque.z ?? 0);
         return;
@@ -56,7 +59,9 @@ export function createForcesAndConstraints(
       force: Partial<Physics3DVec3>,
       point: Partial<Physics3DVec3>,
     ): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "addForceAtPoint");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_add_force_at_point?.(
           slot,
@@ -78,7 +83,9 @@ export function createForcesAndConstraints(
     },
 
     setGravityScale(entityId: Physics3DEntityId, scale: number): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "setGravityScale");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_set_gravity_scale?.(slot, scale);
         return;
@@ -87,7 +94,9 @@ export function createForcesAndConstraints(
     },
 
     getGravityScale(entityId: Physics3DEntityId): number {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "getGravityScale");
+      if (!owned) return 1;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         return ctx.wasmBridge!.physics3d_get_gravity_scale?.(slot) ?? 1.0;
       }
@@ -95,7 +104,9 @@ export function createForcesAndConstraints(
     },
 
     lockTranslations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "lockTranslations");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_lock_translations?.(slot, x, y, z);
         return;
@@ -117,7 +128,9 @@ export function createForcesAndConstraints(
     },
 
     lockRotations(entityId: Physics3DEntityId, x: boolean, y: boolean, z: boolean): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "lockRotations");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_lock_rotations?.(slot, x, y, z);
         return;
@@ -139,7 +152,9 @@ export function createForcesAndConstraints(
     },
 
     setBodySleeping(entityId: Physics3DEntityId, sleeping: boolean): void {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "setBodySleeping");
+      if (!owned) return;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge!.physics3d_set_body_sleeping?.(slot, sleeping);
         return;
@@ -152,7 +167,9 @@ export function createForcesAndConstraints(
     },
 
     isBodySleeping(entityId: Physics3DEntityId): boolean {
-      const slot = toEntityIndex(entityId as EntityId);
+      const owned = guardOwned(ctx, entityId, "isBodySleeping");
+      if (!owned) return false;
+      const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
         return ctx.wasmBridge!.physics3d_is_body_sleeping?.(slot) ?? false;
       }

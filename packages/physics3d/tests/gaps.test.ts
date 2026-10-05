@@ -307,8 +307,10 @@ describe("Gap 3: CharacterController CC SAB state reads", () => {
   it("reads groundEntity from CC SAB when grounded on a dynamic body", () => {
     const { service, ccView } = setupWasmWithCcSab();
     service.createBody(31, { kind: "dynamic" });
+    service.createBody(5n, { kind: "dynamic" });
+    service.step(1 / 60);
 
-    // Slot 0: grounded, entity index 5
+    // Slot 0: grounded, entity index 5. Written after step so the SAB stays intact.
     ccView[0] = 1.0;
     ccView[1] = 0.0;
     ccView[2] = 1.0;
@@ -319,8 +321,7 @@ describe("Gap 3: CharacterController CC SAB state reads", () => {
     cc.move({ x: 0, y: -5, z: 0 }, 1 / 60);
 
     expect(cc.isGrounded).toBe(true);
-    expect(cc.groundEntity).not.toBeNull();
-    // groundEntity should be an EntityId derived from index 5
+    expect(cc.groundEntity).toBe(5n);
     expect(Number(cc.groundEntity) & 0xffffffff).toBe(5);
   });
 

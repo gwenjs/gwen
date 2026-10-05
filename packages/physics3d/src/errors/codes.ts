@@ -4,6 +4,8 @@ export const Physics3DErrorCodes = {
   BVH_CALLBACK_HANG: "PHYSICS3D:BVH_CALLBACK_HANG",
   MESH_FALLBACK: "PHYSICS3D:MESH_FALLBACK",
   CONVEX_FALLBACK: "PHYSICS3D:CONVEX_FALLBACK",
+  /** Entity id is not alive. */
+  STALE_ENTITY: "PHYSICS3D:STALE_ENTITY",
 } as const;
 
 /** Type of a Physics3D error code string. */

@@ -180,6 +180,9 @@ importers:
       '@gwenjs/kit':
         specifier: workspace:^
         version: link:../kit
+      '@gwenjs/schema':
+        specifier: workspace:^
+        version: link:../schema
       '@gwenjs/vite':
         specifier: workspace:^
         version: link:../vite
@@ -214,6 +217,9 @@ importers:
       '@gwenjs/kit':
         specifier: workspace:^
         version: link:../kit
+      '@gwenjs/schema':
+        specifier: workspace:^
+        version: link:../schema
       '@gwenjs/vite':
         specifier: workspace:^
         version: link:../vite

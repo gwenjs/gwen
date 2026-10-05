@@ -799,7 +799,42 @@ class GwenEngineImpl implements GwenEngine {
     if (!this._entityManager.destroy(id)) return false;
     this._componentRegistry.removeAll(id);
     this._queryEngine.invalidate();
+    // Synchronous and isolated: hookable's callHook skips later handlers after a throw.
+    this._emitEntityDestroy(id);
     return true;
+  }
+
+  private _emitEntityDestroy(id: EntityId): void {
+    const hooks = (
+      this.hooks as unknown as {
+        _hooks?: Record<string, Array<(entityId: EntityId) => unknown> | undefined>;
+      }
+    )._hooks?.["entity:destroy"];
+    if (!hooks || hooks.length === 0) return;
+    for (const handler of hooks.slice()) {
+      try {
+        const result = handler(id);
+        if (result instanceof Promise) {
+          void result.catch((error: unknown) => {
+            this._reportEntityDestroyFailure(id, error);
+          });
+        }
+      } catch (error) {
+        this._reportEntityDestroyFailure(id, error);
+      }
+    }
+  }
+
+  private _reportEntityDestroyFailure(id: EntityId, error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.errors.emit({
+      level: "error",
+      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message,
+      source: "entity:destroy",
+      error,
+      context: { entityId: id },
+    });
   }
 
   /**

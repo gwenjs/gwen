@@ -4,9 +4,9 @@
  * Supports fixed, revolute, prismatic, ball, and spring joints.
  */
 
-import type { EntityId } from "@gwenjs/core";
 import type {
   Physics3DAPI,
+  Physics3DEntityId,
   FixedJointOpts,
   RevoluteJointOpts,
   PrismaticJointOpts,
@@ -15,9 +15,22 @@ import type {
   JointHandle3D,
   JointId,
 } from "../types";
-import { toEntityIndex } from "./physics3d-utils";
+import { guardOwned } from "./entity-owner";
 import { emitLocalJointWarning, makeDummyJoint, makeJointHandle } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
+
+/** Both ends must own their slots. A dead id throws. An unowned live id yields null. */
+function jointEnds(
+  ctx: PluginContext,
+  operation: string,
+  bodyA: Physics3DEntityId,
+  bodyB: Physics3DEntityId,
+): { slotA: number; slotB: number } | null {
+  const a = guardOwned(ctx, bodyA, operation);
+  const b = guardOwned(ctx, bodyB, operation);
+  if (!a || !b) return null;
+  return { slotA: a.slot, slotB: b.slot };
+}
 
 export function createJointMethods(
   ctx: PluginContext,
@@ -35,8 +48,12 @@ export function createJointMethods(
 > {
   return {
     addFixedJoint(opts: FixedJointOpts): JointHandle3D {
-      const slotA = toEntityIndex(opts.bodyA as EntityId);
-      const slotB = toEntityIndex(opts.bodyB as EntityId);
+      const ends = jointEnds(ctx, "addFixedJoint", opts.bodyA, opts.bodyB);
+      if (!ends) {
+        emitLocalJointWarning(ctx.log);
+        return makeDummyJoint();
+      }
+      const { slotA, slotB } = ends;
       const a = opts.anchorA ?? {};
       const b = opts.anchorB ?? {};
 
@@ -64,8 +81,12 @@ export function createJointMethods(
     },
 
     addRevoluteJoint(opts: RevoluteJointOpts): JointHandle3D {
-      const slotA = toEntityIndex(opts.bodyA as EntityId);
-      const slotB = toEntityIndex(opts.bodyB as EntityId);
+      const ends = jointEnds(ctx, "addRevoluteJoint", opts.bodyA, opts.bodyB);
+      if (!ends) {
+        emitLocalJointWarning(ctx.log);
+        return makeDummyJoint();
+      }
+      const { slotA, slotB } = ends;
       const a = opts.anchorA ?? {};
       const b = opts.anchorB ?? {};
       const axis = opts.axis ?? {};
@@ -103,8 +124,12 @@ export function createJointMethods(
     },
 
     addPrismaticJoint(opts: PrismaticJointOpts): JointHandle3D {
-      const slotA = toEntityIndex(opts.bodyA as EntityId);
-      const slotB = toEntityIndex(opts.bodyB as EntityId);
+      const ends = jointEnds(ctx, "addPrismaticJoint", opts.bodyA, opts.bodyB);
+      if (!ends) {
+        emitLocalJointWarning(ctx.log);
+        return makeDummyJoint();
+      }
+      const { slotA, slotB } = ends;
       const a = opts.anchorA ?? {};
       const b = opts.anchorB ?? {};
       const axis = opts.axis ?? {};
@@ -142,8 +167,12 @@ export function createJointMethods(
     },
 
     addBallJoint(opts: BallJointOpts): JointHandle3D {
-      const slotA = toEntityIndex(opts.bodyA as EntityId);
-      const slotB = toEntityIndex(opts.bodyB as EntityId);
+      const ends = jointEnds(ctx, "addBallJoint", opts.bodyA, opts.bodyB);
+      if (!ends) {
+        emitLocalJointWarning(ctx.log);
+        return makeDummyJoint();
+      }
+      const { slotA, slotB } = ends;
       const a = opts.anchorA ?? {};
       const b = opts.anchorB ?? {};
       const useConeLimit = opts.coneAngle !== undefined;
@@ -175,8 +204,12 @@ export function createJointMethods(
     },
 
     addSpringJoint(opts: SpringJointOpts): JointHandle3D {
-      const slotA = toEntityIndex(opts.bodyA as EntityId);
-      const slotB = toEntityIndex(opts.bodyB as EntityId);
+      const ends = jointEnds(ctx, "addSpringJoint", opts.bodyA, opts.bodyB);
+      if (!ends) {
+        emitLocalJointWarning(ctx.log);
+        return makeDummyJoint();
+      }
+      const { slotA, slotB } = ends;
       const a = opts.anchorA ?? {};
       const b = opts.anchorB ?? {};
 

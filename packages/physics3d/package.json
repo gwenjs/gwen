@@ -33,6 +33,7 @@
   "dependencies": {
     "@gwenjs/core": "workspace:^",
     "@gwenjs/kit": "workspace:^",
+    "@gwenjs/schema": "workspace:^",
     "@gwenjs/vite": "workspace:^"
   },
   "devDependencies": {

@@ -565,10 +565,9 @@ describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
   it("addForce does not throw when called for an entity with no registered body", () => {
     const { service } = setupWithBody(10);
 
-    // Entity 999 was never registered — addForce has no bodyByEntity guard in WASM mode;
-    // it still delegates the call to the WASM layer without throwing.
+    // Alive id with no owner: no WASM call.
     expect(() => service.addForce(999, { x: 1, y: 2, z: 3 })).not.toThrow();
-    expect(physics3dAddForce).toHaveBeenCalledWith(999, 1, 2, 3);
+    expect(physics3dAddForce).not.toHaveBeenCalled();
   });
 });
 
@@ -824,7 +823,7 @@ describe("Group C — RFC-07: spatial queries", () => {
 
   /**
    * Creates a minimal plugin + engine + service instance for spatial-query
-   * testing. No body registration is required for these tests.
+   * testing. Hit results need an owner published by step().
    */
   function setup() {
     const plugin = Physics3DPlugin();
@@ -844,6 +843,11 @@ describe("Group C — RFC-07: spatial queries", () => {
     plugin.setup(engine);
     const api = services.get("physics3d") as Physics3DAPI;
     return { api };
+  }
+
+  function publishOwner(api: Physics3DAPI, id: bigint): void {
+    api.createBody(id);
+    api.step(1 / 60);
   }
 
   // ─── castRay ─────────────────────────────────────────────────────────────
@@ -870,6 +874,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=5, dist=3.14, nx=0, ny=1, nz=0, px=0, py=5, pz=0]
     physics3dCastRay.mockReturnValue([1, 5, 3.14, 0, 1, 0, 0, 5, 0]);
     const { api } = setup();
+    publishOwner(api, 5n);
 
     const result = api.castRay({ x: 0, y: 10, z: 0 }, { x: 0, y: -1, z: 0 }, 100);
 
@@ -877,8 +882,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.distance).toBeCloseTo(3.14);
     expect(result!.normal).toEqual({ x: 0, y: 1, z: 0 });
     expect(result!.point).toEqual({ x: 0, y: 5, z: 0 });
-    // entity is entityIndexToId(5) — bridgeRuntime has no getEntityGeneration, so BigInt(5)
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(5n);
   });
 
   it("castRay passes solid=false as 0 in the last argument", () => {
@@ -934,6 +938,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=7, toi=2.5, nx=0, ny=1, nz=0, px=0, py=2, pz=0, waAx=0, waAy=2.1, waAz=0, waBx=0, waBy=1.9, waBz=0]
     physics3dCastShape.mockReturnValue([1, 7, 2.5, 0, 1, 0, 0, 2, 0, 0, 2.1, 0, 0, 1.9, 0]);
     const { api } = setup();
+    publishOwner(api, 7n);
 
     const result = api.castShape(
       { x: 0, y: 5, z: 0 },
@@ -949,7 +954,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.point).toEqual({ x: 0, y: 2, z: 0 });
     expect(result!.witnessA).toEqual({ x: 0, y: 2.1, z: 0 });
     expect(result!.witnessB).toEqual({ x: 0, y: 1.9, z: 0 });
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(7n);
   });
 
   it("castShape encodes box shape correctly (shapeType=0, halfX/Y/Z)", () => {
@@ -1025,19 +1030,21 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=3, projX=1.0, projY=2.0, projZ=3.0, isInside=0]
     physics3dProjectPoint.mockReturnValue([1, 3, 1.0, 2.0, 3.0, 0]);
     const { api } = setup();
+    publishOwner(api, 3n);
 
     const result = api.projectPoint({ x: 0, y: 0, z: 0 });
 
     expect(result).not.toBeNull();
     expect(result!.point).toEqual({ x: 1.0, y: 2.0, z: 3.0 });
     expect(result!.isInside).toBe(false);
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(3n);
   });
 
   it("projectPoint sets isInside=true when result[5] !== 0", () => {
     // [hit=1, entityIdx=3, projX=0, projY=0, projZ=0, isInside=1]
     physics3dProjectPoint.mockReturnValue([1, 3, 0, 0, 0, 1]);
     const { api } = setup();
+    publishOwner(api, 3n);
 
     const result = api.projectPoint({ x: 0, y: 0, z: 0 });
 

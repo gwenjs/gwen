@@ -65,6 +65,8 @@ export interface PluginContext {
   // ── Body registry ──────────────────────────────────────────────────────────
   bodyByEntity: Map<number, Physics3DBodyHandle>;
   stateByEntity: Map<number, Physics3DBodyState>;
+  /** Slots whose owner was set or cleared after the last physics step. */
+  ownerChangedSinceStep: Set<number>;
 
   // ── Collider registry ──────────────────────────────────────────────────────
   localColliders: Map<number, Physics3DColliderOptions[]>;
@@ -177,6 +179,7 @@ export function createPluginContext(
 
     bodyByEntity: new Map(),
     stateByEntity: new Map(),
+    ownerChangedSinceStep: new Set(),
 
     localColliders: new Map(),
     _pendingBvhLoads: new Map(),

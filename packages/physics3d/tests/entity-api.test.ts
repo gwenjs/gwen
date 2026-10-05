@@ -17,12 +17,18 @@ vi.mock("@gwenjs/core/internal", async () => {
   return { getWasmBridge: core.getWasmBridge };
 });
 
-vi.mock("@gwenjs/core", () => ({
-  getWasmBridge: () => mockBridge,
-}));
+vi.mock("@gwenjs/core", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core")>();
+  return { ...original, getWasmBridge: () => mockBridge };
+});
 
-import { Physics3DPlugin, type Physics3DAPI, type Physics3DConfig } from "../src/index";
-import type { GwenEngine } from "@gwenjs/core";
+import {
+  Physics3DPlugin,
+  Physics3DStaleEntityError,
+  type Physics3DAPI,
+  type Physics3DConfig,
+} from "../src/index";
+import { createEngine, type GwenEngine } from "@gwenjs/core";
 
 describe("Physics3D entity API (foundation)", () => {
   beforeEach(() => {
@@ -31,7 +37,7 @@ describe("Physics3D entity API (foundation)", () => {
     mockBridge.getPhysicsBridge.mockClear();
   });
 
-  function setup(config?: Physics3DConfig) {
+  function setup(config?: Physics3DConfig, options?: { isAlive?: (id: bigint) => boolean }) {
     const plugin = Physics3DPlugin(config);
 
     const services = new Map<string, unknown>();
@@ -50,6 +56,7 @@ describe("Physics3D entity API (foundation)", () => {
         }),
         callHook: vi.fn(),
       },
+      ...(options?.isAlive ? { isAlive: options.isAlive } : {}),
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
@@ -246,18 +253,18 @@ describe("Physics3D entity API (foundation)", () => {
     expect(service.setAngularVelocity(405n, { y: 2 })).toBe(false);
   });
 
-  it("auto-removes body on entity:destroyed hook", () => {
-    const { service, hookMap } = setup();
+  it("removes the body when engine.destroyEntity runs", async () => {
+    const engine = await createEngine({ maxEntities: 16 });
+    await engine.use(Physics3DPlugin());
+    const service = engine.inject("physics3d");
+    const id = engine.createEntity();
 
-    service.createBody(99n, { kind: "kinematic" });
-    expect(service.hasBody(99n)).toBe(true);
+    service.createBody(id, { kind: "kinematic" });
+    expect(service.hasBody(id)).toBe(true);
 
-    const onDestroyed = hookMap.get("entity:destroy");
-    expect(onDestroyed).toBeTypeOf("function");
-
-    onDestroyed?.(99n);
-    expect(service.hasBody(99n)).toBe(false);
-    expect(service.getBodyState(99n)).toBeUndefined();
+    expect(engine.destroyEntity(id)).toBe(true);
+    expect(engine.isAlive(id)).toBe(false);
+    expect(service.hasBody(id)).toBe(false);
     expect(service.getBodyCount()).toBe(0);
   });
 
@@ -411,5 +418,101 @@ describe("Physics3D entity API (foundation)", () => {
 
     hookMap.get("engine:before-update")?.(1 / 60);
     expect(physics3dStep).not.toHaveBeenCalled();
+  });
+
+  it("throws Physics3DStaleEntityError from every guarded method", () => {
+    const dead = 9n;
+    const { service } = setup(undefined, { isAlive: () => false });
+    const calls: Array<[string, () => unknown]> = [
+      ["createBody", () => service.createBody(dead)],
+      ["getBodyKind", () => service.getBodyKind(dead)],
+      ["setBodyKind", () => service.setBodyKind(dead, "dynamic")],
+      ["getBodyState", () => service.getBodyState(dead)],
+      ["setBodyState", () => service.setBodyState(dead, { position: { x: 1 } })],
+      ["applyImpulse", () => service.applyImpulse(dead, { x: 1 })],
+      ["applyAngularImpulse", () => service.applyAngularImpulse(dead, { x: 1 })],
+      ["applyTorque", () => service.applyTorque(dead, { x: 1 })],
+      ["getLinearVelocity", () => service.getLinearVelocity(dead)],
+      ["setLinearVelocity", () => service.setLinearVelocity(dead, { x: 1 })],
+      ["getAngularVelocity", () => service.getAngularVelocity(dead)],
+      ["setAngularVelocity", () => service.setAngularVelocity(dead, { x: 1 })],
+      ["setKinematicPosition", () => service.setKinematicPosition(dead, { x: 0, y: 0, z: 0 })],
+      [
+        "addCollider",
+        () => service.addCollider(dead, { shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 } }),
+      ],
+      [
+        "addCompoundCollider",
+        () =>
+          service.addCompoundCollider(dead, {
+            shapes: [{ type: "box", halfX: 1, halfY: 1, halfZ: 1 }],
+          }),
+      ],
+      [
+        "rebuildMeshCollider",
+        () =>
+          service.rebuildMeshCollider(
+            dead,
+            0,
+            new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
+            new Uint32Array([0, 1, 2]),
+          ),
+      ],
+      ["getSensorState", () => service.getSensorState(dead, 0)],
+      ["updateSensorState", () => service.updateSensorState(dead, 0, true, 1)],
+      ["getBodySnapshot", () => service.getBodySnapshot(dead)],
+      ["addForce", () => service.addForce(dead, { x: 1 })],
+      ["addTorque", () => service.addTorque(dead, { x: 1 })],
+      ["addForceAtPoint", () => service.addForceAtPoint(dead, { x: 1 }, { y: 1 })],
+      ["setGravityScale", () => service.setGravityScale(dead, 0)],
+      ["getGravityScale", () => service.getGravityScale(dead)],
+      ["lockTranslations", () => service.lockTranslations(dead, true, false, false)],
+      ["lockRotations", () => service.lockRotations(dead, true, false, false)],
+      ["setBodySleeping", () => service.setBodySleeping(dead, true)],
+      ["isBodySleeping", () => service.isBodySleeping(dead)],
+      ["addCharacterController", () => service.addCharacterController(dead)],
+      ["addFixedJoint", () => service.addFixedJoint({ bodyA: dead, bodyB: dead })],
+      ["addRevoluteJoint", () => service.addRevoluteJoint({ bodyA: dead, bodyB: dead })],
+      ["addPrismaticJoint", () => service.addPrismaticJoint({ bodyA: dead, bodyB: dead })],
+      ["addBallJoint", () => service.addBallJoint({ bodyA: dead, bodyB: dead })],
+      [
+        "addSpringJoint",
+        () =>
+          service.addSpringJoint({
+            bodyA: dead,
+            bodyB: dead,
+            restLength: 1,
+            stiffness: 1,
+            damping: 1,
+          }),
+      ],
+    ];
+
+    for (const [operation, run] of calls) {
+      try {
+        run();
+        expect.fail(`${operation} should throw`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(Physics3DStaleEntityError);
+        const stale = error as Physics3DStaleEntityError;
+        expect(stale.code).toBe("PHYSICS3D:STALE_ENTITY");
+        expect(stale.operation).toBe(operation);
+        expect(stale.entityId).toBe(dead);
+      }
+    }
+  });
+
+  it("returns false or no-ops for idempotent methods on a stale id", () => {
+    const owner = 1n;
+    const stale = (1n << 32n) | 1n;
+    const { service } = setup(undefined, { isAlive: (id) => id === owner });
+    service.createBody(owner, { kind: "dynamic" });
+
+    expect(service.removeBody(stale)).toBe(false);
+    expect(service.hasBody(stale)).toBe(false);
+    expect(service.removeCollider(stale, 0)).toBe(false);
+    expect(() => service.removeCharacterController(stale)).not.toThrow();
+    expect(service.hasBody(owner)).toBe(true);
+    expect(service.getBodyCount()).toBe(1);
   });
 });
