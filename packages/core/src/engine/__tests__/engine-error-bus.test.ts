@@ -152,6 +152,22 @@ describe("createErrorBus", () => {
     expect(logged).toContain("fatal blew up");
   });
 
+  it("accepts the legacy report callback", () => {
+    const reported: unknown[] = [];
+    const bus = createErrorBus((error: unknown) => {
+      reported.push(error);
+    });
+    bus.on(() => {
+      throw new Error("handler blew up");
+    });
+
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "error" });
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBeInstanceOf(Error);
+    expect((reported[0] as Error).message).toBe("handler blew up");
+  });
+
   it("unsubscribes on and onFatal", () => {
     const bus = createErrorBus();
     const order: string[] = [];

@@ -15,12 +15,7 @@
 import type { GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
 import { ScopedHookable } from "../hooks/scoped-hookable.js";
-import {
-  forgetTarget,
-  guardHandler,
-  isIsolated,
-  targetFromScopeMeta,
-} from "../engine/error-isolation.js";
+import { forgetTarget, guardHandler, targetFromScopeMeta } from "../engine/error-isolation.js";
 
 let _scopeIdCounter = 0;
 
@@ -102,8 +97,11 @@ export class GwenScope implements IGwenScope {
   hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
     this._hookCount++;
     const target = targetFromScopeMeta(this.meta);
-    const guarded = guardHandler(fn as (...args: unknown[]) => unknown, target, String(name), () =>
-      isIsolated(this.engine, target.id),
+    const guarded = guardHandler(
+      fn as (...args: unknown[]) => unknown,
+      target,
+      String(name),
+      this.engine,
     );
     const unsub = this._hookable.hook(name, guarded as GwenRuntimeHooks[K]);
     return () => {

@@ -2,7 +2,8 @@
  * Per-target isolation flags and the registration-time handler guard.
  *
  * The guard is allocated once per subscription. A successful sync call does not
- * allocate a closure or a promise.
+ * allocate a closure or a promise. An identified throw is reported and does not
+ * leave the guard, so later handlers of the same hook still run.
  */
 
 import type { GwenErrorTarget, GwenScopeMeta, PluginErrorContext } from "@gwenjs/schema";
@@ -12,16 +13,13 @@ interface IsolationState {
   ids: Set<string>;
 }
 
-interface NotedFailure {
-  target: GwenErrorTarget;
-  hook: string;
-  error: unknown;
-}
+type FailureReporter = (error: unknown, target: GwenErrorTarget, hook: string) => void;
 
 const states = new WeakMap<object, IsolationState>();
+const reporters = new WeakMap<object, FailureReporter>();
+const NO_ISOLATED: readonly GwenErrorTarget[] = [];
 
 let setupTarget: GwenErrorTarget | null = null;
-let noted: NotedFailure | null = null;
 
 function stateFor(engine: object): IsolationState {
   let state = states.get(engine);
@@ -40,12 +38,19 @@ export function isThenable(value: unknown): value is PromiseLike<unknown> {
   );
 }
 
-export function beginPluginSetup(plugin: { name: string }): void {
+/** @returns The previous target. Pass it to {@link endPluginSetup}. */
+export function beginPluginSetup(plugin: { name: string }): GwenErrorTarget | null {
+  const previous = setupTarget;
   setupTarget = { kind: "plugin", id: plugin.name, name: plugin.name };
+  return previous;
 }
 
-export function endPluginSetup(): void {
-  setupTarget = null;
+export function endPluginSetup(previous: GwenErrorTarget | null): void {
+  setupTarget = previous;
+}
+
+export function bindFailureReporter(engine: object, report: FailureReporter): void {
+  reporters.set(engine, report);
 }
 
 export function currentPluginSetupTarget(): GwenErrorTarget | null {
@@ -104,51 +109,56 @@ export function forgetTarget(engine: object, id: string): boolean {
 }
 
 export function listIsolated(engine: object): readonly GwenErrorTarget[] {
-  return states.get(engine)?.order ?? [];
+  const order = states.get(engine)?.order;
+  if (!order || order.length === 0) return NO_ISOLATED;
+  return order.slice();
 }
 
 export function clearIsolated(engine: object): void {
   states.delete(engine);
 }
 
-export function noteHandlerFailure(target: GwenErrorTarget, hook: string, error: unknown): void {
-  noted = { target, hook, error };
-}
-
-function thrownCause(error: object): unknown {
-  if (!("cause" in error)) return undefined;
-  return (error as { cause?: unknown }).cause;
-}
-
-export function consumeHandlerFailure(
+function reportFailure(
+  engine: object,
   error: unknown,
-): { target: GwenErrorTarget; hook: string } | null {
-  const found = noted;
-  noted = null;
-  if (!found) return null;
-  if (found.error === error) return found;
-  if (error instanceof Error && thrownCause(error) === found.error) return found;
-  return null;
+  target: GwenErrorTarget,
+  hook: string,
+): void {
+  reporters.get(engine)?.(error, target, hook);
+}
+
+function forward(
+  fn: (...args: unknown[]) => unknown,
+  a: unknown,
+  b: unknown,
+  c: unknown,
+  d: unknown,
+): unknown {
+  if (d !== undefined) return fn(a, b, c, d);
+  if (c !== undefined) return fn(a, b, c);
+  if (b !== undefined) return fn(a, b);
+  if (a !== undefined) return fn(a);
+  return fn();
 }
 
 export function guardHandler(
   fn: (...args: unknown[]) => unknown,
   target: GwenErrorTarget,
   hook: string,
-  isSkipped: () => boolean,
-): (...args: unknown[]) => unknown {
-  return (...args: unknown[]) => {
-    if (isSkipped()) return undefined;
+  engine: object,
+): (a: unknown, b: unknown, c: unknown, d: unknown) => unknown {
+  return function guarded(a: unknown, b: unknown, c: unknown, d: unknown): unknown {
+    if (isIsolated(engine, target.id)) return undefined;
     try {
-      const result = fn(...args);
+      const result = forward(fn, a, b, c, d);
       if (!isThenable(result)) return result;
       return result.then(undefined, (error: unknown) => {
-        noteHandlerFailure(target, hook, error);
-        throw error;
+        reportFailure(engine, error, target, hook);
+        return undefined;
       });
     } catch (error) {
-      noteHandlerFailure(target, hook, error);
-      throw error;
+      reportFailure(engine, error, target, hook);
+      return undefined;
     }
   };
 }

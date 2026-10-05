@@ -2,7 +2,7 @@ import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { GwenScope } from "../context/scope.js";
-import { currentPluginSetupTarget, guardHandler, isIsolated } from "../engine/error-isolation.js";
+import { currentPluginSetupTarget, guardHandler } from "../engine/error-isolation.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -91,7 +91,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
       fn as (...args: unknown[]) => unknown,
       setupTarget,
       String(name),
-      () => isIsolated(engine, setupTarget.id),
+      engine,
     );
     const unsubscribe = engine.hooks.hook(name, guarded as never);
     onCleanupIfActive(unsubscribe);

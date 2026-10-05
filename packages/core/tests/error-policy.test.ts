@@ -3,7 +3,13 @@ import type { GwenErrorPayload } from "@gwenjs/schema";
 import { defineActor, definePrefab } from "../src/actor/index";
 import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool";
 import { createDisposable } from "../src/disposable";
-import { CoreErrorCodes, createEngine, useHook, type EngineErrorPayload } from "../src/index";
+import {
+  CoreErrorCodes,
+  createEngine,
+  createErrorBus,
+  useHook,
+  type EngineErrorPayload,
+} from "../src/index";
 import { defineScene, useSystem, type SystemHandle } from "../src/scene/index";
 import { defineSystem, onUpdate } from "../src/system/index";
 
@@ -155,8 +161,10 @@ describe("frame isolation", () => {
     expect(isolationWarns[0]).toContain("CORE:PLUGIN_RUNTIME_ERROR");
     expect(isolationWarns[0]).toContain(`reenable("${id}")`);
 
+    const snapshot = engine.isolated();
     expect(engine.reenable("missing")).toBe(false);
     expect(engine.reenable(id)).toBe(true);
+    expect(snapshot.map((target) => target.id)).toEqual([id]);
     expect(engine.isolated()).toEqual([]);
 
     await engine.advance(0.016);
@@ -315,6 +323,253 @@ describe("frame isolation", () => {
     expect(engine.frameCount).toBe(1);
     expect(engine.isolated()).toEqual([]);
     expect(engine.state).toBe("idle");
+  });
+
+  it("runs the next system in the same frame when an earlier system throws", async () => {
+    const engine = await createEngine();
+    const runtime: GwenErrorPayload[] = [];
+    let throws = 0;
+    let sibling = 0;
+    engine.errors.on((event) => {
+      if (event.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR) runtime.push(event);
+    });
+
+    await engine.use(
+      defineSystem("BadSys", () => {
+        onUpdate(() => {
+          throws += 1;
+          throw new Error("bad system");
+        });
+      })(),
+    );
+    await engine.use(
+      defineSystem("Sibling", () => {
+        onUpdate(() => {
+          sibling += 1;
+        });
+      })(),
+    );
+
+    await engine.advance(0.016);
+
+    expect(throws).toBe(1);
+    expect(sibling).toBe(1);
+    expect(engine.frameCount).toBe(1);
+    expect(runtime).toHaveLength(1);
+    expect(runtime[0]?.target?.name).toBe("BadSys");
+    expect(runtime[0]?.context?.frame).toBe(0);
+
+    await engine.advance(0.016);
+
+    expect(throws).toBe(1);
+    expect(sibling).toBe(2);
+    expect(runtime).toHaveLength(1);
+    expect(engine.isolated().map((target) => target.name)).toEqual(["BadSys"]);
+  });
+
+  it("reports a rejected async update once, isolates it, and still runs the next system", async () => {
+    const engine = await createEngine();
+    const runtime: GwenErrorPayload[] = [];
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    let sibling = 0;
+    engine.errors.on((event) => {
+      if (event.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR) runtime.push(event);
+    });
+
+    try {
+      await engine.use(
+        defineSystem("AsyncBad", () => {
+          onUpdate(() => Promise.reject(new Error("async bad")));
+        })(),
+      );
+      await engine.use(
+        defineSystem("AsyncSibling", () => {
+          onUpdate(() => {
+            sibling += 1;
+          });
+        })(),
+      );
+
+      await engine.advance(0.016);
+
+      expect(unhandled).toEqual([]);
+      expect(runtime).toHaveLength(1);
+      expect(runtime[0]?.target?.name).toBe("AsyncBad");
+      expect(engine.isolated().map((target) => target.name)).toEqual(["AsyncBad"]);
+      expect(sibling).toBe(1);
+      expect(engine.frameCount).toBe(1);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      await engine.stop();
+    }
+  });
+
+  it("keeps outer plugin attribution across a nested synchronous use()", async () => {
+    const engine = await createEngine();
+    await engine.use({
+      name: "outer",
+      setup(host) {
+        void host
+          .use({
+            name: "inner",
+            setup() {},
+          })
+          .catch(() => {});
+        host.hooks.hook("engine:update", () => {
+          throw new Error("outer late");
+        });
+      },
+    });
+
+    await engine.advance(0.016);
+
+    expect(engine.isolated().map((target) => target.id)).toEqual(["outer"]);
+  });
+
+  it("isolates again after stop and startExternal", async () => {
+    const engine = await createEngine();
+    let hits = 0;
+    await engine.use(
+      defineSystem("Restart", () => {
+        onUpdate(() => {
+          hits += 1;
+          throw new Error("again");
+        });
+      })(),
+    );
+
+    await engine.advance(0.016);
+    expect(hits).toBe(1);
+    expect(engine.isolated()).toHaveLength(1);
+
+    await engine.stop();
+    expect(engine.isolated()).toEqual([]);
+
+    await engine.startExternal();
+    await engine.advance(0.016);
+
+    expect(hits).toBe(2);
+    expect(engine.isolated()).toHaveLength(1);
+    expect(engine.state).toBe("running");
+
+    engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "after restart" });
+    expect(engine.state).toBe("faulted");
+  });
+
+  it("does not keep firing engine:error for a stopped engine that shares a bus", async () => {
+    const bus = createErrorBus();
+    const first = await createEngine({ errorBus: bus });
+    const second = await createEngine({ errorBus: bus });
+    let firstHooks = 0;
+    let secondHooks = 0;
+    first.hooks.hook("engine:error", () => {
+      firstHooks += 1;
+    });
+    second.hooks.hook("engine:error", () => {
+      secondHooks += 1;
+    });
+
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "both" });
+    expect(firstHooks).toBe(1);
+    expect(secondHooks).toBe(1);
+
+    await first.stop();
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "second only" });
+    expect(firstHooks).toBe(1);
+    expect(secondHooks).toBe(2);
+
+    await second.stop();
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "neither" });
+    expect(firstHooks).toBe(1);
+    expect(secondHooks).toBe(2);
+  });
+
+  it("restores a caller errorBus.emit on stop", async () => {
+    const bus = createErrorBus();
+    const original = bus.emit;
+    const engine = await createEngine({ errorBus: bus });
+    let hooked = 0;
+    engine.hooks.hook("engine:error", () => {
+      hooked += 1;
+    });
+
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "while running" });
+    expect(hooked).toBe(1);
+
+    await engine.stop();
+
+    expect(bus.emit).toBe(original);
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "after stop" });
+    expect(hooked).toBe(1);
+  });
+
+  it("does not throw when errorBus.emit is not writable", async () => {
+    const bus = createErrorBus();
+    const original = bus.emit;
+    Object.defineProperty(bus, "emit", { configurable: true, writable: false, value: original });
+    const engine = await createEngine({ errorBus: bus });
+    let hooked = 0;
+    engine.hooks.hook("engine:error", () => {
+      hooked += 1;
+    });
+
+    expect(bus.emit).toBe(original);
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "frozen" });
+    expect(hooked).toBe(1);
+    await engine.stop();
+  });
+
+  it("isolates and faults when a custom bus does not call on()", async () => {
+    const emitted: GwenErrorPayload[] = [];
+    const bus = {
+      emitted,
+      emit(event: GwenErrorPayload) {
+        emitted.push(event);
+      },
+      on() {
+        return () => {};
+      },
+      onFatal() {
+        return () => {};
+      },
+    };
+    const engine = await createEngine({ errorBus: bus });
+    let sibling = 0;
+    await engine.use(
+      defineSystem("CustomBad", () => {
+        onUpdate(() => {
+          throw new Error("custom bad");
+        });
+      })(),
+    );
+    await engine.use(
+      defineSystem("CustomSibling", () => {
+        onUpdate(() => {
+          sibling += 1;
+        });
+      })(),
+    );
+
+    await engine.advance(0.016);
+    await engine.advance(0.016);
+
+    expect(sibling).toBe(2);
+    expect(engine.isolated().map((target) => target.name)).toEqual(["CustomBad"]);
+    expect(
+      emitted.filter((event) => event.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR),
+    ).toHaveLength(1);
+
+    await engine.startExternal();
+    engine.wasmBridge.physics2d.enable({});
+    engine.wasmBridge.physics2d.step = () => {
+      throw new WebAssembly.RuntimeError("unreachable");
+    };
+    await engine.advance(0.016);
+    expect(engine.state).toBe("faulted");
   });
 });
 

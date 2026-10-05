@@ -230,7 +230,7 @@ engine.errors.onFatal(() => {
 
 `emit` exécute d'abord chaque gestionnaire `on`, puis chaque rappel `onFatal`. Les deux s'exécutent de façon synchrone dans `emit`. Une exception dans un gestionnaire est capturée. Les autres gestionnaires s'exécutent quand même, et la boucle de frames continue.
 
-Un bus personnalisé passé via `errorBus` doit implémenter `on()`. `onFatal` seul ne suffit pas.
+Un bus personnalisé passé via `errorBus` doit implémenter `on()`. Le moteur l'appelle pour appliquer sa politique. `onFatal` seul ne suffit pas. `stop()` se désabonne. `start()` et `startExternal()` s'abonnent à nouveau. `stop()` restaure aussi `emit` quand le moteur l'a enveloppé, pour que `engine:error` parte après les gestionnaires `on`.
 
 ### Installation
 
@@ -242,7 +242,7 @@ Un bus personnalisé passé via `errorBus` doit implémenter `on()`. `onFatal` s
 
 | Méthode | Description |
 |---|---|
-| `engine.errors.emit(event)` | Émettre un événement d'erreur structuré. Les gestionnaires `on` passent d'abord, puis `onFatal` si l'événement est fatal. Une exception de gestionnaire est isolée. |
+| `engine.errors.emit(event)` | Émettre un événement d'erreur structuré. Les gestionnaires `on` passent d'abord, puis `onFatal` si l'événement est fatal. Une exception de gestionnaire est capturée. |
 | `engine.errors.on(handler)` | Enregistrer un écouteur. Obligatoire sur chaque bus, y compris un `errorBus` personnalisé. |
 | `engine.errors.onFatal(cb)` | Exécuter le nettoyage après les gestionnaires `on` quand le niveau est `fatal` |
 | `engine.errors.install?.()` | Installer les gestionnaires globaux. `createEngine()` le fait quand `window` existe. |

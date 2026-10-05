@@ -9,6 +9,8 @@
  * `install` attaches `window.onerror` and `unhandledrejection`
  * and forwards those failures onto the bus.
  * It returns a function that removes those handlers. A second call returns the same function.
+ *
+ * Pass `{ logger }` or the legacy `(error) => void` callback. The callback receives the raw throw.
  */
 
 import type { GwenErrorPayload, IGwenLogger } from "@gwenjs/schema";
@@ -30,20 +32,28 @@ function uncaughtMessage(message: string | Event): string {
   return typeof message === "string" ? message : "Uncaught error";
 }
 
-export function createErrorBus(options?: CreateErrorBusOptions): EngineErrorBus {
+export function createErrorBus(
+  options?: CreateErrorBusOptions | ((error: unknown) => void),
+): EngineErrorBus {
+  const reportHandlerError = typeof options === "function" ? options : undefined;
+  const logger = typeof options === "function" ? undefined : options?.logger;
   const handlers: ErrorHandler[] = [];
   const fatalHandlers: Array<() => void> = [];
   let installed = false;
   let uninstall = (): void => {};
 
   function reportHandlerFailure(error: unknown): void {
-    const detail = thrownMessage(error);
-    const message = `[${CoreErrorCodes.ERROR_HANDLER_FAILED}] ${detail}`;
-    if (options?.logger) {
-      options.logger.error(message, { code: CoreErrorCodes.ERROR_HANDLER_FAILED });
+    if (reportHandlerError) {
+      reportHandlerError(error);
       return;
     }
-    // Default sink when the caller did not pass a logger.
+    const detail = thrownMessage(error);
+    const message = `[${CoreErrorCodes.ERROR_HANDLER_FAILED}] ${detail}`;
+    if (logger) {
+      logger.error(message, { code: CoreErrorCodes.ERROR_HANDLER_FAILED });
+      return;
+    }
+    // Default sink when the caller did not pass a logger or a report callback.
     console.error(message);
   }
 

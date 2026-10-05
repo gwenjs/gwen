@@ -301,6 +301,8 @@ export interface GwenEngineOptions {
    * Error bus for structured engine errors.
    * When omitted, `createEngine()` creates one with `createErrorBus()`.
    * Pass an instance to share a bus or register handlers before startup.
+   * The engine calls `on` to log, isolate, and fault. `stop()` unsubscribes.
+   * `start()` and `startExternal()` subscribe again.
    * `createErrorBus()` is exported from `@gwenjs/core` and `@gwenjs/kit`.
    */
   errorBus?: EngineErrorBus;
@@ -467,7 +469,10 @@ export interface GwenEngine extends GwenEngineBase {
   /** Structured error bus. Always present. Same object as `inject("errors")`. */
   readonly errors: EngineErrorBus;
 
-  /** Targets skipped after an error, in the order they were isolated. */
+  /**
+   * Targets skipped after an error, in the order they were isolated.
+   * Returns a copy. A saved array does not change after `reenable` or a later isolation.
+   */
   isolated(): readonly GwenErrorTarget[];
 
   /**
