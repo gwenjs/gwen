@@ -14,10 +14,15 @@ export const RendererErrorCodes = {
   CONTRACT_VERSION: "RENDERER:CONTRACT_VERSION",
   /** A composable referenced a layer name not declared in the renderer config. */
   UNKNOWN_LAYER: "RENDERER:UNKNOWN_LAYER",
-  /** Two layers across different renderers share the same order value (warn only). */
+  /**
+   * Two layers share an order. Layer renderers warn.
+   * A surface layer with the same order as any other layer throws {@link LayerOrderConflictError}.
+   */
   LAYER_ORDER_CONFLICT: "RENDERER:LAYER_ORDER_CONFLICT",
   /** A renderer declared zero layers — at least one layer is required. */
   MISSING_LAYER: "RENDERER:MISSING_LAYER",
+  /** A surface renderer did not declare exactly one `coordinate: "world"` layer. */
+  SURFACE_INVALID: "RENDERER:SURFACE_INVALID",
   /** Camera not available */
   UNAVAILABLE_CAMERA: "RENDERER:UNAVAILABLE_CAMERA",
   /** Projection not supported for screen to world*/
@@ -100,6 +105,61 @@ export class EmptyLayersError extends Error {
     this.name = "EmptyLayersError";
     this.rendererName = rendererName;
     this.hint = `Add at least one layer entry to the "${rendererName}" config, e.g. layers: { game: { order: 10 } }.`;
+    this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
+  }
+}
+
+/**
+ * Thrown when a surface renderer does not declare exactly one world layer.
+ *
+ * @example
+ * ```ts
+ * throw new SurfaceInvalidError('renderer:three')
+ * ```
+ */
+export class SurfaceInvalidError extends Error {
+  readonly code = RendererErrorCodes.SURFACE_INVALID;
+  readonly rendererName: string;
+  readonly hint: string;
+  readonly docsUrl: string;
+
+  constructor(rendererName: string) {
+    super(
+      `[GwenRenderer] "${rendererName}" is a surface renderer and must declare exactly one layer with coordinate "world".`,
+    );
+    this.name = "SurfaceInvalidError";
+    this.rendererName = rendererName;
+    this.hint = `Use a single world layer, for example layers: { scene: { order: 0, coordinate: "world" } }.`;
+    this.docsUrl = "https://gwenengine.dev/docs/renderer#surface";
+  }
+}
+
+/**
+ * Thrown when a surface layer shares its `order` with any other layer.
+ * HUD layers must use a strictly greater order than the surface.
+ *
+ * @example
+ * ```ts
+ * throw new LayerOrderConflictError('renderer:three:scene', 'renderer:html:hud', 0)
+ * ```
+ */
+export class LayerOrderConflictError extends Error {
+  readonly code = RendererErrorCodes.LAYER_ORDER_CONFLICT;
+  readonly left: string;
+  readonly right: string;
+  readonly order: number;
+  readonly hint: string;
+  readonly docsUrl: string;
+
+  constructor(left: string, right: string, order: number) {
+    super(
+      `[GwenRenderer] [${RendererErrorCodes.LAYER_ORDER_CONFLICT}] "${left}" and "${right}" both use order ${order}. A surface layer requires every other layer to use a different order. Give a HUD a strictly greater order.`,
+    );
+    this.name = "LayerOrderConflictError";
+    this.left = left;
+    this.right = right;
+    this.order = order;
+    this.hint = `Raise the HUD layer order above the surface layer order.`;
     this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
   }
 }

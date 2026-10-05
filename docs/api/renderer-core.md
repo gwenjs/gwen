@@ -21,9 +21,10 @@ pnpm add @gwenjs/renderer-core
 export const RENDERER_CONTRACT_VERSION: number
 ```
 
-The current renderer contract version. Renderer plugins must set
+The current renderer contract version is **2**. Renderer plugins must set
 `contractVersion = RENDERER_CONTRACT_VERSION` to pass validation.
-`LayerManager` throws `RendererContractVersionError` on mismatch.
+`LayerManager` throws `RendererContractVersionError` (`RENDERER:CONTRACT_VERSION`)
+on mismatch, including a v1 renderer.
 
 ## Interfaces
 
@@ -59,6 +60,61 @@ Declares a named rendering slot. `order` controls depth (0 = background, 100 = H
 |---|---|
 | `coordinate` | `'screen'` (default) — CSS pixel positions. `'world'` — the renderer must project world-unit positions to screen space. |
 | `scope` | `'viewport'` — the layer is instanced once per viewport and receives the camera transform. `'global'` — mounted once for the entire screen (e.g. HUD above all viewports). Defaults to `'global'` when `coordinate: 'screen'`, `'viewport'` when `coordinate: 'world'`. |
+
+### `RendererKind`
+
+```ts
+type RendererKind = 'layers' | 'surface'
+```
+
+Omitted on `RendererService` means `'layers'` (one DOM node per layer). `'surface'`
+selects `SurfaceRendererService`.
+
+### `SurfaceRendererService`
+
+A renderer that owns exactly one drawing surface. It extends `RendererService`.
+
+| Member | Type | Description |
+|---|---|---|
+| `kind` | `'surface'` | Required. |
+| `layers` | one `LayerDef` | Exactly one entry, `coordinate: 'world'`. A second layer throws `RENDERER:SURFACE_INVALID` at register. |
+| `getLayerElement` | `HTMLCanvasElement` | The canvas created in `mount()` and removed in `unmount()`. |
+| `renderViews(views, alpha)` | `void` | Once per display frame. The renderer iterates the views. |
+
+`resize(width, height)` stays in CSS pixels. The canvas backing store is
+`width × dpr` and `height × dpr`, with `dpr` from `ViewportScreenInfo`.
+
+A DOM HUD (renderer-html screen layers) stacks above the surface by using a
+strictly greater `order`. An equal order throws `RENDERER:LAYER_ORDER_CONFLICT`.
+Order clashes that do not involve a surface layer still warn.
+
+### `RenderView`
+
+```ts
+interface RenderView {
+  readonly viewportId: string
+  readonly eye: 'left' | 'right' | 'none'
+  readonly viewMatrix: Float32Array       // length 16, column-major, world → view
+  readonly projectionMatrix: Float32Array // length 16, column-major
+  readonly pixelRect: { x: number; y: number; width: number; height: number } // device px
+}
+```
+
+Caller-owned. Reused across frames. `eye` matches `XRViewData.eye`. Non-XR views use `'none'`.
+
+### `writeCameraViews()`
+
+```ts
+function writeCameraViews(engine: GwenEngine, out: RenderView[]): number
+```
+
+Fills `out` from `CameraManager`, `ViewportManager`, and screen pixels. Returns the
+view count. Does not allocate view objects or replace the matrix buffers. A short
+`out` still returns the full count. Euler `WorldTransform` rotation is YXZ, written
+as a column-major view matrix. Projection aspect comes from viewport pixels.
+`@gwenjs/math` `Mat4` is not used on this seam.
+
+XR eyes are not copied until `getCameraStores` (#59) exists.
 
 ### `SpriteHandle`
 
@@ -530,8 +586,9 @@ const RendererErrorCodes = {
   ALREADY_REGISTERED:        'RENDERER:ALREADY_REGISTERED',
   CONTRACT_VERSION:          'RENDERER:CONTRACT_VERSION',
   UNKNOWN_LAYER:             'RENDERER:UNKNOWN_LAYER',
-  LAYER_ORDER_CONFLICT:      'RENDERER:LAYER_ORDER_CONFLICT',
+  LAYER_ORDER_CONFLICT:      'RENDERER:LAYER_ORDER_CONFLICT', // warn, or throw if a surface layer is involved
   MISSING_LAYER:             'RENDERER:MISSING_LAYER',
+  SURFACE_INVALID:           'RENDERER:SURFACE_INVALID',
   UNAVAILABLE_CAMERA:        'RENDERER:UNAVAILABLE_CAMERA',
   SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
 }
@@ -550,3 +607,10 @@ import { runConformanceTests } from '@gwenjs/renderer-core/testing'
 Validates a `RendererService` implementation against the contract. Throws a
 descriptive error on the first violation. Does not call `mount()` or `unmount()`.
 Run this in every renderer plugin's test suite.
+
+### `runSurfaceConformance(service, engine)`
+
+Extends `runConformanceTests` for a `SurfaceRendererService`. It checks `kind`,
+exactly one world layer, canvas ownership (removed after `unmount`), `resize`
+applying `dpr` from the engine screen service, and `renderViews` with 0, 1, and 2
+views.

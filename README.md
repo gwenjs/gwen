@@ -17,6 +17,8 @@ Raw WebGL is too low-level. Full game engines are too opinionated. Rendering lib
 
 GWEN is the missing layer: a composable, TypeScript-native foundation for web games that doesn't dictate your renderer or physics backend.
 
+The first 3D renderer strategy is an optional three.js adapter (`@gwenjs/renderer-three`). It is not a dependency of core. The decision and the package-location rule are in `internals-docs/renderer-system.md`. The adapter itself is a follow-up.
+
 - **TypeScript DX** — define components, systems, actors, and scenes with full type inference
 - **WASM performance** — ECS engine and physics run in Rust/WASM, not in JS
 - **Composable by design** — plugins and modules extend the engine without touching core

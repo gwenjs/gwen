@@ -11,9 +11,11 @@ import { createLogger } from "@gwenjs/core";
 import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import {
   EmptyLayersError,
+  LayerOrderConflictError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
   RendererErrorCodes,
+  SurfaceInvalidError,
 } from "./errors.js";
 import type { RendererService } from "./types.js";
 import { RENDERER_CONTRACT_VERSION } from "./types.js";
@@ -84,6 +86,9 @@ export class LayerManager {
    *
    * @throws {RendererAlreadyRegisteredError} If a renderer with the same name is already registered.
    * @throws {RendererContractVersionError}   If the renderer's contractVersion mismatches.
+   * @throws {EmptyLayersError}               If the renderer declares zero layers.
+   * @throws {SurfaceInvalidError}            If a surface renderer does not have one world layer.
+   * @throws {LayerOrderConflictError}        If a surface layer shares an order with another layer.
    */
   register(service: RendererService): void {
     if (this._renderers.has(service.name)) {
@@ -100,6 +105,10 @@ export class LayerManager {
         service.contractVersion,
         RENDERER_CONTRACT_VERSION,
       );
+    }
+
+    if (service.kind === "surface") {
+      this._assertSurfaceLayers(service);
     }
 
     this._checkOrderConflicts(service);
@@ -200,14 +209,30 @@ export class LayerManager {
     return result.sort((a, b) => a.layerDef.order - b.layerDef.order);
   }
 
+  private _assertSurfaceLayers(service: RendererService): void {
+    const entries = Object.entries(service.layers).filter((entry) => entry[1] !== undefined);
+    const only = entries.length === 1 ? entries[0] : undefined;
+    if (only === undefined || only[1].coordinate !== "world") {
+      throw new SurfaceInvalidError(service.name);
+    }
+  }
+
   private _checkOrderConflicts(incoming: RendererService): void {
     const incomingOrders = new Map<number, string>();
     const warnedIncoming = new Set<number>();
+    const incomingSurface = incoming.kind === "surface";
 
     for (const [name, def] of Object.entries(incoming.layers)) {
       if (def === undefined) continue;
       const existing = incomingOrders.get(def.order);
       if (existing !== undefined) {
+        if (incomingSurface) {
+          throw new LayerOrderConflictError(
+            `${incoming.name}:${existing}`,
+            `${incoming.name}:${name}`,
+            def.order,
+          );
+        }
         if (!warnedIncoming.has(def.order)) {
           this._log.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
@@ -223,9 +248,18 @@ export class LayerManager {
     }
 
     for (const { service } of this._renderers.values()) {
+      const otherSurface = service.kind === "surface";
       for (const [layerName, layerDef] of Object.entries(service.layers)) {
-        if (layerDef !== undefined && incomingOrders.has(layerDef.order)) {
-          const incomingLayerName = incomingOrders.get(layerDef.order);
+        if (layerDef === undefined) continue;
+        const incomingLayerName = incomingOrders.get(layerDef.order);
+        if (incomingLayerName === undefined) continue;
+        if (incomingSurface || otherSurface) {
+          throw new LayerOrderConflictError(
+            `${service.name}:${layerName}`,
+            `${incoming.name}:${incomingLayerName}`,
+            layerDef.order,
+          );
+        } else {
           this._log.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
               `Layer order conflict: "${service.name}:${layerName}" and ` +

@@ -5,20 +5,25 @@ import type { RendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 import {
   EmptyLayersError,
+  LayerOrderConflictError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
+  SurfaceInvalidError,
 } from "../src/errors.js";
+import type { RendererKind } from "../src/types.js";
 
 /** Factory for a minimal valid RendererService mock. */
 function makeService(
   name: string,
   layers: RendererService["layers"],
   contractVersion = RENDERER_CONTRACT_VERSION,
+  kind?: RendererKind,
 ): RendererService {
   const elements: Record<string, HTMLElement> = {};
   return {
     name,
     contractVersion,
+    ...(kind !== undefined ? { kind } : {}),
     layers,
     mount: vi.fn(),
     unmount: vi.fn(),
@@ -69,6 +74,44 @@ describe("LayerManager", () => {
   it("throws EmptyLayersError when registering a renderer with zero layers", () => {
     const svc = makeService("renderer:canvas", {});
     expect(() => manager.register(svc)).toThrowError(EmptyLayersError);
+  });
+
+  it("throws RendererContractVersionError when contractVersion is 1", () => {
+    const svc = makeService("renderer:canvas", { game: { order: 10 } }, 1);
+    expect(() => manager.register(svc)).toThrowError(RendererContractVersionError);
+    try {
+      manager.register(svc);
+    } catch (err) {
+      expect(err).toMatchObject({ code: "RENDERER:CONTRACT_VERSION" });
+    }
+  });
+
+  it("throws SurfaceInvalidError when a surface renderer declares two layers", () => {
+    const svc = makeService(
+      "renderer:surface",
+      {
+        scene: { order: 0, coordinate: "world" },
+        extra: { order: 1, coordinate: "world" },
+      },
+      RENDERER_CONTRACT_VERSION,
+      "surface",
+    );
+    expect(() => manager.register(svc)).toThrowError(SurfaceInvalidError);
+    try {
+      manager.register(svc);
+    } catch (err) {
+      expect(err).toMatchObject({ code: "RENDERER:SURFACE_INVALID" });
+    }
+  });
+
+  it("throws SurfaceInvalidError when the only surface layer is not world", () => {
+    const svc = makeService(
+      "renderer:surface",
+      { scene: { order: 0, coordinate: "screen" } },
+      RENDERER_CONTRACT_VERSION,
+      "surface",
+    );
+    expect(() => manager.register(svc)).toThrowError(SurfaceInvalidError);
   });
 
   // ── DOM mounting ─────────────────────────────────────────────────────────
@@ -157,6 +200,57 @@ describe("LayerManager", () => {
     manager.register(svc);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"));
     warnSpy.mockRestore();
+  });
+
+  it("throws LAYER_ORDER_CONFLICT when a HUD uses the surface order", () => {
+    const surface = makeService(
+      "renderer:surface",
+      { scene: { order: 10, coordinate: "world" } },
+      RENDERER_CONTRACT_VERSION,
+      "surface",
+    );
+    const hud = makeService("renderer:html", { hud: { order: 10, coordinate: "screen" } });
+    manager.register(surface);
+    expect(() => manager.register(hud)).toThrowError(LayerOrderConflictError);
+    try {
+      manager.register(hud);
+    } catch (err) {
+      expect(err).toMatchObject({ code: "RENDERER:LAYER_ORDER_CONFLICT" });
+    }
+  });
+
+  it("throws LAYER_ORDER_CONFLICT when the surface is registered second at the same order", () => {
+    const hud = makeService("renderer:html", { hud: { order: 0, coordinate: "screen" } });
+    const surface = makeService(
+      "renderer:surface",
+      { scene: { order: 0, coordinate: "world" } },
+      RENDERER_CONTRACT_VERSION,
+      "surface",
+    );
+    manager.register(hud);
+    expect(() => manager.register(surface)).toThrowError(LayerOrderConflictError);
+  });
+
+  it("mounts a surface under a screen HUD with a greater order", () => {
+    const surface = makeService(
+      "renderer:surface",
+      { scene: { order: 0, coordinate: "world" } },
+      RENDERER_CONTRACT_VERSION,
+      "surface",
+    );
+    const hud = makeService("renderer:html", {
+      hud: { order: 10, coordinate: "screen", scope: "global" },
+    });
+    manager.register(surface);
+    manager.register(hud);
+    manager.mount();
+
+    const scene = root.querySelector("[data-gwen-layer='renderer:surface:scene']") as HTMLElement;
+    const hudEl = root.querySelector("[data-gwen-layer='renderer:html:hud']") as HTMLElement;
+    expect(scene.style.zIndex).toBe("0");
+    expect(scene.style.pointerEvents).not.toBe("none");
+    expect(hudEl.style.zIndex).toBe("10");
+    expect(hudEl.style.pointerEvents).toBe("none");
   });
 
   it("warns only once for a duplicate order within a single renderer", () => {
