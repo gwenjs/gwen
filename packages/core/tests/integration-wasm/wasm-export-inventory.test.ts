@@ -12,6 +12,7 @@ const ENGINE: Record<string, "infallible" | "result"> = {
   __destroy_into_raw: "infallible",
   free: "infallible",
   "Symbol(Symbol.dispose)": "infallible",
+  "Symbol(nodejs.dispose)": "infallible",
   add_component: "result",
   add_entity_transform: "infallible",
   alloc_shared_buffer: "infallible",
@@ -69,6 +70,7 @@ const JS_ENTITY_ID: Record<string, "infallible" | "result"> = {
   __destroy_into_raw: "infallible",
   free: "infallible",
   "Symbol(Symbol.dispose)": "infallible",
+  "Symbol(nodejs.dispose)": "infallible",
   generation: "infallible",
   index: "infallible",
   "static __wrap": "infallible",
@@ -76,11 +78,18 @@ const JS_ENTITY_ID: Record<string, "infallible" | "result"> = {
 
 type WasmCtor = new (...args: never[]) => unknown;
 
+function symbolName(symbol: symbol): string {
+  const text = String(symbol);
+  // wasm-bindgen aliases Symbol.dispose as Symbol.for("nodejs.dispose") on some Node builds.
+  if (text === "Symbol(nodejs.dispose)") return "Symbol(Symbol.dispose)";
+  return text;
+}
+
 function ownMethods(ctor: WasmCtor): string[] {
   const proto = ctor.prototype as object;
   const prototypeNames = [
     ...Object.getOwnPropertyNames(proto),
-    ...Object.getOwnPropertySymbols(proto).map((symbol) => String(symbol)),
+    ...Object.getOwnPropertySymbols(proto).map((symbol) => symbolName(symbol)),
   ];
   const staticNames = Object.getOwnPropertyNames(ctor).filter((name) => {
     if (name === "prototype" || name === "length" || name === "name") return false;
@@ -90,10 +99,13 @@ function ownMethods(ctor: WasmCtor): string[] {
   return [...prototypeNames, ...staticNames.map((name) => `static ${name}`)];
 }
 
+// Node exposes either Symbol.dispose or Symbol.for("nodejs.dispose") on the glue.
+const HOST_DISPOSE = new Set(["Symbol(Symbol.dispose)", "Symbol(nodejs.dispose)"]);
+
 function expectInventory(actual: string[], table: Record<string, "infallible" | "result">): void {
   const unlisted = actual.filter((name) => table[name] === undefined).sort();
   const missing = Object.keys(table)
-    .filter((name) => !actual.includes(name))
+    .filter((name) => !actual.includes(name) && !HOST_DISPOSE.has(name))
     .sort();
   expect(unlisted, `unlisted exports: ${unlisted.join(", ")}`).toEqual([]);
   expect(missing, `table entries absent from the glue: ${missing.join(", ")}`).toEqual([]);
