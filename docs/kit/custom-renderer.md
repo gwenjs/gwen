@@ -83,7 +83,11 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
   },
 
   mount({ getLayer }) {
-    const canvas = getLayer(Object.keys(opts.layers).at(0) ?? 'main')
+    const el = getLayer('game')
+    if (!(el instanceof HTMLCanvasElement)) {
+      throw new TypeError('layer "game" is not a canvas')
+    }
+    const canvas = el
     engine = new MyTechEngine({ canvas })
   },
 
