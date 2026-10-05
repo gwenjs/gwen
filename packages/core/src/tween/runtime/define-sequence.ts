@@ -9,8 +9,7 @@
 
 import { useEngine } from "../../engine/context";
 import { getTweenManager } from "./tween-manager";
-import { TweenSlot } from "./tween-pool";
-import type { SequenceHandle, SequenceStep, TweenableValue, TweenHandle } from "./tween-types";
+import type { SequenceHandle, SequenceStep, TweenHandle } from "./tween-types";
 
 // ── defineSequence ────────────────────────────────────────────────────────────
 
@@ -71,7 +70,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
   let _playing = false;
 
   /** The active wait slot currently executing (if any), or null. */
-  let _activeWaitSlot: TweenHandle<TweenableValue> | null = null;
+  let _activeWaitSlot: TweenHandle<number> | null = null;
 
   /** Registered completion callbacks — fired once when all steps finish. */
   const _completeCbs: Array<() => void> = [];
@@ -113,13 +112,18 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       // the pool without occupying a slot between steps.
       const waitDuration = step.wait;
       // Policy is 'grow' (default) or 'throw' in typical engine usage.
-      // Under 'drop' policy with an exhausted pool, claim() returns null and the
-      // sequence will crash — callers must not use 'drop' policy with defineSequence.
-      const waitSlot = manager.claim({ duration: waitDuration });
+      // Under 'drop' with an exhausted pool, claim() returns null and this throws
+      // TypeError. Callers must not use 'drop' with defineSequence.
+      const waitSlot = manager.claim<number>({ duration: waitDuration });
+      if (waitSlot === null) {
+        throw new TypeError(
+          "[GWEN] defineSequence wait step: tween pool returned null (drop policy).",
+        );
+      }
       _activeWaitSlot = waitSlot;
-      waitSlot.play({ from: 0 as TweenableValue, to: 1 as TweenableValue });
+      waitSlot.play({ from: 0, to: 1 });
       waitSlot.onComplete(() => {
-        manager.release(waitSlot as unknown as TweenSlot);
+        manager.release(waitSlot);
         _activeWaitSlot = null;
         // Guard: only advance if the sequence is still playing (not paused/reset).
         if (_playing) {
@@ -190,7 +194,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       }
       if (_activeWaitSlot) {
         _activeWaitSlot.pause();
-        manager.release(_activeWaitSlot as unknown as TweenSlot);
+        manager.release(_activeWaitSlot);
         _activeWaitSlot = null;
       }
       _currentStep = 0;

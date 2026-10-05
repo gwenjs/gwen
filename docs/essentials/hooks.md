@@ -16,15 +16,7 @@ import { useHook, emit } from '@gwenjs/core'
 
 ## Defining Events First
 
-Without `defineHooks`, event names are plain strings and arguments are unchecked — typos and wrong argument types are invisible to TypeScript:
-
-```ts
-emit('ennemy:hit', 50)           // typo — no error
-emit('enemy:hit', 'fifty')       // wrong type — no error
-useHook('enemy:hit', (n) => {})  // n is unknown
-```
-
-`defineHooks()` declares typed contracts that fix all of this. Place your hook declarations in `src/hooks.ts` or split them across files in `src/hooks/`:
+`emit` and `useHook` only accept names declared on `GwenRuntimeHooks`. An undeclared name, including a typo, is a compile error. `defineHooks()` declares the contract. Place your hook declarations in `src/hooks.ts` or split them across files in `src/hooks/`:
 
 ```ts
 // src/hooks/game.ts
@@ -40,7 +32,7 @@ export const GameHooks = defineHooks({
 `gwenHooksPlugin` (part of `@gwenjs/vite`) scans `src/hooks.ts` and `src/hooks/*.ts` and auto-generates the `declare module '@gwenjs/schema'` augmentation in `.gwen/types/hooks.d.ts`. You never write this block by hand.
 :::
 
-`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. After the augmentation is generated, wrong event names or argument types are caught at compile time — across every actor, system, and plugin in the project.
+`defineHooks` is an identity function — its only purpose is to let TypeScript infer the event map. The Vite plugin writes that map onto `GwenRuntimeHooks`. After that, a wrong name or a wrong argument type is a compile error in every actor, system, and plugin.
 
 ## Listening to Events
 

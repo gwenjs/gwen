@@ -249,7 +249,9 @@ describe("WasmRingBuffer byteOffset resolution", () => {
       const results: number[] = [];
       const dest = new Uint32Array(1);
       while (buffer.pop(dest)) {
-        results.push(dest[0]);
+        const popped = dest[0];
+        if (popped === undefined) throw new Error("empty pop");
+        results.push(popped);
       }
 
       expect(results).toEqual([100, 200, 300]);

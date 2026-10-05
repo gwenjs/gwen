@@ -9,7 +9,15 @@ import { describe, it, expect, vi } from "vitest";
 import { emit } from "../../src/hooks/emit";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { engineContext } from "../../src/engine/context";
+import { createEntityId } from "../../src/types/entity";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
+
+declare module "@gwenjs/schema" {
+  interface GwenRuntimeHooks {
+    "emit-test:died": () => void;
+    "emit-test:damage": (amount: number) => void;
+  }
+}
 
 describe("emit()", () => {
   it("calls engine.hooks.callHook for a known hook with typed args", async () => {
@@ -18,7 +26,7 @@ describe("emit()", () => {
     engine.hooks.hook("entity:spawn", spy as GwenRuntimeHooks["entity:spawn"]);
 
     engine.run(() => {
-      emit("entity:spawn", 1n);
+      emit("entity:spawn", createEntityId(1, 0));
     });
 
     expect(spy).toHaveBeenCalledWith(1n);
@@ -28,11 +36,11 @@ describe("emit()", () => {
     const engine = await createEngine();
     const spy = vi.fn();
     // Custom game event — no augmentation, no cast needed
-    engine.hooks.hook("enemy:died" as never, spy as never);
+    engine.hooks.hook("emit-test:died", spy as GwenRuntimeHooks["emit-test:died"]);
 
     engine.run(() => {
-      emit("enemy:died"); // no "as never" needed
-      emit("player:damage", 25); // no "as never" needed
+      emit("emit-test:died");
+      emit("emit-test:damage", 25);
     });
 
     expect(spy).toHaveBeenCalledOnce();

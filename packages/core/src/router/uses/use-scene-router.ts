@@ -135,7 +135,9 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       const fromName = sceneNameByRoute.get(String(fromState)) ?? String(fromState);
       const toName = sceneNameByRoute.get(String(target)) ?? String(target);
       const toConfig = routes[target as keyof TRoutes];
-      if (toConfig === undefined) return;
+      if (toConfig === undefined) {
+        throw new TypeError(`useSceneRouter: target "${String(target)}" is not a declared route.`);
+      }
 
       if (toConfig.overlay) {
         // Push onto overlay stack — do NOT exit current scene

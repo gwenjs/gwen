@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
@@ -7,7 +8,7 @@ import { createEngine } from "../../src/engine/gwen-engine";
 import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
 
 // Minimal component defs
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
@@ -249,7 +250,7 @@ describe("defineActor — plugin naming", () => {
 describe("defineActor — spawn returns EntityId (branded bigint)", () => {
   it("spawn() return value is assignable to EntityId", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
@@ -265,7 +266,7 @@ describe("defineActor — spawn returns EntityId (branded bigint)", () => {
 describe("actor context — atomic save/restore", () => {
   it("context is null outside a factory", () => {
     // _getActorEntityId must throw — proves context is cleared after spawn.
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     defineActor(prefab, () => {
       // valid inside factory
@@ -279,7 +280,7 @@ describe("actor context — atomic save/restore", () => {
     const engine = await createEngine();
     const capturedIds: bigint[] = [];
 
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
 
     const Inner = defineActor(prefab, () => {
@@ -302,7 +303,7 @@ describe("actor context — atomic save/restore", () => {
 
   it("context is cleared even when the factory throws", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
 
     const BadActor = defineActor(prefab, () => {

@@ -35,12 +35,12 @@ export interface LogEntry {
   /** Human-readable message. */
   message: string;
   /** Optional key-value context data attached to this entry. */
-  data?: Record<string, unknown>;
+  data?: Record<string, unknown> | undefined;
   /**
    * Engine frame index at the time of emission.
    * `undefined` when emitted outside the frame loop (e.g. during `setup()`).
    */
-  frame?: number;
+  frame?: number | undefined;
   /** Timestamp from `performance.now()` at the moment of emission. */
   ts: number;
 }

@@ -2,7 +2,18 @@ import { describe, it, expect, vi } from "vitest";
 import { createSystemHandle } from "../../src/scene/runtime/system-handle";
 import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
 
-function makeInnerPlugin(onUpdateSpy = vi.fn()): GwenPlugin {
+type FramePlugin = GwenPlugin & {
+  onUpdate?: (dt: number) => void;
+  onBeforeUpdate?: (dt: number) => void;
+  onAfterUpdate?: (dt: number) => void;
+  onRender?: () => void;
+};
+
+function framePlugin(plugin: GwenPlugin): FramePlugin {
+  return plugin as FramePlugin;
+}
+
+function makeInnerPlugin(onUpdateSpy = vi.fn()): FramePlugin {
   return {
     name: "test-plugin",
     setup() {},
@@ -68,7 +79,7 @@ describe("SystemHandle — frame callback gating", () => {
   it("onUpdate fires when active", () => {
     const spy = vi.fn();
     const { plugin } = createSystemHandle(makeInnerPlugin(spy));
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).toHaveBeenCalledOnce();
   });
 
@@ -76,7 +87,7 @@ describe("SystemHandle — frame callback gating", () => {
     const spy = vi.fn();
     const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
     handle.pause();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -84,9 +95,9 @@ describe("SystemHandle — frame callback gating", () => {
     const spy = vi.fn();
     const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
     handle.pause();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     handle.resume();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).toHaveBeenCalledOnce();
   });
 
@@ -94,7 +105,7 @@ describe("SystemHandle — frame callback gating", () => {
     const spy = vi.fn();
     const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
     handle.destroy();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).not.toHaveBeenCalled();
   });
 
@@ -107,8 +118,8 @@ describe("SystemHandle — frame callback gating", () => {
     const { plugin, handle } = createSystemHandle(inner);
 
     handle.pause();
-    plugin.onBeforeUpdate!(0.016);
-    plugin.onAfterUpdate!(0.016);
+    framePlugin(plugin).onBeforeUpdate!(0.016);
+    framePlugin(plugin).onAfterUpdate!(0.016);
 
     expect(beforeSpy).not.toHaveBeenCalled();
     expect(afterSpy).not.toHaveBeenCalled();
@@ -121,7 +132,7 @@ describe("SystemHandle — frame callback gating", () => {
     const { plugin, handle } = createSystemHandle(inner);
 
     handle.pause();
-    plugin.onRender!();
+    framePlugin(plugin).onRender!();
     expect(renderSpy).not.toHaveBeenCalled();
   });
 });
@@ -158,11 +169,11 @@ describe("SystemHandle — two-flag pause model (user + scene)", () => {
     handle.pause();
     handle._scenePause();
     handle._sceneResume();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).not.toHaveBeenCalled(); // still user-paused
 
     handle.resume();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).toHaveBeenCalledOnce(); // now active
   });
 
@@ -171,11 +182,11 @@ describe("SystemHandle — two-flag pause model (user + scene)", () => {
     const { plugin, handle } = createSystemHandle(makeInnerPlugin(spy));
 
     handle._scenePause();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).not.toHaveBeenCalled();
 
     handle._sceneResume();
-    plugin.onUpdate!(0.016);
+    framePlugin(plugin).onUpdate!(0.016);
     expect(spy).toHaveBeenCalledOnce();
   });
 
@@ -200,6 +211,6 @@ describe("SystemHandle — two-flag pause model (user + scene)", () => {
   it("plugin with no onUpdate produces wrapped plugin with no onUpdate", () => {
     const inner: GwenPlugin = { name: "bare", setup() {} };
     const { plugin } = createSystemHandle(inner);
-    expect(plugin.onUpdate).toBeUndefined();
+    expect(framePlugin(plugin).onUpdate).toBeUndefined();
   });
 });

@@ -28,6 +28,7 @@ import {
 import { _getActorContext } from "./define-actor";
 import { _applyTransformOpts } from "./place";
 import type { PlaceOptions } from "./place";
+import { spawnActor } from "./spawn-tuple";
 import { _actorRegistry, _instanceRegistry, _ownerRegistry } from "./define-actor";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
@@ -160,11 +161,7 @@ export function useChildren(): ChildrenHandle {
       def: ActorDefinition<Props, API>,
       opts: PlaceOptions<Props> = {},
     ): PlaceHandle<API> {
-      const entityId = def._plugin.spawn(
-        ...((opts.props === undefined ? [] : [opts.props]) as Props extends void
-          ? []
-          : [props: Props]),
-      );
+      const entityId = spawnActor(def._plugin, opts.props);
 
       if (
         opts.at !== undefined ||

@@ -41,5 +41,9 @@ import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
 export function useTween<T extends TweenableValue>(options: TweenOptions<T>): TweenHandle<T> {
   const engine = useEngine();
   const manager = getTweenManager(engine);
-  return manager.claim(options);
+  const handle = manager.claim(options);
+  if (handle === null) {
+    throw new TypeError("[GWEN] useTween: tween pool returned null (drop policy).");
+  }
+  return handle;
 }

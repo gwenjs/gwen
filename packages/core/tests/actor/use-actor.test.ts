@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -8,7 +9,7 @@ import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
 import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
 import type { GwenPlugin } from "../../src/engine/gwen-engine";
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
@@ -206,7 +207,7 @@ describe("ActorHandle[Symbol.iterator]", () => {
 
     const apis = Array.from(handle as Iterable<{ value: number }>);
     expect(apis).toHaveLength(2);
-    expect(apis[0].value).toBe(42);
+    expect(apis[0]?.value).toBe(42);
   });
 
   it("reflects despawn — despawned instance is no longer yielded", async () => {

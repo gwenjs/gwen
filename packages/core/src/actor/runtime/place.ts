@@ -29,6 +29,7 @@ import type { PrefabDefinition, PrefabOverrides } from "./define-prefab";
 import type { ComponentDef } from "../../system/runtime/define-system";
 import type { EntityId } from "../../engine/engine-api";
 import { entityIndex } from "../../engine/engine-api";
+import { spawnActor } from "./spawn-tuple";
 import type { PlacementBridge } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
@@ -142,7 +143,7 @@ export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): 
 
   const handle: PlaceHandle<void> = {
     entityId: entityId,
-    api: undefined as void,
+    api: undefined,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
       bridge.set_entity_local_position(entityIndex(entityId), x, y);
@@ -181,11 +182,7 @@ export function placeActor<Props, API>(
     );
   }
 
-  const entityId = actorDef._plugin.spawn(
-    ...((options.props === undefined ? [] : [options.props]) as Props extends void
-      ? []
-      : [props: Props]),
-  );
+  const entityId = spawnActor(actorDef._plugin, options.props);
   const bridge = useEngine().getPlacementBridge();
   _applyTransformOpts(bridge, entityId, options);
   _register(entityId);
@@ -238,7 +235,6 @@ export function placePrefab<E extends readonly ComponentDef[]>(
   const id = engine.createEntity();
 
   for (const entry of prefabDef.components) {
-    if (typeof entry !== "object" || entry === null || !("def" in entry)) continue;
     engine.addComponent(id, entry.def, { ...entry.defaults, ...options.props });
   }
 
@@ -248,7 +244,7 @@ export function placePrefab<E extends readonly ComponentDef[]>(
 
   const handle: PlaceHandle<void> = {
     entityId,
-    api: undefined as void,
+    api: undefined,
     moveTo(pos) {
       const [x = 0, y = 0] = pos;
       bridge.set_entity_local_position(entityIndex(entityId), x, y);

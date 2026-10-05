@@ -155,7 +155,7 @@ schema: {
 
 **Signature:**
 ```ts
-function useComponent(def: ComponentDef): InferComponent<ComponentDef> & { $set(patch: Partial<InferComponent<ComponentDef>>): void }
+function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
 ```
 
 **Description.** Retourne un proxy live sur les données du composant de l'acteur courant. Les lectures et écritures de champs sont transmises directement à l'ECS. Doit être appelé pendant la phase de setup.
@@ -208,7 +208,7 @@ export const MovementSystem = defineSystem('MovementSystem', () => {
 
 **Signature:**
 ```ts
-function useQuery(components: readonly ComponentDef[]): LiveQuery<EntityAccessor<readonly ComponentDef[]>>
+function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
 ```
 
 **Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.

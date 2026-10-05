@@ -1,3 +1,4 @@
+import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab, defineActor } from "../../src/actor/index";
 import { createEngine } from "../../src/engine/gwen-engine";
@@ -17,7 +18,7 @@ import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
 
-const Hp = { __name__: "Hp" };
+const Hp = stubValue("Hp");
 const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
 
 describe("ActorInstance pool fields", () => {
@@ -321,18 +322,18 @@ describe("defineActorPool — acquire", () => {
   it("calls onReset with props on reuse", async () => {
     const engine = await createEngine();
     const resetSpy = vi.fn();
-    const Actor = defineActor(TestPrefab, () => {
+    const Actor = defineActor(TestPrefab, (_props: { value: number }) => {
       onReset(resetSpy);
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
     await engine.use(pool._plugin);
 
-    const id = pool.acquire();
+    const id = pool.acquire({ value: 0 });
     pool.release(id);
     await flush(engine);
 
-    pool.acquire({ value: 77 } as unknown as void);
+    pool.acquire({ value: 77 });
     expect(resetSpy).toHaveBeenCalledWith({ value: 77 });
   });
 
@@ -767,7 +768,7 @@ describe("useActorPool — scene integration", () => {
 describe("DeferredReleaseQueue — double-release guard", () => {
   it("calling release() twice in the same frame does not double-despawn", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);

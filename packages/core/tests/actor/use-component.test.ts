@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -5,7 +6,7 @@ import { useComponent } from "../../src/actor/runtime/use-actor";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 const PosPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
@@ -16,7 +17,7 @@ describe("useComponent", () => {
 
     const Actor = defineActor(PosPrefab, () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pos = useComponent<any>(Position);
+      const pos = useComponent(Position);
       onUpdate(() => {
         capturedX = pos.x;
       });
@@ -36,7 +37,7 @@ describe("useComponent", () => {
 
     const Actor = defineActor(PosPrefab, () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pos = useComponent<any>(Position);
+      const pos = useComponent(Position);
       onUpdate(() => {
         pos.x = 99;
       });
@@ -60,7 +61,7 @@ describe("useComponent — in-place update behaviour", () => {
     const engine = await createEngine();
 
     const Actor = defineActor(PosPrefab, () => {
-      const pos = useComponent<{ x: number; y: number }>(Position);
+      const pos = useComponent(Position);
       onUpdate(() => {
         pos.x = 42; // only x — y must stay at its default
       });
@@ -79,7 +80,7 @@ describe("useComponent — in-place update behaviour", () => {
     const engine = await createEngine();
 
     const Actor = defineActor(PosPrefab, () => {
-      const pos = useComponent<{ x: number; y: number }>(Position);
+      const pos = useComponent(Position);
       onUpdate(() => {
         pos.$set({ x: 10 }); // only x — y must stay
       });
@@ -99,7 +100,7 @@ describe("useComponent — in-place update behaviour", () => {
     let frame = 0;
 
     const Actor = defineActor(PosPrefab, () => {
-      const pos = useComponent<{ x: number; y: number }>(Position);
+      const pos = useComponent(Position);
       onUpdate(() => {
         frame++;
         pos.x = frame * 10;

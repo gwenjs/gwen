@@ -1,10 +1,11 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { createEngine } from "../../src/engine/gwen-engine";
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 describe("ActorHandle Proxy — method delegation", () => {

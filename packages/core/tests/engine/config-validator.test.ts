@@ -199,7 +199,6 @@ describe("validateEngineConfig — all fields optional", () => {
         maxEntities: 10_000,
         targetFPS: 60,
         maxDeltaSeconds: 0.1,
-        tweenPoolSize: 256,
       }),
     ).not.toThrow();
   });

@@ -31,6 +31,7 @@ import type { PrefabOverrides } from "./define-prefab";
 import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "../../system/runtime/define-system";
 import { useComponentFor } from "../../system/runtime/use-component";
+import { spawnActor } from "./spawn-tuple";
 import type { EntityId } from "../../engine/engine-api";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 
@@ -216,7 +217,7 @@ export function useActor<Props, PublicAPI>(
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): EntityId {
-      return (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
+      return spawnActor(actorDef._plugin, props);
     },
 
     despawn(id: EntityId): void {
@@ -246,7 +247,8 @@ export function useActor<Props, PublicAPI>(
     getAll(): PublicAPI[] {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        result.push(instance.api as PublicAPI);
+        const api = instance.api;
+        if (api !== undefined) result.push(api);
       }
       return result;
     },
@@ -254,7 +256,8 @@ export function useActor<Props, PublicAPI>(
     [Symbol.iterator](): IterableIterator<PublicAPI> {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        result.push(instance.api as PublicAPI);
+        const api = instance.api;
+        if (api !== undefined) result.push(api);
       }
       return result.values();
     },
@@ -263,7 +266,7 @@ export function useActor<Props, PublicAPI>(
       if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
         return _singletonId;
       }
-      _singletonId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
+      _singletonId = spawnActor(actorDef._plugin, props);
       return _singletonId;
     },
   };
@@ -362,7 +365,6 @@ export function usePrefab<E extends readonly ComponentDef[]>(
     spawn(overrides: PrefabOverrides<E> = {}): EntityId {
       const id = engine.createEntity();
       for (const entry of prefabDef.components) {
-        if (typeof entry !== "object" || entry === null || !("def" in entry)) continue;
         engine.addComponent(id, entry.def, {
           ...entry.defaults,
           ...overrides,
@@ -441,5 +443,5 @@ export function usePrefab<E extends readonly ComponentDef[]>(
 export function useComponent<D extends ComponentDef>(
   def: D,
 ): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void } {
-  return useComponentFor(_getActorEntityId(), def);
+  return useComponentFor(_getActorEntityId(), def, _getActorEngine());
 }

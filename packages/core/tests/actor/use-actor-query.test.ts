@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -7,7 +8,7 @@ import { createEngine } from "../../src/engine/gwen-engine";
 import { createEntityId } from "../../src/types/entity";
 import type { EntityId } from "../../src/engine/engine-api";
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 function makeQuery(...ids: EntityId[]): Array<{ readonly id: EntityId }> {
@@ -38,7 +39,7 @@ describe("useActorQuery", () => {
     const result = useActorQuery(Actor, makeQuery(id));
     const apis = Array.from(result);
     expect(apis).toHaveLength(1);
-    expect(apis[0].value).toBe(99);
+    expect(apis[0]?.value).toBe(99);
   });
 
   it("skips an entity in the query that has no corresponding actor instance", () => {

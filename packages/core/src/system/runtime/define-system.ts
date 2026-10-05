@@ -233,10 +233,7 @@ export function defineSystem<Args extends unknown[]>(
 ): (...args: Args) => DiscoverablePlugin {
   const named = typeof nameOrSetup === "string";
   const systemName = named ? nameOrSetup : nameOrSetup.name || "";
-  const setupTemplate = named ? maybeSetup : nameOrSetup;
-  if (setupTemplate === undefined) {
-    throw new TypeError("[GWEN] defineSystem() called without a setup function.");
-  }
+  const setupTemplate = named ? maybeSetup! : nameOrSetup;
 
   if (!systemName) {
     // eslint-disable-next-line no-console

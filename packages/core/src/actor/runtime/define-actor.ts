@@ -485,30 +485,18 @@ export function defineActor<Props, PublicAPI>(
 ): ActorDefinition<Props, PublicAPI> {
   const isNamedForm = typeof nameOrPrefab === "string";
   const pluginName = isNamedForm ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
+  const prefab = isNamedForm
+    ? (prefabOrFactory as PrefabDefinition<readonly ComponentDef[]>)
+    : (nameOrPrefab as PrefabDefinition<readonly ComponentDef[]>);
 
-  const isPrefabDef = (value: unknown): value is PrefabDefinition<readonly ComponentDef[]> =>
-    typeof value === "object" &&
-    value !== null &&
-    "components" in value &&
-    "__prefabName__" in value;
-
-  let prefab: PrefabDefinition<readonly ComponentDef[]>;
   let factory: ActorFactory<Props, PublicAPI> | (() => PublicAPI);
   let options: DefineActorOptions<Props, PublicAPI> | undefined;
   if (isNamedForm) {
-    if (!isPrefabDef(prefabOrFactory) || typeof factoryOrOptions !== "function") {
-      throw new TypeError("[GWEN] defineActor(name, prefab, factory) received invalid arguments.");
-    }
-    prefab = prefabOrFactory;
-    factory = factoryOrOptions;
+    factory = factoryOrOptions as ActorFactory<Props, PublicAPI>;
     options = maybeOptions;
   } else {
-    if (!isPrefabDef(nameOrPrefab) || typeof prefabOrFactory !== "function") {
-      throw new TypeError("[GWEN] defineActor(prefab, factory) received invalid arguments.");
-    }
-    prefab = nameOrPrefab;
-    factory = prefabOrFactory;
-    options = typeof factoryOrOptions === "function" ? undefined : factoryOrOptions;
+    factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
+    options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
   }
   const _instances = new Map<EntityId, ActorInstance<PublicAPI>>();
 

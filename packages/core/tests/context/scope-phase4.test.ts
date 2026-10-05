@@ -70,40 +70,43 @@ describe("GwenScope Phase 4", () => {
   it("scope.run() sets GwenScope.current() correctly for actor scopes", () => {
     const engine = makeMockEngine();
     const actorScope = new GwenScope(engine, { type: "actor", name: "test-actor" });
-    let capturedScope: GwenScope | null = null;
+    const box: { scope: GwenScope | null } = { scope: null };
 
     actorScope.run(() => {
-      capturedScope = GwenScope.current();
+      box.scope = GwenScope.current();
     });
 
-    expect(capturedScope).toBe(actorScope);
-    expect(capturedScope?.meta.type).toBe("actor");
+    expect(box.scope).toBe(actorScope);
+    if (box.scope === null) throw new Error("missing scope");
+    expect(box.scope.meta.type).toBe("actor");
   });
 
   it("scope.run() sets GwenScope.current() correctly for system scopes", () => {
     const engine = makeMockEngine();
     const systemScope = new GwenScope(engine, { type: "system", name: "test-system" });
-    let capturedScope: GwenScope | null = null;
+    const box: { scope: GwenScope | null } = { scope: null };
 
     systemScope.run(() => {
-      capturedScope = GwenScope.current();
+      box.scope = GwenScope.current();
     });
 
-    expect(capturedScope).toBe(systemScope);
-    expect(capturedScope?.meta.type).toBe("system");
+    expect(box.scope).toBe(systemScope);
+    if (box.scope === null) throw new Error("missing scope");
+    expect(box.scope.meta.type).toBe("system");
   });
 
   it("scope.run() sets GwenScope.current() correctly for scene scopes", () => {
     const engine = makeMockEngine();
     const sceneScope = new GwenScope(engine, { type: "scene", name: "test-scene" });
-    let capturedScope: GwenScope | null = null;
+    const box: { scope: GwenScope | null } = { scope: null };
 
     sceneScope.run(() => {
-      capturedScope = GwenScope.current();
+      box.scope = GwenScope.current();
     });
 
-    expect(capturedScope).toBe(sceneScope);
-    expect(capturedScope?.meta.type).toBe("scene");
+    expect(box.scope).toBe(sceneScope);
+    if (box.scope === null) throw new Error("missing scope");
+    expect(box.scope.meta.type).toBe("scene");
   });
 
   it("scope is set during factory and cleared after", () => {

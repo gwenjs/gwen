@@ -9,6 +9,7 @@
  * calls to placement methods so tests can assert on transform application.
  */
 
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, beforeEach } from "vitest";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
@@ -74,7 +75,7 @@ beforeEach(() => {
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 describe("layout context guard", () => {

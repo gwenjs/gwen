@@ -39,13 +39,21 @@ describe("scene-context — ContextSlot<SceneSetupContext>", () => {
     const Registry = { register: () => {} };
 
     const OuterScene = defineScene("Outer", () => {
-      onEnter(() => log.push("outer-enter"));
-      onExit(() => log.push("outer-exit"));
+      onEnter(() => {
+        log.push("outer-enter");
+      });
+      onExit(() => {
+        log.push("outer-exit");
+      });
     });
 
     const InnerScene = defineScene("Inner", () => {
-      onEnter(() => log.push("inner-enter"));
-      onExit(() => log.push("inner-exit"));
+      onEnter(() => {
+        log.push("inner-enter");
+      });
+      onExit(() => {
+        log.push("inner-exit");
+      });
     });
 
     const outerDef = OuterScene(Registry);

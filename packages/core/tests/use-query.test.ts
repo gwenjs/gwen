@@ -14,7 +14,9 @@ import { createEngine, defineComponent, Types } from "../src/index";
 import { engineContext } from "../src/internal";
 import { defineSystem, onUpdate, useQuery } from "../src/system/index";
 import type { GwenEngine } from "../src/index";
-import type { EntityAccessor } from "../src/system/index";
+import type { ComponentDef, EntityAccessor } from "../src/system/index";
+
+type AnyAccessor = EntityAccessor<readonly ComponentDef[]>;
 
 // ─── Component fixtures ───────────────────────────────────────────────────────
 
@@ -42,8 +44,8 @@ const EnemyTag = defineComponent({
  * Uses a plain `for...of` loop to avoid hot-path allocations in production,
  * but for test readability we use spread here.
  */
-function collect(query: Iterable<EntityAccessor>): EntityAccessor[] {
-  const result: EntityAccessor[] = [];
+function collect(query: Iterable<AnyAccessor>): AnyAccessor[] {
+  const result: AnyAccessor[] = [];
   for (const e of query) result.push(e);
   return result;
 }
@@ -220,7 +222,7 @@ describe("useQuery()", () => {
     engine.addComponent(e, Position, { x: 10, y: 20 });
     engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
 
-    const visited: EntityAccessor[] = [];
+    const visited: AnyAccessor[] = [];
 
     const system = defineSystem(() => {
       const query = useQuery([Position, Velocity]);

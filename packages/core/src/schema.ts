@@ -542,12 +542,7 @@ export function defineComponent<S extends ComponentSchema>(
 ): ComponentDefinition<S> {
   let config: Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">;
   if (typeof nameOrConfig === "string") {
-    if (factory === undefined) {
-      throw new TypeError(
-        "[GWEN] defineComponent(name, factory) requires a factory when the first argument is a name.",
-      );
-    }
-    config = { name: nameOrConfig, ...factory() };
+    config = { name: nameOrConfig, ...factory!() };
   } else {
     config = nameOrConfig;
   }

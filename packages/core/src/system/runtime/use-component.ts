@@ -1,4 +1,5 @@
 import { useEngine } from "../../engine/context";
+import type { GwenEngine } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "./define-system";
@@ -50,9 +51,8 @@ type ComponentProxy<D extends ComponentDef> = InferComponent<D> & {
 export function useComponentFor<D extends ComponentDef>(
   entityId: EntityId,
   def: D,
+  engine: GwenEngine = useEngine(),
 ): ComponentProxy<D> {
-  const engine = useEngine();
-
   return new Proxy({} as ComponentProxy<D>, {
     get(_target, prop: string | symbol): unknown {
       if (prop === "$set") {

@@ -152,6 +152,10 @@ class ScopedHooksTracker {
 
 // #region Engine implementation
 
+function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
+  return results[index] as EntityId; // boundary: dense query id list, index checked #77
+}
+
 // boundary: one map holds every GwenProvides value; the key selects its member.
 function readProvidedService<K extends keyof GwenProvides>(
   services: ReadonlyMap<keyof GwenProvides, GwenProvides[keyof GwenProvides]>,
@@ -186,7 +190,7 @@ class GwenEngineImpl implements GwenEngine {
   private _deltaTime = 0;
   private _running = false;
   private _state: EngineState = "idle";
-  private _rafHandle = 0;
+  private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
   private readonly _errorBus: EngineErrorBus;
@@ -259,7 +263,7 @@ class GwenEngineImpl implements GwenEngine {
    * Uses `requestAnimationFrame` on the main thread; falls back to `setTimeout`
    * in Web Worker contexts where RAF is unavailable.
    */
-  private _scheduleFrame(cb: (time: number) => void): number {
+  private _scheduleFrame(cb: (time: number) => void): number | ReturnType<typeof setTimeout> {
     if (typeof requestAnimationFrame !== "undefined") {
       return requestAnimationFrame(cb);
     }
@@ -268,12 +272,12 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   /** Cancel a previously scheduled frame (RAF or setTimeout handle). */
-  private _cancelFrame(handle: number): void {
+  private _cancelFrame(handle: number | ReturnType<typeof setTimeout>): void {
     if (typeof cancelAnimationFrame !== "undefined") {
-      cancelAnimationFrame(handle);
-    } else {
-      clearTimeout(handle);
+      if (typeof handle === "number") cancelAnimationFrame(handle);
+      return;
     }
+    clearTimeout(handle);
   }
 
   // ─── Frame stats ─────────────────────────────────────────────────────────
@@ -974,17 +978,14 @@ class GwenEngineImpl implements GwenEngine {
             if (i >= results.length) {
               return { done: true, value: undefined };
             }
-            const id = results[i];
+            const id = readResolvedEntityId(results, i);
             i += 1;
-            if (id === undefined) {
-              return { done: true, value: undefined };
-            }
             return {
               done: false,
               value: {
                 id,
                 get<D extends C[number]>(def: D): InferComponent<D> {
-                  return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>;
+                  return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>; // boundary: queried component is present #77
                 },
               },
             };

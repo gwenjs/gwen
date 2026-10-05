@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api";
 import { createEngine } from "../../src/engine/gwen-engine";
@@ -65,7 +66,7 @@ function createStatefulMockEngine() {
   };
 }
 
-const Pos = { __name__: "Position" };
+const Pos = stubComponent("Position");
 const Prefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);
 
 // ─── Regression guards ────────────────────────────────────────────────────────
@@ -328,7 +329,9 @@ describe("useTransform — hasParent", () => {
 
     await engine.run(() => {
       const id = Actor._plugin.spawn();
-      result = Actor._instances.get(id)!.api.getHasParent();
+      const api = Actor._instances.get(id)?.api;
+      if (api === undefined) throw new Error("missing api");
+      result = api.getHasParent();
     });
 
     expect(result).toBe(false);
@@ -348,7 +351,9 @@ describe("useTransform — hasParent", () => {
 
     await engine.run(() => {
       const id = Actor._plugin.spawn();
-      result = Actor._instances.get(id)!.api.getHasParent();
+      const api = Actor._instances.get(id)?.api;
+      if (api === undefined) throw new Error("missing api");
+      result = api.getHasParent();
     });
 
     expect(result).toBe(true);
@@ -450,13 +455,15 @@ describe("useTransform — setParent / detach", () => {
     let childEntityId: EntityId | undefined;
     const Child = defineActor(Prefab, () => {
       const t = useTransform();
-      return { setParentTo: (id: bigint) => t.setParent(id) };
+      return { setParentTo: (id: EntityId) => t.setParent(id) };
     });
     await engine.use(Child._plugin);
 
     await engine.run(() => {
       childEntityId = Child._plugin.spawn();
-      Child._instances.get(childEntityId!)!.api.setParentTo(parentId);
+      const api = Child._instances.get(childEntityId)?.api;
+      if (api === undefined || childEntityId === undefined) throw new Error("missing child");
+      api.setParentTo(parentId as EntityId);
     });
 
     // The bridge call should receive index=3, not a corrupted value.
@@ -479,13 +486,15 @@ describe("useTransform — setParent / detach", () => {
     let childEntityId: EntityId | undefined;
     const Child = defineActor(Prefab, () => {
       const t = useTransform();
-      return { setParentTo: (id: bigint) => t.setParent(id) };
+      return { setParentTo: (id: EntityId) => t.setParent(id) };
     });
     await engine.use(Child._plugin);
 
     await engine.run(() => {
       childEntityId = Child._plugin.spawn();
-      Child._instances.get(childEntityId!)!.api.setParentTo(99n);
+      const api = Child._instances.get(childEntityId)?.api;
+      if (api === undefined || childEntityId === undefined) throw new Error("missing child");
+      api.setParentTo(99n as EntityId);
     });
 
     expect(spy).toHaveBeenCalledWith(
@@ -513,7 +522,9 @@ describe("useTransform — setParent / detach", () => {
 
     await engine.run(() => {
       entityId = Actor._plugin.spawn();
-      Actor._instances.get(entityId!)!.api.doDetach();
+      const api = Actor._instances.get(entityId)?.api;
+      if (api === undefined || entityId === undefined) throw new Error("missing api");
+      api.doDetach();
     });
 
     expect(spy).toHaveBeenCalledWith(Number(entityId!) & 0xffffffff, 0xffffffff, false);

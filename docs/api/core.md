@@ -182,7 +182,7 @@ export const moveSystem = defineSystem(function moveSystem() {
 
 **Signature:**
 ```ts
-function useQuery(components: readonly ComponentDef[]): LiveQuery<EntityAccessor<readonly ComponentDef[]>>
+function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
 ```
 
 **Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
@@ -372,7 +372,7 @@ defineSystem(() => {
 
 **Signature:**
 ```ts
-function useComponent(def: ComponentDef): InferComponent<ComponentDef> & { $set(patch: Partial<InferComponent<ComponentDef>>): void }
+function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
 ```
 
 **Description.** Returns a live proxy over the current actor's component data. Field reads and writes are forwarded directly to the ECS. Must be called during the setup phase.

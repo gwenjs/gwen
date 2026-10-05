@@ -60,26 +60,26 @@ export interface Physics3DColliderOptions {
   /** Collider shape definition. */
   shape: Physics3DColliderShape;
   /** Local X offset from the body centre in metres. @default 0 */
-  offsetX?: number;
+  offsetX?: number | undefined;
   /** Local Y offset from the body centre in metres. @default 0 */
-  offsetY?: number;
+  offsetY?: number | undefined;
   /** Local Z offset from the body centre in metres. @default 0 */
-  offsetZ?: number;
+  offsetZ?: number | undefined;
   /**
    * When true, generates collision events but produces no physical response.
    * @default false
    */
-  isSensor?: boolean;
+  isSensor?: boolean | undefined;
   /**
    * Friction coefficient ≥ 0.
    * @default 0.5
    */
-  friction?: number;
+  friction?: number | undefined;
   /**
    * Bounciness in [0, 1].
    * @default 0.0
    */
-  restitution?: number;
+  restitution?: number | undefined;
   /**
    * Collider density in kg/m³. Used when body mass is 0.
    * @default 1.0
@@ -90,12 +90,12 @@ export interface Physics3DColliderOptions {
    * Named layers are resolved via the layer registry; numbers are used directly.
    * `undefined` defaults to all-layers (0xFFFFFFFF).
    */
-  layers?: (string | number)[];
+  layers?: (string | number)[] | undefined;
   /**
    * Named layers this collider collides with, or numeric bitmask values.
    * `undefined` defaults to all-layers (0xFFFFFFFF).
    */
-  mask?: (string | number)[];
+  mask?: (string | number)[] | undefined;
   /**
    * Stable numeric collider id propagated to collision events and sensor state.
    * Defaults to the collider's array index when omitted.

@@ -47,10 +47,10 @@ export class GwenLogger implements IGwenLogger {
     const entry: GwenLogEntry = {
       level,
       message,
+      payload,
+      tag: this._tag,
+      entityId: this._entityId,
       timestamp: performance.now(),
-      ...(payload !== undefined ? { payload } : {}),
-      ...(this._tag !== undefined ? { tag: this._tag } : {}),
-      ...(this._entityId !== undefined ? { entityId: this._entityId } : {}),
     };
     for (const p of this._providers) p.handle(entry);
   }
