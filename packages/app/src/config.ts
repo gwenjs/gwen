@@ -31,7 +31,6 @@ const DEFAULT_ENGINE = {
 };
 
 const DEFAULT_LOGGER = {
-  providers: undefined,
   minLevel: "warn" as const,
 };
 
