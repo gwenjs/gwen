@@ -5,6 +5,7 @@ This directory contains documentation for contributors working on the GWEN engin
 ## Quick Links
 
 - **[Architecture Overview](./architecture.md)** — Two-layer design, package structure, key decisions
+- **[Threading model](./adr/0002-threading-model.md)** — ADR 0002, main thread for v1.0
 - **[Contributing Guide](./contributing.md)** — Setup, build commands, commit conventions, release process
 - **[WASM & Crate Builds](./crate-builds.md)** — Rust/WASM variants, build process, output locations
 

@@ -64,6 +64,10 @@ gwen-wasm-utils — Utilities for WASM/TS bridge, shared memory,
 
 ## Key Architectural Decisions
 
+### Threading model (v1.0)
+
+The simulation runs on the main thread. See [ADR 0002](./adr/0002-threading-model.md).
+
 ### Large File Pattern
 `gwen-engine.ts` is intentionally large (~2000+ lines) — V8 inlines function calls within the same compilation unit. Splitting into smaller files caused measurable performance regression on the hot path (significant slowdown when updating ~1000 entities/frame). This is a conscious performance trade-off.
 
