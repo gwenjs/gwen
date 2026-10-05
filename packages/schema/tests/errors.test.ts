@@ -7,7 +7,12 @@
 
 import { describe, it, expect } from "vitest";
 import { GwenError } from "../src/errors";
-import type { GwenErrorLevel, GwenErrorPayload, GwenErrorBusBase } from "../src/errors";
+import type {
+  GwenErrorLevel,
+  GwenErrorPayload,
+  GwenErrorTarget,
+  GwenErrorBusBase,
+} from "../src/errors";
 
 // ─── GwenError ────────────────────────────────────────────────────────────────
 
@@ -108,6 +113,36 @@ describe("GwenErrorPayload (structural)", () => {
     expect(payload.error).toBe(originalError);
     expect(payload.context?.frame).toBe(42);
   });
+
+  it("accepts an optional GwenErrorTarget", () => {
+    const system: GwenErrorTarget = {
+      kind: "system",
+      id: "system#3",
+      name: "Move",
+    };
+    const actor: GwenErrorTarget = {
+      kind: "actor",
+      id: "actor#1",
+      name: "Bullet",
+      entityId: 7n,
+    };
+    const wasm: GwenErrorTarget = {
+      kind: "wasm-module",
+      id: "wasm:audio",
+      name: "audio",
+    };
+    const payload: GwenErrorPayload = {
+      level: "error",
+      code: "CORE:PLUGIN_RUNTIME_ERROR",
+      message: "system failed",
+      target: system,
+    };
+
+    expect(payload.target).toBe(system);
+    expect(actor.entityId).toBe(7n);
+    expect(wasm.kind).toBe("wasm-module");
+    expect(payload.target?.id).toBe("system#3");
+  });
 });
 
 // ─── GwenErrorBusBase (structural) ───────────────────────────────────────────
@@ -121,9 +156,14 @@ describe("GwenErrorBusBase (structural)", () => {
       emit(payload) {
         emitted.push(payload);
       },
-      on() {},
+      on() {
+        return () => {};
+      },
       onFatal(cb) {
         fatalCb = cb;
+        return () => {
+          fatalCb = null;
+        };
       },
     };
 
@@ -132,10 +172,13 @@ describe("GwenErrorBusBase (structural)", () => {
     expect(emitted[0].code).toBe("TEST");
 
     let called = false;
-    bus.onFatal(() => {
+    const unsubscribe = bus.onFatal(() => {
       called = true;
     });
+    expect(typeof unsubscribe).toBe("function");
     fatalCb!();
     expect(called).toBe(true);
+    unsubscribe();
+    expect(fatalCb).toBeNull();
   });
 });

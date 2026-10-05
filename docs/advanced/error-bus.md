@@ -235,7 +235,7 @@ engine.errors.onFatal(() => {
 
 `emit` runs every `on` handler first, then every `onFatal` callback. Both run synchronously inside `emit`. A handler that throws is caught. The other handlers still run, and the frame loop keeps going.
 
-A custom bus passed as `errorBus` must implement `on()`. `onFatal` alone is not enough.
+A custom bus passed as `errorBus` must implement `on()`. The engine calls it to apply its policy. `onFatal` alone is not enough. `stop()` unsubscribes. `start()` and `startExternal()` subscribe again. `stop()` also restores `emit` when the engine wrapped it so `engine:error` runs after the `on` handlers.
 
 ### Installation
 
@@ -247,7 +247,7 @@ A custom bus passed as `errorBus` must implement `on()`. `onFatal` alone is not 
 
 | Method | Description |
 |---|---|
-| `engine.errors.emit(event)` | Emit a structured error event. `on` handlers run first, then `onFatal` on a fatal event. A throwing handler is isolated. |
+| `engine.errors.emit(event)` | Emit a structured error event. `on` handlers run first, then `onFatal` on a fatal event. A throwing handler is caught. |
 | `engine.errors.on(handler)` | Register an error listener. Required on every bus, including a custom `errorBus`. |
 | `engine.errors.onFatal(cb)` | Run cleanup after `on` handlers when the level is `fatal` |
 | `engine.errors.install?.()` | Install global error handlers. `createEngine()` does this when `window` exists. |

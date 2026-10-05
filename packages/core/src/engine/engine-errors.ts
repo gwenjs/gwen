@@ -42,24 +42,6 @@ export class GwenPluginNotFoundError extends GwenError {
   }
 }
 
-// ─── Plugin error context ───────────────────────────────────────────────────
-
-/**
- * Context passed to a plugin's {@link GwenPlugin.onError} hook.
- */
-export interface PluginErrorContext {
-  /** Frame loop phase in which the error occurred. */
-  phase: "setup" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender" | "teardown";
-  /** Engine frame index at the time of the error. */
-  frame: number;
-  /**
-   * Mark this error as handled.
-   * When called, the error is **not** forwarded to the engine error bus.
-   * The frame continues normally.
-   */
-  recover(): void;
-}
-
 // ─── Error codes ────────────────────────────────────────────────────────────
 
 /** Error codes emitted by the GWEN core engine. */
@@ -72,6 +54,10 @@ export const CoreErrorCodes = {
   WASM_PANIC: "CORE:WASM_PANIC",
   QUERY_CAPACITY_EXCEEDED: "CORE:QUERY_CAPACITY_EXCEEDED",
   ENTITY_LIMIT_REACHED: "CORE:ENTITY_LIMIT_REACHED",
+  UNCAUGHT_ERROR: "CORE:UNCAUGHT_ERROR",
+  UNHANDLED_REJECTION: "CORE:UNHANDLED_REJECTION",
+  /** Logged when an `on` / `onFatal` / hook handler throws. Never emitted on the bus. */
+  ERROR_HANDLER_FAILED: "CORE:ERROR_HANDLER_FAILED",
 } as const;
 
 /** Error codes emitted by the GWEN actor system. */

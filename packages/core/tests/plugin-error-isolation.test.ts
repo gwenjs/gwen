@@ -17,7 +17,12 @@ function createMockErrorBus(): EngineErrorBus & {
     emit(event) {
       emitted.push(event);
     },
-    onFatal() {},
+    on() {
+      return () => {};
+    },
+    onFatal() {
+      return () => {};
+    },
   };
 }
 
@@ -39,7 +44,7 @@ describe("plugin error isolation", () => {
       expect(setupErrors).toHaveLength(1);
     });
 
-    it("re-throws after emitting — setup failure is still fatal", async () => {
+    it("re-throws after emitting — setup failure is an error, not fatal", async () => {
       const bus = createMockErrorBus();
       const plugin: GwenPlugin = {
         name: "fatal-setup-plugin",
@@ -50,6 +55,11 @@ describe("plugin error isolation", () => {
       const engine = await createEngine({ errorBus: bus });
 
       await expect(engine.use(plugin)).rejects.toThrow("fatal setup");
+
+      const setupErrors = bus.emitted.filter((e) => e.code === CoreErrorCodes.PLUGIN_SETUP_ERROR);
+      expect(setupErrors).toHaveLength(1);
+      expect(setupErrors[0]!.level).toBe("error");
+      expect(engine.state).not.toBe("faulted");
     });
 
     it("includes plugin name in the error message", async () => {
@@ -99,8 +109,11 @@ describe("plugin error isolation", () => {
 
       await engine.advance(0.016);
 
-      const frameErrors = bus.emitted.filter((e) => e.code === CoreErrorCodes.FRAME_LOOP_ERROR);
+      const frameErrors = bus.emitted.filter(
+        (e) => e.code === CoreErrorCodes.FRAME_LOOP_ERROR && e.source === "gwen_core.wasm",
+      );
       expect(frameErrors).toHaveLength(1);
+      expect(frameErrors[0]!.level).toBe("fatal");
     });
 
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
+import type { IGwenLogger } from "@gwenjs/schema";
 import {
   createEngine,
   createErrorBus,
@@ -10,46 +11,45 @@ import {
 /**
  * Create a mock error bus for testing.
  */
+type BusEvent = Parameters<EngineErrorBus["emit"]>[0];
+
 function makeMockBus(): EngineErrorBus & {
-  _emitted: Array<{
-    level: string;
-    code: string;
-    message: string;
-    source?: string;
-    error?: unknown;
-    context?: Record<string, unknown>;
-  }>;
+  _emitted: BusEvent[];
   _fatalCb: (() => void) | null;
+  _onCount: number;
   _installed: boolean;
 } {
+  const emitted: BusEvent[] = [];
+  const handlers: Array<(event: BusEvent) => void> = [];
   const bus = {
-    _emitted: [] as Array<{
-      level: string;
-      code: string;
-      message: string;
-      source?: string;
-      error?: unknown;
-      context?: Record<string, unknown>;
-    }>,
+    _emitted: emitted,
     _fatalCb: null as (() => void) | null,
+    _onCount: 0,
     _installed: false,
-    emit(event: {
-      level: string;
-      code: string;
-      message: string;
-      source?: string;
-      error?: unknown;
-      context?: Record<string, unknown>;
-    }) {
-      this._emitted.push(event);
+    emit(event: BusEvent) {
+      emitted.push(event);
+      for (const handler of handlers.slice()) handler(event);
+      if (event.level === "fatal") bus._fatalCb?.();
     },
-    on() {},
+    on(handler: (event: BusEvent) => void) {
+      bus._onCount += 1;
+      handlers.push(handler);
+      return () => {
+        const index = handlers.indexOf(handler);
+        if (index !== -1) handlers.splice(index, 1);
+      };
+    },
     onFatal(cb: () => void) {
-      this._fatalCb = cb;
+      bus._fatalCb = cb;
+      return () => {
+        if (bus._fatalCb === cb) bus._fatalCb = null;
+      };
     },
     install() {
-      this._installed = true;
-      return () => {};
+      bus._installed = true;
+      return () => {
+        bus._installed = false;
+      };
     },
   };
   return bus;
@@ -114,6 +114,77 @@ describe("createErrorBus", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("keeps later handlers and onFatal running when one handler throws", () => {
+    const error = vi.fn();
+    const logger: IGwenLogger = {
+      debug() {},
+      info() {},
+      warn() {},
+      error,
+      child() {
+        return logger;
+      },
+    };
+    const bus = createErrorBus({ logger });
+    const order: string[] = [];
+    bus.on(() => {
+      order.push("first");
+      throw new Error("handler blew up");
+    });
+    bus.on(() => {
+      order.push("second");
+    });
+    bus.onFatal(() => {
+      order.push("fatal-1");
+      throw new Error("fatal blew up");
+    });
+    bus.onFatal(() => {
+      order.push("fatal-2");
+    });
+
+    bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
+
+    expect(order).toEqual(["first", "second", "fatal-1", "fatal-2"]);
+    const logged = error.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(logged).toContain(CoreErrorCodes.ERROR_HANDLER_FAILED);
+    expect(logged).toContain("handler blew up");
+    expect(logged).toContain("fatal blew up");
+  });
+
+  it("accepts the legacy report callback", () => {
+    const reported: unknown[] = [];
+    const bus = createErrorBus((error: unknown) => {
+      reported.push(error);
+    });
+    bus.on(() => {
+      throw new Error("handler blew up");
+    });
+
+    bus.emit({ level: "error", code: "TEST:ERROR", message: "error" });
+
+    expect(reported).toHaveLength(1);
+    expect(reported[0]).toBeInstanceOf(Error);
+    expect((reported[0] as Error).message).toBe("handler blew up");
+  });
+
+  it("unsubscribes on and onFatal", () => {
+    const bus = createErrorBus();
+    const order: string[] = [];
+    const off = bus.on(() => {
+      order.push("on");
+    });
+    const offFatal = bus.onFatal(() => {
+      order.push("fatal");
+    });
+
+    bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
+    off();
+    offFatal();
+    bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
+
+    expect(order).toEqual(["on", "fatal"]);
+  });
 });
 
 describe("GwenEngine + EngineErrorBus (Task 5)", () => {
@@ -130,10 +201,11 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       expect(engine.inject("errors")).toBe(engine.errors);
     });
 
-    it("registers onFatal callback during construction", async () => {
+    it("subscribes with on and does not register a teardown onFatal", async () => {
       const bus = makeMockBus();
       await createEngine({ errorBus: bus });
-      expect(bus._fatalCb).toBeTypeOf("function");
+      expect(bus._onCount).toBe(1);
+      expect(bus._fatalCb).toBeNull();
     });
 
     it("stop removes window handlers installed by createEngine", async () => {
@@ -207,28 +279,18 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
   });
 
   describe("Error bus fatal callback", () => {
-    it("registers fatal callback that can stop the engine", async () => {
+    it("a fatal event faults the engine and does not call stop()", async () => {
       const bus = makeMockBus();
       const engine = await createEngine({ errorBus: bus });
-
       const stopHookCalls: string[] = [];
       engine.hooks.hook("engine:stop", () => stopHookCalls.push("stop"));
       await engine.startExternal();
 
-      // Trigger the fatal callback while the engine is running.
-      if (bus._fatalCb) {
-        await bus._fatalCb();
-      }
+      bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
 
-      expect(stopHookCalls).toContain("stop");
-    });
-
-    it("fatal callback is registered during construction", async () => {
-      const bus = makeMockBus();
-      const _engine = await createEngine({ errorBus: bus });
-
-      // Fatal callback should be a function
-      expect(bus._fatalCb).toBeTypeOf("function");
+      expect(stopHookCalls).toEqual([]);
+      expect(engine.state).toBe("faulted");
+      expect(bus._fatalCb).toBeNull();
     });
   });
 
@@ -249,6 +311,7 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
   describe("EngineErrorPayload type", () => {
     it("payload can be created with required fields", () => {
       const payload: EngineErrorPayload = {
+        level: "error",
         code: "TEST:ERROR",
         message: "Test error message",
       };
@@ -259,6 +322,7 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
     it("payload can include optional fields", () => {
       const err = new Error("cause");
       const payload: EngineErrorPayload = {
+        level: "fatal",
         code: "TEST:ERROR",
         message: "Test error",
         cause: err,

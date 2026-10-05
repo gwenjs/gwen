@@ -46,6 +46,9 @@ export class ScopedHookable {
   /** When `true`, all registered handlers are skipped on dispatch. */
   private _paused = false;
 
+  /** Drops this scope's isolation entry. Does not unregister handlers. @internal */
+  private _forgetIsolation: (() => void) | null = null;
+
   /**
    * Unsubscribe functions returned by `parent.hook()`.
    * Calling each one removes the wrapped handler from the parent bus.
@@ -71,10 +74,18 @@ export class ScopedHookable {
    *   before the scope is disposed.
    */
   hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
-    const wrapped = ((...args: Parameters<GwenRuntimeHooks[K]>) => {
-      if (this._paused) return;
-      return (fn as (...a: Parameters<GwenRuntimeHooks[K]>) => unknown)(...args);
-    }) as GwenRuntimeHooks[K];
+    const call = fn as (...args: unknown[]) => unknown;
+    const isPaused = (): boolean => this._paused;
+    // Arity 0-4 stays allocation-free. A longer call uses apply.
+    const wrapped = function (a: unknown, b: unknown, c: unknown, d: unknown) {
+      if (isPaused()) return;
+      if (arguments.length > 4) return Function.prototype.apply.call(call, undefined, arguments);
+      if (d !== undefined) return call(a, b, c, d);
+      if (c !== undefined) return call(a, b, c);
+      if (b !== undefined) return call(a, b);
+      if (a !== undefined) return call(a);
+      return call();
+    } as GwenRuntimeHooks[K];
 
     const unsub = this._parent.hook(name, wrapped as never);
     this._disposers.push(unsub);
@@ -84,6 +95,20 @@ export class ScopedHookable {
       const idx = this._disposers.indexOf(unsub);
       if (idx !== -1) this._disposers.splice(idx, 1);
     };
+  }
+
+  /** @internal Wire the engine callback that drops this scope's isolation entry. */
+  setIsolationForget(forget: () => void): void {
+    this._forgetIsolation = forget;
+  }
+
+  /**
+   * Drop this scope's isolation entry without unregistering handlers.
+   * Pool `release()` calls this. `dispose()` calls it too.
+   * @internal
+   */
+  forgetIsolation(): void {
+    this._forgetIsolation?.();
   }
 
   /**
@@ -123,6 +148,7 @@ export class ScopedHookable {
    * Called during actor despawn, scene teardown, and system removal.
    */
   dispose(): void {
+    this.forgetIsolation();
     for (const unsub of this._disposers) unsub();
     this._disposers = [];
   }

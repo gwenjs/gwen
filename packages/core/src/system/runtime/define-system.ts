@@ -29,6 +29,7 @@ import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gw
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import { ScopedHookable } from "../../hooks/scoped-hookable.js";
+import { isIsolated } from "../../engine/error-isolation.js";
 import { GwenScope } from "../../context/scope.js";
 
 /** A component selector accepted by {@link useQuery}. */
@@ -159,6 +160,13 @@ export interface DiscoverablePlugin extends GwenPlugin {
    * @internal
    */
   _resume(): void;
+
+  /**
+   * True while this system's scope is in `engine.isolated()`.
+   * `resume()` does not clear it.
+   * @internal
+   */
+  _isIsolated(): boolean;
 }
 
 // ─── defineSystem ─────────────────────────────────────────────────────────────
@@ -237,6 +245,7 @@ export function defineSystem<Args extends unknown[]>(
   return (...args: Args): DiscoverablePlugin => {
     let _scope: ScopedHookable | null = null;
     let _gwenScope: GwenScope | null = null;
+    let _engine: object | null = null;
     let _discovered = false;
 
     const plugin: DiscoverablePlugin = {
@@ -245,6 +254,7 @@ export function defineSystem<Args extends unknown[]>(
       setup(): void {
         if (_discovered) return;
         const engine = useEngine();
+        _engine = engine;
         _scope = new ScopedHookable(engine.hooks);
         _gwenScope = new GwenScope(
           engine as any,
@@ -261,6 +271,7 @@ export function defineSystem<Args extends unknown[]>(
       _discover(): void {
         _discovered = true;
         const engine = useEngine();
+        _engine = engine;
         _scope = new ScopedHookable(engine.hooks);
         _gwenScope = new GwenScope(
           engine as any,
@@ -287,6 +298,12 @@ export function defineSystem<Args extends unknown[]>(
 
       _resume(): void {
         _scope?.resume();
+      },
+
+      _isIsolated(): boolean {
+        const id = _gwenScope?.meta.id;
+        if (!id || !_engine) return false;
+        return isIsolated(_engine, id);
       },
 
       // NO onBeforeUpdate / onUpdate / onAfterUpdate / onRender methods.

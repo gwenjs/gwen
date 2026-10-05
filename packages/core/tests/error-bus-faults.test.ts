@@ -38,7 +38,13 @@ describe("plugin setup failure", () => {
     await engine.advance(1 / 60);
 
     expect(updates).toBe(1);
-    expect(seen).toEqual([{ level: "error", code: CoreErrorCodes.PLUGIN_SETUP_ERROR }]);
+    // The second event is update_transforms before the WASM core is initialised, not a second setup error.
+    expect(seen).toEqual([
+      { level: "error", code: CoreErrorCodes.PLUGIN_SETUP_ERROR },
+      { level: "error", code: CoreErrorCodes.FRAME_LOOP_ERROR },
+    ]);
+    expect(seen.some((event) => event.level === "fatal")).toBe(false);
+    expect(engine.state).not.toBe("faulted");
 
     await engine.advance(1 / 60);
     expect(updates).toBe(2);
