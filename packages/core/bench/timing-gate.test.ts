@@ -7,11 +7,19 @@ import { describe, expect, it } from "vitest";
 import { createEngine, useEngine } from "../src/index";
 import { defineSequence } from "../src/tween/runtime/define-sequence";
 import { TweenPlugin } from "../src/tween/engine-plugin";
-import { TweenPool, type TweenSlot } from "../src/tween/runtime/tween-pool";
-import type { SequenceStep, TweenableValue, TweenOptions } from "../src/tween/runtime/tween-types";
+import { TweenPool } from "../src/tween/runtime/tween-pool";
+import type {
+  SequenceStep,
+  TweenableValue,
+  TweenHandle,
+  TweenOptions,
+} from "../src/tween/runtime/tween-types";
 import { ciThreshold } from "./perf";
 
-function claimSlot(pool: TweenPool, options: TweenOptions<TweenableValue>): TweenSlot {
+function claimSlot(
+  pool: TweenPool,
+  options: TweenOptions<TweenableValue>,
+): TweenHandle<TweenableValue> {
   const slot = pool.claim(options);
   if (slot === null) {
     throw new Error("TweenPool.claim returned null");
@@ -19,7 +27,10 @@ function claimSlot(pool: TweenPool, options: TweenOptions<TweenableValue>): Twee
   return slot;
 }
 
-function slotAt(slots: readonly TweenSlot[], index: number): TweenSlot {
+function slotAt(
+  slots: readonly TweenHandle<TweenableValue>[],
+  index: number,
+): TweenHandle<TweenableValue> {
   const slot = slots[index];
   if (slot === undefined) {
     throw new Error(`Tween slot missing at index ${index}`);
@@ -108,7 +119,7 @@ describe("Performance: defineSequence with 10 steps × 1,000 instances", () => {
     // (avoids exhausting the engine's default 256-slot TweenManager pool).
     // TweenSlot implements TweenHandle, so it can be passed directly to defineSequence.
     const bigPool = new TweenPool(10_100);
-    const preClaimed: TweenSlot[] = [];
+    const preClaimed: TweenHandle<TweenableValue>[] = [];
     for (let i = 0; i < 10_100; i++) {
       preClaimed.push(claimSlot(bigPool, { duration: 0.1, easing: "linear" }));
     }

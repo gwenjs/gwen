@@ -260,7 +260,7 @@ Si vous avez besoin d'arrêter un tween tôt, appelez `reset()`. La fente n'est 
 
 | Fonction | Description |
 |---|---|
-| `useTween<T>(options)` | Créer un tween à l'intérieur d'un système ; renvoie un `TweenHandle<T>` |
+| `useTween<T>(options)` | Créer un tween à l'intérieur d'un système ; renvoie un `TweenHandle<T>`, ou `null` si un pool `drop` est épuisé |
 | `tween.play(segment)` | Démarrer l'animation de `from` à `to` sur `duration` |
 | `tween.pause()` | Geler à la valeur actuelle (ne pas réinitialiser) |
 | `tween.reset()` | Arrêter et réinitialiser à l'état initial |

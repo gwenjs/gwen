@@ -247,8 +247,7 @@ export function useActor<Props, PublicAPI>(
     getAll(): PublicAPI[] {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        const api = instance.api;
-        if (api !== undefined) result.push(api);
+        result.push(instance.api!);
       }
       return result;
     },
@@ -256,8 +255,7 @@ export function useActor<Props, PublicAPI>(
     [Symbol.iterator](): IterableIterator<PublicAPI> {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        const api = instance.api;
-        if (api !== undefined) result.push(api);
+        result.push(instance.api!);
       }
       return result.values();
     },

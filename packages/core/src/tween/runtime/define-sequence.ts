@@ -112,18 +112,12 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       // the pool without occupying a slot between steps.
       const waitDuration = step.wait;
       // Policy is 'grow' (default) or 'throw' in typical engine usage.
-      // Under 'drop' with an exhausted pool, claim() returns null and this throws
-      // TypeError. Callers must not use 'drop' with defineSequence.
-      const waitSlot = manager.claim<number>({ duration: waitDuration });
-      if (waitSlot === null) {
-        throw new TypeError(
-          "[GWEN] defineSequence wait step: tween pool returned null (drop policy).",
-        );
-      }
-      _activeWaitSlot = waitSlot;
-      waitSlot.play({ from: 0, to: 1 });
-      waitSlot.onComplete(() => {
-        manager.release(waitSlot);
+      // Under 'drop' policy with an exhausted pool, claim() returns null and the
+      // sequence will crash — callers must not use 'drop' policy with defineSequence.
+      _activeWaitSlot = manager.claim<number>({ duration: waitDuration })!;
+      _activeWaitSlot.play({ from: 0, to: 1 });
+      _activeWaitSlot.onComplete(() => {
+        manager.release(_activeWaitSlot!);
         _activeWaitSlot = null;
         // Guard: only advance if the sequence is still playing (not paused/reset).
         if (_playing) {

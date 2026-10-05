@@ -825,10 +825,10 @@ function useTween(options: {
   loop?: boolean;
   onProgress?: (t: number) => void;
   onComplete?: () => void;
-}): TweenHandle
+}): TweenHandle | null
 ```
 
-**Description.** Crée une animation tween. Retourne un gestionnaire avec les méthodes `.play()`, `.stop()`, et `.to(target)`.
+**Description.** Crée une animation tween. Retourne un gestionnaire avec les méthodes `.play()`, `.stop()`, et `.to(target)`. Retourne `null` si la politique du pool est `drop` et que le pool est épuisé. La politique par défaut agrandit le pool.
 
 **Paramètres:**
 | Paramètre | Type | Description |
@@ -839,7 +839,7 @@ function useTween(options: {
 | options.onProgress | `function` | Callback de progression (0–1) |
 | options.onComplete | `function` | Callback de complétion |
 
-**Retourne:** `TweenHandle` — contrôleur tween.
+**Retourne:** `TweenHandle | null` — contrôleur tween, ou `null` si un pool `drop` est épuisé.
 
 **Exemple:**
 ```ts

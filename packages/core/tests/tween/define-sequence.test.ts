@@ -26,8 +26,8 @@ describe("defineSequence() step ordering", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 1 },
@@ -57,8 +57,8 @@ describe("defineSequence() step ordering", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 1.0, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 1.0, easing: "linear" })!;
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 50 },
@@ -80,9 +80,9 @@ describe("defineSequence() step ordering", () => {
     await engine.use(TweenPlugin());
     engine.run(() => {
       const tweens = [
-        useTween<number>({ duration: 0.1, easing: "linear" }),
-        useTween<number>({ duration: 0.1, easing: "linear" }),
-        useTween<number>({ duration: 0.1, easing: "linear" }),
+        useTween<number>({ duration: 0.1, easing: "linear" })!,
+        useTween<number>({ duration: 0.1, easing: "linear" })!,
+        useTween<number>({ duration: 0.1, easing: "linear" })!,
       ];
       const completedSteps: number[] = [];
 
@@ -120,8 +120,8 @@ describe("defineSequence() wait steps", () => {
     let capturedTween2: ReturnType<typeof useTween<number>> | null = null;
 
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       capturedTween2 = tween2;
 
       const seq = defineSequence([
@@ -150,8 +150,8 @@ describe("defineSequence() wait steps", () => {
     await engine.use(TweenPlugin());
     engine.run(() => {
       const manager = getTweenManager();
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
 
       const seq = defineSequence([
         { tween: tween1, from: 0, to: 1 },
@@ -179,8 +179,8 @@ describe("defineSequence() onComplete", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const cb = vi.fn();
 
       const seq = defineSequence([
@@ -202,8 +202,8 @@ describe("defineSequence() onComplete", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const cb = vi.fn();
 
       const seq = defineSequence([
@@ -223,7 +223,7 @@ describe("defineSequence() onComplete", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween = useTween<number>({ duration: 0.5 });
+      const tween = useTween<number>({ duration: 0.5 })!;
       const cb1 = vi.fn();
       const cb2 = vi.fn();
 
@@ -263,7 +263,7 @@ describe("defineSequence() pause()", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: "linear" });
+      const tween = useTween<number>({ duration: 1, easing: "linear" })!;
       const seq = defineSequence([{ tween, from: 0, to: 100 }]);
 
       seq.play();
@@ -279,8 +279,8 @@ describe("defineSequence() pause()", () => {
     await engine.use(TweenPlugin());
     engine.run(() => {
       const manager = getTweenManager();
-      const tween1 = useTween<number>({ duration: 0.1 });
-      const tween2 = useTween<number>({ duration: 0.5 });
+      const tween1 = useTween<number>({ duration: 0.1 })!;
+      const tween2 = useTween<number>({ duration: 0.5 })!;
       const cb = vi.fn();
 
       const seq = defineSequence([
@@ -314,7 +314,7 @@ describe("defineSequence() reset()", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween = useTween<number>({ duration: 1, easing: "linear" });
+      const tween = useTween<number>({ duration: 1, easing: "linear" })!;
       const cb = vi.fn();
       const seq = defineSequence([{ tween, from: 0, to: 1 }]);
 
@@ -334,8 +334,8 @@ describe("defineSequence() reset()", () => {
     const engine = await createEngine({ maxEntities: 100 });
     await engine.use(TweenPlugin());
     engine.run(() => {
-      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" });
-      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" });
+      const tween1 = useTween<number>({ duration: 0.5, easing: "linear" })!;
+      const tween2 = useTween<number>({ duration: 0.5, easing: "linear" })!;
       const order: string[] = [];
 
       const seq = defineSequence([
@@ -369,7 +369,7 @@ describe("defineSequence() reset()", () => {
     engine.run(() => {
       const manager = getTweenManager();
       const pool = manager["_pool"];
-      const tween1 = useTween<number>({ duration: 0.1 });
+      const tween1 = useTween<number>({ duration: 0.1 })!;
 
       const seq = defineSequence([{ tween: tween1, from: 0, to: 1 }, { wait: 1.0 }]);
 

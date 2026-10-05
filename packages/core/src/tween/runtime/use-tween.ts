@@ -26,7 +26,7 @@ import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
  *
  * @typeParam T - The type of value to animate: `number`, `Vec2`, `Vec3`, or `Color`.
  * @param options - Tween configuration (duration, easing, loop, yoyo).
- * @returns A {@link TweenHandle} bound to the current engine's tween pool.
+ * @returns A {@link TweenHandle}, or `null` when the pool policy is `drop` and the pool is exhausted.
  * @throws {GwenContextError} If called outside an active engine context.
  *
  * @example
@@ -38,12 +38,10 @@ import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
  *
  * @since 1.0.0
  */
-export function useTween<T extends TweenableValue>(options: TweenOptions<T>): TweenHandle<T> {
+export function useTween<T extends TweenableValue>(
+  options: TweenOptions<T>,
+): TweenHandle<T> | null {
   const engine = useEngine();
   const manager = getTweenManager(engine);
-  const handle = manager.claim(options);
-  if (handle === null) {
-    throw new TypeError("[GWEN] useTween: tween pool returned null (drop policy).");
-  }
-  return handle;
+  return manager.claim(options);
 }

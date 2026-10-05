@@ -107,10 +107,10 @@ function useTween<T>(options: {
   easing?: string
   loop?: boolean
   yoyo?: boolean
-}): TweenHandle<T>
+}): TweenHandle<T> | null
 ```
 
-**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks.
+**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks. Returns `null` when the pool policy is `drop` and the pool is exhausted. The default policy grows the pool instead.
 
 **Parameters:**
 | Param | Type | Description |
@@ -120,7 +120,7 @@ function useTween<T>(options: {
 | options.loop | `boolean` | Loop animation (optional) |
 | options.yoyo | `boolean` | Reverse animation on loop (optional) |
 
-**Returns:** `TweenHandle<T>` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`.
+**Returns:** `TweenHandle<T> | null` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`. `null` when a `drop` pool is exhausted.
 
 **Example:**
 ```ts

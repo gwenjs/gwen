@@ -363,21 +363,14 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         if (!owned) return null;
         const res = pb.physics_get_linear_velocity(owned.slot);
         if (!res || res.length < 2) return null;
-        const x = res[0];
-        const y = res[1];
-        if (x === undefined || y === undefined) return null;
-        return { x, y };
+        return { x: res[0]!, y: res[1]! };
       },
       getPosition: (entityId) => {
         const owned = guard(entityId, "getPosition");
         if (!owned) return null;
         const res = pb.physics_get_position(owned.slot);
         if (!res || res.length < 3) return null;
-        const x = res[0];
-        const y = res[1];
-        const rotation = res[2];
-        if (x === undefined || y === undefined || rotation === undefined) return null;
-        return { x, y, rotation };
+        return { x: res[0]!, y: res[1]!, rotation: res[2]! };
       },
       getSensorState: (entityId, colliderId) => {
         const owned = guard(entityId, "getSensorState");

@@ -6,9 +6,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { TweenPool, type TweenSlot } from "../../src/tween/runtime/tween-pool";
+import { TweenPool } from "../../src/tween/runtime/tween-pool";
+import type { TweenHandle, TweenableValue } from "../../src/tween/runtime/tween-types";
 
-function claimSlot(pool: TweenPool): TweenSlot {
+function claimSlot(pool: TweenPool): TweenHandle<TweenableValue> {
   const slot = pool.claim({ duration: 1, easing: "linear" });
   if (slot === null) {
     throw new Error("TweenPool.claim returned null");
@@ -30,7 +31,7 @@ describe("Performance: GC pressure from play() calls", () => {
     "10,000 play() calls show minimal heap growth (zero-alloc verification)",
     () => {
       const pool = new TweenPool(10_000);
-      const slots: TweenSlot[] = [];
+      const slots: TweenHandle<TweenableValue>[] = [];
       for (let i = 0; i < 10_000; i++) {
         slots.push(claimSlot(pool));
       }
