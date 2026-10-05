@@ -18,13 +18,7 @@ function walk(dir, files) {
 
 const specifier = /((?:from|import)\s*\(?\s*["'])(\.\.?\/[^"']+)(["'])/g;
 
-for (const dir of readdirSync(path.join(root, "packages"))) {
-  const dist = path.join(root, "packages", dir, "dist");
-  try {
-    if (!statSync(dist).isDirectory()) continue;
-  } catch {
-    continue;
-  }
+function rewriteDist(dist) {
   const files = [];
   walk(dist, files);
   for (const file of files) {
@@ -42,4 +36,20 @@ for (const dir of readdirSync(path.join(root, "packages"))) {
     });
     if (next !== source) writeFileSync(file, next);
   }
+}
+
+// An optional directory limits the rewrite to that package.
+// Parallel postbuild steps must not rewrite the same files.
+const only = process.argv[2];
+const dists = only
+  ? [path.join(path.resolve(only), "dist")]
+  : readdirSync(path.join(root, "packages")).map((dir) => path.join(root, "packages", dir, "dist"));
+
+for (const dist of dists) {
+  try {
+    if (!statSync(dist).isDirectory()) continue;
+  } catch {
+    continue;
+  }
+  rewriteDist(dist);
 }

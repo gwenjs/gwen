@@ -25,6 +25,7 @@
   },
   "scripts": {
     "build": "vite build",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "dev": "vite build --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

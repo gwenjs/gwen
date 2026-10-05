@@ -70,6 +70,7 @@ fi
 # Builder chaque package @gwenjs/* (les erreurs sont ignorées par package)
 echo "🔨 Build des packages @gwenjs/*..."
 pnpm --filter '@gwenjs/*' build || true
+node "$ROOT/scripts/fix-dts-extensions.mjs"
 
 # Publier chaque package individuellement
 echo "📦 Publication sur $REGISTRY..."

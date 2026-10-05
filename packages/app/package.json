@@ -29,6 +29,7 @@
   },
   "scripts": {
     "build": "vite build && cp dist/index.d.ts dist/index.d.cts && cp dist/resolve.d.ts dist/resolve.d.cts",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "dev": "vite build --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
