@@ -121,4 +121,28 @@ describe("real WASM queries", () => {
       await second?.dispose();
     }
   });
+
+  it("a query that matched nothing includes the entity after the component is added", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { bridge } = handle;
+      const typeA = bridge.registerComponentType();
+      const typeB = bridge.registerComponentType();
+      const created = bridge.createEntity();
+      const bytes = new Uint8Array(4);
+
+      // {A,B} stays behind and {B} does not. The empty query is cached on {A,B}.
+      // Adding B alone builds a new archetype, which the old per-archetype drop misses.
+      expect(bridge.addComponent(created.index, created.generation, typeA, bytes)).toBe(true);
+      expect(bridge.addComponent(created.index, created.generation, typeB, bytes)).toBe(true);
+      expect(bridge.removeComponent(created.index, created.generation, typeB)).toBe(true);
+      expect(bridge.removeComponent(created.index, created.generation, typeA)).toBe(true);
+      expect(bridge.queryEntities([typeB])).toEqual([]);
+
+      expect(bridge.addComponent(created.index, created.generation, typeB, bytes)).toBe(true);
+      expect(bridge.queryEntities([typeB])).toHaveLength(1);
+    } finally {
+      await handle.dispose();
+    }
+  });
 });

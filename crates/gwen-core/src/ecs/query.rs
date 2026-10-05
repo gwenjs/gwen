@@ -2,10 +2,10 @@
 //!
 //! Efficient archetype-based queries for entity iteration.
 
-use crate::ecs::component::{ComponentTypeId, ComponentRegistry};
-use crate::ecs::storage::ArchetypeStorage;
 use crate::ecs::archetype::ArchetypeId;
 use crate::ecs::bitset::BitSet128;
+use crate::ecs::component::{ComponentRegistry, ComponentTypeId};
+use crate::ecs::storage::ArchetypeStorage;
 use std::collections::HashMap;
 
 /// Query identifier - specifies which components we want
@@ -20,14 +20,14 @@ impl QueryId {
     pub fn new(mut required: Vec<ComponentTypeId>, registry: &ComponentRegistry) -> Self {
         required.sort_by_key(|c| c.raw());
         required.dedup();
-        
+
         let mut mask = BitSet128::new();
         for &type_id in &required {
             if let Some(bit_idx) = registry.bit_index(type_id) {
                 mask.set(bit_idx);
             }
         }
-        
+
         QueryId { required, mask }
     }
 
@@ -122,13 +122,15 @@ impl QuerySystem {
         }
     }
 
-    /// Invalidate cache for queries matching the given archetype.
-    pub fn on_archetype_change(&mut self, archetype_id: ArchetypeId) {
-        if let Some(queries) = self.archetype_to_queries.remove(&archetype_id) {
-            for q_id in queries {
-                self.query_cache.remove(&q_id);
-            }
-        }
+    /// Drop cached query results after an archetype change.
+    ///
+    /// A query that matched nothing is not listed on any archetype, so removing
+    /// only the queries already tied to `archetype_id` keeps that empty result
+    /// forever. A new archetype can also start matching a query that was cached
+    /// against a different archetype. Clear the whole cache instead.
+    pub fn on_archetype_change(&mut self, _archetype_id: ArchetypeId) {
+        self.query_cache.clear();
+        self.archetype_to_queries.clear();
     }
 
     /// Invalidate cache when components change.
@@ -146,13 +148,13 @@ impl QuerySystem {
         // Build query result by iterating matching archetypes
         let mut result = QueryResult::new(query_id.clone());
         let matching_archetypes = storage.archetypes_matching(query_id.mask());
-        
+
         for &arch_id in &matching_archetypes {
             let archetype = storage.archetype(arch_id);
             for &entity_id in &archetype.entities {
                 result.add_entity(entity_id);
             }
-            
+
             // Populate inverse index for invalidation
             self.archetype_to_queries
                 .entry(arch_id)
