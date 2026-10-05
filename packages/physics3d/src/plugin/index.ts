@@ -256,18 +256,17 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         ctx.backendMode = "wasm";
         ctx.wasmBridge = pb;
 
-        // Populate CC SAB view from WASM linear memory
         const ccSabPtr = pb.physics3d_get_cc_sab_ptr?.() ?? 0;
-        const maxCC = pb.physics3d_get_max_cc_entities?.() ?? 32;
         if (ccSabPtr > 0) {
-          const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
-          if (mem) {
-            ctx.ccSABView.view = new Float32Array(
-              mem.buffer,
-              ccSabPtr,
-              maxCC * ctx.CC_STATE_STRIDE,
-            );
-          }
+          ctx.ccState = engine.memory.view({
+            name: "physics3d:cc-state",
+            type: "f32",
+            ptr: () => pb.physics3d_get_cc_sab_ptr?.() ?? 0,
+            length: () => {
+              const maxCC = pb.physics3d_get_max_cc_entities?.() ?? 32;
+              return maxCC * ctx.CC_STATE_STRIDE;
+            },
+          });
         }
       }
 
@@ -310,33 +309,6 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
       ctx.offEngineUpdate = engine.hooks.hook("engine:update", (_dt: number) => {
         if (!ctx.ready || !ctx._engine) return;
-
-        // Invalidate DataView if memory buffer changed (memory.grow event)
-        if (ctx.eventsView && ctx.backendMode === "wasm") {
-          const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? ctx.wasmBridge?.memory ?? null;
-          if (memory && ctx.eventsBufferRef !== memory.buffer) {
-            ctx.eventsView = null;
-            ctx.eventsBufferRef = null;
-          }
-        }
-
-        // Re-validate CC SAB view after WASM memory.grow
-        if (ctx.ccSABView.view !== null && ctx.backendMode === "wasm") {
-          const mem = ctx.bridgeRuntime?.getLinearMemory?.() ?? null;
-          if (mem !== null && ctx.ccSABView.view.buffer !== mem.buffer) {
-            const ccSabPtr2 = ctx.wasmBridge!.physics3d_get_cc_sab_ptr?.() ?? 0;
-            const maxCC2 = ctx.wasmBridge!.physics3d_get_max_cc_entities?.() ?? 32;
-            if (ccSabPtr2 > 0) {
-              ctx.ccSABView.view = new Float32Array(
-                mem.buffer,
-                ccSabPtr2,
-                maxCC2 * ctx.CC_STATE_STRIDE,
-              );
-            } else {
-              ctx.ccSABView.view = null;
-            }
-          }
-        }
 
         // Read events from WASM, or run local AABB collision detection
         const rawEvents =
@@ -448,8 +420,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.wasmBridge = null;
       ctx.bridgeRuntime = null;
       ctx._engine = null;
-      ctx.eventsView = null;
-      ctx.eventsBufferRef = null;
+      ctx.collisionEvents?.dispose();
+      ctx.collisionEvents = null;
+      ctx.ccState?.dispose();
+      ctx.ccState = null;
+      ctx.overlapScratch?.dispose();
+      ctx.overlapScratch = null;
       ctx.bodyByEntity.clear();
       ctx.stateByEntity.clear();
       ctx.localColliders.clear();

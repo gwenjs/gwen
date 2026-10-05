@@ -61,6 +61,8 @@ export const CoreErrorCodes = {
   UNHANDLED_REJECTION: "CORE:UNHANDLED_REJECTION",
   /** Logged when an `on` / `onFatal` / hook handler throws. Never emitted on the bus. */
   ERROR_HANDLER_FAILED: "CORE:ERROR_HANDLER_FAILED",
+  MEMORY_VIEW_INVALID: "CORE:MEMORY_VIEW_INVALID",
+  MEMORY_VIEW_DETACHED: "CORE:MEMORY_VIEW_DETACHED",
 } as const;
 
 /**

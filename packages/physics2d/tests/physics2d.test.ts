@@ -134,6 +134,28 @@ async function initPlugin(
   mockEngine: ReturnType<typeof makeMockEngine>,
 ) {
   (getWasmBridge as Mock).mockReturnValue(mockBridge);
+  (mockEngine as { memory: unknown }).memory = {
+    view(desc: { name: string; type: string; ptr: () => number; length: () => number }) {
+      let cached: DataView | Float32Array | Uint32Array | null = null;
+      return {
+        name: desc.name,
+        epoch: 0,
+        get array() {
+          const mem = mockBridge.getLinearMemory();
+          if (cached !== null && cached.byteLength !== 0 && cached.buffer === mem.buffer) {
+            return cached;
+          }
+          const ptr = desc.ptr();
+          const length = desc.length();
+          if (desc.type === "f32") cached = new Float32Array(mem.buffer, ptr, length);
+          else if (desc.type === "u32") cached = new Uint32Array(mem.buffer, ptr, length);
+          else cached = new DataView(mem.buffer, ptr, length);
+          return cached;
+        },
+        dispose() {},
+      };
+    },
+  };
   await plugin.setup!(mockEngine as any);
 }
 

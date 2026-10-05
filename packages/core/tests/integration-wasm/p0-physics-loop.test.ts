@@ -98,6 +98,41 @@ describe("P0 physics loop", () => {
     }
   });
 
+  it("reads a collision after WASM memory grows", async () => {
+    const { engine, bridge, advance } = await createRealEngine({
+      variant: "physics3d",
+      maxEntities: 64,
+    });
+    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+    let hits = 0;
+    const left = engine.createEntity();
+    const right = engine.createEntity();
+    await instantiate(engine, left, {
+      body: {
+        kind: "dynamic",
+        initialPosition: { x: 0, y: 0, z: 0 },
+        colliders: [OVERLAP_BOX],
+      },
+      onCollision: () => {
+        hits += 1;
+      },
+    });
+    await instantiate(engine, right, {
+      body: {
+        kind: "dynamic",
+        initialPosition: { x: 0.2, y: 0, z: 0 },
+        colliders: [OVERLAP_BOX],
+      },
+    });
+    const memory = bridge.getLinearMemory();
+    if (memory === null) throw new Error("physics3d wasm did not export memory");
+    memory.grow(1);
+
+    await advance(10, 1 / 60);
+
+    expect(hits).toBeGreaterThan(0);
+  });
+
   it("D2 kinematic sync 3D: an ECS move reaches the kinematic body", async () => {
     const handle = await createRealEngine({
       variant: "physics3d",

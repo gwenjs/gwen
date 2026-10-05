@@ -21,6 +21,7 @@ import type {
   GwenErrorTarget,
 } from "@gwenjs/schema";
 import type { WasmBridgeImpl } from "./wasm-bridge";
+import type { EngineMemory } from "./engine-memory.js";
 import { DisposableRegistry } from "../disposable";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
@@ -387,6 +388,8 @@ export interface GwenProvides {
   "tween:manager": import("../tween/runtime/tween-manager.js").TweenManager;
   /** Per-engine WASM bridge. Retrieve via `engine.tryInject("wasm:bridge")`. @internal */
   "wasm:bridge": WasmBridgeImpl;
+  /** Linear-memory views. Same object as `engine.memory`. */
+  memory: EngineMemory;
 }
 
 /**
@@ -487,6 +490,9 @@ export interface GwenEngine extends GwenEngineBase {
    * @returns `false` when that id is not isolated.
    */
   reenable(id: string): boolean;
+
+  /** Linear-memory views. Always present. Same object as `inject("memory")`. */
+  readonly memory: EngineMemory;
 
   // ─── Context ─────────────────────────────────────────────────────────────
   run<T>(fn: () => T): T;

@@ -74,6 +74,11 @@ declare module "@gwenjs/schema" {
     "engine:after-update": (dt: number) => void;
     /** Fired at Phase 7b of the frame loop — render pass. Replaces plugin.onRender(). */
     "engine:render": () => void;
+    /**
+     * Fired when gwen-core linear memory grew, before the next frame phase.
+     * `epoch` is the new per-engine epoch.
+     */
+    "engine:memory-grow": (info: { epoch: number; byteLength: number; frame: number }) => void;
     /** Fired by the router when a scene becomes active. Payload: scene name + optional navigation params. */
     "scene:enter": (name: string, params?: Record<string, unknown>) => void;
     /** Fired by the router before leaving a scene. Payload: scene name. */
