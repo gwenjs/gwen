@@ -158,6 +158,9 @@ function installGwenDist(dir: string): void {
     const pkg = JSON.parse(readFileSync(manifestPath, "utf8")) as {
       name?: string;
       type?: string;
+      exports?: unknown;
+      main?: string;
+      types?: string;
       publishConfig?: { exports?: unknown; main?: string; types?: string };
     };
     if (!pkg.name?.startsWith("@gwenjs/")) continue;
@@ -174,9 +177,12 @@ function installGwenDist(dir: string): void {
       name: pkg.name,
       type: pkg.type ?? "module",
     };
-    if (pkg.publishConfig?.exports) published["exports"] = pkg.publishConfig.exports;
-    if (pkg.publishConfig?.main) published["main"] = pkg.publishConfig.main;
-    if (pkg.publishConfig?.types) published["types"] = pkg.publishConfig.types;
+    const exportsMap = pkg.publishConfig?.exports ?? pkg.exports;
+    const main = pkg.publishConfig?.main ?? pkg.main;
+    const types = pkg.publishConfig?.types ?? pkg.types;
+    if (exportsMap) published["exports"] = exportsMap;
+    if (main) published["main"] = main;
+    if (types) published["types"] = types;
     writeFileSync(join(dest, "package.json"), JSON.stringify(published));
     linkPackageDeps(pkgDir, dest);
   }
@@ -204,7 +210,15 @@ function linkPackageDeps(pkgDir: string, dest: string): void {
   }
 }
 
+function readCoreDist(): string {
+  return readJsFiles(join(repoRoot, "packages/core/dist"));
+}
+
 function readJs(dir: string): string {
+  return readJsFiles(join(dir, "dist"));
+}
+
+function readJsFiles(root: string): string {
   const parts: string[] = [];
   const walk = (current: string): void => {
     for (const entry of readdirSync(current)) {
@@ -213,7 +227,7 @@ function readJs(dir: string): string {
       else if (entry.endsWith(".js")) parts.push(readFileSync(full, "utf8"));
     }
   };
-  walk(join(dir, "dist"));
+  walk(root);
   return parts.join("\n");
 }
 
@@ -344,7 +358,8 @@ describe("dev strip", () => {
     expect(prodStats.phase).toBe(false);
     expect(prodStats.over).toBe(false);
 
-    const distSource = readFileSync(dist, "utf8");
+    // The lib build splits the engine into a chunk. The guard lives there, not in the entry.
+    const distSource = readCoreDist();
     expect(distSource).toContain("typeof __GWEN_DEV__");
     expect(distSource).toContain('globalThis.process?.env?.NODE_ENV !== "production"');
 
