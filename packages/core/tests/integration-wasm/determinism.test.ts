@@ -192,6 +192,9 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
       }
     }
 
+    const probe = ids[0];
+    const startY = physics !== null && probe !== undefined ? physics(probe)[1] : undefined;
+
     let step = 0;
     unsubscribe = engine.hooks.hook("engine:update", () => {
       const sample = inputs[step] ?? 0;
@@ -214,7 +217,12 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
 
     await advance(STEPS, DT);
     expect(step).toBe(STEPS);
+    // `physicsHz` is stored but `advance(dt)` ignores it until #79. This is the variable-dt path at dt = 1/60.
     expect(engine.physicsHz).toBe(60);
+    if (startY !== undefined && probe !== undefined && physics !== null) {
+      const endY = physics(probe)[1];
+      expect(endY, `${variant} physics body did not move`).not.toBe(startY);
+    }
     return captureWorldBytes(engine, bridge, ids, physics);
   } finally {
     await dispose();

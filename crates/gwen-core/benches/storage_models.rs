@@ -80,6 +80,7 @@ fn bench_add<M: StorageModel>(
                 }
                 let entity = (cursor * 2 + 1) as u32;
                 cursor += 1;
+                #[allow(clippy::disallowed_methods, reason = "storage bench, not engine runtime")]
                 let start = Instant::now();
                 model.add_health(entity);
                 total += start.elapsed();
@@ -108,6 +109,7 @@ fn bench_remove<M: StorageModel>(
                 }
                 let entity = (cursor * 2) as u32;
                 cursor += 1;
+                #[allow(clippy::disallowed_methods, reason = "storage bench, not engine runtime")]
                 let start = Instant::now();
                 model.remove_health(entity);
                 total += start.elapsed();
@@ -135,6 +137,7 @@ fn bench_frame<M: StorageModel>(
                     model = build(count);
                     frame = 0;
                 }
+                #[allow(clippy::disallowed_methods, reason = "storage bench, not engine runtime")]
                 let start = Instant::now();
                 run_frame(&mut model, frame, DT);
                 total += start.elapsed();
