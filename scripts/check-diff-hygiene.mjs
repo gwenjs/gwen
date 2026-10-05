@@ -3,16 +3,24 @@
  * Fail added lines that match PR-contract rule 3, attribution trailers
  * in origin/v1-alpha..HEAD, and mock helpers or spyOn under tests/integration-wasm.
  *
- * A same-line `// allowlist: <reason> #N` skips that line.
+ * A flagged line is skipped only when scripts/agent-hygiene/allowlist.json
+ * has an entry for that file and rule. A same-line allowlist comment grants
+ * nothing. A diff that changes the allowlist file fails unless the PR has
+ * the maintainer label allowlist-approved.
  * Run: node scripts/check-diff-hygiene.mjs
  */
 
 import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { hasAttribution } from './commitlint-gwen.mjs';
 
 const GIT_MAX = 50 * 1024 * 1024;
+const ALLOWLIST_PATH = 'scripts/agent-hygiene/allowlist.json';
+const ALLOWLIST_LABEL = 'allowlist-approved';
+const INVALID_ALLOWLIST = 'invalid: use allowlist.json';
+const ALLOWLIST_CHANGED = 'allowlist changed: needs a maintainer-applied allowlist-approved label';
 
 /**
  * @param {string[]} parts
@@ -40,17 +48,31 @@ const EXPECT_ERR = re(['\\.expect_err\\s*\\(']);
 const PANIC = re(['panic!', '\\s*\\(']);
 const ASSERT = re(['assert!', '\\s*\\(']);
 const SPY_ON = /\bspyOn\s*\(/;
-const ALLOWLIST = /\/\/\s*allowlist:\s+\S.*#\d+\b/;
+const ALLOWLIST_COMMENT = re(['//\\s*', 'allowlist:']);
 const RULE_LINT = ['lint', 'disable'].join('-');
 const RULE_MOCK = ['vi', 'mock'].join('.');
 const RULE_FN = ['vi', 'fn'].join('.');
 
 /**
- * @param {string} line
+ * @typedef {{ file: string, rule: string, reason: string, ticket: string }} AllowEntry
+ */
+
+/**
+ * @param {AllowEntry[]} entries
+ * @param {string} file
+ * @param {string} rule
  * @returns {boolean}
  */
-export function isAllowlisted(line) {
-  return ALLOWLIST.test(line);
+export function isAllowlisted(entries, file, rule) {
+  if (!Array.isArray(entries)) return false;
+  const normalized = String(file).split('\\').join('/');
+  return entries.some((entry) => {
+    if (!entry || typeof entry.file !== 'string' || typeof entry.rule !== 'string') return false;
+    if (typeof entry.reason !== 'string' || entry.reason.trim() === '') return false;
+    if (typeof entry.ticket !== 'string' || !/^#\d+$/.test(entry.ticket)) return false;
+    const entryFile = entry.file.split('\\').join('/');
+    return entryFile === normalized && entry.rule === rule;
+  });
 }
 
 /**
@@ -97,9 +119,10 @@ export function matchAddedLine(text, file) {
 
 /**
  * @param {string} diffText
+ * @param {AllowEntry[]} [entries]
  * @returns {Hit[]}
  */
-export function findDiffViolations(diffText) {
+export function findDiffViolations(diffText, entries = []) {
   /** @type {Hit[]} */
   const hits = [];
   let file = '';
@@ -122,12 +145,41 @@ export function findDiffViolations(diffText) {
     }
     if (binary || !line.startsWith('+') || line.startsWith('+++')) continue;
     const text = line.slice(1);
-    if (isAllowlisted(text)) continue;
     for (const rule of matchAddedLine(text, file)) {
+      if (isAllowlisted(entries, file, rule)) continue;
       hits.push({ file, rule, text });
+    }
+    if (ALLOWLIST_COMMENT.test(text)) {
+      hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
     }
   }
   return hits;
+}
+
+/**
+ * @param {string} diffText
+ * @returns {boolean}
+ */
+function diffChangesAllowlist(diffText) {
+  for (const line of diffText.split('\n')) {
+    if (!line.startsWith('diff --git ')) continue;
+    const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+    if (!match) continue;
+    const paths = [match[1] ?? '', match[2] ?? ''].map((item) => item.split('\\').join('/'));
+    if (paths.includes(ALLOWLIST_PATH)) return true;
+  }
+  return false;
+}
+
+/**
+ * @param {string} diffText
+ * @param {boolean} allowlistApproved
+ * @returns {string[]}
+ */
+export function reviewAllowlistChange(diffText, allowlistApproved) {
+  if (!diffChangesAllowlist(diffText)) return [];
+  if (allowlistApproved === true) return [];
+  return [ALLOWLIST_CHANGED];
 }
 
 /**
@@ -168,19 +220,91 @@ function ensureBase(base) {
   }
 }
 
+/**
+ * @returns {AllowEntry[]}
+ */
+function loadAllowlistEntries() {
+  const file = path.resolve(process.cwd(), ALLOWLIST_PATH);
+  if (!existsSync(file)) return [];
+  /** @type {unknown} */
+  let parsed;
+  try {
+    parsed = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    console.error(`${ALLOWLIST_PATH}: invalid JSON`);
+    process.exit(1);
+  }
+  if (!Array.isArray(parsed)) {
+    console.error(`${ALLOWLIST_PATH}: expected an array`);
+    process.exit(1);
+  }
+  return parsed;
+}
+
+/**
+ * @returns {string}
+ */
+function pullRequestNumber() {
+  const fromEnv = process.env.PR_NUMBER ?? '';
+  if (/^\d+$/.test(fromEnv)) return fromEnv;
+  const refMatch = (process.env.GITHUB_REF ?? '').match(/^refs\/pull\/(\d+)(?:\/|$)/);
+  if (refMatch) return refMatch[1] ?? '';
+  const eventPath = process.env.GITHUB_EVENT_PATH;
+  if (!eventPath || !existsSync(eventPath)) return '';
+  try {
+    const event = JSON.parse(readFileSync(eventPath, 'utf8'));
+    const number = event.pull_request?.number ?? event.number;
+    if (typeof number === 'number' && number > 0) return String(number);
+  } catch {
+    return '';
+  }
+  return '';
+}
+
+/**
+ * Fail closed when `gh pr view --json labels` cannot be read.
+ * @returns {boolean}
+ */
+function resolveAllowlistApproved() {
+  try {
+    const args = ['pr', 'view'];
+    const number = pullRequestNumber();
+    if (number) args.push(number);
+    const repo = process.env.PR_REPO || process.env.GITHUB_REPOSITORY;
+    if (repo) args.push('--repo', repo);
+    args.push('--json', 'labels');
+    const env = { ...process.env };
+    const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+    if (token) env.GH_TOKEN = token;
+    const out = execFileSync('gh', args, { encoding: 'utf8', env });
+    const parsed = JSON.parse(out);
+    const labels = Array.isArray(parsed.labels) ? parsed.labels : [];
+    return labels.some((label) => label && label.name === ALLOWLIST_LABEL);
+  } catch {
+    return false;
+  }
+}
+
 function main() {
   const base = process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
   ensureBase(base);
   const diff = git(['diff', `${base}...HEAD`]);
   const log = git(['log', `${base}..HEAD`, '--format=%B%x1e']);
-  const hits = [...findDiffViolations(diff), ...findLogViolations(log)];
-  if (hits.length === 0) {
+  const hits = [...findDiffViolations(diff, loadAllowlistEntries()), ...findLogViolations(log)];
+  const approved = diffChangesAllowlist(diff) ? resolveAllowlistApproved() : false;
+  const allowErrors = reviewAllowlistChange(diff, approved);
+  if (hits.length === 0 && allowErrors.length === 0) {
     console.log('diff hygiene ok');
     return;
   }
   for (const hit of hits) {
+    if (hit.text === INVALID_ALLOWLIST) {
+      console.error(`${hit.file}: ${INVALID_ALLOWLIST}`);
+      continue;
+    }
     console.error(`${hit.file}: ${hit.rule}: ${hit.text}`);
   }
+  for (const error of allowErrors) console.error(error);
   process.exit(1);
 }
 

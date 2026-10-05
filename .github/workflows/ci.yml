@@ -297,6 +297,10 @@ jobs:
       - name: Scanner unit tests
         run: node --test scripts/check-diff-hygiene.test.mjs scripts/check-pr-contract.test.mjs scripts/check-ci-status-needs.test.mjs scripts/commitlint-gwen.test.mjs
       - name: Diff hygiene
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_REPO: ${{ github.repository }}
         run: node scripts/check-diff-hygiene.mjs
       - name: PR contract
         if: github.event_name == 'pull_request'

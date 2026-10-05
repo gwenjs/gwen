@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findDiffViolations, findLogViolations, isAllowlisted } from './check-diff-hygiene.mjs';
+import { findDiffViolations, findLogViolations, isAllowlisted, reviewAllowlistChange } from './check-diff-hygiene.mjs';
 
 const cast = ['as', 'unknown', 'as'].join(' ');
 const anyAnn = [': ', 'any'].join('');
@@ -17,6 +17,7 @@ const expectCall = ['.expect', '('].join('');
 const panic = ['panic!', '('].join('');
 const assertBang = ['assert!', '('].join('');
 const authored = ['Co', 'authored-by'].join('-');
+const allowComment = ['//', ' allowlist: fixture #7'].join('');
 
 /**
  * @param {string} file
@@ -84,21 +85,42 @@ test('does not flag Rust panic tokens in a TypeScript file', () => {
   assert.deepEqual(hits, []);
 });
 
-test('honours a same-line allowlist', () => {
-  const line = `const x = value ${cast} Type; // allowlist: fixture #7`;
-  assert.equal(isAllowlisted(line), true);
-  assert.deepEqual(findDiffViolations(diff('src/a.ts', [line])), []);
+test('a same-line allowlist comment grants nothing', () => {
+  const line = `const x = value ${cast} Type; ${allowComment}`;
+  const hits = findDiffViolations(diff('src/a.ts', [line]));
+  assert.ok(hits.some((hit) => hit.rule === 'as-unknown-as'));
+  assert.ok(hits.some((hit) => hit.text === 'invalid: use allowlist.json'));
 });
 
-test('ignores an allowlist that is not on the same line or has no ticket', () => {
-  const hits = findDiffViolations(
-    diff('src/a.ts', [
-      '// allowlist: wrong line #7',
-      `const x = value ${cast} Type;`,
-      `const y = value ${cast} Type; // allowlist: no ticket`,
-    ]),
+test('a missing allowlist entry does not skip a flagged line', () => {
+  const line = `const x = value ${cast} Type; ${allowComment}`;
+  const entries = [{ file: 'src/other.ts', rule: 'as-unknown-as', reason: 'other file', ticket: '#7' }];
+  const hits = findDiffViolations(diff('src/a.ts', [line]), entries);
+  assert.ok(hits.some((hit) => hit.rule === 'as-unknown-as'));
+  assert.equal(isAllowlisted(entries, 'src/a.ts', 'as-unknown-as'), false);
+});
+
+test('an allowlist entry skips that file and rule', () => {
+  const line = `const x = value ${cast} Type;`;
+  const entries = [{ file: 'src/a.ts', rule: 'as-unknown-as', reason: 'fixture', ticket: '#7' }];
+  assert.equal(isAllowlisted(entries, 'src/a.ts', 'as-unknown-as'), true);
+  assert.deepEqual(findDiffViolations(diff('src/a.ts', [line]), entries), []);
+});
+
+test('an allowlist.json change without the label fails', () => {
+  const text = [diff('scripts/agent-hygiene/allowlist.json', ['[]']), diff('src/a.ts', [`const x = value ${cast} Type; ${allowComment}`])].join(
+    '\n',
   );
-  assert.equal(hits.length, 2);
+  assert.deepEqual(reviewAllowlistChange(text, false), [
+    'allowlist changed: needs a maintainer-applied allowlist-approved label',
+  ]);
+  const hits = findDiffViolations(text, []);
+  assert.ok(hits.some((hit) => hit.rule === 'as-unknown-as'));
+});
+
+test('an allowlist.json change with the label passes', () => {
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[]']);
+  assert.deepEqual(reviewAllowlistChange(text, true), []);
 });
 
 test('does not flag a removed line', () => {
