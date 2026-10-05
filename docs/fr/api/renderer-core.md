@@ -49,6 +49,8 @@ const service = MyRenderer({ layers: { game: { order: 10 } } })
 
 ```ts
 // Avec extension — méthodes spécifiques au renderer typées sur le service retourné
+import { UnknownLayerError } from '@gwenjs/renderer-core'
+
 export const HTMLRenderer = defineRendererService<
   HTMLOptions,
   { allocateHandle(layer: string, key: string): HTMLHandle }
@@ -59,7 +61,7 @@ export const HTMLRenderer = defineRendererService<
     layers: opts.layers,
     createElement: (name) => {
       const layer = layers.get(name)
-      if (layer === undefined) throw new Error(`missing layer ${name}`)
+      if (layer === undefined) throw new UnknownLayerError(name, 'renderer:html')
       return layer.element
     },
     mount: () => {},
@@ -68,7 +70,7 @@ export const HTMLRenderer = defineRendererService<
     extension: {
       allocateHandle(layer, key) {
         const entry = layers.get(layer)
-        if (entry === undefined) throw new Error(`missing layer ${layer}`)
+        if (entry === undefined) throw new UnknownLayerError(layer, 'renderer:html')
         return new HTMLHandleImpl(entry, key)
       },
     },

@@ -125,6 +125,8 @@ export const MyRenderer = defineRendererService<MyOptions>((opts) => ({
 }))
 
 // With extension — renderer-specific methods typed on the returned service
+import { UnknownLayerError } from '@gwenjs/renderer-core'
+
 export const HTMLRenderer = defineRendererService<
   HTMLOptions,
   { allocateHandle(layer: string, key: string): HTMLHandle }
@@ -135,7 +137,7 @@ export const HTMLRenderer = defineRendererService<
     layers: opts.layers,
     createElement: (name) => {
       const layer = layers.get(name)
-      if (layer === undefined) throw new Error(`missing layer ${name}`)
+      if (layer === undefined) throw new UnknownLayerError(name, 'renderer:html')
       return layer.element
     },
     mount: () => {},
@@ -144,7 +146,7 @@ export const HTMLRenderer = defineRendererService<
     extension: {
       allocateHandle(layer, key) {
         const entry = layers.get(layer)
-        if (entry === undefined) throw new Error(`missing layer ${layer}`)
+        if (entry === undefined) throw new UnknownLayerError(layer, 'renderer:html')
         return new HTMLHandleImpl(entry, key)
       },
     },
