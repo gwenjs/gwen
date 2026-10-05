@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "composite": true,
+    "composite": false,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -33,9 +33,6 @@
     },
     {
       "path": "../physics2d"
-    },
-    {
-      "path": "../app"
     },
     {
       "path": "../renderer-core"

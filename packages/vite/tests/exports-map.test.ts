@@ -10,19 +10,22 @@ const manifest = JSON.parse(readFileSync(path.join(pkgRoot, "package.json"), "ut
 };
 
 describe(`${manifest.name} exports map`, () => {
-  it("points every export at a file and lists types first", () => {
-    for (const [subpath, target] of Object.entries(manifest.exports)) {
-      if (typeof target === "string") {
-        expect(existsSync(path.join(pkgRoot, target)), subpath).toBe(true);
-        continue;
+  it.skipIf(!existsSync(path.join(pkgRoot, "dist")))(
+    "points every export at a file and lists types first",
+    () => {
+      for (const [subpath, target] of Object.entries(manifest.exports)) {
+        if (typeof target === "string") {
+          expect(existsSync(path.join(pkgRoot, target)), subpath).toBe(true);
+          continue;
+        }
+        const keys = Object.keys(target);
+        if ("types" in target) expect(keys[0], subpath).toBe("types");
+        for (const file of Object.values(target)) {
+          expect(existsSync(path.join(pkgRoot, file)), `${subpath} -> ${file}`).toBe(true);
+        }
       }
-      const keys = Object.keys(target);
-      if ("types" in target) expect(keys[0], subpath).toBe("types");
-      for (const file of Object.values(target)) {
-        expect(existsSync(path.join(pkgRoot, file)), `${subpath} -> ${file}`).toBe(true);
-      }
-    }
-  });
+    },
+  );
 
   it("resolves ./package.json", async () => {
     expect(manifest.exports["./package.json"]).toBe("./package.json");

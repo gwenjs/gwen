@@ -30,7 +30,7 @@
       "@gwenjs/core/wasm/physics3d": ["./packages/core/wasm/physics3d/gwen_core.d.ts"],
       "@gwenjs/kit/plugin": ["./packages/kit/src/plugin/index.ts"],
       "@gwenjs/kit/module": ["./packages/kit/src/module/index.ts"],
-      "@gwenjs/app/resolve": ["./packages/app/dist/resolve.d.ts"],
+      "@gwenjs/app/resolve": ["./packages/app/src/resolve.ts"],
       "@gwenjs/physics2d/helpers/static-geometry": [
         "./packages/physics2d/src/helpers/static-geometry.ts"
       ],
@@ -50,7 +50,7 @@
       "@gwenjs/physics3d-fracture/wasm": [
         "./packages/physics3d-fracture/wasm/gwen_physics3d_fracture.d.ts"
       ],
-      "@gwenjs/vite/shared/layer-utils": ["./packages/vite/dist/shared/layer-utils.d.ts"],
+      "@gwenjs/vite/shared/layer-utils": ["./packages/vite/src/shared/layer-utils.d.ts"],
       "@gwenjs/vite/internal": ["./packages/vite/src/internal.ts"],
       "@gwenjs/renderer-core/module": ["./packages/renderer-core/src/module.ts"],
       "@gwenjs/renderer-core/testing": ["./packages/renderer-core/src/testing/index.ts"],
