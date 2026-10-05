@@ -75,14 +75,17 @@ export class ScopedHookable {
    */
   hook<K extends keyof GwenRuntimeHooks>(name: K, fn: GwenRuntimeHooks[K]): () => void {
     const call = fn as (...args: unknown[]) => unknown;
-    const wrapped = ((a: unknown, b: unknown, c: unknown, d: unknown) => {
-      if (this._paused) return;
+    const isPaused = (): boolean => this._paused;
+    // Arity 0-4 stays allocation-free. A longer call uses apply.
+    const wrapped = function (a: unknown, b: unknown, c: unknown, d: unknown) {
+      if (isPaused()) return;
+      if (arguments.length > 4) return Function.prototype.apply.call(call, undefined, arguments);
       if (d !== undefined) return call(a, b, c, d);
       if (c !== undefined) return call(a, b, c);
       if (b !== undefined) return call(a, b);
       if (a !== undefined) return call(a);
       return call();
-    }) as GwenRuntimeHooks[K];
+    } as GwenRuntimeHooks[K];
 
     const unsub = this._parent.hook(name, wrapped as never);
     this._disposers.push(unsub);

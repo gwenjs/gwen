@@ -7,11 +7,22 @@ import {
   CoreErrorCodes,
   createEngine,
   createErrorBus,
+  defineHooks,
+  emit,
   useHook,
   type EngineErrorPayload,
+  type InferHooks,
 } from "../src/index";
 import { defineScene, useSystem, type SystemHandle } from "../src/scene/index";
 import { defineSystem, onUpdate } from "../src/system/index";
+
+const FiveArgHooks = defineHooks({
+  "game:five": (_a: number, _b: number, _c: number, _d: number, _e: number): void => undefined,
+});
+
+declare module "@gwenjs/schema" {
+  interface GwenRuntimeHooks extends InferHooks<typeof FiveArgHooks> {}
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -458,6 +469,56 @@ describe("frame isolation", () => {
 
     engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "after restart" });
     expect(engine.state).toBe("faulted");
+  });
+
+  it("delivers a fifth argument from emit to a scoped hook", async () => {
+    const engine = await createEngine();
+    let seen: unknown[] = [];
+    await engine.use(
+      defineSystem("Wide", () => {
+        useHook("game:five", (a, b, c, d, e) => {
+          seen = [a, b, c, d, e];
+        });
+      })(),
+    );
+
+    engine.run(() => {
+      emit("game:five", 1, 2, 3, 4, 5);
+    });
+
+    expect(seen).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it("does not run a later handler of the same hook after the engine is faulted", async () => {
+    const engine = await createEngine();
+    const codes: string[] = [];
+    let later = 0;
+    engine.errors.on((event) => {
+      codes.push(event.code);
+    });
+    await engine.use(
+      defineSystem("Trap", () => {
+        onUpdate(() => {
+          throw new WebAssembly.RuntimeError("trap");
+        });
+      })(),
+    );
+    await engine.use(
+      defineSystem("Later", () => {
+        onUpdate(() => {
+          later += 1;
+        });
+      })(),
+    );
+
+    await engine.startExternal();
+    await engine.advance(1 / 60);
+
+    expect(codes.filter((code) => code === CoreErrorCodes.WASM_PANIC)).toEqual([
+      CoreErrorCodes.WASM_PANIC,
+    ]);
+    expect(engine.state).toBe("faulted");
+    expect(later).toBe(0);
   });
 
   it("does not keep firing engine:error for a stopped engine that shares a bus", async () => {

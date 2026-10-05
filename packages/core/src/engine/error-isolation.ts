@@ -3,7 +3,10 @@
  *
  * The guard is allocated once per subscription. A successful sync call does not
  * allocate a closure or a promise. An identified throw is reported and does not
- * leave the guard, so later handlers of the same hook still run.
+ * leave the guard, so later handlers of the same hook still run. A faulted
+ * engine returns before the call, so handlers after a trap do not touch the core.
+ *
+ * Arity 0-4 stays allocation-free. A longer call uses `apply`.
  */
 
 import type { GwenErrorTarget, GwenScopeMeta, PluginErrorContext } from "@gwenjs/schema";
@@ -127,6 +130,10 @@ function reportFailure(
   reporters.get(engine)?.(error, target, hook);
 }
 
+function engineIsFaulted(engine: object): boolean {
+  return (engine as { state?: unknown }).state === "faulted";
+}
+
 function forward(
   fn: (...args: unknown[]) => unknown,
   a: unknown,
@@ -148,9 +155,12 @@ export function guardHandler(
   engine: object,
 ): (a: unknown, b: unknown, c: unknown, d: unknown) => unknown {
   return function guarded(a: unknown, b: unknown, c: unknown, d: unknown): unknown {
-    if (isIsolated(engine, target.id)) return undefined;
+    if (engineIsFaulted(engine) || isIsolated(engine, target.id)) return undefined;
     try {
-      const result = forward(fn, a, b, c, d);
+      const result =
+        arguments.length > 4
+          ? Function.prototype.apply.call(fn, undefined, arguments)
+          : forward(fn, a, b, c, d);
       if (!isThenable(result)) return result;
       return result.then(undefined, (error: unknown) => {
         reportFailure(engine, error, target, hook);
