@@ -3,12 +3,10 @@
  * All functions are pure and stateless; tests verify exact behavior and defaults.
  */
 import { describe, it, expect } from "vitest";
-import { createEntityId } from "@gwenjs/core";
 
 import {
   vec3,
   quat,
-  toEntityIndex,
   kindFromU8,
   kindToU8,
   parseBodyState,
@@ -120,26 +118,6 @@ describe("quat", () => {
   it("handles negative w (opposite rotation)", () => {
     const q = quat({ w: -1 });
     expect(q).toEqual({ x: 0, y: 0, z: 0, w: -1 });
-  });
-});
-
-// ─── toEntityIndex() ───────────────────────────────────────────────────────
-
-describe("toEntityIndex", () => {
-  it("reads the slot of an EntityId", () => {
-    expect(toEntityIndex(createEntityId(42, 0))).toBe(42);
-  });
-
-  it("reads a zero slot", () => {
-    expect(toEntityIndex(createEntityId(0, 3))).toBe(0);
-  });
-
-  it("masks the generation away", () => {
-    expect(toEntityIndex(createEntityId(0x42, 1))).toBe(0x42);
-  });
-
-  it("keeps the full u32 slot", () => {
-    expect(toEntityIndex(createEntityId(0xffffffff, 0))).toBe(0xffffffff);
   });
 });
 

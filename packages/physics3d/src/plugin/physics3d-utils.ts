@@ -3,15 +3,12 @@
  * These functions are stateless and can be safely extracted and reused.
  */
 
-import { entityIndex } from "@gwenjs/core/internal";
-
 import type {
   Physics3DVec3,
   Physics3DQuat,
   Physics3DBodyKind,
   Physics3DBodyState,
   Physics3DColliderOptions,
-  Physics3DEntityId,
 } from "../types";
 import { PHYSICS3D_MATERIAL_PRESETS } from "../types";
 
@@ -35,16 +32,6 @@ export function vec3(v?: Partial<Physics3DVec3>): Physics3DVec3 {
  */
 export function quat(v?: Partial<Physics3DQuat>): Physics3DQuat {
   return { x: v?.x ?? 0, y: v?.y ?? 0, z: v?.z ?? 0, w: v?.w ?? 1 };
-}
-
-/**
- * Slot index (lower 32 bits) of an EntityId.
- *
- * @param entityId - Packed engine entity id
- * @returns Numeric slot index (0..2^32-1)
- */
-export function toEntityIndex(entityId: Physics3DEntityId): number {
-  return entityIndex(entityId);
 }
 
 /**

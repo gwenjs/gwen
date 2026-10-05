@@ -22,11 +22,6 @@ export class Physics3DStaleEntityError extends GwenError {
   }
 }
 
-/** Physics3DEntityId is an EntityId. Numbers and strings are not accepted. */
-export function normalizeEntityId(id: EntityId): EntityId {
-  return id;
-}
-
 export function entitySlot(id: EntityId): number {
   return entityIndex(id);
 }
@@ -54,18 +49,17 @@ export function ownerEntityId(ctx: PluginContext, slot: number): EntityId | unde
   if (ctx.ownerChangedSinceStep.has(slot)) return undefined;
   const handle = ctx.bodyByEntity.get(slot);
   if (!handle) return undefined;
-  return normalizeEntityId(handle.entityId);
+  return handle.entityId;
 }
 
 export function ownedSlot(
   ctx: PluginContext,
   id: Physics3DEntityId,
 ): { eid: EntityId; slot: number; handle: Physics3DBodyHandle } | null {
-  const eid = normalizeEntityId(id);
-  const slot = entitySlot(eid);
+  const slot = entitySlot(id);
   const handle = ctx.bodyByEntity.get(slot);
-  if (!handle || !sameEntity(handle.entityId, eid)) return null;
-  return { eid, slot, handle };
+  if (!handle || !sameEntity(handle.entityId, id)) return null;
+  return { eid: id, slot, handle };
 }
 
 /**
@@ -77,11 +71,10 @@ export function guardOwned(
   id: Physics3DEntityId,
   operation: string,
 ): { eid: EntityId; slot: number; handle: Physics3DBodyHandle } | null {
-  const eid = normalizeEntityId(id);
-  const slot = entitySlot(eid);
+  const slot = entitySlot(id);
   const handle = ctx.bodyByEntity.get(slot);
-  if (handle && sameEntity(handle.entityId, eid)) return { eid, slot, handle };
-  if (isDeadEntity(ctx._engine, eid)) throw new Physics3DStaleEntityError(eid, operation);
+  if (handle && sameEntity(handle.entityId, id)) return { eid: id, slot, handle };
+  if (isDeadEntity(ctx._engine, id)) throw new Physics3DStaleEntityError(id, operation);
   return null;
 }
 
@@ -91,7 +84,6 @@ export function guardAlive(
   id: Physics3DEntityId,
   operation: string,
 ): { eid: EntityId; slot: number } {
-  const eid = normalizeEntityId(id);
-  if (isDeadEntity(ctx._engine, eid)) throw new Physics3DStaleEntityError(eid, operation);
-  return { eid, slot: entitySlot(eid) };
+  if (isDeadEntity(ctx._engine, id)) throw new Physics3DStaleEntityError(id, operation);
+  return { eid: id, slot: entitySlot(id) };
 }

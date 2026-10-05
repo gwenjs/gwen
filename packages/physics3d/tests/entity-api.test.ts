@@ -97,6 +97,14 @@ describe("Physics3D entity API (foundation)", () => {
     expect(service.getBodyCount()).toBe(0);
   });
 
+  it("throws TypeError when createBody receives a number id", () => {
+    const { service } = setup();
+    expect(() => {
+      service.createBody(1);
+    }).toThrow(TypeError);
+    expect(service.getBodyCount()).toBe(0);
+  });
+
   it("can update body kind at runtime", () => {
     const { service } = setup();
     service.createBody(13n, { kind: "dynamic" });
@@ -277,7 +285,7 @@ describe("Physics3D entity API (foundation)", () => {
 
     plugin.teardown!();
 
-    expect(offSpy).toHaveBeenCalledTimes(3);
+    expect(offSpy).toHaveBeenCalledTimes(4);
     expect(service.getBodyCount()).toBe(0);
     expect(service.isReady()).toBe(false);
   });

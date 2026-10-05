@@ -12,14 +12,7 @@ import type {
 } from "../types";
 import type { Physics3DColliderOptions } from "../types";
 import type { PluginContext } from "./plugin-context";
-import {
-  entitySlot,
-  guardAlive,
-  guardOwned,
-  normalizeEntityId,
-  noteOwnerChange,
-  ownedSlot,
-} from "./entity-owner";
+import { entitySlot, guardAlive, guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { vec3, quat, kindToU8, kindFromU8, parseBodyState, cloneState } from "./physics3d-utils";
 
 // ─── Local simulation ─────────────────────────────────────────────────────────
@@ -29,11 +22,10 @@ export function createBodyLocal(
   entityId: Physics3DEntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
-  const eid = normalizeEntityId(entityId);
-  const slot = entitySlot(eid);
+  const slot = entitySlot(entityId);
   const handle: Physics3DBodyHandle = {
     bodyId: ctx.nextBodyId++,
-    entityId: eid,
+    entityId,
     kind: options.kind ?? "dynamic",
     mass: Math.max(0.0001, options.mass ?? 1),
     linearDamping: Math.max(0, options.linearDamping ?? 0),
@@ -65,7 +57,7 @@ export function createBodyLocal(
 }
 
 export function removeBodyLocal(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
-  const slot = entitySlot(normalizeEntityId(entityId));
+  const slot = entitySlot(entityId);
   ctx.stateByEntity.delete(slot);
   ctx.localColliders.delete(slot);
   ctx.localForces.delete(slot);
@@ -188,16 +180,15 @@ export function createBodyWasm(
   entityId: Physics3DEntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
-  const eid = normalizeEntityId(entityId);
   const handle: Physics3DBodyHandle = {
     bodyId: ctx.nextBodyId++,
-    entityId: eid,
+    entityId,
     kind: options.kind ?? "dynamic",
     mass: Math.max(0.0001, options.mass ?? 1),
     linearDamping: Math.max(0, options.linearDamping ?? 0),
     angularDamping: Math.max(0, options.angularDamping ?? 0),
   };
-  const idx = entitySlot(eid);
+  const idx = entitySlot(entityId);
   ctx.wasmBridge!.physics3d_add_body!(
     idx,
     options.initialPosition?.x ?? 0,
@@ -260,7 +251,7 @@ export function createBodyWasm(
 }
 
 export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
-  const slot = entitySlot(normalizeEntityId(entityId));
+  const slot = entitySlot(entityId);
   if (!ctx.bodyByEntity.has(slot)) return false;
   ctx.wasmBridge!.physics3d_remove_body!(slot);
   ctx.bodyByEntity.delete(slot);

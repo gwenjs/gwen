@@ -61,20 +61,12 @@
     ]
   },
   "./module": {
-    "values": [
-      "default"
-    ],
+    "values": ["default"],
     "types": []
   },
   "./testing": {
-    "values": [
-      "MockSizeProvider",
-      "runConformanceTests",
-      "runSurfaceConformance"
-    ],
-    "types": [
-      "MockSizeProviderHandle"
-    ]
+    "values": ["MockSizeProvider", "runConformanceTests", "runSurfaceConformance"],
+    "types": ["MockSizeProviderHandle"]
   },
   "./internal": {
     "values": [

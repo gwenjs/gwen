@@ -52,6 +52,7 @@ export interface PluginContext {
   ready: boolean;
   _variant: "light" | "physics2d" | "physics3d";
   stepFn: ((delta: number) => void) | null;
+  offPrefabInstantiate: (() => void) | null;
   offEntityDestroyed: (() => void) | null;
   offEngineBeforeUpdate: (() => void) | null;
   offEngineUpdate: (() => void) | null;
@@ -158,6 +159,7 @@ export function createPluginContext(
     ready: false,
     _variant: "light",
     stepFn: null,
+    offPrefabInstantiate: null,
     offEntityDestroyed: null,
     offEngineBeforeUpdate: null,
     offEngineUpdate: null,
