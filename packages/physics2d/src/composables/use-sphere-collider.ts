@@ -2,7 +2,6 @@
  * @file useSphereCollider() — circle collider for 2D (sphere for structural 3D compat).
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type { CircleColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";
 
@@ -40,7 +39,7 @@ export interface SphereColliderOptions {
  */
 export function useSphereCollider(options: SphereColliderOptions): CircleColliderHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   const bodyHandle = physics.addRigidBody(
     entityId,
@@ -50,9 +49,9 @@ export function useSphereCollider(options: SphereColliderOptions): CircleCollide
   );
 
   physics.addBallCollider(bodyHandle, options.radius, {
-    isSensor: options.isSensor,
-    membershipLayers: options.layer,
-    filterLayers: options.mask,
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
+    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
   });
 
   return { colliderId: bodyHandle, isSensor: options.isSensor ?? false };

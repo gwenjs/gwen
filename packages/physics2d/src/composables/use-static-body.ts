@@ -2,7 +2,6 @@
  * @file useStaticBody() — registers a static (non-moving) physics body for the current actor.
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import { useEngine } from "@gwenjs/core";
 import type { StaticBodyHandle, StaticBodyOptions, ColliderOptions } from "../types";
 import { usePhysics2D } from "../composables";
@@ -31,13 +30,13 @@ import { ShapeComponent } from "../shape-component";
 export function useStaticBody(options: StaticBodyOptions = {}): StaticBodyHandle {
   const physics = usePhysics2D();
   const engine = useEngine();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   // Stored creation options so enable() can re-register the body after disable().
   const colliderOpts: ColliderOptions = {
-    isSensor: options.isSensor,
-    membershipLayers: options.layer,
-    filterLayers: options.mask,
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
+    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
   };
 
   let _bodyHandle: number;

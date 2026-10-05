@@ -18,6 +18,11 @@ export const CONTACT_EVENT_BYTES = 32;
 /** Maximum events per frame before oldest are overwritten. */
 export const RING_CAPACITY = 512;
 
+/** In-range typed-array reads are numbers. The zero fallback is for the index signature. */
+function readSlot(view: ArrayLike<number>, index: number): number {
+  return view[index] ?? 0;
+}
+
 export class ContactRingBuffer {
   private readonly _sab: SharedArrayBuffer;
   private readonly _u32: Uint32Array;
@@ -61,17 +66,25 @@ export class ContactRingBuffer {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY;
       const base = slot * (CONTACT_EVENT_BYTES / 4);
+      const wordA = readSlot(this._u32, base);
+      const wordB = readSlot(this._u32, base + 1);
+      const contactX = readSlot(this._f32, base + 2);
+      const contactY = readSlot(this._f32, base + 3);
+      const normalX = readSlot(this._f32, base + 4);
+      const normalY = readSlot(this._f32, base + 5);
+      const relativeVelocity = readSlot(this._f32, base + 6);
+      const flags = readSlot(this._u32, base + 7);
       events.push({
-        entityA: BigInt(this._u32[base]), // raw index — WASM writes packed ID here in production
-        entityB: BigInt(this._u32[base + 1]),
-        contactX: this._f32[base + 2],
-        contactY: this._f32[base + 3],
-        normalX: this._f32[base + 4],
-        normalY: this._f32[base + 5],
-        relativeVelocity: this._f32[base + 6],
-        isSensor: (this._u32[base + 7] & 1) !== 0,
-        isEnter: (this._u32[base + 7] & 2) !== 0,
-        isExit: (this._u32[base + 7] & 4) !== 0,
+        entityA: BigInt(wordA), // raw index — WASM writes packed ID here in production
+        entityB: BigInt(wordB),
+        contactX,
+        contactY,
+        normalX,
+        normalY,
+        relativeVelocity,
+        isSensor: (flags & 1) !== 0,
+        isEnter: (flags & 2) !== 0,
+        isExit: (flags & 4) !== 0,
       });
       this._readHead++;
     }

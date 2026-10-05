@@ -132,7 +132,7 @@ describe("P0 physics loop", () => {
     try {
       const { engine, advance } = handle;
       await engine.use(Physics2DPlugin({ gravity: 0 }));
-      await engine.use(createKinematicSync2D({ pixelsPerMeter: 1 }));
+      await engine.use(createKinematicSync2D({ pixelsPerMeter: 1, positionComponent: Position2D }));
       const physics = engine.inject("physics2d");
       const body = engine.createEntity();
       engine.addComponent(body, Position2D, { x: 0, y: 0 });

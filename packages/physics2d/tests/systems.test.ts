@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import type { EntityId } from "@gwenjs/core";
+import type { ComponentDef } from "@gwenjs/core/system";
 import {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
@@ -106,6 +107,7 @@ function makeEngineMock(physicsMock: ReturnType<typeof makePhysicsMock>) {
 // ─── Physics2DKinematicSyncSystem — live query integration ────────────────────
 
 describe("Physics2DKinematicSyncSystem", () => {
+  const position = { name: "position" } as ComponentDef;
   describe("live query integration", () => {
     it("only iterates entities with both required components", () => {
       const physics = makePhysicsMock();
@@ -115,7 +117,10 @@ describe("Physics2DKinematicSyncSystem", () => {
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
       engine._addEntity(2n as EntityId, null);
 
-      const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+      const system = createPhysicsKinematicSyncSystem({
+        pixelsPerMeter: 50,
+        positionComponent: position,
+      });
       system.setup(engine as Parameters<typeof system.setup>[0]);
       hookMap.get("engine:before-update")?.(0);
 
@@ -130,7 +135,10 @@ describe("Physics2DKinematicSyncSystem", () => {
 
       engine._addEntity(10n as EntityId, { x: 50, y: 50 });
 
-      const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+      const system = createPhysicsKinematicSyncSystem({
+        pixelsPerMeter: 50,
+        positionComponent: position,
+      });
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
       // Frame 1 — only entity 10.
@@ -155,7 +163,10 @@ describe("Physics2DKinematicSyncSystem", () => {
       engine._addEntity(5n as EntityId, { x: 10, y: 20 });
       engine._addEntity(6n as EntityId, { x: 30, y: 40 });
 
-      const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+      const system = createPhysicsKinematicSyncSystem({
+        pixelsPerMeter: 50,
+        positionComponent: position,
+      });
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
       // Frame 1 — both entities synced.
@@ -185,7 +196,7 @@ describe("Physics2DKinematicSyncSystem", () => {
       const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
 
-      const system = createPhysicsKinematicSyncSystem();
+      const system = createPhysicsKinematicSyncSystem({ positionComponent: position });
       system.setup(engine as Parameters<typeof system.setup>[0]);
       hookMap.get("engine:before-update")?.(0);
 
@@ -198,7 +209,10 @@ describe("Physics2DKinematicSyncSystem", () => {
       const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 100, y: 200 });
 
-      const system = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 100 });
+      const system = createPhysicsKinematicSyncSystem({
+        pixelsPerMeter: 100,
+        positionComponent: position,
+      });
       system.setup(engine as Parameters<typeof system.setup>[0]);
       hookMap.get("engine:before-update")?.(0);
 
@@ -206,16 +220,20 @@ describe("Physics2DKinematicSyncSystem", () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 1, 2);
     });
 
-    it("passes the configured positionComponent name to createLiveQuery", () => {
+    it("does not query a component by the string name position", () => {
+      expect(() => createPhysicsKinematicSyncSystem()).toThrow(TypeError);
+    });
+
+    it("passes the configured position component to createLiveQuery", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
-      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: "transform2d" };
+      const transform2d = { name: "transform2d" } as ComponentDef;
+      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: transform2d };
       const system = createPhysicsKinematicSyncSystem(opts);
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
-      // createLiveQuery should have been called with the custom component name.
-      expect(engine.createLiveQuery).toHaveBeenCalledWith(expect.arrayContaining(["transform2d"]));
+      expect(engine.createLiveQuery).toHaveBeenCalledWith([transform2d]);
     });
   });
 
@@ -225,7 +243,7 @@ describe("Physics2DKinematicSyncSystem", () => {
     it("does not sync when engine:before-update fires before setup", () => {
       const physics = makePhysicsMock();
       const { hookMap } = makeEngineMock(physics);
-      const system = createPhysicsKinematicSyncSystem();
+      const system = createPhysicsKinematicSyncSystem({ positionComponent: position });
       // The hook is not registered until setup.
       hookMap.get("engine:before-update")?.(0);
       expect(system.name).toBe("PhysicsKinematicSyncSystem");
@@ -237,7 +255,7 @@ describe("Physics2DKinematicSyncSystem", () => {
       const { engine, hookMap } = makeEngineMock(physics);
       engine._addEntity(1n as EntityId, { x: 10, y: 20 });
 
-      const system = createPhysicsKinematicSyncSystem();
+      const system = createPhysicsKinematicSyncSystem({ positionComponent: position });
       system.setup(engine as Parameters<typeof system.setup>[0]);
       system.teardown();
       hookMap.get("engine:before-update")?.(0);
@@ -246,7 +264,7 @@ describe("Physics2DKinematicSyncSystem", () => {
     });
 
     it('has the plugin name "PhysicsKinematicSyncSystem"', () => {
-      const system = createPhysicsKinematicSyncSystem();
+      const system = createPhysicsKinematicSyncSystem({ positionComponent: position });
       expect(system.name).toBe("PhysicsKinematicSyncSystem");
     });
   });

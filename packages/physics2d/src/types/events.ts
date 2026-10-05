@@ -13,6 +13,17 @@ export interface CollisionEvent {
   started: boolean;
 }
 
+/** WASM collision event. Slot indices stay off the public {@link CollisionEvent}. */
+export interface InternalCollisionEvent extends CollisionEvent {
+  slotA: number;
+  slotB: number;
+}
+
+/** Plugin batch. `events` carry the slot indices omitted from {@link CollisionEvent}. */
+export interface InternalCollisionEventsBatch extends Omit<CollisionEventsBatch, "events"> {
+  events: readonly InternalCollisionEvent[];
+}
+
 export interface CollisionEventsBatch {
   /** Monotonic physics frame index produced by the WASM world. */
   frame: number;

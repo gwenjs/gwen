@@ -5,8 +5,6 @@ import type {} from "./augment";
 
 /** Default pixel-to-meter conversion ratio for Rapier2D. */
 const DEFAULT_PIXELS_PER_METER = 50;
-/** Default ECS component name used to read 2D positions. */
-const DEFAULT_POSITION_COMPONENT = "position";
 
 /**
  * A minimal 2D vector with `x` and `y` numeric coordinates.
@@ -43,10 +41,10 @@ export interface PhysicsKinematicSyncSystemOptions {
    */
   pixelsPerMeter?: number;
   /**
-   * ECS component name whose data contains `{ x: number; y: number }` coordinates.
-   * @default 'position'
+   * ECS position component. Data must contain `{ x: number; y: number }`.
+   * Pass the component definition. A string name is not accepted.
    */
-  positionComponent?: string;
+  positionComponent: ComponentDef;
 }
 
 /**
@@ -60,7 +58,7 @@ export interface PhysicsKinematicSyncSystemOptions {
  * Body and collider lifecycle is managed separately by the prefab
  * `extensions.physics` block inside the `Physics2DPlugin`.
  *
- * @param options - Optional pixel-to-meter ratio and position component name.
+ * @param options - Pixel-to-meter ratio and the position component definition.
  * @returns A plugin object ready to register with `engine.use()`.
  *
  * @example
@@ -68,15 +66,18 @@ export interface PhysicsKinematicSyncSystemOptions {
  * import { createPhysicsKinematicSyncSystem } from '@gwenjs/physics2d'
  *
  * engine.use(
- *   createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: 'position' })
+ *   createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position })
  * )
  * ```
  *
  * @since 1.0.0
  */
-export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
+export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions) {
+  if (options?.positionComponent === undefined) {
+    throw new TypeError("physics2d positionComponent is required");
+  }
   const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
-  const _positionComponent = options.positionComponent ?? DEFAULT_POSITION_COMPONENT;
+  const _positionComponent = options.positionComponent;
 
   let _physics: Physics2DAPI | null = null;
   let _liveQuery: LiveQuery<EntityAccessor> | null = null;
@@ -95,16 +96,14 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
     setup(engine: GwenEngine): void {
       _physics = engine.inject("physics2d");
 
-      // The ECS registry accepts string component names at runtime even though the
-      // TypeScript overload expects a ComponentDefinition. The cast avoids `any`.
-      _liveQuery = engine.createLiveQuery([_positionComponent as unknown as ComponentDef]);
+      const queried = _positionComponent;
+      _liveQuery = engine.createLiveQuery([queried]);
 
       _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {
         if (!_physics || !_liveQuery) return;
 
         for (const entity of _liveQuery) {
-          // The ECS registry accepts string names at runtime; cast satisfies TypeScript.
-          const rawPos: unknown = entity.get(_positionComponent as unknown as ComponentDef);
+          const rawPos: unknown = entity.get(queried);
           if (!isVec2(rawPos)) continue;
 
           _physics.setKinematicPosition(

@@ -2,7 +2,8 @@ import { createEntityId, unpackEntityId } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import type {
   CollisionEvent,
-  CollisionEventsBatch,
+  InternalCollisionEvent,
+  InternalCollisionEventsBatch,
   Physics2DAPI,
   ResolvedCollisionContact,
 } from "../types";
@@ -11,19 +12,6 @@ import type {
 interface GenerationSource {
   getEntityGeneration(slot: number): number | undefined;
 }
-
-/**
- * Internal structural type used by slot-dependent helpers.
- * Satisfied by `InternalCollisionEvent` in the plugin core.
- * Not exported — internal use only.
- */
-type SlottedEvent = {
-  slotA: number;
-  slotB: number;
-  started: boolean;
-  aColliderId?: number;
-  bColliderId?: number;
-};
 
 /**
  * EntityId-first contact filter helper.
@@ -36,13 +24,11 @@ type SlottedEvent = {
  * @returns All events where the entity's slot matches `slotA` or `slotB`.
  */
 export function selectContactsForEntityId(
-  batch: CollisionEventsBatch,
+  batch: InternalCollisionEventsBatch,
   entityId: EntityId,
 ): CollisionEvent[] {
   const { index } = unpackEntityId(entityId);
-  return (batch.events as unknown as SlottedEvent[]).filter(
-    (e) => e.slotA === index || e.slotB === index,
-  ) as unknown as CollisionEvent[];
+  return batch.events.filter((event) => event.slotA === index || event.slotB === index);
 }
 
 /**
@@ -109,7 +95,7 @@ export function dedupeContactsByPair(events: ReadonlyArray<CollisionEvent>): Col
  */
 export function toResolvedContacts(
   source: GenerationSource,
-  events: ReadonlyArray<SlottedEvent>,
+  events: ReadonlyArray<InternalCollisionEvent>,
 ): ResolvedCollisionContact[] {
   const out: ResolvedCollisionContact[] = [];
 

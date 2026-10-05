@@ -13,10 +13,11 @@ import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 import type {
   Physics2DConfig,
   Physics2DAPI,
-  CollisionEventsBatch,
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   CollisionContact,
+  InternalCollisionEvent,
+  InternalCollisionEventsBatch,
 } from "../types";
 
 import {
@@ -25,21 +26,6 @@ import {
   PHYSICS_QUALITY_PRESET_CODE,
   PHYSICS2D_WASM_EVENT_STRIDE,
 } from "../types";
-
-// ─── Internal types ──────────────────────────────────────────────────────────
-
-/**
- * Internal representation of a raw WASM collision event.
- * Carries slot indices that are never exposed on the public `CollisionEvent` type.
- * Used exclusively within this file for event pool management and resolution.
- */
-type InternalCollisionEvent = {
-  slotA: number;
-  slotB: number;
-  aColliderId?: number;
-  bColliderId?: number;
-  started: boolean;
-};
 
 import {
   normalizeConfig,
@@ -70,6 +56,7 @@ export type {
   Physics2DAPI,
   CollisionEvent,
   CollisionEventsBatch,
+  InternalCollisionEventsBatch,
   CollisionContact,
   ColliderOptions,
   RigidBodyType,
@@ -200,12 +187,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   let eventsView: DataView | null = null;
   let eventsBufferRef: ArrayBuffer | null = null;
   const pooledCollisionEvents: InternalCollisionEvent[] = [];
-  let cachedCollisionBatch: CollisionEventsBatch | null = null;
+  let cachedCollisionBatch: InternalCollisionEventsBatch | null = null;
 
   /**
    * Reads pending collision events from the static WASM buffer.
    */
-  function readCollisionEvents(max?: number): CollisionEventsBatch {
+  function readCollisionEvents(max?: number): InternalCollisionEventsBatch {
     if (cachedCollisionBatch && max === undefined) {
       return cachedCollisionBatch;
     }
@@ -259,7 +246,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     const metrics = pb.physics_consume_event_metrics
       ? pb.physics_consume_event_metrics()
       : [0, 0, 0, 0];
-    const batch: CollisionEventsBatch = {
+    const batch: InternalCollisionEventsBatch = {
       frame: metrics[0] ?? 0,
       count: visibleCount,
       droppedSinceLastRead: (metrics[1] ?? 0) + (metrics[2] ?? 0),
@@ -375,14 +362,22 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const owned = guard(entityId, "getLinearVelocity");
         if (!owned) return null;
         const res = pb.physics_get_linear_velocity(owned.slot);
-        return res ? { x: res[0], y: res[1] } : null;
+        if (!res || res.length < 2) return null;
+        const x = res[0];
+        const y = res[1];
+        if (x === undefined || y === undefined) return null;
+        return { x, y };
       },
       getPosition: (entityId) => {
         const owned = guard(entityId, "getPosition");
         if (!owned) return null;
         const res = pb.physics_get_position(owned.slot);
-        if (!res || res.length === 0) return null;
-        return { x: res[0], y: res[1], rotation: res[2] };
+        if (!res || res.length < 3) return null;
+        const x = res[0];
+        const y = res[1];
+        const rotation = res[2];
+        if (x === undefined || y === undefined || rotation === undefined) return null;
+        return { x, y, rotation };
       },
       getSensorState: (entityId, colliderId) => {
         const owned = guard(entityId, "getSensorState");
@@ -403,7 +398,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       getCollisionEventsBatch: (opts) => readCollisionEvents(opts?.max),
       getCollisionContacts: (opts) => {
         const batch = readCollisionEvents(opts?.max);
-        return resolveContacts(batch.events as unknown as InternalCollisionEvent[]);
+        return resolveContacts(batch.events);
       },
       /**
        * Update the linear damping coefficient of a dynamic body at runtime.
@@ -635,14 +630,13 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       track(
         engine.hooks.hook("engine:update", (_dt: number) => {
           if (!physicsService) return;
-          const batch = physicsService.getCollisionEventsBatch();
+          const batch = readCollisionEvents();
           if (batch.count === 0) return;
 
           if (cfg.eventMode === "hybrid")
             void currentEngine?.hooks.callHook("physics:collision:batch", batch);
 
-          // Cast to internal type to access slot indices, which are not on the public CollisionEvent.
-          const internalEvents = batch.events as unknown as InternalCollisionEvent[];
+          const internalEvents = batch.events;
 
           for (const event of internalEvents) {
             for (const item of [

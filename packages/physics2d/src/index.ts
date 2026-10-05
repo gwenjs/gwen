@@ -66,6 +66,7 @@ export type {
   Physics2DAPI,
   CollisionEvent,
   CollisionEventsBatch,
+  InternalCollisionEventsBatch,
   CollisionContact,
   ColliderOptions,
   RigidBodyType,

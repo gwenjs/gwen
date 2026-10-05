@@ -2,7 +2,6 @@
  * @file useBoxCollider() — explicit box collider shape composable.
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type { BoxColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";
 
@@ -45,7 +44,7 @@ export interface BoxColliderOptions {
  */
 export function useBoxCollider(options: BoxColliderOptions): BoxColliderHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   const bodyHandle = physics.addRigidBody(
     entityId,
@@ -55,9 +54,9 @@ export function useBoxCollider(options: BoxColliderOptions): BoxColliderHandle {
   );
 
   physics.addBoxCollider(bodyHandle, options.w / 2, options.h / 2, {
-    isSensor: options.isSensor,
-    membershipLayers: options.layer,
-    filterLayers: options.mask,
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
+    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
   });
 
   return {

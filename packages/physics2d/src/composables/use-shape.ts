@@ -2,7 +2,6 @@
  * @file useShape() — sets shared shape dimensions on the current actor entity.
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import { useEngine } from "@gwenjs/core";
 import { ShapeComponent } from "../shape-component";
 
@@ -42,7 +41,7 @@ export interface ShapeOptions {
  */
 export function useShape(options: ShapeOptions): void {
   const engine = useEngine();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   engine.addComponent(entityId, ShapeComponent, {
     w: options.w ?? 0,
     h: options.h ?? 0,

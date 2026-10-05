@@ -15,7 +15,10 @@
 
 import { describe, bench, vi, beforeAll } from "vitest";
 import type { EntityId } from "@gwenjs/core";
+import type { ComponentDef } from "@gwenjs/core/system";
 import { createPhysicsKinematicSyncSystem } from "../src/systems";
+
+const position = { name: "position" } as ComponentDef;
 import type { Physics2DAPI } from "../src/types";
 
 // ─── Minimal stubs ─────────────────────────────────────────────────────────────
@@ -111,21 +114,30 @@ beforeAll(() => {
 
   // Sparse scenario: 100 matching bodies out of a conceptual pool of 10 000.
   const accessors100 = buildAccessors(SPARSE_COUNT);
-  const system100 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const system100 = createPhysicsKinematicSyncSystem({
+    pixelsPerMeter: 50,
+    positionComponent: position,
+  });
   const engine100 = makeEngineStub(accessors100);
   system100.setup(engine100 as Parameters<typeof system100.setup>[0]);
   step100 = registeredStep(engine100.hookMap);
 
   // Medium scenario: 1 000 matching bodies.
   const accessors1000 = buildAccessors(MEDIUM_COUNT);
-  const system1000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const system1000 = createPhysicsKinematicSyncSystem({
+    pixelsPerMeter: 50,
+    positionComponent: position,
+  });
   const engine1000 = makeEngineStub(accessors1000);
   system1000.setup(engine1000 as Parameters<typeof system1000.setup>[0]);
   step1000 = registeredStep(engine1000.hookMap);
 
   // Dense scenario: 10 000 matching bodies.
   const accessors10000 = buildAccessors(DENSE_COUNT);
-  const system10000 = createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50 });
+  const system10000 = createPhysicsKinematicSyncSystem({
+    pixelsPerMeter: 50,
+    positionComponent: position,
+  });
   const engine10000 = makeEngineStub(accessors10000);
   system10000.setup(engine10000 as Parameters<typeof system10000.setup>[0]);
   step10000 = registeredStep(engine10000.hookMap);

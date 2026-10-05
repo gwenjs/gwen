@@ -27,15 +27,16 @@ export function defineLayers<T extends Record<string, number>>(
   definition: T,
 ): { [K in keyof T]: number } {
   // Validate: no two layers share bits
-  const values = Object.values(definition) as number[];
+  const values = Object.values(definition);
   for (let i = 0; i < values.length; i++) {
     for (let j = i + 1; j < values.length; j++) {
-      if (values[i] & values[j]) {
-        // eslint-disable-next-line no-console
-        console.warn(
-          `[gwen:physics2d] defineLayers: layers at index ${i} and ${j} share bits (${values[i]} & ${values[j]} = ${values[i] & values[j]}). This may cause unexpected collision filtering.`,
-        );
-      }
+      const left = values[i];
+      const right = values[j];
+      if (left === undefined || right === undefined || (left & right) === 0) continue;
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[gwen:physics2d] defineLayers: layers at index ${i} and ${j} share bits (${left} & ${right} = ${left & right}). This may cause unexpected collision filtering.`,
+      );
     }
   }
   return definition as { [K in keyof T]: number };
