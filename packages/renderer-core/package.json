@@ -31,7 +31,7 @@
   "scripts": {
     "build": "vite build",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run"
   },
   "dependencies": {
