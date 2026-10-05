@@ -5,8 +5,6 @@ import type {} from "./augment";
 
 /** Default pixel-to-meter conversion ratio for Rapier2D. */
 const DEFAULT_PIXELS_PER_METER = 50;
-/** Default ECS component name used to read 2D positions. */
-const DEFAULT_POSITION_COMPONENT = "position";
 
 /**
  * A minimal 2D vector with `x` and `y` numeric coordinates.
@@ -44,9 +42,9 @@ export interface PhysicsKinematicSyncSystemOptions {
   pixelsPerMeter?: number;
   /**
    * ECS position component. Data must contain `{ x: number; y: number }`.
-   * When omitted, the system reads the component named `"position"`.
+   * Pass the component definition. A string name is not accepted.
    */
-  positionComponent?: ComponentDef;
+  positionComponent: ComponentDef;
 }
 
 /**
@@ -60,7 +58,7 @@ export interface PhysicsKinematicSyncSystemOptions {
  * Body and collider lifecycle is managed separately by the prefab
  * `extensions.physics` block inside the `Physics2DPlugin`.
  *
- * @param options - Optional pixel-to-meter ratio and position component name.
+ * @param options - Pixel-to-meter ratio and the position component definition.
  * @returns A plugin object ready to register with `engine.use()`.
  *
  * @example
@@ -74,7 +72,10 @@ export interface PhysicsKinematicSyncSystemOptions {
  *
  * @since 1.0.0
  */
-export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
+export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions) {
+  if (options?.positionComponent === undefined) {
+    throw new TypeError("physics2d positionComponent is required");
+  }
   const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
   const _positionComponent = options.positionComponent;
 
@@ -95,9 +96,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
     setup(engine: GwenEngine): void {
       _physics = engine.inject("physics2d");
 
-      // Omitted option keeps the historical "position" name. A real ComponentDef
-      // has a schema and type id this default does not.
-      const queried = _positionComponent ?? (DEFAULT_POSITION_COMPONENT as unknown as ComponentDef);
+      const queried = _positionComponent;
       _liveQuery = engine.createLiveQuery([queried]);
 
       _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {

@@ -37,7 +37,7 @@ export default defineConfig({
 - Prefab extension `extensions.physics` with legacy bridge + vNext `colliders[]`.
 - Material presets: `default`, `ice`, `rubber`.
 - Tilemap helpers and chunk streaming runtime.
-- Systems: `createPhysicsKinematicSyncSystem()` and `createPlatformerGroundedSystem()`.
+- Systems: `createPhysicsKinematicSyncSystem({ positionComponent })` and `createPlatformerGroundedSystem()`.
 
 ## Tree-shakable imports (Sprint 8)
 

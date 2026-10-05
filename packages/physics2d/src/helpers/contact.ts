@@ -2,8 +2,8 @@ import { createEntityId, unpackEntityId } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import type {
   CollisionEvent,
-  CollisionEventsBatch,
   InternalCollisionEvent,
+  InternalCollisionEventsBatch,
   Physics2DAPI,
   ResolvedCollisionContact,
 } from "../types";
@@ -24,12 +24,11 @@ interface GenerationSource {
  * @returns All events where the entity's slot matches `slotA` or `slotB`.
  */
 export function selectContactsForEntityId(
-  batch: CollisionEventsBatch,
+  batch: InternalCollisionEventsBatch,
   entityId: EntityId,
 ): CollisionEvent[] {
   const { index } = unpackEntityId(entityId);
-  const events = batch.events as readonly InternalCollisionEvent[];
-  return events.filter((event) => event.slotA === index || event.slotB === index);
+  return batch.events.filter((event) => event.slotA === index || event.slotB === index);
 }
 
 /**

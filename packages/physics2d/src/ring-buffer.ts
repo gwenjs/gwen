@@ -18,6 +18,11 @@ export const CONTACT_EVENT_BYTES = 32;
 /** Maximum events per frame before oldest are overwritten. */
 export const RING_CAPACITY = 512;
 
+/** In-range typed-array reads are numbers. The zero fallback is for the index signature. */
+function readSlot(view: ArrayLike<number>, index: number): number {
+  return view[index] ?? 0;
+}
+
 export class ContactRingBuffer {
   private readonly _sab: SharedArrayBuffer;
   private readonly _u32: Uint32Array;
@@ -61,26 +66,14 @@ export class ContactRingBuffer {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY;
       const base = slot * (CONTACT_EVENT_BYTES / 4);
-      const wordA = this._u32[base];
-      const wordB = this._u32[base + 1];
-      const contactX = this._f32[base + 2];
-      const contactY = this._f32[base + 3];
-      const normalX = this._f32[base + 4];
-      const normalY = this._f32[base + 5];
-      const relativeVelocity = this._f32[base + 6];
-      const flags = this._u32[base + 7];
-      if (
-        wordA === undefined ||
-        wordB === undefined ||
-        contactX === undefined ||
-        contactY === undefined ||
-        normalX === undefined ||
-        normalY === undefined ||
-        relativeVelocity === undefined ||
-        flags === undefined
-      ) {
-        throw new TypeError("physics2d contact ring slot is empty");
-      }
+      const wordA = readSlot(this._u32, base);
+      const wordB = readSlot(this._u32, base + 1);
+      const contactX = readSlot(this._f32, base + 2);
+      const contactY = readSlot(this._f32, base + 3);
+      const normalX = readSlot(this._f32, base + 4);
+      const normalY = readSlot(this._f32, base + 5);
+      const relativeVelocity = readSlot(this._f32, base + 6);
+      const flags = readSlot(this._u32, base + 7);
       events.push({
         entityA: BigInt(wordA), // raw index — WASM writes packed ID here in production
         entityB: BigInt(wordB),
