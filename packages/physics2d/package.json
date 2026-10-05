@@ -2,8 +2,10 @@
   "name": "@gwenjs/physics2d",
   "version": "0.2.2",
   "description": "2D physics plugin for GWEN — pure adapter for core WASM",
+  "license": "MPL-2.0",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "type": "module",
   "sideEffects": false,

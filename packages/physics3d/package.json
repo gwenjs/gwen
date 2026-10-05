@@ -2,8 +2,10 @@
   "name": "@gwenjs/physics3d",
   "version": "0.2.1",
   "description": "3D physics plugin foundation for GWEN — Rapier3D adapter surface",
+  "license": "MPL-2.0",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "type": "module",
   "sideEffects": false,

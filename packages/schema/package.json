@@ -12,7 +12,8 @@
   "license": "MPL-2.0",
   "author": "Jonathan Moutier <djo.moutier@gmail.com>",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "type": "module",
   "main": "./dist/index.js",

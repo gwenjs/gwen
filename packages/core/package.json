@@ -2,9 +2,11 @@
   "name": "@gwenjs/core",
   "version": "0.2.2",
   "description": "GWEN Core Engine - ECS + WASM",
+  "license": "MPL-2.0",
   "files": [
     "dist",
-    "wasm"
+    "wasm",
+    "LICENSE"
   ],
   "type": "module",
   "main": "./dist/index.js",

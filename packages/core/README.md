@@ -255,7 +255,7 @@ log.error("oops");
 
 ## License
 
-MIT
+[MPL-2.0](./LICENSE)
 
 ## Public exports
 
