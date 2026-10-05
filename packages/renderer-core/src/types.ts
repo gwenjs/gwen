@@ -14,7 +14,30 @@
 import type { RendererStatsCollector } from "./stats.js";
 
 /** Current renderer contract version. Bump on breaking changes to RendererService. */
-export const RENDERER_CONTRACT_VERSION = 1;
+export const RENDERER_CONTRACT_VERSION = 2;
+
+/**
+ * Renderer kind.
+ * Omitted on {@link RendererService} means `"layers"` (one DOM node per layer).
+ */
+export type RendererKind = "layers" | "surface";
+
+/**
+ * One rendered view: a viewport camera or an XR eye.
+ * Caller-owned and reused. `writeCameraViews` fills it and does not allocate a new one.
+ */
+export interface RenderView {
+  /** Filled by `writeCameraViews`. The matrix and `pixelRect` objects stay put. */
+  viewportId: string;
+  /** Same union as `XRViewData.eye`. Non-XR views use `"none"`. */
+  eye: "left" | "right" | "none";
+  /** Length 16, column-major, world → view. The buffer is reused, not replaced. */
+  readonly viewMatrix: Float32Array;
+  /** Length 16, column-major. The buffer is reused, not replaced. */
+  readonly projectionMatrix: Float32Array;
+  /** Device pixels. The object is reused, not replaced. */
+  readonly pixelRect: { x: number; y: number; width: number; height: number };
+}
 
 /**
  * Declares a single named rendering slot within a renderer plugin.
@@ -31,7 +54,9 @@ export const RENDERER_CONTRACT_VERSION = 1;
 export interface LayerDef {
   /**
    * Rendering depth. Lower values render first (behind). Higher values render last (in front).
-   * Must be unique across ALL registered renderers — LayerManager warns on conflicts.
+   * Must be unique across registered renderers. LayerManager warns on a conflict between
+   * layer renderers. An equal order between a surface layer and any other layer throws
+   * `RENDERER:LAYER_ORDER_CONFLICT`. A HUD layer must use a strictly greater order.
    */
   order: number;
   /**
@@ -82,6 +107,10 @@ export interface RendererService {
    */
   readonly contractVersion: number;
   /**
+   * Omitted means `"layers"`. `"surface"` opts into {@link SurfaceRendererService}.
+   */
+  readonly kind?: RendererKind;
+  /**
    * Named layers managed by this renderer. At least one layer is required.
    * Each entry becomes a DOM element mounted by LayerManager.
    */
@@ -114,6 +143,24 @@ export interface RendererService {
    * Only called when `import.meta.env.DEV || engine.debug` is true.
    */
   setStatsCollector?(collector: RendererStatsCollector): void;
+}
+
+/**
+ * A renderer that owns exactly one drawing surface.
+ * It creates that canvas in `mount` and removes it in `unmount`.
+ */
+export interface SurfaceRendererService extends RendererService {
+  readonly kind: "surface";
+  /** Exactly one entry, `coordinate: "world"` (keeps pointer events). */
+  readonly layers: Record<string, LayerDef>;
+  /** Canvas created by the renderer in `mount()`, removed in `unmount()`. */
+  getLayerElement(layerName: string): HTMLCanvasElement;
+  /**
+   * Called by `LayerManager` once per `engine:render` after the surface is mounted.
+   * `views` is the written prefix of the `writeCameraViews` buffer.
+   * `alpha` is `1` until #79 supplies `engine.frame`.
+   */
+  renderViews(views: readonly RenderView[], alpha: number): void;
 }
 
 // ─── Composable handles ──────────────────────────────────────────────────────

@@ -3,6 +3,8 @@ import {
   RendererErrorCodes,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
+  SurfaceInvalidError,
+  LayerOrderConflictError,
   UnknownLayerError,
   UnavailableCameraError,
   ScreenToWorldPerspectiveError,
@@ -21,6 +23,7 @@ describe("RendererErrorCodes", () => {
     expect(RendererErrorCodes.UNKNOWN_LAYER).toBe("RENDERER:UNKNOWN_LAYER");
     expect(RendererErrorCodes.LAYER_ORDER_CONFLICT).toBe("RENDERER:LAYER_ORDER_CONFLICT");
     expect(RendererErrorCodes.MISSING_LAYER).toBe("RENDERER:MISSING_LAYER");
+    expect(RendererErrorCodes.SURFACE_INVALID).toBe("RENDERER:SURFACE_INVALID");
     expect(RendererErrorCodes.UNAVAILABLE_CAMERA).toBe("RENDERER:UNAVAILABLE_CAMERA");
     expect(RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE).toBe(
       "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
@@ -192,5 +195,27 @@ describe("ScreenToWorldPerspectiveError", () => {
 
   it("hint mentions screenToRay", () => {
     expect(new ScreenToWorldPerspectiveError("perspective").hint).toContain("screenToRay");
+  });
+});
+
+describe("SurfaceInvalidError", () => {
+  it("uses RENDERER:SURFACE_INVALID", () => {
+    const err = new SurfaceInvalidError("renderer:surface");
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe("SurfaceInvalidError");
+    expect(err.code).toBe(RendererErrorCodes.SURFACE_INVALID);
+    expect(err.rendererName).toBe("renderer:surface");
+    expect(err.message).toContain("renderer:surface");
+  });
+});
+
+describe("LayerOrderConflictError", () => {
+  it("uses RENDERER:LAYER_ORDER_CONFLICT", () => {
+    const err = new LayerOrderConflictError("renderer:surface:scene", "renderer:html:hud", 10);
+    expect(err).toBeInstanceOf(Error);
+    expect(err.name).toBe("LayerOrderConflictError");
+    expect(err.code).toBe(RendererErrorCodes.LAYER_ORDER_CONFLICT);
+    expect(err.order).toBe(10);
+    expect(err.message).toContain("renderer:html:hud");
   });
 });

@@ -22,7 +22,10 @@
 // Contract types
 export {
   RENDERER_CONTRACT_VERSION,
+  type RendererKind,
   type RendererService,
+  type SurfaceRendererService,
+  type RenderView,
   type LayerDef,
   type AnimOpts,
   type SpriteHandle,
@@ -30,6 +33,8 @@ export {
   type AnimatorHandle,
   type MeshHandle,
 } from "./types.js";
+
+export { writeCameraViews } from "./write-camera-views.js";
 
 // Stats types and factory
 export type {
@@ -62,6 +67,8 @@ export {
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
   EmptyLayersError,
+  SurfaceInvalidError,
+  LayerOrderConflictError,
   UnknownLayerError,
 } from "./errors.js";
 

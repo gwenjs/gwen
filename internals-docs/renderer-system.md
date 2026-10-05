@@ -28,7 +28,59 @@ game code
 
 `@gwenjs/renderer-core` is the only shared dependency. It contains no graphical code —
 only TypeScript interfaces, `defineRendererService`, `getOrCreateLayerManager`,
-`RendererStatsCollector`, and error classes.
+`RendererStatsCollector`, and error classes. three.js is not a dependency of
+`@gwenjs/core`, `@gwenjs/kit`, or `@gwenjs/renderer-core`.
+
+## Decision — 3D renderer strategy (#85)
+
+**Chosen:** Option A. The first GPU renderer is an optional three.js adapter,
+`@gwenjs/renderer-three`, outside core. The contract stays library-agnostic, so a
+native backend can be added later without a further break. This change does not
+ship the adapter.
+
+**Rejected:**
+
+| Option | Why it lost | Numbers on record |
+|---|---|---|
+| Babylon adapter | Docs name it only as an alternative. No API cites it. | Size is external. Not measured here. |
+| Native WebGL2 (`@gwenjs/renderer-webgl`) | Scene graph, materials, and loaders do not exist. Highest time and maintenance. | No shipped byte size. |
+| WebGPU plus a WebGL2 fallback | Two backends, so about twice the WebGL2 cost. CI has no GPU. Smoke coverage is Canvas 2D only. | No shipped byte size. |
+
+physics3d WASM is about 250 KB gzip (`internals-docs/crate-builds.md`). three.js gzip
+size is not in this repo. The follow-up bundle spike measures it against
+`bundle-budget.json` before that package is published. Do not invent a three.js size.
+
+**Contract v2** (`RENDERER_CONTRACT_VERSION = 2`):
+
+- `RendererKind`: `"layers"` when omitted, or `"surface"`.
+- `SurfaceRendererService` owns exactly one canvas (`coordinate: "world"`). It creates
+  that canvas in `mount` and removes it in `unmount`. `LayerManager` reads the canvas
+  after `mount`. `LayerManager` calls `renderViews` once per `engine:render` after that surface is mounted, with the
+  `writeCameraViews` buffer. `alpha` is `1` until #79 supplies `engine.frame`. The
+  renderer iterates the views. The engine does not call once per view.
+- `RenderView` carries column-major `viewMatrix` and `projectionMatrix` (length 16)
+  plus a device-pixel rect. `writeCameraViews(engine, out)` fills caller-owned slots
+  from `CameraManager`, `ViewportManager`, and `ViewportScreenInfo`. It does not
+  allocate those slots. Non-XR eyes are `"none"`.
+- XR eyes are not copied yet. `getCameraStores(engine)` from #59 is not on this branch.
+- A second layer on a surface renderer throws `RENDERER:SURFACE_INVALID` at register.
+- An equal `order` between a surface layer and any other layer throws
+  `RENDERER:LAYER_ORDER_CONFLICT`. Other order clashes still warn. A DOM HUD uses
+  `coordinate: "screen"` and a strictly greater `order` than the surface.
+- v1 renderers fail register with `RENDERER:CONTRACT_VERSION`.
+
+**Not in this change:** `@gwenjs/renderer-three`, `@gwenjs/renderer-null`, the
+physics3d transform-history producer, and `readInterpolatedTransform3D`. The helper
+ships only with that producer. Moving `renderer-html`, `camera2d`, and `camera3d`
+into this repo is #88.
+
+### Package location rule
+
+Official `@gwenjs/*` runtime plugins live in this monorepo under `packages/*` and
+join the release-please linked group (`release-please-config.json`). Separate repos
+are for community or third-party plugins only. Those declare a peer `CORE_RANGE` and
+must pass conformance. #88 executes the moves. #96 peer-range work then applies to
+community packages only.
 
 ## Key Design Decisions
 
@@ -91,7 +143,8 @@ field injected via TypeScript declaration merging in `renderer-core/src/index.ts
 | Duplicate `GwenProvides` key | TypeScript build | Compile error (declaration merging) |
 | Duplicate renderer name | `engine.use()` runtime | `RendererAlreadyRegisteredError` (throw) |
 | Contract version mismatch | `LayerManager.register()` | `RendererContractVersionError` (throw) |
-| Duplicate layer order | `LayerManager.register()` | `RENDERER:LAYER_ORDER_CONFLICT` warn |
+| Duplicate layer order | `LayerManager.register()` | Warn, unless one side is a surface layer: then `RENDERER:LAYER_ORDER_CONFLICT` throws |
+| Surface renderer shape | `LayerManager.register()` | `RENDERER:SURFACE_INVALID` when it is not exactly one world layer |
 | Unknown layer in composable | composable call | `UnknownLayerError` (throw) |
 | Budget overrun | `onRender()` debug mode | `logger.verbose` |
 

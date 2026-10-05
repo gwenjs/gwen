@@ -201,6 +201,14 @@ See `release-please-config.json` for release configuration per package.
 - **fix:** patch bump (0.1.0 → 0.1.1)
 - **BREAKING CHANGE:** major bump (0.1.0 → 1.0.0)
 
+## Where official plugins live
+
+Official `@gwenjs/*` runtime plugins live in this monorepo under `packages/*` and
+join the release-please linked group. Separate repositories are for community or
+third-party plugins only. Community plugins declare a peer `CORE_RANGE` and must
+pass the renderer or plugin conformance suite. #88 moves the current satellite
+plugins. Do not open a new official plugin repo.
+
 ## Adding a New Package
 
 1. **Create directory structure:**

@@ -450,6 +450,23 @@ expected to map 1:1 with a viewport region. `scope: 'global'` signals a full-scr
 overlay. `LayerManager` does not enforce layout — the renderer plugin is responsible
 for using this metadata to position its elements.
 
+### Surface renderer and HUD
+
+A single-surface renderer (`kind: "surface"`) declares one world layer and owns one
+canvas. Create that canvas in `mount()` and remove it in `unmount()`. `LayerManager`
+reads it only after `mount()`.
+
+Give every HUD layer a strictly greater `order` than that surface layer.
+An equal order fails at register with `RENDERER:LAYER_ORDER_CONFLICT`. Screen-space
+HUD layers keep `pointer-events: none`. The surface world layer does not.
+
+`LayerManager` calls `renderViews` once per `engine:render` after that surface is mounted, with the buffer filled
+by `writeCameraViews`. The alpha is `1` until #79 supplies `engine.frame`. Do not
+call `renderViews` yourself and do not read camera stores directly.
+`LayerManager.dispose()` removes the `engine:render` hook. DOM nodes stay until `unregister`.
+`runSurfaceConformance(service, engine)` from `@gwenjs/renderer-core/testing` checks
+this shape.
+
 ## Required vs. optional
 
 | RendererService member | Required | Notes |

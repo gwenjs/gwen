@@ -83,7 +83,8 @@ describe("getOrCreateLayerManager", () => {
     getOrCreateLayerManager(engine, container);
     getOrCreateLayerManager(engine, container);
     // engine:tick hook must be registered exactly once (manager is a singleton)
-    expect(engine.hooks.hook).toHaveBeenCalledOnce();
+    expect(engine.hooks.hook).toHaveBeenCalledTimes(2);
     expect(engine.hooks.hook).toHaveBeenCalledWith("engine:tick", expect.any(Function));
+    expect(engine.hooks.hook).toHaveBeenCalledWith("engine:render", expect.any(Function));
   });
 });

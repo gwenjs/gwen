@@ -8,21 +8,30 @@
  */
 
 import { createLogger } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
 import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import {
   EmptyLayersError,
+  LayerOrderConflictError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
   RendererErrorCodes,
+  SurfaceInvalidError,
 } from "./errors.js";
-import type { RendererService } from "./types.js";
+import type { RendererService, RenderView, SurfaceRendererService } from "./types.js";
 import { RENDERER_CONTRACT_VERSION } from "./types.js";
 import { RendererStatsCollectorImpl, createRendererStats } from "./stats.js";
 import type { RendererStats } from "./stats.js";
+import { writeCameraViews } from "./write-camera-views.js";
+
+/** Until #79 exposes `engine.frame`, surface renderers are not interpolated. */
+const SURFACE_RENDER_ALPHA = 1;
 
 interface RegisteredRenderer {
   service: RendererService;
   collector: RendererStatsCollectorImpl;
+  /** True only after `mount()` has run for this registration. */
+  mounted: boolean;
 }
 
 /**
@@ -37,16 +46,49 @@ interface RegisteredRenderer {
  * manager.resize(800, 600)
  * ```
  */
+function isSurfaceRenderer(service: RendererService): service is SurfaceRendererService {
+  return service.kind === "surface";
+}
+
+function makeRenderView(): RenderView {
+  return {
+    viewportId: "",
+    eye: "none",
+    viewMatrix: new Float32Array(16),
+    projectionMatrix: new Float32Array(16),
+    pixelRect: { x: 0, y: 0, width: 0, height: 0 },
+  };
+}
+
 export class LayerManager {
   private readonly _root: HTMLElement;
   private readonly _log: GwenLogger;
+  private readonly _engine: GwenEngine | undefined;
   private readonly _renderers = new Map<string, RegisteredRenderer>();
   private readonly _stats: RendererStats = createRendererStats();
+  private readonly _views: RenderView[] = [];
+  private readonly _frameViews: RenderView[] = [];
   private _debugEnabled = false;
+  private _unhookRender: (() => void) | undefined;
 
-  constructor(root: HTMLElement, logger?: GwenLogger) {
+  constructor(root: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
     this._root = root;
     this._log = logger ?? createLogger("renderer-core:layer-manager", false);
+    this._engine = engine;
+    if (engine !== undefined) {
+      this._unhookRender = engine.hooks.hook("engine:render", () => {
+        this._renderSurfaceViews();
+      });
+    }
+  }
+
+  /**
+   * Remove the `engine:render` hook.
+   * Registered DOM nodes stay until `unregister`.
+   */
+  dispose(): void {
+    this._unhookRender?.();
+    this._unhookRender = undefined;
   }
 
   /**
@@ -84,6 +126,9 @@ export class LayerManager {
    *
    * @throws {RendererAlreadyRegisteredError} If a renderer with the same name is already registered.
    * @throws {RendererContractVersionError}   If the renderer's contractVersion mismatches.
+   * @throws {EmptyLayersError}               If the renderer declares zero layers.
+   * @throws {SurfaceInvalidError}            If a surface renderer does not have one world layer.
+   * @throws {LayerOrderConflictError}        If a surface layer shares an order with another layer.
    */
   register(service: RendererService): void {
     if (this._renderers.has(service.name)) {
@@ -102,12 +147,16 @@ export class LayerManager {
       );
     }
 
+    if (service.kind === "surface") {
+      this._assertSurfaceLayers(service);
+    }
+
     this._checkOrderConflicts(service);
 
     const collector = new RendererStatsCollectorImpl(service.name, this._stats);
     if (this._debugEnabled) collector.enable();
 
-    this._renderers.set(service.name, { service, collector });
+    this._renderers.set(service.name, { service, collector, mounted: false });
   }
 
   /**
@@ -118,20 +167,13 @@ export class LayerManager {
   mount(): void {
     this._root.style.position = "relative";
 
-    // Collect all (renderer, layerName, layerDef) tuples sorted by order
+    // Collect all (renderer, layerName, layerDef) tuples sorted by order.
+    // A surface canvas does not exist until that renderer's mount().
     const allLayers = this._collectSortedLayers();
 
-    for (const { renderer, layerName, layerDef } of allLayers) {
-      const el = renderer.service.getLayerElement(layerName);
-      el.style.position = "absolute";
-      el.style.inset = "0";
-      el.style.zIndex = String(layerDef.order);
-      el.setAttribute("data-gwen-layer", `${renderer.service.name}:${layerName}`);
-      // Passthrough pointer events for overlay (screen-space) layers to avoid blocking gameplay input
-      if (layerDef.coordinate !== "world") {
-        el.style.pointerEvents = "none";
-      }
-      this._root.appendChild(el);
+    for (const entry of allLayers) {
+      if (entry.renderer.service.kind === "surface") continue;
+      this._placeLayer(entry.renderer, entry.layerName, entry.layerDef);
     }
 
     // Call mount() on each renderer after DOM is ready
@@ -140,6 +182,15 @@ export class LayerManager {
       if (this._debugEnabled && renderer.service.setStatsCollector) {
         renderer.service.setStatsCollector(renderer.collector);
       }
+    }
+
+    for (const entry of allLayers) {
+      if (entry.renderer.service.kind !== "surface") continue;
+      this._placeLayer(entry.renderer, entry.layerName, entry.layerDef);
+    }
+
+    for (const renderer of this._renderers.values()) {
+      renderer.mounted = true;
     }
   }
 
@@ -178,6 +229,63 @@ export class LayerManager {
 
   // ── Private helpers ─────────────────────────────────────────────────────
 
+  private _placeLayer(
+    renderer: RegisteredRenderer,
+    layerName: string,
+    layerDef: { order: number; coordinate?: "world" | "screen" },
+  ): void {
+    const el = renderer.service.getLayerElement(layerName);
+    el.style.position = "absolute";
+    el.style.inset = "0";
+    el.style.zIndex = String(layerDef.order);
+    el.setAttribute("data-gwen-layer", `${renderer.service.name}:${layerName}`);
+    // Passthrough pointer events for overlay (screen-space) layers to avoid blocking gameplay input
+    if (layerDef.coordinate !== "world") {
+      el.style.pointerEvents = "none";
+    }
+    let before: Element | null = null;
+    for (const child of this._root.children) {
+      const z = Number.parseInt((child as HTMLElement).style.zIndex, 10);
+      if (Number.isFinite(z) && z > layerDef.order) {
+        before = child;
+        break;
+      }
+    }
+    this._root.insertBefore(el, before);
+  }
+
+  /**
+   * LayerManager calls `renderViews` once per `engine:render` for each mounted surface.
+   * `alpha` stays {@link SURFACE_RENDER_ALPHA} until #79 supplies `engine.frame`.
+   */
+  private _renderSurfaceViews(): void {
+    const engine = this._engine;
+    if (engine === undefined) return;
+    let hasMountedSurface = false;
+    for (const renderer of this._renderers.values()) {
+      if (renderer.mounted && renderer.service.kind === "surface") {
+        hasMountedSurface = true;
+        break;
+      }
+    }
+    if (!hasMountedSurface) return;
+
+    let count = writeCameraViews(engine, this._views);
+    if (count > this._views.length) {
+      while (this._views.length < count) this._views.push(makeRenderView());
+      count = writeCameraViews(engine, this._views);
+    }
+    this._frameViews.length = count;
+    for (let index = 0; index < count; index += 1) {
+      const view = this._views[index];
+      if (view !== undefined) this._frameViews[index] = view;
+    }
+    for (const renderer of this._renderers.values()) {
+      if (!renderer.mounted || !isSurfaceRenderer(renderer.service)) continue;
+      renderer.service.renderViews(this._frameViews, SURFACE_RENDER_ALPHA);
+    }
+  }
+
   private _collectSortedLayers(): Array<{
     renderer: RegisteredRenderer;
     layerName: string;
@@ -200,14 +308,30 @@ export class LayerManager {
     return result.sort((a, b) => a.layerDef.order - b.layerDef.order);
   }
 
+  private _assertSurfaceLayers(service: RendererService): void {
+    const entries = Object.entries(service.layers).filter((entry) => entry[1] !== undefined);
+    const only = entries.length === 1 ? entries[0] : undefined;
+    if (only === undefined || only[1].coordinate !== "world") {
+      throw new SurfaceInvalidError(service.name);
+    }
+  }
+
   private _checkOrderConflicts(incoming: RendererService): void {
     const incomingOrders = new Map<number, string>();
     const warnedIncoming = new Set<number>();
+    const incomingSurface = incoming.kind === "surface";
 
     for (const [name, def] of Object.entries(incoming.layers)) {
       if (def === undefined) continue;
       const existing = incomingOrders.get(def.order);
       if (existing !== undefined) {
+        if (incomingSurface) {
+          throw new LayerOrderConflictError(
+            `${incoming.name}:${existing}`,
+            `${incoming.name}:${name}`,
+            def.order,
+          );
+        }
         if (!warnedIncoming.has(def.order)) {
           this._log.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
@@ -223,9 +347,18 @@ export class LayerManager {
     }
 
     for (const { service } of this._renderers.values()) {
+      const otherSurface = service.kind === "surface";
       for (const [layerName, layerDef] of Object.entries(service.layers)) {
-        if (layerDef !== undefined && incomingOrders.has(layerDef.order)) {
-          const incomingLayerName = incomingOrders.get(layerDef.order);
+        if (layerDef === undefined) continue;
+        const incomingLayerName = incomingOrders.get(layerDef.order);
+        if (incomingLayerName === undefined) continue;
+        if (incomingSurface || otherSurface) {
+          throw new LayerOrderConflictError(
+            `${service.name}:${layerName}`,
+            `${incoming.name}:${incomingLayerName}`,
+            layerDef.order,
+          );
+        } else {
           this._log.warn(
             `[${RendererErrorCodes.LAYER_ORDER_CONFLICT}] ` +
               `Layer order conflict: "${service.name}:${layerName}" and ` +

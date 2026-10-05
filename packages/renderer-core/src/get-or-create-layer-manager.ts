@@ -43,7 +43,7 @@ export function getOrCreateLayerManager(engine: GwenEngine, container: HTMLEleme
   const existing = engine.tryInject("layerManager");
   if (existing) return existing;
 
-  const manager = new LayerManager(container, engine.logger.child("renderer-core"));
+  const manager = new LayerManager(container, engine.logger.child("renderer-core"), engine);
   engine.provide("layerManager", manager);
 
   // Reset per-frame stats totals at the start of every tick.
