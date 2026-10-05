@@ -102,7 +102,8 @@ export interface ActorPool<Props, _PublicAPI> {
   /**
    * Acquires a slot from the pool.
    *
-   * - Reuses a dormant slot when one is available — zero allocation cost.
+   * - Reuses a dormant slot when one is available. Reuse still allocates
+   *   (alloc gate `pool.cycle`, #56).
    * - Creates a new entity lazily when `size` has not been reached yet.
    * - Throws `PoolExhaustedError` when all slots are active.
    *

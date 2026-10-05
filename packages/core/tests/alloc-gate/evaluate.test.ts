@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   formatAllocFailure,
   evaluateAllocGate,
+  parseAllocThresholds,
   type AllocMeasurement,
   type AllocPathName,
+  type AllocPathThreshold,
   type AllocThresholds,
 } from "../../bench/alloc/evaluate-alloc-gate";
 
@@ -85,10 +87,22 @@ describe("evaluateAllocGate", () => {
 
   it("fails when a path has no recorded threshold", () => {
     const file = thresholds();
-    delete file.paths["tween.tick"];
-    const report = evaluateAllocGate(measured(), file, 22);
+    const paths: Record<string, AllocPathThreshold> = {};
+    for (const path of PATHS) {
+      if (path === "tween.tick") continue;
+      paths[path] = file.paths[path];
+    }
+    const parsed = parseAllocThresholds({ ...file, paths });
+    const report = evaluateAllocGate(measured(), parsed, 22);
     expect(report.verdict).toBe("fail");
     expect(report.messages).toContain("[ALLOC GATE] tween.tick: no recorded threshold");
+  });
+
+  it("fails when a thresholded path was not measured", () => {
+    const rows = measured().filter((row) => row.path !== "pool.cycle");
+    const report = evaluateAllocGate(rows, thresholds(), 22);
+    expect(report.verdict).toBe("fail");
+    expect(report.messages).toContain("[ALLOC GATE] pool.cycle: not measured");
   });
 
   it("fails when the thresholds file has an unknown path", () => {
@@ -128,6 +142,21 @@ describe("evaluateAllocGate", () => {
     expect(report.messages).toContain(
       "[ALLOC GATE] frame.empty bytesPerFrame: can be lowered (recorded 2000 → measured 0)",
     );
+  });
+
+  it("rejects a thresholds file whose version is not 1", () => {
+    const file = { ...thresholds(), version: 2 };
+    expect(() => parseAllocThresholds(file)).toThrow("[ALLOC GATE] thresholds: version must be 1");
+  });
+
+  it("rejects a thresholds file without margins", () => {
+    const { margins: _margins, ...file } = thresholds();
+    expect(() => parseAllocThresholds(file)).toThrow("[ALLOC GATE] thresholds: margins invalid");
+  });
+
+  it("rejects a thresholds file without run", () => {
+    const { run: _run, ...file } = thresholds();
+    expect(() => parseAllocThresholds(file)).toThrow("[ALLOC GATE] thresholds: run invalid");
   });
 
   it("prints the exact failure line", () => {

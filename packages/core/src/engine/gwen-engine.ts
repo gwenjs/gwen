@@ -906,8 +906,9 @@ class GwenEngineImpl implements GwenEngine {
     if (existing !== undefined) {
       // Hot path — the component already exists: update its fields in place.
       // The registry holds a direct reference to this object, so mutations are
-      // immediately visible to getComponent() callers. Zero allocation per call
-      // after the first spawn.
+      // immediately visible to getComponent() callers. Not allocation-free:
+      // invalidate() dirties queries, and a missing component (pool DormantTag)
+      // takes the cold Object.assign path. See alloc gate pool.cycle (#56).
       Object.assign(existing, data);
     } else {
       // Cold path — first add for this entity/component pair: allocate once.

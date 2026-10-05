@@ -5,12 +5,12 @@ import {
   evaluateAllocGate,
   formatAllocFailure,
   formatAllocNumber,
-  type AllocThresholds,
+  parseAllocThresholds,
 } from "./evaluate-alloc-gate";
 import { readAllocSink } from "./scenarios";
 import { measurePath, runningNodeMajor } from "./run-path";
 
-const thresholds = thresholdsFile as AllocThresholds;
+const thresholds = parseAllocThresholds(thresholdsFile);
 
 test("one object per entity in update.system fails the slope gate", async () => {
   const nodeMajor = runningNodeMajor();

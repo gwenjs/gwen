@@ -40,6 +40,7 @@ export default defineConfig({
   // @ts-expect-error -- `benchmark` is a valid top-level Vitest config key but
   // some vitest/config typings omit it from the InlineConfig overload.
   benchmark: {
+    // #126 also adds this include. After #126 merges, drop the duplicate if both PRs add it.
     include: ["bench/**/*.bench.ts"],
   },
 });

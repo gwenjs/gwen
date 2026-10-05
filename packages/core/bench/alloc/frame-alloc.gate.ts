@@ -1,11 +1,11 @@
 import { expect, test } from "vitest";
 
 import thresholdsFile from "../alloc-thresholds.json" with { type: "json" };
-import { evaluateAllocGate, type AllocThresholds } from "./evaluate-alloc-gate";
+import { evaluateAllocGate, parseAllocThresholds } from "./evaluate-alloc-gate";
 import { readAllocSink } from "./scenarios";
 import { eachAllocPath, measurePath, runningNodeMajor } from "./run-path";
 
-const thresholds = thresholdsFile as AllocThresholds;
+const thresholds = parseAllocThresholds(thresholdsFile);
 
 test("every alloc path stays within its recorded threshold", async () => {
   const nodeMajor = runningNodeMajor();

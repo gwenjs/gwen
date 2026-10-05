@@ -38,8 +38,8 @@ export interface AllocThresholds {
   entities: [number, number];
   run: AllocRunConfig;
   margins: { bytesPerFrame: number; bytesPerEntityFrame: number };
-  paths: Partial<Record<AllocPathName, AllocPathThreshold>> &
-    Record<string, AllocPathThreshold | undefined>;
+  /** One recorded row per `AllocPathName`. Missing keys fail the gate. */
+  paths: Record<AllocPathName, AllocPathThreshold>;
 }
 
 export interface AllocMeasurement {
@@ -117,7 +117,7 @@ export function evaluateAllocGate(
 
   const messages: string[] = [];
   for (const path of ALLOC_PATH_NAMES) {
-    if (thresholds.paths[path] === undefined) {
+    if (recordedFor(thresholds, path) === undefined) {
       messages.push(`[ALLOC GATE] ${path}: no recorded threshold`);
     }
   }
@@ -136,9 +136,13 @@ export function evaluateAllocGate(
   const marginSlope = thresholds.margins.bytesPerEntityFrame;
 
   for (const path of ALLOC_PATH_NAMES) {
-    const recorded = thresholds.paths[path];
+    const recorded = recordedFor(thresholds, path);
     const sample = byPath.get(path);
-    if (recorded === undefined || sample === undefined) continue;
+    if (recorded === undefined) continue;
+    if (sample === undefined) {
+      messages.push(`[ALLOC GATE] ${path}: not measured`);
+      continue;
+    }
     compare(
       path,
       "bytesPerFrame",
@@ -169,6 +173,90 @@ export function evaluateAllocGate(
     lowerable,
     messages,
   };
+}
+
+function recordedFor(
+  thresholds: AllocThresholds,
+  path: AllocPathName,
+): AllocPathThreshold | undefined {
+  if (!Object.prototype.hasOwnProperty.call(thresholds.paths, path)) return undefined;
+  return thresholds.paths[path];
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isRun(value: unknown): value is AllocRunConfig {
+  if (!isRecord(value)) return false;
+  return (
+    isFiniteNumber(value["warmupFrames"]) &&
+    isFiniteNumber(value["frames"]) &&
+    isFiniteNumber(value["repeats"])
+  );
+}
+
+function isMargins(
+  value: unknown,
+): value is { bytesPerFrame: number; bytesPerEntityFrame: number } {
+  if (!isRecord(value)) return false;
+  return isFiniteNumber(value["bytesPerFrame"]) && isFiniteNumber(value["bytesPerEntityFrame"]);
+}
+
+function isEntities(value: unknown): value is [number, number] {
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    isFiniteNumber(value[0]) &&
+    isFiniteNumber(value[1])
+  );
+}
+
+function isThresholdEntry(value: unknown): value is AllocPathThreshold {
+  if (!isRecord(value)) return false;
+  if (!isFiniteNumber(value["bytesPerFrame"]) || !isFiniteNumber(value["bytesPerEntityFrame"])) {
+    return false;
+  }
+  const frames = value["frames"];
+  return frames === undefined || isFiniteNumber(frames);
+}
+
+function isPaths(value: unknown): boolean {
+  if (!isRecord(value)) return false;
+  for (const key of Object.keys(value)) {
+    if (!isThresholdEntry(value[key])) return false;
+  }
+  return true;
+}
+
+/** Why `value` is not an `AllocThresholds`, or null when the shape holds. */
+function thresholdsShapeError(value: unknown): string | null {
+  if (!isRecord(value)) return "[ALLOC GATE] thresholds: expected an object";
+  if (value["version"] !== 1) return "[ALLOC GATE] thresholds: version must be 1";
+  if (!isMargins(value["margins"])) return "[ALLOC GATE] thresholds: margins invalid";
+  if (!isRun(value["run"])) return "[ALLOC GATE] thresholds: run invalid";
+  if (typeof value["nodeMajor"] !== "number" || !Number.isInteger(value["nodeMajor"])) {
+    return "[ALLOC GATE] thresholds: nodeMajor must be an integer";
+  }
+  if (!isEntities(value["entities"])) return "[ALLOC GATE] thresholds: entities must be [E1, E2]";
+  if (!isPaths(value["paths"])) return "[ALLOC GATE] thresholds: paths invalid";
+  return null;
+}
+
+function isAllocThresholds(value: unknown): value is AllocThresholds {
+  return thresholdsShapeError(value) === null;
+}
+
+/** Runtime check for the thresholds JSON. Missing path names stay for `evaluateAllocGate`. */
+export function parseAllocThresholds(value: unknown): AllocThresholds {
+  if (!isAllocThresholds(value)) {
+    throw new Error(thresholdsShapeError(value) ?? "[ALLOC GATE] thresholds: invalid shape");
+  }
+  return value;
 }
 
 function compare(
