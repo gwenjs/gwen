@@ -6,6 +6,7 @@
  * in production code.
  *
  * Only import from `@gwenjs/core/testing` in test files.
+ * `createRealEngine` reads the wasm artifacts with `node:fs`. Node and jsdom can import this file. A browser test runner cannot.
  *
  * @example
  * ```typescript
@@ -31,3 +32,9 @@ export {
   _resetWasmBridge,
   _injectMockWasmExports,
 } from "./engine/wasm-bridge.js";
+
+export {
+  createRealEngine,
+  type CreateRealEngineOptions,
+  type RealEngineHandle,
+} from "./testing/create-real-engine.js";

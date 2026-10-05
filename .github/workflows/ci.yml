@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, v1-alpha]
+    branches: [main, v1-alpha, "hardening/**"]
   pull_request:
     branches: [main, v1-alpha, "hardening/**"]
 
@@ -31,6 +31,10 @@ jobs:
         run: cargo install wasm-pack --locked
       - name: Rust tests — gwen-core
         run: cargo test -p gwen-core
+      - name: Rust tests — gwen-core physics2d
+        run: cargo test -p gwen-core --features physics2d
+      - name: Rust tests — gwen-core physics3d
+        run: cargo test -p gwen-core --features physics3d
       - name: WASM tests — gwen-core
         run: wasm-pack test --node crates/gwen-core
       - name: Build WASM (all variants)
