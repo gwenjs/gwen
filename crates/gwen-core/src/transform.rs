@@ -31,6 +31,7 @@ pub const FLAGS3D_OFFSET: usize = 40;
 /// `packages/core/src/engine/wasm-bridge.ts`.
 pub const TRANSFORM_SAB_TYPE_ID: u32 = u32::MAX - 1;
 
+use crate::ecs::error::CoreError;
 use crate::entity::EntityId;
 use crate::transform_math::{Mat3, Vec2};
 use bytemuck::{Pod, Zeroable};
@@ -296,6 +297,8 @@ pub struct TransformSystem {
     #[allow(dead_code)] // Reserved for future O(1) index lookup
     entity_to_index: HashMap<EntityId, usize>,
     update_order: Vec<EntityId>,
+    /// `update_order` is rebuilt on the next `update`, not on every link change.
+    order_dirty: bool,
 }
 
 impl TransformSystem {
@@ -306,6 +309,7 @@ impl TransformSystem {
             root_entities: Vec::new(),
             entity_to_index: HashMap::new(),
             update_order: Vec::new(),
+            order_dirty: false,
         }
     }
 
@@ -316,14 +320,14 @@ impl TransformSystem {
         if self.transforms[&entity].parent().is_none() {
             self.root_entities.push(entity);
         }
-        self.rebuild_update_order();
+        self.order_dirty = true;
     }
 
     /// Remove transform for entity
     pub fn remove_transform(&mut self, entity: EntityId) -> Option<Transform> {
         if let Some(node) = self.transforms.remove(&entity) {
             self.root_entities.retain(|&id| id != entity);
-            self.rebuild_update_order();
+            self.order_dirty = true;
             Some(node.local)
         } else {
             None
@@ -340,8 +344,24 @@ impl TransformSystem {
         self.transforms.get_mut(&entity)
     }
 
-    /// Set parent of entity
-    pub fn set_parent(&mut self, entity: EntityId, parent: Option<EntityId>) {
+    /// Set parent of entity.
+    ///
+    /// Self-parent and cycles return [`CoreError::InvalidParent`] and leave
+    /// the hierarchy unchanged. `parent == None` detaches.
+    pub fn set_parent(
+        &mut self,
+        entity: EntityId,
+        parent: Option<EntityId>,
+    ) -> Result<(), CoreError> {
+        if let Some(parent_id) = parent {
+            if parent_id == entity || self.subtree_contains(entity, parent_id) {
+                return Err(CoreError::InvalidParent {
+                    child: entity.index(),
+                    parent: parent_id.index(),
+                });
+            }
+        }
+
         let old_parent = self.transforms.get(&entity).and_then(|t| t.parent());
 
         // Remove from old parent
@@ -358,8 +378,11 @@ impl TransformSystem {
 
         // Add to new parent
         if let Some(new_parent) = parent {
-            if let Some(parent_transform) = self.transforms.get_mut(&new_parent) {
-                parent_transform.add_child(entity);
+            if self.transforms.contains_key(&new_parent) {
+                self.root_entities.retain(|&id| id != entity);
+                if let Some(parent_transform) = self.transforms.get_mut(&new_parent) {
+                    parent_transform.add_child(entity);
+                }
             }
         } else {
             // Entity is now root
@@ -368,11 +391,39 @@ impl TransformSystem {
             }
         }
 
-        self.rebuild_update_order();
+        self.order_dirty = true;
+        Ok(())
+    }
+
+    /// True when `target` is a strict descendant of `root`.
+    fn subtree_contains(&self, root: EntityId, target: EntityId) -> bool {
+        let mut stack = Vec::new();
+        if let Some(node) = self.transforms.get(&root) {
+            stack.extend(node.children().iter().copied());
+        }
+        let limit = self.transforms.len();
+        let mut seen = 0usize;
+        while let Some(id) = stack.pop() {
+            if id == target {
+                return true;
+            }
+            seen += 1;
+            if seen > limit {
+                return true;
+            }
+            if let Some(node) = self.transforms.get(&id) {
+                stack.extend(node.children().iter().copied());
+            }
+        }
+        false
     }
 
     /// Update all transforms
     pub fn update(&mut self) {
+        if self.order_dirty {
+            self.rebuild_update_order();
+            self.order_dirty = false;
+        }
         let update_order = self.update_order.clone();
 
         for entity in update_order {
@@ -422,14 +473,22 @@ impl TransformSystem {
         }
     }
 
-    /// Traverse hierarchy recursively
-    fn traverse_hierarchy(&mut self, entity: EntityId) {
-        self.update_order.push(entity);
-
-        if let Some(transform) = self.transforms.get(&entity) {
-            let children = transform.children().to_vec();
-            for child in children {
-                self.traverse_hierarchy(child);
+    /// Traverse hierarchy iteratively so a chain of `max_entities` cannot overflow.
+    fn traverse_hierarchy(&mut self, root: EntityId) {
+        let mut stack = vec![root];
+        let mut seen = std::collections::HashSet::new();
+        while let Some(entity) = stack.pop() {
+            if !seen.insert(entity) {
+                continue;
+            }
+            self.update_order.push(entity);
+            let children = self
+                .transforms
+                .get(&entity)
+                .map(|transform| transform.children().to_vec())
+                .unwrap_or_default();
+            for child in children.into_iter().rev() {
+                stack.push(child);
             }
         }
     }
@@ -501,7 +560,7 @@ mod tests {
         );
         ts.add_transform(child, Transform::new(Vec2::new(5.0, 5.0), 0.0, Vec2::one()));
 
-        ts.set_parent(child, Some(parent));
+        ts.set_parent(child, Some(parent)).expect("parent");
         ts.update();
 
         if let Some(child_t) = ts.get_transform(child) {
@@ -548,7 +607,7 @@ mod tests {
             ts.add_transform(id, Transform::new(Vec2::new(1.0, 1.0), 0.0, Vec2::one()));
 
             if i > 1 {
-                ts.set_parent(id, Some(entity(i - 1)));
+                ts.set_parent(id, Some(entity(i - 1))).expect("parent");
             }
         }
 

@@ -97,7 +97,7 @@ mod tests {
     use crate::bindings::Engine;
 
     fn make_engine() -> Engine {
-        Engine::new(1000)
+        Engine::new(1000).expect("max entities")
     }
 
     #[test]
@@ -132,8 +132,7 @@ mod tests {
             b[8..12].copy_from_slice(&0.5f32.to_le_bytes());
             b
         };
-        engine.add_component(e.index(), e.generation(), transform_type_id, &transform_bytes);
-
+        engine.add_component(e.index(), e.generation(), transform_type_id, &transform_bytes).expect("component");
         let mut out_slots = vec![0u32; 16];
         let mut out_gens = vec![0u32; 16];
         let mut out_buf = vec![0u8; 12];

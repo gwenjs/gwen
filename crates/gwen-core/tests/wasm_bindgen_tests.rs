@@ -18,7 +18,7 @@ use gwen_core::bindings::{Engine, JsEntityId};
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 fn make_engine() -> Engine {
-    Engine::new(100)
+    Engine::new(100).expect("max entities")
 }
 
 // ─── Entity lifecycle ─────────────────────────────────────────────────────────
@@ -132,7 +132,9 @@ fn wasm_add_component_and_has_component() {
 
     // Add 4 raw bytes (one u32)
     let data: &[u8] = &[42u8, 0, 0, 0];
-    assert!(engine.add_component(id.index(), id.generation(), type_id, data));
+    assert!(engine
+        .add_component(id.index(), id.generation(), type_id, data)
+        .expect("component"));
     assert!(engine.has_component(id.index(), id.generation(), type_id));
 }
 
@@ -145,7 +147,9 @@ fn wasm_add_component_stale_id_rejected() {
 
     // Stale handle — should refuse to add component
     let data: &[u8] = &[1u8, 0, 0, 0];
-    assert!(!engine.add_component(id.index(), id.generation(), type_id, data));
+    assert!(!engine
+        .add_component(id.index(), id.generation(), type_id, data)
+        .expect("component"));
 }
 
 #[wasm_bindgen_test]
@@ -156,8 +160,7 @@ fn wasm_get_component_raw_returns_bytes() {
 
     let value: u32 = 0xDEAD_BEEF;
     let data = value.to_le_bytes();
-    engine.add_component(id.index(), id.generation(), type_id, &data[..]);
-
+    engine.add_component(id.index(), id.generation(), type_id, &data[..]).expect("component");
     let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
     assert_eq!(raw.len(), 4);
     assert_eq!(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]), value);
@@ -179,8 +182,7 @@ fn wasm_remove_component() {
     let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
     let data: &[u8] = &[1u8, 0, 0, 0];
-    engine.add_component(id.index(), id.generation(), type_id, &data);
-
+    engine.add_component(id.index(), id.generation(), type_id, &data).expect("component");
     assert!(engine.remove_component(id.index(), id.generation(), type_id));
     assert!(!engine.has_component(id.index(), id.generation(), type_id));
 }
@@ -198,13 +200,12 @@ fn wasm_query_entities_returns_correct_set() {
     let e2 = engine.create_entity().expect("entity limit");
 
     // e0: t0 + t1
-    engine.add_component(e0.index(), e0.generation(), t0, &[]);
-    engine.add_component(e0.index(), e0.generation(), t1, &[]);
+    engine.add_component(e0.index(), e0.generation(), t0, &[]).expect("component");
+    engine.add_component(e0.index(), e0.generation(), t1, &[]).expect("component");
     // e1: t0 only
-    engine.add_component(e1.index(), e1.generation(), t0, &[]);
+    engine.add_component(e1.index(), e1.generation(), t0, &[]).expect("component");
     // e2: t1 only
-    engine.add_component(e2.index(), e2.generation(), t1, &[]);
-
+    engine.add_component(e2.index(), e2.generation(), t1, &[]).expect("component");
     let results_t0 = engine.query_entities(&[t0]);
     assert_eq!(results_t0.len(), 2); // e0 and e1
 
@@ -264,4 +265,86 @@ fn wasm_stats_is_valid_json_string() {
     assert!(stats.contains("entities"));
     assert!(stats.contains("frame"));
     assert!(stats.contains("elapsed"));
+}
+
+fn must_err<T, E>(result: Result<T, E>) -> E {
+    match result {
+        Ok(_) => panic!("expected an error"),
+        Err(err) => err,
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn js_error_code(err: gwen_core::CoreError) -> String {
+    use wasm_bindgen::JsCast;
+    let value = wasm_bindgen::JsValue::from(err);
+    assert!(value.is_instance_of::<js_sys::Error>());
+    js_sys::Reflect::get(&value, &wasm_bindgen::JsValue::from_str("code"))
+        .expect("read code")
+        .as_string()
+        .expect("code string")
+}
+
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+fn wasm_err_is_a_js_error_with_a_core_code() {
+    let mut engine = make_engine();
+    for _ in 0..100 {
+        engine.create_entity().expect("entity limit");
+    }
+    let err = must_err(engine.create_entity());
+    assert_eq!(js_error_code(err), "CORE:ENTITY_LIMIT_REACHED");
+
+    let mut small = Engine::new(2).expect("max entities");
+    let id = small.create_entity().expect("entity limit");
+    let type_id = small.register_component_type();
+    small
+        .add_component(id.index(), id.generation(), type_id, &[1])
+        .expect("component");
+    small.testing_shrink_query_buffer(0);
+    let err = must_err(small.query_entities_to_buffer(&[type_id]));
+    assert_eq!(js_error_code(err), "CORE:QUERY_CAPACITY_EXCEEDED");
+
+    for extra in 1..128 {
+        small
+            .add_component(id.index(), id.generation(), extra, &[1])
+            .expect("component");
+    }
+    let err = must_err(small.add_component(id.index(), id.generation(), 128, &[1]));
+    assert_eq!(js_error_code(err), "CORE:COMPONENT_TYPE_LIMIT_REACHED");
+
+    let err = must_err(Engine::new(0));
+    assert_eq!(js_error_code(err), "CORE:INVALID_MAX_ENTITIES");
+
+    let mut parents = Engine::new(4).expect("max entities");
+    for i in 0..3 {
+        let created = parents.create_entity().expect("entity limit");
+        parents.add_entity_transform(created.index(), 0.0, 0.0, 0.0, 1.0, 1.0);
+        if i > 0 {
+            parents.set_entity_parent(i, i - 1, false).expect("link");
+        }
+    }
+    let err = must_err(parents.set_entity_parent(0, 2, false));
+    assert_eq!(js_error_code(err), "CORE:INVALID_PARENT");
+}
+
+#[wasm_bindgen_test]
+fn wasm_deep_chain_and_cycle_do_not_trap() {
+    const N: u32 = 8_000;
+    let mut engine = Engine::new(N).expect("max entities");
+    for i in 0..N {
+        let id = engine.create_entity().expect("entity limit");
+        engine.add_entity_transform(id.index(), 1.0, 0.0, 0.0, 1.0, 1.0);
+        if i > 0 {
+            engine.set_entity_parent(i, i - 1, false).expect("link");
+        }
+    }
+    engine.update_transforms();
+    let err = must_err(engine.set_entity_parent(0, N - 1, false));
+    assert_eq!(err.code(), "CORE:INVALID_PARENT");
+    assert!(!engine.has_entity_parent(0));
+    engine
+        .set_entity_parent(1, u32::MAX, false)
+        .expect("detach");
+    assert!(!engine.has_entity_parent(1));
 }

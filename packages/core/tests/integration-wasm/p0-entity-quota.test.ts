@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { GwenError } from "@gwenjs/schema";
 
-import { CoreErrorCodes } from "../../src/index.js";
+import { CoreErrorCodes, GwenWasmError } from "../../src/index.js";
 import { createRealEngine } from "./harness.js";
 
 describe("P0 entity quota", () => {
@@ -23,9 +23,13 @@ describe("P0 entity quota", () => {
         caught = error;
       }
 
+      expect(caught).toBeInstanceOf(GwenWasmError);
       expect(caught).toBeInstanceOf(GwenError);
       expect((caught as GwenError).code).toBe("CORE:ENTITY_LIMIT_REACHED");
-      expect(caught).toMatchObject({ code: CoreErrorCodes.ENTITY_LIMIT_REACHED });
+      expect(caught).toMatchObject({
+        code: CoreErrorCodes.ENTITY_LIMIT_REACHED,
+        exportName: "create_entity",
+      });
       expect(bridge.countEntities()).toBe(maxEntities);
       expect(bridge.isAlive(0, 0)).toBe(true);
     } finally {
@@ -50,8 +54,13 @@ describe("P0 entity quota", () => {
         caught = error;
       }
 
+      expect(caught).toBeInstanceOf(GwenWasmError);
       expect(caught).toBeInstanceOf(GwenError);
       expect((caught as GwenError).code).toBe("CORE:ENTITY_LIMIT_REACHED");
+      expect(caught).toMatchObject({
+        code: CoreErrorCodes.ENTITY_LIMIT_REACHED,
+        exportName: "bulk_spawn_with_transforms",
+      });
       expect(bridge.countEntities()).toBe(0);
 
       const created = bridge.createEntity();

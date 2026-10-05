@@ -46,8 +46,13 @@ import { validateEngineConfig } from "./engine-config-validator";
 // All public types were in this file before extraction. Re-export them so
 // existing `import { ... } from './gwen-engine.js'` statements keep working.
 
-export { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
-export type { GwenPluginNotFoundErrorOptions } from "./engine-errors.js";
+export {
+  GwenPluginNotFoundError,
+  CoreErrorCodes,
+  GwenWasmError,
+  GwenWasmPanicError,
+} from "./engine-errors.js";
+export type { GwenPluginNotFoundErrorOptions, CoreWasmErrorCode } from "./engine-errors.js";
 export type { PluginErrorContext } from "./engine-types.js";
 
 export { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
@@ -75,7 +80,11 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
+import {
+  GwenPluginNotFoundError,
+  CoreErrorCodes,
+  GwenWasmPanicError,
+} from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
@@ -771,7 +780,7 @@ class GwenEngineImpl implements GwenEngine {
   /**
    * Create a new entity.
    * @returns A fresh {@link EntityId}.
-   * @throws {Error} If the entity capacity is exceeded.
+   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when the entity capacity is exceeded.
    */
   createEntity(): EntityId {
     this._assertNotFaulted("createEntity");
@@ -1332,7 +1341,8 @@ class GwenEngineImpl implements GwenEngine {
     },
   ): void {
     const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
-    const isTrap = err instanceof WebAssembly.RuntimeError;
+    const isTrap =
+      err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
     const target = forced?.target;
     const frame = this._frameCountOwn;
 
@@ -1356,7 +1366,9 @@ class GwenEngineImpl implements GwenEngine {
           ? CoreErrorCodes.WASM_PANIC
           : (forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
         message,
-        source: forced?.source ?? "@gwenjs/core",
+        source:
+          forced?.source ??
+          (err instanceof GwenWasmPanicError ? "gwen_core.wasm" : "@gwenjs/core"),
         error: err,
         target,
         context: { frame, hook },
@@ -1482,14 +1494,13 @@ class GwenEngineImpl implements GwenEngine {
         if (this.wasmBridge.physics3d.enabled) this.wasmBridge.physics3d.step(dt);
       } catch (err) {
         const detail = err instanceof Error ? err.message : String(err);
+        const isWasmPanic =
+          err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
         this._reportCaught(err, "physics", {
           level: "fatal",
           source: "gwen_core.wasm",
           message: `WASM step failed: ${detail}`,
-          code:
-            err instanceof WebAssembly.RuntimeError
-              ? CoreErrorCodes.WASM_PANIC
-              : CoreErrorCodes.FRAME_LOOP_ERROR,
+          code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
         });
       }
       if (instrument) t4 = performance.now();
@@ -1501,11 +1512,13 @@ class GwenEngineImpl implements GwenEngine {
           entry.step?.(entry.handle, dt);
         } catch (err) {
           const detail = err instanceof Error ? err.message : String(err);
+          const isWasmPanic =
+            err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
           this._reportCaught(err, "wasm", {
             source: `wasm:${name}`,
             message: `WASM module "${name}" step failed: ${detail}`,
             target: { kind: "wasm-module", id: `wasm:${name}`, name },
-            code: CoreErrorCodes.FRAME_LOOP_ERROR,
+            code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
           });
         }
       }

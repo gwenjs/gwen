@@ -53,7 +53,7 @@
  */
 
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
-import { getWasmBridge } from "../../engine/wasm-bridge";
+import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { entityIndex, type EntityId } from "../../engine/engine-api";
 
@@ -94,7 +94,9 @@ export function useTransform(): TransformHandle {
     );
   }
 
-  const bridge = getWasmBridge().engine();
+  const bridgeOwner = getWasmBridge();
+  const bridge = bridgeOwner.engine();
+  const parentBridge = bridgeOwner instanceof WasmBridgeImpl ? bridgeOwner : null;
 
   // Register the entity in the WASM TransformSystem if not already present.
   // Without this call, translate_entity / get_entity_world_x are no-ops.
@@ -157,11 +159,21 @@ export function useTransform(): TransformHandle {
     setParent(handleOrId, keepWorldPos = false) {
       const parentId =
         typeof handleOrId === "bigint" ? handleOrId : (handleOrId as { entityId: bigint }).entityId;
-      bridge.set_entity_parent(idx, entityIndex(parentId as any), keepWorldPos);
+      const parentIndex = entityIndex(parentId as any);
+      if (parentBridge) {
+        parentBridge.setEntityParent(idx, parentIndex, keepWorldPos);
+        return;
+      }
+      bridge.set_entity_parent(idx, parentIndex, keepWorldPos);
     },
 
     detach(keepWorldPos = false) {
-      bridge.set_entity_parent?.(idx, DETACH_SENTINEL, keepWorldPos);
+      if (!bridge.set_entity_parent) return;
+      if (parentBridge) {
+        parentBridge.setEntityParent(idx, DETACH_SENTINEL, keepWorldPos);
+        return;
+      }
+      bridge.set_entity_parent(idx, DETACH_SENTINEL, keepWorldPos);
     },
   };
 }

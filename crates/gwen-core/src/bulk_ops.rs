@@ -81,7 +81,7 @@ mod tests {
     use crate::bindings::Engine;
 
     fn make_engine() -> Engine {
-        Engine::new(1000)
+        Engine::new(1000).expect("max entities")
     }
 
     #[test]
@@ -102,8 +102,7 @@ mod tests {
         let type_id = engine.register_component_type();
 
         let e = engine.create_entity().expect("entity limit");
-        engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0]);
-
+        engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0]).expect("component");
         let mut out_slots = vec![0u32; 16];
         let mut out_gens = vec![0u32; 16];
         let mut out_buf = vec![0u8; 4];
@@ -135,7 +134,9 @@ mod tests {
 
         let seed_slots = [e0.index(), e1.index(), e2.index()];
         let seed_gens  = [e0.generation(), e1.generation(), e2.generation()];
-        engine.set_components_bulk(&seed_slots, &seed_gens, type_id, &[1u8,0,0,0, 2,0,0,0, 3,0,0,0]);
+        engine
+            .set_components_bulk(&seed_slots, &seed_gens, type_id, &[1u8, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0])
+            .expect("component");
 
         let mut out_slots = vec![0u32; 16];
         let mut out_gens  = vec![0u32; 16];
@@ -161,13 +162,13 @@ mod tests {
     fn test_fill_and_read_bulk_respects_cap() {
         // More matches than the old 10_000 hard cap. Only the caller slices cap the result.
         const MATCHES: usize = 10_050;
-        let mut engine = Engine::new(MATCHES as u32);
+        let mut engine = Engine::new(MATCHES as u32).expect("max entities");
         let type_id = engine.register_component_type();
         let entity_slots: Vec<u32> = (0..MATCHES as u32).collect();
 
         for _ in 0..MATCHES {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), type_id, &[0u8; 4]);
+            engine.add_component(e.index(), e.generation(), type_id, &[0u8; 4]).expect("component");
         }
 
         let mut out_slots = vec![0u32; MATCHES];

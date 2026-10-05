@@ -8,4 +8,11 @@
 export { GwenContextError } from "./engine/context";
 export { GwenPluginNotFoundError } from "./engine/gwen-engine.js";
 export { GwenConfigError } from "./engine/config-error.js";
-export { GwenActorError, ActorErrorCodes } from "./engine/engine-errors.js";
+export {
+  GwenActorError,
+  ActorErrorCodes,
+  GwenWasmError,
+  GwenWasmPanicError,
+  CoreErrorCodes,
+} from "./engine/engine-errors.js";
+export type { CoreWasmErrorCode } from "./engine/engine-errors.js";

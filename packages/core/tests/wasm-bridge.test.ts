@@ -16,7 +16,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { WasmBridgeImpl, type WasmEngine, type WasmEntityId } from "../src/engine/wasm-bridge";
-import { CoreErrorCodes } from "../src/engine/engine-errors";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../src/engine/engine-errors";
 
 // ── Mock helper ───────────────────────────────────────────────────────────────
 
@@ -120,26 +120,85 @@ describe("WasmBridge — with injected mock", () => {
     expect(id).toEqual({ index: 0, generation: 0 });
   });
 
-  it("createEntity throws when the wasm entity limit is reached", () => {
+  it("createEntity maps a coded entity-limit error and stays usable", () => {
     const limitBridge = new WasmBridgeImpl();
     const limitMock = createMockEngine();
     limitBridge._injectMock(limitMock);
+    const cause = new Error("Entity limit reached: 4");
+    (cause as Error & { code: string }).code = CoreErrorCodes.ENTITY_LIMIT_REACHED;
     limitMock.create_entity = vi.fn(() => {
-      throw new Error("Entity limit reached: 4");
+      throw cause;
     });
 
-    let caught: GwenError | null = null;
+    let caught: GwenWasmError | null = null;
     try {
       limitBridge.createEntity();
     } catch (e: unknown) {
-      if (e instanceof GwenError) caught = e;
+      if (e instanceof GwenWasmError) caught = e;
       else throw e;
     }
+    expect(caught).toBeInstanceOf(GwenWasmError);
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught?.code).toBe(CoreErrorCodes.ENTITY_LIMIT_REACHED);
-    expect(caught?.code).toBe("CORE:ENTITY_LIMIT_REACHED");
-    expect(caught?.message).toMatch(/limit/i);
+    expect(caught?.exportName).toBe("create_entity");
+    expect(caught?.cause).toBe(cause);
     expect(limitBridge.countEntities()).toBe(0);
+  });
+
+  it("toGwenWasmError maps each core code and leaves other errors unchanged", () => {
+    const bridge = new WasmBridgeImpl();
+    const codes = [
+      CoreErrorCodes.ENTITY_LIMIT_REACHED,
+      CoreErrorCodes.QUERY_CAPACITY_EXCEEDED,
+      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+      CoreErrorCodes.INVALID_PARENT,
+      CoreErrorCodes.INVALID_MAX_ENTITIES,
+    ] as const;
+    for (const code of codes) {
+      const cause = new Error(code);
+      (cause as Error & { code: string }).code = code;
+      const mapped = bridge.toGwenWasmError(cause, "add_component");
+      expect(mapped).toBeInstanceOf(GwenWasmError);
+      expect(mapped).toMatchObject({ code, exportName: "add_component", cause });
+    }
+    const other = new Error("boom");
+    expect(bridge.toGwenWasmError(other, "add_component")).toBe(other);
+  });
+
+  it("a RuntimeError poisons the bridge so the next call never enters WASM", () => {
+    const poisoned = new WasmBridgeImpl();
+    const mock = createMockEngine();
+    poisoned._injectMock(mock);
+    const trap = new WebAssembly.RuntimeError("unreachable");
+    mock.sync_transforms_from_buffer = vi.fn(() => {
+      throw trap;
+    });
+
+    let first: unknown;
+    try {
+      poisoned.syncTransformsFromBuffer(8, 1);
+    } catch (error: unknown) {
+      first = error;
+    }
+    expect(first).toBeInstanceOf(GwenWasmPanicError);
+    expect(first).not.toBeInstanceOf(GwenWasmError);
+    expect((first as GwenWasmPanicError).code).toBe(CoreErrorCodes.WASM_PANIC);
+    expect((first as GwenWasmPanicError).exportName).toBe("sync_transforms_from_buffer");
+    expect((first as GwenWasmPanicError).cause).toBe(trap);
+
+    mock.create_entity = vi.fn(() => ({ index: 1, generation: 0 }));
+    let second: unknown;
+    try {
+      poisoned.createEntity();
+    } catch (error: unknown) {
+      second = error;
+    }
+    expect(second).toBeInstanceOf(GwenWasmPanicError);
+    expect(mock.create_entity).not.toHaveBeenCalled();
+
+    poisoned._reset();
+    poisoned._injectMock(mock);
+    expect(poisoned.createEntity()).toEqual({ index: 1, generation: 0 });
   });
 
   it("createEntity rethrows a non-limit wasm error unchanged", () => {

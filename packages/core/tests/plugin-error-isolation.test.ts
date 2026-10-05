@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
-import { CoreErrorCodes } from "../src/index";
+import { CoreErrorCodes, GwenWasmPanicError } from "../src/index";
 
 // ─── Minimal mock error bus ───────────────────────────────────────────────────
 
@@ -114,6 +114,47 @@ describe("plugin error isolation", () => {
       );
       expect(frameErrors).toHaveLength(1);
       expect(frameErrors[0]!.level).toBe("fatal");
+    });
+
+    it("keeps a community WASM trap at error level and does not poison the core bridge", async () => {
+      const bus = createMockErrorBus();
+      const engine = await createEngine({ errorBus: bus });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (engine as any)._wasmModules.set("community-mod", {
+        handle: {
+          name: "community-mod",
+          exports: {},
+          memory: undefined,
+          region: () => {
+            throw new Error("no regions");
+          },
+          channel: () => {
+            throw new Error("no channels");
+          },
+        },
+        step: () => {
+          throw new WebAssembly.RuntimeError("unreachable");
+        },
+      });
+
+      await engine.advance(0.016);
+
+      const events = bus.emitted.filter((event) => event.source === "wasm:community-mod");
+      expect(events).toHaveLength(1);
+      expect(events[0]!.level).toBe("error");
+      expect(events[0]!.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(bus.emitted.filter((event) => event.level === "fatal")).toHaveLength(0);
+
+      const bridge = engine.tryInject("wasm:bridge");
+      expect(bridge).toBeDefined();
+      let after: unknown;
+      try {
+        bridge?.createEntity();
+      } catch (error: unknown) {
+        after = error;
+      }
+      expect(after).toBeInstanceOf(Error);
+      expect(after).not.toBeInstanceOf(GwenWasmPanicError);
     });
 
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {

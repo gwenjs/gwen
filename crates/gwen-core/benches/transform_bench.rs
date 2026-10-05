@@ -108,7 +108,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
 
     group.bench_function("bulk_destroy_1k", |b| {
         b.iter(|| {
-            let mut engine = Engine::new(2_000);
+            let mut engine = Engine::new(2_000).expect("max entities");
             let ids: Vec<u32> = (0..1_000)
                 .map(|_| engine.create_entity().expect("entity limit").index())
                 .collect();
@@ -118,7 +118,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
 
     group.bench_function("bulk_spawn_200_with_transforms", |b| {
         b.iter(|| {
-            let mut engine = Engine::new(300);
+            let mut engine = Engine::new(300).expect("max entities");
             let positions: Vec<f32> = (0..200)
                 .flat_map(|i| [i as f32 * 16.0, 0.0])
                 .collect();
@@ -130,7 +130,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
 
     group.bench_function("bulk_spawn_500_with_rotations", |b| {
         b.iter(|| {
-            let mut engine = Engine::new(600);
+            let mut engine = Engine::new(600).expect("max entities");
             let positions: Vec<f32> = (0..500)
                 .flat_map(|i| [i as f32 * 8.0, 0.0])
                 .collect();
