@@ -170,6 +170,23 @@ Le pattern accumulateur :
 Avec `physicsHz > 0`, chaque pas de simulation s'exécute avec le même `dt`. Deux exécutions atteignent le même état du monde lorsque chaque pas fixe reçoit les mêmes entrées dans le même ordre, en partant de la même configuration, sur la même version de GWEN, la même variante WASM et le même navigateur ou runtime. Pour contrôler les pas exactement, pilotez la boucle vous-même avec `engine.advance(1 / physicsHz)`. GWEN 1.0 ne garantit pas le déterminisme entre navigateurs, systèmes d'exploitation ou processeurs, et n'en donne aucune pour la boucle à delta variable (`physicsHz: 0`). Lire `performance.now()`, `Date.now()` ou `Math.random()` dans un système casse la reproductibilité. GWEN 1.0 n'a pas de snapshot du monde ni de sauvegarde/restauration intégrés.
 :::
 
+::: info Multijoueur (1.0)
+Le jeu en réseau ne fait pas partie de GWEN 1.0. Le transport, la prédiction et la gestion d'intérêt restent des plugins futurs. Dans Node, la seule boucle prise en charge est `startExternal()` puis `advance(1 / physicsHz)`. `start()` et son repli `setTimeout` ne sont pas une boucle serveur prise en charge.
+
+Le contrat « prêt pour le netcode » de la 1.0 est :
+
+1. Le moteur démarre dans Node sans globaux DOM, depuis des octets ou un module compilé, pour les variantes light, 2D et 3D. Le bootstrap headless est #89.
+2. `startExternal()` plus un `advance(1 / physicsHz)` exécute un pas fixe. `engine:afterTick` s'exécute une fois par pas, et `frameCount` compte ces pas.
+3. Sur le chemin `advance`, le `dt` de simulation est la valeur passée par l'appelant. Il ne vient pas de l'horloge murale.
+4. Plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution. `stop()` sur un moteur laisse les autres tourner.
+5. Une erreur fatale ne fait passer que ce moteur à `faulted`.
+6. Les gestionnaires d'erreur globaux sont optionnels. Le cœur n'en installe aucun sauf si `window` existe.
+7. La reproductibilité des pas fixes est la note Déterminisme de cette section (#84).
+8. Dépasser la capacité d'entités lève une erreur typée au lieu de piéger le module WASM.
+
+La 1.0 ne fournit ni lockstep, ni rollback, ni snapshot du monde, ni entrée indexée par tick, ni surcharge `advance(dt, inputs)`. Deux pairs sur des plateformes différentes peuvent diverger.
+:::
+
 ## Résumé de l'API
 
 | | |
