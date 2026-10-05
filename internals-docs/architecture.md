@@ -74,9 +74,9 @@ The simulation runs on the main thread. See [ADR 0002](./adr/0002-threading-mode
 `gwen-engine.ts` is intentionally large (~2000+ lines) — V8 inlines function calls within the same compilation unit. Splitting into smaller files caused measurable performance regression on the hot path (significant slowdown when updating ~1000 entities/frame). This is a conscious performance trade-off.
 
 ### ECS Memory Layout
-- **Decision:** archetype tables with one array per field per chunk (model C). Status: implemented by #113/#65. See [ADR-0001](./adr/0001-component-storage.md).
+- **Decision:** archetype tables with one array per field per chunk (model C). Status: to be implemented by #113/#65. See [ADR-0001](./adr/0001-component-storage.md).
 - Not per-entity field arrays. A row index is valid only inside one chunk, and it changes on migration.
-- Adding or removing a component is an archetype migration: each kept column is moved once.
+- Adding or removing a component will be an archetype migration: each kept column is moved once (#113).
 - Today's Rust columns are still packed rows. The TypeScript registry is still a `Map` per type. #113/#65 replace both.
 
 ### Frame Loop: 8 Phases

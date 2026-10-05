@@ -48,7 +48,7 @@ Access is `chunk.get(Def).field[row]`. No stride. No indirect lookup inside the 
 
 **C.** Archetype tables with one typed array per field inside each chunk.
 
-`A.direct` and `C` differ only in layout. On the native host at E = 10 000, C's Movement pass is slower than both `A.direct` and `B` (1.171 ns/entity against 1.035 and 0.9465). The direction stays C. Iteration in the JS stand-ins does not show that gap: JS `C` is the fastest of the JS models at E = 10 000. Absolute WASM numbers are out of scope here. #113 records them in [Before/after (#113)](#beforeafter-113).
+`A.direct` and `C` differ only in layout. At E = 10 000, native C is slower than B on every host measured here. Versus `A.direct`, the gap depends on the host: on the local M4, C is slower (1.171 vs 1.035 ns/entity); on the CI host, C is faster (1.115 vs 1.234). The direction stays C. Iteration in the JS stand-ins does not show that gap: JS `C` is the fastest of the JS models at E = 10 000. Absolute WASM numbers are out of scope here. #113 records them in [Before/after (#113)](#beforeafter-113).
 
 ## Reference scene
 
@@ -70,6 +70,42 @@ One frame, in order, with no RNG:
 
 ## Measured numbers
 
+### CI host (primary)
+
+`storage-bench` job. The `Commit` line is `git rev-parse HEAD` inside the pull_request checkout: merge `9daa4cbeaa0da2076fd89503a3a65672edc0fc3a` of branch tip `4272efd8655ed1e017cf64b8a68d4170d9c86900` into `v1-alpha` `9c34fb5d3c81ed2f5c7b0420fea00231832f77f5`.
+
+- CPU: Intel(R) Xeon(R) 6973P-C
+- OS: Linux 6.17.0-1022-azure x64
+- rustc: rustc 1.99.0 (b940084d7 2026-09-28)
+- Node: v22.23.3
+- Commit: 9daa4cbeaa0da2076fd89503a3a65672edc0fc3a
+- CI run: https://github.com/gwenjs/gwen/actions/runs/37307169428
+
+Native rows are Rust on the host target, not wasm32. `today` and JS `A` / `B` / `C` are Node. Column meanings match the local section below.
+
+| model | runtime | E | iter_ns_per_entity | add_us | remove_us | frame_us | bytes_per_entity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| today | JS | 1000 | 118.7 | 0.5040 | 0.7295 | 593.0 | 1590.5 |
+| today | JS | 10000 | 137.9 | 1.025 | 0.7625 | 5559.5 | 454.1 |
+| A | JS | 1000 | 2.518 | 1.396 | 1.537 | 23.732 | 131.1 |
+| A | JS | 10000 | 2.385 | 1.005 | 1.194 | 106.7 | 104.9 |
+| B | JS | 1000 | 3.498 | 0.1060 | 0.1995 | 30.053 | 65.536 |
+| B | JS | 10000 | 3.412 | 0.09300 | 0.1640 | 47.523 | 58.982 |
+| C | JS | 1000 | 1.796 | 0.8520 | 1.108 | 28.805 | 131.1 |
+| C | JS | 10000 | 1.735 | 1.213 | 1.432 | 151.2 | 104.9 |
+| A.prod | native Rust | 1000 | 7.655 | 0.2031 | 0.1946 | 13.306 | 24.000 |
+| A.prod | native Rust | 10000 | 7.645 | 0.2159 | 0.2056 | 151.5 | 24.000 |
+| A.direct | native Rust | 1000 | 1.229 | 0.03123 | 0.03557 | 1.636 | 33.376 |
+| A.direct | native Rust | 10000 | 1.234 | 0.03567 | 0.03357 | 16.284 | 47.402 |
+| B | native Rust | 1000 | 0.8531 | 0.02166 | 0.01944 | 1.043 | 48.128 |
+| B | native Rust | 10000 | 0.8445 | 0.01927 | 0.01991 | 10.136 | 77.005 |
+| C | native Rust | 1000 | 1.071 | 0.03087 | 0.03351 | 1.378 | 33.280 |
+| C | native Rust | 10000 | 1.115 | 0.03007 | 0.03092 | 12.796 | 47.392 |
+
+On this host, native C at E = 10 000 is slower than B and faster than A.direct.
+
+### Local M4 (secondary)
+
 Local run of `cargo bench -p gwen-core --bench storage_models` and `vitest bench bench/storage-models.bench.ts`. Same warm-up and measurement flags as the `storage-bench` CI job for Rust (warm-up 1s, measurement 3s, 10 samples). JS iteration samples run for about 200 ms. JS add, remove, and frame use 30 measured iterations.
 
 - CPU: Apple M4 Max
@@ -77,7 +113,7 @@ Local run of `cargo bench -p gwen-core --bench storage_models` and `vitest bench
 - rustc: rustc 1.90.0 (1159e78c4 2025-09-14)
 - Node: v24.7.0
 - Commit: 72b19e79ebd6d8637a33534a776a6fd25e174bc7
-- CI run: local run (no CI URL). The PR job `storage-bench` repeats this table on GitHub.
+- CI run: none. This machine is not the CI host. The primary table is the CI run above.
 
 Native rows are Rust on the host target, not wasm32. Ranking only. `today` and JS `A` / `B` / `C` are Node.
 

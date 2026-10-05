@@ -111,7 +111,7 @@ onStart(async () => {
 ### ECS — Structure of Arrays (SoA)
 
 Decision: archetype tables with one typed array per field inside each chunk (model C).
-Status: implemented by #113/#65. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
+Status: to be implemented by #113/#65. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
 
 A chunk is one archetype. Every component in that chunk shares the row index. Row order is
 not stable, so a field is never indexed by entity id. The only system form is:
@@ -134,8 +134,8 @@ Today the TypeScript registry is still a `Map` per component type, and the Rust 
 still packed rows. #113/#65 replace that. Until they land, do not write the chunk loop against
 this tree and expect it to run.
 
-Adding or removing a component is an archetype migration: each kept column is moved once. Do
-that for state changes, not inside `onUpdate`.
+Adding or removing a component will be an archetype migration: each kept column is moved once
+(#113). Do that for state changes, not inside `onUpdate`.
 
 Systems query matching entities (`useQuery`). Actors own one entity. A prefab is a component
 template; an actor wraps a prefab with lifecycle hooks and a public API. Entity IDs are `bigint`.
