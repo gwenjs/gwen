@@ -11,7 +11,15 @@
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { _resetWasmBridge } from "../../src/testing";
+import { getWasmBridge, WasmBridgeImpl } from "../../src/internal";
+
+function _resetWasmBridge(): void {
+  const bridge = getWasmBridge();
+  if (!(bridge instanceof WasmBridgeImpl)) {
+    throw new Error("expected WasmBridgeImpl");
+  }
+  bridge._reset();
+}
 import { createEngine } from "../../src/engine/gwen-engine";
 
 describe("_resetWasmBridge — globalThis glue cache eviction", () => {

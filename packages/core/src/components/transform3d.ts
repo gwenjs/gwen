@@ -10,7 +10,7 @@
  *
  * @example
  * ```ts
- * import { Transform3D } from '@gwenjs/core';
+ * import { Transform3D } from '@gwenjs/core/internal';
  * import type { InferComponent } from '@gwenjs/core';
  *
  * type T3D = InferComponent<typeof Transform3D>;

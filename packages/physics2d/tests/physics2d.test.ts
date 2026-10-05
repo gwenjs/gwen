@@ -103,13 +103,15 @@ function makeMockBus(transformBuf?: ArrayBuffer, eventsBuf?: ArrayBuffer) {
 
 // ── Mock getWasmBridge ───────────────────────────────────────────────────────
 
-vi.mock("@gwenjs/core", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@gwenjs/core")>();
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   return { ...original, getWasmBridge: vi.fn() };
 });
 
-import { getWasmBridge, createEntityId } from "@gwenjs/core";
-import { Physics2DPlugin, physics2D } from "../src";
+import { createEntityId } from "@gwenjs/core";
+import { getWasmBridge } from "@gwenjs/core/internal";
+import { Physics2DPlugin } from "../src";
+import { physics2D } from "../src/plugin/index.js";
 import {
   BODY_TYPE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,

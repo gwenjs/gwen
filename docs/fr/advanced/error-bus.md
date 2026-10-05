@@ -12,7 +12,8 @@ Le bus d'erreurs de GWEN fournit un moyen structuré pour le moteur, les plugins
 Accédez au bus d'erreurs via le moteur :
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const ErrorHandlingSystem = defineSystem(() => {
   const engine = useEngine()
@@ -83,7 +84,8 @@ Les plugins définissent leurs propres codes d'erreur en suivant le même modèl
 Les plugins et le code du jeu peuvent émettre des erreurs structurées au lieu de lancer :
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const CustomSystem = defineSystem(() => {
   const engine = useEngine()
@@ -131,7 +133,9 @@ Avec le bus d'erreurs :
 La physique est coûteuse en termes de calcul et peut échouer. Au lieu de planter, émettez et récupérez :
 
 ```ts
-import { usePhysics2D, useEngine } from '@gwenjs/core'
+import { usePhysics2D } from '@gwenjs/physics2d'
+import { useEngine } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const PhysicsSystem = defineSystem(() => {
   const physics = usePhysics2D()
@@ -162,7 +166,8 @@ export const PhysicsSystem = defineSystem(() => {
 Transmettre les erreurs à votre backend d'analyses :
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const TelemetrySystem = defineSystem(() => {
   const engine = useEngine()

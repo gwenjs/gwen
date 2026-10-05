@@ -12,12 +12,12 @@ npm install @gwenjs/core
 
 `@gwenjs/core` exposes a root entrypoint and three additional subpath entrypoints to keep bundle sizes small:
 
-| Subpath               | What it exports                                                                                                                                                                                                                          |
-| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `initWasm`, `onCleanup`                                                                                                                                         |
-| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`                                                                                                                     |
-| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `onEvent`, `useEntityId`, `definePrefab`, `defineEvents`, `emit`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
-| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                                                                     |
+| Subpath               | What it exports                                                                                                                                                                                       |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `@gwenjs/core`        | `createEngine`, `useEngine`, `defineComponent`, `Types`, `createLogger`, `setupGwen`, `onCleanup`                                                                                                     |
+| `@gwenjs/core/system` | `defineSystem`, `onUpdate`, `onBeforeUpdate`, `onAfterUpdate`, `onRender`, `useQuery`, `useService`, `useWasmModule`                                                                                  |
+| `@gwenjs/core/actor`  | `defineActor`, `onStart`, `onDestroy`, `useEntityId`, `definePrefab`, `useActor`, `useComponent`, `usePrefab`, `useTransform`, `defineLayout`, `useLayout`, `placeActor`, `placeGroup`, `placePrefab` |
+| `@gwenjs/core/scene`  | `defineScene`, `defineSceneRouter`, `useSceneRouter`                                                                                                                                                  |
 
 ## Quick start
 
@@ -122,24 +122,12 @@ const PhysicsSystem = defineSystem("PhysicsSystem", () => {
 Actors are entity-bound objects with a lifecycle. Use `defineActor` for interactive game objects.
 
 ```ts
-import {
-  defineActor,
-  onStart,
-  onDestroy,
-  onEvent,
-  definePrefab,
-  defineEvents,
-  useComponent,
-} from "@gwenjs/core/actor";
+import { defineActor, onStart, onDestroy, definePrefab, useComponent } from "@gwenjs/core/actor";
 
 const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
   { def: Health, defaults: { hp: 100, max: 100 } },
 ]);
-
-const EnemyEvents = defineEvents({
-  "enemy:hit": (damage: number) => {},
-});
 
 const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
   const health = useComponent<{ hp: number; max: number }>(Health);
@@ -168,11 +156,10 @@ EnemyActor._plugin.despawn(id);
 
 ### Lifecycle hooks (actor only)
 
-| Hook                 | When                                        |
-| -------------------- | ------------------------------------------- |
-| `onStart(fn)`        | Once, after spawn                           |
-| `onDestroy(fn)`      | Once, on despawn                            |
-| `onEvent(event, fn)` | On event — automatically removed on despawn |
+| Hook            | When              |
+| --------------- | ----------------- |
+| `onStart(fn)`   | Once, after spawn |
+| `onDestroy(fn)` | Once, on despawn  |
 
 ### `useEntityId`
 
@@ -187,29 +174,16 @@ const MyActor = defineActor(MyPrefab, () => {
 ## Events
 
 ```ts
-import { defineEvents, emit, onEvent, type InferEvents } from '@gwenjs/core/actor'
-import { useEngine } from '@gwenjs/core'
+import { defineHooks, emit, useHook } from '@gwenjs/core'
 
-// Declare the event contract
-export const GameEvents = defineEvents({
-  'player:died': () => {},
-  'enemy:hit': (damage: number) => {},
+export const GameHooks = defineHooks({
+  'player:died': (): void => undefined,
+  'enemy:hit': (_damage: number): void => undefined,
 })
 
-// Augment GwenRuntimeHooks to get full type-checking on emit/onEvent/hook
-declare module '@gwenjs/core' {
-  interface GwenRuntimeHooks extends InferEvents<typeof GameEvents> {}
-}
-
-// Emit from inside an engine context (system, actor, or engine lifecycle callback)
 emit('enemy:hit', 42)
 
-// Listen inside an actor (auto-cleaned up on despawn)
-onEvent('enemy:hit', (damage) => { ... })
-
-// Listen from a system
-const engine = useEngine()
-engine.hooks.hook('enemy:hit', (damage) => { ... })
+useHook('enemy:hit', (damage) => { ... })
 ```
 
 ## Scenes
@@ -282,3 +256,97 @@ log.error("oops");
 ## License
 
 MIT
+
+## Public exports
+
+### `.`
+
+Values: `ActorErrorCodes`, `ComposableErrorCodes`, `CoreErrorCodes`, `GwenActorError`, `GwenComposableError`, `GwenConfigError`, `GwenContextError`, `GwenLogger`, `GwenPluginNotFoundError`, `Types`, `consoleLogProvider`, `createEngine`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `defineSequence`, `emit`, `onCleanup`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `useTween`, `withAsyncContext`, `withCleanup`
+
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `EasingName`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFramePhaseMs`, `EngineState`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenHookable`, `GwenHooks`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `LogEntry`, `LogLevel`, `MemoryRegion`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+
+### `./system`
+
+Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useComponentFor`, `useQuery`, `useService`, `useWasmModule`
+
+Types: `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`
+
+### `./actor`
+
+Values: `DormantTag`, `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onAfterUpdate`, `onBeforeUpdate`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onRender`, `onReset`, `onStart`, `onUpdate`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useComponent`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
+
+Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabHandle`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
+
+### `./scene`
+
+Values: `defineScene`, `defineSceneRouter`, `onEnter`, `onExit`, `onTransitionEnter`, `onTransitionLeave`, `useSceneRouter`, `useSystem`
+
+Types: `EventsOf`, `RouteConfig`, `SceneDefinition`, `SceneFactory`, `SceneInput`, `SceneRegistry`, `SceneRouterDefinition`, `SceneRouterHandle`, `SceneRouterOptions`, `StatesOf`, `SystemHandle`, `TransitionEffect`
+
+### `./tween`
+
+Values: `defineSequence`, `easeInBack`, `easeInBounce`, `easeInCubic`, `easeInElastic`, `easeInExpo`, `easeInOutBack`, `easeInOutBounce`, `easeInOutCubic`, `easeInOutElastic`, `easeInOutExpo`, `easeInOutQuad`, `easeInOutQuart`, `easeInOutSine`, `easeInQuad`, `easeInQuart`, `easeInSine`, `easeOutBack`, `easeOutBounce`, `easeOutCubic`, `easeOutElastic`, `easeOutExpo`, `easeOutQuad`, `easeOutQuart`, `easeOutSine`, `linear`, `spring`, `useTween`
+
+Types: `EasingName`, `TweenHandle`, `TweenOptions`, `TweenableValue`
+
+### `./system/module`
+
+Values: `default`
+
+Types: none
+
+### `./actor/module`
+
+Values: `default`
+
+Types: none
+
+### `./scene/module`
+
+Values: `default`
+
+Types: none
+
+### `./router/module`
+
+Values: `default`
+
+Types: none
+
+### `./tween/module`
+
+Values: `default`
+
+Types: none
+
+### `./testing`
+
+Values: `createRealEngine`
+
+Types: `CreateRealEngineOptions`, `RealEngineHandle`
+
+### `./internal`
+
+no semver guarantee — framework packages and generated code only
+
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_PHYSICS_ACTIVE`, `GlobalStringPoolManager`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `detectSharedMemoryRequired`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+
+Types: `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`
+
+### `./wasm/light`
+
+Values: `Engine`, `JsEntityId`, `default`, `initSync`
+
+Types: `InitInput`, `InitOutput`, `SyncInitInput`
+
+### `./wasm/physics2d`
+
+Values: `Engine`, `JsEntityId`, `default`, `find_path_2d`, `get_collision_event_count`, `get_collision_events_ptr`, `get_path_buffer_ptr`, `initSync`
+
+Types: `InitInput`, `InitOutput`, `SyncInitInput`
+
+### `./wasm/physics3d`
+
+Values: `Engine`, `JsEntityId`, `default`, `find_path_3d`, `get_path_buffer_ptr_3d`, `initSync`, `init_navgrid_3d`
+
+Types: `InitInput`, `InitOutput`, `SyncInitInput`

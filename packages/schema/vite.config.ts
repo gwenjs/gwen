@@ -7,7 +7,13 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   plugins: [
-    dts({ include: ["src"], outDir: "dist", insertTypesEntry: true, pathsToAliases: false }),
+    dts({
+      include: ["src"],
+      exclude: ["src/**/*.fixture.ts"],
+      outDir: "dist",
+      insertTypesEntry: true,
+      pathsToAliases: false,
+    }),
   ],
   build: {
     lib: {

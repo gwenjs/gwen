@@ -13,7 +13,12 @@
  *   3. Detect semantic changes per viewport and emit camera:* hooks
  */
 
-import { defineSystem, onAfterUpdate, useQuery } from "@gwenjs/core/system";
+import {
+  defineSystem,
+  onAfterUpdate,
+  useQuery,
+  type DiscoverablePlugin,
+} from "@gwenjs/core/system";
 import { useEngine, emit } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
@@ -27,7 +32,7 @@ function shakeOffset(trauma: number, seed: number): number {
   return Math.sin(seed * 127.1 + trauma * 311.7) * trauma * trauma;
 }
 
-export const CameraSystem = defineSystem("CameraSystem", () => {
+export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem", () => {
   const engine = useEngine();
   const cameras = useCameraManager();
   const _viewports = useViewportManager();

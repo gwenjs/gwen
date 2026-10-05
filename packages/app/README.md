@@ -17,8 +17,6 @@ In most projects this is called automatically by the Vite plugin — you do not 
 ## Manual usage
 
 ```typescript
-import { createApp } from "@gwenjs/app";
-
 const app = await createApp({
   config: "./gwen.config.ts",
   env: "production",
@@ -33,7 +31,7 @@ See `@gwenjs/schema` for the full `GwenConfig` type and all available options.
 
 ```typescript
 // gwen.config.ts
-import { defineConfig } from "@gwenjs/schema";
+import { defineConfig } from "@gwenjs/app";
 
 export default defineConfig({
   engine: {
@@ -69,3 +67,17 @@ export default defineConfig({
 - `@gwenjs/schema` — Configuration schema
 - `@gwenjs/kit` — Plugin authoring
 - `@gwenjs/cli` — Project tooling (build, dev, scaffold)
+
+## Public exports
+
+### `.`
+
+Values: `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`
+
+Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenTypeTemplate`, `GwenUserConfig`, `ResolvedGwenConfig`
+
+### `./resolve`
+
+Values: `GwenApp`, `GwenConfigLoadError`, `loadRawGwenConfig`, `resolveConfig`, `resolveGwenConfig`
+
+Types: `GwenBuildHooks`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `RawGwenConfig`, `ResolvedGwenConfig`

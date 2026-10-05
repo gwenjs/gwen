@@ -1,17 +1,13 @@
-import { fileURLToPath } from "node:url";
-
 import { defineConfig } from "vitest/config";
 
-// `@gwenjs/kit` publishes `dist/`, which this worktree has not built.
-// The real physics plugins import `@gwenjs/kit/plugin`, so point that
-// subpath at the TypeScript source.
-const kitPlugin = fileURLToPath(new URL("../kit/src/plugin/index.ts", import.meta.url));
+import { gwenSourceAliases } from "../../vitest.aliases.ts";
 
+// Plugins import `@gwenjs/core/internal` and `@gwenjs/kit/plugin`.
+// Those exports point at `dist/`. This config runs the TypeScript source,
+// so the plugin and the engine must share one `getWasmBridge` module.
 export default defineConfig({
   resolve: {
-    alias: {
-      "@gwenjs/kit/plugin": kitPlugin,
-    },
+    alias: gwenSourceAliases(),
   },
   test: {
     globals: true,

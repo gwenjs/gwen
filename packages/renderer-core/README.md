@@ -93,3 +93,31 @@ const stats = manager.getStats();
 // stats.totalDrawCalls                            — accumulated total draw calls
 // stats.history.drawCalls[0]                      — draw calls for one frame in the 60-frame ring buffer
 ```
+
+## Public exports
+
+### `.`
+
+Values: `BrowserSizeProvider`, `EmptyLayersError`, `RENDERER_CONTRACT_VERSION`, `RendererAlreadyRegisteredError`, `RendererContractVersionError`, `RendererErrorCodes`, `ScreenErrorCodes`, `ScreenPlugin`, `ScreenResizeObserverError`, `ScreenViewportNotFoundError`, `StaticSizeProvider`, `UnknownLayerError`, `defineRendererService`, `getOrCreateCameraManager`, `getOrCreateLayerManager`, `getOrCreateScreenService`, `getOrCreateViewportManager`, `useCameraManager`, `useScreen`, `useViewportManager`
+
+Types: `AnimOpts`, `AnimatorHandle`, `CameraManager`, `CameraProjection`, `CameraState`, `HTMLHandle`, `LayerDef`, `ManagedRendererService`, `MeshHandle`, `RendererErrorCode`, `RendererFlushContext`, `RendererLayerStats`, `RendererMountContext`, `RendererRendererStats`, `RendererService`, `RendererServiceDef`, `RendererServiceInstance`, `RendererStats`, `RendererStatsCollector`, `ScreenErrorCode`, `ScreenPluginOptions`, `ScreenService`, `ScreenSizeProvider`, `SpriteHandle`, `ViewportBounds`, `ViewportBoundsProvider`, `ViewportContext`, `ViewportManager`, `ViewportPixels`, `ViewportRegion`, `ViewportScreenInfo`, `WorldTransform`
+
+### `./module`
+
+Values: `default`
+
+Types: none
+
+### `./testing`
+
+Values: `MockSizeProvider`, `runConformanceTests`
+
+Types: `MockSizeProviderHandle`
+
+### `./internal`
+
+no semver guarantee — framework packages and generated code only
+
+Values: `CameraManagerImpl`, `RendererStatsCollectorImpl`, `ViewportManagerImpl`, `createRendererStats`
+
+Types: none

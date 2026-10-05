@@ -1,7 +1,7 @@
 /**
  * @file useSphereCollider() — circle collider for 2D (sphere for structural 3D compat).
  */
-import { _getActorEntityId } from "@gwenjs/core/actor";
+import { _getActorEntityId } from "@gwenjs/core/internal";
 import type { EntityId } from "@gwenjs/core";
 import type { CircleColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";

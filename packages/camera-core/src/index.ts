@@ -10,8 +10,6 @@
  *   CameraShake,
  *   CameraCorePlugin,
  *   CameraErrorCodes,
- *   cameraViewportMap,
- *   cameraPathStore,
  * } from '@gwenjs/camera-core'
  * ```
  */
@@ -39,10 +37,6 @@ export type {
 // ECS components
 export { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components";
 
-// Side-car stores (consumed by camera2d and camera3d handles)
-export { cameraViewportMap } from "./camera-viewport-map";
-export { cameraPathStore } from "./camera-path-store";
-
 // System and plugin
 export { CameraSystem } from "./camera-system";
 export { CameraCorePlugin } from "./camera-core-plugin";
@@ -59,7 +53,6 @@ export type {
 } from "./camera-handle";
 
 // XR cameras
-export { cameraMatrixStore } from "./camera-matrix-store";
 export { XRCameraPrefab } from "./xr-camera-prefab";
 export { useXRCamera } from "./use-xr-camera";
 export type { XRCameraOpts } from "./use-xr-camera";

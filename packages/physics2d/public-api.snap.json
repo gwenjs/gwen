@@ -1,0 +1,149 @@
+{
+  ".": {
+    "values": [
+      "Physics2DPlugin",
+      "SENSOR_ID_FOOT",
+      "buildTilemapPhysicsChunks",
+      "createPhysicsKinematicSyncSystem",
+      "createPlatformerGroundedSystem",
+      "default",
+      "defineLayers",
+      "onContact",
+      "onSensorEnter",
+      "onSensorExit",
+      "patchTilemapPhysicsChunk",
+      "physics2dVitePlugin",
+      "useBoxCollider",
+      "useCapsuleCollider",
+      "useCollider",
+      "useDynamicBody",
+      "useKinematicBody",
+      "usePhysics2D",
+      "useRigidBody",
+      "useShape",
+      "useSphereCollider",
+      "useStaticBody"
+    ],
+    "types": [
+      "BoxColliderHandle",
+      "BoxColliderOptions",
+      "CapsuleColliderHandle",
+      "CapsuleColliderOptions",
+      "CircleColliderHandle",
+      "ColliderOptions",
+      "CollisionContact",
+      "CollisionEvent",
+      "CollisionEventsBatch",
+      "ContactEvent",
+      "DynamicBodyHandle",
+      "DynamicBodyOptions",
+      "KinematicBodyHandle",
+      "KinematicBodyOptions",
+      "Physics2DAPI",
+      "Physics2DConfig",
+      "Physics2DLayerDefinition",
+      "Physics2DPluginHooks",
+      "Physics2DPrefabExtension",
+      "PhysicsColliderDef",
+      "PhysicsColliderShape",
+      "PhysicsKinematicSyncSystemOptions",
+      "PhysicsQualityPreset",
+      "PlatformerGroundedSystemOptions",
+      "RigidBodyType",
+      "SensorState",
+      "ShapeOptions",
+      "SphereColliderOptions",
+      "StaticBodyHandle",
+      "StaticBodyOptions",
+      "TilemapPhysicsChunkMap"
+    ]
+  },
+  "./module": {
+    "values": ["default"],
+    "types": []
+  },
+  "./helpers": {
+    "values": [
+      "applyDirectionalImpulse",
+      "buildStaticGeometryChunk",
+      "buildTilemapPhysicsChunks",
+      "createTilemapChunkOrchestrator",
+      "dedupeContactsByPair",
+      "getBodySnapshot",
+      "getEntityCollisionContacts",
+      "getSpeed",
+      "isSensorActive",
+      "loadStaticGeometryChunk",
+      "moveKinematicByVelocity",
+      "patchTilemapPhysicsChunk",
+      "selectContactsForEntityId",
+      "selectResolvedContactsForEntityId",
+      "toResolvedContacts"
+    ],
+    "types": []
+  },
+  "./helpers/queries": {
+    "values": ["getBodySnapshot", "getSpeed", "isSensorActive"],
+    "types": []
+  },
+  "./helpers/movement": {
+    "values": ["applyDirectionalImpulse", "moveKinematicByVelocity"],
+    "types": []
+  },
+  "./helpers/contact": {
+    "values": [
+      "dedupeContactsByPair",
+      "getEntityCollisionContacts",
+      "selectContactsForEntityId",
+      "selectResolvedContactsForEntityId",
+      "toResolvedContacts"
+    ],
+    "types": []
+  },
+  "./helpers/static-geometry": {
+    "values": ["buildStaticGeometryChunk", "loadStaticGeometryChunk"],
+    "types": []
+  },
+  "./helpers/orchestration": {
+    "values": ["createTilemapChunkOrchestrator"],
+    "types": []
+  },
+  "./tilemap": {
+    "values": [
+      "TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION",
+      "buildTilemapPhysicsChunks",
+      "patchTilemapPhysicsChunk"
+    ],
+    "types": [
+      "BuildTilemapPhysicsChunksInput",
+      "PatchTilemapPhysicsChunkInput",
+      "PhysicsColliderDef",
+      "TilemapChunkRect",
+      "TilemapPhysicsChunk",
+      "TilemapPhysicsChunkMap"
+    ]
+  },
+  "./debug": {
+    "values": [
+      "BODY_TYPE",
+      "PHYSICS2D_BRIDGE_SCHEMA_VERSION",
+      "PHYSICS2D_EVENTS_RING_FORMAT_VERSION",
+      "PHYSICS_MATERIAL_PRESETS",
+      "PHYSICS_QUALITY_PRESET_CODE",
+      "readCollisionEventsFromBuffer"
+    ],
+    "types": ["CollisionEvent"]
+  },
+  "./internal": {
+    "values": [
+      "CONTACT_EVENT_BYTES",
+      "ContactRingBuffer",
+      "PHYSICS2D_BRIDGE_SCHEMA_VERSION",
+      "RING_CAPACITY",
+      "ShapeComponent",
+      "_clearContactCallbacks",
+      "_clearSensorCallbacks"
+    ],
+    "types": ["ShapeData"]
+  }
+}

@@ -11,7 +11,7 @@ description: "API reference for @gwenjs/core."
 
 The flat import. Engine bootstrap, shared types, WASM utilities, tween.
 
-**Key exports:** `createEngine`, `useEngine`, `GwenContextError`, `GwenPlugin` (type), `GwenEngine` (type), `GwenProvides` (type), `GwenRuntimeHooks` (type), `createLogger`, `initWasm`, tween utilities.
+**Key exports:** `createEngine`, `useEngine`, `GwenContextError`, `GwenPlugin` (type), `GwenEngine` (type), `GwenProvides` (type), `GwenRuntimeHooks` (type), `createLogger`, `setupGwen`, tween utilities.
 
 **Usage:**
 ```ts
@@ -250,7 +250,15 @@ Actor definition, instance lifecycle, and all actor composables.
 
 **Usage:**
 ```ts
-import { defineActor, onStart, onDestroy, onUpdate, onBeforeUpdate, onAfterUpdate, onRender } from '@gwenjs/core/actor'
+import {
+  defineActor,
+  onStart,
+  onDestroy,
+  onUpdate,
+  onBeforeUpdate,
+  onAfterUpdate,
+  onRender,
+} from '@gwenjs/core/actor'
 import { definePrefab, useActor, useComponent, usePrefab } from '@gwenjs/core/actor'
 import { useTransform, defineLayout, useLayout, placeActor, placeGroup, placePrefab } from '@gwenjs/core/actor'
 ```

@@ -8,7 +8,7 @@
  */
 
 import type { IGwenScope, GwenScopeMeta } from "@gwenjs/schema";
-import { GwenScope } from "@gwenjs/core/context";
+import { GwenScope } from "@gwenjs/core/internal";
 
 /**
  * Returns the currently active scope, or null if outside any context.

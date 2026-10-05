@@ -29,30 +29,13 @@
     "./module": {
       "types": "./dist/module/index.d.ts",
       "import": "./dist/module/index.js"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "default": "./dist/index.js"
-      },
-      "./plugin": {
-        "types": "./dist/plugin/index.d.ts",
-        "import": "./dist/plugin/index.js"
-      },
-      "./module": {
-        "types": "./dist/module/index.d.ts",
-        "import": "./dist/module/index.js"
-      }
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "test": "vitest run",
     "watch": "vite build --watch"
   },

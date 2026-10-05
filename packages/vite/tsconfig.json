@@ -1,6 +1,6 @@
 {
   "compilerOptions": {
-    "composite": true,
+    "composite": false,
     "target": "ES2022",
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -18,7 +18,8 @@
     "exactOptionalPropertyTypes": false,
     // FIXME(type-safety): noUncheckedIndexedAccess disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
     "noUncheckedIndexedAccess": false,
-    "rootDir": "../.."
+    "rootDir": "../..",
+    "disableSourceOfProjectReferenceRedirect": true
   },
   "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist", "src/**/*.js", "src/**/*.d.ts"],
@@ -32,6 +33,9 @@
     },
     {
       "path": "../physics2d"
+    },
+    {
+      "path": "../renderer-core"
     }
   ]
 }

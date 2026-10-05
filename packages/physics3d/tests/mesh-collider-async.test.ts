@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { _clearBvhCache, preloadMeshCollider } from "../src/index.js";
+import { preloadMeshCollider } from "../src/index.js";
+import { _clearBvhCache } from "../src/internal.js";
 
 beforeEach(() => {
   _clearBvhCache();

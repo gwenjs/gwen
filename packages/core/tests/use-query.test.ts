@@ -10,7 +10,8 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { createEngine, defineComponent, Types, engineContext } from "../src/index";
+import { createEngine, defineComponent, Types } from "../src/index";
+import { engineContext } from "../src/internal";
 import { defineSystem, onUpdate, useQuery } from "../src/system/index";
 import type { GwenEngine } from "../src/index";
 import type { EntityAccessor } from "../src/system/index";

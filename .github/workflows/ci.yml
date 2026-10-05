@@ -131,10 +131,56 @@ jobs:
       - name: Physics2D benchmarks
         run: pnpm bench:physics:ci
 
+  api-surface:
+    name: API surface
+    runs-on: ubuntu-latest
+    needs: [rust]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Download build-tools artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-build-tools
+          path: packages/physics3d/build-tools/
+      - name: Download physics3d wasm/bvh artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-wasm-bvh
+          path: packages/physics3d/wasm/bvh/
+      - name: Download physics3d-fracture wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-fracture-wasm
+          path: packages/physics3d-fracture/wasm/
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
+      - name: Build packages
+        run: pnpm build:ts
+      - name: Add .js extensions to declaration imports
+        run: node scripts/fix-dts-extensions.mjs
+      - name: publint
+        run: |
+          set -euo pipefail
+          for dir in packages/*; do
+            pnpm exec publint run --strict "$dir"
+          done
+      - name: attw
+        run: |
+          set -euo pipefail
+          for dir in packages/*; do
+            pnpm exec attw --pack --profile esm-only "$dir"
+          done
+      - name: Public type snapshots
+        run: node scripts/public-api-types.mjs
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, typescript, bench]
+    needs: [lint, rust, typescript, bench, api-surface]
     if: always()
     steps:
       - name: Check all jobs
@@ -142,7 +188,8 @@ jobs:
           if [ "${{ needs.lint.result }}"       != "success" ] || \
              [ "${{ needs.rust.result }}"       != "success" ] || \
              [ "${{ needs.typescript.result }}" != "success" ] || \
-             [ "${{ needs.bench.result }}"      != "success" ]; then
+             [ "${{ needs.bench.result }}"      != "success" ] || \
+             [ "${{ needs.api-surface.result }}" != "success" ]; then
             echo "❌ CI failed"
             exit 1
           fi

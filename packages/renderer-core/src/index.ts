@@ -32,13 +32,11 @@ export {
 } from "./types.js";
 
 // Stats types and factory
-export {
-  type RendererLayerStats,
-  type RendererRendererStats,
-  type RendererStats,
-  type RendererStatsCollector,
-  createRendererStats,
-  RendererStatsCollectorImpl,
+export type {
+  RendererLayerStats,
+  RendererRendererStats,
+  RendererStats,
+  RendererStatsCollector,
 } from "./stats.js";
 
 // LayerManager — getOrCreateLayerManager is the only public entry point.
@@ -98,13 +96,11 @@ export type {
 
 // ── CameraManager ────────────────────────────────────────────────────────────
 export type { CameraManager } from "./camera-manager.js";
-export { CameraManagerImpl } from "./camera-manager.js";
 export { getOrCreateCameraManager } from "./get-or-create-camera-manager.js";
 export { useCameraManager } from "./use-camera-manager.js";
 
 // ── ViewportManager ──────────────────────────────────────────────────────────
 export type { ViewportManager } from "./viewport-manager.js";
-export { ViewportManagerImpl } from "./viewport-manager.js";
 export { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js";
 export { useViewportManager } from "./use-viewport-manager.js";
 

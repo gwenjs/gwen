@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["src"],
-      exclude: ["wasm"],
+      exclude: ["wasm", "src/**/*.fixture.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
@@ -18,6 +18,7 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         module: resolve(__dirname, "src/module.ts"),
+        internal: resolve(__dirname, "src/internal.ts"),
       },
       formats: ["es"],
       fileName: (_format, entryName) => `${entryName}.js`,

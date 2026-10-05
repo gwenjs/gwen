@@ -344,7 +344,8 @@ const ProjectileActor = defineActor(ProjectilePrefab, () => {
 Un exemple complet : personnage avec gravité, détection du sol via raycast, et saut.
 
 ```ts
-import { defineActor, useComponent, useService } from '@gwenjs/core/actor'
+import { defineActor, useComponent } from '@gwenjs/core/actor'
+import { useService } from '@gwenjs/core/system'
 import { onUpdate } from '@gwenjs/core/system'
 import { useDynamicBody, useCapsuleCollider, useRaycast } from '@gwenjs/physics3d'
 import { Position } from './components'

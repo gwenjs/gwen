@@ -17,13 +17,16 @@ pnpm add @gwenjs/camera-core
 
 ## Démarrage rapide
 
+`cameraViewportMap` vient de `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver.
+
 ```ts
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
+import { cameraViewportMap } from '@gwenjs/camera-core/internal'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -107,11 +110,11 @@ export default defineConfig({
 
 `cameraViewportMap` et `cameraPathStore` sont des `Map` au niveau module qui coexistent avec
 les composants ECS, car les chaînes et objets complexes ne peuvent pas être stockés dans les
-buffers SoA.
+buffers SoA. Ils sont exposés par `@gwenjs/camera-core/internal`, sans garantie semver.
 
 ```ts
-import { cameraViewportMap, cameraPathStore } from '@gwenjs/camera-core'
 import type { CameraPathData } from '@gwenjs/camera-core'
+import { cameraPathStore, cameraViewportMap } from '@gwenjs/camera-core/internal'
 
 // Associer une caméra à un viewport
 cameraViewportMap.set(camId, 'main')
@@ -168,7 +171,7 @@ l'emporte. À priorité égale, la dernière entité ayant poussé son état gag
 ## Construire un handle de caméra personnalisé
 
 ```ts
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
 import { useCameraManager } from '@gwenjs/renderer-core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 

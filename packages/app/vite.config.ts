@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["src"],
+      exclude: ["src/**/*.fixture.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
@@ -22,7 +23,7 @@ export default defineConfig({
       fileName: (format, entryName) => `${entryName}.${format === "es" ? "js" : "cjs"}`,
     },
     rollupOptions: {
-      external: [/^node:/, "@gwenjs/kit", "c12", "defu", "hookable"],
+      external: [/^node:/, /^@gwenjs\//, "c12", "defu", "hookable"],
     },
   },
 });

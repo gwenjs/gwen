@@ -4,7 +4,7 @@ import { ContactRingBuffer3D } from "../src/plugin/ring-buffer.js";
 
 // ─── Mocks for dynamic body perf test ─────────────────────────────────────
 
-vi.mock("@gwenjs/core/actor", () => ({
+vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 1n),
 }));
 

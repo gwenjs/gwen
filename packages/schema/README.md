@@ -96,8 +96,6 @@ const input: GwenConfigInput = {
 Minimal interface every plugin must satisfy.
 
 ```typescript
-import type { GwenPluginBase } from "@gwenjs/schema";
-
 const myPlugin: GwenPluginBase = {
   name: "my-plugin",
   provides: { myService: { doSomething() {} } },
@@ -383,3 +381,11 @@ pnpm test
 ```
 
 Tests live in `tests/` and cover defaults, merge logic, all validation rules, and hook type contracts.
+
+## Public exports
+
+### `.`
+
+Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `defaultOptions`, `resolveConfig`, `validateResolvedConfig`
+
+Types: `AutoImport`, `ComponentLifecycleHooks`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineLifecycleHooks`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorPayload`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenLogger`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenOptions`, `GwenPlugin`, `GwenRuntimeHooks`, `GwenScopeMeta`, `GwenScopeType`, `GwenTypeTemplate`, `HookBusBase`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `LogEntry`, `LogLevel`, `PluginDeclaration`, `PluginErrorContext`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`

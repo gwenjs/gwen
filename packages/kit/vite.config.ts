@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["src"],
+      exclude: ["src/**/*.fixture.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
@@ -23,7 +24,7 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
-      external: ["@gwenjs/core"],
+      external: ["@gwenjs/core", "@gwenjs/core/internal"],
       output: {
         globals: { "@gwenjs/core": "GwenEngineCore" },
       },

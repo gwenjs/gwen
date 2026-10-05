@@ -9,8 +9,10 @@ let _beforeUpdateCb: ((dt: number) => void) | null = null;
 
 vi.mock("@gwenjs/core", () => ({}));
 
-vi.mock("@gwenjs/core/actor", () => ({
+vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 10n),
+}));
+vi.mock("@gwenjs/core/actor", () => ({
   onBeforeUpdate: vi.fn((fn: (dt: number) => void) => {
     _beforeUpdateCb = fn;
   }),

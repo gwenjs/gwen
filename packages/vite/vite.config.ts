@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["src"],
+      exclude: ["src/**/*.fixture.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
@@ -16,6 +17,7 @@ export default defineConfig({
     lib: {
       entry: {
         index: resolve(__dirname, "src/index.ts"),
+        internal: resolve(__dirname, "src/internal.ts"),
         "shared/layer-utils": resolve(__dirname, "src/shared/layer-utils.ts"),
       },
       formats: ["es"],

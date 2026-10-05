@@ -1,40 +1,10 @@
 /**
- * @file @gwenjs/core/testing — test helpers for @gwenjs/core
+ * @gwenjs/core/testing — real WASM engine harness.
  *
- * This subpath is reserved for unit testing utilities and mocks.
- * These APIs are NOT stable across versions and should never be imported
- * in production code.
- *
- * Only import from `@gwenjs/core/testing` in test files.
+ * No semver guarantee. Do not import this from production code.
+ * The entry does not pull vitest into the runtime bundle.
  * `createRealEngine` reads the wasm artifacts with `node:fs`. Node and jsdom can import this file. A browser test runner cannot.
- *
- * @example
- * ```typescript
- * // tests/my-engine.test.ts
- * import { _injectMockWasmEngine, _resetWasmBridge } from '@gwenjs/core/testing';
- *
- * describe('MyEngine', () => {
- *   afterEach(() => {
- *     _resetWasmBridge();
- *   });
- *
- *   it('works with mocked WASM', () => {
- *     const mockEngine = vi.fn();
- *     _injectMockWasmEngine(mockEngine);
- *     // ... test code
- *   });
- * });
- * ```
  */
 
-export {
-  _injectMockWasmEngine,
-  _resetWasmBridge,
-  _injectMockWasmExports,
-} from "./engine/wasm-bridge.js";
-
-export {
-  createRealEngine,
-  type CreateRealEngineOptions,
-  type RealEngineHandle,
-} from "./testing/create-real-engine.js";
+export { createRealEngine } from "./testing/create-real-engine";
+export type { CreateRealEngineOptions, RealEngineHandle } from "./testing/create-real-engine";

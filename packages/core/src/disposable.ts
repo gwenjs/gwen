@@ -22,7 +22,7 @@ import type { GwenDisposable, DisposableRegistryBase } from "@gwenjs/schema";
  *
  * @example
  * ```ts
- * import { createDisposable } from '@gwenjs/core'
+ * import { createDisposable } from '@gwenjs/core/internal'
  *
  * const timer = setInterval(tick, 100)
  * const d = createDisposable(() => clearInterval(timer))

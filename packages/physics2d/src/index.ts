@@ -6,10 +6,7 @@
  */
 
 // ─── Plugin exports ─────────────────────────────────────────────────────────
-export { Physics2DPlugin, Physics2D, physics2D } from "./plugin/index";
-export { ShapeComponent } from "./shape-component";
-export type { ShapeData } from "./shape-component";
-export { ContactRingBuffer, CONTACT_EVENT_BYTES, RING_CAPACITY } from "./ring-buffer";
+export { Physics2DPlugin } from "./plugin/index";
 
 // ─── Module, composables & type augmentations ───────────────────────────────
 export * from "./augment";
@@ -24,8 +21,6 @@ export {
   onContact,
   onSensorEnter,
   onSensorExit,
-  _clearContactCallbacks,
-  _clearSensorCallbacks,
   useShape,
   useKinematicBody,
 } from "./composables/index";
@@ -76,7 +71,5 @@ export type {
   SensorState,
   TilemapPhysicsChunkMap,
 } from "./types";
-
-export { PHYSICS2D_BRIDGE_SCHEMA_VERSION } from "./types";
 
 export { default } from "./module";

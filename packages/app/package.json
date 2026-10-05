@@ -6,34 +6,30 @@
     "dist"
   ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": {
+        "import": "./dist/index.d.ts",
+        "require": "./dist/index.d.cts"
+      },
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
     },
     "./resolve": {
-      "types": "./src/resolve.ts",
-      "import": "./src/resolve.ts"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
+      "types": {
+        "import": "./dist/resolve.d.ts",
+        "require": "./dist/resolve.d.cts"
       },
-      "./resolve": {
-        "types": "./dist/resolve.d.ts",
-        "import": "./dist/resolve.js"
-      }
+      "import": "./dist/resolve.js",
+      "require": "./dist/resolve.cjs"
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./package.json": "./package.json"
   },
   "scripts": {
-    "build": "vite build",
+    "build": "vite build && cp dist/index.d.ts dist/index.d.cts && cp dist/resolve.d.ts dist/resolve.d.cts",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "dev": "vite build --watch",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"

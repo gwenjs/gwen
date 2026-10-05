@@ -12,6 +12,11 @@ const mockBridge = {
   getEntityGeneration: vi.fn((_index: number) => 0),
 };
 
+vi.mock("@gwenjs/core/internal", async () => {
+  const core = await import("@gwenjs/core");
+  return { getWasmBridge: core.getWasmBridge };
+});
+
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
 }));

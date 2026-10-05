@@ -2,8 +2,7 @@
   "name": "@gwenjs/renderer-core",
   "version": "0.4.2",
   "files": [
-    "dist",
-    "src"
+    "dist"
   ],
   "type": "module",
   "main": "./dist/index.js",
@@ -11,41 +10,25 @@
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "default": "./dist/index.js"
+      "import": "./dist/index.js"
     },
     "./module": {
       "types": "./dist/module.d.ts",
-      "import": "./dist/module.js",
-      "default": "./dist/module.js"
+      "import": "./dist/module.js"
     },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "default": "./dist/index.js"
-      },
-      "./module": {
-        "types": "./dist/module.d.ts",
-        "import": "./dist/module.js",
-        "default": "./dist/module.js"
-      },
-      "./testing": {
-        "types": "./dist/testing/index.d.ts",
-        "import": "./dist/testing/index.js"
-      }
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "vite build",
+    "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },

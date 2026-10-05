@@ -7,8 +7,10 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { unpackEntityId, createEntityId, getWasmBridge, createLogger } from "@gwenjs/core";
-import type { GwenEngine, EntityId, WasmBridge, WasmEnginePhysics2D } from "@gwenjs/core";
+import { unpackEntityId, createEntityId, createLogger } from "@gwenjs/core";
+import { getWasmBridge } from "@gwenjs/core/internal";
+import type { GwenEngine, EntityId, WasmBridge } from "@gwenjs/core";
+import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 
 import type {
   Physics2DConfig,

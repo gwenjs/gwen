@@ -12,7 +12,8 @@ GWEN's error bus provides a structured way for the engine, plugins, and game cod
 Access the error bus through the engine:
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const ErrorHandlingSystem = defineSystem(() => {
   const engine = useEngine()
@@ -83,7 +84,8 @@ Plugins define their own error codes following the same pattern: `'PLUGIN_NAME:E
 Plugins and game code can emit structured errors instead of throwing:
 
 ```ts
-import { defineSystem, useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const CustomSystem = defineSystem(() => {
   const engine = useEngine()
@@ -131,7 +133,9 @@ With the error bus:
 Physics is computationally expensive and can fail. Instead of crashing, emit and recover:
 
 ```ts
-import { usePhysics2D, useEngine } from '@gwenjs/core'
+import { usePhysics2D } from '@gwenjs/physics2d'
+import { useEngine } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const PhysicsSystem = defineSystem(() => {
   const physics = usePhysics2D()
@@ -162,7 +166,8 @@ export const PhysicsSystem = defineSystem(() => {
 Forward errors to your analytics backend:
 
 ```ts
-import { defineSystem, useEngine, onUpdate } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
+import { useEngine } from '@gwenjs/core'
 
 export const TelemetrySystem = defineSystem(() => {
   const engine = useEngine()

@@ -1,0 +1,10 @@
+{
+  ".": {
+    "values": ["initFracture", "initSync", "voronoi_fracture"],
+    "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  },
+  "./wasm": {
+    "values": ["default", "initSync", "voronoi_fracture"],
+    "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  }
+}

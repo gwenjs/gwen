@@ -7,13 +7,13 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
+import { gwen } from "../src/index";
 import {
-  gwen,
   generateEntryModule,
   generateScenesModule,
   generateConfigModulesVirtualModule,
   extractModuleNamesFromConfig,
-} from "../src/index";
+} from "../src/entry-gen.js";
 import { gwenVitePlugin } from "../src/plugins/index.js";
 
 function makeTmp(): string {
@@ -52,6 +52,12 @@ describe("gwen() config hook — optimizeDeps", () => {
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/system");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/actor");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/scene");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/internal");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/system/module");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/actor/module");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/scene/module");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/router/module");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core/tween/module");
   });
 
   it("deduplicates @gwenjs/core in resolve.dedupe", async () => {
@@ -197,10 +203,14 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).not.toContain("setupGwen");
   });
 
-  it("imports createEngine and WasmBridgeImpl from @gwenjs/core", () => {
+  it("imports createEngine from @gwenjs/core and WasmBridgeImpl from @gwenjs/core/internal", () => {
     const code = generateEntryModule(false);
-    expect(code).toContain("createEngine");
-    expect(code).toContain("WasmBridgeImpl");
+    expect(code).toContain(
+      'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
+    );
+    expect(code).toContain(
+      'import { engineContext, WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
+    );
   });
 
   it("imports createViewportsPlugin and createScreenPlugin from @gwenjs/app", () => {
