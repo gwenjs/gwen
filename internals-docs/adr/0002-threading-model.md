@@ -15,11 +15,11 @@ The benches print one header per variant. Both runs used the same CPU, OS, Node,
 `commit` is the engine revision the benches ran against (`9c34fb5`, `origin/v1-alpha`). This ADR was added after that run.
 
 ```
-GWEN_FRAME_LOOP cpu="Apple M4 Max" os="Darwin 25.6.0 arm64" node="v24.7.0" commit=9c34fb5d3c81ed2f5c7b0420fea00231832f77f5 wasmScript=scripts/build-wasm.sh wasm-pack build --target web --release wasmArtifact=/Users/jonathan/packages/.worktrees/gwen-82-threading-adr/packages/core/wasm/light/gwen_core_bg.wasm wasmBytes=129085 wasmMtime=2026-10-05T12:10:39.320Z wasmRebuilt=true warmup=3 samples=11 maxEntities=65536 dt=0.016666666666666666 gridSpacing=2 boxHalf=0.4
+GWEN_FRAME_LOOP cpu="Apple M4 Max" os="Darwin 25.6.0 arm64" node="v24.7.0" commit=9c34fb5d3c81ed2f5c7b0420fea00231832f77f5 wasmScript=scripts/build-wasm.sh wasm-pack build --target web --release wasmArtifact=packages/core/wasm/light/gwen_core_bg.wasm wasmBytes=129085 wasmMtime=2026-10-05T12:10:39.320Z warmup=3 samples=11 maxEntities=65536 dt=0.016666666666666666 gridSpacing=2 boxHalf=0.4
 ```
 
 ```
-GWEN_FRAME_LOOP cpu="Apple M4 Max" os="Darwin 25.6.0 arm64" node="v24.7.0" commit=9c34fb5d3c81ed2f5c7b0420fea00231832f77f5 wasmScript=scripts/build-wasm.sh wasm-pack build --target web --release wasmArtifact=/Users/jonathan/packages/.worktrees/gwen-82-threading-adr/packages/core/wasm/physics2d/gwen_core_bg.wasm wasmBytes=577749 wasmMtime=2026-10-05T12:10:53.001Z wasmRebuilt=true warmup=3 samples=11 maxEntities=65536 dt=0.016666666666666666 gridSpacing=2 boxHalf=0.4
+GWEN_FRAME_LOOP cpu="Apple M4 Max" os="Darwin 25.6.0 arm64" node="v24.7.0" commit=9c34fb5d3c81ed2f5c7b0420fea00231832f77f5 wasmScript=scripts/build-wasm.sh wasm-pack build --target web --release wasmArtifact=packages/core/wasm/physics2d/gwen_core_bg.wasm wasmBytes=577749 wasmMtime=2026-10-05T12:10:53.001Z warmup=3 samples=11 maxEntities=65536 dt=0.016666666666666666 gridSpacing=2 boxHalf=0.4
 ```
 
 ## Decision
@@ -155,6 +155,8 @@ R6. Physics has one step site. Each physics plugin steps Rapier only from its `e
 
 R7. No new `SharedArrayBuffer`, `Atomics`, `crossOriginIsolated`, or shared `WebAssembly.Memory`. COOP and COEP stay optional everywhere.
 
+R8. Do not create a worker that owns ECS, physics, or world state. The only allowed pattern is a stateless job worker: it receives a payload, returns a copied or transferred result, and keeps no world. The only current one is the physics3d BVH builder in `packages/physics3d/src/plugin/bvh.ts` (`new Worker`, then `postMessage` of vertices and indices, BVH bytes come back). A `new Worker` in any other file fails the guard test.
+
 ## Re-opening
 
 A later ADR may leave A only if it measures the `+atomics` build cost and names which of R1–R7 break.
@@ -165,6 +167,6 @@ This record does not remove `requireSAB`, `detectSharedMemoryRequired`, `wasm.sh
 
 The SAB sentences in the published docs and in `internals-docs/architecture.md` stay until #62.
 
-The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts`.
+The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts` (R8). Keys are the file plus the pattern. A removed site stays green. A new site, or a higher count, fails.
 
-CI does not collect `packages/core/bench/` until #57. The physics2d bench is collected. The medians above are the local run, not the CI trend.
+CI does not collect `packages/core/bench/` until #57. The physics2d bench is collected, but N = 50 000 is skipped when `CI=true` so the Benchmarks job does not pay that step. The medians above are the local run, not the CI trend.

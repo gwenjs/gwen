@@ -1,9 +1,9 @@
 import { bench } from "vitest";
 
+import { createEntityId } from "@gwenjs/core";
 import {
   FRAME_LOOP_BOX_HALF,
   FRAME_LOOP_MAX_ENTITIES,
-  createEntityId,
   measureFrameLoop,
   type FrameScene,
 } from "../../core/bench/frame-loop-scene.js";

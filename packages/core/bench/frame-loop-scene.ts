@@ -15,9 +15,10 @@
 import { execFileSync } from "node:child_process";
 import { statSync } from "node:fs";
 import { cpus } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { createEntityId, defineComponent, Types } from "../src/index.js";
+import { defineComponent, Types } from "../src/index.js";
 import type { EngineFramePhaseMs, GwenEngine, GwenPlugin } from "../src/index.js";
 import { defineSystem, onRender, onUpdate, useQuery } from "../src/system/index.js";
 import { createRealEngine, type RealEngineHandle } from "../tests/integration-wasm/harness.js";
@@ -92,6 +93,7 @@ function machineHeader(variant: "light" | "physics2d"): string {
   }).trim();
   const wasmPath = fileURLToPath(new URL(`../wasm/${variant}/gwen_core_bg.wasm`, import.meta.url));
   const wasmStat = statSync(wasmPath);
+  const wasmArtifact = path.relative(root, wasmPath).split(path.sep).join("/");
   return [
     "GWEN_FRAME_LOOP",
     `cpu=${JSON.stringify(cpuModel())}`,
@@ -99,10 +101,9 @@ function machineHeader(variant: "light" | "physics2d"): string {
     `node=${JSON.stringify(process.version)}`,
     `commit=${commit}`,
     "wasmScript=scripts/build-wasm.sh wasm-pack build --target web --release",
-    `wasmArtifact=${wasmPath}`,
+    `wasmArtifact=${wasmArtifact}`,
     `wasmBytes=${wasmStat.size}`,
     `wasmMtime=${wasmStat.mtime.toISOString()}`,
-    "wasmRebuilt=true",
     `warmup=${FRAME_LOOP_WARMUP}`,
     `samples=${FRAME_LOOP_SAMPLES}`,
     `maxEntities=${FRAME_LOOP_MAX_ENTITIES}`,
@@ -122,6 +123,7 @@ function median(values: readonly number[]): number {
 }
 
 function setDebug(engine: GwenEngine, debug: boolean): void {
+  // temporary: createRealEngine takes no debug flag, and the logger keeps its construction value
   (engine as { debug: boolean }).debug = debug;
 }
 
@@ -252,12 +254,18 @@ function measureCopyFloor(): void {
 // and again for the sample. Keep the first successful pass only.
 const measuredKeys = new Set<string>();
 
+function entityCounts(variant: "light" | "physics2d"): readonly number[] {
+  // 50_000 physics bodies add minutes to the Benchmarks job. CI keeps 1_000 and 10_000.
+  if (variant === "physics2d" && process.env.CI === "true") return [1_000, 10_000];
+  return FRAME_LOOP_ENTITY_COUNTS;
+}
+
 export async function measureFrameLoop(options: FrameLoopMeasureOptions): Promise<void> {
   const measuredKey = `${options.variant}:${options.copyFloor === true}`;
   if (measuredKeys.has(measuredKey)) return;
   process.stdout.write(`${machineHeader(options.variant)}\n`);
   for (const debug of [true, false]) {
-    for (const count of FRAME_LOOP_ENTITY_COUNTS) {
+    for (const count of entityCounts(options.variant)) {
       let handle: RealEngineHandle | undefined;
       const names: string[] = [];
       try {
@@ -286,5 +294,3 @@ export async function measureFrameLoop(options: FrameLoopMeasureOptions): Promis
   if (options.copyFloor) measureCopyFloor();
   measuredKeys.add(measuredKey);
 }
-
-export { createEntityId };
