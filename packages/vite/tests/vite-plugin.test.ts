@@ -428,7 +428,8 @@ describe("gwenVitePlugin — hooks plugin included", () => {
 
 describe("gwen() WASM middleware — path traversal containment", () => {
   let root: string;
-  let outsideSecret: string;
+  let outsideWasm: string;
+  let outsideJs: string;
   let handler: (
     req: { url?: string },
     res: { setHeader(k: string, v: string): void; end(b?: unknown): void },
@@ -441,8 +442,11 @@ describe("gwen() WASM middleware — path traversal containment", () => {
     fs.mkdirSync(pluginWasm, { recursive: true });
     fs.writeFileSync(path.join(pluginWasm, "demo.wasm"), "WASM");
     fs.writeFileSync(path.join(pluginWasm, "notes.txt"), "not servable");
-    outsideSecret = path.join(root, ".env");
-    fs.writeFileSync(outsideSecret, "SECRET=1");
+    // Servable extensions, so a missing containment check would serve these.
+    outsideWasm = path.join(root, "secret.wasm");
+    outsideJs = path.join(root, "secret.js");
+    fs.writeFileSync(outsideWasm, "SECRET_WASM");
+    fs.writeFileSync(outsideJs, "SECRET_JS");
 
     const [plugin] = gwen({ watch: false });
     const uses: Array<typeof handler> = [];
@@ -487,14 +491,40 @@ describe("gwen() WASM middleware — path traversal containment", () => {
     expect(String(body)).toBe("WASM");
   });
 
-  it("rejects `..` traversal out of the wasm directory", () => {
-    const { body, nextCalled } = request("/wasm/../../../../.env");
+  it("rejects `..` traversal to a .wasm file outside the wasm directory", () => {
+    const { body, nextCalled } = request("/wasm/../../../../secret.wasm");
     expect(body).toBeUndefined();
     expect(nextCalled).toBe(true);
   });
 
-  it("rejects URL-encoded traversal", () => {
-    const { body, nextCalled } = request("/wasm/..%2F..%2F..%2F..%2F.env");
+  it("rejects `..` traversal to a .js file outside the wasm directory", () => {
+    const { body, nextCalled } = request("/wasm/../../../../secret.js");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects fully encoded %2e%2e%2f traversal to a .wasm file", () => {
+    const encoded = "%2e%2e%2f".repeat(4) + "secret.wasm";
+    const { body, nextCalled } = request(`/wasm/${encoded}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects fully encoded %2e%2e%2f traversal to a .js file", () => {
+    const encoded = "%2e%2e%2f".repeat(4) + "secret.js";
+    const { body, nextCalled } = request(`/wasm/${encoded}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects an absolute path to a .wasm file outside the wasm directory", () => {
+    const { body, nextCalled } = request(`/wasm/${outsideWasm}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects an absolute path to a .js file outside the wasm directory", () => {
+    const { body, nextCalled } = request(`/wasm/${outsideJs}`);
     expect(body).toBeUndefined();
     expect(nextCalled).toBe(true);
   });
