@@ -166,8 +166,8 @@ The accumulator pattern:
 
 `engine.timeScale` still applies: a `timeScale` of `0.5` halves the effective simulation speed.
 
-::: tip When to use physicsHz
-Use `physicsHz` when your simulation requires deterministic, reproducible steps — physics, networking, replay. For rendering-only logic, the default variable-dt loop is simpler.
+::: info Determinism
+With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs reach the same world state when every fixed step receives the same inputs in the same order, starting from the same configuration, on the same GWEN version, WASM variant and browser or runtime. To control steps exactly, drive the loop yourself with `engine.advance(1 / physicsHz)`. GWEN 1.0 makes no determinism guarantee across browsers, operating systems or CPUs, and none for the variable-dt loop (`physicsHz: 0`). Reading `performance.now()`, `Date.now()` or `Math.random()` inside a system breaks reproducibility. GWEN 1.0 has no built-in world snapshot or save/restore.
 :::
 
 ## API Summary

@@ -1,6 +1,6 @@
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
-use std::time::Instant;
+use std::time::SystemTime;
 
 const DT: f32 = 1.0 / 60.0;
 const TUNNEL_DT: f32 = 1.0 / 120.0;
@@ -106,9 +106,9 @@ fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
     let mut y_max = f32::MIN;
 
     for _ in 0..STACK_MEASURE_STEPS {
-        let t0 = Instant::now();
+        let t0 = SystemTime::now();
         world.step(DT);
-        let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
+        let elapsed_ms = t0.elapsed().map(|elapsed| elapsed.as_secs_f64()).unwrap_or(0.0) * 1000.0;
         samples_ms.push(elapsed_ms);
 
         if let Some((_, y, _)) = world.get_position(probe_entity) {

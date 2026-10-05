@@ -184,6 +184,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "wall-clock measurement in a test"
+    )]
     fn test_performance_10k_small_allocations() {
         let mut alloc = LinearAllocator::new(1024 * 1024);
 
@@ -201,6 +205,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "wall-clock measurement in a test"
+    )]
     fn test_performance_multiple_resets() {
         let mut alloc = LinearAllocator::new(1000);
 

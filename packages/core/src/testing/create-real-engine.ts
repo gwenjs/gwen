@@ -19,6 +19,8 @@ export interface CreateRealEngineOptions {
   readonly variant: CoreVariant;
   readonly maxEntities: number;
   readonly debug?: boolean;
+  /** Fixed-step rate forwarded to `createEngine`. Absent means the engine default. */
+  readonly physicsHz?: number;
 }
 
 function artifactPath(variant: CoreVariant, fileName: string): string {
@@ -69,6 +71,7 @@ export async function createRealEngine(
     variant: options.variant,
     maxEntities: options.maxEntities,
     debug: options.debug ?? false,
+    ...(options.physicsHz !== undefined ? { physicsHz: options.physicsHz } : {}),
     _bridge: bridge,
   });
 

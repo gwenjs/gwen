@@ -1,0 +1,5 @@
+disallowed-methods = [
+  { path = "std::time::Instant::now", reason = "wall-clock reads are forbidden in gwen-core outside tests" },
+  { path = "js_sys::Date::now", reason = "wall-clock reads are forbidden in gwen-core outside tests" },
+  { path = "js_sys::Math::random", reason = "rng calls are forbidden in gwen-core outside tests" },
+]
