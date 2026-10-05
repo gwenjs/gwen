@@ -24,6 +24,7 @@ import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
 import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
+import { cameraViewportMap } from '@gwenjs/camera-core/internal'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -110,8 +111,8 @@ les composants ECS, car les chaînes et objets complexes ne peuvent pas être st
 buffers SoA.
 
 ```ts
-
 import type { CameraPathData } from '@gwenjs/camera-core'
+import { cameraPathStore, cameraViewportMap } from '@gwenjs/camera-core/internal'
 
 // Associer une caméra à un viewport
 cameraViewportMap.set(camId, 'main')

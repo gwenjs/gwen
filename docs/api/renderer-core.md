@@ -484,27 +484,6 @@ checked — the camera is used regardless. This is intentional: if you name a vi
 you are requesting it directly.
 :::
 
-```ts
-
-
-// RTS — move selected units to the clicked world position
-onEvent('input:click', ({ x, y }) => {
-  const worldPos = screenToWorld(x, y)
-  for (const unit of selectedUnits) {
-    unit.moveTo(worldPos.x, worldPos.y)
-  }
-})
-
-// Diablo — move player toward cursor
-onEvent('input:click', ({ x, y }) => {
-  const target = screenToWorld(x, y)
-  player.setDestination(target.x, target.y)
-})
-
-// Split-screen — convert relative to player 2's viewport
-const worldPos = screenToWorld(x, y, 'p2')
-```
-
 ### `screenToRay()` <Badge type="warning" text="coming soon" />
 
 ```ts

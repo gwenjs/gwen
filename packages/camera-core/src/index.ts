@@ -10,8 +10,6 @@
  *   CameraShake,
  *   CameraCorePlugin,
  *   CameraErrorCodes,
- *   cameraViewportMap,
- *   cameraPathStore,
  * } from '@gwenjs/camera-core'
  * ```
  */

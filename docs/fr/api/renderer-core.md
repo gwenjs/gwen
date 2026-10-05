@@ -440,27 +440,6 @@ vérifié** — la caméra est utilisée telle quelle. C'est intentionnel : nomm
 explicitement signifie qu'on le demande directement.
 :::
 
-```ts
-
-
-// RTS — déplacer les unités vers la position cliquée
-onEvent('input:click', ({ x, y }) => {
-  const worldPos = screenToWorld(x, y)
-  for (const unit of selectedUnits) {
-    unit.moveTo(worldPos.x, worldPos.y)
-  }
-})
-
-// Diablo — déplacer le joueur vers le curseur
-onEvent('input:click', ({ x, y }) => {
-  const target = screenToWorld(x, y)
-  player.setDestination(target.x, target.y)
-})
-
-// Split-screen — conversion relative au viewport du joueur 2
-const worldPos = screenToWorld(x, y, 'p2')
-```
-
 ### `screenToRay()` <Badge type="warning" text="bientôt disponible" />
 
 ```ts

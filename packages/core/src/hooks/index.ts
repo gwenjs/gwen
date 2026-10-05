@@ -7,7 +7,7 @@
  *
  * @example Basic usage
  * ```typescript
- * import { createGwenHooks } from '@gwenjs/core';
+ * import { createGwenHooks } from '@gwenjs/core/internal';
  *
  * const hooks = createGwenHooks();
  *
@@ -100,13 +100,15 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  *
  * @example Basic initialization
  * ```typescript
- * import { createGwenHooks } from '@gwenjs/core';
+ * import { createGwenHooks } from '@gwenjs/core/internal';
  *
  * const hooks = createGwenHooks();
  * ```
  *
  * @example Registering and calling hooks
  * ```typescript
+ * import { createGwenHooks } from '@gwenjs/core/internal';
+ *
  * const hooks = createGwenHooks();
  *
  * // Register a handler
@@ -123,6 +125,8 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  *
  * @example Custom hooks usage
  * ```typescript
+ * import { createGwenHooks } from '@gwenjs/core/internal';
+ *
  * const hooks = createGwenHooks();
  *
  * // Create a custom hook (extend GwenRuntimeHooks via declaration merging

@@ -155,8 +155,8 @@ Use actors for **unique, named objects**. Use systems for **batch operations**.
 
 `onBeforeUpdate` → `onUpdate` → `onAfterUpdate` → `onRender`
 
-All four phases are valid in both systems and actors. `onStart` / `onDestroy` / `onEvent` are
-actor-only and never exist on systems.
+All four phases are valid in both systems and actors. `onStart` / `onDestroy` are
+actor-only and never exist on systems. `onEvent` does not exist.
 
 ### Dependency injection in systems
 
@@ -170,16 +170,16 @@ export const CombatSystem = defineSystem((target: { takeDamage(n: number): void 
 useSystem(CombatSystem(player))
 ```
 
-### Event system (`useHook` vs `onEvent`)
+### Event system (`useHook`)
 
-| | `useHook(event, fn)` | `onEvent(event, fn)` |
-|---|---|---|
-| Valid in | any context (system, actor, plugin) | actor factory only |
-| Auto-cleanup | when context ends | when actor is despawned |
-| Pool dormancy | warns in dev if actor is dormant | silently skips |
-| Import | `@gwenjs/core` | `@gwenjs/core/actor` |
+| | `useHook(event, fn)` |
+|---|---|
+| Valid in | any context (system, actor, plugin) |
+| Auto-cleanup | when context ends |
+| Pool dormancy | warns in dev if actor is dormant |
+| Import | `@gwenjs/core` |
 
-Prefer `onEvent()` inside actors (especially pooled ones). Use `useHook()` from systems and plugins.
+`onEvent` does not exist. Use `useHook()`.
 
 Custom hooks must be declared with `defineHooks()` and merged into `GwenRuntimeHooks` via
 declaration merging (`InferHooks<T>`) for full type safety project-wide.
