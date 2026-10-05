@@ -253,3 +253,30 @@ src/
 | `defineConfig` | `@gwenjs/app` |
 | `useDynamicBody` `useStaticBody` `useKinematicBody` `useBoxCollider` `useShape` … | `@gwenjs/physics2d` |
 | `usePhysics3D` … | `@gwenjs/physics3d` |
+
+---
+
+## PR contract
+
+One PR per ticket, against `v1-alpha`. The ticket's `## Technical spec` is the contract: names, codes and paths in it are exact. These rules are checked by CI (`agent-hygiene`) and by review.
+
+1. A test must fail without the fix. Run the new tests against the base source before pushing. A test that passes with the fix deleted proves nothing.
+2. The PR body has a table "Acceptance line -> test file::test name" for every Acceptance line, and a "Breaking changes" section (`None.` if none). A line with no test keeps the PR a draft. Never write "MISSING" or "not done" in a ready PR.
+3. No new double cast (`as unknown` followed by `as`), no explicit any type, no @-prefixed ts-ignore or ts-expect-error directive, no comment that disables the linter, and no unwrap, expect, panic!, or assert! on an added Rust line. No vitest mock() or fn() helper. Under any `tests/integration-wasm` path, also no spyOn. If unavoidable, the same line carries `// allowlist: <reason> #<ticket>` and the PR body lists it.
+4. A breaking change (removed or renamed export, changed signature or type, changed runtime behaviour) needs `!` in the title, a `BREAKING CHANGE:` footer and the PR-body section, all listing the same items.
+5. Docs, JSDoc and comments that a change makes false are fixed in the same PR, EN and translated twin. Grep for every symbol or behaviour you change.
+6. Stay in scope: no unrelated refactor, no behaviour change hidden in a typing, test or docs commit. Hotspots (`gwen-engine.ts`, `vite/src/index.ts`, `bindings.rs`, `.github/workflows/*.yml`, package `exports`) only for what the spec says.
+7. `Closes #N` only if the PR alone finishes the ticket. Otherwise `Part of #N`.
+8. Commits are conventional, with no `Co-authored-by` and no AI attribution trailer.
+9. Quality gate before every push: `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm test`. Then check the PR's own CI, and that CI checks the artifact that is published.
+
+The eight defect classes to make impossible:
+
+- lifecycle methods core never calls
+- global defaults that change behaviour
+- panic/expect/unwrap in wasm exports
+- unprefixed codes and lying comments
+- unflagged breaking types
+- CI not covering the PR or the shipped artifact
+- missing uninstall and finally
+- mock-only tests

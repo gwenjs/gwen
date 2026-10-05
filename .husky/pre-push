@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+node scripts/check-diff-hygiene.mjs
+pnpm format
+pnpm lint
+pnpm typecheck
+pnpm test
