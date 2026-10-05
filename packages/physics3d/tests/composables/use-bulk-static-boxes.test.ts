@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach } from "vitest";
 import type { EntityId } from "@gwenjs/core";
 import type { BulkStaticBoxesResult } from "../../src/types.js";
 
-vi.mock("@gwenjs/core/actor", () => ({
+vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 0n),
 }));
 

@@ -1,0 +1,37 @@
+{
+  ".": {
+    "values": [
+      "default",
+      "gwen",
+      "gwenOptimizerPlugin",
+      "gwenPhysics3DOptimizerPlugin",
+      "gwenTransform",
+      "gwenVitePlugin"
+    ],
+    "types": [
+      "ActorPluginOptions",
+      "CoreVariant",
+      "GwenOptimizerOptions",
+      "GwenPhysics3DOptimizerOptions",
+      "GwenPluginOptions",
+      "GwenTransformOptions",
+      "GwenViteOptions",
+      "GwenWasmOptions",
+      "WasmVariant"
+    ]
+  },
+  "./shared/layer-utils": {
+    "values": ["evalBitExpr", "extractLayerDefinitions", "inlineLayerReferences"],
+    "types": []
+  },
+  "./internal": {
+    "values": [
+      "extractGlobalCssFromConfig",
+      "extractModuleNamesFromConfig",
+      "generateConfigModulesVirtualModule",
+      "generateEntryModule",
+      "generateScenesModule"
+    ],
+    "types": []
+  }
+}

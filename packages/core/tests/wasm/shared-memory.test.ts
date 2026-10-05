@@ -23,7 +23,7 @@ import {
   SharedMemoryManager,
   MAX_SAB_BYTES,
   TRANSFORM_STRIDE,
-} from "@gwenjs/core/shared-memory.js";
+} from "@gwenjs/core/internal";
 import { GwenConfigError } from "../../src/engine/config-error.js";
 import type { WasmBridge } from "../../src/engine/wasm-bridge.js";
 

@@ -229,9 +229,9 @@ src/
 
 | What | From |
 |---|---|
-| `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `initWasm` `useHook` `onCleanup` `emit` `defineHooks` | `@gwenjs/core` |
+| `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `setupGwen` `useHook` `onCleanup` `emit` `defineHooks` | `@gwenjs/core` |
 | `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` `useComponentFor` | `@gwenjs/core/system` |
-| `defineActor` `onStart` `onDestroy` `onEvent` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
+| `defineActor` `onStart` `onDestroy` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
 | `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |
 | `defineGwenModule` | `@gwenjs/kit/module` |

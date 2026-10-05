@@ -7,103 +7,54 @@
   ],
   "type": "module",
   "sideEffects": false,
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./module": {
-      "types": "./src/module.ts",
-      "import": "./src/module.ts"
-    },
-    "./core": {
-      "types": "./src/core.ts",
-      "import": "./src/core.ts"
+      "types": "./dist/module.d.ts",
+      "import": "./dist/module.js"
     },
     "./helpers": {
-      "types": "./src/helpers/index.ts",
-      "import": "./src/helpers/index.ts"
+      "types": "./dist/helpers/index.d.ts",
+      "import": "./dist/helpers/index.js"
     },
     "./helpers/queries": {
-      "types": "./src/helpers/queries.ts",
-      "import": "./src/helpers/queries.ts"
+      "types": "./dist/helpers/queries.d.ts",
+      "import": "./dist/helpers/queries.js"
     },
     "./helpers/movement": {
-      "types": "./src/helpers/movement.ts",
-      "import": "./src/helpers/movement.ts"
+      "types": "./dist/helpers/movement.d.ts",
+      "import": "./dist/helpers/movement.js"
     },
     "./helpers/contact": {
-      "types": "./src/helpers/contact.ts",
-      "import": "./src/helpers/contact.ts"
+      "types": "./dist/helpers/contact.d.ts",
+      "import": "./dist/helpers/contact.js"
     },
     "./helpers/static-geometry": {
-      "types": "./src/helpers/static-geometry.ts",
-      "import": "./src/helpers/static-geometry.ts"
+      "types": "./dist/helpers/static-geometry.d.ts",
+      "import": "./dist/helpers/static-geometry.js"
     },
     "./helpers/orchestration": {
-      "types": "./src/helpers/orchestration.ts",
-      "import": "./src/helpers/orchestration.ts"
+      "types": "./dist/helpers/orchestration.d.ts",
+      "import": "./dist/helpers/orchestration.js"
     },
     "./tilemap": {
-      "types": "./src/tilemap.ts",
-      "import": "./src/tilemap.ts"
+      "types": "./dist/tilemap.d.ts",
+      "import": "./dist/tilemap.js"
     },
     "./debug": {
-      "types": "./src/debug.ts",
-      "import": "./src/debug.ts"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      },
-      "./module": {
-        "types": "./dist/module.d.ts",
-        "import": "./dist/module.js"
-      },
-      "./core": {
-        "types": "./dist/core.d.ts",
-        "import": "./dist/core.js"
-      },
-      "./helpers": {
-        "types": "./dist/helpers/index.d.ts",
-        "import": "./dist/helpers.js"
-      },
-      "./helpers/queries": {
-        "types": "./dist/helpers/queries.d.ts",
-        "import": "./dist/helpers-queries.js"
-      },
-      "./helpers/movement": {
-        "types": "./dist/helpers/movement.d.ts",
-        "import": "./dist/helpers-movement.js"
-      },
-      "./helpers/contact": {
-        "types": "./dist/helpers/contact.d.ts",
-        "import": "./dist/helpers-contact.js"
-      },
-      "./helpers/static-geometry": {
-        "types": "./dist/helpers/static-geometry.d.ts",
-        "import": "./dist/helpers-static-geometry.js"
-      },
-      "./helpers/orchestration": {
-        "types": "./dist/helpers/orchestration.d.ts",
-        "import": "./dist/helpers-orchestration.js"
-      },
-      "./tilemap": {
-        "types": "./dist/tilemap.d.ts",
-        "import": "./dist/tilemap.js"
-      },
-      "./debug": {
-        "types": "./dist/debug.d.ts",
-        "import": "./dist/debug.js"
-      }
+      "types": "./dist/debug.d.ts",
+      "import": "./dist/debug.js"
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "vite build",

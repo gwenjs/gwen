@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { buildTransformImports, type GwenTransformImports } from "@gwenjs/core/transform-imports";
+import { buildTransformImports, type GwenTransformImports } from "@gwenjs/core/internal";
 
 describe("buildTransformImports", () => {
   it("returns an object with three functions", () => {

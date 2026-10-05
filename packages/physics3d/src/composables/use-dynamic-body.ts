@@ -8,7 +8,7 @@ import type {
   Physics3DBodyOptions,
 } from "../types";
 import { usePhysics3D } from "../composables";
-import { _getActorEntityId } from "@gwenjs/core/actor";
+import { _getActorEntityId } from "@gwenjs/core/internal";
 import type { EntityId } from "@gwenjs/core";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */

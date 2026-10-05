@@ -174,7 +174,7 @@ export class SharedMemoryManager {
   static create(bridge: WasmBridge, maxEntities = 10_000): SharedMemoryManager {
     if (!bridge.isActive()) {
       throw new Error(
-        "[GWEN:SharedMemory] initWasm() must be called before SharedMemoryManager.create().",
+        "[GWEN:SharedMemory] bridge.init() or setupGwen() must be called before SharedMemoryManager.create().",
       );
     }
 

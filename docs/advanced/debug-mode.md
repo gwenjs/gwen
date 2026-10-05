@@ -136,7 +136,8 @@ logger.error('unhandled error', error)
 
 
 ```ts
-import { createLogger, defineSystem, onUpdate, useEngine } from '@gwenjs/core/system'
+import { createLogger, useEngine } from '@gwenjs/core'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const MySystem = defineSystem(function MySystem() {
   const engine = useEngine()

@@ -14,13 +14,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import {
-  createEngine,
-  useEngine,
-  GwenContextError,
-  GwenPluginNotFoundError,
-  engineContext,
-} from "../../src";
+import { createEngine, useEngine, GwenContextError, GwenPluginNotFoundError } from "../../src";
+import { engineContext } from "../../src/internal";
 import {
   defineSystem,
   onUpdate,

@@ -1,4 +1,4 @@
-export { Physics2DPlugin, physics2D } from "./index";
+export { Physics2DPlugin } from "./index";
 
 export {
   createPhysicsKinematicSyncSystem,

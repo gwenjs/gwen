@@ -1,0 +1,34 @@
+{
+  ".": {
+    "values": ["createScreenPlugin", "createViewportsPlugin", "defineConfig", "defineGwenModule"],
+    "types": [
+      "AutoImport",
+      "GwenBuildHooks",
+      "GwenKit",
+      "GwenModule",
+      "GwenModuleDefinition",
+      "GwenModuleEntry",
+      "GwenModuleOptions",
+      "GwenTypeTemplate",
+      "GwenUserConfig",
+      "ResolvedGwenConfig"
+    ]
+  },
+  "./resolve": {
+    "values": [
+      "GwenApp",
+      "GwenConfigLoadError",
+      "loadRawGwenConfig",
+      "resolveConfig",
+      "resolveGwenConfig"
+    ],
+    "types": [
+      "GwenBuildHooks",
+      "GwenModuleEntry",
+      "GwenModuleOptions",
+      "GwenUserConfig",
+      "RawGwenConfig",
+      "ResolvedGwenConfig"
+    ]
+  }
+}

@@ -21,7 +21,7 @@ import { defineConfig } from "@gwenjs/app";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
 import { useEngine } from "@gwenjs/core";
 import { useViewportManager } from "@gwenjs/renderer-core";
-import { CameraCorePlugin, Camera, cameraViewportMap } from "@gwenjs/camera-core";
+import { CameraCorePlugin, Camera } from "@gwenjs/camera-core";
 
 const CameraSetupSystem = defineSystem("CameraSetupSystem", () => {
   const engine = useEngine();
@@ -47,7 +47,6 @@ const CameraSetupSystem = defineSystem("CameraSetupSystem", () => {
     near: -1000,
     far: 1000,
   });
-  cameraViewportMap.set(camId, "main");
 });
 
 export default defineConfig({
@@ -109,16 +108,11 @@ export default defineConfig({
 
 ## Side-car stores
 
-`cameraViewportMap` and `cameraPathStore` are module-level `Map`s that live alongside the ECS components because strings and complex objects cannot be stored in SoA buffers.
+Viewport and path data are not on the public entry. Strings and complex objects cannot be stored in SoA buffers.
 
 ```ts
-import { cameraViewportMap, cameraPathStore } from "@gwenjs/camera-core";
 import type { CameraPathData } from "@gwenjs/camera-core";
 
-// Assign a camera to a viewport
-cameraViewportMap.set(camId, "main");
-
-// Start a path
 const pathData: CameraPathData = {
   waypoints: [
     { position: { x: 200, y: 0, z: 0 }, duration: 1.5, easing: "easeInOut" },
@@ -128,7 +122,6 @@ const pathData: CameraPathData = {
   elapsed: 0,
 };
 engine.addComponent(camId, CameraPath, { index: 0, progress: 0 });
-cameraPathStore.set(camId, pathData);
 ```
 
 ## Engine hooks
@@ -168,7 +161,7 @@ Multiple cameras can target the same viewport. The one with the highest `Camera.
 If `camera2d`/`camera3d` don't fit your needs, you can build your own on top of `camera-core`:
 
 ```ts
-import { CameraCorePlugin, Camera, cameraViewportMap } from "@gwenjs/camera-core";
+import { CameraCorePlugin, Camera } from "@gwenjs/camera-core";
 import { useCameraManager } from "@gwenjs/renderer-core";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
@@ -186,3 +179,25 @@ const MyRenderSystem = defineSystem("MyRenderSystem", () => {
   });
 });
 ```
+
+## Public exports
+
+### `.`
+
+Values: `Camera`, `CameraBounds`, `CameraCorePlugin`, `CameraEmptyPathError`, `CameraErrorCodes`, `CameraPath`, `CameraShake`, `CameraSystem`, `CameraViewportNotFoundError`, `FollowTarget`, `OrthographicCameraPrefab`, `PerspectiveCameraPrefab`, `XRCameraPrefab`, `useCamera`, `useXRCamera`
+
+Types: `BlendOpts`, `BoundsOpts2D`, `BoundsOpts3D`, `Camera2DHandle`, `Camera2DOpts`, `Camera3DHandle`, `Camera3DOpts`, `CameraErrorCode`, `CameraHandleBase`, `CameraPathData`, `CameraWaypoint`, `EasingName`, `FollowOpts`, `PathOpts`, `ShakeHandle`, `ShakeOpts`, `XRCameraHandle`, `XRCameraOpts`, `XRViewData`
+
+### `./module`
+
+Values: `default`
+
+Types: none
+
+### `./internal`
+
+no semver guarantee — framework packages and generated code only
+
+Values: `cameraMatrixStore`, `cameraPathStore`, `cameraViewportMap`
+
+Types: none

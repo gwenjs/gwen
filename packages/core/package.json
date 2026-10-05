@@ -7,64 +7,56 @@
     "wasm"
   ],
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "import": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./system": {
-      "types": "./src/system/index.ts",
-      "import": "./src/system/index.ts"
+      "types": "./dist/system/index.d.ts",
+      "import": "./dist/system/index.js"
     },
     "./actor": {
-      "types": "./src/actor/index.ts",
-      "import": "./src/actor/index.ts"
+      "types": "./dist/actor/index.d.ts",
+      "import": "./dist/actor/index.js"
     },
     "./scene": {
-      "types": "./src/scene/index.ts",
-      "import": "./src/scene/index.ts"
-    },
-    "./system/module": {
-      "types": "./src/system/module.ts",
-      "import": "./src/system/module.ts"
-    },
-    "./actor/module": {
-      "types": "./src/actor/module.ts",
-      "import": "./src/actor/module.ts"
-    },
-    "./scene/module": {
-      "types": "./src/scene/module.ts",
-      "import": "./src/scene/module.ts"
+      "types": "./dist/scene/index.d.ts",
+      "import": "./dist/scene/index.js"
     },
     "./tween": {
-      "types": "./src/tween/index.ts",
-      "import": "./src/tween/index.ts"
+      "types": "./dist/tween/index.d.ts",
+      "import": "./dist/tween/index.js"
+    },
+    "./system/module": {
+      "types": "./dist/system/module.d.ts",
+      "import": "./dist/system/module.js"
+    },
+    "./actor/module": {
+      "types": "./dist/actor/module.d.ts",
+      "import": "./dist/actor/module.js"
+    },
+    "./scene/module": {
+      "types": "./dist/scene/module.d.ts",
+      "import": "./dist/scene/module.js"
     },
     "./router/module": {
-      "types": "./src/router/module.ts",
-      "import": "./src/router/module.ts"
+      "types": "./dist/router/module.d.ts",
+      "import": "./dist/router/module.js"
     },
     "./tween/module": {
-      "types": "./src/tween/module.ts",
-      "import": "./src/tween/module.ts"
+      "types": "./dist/tween/module.d.ts",
+      "import": "./dist/tween/module.js"
     },
-    "./shared-memory": {
-      "types": "./src/hooks/wasm/shared-memory.ts",
-      "import": "./src/hooks/wasm/shared-memory.ts"
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.js"
     },
-    "./shared-memory.js": {
-      "types": "./src/hooks/wasm/shared-memory.ts",
-      "import": "./src/hooks/wasm/shared-memory.ts"
-    },
-    "./transform-imports": {
-      "types": "./src/hooks/wasm/transform-imports.ts",
-      "import": "./src/hooks/wasm/transform-imports.ts"
-    },
-    "./transform-imports.js": {
-      "types": "./src/hooks/wasm/transform-imports.ts",
-      "import": "./src/hooks/wasm/transform-imports.ts"
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
     },
     "./wasm/light": {
       "types": "./wasm/light/gwen_core.d.ts",
@@ -78,104 +70,7 @@
       "types": "./wasm/physics3d/gwen_core.d.ts",
       "import": "./wasm/physics3d/gwen_core.js"
     },
-    "./testing": {
-      "types": "./src/testing.ts",
-      "import": "./src/testing.ts"
-    },
-    "./logger": {
-      "types": "./src/logger/index.ts",
-      "import": "./src/logger/index.ts"
-    },
-    "./context": {
-      "types": "./src/context/scope.ts",
-      "import": "./src/context/scope.ts"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      },
-      "./system": {
-        "types": "./dist/system/index.d.ts",
-        "import": "./dist/system/index.js"
-      },
-      "./actor": {
-        "types": "./dist/actor/index.d.ts",
-        "import": "./dist/actor/index.js"
-      },
-      "./scene": {
-        "types": "./dist/scene/index.d.ts",
-        "import": "./dist/scene/index.js"
-      },
-      "./system/module": {
-        "types": "./dist/system/module.d.ts",
-        "import": "./dist/system/module.js"
-      },
-      "./actor/module": {
-        "types": "./dist/actor/module.d.ts",
-        "import": "./dist/actor/module.js"
-      },
-      "./scene/module": {
-        "types": "./dist/scene/module.d.ts",
-        "import": "./dist/scene/module.js"
-      },
-      "./tween": {
-        "types": "./dist/tween/index.d.ts",
-        "import": "./dist/tween/index.js"
-      },
-      "./router/module": {
-        "types": "./dist/router/module.d.ts",
-        "import": "./dist/router/module.js"
-      },
-      "./tween/module": {
-        "types": "./dist/tween/module.d.ts",
-        "import": "./dist/tween/module.js"
-      },
-      "./shared-memory": {
-        "types": "./dist/hooks/wasm/shared-memory.d.ts",
-        "import": "./dist/hooks/wasm/shared-memory.js"
-      },
-      "./shared-memory.js": {
-        "types": "./dist/hooks/wasm/shared-memory.d.ts",
-        "import": "./dist/hooks/wasm/shared-memory.js"
-      },
-      "./transform-imports": {
-        "types": "./dist/hooks/wasm/transform-imports.d.ts",
-        "import": "./dist/hooks/wasm/transform-imports.js"
-      },
-      "./transform-imports.js": {
-        "types": "./dist/hooks/wasm/transform-imports.d.ts",
-        "import": "./dist/hooks/wasm/transform-imports.js"
-      },
-      "./wasm/light": {
-        "types": "./wasm/light/gwen_core.d.ts",
-        "import": "./wasm/light/gwen_core.js"
-      },
-      "./wasm/physics2d": {
-        "types": "./wasm/physics2d/gwen_core.d.ts",
-        "import": "./wasm/physics2d/gwen_core.js"
-      },
-      "./wasm/physics3d": {
-        "types": "./wasm/physics3d/gwen_core.d.ts",
-        "import": "./wasm/physics3d/gwen_core.js"
-      },
-      "./testing": {
-        "types": "./dist/testing.d.ts",
-        "import": "./dist/testing.js"
-      },
-      "./logger": {
-        "types": "./dist/logger/index.d.ts",
-        "import": "./dist/logger/index.js"
-      },
-      "./context": {
-        "types": "./dist/context/scope.d.ts",
-        "import": "./dist/context/scope.js"
-      }
-    },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./package.json": "./package.json"
   },
   "scripts": {
     "dev": "vite",

@@ -485,7 +485,7 @@ you are requesting it directly.
 :::
 
 ```ts
-import { screenToWorld } from '@gwenjs/renderer-core'
+
 
 // RTS — move selected units to the clicked world position
 onEvent('input:click', ({ x, y }) => {

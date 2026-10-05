@@ -1,0 +1,50 @@
+{
+  ".": {
+    "values": [
+      "Camera",
+      "CameraBounds",
+      "CameraCorePlugin",
+      "CameraEmptyPathError",
+      "CameraErrorCodes",
+      "CameraPath",
+      "CameraShake",
+      "CameraSystem",
+      "CameraViewportNotFoundError",
+      "FollowTarget",
+      "OrthographicCameraPrefab",
+      "PerspectiveCameraPrefab",
+      "XRCameraPrefab",
+      "useCamera",
+      "useXRCamera"
+    ],
+    "types": [
+      "BlendOpts",
+      "BoundsOpts2D",
+      "BoundsOpts3D",
+      "Camera2DHandle",
+      "Camera2DOpts",
+      "Camera3DHandle",
+      "Camera3DOpts",
+      "CameraErrorCode",
+      "CameraHandleBase",
+      "CameraPathData",
+      "CameraWaypoint",
+      "EasingName",
+      "FollowOpts",
+      "PathOpts",
+      "ShakeHandle",
+      "ShakeOpts",
+      "XRCameraHandle",
+      "XRCameraOpts",
+      "XRViewData"
+    ]
+  },
+  "./module": {
+    "values": ["default"],
+    "types": []
+  },
+  "./internal": {
+    "values": ["cameraMatrixStore", "cameraPathStore", "cameraViewportMap"],
+    "types": []
+  }
+}

@@ -11,7 +11,7 @@ vi.mock("@gwenjs/core", () => ({
   useEngine: vi.fn(() => mockEngine),
 }));
 
-vi.mock("@gwenjs/core/actor", () => ({
+vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 42n),
 }));
 
@@ -84,7 +84,7 @@ describe("useShape", () => {
   });
 
   it("uses the entity id from _getActorEntityId", async () => {
-    const { _getActorEntityId } = await import("@gwenjs/core/actor");
+    const { _getActorEntityId } = await import("@gwenjs/core/internal");
     vi.mocked(_getActorEntityId).mockReturnValue(99n);
 
     useShape({ w: 10 });

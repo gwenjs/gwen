@@ -299,7 +299,7 @@ export class WasmBridgeImpl implements WasmBridge {
 
     if (!resolvedJsUrl) {
       throw new Error(
-        `[GWEN] initWasm(): unable to resolve WASM URL for variant "${variant}".\n` +
+        `[GWEN] bridge.init(): unable to resolve WASM URL for variant "${variant}".\n` +
           "Make sure @gwenjs/core is correctly installed.",
       );
     }
@@ -323,7 +323,7 @@ export class WasmBridgeImpl implements WasmBridge {
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
           throw new Error(
-            `[CORE:WASM_TIMEOUT] initWasm() timed out after 10s waiting for WASM binary.`,
+            `[CORE:WASM_TIMEOUT] bridge.init() timed out after 10s waiting for WASM binary.`,
           );
         }
         throw err;
@@ -380,7 +380,7 @@ export class WasmBridgeImpl implements WasmBridge {
     if (!this._wasmEngine) {
       throw new Error(
         "[GWEN] WASM core not initialized.\n" +
-          "Call `await initWasm()` before starting the Engine.",
+          "Call `await bridge.init()` or `setupGwen()` before starting the Engine.",
       );
     }
     return this._wasmEngine;

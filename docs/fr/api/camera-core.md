@@ -23,7 +23,7 @@ import { defineConfig } from '@gwenjs/app'
 import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -110,7 +110,7 @@ les composants ECS, car les chaînes et objets complexes ne peuvent pas être st
 buffers SoA.
 
 ```ts
-import { cameraViewportMap, cameraPathStore } from '@gwenjs/camera-core'
+
 import type { CameraPathData } from '@gwenjs/camera-core'
 
 // Associer une caméra à un viewport
@@ -168,7 +168,7 @@ l'emporte. À priorité égale, la dernière entité ayant poussé son état gag
 ## Construire un handle de caméra personnalisé
 
 ```ts
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
 import { useCameraManager } from '@gwenjs/renderer-core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 

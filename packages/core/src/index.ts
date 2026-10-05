@@ -1,10 +1,11 @@
-// GWEN Engine Core — Public API (engine primitives only)
+// GWEN Engine Core — public API.
 // Game-loop primitives live in subpaths:
 //   @gwenjs/core/system  — defineSystem, onUpdate, useQuery, ...
 //   @gwenjs/core/actor   — defineActor, onStart, onDestroy, definePrefab, ...
 //   @gwenjs/core/scene   — defineScene, defineSceneRouter, ...
+//   @gwenjs/core/tween   — easing functions
+// Framework-only symbols live in @gwenjs/core/internal.
 
-// Shared types
 export type {
   EntityId,
   ComponentType,
@@ -14,7 +15,7 @@ export type {
   EngineConfig,
 } from "./types";
 
-export { createEntityId, unpackEntityId, entityIndex } from "./types";
+export { createEntityId, unpackEntityId } from "./types";
 
 export { Types, defineComponent } from "./schema";
 export type {
@@ -27,16 +28,11 @@ export type {
   ComponentBody,
 } from "./schema";
 
-// Hooks system
-export { createGwenHooks, useHook, onCleanup, withCleanup, defineHooks } from "./hooks";
+export { useHook, onCleanup, withCleanup, defineHooks } from "./hooks";
 export type { GwenHooks, GwenHookable, HookHandlerMap, InferHooks } from "./hooks";
 
-export { onEnable, onDisable } from "./actor/index";
-
-// Event emission — symmetric counterpart to useHook, works in any engine context
 export { emit } from "./hooks";
 
-// Engine
 export {
   createEngine,
   setupGwen,
@@ -47,8 +43,6 @@ export { createErrorBus } from "./engine/error-bus";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";
 
-// Disposable pattern
-export { createDisposable } from "./disposable";
 export type { GwenDisposable } from "@gwenjs/schema";
 export type {
   GwenEngine,
@@ -61,111 +55,23 @@ export type {
   EngineFramePhaseMs,
   WasmModuleHandle,
   WasmModuleOptions,
-  WasmRegionView,
-  WasmRingBuffer,
   EngineErrorBus,
   PlacementBridge,
   PluginErrorContext,
 } from "./engine/gwen-engine";
 export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./engine/gwen-engine";
+export type { WasmRegionView, WasmRingBuffer } from "./engine/wasm-module-handle";
 
-// Logger
 export { createLogger, GwenLogger, consoleLogProvider } from "./logger/index";
 export type { LogLevel, LogEntry, IGwenLogger } from "./logger/index";
 
-// Runtime hooks interface
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 
-// Engine context
-export {
-  engineContext,
-  useEngine,
-  GwenContextError,
-  executeAsync,
-  withAsyncContext,
-} from "./engine/context";
+export { useEngine, GwenContextError, withAsyncContext } from "./engine/context";
 
-// WASM Bridge
-export { WasmBridgeImpl, getWasmBridge } from "./engine/wasm-bridge";
-export type {
-  WasmBridge,
-  WasmEntityId,
-  WasmEngine,
-  WasmEnginePhysics2D,
-  WasmEnginePhysics3D,
-  GwenCoreWasm,
-  CoreVariant,
-  InitWasmOptions,
-} from "./engine/wasm-bridge";
+export type { WasmBridge, CoreVariant } from "./engine/wasm-bridge";
 
-// WASM shared memory
-export {
-  SharedMemoryManager,
-  TRANSFORM_STRIDE,
-  TRANSFORM3D_STRIDE,
-  FLAG_PHYSICS_ACTIVE,
-  FLAGS_OFFSET,
-  SENTINEL,
-  MAX_SAB_BYTES,
-} from "./hooks/wasm/shared-memory";
 export type { MemoryRegion } from "./hooks/wasm/shared-memory";
 
-// WASM transform buffer host imports
-export { buildTransformImports } from "./hooks/wasm/transform-imports";
-export type { GwenTransformImports } from "./hooks/wasm/transform-imports";
-
-// 3D Transform component
-export {
-  TRANSFORM_OFFSETS,
-  Transform3D,
-  readTransform3DPosition,
-  readTransform3DRotation,
-  readTransform3DScale,
-  writeTransform3DPosition,
-  writeTransform3DRotation,
-  writeTransform3DScale,
-} from "./components/transform3d";
-export { GlobalStringPoolManager, StringPoolManager, StringPool } from "./utils/string-pool";
-
-// Core variant detection
-export { detectCoreVariant } from "./utils/variant-detector";
-export { detectSharedMemoryRequired } from "./utils/variant-detector";
-
-// Tween & Animation System
 export type { EasingName, TweenableValue, TweenOptions, TweenHandle } from "./tween/index";
-export {
-  linear,
-  easeInQuad,
-  easeOutQuad,
-  easeInOutQuad,
-  easeInCubic,
-  easeOutCubic,
-  easeInOutCubic,
-  easeInQuart,
-  easeOutQuart,
-  easeInOutQuart,
-  easeInSine,
-  easeOutSine,
-  easeInOutSine,
-  easeInExpo,
-  easeOutExpo,
-  easeInOutExpo,
-  easeInBack,
-  easeOutBack,
-  easeInOutBack,
-  easeInElastic,
-  easeOutElastic,
-  easeInOutElastic,
-  easeInBounce,
-  easeOutBounce,
-  easeInOutBounce,
-  spring,
-  EASING_MAP,
-  TweenPool,
-  TweenManager,
-  getTweenManager,
-  useTween,
-  defineSequence,
-  TweenPlugin,
-} from "./tween/index";
-export type { TweenSlot, TweenPoolPolicy, TweenPluginOptions } from "./tween/index";
+export { useTween, defineSequence } from "./tween/index";

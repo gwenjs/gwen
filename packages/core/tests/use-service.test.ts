@@ -11,12 +11,8 @@
  */
 
 import { describe, it, expect } from "vitest";
-import {
-  createEngine,
-  engineContext,
-  GwenContextError,
-  GwenPluginNotFoundError,
-} from "../src/index";
+import { createEngine, GwenContextError, GwenPluginNotFoundError } from "../src/index";
+import { engineContext } from "../src/internal";
 import { useService, defineSystem, onUpdate } from "../src/system/index";
 
 // ─── Declaration merging for test scope ───────────────────────────────────────

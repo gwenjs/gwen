@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createEngine } from "../src/index.js";
 import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
 import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
-import { SharedMemoryManager } from "@gwenjs/core/shared-memory.js";
+import { SharedMemoryManager } from "@gwenjs/core/internal";
 
 // ─── Minimal valid WASM binary ────────────────────────────────────────────────
 // A wasm module that exports nothing (but is syntactically valid):

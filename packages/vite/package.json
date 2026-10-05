@@ -13,32 +13,15 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./transform": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
-    },
     "./shared/layer-utils": {
       "types": "./dist/shared/layer-utils.d.ts",
       "import": "./dist/shared/layer-utils.js"
-    }
-  },
-  "publishConfig": {
-    "exports": {
-      ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      },
-      "./transform": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js"
-      },
-      "./shared/layer-utils": {
-        "types": "./dist/shared/layer-utils.d.ts",
-        "import": "./dist/shared/layer-utils.js"
-      }
     },
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts"
+    "./internal": {
+      "types": "./dist/internal.d.ts",
+      "import": "./dist/internal.js"
+    },
+    "./package.json": "./package.json"
   },
   "scripts": {
     "build": "vite build",

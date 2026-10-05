@@ -14,16 +14,50 @@
     "isolatedModules": true,
     "skipLibCheck": false,
     "paths": {
-      "@gwenjs/*": ["./packages/*/src/index.ts", "./packages/*/src"],
+      "@gwenjs/core/system/module": ["./packages/core/src/system/module.ts"],
+      "@gwenjs/core/actor/module": ["./packages/core/src/actor/module.ts"],
+      "@gwenjs/core/scene/module": ["./packages/core/src/scene/module.ts"],
+      "@gwenjs/core/router/module": ["./packages/core/src/router/module.ts"],
+      "@gwenjs/core/tween/module": ["./packages/core/src/tween/module.ts"],
       "@gwenjs/core/system": ["./packages/core/src/system/index.ts"],
       "@gwenjs/core/actor": ["./packages/core/src/actor/index.ts"],
       "@gwenjs/core/scene": ["./packages/core/src/scene/index.ts"],
+      "@gwenjs/core/tween": ["./packages/core/src/tween/index.ts"],
+      "@gwenjs/core/testing": ["./packages/core/src/testing.ts"],
+      "@gwenjs/core/internal": ["./packages/core/src/internal.ts"],
+      "@gwenjs/core/wasm/light": ["./packages/core/wasm/light/gwen_core.d.ts"],
+      "@gwenjs/core/wasm/physics2d": ["./packages/core/wasm/physics2d/gwen_core.d.ts"],
+      "@gwenjs/core/wasm/physics3d": ["./packages/core/wasm/physics3d/gwen_core.d.ts"],
       "@gwenjs/kit/plugin": ["./packages/kit/src/plugin/index.ts"],
       "@gwenjs/kit/module": ["./packages/kit/src/module/index.ts"],
-      "@gwenjs/physics2d/core": ["./packages/physics2d/src/index.ts"],
+      "@gwenjs/app/resolve": ["./packages/app/dist/resolve.d.ts"],
       "@gwenjs/physics2d/helpers/static-geometry": [
         "./packages/physics2d/src/helpers/static-geometry.ts"
-      ]
+      ],
+      "@gwenjs/physics2d/helpers/orchestration": [
+        "./packages/physics2d/src/helpers/orchestration.ts"
+      ],
+      "@gwenjs/physics2d/helpers/queries": ["./packages/physics2d/src/helpers/queries.ts"],
+      "@gwenjs/physics2d/helpers/movement": ["./packages/physics2d/src/helpers/movement.ts"],
+      "@gwenjs/physics2d/helpers/contact": ["./packages/physics2d/src/helpers/contact.ts"],
+      "@gwenjs/physics2d/helpers": ["./packages/physics2d/src/helpers/index.ts"],
+      "@gwenjs/physics2d/module": ["./packages/physics2d/src/module.ts"],
+      "@gwenjs/physics2d/tilemap": ["./packages/physics2d/src/tilemap.ts"],
+      "@gwenjs/physics2d/debug": ["./packages/physics2d/src/debug.ts"],
+      "@gwenjs/physics2d/internal": ["./packages/physics2d/src/internal.ts"],
+      "@gwenjs/physics3d/module": ["./packages/physics3d/src/module.ts"],
+      "@gwenjs/physics3d/internal": ["./packages/physics3d/src/internal.ts"],
+      "@gwenjs/physics3d-fracture/wasm": [
+        "./packages/physics3d-fracture/wasm/gwen_physics3d_fracture.d.ts"
+      ],
+      "@gwenjs/vite/shared/layer-utils": ["./packages/vite/dist/shared/layer-utils.d.ts"],
+      "@gwenjs/vite/internal": ["./packages/vite/src/internal.ts"],
+      "@gwenjs/renderer-core/module": ["./packages/renderer-core/src/module.ts"],
+      "@gwenjs/renderer-core/testing": ["./packages/renderer-core/src/testing/index.ts"],
+      "@gwenjs/renderer-core/internal": ["./packages/renderer-core/src/internal.ts"],
+      "@gwenjs/camera-core/module": ["./packages/camera-core/src/module.ts"],
+      "@gwenjs/camera-core/internal": ["./packages/camera-core/src/internal.ts"],
+      "@gwenjs/*": ["./packages/*/src/index.ts", "./packages/*/src"]
     }
   }
 }

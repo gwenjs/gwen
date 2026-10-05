@@ -41,7 +41,8 @@ Quand vous appelez `useHook()` à l'intérieur d'un contexte de cycle de vie —
 Dans un **acteur** :
 
 ```typescript
-import { defineActor, useHook } from '@gwenjs/core/actor'
+import { defineActor } from '@gwenjs/core/actor'
+import { useHook } from '@gwenjs/core'
 import { PlayerPrefab } from '../prefabs'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -304,9 +305,9 @@ Utilisez-les dans `gwen.config.ts` :
 
 ```typescript
 // gwen.config.ts
-import { defineGwenConfig } from '@gwenjs/app'
+import { defineConfig } from '@gwenjs/app'
 
-export default defineGwenConfig({
+export default defineConfig({
   hooks: {
     'build:before': () => {
       console.log('Build starting')
@@ -321,7 +322,7 @@ export default defineGwenConfig({
 Ou s'abonnez depuis la configuration `setup()` d'un module :
 
 ```typescript
-import { defineGwenModule } from '@gwenjs/kit'
+import { defineGwenModule } from '@gwenjs/kit/module'
 
 export default defineGwenModule({
   meta: { name: 'my-module' },

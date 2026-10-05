@@ -41,12 +41,14 @@
     "verdaccio:publish": "./scripts/verdaccio-publish.sh"
   },
   "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.5",
     "@commitlint/cli": "^19.0.0",
     "@commitlint/config-conventional": "^19.0.0",
     "concurrently": "^8.2.0",
     "husky": "^9.1.7",
     "oxfmt": "^0.36.0",
     "oxlint": "^1.51.0",
+    "publint": "^0.3.25",
     "typescript": "^6.0.2",
     "vitepress": "^1.6.4"
   }

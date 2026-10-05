@@ -23,7 +23,7 @@ import { defineConfig } from '@gwenjs/app'
 import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -43,7 +43,6 @@ const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
     near: -1000,
     far: 1000,
   })
-  cameraViewportMap.set(camId, 'main')
 })
 
 export default defineConfig({
@@ -105,17 +104,11 @@ export default defineConfig({
 
 ## Side-car stores
 
-`cameraViewportMap` and `cameraPathStore` are module-level `Map`s that live alongside
-the ECS components because strings and complex objects cannot be stored in SoA buffers.
+Viewport and path data are not on the public entry. Strings and complex objects cannot be stored in SoA buffers.
 
 ```ts
-import { cameraViewportMap, cameraPathStore } from '@gwenjs/camera-core'
 import type { CameraPathData } from '@gwenjs/camera-core'
 
-// Assign a camera to a viewport
-cameraViewportMap.set(camId, 'main')
-
-// Start a path
 const pathData: CameraPathData = {
   waypoints: [
     { position: { x: 200, y: 0, z: 0 }, duration: 1.5, easing: 'easeInOut' },
@@ -125,7 +118,6 @@ const pathData: CameraPathData = {
   elapsed: 0,
 }
 engine.addComponent(camId, CameraPath, { index: 0, progress: 0 })
-cameraPathStore.set(camId, pathData)
 ```
 
 ## Engine hooks
@@ -167,7 +159,7 @@ wins. On equal priority, the last entity to push its state wins.
 ## Building a custom camera handle
 
 ```ts
-import { CameraCorePlugin, Camera, cameraViewportMap } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
 import { useCameraManager } from '@gwenjs/renderer-core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 

@@ -136,7 +136,8 @@ logger.error('unhandled error', error)
 Utilisez-le à l'intérieur d'un système avec accès au contexte d'initialisation :
 
 ```ts
-import { createLogger, defineSystem, useEngine } from '@gwenjs/core'
+import { createLogger, useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
 
 export const MySystem = defineSystem(() => {
   const engine = useEngine()
@@ -237,7 +238,8 @@ export class GameScene extends defineScene {
 Permettre aux joueurs de basculer les visuels de debug dans le jeu :
 
 ```ts
-import { useEngine, defineSystem, onUpdate } from '@gwenjs/core'
+import { useEngine } from '@gwenjs/core'
+import { defineSystem } from '@gwenjs/core/system'
 
 export const DebugToggleSystem = defineSystem(() => {
   const engine = useEngine()

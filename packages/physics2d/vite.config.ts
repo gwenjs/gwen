@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [
     dts({
       include: ["src"],
+      exclude: ["src/**/*.fixture.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",
@@ -17,13 +18,13 @@ export default defineConfig({
       entry: {
         index: resolve(__dirname, "src/index.ts"),
         module: resolve(__dirname, "src/module.ts"),
-        core: resolve(__dirname, "src/core.ts"),
-        helpers: resolve(__dirname, "src/helpers.ts"),
-        "helpers-queries": resolve(__dirname, "src/helpers-queries.ts"),
-        "helpers-movement": resolve(__dirname, "src/helpers-movement.ts"),
-        "helpers-contact": resolve(__dirname, "src/helpers-contact.ts"),
-        "helpers-static-geometry": resolve(__dirname, "src/helpers-static-geometry.ts"),
-        "helpers-orchestration": resolve(__dirname, "src/helpers-orchestration.ts"),
+        internal: resolve(__dirname, "src/internal.ts"),
+        "helpers/index": resolve(__dirname, "src/helpers/index.ts"),
+        "helpers/queries": resolve(__dirname, "src/helpers/queries.ts"),
+        "helpers/movement": resolve(__dirname, "src/helpers/movement.ts"),
+        "helpers/contact": resolve(__dirname, "src/helpers/contact.ts"),
+        "helpers/static-geometry": resolve(__dirname, "src/helpers/static-geometry.ts"),
+        "helpers/orchestration": resolve(__dirname, "src/helpers/orchestration.ts"),
         tilemap: resolve(__dirname, "src/tilemap.ts"),
         debug: resolve(__dirname, "src/debug.ts"),
       },

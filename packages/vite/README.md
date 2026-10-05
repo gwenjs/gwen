@@ -101,7 +101,7 @@ export default defineConfig({
 Subpath import is also supported:
 
 ```typescript
-import { gwenTransform } from "@gwenjs/vite/transform";
+import { gwenTransform } from "@gwenjs/vite";
 ```
 
 ## Configuration
@@ -185,7 +185,7 @@ export default defineConfig({
 
 ```typescript
 // src/scenes/GameScene.ts
-import { defineScene } from "@gwenjs/core";
+import { defineScene } from "@gwenjs/core/scene";
 
 export const GameScene = defineScene("game", () => ({
   onInit(api) {
@@ -245,3 +245,25 @@ console.log(manifest.wasmPath); // Path to WASM binary
 - [@gwenjs/core](../engine-core/) — Core engine
 - [@gwenjs/cli](../cli/) — Command-line interface
 - [Vite Documentation](https://vitejs.dev)
+
+## Public exports
+
+### `.`
+
+Values: `default`, `gwen`, `gwenOptimizerPlugin`, `gwenPhysics3DOptimizerPlugin`, `gwenTransform`, `gwenVitePlugin`
+
+Types: `ActorPluginOptions`, `CoreVariant`, `GwenOptimizerOptions`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenTransformOptions`, `GwenViteOptions`, `GwenWasmOptions`, `WasmVariant`
+
+### `./shared/layer-utils`
+
+Values: `evalBitExpr`, `extractLayerDefinitions`, `inlineLayerReferences`
+
+Types: none
+
+### `./internal`
+
+no semver guarantee — framework packages and generated code only
+
+Values: `extractGlobalCssFromConfig`, `extractModuleNamesFromConfig`, `generateConfigModulesVirtualModule`, `generateEntryModule`, `generateScenesModule`
+
+Types: none

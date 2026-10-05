@@ -13,7 +13,7 @@ npm install @gwenjs/kit
 `definePlugin` creates a self-contained, reusable game system. Plugins declare lifecycle hooks (`onSetup`, `onUpdate`, `onDestroy`) and expose a typed service API accessible to actors and other plugins.
 
 ```typescript
-import { definePlugin } from "@gwenjs/kit";
+import { definePlugin } from "@gwenjs/kit/plugin";
 
 export const MyPlugin = definePlugin((config: MyConfig = {}) => {
   let score = 0;
@@ -49,7 +49,7 @@ export const MyPlugin = definePlugin((config: MyConfig = {}) => {
 `defineGwenModule` registers a collection of plugins as a single installable unit in a GWEN app config.
 
 ```typescript
-import { defineGwenModule } from "@gwenjs/kit";
+import { defineGwenModule } from "@gwenjs/kit/module";
 import { MyPlugin } from "./my-plugin";
 
 export const MyModule = defineGwenModule({
@@ -71,7 +71,6 @@ export const MyModule = defineGwenModule({
 Plugins that expose an `api` object can be accessed in actors via `usePlugin`:
 
 ```typescript
-import { usePlugin } from "@gwenjs/core";
 import type { MyPluginAPI } from "./my-plugin";
 
 const PlayerActor = defineActor(PlayerPrefab, () => {
@@ -88,3 +87,23 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 - `@gwenjs/core` — Engine, ECS, WASM bridge
 - `@gwenjs/schema` — App configuration schema
 - `@gwenjs/app` — Application runtime
+
+## Public exports
+
+### `.`
+
+Values: `createChildScope`, `createErrorBus`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+
+Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenTypeTemplate`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
+
+### `./plugin`
+
+Values: `createEntityId`, `definePlugin`, `definePluginTypes`, `satisfiesPluginContract`, `unpackEntityId`
+
+Types: `ComponentType`, `EngineErrorBus`, `EntityId`, `GwenEngine`, `GwenEngineOptions`, `GwenHookable`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `MemoryRegion`, `PluginErrorContext`, `PluginTypesOptions`, `WasmBridge`, `WasmModuleHandle`, `WasmModuleOptions`
+
+### `./module`
+
+Values: `defineGwenModule`
+
+Types: `GwenBaseConfig`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `PluginDeclaration`

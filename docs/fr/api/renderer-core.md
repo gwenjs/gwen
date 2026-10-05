@@ -441,7 +441,7 @@ explicitement signifie qu'on le demande directement.
 :::
 
 ```ts
-import { screenToWorld } from '@gwenjs/renderer-core'
+
 
 // RTS — déplacer les unités vers la position cliquée
 onEvent('input:click', ({ x, y }) => {

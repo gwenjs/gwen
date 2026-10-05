@@ -17,7 +17,7 @@ onEnter(async () => {
     expect(result).toBeDefined();
     expect(result!.code).toContain("__executeAsync");
     expect(result!.code).toContain("executeAsync");
-    expect(result!.code).toContain(`from "@gwenjs/core"`);
+    expect(result!.code).toContain(`from "@gwenjs/core/internal"`);
   });
 
   it("instruments await inside async onExit callback", () => {
@@ -56,10 +56,10 @@ onUpdate(async () => {
     expect(transformAsyncContext(code, "scene.ts")).toBeUndefined();
   });
 
-  it("includes the helperModule import from @gwenjs/core", () => {
+  it("includes the helperModule import from @gwenjs/core/internal", () => {
     const code = `onEnter(async () => { await load() })`;
     const result = transformAsyncContext(code, "scene.ts");
-    expect(result!.code).toContain(`from "@gwenjs/core"`);
+    expect(result!.code).toContain(`from "@gwenjs/core/internal"`);
     expect(result!.code).not.toContain(`from "unctx"`);
   });
 

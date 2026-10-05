@@ -16,6 +16,11 @@ const mockBridge = {
   })),
 };
 
+vi.mock("@gwenjs/core/internal", async () => {
+  const core = await import("@gwenjs/core");
+  return { getWasmBridge: core.getWasmBridge };
+});
+
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),

@@ -19,8 +19,10 @@ vi.mock("../../src/composables.js", () => ({
   usePhysics2D: vi.fn(() => mockPhysics),
 }));
 
-vi.mock("@gwenjs/core/actor", () => ({
+vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 42n),
+}));
+vi.mock("@gwenjs/core/actor", () => ({
   onBeforeUpdate: vi.fn((cb: (dt: number) => void) => {
     capturedOnBeforeUpdate = cb;
   }),

@@ -1,0 +1,61 @@
+{
+  ".": {
+    "values": [
+      "createChildScope",
+      "createErrorBus",
+      "useCurrentScope",
+      "useErrorReporter",
+      "useLogger",
+      "usePerfMark"
+    ],
+    "types": [
+      "AutoImport",
+      "DeepPartial",
+      "GwenConfig",
+      "GwenTypeTemplate",
+      "MergePluginsPrefabExtensions",
+      "MergePluginsSceneExtensions",
+      "MergePluginsUIExtensions",
+      "VitePlugin",
+      "ViteUserConfig"
+    ]
+  },
+  "./plugin": {
+    "values": [
+      "createEntityId",
+      "definePlugin",
+      "definePluginTypes",
+      "satisfiesPluginContract",
+      "unpackEntityId"
+    ],
+    "types": [
+      "ComponentType",
+      "EngineErrorBus",
+      "EntityId",
+      "GwenEngine",
+      "GwenEngineOptions",
+      "GwenHookable",
+      "GwenPlugin",
+      "GwenPluginFactory",
+      "GwenProvides",
+      "GwenRuntimeHooks",
+      "MemoryRegion",
+      "PluginErrorContext",
+      "PluginTypesOptions",
+      "WasmBridge",
+      "WasmModuleHandle",
+      "WasmModuleOptions"
+    ]
+  },
+  "./module": {
+    "values": ["defineGwenModule"],
+    "types": [
+      "GwenBaseConfig",
+      "GwenBuildHooks",
+      "GwenKit",
+      "GwenModule",
+      "GwenModuleDefinition",
+      "PluginDeclaration"
+    ]
+  }
+}

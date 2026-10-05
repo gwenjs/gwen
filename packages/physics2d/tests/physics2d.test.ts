@@ -108,8 +108,14 @@ vi.mock("@gwenjs/core", async (importOriginal) => {
   return { ...original, getWasmBridge: vi.fn() };
 });
 
+vi.mock("@gwenjs/core/internal", async () => {
+  const core = await import("@gwenjs/core");
+  return { getWasmBridge: core.getWasmBridge };
+});
+
 import { getWasmBridge, createEntityId } from "@gwenjs/core";
-import { Physics2DPlugin, physics2D } from "../src";
+import { Physics2DPlugin } from "../src";
+import { physics2D } from "../src/plugin/index.js";
 import {
   BODY_TYPE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,

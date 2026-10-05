@@ -23,7 +23,7 @@ import {
   SENTINEL,
   FLAG_PHYSICS_ACTIVE,
   FLAGS_OFFSET,
-} from "@gwenjs/core/shared-memory";
+} from "@gwenjs/core/internal";
 import type { WasmBridge } from "../src/engine/wasm-bridge";
 
 // ─── Mock bridge ──────────────────────────────────────────────────────────────
@@ -117,7 +117,7 @@ describe("SharedMemoryManager — factory", () => {
   it("create() throws if bridge is not active", () => {
     const bridge = makeNullMemoryBridge();
     (bridge.isActive as ReturnType<typeof vi.fn>).mockReturnValue(false);
-    expect(() => SharedMemoryManager.create(bridge, 100)).toThrow("initWasm");
+    expect(() => SharedMemoryManager.create(bridge, 100)).toThrow("bridge.init()");
   });
 
   it("create() throws if alloc_shared_buffer returns 0", () => {

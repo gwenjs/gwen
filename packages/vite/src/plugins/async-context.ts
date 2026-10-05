@@ -14,14 +14,14 @@ import type { Plugin } from "vite";
  * (([__temp,__restore]=__executeAsync(()=>expr)),__temp=await __temp,__restore(),__temp)
  * ```
  *
- * `__executeAsync` is imported from `@gwenjs/core` (GWEN's own engine context),
+ * `__executeAsync` is imported from `@gwenjs/core/internal` (GWEN's own engine context),
  * not from `unctx` directly.
  *
  * @internal
  */
 const transformer = createTransformer({
   asyncFunctions: ["onEnter", "onExit", "withAsyncContext"],
-  helperModule: "@gwenjs/core",
+  helperModule: "@gwenjs/core/internal",
   helperName: "executeAsync",
 });
 
@@ -46,7 +46,7 @@ const transformer = createTransformer({
  *
  * @example Output (abbreviated):
  * ```ts
- * import { executeAsync as __executeAsync } from "@gwenjs/core"
+ * import { executeAsync as __executeAsync } from "@gwenjs/core/internal"
  * onEnter(async () => {
  *   let __temp, __restore
  *   ;(([__temp,__restore]=__executeAsync(()=>loadAssets())),await __temp,__restore())
@@ -75,7 +75,7 @@ export function transformAsyncContext(
  * **How it works:**
  * GWEN's engine context (backed by unctx) is synchronous — after any `await`,
  * the context is lost. This plugin wraps each `await` with `executeAsync` from
- * `@gwenjs/core`, which captures the current engine reference before suspension
+ * `@gwenjs/core/internal`, which captures the current engine reference before suspension
  * and restores it after the microtask resolves.
  *
  * **What is transformed:**

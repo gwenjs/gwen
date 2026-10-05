@@ -1,6 +1,7 @@
 /// <reference types="node" />
 
 import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { createEngine, type GwenEngine } from "../engine/gwen-engine.js";
@@ -20,7 +21,14 @@ export interface CreateRealEngineOptions {
 }
 
 function artifactPath(variant: CoreVariant, fileName: string): string {
-  return fileURLToPath(new URL(`../../wasm/${variant}/${fileName}`, import.meta.url));
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    path.join(here, "../../wasm", variant, fileName),
+    path.join(here, "../wasm", variant, fileName),
+    path.join(here, "../../../wasm", variant, fileName),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  return found ?? path.join(here, "../../wasm", variant, fileName);
 }
 
 function assertArtifact(variant: CoreVariant, filePath: string): void {
