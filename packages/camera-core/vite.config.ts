@@ -27,7 +27,7 @@ export default defineConfig({
       fileName: (_format, entryName) => `${entryName}.js`,
     },
     rollupOptions: {
-      external: ["@gwenjs/core", "@gwenjs/kit", "@gwenjs/math", "@gwenjs/renderer-core"],
+      external: [/^@gwenjs\//],
     },
   },
 });
