@@ -2,6 +2,7 @@ import { onCleanupIfActive } from "../cleanup-context.js";
 import { useEngine } from "../engine/context.js";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks.js";
 import { GwenScope } from "../context/scope.js";
+import { currentPluginSetupTarget, guardHandler, isIsolated } from "../engine/error-isolation.js";
 
 /**
  * A function that removes a previously registered hook subscription.
@@ -80,6 +81,21 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
     // — dormancy is handled by scope.pause() — no guard needed
     // — cleanup is handled by scope.dispose()
     return gwenScope.hook(name, fn);
+  }
+
+  // Synchronous plugin setup: attribute the handler to that plugin.
+  // After the first await, or on raw engine.hooks, the handler stays unidentified.
+  const setupTarget = currentPluginSetupTarget();
+  if (setupTarget) {
+    const guarded = guardHandler(
+      fn as (...args: unknown[]) => unknown,
+      setupTarget,
+      String(name),
+      () => isIsolated(engine, setupTarget.id),
+    );
+    const unsubscribe = engine.hooks.hook(name, guarded as never);
+    onCleanupIfActive(unsubscribe);
+    return unsubscribe;
   }
 
   // Outside any scope (plugin setup via engine.run(), manual use):

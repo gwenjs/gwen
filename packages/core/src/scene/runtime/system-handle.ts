@@ -76,9 +76,16 @@ export interface SystemHandle {
 
   /**
    * `true` when the system is currently ticking (neither developer-paused,
-   * scene-paused, nor destroyed).
+   * scene-paused, destroyed, nor isolated).
+   * Isolation is its own flag: `resume()` does not clear it.
    */
   readonly active: boolean;
+
+  /**
+   * `true` after this system threw and until `engine.reenable(id)`.
+   * While `true`, `active` is `false`. `resume()` does not clear it.
+   */
+  readonly isolated: boolean;
 
   /**
    * Freeze this system as part of a scene-level pause (overlay transition).
@@ -133,8 +140,12 @@ export function createSystemHandle(inner: GwenPlugin): {
   let _scenePaused = false;
   let _destroyed = false;
 
-  /** A system is active only when none of its three inactive flags are set. */
-  const isActive = (): boolean => !_userPaused && !_scenePaused && !_destroyed;
+  const isIsolatedNow = (): boolean =>
+    typeof (inner as DiscoverablePlugin)._isIsolated === "function" &&
+    (inner as DiscoverablePlugin)._isIsolated();
+
+  /** A system is active only when none of its inactive flags are set and it is not isolated. */
+  const isActive = (): boolean => !_userPaused && !_scenePaused && !_destroyed && !isIsolatedNow();
 
   const handle: SystemHandle = {
     pause(): void {
@@ -143,6 +154,7 @@ export function createSystemHandle(inner: GwenPlugin): {
     },
 
     resume(): void {
+      // Clears the developer pause only. Isolation stays until engine.reenable().
       _userPaused = false;
       if (isActive() && isScopedPlugin(inner)) inner._resume();
     },
@@ -153,6 +165,10 @@ export function createSystemHandle(inner: GwenPlugin): {
 
     get active(): boolean {
       return isActive();
+    },
+
+    get isolated(): boolean {
+      return isIsolatedNow();
     },
 
     _scenePause(): void {

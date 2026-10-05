@@ -241,6 +241,9 @@ export function defineActorPool<Props, PublicAPI>(
     }
 
     // 5. Pause the scope — silences all frame handlers.
+    // release() ends this instance's life, so its isolation entry is dropped.
+    // acquire() does not clear isolation of a live instance.
+    inst._scope.forgetIsolation();
     inst._scope.pause();
 
     // 6. Add DormantTag so ECS queries exclude this entity.

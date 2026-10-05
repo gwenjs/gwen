@@ -22,6 +22,11 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
+import type {
+  GwenErrorPayload as BusErrorPayload,
+  GwenErrorTarget,
+  PluginErrorContext,
+} from "@gwenjs/schema";
 import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
 import { engineContext } from "./context";
 import { withCleanup } from "../cleanup-context";
@@ -42,7 +47,8 @@ import { validateEngineConfig } from "./engine-config-validator";
 // existing `import { ... } from './gwen-engine.js'` statements keep working.
 
 export { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
-export type { GwenPluginNotFoundErrorOptions, PluginErrorContext } from "./engine-errors.js";
+export type { GwenPluginNotFoundErrorOptions } from "./engine-errors.js";
+export type { PluginErrorContext } from "./engine-types.js";
 
 export { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 export type {
@@ -70,10 +76,23 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
 import { GwenPluginNotFoundError, CoreErrorCodes } from "./engine-errors.js";
-import type { PluginErrorContext } from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
+import {
+  beginPluginSetup,
+  clearIsolated,
+  consumeHandlerFailure,
+  currentPluginSetupTarget,
+  endPluginSetup,
+  forgetTarget,
+  guardHandler,
+  isIsolated,
+  isThenable,
+  isolateTarget,
+  listIsolated,
+  phaseForHook,
+} from "./error-isolation.js";
 
 import type {
   WasmModuleOptions,
@@ -152,7 +171,6 @@ class GwenEngineImpl implements GwenEngine {
   private _deltaTime = 0;
   private _running = false;
   private _state: EngineState = "idle";
-  private _uninstallErrorBus: (() => void) | null = null;
   private _rafHandle = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
@@ -160,6 +178,14 @@ class GwenEngineImpl implements GwenEngine {
 
   get errors(): EngineErrorBus {
     return this._errorBus;
+  }
+
+  isolated(): readonly GwenErrorTarget[] {
+    return listIsolated(this);
+  }
+
+  reenable(id: string): boolean {
+    return forgetTarget(this, id);
   }
 
   get state(): EngineState {
@@ -309,22 +335,30 @@ class GwenEngineImpl implements GwenEngine {
     this._componentRegistry = new ComponentRegistry();
     this._queryEngine = new QueryEngine(opts.queryCacheSize ?? 256);
 
-    const errorBus =
-      opts.errorBus ??
-      createErrorBus((error: unknown) => {
-        const detail = error instanceof Error ? error.message : String(error);
-        this.logger.error(`error bus handler failed: ${detail}`);
-      });
+    const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
     this._errorBus = errorBus;
     this.provide("errors", errorBus);
-    // `stop()` is async. The frame loop also clears `_running` itself on a WASM panic.
-    // A setup failure happens before `start()`, so it must not tear the engine down.
-    errorBus.onFatal(() => {
-      if (!this._running) return;
-      this.stop().catch(() => {});
+    const unsubscribe = errorBus.on((event) => {
+      this._applyBusEvent(event);
     });
-    if (typeof globalThis.window !== "undefined") {
-      this._uninstallErrorBus = errorBus.install?.() ?? null;
+    if (typeof unsubscribe === "function") {
+      this.disposables.add("errors:on", createDisposable(unsubscribe));
+    }
+    const rawEmit = errorBus.emit.bind(errorBus);
+    errorBus.emit = (event) => {
+      try {
+        rawEmit(event);
+      } catch (error) {
+        this._logHandlerFailed(error);
+        return;
+      }
+      if (event.level === "error" || event.level === "fatal") {
+        this._fireEngineErrorHook(event);
+      }
+    };
+    const uninstall = errorBus.install?.();
+    if (typeof uninstall === "function") {
+      this.disposables.add("errors:install", createDisposable(uninstall));
     }
   }
 
@@ -340,27 +374,25 @@ class GwenEngineImpl implements GwenEngine {
     try {
       // Run setup inside engine context so useEngine() resolves to this instance.
       // engineContext.call() saves and restores the previous context (safe for nesting).
-      let setupResult: void | Promise<void>;
-      const [, dispose] = withCleanup(() => {
-        setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
-      });
-      this._pluginCleanups.set(plugin.name, dispose);
-      if (setupResult! instanceof Promise) await setupResult!;
+      // Attribution covers only the synchronous part of setup.
+      let setupResult: void | Promise<void> | undefined;
+      beginPluginSetup(plugin);
+      try {
+        const [, dispose] = withCleanup(() => {
+          setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
+        });
+        this._pluginCleanups.set(plugin.name, dispose);
+      } finally {
+        endPluginSetup();
+      }
+      if (setupResult instanceof Promise) await setupResult;
     } catch (err) {
       // Roll back any onCleanup() callbacks and scoped hooks registered during
       // the synchronous phase of setup — they must not leak on rejection.
       this._pluginCleanups.get(plugin.name)?.();
       this._pluginCleanups.delete(plugin.name);
       this._tracker.removeAll(plugin.name, this.hooks);
-
-      const message = err instanceof Error ? err.message : String(err);
-      this._errorBus.emit({
-        level: "error",
-        code: CoreErrorCodes.PLUGIN_SETUP_ERROR,
-        message: `[${plugin.name}] setup failed: ${message}`,
-        source: plugin.name,
-        error: err,
-      });
+      this._reportSetupError(plugin, err);
       throw err;
     }
 
@@ -380,10 +412,15 @@ class GwenEngineImpl implements GwenEngine {
     const plugin = this._plugins[idx]!;
     this._pluginCleanups.get(name)?.();
     this._pluginCleanups.delete(name);
-    await plugin.teardown?.();
+    try {
+      await plugin.teardown?.();
+    } catch (err) {
+      this._reportTeardown(plugin, err);
+    }
     this._plugins.splice(idx, 1);
     this._pluginNames.delete(name);
     this._tracker.removeAll(name, this.hooks);
+    this._dropPluginIsolation(name);
   }
 
   // ─── Typed provide/inject ─────────────────────────────────────────────────
@@ -450,35 +487,12 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
-  private async _handleFrameLoopError(err: unknown): Promise<void> {
-    const isWasmPanic = err instanceof WebAssembly.RuntimeError;
-    // `onFatal` calls async `stop()`. The loop `finally` runs as soon as this
-    // function returns, so `_running` must already be false.
-    if (isWasmPanic) {
-      this._running = false;
-      await this._transition("faulted", "wasm-panic");
+  private _handleFrameLoopError(err: unknown): void {
+    try {
+      this._reportCaught(err, "frame");
+    } catch (handlerError) {
+      this._logHandlerFailed(handlerError);
     }
-    const code = isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR;
-    const message = err instanceof Error ? err.message : String(err);
-    const payload: EngineErrorPayload = {
-      code,
-      message,
-      cause: err,
-      frame: this._frameCountOwn,
-    };
-    this.logger.error(message, {
-      frame: this._frameCountOwn,
-      cause: err instanceof Error ? (err.stack ?? err.message) : String(err),
-    });
-    await this.hooks.callHook("engine:error", payload);
-    this._errorBus.emit({
-      level: isWasmPanic ? "fatal" : "error",
-      code,
-      message,
-      source: "@gwenjs/core",
-      error: err,
-      context: { frame: this._frameCountOwn },
-    });
   }
 
   async start(): Promise<void> {
@@ -506,20 +520,24 @@ class GwenEngineImpl implements GwenEngine {
           accumulator += Math.min(rawSeconds, this.maxDeltaSeconds);
 
           let steps = 0;
-          while (accumulator >= fixedDt && steps < this.maxCatchupSteps) {
+          while (
+            accumulator >= fixedDt &&
+            steps < this.maxCatchupSteps &&
+            this._state === "running"
+          ) {
             const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
             this._deltaTime = scaledDt;
             try {
               await this._runFrame(scaledDt);
             } catch (err) {
-              await this._handleFrameLoopError(err);
+              this._handleFrameLoopError(err);
             }
-            if (!this._running) break;
+            if (this._state !== "running") break;
             accumulator -= fixedDt;
             steps++;
           }
         } finally {
-          if (this._running) this._rafHandle = this._scheduleFrame(loop);
+          if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
         }
       };
       this._rafHandle = this._scheduleFrame(loop);
@@ -544,9 +562,9 @@ class GwenEngineImpl implements GwenEngine {
         try {
           await this._runFrame(dt);
         } catch (err) {
-          await this._handleFrameLoopError(err);
+          this._handleFrameLoopError(err);
         } finally {
-          if (this._running) this._rafHandle = this._scheduleFrame(loop);
+          if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
         }
       };
       this._rafHandle = this._scheduleFrame(loop);
@@ -555,18 +573,23 @@ class GwenEngineImpl implements GwenEngine {
 
   async stop(): Promise<void> {
     this._running = false;
-    // State is updated before the first await so `engine:stop` listeners still run
-    // in the same turn as a non-awaited `onFatal` callback.
     const pending = this._transition("stopped", "stop");
-    this._uninstallErrorBus?.();
-    this._uninstallErrorBus = null;
     if (this._rafHandle) {
       this._cancelFrame(this._rafHandle);
       this._rafHandle = 0;
     }
-    await this.hooks.callHook("engine:stop");
-    await pending;
+    try {
+      await this.hooks.callHook("engine:stop");
+    } catch (err) {
+      this._handleFrameLoopError(err);
+    }
+    try {
+      await pending;
+    } catch (err) {
+      this._logHandlerFailed(err);
+    }
     this._tracker.clearAll(this.hooks);
+    clearIsolated(this);
 
     // Clean up WASM modules and globalThis glue cache
     // Clear all __gwenGlue_* keys from globalThis so that next init reloads fresh
@@ -613,7 +636,7 @@ class GwenEngineImpl implements GwenEngine {
     try {
       await this._runFrame(cappedDt);
     } catch (err) {
-      await this._handleFrameLoopError(err);
+      this._handleFrameLoopError(err);
     } finally {
       this._advancing = false;
     }
@@ -1002,57 +1025,271 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── 8-phase frame runner ─────────────────────────────────────────────────
 
-  /**
-   * Report an error thrown by a plugin lifecycle hook.
-   *
-   * Calls `plugin.onError` if defined, giving the plugin a chance to recover.
-   * If the plugin does not call `context.recover()`, logs the error via the
-   * engine logger and forwards it to the error bus and the `plugin:error` hook.
-   *
-   * @param plugin - The plugin whose hook threw.
-   * @param phase - The lifecycle phase in which the error occurred.
-   * @param error - The thrown value.
-   */
-  private async _reportPluginError(
-    plugin: GwenPlugin,
+  private _logHandlerFailed(error: unknown): void {
+    const detail = error instanceof Error ? error.message : String(error);
+    this.logger.error(`[${CoreErrorCodes.ERROR_HANDLER_FAILED}] ${detail}`, {
+      code: CoreErrorCodes.ERROR_HANDLER_FAILED,
+    });
+  }
+
+  private _catchAsync(result: unknown): void {
+    if (!isThenable(result)) return;
+    void Promise.resolve(result).catch((error: unknown) => this._logHandlerFailed(error));
+  }
+
+  private _emit(event: BusErrorPayload): void {
+    try {
+      this._errorBus.emit(event);
+    } catch (error) {
+      this._logHandlerFailed(error);
+    }
+  }
+
+  private _applyBusEvent(event: BusErrorPayload): void {
+    switch (event.level) {
+      case "verbose":
+        this.logger.debug(event.message, { code: event.code });
+        break;
+      case "info":
+        this.logger.info(event.message, { code: event.code });
+        break;
+      case "warning":
+        this.logger.warn(event.message, { code: event.code });
+        break;
+      case "error":
+      case "fatal":
+        this.logger.error(event.message, { code: event.code });
+        break;
+      default:
+        break;
+    }
+    if (event.level === "error" && event.target && event.context?.phase !== "setup") {
+      if (isolateTarget(this, event.target) && this.debug) {
+        const hook = typeof event.context?.hook === "string" ? event.context.hook : "unknown";
+        this.logger.warn(
+          `[GWEN] ${event.target.kind} "${event.target.name}" isolated after ${event.code} in ${hook}; skipped until engine.reenable("${event.target.id}").`,
+        );
+      }
+    }
+    if (event.level === "fatal") this._enterFaulted("fatal");
+  }
+
+  private _enterFaulted(reason: string): void {
+    if (this._state !== "running" && this._state !== "paused") return;
+    this._running = false;
+    if (this._rafHandle) {
+      this._cancelFrame(this._rafHandle);
+      this._rafHandle = 0;
+    }
+    const from = this._state;
+    this._state = "faulted";
+    try {
+      const result: unknown = this.hooks.callHook("engine:state-change", {
+        from,
+        to: "faulted",
+        reason,
+      });
+      this._catchAsync(result);
+    } catch (error) {
+      this._logHandlerFailed(error);
+    }
+  }
+
+  private _fireEngineErrorHook(event: BusErrorPayload): void {
+    if (event.level !== "error" && event.level !== "fatal") return;
+    const frame =
+      typeof event.context?.frame === "number" ? event.context.frame : this._frameCountOwn;
+    const payload: EngineErrorPayload = {
+      level: event.level,
+      code: event.code,
+      message: event.message,
+      cause: event.error,
+      frame,
+      source: event.source,
+      target: event.target,
+    };
+    try {
+      const result: unknown = this.hooks.callHook("engine:error", payload);
+      this._catchAsync(result);
+    } catch (error) {
+      this._logHandlerFailed(error);
+    }
+  }
+
+  private _firePluginError(
+    pluginName: string,
     phase: PluginErrorContext["phase"],
     error: unknown,
-  ): Promise<void> {
-    let recovered = false;
-    const context: PluginErrorContext = {
-      phase,
-      frame: this._frameCountOwn,
-      recover: () => {
-        recovered = true;
-      },
-    };
-
+    hook?: string,
+  ): void {
     try {
-      plugin.onError?.(error, context);
-    } catch {
-      // onError itself threw — ignore to avoid infinite loops
+      const result: unknown = this.hooks.callHook("plugin:error", {
+        pluginName,
+        phase,
+        error,
+        frame: this._frameCountOwn,
+        ...(hook !== undefined ? { hook } : {}),
+      });
+      this._catchAsync(result);
+    } catch (handlerError) {
+      this._logHandlerFailed(handlerError);
+    }
+  }
+
+  private _pluginForTarget(target: GwenErrorTarget): GwenPlugin | undefined {
+    if (target.kind === "plugin") {
+      return this._plugins.find((plugin) => plugin.name === target.id);
+    }
+    if (target.kind === "system") {
+      return this._plugins.find((plugin) => plugin.name === target.name);
+    }
+    return undefined;
+  }
+
+  private _consultRecover(
+    plugin: GwenPlugin,
+    err: unknown,
+    phase: PluginErrorContext["phase"],
+    hook?: string,
+  ): boolean {
+    if (!plugin.onError) return false;
+    let recovered = false;
+    try {
+      plugin.onError(err, {
+        phase,
+        ...(hook !== undefined ? { hook } : {}),
+        frame: this._frameCountOwn,
+        recover() {
+          recovered = true;
+        },
+      });
+    } catch (handlerError) {
+      this._logHandlerFailed(handlerError);
+    }
+    return recovered;
+  }
+
+  private _dropPluginIsolation(name: string): void {
+    forgetTarget(this, name);
+    for (const target of [...listIsolated(this)]) {
+      if (target.id === name || target.name === name) forgetTarget(this, target.id);
+    }
+  }
+
+  private _reportSetupError(plugin: GwenPlugin, err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    const isTrap = err instanceof WebAssembly.RuntimeError;
+    if (!isTrap && this._consultRecover(plugin, err, "setup")) return;
+    this._emit({
+      level: isTrap ? "fatal" : "error",
+      code: isTrap ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.PLUGIN_SETUP_ERROR,
+      message: `[${plugin.name}] setup failed: ${message}`,
+      source: plugin.name,
+      error: err,
+      target: { kind: "plugin", id: plugin.name, name: plugin.name },
+      context: { frame: this._frameCountOwn, phase: "setup", hook: "setup" },
+    });
+  }
+
+  private _reportTeardown(plugin: GwenPlugin, err: unknown): void {
+    const message = err instanceof Error ? err.message : String(err);
+    const isTrap = err instanceof WebAssembly.RuntimeError;
+    if (!isTrap && this._consultRecover(plugin, err, "teardown")) return;
+    const target: GwenErrorTarget = { kind: "plugin", id: plugin.name, name: plugin.name };
+    this._emit({
+      level: isTrap ? "fatal" : "error",
+      code: isTrap ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message: `[${plugin.name}] teardown threw: ${message}`,
+      source: plugin.name,
+      error: err,
+      target,
+      context: { frame: this._frameCountOwn, phase: "teardown", hook: "teardown" },
+    });
+    if (!isTrap) this._firePluginError(plugin.name, "teardown", err, "teardown");
+  }
+
+  private _reportCaught(
+    err: unknown,
+    hook: string,
+    forced?: {
+      level?: "error" | "fatal";
+      code?: string;
+      source?: string;
+      message?: string;
+      target?: GwenErrorTarget;
+    },
+  ): void {
+    const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
+    const attributed = consumeHandlerFailure(err);
+    const isTrap = err instanceof WebAssembly.RuntimeError;
+    const target = forced?.target ?? attributed?.target;
+    const resolvedHook = attributed?.hook ?? hook;
+    const frame = this._frameCountOwn;
+
+    if (forced?.target?.kind === "wasm-module") {
+      this._emit({
+        level: "error",
+        code: isTrap ? CoreErrorCodes.WASM_PANIC : (forced.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
+        message,
+        source: forced.source,
+        error: err,
+        target: forced.target,
+        context: { frame, hook: resolvedHook },
+      });
+      return;
     }
 
-    if (!recovered) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.logger.error(`[${plugin.name}] ${phase} threw: ${message}`, {
-        phase,
-        frame: this._frameCountOwn,
+    if (isTrap || forced?.level === "fatal") {
+      this._emit({
+        level: "fatal",
+        code: isTrap
+          ? CoreErrorCodes.WASM_PANIC
+          : (forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
+        message,
+        source: forced?.source ?? "@gwenjs/core",
+        error: err,
+        target,
+        context: { frame, hook: resolvedHook },
       });
-      this._errorBus.emit({
+      return;
+    }
+
+    if (target) {
+      const phase = phaseForHook(resolvedHook);
+      const plugin = this._pluginForTarget(target);
+      if (plugin && this._consultRecover(plugin, err, phase, resolvedHook)) return;
+      const source = target.name;
+      this._emit({
         level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-        message: `[${plugin.name}] ${phase} threw: ${message}`,
-        source: plugin.name,
-        error,
-        context: { phase, frame: this._frameCountOwn },
+        message: `[${source}] ${phase} threw: ${message}`,
+        source,
+        error: err,
+        target,
+        context: { frame, hook: resolvedHook, phase },
       });
-      await this.hooks.callHook("plugin:error", {
-        pluginName: plugin.name,
-        phase,
-        error,
-        frame: this._frameCountOwn,
-      });
+      if (target.kind === "plugin" || target.kind === "system") {
+        const pluginName = target.kind === "plugin" ? target.id : target.name;
+        this._firePluginError(pluginName, phase, err, resolvedHook);
+      }
+      return;
+    }
+
+    this._emit({
+      level: "error",
+      code: forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR,
+      message,
+      source: forced?.source ?? "@gwenjs/core",
+      error: err,
+      context: { frame, hook },
+    });
+  }
+
+  private async _guardHook(hook: string, run: () => unknown): Promise<void> {
+    try {
+      await run();
+    } catch (err) {
+      this._reportCaught(err, hook);
     }
   }
 
@@ -1080,11 +1317,13 @@ class GwenEngineImpl implements GwenEngine {
     try {
       // Phase 1 — engine:tick hook (fires before any plugin work)
       const t1 = performance.now();
-      await this.hooks.callHook("engine:tick", dt);
+      await this._guardHook("engine:tick", () => this.hooks.callHook("engine:tick", dt));
       const t2 = performance.now();
 
       // Phase 2 — emit before-update hook
-      await this.hooks.callHook("engine:before-update", dt);
+      await this._guardHook("engine:before-update", () =>
+        this.hooks.callHook("engine:before-update", dt),
+      );
       const t3 = performance.now();
 
       // Phase 3 — built-in physics step (Cas A: wasmBridge physics)
@@ -1092,37 +1331,31 @@ class GwenEngineImpl implements GwenEngine {
         if (this.wasmBridge.physics2d.enabled) this.wasmBridge.physics2d.step(dt);
         if (this.wasmBridge.physics3d.enabled) this.wasmBridge.physics3d.step(dt);
       } catch (err) {
-        const code =
-          err instanceof WebAssembly.RuntimeError
-            ? CoreErrorCodes.WASM_PANIC
-            : CoreErrorCodes.FRAME_LOOP_ERROR;
-        this._errorBus.emit({
+        const detail = err instanceof Error ? err.message : String(err);
+        this._reportCaught(err, "physics", {
           level: "fatal",
-          code,
-          message: `WASM step failed: ${err instanceof Error ? err.message : String(err)}`,
           source: "gwen_core.wasm",
-          error: err,
-          context: { frame: this._frameCountOwn },
+          message: `WASM step failed: ${detail}`,
+          code:
+            err instanceof WebAssembly.RuntimeError
+              ? CoreErrorCodes.WASM_PANIC
+              : CoreErrorCodes.FRAME_LOOP_ERROR,
         });
       }
       const t4 = performance.now();
 
       // Phase 4 — community WASM modules step (Cas B: user WASM, registration order)
       for (const [name, entry] of this._wasmModules.entries()) {
+        if (isIsolated(this, `wasm:${name}`)) continue;
         try {
           entry.step?.(entry.handle, dt);
         } catch (err) {
-          const code =
-            err instanceof WebAssembly.RuntimeError
-              ? CoreErrorCodes.WASM_PANIC
-              : CoreErrorCodes.FRAME_LOOP_ERROR;
-          this._errorBus.emit({
-            level: "error",
-            code,
-            message: `WASM module "${name}" step failed: ${err instanceof Error ? err.message : String(err)}`,
+          const detail = err instanceof Error ? err.message : String(err);
+          this._reportCaught(err, "wasm", {
             source: `wasm:${name}`,
-            error: err,
-            context: { frame: this._frameCountOwn },
+            message: `WASM module "${name}" step failed: ${detail}`,
+            target: { kind: "wasm-module", id: `wasm:${name}`, name },
+            code: CoreErrorCodes.FRAME_LOOP_ERROR,
           });
         }
       }
@@ -1134,8 +1367,10 @@ class GwenEngineImpl implements GwenEngine {
         try {
           this._sharedMemory.checkSentinels(this._bridge);
         } catch (err) {
-          this.logger.error("WASM memory sentinel violation", {
-            error: err instanceof Error ? err.message : String(err),
+          const detail = err instanceof Error ? err.message : String(err);
+          this._reportCaught(err, "sentinel", {
+            code: CoreErrorCodes.FRAME_LOOP_ERROR,
+            message: `WASM memory sentinel violation: ${detail}`,
           });
         }
       }
@@ -1146,25 +1381,28 @@ class GwenEngineImpl implements GwenEngine {
       try {
         this._bridge.engine().update_transforms?.();
       } catch (err) {
-        this.logger.error("update_transforms failed", {
-          error: err instanceof Error ? err.message : String(err),
+        const detail = err instanceof Error ? err.message : String(err);
+        this._reportCaught(err, "update_transforms", {
+          message: `update_transforms failed: ${detail}`,
         });
       }
 
       // Phase 6 — emit update hook
-      await this.hooks.callHook("engine:update", dt);
+      await this._guardHook("engine:update", () => this.hooks.callHook("engine:update", dt));
       const t6 = performance.now();
 
       // Phase 7a — emit after-update hook
-      await this.hooks.callHook("engine:after-update", dt);
+      await this._guardHook("engine:after-update", () =>
+        this.hooks.callHook("engine:after-update", dt),
+      );
 
       // Phase 7b — emit render hook
-      await this.hooks.callHook("engine:render");
+      await this._guardHook("engine:render", () => this.hooks.callHook("engine:render"));
       const t7 = performance.now();
 
       // Phase 8 — update stats, then fire engine:afterTick hook
       this._frameCountOwn++;
-      await this.hooks.callHook("engine:afterTick", dt);
+      await this._guardHook("engine:afterTick", () => this.hooks.callHook("engine:afterTick", dt));
       const t8 = performance.now();
 
       this._lastPhaseMs = {
@@ -1216,15 +1454,21 @@ class GwenEngineImpl implements GwenEngine {
   private _createScopedHooks(pluginName: string): Hookable<GwenRuntimeHooks> {
     const tracker = this._tracker;
     const realHooks = this.hooks;
+    const engine = this;
     return new Proxy(realHooks, {
       get(target, prop) {
         if (prop === "hook") {
           return (event: string, fn: (...args: unknown[]) => unknown) => {
-            tracker.track(pluginName, event, fn);
+            const setup = currentPluginSetupTarget();
+            const registered =
+              setup && setup.id === pluginName
+                ? guardHandler(fn, setup, event, () => isIsolated(engine, setup.id))
+                : fn;
+            tracker.track(pluginName, event, registered);
             return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
               ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(
                   event as keyof GwenRuntimeHooks,
-                  fn as never,
+                  registered as never,
                 )
               : undefined;
           };

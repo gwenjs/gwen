@@ -38,7 +38,9 @@ describe("plugin setup failure", () => {
     await engine.advance(1 / 60);
 
     expect(updates).toBe(1);
-    expect(seen).toEqual([{ level: "error", code: CoreErrorCodes.PLUGIN_SETUP_ERROR }]);
+    expect(seen).toContainEqual({ level: "error", code: CoreErrorCodes.PLUGIN_SETUP_ERROR });
+    expect(seen.some((event) => event.level === "fatal")).toBe(false);
+    expect(engine.state).not.toBe("faulted");
 
     await engine.advance(1 / 60);
     expect(updates).toBe(2);

@@ -30,6 +30,7 @@
  * ```
  */
 
+import { useEngine } from "../../engine/context.js";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
@@ -494,7 +495,7 @@ export function defineActor<Props = void, PublicAPI = void>(
   }
   const _instances = new Map<EntityId, ActorInstance<PublicAPI>>();
 
-  /** The scoped-proxy engine captured during `setup()`. */
+  /** Real engine. The `setup` argument is a hooks proxy, and isolation is keyed on this object. */
   let _engine: GwenEngine | null = null;
   /** Logger scoped to this actor — set in `setup()`, used for cleanup error reporting. */
   let _log: IGwenLogger | null = null;
@@ -661,7 +662,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     _deps: options?.deps?.map((d) => d._plugin),
 
     setup(engine: GwenEngineBase): void {
-      _engine = engine as GwenEngine;
+      _engine = useEngine();
       _log = engine.logger.child(`actor:${pluginName}`);
     },
 

@@ -1,3 +1,4 @@
+import type { GwenErrorTarget } from "@gwenjs/schema";
 import type { EntityId } from "./engine-api.js";
 import type { EngineStateChange } from "./engine-types.js";
 
@@ -15,6 +16,8 @@ export type { GwenRuntimeHooks } from "@gwenjs/schema";
  * ```
  */
 export interface EngineErrorPayload {
+  /** `error` isolates a target when one is set. `fatal` faults a running engine. */
+  readonly level: "error" | "fatal";
   /** Error code identifying the failure (e.g., `CORE:FRAME_LOOP_ERROR`). */
   readonly code: string;
   /** Human-readable message describing the error. */
@@ -23,6 +26,10 @@ export interface EngineErrorPayload {
   readonly cause?: unknown;
   /** Frame counter at the time of the error. */
   readonly frame?: number;
+  /** Package or system that produced the event. */
+  readonly source?: string;
+  /** Owner of the failure, when identified. */
+  readonly target?: GwenErrorTarget;
 }
 
 /**
@@ -94,7 +101,15 @@ declare module "@gwenjs/schema" {
      */
     "plugin:error": (payload: {
       pluginName: string;
-      phase: "setup" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender" | "teardown";
+      phase:
+        | "setup"
+        | "teardown"
+        | "onBeforeUpdate"
+        | "onUpdate"
+        | "onAfterUpdate"
+        | "onRender"
+        | "hook";
+      hook?: string;
       error: unknown;
       frame: number;
     }) => void;

@@ -46,6 +46,9 @@ export class ScopedHookable {
   /** When `true`, all registered handlers are skipped on dispatch. */
   private _paused = false;
 
+  /** Drops this scope's isolation entry. Does not unregister handlers. @internal */
+  private _forgetIsolation: (() => void) | null = null;
+
   /**
    * Unsubscribe functions returned by `parent.hook()`.
    * Calling each one removes the wrapped handler from the parent bus.
@@ -86,6 +89,20 @@ export class ScopedHookable {
     };
   }
 
+  /** @internal Wire the engine callback that drops this scope's isolation entry. */
+  setIsolationForget(forget: () => void): void {
+    this._forgetIsolation = forget;
+  }
+
+  /**
+   * Drop this scope's isolation entry without unregistering handlers.
+   * Pool `release()` calls this. `dispose()` calls it too.
+   * @internal
+   */
+  forgetIsolation(): void {
+    this._forgetIsolation?.();
+  }
+
   /**
    * Pause this scope. All handlers registered via {@link hook} will be skipped
    * when their parent hook fires. The handlers remain registered — call
@@ -123,6 +140,7 @@ export class ScopedHookable {
    * Called during actor despawn, scene teardown, and system removal.
    */
   dispose(): void {
+    this.forgetIsolation();
     for (const unsub of this._disposers) unsub();
     this._disposers = [];
   }

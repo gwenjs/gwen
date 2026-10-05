@@ -18,6 +18,7 @@ import type {
   GwenEngineBase,
   GwenErrorBusBase,
   GwenErrorPayload,
+  GwenErrorTarget,
 } from "@gwenjs/schema";
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import { DisposableRegistry } from "../disposable";
@@ -244,11 +245,19 @@ export interface EngineErrorBus extends GwenErrorBusBase {
     source?: string;
     error?: unknown;
     context?: Record<string, unknown>;
+    target?: GwenErrorTarget;
   }): void;
-  /** Register a listener for every event, including fatal. Runs before `onFatal`. */
-  on(handler: (event: GwenErrorPayload) => void): void;
-  /** Register a callback that runs after `on` handlers when the level is `fatal`. */
-  onFatal(cb: () => void): void;
+  /**
+   * Register a listener for every event, including fatal. Runs before `onFatal`.
+   * @returns Unsubscribe.
+   */
+  on(handler: (event: GwenErrorPayload) => void): () => void;
+  /**
+   * Register a callback that runs after `on` handlers when the level is `fatal`.
+   * The engine does not register one that calls `stop()`.
+   * @returns Unsubscribe.
+   */
+  onFatal(cb: () => void): () => void;
   /**
    * Install global `window.onerror` / `unhandledrejection` handlers.
    * Returns a function that removes them.
@@ -457,6 +466,15 @@ export interface GwenEngine extends GwenEngineBase {
 
   /** Structured error bus. Always present. Same object as `inject("errors")`. */
   readonly errors: EngineErrorBus;
+
+  /** Targets skipped after an error, in the order they were isolated. */
+  isolated(): readonly GwenErrorTarget[];
+
+  /**
+   * Clear isolation for `id`.
+   * @returns `false` when that id is not isolated.
+   */
+  reenable(id: string): boolean;
 
   // ─── Context ─────────────────────────────────────────────────────────────
   run<T>(fn: () => T): T;

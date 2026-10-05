@@ -8,6 +8,8 @@
  * @module
  */
 
+import type { GwenScopeType } from "./scope.js";
+
 /**
  * Base class for all GWEN framework errors.
  *
@@ -58,13 +60,31 @@ export class GwenError extends Error {
 /**
  * Severity level for structured error payloads.
  *
- * - `fatal` — engine cannot continue; stop() will be called.
- * - `error` — recoverable problem; frame continues.
+ * - `fatal` — the engine moves to `faulted` and the loop stops. `stop()` is not called.
+ * - `error` — the frame continues. A `target`, when present, is isolated.
  * - `warning` — degraded behaviour; no action required.
  * - `info` — informational, not a problem.
  * - `verbose` — fine-grained diagnostic, typically disabled in production.
  */
 export type GwenErrorLevel = "fatal" | "error" | "warning" | "info" | "verbose";
+
+/**
+ * Owner of a caught failure. Set whenever the engine can name who threw.
+ * `reenable(id)` clears isolation for `id`.
+ */
+export interface GwenErrorTarget {
+  /** Who failed. */
+  kind: GwenScopeType | "wasm-module";
+  /**
+   * Stable key. Scope meta id (`"system#3"`) for a system, actor, or scene.
+   * Plugin name for a plugin. `"wasm:<name>"` for a community module.
+   */
+  id: string;
+  /** Human-readable name. */
+  name: string;
+  /** Set for actor targets. */
+  entityId?: bigint;
+}
 
 /**
  * Structured error payload emitted through {@link GwenErrorBusBase}.
@@ -86,6 +106,8 @@ export interface GwenErrorPayload {
   error?: unknown;
   /** Arbitrary key-value data for debugging (frame number, entity id, …). */
   context?: Record<string, unknown>;
+  /** Owner of the failure, when the engine could identify it. */
+  target?: GwenErrorTarget;
 }
 
 /**
@@ -122,13 +144,16 @@ export interface GwenErrorBusBase {
    * Register a handler invoked for every emitted event, including fatal ones.
    * Required. A custom bus passed as `errorBus` must implement it.
    * `onFatal` callbacks run after these handlers.
+   * @returns Unsubscribe. Removing the handler stops later events from reaching it.
    */
-  on(handler: (payload: GwenErrorPayload) => void): void;
+  on(handler: (payload: GwenErrorPayload) => void): () => void;
 
   /**
    * Register a callback to invoke when a fatal error is emitted.
-   * Use this to trigger engine shutdown or display a crash screen.
+   * Use this to show a crash screen or call `engine.stop()` yourself.
+   * The default engine does not register a callback that tears the engine down.
    * Runs after `on` handlers, synchronously inside `emit`.
+   * @returns Unsubscribe.
    */
-  onFatal(cb: () => void): void;
+  onFatal(cb: () => void): () => void;
 }

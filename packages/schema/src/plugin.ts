@@ -162,24 +162,35 @@ export interface GwenEngineBase {
 }
 
 /**
- * Context passed to {@link GwenPlugin.onError} when a frame-level error is caught.
+ * Context passed to {@link GwenPlugin.onError} when this plugin throws.
  *
- * Call `context.recover()` to mark the error as handled. If no plugin calls
- * `recover()`, the engine escalates to a fatal error via the error bus.
+ * Call `context.recover()` to skip isolation and the bus event.
+ * `recover()` is never consulted for a fatal error.
  */
 export interface PluginErrorContext {
   /**
    * The lifecycle phase in which the error occurred.
+   * `"hook"` is any hook other than the four frame phases.
    */
-  phase: "setup" | "teardown" | "onBeforeUpdate" | "onUpdate" | "onAfterUpdate" | "onRender";
+  phase:
+    | "setup"
+    | "teardown"
+    | "onBeforeUpdate"
+    | "onUpdate"
+    | "onAfterUpdate"
+    | "onRender"
+    | "hook";
+
+  /** Hook name when the throw came from a hook handler. */
+  hook?: string;
 
   /** Engine frame index at the time of the error. */
   frame: number;
 
   /**
    * Mark this error as handled.
-   * After `recover()` is called, the error is not forwarded to the error bus
-   * and the frame loop continues normally.
+   * After `recover()` is called, the target is not isolated and the error
+   * is not forwarded to the error bus. Ignored when the error is fatal.
    */
   recover(): void;
 }
@@ -250,11 +261,10 @@ export interface GwenPlugin {
   teardown?(): void | Promise<void>;
 
   /**
-   * Called when an error is thrown inside this plugin's frame-level hooks.
+   * Called when an error is thrown inside this plugin's setup, teardown, or hooks.
    *
-   * Call `context.recover()` to suppress the error from being forwarded to
-   * the engine error bus. If no plugin in the chain calls `recover()`, the
-   * engine will emit a fatal event and call `engine.stop()`.
+   * Call `context.recover()` to skip isolation and the bus event.
+   * A fatal error ignores `recover()`. The engine does not call `stop()`.
    *
    * @example
    * ```ts
