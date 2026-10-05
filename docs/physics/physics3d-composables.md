@@ -353,7 +353,7 @@ import { Layers } from './layers'
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   // Read entity position each frame (physics3d writes to this component)
-  const pos = useComponent<{ x: number; y: number; z: number }>(Position)
+  const pos = useComponent(Position)
 
   // input comes from your input plugin (registered via engine.provide)
   const input = useService('input')

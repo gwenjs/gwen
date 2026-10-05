@@ -21,6 +21,11 @@ import type { ContactEvent3D } from "../types";
 /** Number of f32 slots per contact event record. */
 export const CONTACT_EVENT_FLOATS = 10;
 
+/** In-range typed-array reads are numbers. The zero fallback is for the index signature. */
+function readSlot(view: ArrayLike<number>, index: number): number {
+  return view[index] ?? 0;
+}
+
 /** Maximum number of contact events that fit in the ring buffer at once. */
 export const RING_CAPACITY_3D = 512;
 
@@ -79,17 +84,27 @@ export class ContactRingBuffer3D {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY_3D;
       const base = slot * CONTACT_EVENT_FLOATS;
+      const entityA = readSlot(this._u32, base);
+      const entityB = readSlot(this._u32, base + 1);
+      const contactX = readSlot(this._f32, base + 2);
+      const contactY = readSlot(this._f32, base + 3);
+      const contactZ = readSlot(this._f32, base + 4);
+      const normalX = readSlot(this._f32, base + 5);
+      const normalY = readSlot(this._f32, base + 6);
+      const normalZ = readSlot(this._f32, base + 7);
+      const relativeVelocity = readSlot(this._f32, base + 8);
+      const restitution = readSlot(this._f32, base + 9);
       events.push({
-        entityA: BigInt(this._u32[base]),
-        entityB: BigInt(this._u32[base + 1]),
-        contactX: this._f32[base + 2],
-        contactY: this._f32[base + 3],
-        contactZ: this._f32[base + 4],
-        normalX: this._f32[base + 5],
-        normalY: this._f32[base + 6],
-        normalZ: this._f32[base + 7],
-        relativeVelocity: this._f32[base + 8],
-        restitution: this._f32[base + 9],
+        entityA: BigInt(entityA),
+        entityB: BigInt(entityB),
+        contactX,
+        contactY,
+        contactZ,
+        normalX,
+        normalY,
+        normalZ,
+        relativeVelocity,
+        restitution,
       });
       this._readHead++;
     }

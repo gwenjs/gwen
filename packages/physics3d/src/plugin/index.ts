@@ -1,5 +1,4 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { createEntityId, unpackEntityId } from "@gwenjs/core";
 import { getWasmBridge } from "@gwenjs/core/internal";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 
@@ -22,7 +21,13 @@ import {
 } from "../composables/on-sensor";
 
 import type { Physics3DBridgeRuntime } from "./bridge";
-import { toEntityIndex } from "./physics3d-utils";
+import {
+  clearOwnerChanges,
+  entitySlot,
+  guardOwned,
+  normalizeEntityId,
+  ownerEntityId,
+} from "./entity-owner";
 import { createPluginContext } from "./plugin-context";
 
 // ─── Sub-module imports ────────────────────────────────────────────────────────
@@ -131,6 +136,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       if (deltaSeconds > 0 && ctx.backendMode === "local") {
         advanceLocalState(ctx, deltaSeconds);
       }
+      clearOwnerChanges(ctx);
     },
 
     createBody: _createBody,
@@ -179,10 +185,11 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     getCollisionEventMetrics: () => ({ eventCount: ctx.lastFrameEventCount }),
 
     getBodySnapshot: (entityId) => {
-      if (!ctx.bodyByEntity.has(toEntityIndex(entityId))) return undefined;
+      const owned = guardOwned(ctx, entityId, "getBodySnapshot");
+      if (!owned) return undefined;
       const state = _getBodyState(entityId);
       return {
-        entityId,
+        entityId: owned.eid,
         position: state?.position ?? null,
         rotation: state?.rotation ?? null,
         linearVelocity: state?.linearVelocity ?? null,
@@ -218,6 +225,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     setup(engine: GwenEngine): void {
       ctx._engine = engine;
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
+      // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
       ctx.bridgeRuntime = bridge;
@@ -278,38 +286,22 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           | undefined;
         if (!ext?.body) return;
 
-        const eid = entityId as Physics3DEntityId;
-        _createBody(eid, ext.body);
+        _createBody(entityId, ext.body);
 
         if (ext.onCollision) {
-          const slot =
-            typeof eid === "bigint"
-              ? unpackEntityId(eid as EntityId).index
-              : typeof eid === "number"
-                ? eid
-                : parseInt(String(eid), 10);
-          ctx.entityCollisionCallbacks.set(slot, ext.onCollision);
+          ctx.entityCollisionCallbacks.set(entitySlot(entityId), ext.onCollision);
         }
       });
 
       ctx.offEntityDestroyed = engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
-        if (
-          typeof entityId === "bigint" ||
-          typeof entityId === "number" ||
-          typeof entityId === "string"
-        ) {
-          const eid = entityId as Physics3DEntityId;
-          const slot =
-            typeof eid === "bigint"
-              ? Number((eid as bigint) & 0xffffffffn)
-              : typeof eid === "number"
-                ? eid
-                : parseInt(String(eid), 10);
-          ctx.entityCollisionCallbacks.delete(slot);
-          _removeBody(eid);
-          // Clean up all sensor states for this entity in O(1)
-          ctx.localSensorStates.delete(slot);
-        }
+        const slot = entitySlot(entityId);
+        const handle = ctx.bodyByEntity.get(slot);
+        const owner = handle ? normalizeEntityId(handle.entityId) : undefined;
+        // Another live id already owns the slot. Leave its callbacks and body alone.
+        if (owner !== undefined && owner !== entityId) return;
+        ctx.entityCollisionCallbacks.delete(slot);
+        ctx.localSensorStates.delete(slot);
+        if (owner === entityId) _removeBody(entityId);
       });
 
       ctx.offEngineBeforeUpdate = engine.hooks.hook("engine:before-update", (deltaTime: number) => {
@@ -319,6 +311,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (ctx.backendMode === "local") {
           advanceLocalState(ctx, deltaTime);
         }
+        clearOwnerChanges(ctx);
       });
 
       ctx.offEngineUpdate = engine.hooks.hook("engine:update", (_dt: number) => {
@@ -355,29 +348,19 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         const rawEvents =
           ctx.backendMode === "wasm" ? readWasmCollisionEvents(ctx) : detectLocalCollisions(ctx);
 
-        // Build resolved contacts — in local mode entity ids are slot bigints
-        const contacts: Physics3DCollisionContact[] = rawEvents.map((ev) => {
-          let entityA: EntityId;
-          let entityB: EntityId;
-          if (ctx.backendMode === "wasm") {
-            const genA = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotA);
-            const genB = ctx.bridgeRuntime?.getEntityGeneration?.(ev.slotB);
-            entityA =
-              genA !== undefined ? createEntityId(ev.slotA, genA) : (BigInt(ev.slotA) as EntityId);
-            entityB =
-              genB !== undefined ? createEntityId(ev.slotB, genB) : (BigInt(ev.slotB) as EntityId);
-          } else {
-            entityA = BigInt(ev.slotA) as EntityId;
-            entityB = BigInt(ev.slotB) as EntityId;
-          }
-          return {
+        const contacts: Physics3DCollisionContact[] = [];
+        for (const ev of rawEvents) {
+          const entityA = ownerEntityId(ctx, ev.slotA);
+          const entityB = ownerEntityId(ctx, ev.slotB);
+          if (entityA === undefined || entityB === undefined) continue;
+          contacts.push({
             entityA,
             entityB,
             ...(ev.aColliderId !== undefined ? { aColliderId: ev.aColliderId } : {}),
             ...(ev.bColliderId !== undefined ? { bColliderId: ev.bColliderId } : {}),
             started: ev.started,
-          };
-        });
+          });
+        }
 
         ctx.currentFrameContacts = contacts;
 
@@ -402,14 +385,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           ]) {
             if (colliderId === undefined) continue;
 
-            let eid: EntityId;
-            if (ctx.backendMode === "wasm") {
-              const generation = ctx.bridgeRuntime?.getEntityGeneration?.(slot);
-              if (generation === undefined) continue;
-              eid = createEntityId(slot, generation);
-            } else {
-              eid = BigInt(slot) as EntityId;
-            }
+            const eid = ownerEntityId(ctx, slot);
+            if (eid === undefined) continue;
 
             const entitySlot = slot;
             let sensorMap = ctx.localSensorStates.get(entitySlot);
@@ -428,9 +405,9 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
             if (prev.isActive !== newActive) {
               void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
               if (newActive) {
-                _dispatchSensorEnter(colliderId, eid as unknown as bigint);
+                _dispatchSensorEnter(colliderId, eid);
               } else {
-                _dispatchSensorExit(colliderId, eid as unknown as bigint);
+                _dispatchSensorExit(colliderId, eid);
               }
             }
           }
@@ -438,8 +415,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
         // Dispatch per-entity collision callbacks
         for (const contact of contacts) {
-          const slotA = unpackEntityId(contact.entityA).index;
-          const slotB = unpackEntityId(contact.entityB).index;
+          const slotA = entitySlot(contact.entityA);
+          const slotB = entitySlot(contact.entityB);
           ctx.entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
           ctx.entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
         }
@@ -484,6 +461,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.lastFrameEventCount = 0;
       ctx.pooledEvents.length = 0;
       ctx.previousLocalContactKeys.clear();
+      ctx.ownerChangedSinceStep.clear();
     },
   };
 });

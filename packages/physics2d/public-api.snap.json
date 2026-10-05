@@ -1,7 +1,10 @@
 {
   ".": {
     "values": [
+      "Physics2DErrorCodes",
       "Physics2DPlugin",
+      "Physics2DStaleBodyHandleError",
+      "Physics2DStaleEntityError",
       "SENSOR_ID_FOOT",
       "buildTilemapPhysicsChunks",
       "createPhysicsKinematicSyncSystem",
@@ -41,6 +44,7 @@
       "KinematicBodyOptions",
       "Physics2DAPI",
       "Physics2DConfig",
+      "Physics2DErrorCode",
       "Physics2DLayerDefinition",
       "Physics2DPluginHooks",
       "Physics2DPrefabExtension",

@@ -9,7 +9,7 @@ import type {
   CharacterControllerOpts,
   CharacterControllerHandle,
 } from "../types";
-import { toEntityIndex } from "./physics3d-utils";
+import { guardOwned, ownedSlot } from "./entity-owner";
 import { entityIndexToId } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
 
@@ -55,7 +55,9 @@ export function createCharacterControllerMethods(
         applyImpulsesToDynamic = true,
       } = opts;
 
-      const entityIndex = toEntityIndex(entityId);
+      const owned = guardOwned(ctx, entityId, "addCharacterController");
+      if (!owned) return createInertCharacterControllerHandle();
+      const entityIndex = owned.slot;
 
       if (ctx.backendMode === "wasm") {
         const slotIndex =
@@ -132,10 +134,11 @@ export function createCharacterControllerMethods(
               const groundBits = view[base + 4]!;
               ctx._castF32[0] = groundBits;
               const groundIdx = ctx._castU32[0]!;
-              _groundEntity =
+              const groundId =
                 _grounded && groundIdx !== 0xffffffff && groundIdx !== 0xfffffffe
                   ? entityIndexToId(ctx, groundIdx)
-                  : null;
+                  : undefined;
+              _groundEntity = groundId ?? null;
             } else {
               _grounded = false;
               _groundNormal = null;
@@ -188,7 +191,9 @@ export function createCharacterControllerMethods(
     },
 
     removeCharacterController(entityId: EntityId): void {
-      const entityIndex = toEntityIndex(entityId);
+      const owned = ownedSlot(ctx, entityId);
+      if (!owned) return;
+      const entityIndex = owned.slot;
       ctx.ccRegistrations.delete(entityIndex);
       if (ctx.backendMode === "wasm") {
         ctx.wasmBridge?.physics3d_remove_character_controller?.(entityIndex);

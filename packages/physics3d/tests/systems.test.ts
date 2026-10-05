@@ -16,15 +16,17 @@ const mockBridge = {
   })),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, gen: number) => BigInt(index) | (BigInt(gen) << 32n),
+  entityIndex: (id: bigint) => Number(id & 0xffffffffn),
   defineSystem: vi.fn((_name: string, factory: () => unknown) => factory()),
   definePlugin: vi.fn((factory: () => unknown) => {
     // Simulate V2 definePlugin: returns a factory function that creates plugin instances
@@ -43,6 +45,7 @@ vi.mock("@gwenjs/core", () => ({
   }),
 }));
 
+import type { ComponentDef } from "@gwenjs/core/system";
 import { createPhysicsKinematicSyncSystem, SENSOR_ID_FOOT, SENSOR_ID_HEAD } from "../src/systems";
 
 // ─── V2 mock engine factory ────────────────────────────────────────────────────
@@ -90,6 +93,8 @@ describe("SENSOR_ID constants", () => {
 });
 
 describe("createPhysicsKinematicSyncSystem", () => {
+  const position = { name: "position" } as ComponentDef;
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -104,10 +109,10 @@ describe("createPhysicsKinematicSyncSystem", () => {
 
   interface LiveQueryEntity {
     readonly id: bigint;
-    get(name: string): unknown;
+    get(name: unknown): unknown;
   }
 
-  function liveEntity(id: bigint, get: (name: string) => unknown): LiveQueryEntity {
+  function liveEntity(id: bigint, get: (name: unknown) => unknown): LiveQueryEntity {
     return { id, get };
   }
 
@@ -123,13 +128,13 @@ describe("createPhysicsKinematicSyncSystem", () => {
   }
 
   it("factory returns a plugin with the correct name", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     expect(instance.name).toBe("Physics3DKinematicSyncSystem");
   });
 
   it("resolves physics3d service on setup", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = createMockEngine({ physics3d: physics });
@@ -140,7 +145,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("syncs kinematic entity positions on engine:before-update", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const entityId = 1n;
@@ -158,7 +163,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips entities without a body", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     physics.hasBody.mockReturnValue(false);
@@ -172,7 +177,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips non-kinematic bodies", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     physics.getBodyKind.mockReturnValue("dynamic");
@@ -186,7 +191,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips entities missing the position component", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => null)], physics);
@@ -199,17 +204,19 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("syncs rotation when rotationComponent is configured", () => {
+    const transform3d = { name: "transform3d" } as ComponentDef;
+    const rotation3d = { name: "rotation3d" } as ComponentDef;
     const factory = createPhysicsKinematicSyncSystem({
-      positionComponent: "transform3d",
-      rotationComponent: "rotation3d",
+      positionComponent: transform3d,
+      rotationComponent: rotation3d,
     });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine(
       [
         liveEntity(1n, (name) => {
-          if (name === "transform3d") return { x: 0, y: 1, z: 0 };
-          if (name === "rotation3d") return { x: 0, y: 0.707, z: 0, w: 0.707 };
+          if (name === transform3d) return { x: 0, y: 1, z: 0 };
+          if (name === rotation3d) return { x: 0, y: 0.707, z: 0, w: 0.707 };
           return null;
         }),
       ],
@@ -225,23 +232,15 @@ describe("createPhysicsKinematicSyncSystem", () => {
       { x: 0, y: 1, z: 0 },
       { x: 0, y: 0.707, z: 0, w: 0.707 },
     );
+    expect(engine.createLiveQuery).toHaveBeenCalledWith([transform3d, rotation3d]);
   });
 
-  it('uses default positionComponent "transform3d"', () => {
-    const factory = createPhysicsKinematicSyncSystem();
-    const instance = factory() as any;
-    const physics = makePhysicsMock();
-    const engine = makeEngine([liveEntity(1n, () => ({ x: 5, y: 6, z: 7 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
-    instance.setup(engine);
-    engine.hooks.callHook("engine:before-update", 0);
-
-    expect(engine.createLiveQuery).toHaveBeenCalledWith(["transform3d"]);
+  it("does not query a component by the string name transform3d", () => {
+    expect(() => createPhysicsKinematicSyncSystem()).toThrow(TypeError);
   });
 
   it("clears physics reference on teardown", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => ({ x: 0, y: 0, z: 0 }))], physics);
@@ -256,7 +255,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("does not sync on engine:before-update before setup", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = createMockEngine({ physics3d: physics });

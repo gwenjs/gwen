@@ -9,7 +9,6 @@ import type {
 } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */
 const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
@@ -39,21 +38,25 @@ const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
  */
 export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   const creationOptions: Physics3DBodyOptions = {
     kind: "dynamic",
-    mass: options.mass,
-    gravityScale: options.gravityScale,
-    linearDamping: options.linearDamping,
-    angularDamping: options.angularDamping,
-    ccdEnabled: options.ccdEnabled,
-    initialPosition: options.initialPosition,
-    initialRotation: options.initialRotation,
-    initialLinearVelocity: options.initialLinearVelocity,
-    initialAngularVelocity: options.initialAngularVelocity,
-    fixedRotation: options.fixedRotation,
-    quality: options.quality,
+    ...(options.mass !== undefined ? { mass: options.mass } : {}),
+    ...(options.gravityScale !== undefined ? { gravityScale: options.gravityScale } : {}),
+    ...(options.linearDamping !== undefined ? { linearDamping: options.linearDamping } : {}),
+    ...(options.angularDamping !== undefined ? { angularDamping: options.angularDamping } : {}),
+    ...(options.ccdEnabled !== undefined ? { ccdEnabled: options.ccdEnabled } : {}),
+    ...(options.initialPosition !== undefined ? { initialPosition: options.initialPosition } : {}),
+    ...(options.initialRotation !== undefined ? { initialRotation: options.initialRotation } : {}),
+    ...(options.initialLinearVelocity !== undefined
+      ? { initialLinearVelocity: options.initialLinearVelocity }
+      : {}),
+    ...(options.initialAngularVelocity !== undefined
+      ? { initialAngularVelocity: options.initialAngularVelocity }
+      : {}),
+    ...(options.fixedRotation !== undefined ? { fixedRotation: options.fixedRotation } : {}),
+    ...(options.quality !== undefined ? { quality: options.quality } : {}),
   };
 
   let _handle = physics.createBody(entityId, creationOptions);

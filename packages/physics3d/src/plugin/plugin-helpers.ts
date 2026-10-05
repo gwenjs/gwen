@@ -4,8 +4,8 @@
  * These helpers depend on the PluginContext for WASM bridge and runtime access.
  */
 
-import { createEntityId } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
+import { ownerEntityId } from "./entity-owner";
 import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type { Physics3DColliderShape, JointHandle3D } from "../types";
 import type { PluginContext } from "./plugin-context";
@@ -16,6 +16,13 @@ import type { PluginContext } from "./plugin-context";
 export const emitLocalJointWarning = (log: GwenLogger): void => {
   if (__GWEN_DEV__) {
     log.warn("Joint API requires WASM physics3d variant — not available in local mode");
+  }
+};
+
+/** A live id reached a joint call without a body. This is not a local-mode limit. */
+export const emitMissingBodyWarning = (log: GwenLogger): void => {
+  if (import.meta.env.DEV) {
+    log.warn("Joint API: no body for bodyA/bodyB");
   }
 };
 
@@ -30,17 +37,12 @@ export const makeDummyJoint = (): JointHandle3D => 0xffffffff;
 export const makeJointHandle = (id: number): JointHandle3D => id;
 
 /**
- * Convert a raw entity slot index back to a typed `EntityId`.
- *
- * Uses `bridgeRuntime.getEntityGeneration` when available so the returned id
- * carries the correct generation bits.
+ * Resolve a slot to the engine id that owns its body.
+ * Returns undefined when the slot has no owner or the owner changed since the last step.
+ * Never reads the WASM entity allocator.
  */
-export const entityIndexToId = (ctx: PluginContext, index: number): EntityId => {
-  if (ctx.bridgeRuntime?.getEntityGeneration) {
-    const gen = ctx.bridgeRuntime.getEntityGeneration(index);
-    if (gen !== undefined) return createEntityId(index, gen);
-  }
-  return BigInt(index) as EntityId;
+export const entityIndexToId = (ctx: PluginContext, index: number): EntityId | undefined => {
+  return ownerEntityId(ctx, index);
 };
 
 /**

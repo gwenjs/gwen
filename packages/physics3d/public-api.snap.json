@@ -3,6 +3,7 @@
     "values": [
       "Physics3DErrorCodes",
       "Physics3DPlugin",
+      "Physics3DStaleEntityError",
       "SENSOR_ID_FOOT",
       "SENSOR_ID_HEAD",
       "applyDirectionalImpulse",

@@ -1,10 +1,13 @@
 /**
  * @file useBoxCollider() — attaches a box-shaped collider to the current entity.
  */
-import type { BoxColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import type {
+  BoxColliderHandle3D,
+  Physics3DColliderOptions,
+  Physics3DMaterialPreset,
+} from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -58,23 +61,24 @@ export interface BoxColliderOptions3D {
  */
 export function useBoxCollider(options: BoxColliderOptions3D): BoxColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const colliderId = nextColliderId();
 
-  physics.addCollider(entityId, {
+  const collider: Physics3DColliderOptions = {
     shape: {
       type: "box",
       halfX: options.w / 2,
       halfY: options.h / 2,
       halfZ: (options.d ?? options.w) / 2,
     },
-    offsetX: options.offsetX,
-    offsetY: options.offsetY,
-    offsetZ: options.offsetZ,
-    isSensor: options.isSensor,
-    materialPreset: options.material,
     colliderId,
-  });
+    ...(options.offsetX !== undefined ? { offsetX: options.offsetX } : {}),
+    ...(options.offsetY !== undefined ? { offsetY: options.offsetY } : {}),
+    ...(options.offsetZ !== undefined ? { offsetZ: options.offsetZ } : {}),
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+  };
+  physics.addCollider(entityId, collider);
 
   return {
     get colliderId() {

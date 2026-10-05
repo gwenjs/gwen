@@ -61,6 +61,7 @@ function makeMockEngine(_wasm: any) {
     provide: vi.fn((key: string, value: unknown) => {
       provided[key] = value;
     }),
+    isAlive: () => true,
     hooks: {
       hook: vi.fn((name: string, handler: (...args: any[]) => void) => {
         hookHandlers[name] = hookHandlers[name] ?? [];
@@ -112,6 +113,10 @@ import { createEntityId } from "@gwenjs/core";
 import { getWasmBridge } from "@gwenjs/core/internal";
 import { Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
+
+function slotId(slot: number) {
+  return createEntityId(slot, 0);
+}
 import {
   BODY_TYPE,
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
@@ -130,6 +135,27 @@ async function initPlugin(
 ) {
   (getWasmBridge as Mock).mockReturnValue(mockBridge);
   await plugin.setup!(mockEngine as any);
+}
+
+/** Registers `handle` in the owner map so collider calls are not stale. */
+function ownColliderHandle(
+  engine: ReturnType<typeof makeMockEngine>,
+  wasm: ReturnType<typeof makeMockWasmPlugin>,
+  handle: number,
+): void {
+  wasm.physics_add_rigid_body.mockReturnValueOnce(handle);
+  const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
+  physics.addRigidBody(slotId(1), "dynamic", 0, 0);
+}
+
+/** Owners stay hidden until the step hook clears ownerChangedSinceStep. */
+async function publishOwners(
+  engine: ReturnType<typeof makeMockEngine>,
+  slots: number[],
+): Promise<void> {
+  const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
+  for (const slot of slots) physics.addRigidBody(slotId(slot), "dynamic", 0, 0);
+  await engine.hooks._trigger("engine:before-update", 0.016);
 }
 
 // ─── Test suite ───────────────────────────────────────────────────────────────
@@ -225,7 +251,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addRigidBody: (...a: unknown[]) => unknown;
     };
-    physics.addRigidBody(5, "dynamic", 1.0, 2.0);
+    physics.addRigidBody(slotId(5), "dynamic", 1.0, 2.0);
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledWith(
       5,
       1.0,
@@ -248,7 +274,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addRigidBody: (...a: unknown[]) => unknown;
     };
-    physics.addRigidBody(3, "fixed", 0, 0);
+    physics.addRigidBody(slotId(3), "fixed", 0, 0);
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledWith(
       3,
       0,
@@ -271,7 +297,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addRigidBody: (...a: unknown[]) => unknown;
     };
-    physics.addRigidBody(7, "kinematic", 5, 5);
+    physics.addRigidBody(slotId(7), "kinematic", 5, 5);
     expect(mockWasmPlugin.physics_add_rigid_body).toHaveBeenCalledWith(
       7,
       5,
@@ -296,6 +322,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addBoxCollider: (...a: unknown[]) => unknown;
     };
+    ownColliderHandle(mockEngine, mockWasmPlugin, 0);
     physics.addBoxCollider(0, 1.0, 2.0);
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
@@ -320,6 +347,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addBallCollider: (...a: unknown[]) => unknown;
     };
+    ownColliderHandle(mockEngine, mockWasmPlugin, 0);
     physics.addBallCollider(0, 0.5, { restitution: 0.8, friction: 0.1 });
     expect(mockWasmPlugin.physics_add_ball_collider).toHaveBeenCalledWith(
       0,
@@ -342,6 +370,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addBoxCollider: (...a: unknown[]) => unknown;
     };
+    ownColliderHandle(mockEngine, mockWasmPlugin, 15);
 
     physics.addBoxCollider(15, 0.28, 0.28, {
       isSensor: true,
@@ -372,6 +401,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addBoxCollider: (...a: unknown[]) => unknown;
     };
+    ownColliderHandle(mockEngine, mockWasmPlugin, 15);
 
     physics.addBoxCollider(15, 0.28, 0.28, {
       isSensor: true,
@@ -403,7 +433,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addRigidBody: (...a: unknown[]) => unknown;
     };
-    physics.addRigidBody(1, "dynamic", 0, 0);
+    physics.addRigidBody(slotId(1), "dynamic", 0, 0);
 
     const hasPhysicsDebugLog = logSpy.mock.calls.some((call) =>
       String(call[0]).includes("@gwenjs/physics2d"),
@@ -420,7 +450,7 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       addRigidBody: (...a: unknown[]) => unknown;
     };
-    physics.addRigidBody(1, "dynamic", 0, 0);
+    physics.addRigidBody(slotId(1), "dynamic", 0, 0);
 
     const hasPhysicsDebugLog = logSpy.mock.calls.some((call) =>
       String(call[0]).includes("@gwenjs/physics2d"),
@@ -434,20 +464,18 @@ describe("Physics2DPlugin", () => {
   it("removeBody delegates to wasm", async () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
-    const physics = mockEngine._provided["physics2d"] as {
-      removeBody: (...a: unknown[]) => unknown;
-    };
-    physics.removeBody(42);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addRigidBody(slotId(42), "dynamic", 0, 0);
+    physics.removeBody(slotId(42));
     expect(mockWasmPlugin.physics_remove_rigid_body).toHaveBeenCalledWith(42);
   });
 
   it("applyImpulse delegates with correct args", async () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
-    const physics = mockEngine._provided["physics2d"] as {
-      applyImpulse: (...a: unknown[]) => unknown;
-    };
-    physics.applyImpulse(10, 5.0, -3.0);
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addRigidBody(slotId(10), "dynamic", 0, 0);
+    physics.applyImpulse(slotId(10), 5.0, -3.0);
     expect(mockWasmPlugin.physics_apply_impulse).toHaveBeenCalledWith(10, 5.0, -3.0);
   });
 
@@ -546,13 +574,9 @@ describe("Physics2DPlugin", () => {
     view.setUint32(8, 0, true); // started
     view.setUint32(12, 0, true);
 
-    // Override bridge generation resolver for specific slots
-    mockBridge.getEntityGeneration = vi.fn((slot: number) =>
-      slot === 5 || slot === 7 ? 0 : undefined,
-    );
-
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
+    await publishOwners(mockEngine, [5, 7]);
     const physics = mockEngine._provided["physics2d"] as {
       getCollisionContacts: (...a: unknown[]) => unknown;
     };
@@ -566,7 +590,7 @@ describe("Physics2DPlugin", () => {
     ]);
   });
 
-  it("getCollisionContacts skips events when generation cannot be resolved", async () => {
+  it("getCollisionContacts skips events when a slot has no owner", async () => {
     const memory = mockBridge.getLinearMemory();
     const view = new DataView(memory.buffer);
     mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
@@ -576,9 +600,6 @@ describe("Physics2DPlugin", () => {
     view.setUint32(4, 2, true);
     view.setUint32(8, 0, true);
     view.setUint32(12, 0, true);
-
-    // Override to always return undefined (dead entities)
-    mockBridge.getEntityGeneration = vi.fn((_slot: number) => undefined);
 
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
@@ -598,17 +619,16 @@ describe("Physics2DPlugin", () => {
     const physics = mockEngine._provided["physics2d"] as {
       getPosition: (...a: unknown[]) => unknown;
     };
-    expect(physics.getPosition(999)).toBeNull();
+    expect(physics.getPosition(slotId(999))).toBeNull();
   });
 
   it("getPosition returns { x, y, rotation } when found", async () => {
     mockWasmPlugin.physics_get_position.mockReturnValue([3.0, 7.5, 1.57]);
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
-    const physics = mockEngine._provided["physics2d"] as {
-      getPosition: (...a: unknown[]) => unknown;
-    };
-    expect(physics.getPosition(0)).toEqual({ x: 3.0, y: 7.5, rotation: 1.57 });
+    const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addRigidBody(slotId(0), "dynamic", 0, 0);
+    expect(physics.getPosition(slotId(0))).toEqual({ x: 3.0, y: 7.5, rotation: 1.57 });
   });
 });
 
@@ -1244,6 +1264,7 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     mockWasmPlugin.physics_consume_event_metrics.mockReturnValue([33, 1, 2, 1]);
 
     await initPlugin(plugin, mockBridge, engine);
+    await publishOwners(engine, [7, 8]);
     await engine.hooks._trigger("engine:update", 0.016);
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
@@ -1269,12 +1290,13 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     seedSingleCollisionEventV2(7, 8, 0xf007, 0xbeef);
 
     await initPlugin(plugin, mockBridge, engine);
+    await publishOwners(engine, [7, 8]);
     await engine.hooks._trigger("engine:update", 0.016);
 
     const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
 
-    expect(physics.getSensorState(7, 0xf007).isActive).toBe(true);
-    expect(physics.getSensorState(8, 0xbeef).isActive).toBe(true);
+    expect(physics.getSensorState(slotId(7), 0xf007).isActive).toBe(true);
+    expect(physics.getSensorState(slotId(8), 0xbeef).isActive).toBe(true);
     // pull mode without callbacks should not emit collision hooks, only internal sensor updates
     expect(engine.hooks.callHook).not.toHaveBeenCalledWith(
       "physics:collision:batch",
@@ -1300,11 +1322,12 @@ describe("Physics2DPlugin — onUpdate policy", () => {
       },
     });
 
+    await engine.hooks._trigger("engine:before-update", 0.016);
     await engine.hooks._trigger("engine:update", 0.016);
 
     const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
 
-    expect(physics.getSensorState(7, 0xf007).isActive).toBe(true);
+    expect(physics.getSensorState(slotId(7), 0xf007).isActive).toBe(true);
   });
 
   it("dispatch aussi quand un callback prefab onCollision est enregistre", async () => {
@@ -1321,7 +1344,9 @@ describe("Physics2DPlugin — onUpdate policy", () => {
         onCollision,
       },
     });
-
+    const physics = engine._provided["physics2d"] as import("../src").Physics2DAPI;
+    physics.addRigidBody(slotId(8), "dynamic", 0, 0);
+    await engine.hooks._trigger("engine:before-update", 0.016);
     await engine.hooks._trigger("engine:update", 0.016);
 
     expect(engine.hooks.callHook).toHaveBeenCalledWith(
@@ -1356,6 +1381,7 @@ describe("LayerRegistry — layer resolution", () => {
     const freshPhysics = freshEngine._provided["physics2d"] as {
       addBoxCollider: (...a: unknown[]) => void;
     };
+    ownColliderHandle(freshEngine, mockWasmPlugin, 0);
     freshPhysics.addBoxCollider(0, 1.0, 1.0);
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
@@ -1383,6 +1409,7 @@ describe("LayerRegistry — layer resolution", () => {
     const physics = engine._provided["physics2d"] as {
       addBallCollider: (...a: unknown[]) => void;
     };
+    ownColliderHandle(engine, mockWasmPlugin, 0);
     physics.addBallCollider(0, 0.5, {
       membershipLayers: ["player"], // bit 1 → 0b10 = 2
       filterLayers: ["enemy", "ground"], // bit 2 + bit 3 → 0b1100 = 12
@@ -1409,6 +1436,7 @@ describe("LayerRegistry — layer resolution", () => {
     const physics = engine._provided["physics2d"] as {
       addBoxCollider: (...a: unknown[]) => void;
     };
+    ownColliderHandle(engine, mockWasmPlugin, 0);
     physics.addBoxCollider(0, 1.0, 1.0, {
       membershipLayers: 0b0101,
       filterLayers: 0b1010,
@@ -1439,6 +1467,7 @@ describe("LayerRegistry — layer resolution", () => {
     const physics = engine._provided["physics2d"] as {
       addBallCollider: (...a: unknown[]) => void;
     };
+    ownColliderHandle(engine, mockWasmPlugin, 0);
     expect(() => physics.addBallCollider(0, 0.5, { membershipLayers: ["unknown_layer"] })).toThrow(
       /Unknown layer "unknown_layer"/,
     );
@@ -1630,7 +1659,8 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
-    physics.setLinearDamping(10, 0.3);
+    physics.addRigidBody(slotId(10), "dynamic", 0, 0);
+    physics.setLinearDamping(slotId(10), 0.3);
     expect((mockWasmPlugin as any).physics_set_linear_damping).toHaveBeenCalledWith(10, 0.3);
   });
 
@@ -1638,7 +1668,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
-    expect(() => physics.setLinearDamping(10, 0.3)).not.toThrow();
+    expect(() => physics.setLinearDamping(slotId(10), 0.3)).not.toThrow();
   });
 
   // ── Physics2DAPI — queryRadius ────────────────────────────────────────────
@@ -1648,6 +1678,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    await publishOwners(mockEngine, [42, 7]);
     const result = physics.queryRadius(1.0, 2.0, 5.0);
     expect((mockWasmPlugin as any).physics_query_radius).toHaveBeenCalledWith(
       1.0,
@@ -1681,14 +1712,12 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     );
   });
 
-  it("queryRadius skips slots whose generation is undefined", async () => {
+  it("queryRadius drops slots that have no owner", async () => {
     (mockWasmPlugin as any).physics_query_radius = vi.fn().mockReturnValue([42, 99]);
-    mockBridge.getEntityGeneration.mockImplementation((slot: number) =>
-      slot === 99 ? undefined : 0,
-    );
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    await publishOwners(mockEngine, [42]);
     const result = physics.queryRadius(0, 0, 1.0);
     expect(result).toHaveLength(1);
     expect(result[0]).toEqual(createEntityId(42, 0));
@@ -1701,6 +1730,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    await publishOwners(mockEngine, [5]);
     const result = physics.queryRect(0, 0, 2.0, 1.0);
     expect((mockWasmPlugin as any).physics_query_rect).toHaveBeenCalledWith(
       0,
@@ -1743,6 +1773,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    await publishOwners(mockEngine, [3, 8]);
     const result = physics.pointQuery(4.0, -1.5);
     expect((mockWasmPlugin as any).physics_point_query).toHaveBeenCalledWith(
       4.0,
@@ -1775,6 +1806,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    ownColliderHandle(mockEngine, mockWasmPlugin, 0);
     physics.addBoxCollider(0, 1.0, 2.0, { oneWay: true });
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,
@@ -1797,6 +1829,7 @@ describe("Physics2DPlugin — shape queries, linear damping & oneWay", () => {
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as import("../src").Physics2DAPI;
+    ownColliderHandle(mockEngine, mockWasmPlugin, 0);
     physics.addBoxCollider(0, 1.0, 2.0, { oneWay: false });
     expect(mockWasmPlugin.physics_add_box_collider).toHaveBeenCalledWith(
       0,

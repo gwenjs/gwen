@@ -14,6 +14,7 @@ export type { PreloadedBvhHandle } from "./plugin/bvh";
 export { preloadMeshCollider } from "./plugin/bvh";
 export { Physics3DErrorCodes } from "./errors/codes";
 export type { Physics3DErrorCode } from "./errors/codes";
+export { Physics3DStaleEntityError } from "./plugin/entity-owner";
 
 export type {
   Physics3DAPI,

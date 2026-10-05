@@ -66,8 +66,10 @@ export function createSpatialQueryMethods(
         );
         if (!result || result.length < 9 || result[0] === 0) return null;
         const entityIndex = result[1] as number;
+        const entity = entityIndexToId(ctx, entityIndex);
+        if (entity === undefined) return null;
         return {
-          entity: entityIndexToId(ctx, entityIndex),
+          entity,
           distance: result[2]!,
           normal: { x: result[3]!, y: result[4]!, z: result[5]! },
           point: { x: result[6]!, y: result[7]!, z: result[8]! },
@@ -111,8 +113,10 @@ export function createSpatialQueryMethods(
         );
         if (!result || result.length < 15 || result[0] === 0) return null;
         const entityIndex = result[1] as number;
+        const entity = entityIndexToId(ctx, entityIndex);
+        if (entity === undefined) return null;
         return {
-          entity: entityIndexToId(ctx, entityIndex),
+          entity,
           distance: result[2]!,
           normal: { x: result[3]!, y: result[4]!, z: result[5]! },
           point: { x: result[6]!, y: result[7]!, z: result[8]! },
@@ -174,7 +178,8 @@ export function createSpatialQueryMethods(
 
         const entities: EntityId[] = [];
         for (let i = 0; i < count; i++) {
-          entities.push(entityIndexToId(ctx, scratchView[i]!));
+          const id = entityIndexToId(ctx, scratchView[i]!);
+          if (id !== undefined) entities.push(id);
         }
         return entities;
       }
@@ -200,8 +205,10 @@ export function createSpatialQueryMethods(
         );
         if (!result || result.length < 6 || result[0] === 0) return null;
         const entityIndex = result[1] as number;
+        const entity = entityIndexToId(ctx, entityIndex);
+        if (entity === undefined) return null;
         return {
-          entity: entityIndexToId(ctx, entityIndex),
+          entity,
           point: { x: result[2]!, y: result[3]!, z: result[4]! },
           isInside: result[5] !== 0,
         };

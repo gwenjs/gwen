@@ -7,6 +7,12 @@
 
 // ─── Plugin exports ─────────────────────────────────────────────────────────
 export { Physics2DPlugin } from "./plugin/index";
+export {
+  Physics2DErrorCodes,
+  Physics2DStaleEntityError,
+  Physics2DStaleBodyHandleError,
+} from "./errors";
+export type { Physics2DErrorCode } from "./errors";
 
 // ─── Module, composables & type augmentations ───────────────────────────────
 export * from "./augment";

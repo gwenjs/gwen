@@ -12,13 +12,9 @@ export function createPathfindingMethods(
   return {
     initNavGrid3D(opts: Pathfinding3DOptions): void {
       if (ctx.backendMode === "wasm") {
-        const pb = ctx.wasmBridge! as unknown as Record<string, unknown>;
-        const allocFn = pb.__wbindgen_malloc as
-          | ((size: number, align: number) => number)
-          | undefined;
-        const freeFn = pb.__wbindgen_free as
-          | ((ptr: number, size: number, align: number) => void)
-          | undefined;
+        const pb = ctx.wasmBridge!;
+        const allocFn = pb.__wbindgen_malloc;
+        const freeFn = pb.__wbindgen_free;
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
         if (typeof allocFn === "function" && wasmMem) {
           const ptr = allocFn.call(ctx.wasmBridge, opts.grid.byteLength, 1);

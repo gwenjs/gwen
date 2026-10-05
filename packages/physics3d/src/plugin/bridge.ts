@@ -464,6 +464,12 @@ export interface Physics3DWasmBridge {
   /** Return the WASM linear-memory pointer to the path waypoint buffer. */
   physics3d_get_path_buffer_ptr_3d?: () => number;
 
+  /** wasm-bindgen allocator on the generated glue. */
+  __wbindgen_malloc?: (size: number, align: number) => number;
+
+  /** wasm-bindgen free on the generated glue. */
+  __wbindgen_free?: (ptr: number, size: number, align: number) => void;
+
   // ─── RFC-07: Spatial queries ──────────────────────────────────────────────────
 
   /**

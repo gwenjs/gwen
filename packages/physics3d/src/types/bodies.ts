@@ -1,8 +1,10 @@
+import type { EntityId } from "@gwenjs/core";
+
 import type { Physics3DVec3, Physics3DQuat, Physics3DQualityPreset } from "./config";
 import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
 
-/** Accepted forms of entity identity at the Physics3D API boundary. */
-export type Physics3DEntityId = string | number | bigint;
+/** Packed engine entity id. A plain number or string is not an entity id. */
+export type Physics3DEntityId = EntityId;
 
 /**
  * How a 3D rigid body participates in the simulation.

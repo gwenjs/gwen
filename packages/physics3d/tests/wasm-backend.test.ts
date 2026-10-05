@@ -163,13 +163,15 @@ const mockBridge = {
   })),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
+  entityIndex: (id: bigint) => Number(id & 0xffffffffn),
 }));
 
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
@@ -202,6 +204,7 @@ describe("Physics3D plugin — WASM backend mode", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
@@ -212,23 +215,23 @@ describe("Physics3D plugin — WASM backend mode", () => {
   it("detects WASM backend and delegates createBody to physics3d_add_body", () => {
     const { service } = setup();
 
-    service.createBody(10, { kind: "dynamic", mass: 5 });
+    service.createBody(10n, { kind: "dynamic", mass: 5 });
 
     expect(physics3dAddBody).toHaveBeenCalledWith(10, 0, 0, 0, 1 /* dynamic */, 5, 0, 0);
-    expect(service.hasBody(10)).toBe(true);
+    expect(service.hasBody(10n)).toBe(true);
     expect(service.getBodyCount()).toBe(1);
   });
 
   it("delegates createBody with initial position", () => {
     const { service } = setup();
-    service.createBody(11, { initialPosition: { x: 1, y: 2, z: 3 } });
+    service.createBody(11n, { initialPosition: { x: 1, y: 2, z: 3 } });
 
     expect(physics3dAddBody).toHaveBeenCalledWith(11, 1, 2, 3, 1, expect.any(Number), 0, 0);
   });
 
   it("calls physics3d_set_body_state for initial rotation/velocity", () => {
     const { service } = setup();
-    service.createBody(12, {
+    service.createBody(12n, {
       initialPosition: { x: 0, y: 0, z: 0 },
       initialRotation: { x: 0, y: 1, z: 0, w: 0 },
       initialLinearVelocity: { x: 5, y: 0, z: 0 },
@@ -239,24 +242,24 @@ describe("Physics3D plugin — WASM backend mode", () => {
 
   it("delegates removeBody to physics3d_remove_body", () => {
     const { service } = setup();
-    service.createBody(20);
-    expect(service.removeBody(20)).toBe(true);
+    service.createBody(20n);
+    expect(service.removeBody(20n)).toBe(true);
     expect(physics3dRemoveBody).toHaveBeenCalledWith(20);
-    expect(service.hasBody(20)).toBe(false);
+    expect(service.hasBody(20n)).toBe(false);
   });
 
   it("removeBody returns false for unknown entity", () => {
     const { service } = setup();
-    expect(service.removeBody(404)).toBe(false);
+    expect(service.removeBody(404n)).toBe(false);
     expect(physics3dRemoveBody).not.toHaveBeenCalled();
   });
 
   it("getBodyState delegates to physics3d_get_body_state", () => {
     const { service } = setup();
     wasmBodyState.set(30, new Float32Array([1, 2, 3, 0, 0, 0, 1, 4, 5, 6, 7, 8, 9]));
-    service.createBody(30);
+    service.createBody(30n);
 
-    const state = service.getBodyState(30);
+    const state = service.getBodyState(30n);
     expect(state?.position).toEqual({ x: 1, y: 2, z: 3 });
     expect(state?.rotation).toEqual({ x: 0, y: 0, z: 0, w: 1 });
     expect(state?.linearVelocity).toEqual({ x: 4, y: 5, z: 6 });
@@ -266,15 +269,15 @@ describe("Physics3D plugin — WASM backend mode", () => {
 
   it("getBodyState returns undefined for unknown entity", () => {
     const { service } = setup();
-    expect(service.getBodyState(404)).toBeUndefined();
+    expect(service.getBodyState(404n)).toBeUndefined();
   });
 
   it("setBodyState delegates to WASM after merging patch", () => {
     const { service } = setup();
     wasmBodyState.set(31, new Float32Array([1, 2, 3, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0]));
-    service.createBody(31);
+    service.createBody(31n);
 
-    service.setBodyState(31, { position: { y: 99 }, linearVelocity: { x: 7 } });
+    service.setBodyState(31n, { position: { y: 99 }, linearVelocity: { x: 7 } });
 
     expect(physics3dSetBodyState).toHaveBeenCalledWith(31, 1, 99, 3, 0, 0, 0, 1, 7, 0, 0, 0, 0, 0);
   });
@@ -282,60 +285,60 @@ describe("Physics3D plugin — WASM backend mode", () => {
   it("getLinearVelocity / setLinearVelocity delegate to WASM", () => {
     const { service } = setup();
     wasmLinVel.set(40, new Float32Array([3, 4, 5]));
-    service.createBody(40);
+    service.createBody(40n);
 
-    expect(service.getLinearVelocity(40)).toEqual({ x: 3, y: 4, z: 5 });
+    expect(service.getLinearVelocity(40n)).toEqual({ x: 3, y: 4, z: 5 });
 
-    service.setLinearVelocity(40, { y: 99 });
+    service.setLinearVelocity(40n, { y: 99 });
     expect(physics3dSetLinearVelocity).toHaveBeenCalledWith(40, 3, 99, 5);
   });
 
   it("getAngularVelocity / setAngularVelocity delegate to WASM", () => {
     const { service } = setup();
     wasmAngVel.set(41, new Float32Array([1, 2, 3]));
-    service.createBody(41);
+    service.createBody(41n);
 
-    expect(service.getAngularVelocity(41)).toEqual({ x: 1, y: 2, z: 3 });
+    expect(service.getAngularVelocity(41n)).toEqual({ x: 1, y: 2, z: 3 });
 
-    service.setAngularVelocity(41, { z: 9 });
+    service.setAngularVelocity(41n, { z: 9 });
     expect(physics3dSetAngularVelocity).toHaveBeenCalledWith(41, 1, 2, 9);
   });
 
   it("applyImpulse delegates to WASM", () => {
     const { service } = setup();
-    service.createBody(50);
+    service.createBody(50n);
 
-    expect(service.applyImpulse(50, { x: 5, y: -1, z: 0 })).toBe(true);
+    expect(service.applyImpulse(50n, { x: 5, y: -1, z: 0 })).toBe(true);
     expect(physics3dApplyImpulse).toHaveBeenCalledWith(50, 5, -1, 0);
   });
 
   it("applyImpulse returns false for missing body", () => {
     const { service } = setup();
-    expect(service.applyImpulse(999, { x: 1 })).toBe(false);
+    expect(service.applyImpulse(999n, { x: 1 })).toBe(false);
     expect(physics3dApplyImpulse).not.toHaveBeenCalled();
   });
 
   it("getBodyKind / setBodyKind delegate to WASM", () => {
     const { service } = setup();
     wasmKind.set(60, 1); // dynamic
-    service.createBody(60);
+    service.createBody(60n);
 
-    expect(service.getBodyKind(60)).toBe("dynamic");
+    expect(service.getBodyKind(60n)).toBe("dynamic");
 
-    service.setBodyKind(60, "fixed");
+    service.setBodyKind(60n, "fixed");
     expect(physics3dSetBodyKind).toHaveBeenCalledWith(60, 0 /* fixed */);
   });
 
   it("does NOT run local advanceLocalState during step in wasm mode", () => {
     const { service } = setup();
     wasmBodyState.set(70, new Float32Array(13)); // all zeros
-    service.createBody(70, { initialLinearVelocity: { x: 10 } });
+    service.createBody(70n, { initialLinearVelocity: { x: 10 } });
 
     service.step(1);
 
     expect(physics3dStep).toHaveBeenCalledWith(1);
     // In wasm mode, position is whatever WASM reports (all-zeros mock); local sim is NOT run.
-    const state = service.getBodyState(70);
+    const state = service.getBodyState(70n);
     // WASM mock returns zeros — local integration would have set position.x=10
     expect(state?.position.x).toBe(0);
     expect(physics3dGetBodyState).toHaveBeenCalled();
@@ -356,7 +359,8 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
     physics3dAddConvexCollider.mockReset().mockReturnValue(true);
   });
 
-  function setupWithBody(entityId: number = 1) {
+  function setupWithBody(slot: number = 1) {
+    const entityId = BigInt(slot);
     const plugin = Physics3DPlugin();
     const services = new Map<string, unknown>();
     const engine = {
@@ -369,6 +373,7 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
@@ -381,7 +386,7 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
     const { service } = setupWithBody(1);
     const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]);
     const indices = new Uint32Array([0, 1, 2]);
-    const ok = service.addCollider(1, {
+    const ok = service.addCollider(1n, {
       shape: { type: "mesh", vertices, indices },
       colliderId: 1,
     });
@@ -397,7 +402,7 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
   it("delegates convex collider to physics3d_add_convex_collider in wasm mode", () => {
     const { service } = setupWithBody(2);
     const vertices = new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]);
-    const ok = service.addCollider(2, {
+    const ok = service.addCollider(2n, {
       shape: { type: "convex", vertices },
       colliderId: 1,
       density: 2.5,
@@ -415,7 +420,7 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
     // Optional chaining (?.) propagates undefined → ?? false.
     physics3dAddMeshCollider.mockReturnValue(undefined);
     const { service } = setupWithBody(3);
-    const ok = service.addCollider(3, {
+    const ok = service.addCollider(3n, {
       shape: {
         type: "mesh",
         vertices: new Float32Array([0, 0, 0, 1, 0, 0, 0, 1, 0]),
@@ -441,7 +446,8 @@ describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
   });
 
   /** Creates a plugin + engine + service and registers one body at the given entity index. */
-  function setupWithBody(entityId: number = 10) {
+  function setupWithBody(slot: number = 10) {
+    const entityId = BigInt(slot);
     const plugin = Physics3DPlugin();
     const services = new Map<string, unknown>();
     const engine = {
@@ -454,6 +460,7 @@ describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
@@ -565,10 +572,9 @@ describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
   it("addForce does not throw when called for an entity with no registered body", () => {
     const { service } = setupWithBody(10);
 
-    // Entity 999 was never registered — addForce has no bodyByEntity guard in WASM mode;
-    // it still delegates the call to the WASM layer without throwing.
-    expect(() => service.addForce(999, { x: 1, y: 2, z: 3 })).not.toThrow();
-    expect(physics3dAddForce).toHaveBeenCalledWith(999, 1, 2, 3);
+    // Alive id with no owner: no WASM call.
+    expect(() => service.addForce(999n, { x: 1, y: 2, z: 3 })).not.toThrow();
+    expect(physics3dAddForce).not.toHaveBeenCalled();
   });
 });
 
@@ -600,7 +606,8 @@ describe("Group B — RFC-08: joints", () => {
    * @param entityId - Numeric entity index to register a body for.
    * @returns Object containing the physics service and the entity id used.
    */
-  function setupWithBody(entityId: number = 10) {
+  function setupWithBody(slot: number = 10) {
+    const entityId = BigInt(slot);
     const plugin = Physics3DPlugin();
     const services = new Map<string, unknown>();
     const engine = {
@@ -613,6 +620,7 @@ describe("Group B — RFC-08: joints", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
@@ -624,11 +632,11 @@ describe("Group B — RFC-08: joints", () => {
   it("addFixedJoint delegates to physics3d_add_fixed_joint with both slots and anchors", () => {
     const { service } = setupWithBody(10);
     // Register a second body at slot 11
-    service.createBody(11);
+    service.createBody(11n);
 
     const handle = service.addFixedJoint({
-      bodyA: 10,
-      bodyB: 11,
+      bodyA: 10n,
+      bodyB: 11n,
       anchorA: { x: 1, y: 0, z: 0 },
       anchorB: { x: -1, y: 0, z: 0 },
     });
@@ -641,11 +649,11 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addRevoluteJoint delegates with axis and limits", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
     service.addRevoluteJoint({
-      bodyA: 10,
-      bodyB: 11,
+      bodyA: 10n,
+      bodyB: 11n,
       axis: { x: 0, y: 1, z: 0 },
       limits: [-1, 1],
     });
@@ -675,9 +683,9 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addRevoluteJoint without limits passes useLimits=false and zero bounds", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
-    service.addRevoluteJoint({ bodyA: 10, bodyB: 11 });
+    service.addRevoluteJoint({ bodyA: 10n, bodyB: 11n });
 
     expect(physics3dAddRevoluteJoint).toHaveBeenCalledOnce();
     const args = physics3dAddRevoluteJoint.mock.calls[0];
@@ -689,11 +697,11 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addPrismaticJoint delegates with axis and limits", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
     service.addPrismaticJoint({
-      bodyA: 10,
-      bodyB: 11,
+      bodyA: 10n,
+      bodyB: 11n,
       axis: { x: 1, y: 0, z: 0 },
       limits: [0, 5],
     });
@@ -719,9 +727,9 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addBallJoint delegates with cone limit when coneAngle is provided", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
-    service.addBallJoint({ bodyA: 10, bodyB: 11, coneAngle: Math.PI / 4 });
+    service.addBallJoint({ bodyA: 10n, bodyB: 11n, coneAngle: Math.PI / 4 });
 
     expect(physics3dAddBallJoint).toHaveBeenCalledOnce();
     expect(physics3dAddBallJoint).toHaveBeenCalledWith(10, 11, 0, 0, 0, 0, 0, 0, true, Math.PI / 4);
@@ -729,9 +737,9 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addBallJoint without coneAngle passes useConeLimit=false and coneAngle=0", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
-    service.addBallJoint({ bodyA: 10, bodyB: 11 });
+    service.addBallJoint({ bodyA: 10n, bodyB: 11n });
 
     expect(physics3dAddBallJoint).toHaveBeenCalledOnce();
     const args = physics3dAddBallJoint.mock.calls[0];
@@ -742,11 +750,11 @@ describe("Group B — RFC-08: joints", () => {
 
   it("addSpringJoint delegates with restLength stiffness damping", () => {
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
     service.addSpringJoint({
-      bodyA: 10,
-      bodyB: 11,
+      bodyA: 10n,
+      bodyB: 11n,
       restLength: 2,
       stiffness: 100,
       damping: 10,
@@ -759,9 +767,9 @@ describe("Group B — RFC-08: joints", () => {
   it("addFixedJoint returns dummy handle (0xffffffff) when WASM returns 0xffffffff", () => {
     physics3dAddFixedJoint.mockReturnValueOnce(0xffffffff);
     const { service } = setupWithBody(10);
-    service.createBody(11);
+    service.createBody(11n);
 
-    const handle = service.addFixedJoint({ bodyA: 10, bodyB: 11 });
+    const handle = service.addFixedJoint({ bodyA: 10n, bodyB: 11n });
 
     // When WASM signals an error via 0xffffffff, the plugin returns the dummy handle value
     expect(handle).toBe(0xffffffff);
@@ -824,7 +832,7 @@ describe("Group C — RFC-07: spatial queries", () => {
 
   /**
    * Creates a minimal plugin + engine + service instance for spatial-query
-   * testing. No body registration is required for these tests.
+   * testing. Hit results need an owner published by step().
    */
   function setup() {
     const plugin = Physics3DPlugin();
@@ -839,11 +847,17 @@ describe("Group C — RFC-07: spatial queries", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);
     const api = services.get("physics3d") as Physics3DAPI;
     return { api };
+  }
+
+  function publishOwner(api: Physics3DAPI, id: bigint): void {
+    api.createBody(id);
+    api.step(1 / 60);
   }
 
   // ─── castRay ─────────────────────────────────────────────────────────────
@@ -870,6 +884,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=5, dist=3.14, nx=0, ny=1, nz=0, px=0, py=5, pz=0]
     physics3dCastRay.mockReturnValue([1, 5, 3.14, 0, 1, 0, 0, 5, 0]);
     const { api } = setup();
+    publishOwner(api, 5n);
 
     const result = api.castRay({ x: 0, y: 10, z: 0 }, { x: 0, y: -1, z: 0 }, 100);
 
@@ -877,8 +892,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.distance).toBeCloseTo(3.14);
     expect(result!.normal).toEqual({ x: 0, y: 1, z: 0 });
     expect(result!.point).toEqual({ x: 0, y: 5, z: 0 });
-    // entity is entityIndexToId(5) — bridgeRuntime has no getEntityGeneration, so BigInt(5)
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(5n);
   });
 
   it("castRay passes solid=false as 0 in the last argument", () => {
@@ -934,6 +948,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=7, toi=2.5, nx=0, ny=1, nz=0, px=0, py=2, pz=0, waAx=0, waAy=2.1, waAz=0, waBx=0, waBy=1.9, waBz=0]
     physics3dCastShape.mockReturnValue([1, 7, 2.5, 0, 1, 0, 0, 2, 0, 0, 2.1, 0, 0, 1.9, 0]);
     const { api } = setup();
+    publishOwner(api, 7n);
 
     const result = api.castShape(
       { x: 0, y: 5, z: 0 },
@@ -949,7 +964,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.point).toEqual({ x: 0, y: 2, z: 0 });
     expect(result!.witnessA).toEqual({ x: 0, y: 2.1, z: 0 });
     expect(result!.witnessB).toEqual({ x: 0, y: 1.9, z: 0 });
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(7n);
   });
 
   it("castShape encodes box shape correctly (shapeType=0, halfX/Y/Z)", () => {
@@ -1025,19 +1040,21 @@ describe("Group C — RFC-07: spatial queries", () => {
     // [hit=1, entityIdx=3, projX=1.0, projY=2.0, projZ=3.0, isInside=0]
     physics3dProjectPoint.mockReturnValue([1, 3, 1.0, 2.0, 3.0, 0]);
     const { api } = setup();
+    publishOwner(api, 3n);
 
     const result = api.projectPoint({ x: 0, y: 0, z: 0 });
 
     expect(result).not.toBeNull();
     expect(result!.point).toEqual({ x: 1.0, y: 2.0, z: 3.0 });
     expect(result!.isInside).toBe(false);
-    expect(result!.entity).toBeDefined();
+    expect(result!.entity).toBe(3n);
   });
 
   it("projectPoint sets isInside=true when result[5] !== 0", () => {
     // [hit=1, entityIdx=3, projX=0, projY=0, projZ=0, isInside=1]
     physics3dProjectPoint.mockReturnValue([1, 3, 0, 0, 0, 1]);
     const { api } = setup();
+    publishOwner(api, 3n);
 
     const result = api.projectPoint({ x: 0, y: 0, z: 0 });
 
@@ -1081,7 +1098,8 @@ describe("Group D — RFC-09: character controller", () => {
    * @param entityId - Raw entity index to register as a body before returning.
    * @returns Object with the Physics3D API service and the entity id used.
    */
-  function setupWithBody(entityId: number = 10) {
+  function setupWithBody(slot: number = 10) {
+    const entityId = BigInt(slot);
     const plugin = Physics3DPlugin();
     const services = new Map<string, unknown>();
     const engine = {
@@ -1094,6 +1112,7 @@ describe("Group D — RFC-09: character controller", () => {
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),
+      isAlive: () => true,
       wasmBridge: null,
     } as unknown as GwenEngine;
     plugin.setup(engine);

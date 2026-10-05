@@ -53,9 +53,10 @@ const mockBridge = {
   getEntityGeneration: vi.fn((_slot: number) => 0),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({
@@ -66,6 +67,7 @@ vi.mock("@gwenjs/core", () => ({
   }),
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
+  entityIndex: (id: bigint) => Number(id & 0xffffffffn),
 }));
 
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
@@ -125,6 +127,7 @@ function makeEngine(generationFor: (slot: number) => number | undefined = () => 
     getEntityGeneration: vi.fn((slot: number) => generationFor(slot)),
     query: vi.fn(() => []),
     getComponent: vi.fn(),
+    isAlive: () => true,
     wasmBridge: null,
   } as unknown as GwenEngine;
 
@@ -162,8 +165,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("reads events from the ring buffer and dispatches the hook", () => {
     const { service, engine, hookMap } = setup();
 
-    service.createBody(1);
-    service.createBody(2);
+    service.createBody(1n);
+    service.createBody(2n);
 
     const buf = buildEventBuffer([
       { slotA: 1, slotB: 2, colliderIdA: 0, colliderIdB: 0, started: true },
@@ -185,8 +188,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("populates getCollisionContacts after onUpdate", () => {
     const { service, hookMap } = setup();
 
-    service.createBody(10);
-    service.createBody(20);
+    service.createBody(10n);
+    service.createBody(20n);
 
     const buf = buildEventBuffer([
       { slotA: 10, slotB: 20, started: true },
@@ -218,8 +221,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("calls physics3d_consume_events after reading", () => {
     const { service, hookMap } = setup();
 
-    service.createBody(5);
-    service.createBody(6);
+    service.createBody(5n);
+    service.createBody(6n);
 
     const buf = buildEventBuffer([{ slotA: 5, slotB: 6, started: true }]);
     mockMemoryBuffer = buf;
@@ -233,8 +236,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("parses absent collider ids as undefined", () => {
     const { service, hookMap } = setup();
 
-    service.createBody(7);
-    service.createBody(8);
+    service.createBody(7n);
+    service.createBody(8n);
 
     const buf = buildEventBuffer([
       { slotA: 7, slotB: 8, colliderIdA: undefined, colliderIdB: undefined, started: true },
@@ -252,8 +255,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("updates sensor state from events with collider ids", () => {
     const { service, engine, hookMap } = setup();
 
-    service.createBody(11);
-    service.createBody(12);
+    service.createBody(11n);
+    service.createBody(12n);
 
     const sensorId = 0xf007;
     const buf = buildEventBuffer([
@@ -278,8 +281,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("dispatches sensor:changed when sensor transitions to inactive", () => {
     const { service, engine, hookMap } = setup();
 
-    service.createBody(13);
-    service.createBody(14);
+    service.createBody(13n);
+    service.createBody(14n);
 
     const sensorId = 0xf007;
 
@@ -316,8 +319,8 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("getCollisionEventMetrics reflects the number of events read this frame", () => {
     const { service, hookMap } = setup();
 
-    service.createBody(30);
-    service.createBody(31);
+    service.createBody(30n);
+    service.createBody(31n);
 
     expect(service.getCollisionEventMetrics().eventCount).toBe(0);
 
@@ -368,9 +371,9 @@ describe("Physics3D collision events — WASM backend mode", () => {
   it("getCollisionContacts respects the max option", () => {
     const { service, hookMap } = setup();
 
-    service.createBody(40);
-    service.createBody(41);
-    service.createBody(42);
+    service.createBody(40n);
+    service.createBody(41n);
+    service.createBody(42n);
 
     const buf = buildEventBuffer([
       { slotA: 40, slotB: 41, started: true },

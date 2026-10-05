@@ -106,7 +106,7 @@ describe("P0 physics loop", () => {
     try {
       const { engine, advance } = handle;
       await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-      await engine.use(createKinematicSync3D()());
+      await engine.use(createKinematicSync3D({ positionComponent: Transform3D })());
       const physics = engine.inject("physics3d");
       const body = engine.createEntity();
       engine.addComponent(body, Transform3D, { x: 0, y: 0, z: 0 });

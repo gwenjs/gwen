@@ -2,10 +2,13 @@
  * @file useHeightfieldCollider() — attaches a grid-based heightfield collider
  * to the current entity for efficient terrain collision.
  */
-import type { HeightfieldColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import type {
+  HeightfieldColliderHandle3D,
+  Physics3DColliderOptions,
+  Physics3DMaterialPreset,
+} from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -84,30 +87,33 @@ export function useHeightfieldCollider(
   options: HeightfieldColliderOptions,
 ): HeightfieldColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const colliderId = nextColliderId();
 
   const scaleX = options.scaleX ?? 1;
   const scaleY = options.scaleY ?? 1;
   const scaleZ = options.scaleZ ?? 1;
 
-  const buildColliderOptions = (heights: Float32Array) => ({
-    shape: {
-      type: "heightfield" as const,
-      heights,
-      rows: options.rows,
-      cols: options.cols,
-      scaleX,
-      scaleY,
-      scaleZ,
-    },
-    friction: options.friction,
-    restitution: options.restitution,
-    layers: options.layer !== undefined ? [options.layer] : undefined,
-    mask: options.mask !== undefined ? [options.mask] : undefined,
-    materialPreset: options.material,
-    colliderId,
-  });
+  const buildColliderOptions = (heights: Float32Array): Physics3DColliderOptions => {
+    const collider: Physics3DColliderOptions = {
+      shape: {
+        type: "heightfield",
+        heights,
+        rows: options.rows,
+        cols: options.cols,
+        scaleX,
+        scaleY,
+        scaleZ,
+      },
+      colliderId,
+      ...(options.friction !== undefined ? { friction: options.friction } : {}),
+      ...(options.restitution !== undefined ? { restitution: options.restitution } : {}),
+      ...(options.layer !== undefined ? { layers: [options.layer] } : {}),
+      ...(options.mask !== undefined ? { mask: [options.mask] } : {}),
+      ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+    };
+    return collider;
+  };
 
   physics.addCollider(entityId, buildColliderOptions(options.heights));
 

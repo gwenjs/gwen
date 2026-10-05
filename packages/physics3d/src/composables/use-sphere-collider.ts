@@ -1,10 +1,13 @@
 /**
  * @file useSphereCollider() — attaches a sphere-shaped collider to the current entity.
  */
-import type { SphereColliderHandle3D, Physics3DMaterialPreset } from "../types";
+import type {
+  SphereColliderHandle3D,
+  Physics3DColliderOptions,
+  Physics3DMaterialPreset,
+} from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -51,21 +54,22 @@ export interface SphereColliderOptions3D {
  */
 export function useSphereCollider(options: SphereColliderOptions3D): SphereColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const colliderId = nextColliderId();
 
-  physics.addCollider(entityId, {
+  const collider: Physics3DColliderOptions = {
     shape: {
       type: "sphere",
       radius: options.radius,
     },
-    offsetX: options.offsetX,
-    offsetY: options.offsetY,
-    offsetZ: options.offsetZ,
-    isSensor: options.isSensor,
-    materialPreset: options.material,
     colliderId,
-  });
+    ...(options.offsetX !== undefined ? { offsetX: options.offsetX } : {}),
+    ...(options.offsetY !== undefined ? { offsetY: options.offsetY } : {}),
+    ...(options.offsetZ !== undefined ? { offsetZ: options.offsetZ } : {}),
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
+  };
+  physics.addCollider(entityId, collider);
 
   return {
     get colliderId() {

@@ -3,12 +3,14 @@
  */
 
 import type { Physics3DAPI } from "../types";
-import { toEntityIndex } from "./physics3d-utils";
+import { guardOwned } from "./entity-owner";
 import type { PluginContext } from "./plugin-context";
 
 export function createGetSensorState(ctx: PluginContext): Physics3DAPI["getSensorState"] {
   return (entityId, sensorId) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "getSensorState");
+    if (!owned) return { contactCount: 0, isActive: false };
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm" && ctx.wasmBridge!.physics3d_get_sensor_state) {
       const raw = ctx.wasmBridge!.physics3d_get_sensor_state(slot, sensorId);
       if (raw && (raw as unknown[]).length >= 2) {
@@ -29,7 +31,9 @@ export function createGetSensorState(ctx: PluginContext): Physics3DAPI["getSenso
 
 export function createUpdateSensorState(ctx: PluginContext): Physics3DAPI["updateSensorState"] {
   return (entityId, sensorId, isActive, count) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "updateSensorState");
+    if (!owned) return;
+    const slot = owned.slot;
     let sensorMap = ctx.localSensorStates.get(slot);
     if (!sensorMap) {
       sensorMap = new Map();

@@ -13,14 +13,14 @@ import type {
 import type { Physics3DColliderOptions } from "../types";
 import type { PluginContext } from "./plugin-context";
 import {
-  toEntityIndex,
-  vec3,
-  quat,
-  kindToU8,
-  kindFromU8,
-  parseBodyState,
-  cloneState,
-} from "./physics3d-utils";
+  entitySlot,
+  guardAlive,
+  guardOwned,
+  normalizeEntityId,
+  noteOwnerChange,
+  ownedSlot,
+} from "./entity-owner";
+import { vec3, quat, kindToU8, kindFromU8, parseBodyState, cloneState } from "./physics3d-utils";
 
 // ─── Local simulation ─────────────────────────────────────────────────────────
 
@@ -29,16 +29,18 @@ export function createBodyLocal(
   entityId: Physics3DEntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
-  const slot = toEntityIndex(entityId);
+  const eid = normalizeEntityId(entityId);
+  const slot = entitySlot(eid);
   const handle: Physics3DBodyHandle = {
     bodyId: ctx.nextBodyId++,
-    entityId,
+    entityId: eid,
     kind: options.kind ?? "dynamic",
     mass: Math.max(0.0001, options.mass ?? 1),
     linearDamping: Math.max(0, options.linearDamping ?? 0),
     angularDamping: Math.max(0, options.angularDamping ?? 0),
   };
   ctx.bodyByEntity.set(slot, handle);
+  noteOwnerChange(ctx, slot);
   ctx.stateByEntity.set(slot, {
     position: vec3(options.initialPosition),
     rotation: quat(options.initialRotation),
@@ -63,7 +65,7 @@ export function createBodyLocal(
 }
 
 export function removeBodyLocal(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
-  const slot = toEntityIndex(entityId);
+  const slot = entitySlot(normalizeEntityId(entityId));
   ctx.stateByEntity.delete(slot);
   ctx.localColliders.delete(slot);
   ctx.localForces.delete(slot);
@@ -71,7 +73,9 @@ export function removeBodyLocal(ctx: PluginContext, entityId: Physics3DEntityId)
   ctx.localAxisLocks.delete(slot);
   ctx.localSleeping.delete(slot);
   ctx.localGravityScales.delete(slot);
-  return ctx.bodyByEntity.delete(slot);
+  const removed = ctx.bodyByEntity.delete(slot);
+  if (removed) noteOwnerChange(ctx, slot);
+  return removed;
 }
 
 export function advanceLocalState(ctx: PluginContext, deltaSeconds: number): void {
@@ -184,15 +188,16 @@ export function createBodyWasm(
   entityId: Physics3DEntityId,
   options: Physics3DBodyOptions = {},
 ): Physics3DBodyHandle {
+  const eid = normalizeEntityId(entityId);
   const handle: Physics3DBodyHandle = {
     bodyId: ctx.nextBodyId++,
-    entityId,
+    entityId: eid,
     kind: options.kind ?? "dynamic",
     mass: Math.max(0.0001, options.mass ?? 1),
     linearDamping: Math.max(0, options.linearDamping ?? 0),
     angularDamping: Math.max(0, options.angularDamping ?? 0),
   };
-  const idx = toEntityIndex(entityId);
+  const idx = entitySlot(eid);
   ctx.wasmBridge!.physics3d_add_body!(
     idx,
     options.initialPosition?.x ?? 0,
@@ -250,15 +255,17 @@ export function createBodyWasm(
   }
 
   ctx.bodyByEntity.set(idx, handle);
+  noteOwnerChange(ctx, idx);
   return handle;
 }
 
 export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
-  const slot = toEntityIndex(entityId);
+  const slot = entitySlot(normalizeEntityId(entityId));
   if (!ctx.bodyByEntity.has(slot)) return false;
   ctx.wasmBridge!.physics3d_remove_body!(slot);
   ctx.bodyByEntity.delete(slot);
   ctx.localColliders.delete(slot);
+  noteOwnerChange(ctx, slot);
   return true;
 }
 
@@ -274,11 +281,13 @@ export function createBody(
   options: Physics3DBodyOptions = {},
   addColliderFn: (entityId: Physics3DEntityId, opts: Physics3DColliderOptions) => boolean,
 ): Physics3DBodyHandle {
-  // Remove previous body first to avoid duplicate state
-  if (ctx.bodyByEntity.has(toEntityIndex(entityId))) {
-    if (ctx.backendMode === "wasm") removeBodyWasm(ctx, entityId);
-    else removeBodyLocal(ctx, entityId);
+  const { eid, slot } = guardAlive(ctx, entityId, "createBody");
+  // Replace any previous owner on this slot. A live id keeps today's replace behaviour.
+  if (ctx.bodyByEntity.has(slot)) {
+    if (ctx.backendMode === "wasm") removeBodyWasm(ctx, eid);
+    else removeBodyLocal(ctx, eid);
   }
+  entityId = eid;
   const handle =
     ctx.backendMode === "wasm"
       ? createBodyWasm(ctx, entityId, options)
@@ -295,20 +304,23 @@ export function createBody(
 }
 
 export function removeBody(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
+  if (!ownedSlot(ctx, entityId)) return false;
   return ctx.backendMode === "wasm"
     ? removeBodyWasm(ctx, entityId)
     : removeBodyLocal(ctx, entityId);
 }
 
 export function hasBody(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
-  return ctx.bodyByEntity.has(toEntityIndex(entityId));
+  return ownedSlot(ctx, entityId) !== null;
 }
 
 // ─── Body state getters/setters ────────────────────────────────────────────────
 
 export function getBodyKind(ctx: PluginContext): Physics3DAPI["getBodyKind"] {
   return (entityId) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "getBodyKind");
+    if (!owned) return undefined;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const k = ctx.wasmBridge!.physics3d_get_body_kind!(slot);
@@ -320,7 +332,9 @@ export function getBodyKind(ctx: PluginContext): Physics3DAPI["getBodyKind"] {
 
 export function setBodyKind(ctx: PluginContext): Physics3DAPI["setBodyKind"] {
   return (entityId, kind) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "setBodyKind");
+    if (!owned) return false;
+    const slot = owned.slot;
     const handle = ctx.bodyByEntity.get(slot);
     if (!handle) return false;
     handle.kind = kind;
@@ -333,7 +347,9 @@ export function setBodyKind(ctx: PluginContext): Physics3DAPI["setBodyKind"] {
 
 export function getBodyState(ctx: PluginContext): Physics3DAPI["getBodyState"] {
   return (entityId) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "getBodyState");
+    if (!owned) return undefined;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = ctx.wasmBridge!.physics3d_get_body_state!(slot);
@@ -347,7 +363,9 @@ export function getBodyState(ctx: PluginContext): Physics3DAPI["getBodyState"] {
 
 export function setBodyState(ctx: PluginContext): Physics3DAPI["setBodyState"] {
   return (entityId, patch) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "setBodyState");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const idx = slot;
@@ -397,7 +415,9 @@ export function setBodyState(ctx: PluginContext): Physics3DAPI["setBodyState"] {
 
 export function createApplyImpulse(ctx: PluginContext): Physics3DAPI["applyImpulse"] {
   return (entityId, impulse) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "applyImpulse");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       return (
@@ -424,7 +444,9 @@ export function createApplyImpulse(ctx: PluginContext): Physics3DAPI["applyImpul
 
 export function createApplyAngularImpulse(ctx: PluginContext): Physics3DAPI["applyAngularImpulse"] {
   return (entityId, impulse) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "applyAngularImpulse");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       return (
@@ -451,7 +473,9 @@ export function createApplyAngularImpulse(ctx: PluginContext): Physics3DAPI["app
 
 export function createApplyTorque(ctx: PluginContext): Physics3DAPI["applyTorque"] {
   return (entityId, torque) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "applyTorque");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") return false;
     const state = ctx.stateByEntity.get(slot);
     const handle = ctx.bodyByEntity.get(slot);
@@ -469,7 +493,9 @@ export function createApplyTorque(ctx: PluginContext): Physics3DAPI["applyTorque
 
 export function createGetLinearVelocity(ctx: PluginContext): Physics3DAPI["getLinearVelocity"] {
   return (entityId) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "getLinearVelocity");
+    if (!owned) return undefined;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = ctx.wasmBridge!.physics3d_get_linear_velocity!(slot);
@@ -483,7 +509,9 @@ export function createGetLinearVelocity(ctx: PluginContext): Physics3DAPI["getLi
 
 export function createSetLinearVelocity(ctx: PluginContext): Physics3DAPI["setLinearVelocity"] {
   return (entityId, velocity) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "setLinearVelocity");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const arr = ctx.wasmBridge!.physics3d_get_linear_velocity!(slot);
@@ -512,7 +540,9 @@ export function createSetLinearVelocity(ctx: PluginContext): Physics3DAPI["setLi
 
 export function createGetAngularVelocity(ctx: PluginContext): Physics3DAPI["getAngularVelocity"] {
   return (entityId) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "getAngularVelocity");
+    if (!owned) return undefined;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return undefined;
       const arr = ctx.wasmBridge!.physics3d_get_angular_velocity!(slot);
@@ -526,7 +556,9 @@ export function createGetAngularVelocity(ctx: PluginContext): Physics3DAPI["getA
 
 export function createSetAngularVelocity(ctx: PluginContext): Physics3DAPI["setAngularVelocity"] {
   return (entityId, velocity) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "setAngularVelocity");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const arr = ctx.wasmBridge!.physics3d_get_angular_velocity!(slot);
@@ -557,7 +589,9 @@ export function createSetKinematicPosition(
   ctx: PluginContext,
 ): Physics3DAPI["setKinematicPosition"] {
   return (entityId, position, rotation) => {
-    const slot = toEntityIndex(entityId);
+    const owned = guardOwned(ctx, entityId, "setKinematicPosition");
+    if (!owned) return false;
+    const slot = owned.slot;
     if (ctx.backendMode === "wasm") {
       if (!ctx.bodyByEntity.has(slot)) return false;
       const r = rotation ?? { x: 0, y: 0, z: 0, w: 1 };
