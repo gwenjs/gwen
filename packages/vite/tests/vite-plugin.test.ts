@@ -433,3 +433,115 @@ describe("gwenVitePlugin — hooks plugin included", () => {
     expect(names).toContain("gwen:hooks");
   });
 });
+
+// ── Dev-server WASM middleware — path containment ─────────────────────────────
+
+describe("gwen() WASM middleware — path traversal containment", () => {
+  let root: string;
+  let outsideWasm: string;
+  let outsideJs: string;
+  let handler: (
+    req: { url?: string },
+    res: { setHeader(k: string, v: string): void; end(b?: unknown): void },
+    next: () => void,
+  ) => void;
+
+  beforeEach(() => {
+    root = makeTmp();
+    const pluginWasm = path.join(root, "node_modules", "@gwenjs", "gwen-plugin-demo", "wasm");
+    fs.mkdirSync(pluginWasm, { recursive: true });
+    fs.writeFileSync(path.join(pluginWasm, "demo.wasm"), "WASM");
+    fs.writeFileSync(path.join(pluginWasm, "notes.txt"), "not servable");
+    // Servable extensions, so a missing containment check would serve these.
+    outsideWasm = path.join(root, "secret.wasm");
+    outsideJs = path.join(root, "secret.js");
+    fs.writeFileSync(outsideWasm, "SECRET_WASM");
+    fs.writeFileSync(outsideJs, "SECRET_JS");
+
+    const [plugin] = gwen({ watch: false });
+    const uses: Array<typeof handler> = [];
+    const fakeServer = {
+      config: { root },
+      watcher: { add() {}, on() {} },
+      moduleGraph: { getModuleById: () => null, invalidateModule() {} },
+      ws: { send() {} },
+      middlewares: { use: (fn: typeof handler) => uses.push(fn) },
+    };
+    (plugin.configureServer as (s: unknown) => void)(fakeServer);
+    const registered = uses[0];
+    if (!registered) throw new Error("configureServer did not register a middleware");
+    handler = registered;
+  });
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  function request(url: string): { body: unknown; nextCalled: boolean } {
+    let body: unknown;
+    let nextCalled = false;
+    handler(
+      { url },
+      {
+        setHeader() {},
+        end(b) {
+          body = b;
+        },
+      },
+      () => {
+        nextCalled = true;
+      },
+    );
+    return { body, nextCalled };
+  }
+
+  it("serves a legitimate plugin .wasm file", () => {
+    const { body, nextCalled } = request("/wasm/demo.wasm");
+    expect(nextCalled).toBe(false);
+    expect(String(body)).toBe("WASM");
+  });
+
+  it("rejects `..` traversal to a .wasm file outside the wasm directory", () => {
+    const { body, nextCalled } = request("/wasm/../../../../secret.wasm");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects `..` traversal to a .js file outside the wasm directory", () => {
+    const { body, nextCalled } = request("/wasm/../../../../secret.js");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects fully encoded %2e%2e%2f traversal to a .wasm file", () => {
+    const encoded = "%2e%2e%2f".repeat(4) + "secret.wasm";
+    const { body, nextCalled } = request(`/wasm/${encoded}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects fully encoded %2e%2e%2f traversal to a .js file", () => {
+    const encoded = "%2e%2e%2f".repeat(4) + "secret.js";
+    const { body, nextCalled } = request(`/wasm/${encoded}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects an absolute path to a .wasm file outside the wasm directory", () => {
+    const { body, nextCalled } = request(`/wasm/${outsideWasm}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects an absolute path to a .js file outside the wasm directory", () => {
+    const { body, nextCalled } = request(`/wasm/${outsideJs}`);
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+
+  it("rejects files with non-WASM extensions even inside the directory", () => {
+    const { body, nextCalled } = request("/wasm/notes.txt");
+    expect(body).toBeUndefined();
+    expect(nextCalled).toBe(true);
+  });
+});

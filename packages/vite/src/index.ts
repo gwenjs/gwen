@@ -110,6 +110,29 @@ const RESOLVED_CONFIG_MODULES = "\0virtual:gwen/config-modules";
 
 // ── Plugin principal ──────────────────────────────────────────────────────────
 
+const WASM_SERVABLE_EXTENSIONS = new Set([".wasm", ".js"]);
+
+/**
+ * Resolve a request file name inside `dir`, rejecting anything that escapes it
+ * (`..`, absolute paths, encoded separators) or has a non-WASM extension.
+ * Returns the resolved path if it exists, null otherwise.
+ */
+function resolveWasmFileWithin(dir: string, fileName: string): string | null {
+  let decoded: string;
+  try {
+    decoded = decodeURIComponent(fileName);
+  } catch {
+    return null;
+  }
+  if (!decoded || decoded.includes("\0")) return null;
+  if (!WASM_SERVABLE_EXTENSIONS.has(path.extname(decoded))) return null;
+
+  const base = path.resolve(dir);
+  const resolved = path.resolve(base, decoded);
+  if (!resolved.startsWith(base + path.sep)) return null;
+  return fs.existsSync(resolved) ? resolved : null;
+}
+
 /**
  * Scan node_modules/@gwenjs/gwen-plugin-* for WASM artifacts.
  * Returns the full path to the file if found, null otherwise.
@@ -122,8 +145,8 @@ function findWasmPluginFile(root: string, fileName: string): string | null {
     if (!entry.startsWith("gwen-plugin-")) continue;
     const pkgPath = path.join(nmDir, entry);
     const realPkgPath = fs.existsSync(pkgPath) ? fs.realpathSync(pkgPath) : pkgPath;
-    const candidate = path.join(realPkgPath, "wasm", fileName);
-    if (fs.existsSync(candidate)) return candidate;
+    const candidate = resolveWasmFileWithin(path.join(realPkgPath, "wasm"), fileName);
+    if (candidate) return candidate;
   }
   return null;
 }
@@ -566,12 +589,12 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         // Serve WASM files directly from wasmSourceDir (no copy to public/)
         const wasmPrefix = wasmPublicPath.endsWith("/") ? wasmPublicPath : wasmPublicPath + "/";
         if (req.url?.startsWith(wasmPrefix)) {
-          const fileName = req.url.slice(wasmPrefix.length).split("?")[0];
+          const fileName = req.url.slice(wasmPrefix.length).split("?")[0] ?? "";
 
           // 1. Try primary wasmSourceDir (gwen-core or custom crate)
           if (wasmSourceDir) {
-            const filePath = path.join(wasmSourceDir, fileName);
-            if (fs.existsSync(filePath)) {
+            const filePath = resolveWasmFileWithin(wasmSourceDir, fileName);
+            if (filePath) {
               const ext = path.extname(filePath);
               if (ext === ".wasm") res.setHeader("Content-Type", "application/wasm");
               if (ext === ".js") res.setHeader("Content-Type", "application/javascript");
