@@ -30,6 +30,7 @@ export function findDefaultExportObject(source: string): ObjectExpression | null
   let found: ObjectExpression | null = null;
 
   walk(result.program, {
+    // boundary: oxc walk callback is untyped, owned by #66
     enter(node: any) {
       if (
         node.type === "ExportDefaultDeclaration" &&

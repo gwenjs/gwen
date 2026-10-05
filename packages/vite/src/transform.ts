@@ -137,6 +137,7 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
 
   // Program.body is Array<Directive | Statement>.  Directives have
   // type: "ExpressionStatement" so they will not be matched here.
+  // boundary: oxc program body, owned by #66
   const body = program.body as unknown as Statement[];
 
   const coreImportNode = body.find(

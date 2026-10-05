@@ -145,7 +145,9 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   const rebuildLayoutDirs = (baseRoot: string): void => {
     layoutDirs.clear();
     for (const pattern of include) {
-      const basePath = pattern.split("**")[0]?.replace(/\/$/, "") ?? "";
+      // Extract the base directory from the pattern (before any wildcards)
+      const head = pattern.split("**")[0];
+      const basePath = head === undefined ? "" : head.replace(/\/$/, "");
       if (basePath) layoutDirs.add(resolve(baseRoot, basePath));
     }
   };

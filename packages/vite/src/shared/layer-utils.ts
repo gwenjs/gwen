@@ -24,7 +24,9 @@ export function evalBitExpr(expr: string): number | null {
 
   for (const m of expr.matchAll(TOKEN_RE)) {
     if (m.index !== lastIndex) return null; // gap → unexpected characters
-    tokens.push(m[1]);
+    const token = m[1];
+    if (token === undefined) return null;
+    tokens.push(token);
     lastIndex = m.index + m[0].length;
   }
   if (lastIndex !== expr.length) return null; // trailing garbage
@@ -139,13 +141,19 @@ export function extractLayerDefinitions(code: string): Map<string, number> | nul
   const match = code.match(/defineLayers\s*\(\s*\{([^}]+)\}\s*\)/);
   if (!match) return null;
 
+  const body = match[1];
+  if (body === undefined) return null;
+
   const layerMap = new Map<string, number>();
-  const entries = match[1].matchAll(/(\w+)\s*:\s*(.+?)(?:,|\s*$)/gm);
+  const entries = body.matchAll(/(\w+)\s*:\s*(.+?)(?:,|\s*$)/gm);
 
   for (const entry of entries) {
-    const value = evalBitExpr(entry[2].trim());
+    const rawName = entry[1];
+    const rawValue = entry[2];
+    if (rawName === undefined || rawValue === undefined) continue;
+    const value = evalBitExpr(rawValue.trim());
     if (value !== null) {
-      layerMap.set(entry[1].trim(), value);
+      layerMap.set(rawName.trim(), value);
     }
   }
 

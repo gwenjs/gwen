@@ -20,16 +20,22 @@ function makeTmp(): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), "gwen-vite-test-"));
 }
 
+function gwenPlugin(options?: Parameters<typeof gwen>[0]) {
+  const plugin = gwen(options)[0];
+  if (!plugin) throw new Error("gwen() returned no plugin");
+  return plugin;
+}
+
 // ── Plugin instantiation ──────────────────────────────────────────────────────
 
 describe("gwen() plugin factory", () => {
   it('returns a Vite plugin object with name "gwen"', () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     expect(plugin.name).toBe("gwen");
   });
 
   it('enforce is "pre"', () => {
-    expect(gwen()[0].enforce).toBe("pre");
+    expect(gwenPlugin().enforce).toBe("pre");
   });
 
   it("accepts all options without throwing", () => {
@@ -46,7 +52,7 @@ describe("gwen() plugin factory", () => {
 
 describe("gwen() config hook — optimizeDeps", () => {
   it("includes @gwenjs/core and subpaths in optimizeDeps.include", async () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const config = await (plugin.config as Function)({}, { command: "serve" });
     expect(config.optimizeDeps.include).toContain("@gwenjs/core");
     expect(config.optimizeDeps.include).toContain("@gwenjs/core/system");
@@ -61,7 +67,7 @@ describe("gwen() config hook — optimizeDeps", () => {
   });
 
   it("deduplicates @gwenjs/core in resolve.dedupe", async () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const config = await (plugin.config as Function)({}, { command: "serve" });
     expect(config.resolve.dedupe).toContain("@gwenjs/core");
   });
@@ -71,14 +77,14 @@ describe("gwen() config hook — optimizeDeps", () => {
 
 describe("virtual:gwen-manifest — resolveId", () => {
   it("resolves virtual:gwen-manifest to internal ID", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const resolve = plugin.resolveId as Function;
     const result = resolve("virtual:gwen-manifest");
     expect(result).toBe("\0virtual:gwen-manifest");
   });
 
   it("returns null for other IDs", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const resolve = plugin.resolveId as Function;
     expect(resolve("some-other-module")).toBeNull();
     expect(resolve("./local")).toBeNull();
@@ -89,7 +95,7 @@ describe("virtual:gwen-manifest — resolveId", () => {
 
 describe("virtual:gwen-manifest — load", () => {
   it("returns JS export default with manifest JSON when no file found", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const load = plugin.load as Function;
     const result = load("\0virtual:gwen-manifest");
     expect(result).toMatch(/^export default /);
@@ -98,7 +104,7 @@ describe("virtual:gwen-manifest — load", () => {
   });
 
   it("returns null for non-virtual IDs", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const load = plugin.load as Function;
     expect(load("/some/file.ts")).toBeNull();
   });
@@ -115,7 +121,7 @@ describe("virtual:gwen-manifest — load", () => {
       }),
     );
 
-    const [plugin] = gwen({ manifestPath });
+    const plugin = gwenPlugin({ manifestPath });
     const load = plugin.load as Function;
     const result: string = load("\0virtual:gwen-manifest");
 
@@ -139,7 +145,7 @@ describe("virtual:gwen-manifest — load", () => {
       }),
     );
 
-    const [plugin] = gwen({ manifestPath: manifestFile });
+    const plugin = gwenPlugin({ manifestPath: manifestFile });
     const load = plugin.load as Function;
     const result: string = load("\0virtual:gwen-manifest");
 
@@ -155,13 +161,13 @@ describe("plugin options defaults", () => {
   it("wasmMode defaults to debug", () => {
     // We can't easily test this directly, but we can verify the plugin
     // doesn't throw and has correct structure
-    const [plugin] = gwen({ watch: false });
+    const plugin = gwenPlugin({ watch: false });
     expect(plugin.name).toBe("gwen");
   });
 
   it("watch: false skips watcher setup", () => {
     // configureServer should not start file watchers when watch: false
-    const [plugin] = gwen({ watch: false, verbose: false });
+    const plugin = gwenPlugin({ watch: false, verbose: false });
     expect(plugin.configureServer).toBeDefined();
   });
 });
@@ -170,7 +176,7 @@ describe("plugin options defaults", () => {
 
 describe("generateBundle", () => {
   it("emits gwen-manifest.json asset", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const emitted: any[] = [];
     const ctx = {
       emitFile: (f: any) => emitted.push(f),
@@ -183,7 +189,7 @@ describe("generateBundle", () => {
   });
 
   it("emitted manifest is valid JSON", () => {
-    const [plugin] = gwen();
+    const plugin = gwenPlugin();
     const emitted: any[] = [];
     const ctx = { emitFile: (f: any) => emitted.push(f) };
     (plugin.generateBundle as Function).call(ctx);
@@ -475,7 +481,7 @@ describe("gwen() WASM middleware — path traversal containment", () => {
     fs.writeFileSync(outsideWasm, "SECRET_WASM");
     fs.writeFileSync(outsideJs, "SECRET_JS");
 
-    const [plugin] = gwen({ watch: false });
+    const plugin = gwenPlugin({ watch: false });
     const uses: Array<typeof handler> = [];
     const fakeServer = {
       config: { root },

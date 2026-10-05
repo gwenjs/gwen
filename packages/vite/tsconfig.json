@@ -14,10 +14,6 @@
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "isolatedModules": true,
-    // FIXME(type-safety): exactOptionalPropertyTypes disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
-    "exactOptionalPropertyTypes": false,
-    // FIXME(type-safety): noUncheckedIndexedAccess disabled — tracked in specs/v2-fix/05-TYPE-SAFETY.md
-    "noUncheckedIndexedAccess": false,
     "rootDir": "../..",
     "disableSourceOfProjectReferenceRedirect": true
   },

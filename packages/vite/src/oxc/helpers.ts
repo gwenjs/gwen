@@ -141,6 +141,7 @@ export function getFunctionBodyStatements(fn: OxcFunction | ArrowFunctionExpress
   // FunctionBody.body is Array<Directive | Statement>.  Directive is
   // structurally an ExpressionStatement (same `type` discriminant) and is
   // safely treated as one here.
+  // boundary: oxc FunctionBody mixes directives and statements, owned by #66
   return (body as FunctionBody).body as unknown as Statement[];
 }
 

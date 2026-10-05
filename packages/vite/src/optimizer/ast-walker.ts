@@ -121,7 +121,11 @@ export class AstWalker {
           fn,
           filename,
         );
-        patterns.push({ queryComponents, readComponents, writeComponents, loc, positions });
+        if (positions !== undefined) {
+          patterns.push({ queryComponents, readComponents, writeComponents, loc, positions });
+        } else {
+          patterns.push({ queryComponents, readComponents, writeComponents, loc });
+        }
         this.skip();
       },
     });
@@ -226,7 +230,10 @@ function extractUpdateUsage(
     positions = extractForOfPositions(onUpdateCb, readVarMap, filename);
   }
 
-  return { readComponents: [...reads], writeComponents: [...writes], loc, positions };
+  if (positions !== undefined) {
+    return { readComponents: [...reads], writeComponents: [...writes], loc, positions };
+  }
+  return { readComponents: [...reads], writeComponents: [...writes], loc };
 }
 
 /**

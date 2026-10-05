@@ -444,6 +444,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       _declarations = app.pluginDeclarations;
       _sharedAutoImports.push(...app.autoImports);
       _sharedTypeTemplates.push(...app.typeTemplates);
+      // boundary: module plugin list is untyped here, owned by #66
       _moduleVitePlugins.push(...(app.vitePlugins as unknown as Plugin[]));
     } catch (err) {
       console.warn(`[gwen-vite] Failed to setup modules: ${err}`);
@@ -590,7 +591,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         // Serve WASM files directly from wasmSourceDir (no copy to public/)
         const wasmPrefix = wasmPublicPath.endsWith("/") ? wasmPublicPath : wasmPublicPath + "/";
         if (req.url?.startsWith(wasmPrefix)) {
-          const fileName = req.url.slice(wasmPrefix.length).split("?")[0] ?? "";
+          const fileName = req.url.slice(wasmPrefix.length).split("?")[0];
+          if (fileName === undefined) {
+            next();
+            return;
+          }
 
           // 1. Try primary wasmSourceDir (gwen-core or custom crate)
           if (wasmSourceDir) {

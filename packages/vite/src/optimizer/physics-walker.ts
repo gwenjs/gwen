@@ -205,6 +205,7 @@ function collectPhysicsCalls(
       break;
     }
     case "BlockStatement": {
+      // boundary: oxc statement body, owned by #66
       const block = node as unknown as { body: Statement[] };
       for (const s of block.body) {
         collectPhysicsCalls(s, callbackType, filename, out);
@@ -220,6 +221,7 @@ function collectPhysicsCalls(
       break;
     }
     case "ReturnStatement": {
+      // boundary: oxc return argument, owned by #66
       const retStmt = node as unknown as { argument?: Statement };
       if (retStmt.argument) {
         collectPhysicsCalls(retStmt.argument, callbackType, filename, out);
@@ -231,6 +233,7 @@ function collectPhysicsCalls(
     case "ForStatement":
     case "WhileStatement":
     case "DoWhileStatement": {
+      // boundary: oxc loop body, owned by #66
       const loopStmt = node as unknown as { body: Statement };
       collectPhysicsCalls(loopStmt.body, callbackType, filename, out);
       break;
