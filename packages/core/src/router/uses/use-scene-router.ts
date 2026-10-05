@@ -96,20 +96,14 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   });
 
   // Resolve all scene factories eagerly — each factory runs once, registering
-  // its onEnter/onExit handlers on engine.hooks. Must happen before the first
-  // scene:enter emission so handlers are in place when the event fires.
+  // its onEnter/onExit handlers on engine.hooks. Initial activation is not
+  // done here: the generated bootstrap awaits scene:enter before start().
   // Build a route-key → scene-name map so hook emissions use the scene's canonical name.
   const sceneNameByRoute = new Map<string, string>();
   for (const routeKey of Object.keys(routes)) {
     const def = resolveScene(routes[routeKey as keyof TRoutes].scene);
     sceneNameByRoute.set(routeKey, def.name);
   }
-
-  // Activate the initial scene (fire-and-forget — onEnter may be async).
-  void engine.hooks.callHook(
-    "scene:enter",
-    sceneNameByRoute.get(String(currentState)) ?? String(currentState),
-  );
 
   const handle: SceneRouterHandle<TRoutes> = {
     get current() {

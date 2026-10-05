@@ -46,6 +46,35 @@ describe("useSceneRouter()", () => {
     });
   });
 
+  it("does not emit scene:enter when created", async () => {
+    const entered: string[] = [];
+    const Scene = defineScene("initial-quiet", () => {
+      onEnter(() => {
+        entered.push("scene");
+      });
+    });
+    const router = defineSceneRouter({
+      initial: "home",
+      routes: {
+        home: { scene: Scene, on: {} },
+      },
+    });
+    const engine = await createEngine();
+    const hooks: string[] = [];
+    engine.hooks.hook("scene:enter", (name: string) => {
+      hooks.push(name);
+    });
+    let current = "";
+    await engine.run(async () => {
+      const nav = useSceneRouter(router);
+      current = nav.current;
+    });
+    expect(current).toBe("home");
+    expect(hooks).toEqual([]);
+    expect(entered).toEqual([]);
+    await engine.stop();
+  });
+
   it("send() transitions to new state", async () => {
     const engine = await createEngine();
     await engine.run(async () => {
@@ -152,7 +181,7 @@ describe("useSceneRouter()", () => {
     const engine = await createEngine();
     await engine.run(async () => {
       const nav = useSceneRouter(router);
-      // initial scene:enter fires onEnterGame once
+      // Creation does not enter the underlying scene. Overlay dismiss must not either.
       const initialCallCount = onEnterGameSpy.mock.calls.length;
       await nav.send("PAUSE");
       await nav.send("RESUME");

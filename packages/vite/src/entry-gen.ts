@@ -208,7 +208,6 @@ export function generateScenesModule(scenes: SceneInfo[], mainScene: string | un
     return [
       "export function registerScenes(_scenes) {}",
       "export const mainScene = undefined;",
-      "export const mainSceneFactory = undefined;",
     ].join("\n");
   }
 
@@ -236,9 +235,6 @@ export function generateScenesModule(scenes: SceneInfo[], mainScene: string | un
     .join("\n");
 
   const mainSceneValue = mainScene ? JSON.stringify(mainScene) : "undefined";
-  const mainSceneFactoryValue = mainScene
-    ? (scenes.find((s) => s.sceneName === mainScene)?.className ?? "undefined")
-    : "undefined";
 
   return [
     imports,
@@ -248,7 +244,6 @@ export function generateScenesModule(scenes: SceneInfo[], mainScene: string | un
     "}",
     "",
     `export const mainScene = ${mainSceneValue};`,
-    `export const mainSceneFactory = ${mainSceneFactoryValue};`,
   ].join("\n");
 }
 
@@ -414,7 +409,7 @@ export function generateEntryModule(
 
   lines.push(
     'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
-    'import { engineContext, WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
+    'import { WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
     'import { configModules as _cfgModules } from "virtual:gwen/config-modules";',
@@ -423,9 +418,7 @@ export function generateEntryModule(
   );
 
   if (hasScenesDir) {
-    lines.push(
-      'import { registerScenes, mainSceneFactory, mainScene } from "/@gwenjs/gwen-scenes";',
-    );
+    lines.push('import { registerScenes, mainScene } from "/@gwenjs/gwen-scenes";');
   }
 
   for (let i = 0; i < declarations.length; i++) {
@@ -507,13 +500,7 @@ export function generateEntryModule(
       "  engine.hooks.hook('scene:enter', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._sceneResume(); });",
       "  engine.hooks.hook('scene:beforeLeave', (_name) => { for (const _h of _sceneHandleMap.get(_name) ?? []) _h._scenePause(); });",
       "",
-      "  if (mainSceneFactory) {",
-      "    const _mainDef = mainSceneFactory({ register() {} });",
-      "    if (_mainDef.onEnter) {",
-      "      engineContext.set(engine, true);",
-      "      try { await _mainDef.onEnter(); } finally { engineContext.unset(); }",
-      "    }",
-      "  }",
+      '  if (mainScene) await engine.hooks.callHook("scene:enter", mainScene, undefined);',
     );
   }
 

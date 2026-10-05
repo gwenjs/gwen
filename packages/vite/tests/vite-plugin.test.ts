@@ -209,7 +209,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
       'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
     );
     expect(code).toContain(
-      'import { engineContext, WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
+      'import { WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
     );
   });
 
@@ -290,9 +290,9 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(code).toContain("await engine.start()");
   });
 
-  it("with scenes: imports registerScenes and mainSceneFactory", () => {
+  it("with scenes: imports registerScenes and mainScene", () => {
     const code = generateEntryModule(true);
-    expect(code).toContain("import { registerScenes, mainSceneFactory, mainScene }");
+    expect(code).toContain("import { registerScenes, mainScene }");
   });
 
   it("with scenes: wires systems via SceneRegistry adapter before start", () => {
@@ -303,6 +303,22 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(startIdx).toBeGreaterThan(scenesIdx);
     expect(code).toContain("register(scene)");
     expect(code).toContain("engine.use(_s)");
+  });
+
+  it("with scenes: awaits scene:enter for mainScene once, before start, with no direct onEnter", () => {
+    const code = generateEntryModule(true);
+    const hookIdx = code.indexOf("engine.hooks.hook('scene:enter'");
+    const call = 'await engine.hooks.callHook("scene:enter", mainScene, undefined)';
+    const callIdx = code.indexOf(call);
+    const startIdx = code.indexOf("await engine.start()");
+    const externalIdx = code.indexOf("await engine.startExternal()");
+    expect(hookIdx).toBeGreaterThan(0);
+    expect(callIdx).toBeGreaterThan(hookIdx);
+    expect(startIdx).toBeGreaterThan(callIdx);
+    expect(externalIdx).toBeGreaterThan(callIdx);
+    expect(code.match(/callHook\("scene:enter"/g)).toHaveLength(1);
+    expect(code).not.toContain("_mainDef.onEnter");
+    expect(code).not.toContain("mainSceneFactory(");
   });
 
   it("without scenes: no registerScenes import or call", () => {

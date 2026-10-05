@@ -60,7 +60,7 @@ describe("direct onEnter call — bootstrap pattern", () => {
 });
 
 describe("initial scene onEnter — useSceneRouter activation", () => {
-  it("initial scene onEnter has engine context after await", async () => {
+  it("creating the router does not run the initial onEnter", async () => {
     let capturedEngine: unknown;
 
     const SceneA = defineScene("init_a", () => {
@@ -78,17 +78,15 @@ describe("initial scene onEnter — useSceneRouter activation", () => {
     });
 
     const engine = await createEngine({ maxEntities: 100 });
-    // Simulate the bootstrap: set context, call useSceneRouter, await initial onEnter
     engineContext.set(engine, true);
     try {
       useSceneRouter(Router);
-      // Give the fire-and-forget IIFE time to complete
       await wait(10);
     } finally {
       engineContext.unset();
     }
 
-    expect(capturedEngine).toBe(engine);
+    expect(capturedEngine).toBeUndefined();
   });
 });
 
