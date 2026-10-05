@@ -38,38 +38,53 @@ interface GwenModuleEntry {
 **Signature:**
 ```ts
 interface GwenOptions {
+  engine: {
+    maxEntities: number;
+    targetFPS: number;
+    debug: boolean;
+    enableStats: boolean;
+    sparseTransformSync: boolean;
+    loop: "internal" | "external";
+    maxDeltaSeconds: number;
+  };
+  html: {
+    title: string;
+    background: string;
+  };
   modules: GwenModuleEntry[];
   plugins: GwenPluginBase[];
   scenes: string[];
+  scenesMode: "auto" | false;
+  mainScene?: string;
+  rootDir?: string;
+  srcDir: string;
+  outDir: string;
+  dev?: boolean;
 }
 ```
 
-**Description.** Generic options object for extensibility.
+**Description.** Fully resolved engine configuration. Optional fields may be absent. The rest are filled with defaults.
 
 ### GwenConfigInput
 
 **Signature:**
 ```ts
-interface GwenConfigInput {
-  plugins?: PluginDef[];
-  scenes?: SceneDef[];
-  initialScene?: string;
-  wasm?: 'light' | 'physics2d' | 'physics3d';
-  logger?: LoggerOptions;
-  debug?: boolean;
+interface GwenConfigInput extends DeepPartial<GwenOptions> {
+  plugins?: GwenPluginBase[];
+  tsPlugins?: GwenPluginBase[];
+  wasmPlugins?: GwenPluginBase[];
 }
 ```
 
-**Description.** User-provided configuration input for GWEN.
+**Description.** Partial user configuration. It extends `DeepPartial<GwenOptions>` and still accepts the legacy plugin lists.
 
 | Property | Type | Description |
 |---|---|---|
-| `plugins` | `PluginDef[]` | Plugins to load |
-| `scenes` | `SceneDef[]` | Available scenes |
-| `initialScene` | `string` | Initial scene name |
-| `wasm` | `string` | WASM variant |
-| `logger` | `LoggerOptions` | Logger config |
-| `debug` | `boolean` | Debug mode |
+| `plugins` | `GwenPluginBase[]` | Legacy plugin array. Prefer `modules`. |
+| `tsPlugins` | `GwenPluginBase[]` | Legacy TypeScript plugin list. |
+| `wasmPlugins` | `GwenPluginBase[]` | Legacy WASM plugin list. |
+
+Every `GwenOptions` field is also accepted, and all of them are optional.
 
 ### DeepPartial\<T\>
 
@@ -137,8 +152,8 @@ function resolveConfig(input: GwenConfigInput): ResolvedGwenConfig
 **Example:**
 ```ts
 const config = resolveConfig({
-  scenes: [GameScene],
-  initialScene: 'Game'
+  modules: ['@gwenjs/physics2d'],
+  mainScene: 'game',
 });
 ```
 
@@ -175,12 +190,11 @@ try {
 function assertModuleFirstInput(input: GwenConfigInput): void
 ```
 
-**Description.** Type guard that asserts input is a valid module entry. Throws if invalid.
+**Description.** Throws if legacy `plugins`, `tsPlugins`, or `wasmPlugins` are set and `modules` is empty. The return type is `void`. This is not a type guard.
 
 **Example:**
 ```ts
-assertModuleFirstInput(moduleData);
-// After this, TypeScript knows moduleData is GwenModuleEntry
+assertModuleFirstInput(input);
 ```
 
 ## Lifecycle Hooks
@@ -229,9 +243,11 @@ interface EntityLifecycleHooks {
 
 **Signature:**
 ```ts
-interface ComponentLifecycleHooks {
-  'component:add': GwenHookHandler<{ entity: Entity; component: unknown }>;
-  'component:remove': GwenHookHandler<{ entity: Entity; component: unknown }>;
+interface ComponentLifecycleHooks<EntityId = unknown> {
+  'component:add': (id: EntityId, type: string, data: unknown) => void;
+  'component:remove': (id: EntityId, type: string) => void;
+  'component:removed': (id: EntityId, type: string) => void;
+  'component:update': (id: EntityId, type: string, data: unknown) => void;
 }
 ```
 
