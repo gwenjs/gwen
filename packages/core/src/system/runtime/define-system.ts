@@ -25,7 +25,12 @@
  */
 
 import { useEngine, GwenContextError } from "../../engine/context";
-import type { GwenPlugin, GwenProvides, WasmModuleHandle } from "../../engine/gwen-engine";
+import type {
+  GwenPlugin,
+  GwenProvides,
+  GwenWasmModules,
+  WasmModuleHandle,
+} from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import { ScopedHookable } from "../../hooks/scoped-hookable.js";
@@ -215,24 +220,23 @@ export interface DiscoverablePlugin extends GwenPlugin {
  * // Usage: useSystem(CombatSystem(player))
  * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function defineSystem<Args extends any[]>(
+export function defineSystem<Args extends unknown[]>(
   name: string,
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setup: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function defineSystem<Args extends any[]>(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function defineSystem<Args extends unknown[]>(
   setup: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin;
 export function defineSystem<Args extends unknown[]>(
   nameOrSetup: string | ((...args: Args) => void),
   maybeSetup?: (...args: Args) => void,
 ): (...args: Args) => DiscoverablePlugin {
-  const systemName =
-    typeof nameOrSetup === "string" ? nameOrSetup : (nameOrSetup as { name?: string }).name || "";
-  const setupTemplate = typeof nameOrSetup === "function" ? nameOrSetup : maybeSetup!;
+  const named = typeof nameOrSetup === "string";
+  const systemName = named ? nameOrSetup : nameOrSetup.name || "";
+  const setupTemplate = named ? maybeSetup : nameOrSetup;
+  if (setupTemplate === undefined) {
+    throw new TypeError("[GWEN] defineSystem() called without a setup function.");
+  }
 
   if (!systemName) {
     // eslint-disable-next-line no-console
@@ -327,23 +331,22 @@ export function defineSystem<Args extends unknown[]>(
  * onUpdate(() => {
  *   for (const e of entities) {
  *     const pos = e.get(Position)
- *     if (pos) console.log(e.id, pos.x, pos.y)
+ *     console.log(e.id, pos.x, pos.y)
  *   }
  * })
  * ```
  */
-export interface EntityAccessor {
+export interface EntityAccessor<C extends readonly ComponentDef[]> {
   /** The entity's unique ID. */
   readonly id: EntityId;
   /**
-   * Retrieve the current component data for the given definition.
+   * Retrieve the current component data for a definition in this query.
+   * A definition that was not queried is a compile error.
+   * A missing value at runtime is a bug: the query only yields entities that have every def.
    *
-   * @param def - The component definition to look up
-   * @returns The component data, or `undefined` if the entity does not have it
+   * @param def - One of the component definitions passed to the query
    */
-  get<S extends ComponentSchema, D extends ComponentDefinition<S>>(
-    def: D,
-  ): InferComponent<D> | undefined;
+  get<D extends C[number]>(def: D): InferComponent<D>;
 }
 
 /**
@@ -353,9 +356,9 @@ export interface EntityAccessor {
  * The iterable is re-evaluated each time you iterate, reflecting the current
  * ECS state at that moment.
  *
- * @typeParam T - Entity accessor type (defaults to {@link EntityAccessor})
+ * @typeParam T - Entity accessor type
  */
-export type LiveQuery<T = EntityAccessor> = Iterable<T>;
+export type LiveQuery<T> = Iterable<T>;
 
 /**
  * Defines a reactive entity query inside a {@link defineSystem} setup callback.
@@ -384,9 +387,12 @@ export type LiveQuery<T = EntityAccessor> = Iterable<T>;
  * })
  * ```
  */
-export function useQuery(components: ComponentDef[], _cacheKey?: string): LiveQuery {
+export function useQuery<const C extends readonly ComponentDef[]>(
+  components: C,
+  cacheKey?: string,
+): LiveQuery<EntityAccessor<C>> {
   const engine = useEngine();
-  return engine.createLiveQuery(components, _cacheKey);
+  return engine.createLiveQuery(components, cacheKey);
 }
 
 // ─── useService ───────────────────────────────────────────────────────────────
@@ -398,13 +404,9 @@ export function useQuery(components: ComponentDef[], _cacheKey?: string): LiveQu
  * {@link defineSystem} setup callback. Plugin packages extend the {@link GwenProvides}
  * interface via declaration merging to expose fully-typed, zero-cast service keys.
  *
- * Two call signatures are supported:
- * - **Typed** — when the key is declared in `GwenProvides` via declaration merging,
- *   the return type is inferred automatically (no cast needed).
- * - **Generic fallback** — pass a plain `string` and supply a type parameter `T`
- *   for cases where the plugin has not yet declared its key.
+ * The key must be declared on {@link GwenProvides}. There is no string fallback.
  *
- * @typeParam K - A key of the augmented {@link GwenProvides} map (typed overload)
+ * @typeParam K - A key of the augmented {@link GwenProvides} map
  * @param key - The service key as registered with `engine.provide(key, value)`
  * @returns The service registered under `key`
  *
@@ -433,16 +435,9 @@ export function useQuery(components: ComponentDef[], _cacheKey?: string): LiveQu
  * })
  * ```
  *
- * @example
- * ```typescript
- * // Generic fallback when GwenProvides is not yet augmented:
- * const myService = useService<MyServiceAPI>('my-service')
- * ```
  */
-export function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K];
-export function useService<T = unknown>(key: string): T;
-export function useService(key: string): unknown {
-  return useEngine().inject(key as keyof GwenProvides);
+export function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
+  return useEngine().inject(key);
 }
 
 // ─── useWasmModule ────────────────────────────────────────────────────────────
@@ -459,13 +454,13 @@ export function useService(key: string): unknown {
  *
  * @example
  * ```typescript
- * const wasm = useWasmModule<PathfinderExports>('pathfinder')
+ * const wasm = useWasmModule('pathfinder')
  * wasm.exports.findPath(fromX, fromY, toX, toY)
  * ```
  */
-export function useWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
-  name: string,
-): WasmModuleHandle<Exports> {
+export function useWasmModule<K extends keyof GwenWasmModules>(
+  name: K,
+): WasmModuleHandle<GwenWasmModules[K]> {
   const engine = useEngine();
-  return engine.getWasmModule<Exports>(name);
+  return engine.getWasmModule(name);
 }

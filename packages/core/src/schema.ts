@@ -540,10 +540,17 @@ export function defineComponent<S extends ComponentSchema>(
     | Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">,
   factory?: () => ComponentBody<S>,
 ): ComponentDefinition<S> {
-  const config: Omit<
-    ComponentDefinition<S>,
-    "_typeId" | "_byteSize" | "_f32Stride" | "_fields"
-  > = typeof nameOrConfig === "string" ? { name: nameOrConfig, ...factory!() } : nameOrConfig;
+  let config: Omit<ComponentDefinition<S>, "_typeId" | "_byteSize" | "_f32Stride" | "_fields">;
+  if (typeof nameOrConfig === "string") {
+    if (factory === undefined) {
+      throw new TypeError(
+        "[GWEN] defineComponent(name, factory) requires a factory when the first argument is a name.",
+      );
+    }
+    config = { name: nameOrConfig, ...factory() };
+  } else {
+    config = nameOrConfig;
+  }
 
   _validateComponentSchema(config.name, config.schema);
 
@@ -551,8 +558,8 @@ export function defineComponent<S extends ComponentSchema>(
 
   let byteOffset = 0;
   const _fields = Object.entries(config.schema).map(([fieldName, schemaType]) => {
-    const field = { name: fieldName, type: (schemaType as SchemaType).type, byteOffset };
-    byteOffset += (schemaType as SchemaType).byteLength;
+    const field = { name: fieldName, type: schemaType.type, byteOffset };
+    byteOffset += schemaType.byteLength;
     return field;
   });
 
@@ -565,5 +572,5 @@ export function defineComponent<S extends ComponentSchema>(
     _byteSize,
     _f32Stride,
     _fields,
-  } as ComponentDefinition<S>;
+  };
 }

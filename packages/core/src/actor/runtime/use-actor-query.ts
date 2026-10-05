@@ -37,7 +37,7 @@ export function useActorQuery<P, A>(
       return (function* () {
         for (const entry of query) {
           const instance = def._instances.get(entry.id);
-          if (instance !== undefined) yield instance.api;
+          if (instance !== undefined) yield instance.api as A;
         }
       })();
     },

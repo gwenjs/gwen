@@ -4,7 +4,7 @@
  */
 import { useEngine } from "../../engine/context.js";
 import type { GwenEngine } from "../../engine/gwen-engine.js";
-import type { TweenOptions, TweenableValue } from "./tween-types.js";
+import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types.js";
 import { TweenPool, type TweenSlot } from "./tween-pool.js";
 import type { TweenPoolPolicy } from "./tween-pool.js";
 import type { IGwenLogger } from "@gwenjs/schema";
@@ -26,8 +26,8 @@ export class TweenManager {
     });
   }
 
-  claim(options: TweenOptions<TweenableValue>): TweenSlot | null {
-    return this._pool.claim(options);
+  claim<T extends TweenableValue>(options: TweenOptions<T>): TweenHandle<T> {
+    return this._pool.claim(options) as unknown as TweenHandle<T>;
   }
 
   release(slot: TweenSlot): void {
@@ -52,6 +52,6 @@ export class TweenManager {
  * @throws If TweenPlugin is not installed.
  */
 export function getTweenManager(engine?: GwenEngine): TweenManager {
-  const resolvedEngine = engine ?? (useEngine() as GwenEngine);
-  return resolvedEngine.inject("tween:manager") as TweenManager;
+  const resolvedEngine = engine ?? useEngine();
+  return resolvedEngine.inject("tween:manager");
 }

@@ -101,6 +101,7 @@ export function useHook<K extends keyof GwenRuntimeHooks>(
   // Outside any scope (plugin setup via engine.run(), manual use):
   // — register directly on engine.hooks
   // — use onCleanupIfActive so cleanup is automatic if a cleanup context is active
+  // boundary: hookable's hook() rejects a typed handler that is not a subtype of its internal slot.
   const unsubscribe = engine.hooks.hook(name, fn as never);
   onCleanupIfActive(unsubscribe);
   return unsubscribe;

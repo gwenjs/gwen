@@ -22,10 +22,8 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks";
  * any active context.
  *
  * **Known hooks** (declared in {@link GwenRuntimeHooks}) are fully typed —
- * arguments are inferred automatically. **Custom game events** (e.g.
- * `'enemy:died'`, `'player:damage'`) are accepted as plain strings without
- * any cast. To get argument type-checking for custom events, augment
- * `GwenRuntimeHooks` via declaration merging in your project:
+ * arguments are inferred automatically. An event name that is not declared
+ * is a compile error. Augment `GwenRuntimeHooks` via declaration merging:
  *
  * ```typescript
  * declare module '@gwenjs/schema' {
@@ -42,23 +40,15 @@ import type { GwenRuntimeHooks } from "../engine/runtime-hooks";
  * emit('engine:tick', 0.016) // ✅ dt: number
  * ```
  *
- * @example Custom game event — no cast needed:
+ * @example Custom game event — declare it, then emit with no type argument:
  * ```typescript
- * emit('enemy:died')           // ✅
- * emit('player:damage', 25)    // ✅
+ * emit('player:damage', 25)
  * ```
  */
 export function emit<K extends keyof GwenRuntimeHooks>(
   name: K,
   ...args: Parameters<GwenRuntimeHooks[K]>
-): void;
-export function emit(name: string, ...args: unknown[]): void;
-export function emit(name: string, ...args: unknown[]): void {
+): void {
   const engine = useEngine();
-  // `callHook` is typed for known GwenRuntimeHooks keys only, but the runtime
-  // implementation accepts any string (custom game events like 'enemy:died').
-  // We cast `name` to a known key so TypeScript is satisfied; the generic
-  // `...args: unknown[]` overload above ensures callers are still safe.
-  // This is the narrowest possible cast — engine.hooks itself stays fully typed.
-  (engine.hooks.callHook as (name: string, ...args: unknown[]) => void)(name, ...args);
+  engine.hooks.callHook(name, ...args);
 }

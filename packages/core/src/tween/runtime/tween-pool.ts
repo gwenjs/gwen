@@ -239,7 +239,8 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
     if (cycleComplete) {
       // Fire complete callbacks
       for (let i = 0; i < this._completeCbs.length; i++) {
-        this._completeCbs[i]();
+        const cb = this._completeCbs[i];
+        if (cb !== undefined) cb();
       }
 
       if (this._loop) {

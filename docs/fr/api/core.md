@@ -155,7 +155,7 @@ schema: {
 
 **Signature:**
 ```ts
-function useComponent<T extends Record<string, any>>(def: ComponentDef): T
+function useComponent(def: ComponentDef): InferComponent<ComponentDef> & { $set(patch: Partial<InferComponent<ComponentDef>>): void }
 ```
 
 **Description.** Retourne un proxy live sur les données du composant de l'acteur courant. Les lectures et écritures de champs sont transmises directement à l'ECS. Doit être appelé pendant la phase de setup.
@@ -208,7 +208,7 @@ export const MovementSystem = defineSystem('MovementSystem', () => {
 
 **Signature:**
 ```ts
-function useQuery(components: ComponentDef[]): LiveQuery
+function useQuery(components: readonly ComponentDef[]): LiveQuery<EntityAccessor<readonly ComponentDef[]>>
 ```
 
 **Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.
@@ -772,7 +772,7 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit(event: string, payload?: any): void
+function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
 **Description.** Émet un événement personnalisé à tous les écouteurs enregistrés avec [`useHook()`](#usehookevent-handler).
@@ -865,7 +865,7 @@ function createGwenHooks(): GwenHooks
 
 **Signature:**
 ```ts
-function useService(name: string): any
+function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 ```
 
 **Description.** Retourne un service enregistré par un plugin.
@@ -886,7 +886,7 @@ const physics = useService('physics');
 
 **Signature:**
 ```ts
-function useWasmModule(name: string): any
+function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]>
 ```
 
 **Description.** Retourne un module WASM chargé par un plugin.

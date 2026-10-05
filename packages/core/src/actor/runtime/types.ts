@@ -11,9 +11,10 @@ import type { GwenPlugin } from "../../engine/gwen-engine";
 import type { PrefabDefinition } from "./define-prefab";
 import type { EntityId } from "../../engine/engine-api";
 import type { ScopedHookable } from "../../hooks/scoped-hookable";
+import type { ComponentDef } from "../../system/runtime/define-system";
 
 // Prefab types live in core — re-exported here for convenience
-export type { PrefabComponentEntry, PrefabDefinition } from "./define-prefab";
+export type { PrefabDefinition, PrefabEntries, PrefabOverrides } from "./define-prefab";
 // ─── Actor ────────────────────────────────────────────────────────────────────
 
 /**
@@ -54,7 +55,7 @@ export type VoidFn = () => void;
  * @template PublicAPI - The object returned by the actor factory and stored as `api`.
  * @internal
  */
-export interface ActorInstance<PublicAPI = void> {
+export interface ActorInstance<PublicAPI> {
   /** ECS entity ID assigned to this instance at spawn time. */
   entityId: EntityId;
   /** Callbacks registered via `onStart()` — fired once immediately after spawn. */
@@ -95,8 +96,11 @@ export interface ActorInstance<PublicAPI = void> {
    * @internal
    */
   _children?: Set<EntityId>;
-  /** Public API returned by the factory and exposed via `ActorHandle.get()` / `getAll()`. */
-  api: PublicAPI;
+  /**
+   * Public API returned by the factory.
+   * `undefined` until the factory returns, including while the factory itself runs.
+   */
+  api: PublicAPI | undefined;
 }
 
 /**
@@ -107,7 +111,7 @@ export interface ActorInstance<PublicAPI = void> {
  *
  * @template Props - The props type accepted by `spawn`.
  */
-export interface ActorPlugin<Props = void> extends GwenPlugin {
+export interface ActorPlugin<Props> extends GwenPlugin {
   /**
    * Spawn a new actor instance.
    *
@@ -142,19 +146,19 @@ export interface ActorPlugin<Props = void> extends GwenPlugin {
 /**
  * Definition of an actor produced by `defineActor()`.
  */
-export interface ActorDefinition<Props = void, PublicAPI = void> {
+export interface ActorDefinition<Props, PublicAPI> {
   /** Internal ECS plugin — pass to `engine.use()`. */
   readonly _plugin: ActorPlugin<Props>;
   /** Live instance registry (entityId → instance). */
   readonly _instances: Map<EntityId, ActorInstance<PublicAPI>>;
   /** Prefab declaring memory layout. */
-  readonly _prefab: PrefabDefinition;
+  readonly _prefab: PrefabDefinition<readonly ComponentDef[]>;
   /** Debug name (injected by Vite transform, else 'anonymous'). @internal */
   readonly __actorName__: string;
-  /** @internal Type marker for Props inference. */
-  readonly __props__: Props;
-  /** @internal Type marker for PublicAPI inference. */
-  readonly __api__: PublicAPI;
+  /** @internal Type-only marker. Not present at runtime. */
+  readonly __props__?: Props;
+  /** @internal Type-only marker. Not present at runtime. */
+  readonly __api__?: PublicAPI;
 }
 
 // ─── Layout types ─────────────────────────────────────────────────────────────
@@ -164,7 +168,7 @@ export interface ActorDefinition<Props = void, PublicAPI = void> {
  *
  * @template API - The public API object returned by the actor factory. `void` for groups/prefabs.
  */
-export interface PlaceHandle<API = void> {
+export interface PlaceHandle<API> {
   /** ECS entity ID assigned at spawn time. */
   readonly entityId: EntityId;
   /**

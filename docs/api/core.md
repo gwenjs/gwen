@@ -182,7 +182,7 @@ export const moveSystem = defineSystem(function moveSystem() {
 
 **Signature:**
 ```ts
-function useQuery(components: ComponentDef[]): LiveQuery
+function useQuery(components: readonly ComponentDef[]): LiveQuery<EntityAccessor<readonly ComponentDef[]>>
 ```
 
 **Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
@@ -209,7 +209,7 @@ onUpdate(() => {
 
 **Signature:**
 ```ts
-function useService(name: string): any
+function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 ```
 
 **Description.** Returns a service registered by a plugin.
@@ -230,7 +230,7 @@ const physics = useService('physics');
 
 **Signature:**
 ```ts
-function useWasmModule(name: string): any
+function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]>
 ```
 
 **Description.** Returns a WASM module loaded by a plugin.
@@ -372,7 +372,7 @@ defineSystem(() => {
 
 **Signature:**
 ```ts
-function useComponent<T extends Record<string, any>>(def: ComponentDef): T
+function useComponent(def: ComponentDef): InferComponent<ComponentDef> & { $set(patch: Partial<InferComponent<ComponentDef>>): void }
 ```
 
 **Description.** Returns a live proxy over the current actor's component data. Field reads and writes are forwarded directly to the ECS. Must be called during the setup phase.
@@ -591,7 +591,7 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit(event: string, payload?: any): void
+function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
 **Description.** Emits a custom event to all listeners registered with [`useHook()`](#usehookevent-handler).

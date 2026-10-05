@@ -25,7 +25,8 @@
 import { useEngine } from "../../engine/context";
 import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import type { PlaceHandle, ActorDefinition } from "./types";
-import type { PrefabDefinition } from "./define-prefab";
+import type { PrefabDefinition, PrefabOverrides } from "./define-prefab";
+import type { ComponentDef } from "../../system/runtime/define-system";
 import type { EntityId } from "../../engine/engine-api";
 import { entityIndex } from "../../engine/engine-api";
 import type { PlacementBridge } from "../../engine/engine-types";
@@ -97,7 +98,7 @@ export function _applyTransformOpts(
 /**
  * Options shared by all placement composables.
  */
-export interface PlaceOptions<Props = Record<string, unknown>> {
+export interface PlaceOptions<Props> {
   /** Local position `[x, y]` or `[x, y, z]`. @default [0, 0] */
   at?: [number, number] | [number, number, number];
   /** Local rotation in radians. @default 0 */
@@ -124,7 +125,7 @@ export interface PlaceOptions<Props = Record<string, unknown>> {
  * })
  * ```
  */
-export function placeGroup(options: Omit<PlaceOptions, "props"> = {}): PlaceHandle<void> {
+export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
     throw new GwenComposableError(
       ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
@@ -180,7 +181,11 @@ export function placeActor<Props, API>(
     );
   }
 
-  const entityId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(options.props);
+  const entityId = actorDef._plugin.spawn(
+    ...((options.props === undefined ? [] : [options.props]) as Props extends void
+      ? []
+      : [props: Props]),
+  );
   const bridge = useEngine().getPlacementBridge();
   _applyTransformOpts(bridge, entityId, options);
   _register(entityId);
@@ -216,9 +221,9 @@ export function placeActor<Props, API>(
  * })
  * ```
  */
-export function placePrefab(
-  prefabDef: PrefabDefinition,
-  options: PlaceOptions<Record<string, unknown>> = {},
+export function placePrefab<E extends readonly ComponentDef[]>(
+  prefabDef: PrefabDefinition<E>,
+  options: PlaceOptions<PrefabOverrides<E>> = {},
 ): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
     throw new GwenComposableError(
@@ -232,9 +237,9 @@ export function placePrefab(
   const bridge = engine.getPlacementBridge();
   const id = engine.createEntity();
 
-  for (const { def, defaults } of prefabDef.components ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    engine.addComponent(id, def as any, { ...defaults, ...options.props });
+  for (const entry of prefabDef.components) {
+    if (typeof entry !== "object" || entry === null || !("def" in entry)) continue;
+    engine.addComponent(id, entry.def, { ...entry.defaults, ...options.props });
   }
 
   const entityId = id;

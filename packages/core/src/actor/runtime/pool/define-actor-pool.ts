@@ -146,7 +146,8 @@ export function defineActorPool<Props, PublicAPI>(
 
   // ─── acquire ───────────────────────────────────────────────────────────────
 
-  function acquire(props?: Props): EntityId {
+  function acquire(...args: Props extends void ? [] : [props: Props]): EntityId {
+    const props = args[0];
     const engine = _getEngine();
 
     let id: EntityId;
@@ -169,7 +170,7 @@ export function defineActorPool<Props, PublicAPI>(
 
       // 4. Fire onReset callbacks with new props.
       for (let i = 0; i < inst._reset.length; i++) {
-        inst._reset[i]!(props as unknown);
+        inst._reset[i]!(props);
       }
 
       // 5. Fire onEnable callbacks.
@@ -181,7 +182,7 @@ export function defineActorPool<Props, PublicAPI>(
       // required props at the call site. TypeScript cannot collapse that into an
       // optional-argument signature without a cast, so we use one here. The assertion
       // is safe: the pool receives the same `Props` type that the actor was defined with.
-      id = (actor._plugin.spawn as (props?: Props) => EntityId)(props);
+      id = actor._plugin.spawn(...args);
       // Store immediate release (bypasses deferred queue) so cascade in a parent's _doRelease
       // completes synchronously within the same afterTick handler.
       _poolReleaseRegistry.set(id, (childId: EntityId) => {
@@ -322,9 +323,9 @@ export function defineActorPool<Props, PublicAPI>(
       // Custom scope: delegate mount/unmount to the caller.
       if (options.scope && typeof options.scope === "object") {
         const scope = options.scope;
-        scope.onMount(pool as ActorPool<unknown, unknown>);
+        scope.onMount(pool);
         useHook("engine:stop", () => {
-          scope.onUnmount(pool as ActorPool<unknown, unknown>);
+          scope.onUnmount(pool);
         });
       }
     },
@@ -334,7 +335,7 @@ export function defineActorPool<Props, PublicAPI>(
     _plugin,
     _actorPlugin: actor._plugin,
     actorName,
-    acquire: acquire as ActorPool<Props, PublicAPI>["acquire"],
+    acquire,
     release,
     destroyAll,
     stats,

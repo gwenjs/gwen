@@ -95,7 +95,8 @@ export class DisposableRegistry implements DisposableRegistryBase {
    */
   disposeAll(): void {
     for (let i = this._stack.length - 1; i >= 0; i--) {
-      this._stack[i].d.dispose();
+      const entry = this._stack[i];
+      if (entry !== undefined) entry.d.dispose();
     }
     this._stack.length = 0;
   }

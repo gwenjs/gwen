@@ -87,7 +87,7 @@ export interface PoolStats {
  * @template Props - Props type forwarded to `onReset()` on reuse.
  * @template _PublicAPI - Actor public API type (matches `defineActor`). Carried for type inference — not used in the interface body directly.
  */
-export interface ActorPool<Props = unknown, _PublicAPI = unknown> {
+export interface ActorPool<Props, _PublicAPI> {
   /** Plugin to register with `engine.use()`. Must be installed before calling `acquire()`. */
   readonly _plugin: GwenPlugin;
   /**
@@ -109,7 +109,7 @@ export interface ActorPool<Props = unknown, _PublicAPI = unknown> {
    * @param props - Forwarded to `onReset()` and used to override prefab defaults.
    * @throws {PoolExhaustedError} When all slots are active and the pool cannot grow.
    */
-  acquire(props: Props extends void ? void : Props): EntityId;
+  acquire(...args: Props extends void ? [] : [props: Props]): EntityId;
   /**
    * Returns a slot to the pool (deferred to end of frame for mid-frame safety).
    * Calls `onRelease()` callbacks and marks the instance dormant.

@@ -7,7 +7,7 @@ import type { SceneDefinition } from "./runtime/define-scene.js";
 // ── GwenProvides augmentation ─────────────────────────────────────────────────
 // Augments gwen-engine.js so the service is properly typed.
 // Same pattern as SceneRegistrar (from scene-registrar.ts).
-declare module "../engine/gwen-engine.js" {
+declare module "../engine/engine-types.js" {
   interface GwenProvides {
     "scene:hook-registry": SceneHookRegistry;
   }

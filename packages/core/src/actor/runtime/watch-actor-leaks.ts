@@ -87,8 +87,7 @@ function defaultLeak(name: string, count: number, delta: number): void {
  *   `afterEach` or before engine teardown).
  */
 export function watchActorLeaks(
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  actorDefs: ActorDefinition<any, any>[],
+  actorDefs: ActorDefinition<unknown, unknown>[],
   options: WatchActorLeaksOptions = {},
 ): () => void {
   const { intervalMs = 5_000, growthStreak = 3, onLeak = defaultLeak, engine } = options;

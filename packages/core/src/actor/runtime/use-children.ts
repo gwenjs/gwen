@@ -46,7 +46,7 @@ export interface ChildrenHandle {
    * @param opts - Optional placement options (position, rotation, scale, parent transform, props).
    * @returns A typed PlaceHandle for the spawned child.
    */
-  add<API>(def: ActorDefinition<any, API>, opts?: PlaceOptions<any>): PlaceHandle<API>;
+  add<Props, API>(def: ActorDefinition<Props, API>, opts?: PlaceOptions<Props>): PlaceHandle<API>;
 
   /**
    * Take ownership of an already-spawned actor handle.
@@ -156,8 +156,15 @@ export function useChildren(): ChildrenHandle {
   }
 
   return {
-    add<API>(def: ActorDefinition<any, API>, opts: PlaceOptions<any> = {}): PlaceHandle<API> {
-      const entityId = (def._plugin.spawn as (p?: unknown) => EntityId)(opts.props);
+    add<Props, API>(
+      def: ActorDefinition<Props, API>,
+      opts: PlaceOptions<Props> = {},
+    ): PlaceHandle<API> {
+      const entityId = def._plugin.spawn(
+        ...((opts.props === undefined ? [] : [opts.props]) as Props extends void
+          ? []
+          : [props: Props]),
+      );
 
       if (
         opts.at !== undefined ||

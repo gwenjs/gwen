@@ -63,6 +63,7 @@ export type {
   EngineErrorBus,
   GwenEngineOptions,
   GwenProvides,
+  GwenWasmModules,
   GwenPlugin,
   EngineFramePhaseMs,
   EngineStats,
@@ -106,6 +107,7 @@ import type {
   EngineErrorBus,
   GwenEngineOptions,
   GwenProvides,
+  GwenWasmModules,
   GwenPlugin,
   EngineFramePhaseMs,
   EngineStats,
@@ -150,6 +152,14 @@ class ScopedHooksTracker {
 
 // #region Engine implementation
 
+// boundary: one map holds every GwenProvides value; the key selects its member.
+function readProvidedService<K extends keyof GwenProvides>(
+  services: ReadonlyMap<keyof GwenProvides, GwenProvides[keyof GwenProvides]>,
+  key: K,
+): GwenProvides[K] {
+  return services.get(key) as GwenProvides[K];
+}
+
 class GwenEngineImpl implements GwenEngine {
   // ─── Config ──────────────────────────────────────────────────────────────
   readonly maxEntities: number;
@@ -170,7 +180,7 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _pluginNames = new Set<string>();
   /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
   private readonly _pluginCleanups = new Map<string, () => void>();
-  private readonly _services = new Map<string, unknown>();
+  private readonly _services = new Map<keyof GwenProvides, GwenProvides[keyof GwenProvides]>();
   private readonly _tracker = new ScopedHooksTracker();
   private _advancing = false;
   private _deltaTime = 0;
@@ -254,7 +264,7 @@ class GwenEngineImpl implements GwenEngine {
       return requestAnimationFrame(cb);
     }
     // Worker fallback: no visual sync, but keeps the loop running.
-    return setTimeout(() => cb(performance.now()), 0) as unknown as number;
+    return setTimeout(() => cb(performance.now()), 0);
   }
 
   /** Cancel a previously scheduled frame (RAF or setTimeout handle). */
@@ -415,22 +425,23 @@ class GwenEngineImpl implements GwenEngine {
 
   provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void {
     this._assertNotFaulted("provide");
-    this._services.set(key as string, value);
+    this._services.set(key, value);
   }
 
   inject<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
-    if (!this._services.has(key as string)) {
+    if (!this._services.has(key)) {
       throw new GwenPluginNotFoundError({
-        pluginName: key as string,
-        hint: `Call engine.use(${key as string}Plugin()) before using this service.`,
+        pluginName: String(key),
+        hint: `Call engine.use(${String(key)}Plugin()) before using this service.`,
         docsUrl: "https://gwenengine.dev/docs/plugins",
       });
     }
-    return this._services.get(key as string) as GwenProvides[K];
+    return readProvidedService(this._services, key);
   }
 
   tryInject<K extends keyof GwenProvides>(key: K): GwenProvides[K] | undefined {
-    return this._services.get(key as string) as GwenProvides[K] | undefined;
+    if (!this._services.has(key)) return undefined;
+    return readProvidedService(this._services, key);
   }
 
   // ─── Context (RFC-005) ────────────────────────────────────────────────────
@@ -745,13 +756,20 @@ class GwenEngineImpl implements GwenEngine {
       },
     };
 
-    this._wasmModules.set(options.name, {
+    const stored: {
+      handle: WasmModuleHandle<WebAssembly.Exports>;
+      step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
+    } = {
       handle: handle as WasmModuleHandle<WebAssembly.Exports>,
+    };
+    if (options.step !== undefined) {
       // Cast through unknown to satisfy the Map's invariant generic type.
-      step: options.step as
-        | ((handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void)
-        | undefined,
-    });
+      stored.step = options.step as (
+        handle: WasmModuleHandle<WebAssembly.Exports>,
+        dt: number,
+      ) => void;
+    }
+    this._wasmModules.set(options.name, stored);
 
     return handle;
   }
@@ -763,17 +781,15 @@ class GwenEngineImpl implements GwenEngine {
    * @returns The typed {@link WasmModuleHandle}.
    * @throws {Error} If no module has been loaded under `name`.
    */
-  getWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
-    name: string,
-  ): WasmModuleHandle<Exports> {
+  getWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]> {
     const entry = this._wasmModules.get(name);
     if (!entry) {
       throw new Error(
-        `[GWEN] getWasmModule("${name}"): no WASM module loaded under that name. ` +
-          `Call engine.loadWasmModule({ name: "${name}", url: ... }) first.`,
+        `[GWEN] getWasmModule("${String(name)}"): no WASM module loaded under that name. ` +
+          `Call engine.loadWasmModule({ name: "${String(name)}", url: ... }) first.`,
       );
     }
-    return entry.handle as WasmModuleHandle<Exports>;
+    return entry.handle as WasmModuleHandle<GwenWasmModules[K]>;
   }
 
   // ─── ECS entity management ────────────────────────────────────────────────
@@ -935,17 +951,17 @@ class GwenEngineImpl implements GwenEngine {
    *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
    * @returns A live {@link LiveQuery} of {@link EntityAccessor} objects
    */
-  createLiveQuery<T extends ComponentDef>(
-    components: T[],
+  createLiveQuery<const C extends readonly ComponentDef[]>(
+    components: C,
     _precomputedKey?: string,
-  ): LiveQuery<EntityAccessor> {
+  ): LiveQuery<EntityAccessor<C>> {
     // Capture specific members once — avoids both closure allocation on every
     // iteration start and the no-this-alias lint rule.
     const queryEngine = this._queryEngine;
     const entityManager = this._entityManager;
     const componentRegistry = this._componentRegistry;
     return {
-      [Symbol.iterator](): Iterator<EntityAccessor> {
+      [Symbol.iterator](): Iterator<EntityAccessor<C>, undefined> {
         const results = queryEngine.resolve(
           components,
           entityManager,
@@ -954,19 +970,21 @@ class GwenEngineImpl implements GwenEngine {
         );
         let i = 0;
         return {
-          next(): IteratorResult<EntityAccessor> {
+          next(): IteratorResult<EntityAccessor<C>, undefined> {
             if (i >= results.length) {
-              return { done: true, value: undefined as unknown as EntityAccessor };
+              return { done: true, value: undefined };
             }
-            const id = results[i++]!;
+            const id = results[i];
+            i += 1;
+            if (id === undefined) {
+              return { done: true, value: undefined };
+            }
             return {
               done: false,
               value: {
                 id,
-                get<S extends ComponentSchema, D extends ComponentDefinition<S>>(
-                  def: D,
-                ): InferComponent<D> | undefined {
-                  return componentRegistry.get<InferComponent<D>>(id, def);
+                get<D extends C[number]>(def: D): InferComponent<D> {
+                  return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>;
                 },
               },
             };
@@ -986,6 +1004,7 @@ class GwenEngineImpl implements GwenEngine {
           "Await bridge.init() before calling placement composables.",
       );
     }
+    // boundary: WASM bridge object is an untyped export bag. PlacementBridge is its typed view.
     return bridge as unknown as PlacementBridge;
   }
 
@@ -1593,8 +1612,17 @@ class GwenEngineImpl implements GwenEngine {
         this._lastPhaseMs = phaseMs;
 
         const budget = 1000 / this.targetFPS;
-        for (const [phase, ms] of Object.entries(phaseMs)) {
-          if (phase === "total") continue;
+        const phaseNames = [
+          "tick",
+          "plugins",
+          "physics",
+          "wasm",
+          "update",
+          "render",
+          "afterTick",
+        ] as const;
+        for (const phase of phaseNames) {
+          const ms = phaseMs[phase];
           if (ms > budget * 0.5) {
             this.logger.warn(`phase "${phase}" exceeded 50% of frame budget`, {
               phase,

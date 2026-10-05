@@ -157,9 +157,8 @@ export function useTransform(): TransformHandle {
     },
 
     setParent(handleOrId, keepWorldPos = false) {
-      const parentId =
-        typeof handleOrId === "bigint" ? handleOrId : (handleOrId as { entityId: bigint }).entityId;
-      const parentIndex = entityIndex(parentId as any);
+      const parentId = typeof handleOrId === "bigint" ? handleOrId : handleOrId.entityId;
+      const parentIndex = entityIndex(parentId);
       if (parentBridge) {
         parentBridge.setEntityParent(idx, parentIndex, keepWorldPos);
         return;
@@ -206,7 +205,7 @@ export interface TransformHandle {
   /** True if this entity has a parent in the TransformSystem. */
   readonly hasParent: boolean;
   /** Set a new parent. */
-  setParent(handleOrId: { entityId: bigint } | bigint, keepWorldPos?: boolean): void;
+  setParent(handleOrId: { entityId: EntityId } | EntityId, keepWorldPos?: boolean): void;
   /** Detach from parent, becoming a root entity. */
   detach(keepWorldPos?: boolean): void;
 }

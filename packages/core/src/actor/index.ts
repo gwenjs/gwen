@@ -47,7 +47,7 @@ export type {
 export type { ActorHandle, PrefabHandle } from "./runtime/use-actor";
 export type { TransformHandle } from "./runtime/use-transform";
 export type { WatchActorLeaksOptions } from "./runtime/watch-actor-leaks";
-export type { PrefabDefinition, PrefabComponentEntry } from "./runtime/define-prefab";
+export type { PrefabDefinition, PrefabEntries, PrefabOverrides } from "./runtime/define-prefab";
 export type {
   ActorDefinition,
   ActorInstance,

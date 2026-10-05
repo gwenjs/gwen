@@ -29,7 +29,6 @@
 import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
 import { engineContext } from "../../engine/context";
-import type { SceneHookRegistry } from "../engine-plugin.js";
 import type { SystemHandle } from "./system-handle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -179,7 +178,7 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
     }
   }
 
-  const fn = (_registry: SceneRegistry): SceneDefinition => {
+  const call = (_registry: SceneRegistry): SceneDefinition => {
     // Run factory only once — SceneDefinition is engine-independent.
     if (!_def) {
       const ctx = _withSceneContext(factory);
@@ -187,20 +186,24 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
         name,
         systems: ctx.systems,
         handles: ctx.handles,
-        onEnter: ctx.onEnterCb,
-        onExit: ctx.onExitCb,
-        onTransitionLeave: ctx.onTransitionLeaveCb,
-        onTransitionEnter: ctx.onTransitionEnterCb,
+        ...(ctx.onEnterCb !== undefined ? { onEnter: ctx.onEnterCb } : {}),
+        ...(ctx.onExitCb !== undefined ? { onExit: ctx.onExitCb } : {}),
+        ...(ctx.onTransitionLeaveCb !== undefined
+          ? { onTransitionLeave: ctx.onTransitionLeaveCb }
+          : {}),
+        ...(ctx.onTransitionEnterCb !== undefined
+          ? { onTransitionEnter: ctx.onTransitionEnterCb }
+          : {}),
       };
     }
 
     // Wire lifecycle hooks for the current engine (if any). Each engine gets
     // its own hook registrations so module-level scene definitions work correctly
     // across multiple engine instances in tests.
-    const engine = engineContext.tryUse() as GwenEngine | null;
+    const engine = engineContext.tryUse();
     if (engine && !_registeredEngines.has(engine)) {
       _registeredEngines.add(engine);
-      const hookRegistry = engine.tryInject("scene:hook-registry") as SceneHookRegistry | undefined;
+      const hookRegistry = engine.tryInject("scene:hook-registry");
       if (hookRegistry) {
         hookRegistry.hookScene(engine, _def);
       } else {
@@ -212,6 +215,5 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
     return _def;
   };
 
-  Object.defineProperty(fn, "sceneName", { value: name, writable: false });
-  return fn as SceneFactory;
+  return Object.assign(call, { sceneName: name });
 }

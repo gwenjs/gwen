@@ -63,13 +63,14 @@ function createChildLogger(
 ): GwenLogger {
   function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
     if ((level === "debug" || level === "info") && !debugMode) return;
+    const frame = getFrame?.();
     const entry: LogEntry = {
       level,
       source,
       message,
-      data,
-      frame: getFrame?.(),
       ts: performance.now(),
+      ...(data !== undefined ? { data } : {}),
+      ...(frame !== undefined ? { frame } : {}),
     };
     sinkRef.fn(entry);
   }
@@ -120,13 +121,14 @@ export function createLogger(
 
   function emit(level: LogLevel, message: string, data?: Record<string, unknown>): void {
     if ((level === "debug" || level === "info") && !debugMode) return;
+    const frame = getFrame?.();
     const entry: LogEntry = {
       level,
       source,
       message,
-      data,
-      frame: getFrame?.(),
       ts: performance.now(),
+      ...(data !== undefined ? { data } : {}),
+      ...(frame !== undefined ? { frame } : {}),
     };
     sinkRef.fn(entry);
   }

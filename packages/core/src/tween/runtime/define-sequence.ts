@@ -10,7 +10,7 @@
 import { useEngine } from "../../engine/context";
 import { getTweenManager } from "./tween-manager";
 import { TweenSlot } from "./tween-pool";
-import type { SequenceHandle, SequenceStep, TweenableValue } from "./tween-types";
+import type { SequenceHandle, SequenceStep, TweenableValue, TweenHandle } from "./tween-types";
 
 // ── defineSequence ────────────────────────────────────────────────────────────
 
@@ -71,7 +71,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
   let _playing = false;
 
   /** The active wait slot currently executing (if any), or null. */
-  let _activeWaitSlot: TweenSlot | null = null;
+  let _activeWaitSlot: TweenHandle<TweenableValue> | null = null;
 
   /** Registered completion callbacks — fired once when all steps finish. */
   const _completeCbs: Array<() => void> = [];
@@ -115,10 +115,11 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       // Policy is 'grow' (default) or 'throw' in typical engine usage.
       // Under 'drop' policy with an exhausted pool, claim() returns null and the
       // sequence will crash — callers must not use 'drop' policy with defineSequence.
-      _activeWaitSlot = manager.claim({ duration: waitDuration })!;
-      _activeWaitSlot.play({ from: 0 as TweenableValue, to: 1 as TweenableValue });
-      _activeWaitSlot.onComplete(() => {
-        manager.release(_activeWaitSlot!);
+      const waitSlot = manager.claim({ duration: waitDuration });
+      _activeWaitSlot = waitSlot;
+      waitSlot.play({ from: 0 as TweenableValue, to: 1 as TweenableValue });
+      waitSlot.onComplete(() => {
+        manager.release(waitSlot as unknown as TweenSlot);
         _activeWaitSlot = null;
         // Guard: only advance if the sequence is still playing (not paused/reset).
         if (_playing) {
@@ -189,7 +190,7 @@ export function defineSequence(steps: SequenceStep[]): SequenceHandle {
       }
       if (_activeWaitSlot) {
         _activeWaitSlot.pause();
-        manager.release(_activeWaitSlot);
+        manager.release(_activeWaitSlot as unknown as TweenSlot);
         _activeWaitSlot = null;
       }
       _currentStep = 0;

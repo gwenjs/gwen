@@ -375,6 +375,13 @@ export interface GwenEngineOptions {
  * }
  * ```
  */
+/**
+ * Augmentable registry of loaded WASM module names to their export types.
+ * Module authors augment this by hand, the same way as {@link GwenProvides}.
+ * Generation from the registration call is not done here.
+ */
+export interface GwenWasmModules {}
+
 export interface GwenProvides {
   /** The engine-level error bus. Inject via `engine.inject('errors')`. */
   errors: EngineErrorBus;
@@ -517,9 +524,7 @@ export interface GwenEngine extends GwenEngineBase {
   loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>>;
-  getWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
-    name: string,
-  ): WasmModuleHandle<Exports>;
+  getWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]>;
 
   // ─── ECS ─────────────────────────────────────────────────────────────────
   createEntity(): EntityId;
@@ -537,10 +542,10 @@ export interface GwenEngine extends GwenEngineBase {
   ): InferComponent<D> | undefined;
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
-  createLiveQuery<T extends ComponentDef>(
-    components: T[],
+  createLiveQuery<const C extends readonly ComponentDef[]>(
+    components: C,
     _precomputedKey?: string,
-  ): LiveQuery<EntityAccessor>;
+  ): LiveQuery<EntityAccessor<C>>;
   getPlacementBridge(): PlacementBridge;
 
   // ─── Config ──────────────────────────────────────────────────────────────

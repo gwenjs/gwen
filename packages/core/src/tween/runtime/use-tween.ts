@@ -41,6 +41,5 @@ import type { TweenableValue, TweenOptions, TweenHandle } from "./tween-types";
 export function useTween<T extends TweenableValue>(options: TweenOptions<T>): TweenHandle<T> {
   const engine = useEngine();
   const manager = getTweenManager(engine);
-  const slot = manager.claim(options as TweenOptions<TweenableValue>);
-  return slot as unknown as TweenHandle<T>;
+  return manager.claim(options);
 }
