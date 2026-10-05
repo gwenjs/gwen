@@ -90,10 +90,12 @@ describe("memory growth", () => {
       if (memory === null) throw new Error("light wasm did not export memory");
       const started = memory.buffer.byteLength;
       const typeId = bridge.engine().register_component_type();
+      const shared = SharedMemoryManager.create(bridge, 64);
+      const region = shared.allocateRegion("test-spawn", 16);
       const view = engine.memory.view({
         name: "test:spawn",
         type: "u8",
-        ptr: () => 0,
+        ptr: () => region.ptr,
         length: () => 4,
       });
       view.array[0] = 1;
@@ -111,7 +113,51 @@ describe("memory growth", () => {
       expect(engine.memory.epoch).toBe(1);
       expect(view.array[0]).toBe(1);
       const warning = seen.find((event) => event.code === CoreErrorCodes.MEMORY_VIEW_DETACHED);
-      expect(warning?.context?.view).toBe("test:spawn");
+      if (__GWEN_DEV__) {
+        expect(warning?.context?.view).toBe("test:spawn");
+      } else {
+        expect(warning).toBeUndefined();
+      }
+      shared.dispose(bridge);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("a plugin memory-grow handler that throws reports PLUGIN_RUNTIME_ERROR and after-update still runs", async () => {
+    const { engine, bridge, advance } = await createRealEngine({
+      variant: "light",
+      maxEntities: 16,
+    });
+    try {
+      const seen: Array<{ code: string; source?: string }> = [];
+      engine.errors.on((event) => {
+        seen.push({ code: event.code, source: event.source });
+      });
+      let after = 0;
+      await engine.use({
+        name: "grow-boom",
+        setup(scoped) {
+          scoped.hooks.hook("engine:memory-grow", () => {
+            throw new Error("boom");
+          });
+          scoped.hooks.hook("engine:after-update", () => {
+            after += 1;
+          });
+        },
+      });
+      engine.hooks.hook("engine:update", () => {
+        const memory = bridge.getLinearMemory();
+        if (memory === null) throw new Error("light wasm did not export memory");
+        memory.grow(1);
+      });
+
+      await advance(1, 1 / 60);
+
+      const reported = seen.find((event) => event.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR);
+      expect(reported?.source).toBe("grow-boom");
+      expect(after).toBe(1);
+      expect(engine.state).not.toBe("faulted");
     } finally {
       await engine.stop();
     }

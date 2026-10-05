@@ -914,6 +914,16 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   /**
+   * Record `memory.buffer` at the end of `init`.
+   * The mock-injection path does not call this: the first `checkMemoryGrow()` still records.
+   * @internal
+   */
+  _captureMemoryBaseline(): void {
+    const mem = this._wasmExports?.memory;
+    if (mem) this._lastMemoryBuffer = mem.buffer;
+  }
+
+  /**
    * Detect whether `memory.grow()` has been called since the last check.
    *
    * When Rust allocates enough memory to exhaust the current WASM linear memory,
@@ -930,16 +940,6 @@ export class WasmBridgeImpl implements WasmBridge {
    *
    * @internal
    */
-  /**
-   * Record `memory.buffer` at the end of `init`.
-   * The mock-injection path does not call this: the first `checkMemoryGrow()` still records.
-   * @internal
-   */
-  _captureMemoryBaseline(): void {
-    const mem = this._wasmExports?.memory;
-    if (mem) this._lastMemoryBuffer = mem.buffer;
-  }
-
   checkMemoryGrow(): boolean {
     const mem = this._wasmExports?.memory;
     if (!mem) return false;

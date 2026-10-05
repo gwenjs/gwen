@@ -124,7 +124,8 @@ class MemoryViewImpl<T extends MemoryViewType> implements MemoryView<T> {
       throw invalid(this._desc.name, this._owner.closed ? "engine stopped" : this._reason);
     }
     const cached = this._array;
-    if (cached !== null && cached.byteLength !== 0) return cached;
+    // DataView.byteLength throws once the buffer is detached. The buffer length is 0 for both.
+    if (cached !== null && cached.buffer.byteLength !== 0) return cached;
     return this._rebuild();
   }
 
@@ -142,7 +143,7 @@ class MemoryViewImpl<T extends MemoryViewType> implements MemoryView<T> {
 
   warnIfDetached(errors: EngineErrorBus, epoch: number, frame: number): void {
     const cached = this._array;
-    if (cached === null || cached.byteLength !== 0) return;
+    if (cached === null || cached.buffer.byteLength !== 0) return;
     errors.emit({
       level: "warning",
       code: CoreErrorCodes.MEMORY_VIEW_DETACHED,

@@ -41,6 +41,21 @@ describe("EngineMemory", () => {
     expect(view.epoch).toBe(0);
   });
 
+  it("rebuilds a DataView after detach without throwing", () => {
+    const { memory, views } = harness();
+    const view = views.view({
+      name: "test:events",
+      type: "dataview",
+      ptr: () => 0,
+      length: () => 16,
+    });
+    const first = view.array;
+    first.setUint32(0, 7, true);
+    memory.grow(1);
+    views.noteGrowth(1);
+    expect(view.array.getUint32(0, true)).toBe(7);
+  });
+
   it("rejects every invalid view", () => {
     const { views } = harness();
     views.view({ name: "test:bytes", type: "u8", ptr: () => 0, length: () => 4 });

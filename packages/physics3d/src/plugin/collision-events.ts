@@ -121,6 +121,9 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
 
   const engine = ctx._engine;
   if (engine === null) return [];
+  const ptr = pb.physics3d_get_collision_events_ptr();
+  const available = memory.buffer.byteLength - ptr;
+  if (available <= 0) return [];
   if (ctx.collisionEvents === null) {
     ctx.collisionEvents = engine.memory.view({
       name: "physics3d:collision-events",
@@ -128,17 +131,16 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
       ptr: () => pb.physics3d_get_collision_events_ptr?.() ?? 0,
       length: () => {
         const live = ctx.bridgeRuntime?.getLinearMemory?.() ?? pb.memory ?? null;
-        const ptr = pb.physics3d_get_collision_events_ptr?.() ?? 0;
+        const livePtr = pb.physics3d_get_collision_events_ptr?.() ?? 0;
         if (live === null) return 0;
-        const available = live.buffer.byteLength - ptr;
+        const liveAvailable = live.buffer.byteLength - livePtr;
         const cap = MAX_EVENTS_3D * EVENT_STRIDE_3D;
-        if (available <= 0) return 0;
-        return available > cap ? cap : available;
+        if (liveAvailable <= 0) return 0;
+        return liveAvailable > cap ? cap : liveAvailable;
       },
     });
   }
   const eventsView = ctx.collisionEvents.array;
-  if (eventsView.byteLength <= 0) return [];
 
   // Reuse pooled array
   ctx.pooledEvents.length = count;
