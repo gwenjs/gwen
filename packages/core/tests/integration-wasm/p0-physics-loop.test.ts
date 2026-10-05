@@ -150,6 +150,98 @@ describe("P0 physics loop", () => {
       await handle.dispose();
     }
   });
+
+  it("default debug omits phase timing and a body still falls", async () => {
+    const handle = await createRealEngine({
+      variant: "physics3d",
+      maxEntities: 64,
+    });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      const body = engine.createEntity();
+      const startY = 5;
+      physics.createBody(body, {
+        kind: "dynamic",
+        initialPosition: { x: 0, y: startY, z: 0 },
+        initialLinearVelocity: { x: 0, y: 0, z: 0 },
+      });
+
+      await advance(10, 1 / 60);
+
+      expect(requireState(physics.getBodyState(body)).position.y).toBeLessThan(startY);
+      expect("phaseMs" in engine.getStats()).toBe(false);
+      expect("overBudget" in engine.getStats()).toBe(false);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("debug: true keeps the same fall and the same hits, and times the frame only in dev", async () => {
+    const handle = await createRealEngine({
+      variant: "physics3d",
+      maxEntities: 64,
+      debug: true,
+    });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      const body = engine.createEntity();
+      physics.createBody(body, {
+        kind: "dynamic",
+        initialPosition: { x: 0, y: 5, z: 0 },
+        initialLinearVelocity: { x: 0, y: 0, z: 0 },
+      });
+      let hits = 0;
+      const left = engine.createEntity();
+      const right = engine.createEntity();
+      await instantiate(engine, left, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+        onCollision: () => {
+          hits += 1;
+        },
+      });
+      await instantiate(engine, right, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0.2, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+      });
+
+      await advance(10, 1 / 60);
+
+      const position = requireState(physics.getBodyState(body)).position;
+      expect(position.x).toBe(0);
+      expect(position.z).toBe(0);
+      expect(position.y).toBeCloseTo(4.857639312744141, 5);
+      expect(hits).toBe(1);
+      const stats = engine.getStats();
+      if (__GWEN_DEV__) {
+        expect(Object.keys(stats.phaseMs ?? {}).sort()).toEqual([
+          "afterTick",
+          "physics",
+          "plugins",
+          "render",
+          "tick",
+          "total",
+          "update",
+          "wasm",
+        ]);
+      } else {
+        expect("phaseMs" in stats).toBe(false);
+        expect("overBudget" in stats).toBe(false);
+      }
+    } finally {
+      await handle.dispose();
+    }
+  });
 });
 
 async function instantiate(

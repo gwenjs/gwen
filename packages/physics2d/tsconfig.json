@@ -23,7 +23,7 @@
     "noUncheckedIndexedAccess": false,
     "types": ["node"]
   },
-  "include": ["src", "src/vite-env.d.ts"],
+  "include": ["src"],
   "extends": "../../tsconfig.base.json",
   "references": [
     {

@@ -13,6 +13,7 @@ import { gwenOptimizerPlugin } from "./optimizer.js";
 import { gwenSystemPlugin } from "./system.js";
 import { gwenAsyncContextPlugin } from "./async-context.js";
 import { gwenQueryHoistPlugin } from "./query-hoist.js";
+import { gwenDevStripPlugin } from "./dev-strip.js";
 import type { GwenViteOptions, GwenOptimizerUserOptions } from "../types.js";
 import type { PluginOption } from "vite";
 
@@ -49,6 +50,7 @@ export {
 export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.js";
 export { gwenQueryHoistPlugin } from "./query-hoist.js";
+export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
 
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:
@@ -115,5 +117,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
     gwenQueryHoistPlugin(),
     gwenOptimizerPlugin(resolveOptimizerOptions(options.optimizer)),
     gwenAsyncContextPlugin(),
+    gwenDevStripPlugin(),
   ];
 }

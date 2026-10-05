@@ -273,7 +273,7 @@ export function useActor<Props, PublicAPI>(
     scope.hook("scene:beforeLeave", () => {
       const n = actorDef._instances.size;
       if (n > 0) {
-        if (engine.debug) {
+        if (__GWEN_DEV__ && engine.debug) {
           engine.logger.warn(
             `[auto-cleanup] ${n} instance(s) of "${actorDef._plugin.name}" were not despawned ` +
               `before scene exit — cleaned up automatically. ` +

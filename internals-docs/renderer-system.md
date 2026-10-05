@@ -130,8 +130,8 @@ their `GwenPlugin`. Gwen calls this hook in frame phase 8 (render).
 ### Stats are dev/debug only
 
 `RendererStatsCollector` is a no-op when disabled. `LayerManager` calls `enableStats()`
-only when `import.meta.env.DEV || engine.debug` is true. In production builds
-without debug mode, Vite tree-shakes the hot path entirely.
+only when `__GWEN_DEV__ && engine.debug` is true. Production builds omit that
+instrumentation even when `debug` is true.
 
 Stats are available at `engine.getStats().renderers` — a `RendererStats | undefined`
 field injected via TypeScript declaration merging in `renderer-core/src/index.ts`.

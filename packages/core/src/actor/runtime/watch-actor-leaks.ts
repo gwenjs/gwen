@@ -8,7 +8,7 @@
  * @example
  * ```ts
  * // main.ts — only in development
- * if (import.meta.env.DEV) {
+ * if (__GWEN_DEV__) {
  *   watchActorLeaks([PlayerActor, EnemyActor, BulletActor])
  * }
  * ```
@@ -76,7 +76,7 @@ function defaultLeak(name: string, count: number, delta: number): void {
 /**
  * Start polling the given actor definitions for unbounded instance growth.
  *
- * Safe to call unconditionally — wrap in `if (import.meta.env.DEV)` to
+ * Safe to call unconditionally — wrap in `if (__GWEN_DEV__)` to
  * tree-shake it out of production bundles.
  *
  * @param actorDefs - Actor definitions to monitor. Pass every actor type whose

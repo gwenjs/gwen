@@ -76,4 +76,46 @@ describe("P0 frame defects", () => {
     expect(engine.rawFrameTime).toBe(rawSeconds);
     expect(engine.deltaTime).toBeCloseTo(rawSeconds * 0.5, 5);
   });
+
+  it.runIf(!__GWEN_DEV__)("prod + debug: true does not time the frame", async () => {
+    const engine = await createEngine({
+      debug: true,
+      // Skip the uninitialized WASM bridge so the error logger does not call performance.now().
+      _bridge: { engine: () => ({}) } as never,
+    });
+    await engine.startExternal();
+    const now = vi.spyOn(performance, "now");
+    try {
+      await engine.advance(1 / 60);
+      expect(now).not.toHaveBeenCalled();
+      const stats = engine.getStats();
+      expect("phaseMs" in stats).toBe(false);
+      expect("overBudget" in stats).toBe(false);
+    } finally {
+      now.mockRestore();
+      await engine.stop();
+    }
+  });
+
+  it.runIf(__GWEN_DEV__)("dev + debug: true reports the 8 phase fields", async () => {
+    const engine = await createEngine({ debug: true });
+    await engine.startExternal();
+    try {
+      await engine.advance(1 / 60);
+      const stats = engine.getStats();
+      expect(Object.keys(stats.phaseMs ?? {}).sort()).toEqual([
+        "afterTick",
+        "physics",
+        "plugins",
+        "render",
+        "tick",
+        "total",
+        "update",
+        "wasm",
+      ]);
+      expect(typeof stats.overBudget).toBe("boolean");
+    } finally {
+      await engine.stop();
+    }
+  });
 });

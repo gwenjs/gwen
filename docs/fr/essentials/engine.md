@@ -102,7 +102,7 @@ export const DebugSystem = defineSystem(() => {
 | `fps` | `number` | Images par seconde |
 | `frameCount` | `number` | Total de frames depuis le démarrage |
 | `deltaTime` | `number` | Delta de la dernière frame en secondes |
-| `overBudget` | `boolean` | `true` si la dernière frame a dépassé le budget FPS |
+| `overBudget` | `boolean` | Présent seulement si `__GWEN_DEV__` et `debug` sont vrais. `true` si cette frame a dépassé le budget FPS |
 
 En mode boucle externe (`engine.loop: 'external'`), avancez les frames manuellement avec `engine.advance(delta)` :
 

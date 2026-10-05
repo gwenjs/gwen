@@ -100,7 +100,7 @@ export function localFindPath3D(
   to: Physics3DVec3,
 ): PathWaypoint3D[] {
   if (!ctx._localNavGrid) {
-    if (import.meta.env.DEV) {
+    if (__GWEN_DEV__) {
       ctx.log.warn("findPath3D(): no nav grid uploaded — call initNavGrid3D() first");
     }
     return [{ x: to.x, y: to.y, z: to.z }];

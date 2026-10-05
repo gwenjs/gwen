@@ -52,7 +52,7 @@ const GameScene = defineScene('game', () => {
 import { watchActorLeaks } from '@gwenjs/core/actor'
 
 // main.ts — développement uniquement
-if (import.meta.env.DEV) {
+if (__GWEN_DEV__) {
   watchActorLeaks([PlayerActor, EnemyActor, BulletActor])
 }
 ```
@@ -98,7 +98,7 @@ stop()
 ```
 
 ::: tip Tree-shaking
-Enveloppez l'appel dans `if (import.meta.env.DEV)` pour que Vite le supprime complètement des bundles de production. À l'exécution, seul `setInterval` est utilisé — zéro coût en production.
+Enveloppez l'appel dans `if (__GWEN_DEV__)` pour que les builds de production le suppriment. À l'exécution, seul `setInterval` est utilisé — zéro coût en production.
 :::
 
 ## Corriger les fuites

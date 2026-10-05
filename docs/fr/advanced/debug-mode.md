@@ -102,18 +102,20 @@ console.log(stats.fps)           // FPS actuel
 console.log(stats.deltaTime)     // delta de la dernière frame en ms
 console.log(stats.frameCount)    // total de frames depuis le démarrage
 console.log(stats.budgetMs)      // budget de frame (1000 / targetFPS)
-console.log(stats.overBudget)    // true si la dernière frame a dépassé le budget
+console.log(stats.overBudget)    // présent seulement si __GWEN_DEV__ && debug
 
-// Décomposition par phase (toutes en ms)
+// Décomposition par phase (toutes en ms). Absente des builds de production.
 const p = stats.phaseMs
-console.log(p.tick)       // hook engine:tick
-console.log(p.plugins)    // appels onBeforeUpdate()
-console.log(p.physics)    // étape physics2d/3d
-console.log(p.wasm)       // étapes des modules WASM
-console.log(p.update)     // appels onUpdate()
-console.log(p.render)     // appels onAfterUpdate() + onRender()
-console.log(p.afterTick)  // hook engine:afterTick
-console.log(p.total)      // temps total de la frame
+if (p) {
+  console.log(p.tick)       // hook engine:tick
+  console.log(p.plugins)    // appels onBeforeUpdate()
+  console.log(p.physics)    // étape physics2d/3d
+  console.log(p.wasm)       // étapes des modules WASM
+  console.log(p.update)     // appels onUpdate()
+  console.log(p.render)     // appels onAfterUpdate() + onRender()
+  console.log(p.afterTick)  // hook engine:afterTick
+  console.log(p.total)      // temps total de la frame
+}
 ```
 
 > **Note :** Utilisez `engine.getStats()` — et non `engine.stats`. C'est un appel de méthode.
@@ -196,23 +198,11 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 ## Fonctionnalités conditionnelles
 
-### Débogage basé sur l'environnement
+### Le debug reste éteint tant que vous ne le mettez pas
 
-Utilisez `process.env.NODE_ENV` pour activer les fonctionnalités de débogage uniquement pendant le développement :
+`engine.debug` vaut `false` par défaut. Le serveur de développement ne l'active pas.
 
-```ts
-// gwen.config.ts
-export default defineConfig({
-  engine: {
-    debug: process.env.NODE_ENV !== 'production',
-  },
-  modules: ['@gwenjs/physics2d'],
-})
-```
-
-Maintenant :
-- Les versions de développement (`npm run dev`) ont `debug: true`
-- Les versions de production (`npm run build`) ont `debug: false`
+`__GWEN_DEV__` est le drapeau de build. Il suit `import.meta.env.DEV` de Vite, donc `NODE_ENV`, pas le nom du mode. `vite` le met à `true`. `vite build` met `NODE_ENV` à `production`, donc le drapeau vaut `false`, y compris pour `vite build --mode development`. Le minutage par frame et la sentinelle mémoire WASM ne tournent que si `__GWEN_DEV__` et `debug` sont vrais.
 
 ### Enregistrement de système conditionnel
 
@@ -225,7 +215,7 @@ export class GameScene extends defineScene {
   onLoad() {
     this.addSystem(GameplaySystem)
 
-    if (import.meta.env.DEV) {
+    if (__GWEN_DEV__) {
       this.addSystem(DebugVisualizationSystem)
       this.addSystem(PerformanceProfilingSystem)
     }
@@ -323,21 +313,11 @@ describe('MySystem', () => {
 
 ### Impact sur les performances
 
-Le mode debug a une surcharge mesurable :
-- Rendu des colliseurs : ~1–2ms par image
-- Superposition de minutage : <0,1ms
-- Journalisation structurée : Négligeable si filtrée à l'exécution
-
-Utilisez `import.meta.env.DEV` pour désactiver toute surcharge en production.
+Les builds de production (`__GWEN_DEV__ === false`) retirent les avertissements réservés au dev et l'instrumentation par frame, même si `debug` vaut `true`. Les logs `debug` et `info` suivent toujours `engine.debug`.
 
 ### Vérifications de sentinelle
 
-Quand `debug: true`, GWEN effectue une validation supplémentaire :
-- Les tableaux de composants sont vérifiés aux limites
-- Les ID d'entités sont vérifiés pour exister
-- La disposition de la mémoire WASM est inspectée pour la corruption
-
-Ces vérifications détectent les bogues tôt mais ajoutent ~5–10% de surcharge.
+Quand `__GWEN_DEV__` et `debug: true`, GWEN vérifie la sentinelle de mémoire WASM après chaque frame. Il ne vérifie pas les bornes des tableaux de composants et il ne vérifie pas que les ID d'entités existent. Cette vérification est absente des builds de production.
 
 ## Résumé de l'API
 
@@ -351,7 +331,7 @@ Ces vérifications détectent les bogues tôt mais ajoutent ~5–10% de surcharg
 | `logger.error(msg, data?)` | Journal d'erreur (toujours actif) |
 | `logger.child(source)` | Créer un journal enfant avec portée |
 | `logger.setSink(callback)` | Rediriger les journaux vers un puits personnalisé |
-| `import.meta.env.DEV` | Drapeau Vite pour les versions de développement |
+| `__GWEN_DEV__` | Drapeau de build. `true` en dev, `false` en production |
 
 ## Prochaines étapes
 

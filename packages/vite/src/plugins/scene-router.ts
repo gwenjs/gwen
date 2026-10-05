@@ -1,5 +1,6 @@
 import type { Plugin } from "vite";
 import type { GwenViteOptions } from "../types.js";
+import { devFromResolvedConfig } from "./dev-from-config.js";
 
 /**
  * Options for the `gwen:scene-router` sub-plugin.
@@ -72,10 +73,14 @@ if (typeof window !== 'undefined') {
  */
 export function gwenSceneRouterPlugin(options: GwenViteOptions = {}): Plugin {
   const disableNameInjection = options.sceneRouter?.disableNameInjection ?? false;
+  let dev = true;
   return {
     name: "gwen:scene-router",
+    configResolved(config) {
+      dev = devFromResolvedConfig(config);
+    },
     transform(code, id) {
-      if (disableNameInjection) return;
+      if (!dev || disableNameInjection) return;
       if (!/\.(ts|js)x?$/.test(id)) return;
       if (!code.includes("defineSceneRouter")) return;
       const transformed = transformRouterNames(code);

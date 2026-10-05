@@ -111,7 +111,7 @@ export class LayerManager {
 
   /**
    * Enable stats collection for all current and future renderers.
-   * Called by the renderer-core plugin when `import.meta.env.DEV || engine.debug`.
+   * Called by the renderer-core plugin when `__GWEN_DEV__ && engine.debug`.
    */
   enableStats(): void {
     this._debugEnabled = true;

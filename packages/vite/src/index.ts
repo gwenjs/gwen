@@ -39,6 +39,7 @@ import {
   gwenLocalModulesPlugin,
   gwenAutoImportsPlugin,
   gwenTypesPlugin,
+  gwenDevStripPlugin,
 } from "./plugins/index.js";
 import {
   extractGlobalCssFromConfig,
@@ -693,6 +694,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
   return [
     mainPlugin,
+    gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenTypesPlugin({ typeTemplates: _sharedTypeTemplates }),
     gwenLocalPluginsPlugin({}),
@@ -707,7 +709,7 @@ export type { GwenTransformOptions } from "./transform";
 export default gwen;
 
 // RFC-006: New sub-plugin architecture
-export { gwenVitePlugin } from "./plugins/index.js";
+export { gwenVitePlugin, type GwenDevStripReport } from "./plugins/index.js";
 export type { GwenViteOptions, GwenWasmOptions, WasmVariant, ActorPluginOptions } from "./types.js";
 
 // RFC-007: ECS optimizer plugin (opt-in)

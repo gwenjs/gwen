@@ -115,8 +115,9 @@ export interface GwenUserConfig extends GwenModuleOptions {
     maxCatchupSteps?: number; // défaut 2
     maxDeltaSeconds?: number;
     /**
-     * Enable global debug mode. Activates verbose logging, per-frame sentinel checks,
-     * phase timing warnings, and plugin setup logs.
+     * Enable global debug mode. Logger `debug` and `info` follow this flag.
+     * Per-frame sentinel checks and phase timing run only in a development build
+     * (`__GWEN_DEV__`) when this is also `true`.
      * @default false
      */
     debug?: boolean;

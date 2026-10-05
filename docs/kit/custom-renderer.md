@@ -237,7 +237,7 @@ export const MyTechRendererPlugin = definePlugin<MyTechRendererPluginOptions>((o
       engine.provide('renderer:mytech', service)
 
       const manager = getOrCreateLayerManager(engine, opts.container ?? document.body)
-      if (import.meta.env.DEV || engine.debug) {
+      if (__GWEN_DEV__ && engine.debug) {
         manager.enableStats()
       }
       manager.register(service)

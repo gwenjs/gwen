@@ -60,7 +60,7 @@ const GameScene = defineScene('game', () => {
 import { watchActorLeaks } from '@gwenjs/core/actor'
 
 // main.ts — development only
-if (import.meta.env.DEV) {
+if (__GWEN_DEV__) {
   watchActorLeaks([PlayerActor, EnemyActor, BulletActor])
 }
 ```
@@ -106,7 +106,7 @@ stop()
 ```
 
 ::: tip Tree-shaking
-Wrap the call in `if (import.meta.env.DEV)` so Vite completely removes it from production bundles. At runtime, `setInterval` is the only overhead — zero cost in production.
+Wrap the call in `if (__GWEN_DEV__)` so production builds remove it. At runtime, `setInterval` is the only overhead — zero cost in production.
 :::
 
 ## Fixing the Leaks

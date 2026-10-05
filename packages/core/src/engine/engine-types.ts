@@ -309,8 +309,10 @@ export interface GwenEngineOptions {
 
   /**
    * Enable debug mode for the engine and all plugins.
-   * When `true`: activates verbose logging, per-frame sentinel checks,
-   * phase timing warnings, and plugin setup logs.
+   * Logger `debug` and `info` follow this flag in every build.
+   * Per-frame sentinel checks and phase timing run only when this is `true`
+   * and the build is a development build (`__GWEN_DEV__`).
+   * Production builds skip that instrumentation even when this is `true`.
    * @default false
    */
   debug?: boolean;
@@ -415,12 +417,15 @@ export interface EngineStats {
   fps: number;
   deltaTime: number;
   frameCount: number;
-  /** Per-phase timing for the most recent completed frame. */
-  phaseMs: EngineFramePhaseMs;
+  /**
+   * Per-phase timing for the most recent completed frame.
+   * Present only when `__GWEN_DEV__` and `engine.debug` are both true.
+   */
+  phaseMs?: EngineFramePhaseMs;
   /** Frame time budget in ms derived from `targetFPS` (e.g. 16.67 ms at 60 FPS). */
   budgetMs: number;
-  /** `true` if the last frame's total duration exceeded the budget. */
-  overBudget: boolean;
+  /** Present only when `phaseMs` is present. `true` if that frame exceeded the budget. */
+  overBudget?: boolean;
 }
 
 /** Lifecycle state of a {@link GwenEngine}. */

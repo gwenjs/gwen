@@ -8,6 +8,7 @@ import { parseSource, isCallTo } from "../oxc/index.js";
 import { createAstNameInjector } from "../shared/ast-name-injector.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 import { findComponentFiles } from "../optimizer/component-scanner.js";
+import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =
   createVirtualModule("virtual:gwen/layouts");
@@ -137,22 +138,26 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   const include = options.layout.include ?? ["src/layouts/**/*.ts", "src/**/*.layout.ts"];
   const disableNameInjection = options.layout.disableNameInjection ?? false;
   let root = process.cwd();
+  let dev = true;
 
   // Build a set of layout directories from include patterns
   const layoutDirs = new Set<string>();
-  for (const pattern of include) {
-    // Extract the base directory from the pattern (before any wildcards)
-    const basePath = pattern.split("**")[0].replace(/\/$/, "");
-    if (basePath) {
-      layoutDirs.add(resolve(root, basePath));
+  const rebuildLayoutDirs = (baseRoot: string): void => {
+    layoutDirs.clear();
+    for (const pattern of include) {
+      const basePath = pattern.split("**")[0]?.replace(/\/$/, "") ?? "";
+      if (basePath) layoutDirs.add(resolve(baseRoot, basePath));
     }
-  }
+  };
+  rebuildLayoutDirs(root);
 
   return {
     name: "gwen:layout",
 
     configResolved(config) {
       root = config.root;
+      dev = devFromResolvedConfig(config);
+      rebuildLayoutDirs(root);
     },
 
     resolveId(id) {
@@ -198,7 +203,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
     },
 
     transform(code, id) {
-      if (disableNameInjection) return;
+      if (!dev || disableNameInjection) return;
 
       // Check if the file is in one of our layout directories
       let inLayoutDir = false;
