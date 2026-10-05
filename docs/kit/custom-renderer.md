@@ -83,7 +83,11 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
   },
 
   mount({ getLayer }) {
-    const canvas = getLayer(Object.keys(opts.layers)[0]!) as HTMLCanvasElement
+    const el = getLayer('game')
+    if (!(el instanceof HTMLCanvasElement)) {
+      throw new TypeError('layer "game" is not a canvas')
+    }
+    const canvas = el
     engine = new MyTechEngine({ canvas })
   },
 
@@ -165,7 +169,11 @@ export const MyTechRenderer = defineRendererService<
   return {
     name: 'renderer:mytech',
     layers: opts.layers,
-    createElement: (name) => layerObjects.get(name)!.element,
+    createElement(name) {
+      const layer = layerObjects.get(name)
+      if (!layer) throw new UnknownLayerError(name, 'renderer:mytech')
+      return layer.element
+    },
     mount: () => {},
     unmount: () => { layerObjects.forEach((l) => l.destroy()) },
     resize: () => {},
@@ -180,7 +188,7 @@ export const MyTechRenderer = defineRendererService<
   }
 })
 
-// Export the extended service type for composables to cast to
+// Declare this service on GwenProvides, then call useService with that key.
 export type MyTechRendererService = ReturnType<typeof MyTechRenderer>
 ```
 
@@ -191,8 +199,14 @@ import { onCleanup } from '@gwenjs/core'
 import { useService } from '@gwenjs/core/system'
 import type { MyTechHandle, MyTechRendererService } from './mytech-renderer-service.js'
 
+declare module '@gwenjs/core' {
+  interface GwenProvides {
+    'renderer:mytech': MyTechRendererService
+  }
+}
+
 export function useMyTechObject(layerName: string, key: string): MyTechHandle {
-  const service = useService('renderer:mytech') as MyTechRendererService
+  const service = useService('renderer:mytech')
   const handle = service.allocateHandle(layerName, key)
   onCleanup(() => handle.destroy())
   return handle
