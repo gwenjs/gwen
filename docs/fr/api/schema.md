@@ -38,7 +38,9 @@ interface GwenModuleEntry {
 **Signature:**
 ```ts
 interface GwenOptions {
-  [key: string]: any;
+  modules: GwenModuleEntry[];
+  plugins: GwenPluginBase[];
+  scenes: string[];
 }
 ```
 
@@ -55,7 +57,6 @@ interface GwenConfigInput {
   wasm?: 'light' | 'physics2d' | 'physics3d';
   logger?: LoggerOptions;
   debug?: boolean;
-  [key: string]: any;
 }
 ```
 
@@ -171,7 +172,7 @@ try {
 
 **Signature:**
 ```ts
-function assertModuleFirstInput(input: any): asserts input is GwenModuleEntry
+function assertModuleFirstInput(input: GwenConfigInput): void
 ```
 
 **Description.** Type guard qui affirme que l'entrée est une entrée de module valide. Lève si invalide.
@@ -229,8 +230,8 @@ interface EntityLifecycleHooks {
 **Signature:**
 ```ts
 interface ComponentLifecycleHooks {
-  'component:add': GwenHookHandler<{ entity: Entity; component: any }>;
-  'component:remove': GwenHookHandler<{ entity: Entity; component: any }>;
+  'component:add': GwenHookHandler<{ entity: Entity; component: unknown }>;
+  'component:remove': GwenHookHandler<{ entity: Entity; component: unknown }>;
 }
 ```
 
