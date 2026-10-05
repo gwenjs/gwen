@@ -166,11 +166,11 @@ export interface ScreenService {
 
 // ── Internal mutable shape (not exported) ────────────────────────────────────
 
-/** Internal mutable representation. Cast to ViewportScreenInfo at the public boundary. */
+/** Mutable store. Same shape as the readonly {@link ViewportScreenInfo} view. */
 interface _MutableInfo {
-  pixels: { width: number; height: number };
+  pixels: ViewportPixels;
   dpr: number;
-  bounds: { minX: number; maxX: number; minY: number; maxY: number } | undefined;
+  bounds: ViewportBounds | undefined;
 }
 
 // ── Implementation ────────────────────────────────────────────────────────────
@@ -213,7 +213,7 @@ export class ScreenServiceImpl implements ScreenService {
 
   getOrCreateInfo(viewportId: string): ViewportScreenInfo {
     const existing = this._infos.get(viewportId);
-    if (existing) return existing as unknown as ViewportScreenInfo;
+    if (existing) return existing;
 
     const info: _MutableInfo = {
       pixels: { width: 0, height: 0 },
@@ -222,7 +222,7 @@ export class ScreenServiceImpl implements ScreenService {
     };
     this._refreshPixels(viewportId, info);
     this._infos.set(viewportId, info);
-    return info as unknown as ViewportScreenInfo;
+    return info;
   }
 
   removeViewport(viewportId: string): void {

@@ -133,12 +133,20 @@ export const HTMLRenderer = defineRendererService<
   return {
     name: 'renderer:html',
     layers: opts.layers,
-    createElement: (name) => layers.get(name)!.element,
+    createElement: (name) => {
+      const layer = layers.get(name)
+      if (layer === undefined) throw new Error(`missing layer ${name}`)
+      return layer.element
+    },
     mount: () => {},
     unmount: () => { layers.forEach((l) => l.element.remove()) },
     resize: () => {},
     extension: {
-      allocateHandle(layer, key) { return new HTMLHandleImpl(layers.get(layer)!, key) },
+      allocateHandle(layer, key) {
+        const entry = layers.get(layer)
+        if (entry === undefined) throw new Error(`missing layer ${layer}`)
+        return new HTMLHandleImpl(entry, key)
+      },
     },
   }
 })

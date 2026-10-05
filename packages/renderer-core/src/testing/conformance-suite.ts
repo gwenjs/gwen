@@ -52,7 +52,7 @@ function assertHasLayers(service: RendererService): void {
 function assertRequiredMethods(service: RendererService): void {
   const required: Array<keyof RendererService> = ["mount", "unmount", "resize", "getLayerElement"];
   for (const method of required) {
-    if (typeof (service as unknown as Record<string, unknown>)[method as string] !== "function") {
+    if (typeof service[method] !== "function") {
       throw new Error(
         `[runConformanceTests] "${service.name}" is missing required method "${method}". ` +
           `Implement it to satisfy the RendererService contract.`,
