@@ -17,6 +17,8 @@ pnpm add @gwenjs/camera-core
 
 ## Démarrage rapide
 
+`cameraViewportMap` vient de `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver.
+
 ```ts
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
@@ -108,7 +110,7 @@ export default defineConfig({
 
 `cameraViewportMap` et `cameraPathStore` sont des `Map` au niveau module qui coexistent avec
 les composants ECS, car les chaînes et objets complexes ne peuvent pas être stockés dans les
-buffers SoA.
+buffers SoA. Ils sont exposés par `@gwenjs/camera-core/internal`, sans garantie semver.
 
 ```ts
 import type { CameraPathData } from '@gwenjs/camera-core'
