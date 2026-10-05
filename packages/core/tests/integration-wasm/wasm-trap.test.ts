@@ -49,4 +49,27 @@ describe("WASM trap", () => {
     expect((next as GwenWasmPanicError).exportName).toBeUndefined();
     expect(seen.filter((event) => event.code === CoreErrorCodes.WASM_PANIC)).toHaveLength(1);
   });
+
+  it("an infallible export trap poisons the bridge from the frame loop", async () => {
+    const { engine, bridge } = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const id = bridge.createEntity();
+    expect(bridge.addComponent(id.index, id.generation, 0xffffffff - 1, new Uint8Array(20))).toBe(
+      true,
+    );
+    engine.hooks.hook("engine:before-update", () => {
+      bridge.syncTransformsToBufferSparse(0x7000_0000);
+    });
+
+    await engine.advance(1 / 60);
+    expect(engine.state).toBe("faulted");
+
+    let next: unknown;
+    try {
+      bridge.createEntity();
+    } catch (error: unknown) {
+      next = error;
+    }
+    expect(next).toBeInstanceOf(GwenWasmPanicError);
+    expect(next).not.toBeInstanceOf(GwenWasmError);
+  });
 });

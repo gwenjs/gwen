@@ -13,7 +13,7 @@ describe("P0 entity quota", () => {
       maxEntities,
     });
     try {
-      const { bridge } = handle;
+      const { engine, bridge } = handle;
       let caught: unknown;
       try {
         for (let n = 0; n < maxEntities + 1; n += 1) {
@@ -30,8 +30,13 @@ describe("P0 entity quota", () => {
         code: CoreErrorCodes.ENTITY_LIMIT_REACHED,
         exportName: "create_entity",
       });
+      expect((caught as GwenWasmError).message).toContain(String(maxEntities));
       expect(bridge.countEntities()).toBe(maxEntities);
       expect(bridge.isAlive(0, 0)).toBe(true);
+      const before = engine.frameCount;
+      await engine.advance(1 / 60);
+      expect(engine.frameCount).toBe(before + 1);
+      expect(engine.state).not.toBe("faulted");
     } finally {
       await handle.dispose();
     }
@@ -43,7 +48,7 @@ describe("P0 entity quota", () => {
       maxEntities: 100,
     });
     try {
-      const { bridge } = handle;
+      const { engine, bridge } = handle;
       const positions = new Float32Array(150 * 2);
       const rotations = new Float32Array(150);
 
@@ -62,6 +67,11 @@ describe("P0 entity quota", () => {
         exportName: "bulk_spawn_with_transforms",
       });
       expect(bridge.countEntities()).toBe(0);
+      expect((caught as GwenWasmError).message).toContain("100");
+      const before = engine.frameCount;
+      await engine.advance(1 / 60);
+      expect(engine.frameCount).toBe(before + 1);
+      expect(engine.state).not.toBe("faulted");
 
       const created = bridge.createEntity();
       expect(bridge.isAlive(created.index, created.generation)).toBe(true);

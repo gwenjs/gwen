@@ -4,7 +4,8 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
-import { CoreErrorCodes, GwenWasmPanicError } from "../src/index";
+import { CoreErrorCodes } from "../src/index";
+import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
 
 // ─── Minimal mock error bus ───────────────────────────────────────────────────
 
@@ -119,20 +120,17 @@ describe("plugin error isolation", () => {
     it("keeps a community WASM trap at error level and does not poison the core bridge", async () => {
       const bus = createMockErrorBus();
       const engine = await createEngine({ errorBus: bus });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (engine as any)._wasmModules.set("community-mod", {
-        handle: {
-          name: "community-mod",
-          exports: {},
-          memory: undefined,
-          region: () => {
-            throw new Error("no regions");
-          },
-          channel: () => {
-            throw new Error("no channels");
-          },
-        },
-        step: () => {
+      const bridge = engine.tryInject("wasm:bridge");
+      if (bridge === undefined) {
+        throw new Error("wasm bridge missing");
+      }
+      bridge._injectMock(createMockWasmEngine());
+      const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+      await engine.loadWasmModule({
+        name: "community-mod",
+        url: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
+        versionPolicy: "ignore",
+        step() {
           throw new WebAssembly.RuntimeError("unreachable");
         },
       });
@@ -144,17 +142,7 @@ describe("plugin error isolation", () => {
       expect(events[0]!.level).toBe("error");
       expect(events[0]!.code).toBe(CoreErrorCodes.WASM_PANIC);
       expect(bus.emitted.filter((event) => event.level === "fatal")).toHaveLength(0);
-
-      const bridge = engine.tryInject("wasm:bridge");
-      expect(bridge).toBeDefined();
-      let after: unknown;
-      try {
-        bridge?.createEntity();
-      } catch (error: unknown) {
-        after = error;
-      }
-      expect(after).toBeInstanceOf(Error);
-      expect(after).not.toBeInstanceOf(GwenWasmPanicError);
+      expect(bridge.createEntity()).toEqual({ index: 0, generation: 0 });
     });
 
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {

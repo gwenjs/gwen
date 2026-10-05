@@ -4,7 +4,7 @@
 //! engine state unchanged.
 
 use gwen_core::bindings::Engine;
-use gwen_core::CoreError;
+use gwen_core::{CoreError, FLAGS_OFFSET, TRANSFORM_SAB_TYPE_ID, TRANSFORM_STRIDE};
 
 fn engine(max_entities: u32) -> Engine {
     Engine::new(max_entities).expect("max entities")
@@ -232,4 +232,52 @@ fn sync_rejects_a_length_above_capacity_without_writing() {
         CoreError::InvalidMaxEntities { value: 5, max: 4 }
     ));
     assert_eq!(engine.count_entities(), 0);
+}
+
+fn slot_buffer() -> Vec<u8> {
+    vec![0u8; TRANSFORM_STRIDE]
+}
+
+#[test]
+fn sync_from_buffer_skips_registration_until_a_flagged_slot() {
+    let mut engine = engine(2);
+    let id = engine.create_entity().expect("slot");
+    let mut slot = slot_buffer();
+    let ptr = slot.as_mut_ptr() as usize;
+
+    engine
+        .sync_transforms_from_buffer(ptr, 1)
+        .expect("unflagged sync");
+    for type_id in 0..128u32 {
+        engine
+            .add_component(id.index(), id.generation(), type_id, &[1])
+            .expect("user type");
+    }
+    assert!(!engine.has_component(id.index(), id.generation(), TRANSFORM_SAB_TYPE_ID));
+
+    slot[FLAGS_OFFSET] = 1;
+    let err = must_err(engine.sync_transforms_from_buffer(ptr, 1));
+    assert!(matches!(
+        err,
+        CoreError::ComponentTypeLimitReached { max: 128 }
+    ));
+    assert!(!engine.has_component(id.index(), id.generation(), TRANSFORM_SAB_TYPE_ID));
+}
+
+#[test]
+fn sync_from_buffer_writes_the_first_flagged_slot() {
+    let mut engine = engine(2);
+    let id = engine.create_entity().expect("slot");
+    let mut slot = slot_buffer();
+    slot[0..4].copy_from_slice(&1.5f32.to_le_bytes());
+    slot[FLAGS_OFFSET] = 1;
+    let ptr = slot.as_mut_ptr() as usize;
+
+    engine
+        .sync_transforms_from_buffer(ptr, 1)
+        .expect("flagged sync");
+    let raw = engine.get_component_raw(id.index(), id.generation(), TRANSFORM_SAB_TYPE_ID);
+    assert!(raw.len() >= 4);
+    let x = f32::from_le_bytes(raw[0..4].try_into().expect("f32"));
+    assert_eq!(x, 1.5);
 }

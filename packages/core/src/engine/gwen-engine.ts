@@ -34,7 +34,7 @@ import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
 import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
-import { WasmBridgeImpl } from "./wasm-bridge";
+import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
@@ -478,6 +478,9 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   private _handleFrameLoopError(err: unknown): void {
+    if (err instanceof WebAssembly.RuntimeError) {
+      poisonWasmBridge(this._bridge, err);
+    }
     try {
       this._reportCaught(err, "frame");
     } catch (handlerError) {
@@ -1340,6 +1343,9 @@ class GwenEngineImpl implements GwenEngine {
       target?: GwenErrorTarget;
     },
   ): void {
+    if (forced === undefined && err instanceof WebAssembly.RuntimeError) {
+      poisonWasmBridge(this._bridge, err);
+    }
     const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
     const isTrap =
       err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;

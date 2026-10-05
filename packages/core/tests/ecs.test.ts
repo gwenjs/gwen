@@ -3,7 +3,9 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { CoreErrorCodes } from "../src/engine/engine-errors";
 import { defineComponent, Types } from "../src/schema";
 
 // ============= EntityManager =============
@@ -37,7 +39,15 @@ describe("EntityManager", () => {
       small.create();
       small.create();
       small.create();
-      expect(() => small.create()).toThrow("capacity exceeded");
+      let caught: unknown;
+      try {
+        small.create();
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      expect(caught).toMatchObject({ code: CoreErrorCodes.ENTITY_LIMIT_REACHED });
+      expect((caught as GwenError).message).toContain("3");
     });
 
     it("should create 1000 entities", () => {

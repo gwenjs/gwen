@@ -948,6 +948,8 @@ impl Engine {
     /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is above
     /// this engine's capacity, or [`CoreError::ComponentTypeLimitReached`] when
     /// the transform column cannot be created. Neither case writes a slot.
+    /// The transform type is registered on the first flagged slot, before that
+    /// slot is written. An unflagged buffer does not register it.
     pub fn sync_transforms_from_buffer(
         &mut self,
         ptr: usize,
@@ -961,17 +963,16 @@ impl Engine {
             });
         }
         let transform_type = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
-        if max_entities > 0 && self.storage.registry().size(transform_type).is_none() {
-            self.storage.register_raw(transform_type, 0)?;
-        }
         for idx in 0..max_entities as usize {
             let offset = idx * STRIDE;
+            let flags = unsafe { *((ptr + offset + 20) as *const u32) };
+            if flags & PHYS_FLAG == 0 {
+                continue;
+            }
+            if self.storage.registry().size(transform_type).is_none() {
+                self.storage.register_raw(transform_type, 0)?;
+            }
             unsafe {
-                let flags = *((ptr + offset + 20) as *const u32);
-                if flags & PHYS_FLAG == 0 {
-                    continue; // slot not managed by physics — skip
-                }
-
                 let base = (ptr + offset) as *const f32;
                 let x = *base;
                 let y = *base.add(1);
