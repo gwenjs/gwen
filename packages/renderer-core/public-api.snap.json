@@ -3,6 +3,7 @@
     "values": [
       "BrowserSizeProvider",
       "EmptyLayersError",
+      "LayerOrderConflictError",
       "RENDERER_CONTRACT_VERSION",
       "RendererAlreadyRegisteredError",
       "RendererContractVersionError",
@@ -12,6 +13,7 @@
       "ScreenResizeObserverError",
       "ScreenViewportNotFoundError",
       "StaticSizeProvider",
+      "SurfaceInvalidError",
       "UnknownLayerError",
       "defineRendererService",
       "getOrCreateCameraManager",
@@ -20,7 +22,8 @@
       "getOrCreateViewportManager",
       "useCameraManager",
       "useScreen",
-      "useViewportManager"
+      "useViewportManager",
+      "writeCameraViews"
     ],
     "types": [
       "AnimOpts",
@@ -58,12 +61,20 @@
     ]
   },
   "./module": {
-    "values": ["default"],
+    "values": [
+      "default"
+    ],
     "types": []
   },
   "./testing": {
-    "values": ["MockSizeProvider", "runConformanceTests"],
-    "types": ["MockSizeProviderHandle"]
+    "values": [
+      "MockSizeProvider",
+      "runConformanceTests",
+      "runSurfaceConformance"
+    ],
+    "types": [
+      "MockSizeProviderHandle"
+    ]
   },
   "./internal": {
     "values": [
