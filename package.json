@@ -6,6 +6,9 @@
   "license": "MPL-2.0",
   "author": "Jonathan Moutier <djo.moutier@gmail.com>",
   "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/gwenjs/gwen"
@@ -23,6 +26,7 @@
     "test": "./scripts/clean-cargo.sh test && pnpm -r test && pnpm test:wasm",
     "test:ts": "pnpm --filter '@gwenjs/*' test",
     "test:wasm": "pnpm --filter @gwenjs/core test:wasm",
+    "test:alloc": "pnpm --filter @gwenjs/core test:alloc",
     "test:cargo": "./scripts/clean-cargo.sh test",
     "bench": "cargo bench",
     "bench:ci": "pnpm --filter @gwenjs/core bench:ci && pnpm --filter @gwenjs/physics2d bench:ci",

@@ -81,6 +81,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
     "test": "vitest run",
     "test:wasm": "vitest run --config vitest.wasm.config.ts",
+    "test:alloc": "vitest run --config vitest.alloc.config.ts",
     "bench": "vitest bench --run",
     "bench:ecs": "vitest bench --run bench/ecs.bench.ts",
     "bench:query": "vitest bench --run bench/query.bench.ts",
