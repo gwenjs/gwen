@@ -21,13 +21,7 @@ import {
 } from "../composables/on-sensor";
 
 import type { Physics3DBridgeRuntime } from "./bridge";
-import {
-  clearOwnerChanges,
-  entitySlot,
-  guardOwned,
-  normalizeEntityId,
-  ownerEntityId,
-} from "./entity-owner";
+import { clearOwnerChanges, entitySlot, guardOwned, ownerEntityId } from "./entity-owner";
 import { createPluginContext } from "./plugin-context";
 
 // ─── Sub-module imports ────────────────────────────────────────────────────────
@@ -280,7 +274,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.ready = true;
 
       // Register prefab extension handler
-      engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
+      ctx.offPrefabInstantiate = engine.hooks.hook("prefab:instantiate", (entityId, extensions) => {
         const ext = (extensions as Record<string, unknown>)?.physics3d as
           | Physics3DPrefabExtension
           | undefined;
@@ -296,7 +290,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.offEntityDestroyed = engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
         const slot = entitySlot(entityId);
         const handle = ctx.bodyByEntity.get(slot);
-        const owner = handle ? normalizeEntityId(handle.entityId) : undefined;
+        const owner = handle?.entityId;
         // Another live id already owns the slot. Leave its callbacks and body alone.
         if (owner !== undefined && owner !== entityId) return;
         ctx.entityCollisionCallbacks.delete(slot);
@@ -430,6 +424,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     },
 
     teardown(): void {
+      if (ctx.offPrefabInstantiate) {
+        ctx.offPrefabInstantiate();
+        ctx.offPrefabInstantiate = null;
+      }
       if (ctx.offEntityDestroyed) {
         ctx.offEntityDestroyed();
         ctx.offEntityDestroyed = null;
