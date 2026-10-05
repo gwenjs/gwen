@@ -19,6 +19,17 @@ declare global {
 import type { GwenScopeType } from "./scope.js";
 
 /**
+ * Options for a {@link GwenError}. `hint` is `string | undefined` so a prod
+ * ternary (`__GWEN_DEV__ ? "…" : undefined`) typechecks under exactOptionalPropertyTypes.
+ * Hint text is written inline at the call site. This class does not read the flag.
+ */
+export interface GwenErrorOptions {
+  composable?: string;
+  hint?: string | undefined;
+  cause?: unknown;
+}
+
+/**
  * Base class for all GWEN framework errors.
  *
  * Every built-in error class (`GwenPluginNotFoundError`, `GwenActorError`,
@@ -51,17 +62,6 @@ import type { GwenScopeType } from "./scope.js";
  * }
  * ```
  */
-/**
- * Options for a {@link GwenError}. `hint` is `string | undefined` so a prod
- * ternary (`__GWEN_DEV__ ? "…" : undefined`) typechecks under exactOptionalPropertyTypes.
- * Hint text is written inline at the call site. This class does not read the flag.
- */
-export interface GwenErrorOptions {
-  composable?: string;
-  hint?: string | undefined;
-  cause?: unknown;
-}
-
 export class GwenError extends Error {
   /**
    * Machine-readable error code in `NAMESPACE:REASON` format.

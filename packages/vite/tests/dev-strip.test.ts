@@ -1,17 +1,21 @@
 import { spawnSync } from "node:child_process";
 import {
+  cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
   readdirSync,
+  realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { build, createLogger, type Logger, type Plugin } from "vite";
+import { build, createLogger, transformWithOxc, type Logger, type Plugin } from "vite";
 import { afterEach, describe, expect, it } from "vitest";
 import { gwenVitePlugin } from "../src/plugins/index.js";
 
@@ -69,6 +73,25 @@ function pickExport(exp: unknown): string | null {
   return typeof value === "string" ? value : null;
 }
 
+/**
+ * The async-context plugin parses with acorn, which rejects `import type`.
+ * Strip types before that plugin so the src fixture is JavaScript.
+ */
+function stripTypesForParser(): Plugin {
+  return {
+    name: "gwen-test-strip-types",
+    enforce: "pre",
+    async transform(code, id) {
+      const file = id.split("?", 1)[0] ?? id;
+      if (!/\.[cm]?tsx?$/.test(file) || file.includes("node_modules")) return null;
+      if (!code.includes("import type") && !code.includes("export type")) return null;
+      const lang = file.endsWith("tsx") ? "tsx" : "ts";
+      const result = await transformWithOxc(code, file, { lang });
+      return { code: result.code, map: result.map };
+    },
+  };
+}
+
 function gwenAlias(mode: "src" | "dist"): Plugin {
   return {
     name: "gwen-src-or-dist",
@@ -122,6 +145,65 @@ console.log(devHints());
   );
 }
 
+/**
+ * Copy each published package into the fixture's node_modules.
+ * Real directories, not symlinks: Vite would realpath a symlink back to packages/<name>/dist.
+ */
+function installGwenDist(dir: string): void {
+  const packagesDir = join(repoRoot, "packages");
+  for (const entry of readdirSync(packagesDir)) {
+    const pkgDir = join(packagesDir, entry);
+    const manifestPath = join(pkgDir, "package.json");
+    if (!existsSync(manifestPath)) continue;
+    const pkg = JSON.parse(readFileSync(manifestPath, "utf8")) as {
+      name?: string;
+      type?: string;
+      publishConfig?: { exports?: unknown; main?: string; types?: string };
+    };
+    if (!pkg.name?.startsWith("@gwenjs/")) continue;
+    const distDir = join(pkgDir, "dist");
+    if (!existsSync(distDir)) {
+      throw new Error(`missing dist for ${pkg.name}. Run pnpm build:ts.`);
+    }
+    const dest = join(dir, "node_modules", ...pkg.name.split("/"));
+    mkdirSync(dest, { recursive: true });
+    cpSync(distDir, join(dest, "dist"), { recursive: true });
+    const wasmDir = join(pkgDir, "wasm");
+    if (existsSync(wasmDir)) cpSync(wasmDir, join(dest, "wasm"), { recursive: true });
+    const published: Record<string, unknown> = {
+      name: pkg.name,
+      type: pkg.type ?? "module",
+    };
+    if (pkg.publishConfig?.exports) published["exports"] = pkg.publishConfig.exports;
+    if (pkg.publishConfig?.main) published["main"] = pkg.publishConfig.main;
+    if (pkg.publishConfig?.types) published["types"] = pkg.publishConfig.types;
+    writeFileSync(join(dest, "package.json"), JSON.stringify(published));
+    linkPackageDeps(pkgDir, dest);
+  }
+}
+
+/** Package deps stay linked. `@gwenjs/*` resolves to the copied dist, not the workspace. */
+function linkPackageDeps(pkgDir: string, dest: string): void {
+  const pkgNm = join(pkgDir, "node_modules");
+  if (!existsSync(pkgNm)) return;
+  const destNm = join(dest, "node_modules");
+  mkdirSync(destNm, { recursive: true });
+  for (const dep of readdirSync(pkgNm)) {
+    if (dep === ".bin" || dep === "@gwenjs") continue;
+    const from = join(pkgNm, dep);
+    const to = join(destNm, dep);
+    if (dep.startsWith("@")) {
+      mkdirSync(to, { recursive: true });
+      for (const name of readdirSync(from)) {
+        const target = join(to, name);
+        if (!existsSync(target)) symlinkSync(join(from, name), target);
+      }
+      continue;
+    }
+    if (!existsSync(to)) symlinkSync(from, to);
+  }
+}
+
 function readJs(dir: string): string {
   const parts: string[] = [];
   const walk = (current: string): void => {
@@ -165,7 +247,8 @@ describe("dev strip", () => {
         for (const source of ["src", "dist"] as const) {
           for (const prod of [true, false]) {
             process.env.NODE_ENV = prod ? "production" : "development";
-            const dir = mkdtempSync(join(tmpdir(), "gwen-dev-strip-"));
+            // macOS tmpdir is /var → /private/var. Vite ids use the real path.
+            const dir = mkdtempSync(join(realpathSync(tmpdir()), "gwen-dev-strip-"));
             dirs.push(dir);
             writeFixture(dir);
             const { logger, lines } = captureLogger();
@@ -174,7 +257,7 @@ describe("dev strip", () => {
               root: dir,
               mode: prod ? "production" : "development",
               customLogger: logger,
-              plugins: [gwenAlias(source), gwenVitePlugin({ layout: {} })],
+              plugins: [stripTypesForParser(), gwenAlias(source), gwenVitePlugin({ layout: {} })],
               build: {
                 outDir: "dist",
                 emptyOutDir: true,
@@ -260,5 +343,81 @@ describe("dev strip", () => {
     const prodStats = JSON.parse(prodLine) as { phase: boolean; over: boolean };
     expect(prodStats.phase).toBe(false);
     expect(prodStats.over).toBe(false);
+
+    const distSource = readFileSync(dist, "utf8");
+    expect(distSource).toContain("typeof __GWEN_DEV__");
+    expect(distSource).toContain('globalThis.process?.env?.NODE_ENV !== "production"');
+
+    // Import evaluation is hoisted. The flag is read inside functions, so set it after the import.
+    const forced = `
+      import { createEngine } from ${JSON.stringify(dist)};
+      globalThis.__GWEN_DEV__ = false;
+      const engine = await createEngine({ debug: true });
+      await engine.startExternal();
+      await engine.advance(1 / 60);
+      const stats = engine.getStats();
+      console.log(JSON.stringify({ phase: Object.prototype.hasOwnProperty.call(stats, "phaseMs"), over: Object.prototype.hasOwnProperty.call(stats, "overBudget") }));
+      await engine.stop();
+    `;
+    const env = { ...process.env };
+    delete env.NODE_ENV;
+    const probed = spawnSync(process.execPath, ["--input-type=module", "-e", forced], {
+      env,
+      encoding: "utf8",
+      cwd: repoRoot,
+    });
+    expect(probed.status, probed.stderr).toBe(0);
+    const probedLine = probed.stdout.trim().split("\n").at(-1) ?? "";
+    const probedStats = JSON.parse(probedLine) as { phase: boolean; over: boolean };
+    expect(probedStats.phase).toBe(false);
+    expect(probedStats.over).toBe(false);
   });
+
+  it.runIf(__GWEN_DEV__)(
+    "strips @gwenjs packages that resolve through node_modules",
+    async () => {
+      const previous = process.env.NODE_ENV;
+      process.env.NODE_ENV = "production";
+      try {
+        const dir = mkdtempSync(join(repoRoot, ".tmp-dev-strip-"));
+        dirs.push(dir);
+        writeFixture(dir);
+        installGwenDist(dir);
+        const { logger, lines } = captureLogger();
+        await build({
+          configFile: false,
+          root: dir,
+          mode: "production",
+          customLogger: logger,
+          plugins: [gwenVitePlugin({ layout: {} })],
+          build: {
+            outDir: "dist",
+            emptyOutDir: true,
+            minify: false,
+            write: true,
+            rollupOptions: {
+              input: join(dir, "src", "main.ts"),
+              output: { entryFileNames: "main.js", format: "es" },
+            },
+          },
+        });
+        const output = readJs(dir);
+        for (const sentinel of SENTINELS) {
+          expect(output, `node_modules prod still has ${sentinel}`).not.toContain(sentinel);
+        }
+        const report = lines.find((line) => line.includes("[gwen:dev-strip]"));
+        expect(report, "node_modules prod report").toBeTruthy();
+        const match = report?.match(
+          /removed (\d+) dev-only sites \((\d+) B source\), (\d+) per-frame instrumentation sites/,
+        );
+        expect(match, report).toBeTruthy();
+        expect(Number(match?.[1])).toBeGreaterThan(0);
+        expect(Number(match?.[3])).toBeGreaterThanOrEqual(3);
+      } finally {
+        if (previous === undefined) delete process.env.NODE_ENV;
+        else process.env.NODE_ENV = previous;
+      }
+    },
+    120_000,
+  );
 });

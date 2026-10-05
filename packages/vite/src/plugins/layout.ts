@@ -1,5 +1,5 @@
-import { readFileSync, realpathSync } from "node:fs";
-import { resolve, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { Plugin, ViteDevServer } from "vite";
 import { walk } from "oxc-walker";
 import type { VariableDeclarator } from "oxc-parser";
@@ -8,19 +8,10 @@ import { parseSource, isCallTo } from "../oxc/index.js";
 import { createAstNameInjector } from "../shared/ast-name-injector.js";
 import { createVirtualModule } from "../shared/virtual-module.js";
 import { findComponentFiles } from "../optimizer/component-scanner.js";
+import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const { virtual: LAYOUTS_VIRTUAL, resolved: RESOLVED_LAYOUTS } =
   createVirtualModule("virtual:gwen/layouts");
-
-/** macOS tmpdir is `/var` → `/private/var`. Prefix checks must use the real path. */
-function canonical(p: string): string {
-  const clean = p.split("?")[0] ?? p;
-  try {
-    return realpathSync(clean);
-  } catch {
-    return resolve(clean);
-  }
-}
 
 /**
  * Options for the `gwen:layout` sub-plugin.
@@ -149,12 +140,13 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
   let root = process.cwd();
   let dev = true;
 
+  // Build a set of layout directories from include patterns
   const layoutDirs = new Set<string>();
   const rebuildLayoutDirs = (baseRoot: string): void => {
     layoutDirs.clear();
     for (const pattern of include) {
       const basePath = pattern.split("**")[0]?.replace(/\/$/, "") ?? "";
-      if (basePath) layoutDirs.add(canonical(resolve(baseRoot, basePath)));
+      if (basePath) layoutDirs.add(resolve(baseRoot, basePath));
     }
   };
   rebuildLayoutDirs(root);
@@ -164,7 +156,7 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
 
     configResolved(config) {
       root = config.root;
-      dev = typeof config.env?.DEV === "boolean" ? config.env.DEV : config.command !== "build";
+      dev = devFromResolvedConfig(config);
       rebuildLayoutDirs(root);
     },
 
@@ -198,9 +190,8 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
 
     handleHotUpdate({ file, server }: { file: string; server: ViteDevServer }) {
       // Check if the file is in one of our layout directories
-      const cleanFile = canonical(file);
       for (const dir of layoutDirs) {
-        if (cleanFile !== dir && !cleanFile.startsWith(dir + sep)) continue;
+        if (!file.startsWith(dir)) continue;
 
         const mod = server.moduleGraph.getModuleById(RESOLVED_LAYOUTS);
         if (mod) {
@@ -215,10 +206,9 @@ export function gwenLayoutPlugin(options: GwenViteOptions): Plugin {
       if (!dev || disableNameInjection) return;
 
       // Check if the file is in one of our layout directories
-      const cleanId = canonical(id);
       let inLayoutDir = false;
       for (const dir of layoutDirs) {
-        if (cleanId === dir || cleanId.startsWith(dir + sep)) {
+        if (id.startsWith(dir)) {
           inLayoutDir = true;
           break;
         }

@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import type { Plugin } from "vite";
 import type { GwenViteOptions } from "../types.js";
+import { devFromResolvedConfig } from "./dev-from-config.js";
 
 const ENV_VIRTUAL = "virtual:gwen/env";
 const RESOLVED_ENV = "\0" + ENV_VIRTUAL;
@@ -27,7 +28,7 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
 
     configResolved(config) {
       isBuild = config.command === "build";
-      dev = typeof config.env?.DEV === "boolean" ? config.env.DEV : !isBuild;
+      dev = devFromResolvedConfig(config);
       const requested = options.wasm?.variant ?? "auto";
       variant = requested === "auto" ? (isBuild ? "release" : "debug") : requested;
     },

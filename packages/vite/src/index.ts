@@ -457,7 +457,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     name: "gwen",
     enforce: "pre",
 
-    async config(userConfig, _env) {
+    async config(userConfig) {
       const root = userConfig.root ?? process.cwd();
       await _loadModules(root);
       return {
@@ -709,7 +709,7 @@ export type { GwenTransformOptions } from "./transform";
 export default gwen;
 
 // RFC-006: New sub-plugin architecture
-export { gwenVitePlugin } from "./plugins/index.js";
+export { gwenVitePlugin, type GwenDevStripReport } from "./plugins/index.js";
 export type { GwenViteOptions, GwenWasmOptions, WasmVariant, ActorPluginOptions } from "./types.js";
 
 // RFC-007: ECS optimizer plugin (opt-in)

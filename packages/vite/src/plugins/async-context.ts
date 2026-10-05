@@ -59,14 +59,7 @@ export function transformAsyncContext(
   id: string,
 ): { code: string; map: ReturnType<import("magic-string").default["generateMap"]> } | undefined {
   if (!transformer.shouldTransform(code)) return undefined;
-  // The transformer parses with acorn, which rejects TypeScript (`import type`).
-  // This plugin runs before Vite strips types. Leave those files unchanged.
-  let result: ReturnType<typeof transformer.transform>;
-  try {
-    result = transformer.transform(code);
-  } catch {
-    return undefined;
-  }
+  const result = transformer.transform(code);
   if (!result) return undefined;
   return {
     code: result.code,

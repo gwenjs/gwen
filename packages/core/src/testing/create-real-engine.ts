@@ -18,6 +18,7 @@ export interface RealEngineHandle {
 export interface CreateRealEngineOptions {
   readonly variant: CoreVariant;
   readonly maxEntities: number;
+  readonly debug?: boolean;
 }
 
 function artifactPath(variant: CoreVariant, fileName: string): string {
@@ -67,6 +68,7 @@ export async function createRealEngine(
   const engine = await createEngine({
     variant: options.variant,
     maxEntities: options.maxEntities,
+    debug: options.debug ?? false,
     _bridge: bridge,
   });
 

@@ -5,6 +5,7 @@
 import { Buffer } from "node:buffer";
 import type { Plugin } from "vite";
 import { parseSync } from "oxc-parser";
+import { devFromResolvedConfig } from "./dev-from-config.js";
 
 interface OxcNode {
   type: string;
@@ -18,7 +19,7 @@ interface OxcNode {
   [key: string]: unknown;
 }
 
-export interface DevSiteCount {
+export interface GwenDevStripReport {
   sites: number;
   sourceBytes: number;
   perFrameSites: number;
@@ -139,8 +140,8 @@ function classify(test: OxcNode, isInstrument: (name: string) => boolean): Kind 
   return null;
 }
 
-export function analyzeDevSites(code: string, filename: string): DevSiteCount {
-  const count: DevSiteCount = { sites: 0, sourceBytes: 0, perFrameSites: 0 };
+export function analyzeDevSites(code: string, filename: string): GwenDevStripReport {
+  const count: GwenDevStripReport = { sites: 0, sourceBytes: 0, perFrameSites: 0 };
   let program: OxcNode;
   try {
     program = parseSync(filename, code).program as unknown as OxcNode;
@@ -296,14 +297,9 @@ function cleanModuleId(id: string): string {
   return noQuery.startsWith("/@fs/") ? noQuery.slice("/@fs".length) : noQuery;
 }
 
-function devFromResolved(config: {
-  env?: { DEV?: boolean };
-  command?: string;
-  define?: Record<string, string>;
-  environments?: Record<string, { define?: Record<string, string> }>;
-}): boolean {
-  if (typeof config.env?.DEV === "boolean") return config.env.DEV;
-  return config.command !== "build";
+/** Installed `@gwenjs/*` packages. Other `node_modules` stay out of the strip. */
+function isInstalledGwenModule(id: string): boolean {
+  return /(?:^|[/\\])node_modules[/\\]@gwenjs[/\\]/.test(id);
 }
 
 /**
@@ -313,13 +309,13 @@ function devFromResolved(config: {
 export function gwenDevStripPlugin(): Plugin {
   let dev = true;
   let report = false;
-  const counts = new Map<string, DevSiteCount>();
+  const counts = new Map<string, GwenDevStripReport>();
 
   return {
     name: "gwen:dev-strip",
     enforce: "pre",
     configResolved(config) {
-      dev = devFromResolved(config);
+      dev = devFromResolvedConfig(config);
       const literal = JSON.stringify(dev);
       // Vite computes env.DEV after the config hook. The resolved `define` bag is writable at runtime.
       const host = config as unknown as {
@@ -336,7 +332,8 @@ export function gwenDevStripPlugin(): Plugin {
       counts.clear();
     },
     transform(code, id) {
-      if (id.startsWith("\0") || id.includes("node_modules")) return null;
+      if (id.startsWith("\0")) return null;
+      if (id.includes("node_modules") && !isInstalledGwenModule(id)) return null;
       if (!/\.[cm]?[jt]sx?$/.test(id.split("?", 1)[0] ?? id)) return null;
       if (!code.includes("__GWEN_DEV__") && !code.includes("GWEN_DEV")) return null;
       const cleanId = cleanModuleId(id);

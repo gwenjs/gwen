@@ -970,11 +970,9 @@ class GwenEngineImpl implements GwenEngine {
       budgetMs,
     };
     const phaseMs = this._lastPhaseMs;
-    if (__GWEN_DEV__ && this.debug) {
-      if (phaseMs) {
-        stats.phaseMs = { ...phaseMs };
-        stats.overBudget = phaseMs.total > budgetMs;
-      }
+    if (phaseMs) {
+      stats.phaseMs = { ...phaseMs };
+      stats.overBudget = phaseMs.total > budgetMs;
     }
     return stats;
   }

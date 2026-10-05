@@ -50,7 +50,7 @@ export {
 export { gwenSystemPlugin, transformSystemNames } from "./system.js";
 export { gwenAsyncContextPlugin, transformAsyncContext } from "./async-context.js";
 export { gwenQueryHoistPlugin } from "./query-hoist.js";
-export { gwenDevStripPlugin } from "./dev-strip.js";
+export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
 
 /**
  * Composite Vite plugin that wires together all GWEN sub-plugins:

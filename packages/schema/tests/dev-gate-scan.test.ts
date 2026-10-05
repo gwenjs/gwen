@@ -185,7 +185,35 @@ function hintIsTernary(init: ts.Expression): boolean {
   return ts.isIdentifier(alternate) && alternate.text === "undefined";
 }
 
+function isNodeSide(filename: string): boolean {
+  const normalized = filename.split("\\").join("/");
+  if (normalized.startsWith("packages/vite/src/") || normalized.includes("/packages/vite/src/")) {
+    return true;
+  }
+  return /(?:^|\/)(?:module|vite-plugin)\.ts$/.test(normalized);
+}
+
+/** Node-side code may read NODE_ENV. It must not read the runtime flag. */
+function scanNodeSideFlag(code: string, filename: string): string[] {
+  const kind = filename.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
+  const source = ts.createSourceFile(filename, code, ts.ScriptTarget.Latest, true, kind);
+  const errors: string[] = [];
+  const at = (node: ts.Node): string => {
+    const pos = source.getLineAndCharacterOfPosition(node.getStart(source));
+    return `${filename}:${pos.line + 1}`;
+  };
+  const visit = (node: ts.Node): void => {
+    if (ts.isIdentifier(node) && node.text === "__GWEN_DEV__" && !isDeclarationName(node)) {
+      errors.push(`${at(node)} __GWEN_DEV__ in Node-side code`);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return errors;
+}
+
 export function scanSource(code: string, filename: string): string[] {
+  if (isNodeSide(filename)) return scanNodeSideFlag(code, filename);
   const kind = filename.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const source = ts.createSourceFile(filename, code, ts.ScriptTarget.Latest, true, kind);
   const errors: string[] = [];
@@ -336,5 +364,49 @@ describe("dev gate scan", () => {
     }
 
     expect(errors).toEqual([]);
+  });
+
+  it("rejects import.meta.env", () => {
+    const code = `export function read() { return import.meta.env.DEV; }`;
+    expect(scanSource(code, "meta.ts").some((item) => item.includes("import.meta.env"))).toBe(true);
+  });
+
+  it("rejects __GWEN_DEV__ at module top level", () => {
+    const code = `export const flag = __GWEN_DEV__;`;
+    expect(scanSource(code, "top.ts").some((item) => item.includes("top level"))).toBe(true);
+  });
+
+  it("rejects a __GWEN_DEV__ use outside the allowed forms", () => {
+    const code = `export function read() { return __GWEN_DEV__ || false; }`;
+    expect(scanSource(code, "form.ts").some((item) => item.includes("allowed form"))).toBe(true);
+  });
+
+  it("rejects a hint that is not a __GWEN_DEV__ ternary", () => {
+    const code = `new GwenError("X", "m", { hint: "always" });`;
+    expect(scanSource(code, "hint.ts").some((item) => item.includes("hint"))).toBe(true);
+  });
+
+  it("rejects more than one debug read in _runFrame", () => {
+    const code = `function _runFrame() { if (this.debug) {} if (this.debug) {} }`;
+    expect(scanSource(code, "frame.ts").some((item) => item.includes("debug reads"))).toBe(true);
+  });
+
+  it("rejects a vitest config without the __GWEN_DEV__ define", () => {
+    expect(hasDevDefine("export default { test: {} }", "vitest.config.ts")).toBe(false);
+    expect(
+      hasDevDefine('export default { define: { __GWEN_DEV__: "false" } }', "vitest.config.ts"),
+    ).toBe(true);
+  });
+
+  it("allows NODE_ENV in Node-side files and rejects __GWEN_DEV__ there", () => {
+    const env = `export function read() { return process.env["NODE_ENV"]; }`;
+    expect(scanSource(env, "packages/vite/src/plugins/tween.ts")).toEqual([]);
+    const flag = `export function read() { if (__GWEN_DEV__) return 1; return 0; }`;
+    expect(
+      scanSource(flag, "packages/vite/src/plugins/tween.ts").some((item) =>
+        item.includes("Node-side"),
+      ),
+    ).toBe(true);
+    expect(scanSource(flag, "packages/physics3d/src/module.ts").length).toBeGreaterThan(0);
   });
 });
