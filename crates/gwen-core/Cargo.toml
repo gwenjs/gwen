@@ -65,6 +65,10 @@ default = []
 wasm-bindgen-test = "0.3"
 criterion = { version = "0.5", default-features = false, features = ["html_reports"] }
 
+# proptest does not build for wasm32. wasm-pack test compiles every file under tests/.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+proptest = "1"
+
 # wasm-opt bundled with older wasm-pack doesn't support bulk-memory — skip it.
 # The .wasm produced by rustc is already valid and loads fine in all modern browsers.
 [package.metadata.wasm-pack.profile.release]

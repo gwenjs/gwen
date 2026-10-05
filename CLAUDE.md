@@ -19,6 +19,8 @@ Never declare a task done before all 4 pass.
 
 5. Never commit `docs/superpowers/` — specs and plans are local-only (gitignored).
 
+6. A boundary defect fix is accepted only with a real-WASM test that fails without the fix. Boundary means a `#[wasm_bindgen]` export, a `WasmBridgeImpl` method, a view over linear memory, or a plugin↔core WASM call. The test lives under `packages/core/tests/integration-wasm/`.
+
 ---
 
 ## Repository structure
@@ -44,6 +46,7 @@ docs/               VitePress — full API reference
 ```sh
 pnpm dev                  # watch mode (TS + Rust)
 pnpm test:ts              # TS tests only
+pnpm test:wasm            # real WASM integration tests
 pnpm test:cargo           # Rust tests only
 pnpm lint:fix             # auto-fix lint
 pnpm build:wasm           # rebuild WASM

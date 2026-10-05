@@ -34,101 +34,121 @@ function requireState(state: Physics3DBodyState | undefined): Physics3DBodyState
 
 describe("P0 physics loop", () => {
   it("D1 physics3d steps: a dynamic body falls during engine frames", async () => {
-    const { engine, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
-    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
-    const physics = engine.inject("physics3d");
-    const body = engine.createEntity();
-    const startY = 5;
-    physics.createBody(body, {
-      kind: "dynamic",
-      initialPosition: { x: 0, y: startY, z: 0 },
-      initialLinearVelocity: { x: 0, y: 0, z: 0 },
-    });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      const body = engine.createEntity();
+      const startY = 5;
+      physics.createBody(body, {
+        kind: "dynamic",
+        initialPosition: { x: 0, y: startY, z: 0 },
+        initialLinearVelocity: { x: 0, y: 0, z: 0 },
+      });
 
-    await advance(10, 1 / 60);
+      await advance(10, 1 / 60);
 
-    expect(requireState(physics.getBodyState(body)).position.y).toBeLessThan(startY);
+      expect(requireState(physics.getBodyState(body)).position.y).toBeLessThan(startY);
+    } finally {
+      await handle.dispose();
+    }
   });
 
   it("D1 collision: overlapping bodies notify the prefab callback", async () => {
-    const { engine, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
-    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-    let hits = 0;
-    const left = engine.createEntity();
-    const right = engine.createEntity();
-    await instantiate(engine, left, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 0, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-      onCollision: () => {
-        hits += 1;
-      },
-    });
-    await instantiate(engine, right, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 0.2, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-    });
-    const physics = engine.inject("physics3d");
-    expect(physics.hasBody(left)).toBe(true);
-    expect(physics.hasBody(right)).toBe(true);
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      let hits = 0;
+      const left = engine.createEntity();
+      const right = engine.createEntity();
+      await instantiate(engine, left, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+        onCollision: () => {
+          hits += 1;
+        },
+      });
+      await instantiate(engine, right, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0.2, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+      });
+      const physics = engine.inject("physics3d");
+      expect(physics.hasBody(left)).toBe(true);
+      expect(physics.hasBody(right)).toBe(true);
 
-    await advance(10, 1 / 60);
+      await advance(10, 1 / 60);
 
-    expect(hits).toBeGreaterThan(0);
+      expect(hits).toBeGreaterThan(0);
+    } finally {
+      await handle.dispose();
+    }
   });
 
   it("D2 kinematic sync 3D: an ECS move reaches the kinematic body", async () => {
-    const { engine, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
-    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-    await engine.use(createKinematicSync3D()());
-    const physics = engine.inject("physics3d");
-    const body = engine.createEntity();
-    engine.addComponent(body, Transform3D, { x: 0, y: 0, z: 0 });
-    physics.createBody(body, {
-      kind: "kinematic",
-      initialPosition: { x: 0, y: 0, z: 0 },
-    });
-    engine.addComponent(body, Transform3D, { x: 4, y: 0, z: 0 });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      await engine.use(createKinematicSync3D()());
+      const physics = engine.inject("physics3d");
+      const body = engine.createEntity();
+      engine.addComponent(body, Transform3D, { x: 0, y: 0, z: 0 });
+      physics.createBody(body, {
+        kind: "kinematic",
+        initialPosition: { x: 0, y: 0, z: 0 },
+      });
+      engine.addComponent(body, Transform3D, { x: 4, y: 0, z: 0 });
 
-    await advance(10, 1 / 60);
+      await advance(10, 1 / 60);
 
-    expect(requireState(physics.getBodyState(body)).position.x).toBeGreaterThan(1);
+      expect(requireState(physics.getBodyState(body)).position.x).toBeGreaterThan(1);
+    } finally {
+      await handle.dispose();
+    }
   });
 
   it("D2 kinematic sync 2D: an ECS move reaches the kinematic body", async () => {
-    const { engine, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics2d",
       maxEntities: 64,
     });
-    await engine.use(Physics2DPlugin({ gravity: 0 }));
-    await engine.use(createKinematicSync2D({ pixelsPerMeter: 1 }));
-    const physics = engine.inject("physics2d");
-    const body = engine.createEntity();
-    engine.addComponent(body, Position2D, { x: 0, y: 0 });
-    physics.addRigidBody(body, "kinematic", 0, 0);
-    engine.addComponent(body, Position2D, { x: 4, y: 0 });
+    try {
+      const { engine, advance } = handle;
+      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      await engine.use(createKinematicSync2D({ pixelsPerMeter: 1 }));
+      const physics = engine.inject("physics2d");
+      const body = engine.createEntity();
+      engine.addComponent(body, Position2D, { x: 0, y: 0 });
+      physics.addRigidBody(body, "kinematic", 0, 0);
+      engine.addComponent(body, Position2D, { x: 4, y: 0 });
 
-    await advance(10, 1 / 60);
+      await advance(10, 1 / 60);
 
-    const position = physics.getPosition(body);
-    if (position === null) {
-      throw new Error("expected a physics2d body position");
+      const position = physics.getPosition(body);
+      if (position === null) {
+        throw new Error("expected a physics2d body position");
+      }
+      expect(position.x).toBeGreaterThan(1);
+    } finally {
+      await handle.dispose();
     }
-    expect(position.x).toBeGreaterThan(1);
   });
 });
 
