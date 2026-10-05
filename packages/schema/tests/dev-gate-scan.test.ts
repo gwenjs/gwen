@@ -383,7 +383,11 @@ describe("dev gate scan", () => {
 
   it("rejects a hint that is not a __GWEN_DEV__ ternary", () => {
     const code = `new GwenError("X", "m", { hint: "always" });`;
-    expect(scanSource(code, "hint.ts").some((item) => item.includes("hint"))).toBe(true);
+    expect(
+      scanSource(code, "sample.ts").some((item) =>
+        item.includes("hint is not __GWEN_DEV__ ? … : undefined"),
+      ),
+    ).toBe(true);
   });
 
   it("rejects more than one debug read in _runFrame", () => {

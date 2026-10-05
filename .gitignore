@@ -65,3 +65,6 @@ coverage/
 
 # Notes & analyses locales (non commitées)
 notes/
+
+# Leftover dev-strip fixtures if a test crashes before cleanup
+.tmp-dev-strip-*
