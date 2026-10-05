@@ -272,7 +272,7 @@ export function physics3dVitePlugin(options: GwenPhysics3DPluginOptions = {}): P
       // ── BVH pre-baking (async, build mode only) ────────────────────────────
       const currentCode = s ? s.toString() : code;
       if (bvhPrebake && !id.includes("node_modules")) {
-        const bvhResult = await transformBvhReferences(currentCode, id, this.emitFile.bind(this));
+        const bvhResult = await transformBvhReferences(currentCode, id, this.emitFile?.bind(this));
         if (bvhResult !== null) {
           // BVH transform happened on top of layer-inlined code; build a new MagicString
           // for the combined result (source map will cover the BVH transform only in this case,

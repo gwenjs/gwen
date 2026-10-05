@@ -9,7 +9,6 @@ import type {
 } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import { setIf } from "../set-if";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -107,18 +106,12 @@ export function useHeightfieldCollider(
         scaleZ,
       },
       colliderId,
+      ...(options.friction !== undefined ? { friction: options.friction } : {}),
+      ...(options.restitution !== undefined ? { restitution: options.restitution } : {}),
+      ...(options.layer !== undefined ? { layers: [options.layer] } : {}),
+      ...(options.mask !== undefined ? { mask: [options.mask] } : {}),
+      ...(options.material !== undefined ? { materialPreset: options.material } : {}),
     };
-    setIf((value) => {
-      collider.friction = value;
-    }, options.friction);
-    setIf((value) => {
-      collider.restitution = value;
-    }, options.restitution);
-    if (options.layer !== undefined) collider.layers = [options.layer];
-    if (options.mask !== undefined) collider.mask = [options.mask];
-    setIf((value) => {
-      collider.materialPreset = value;
-    }, options.material);
     return collider;
   };
 

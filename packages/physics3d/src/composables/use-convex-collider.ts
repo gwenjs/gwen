@@ -14,7 +14,6 @@ import type {
 } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import { setIf } from "../set-if";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -73,13 +72,9 @@ export function useConvexCollider(options: ConvexColliderOptions): ConvexCollide
       vertices: options.vertices,
     },
     colliderId,
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
   };
-  setIf((value) => {
-    collider.isSensor = value;
-  }, options.isSensor);
-  setIf((value) => {
-    collider.materialPreset = value;
-  }, options.material);
   physics.addCollider(entityId, collider);
 
   return {

@@ -15,7 +15,7 @@ import type {
   Physics3DVec3,
   Physics3DQuat,
 } from "../types";
-import { setIf } from "../set-if";
+
 import { usePhysics3D } from "../composables";
 
 /**
@@ -48,13 +48,11 @@ export function useKinematicBody(options: KinematicBodyOptions3D = {}): Kinemati
   const entityId = _getActorEntityId();
   const _fixedRotation = options.fixedRotation ?? false;
 
-  const creationOptions: Physics3DBodyOptions = { kind: "kinematic" };
-  setIf((value) => {
-    creationOptions.initialPosition = value;
-  }, options.initialPosition);
-  setIf((value) => {
-    creationOptions.initialRotation = value;
-  }, options.initialRotation);
+  const creationOptions: Physics3DBodyOptions = {
+    kind: "kinematic",
+    ...(options.initialPosition !== undefined ? { initialPosition: options.initialPosition } : {}),
+    ...(options.initialRotation !== undefined ? { initialRotation: options.initialRotation } : {}),
+  };
 
   let _handle = physics.createBody(entityId, creationOptions);
   let _active = true;

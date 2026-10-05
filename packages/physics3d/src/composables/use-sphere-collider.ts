@@ -8,7 +8,6 @@ import type {
 } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import { setIf } from "../set-if";
 import { nextColliderId } from "./collider-id";
 
 /**
@@ -64,22 +63,12 @@ export function useSphereCollider(options: SphereColliderOptions3D): SphereColli
       radius: options.radius,
     },
     colliderId,
+    ...(options.offsetX !== undefined ? { offsetX: options.offsetX } : {}),
+    ...(options.offsetY !== undefined ? { offsetY: options.offsetY } : {}),
+    ...(options.offsetZ !== undefined ? { offsetZ: options.offsetZ } : {}),
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.material !== undefined ? { materialPreset: options.material } : {}),
   };
-  setIf((value) => {
-    collider.offsetX = value;
-  }, options.offsetX);
-  setIf((value) => {
-    collider.offsetY = value;
-  }, options.offsetY);
-  setIf((value) => {
-    collider.offsetZ = value;
-  }, options.offsetZ);
-  setIf((value) => {
-    collider.isSensor = value;
-  }, options.isSensor);
-  setIf((value) => {
-    collider.materialPreset = value;
-  }, options.material);
   physics.addCollider(entityId, collider);
 
   return {

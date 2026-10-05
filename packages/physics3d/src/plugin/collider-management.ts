@@ -15,7 +15,6 @@ import type {
   BulkStaticBoxesOptions,
   BulkStaticBoxesResult,
 } from "../types";
-import { setIf } from "../set-if";
 import { resolveLayerBits } from "../config";
 import { encodeCompoundShapes } from "../helpers/compound";
 import { nextColliderId } from "../composables/collider-id";
@@ -42,7 +41,7 @@ export function shapeSpecToColliderOptions(
   layers: (string | number)[] | undefined,
   mask: (string | number)[] | undefined,
 ): Physics3DColliderOptions {
-  const options: Physics3DColliderOptions =
+  const base: Physics3DColliderOptions =
     shape.type === "box"
       ? {
           colliderId,
@@ -54,31 +53,17 @@ export function shapeSpecToColliderOptions(
             colliderId,
             shape: { type: "capsule", radius: shape.radius, halfHeight: shape.halfHeight },
           };
-  setIf((value) => {
-    options.offsetX = value;
-  }, shape.offsetX);
-  setIf((value) => {
-    options.offsetY = value;
-  }, shape.offsetY);
-  setIf((value) => {
-    options.offsetZ = value;
-  }, shape.offsetZ);
-  setIf((value) => {
-    options.isSensor = value;
-  }, shape.isSensor);
-  setIf((value) => {
-    options.friction = value;
-  }, shape.friction);
-  setIf((value) => {
-    options.restitution = value;
-  }, shape.restitution);
-  setIf((value) => {
-    options.layers = value;
-  }, layers);
-  setIf((value) => {
-    options.mask = value;
-  }, mask);
-  return options;
+  return {
+    ...base,
+    ...(shape.offsetX !== undefined ? { offsetX: shape.offsetX } : {}),
+    ...(shape.offsetY !== undefined ? { offsetY: shape.offsetY } : {}),
+    ...(shape.offsetZ !== undefined ? { offsetZ: shape.offsetZ } : {}),
+    ...(shape.isSensor !== undefined ? { isSensor: shape.isSensor } : {}),
+    ...(shape.friction !== undefined ? { friction: shape.friction } : {}),
+    ...(shape.restitution !== undefined ? { restitution: shape.restitution } : {}),
+    ...(layers !== undefined ? { layers } : {}),
+    ...(mask !== undefined ? { mask } : {}),
+  };
 }
 
 // ─── Core collider implementation ──────────────────────────────────────────────

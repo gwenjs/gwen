@@ -15,7 +15,6 @@
 import type { MeshColliderHandle3D, MeshColliderOptions, Physics3DColliderOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import { setIf } from "../set-if";
 import { nextColliderId } from "./collider-id";
 import type { PreloadedBvhHandle } from "../index";
 
@@ -98,22 +97,12 @@ export function useMeshCollider(
       indices: opts.indices ?? new Uint32Array(0),
     },
     colliderId,
+    ...(opts.isSensor !== undefined ? { isSensor: opts.isSensor } : {}),
+    ...(opts.offsetX !== undefined ? { offsetX: opts.offsetX } : {}),
+    ...(opts.offsetY !== undefined ? { offsetY: opts.offsetY } : {}),
+    ...(opts.offsetZ !== undefined ? { offsetZ: opts.offsetZ } : {}),
+    ...(opts.__bvhUrl !== undefined ? { __bvhUrl: opts.__bvhUrl } : {}),
   };
-  setIf((value) => {
-    collider.isSensor = value;
-  }, opts.isSensor);
-  setIf((value) => {
-    collider.offsetX = value;
-  }, opts.offsetX);
-  setIf((value) => {
-    collider.offsetY = value;
-  }, opts.offsetY);
-  setIf((value) => {
-    collider.offsetZ = value;
-  }, opts.offsetZ);
-  setIf((value) => {
-    collider.__bvhUrl = value;
-  }, opts.__bvhUrl);
   physics.addCollider(entityId, collider);
 
   if (isAsync) {
@@ -161,9 +150,7 @@ export function useMeshCollider(
         Physics3DColliderOptions,
         "isSensor" | "friction" | "restitution" | "layers" | "mask"
       > = {};
-      setIf((value) => {
-        rebuildOpts.isSensor = value;
-      }, currentOptions.isSensor);
+      if (currentOptions.isSensor !== undefined) rebuildOpts.isSensor = currentOptions.isSensor;
       const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);
       if (!ok) {
         _status = "error";

@@ -93,6 +93,8 @@ describe("SENSOR_ID constants", () => {
 });
 
 describe("createPhysicsKinematicSyncSystem", () => {
+  const position = { name: "position" } as ComponentDef;
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -126,13 +128,13 @@ describe("createPhysicsKinematicSyncSystem", () => {
   }
 
   it("factory returns a plugin with the correct name", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     expect(instance.name).toBe("Physics3DKinematicSyncSystem");
   });
 
   it("resolves physics3d service on setup", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = createMockEngine({ physics3d: physics });
@@ -143,7 +145,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("syncs kinematic entity positions on engine:before-update", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const entityId = 1n;
@@ -161,7 +163,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips entities without a body", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     physics.hasBody.mockReturnValue(false);
@@ -175,7 +177,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips non-kinematic bodies", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     physics.getBodyKind.mockReturnValue("dynamic");
@@ -189,7 +191,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("skips entities missing the position component", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => null)], physics);
@@ -230,23 +232,15 @@ describe("createPhysicsKinematicSyncSystem", () => {
       { x: 0, y: 1, z: 0 },
       { x: 0, y: 0.707, z: 0, w: 0.707 },
     );
+    expect(engine.createLiveQuery).toHaveBeenCalledWith([transform3d, rotation3d]);
   });
 
-  it('uses default positionComponent "transform3d"', () => {
-    const factory = createPhysicsKinematicSyncSystem();
-    const instance = factory() as any;
-    const physics = makePhysicsMock();
-    const engine = makeEngine([liveEntity(1n, () => ({ x: 5, y: 6, z: 7 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
-    instance.setup(engine);
-    engine.hooks.callHook("engine:before-update", 0);
-
-    expect(engine.createLiveQuery).toHaveBeenCalledWith(["transform3d"]);
+  it("does not query a component by the string name transform3d", () => {
+    expect(() => createPhysicsKinematicSyncSystem()).toThrow(TypeError);
   });
 
   it("clears physics reference on teardown", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => ({ x: 0, y: 0, z: 0 }))], physics);
@@ -261,7 +255,7 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("does not sync on engine:before-update before setup", () => {
-    const factory = createPhysicsKinematicSyncSystem();
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = createMockEngine({ physics3d: physics });

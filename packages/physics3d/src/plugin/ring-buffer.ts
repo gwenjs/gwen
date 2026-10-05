@@ -21,6 +21,11 @@ import type { ContactEvent3D } from "../types";
 /** Number of f32 slots per contact event record. */
 export const CONTACT_EVENT_FLOATS = 10;
 
+/** In-range typed-array reads are numbers. The zero fallback is for the index signature. */
+function readSlot(view: ArrayLike<number>, index: number): number {
+  return view[index] ?? 0;
+}
+
 /** Maximum number of contact events that fit in the ring buffer at once. */
 export const RING_CAPACITY_3D = 512;
 
@@ -79,30 +84,16 @@ export class ContactRingBuffer3D {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY_3D;
       const base = slot * CONTACT_EVENT_FLOATS;
-      const entityA = this._u32[base];
-      const entityB = this._u32[base + 1];
-      const contactX = this._f32[base + 2];
-      const contactY = this._f32[base + 3];
-      const contactZ = this._f32[base + 4];
-      const normalX = this._f32[base + 5];
-      const normalY = this._f32[base + 6];
-      const normalZ = this._f32[base + 7];
-      const relativeVelocity = this._f32[base + 8];
-      const restitution = this._f32[base + 9];
-      if (
-        entityA === undefined ||
-        entityB === undefined ||
-        contactX === undefined ||
-        contactY === undefined ||
-        contactZ === undefined ||
-        normalX === undefined ||
-        normalY === undefined ||
-        normalZ === undefined ||
-        relativeVelocity === undefined ||
-        restitution === undefined
-      ) {
-        throw new TypeError("physics3d contact ring slot is empty");
-      }
+      const entityA = readSlot(this._u32, base);
+      const entityB = readSlot(this._u32, base + 1);
+      const contactX = readSlot(this._f32, base + 2);
+      const contactY = readSlot(this._f32, base + 3);
+      const contactZ = readSlot(this._f32, base + 4);
+      const normalX = readSlot(this._f32, base + 5);
+      const normalY = readSlot(this._f32, base + 6);
+      const normalZ = readSlot(this._f32, base + 7);
+      const relativeVelocity = readSlot(this._f32, base + 8);
+      const restitution = readSlot(this._f32, base + 9);
       events.push({
         entityA: BigInt(entityA),
         entityB: BigInt(entityB),

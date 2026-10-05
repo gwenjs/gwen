@@ -11,9 +11,6 @@ import type { ComponentDef } from "@gwenjs/core/system";
 import type { Physics3DAPI, Physics3DQuat, Physics3DVec3 } from "./types";
 import "./augment";
 
-/** Default ECS component name used when `positionComponent` is omitted. */
-const DEFAULT_POSITION_COMPONENT = "transform3d";
-
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 /** Stable sensor id for the foot (ground-detection) sensor. */
@@ -30,9 +27,9 @@ export const SENSOR_ID_HEAD = 0xf008;
 export interface PhysicsKinematicSyncSystemOptions {
   /**
    * ECS component that holds `{ x, y, z }` transform data.
-   * When omitted, the system reads the component named `"transform3d"`.
+   * Pass the component definition. A string name is not accepted.
    */
-  positionComponent?: ComponentDef;
+  positionComponent: ComponentDef;
   /**
    * ECS component that holds `{ x, y, z, w }` rotation data.
    * Rotation sync is skipped when this is omitted.
@@ -65,17 +62,18 @@ function readQuat(value: unknown): Physics3DQuat | null {
  * Only entities that have both a registered kinematic body AND the configured
  * position component are affected.
  *
- * @param options - Optional position and rotation components.
+ * @param options - Position component, and an optional rotation component.
  * @returns A `definePlugin` class ready to be instantiated and registered.
  *
  * @example
  * ```ts
- * engine.use(createPhysicsKinematicSyncSystem());
+ * engine.use(createPhysicsKinematicSyncSystem({ positionComponent }));
  * ```
  */
-export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
+export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions) {
   const positionComponent = options.positionComponent;
   const rotationComponent = options.rotationComponent;
+  const queried = rotationComponent ? [positionComponent, rotationComponent] : [positionComponent];
 
   return definePlugin(() => {
     let physics: Physics3DAPI | null = null;
@@ -88,20 +86,16 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
       setup(engine: GwenEngine): void {
         _engine = engine;
         physics = engine.tryInject("physics3d") ?? null;
-        // Omitted option keeps the historical "transform3d" name. A real
-        // ComponentDef has a schema and type id this default does not.
-        const queried =
-          positionComponent ?? (DEFAULT_POSITION_COMPONENT as unknown as ComponentDef);
         offBeforeUpdate = engine.hooks.hook("engine:before-update", () => {
           if (!physics || !_engine) return;
 
-          for (const entity of _engine.createLiveQuery([queried])) {
+          for (const entity of _engine.createLiveQuery(queried)) {
             // perf: replaced [...spread] with for...of to avoid array allocation every frame
             const entityId = entity.id;
             if (!physics.hasBody(entityId)) continue;
             if (physics.getBodyKind(entityId) !== "kinematic") continue;
 
-            const pos = readVec3(entity.get(queried));
+            const pos = readVec3(entity.get(positionComponent));
             if (!pos) continue;
 
             const rot = rotationComponent
