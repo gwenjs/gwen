@@ -36,30 +36,22 @@ export interface GwenRuntimeHooks {}
  * The full `Hookable<GwenRuntimeHooks>` in `@gwenjs/core` satisfies this
  * interface structurally — no explicit `extends` needed.
  *
- * The typed overloads give full callback inference for any event declared in
- * `GwenRuntimeHooks`. Unknown event names fall through to the permissive
- * string overload.
+ * Callback types come from `GwenRuntimeHooks`. An event name that is not
+ * declared there is a compile error. There is no string fallback.
  *
  * @example
  * ```ts
  * setup(engine: GwenEngineBase) {
  *   engine.hooks.hook('engine:init', () => { ... })
- *   engine.hooks.hook('viewport:remove', ({ id }) => { ... }) // id: string ✓
  * }
  * ```
  */
 export interface HookBusBase {
-  /** Register a typed listener for a known hook event. */
+  /** Register a typed listener for a declared hook event. */
   hook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
-  /** Register a listener for an unknown or dynamically-named event. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  hook(event: string, fn: (...args: any[]) => any): void;
 
-  /** Remove a typed listener for a known hook event. */
+  /** Remove a typed listener for a declared hook event. */
   removeHook<K extends keyof GwenRuntimeHooks>(event: K, fn: GwenRuntimeHooks[K]): void;
-  /** Remove a listener for an unknown or dynamically-named event. */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  removeHook(event: string, fn: (...args: any[]) => any): void;
 }
 
 /**
