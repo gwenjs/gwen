@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { findDiffViolations, findLogViolations, isAllowlisted, reviewAllowlistChange } from './check-diff-hygiene.mjs';
+import {
+  addedAllowlistEntries,
+  findDiffViolations,
+  findLogViolations,
+  isAllowlisted,
+  reviewAllowlistChange,
+} from './check-diff-hygiene.mjs';
 
 const cast = ['as', 'unknown', 'as'].join(' ');
 const anyAnn = [': ', 'any'].join('');
@@ -155,4 +161,48 @@ test('rejects an attribution trailer', () => {
 
 test('accepts a clean log', () => {
   assert.deepEqual(findLogViolations('ci: add checks\n\nNo trailer.\n\x1e'), []);
+});
+
+test('creating allowlist.json empty needs no label', () => {
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[]']);
+  assert.deepEqual(reviewAllowlistChange(text, false, [], []), []);
+});
+
+test('an unchanged allowlist needs no label', () => {
+  const entry = { file: 'src/a.ts', rule: 'as-unknown-as', reason: 'fixture', ticket: '#7' };
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[]']);
+  assert.deepEqual(reviewAllowlistChange(text, false, [entry], [entry]), []);
+});
+
+test('removing an allowlist entry needs no label', () => {
+  const entry = { file: 'src/a.ts', rule: 'as-unknown-as', reason: 'fixture', ticket: '#7' };
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[]']);
+  assert.deepEqual(reviewAllowlistChange(text, false, [entry], []), []);
+});
+
+test('adding an allowlist entry without the label fails', () => {
+  const entry = { file: 'src/a.ts', rule: 'as-unknown-as', reason: 'fixture', ticket: '#7' };
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[{}]']);
+  assert.deepEqual(reviewAllowlistChange(text, false, [], [entry]), [
+    'allowlist changed: needs a maintainer-applied allowlist-approved label',
+  ]);
+  assert.deepEqual(addedAllowlistEntries([], [entry]), [entry]);
+});
+
+test('changing the reason of an existing entry counts as a new entry', () => {
+  const before = { file: 'src/a.ts', rule: 'as-unknown-as', reason: 'fixture', ticket: '#7' };
+  const after = { file: 'src/a.ts', rule: 'as-unknown-as', reason: 'because', ticket: '#7' };
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[{}]']);
+  assert.equal(reviewAllowlistChange(text, false, [before], [after]).length, 1);
+});
+
+test('without the entry lists the label stays required', () => {
+  const text = diff('scripts/agent-hygiene/allowlist.json', ['[]']);
+  assert.equal(reviewAllowlistChange(text, false, null, []).length, 1);
+  assert.equal(reviewAllowlistChange(text, false, [], null).length, 1);
+});
+
+test('a diff that does not touch allowlist.json never needs the label', () => {
+  const text = diff('src/a.ts', ['const x = 1;']);
+  assert.deepEqual(reviewAllowlistChange(text, false, [], []), []);
 });

@@ -5,8 +5,9 @@
  *
  * A flagged line is skipped only when scripts/agent-hygiene/allowlist.json
  * has an entry for that file and rule. A same-line allowlist comment grants
- * nothing. A diff that changes the allowlist file fails unless the PR has
- * the maintainer label allowlist-approved.
+ * nothing. A diff that adds or changes allowlist entries fails unless the PR
+ * has the maintainer label allowlist-approved. Creating the file empty, or
+ * removing entries, grants nothing and needs no label.
  * Run: node scripts/check-diff-hygiene.mjs
  */
 
@@ -172,13 +173,43 @@ function diffChangesAllowlist(diffText) {
 }
 
 /**
+ * @param {AllowEntry} entry
+ * @returns {string}
+ */
+function entryKey(entry) {
+  return JSON.stringify([entry?.file, entry?.rule, entry?.reason, entry?.ticket]);
+}
+
+/**
+ * Entries present at the head that are not at the base. A removed entry only
+ * tightens the allowlist, so it is not reported.
+ * @param {AllowEntry[]} baseEntries
+ * @param {AllowEntry[]} headEntries
+ * @returns {AllowEntry[]}
+ */
+export function addedAllowlistEntries(baseEntries, headEntries) {
+  const known = new Set(baseEntries.map(entryKey));
+  return headEntries.filter((entry) => !known.has(entryKey(entry)));
+}
+
+/**
+ * Fail closed: without both entry lists, any diff on the allowlist file needs the label.
  * @param {string} diffText
  * @param {boolean} allowlistApproved
+ * @param {AllowEntry[] | null} [baseEntries] entries at the merge base, `[]` when the file did not exist
+ * @param {AllowEntry[] | null} [headEntries] entries in the working tree
  * @returns {string[]}
  */
-export function reviewAllowlistChange(diffText, allowlistApproved) {
+export function reviewAllowlistChange(diffText, allowlistApproved, baseEntries, headEntries) {
   if (!diffChangesAllowlist(diffText)) return [];
   if (allowlistApproved === true) return [];
+  if (
+    Array.isArray(baseEntries) &&
+    Array.isArray(headEntries) &&
+    addedAllowlistEntries(baseEntries, headEntries).length === 0
+  ) {
+    return [];
+  }
   return [ALLOWLIST_CHANGED];
 }
 
@@ -242,6 +273,29 @@ function loadAllowlistEntries() {
 }
 
 /**
+ * Allowlist entries at the merge base. `[]` when the file did not exist there.
+ * `null` when it cannot be read, so the label stays required.
+ * @param {string} base
+ * @returns {AllowEntry[] | null}
+ */
+function loadBaseAllowlistEntries(base) {
+  try {
+    const mergeBase = git(['merge-base', base, 'HEAD']).trim();
+    const out = execFileSync('git', ['show', `${mergeBase}:${ALLOWLIST_PATH}`], {
+      encoding: 'utf8',
+      maxBuffer: GIT_MAX,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const parsed = JSON.parse(out);
+    return Array.isArray(parsed) ? parsed : null;
+  } catch (error) {
+    const text = String(error?.stderr ?? '');
+    if (/exists on disk, but not in|does not exist in|path .* does not exist/i.test(text)) return [];
+    return null;
+  }
+}
+
+/**
  * @returns {string}
  */
 function pullRequestNumber() {
@@ -290,9 +344,14 @@ function main() {
   ensureBase(base);
   const diff = git(['diff', `${base}...HEAD`]);
   const log = git(['log', `${base}..HEAD`, '--format=%B%x1e']);
-  const hits = [...findDiffViolations(diff, loadAllowlistEntries()), ...findLogViolations(log)];
-  const approved = diffChangesAllowlist(diff) ? resolveAllowlistApproved() : false;
-  const allowErrors = reviewAllowlistChange(diff, approved);
+  const headEntries = loadAllowlistEntries();
+  const hits = [...findDiffViolations(diff, headEntries), ...findLogViolations(log)];
+  const baseEntries = diffChangesAllowlist(diff) ? loadBaseAllowlistEntries(base) : [];
+  const needsLabel =
+    diffChangesAllowlist(diff) &&
+    (baseEntries === null || addedAllowlistEntries(baseEntries, headEntries).length > 0);
+  const approved = needsLabel ? resolveAllowlistApproved() : false;
+  const allowErrors = reviewAllowlistChange(diff, approved, baseEntries, headEntries);
   if (hits.length === 0 && allowErrors.length === 0) {
     console.log('diff hygiene ok');
     return;
