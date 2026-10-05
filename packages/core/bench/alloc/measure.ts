@@ -146,30 +146,39 @@ export async function measureAllocations(
 /**
  * Bytes allocated per frame on one real `light` engine.
  * `dispose()` is not on the harness yet (#70); `engine.stop()` runs in `finally`.
- * Each repeat calls `measureAllocations` (warmup 0) and keeps the min GC-free sample.
+ * One observer for every repeat. A per-sample `measureAllocations` call moved
+ * `pool.cycle` and `entity.index` over the recorded margin, so this loop does not use it.
  */
 export async function measureFrameAllocations(
   scenario: AllocScenario,
   entities: number,
   cfg: AllocRunConfig,
 ): Promise<number> {
-  requireGc();
+  const gc = requireGc();
   if (cfg.repeats < 5) {
     throw new Error(`[ALLOC GATE] ${scenario.name}: repeats must be >= 5`);
   }
 
   const handle = await createRealEngine({ variant: "light", maxEntities: 4096 });
+  const gcStarts: number[] = [];
+  const observer = new PerformanceObserver((list) => {
+    readGcStarts(list.getEntries(), gcStarts);
+  });
+
   try {
+    observer.observe({ entryTypes: ["gc"] });
     await scenario.build(handle, entities);
     if (cfg.warmupFrames > 0) await handle.advance(cfg.warmupFrames, DT);
 
     const samples: number[] = [];
     for (let repeat = 0; repeat < cfg.repeats; repeat++) {
-      const report = await measureAllocations(() => handle.advance(cfg.frames, DT), {
-        warmup: 0,
-        ops: cfg.frames,
-      });
-      if (report.gcCount === 0) samples.push(report.bytesPerOp);
+      const window = await sampleWindow(
+        () => handle.advance(cfg.frames, DT),
+        gc,
+        observer,
+        gcStarts,
+      );
+      if (window.gcCount === 0) samples.push(window.allocatedBytes / cfg.frames);
     }
 
     if (samples.length < 3) {
@@ -185,6 +194,7 @@ export async function measureFrameAllocations(
     }
     return min;
   } finally {
+    observer.disconnect();
     await handle.engine.stop();
   }
 }
