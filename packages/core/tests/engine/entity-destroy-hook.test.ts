@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CoreErrorCodes, createEngine, entityIndex, type EntityId } from "../../src/index";
+import { entityIndex } from "../../src/internal";
+import { CoreErrorCodes, createEngine, type EntityId } from "../../src/index";
 
 describe("entity:destroy", () => {
   it("fires once, synchronously, after the entity is dead", async () => {
@@ -74,5 +75,17 @@ describe("entity:destroy", () => {
         context: { entityId: id },
       }),
     ]);
+  });
+
+  it("runs beforeEach when entity:destroy fires", async () => {
+    const engine = await createEngine({ maxEntities: 8 });
+    const names: string[] = [];
+    engine.hooks.beforeEach((event) => {
+      names.push(event.name);
+    });
+
+    const id = engine.createEntity();
+    expect(engine.destroyEntity(id)).toBe(true);
+    expect(names).toContain("entity:destroy");
   });
 });

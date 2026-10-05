@@ -16,15 +16,17 @@ const mockBridge = {
   })),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, gen: number) => BigInt(index) | (BigInt(gen) << 32n),
+  entityIndex: (id: bigint) => Number(id & 0xffffffffn),
   defineSystem: vi.fn((_name: string, factory: () => unknown) => factory()),
   definePlugin: vi.fn((factory: () => unknown) => {
     // Simulate V2 definePlugin: returns a factory function that creates plugin instances

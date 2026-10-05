@@ -26,7 +26,6 @@ import {
   entitySlot,
   guardOwned,
   normalizeEntityId,
-  ownedSlot,
   ownerEntityId,
 } from "./entity-owner";
 import { createPluginContext } from "./plugin-context";
@@ -286,21 +285,22 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           | undefined;
         if (!ext?.body) return;
 
-        const eid = entityId as Physics3DEntityId;
-        _createBody(eid, ext.body);
+        _createBody(entityId, ext.body);
 
         if (ext.onCollision) {
-          const slot = entitySlot(normalizeEntityId(eid));
-          ctx.entityCollisionCallbacks.set(slot, ext.onCollision);
+          ctx.entityCollisionCallbacks.set(entitySlot(entityId), ext.onCollision);
         }
       });
 
       ctx.offEntityDestroyed = engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
-        const owned = ownedSlot(ctx, entityId);
-        if (!owned) return;
-        ctx.entityCollisionCallbacks.delete(owned.slot);
-        ctx.localSensorStates.delete(owned.slot);
-        _removeBody(owned.eid);
+        const slot = entitySlot(entityId);
+        const handle = ctx.bodyByEntity.get(slot);
+        const owner = handle ? normalizeEntityId(handle.entityId) : undefined;
+        // Another live id already owns the slot. Leave its callbacks and body alone.
+        if (owner !== undefined && owner !== entityId) return;
+        ctx.entityCollisionCallbacks.delete(slot);
+        ctx.localSensorStates.delete(slot);
+        if (owner === entityId) _removeBody(entityId);
       });
 
       ctx.offEngineBeforeUpdate = engine.hooks.hook("engine:before-update", (deltaTime: number) => {

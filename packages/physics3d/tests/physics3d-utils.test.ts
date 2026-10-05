@@ -3,6 +3,7 @@
  * All functions are pure and stateless; tests verify exact behavior and defaults.
  */
 import { describe, it, expect } from "vitest";
+import { createEntityId } from "@gwenjs/core";
 
 import {
   vec3,
@@ -125,37 +126,20 @@ describe("quat", () => {
 // ─── toEntityIndex() ───────────────────────────────────────────────────────
 
 describe("toEntityIndex", () => {
-  it("converts number entity id directly", () => {
-    expect(toEntityIndex(42)).toBe(42);
+  it("reads the slot of an EntityId", () => {
+    expect(toEntityIndex(createEntityId(42, 0))).toBe(42);
   });
 
-  it("converts zero number correctly", () => {
-    expect(toEntityIndex(0)).toBe(0);
+  it("reads a zero slot", () => {
+    expect(toEntityIndex(createEntityId(0, 3))).toBe(0);
   });
 
-  it("converts large number within u32 range", () => {
-    expect(toEntityIndex(0xffffffff)).toBe(0xffffffff);
+  it("masks the generation away", () => {
+    expect(toEntityIndex(createEntityId(0x42, 1))).toBe(0x42);
   });
 
-  it("converts bigint by masking to u32", () => {
-    expect(toEntityIndex(42n)).toBe(42);
-  });
-
-  it("masks bigint larger than u32", () => {
-    const bigValue = 0x100000042n;
-    expect(toEntityIndex(bigValue)).toBe(0x42);
-  });
-
-  it("converts string entity id by parsing as base-10", () => {
-    expect(toEntityIndex("123")).toBe(123);
-  });
-
-  it("converts string zero", () => {
-    expect(toEntityIndex("0")).toBe(0);
-  });
-
-  it("converts large string number", () => {
-    expect(toEntityIndex("999999")).toBe(999999);
+  it("keeps the full u32 slot", () => {
+    expect(toEntityIndex(createEntityId(0xffffffff, 0))).toBe(0xffffffff);
   });
 });
 

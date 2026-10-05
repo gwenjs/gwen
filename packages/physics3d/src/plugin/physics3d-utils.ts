@@ -3,6 +3,8 @@
  * These functions are stateless and can be safely extracted and reused.
  */
 
+import { entityIndex } from "@gwenjs/core/internal";
+
 import type {
   Physics3DVec3,
   Physics3DQuat,
@@ -36,16 +38,13 @@ export function quat(v?: Partial<Physics3DQuat>): Physics3DQuat {
 }
 
 /**
- * Convert a Physics3DEntityId (bigint, number, or string) to the u32 entity slot
- * index used by WASM and as Map key. Always returns a plain number.
+ * Slot index (lower 32 bits) of an EntityId.
  *
- * @param entityId - Entity ID in any supported format
+ * @param entityId - Packed engine entity id
  * @returns Numeric slot index (0..2^32-1)
  */
 export function toEntityIndex(entityId: Physics3DEntityId): number {
-  if (typeof entityId === "bigint") return Number(entityId & 0xffffffffn);
-  if (typeof entityId === "number") return entityId;
-  return parseInt(entityId as string, 10);
+  return entityIndex(entityId);
 }
 
 /**

@@ -9,9 +9,10 @@ import { bench, describe, vi, beforeAll } from "vitest";
 // ─── Minimal mock WASM bridge (local / fallback mode) ─────────────────────────
 // No `physics3d_add_body` export → forces the plugin into TypeScript fallback.
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({

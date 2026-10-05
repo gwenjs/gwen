@@ -1,4 +1,5 @@
 import type { EntityId, GwenEngine } from "@gwenjs/core";
+import { entityIndex } from "@gwenjs/core/internal";
 import { GwenError } from "@gwenjs/schema";
 
 import { Physics3DErrorCodes } from "../errors/codes";
@@ -21,26 +22,22 @@ export class Physics3DStaleEntityError extends GwenError {
   }
 }
 
-/** number/string n → BigInt(n), generation 0. A bigint is kept as-is. */
-export function normalizeEntityId(id: Physics3DEntityId): EntityId {
-  if (typeof id === "bigint") return id as EntityId;
-  return BigInt(id) as EntityId;
+/** Physics3DEntityId is an EntityId. Numbers and strings are not accepted. */
+export function normalizeEntityId(id: EntityId): EntityId {
+  return id;
 }
 
 export function entitySlot(id: EntityId): number {
-  return Number(id & 0xffffffffn);
+  return entityIndex(id);
 }
 
-function sameEntity(stored: Physics3DEntityId, id: EntityId): boolean {
-  return normalizeEntityId(stored) === id;
+function sameEntity(stored: EntityId, id: EntityId): boolean {
+  return stored === id;
 }
 
-/**
- * A real engine always has `isAlive`. Unit mocks that omit it are not treated as dead,
- * so existing fixture ids keep today's "no body" results.
- */
+/** No engine means "not dead". A real engine and every test mock provide `isAlive`. */
 export function isDeadEntity(engine: GwenEngine | null, id: EntityId): boolean {
-  if (!engine || typeof engine.isAlive !== "function") return false;
+  if (!engine) return false;
   return !engine.isAlive(id);
 }
 

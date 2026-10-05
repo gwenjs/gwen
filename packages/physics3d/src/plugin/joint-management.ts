@@ -16,7 +16,12 @@ import type {
   JointId,
 } from "../types";
 import { guardOwned } from "./entity-owner";
-import { emitLocalJointWarning, makeDummyJoint, makeJointHandle } from "./plugin-helpers";
+import {
+  emitLocalJointWarning,
+  emitMissingBodyWarning,
+  makeDummyJoint,
+  makeJointHandle,
+} from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
 
 /** Both ends must own their slots. A dead id throws. An unowned live id yields null. */
@@ -50,7 +55,7 @@ export function createJointMethods(
     addFixedJoint(opts: FixedJointOpts): JointHandle3D {
       const ends = jointEnds(ctx, "addFixedJoint", opts.bodyA, opts.bodyB);
       if (!ends) {
-        emitLocalJointWarning(ctx.log);
+        emitMissingBodyWarning(ctx.log);
         return makeDummyJoint();
       }
       const { slotA, slotB } = ends;
@@ -83,7 +88,7 @@ export function createJointMethods(
     addRevoluteJoint(opts: RevoluteJointOpts): JointHandle3D {
       const ends = jointEnds(ctx, "addRevoluteJoint", opts.bodyA, opts.bodyB);
       if (!ends) {
-        emitLocalJointWarning(ctx.log);
+        emitMissingBodyWarning(ctx.log);
         return makeDummyJoint();
       }
       const { slotA, slotB } = ends;
@@ -126,7 +131,7 @@ export function createJointMethods(
     addPrismaticJoint(opts: PrismaticJointOpts): JointHandle3D {
       const ends = jointEnds(ctx, "addPrismaticJoint", opts.bodyA, opts.bodyB);
       if (!ends) {
-        emitLocalJointWarning(ctx.log);
+        emitMissingBodyWarning(ctx.log);
         return makeDummyJoint();
       }
       const { slotA, slotB } = ends;
@@ -169,7 +174,7 @@ export function createJointMethods(
     addBallJoint(opts: BallJointOpts): JointHandle3D {
       const ends = jointEnds(ctx, "addBallJoint", opts.bodyA, opts.bodyB);
       if (!ends) {
-        emitLocalJointWarning(ctx.log);
+        emitMissingBodyWarning(ctx.log);
         return makeDummyJoint();
       }
       const { slotA, slotB } = ends;
@@ -206,7 +211,7 @@ export function createJointMethods(
     addSpringJoint(opts: SpringJointOpts): JointHandle3D {
       const ends = jointEnds(ctx, "addSpringJoint", opts.bodyA, opts.bodyB);
       if (!ends) {
-        emitLocalJointWarning(ctx.log);
+        emitMissingBodyWarning(ctx.log);
         return makeDummyJoint();
       }
       const { slotA, slotB } = ends;

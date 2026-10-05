@@ -16,9 +16,10 @@ const mockBridge = {
   })),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", () => ({
@@ -26,6 +27,7 @@ vi.mock("@gwenjs/core", () => ({
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
+  entityIndex: (id: bigint) => Number(id & 0xffffffffn),
 }));
 
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
@@ -51,6 +53,7 @@ function makeEngine() {
     getEntityGeneration: vi.fn(() => 0),
     query: vi.fn(() => []),
     getComponent: vi.fn(),
+    isAlive: () => true,
     wasmBridge: null,
   } as unknown as GwenEngine;
 

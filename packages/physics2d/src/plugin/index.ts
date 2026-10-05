@@ -7,8 +7,8 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { createLogger } from "@gwenjs/core";
-import { getWasmBridge } from "@gwenjs/core/internal";
+import { createLogger, createEntityId } from "@gwenjs/core";
+import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
 import type { GwenEngine, EntityId, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 
@@ -133,18 +133,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   const ownerChangedSinceStep = new Set<number>();
   const unhooks: Array<() => void> = [];
 
-  function asEntityId(id: EntityId | number | string): EntityId {
-    return (typeof id === "bigint" ? id : BigInt(id)) as EntityId;
-  }
-
-  function slotOf(id: EntityId): number {
-    return Number(id & 0xffffffffn);
-  }
-
-  // Mocks that omit isAlive stay "not dead", so fixture ids keep today's no-body results.
   function entityIsDead(id: EntityId): boolean {
-    if (!currentEngine || typeof currentEngine.isAlive !== "function") return false;
-    return !currentEngine.isAlive(id);
+    return currentEngine !== null && !currentEngine.isAlive(id);
   }
 
   function setOwner(slot: number, id: EntityId, handle: number): void {
@@ -165,7 +155,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   }
 
   function guard(id: EntityId, operation: string): { id: EntityId; slot: number } | null {
-    const slot = slotOf(id);
+    const slot = entityIndex(id);
     if (ownerBySlot.get(slot) === id) return { id, slot };
     if (entityIsDead(id)) throw new Physics2DStaleEntityError(id, operation);
     return null;
@@ -291,9 +281,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     return {
       isDebugEnabled: () => cfg.debug,
       addRigidBody: (entityId, type, x, y, opts = {}) => {
-        const id = asEntityId(entityId);
-        if (entityIsDead(id)) throw new Physics2DStaleEntityError(id, "addRigidBody");
-        const s = slotOf(id);
+        if (entityIsDead(entityId)) throw new Physics2DStaleEntityError(entityId, "addRigidBody");
+        const s = entityIndex(entityId);
         const handle = pb.physics_add_rigid_body(
           s,
           x,
@@ -312,7 +301,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           log.debug(
             `addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`,
           );
-        setOwner(s, id, handle);
+        setOwner(s, entityId, handle);
         return handle;
       },
       addBoxCollider: (handle, hw, hh, opts = {}) => {
@@ -358,55 +347,54 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         );
       },
       removeBody: (entityId) => {
-        const id = asEntityId(entityId);
-        const slot = slotOf(id);
-        if (ownerBySlot.get(slot) !== id) return;
+        const slot = entityIndex(entityId);
+        if (ownerBySlot.get(slot) !== entityId) return;
         pb.physics_remove_rigid_body(slot);
         clearOwner(slot);
       },
       setKinematicPosition: (entityId, x, y) => {
-        const owned = guard(asEntityId(entityId), "setKinematicPosition");
+        const owned = guard(entityId, "setKinematicPosition");
         if (!owned) return;
         pb.physics_set_kinematic_position(owned.slot, x, y, 0);
       },
       setKinematicPositionWithAngle: (entityId, x, y, angle) => {
-        const owned = guard(asEntityId(entityId), "setKinematicPositionWithAngle");
+        const owned = guard(entityId, "setKinematicPositionWithAngle");
         if (!owned) return false;
         return pb.physics_set_kinematic_position(owned.slot, x, y, angle) === 1;
       },
       bulkStepKinematics: (slots, vx, vy, dt) => pb.physics_bulk_step_kinematics(slots, vx, vy, dt),
       applyImpulse: (entityId, x, y) => {
-        const owned = guard(asEntityId(entityId), "applyImpulse");
+        const owned = guard(entityId, "applyImpulse");
         if (!owned) return;
         pb.physics_apply_impulse(owned.slot, x, y);
       },
       setLinearVelocity: (entityId, vx, vy) => {
-        const owned = guard(asEntityId(entityId), "setLinearVelocity");
+        const owned = guard(entityId, "setLinearVelocity");
         if (!owned) return;
         pb.physics_set_linear_velocity(owned.slot, vx, vy);
       },
       getLinearVelocity: (entityId) => {
-        const owned = guard(asEntityId(entityId), "getLinearVelocity");
+        const owned = guard(entityId, "getLinearVelocity");
         if (!owned) return null;
         const res = pb.physics_get_linear_velocity(owned.slot);
         return res ? { x: res[0], y: res[1] } : null;
       },
       getPosition: (entityId) => {
-        const owned = guard(asEntityId(entityId), "getPosition");
+        const owned = guard(entityId, "getPosition");
         if (!owned) return null;
         const res = pb.physics_get_position(owned.slot);
         if (!res || res.length === 0) return null;
         return { x: res[0], y: res[1], rotation: res[2] };
       },
       getSensorState: (entityId, colliderId) => {
-        const owned = guard(asEntityId(entityId), "getSensorState");
+        const owned = guard(entityId, "getSensorState");
         if (!owned) return { contactCount: 0, isActive: false };
         const key = `${owned.slot}:${colliderId}`;
         const count = sensorContacts.get(key) ?? 0;
         return { contactCount: count, isActive: count > 0 };
       },
       updateSensorState: (entityId, colliderId, active) => {
-        const owned = guard(asEntityId(entityId), "updateSensorState");
+        const owned = guard(entityId, "updateSensorState");
         if (!owned) return;
         const key = `${owned.slot}:${colliderId}`;
         const current = sensorContacts.get(key) ?? 0;
@@ -425,7 +413,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
        * @param damping  - New damping value ≥ 0. 0 = no damping.
        */
       setLinearDamping: (entityId, damping) => {
-        const owned = guard(asEntityId(entityId), "setLinearDamping");
+        const owned = guard(entityId, "setLinearDamping");
         if (!owned) return;
         pb.physics_set_linear_damping?.(owned.slot, damping);
       },
@@ -524,7 +512,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const chunkId = tilemapChunkIdFromKey(chunk.key);
         const pseudoEntityIndex = tilemapPseudoEntityFromChunkId(chunkId);
         const bodyHandle = pb.physics_load_tilemap_chunk_body(chunkId, pseudoEntityIndex, x, y);
-        ownerByHandle.set(bodyHandle, asEntityId(pseudoEntityIndex));
+        ownerByHandle.set(bodyHandle, createEntityId(pseudoEntityIndex, 0));
         if (!opts.debugNaive) {
           for (const [colliderIndex, collider] of chunk.colliders.entries())
             addPrefabCollider(
@@ -583,7 +571,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           const ext = extensions?.physics;
           if (!ext) return;
 
-          const slot = slotOf(asEntityId(entityId));
+          const slot = entityIndex(entityId);
 
           const handle = physicsService!.addRigidBody(entityId, ext.bodyType ?? "dynamic", 0, 0, {
             ...(ext.mass !== undefined ? { mass: ext.mass } : {}),
@@ -624,16 +612,17 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
       track(
         engine.hooks.hook("entity:destroy", (entityId: EntityId) => {
-          const id = asEntityId(entityId);
-          const slot = slotOf(id);
-          if (ownerBySlot.get(slot) !== id) return;
+          const slot = entityIndex(entityId);
+          const owner = ownerBySlot.get(slot);
+          // Another live id already owns the slot. Leave its callbacks and body alone.
+          if (owner !== undefined && owner !== entityId) return;
           entityCollisionCallbacks.delete(slot);
           activeSensors.delete(slot);
           const prefix = `${slot}:`;
           for (const key of [...sensorContacts.keys()]) {
             if (key.startsWith(prefix)) sensorContacts.delete(key);
           }
-          physicsService?.removeBody(id);
+          if (owner === entityId) physicsService?.removeBody(entityId);
         }),
       );
 
@@ -688,8 +677,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
           void currentEngine?.hooks.callHook("physics:collision", contacts);
           for (const contact of contacts) {
-            const slotA = slotOf(contact.entityA);
-            const slotB = slotOf(contact.entityB);
+            const slotA = entityIndex(contact.entityA);
+            const slotB = entityIndex(contact.entityB);
             entityCollisionCallbacks.get(slotA)?.(contact.entityA, contact.entityB, contact);
             entityCollisionCallbacks.get(slotB)?.(contact.entityB, contact.entityA, contact);
           }

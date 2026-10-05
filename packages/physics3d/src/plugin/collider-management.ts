@@ -5,6 +5,7 @@
  */
 
 import type { EntityId } from "@gwenjs/core";
+import { entityIndex } from "@gwenjs/core/internal";
 import type {
   Physics3DAPI,
   Physics3DBodyHandle,
@@ -25,7 +26,7 @@ import {
   getNextBvhJobId,
   registerBvhCallback,
 } from "./bvh";
-import { toEntityIndex, resolveColliderMaterial } from "./physics3d-utils";
+import { resolveColliderMaterial } from "./physics3d-utils";
 import { guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { nextColliderIdForEntity } from "./plugin-helpers";
 import { createBodyLocal } from "./body-management";
@@ -414,7 +415,7 @@ export function createBulkSpawnStaticBoxes(
     for (let i = 0; i < n; i++) {
       const eid = ctx._engine!.createEntity();
       entityIds.push(eid);
-      entityIndices[i] = toEntityIndex(eid as unknown as Physics3DEntityId);
+      entityIndices[i] = entityIndex(eid);
     }
 
     if (ctx.backendMode === "wasm" && ctx.wasmBridge!.physics3d_bulk_spawn_static_boxes) {
@@ -430,7 +431,7 @@ export function createBulkSpawnStaticBoxes(
       for (let i = 0; i < spawned; i++) {
         const handle: Physics3DBodyHandle = {
           bodyId: ctx.nextBodyId++,
-          entityId: entityIds[i] as unknown as Physics3DEntityId,
+          entityId: entityIds[i],
           kind: "fixed",
           mass: 0,
           linearDamping: 0,
@@ -452,7 +453,7 @@ export function createBulkSpawnStaticBoxes(
       const hy = uniform ? options.halfExtents[1]! : options.halfExtents[i * 3 + 1]!;
       const hz = uniform ? options.halfExtents[2]! : options.halfExtents[i * 3 + 2]!;
 
-      createBodyLocal(ctx, entityIds[i] as unknown as Physics3DEntityId, {
+      createBodyLocal(ctx, entityIds[i], {
         kind: "fixed",
         initialPosition: { x: px, y: py, z: pz },
         colliders: [

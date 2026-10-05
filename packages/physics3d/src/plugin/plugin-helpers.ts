@@ -19,6 +19,13 @@ export const emitLocalJointWarning = (log: GwenLogger): void => {
   }
 };
 
+/** A live id reached a joint call without a body. This is not a local-mode limit. */
+export const emitMissingBodyWarning = (log: GwenLogger): void => {
+  if (import.meta.env.DEV) {
+    log.warn("Joint API: no body for bodyA/bodyB");
+  }
+};
+
 /**
  * Create a no-op dummy joint handle for use in local mode or WASM failure paths.
  */

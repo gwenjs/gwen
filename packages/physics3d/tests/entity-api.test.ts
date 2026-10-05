@@ -12,9 +12,10 @@ const mockBridge = {
   getEntityGeneration: vi.fn((_index: number) => 0),
 };
 
-vi.mock("@gwenjs/core/internal", async () => {
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   const core = await import("@gwenjs/core");
-  return { getWasmBridge: core.getWasmBridge };
+  return { ...original, getWasmBridge: core.getWasmBridge };
 });
 
 vi.mock("@gwenjs/core", async (importOriginal) => {
@@ -56,7 +57,7 @@ describe("Physics3D entity API (foundation)", () => {
         }),
         callHook: vi.fn(),
       },
-      ...(options?.isAlive ? { isAlive: options.isAlive } : {}),
+      isAlive: options?.isAlive ?? (() => true),
       getEntityGeneration: vi.fn(() => 0),
       query: vi.fn(() => []),
       getComponent: vi.fn(),

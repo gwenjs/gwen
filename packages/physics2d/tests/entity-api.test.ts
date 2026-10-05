@@ -13,7 +13,8 @@ import type {
   ResolvedCollisionContact,
   PhysicsEntitySnapshot,
 } from "../src/types";
-import { createEngine, entityIndex, getWasmBridge, type EntityId } from "@gwenjs/core";
+import { createEngine, type EntityId } from "@gwenjs/core";
+import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
 import {
   Physics2DErrorCodes,
   Physics2DPlugin,
@@ -21,8 +22,8 @@ import {
   Physics2DStaleEntityError,
 } from "../src";
 
-vi.mock("@gwenjs/core", async (importOriginal) => {
-  const original = await importOriginal<typeof import("@gwenjs/core")>();
+vi.mock("@gwenjs/core/internal", async (importOriginal) => {
+  const original = await importOriginal<typeof import("@gwenjs/core/internal")>();
   return { ...original, getWasmBridge: vi.fn() };
 });
 

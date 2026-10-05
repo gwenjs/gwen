@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { defineActor, defineActorPool, definePrefab } from "../../src/actor/index.js";
-import { entityIndex, type EntityId } from "../../src/index.js";
+import { type EntityId } from "../../src/index.js";
+import { entityIndex } from "../../src/internal.js";
 import "../../../physics2d/src/augment";
 import { Physics2DStaleEntityError } from "../../../physics2d/src/index";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
@@ -230,5 +231,52 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
       expect(() => (physics as Physics3DAPI).applyImpulse(again, { x: 0 })).not.toThrow();
       expect((physics as Physics3DAPI).hasBody(again)).toBe(true);
     }
+  });
+
+  it("(f) a destroyed prefab onCollision never fires for the reused slot", async () => {
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const first = handle.engine.createEntity();
+    const calls: EntityId[] = [];
+    const onCollision = (self: EntityId) => {
+      calls.push(self);
+    };
+
+    if (variant === "physics2d") {
+      await handle.engine.hooks.callHook("prefab:instantiate", first, {
+        physics: {
+          bodyType: "dynamic",
+          gravityScale: 0,
+          linearDamping: 0,
+          colliders: [{ shape: "box", hw: 16, hh: 16, isSensor: true, colliderId: 0 }],
+          onCollision,
+        },
+      });
+      (physics as Physics2DAPI).removeBody(first);
+    } else {
+      await handle.engine.hooks.callHook("prefab:instantiate", first, {
+        physics3d: {
+          body: {
+            kind: "dynamic",
+            gravityScale: 0,
+            linearDamping: 0,
+            initialPosition: { x: 0, y: 0, z: 0 },
+            colliders: [{ shape: BOX, isSensor: true, colliderId: 0 }],
+          },
+          onCollision,
+        },
+      });
+      expect((physics as Physics3DAPI).removeBody(first)).toBe(true);
+    }
+
+    expect(handle.engine.destroyEntity(first)).toBe(true);
+    const second = handle.engine.createEntity();
+    const other = handle.engine.createEntity();
+    expect(entityIndex(second)).toBe(entityIndex(first));
+    addBody(variant, physics, second, 0, 0, true);
+    addBody(variant, physics, other, 0.2, 0, true);
+
+    await handle.advance(8, 1 / 60);
+    expect(calls).toEqual([]);
   });
 });
