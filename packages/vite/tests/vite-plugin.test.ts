@@ -308,7 +308,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
   it("with scenes: awaits scene:enter for mainScene once, before start, with no direct onEnter", () => {
     const code = generateEntryModule(true);
     const hookIdx = code.indexOf("engine.hooks.hook('scene:enter'");
-    const call = 'await engine.hooks.callHook("scene:enter", mainScene, undefined)';
+    const call = 'if (mainScene) await engine.hooks.callHook("scene:enter", mainScene, undefined);';
     const callIdx = code.indexOf(call);
     const startIdx = code.indexOf("await engine.start()");
     const externalIdx = code.indexOf("await engine.startExternal()");
@@ -318,7 +318,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
     expect(externalIdx).toBeGreaterThan(callIdx);
     expect(code.match(/callHook\("scene:enter"/g)).toHaveLength(1);
     expect(code).not.toContain("_mainDef.onEnter");
-    expect(code).not.toContain("mainSceneFactory(");
+    expect(code).not.toContain("mainSceneFactory");
   });
 
   it("without scenes: no registerScenes import or call", () => {
@@ -423,6 +423,7 @@ describe("generateScenesModule — registerScenes contract", () => {
     const code = generateScenesModule([], undefined);
     expect(code).toContain("export function registerScenes(_scenes)");
     expect(code).toContain("export const mainScene = undefined");
+    expect(code).not.toContain("mainSceneFactory");
   });
 });
 

@@ -10,7 +10,7 @@ function wait(ms = 0) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-describe("direct onEnter call — bootstrap pattern", () => {
+describe("direct onEnter call — engine context set and unset", () => {
   it("context is available after await when onEnter is called with set/unset", async () => {
     let capturedEngine: unknown;
 
@@ -59,7 +59,7 @@ describe("direct onEnter call — bootstrap pattern", () => {
   });
 });
 
-describe("initial scene onEnter — useSceneRouter activation", () => {
+describe("useSceneRouter creation does not activate the initial scene", () => {
   it("creating the router does not run the initial onEnter", async () => {
     let capturedEngine: unknown;
 

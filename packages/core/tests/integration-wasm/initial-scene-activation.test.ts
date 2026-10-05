@@ -7,7 +7,7 @@ import { SceneEnginePlugin } from "../../src/scene/engine-plugin.js";
 import { defineScene } from "../../src/scene/runtime/define-scene.js";
 import { onEnter, useSystem } from "../../src/scene/runtime/scene-context.js";
 import type { SystemHandle } from "../../src/scene/runtime/system-handle.js";
-import { defineSystem } from "../../src/system/index.js";
+import { defineSystem, onUpdate } from "../../src/system/index.js";
 import { createRealEngine } from "./harness.js";
 
 const MAIN = "menu";
@@ -29,7 +29,7 @@ interface ActivationCounts {
  * pause non-main systems, install the scene:enter resume hook,
  * await one scene:enter for the main scene, then startExternal and advance.
  */
-async function replayBootstrap(withRouter: boolean): Promise<ActivationCounts> {
+async function replayBootstrap(place: "none" | "host" | "routed-scene"): Promise<ActivationCounts> {
   const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
   const seenEnter: string[] = [];
   const onSceneEnter = (name: string): void => {
@@ -47,8 +47,16 @@ async function replayBootstrap(withRouter: boolean): Promise<ActivationCounts> {
 
     const Prefab = definePrefab([]);
     const Player = defineActor(Prefab, () => ({ tag: "player" }));
-    const MenuTick = defineSystem("menu-tick", () => {});
     const OtherTick = defineSystem("other-tick", () => {});
+
+    let router: ReturnType<typeof defineSceneRouter> | undefined;
+    const MenuTick = defineSystem("menu-tick", () => {
+      if (place !== "routed-scene" || !router) return;
+      // onUpdate, not the setup body: useSceneRouter would re-enter this scene's factory.
+      onUpdate(() => {
+        if (router) routerCurrent = useSceneRouter(router).current;
+      });
+    });
 
     const Menu = defineScene(MAIN, () => {
       const player = useActor(Player);
@@ -63,19 +71,22 @@ async function replayBootstrap(withRouter: boolean): Promise<ActivationCounts> {
     });
 
     let Host: ReturnType<typeof defineScene> | undefined;
-    if (withRouter) {
-      const router = defineSceneRouter({
+    if (place !== "none") {
+      router = defineSceneRouter({
         initial: MAIN,
         routes: {
           menu: { scene: Menu, on: { GO: "other" } },
           other: { scene: Other, on: {} },
         },
       });
+    }
+    if (place === "host" && router) {
       // Created from a scene factory, which is the bootstrap moment that used
       // to emit scene:enter before the resume hook existed. This scene is not
       // itself a route: resolving the in-progress factory would re-enter it.
+      const routed = router;
       Host = defineScene("host", () => {
-        routerCurrent = useSceneRouter(router).current;
+        routerCurrent = useSceneRouter(routed).current;
       });
     }
 
@@ -138,7 +149,7 @@ async function replayBootstrap(withRouter: boolean): Promise<ActivationCounts> {
 
 describe("initial scene activation", () => {
   it("without a router, onEnter, scene:enter and resume run once", async () => {
-    const counts = await replayBootstrap(false);
+    const counts = await replayBootstrap("none");
     expect(counts.onEnterBeforeFrame).toBe(1);
     expect(counts.onEnterCount).toBe(1);
     expect(counts.sceneEnterCount).toBe(1);
@@ -150,7 +161,19 @@ describe("initial scene activation", () => {
   });
 
   it("with a router created in a scene, activation still happens once", async () => {
-    const counts = await replayBootstrap(true);
+    const counts = await replayBootstrap("host");
+    expect(counts.routerCurrent).toBe(MAIN);
+    expect(counts.onEnterBeforeFrame).toBe(1);
+    expect(counts.onEnterCount).toBe(1);
+    expect(counts.sceneEnterCount).toBe(1);
+    expect(counts.resumeCount).toBe(1);
+    expect(counts.actorCount).toBe(1);
+    expect(counts.mainActive).toBe(true);
+    expect(counts.otherActive).toBe(false);
+  });
+
+  it("with the router used from a system of a routed scene, activation still happens once", async () => {
+    const counts = await replayBootstrap("routed-scene");
     expect(counts.routerCurrent).toBe(MAIN);
     expect(counts.onEnterBeforeFrame).toBe(1);
     expect(counts.onEnterCount).toBe(1);
