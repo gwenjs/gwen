@@ -18,6 +18,32 @@ import {
 } from "../src/errors.js";
 import type { RendererKind } from "../src/types.js";
 
+function surfaceService(name: string, order: number, onRender: () => void): SurfaceRendererService {
+  let canvas: HTMLCanvasElement | null = null;
+  return {
+    name,
+    contractVersion: RENDERER_CONTRACT_VERSION,
+    kind: "surface",
+    layers: { scene: { order, coordinate: "world" } },
+    mount(container) {
+      canvas = document.createElement("canvas");
+      container.appendChild(canvas);
+    },
+    unmount() {
+      canvas?.remove();
+      canvas = null;
+    },
+    resize() {},
+    getLayerElement() {
+      if (canvas === null) throw new Error("canvas is created in mount()");
+      return canvas;
+    },
+    renderViews() {
+      onRender();
+    },
+  };
+}
+
 /** Factory for a minimal valid RendererService mock. */
 function makeService(
   name: string,
@@ -370,6 +396,53 @@ describe("LayerManager", () => {
 
       await engine.hooks.callHook("engine:render");
       expect(calls).toHaveLength(2);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("does not call renderViews for a surface registered after mount", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    try {
+      const calls = { early: 0, late: 0 };
+      const early = surfaceService("renderer:early", 0, () => {
+        calls.early += 1;
+      });
+      const late = surfaceService("renderer:late", 1, () => {
+        calls.late += 1;
+      });
+      const wired = getOrCreateLayerManager(engine, root);
+      wired.register(early);
+      wired.mount();
+      await engine.hooks.callHook("engine:render");
+      expect(calls.early).toBe(1);
+      wired.register(late);
+      await engine.hooks.callHook("engine:render");
+      expect(calls.early).toBe(2);
+      expect(calls.late).toBe(0);
+      wired.mount();
+      await engine.hooks.callHook("engine:render");
+      expect(calls.late).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("dispose drops the engine:render hook", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    try {
+      let calls = 0;
+      const service = surfaceService("renderer:surface", 0, () => {
+        calls += 1;
+      });
+      const wired = getOrCreateLayerManager(engine, root);
+      wired.register(service);
+      wired.mount();
+      await engine.hooks.callHook("engine:render");
+      expect(calls).toBe(1);
+      wired.dispose();
+      await engine.hooks.callHook("engine:render");
+      expect(calls).toBe(1);
     } finally {
       await engine.stop();
     }

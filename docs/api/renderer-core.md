@@ -79,7 +79,7 @@ A renderer that owns exactly one drawing surface. It extends `RendererService`.
 | `kind` | `'surface'` | Required. |
 | `layers` | one `LayerDef` | Exactly one entry, `coordinate: 'world'`. A second layer throws `RENDERER:SURFACE_INVALID` at register. |
 | `getLayerElement` | `HTMLCanvasElement` | The canvas created in `mount()` and removed in `unmount()`. |
-| `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render`. `alpha` is `1` until #79 supplies `engine.frame`. |
+| `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render` after that surface is mounted. `alpha` is `1` until #79 supplies `engine.frame`. |
 
 `resize(width, height)` stays in CSS pixels. The canvas backing store is
 `width × dpr` and `height × dpr`, with `dpr` from `ViewportScreenInfo`.

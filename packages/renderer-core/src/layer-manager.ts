@@ -30,6 +30,8 @@ const SURFACE_RENDER_ALPHA = 1;
 interface RegisteredRenderer {
   service: RendererService;
   collector: RendererStatsCollectorImpl;
+  /** True only after `mount()` has run for this registration. */
+  mounted: boolean;
 }
 
 /**
@@ -67,17 +69,26 @@ export class LayerManager {
   private readonly _views: RenderView[] = [];
   private readonly _frameViews: RenderView[] = [];
   private _debugEnabled = false;
-  private _mounted = false;
+  private _unhookRender: (() => void) | undefined;
 
   constructor(root: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
     this._root = root;
     this._log = logger ?? createLogger("renderer-core:layer-manager", false);
     this._engine = engine;
     if (engine !== undefined) {
-      engine.hooks.hook("engine:render", () => {
+      this._unhookRender = engine.hooks.hook("engine:render", () => {
         this._renderSurfaceViews();
       });
     }
+  }
+
+  /**
+   * Remove the `engine:render` hook.
+   * Registered DOM nodes stay until `unregister`.
+   */
+  dispose(): void {
+    this._unhookRender?.();
+    this._unhookRender = undefined;
   }
 
   /**
@@ -145,7 +156,7 @@ export class LayerManager {
     const collector = new RendererStatsCollectorImpl(service.name, this._stats);
     if (this._debugEnabled) collector.enable();
 
-    this._renderers.set(service.name, { service, collector });
+    this._renderers.set(service.name, { service, collector, mounted: false });
   }
 
   /**
@@ -178,7 +189,9 @@ export class LayerManager {
       this._placeLayer(entry.renderer, entry.layerName, entry.layerDef);
     }
 
-    this._mounted = true;
+    for (const renderer of this._renderers.values()) {
+      renderer.mounted = true;
+    }
   }
 
   /**
@@ -247,12 +260,15 @@ export class LayerManager {
    */
   private _renderSurfaceViews(): void {
     const engine = this._engine;
-    if (engine === undefined || !this._mounted) return;
-    let hasSurface = false;
-    for (const { service } of this._renderers.values()) {
-      if (service.kind === "surface") hasSurface = true;
+    if (engine === undefined) return;
+    let hasMountedSurface = false;
+    for (const renderer of this._renderers.values()) {
+      if (renderer.mounted && renderer.service.kind === "surface") {
+        hasMountedSurface = true;
+        break;
+      }
     }
-    if (!hasSurface) return;
+    if (!hasMountedSurface) return;
 
     let count = writeCameraViews(engine, this._views);
     if (count > this._views.length) {
@@ -264,9 +280,9 @@ export class LayerManager {
       const view = this._views[index];
       if (view !== undefined) this._frameViews[index] = view;
     }
-    for (const { service } of this._renderers.values()) {
-      if (!isSurfaceRenderer(service)) continue;
-      service.renderViews(this._frameViews, SURFACE_RENDER_ALPHA);
+    for (const renderer of this._renderers.values()) {
+      if (!renderer.mounted || !isSurfaceRenderer(renderer.service)) continue;
+      renderer.service.renderViews(this._frameViews, SURFACE_RENDER_ALPHA);
     }
   }
 

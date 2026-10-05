@@ -442,9 +442,10 @@ Donnez à chaque layer HUD un `order` strictement supérieur à celui de la surf
 Un `order` égal échoue à l'enregistrement avec `RENDERER:LAYER_ORDER_CONFLICT`. Les layers
 HUD en espace écran gardent `pointer-events: none`. Le layer monde de la surface ne le fait pas.
 
-`LayerManager` appelle `renderViews` une fois par `engine:render`, avec le tampon rempli
+`LayerManager` appelle `renderViews` une fois par `engine:render` après le `mount()` de cette surface, avec le tampon rempli
 par `writeCameraViews`. L'alpha vaut `1` tant que #79 ne fournit pas `engine.frame`.
 N'appelez pas `renderViews` vous-même et ne lisez pas les stores caméra directement.
+`LayerManager.dispose()` retire le hook `engine:render`. Les nœuds DOM restent jusqu'à `unregister`.
 `runSurfaceConformance(service, engine)` depuis `@gwenjs/renderer-core/testing` vérifie
 cette forme.
 

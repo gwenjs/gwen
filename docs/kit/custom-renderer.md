@@ -460,9 +460,10 @@ Give every HUD layer a strictly greater `order` than that surface layer.
 An equal order fails at register with `RENDERER:LAYER_ORDER_CONFLICT`. Screen-space
 HUD layers keep `pointer-events: none`. The surface world layer does not.
 
-`LayerManager` calls `renderViews` once per `engine:render`, with the buffer filled
+`LayerManager` calls `renderViews` once per `engine:render` after that surface is mounted, with the buffer filled
 by `writeCameraViews`. The alpha is `1` until #79 supplies `engine.frame`. Do not
 call `renderViews` yourself and do not read camera stores directly.
+`LayerManager.dispose()` removes the `engine:render` hook. DOM nodes stay until `unregister`.
 `runSurfaceConformance(service, engine)` from `@gwenjs/renderer-core/testing` checks
 this shape.
 
