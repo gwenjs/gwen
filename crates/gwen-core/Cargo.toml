@@ -84,3 +84,7 @@ required-features = ["physics2d"]
 [[bench]]
 name = "transform_bench"
 harness = false
+
+[[bench]]
+name = "storage_models"
+harness = false

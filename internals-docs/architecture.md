@@ -64,6 +64,8 @@ gwen-wasm-utils — Utilities for WASM/TS bridge, shared memory,
 
 ## Key Architectural Decisions
 
+- [ADR-0001 — Component storage](./adr/0001-component-storage.md) — archetype tables, per-chunk field views (accepted)
+
 ### Threading model (v1.0)
 
 The simulation runs on the main thread. See [ADR 0002](./adr/0002-threading-model.md).
@@ -72,9 +74,10 @@ The simulation runs on the main thread. See [ADR 0002](./adr/0002-threading-mode
 `gwen-engine.ts` is intentionally large (~2000+ lines) — V8 inlines function calls within the same compilation unit. Splitting into smaller files caused measurable performance regression on the hot path (significant slowdown when updating ~1000 entities/frame). This is a conscious performance trade-off.
 
 ### ECS Memory Layout
-- **Structure of Arrays (SoA)** not Array of Structures
-- Cache-friendly iteration over components
-- WASM bridge marshals SoA data to/from TypeScript
+- **Decision:** archetype tables with one array per field per chunk (model C). Status: to be implemented by #113/#65. See [ADR-0001](./adr/0001-component-storage.md).
+- Not per-entity field arrays. A row index is valid only inside one chunk, and it changes on migration.
+- Adding or removing a component will be an archetype migration: each kept column is moved once (#113).
+- Today's Rust columns are still packed rows. The TypeScript registry is still a `Map` per type. #113/#65 replace both.
 
 ### Frame Loop: 8 Phases
 The engine runs updates in this order each frame:

@@ -110,20 +110,35 @@ onStart(async () => {
 
 ### ECS — Structure of Arrays (SoA)
 
-Components are **pure data**, stored as TypedArrays in WASM linear memory. Each component
-field is a separate contiguous array; entity IDs are the index. No object allocation per entity.
+Decision: archetype tables with one typed array per field inside each chunk (model C).
+Status: to be implemented by #113/#65. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
+
+A chunk is one archetype. Every component in that chunk shares the row index. Row order is
+not stable, so a field is never indexed by entity id. The only system form is:
 
 ```ts
-// Component fields are TypedArrays — entity IDs are indices (bigint)
-Position.x[entityId] += Velocity.x[entityId] * dt
+const query = useQuery([Position, Velocity])
+onUpdate((dt) => {
+  for (const chunk of query) {
+    const pos = chunk.get(Position)
+    const vel = chunk.get(Velocity)
+    for (let i = 0; i < chunk.count; i++) pos.x[i] += vel.vx[i] * dt
+  }
+})
 ```
 
-Systems query sets of entity IDs that match a component archetype (`useQuery`). Actors own a
-single entity and have their own lifecycle. A prefab is a component template; an actor wraps
-a prefab with lifecycle hooks and a public API.
+`Position.x[entityId]` and `chunk.x[i]` are not APIs. `ComponentDefinition` has no field arrays.
+Identity comes from `chunk.entityId(row)`.
 
-Entity IDs are `bigint`. Adding/removing components is expensive (buffer reallocation) — use
-it for state changes, never inside `onUpdate`.
+Today the TypeScript registry is still a `Map` per component type, and the Rust columns are
+still packed rows. #113/#65 replace that. Until they land, do not write the chunk loop against
+this tree and expect it to run.
+
+Adding or removing a component will be an archetype migration: each kept column is moved once
+(#113). Do that for state changes, not inside `onUpdate`.
+
+Systems query matching entities (`useQuery`). Actors own one entity. A prefab is a component
+template; an actor wraps a prefab with lifecycle hooks and a public API. Entity IDs are `bigint`.
 
 ### Build-time transforms (@gwenjs/vite)
 
