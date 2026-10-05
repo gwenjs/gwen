@@ -76,7 +76,7 @@ Local run of `cargo bench -p gwen-core --bench storage_models` and `vitest bench
 - OS: Darwin 25.6.0 arm64
 - rustc: rustc 1.90.0 (1159e78c4 2025-09-14)
 - Node: v24.7.0
-- Commit: COMMIT_SHA_HERE
+- Commit: 72b19e79ebd6d8637a33534a776a6fd25e174bc7
 - CI run: local run (no CI URL). The PR job `storage-bench` repeats this table on GitHub.
 
 Native rows are Rust on the host target, not wasm32. Ranking only. `today` and JS `A` / `B` / `C` are Node.
