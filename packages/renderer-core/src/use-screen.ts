@@ -49,7 +49,6 @@
 
 import { useService } from "@gwenjs/core/system";
 import type { ViewportScreenInfo } from "./screen-service.js";
-import type { ScreenService } from "./screen-service.js";
 
 /**
  * Returns the stable {@link ViewportScreenInfo} for the given viewport.
@@ -62,6 +61,6 @@ import type { ScreenService } from "./screen-service.js";
  * @returns A stable object with `pixels`, `dpr`, and `bounds` (mutated each frame).
  */
 export function useScreen(viewportId = "main"): ViewportScreenInfo {
-  const service = useService("screenService") as ScreenService;
+  const service = useService("screenService");
   return service.getOrCreateInfo(viewportId);
 }
