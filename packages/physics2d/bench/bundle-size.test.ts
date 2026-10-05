@@ -28,13 +28,14 @@ const distRoot = path.join(repoRoot, "packages/physics2d/dist");
 /** All dist entry file names whose sizes are tracked. */
 const ENTRIES = [
   "index.js",
-  "core.js",
-  "helpers.js",
-  "helpers-queries.js",
-  "helpers-movement.js",
-  "helpers-contact.js",
-  "helpers-static-geometry.js",
-  "helpers-orchestration.js",
+  "module.js",
+  "internal.js",
+  "helpers/index.js",
+  "helpers/queries.js",
+  "helpers/movement.js",
+  "helpers/contact.js",
+  "helpers/static-geometry.js",
+  "helpers/orchestration.js",
   "tilemap.js",
   "debug.js",
 ] as const;
@@ -86,10 +87,9 @@ describe("bundle size (tree-shaking)", () => {
   );
 
   it.skipIf(!BENCH_SLOW)(
-    "focused entry points (core, tilemap, debug) are not larger than index",
+    "focused entry points (tilemap, debug) are not larger than index",
     () => {
-      // helpers.js is intentionally larger than index.js as it aggregates all helpers
-      expect(sizes["core.js"]).toBeLessThanOrEqual(sizes["index.js"] ?? 0);
+      // ./core was removed. It re-exported the root, so index.js is that bundle.
       expect(sizes["tilemap.js"]).toBeLessThanOrEqual(sizes["index.js"] ?? 0);
       expect(sizes["debug.js"]).toBeLessThanOrEqual(sizes["index.js"] ?? 0);
     },
@@ -97,13 +97,20 @@ describe("bundle size (tree-shaking)", () => {
   );
 
   it.skipIf(!BENCH_SLOW)(
-    "helper sub-paths are not larger than helpers bundle",
+    "helper sub-paths are not larger than the package root",
     () => {
-      expect(sizes["helpers-queries.js"]).toBeLessThanOrEqual(sizes["helpers.js"] ?? 0);
-      expect(sizes["helpers-movement.js"]).toBeLessThanOrEqual(sizes["helpers.js"] ?? 0);
-      expect(sizes["helpers-contact.js"]).toBeLessThanOrEqual(sizes["helpers.js"] ?? 0);
-      expect(sizes["helpers-static-geometry.js"]).toBeLessThanOrEqual(sizes["helpers.js"] ?? 0);
-      expect(sizes["helpers-orchestration.js"]).toBeLessThanOrEqual(sizes["index.js"] ?? 0);
+      // helpers/index.js is a re-export facade. Each sub-path carries its own
+      // implementation, so the facade can be smaller than one helper.
+      for (const entry of [
+        "helpers/index.js",
+        "helpers/queries.js",
+        "helpers/movement.js",
+        "helpers/contact.js",
+        "helpers/static-geometry.js",
+        "helpers/orchestration.js",
+      ]) {
+        expect(sizes[entry], entry).toBeLessThanOrEqual(sizes["index.js"] ?? 0);
+      }
     },
     120_000,
   );
