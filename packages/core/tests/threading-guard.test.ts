@@ -247,6 +247,11 @@ describe("threading guard", () => {
     }
   });
 
+  it("does not flag a non-shared WebAssembly.Memory", () => {
+    const text = "export const mem = new WebAssembly.Memory({ initial: 1, maximum: 1 });\n";
+    expect(scanText(text, "fixtures/mem-plain.ts")).toEqual([]);
+  });
+
   it("treats a removed allow-list site as a shrink and a new site as a failure", () => {
     const allowed = { "packages/physics3d/src/plugin/bvh.ts new Worker": 1 };
     expect(growthPast(new Map(), allowed)).toEqual([]);

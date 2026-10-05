@@ -4,7 +4,7 @@
 
 Accepted for v1.0.
 
-Re-open only with a new ADR. That ADR must measure the `+atomics` build cost and list which of R1–R7 the change breaks.
+Re-open only with a new ADR. That ADR must measure the `+atomics` build cost and list which of R1–R8 the change breaks.
 
 `+atomics` build cost: not measured. Required to re-open.
 
@@ -26,7 +26,7 @@ GWEN_FRAME_LOOP cpu="Apple M4 Max" os="Darwin 25.6.0 arm64" node="v24.7.0" commi
 
 v1.0 keeps the simulation on the main thread. Option A.
 
-A new bulk API does not have to be worker-safe in 1.0. It must follow R1–R7.
+A new bulk API does not have to be worker-safe in 1.0. It must follow R1–R8.
 
 B and C stay rejected. The numbers below are the ceiling, not a plan to build them.
 
@@ -159,7 +159,7 @@ R8. Do not create a worker that owns ECS, physics, or world state. The only allo
 
 ## Re-opening
 
-A later ADR may leave A only if it measures the `+atomics` build cost and names which of R1–R7 break.
+A later ADR may leave A only if it measures the `+atomics` build cost and names which of R1–R8 break.
 
 ## Not in this change
 
@@ -169,4 +169,4 @@ The SAB sentences in the published docs and in `internals-docs/architecture.md` 
 
 The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts` (R8). Keys are the file plus the pattern. A removed site stays green. A new site, or a higher count, fails.
 
-CI does not collect `packages/core/bench/` until #57. The physics2d bench is collected, but N = 50 000 is skipped when `CI=true` so the Benchmarks job does not pay that step. The medians above are the local run, not the CI trend.
+CI does collect `packages/core/bench/`. Vitest reads the `test` key only, so the top-level `benchmark.include` in `packages/core/vitest.config.ts` is ignored and the default glob runs `bench/frame-loop.bench.ts`. When `CI=true`, the light and physics2d benches skip N = 50 000 and keep 1 000 and 10 000. The medians above are the local run, not the CI trend.

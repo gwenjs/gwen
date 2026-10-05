@@ -255,8 +255,10 @@ function measureCopyFloor(): void {
 const measuredKeys = new Set<string>();
 
 function entityCounts(variant: "light" | "physics2d"): readonly number[] {
-  // 50_000 physics bodies add minutes to the Benchmarks job. CI keeps 1_000 and 10_000.
-  if (variant === "physics2d" && process.env.CI === "true") return [1_000, 10_000];
+  // N = 50_000 adds minutes on CI for light and for physics2d. Keep 1_000 and 10_000.
+  if ((variant === "light" || variant === "physics2d") && process.env.CI === "true") {
+    return [1_000, 10_000];
+  }
   return FRAME_LOOP_ENTITY_COUNTS;
 }
 
