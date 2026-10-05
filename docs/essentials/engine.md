@@ -171,18 +171,18 @@ With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs re
 :::
 
 ::: info Multiplayer (1.0)
-Networked play is not part of GWEN 1.0. Transport, prediction, and interest management stay future plugins. In Node, the only supported loop is `startExternal()` followed by `advance(1 / physicsHz)`. `start()` and its `setTimeout` fallback are not a supported server loop.
+Networked play is not part of GWEN 1.0. Transport, prediction, and interest management stay future plugins. In Node, the only supported loop is `startExternal()` followed by `advance(dt)`. `start()` and its `setTimeout` fallback are not a supported server loop.
 
-The 1.0 netcode-ready contract is:
+These are 1.0 targets. A line marked Target is not true on this tree.
 
-1. The engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants. The headless bootstrap is #89.
-2. `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step. `engine:afterTick` runs once per step, and `frameCount` counts those steps.
-3. On the `advance` path, simulation `dt` is the value the caller passes. It does not come from the wall clock.
-4. Several engines in one process share no runtime state. `stop()` on one engine leaves the others running.
+1. Target (#89): the engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
+2. Target (#79): `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step. `engine:afterTick` runs once per step, and `frameCount` counts those steps. Until #79, `advance(dt)` uses the caller `dt` and ignores `physicsHz`.
+3. On the `advance` path, simulation `dt` is the value the caller passes, capped by `maxDeltaSeconds` and scaled by `timeScale`. It does not come from the wall clock.
+4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. Until #59, `stop()` deletes every `__gwenGlue_*` key on `globalThis`.
 5. A fatal error moves only that engine to `faulted`.
 6. Global error handlers are optional. Core installs none unless `window` exists.
 7. Fixed-step reproducibility is the Determinism note in this section (#84).
-8. Running out of entity capacity throws a typed error instead of trapping the WASM module.
+8. Target (#90): running out of entity capacity throws a typed error instead of trapping the WASM module. Until #90, that path throws a plain `Error`.
 
 1.0 does not provide lockstep, rollback, a world snapshot, tick-indexed input, or an `advance(dt, inputs)` overload. Two peers on different platforms may diverge.
 :::

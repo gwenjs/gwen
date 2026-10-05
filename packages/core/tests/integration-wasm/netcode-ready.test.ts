@@ -71,11 +71,23 @@ describe("netcode-ready fixed tick", () => {
 
     const roomA = boot(first);
     const roomB = boot(second);
+    const stopped = new Set<Handle>();
+    const unsubscribed = new Set<() => void>();
+    const unsubscribeOnce = (unsubscribe: () => void): void => {
+      if (unsubscribed.has(unsubscribe)) return;
+      unsubscribe();
+      unsubscribed.add(unsubscribe);
+    };
+    const stopOnce = async (handle: Handle): Promise<void> => {
+      if (stopped.has(handle)) return;
+      await handle.engine.stop();
+      stopped.add(handle);
+    };
     const dispose = async (): Promise<void> => {
-      roomA.unsubscribe();
-      roomB.unsubscribe();
-      await first.engine.stop();
-      await second.engine.stop();
+      unsubscribeOnce(roomA.unsubscribe);
+      unsubscribeOnce(roomB.unsubscribe);
+      await stopOnce(first);
+      await stopOnce(second);
     };
 
     try {
@@ -89,8 +101,8 @@ describe("netcode-ready fixed tick", () => {
         transformBytes(second.engine, second.bridge, roomB.ids),
       );
 
-      await first.engine.stop();
-      roomA.unsubscribe();
+      await stopOnce(first);
+      unsubscribeOnce(roomA.unsubscribe);
       await second.advance(1, DT);
       expect(second.engine.frameCount).toBe(STEPS + 1);
     } finally {

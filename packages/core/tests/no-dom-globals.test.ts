@@ -7,28 +7,31 @@ import { describe, expect, it } from "vitest";
 const ENGINE_SRC = fileURLToPath(new URL("../src/engine", import.meta.url));
 
 /**
- * Guarded sites cited for the 1.0 netcode-ready contract.
- * A new `window` / `document` / `requestAnimationFrame` line must be added here
- * only when it is one of those sites.
+ * Ceiling per file and source line. A removed site stays green.
+ * A second copy of an allowed line, or a new line, fails.
  */
-const ALLOWED_LINES = new Set([
-  'if (typeof requestAnimationFrame !== "undefined") {',
-  "return requestAnimationFrame(cb);",
-  'if (typeof globalThis.window !== "undefined") {',
-  'if (typeof window === "undefined") return () => {};',
-  "const previous = window.onerror;",
-  "window.onerror = (message, source, lineno, colno, error) => {",
-  "const result: unknown = previous.call(window, message, source, lineno, colno, error);",
-  'window.addEventListener("unhandledrejection", onUnhandled);',
-  "window.onerror = previous;",
-  'window.removeEventListener("unhandledrejection", onUnhandled);',
-  "declare const window: GwenWindow;",
-  'if (typeof document === "undefined") {',
-  'const script = document.createElement("script");',
-  "document.head.appendChild(script);",
-]);
-
-const ALLOWED_FILES = new Set(["gwen-engine.ts", "error-bus.ts", "wasm-bridge.ts"]);
+const ALLOWED_LINE_CEILING: Record<string, Record<string, number>> = {
+  "gwen-engine.ts": {
+    'if (typeof requestAnimationFrame !== "undefined") {': 1,
+    "return requestAnimationFrame(cb);": 1,
+    'if (typeof globalThis.window !== "undefined") {': 1,
+  },
+  "error-bus.ts": {
+    'if (typeof window === "undefined") return () => {};': 1,
+    "const previous = window.onerror;": 1,
+    "window.onerror = (message, source, lineno, colno, error) => {": 1,
+    "const result: unknown = previous.call(window, message, source, lineno, colno, error);": 1,
+    'window.addEventListener("unhandledrejection", onUnhandled);': 1,
+    "window.onerror = previous;": 1,
+    'window.removeEventListener("unhandledrejection", onUnhandled);': 1,
+  },
+  "wasm-bridge.ts": {
+    "declare const window: GwenWindow;": 1,
+    'if (typeof document === "undefined") {': 1,
+    'const script = document.createElement("script");': 1,
+    "document.head.appendChild(script);": 1,
+  },
+};
 
 const TOKEN = /\b(?:window|document|requestAnimationFrame)\b/;
 
@@ -57,12 +60,17 @@ function codeOfLine(line: string, inBlock: { value: boolean }): string {
 
 function hitsIn(source: string, fileName: string): string[] {
   const hits: string[] = [];
+  const seen = new Map<string, number>();
+  const ceilings = ALLOWED_LINE_CEILING[fileName] ?? {};
   const inBlock = { value: false };
   const lines = source.split("\n");
   for (let lineNumber = 0; lineNumber < lines.length; lineNumber += 1) {
     const code = codeOfLine(lines[lineNumber] ?? "", inBlock).trim();
     if (!TOKEN.test(code)) continue;
-    if (ALLOWED_FILES.has(fileName) && ALLOWED_LINES.has(code)) continue;
+    const count = (seen.get(code) ?? 0) + 1;
+    seen.set(code, count);
+    const ceiling = ceilings[code] ?? 0;
+    if (count <= ceiling) continue;
     hits.push(`${fileName}:${lineNumber + 1} ${code}`);
   }
   return hits;
@@ -75,6 +83,11 @@ describe("engine DOM global scan", () => {
     ]);
     expect(hitsIn('if (typeof globalThis.window !== "undefined") {', "gwen-engine.ts")).toEqual([]);
     expect(hitsIn("/* window */\nconst n = 1;", "gwen-engine.ts")).toEqual([]);
+    const allowed = "return requestAnimationFrame(cb);";
+    expect(hitsIn(`${allowed}\n${allowed}`, "gwen-engine.ts")).toEqual([
+      `gwen-engine.ts:2 ${allowed}`,
+    ]);
+    expect(hitsIn("", "gwen-engine.ts")).toEqual([]);
   });
 
   it("finds no unguarded window, document, or requestAnimationFrame in engine src", () => {
