@@ -177,19 +177,68 @@ jobs:
       - name: Public type snapshots
         run: node scripts/public-api-types.mjs
 
+  storage-bench:
+    name: Storage bench
+    runs-on: ubuntu-latest
+    needs: [rust]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Download build-tools artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-build-tools
+          path: packages/physics3d/build-tools/
+      - name: Download physics3d wasm/bvh artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-wasm-bvh
+          path: packages/physics3d/wasm/bvh/
+      - name: Download physics3d-fracture wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-fracture-wasm
+          path: packages/physics3d-fracture/wasm/
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
+      - name: Build packages
+        run: pnpm build:ts
+      - name: Rust storage models
+        run: cargo bench -p gwen-core --bench storage_models -- --warm-up-time 1 --measurement-time 3 --noplot
+      - name: TS storage models
+        working-directory: packages/core
+        run: pnpm exec vitest bench --run bench/storage-models.bench.ts --outputJson ../../target/storage-models.ts.json
+      - name: Report
+        run: node scripts/storage-bench-report.mjs
+      - name: Upload storage bench
+        uses: actions/upload-artifact@v4
+        with:
+          name: storage-bench
+          path: |
+            target/storage-bench-summary.md
+            target/storage-models.ts.json
+            target/storage-bench-bytes-rust.json
+            target/storage-bench-bytes-js.json
+          retention-days: 7
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, typescript, bench, api-surface]
+    needs: [lint, rust, typescript, bench, api-surface, storage-bench]
     if: always()
     steps:
       - name: Check all jobs
         run: |
-          if [ "${{ needs.lint.result }}"       != "success" ] || \
-             [ "${{ needs.rust.result }}"       != "success" ] || \
-             [ "${{ needs.typescript.result }}" != "success" ] || \
-             [ "${{ needs.bench.result }}"      != "success" ] || \
-             [ "${{ needs.api-surface.result }}" != "success" ]; then
+          if [ "${{ needs.lint.result }}"          != "success" ] || \
+             [ "${{ needs.rust.result }}"          != "success" ] || \
+             [ "${{ needs.typescript.result }}"    != "success" ] || \
+             [ "${{ needs.bench.result }}"         != "success" ] || \
+             [ "${{ needs.api-surface.result }}"   != "success" ] || \
+             [ "${{ needs.storage-bench.result }}" != "success" ]; then
             echo "❌ CI failed"
             exit 1
           fi
