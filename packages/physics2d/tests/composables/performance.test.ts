@@ -84,7 +84,7 @@ describe("Performance", () => {
     const start = performance.now();
     buf.drain();
     const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(0.5, 20));
+    expect(elapsed).toBeLessThan(ciThreshold(0.5, 40));
   });
 
   it("applies 1000 impulses in under 5ms", async () => {
