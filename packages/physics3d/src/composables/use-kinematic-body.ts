@@ -8,13 +8,14 @@
  */
 import { onBeforeUpdate } from "@gwenjs/core/actor";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type {
   KinematicBodyOptions3D,
   KinematicBodyHandle3D,
+  Physics3DBodyOptions,
   Physics3DVec3,
   Physics3DQuat,
 } from "../types";
+import { setIf } from "../set-if";
 import { usePhysics3D } from "../composables";
 
 /**
@@ -44,14 +45,16 @@ import { usePhysics3D } from "../composables";
  */
 export function useKinematicBody(options: KinematicBodyOptions3D = {}): KinematicBodyHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const _fixedRotation = options.fixedRotation ?? false;
 
-  const creationOptions = {
-    kind: "kinematic" as const,
-    initialPosition: options.initialPosition,
-    initialRotation: options.initialRotation,
-  };
+  const creationOptions: Physics3DBodyOptions = { kind: "kinematic" };
+  setIf((value) => {
+    creationOptions.initialPosition = value;
+  }, options.initialPosition);
+  setIf((value) => {
+    creationOptions.initialRotation = value;
+  }, options.initialRotation);
 
   let _handle = physics.createBody(entityId, creationOptions);
   let _active = true;

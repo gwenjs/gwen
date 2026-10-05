@@ -6,9 +6,13 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import type { EntityId, GwenEngine } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
+import type { ComponentDef } from "@gwenjs/core/system";
 import type { Physics3DAPI, Physics3DQuat, Physics3DVec3 } from "./types";
 import "./augment";
+
+/** Default ECS component name used when `positionComponent` is omitted. */
+const DEFAULT_POSITION_COMPONENT = "transform3d";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -25,41 +29,15 @@ export const SENSOR_ID_HEAD = 0xf008;
  */
 export interface PhysicsKinematicSyncSystemOptions {
   /**
-   * ECS component name that holds `{ x, y, z }` transform data.
-   * @default 'transform3d'
+   * ECS component that holds `{ x, y, z }` transform data.
+   * When omitted, the system reads the component named `"transform3d"`.
    */
-  positionComponent?: string;
+  positionComponent?: ComponentDef;
   /**
-   * ECS component name that holds `{ x, y, z, w }` rotation data.
-   * Rotation sync is skipped when this is `undefined`.
-   * @default undefined
+   * ECS component that holds `{ x, y, z, w }` rotation data.
+   * Rotation sync is skipped when this is omitted.
    */
-  rotationComponent?: string;
-}
-
-// ─── Internal type helpers ─────────────────────────────────────────────────────
-
-/**
- * Internal interface for string-named component and query access.
- *
- * The public `GwenEngine` API accepts typed `ComponentDefinition` descriptors.
- * However, this kinematic sync system is intentionally generic — it operates on
- * component names supplied as configuration strings, which the runtime engine
- * supports but the TypeScript interface does not expose.
- *
- * @internal Do not use this type outside of this module.
- */
-interface StringQueryEntity {
-  readonly id: EntityId;
-  get(name: string): unknown;
-}
-
-interface GwenEngineStringComponentAccess {
-  /**
-   * Look up entities that have a component identified by the given string name.
-   * The runtime yields accessors, not bare entity ids.
-   */
-  createLiveQuery(names: string[]): Iterable<StringQueryEntity>;
+  rotationComponent?: ComponentDef;
 }
 
 function readVec3(value: unknown): Physics3DVec3 | null {
@@ -87,7 +65,7 @@ function readQuat(value: unknown): Physics3DQuat | null {
  * Only entities that have both a registered kinematic body AND the configured
  * position component are affected.
  *
- * @param options - Optional component names and conversion settings.
+ * @param options - Optional position and rotation components.
  * @returns A `definePlugin` class ready to be instantiated and registered.
  *
  * @example
@@ -96,7 +74,7 @@ function readQuat(value: unknown): Physics3DQuat | null {
  * ```
  */
 export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
-  const positionComponent = options.positionComponent ?? "transform3d";
+  const positionComponent = options.positionComponent;
   const rotationComponent = options.rotationComponent;
 
   return definePlugin(() => {
@@ -110,28 +88,25 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
       setup(engine: GwenEngine): void {
         _engine = engine;
         physics = engine.tryInject("physics3d") ?? null;
+        // Omitted option keeps the historical "transform3d" name. A real
+        // ComponentDef has a schema and type id this default does not.
+        const queried =
+          positionComponent ?? (DEFAULT_POSITION_COMPONENT as unknown as ComponentDef);
         offBeforeUpdate = engine.hooks.hook("engine:before-update", () => {
           if (!physics || !_engine) return;
 
-          // Access the runtime string-based query/component API.
-          // The GwenEngine public type accepts ComponentDefinition descriptors;
-          // the underlying runtime also accepts component name strings, which
-          // this generic sync system relies on.
-          const stringEngine = _engine as unknown as GwenEngineStringComponentAccess;
-
-          for (const entity of stringEngine.createLiveQuery([positionComponent])) {
+          for (const entity of _engine.createLiveQuery([queried])) {
             // perf: replaced [...spread] with for...of to avoid array allocation every frame
             const entityId = entity.id;
             if (!physics.hasBody(entityId)) continue;
             if (physics.getBodyKind(entityId) !== "kinematic") continue;
 
-            const pos = readVec3(entity.get(positionComponent));
+            const pos = readVec3(entity.get(queried));
             if (!pos) continue;
 
             const rot = rotationComponent
               ? (readQuat(entity.get(rotationComponent)) ?? undefined)
               : undefined;
-
             physics.setKinematicPosition(entityId, pos, rot);
           }
         });

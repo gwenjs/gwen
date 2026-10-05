@@ -17,7 +17,6 @@
 import type { CompoundColliderHandle3D, CompoundColliderOptions3D } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 
 export type { CompoundColliderOptions3D };
 
@@ -80,7 +79,7 @@ export type { CompoundColliderOptions3D };
  */
 export function useCompoundCollider(options: CompoundColliderOptions3D): CompoundColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   const handle = physics.addCompoundCollider(entityId, options);
   if (!handle) {

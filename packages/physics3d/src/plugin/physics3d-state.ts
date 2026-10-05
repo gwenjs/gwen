@@ -11,6 +11,7 @@ import type {
   Physics3DColliderOptions,
   Physics3DSensorState,
   Physics3DPrefabExtension,
+  Physics3DCollisionContact,
 } from "../types";
 import type { InternalCollisionEvent3D } from "./bridge";
 
@@ -55,7 +56,7 @@ export interface Physics3DPluginState {
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
 
   /** Current frame contacts — rebuilt each frame in onUpdate. */
-  currentFrameContacts: Array<any>; // Avoid circular dependency, use any for collision contact type
+  currentFrameContacts: Physics3DCollisionContact[];
 
   /** Track overlapping AABB pairs from previous frame (local mode only). */
   previousLocalContactKeys: Set<string>;

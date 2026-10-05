@@ -225,6 +225,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     setup(engine: GwenEngine): void {
       ctx._engine = engine;
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
+      // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
       ctx._variant = bridge.variant;
       ctx.bridgeRuntime = bridge;
@@ -404,9 +405,9 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
             if (prev.isActive !== newActive) {
               void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
               if (newActive) {
-                _dispatchSensorEnter(colliderId, eid as unknown as bigint);
+                _dispatchSensorEnter(colliderId, eid);
               } else {
-                _dispatchSensorExit(colliderId, eid as unknown as bigint);
+                _dispatchSensorExit(colliderId, eid);
               }
             }
           }

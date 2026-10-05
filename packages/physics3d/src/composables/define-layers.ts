@@ -42,11 +42,14 @@ export function defineLayers<T extends Record<string, number>>(
   // Validate that no two layer values share bits
   for (let i = 0; i < values.length; i++) {
     for (let j = i + 1; j < values.length; j++) {
-      const shared = values[i] & values[j];
-      if (shared) {
+      const left = values[i];
+      const right = values[j];
+      if (left === undefined || right === undefined) continue;
+      const shared = left & right;
+      if (shared !== 0) {
         // eslint-disable-next-line no-console
         console.warn(
-          `[gwen:physics3d] defineLayers: layers share bits (${values[i]} & ${values[j]} = ${shared}). ` +
+          `[gwen:physics3d] defineLayers: layers share bits (${left} & ${right} = ${shared}). ` +
             `This may cause unexpected collision filtering.`,
         );
       }

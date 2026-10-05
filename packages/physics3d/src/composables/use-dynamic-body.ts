@@ -9,7 +9,7 @@ import type {
 } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
+import { setIf } from "../set-if";
 
 /** Zero vector returned when body is inactive. Reused to avoid allocation. */
 const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
@@ -39,22 +39,42 @@ const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
  */
 export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
-  const creationOptions: Physics3DBodyOptions = {
-    kind: "dynamic",
-    mass: options.mass,
-    gravityScale: options.gravityScale,
-    linearDamping: options.linearDamping,
-    angularDamping: options.angularDamping,
-    ccdEnabled: options.ccdEnabled,
-    initialPosition: options.initialPosition,
-    initialRotation: options.initialRotation,
-    initialLinearVelocity: options.initialLinearVelocity,
-    initialAngularVelocity: options.initialAngularVelocity,
-    fixedRotation: options.fixedRotation,
-    quality: options.quality,
-  };
+  const creationOptions: Physics3DBodyOptions = { kind: "dynamic" };
+  setIf((value) => {
+    creationOptions.mass = value;
+  }, options.mass);
+  setIf((value) => {
+    creationOptions.gravityScale = value;
+  }, options.gravityScale);
+  setIf((value) => {
+    creationOptions.linearDamping = value;
+  }, options.linearDamping);
+  setIf((value) => {
+    creationOptions.angularDamping = value;
+  }, options.angularDamping);
+  setIf((value) => {
+    creationOptions.ccdEnabled = value;
+  }, options.ccdEnabled);
+  setIf((value) => {
+    creationOptions.initialPosition = value;
+  }, options.initialPosition);
+  setIf((value) => {
+    creationOptions.initialRotation = value;
+  }, options.initialRotation);
+  setIf((value) => {
+    creationOptions.initialLinearVelocity = value;
+  }, options.initialLinearVelocity);
+  setIf((value) => {
+    creationOptions.initialAngularVelocity = value;
+  }, options.initialAngularVelocity);
+  setIf((value) => {
+    creationOptions.fixedRotation = value;
+  }, options.fixedRotation);
+  setIf((value) => {
+    creationOptions.quality = value;
+  }, options.quality);
 
   let _handle = physics.createBody(entityId, creationOptions);
   let _active = true;

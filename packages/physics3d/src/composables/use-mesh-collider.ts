@@ -12,10 +12,10 @@
  * `preloadMeshCollider`), the load is performed asynchronously. The returned
  * handle exposes `status`, `ready`, and `abort()` to track and control the load.
  */
-import type { MeshColliderHandle3D, MeshColliderOptions } from "../types";
+import type { MeshColliderHandle3D, MeshColliderOptions, Physics3DColliderOptions } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
+import { setIf } from "../set-if";
 import { nextColliderId } from "./collider-id";
 import type { PreloadedBvhHandle } from "../index";
 
@@ -67,7 +67,7 @@ export function useMeshCollider(
   options: MeshColliderOptions | PreloadedBvhHandle,
 ): MeshColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const colliderId = nextColliderId();
 
   // Normalise: PreloadedBvhHandle → MeshColliderOptions
@@ -90,20 +90,31 @@ export function useMeshCollider(
     // no-op for synchronous colliders
   };
 
-  physics.addCollider(entityId, {
+  const collider: Physics3DColliderOptions = {
     shape: {
       type: "mesh",
       // Provide empty buffers as placeholders when using the async BVH path
       vertices: opts.vertices ?? new Float32Array(0),
       indices: opts.indices ?? new Uint32Array(0),
     },
-    isSensor: opts.isSensor,
-    offsetX: opts.offsetX,
-    offsetY: opts.offsetY,
-    offsetZ: opts.offsetZ,
     colliderId,
-    __bvhUrl: opts.__bvhUrl,
-  });
+  };
+  setIf((value) => {
+    collider.isSensor = value;
+  }, opts.isSensor);
+  setIf((value) => {
+    collider.offsetX = value;
+  }, opts.offsetX);
+  setIf((value) => {
+    collider.offsetY = value;
+  }, opts.offsetY);
+  setIf((value) => {
+    collider.offsetZ = value;
+  }, opts.offsetZ);
+  setIf((value) => {
+    collider.__bvhUrl = value;
+  }, opts.__bvhUrl);
+  physics.addCollider(entityId, collider);
 
   if (isAsync) {
     // Get the pending load state that addCollider registered
@@ -146,9 +157,14 @@ export function useMeshCollider(
       // for large meshes — acceptable until RFC-06c is integrated).
       currentOptions = { ...currentOptions, vertices, indices };
       _status = "loading";
-      const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, {
-        isSensor: currentOptions.isSensor,
-      });
+      const rebuildOpts: Pick<
+        Physics3DColliderOptions,
+        "isSensor" | "friction" | "restitution" | "layers" | "mask"
+      > = {};
+      setIf((value) => {
+        rebuildOpts.isSensor = value;
+      }, currentOptions.isSensor);
+      const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);
       if (!ok) {
         _status = "error";
         throw new Error(

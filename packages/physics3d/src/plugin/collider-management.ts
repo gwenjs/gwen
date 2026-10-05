@@ -15,6 +15,7 @@ import type {
   BulkStaticBoxesOptions,
   BulkStaticBoxesResult,
 } from "../types";
+import { setIf } from "../set-if";
 import { resolveLayerBits } from "../config";
 import { encodeCompoundShapes } from "../helpers/compound";
 import { nextColliderId } from "../composables/collider-id";
@@ -41,31 +42,43 @@ export function shapeSpecToColliderOptions(
   layers: (string | number)[] | undefined,
   mask: (string | number)[] | undefined,
 ): Physics3DColliderOptions {
-  const common = {
-    colliderId,
-    offsetX: shape.offsetX,
-    offsetY: shape.offsetY,
-    offsetZ: shape.offsetZ,
-    isSensor: shape.isSensor,
-    friction: shape.friction,
-    restitution: shape.restitution,
-    layers,
-    mask,
-  };
-  switch (shape.type) {
-    case "box":
-      return {
-        ...common,
-        shape: { type: "box", halfX: shape.halfX, halfY: shape.halfY, halfZ: shape.halfZ },
-      };
-    case "sphere":
-      return { ...common, shape: { type: "sphere", radius: shape.radius } };
-    case "capsule":
-      return {
-        ...common,
-        shape: { type: "capsule", radius: shape.radius, halfHeight: shape.halfHeight },
-      };
-  }
+  const options: Physics3DColliderOptions =
+    shape.type === "box"
+      ? {
+          colliderId,
+          shape: { type: "box", halfX: shape.halfX, halfY: shape.halfY, halfZ: shape.halfZ },
+        }
+      : shape.type === "sphere"
+        ? { colliderId, shape: { type: "sphere", radius: shape.radius } }
+        : {
+            colliderId,
+            shape: { type: "capsule", radius: shape.radius, halfHeight: shape.halfHeight },
+          };
+  setIf((value) => {
+    options.offsetX = value;
+  }, shape.offsetX);
+  setIf((value) => {
+    options.offsetY = value;
+  }, shape.offsetY);
+  setIf((value) => {
+    options.offsetZ = value;
+  }, shape.offsetZ);
+  setIf((value) => {
+    options.isSensor = value;
+  }, shape.isSensor);
+  setIf((value) => {
+    options.friction = value;
+  }, shape.friction);
+  setIf((value) => {
+    options.restitution = value;
+  }, shape.restitution);
+  setIf((value) => {
+    options.layers = value;
+  }, layers);
+  setIf((value) => {
+    options.mask = value;
+  }, mask);
+  return options;
 }
 
 // ─── Core collider implementation ──────────────────────────────────────────────
@@ -429,16 +442,19 @@ export function createBulkSpawnStaticBoxes(
         filter,
       );
       for (let i = 0; i < spawned; i++) {
+        const spawnedId = entityIds[i];
+        const slot = entityIndices[i];
+        if (spawnedId === undefined || slot === undefined) continue;
         const handle: Physics3DBodyHandle = {
           bodyId: ctx.nextBodyId++,
-          entityId: entityIds[i],
+          entityId: spawnedId,
           kind: "fixed",
           mass: 0,
           linearDamping: 0,
           angularDamping: 0,
         };
-        ctx.bodyByEntity.set(entityIndices[i]!, handle);
-        noteOwnerChange(ctx, entityIndices[i]!);
+        ctx.bodyByEntity.set(slot, handle);
+        noteOwnerChange(ctx, slot);
       }
       return { entityIds: entityIds.slice(0, spawned), count: spawned };
     }
@@ -453,18 +469,19 @@ export function createBulkSpawnStaticBoxes(
       const hy = uniform ? options.halfExtents[1]! : options.halfExtents[i * 3 + 1]!;
       const hz = uniform ? options.halfExtents[2]! : options.halfExtents[i * 3 + 2]!;
 
-      createBodyLocal(ctx, entityIds[i], {
+      const localId = entityIds[i];
+      if (localId === undefined) continue;
+      const collider: Physics3DColliderOptions = {
+        shape: { type: "box", halfX: hx, halfY: hy, halfZ: hz },
+        friction,
+        restitution,
+        ...(options.layers !== undefined ? { layers: options.layers } : {}),
+        ...(options.mask !== undefined ? { mask: options.mask } : {}),
+      };
+      createBodyLocal(ctx, localId, {
         kind: "fixed",
         initialPosition: { x: px, y: py, z: pz },
-        colliders: [
-          {
-            shape: { type: "box", halfX: hx, halfY: hy, halfZ: hz },
-            friction,
-            restitution,
-            layers: options.layers,
-            mask: options.mask,
-          },
-        ],
+        colliders: [collider],
       });
     }
     return { entityIds, count: n };

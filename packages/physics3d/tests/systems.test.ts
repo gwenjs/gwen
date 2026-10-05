@@ -45,6 +45,7 @@ vi.mock("@gwenjs/core", () => ({
   }),
 }));
 
+import type { ComponentDef } from "@gwenjs/core/system";
 import { createPhysicsKinematicSyncSystem, SENSOR_ID_FOOT, SENSOR_ID_HEAD } from "../src/systems";
 
 // ─── V2 mock engine factory ────────────────────────────────────────────────────
@@ -106,10 +107,10 @@ describe("createPhysicsKinematicSyncSystem", () => {
 
   interface LiveQueryEntity {
     readonly id: bigint;
-    get(name: string): unknown;
+    get(name: unknown): unknown;
   }
 
-  function liveEntity(id: bigint, get: (name: string) => unknown): LiveQueryEntity {
+  function liveEntity(id: bigint, get: (name: unknown) => unknown): LiveQueryEntity {
     return { id, get };
   }
 
@@ -201,17 +202,19 @@ describe("createPhysicsKinematicSyncSystem", () => {
   });
 
   it("syncs rotation when rotationComponent is configured", () => {
+    const transform3d = { name: "transform3d" } as ComponentDef;
+    const rotation3d = { name: "rotation3d" } as ComponentDef;
     const factory = createPhysicsKinematicSyncSystem({
-      positionComponent: "transform3d",
-      rotationComponent: "rotation3d",
+      positionComponent: transform3d,
+      rotationComponent: rotation3d,
     });
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine(
       [
         liveEntity(1n, (name) => {
-          if (name === "transform3d") return { x: 0, y: 1, z: 0 };
-          if (name === "rotation3d") return { x: 0, y: 0.707, z: 0, w: 0.707 };
+          if (name === transform3d) return { x: 0, y: 1, z: 0 };
+          if (name === rotation3d) return { x: 0, y: 0.707, z: 0, w: 0.707 };
           return null;
         }),
       ],

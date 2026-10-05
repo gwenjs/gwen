@@ -79,17 +79,41 @@ export class ContactRingBuffer3D {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY_3D;
       const base = slot * CONTACT_EVENT_FLOATS;
+      const entityA = this._u32[base];
+      const entityB = this._u32[base + 1];
+      const contactX = this._f32[base + 2];
+      const contactY = this._f32[base + 3];
+      const contactZ = this._f32[base + 4];
+      const normalX = this._f32[base + 5];
+      const normalY = this._f32[base + 6];
+      const normalZ = this._f32[base + 7];
+      const relativeVelocity = this._f32[base + 8];
+      const restitution = this._f32[base + 9];
+      if (
+        entityA === undefined ||
+        entityB === undefined ||
+        contactX === undefined ||
+        contactY === undefined ||
+        contactZ === undefined ||
+        normalX === undefined ||
+        normalY === undefined ||
+        normalZ === undefined ||
+        relativeVelocity === undefined ||
+        restitution === undefined
+      ) {
+        throw new TypeError("physics3d contact ring slot is empty");
+      }
       events.push({
-        entityA: BigInt(this._u32[base]),
-        entityB: BigInt(this._u32[base + 1]),
-        contactX: this._f32[base + 2],
-        contactY: this._f32[base + 3],
-        contactZ: this._f32[base + 4],
-        normalX: this._f32[base + 5],
-        normalY: this._f32[base + 6],
-        normalZ: this._f32[base + 7],
-        relativeVelocity: this._f32[base + 8],
-        restitution: this._f32[base + 9],
+        entityA: BigInt(entityA),
+        entityB: BigInt(entityB),
+        contactX,
+        contactY,
+        contactZ,
+        normalX,
+        normalY,
+        normalZ,
+        relativeVelocity,
+        restitution,
       });
       this._readHead++;
     }
