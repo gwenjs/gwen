@@ -17,6 +17,7 @@ import type {
   Physics2DPrefabExtension,
   Physics2DPluginHooks,
   CollisionContact,
+  InternalCollisionEvent,
 } from "../types";
 
 import {
@@ -25,21 +26,6 @@ import {
   PHYSICS_QUALITY_PRESET_CODE,
   PHYSICS2D_WASM_EVENT_STRIDE,
 } from "../types";
-
-// ─── Internal types ──────────────────────────────────────────────────────────
-
-/**
- * Internal representation of a raw WASM collision event.
- * Carries slot indices that are never exposed on the public `CollisionEvent` type.
- * Used exclusively within this file for event pool management and resolution.
- */
-type InternalCollisionEvent = {
-  slotA: number;
-  slotB: number;
-  aColliderId?: number;
-  bColliderId?: number;
-  started: boolean;
-};
 
 import {
   normalizeConfig,
@@ -375,14 +361,22 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const owned = guard(entityId, "getLinearVelocity");
         if (!owned) return null;
         const res = pb.physics_get_linear_velocity(owned.slot);
-        return res ? { x: res[0], y: res[1] } : null;
+        if (!res || res.length < 2) return null;
+        const x = res[0];
+        const y = res[1];
+        if (x === undefined || y === undefined) return null;
+        return { x, y };
       },
       getPosition: (entityId) => {
         const owned = guard(entityId, "getPosition");
         if (!owned) return null;
         const res = pb.physics_get_position(owned.slot);
-        if (!res || res.length === 0) return null;
-        return { x: res[0], y: res[1], rotation: res[2] };
+        if (!res || res.length < 3) return null;
+        const x = res[0];
+        const y = res[1];
+        const rotation = res[2];
+        if (x === undefined || y === undefined || rotation === undefined) return null;
+        return { x, y, rotation };
       },
       getSensorState: (entityId, colliderId) => {
         const owned = guard(entityId, "getSensorState");
@@ -403,6 +397,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       getCollisionEventsBatch: (opts) => readCollisionEvents(opts?.max),
       getCollisionContacts: (opts) => {
         const batch = readCollisionEvents(opts?.max);
+        // boundary: WASM collision batch stores slot indices absent from CollisionEvent.
         return resolveContacts(batch.events as unknown as InternalCollisionEvent[]);
       },
       /**

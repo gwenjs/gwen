@@ -61,17 +61,37 @@ export class ContactRingBuffer {
     while (this._readHead !== this._writeHead) {
       const slot = this._readHead % RING_CAPACITY;
       const base = slot * (CONTACT_EVENT_BYTES / 4);
+      const wordA = this._u32[base];
+      const wordB = this._u32[base + 1];
+      const contactX = this._f32[base + 2];
+      const contactY = this._f32[base + 3];
+      const normalX = this._f32[base + 4];
+      const normalY = this._f32[base + 5];
+      const relativeVelocity = this._f32[base + 6];
+      const flags = this._u32[base + 7];
+      if (
+        wordA === undefined ||
+        wordB === undefined ||
+        contactX === undefined ||
+        contactY === undefined ||
+        normalX === undefined ||
+        normalY === undefined ||
+        relativeVelocity === undefined ||
+        flags === undefined
+      ) {
+        throw new TypeError("physics2d contact ring slot is empty");
+      }
       events.push({
-        entityA: BigInt(this._u32[base]), // raw index — WASM writes packed ID here in production
-        entityB: BigInt(this._u32[base + 1]),
-        contactX: this._f32[base + 2],
-        contactY: this._f32[base + 3],
-        normalX: this._f32[base + 4],
-        normalY: this._f32[base + 5],
-        relativeVelocity: this._f32[base + 6],
-        isSensor: (this._u32[base + 7] & 1) !== 0,
-        isEnter: (this._u32[base + 7] & 2) !== 0,
-        isExit: (this._u32[base + 7] & 4) !== 0,
+        entityA: BigInt(wordA), // raw index — WASM writes packed ID here in production
+        entityB: BigInt(wordB),
+        contactX,
+        contactY,
+        normalX,
+        normalY,
+        relativeVelocity,
+        isSensor: (flags & 1) !== 0,
+        isEnter: (flags & 2) !== 0,
+        isExit: (flags & 4) !== 0,
       });
       this._readHead++;
     }

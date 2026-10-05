@@ -8,7 +8,6 @@
  */
 import { onBeforeUpdate } from "@gwenjs/core/actor";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type { KinematicBodyOptions, KinematicBodyHandle } from "../types";
 import { usePhysics2D } from "../composables";
 
@@ -38,7 +37,7 @@ import { usePhysics2D } from "../composables";
  */
 export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicBodyHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
   const _fixedRotation = options.fixedRotation ?? false;
   const _initX = options.initialPosition?.x ?? 0;
   const _initY = options.initialPosition?.y ?? 0;

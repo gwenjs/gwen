@@ -6,7 +6,6 @@
  * derived from `radius` (width) and `height/2` (half-height).
  */
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type { CapsuleColliderHandle } from "../types";
 import { usePhysics2D } from "../composables";
 
@@ -47,7 +46,7 @@ export interface CapsuleColliderOptions {
  */
 export function useCapsuleCollider(options: CapsuleColliderOptions): CapsuleColliderHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   const bodyHandle = physics.addRigidBody(
     entityId,
@@ -58,9 +57,9 @@ export function useCapsuleCollider(options: CapsuleColliderOptions): CapsuleColl
 
   // Approximate capsule with a box collider (Physics2DAPI has no capsule primitive)
   physics.addBoxCollider(bodyHandle, options.radius, options.height / 2, {
-    isSensor: options.isSensor,
-    membershipLayers: options.layer,
-    filterLayers: options.mask,
+    ...(options.isSensor !== undefined ? { isSensor: options.isSensor } : {}),
+    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
+    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
   });
 
   return { colliderId: bodyHandle, isSensor: options.isSensor ?? false };

@@ -3,7 +3,6 @@
  */
 import { onBeforeUpdate } from "@gwenjs/core/actor";
 import { _getActorEntityId } from "@gwenjs/core/internal";
-import type { EntityId } from "@gwenjs/core";
 import type { DynamicBodyHandle, DynamicBodyOptions, ColliderOptions } from "../types";
 import { usePhysics2D } from "../composables";
 
@@ -29,7 +28,7 @@ import { usePhysics2D } from "../composables";
  */
 export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId() as unknown as EntityId;
+  const entityId = _getActorEntityId();
 
   if (options.fixedRotation) {
     // eslint-disable-next-line no-console
@@ -40,15 +39,15 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
 
   // Stored creation options so enable() can re-register the body after disable().
   const rigidBodyOpts = {
-    mass: options.mass,
-    linearDamping: options.linearDamping,
-    angularDamping: options.angularDamping,
-    gravityScale: options.gravityScale,
+    ...(options.mass !== undefined ? { mass: options.mass } : {}),
+    ...(options.linearDamping !== undefined ? { linearDamping: options.linearDamping } : {}),
+    ...(options.angularDamping !== undefined ? { angularDamping: options.angularDamping } : {}),
+    ...(options.gravityScale !== undefined ? { gravityScale: options.gravityScale } : {}),
   };
 
   const colliderOpts: ColliderOptions = {
-    membershipLayers: options.layer,
-    filterLayers: options.mask,
+    ...(options.layer !== undefined ? { membershipLayers: options.layer } : {}),
+    ...(options.mask !== undefined ? { filterLayers: options.mask } : {}),
   };
 
   let _bodyHandle: number;

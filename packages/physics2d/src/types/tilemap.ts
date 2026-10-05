@@ -10,6 +10,7 @@ import type {
 } from "./materials";
 import type { RigidBodyType, PhysicsGroundedRole } from "./bodies";
 import type { CollisionContact } from "./events";
+import type { Physics2DAPI } from "./api";
 
 export const TILEMAP_PHYSICS_CHUNK_FORMAT_VERSION = 1;
 
@@ -55,7 +56,7 @@ export interface PatchTilemapPhysicsChunkInput {
 }
 
 export interface Physics2DHelperContext {
-  physics: any;
+  physics: Physics2DAPI;
   pixelsPerMeter?: number;
 }
 

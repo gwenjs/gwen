@@ -43,10 +43,10 @@ export interface PhysicsKinematicSyncSystemOptions {
    */
   pixelsPerMeter?: number;
   /**
-   * ECS component name whose data contains `{ x: number; y: number }` coordinates.
-   * @default 'position'
+   * ECS position component. Data must contain `{ x: number; y: number }`.
+   * When omitted, the system reads the component named `"position"`.
    */
-  positionComponent?: string;
+  positionComponent?: ComponentDef;
 }
 
 /**
@@ -68,7 +68,7 @@ export interface PhysicsKinematicSyncSystemOptions {
  * import { createPhysicsKinematicSyncSystem } from '@gwenjs/physics2d'
  *
  * engine.use(
- *   createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: 'position' })
+ *   createPhysicsKinematicSyncSystem({ pixelsPerMeter: 50, positionComponent: Position })
  * )
  * ```
  *
@@ -76,7 +76,7 @@ export interface PhysicsKinematicSyncSystemOptions {
  */
 export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions = {}) {
   const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
-  const _positionComponent = options.positionComponent ?? DEFAULT_POSITION_COMPONENT;
+  const _positionComponent = options.positionComponent;
 
   let _physics: Physics2DAPI | null = null;
   let _liveQuery: LiveQuery<EntityAccessor> | null = null;
@@ -95,16 +95,16 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
     setup(engine: GwenEngine): void {
       _physics = engine.inject("physics2d");
 
-      // The ECS registry accepts string component names at runtime even though the
-      // TypeScript overload expects a ComponentDefinition. The cast avoids `any`.
-      _liveQuery = engine.createLiveQuery([_positionComponent as unknown as ComponentDef]);
+      // Omitted option keeps the historical "position" name. A real ComponentDef
+      // has a schema and type id this default does not.
+      const queried = _positionComponent ?? (DEFAULT_POSITION_COMPONENT as unknown as ComponentDef);
+      _liveQuery = engine.createLiveQuery([queried]);
 
       _offBeforeUpdate = engine.hooks.hook("engine:before-update", (_dt: number): void => {
         if (!_physics || !_liveQuery) return;
 
         for (const entity of _liveQuery) {
-          // The ECS registry accepts string names at runtime; cast satisfies TypeScript.
-          const rawPos: unknown = entity.get(_positionComponent as unknown as ComponentDef);
+          const rawPos: unknown = entity.get(queried);
           if (!isVec2(rawPos)) continue;
 
           _physics.setKinematicPosition(

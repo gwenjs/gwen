@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Mock } from "vitest";
 import type { EntityId } from "@gwenjs/core";
+import type { ComponentDef } from "@gwenjs/core/system";
 import {
   createPhysicsKinematicSyncSystem,
   createPlatformerGroundedSystem,
@@ -206,16 +207,16 @@ describe("Physics2DKinematicSyncSystem", () => {
       expect(physics.setKinematicPosition).toHaveBeenCalledWith(1n as EntityId, 1, 2);
     });
 
-    it("passes the configured positionComponent name to createLiveQuery", () => {
+    it("passes the configured position component to createLiveQuery", () => {
       const physics = makePhysicsMock();
       const { engine } = makeEngineMock(physics);
 
-      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: "transform2d" };
+      const transform2d = { name: "transform2d" } as ComponentDef;
+      const opts: PhysicsKinematicSyncSystemOptions = { positionComponent: transform2d };
       const system = createPhysicsKinematicSyncSystem(opts);
       system.setup(engine as Parameters<typeof system.setup>[0]);
 
-      // createLiveQuery should have been called with the custom component name.
-      expect(engine.createLiveQuery).toHaveBeenCalledWith(expect.arrayContaining(["transform2d"]));
+      expect(engine.createLiveQuery).toHaveBeenCalledWith([transform2d]);
     });
   });
 
