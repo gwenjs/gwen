@@ -14,7 +14,7 @@ import type { PluginContext } from "./plugin-context";
  * Emit a one-time warning that a joint operation is unavailable in local mode.
  */
 export const emitLocalJointWarning = (log: GwenLogger): void => {
-  if (import.meta.env.DEV) {
+  if (__GWEN_DEV__) {
     log.warn("Joint API requires WASM physics3d variant — not available in local mode");
   }
 };

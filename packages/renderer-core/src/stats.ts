@@ -2,8 +2,8 @@
  * @file Renderer stats collection.
  *
  * Stats are only active when `enabled` is true (set by LayerManager when
- * `import.meta.env.DEV || engine.debug` is truthy). In production builds
- * without debug mode, all calls are no-ops and Vite tree-shakes the hot path.
+ * `__GWEN_DEV__ && engine.debug` is truthy). Production builds omit that
+ * gate, so the hot path stays inactive unless a caller enables stats itself.
  */
 
 // ─── Types ───────────────────────────────────────────────────────────────────

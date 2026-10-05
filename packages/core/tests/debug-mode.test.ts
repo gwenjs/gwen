@@ -140,45 +140,66 @@ describe("over-budget phase warning", () => {
     expect(warnings.length).toBe(0);
   });
 
-  it("emits warn logs when a phase exceeds 50% of the frame budget in debug mode", async () => {
-    const engine = await createEngine({ debug: true, targetFPS: 60 });
-    const warnings: string[] = [];
-    engine.logger.setSink((entry) => {
-      if (entry.level === "warn") warnings.push(entry.message);
-    });
+  it.runIf(__GWEN_DEV__)(
+    "emits warn logs when a phase exceeds 50% of the frame budget in debug mode",
+    async () => {
+      const engine = await createEngine({ debug: true, targetFPS: 60 });
+      const warnings: string[] = [];
+      engine.logger.setSink((entry) => {
+        if (entry.level === "warn") warnings.push(entry.message);
+      });
 
-    // Simulate each phase taking 10 ms: any phase > 8.33 ms (50% of 16.67 ms) triggers warning
-    let callCount = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
+      // Simulate each phase taking 10 ms: any phase > 8.33 ms (50% of 16.67 ms) triggers warning
+      let callCount = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
 
-    await engine.advance(1 / 60);
+      await engine.advance(1 / 60);
 
-    expect(warnings.length).toBeGreaterThan(0);
-    // Each warning message should contain the word "exceeded"
-    expect(warnings.every((m) => m.includes("exceeded"))).toBe(true);
-  });
+      expect(warnings.length).toBeGreaterThan(0);
+      // Each warning message should contain the word "exceeded"
+      expect(warnings.every((m) => m.includes("exceeded"))).toBe(true);
+    },
+  );
 
-  it("warning entries include phase, ms, budgetMs, and frame context data", async () => {
-    const engine = await createEngine({ debug: true, targetFPS: 60 });
-    const entries: Array<{ message: string; data?: Record<string, unknown> }> = [];
-    engine.logger.setSink((entry) => {
-      if (entry.level === "warn") entries.push({ message: entry.message, data: entry.data });
-    });
+  it.runIf(!__GWEN_DEV__)(
+    "prod + debug: true does not emit over-budget phase warnings",
+    async () => {
+      const engine = await createEngine({ debug: true, targetFPS: 60 });
+      const warnings: string[] = [];
+      engine.logger.setSink((entry) => {
+        if (entry.level === "warn") warnings.push(entry.message);
+      });
+      let callCount = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
+      await engine.advance(1 / 60);
+      expect(warnings).toEqual([]);
+    },
+  );
 
-    let callCount = 0;
-    vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
+  it.runIf(__GWEN_DEV__)(
+    "warning entries include phase, ms, budgetMs, and frame context data",
+    async () => {
+      const engine = await createEngine({ debug: true, targetFPS: 60 });
+      const entries: Array<{ message: string; data?: Record<string, unknown> }> = [];
+      engine.logger.setSink((entry) => {
+        if (entry.level === "warn") entries.push({ message: entry.message, data: entry.data });
+      });
 
-    await engine.advance(1 / 60);
+      let callCount = 0;
+      vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
 
-    // At least one warning entry should carry structured context
-    const withData = entries.filter((e) => e.data !== undefined);
-    expect(withData.length).toBeGreaterThan(0);
-    const first = withData[0]!;
-    expect(first.data).toHaveProperty("phase");
-    expect(first.data).toHaveProperty("ms");
-    expect(first.data).toHaveProperty("budgetMs");
-    expect(first.data).toHaveProperty("frame");
-  });
+      await engine.advance(1 / 60);
+
+      // At least one warning entry should carry structured context
+      const withData = entries.filter((e) => e.data !== undefined);
+      expect(withData.length).toBeGreaterThan(0);
+      const first = withData[0]!;
+      expect(first.data).toHaveProperty("phase");
+      expect(first.data).toHaveProperty("ms");
+      expect(first.data).toHaveProperty("budgetMs");
+      expect(first.data).toHaveProperty("frame");
+    },
+  );
 
   it("does not crash when debug mode is on and no plugins are registered", async () => {
     const engine = await createEngine({ debug: true, targetFPS: 60 });

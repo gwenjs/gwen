@@ -1,4 +1,12 @@
 /**
+ * Build-time dev flag. Vitest, `@gwenjs/vite`, and package lib builds supply the value.
+ * Runtime code reads the identifier only inside an allowed gate.
+ */
+declare global {
+  const __GWEN_DEV__: boolean;
+}
+
+/**
  * Base error class and error-bus contract for the GWEN framework.
  *
  * `GwenError` is defined here so any package can do `instanceof GwenError`
@@ -43,6 +51,17 @@ import type { GwenScopeType } from "./scope.js";
  * }
  * ```
  */
+/**
+ * Options for a {@link GwenError}. `hint` is `string | undefined` so a prod
+ * ternary (`__GWEN_DEV__ ? "…" : undefined`) typechecks under exactOptionalPropertyTypes.
+ * Hint text is written inline at the call site. This class does not read the flag.
+ */
+export interface GwenErrorOptions {
+  composable?: string;
+  hint?: string | undefined;
+  cause?: unknown;
+}
+
 export class GwenError extends Error {
   /**
    * Machine-readable error code in `NAMESPACE:REASON` format.

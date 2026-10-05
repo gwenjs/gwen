@@ -271,17 +271,11 @@ class GwenEngineImpl implements GwenEngine {
   private _hasFpsSample = false;
   /** Uncapped, unscaled wall-frame duration in seconds. @internal */
   private _rawFrameTime = 0;
-  /** Per-phase timing for the most recently completed frame. @internal */
-  private _lastPhaseMs: EngineFramePhaseMs = {
-    tick: 0,
-    plugins: 0,
-    physics: 0,
-    wasm: 0,
-    update: 0,
-    render: 0,
-    afterTick: 0,
-    total: 0,
-  };
+  /**
+   * Per-phase timing for the most recently completed frame.
+   * Allocated only inside the dev+debug instrument gate. @internal
+   */
+  private _lastPhaseMs?: EngineFramePhaseMs;
 
   // ─── Hooks ───────────────────────────────────────────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
@@ -969,14 +963,20 @@ class GwenEngineImpl implements GwenEngine {
   }
   getStats(): EngineStats {
     const budgetMs = 1000 / this.targetFPS;
-    return {
+    const stats: EngineStats = {
       fps: this._fps,
       deltaTime: this._deltaTime,
       frameCount: this._frameCountOwn,
-      phaseMs: { ...this._lastPhaseMs },
       budgetMs,
-      overBudget: this._lastPhaseMs.total > budgetMs,
     };
+    const phaseMs = this._lastPhaseMs;
+    if (__GWEN_DEV__ && this.debug) {
+      if (phaseMs) {
+        stats.phaseMs = { ...phaseMs };
+        stats.overBudget = phaseMs.total > budgetMs;
+      }
+    }
+    return stats;
   }
 
   // ─── Shared memory transform pointer accessor ────────────────────────────
@@ -1419,18 +1419,29 @@ class GwenEngineImpl implements GwenEngine {
     // The _advancing guard (set before _runFrame is called) prevents re-entrance,
     // so it is safe to use set/unset here instead of call() for async compatibility.
     engineContext.set(this, true);
-    const t0 = performance.now();
+    // Single per-frame debug read. Timers, sentinels, and the budget scan sit under it.
+    const instrument = __GWEN_DEV__ && this.debug;
+    let t0 = 0;
+    let t1 = 0;
+    let t2 = 0;
+    let t3 = 0;
+    let t4 = 0;
+    let t5 = 0;
+    let t6 = 0;
+    let t7 = 0;
+    let t8 = 0;
+    if (instrument) t0 = performance.now();
     try {
       // Phase 1 — engine:tick hook (fires before any plugin work)
-      const t1 = performance.now();
+      if (instrument) t1 = performance.now();
       const tickDone = this._guardHook1("engine:tick", dt);
       if (isThenable(tickDone)) await tickDone;
-      const t2 = performance.now();
+      if (instrument) t2 = performance.now();
 
       // Phase 2 — emit before-update hook
       const beforeDone = this._guardHook1("engine:before-update", dt);
       if (isThenable(beforeDone)) await beforeDone;
-      const t3 = performance.now();
+      if (instrument) t3 = performance.now();
 
       // Phase 3 — built-in physics step (Cas A: wasmBridge physics)
       try {
@@ -1448,7 +1459,7 @@ class GwenEngineImpl implements GwenEngine {
               : CoreErrorCodes.FRAME_LOOP_ERROR,
         });
       }
-      const t4 = performance.now();
+      if (instrument) t4 = performance.now();
 
       // Phase 4 — community WASM modules step (Cas B: user WASM, registration order)
       for (const [name, entry] of this._wasmModules.entries()) {
@@ -1465,11 +1476,10 @@ class GwenEngineImpl implements GwenEngine {
           });
         }
       }
-      const t5 = performance.now();
+      if (instrument) t5 = performance.now();
 
-      // Debug sentinel check — verifies WASM memory boundaries were not overrun.
-      // Only runs in debug mode and only when a SharedMemoryManager is active.
-      if (this.debug && this._sharedMemory) {
+      // Memory sentinel — dev+debug only, and only when a SharedMemoryManager is active.
+      if (instrument && this._sharedMemory) {
         try {
           this._sharedMemory.checkSentinels(this._bridge);
         } catch (err) {
@@ -1496,7 +1506,7 @@ class GwenEngineImpl implements GwenEngine {
       // Phase 6 — emit update hook
       const updateDone = this._guardHook1("engine:update", dt);
       if (isThenable(updateDone)) await updateDone;
-      const t6 = performance.now();
+      if (instrument) t6 = performance.now();
 
       // Phase 7a — emit after-update hook
       const afterDone = this._guardHook1("engine:after-update", dt);
@@ -1505,35 +1515,34 @@ class GwenEngineImpl implements GwenEngine {
       // Phase 7b — emit render hook
       const renderDone = this._guardHook0("engine:render");
       if (isThenable(renderDone)) await renderDone;
-      const t7 = performance.now();
+      if (instrument) t7 = performance.now();
 
       // Phase 8 — update stats, then fire engine:afterTick hook
       this._frameCountOwn++;
       const afterTickDone = this._guardHook1("engine:afterTick", dt);
       if (isThenable(afterTickDone)) await afterTickDone;
-      const t8 = performance.now();
+      if (instrument) t8 = performance.now();
 
-      this._lastPhaseMs = {
-        tick: t2 - t1,
-        plugins: t3 - t2,
-        physics: t4 - t3,
-        wasm: t5 - t4,
-        update: t6 - t5,
-        render: t7 - t6,
-        afterTick: t8 - t7,
-        total: t8 - t0,
-      };
+      if (instrument) {
+        const phaseMs: EngineFramePhaseMs = {
+          tick: t2 - t1,
+          plugins: t3 - t2,
+          physics: t4 - t3,
+          wasm: t5 - t4,
+          update: t6 - t5,
+          render: t7 - t6,
+          afterTick: t8 - t7,
+          total: t8 - t0,
+        };
+        this._lastPhaseMs = phaseMs;
 
-      // Debug over-budget phase warning — logs when any individual phase
-      // consumes more than 50% of the per-frame time budget.
-      if (this.debug) {
         const budget = 1000 / this.targetFPS;
-        for (const [phase, ms] of Object.entries(this._lastPhaseMs)) {
+        for (const [phase, ms] of Object.entries(phaseMs)) {
           if (phase === "total") continue;
-          if ((ms as number) > budget * 0.5) {
+          if (ms > budget * 0.5) {
             this.logger.warn(`phase "${phase}" exceeded 50% of frame budget`, {
               phase,
-              ms: (ms as number).toFixed(2),
+              ms: ms.toFixed(2),
               budgetMs: budget.toFixed(2),
               frame: this._frameCountOwn,
             });

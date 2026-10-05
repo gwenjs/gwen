@@ -1,5 +1,3 @@
-/// <reference types="vite/client" />
-
 /**
  * @gwenjs/physics2d
  *

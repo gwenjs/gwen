@@ -19,6 +19,7 @@ const RESOLVED_ENV = "\0" + ENV_VIRTUAL;
  */
 export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
   let isBuild = false;
+  let dev = true;
   let variant: "debug" | "release" = "debug";
 
   return {
@@ -26,6 +27,7 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
 
     configResolved(config) {
       isBuild = config.command === "build";
+      dev = typeof config.env?.DEV === "boolean" ? config.env.DEV : !isBuild;
       const requested = options.wasm?.variant ?? "auto";
       variant = requested === "auto" ? (isBuild ? "release" : "debug") : requested;
     },
@@ -50,7 +52,7 @@ export function gwenVirtualPlugin(options: GwenViteOptions): Plugin {
       return [
         `export const GWEN_VERSION = '${version}'`,
         `export const GWEN_WASM_VARIANT = '${variant}'`,
-        `export const GWEN_DEV = ${!isBuild}`,
+        `export const GWEN_DEV = ${dev}`,
       ].join("\n");
     },
   };

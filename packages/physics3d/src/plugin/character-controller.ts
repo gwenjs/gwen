@@ -70,7 +70,7 @@ export function createCharacterControllerMethods(
           ) ?? 0xffffffff;
 
         if (slotIndex === 0xffffffff) {
-          if (import.meta.env.DEV) {
+          if (__GWEN_DEV__) {
             ctx.log.warn("addCharacterController: CC pool exhausted (max 32 controllers)");
           }
           return createInertCharacterControllerHandle();
@@ -168,9 +168,11 @@ export function createCharacterControllerMethods(
           return lastTranslation;
         },
         move(v: Physics3DVec3, dt: number) {
-          if (import.meta.env.DEV && !ctx._emittedCCLocalWarning) {
-            ctx.log.warn("CharacterController uses local fallback — step-up/slope not supported");
-            ctx._emittedCCLocalWarning = true;
+          if (__GWEN_DEV__) {
+            if (!ctx._emittedCCLocalWarning) {
+              ctx.log.warn("CharacterController uses local fallback — step-up/slope not supported");
+              ctx._emittedCCLocalWarning = true;
+            }
           }
           const state = ctx.stateByEntity.get(entityIndex);
           if (state) {

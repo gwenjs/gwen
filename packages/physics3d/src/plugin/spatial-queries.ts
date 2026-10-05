@@ -73,7 +73,7 @@ export function createSpatialQueryMethods(
           point: { x: result[6]!, y: result[7]!, z: result[8]! },
         };
       }
-      if (import.meta.env.DEV) {
+      if (__GWEN_DEV__) {
         ctx.log.warn("castRay() not available in local mode");
       }
       return null;
@@ -120,7 +120,7 @@ export function createSpatialQueryMethods(
           witnessB: { x: result[12]!, y: result[13]!, z: result[14]! },
         };
       }
-      if (import.meta.env.DEV) {
+      if (__GWEN_DEV__) {
         ctx.log.warn("castShape() not available in local mode");
       }
       return null;
@@ -140,7 +140,7 @@ export function createSpatialQueryMethods(
         } = opts;
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
         if (!wasmMem || !ctx.overlapScratchView || ctx.overlapScratchPtr === 0) {
-          if (import.meta.env.DEV) {
+          if (__GWEN_DEV__) {
             ctx.log.warn("overlapShape() scratch buffer unavailable");
           }
           return [];
@@ -178,7 +178,7 @@ export function createSpatialQueryMethods(
         }
         return entities;
       }
-      if (import.meta.env.DEV) {
+      if (__GWEN_DEV__) {
         ctx.log.warn("overlapShape() not available in local mode");
       }
       return [];
@@ -206,7 +206,7 @@ export function createSpatialQueryMethods(
           isInside: result[5] !== 0,
         };
       }
-      if (import.meta.env.DEV) {
+      if (__GWEN_DEV__) {
         ctx.log.warn("projectPoint() not available in local mode");
       }
       return null;

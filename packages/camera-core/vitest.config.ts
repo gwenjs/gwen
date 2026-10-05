@@ -1,12 +1,29 @@
 import { defineConfig } from "vitest/config";
 import { gwenSourceAliases } from "../../vitest.aliases.ts";
 
+const alias = gwenSourceAliases();
+
+const shared = {
+  globals: true,
+  environment: "node" as const,
+};
+
 export default defineConfig({
   resolve: {
-    alias: gwenSourceAliases(),
+    alias,
   },
   test: {
-    globals: true,
-    environment: "node",
+    projects: [
+      {
+        resolve: { alias },
+        define: { __GWEN_DEV__: "true" },
+        test: { name: "dev", ...shared },
+      },
+      {
+        resolve: { alias },
+        define: { __GWEN_DEV__: "false" },
+        test: { name: "prod", ...shared },
+      },
+    ],
   },
 });

@@ -141,7 +141,7 @@ export function useChildren(): ChildrenHandle {
   function _registerOwnership(childId: EntityId): void {
     const existingOwnerId = _ownerRegistry.get(childId);
     if (existingOwnerId !== undefined && existingOwnerId !== parentId) {
-      if (import.meta.env?.DEV) {
+      if (__GWEN_DEV__) {
         engine.logger
           .child("gwen:children")
           .warn(
@@ -211,7 +211,7 @@ export function useChildren(): ChildrenHandle {
     detach<API>(handle: PlaceHandle<API>): void {
       const childId = handle.entityId;
       if (!owned.has(childId)) {
-        if (import.meta.env?.DEV) {
+        if (__GWEN_DEV__) {
           engine.logger
             .child("gwen:children")
             .warn(

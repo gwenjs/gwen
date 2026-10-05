@@ -22,7 +22,7 @@
  *
  * ## Sentinel guards
  * Each allocated region is followed by a 4-byte sentinel word (`0xDEADBEEF`).
- * `checkSentinels()` verifies them every frame (debug mode only). If a Rust
+ * `checkSentinels()` verifies them when `__GWEN_DEV__` and `engine.debug` are both set. If a Rust
  * plugin writes past its `MemoryRegion.byteLength`, the sentinel is overwritten
  * and the check throws — turning silent heap corruption into an immediate error.
  *

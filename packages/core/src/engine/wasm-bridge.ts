@@ -348,7 +348,7 @@ export class WasmBridgeImpl implements WasmBridge {
       this._wasmModule = glue as GwenCoreWasm;
       this._wasmEngine = new glue.Engine(maxEntities);
 
-      if (import.meta.env?.DEV) {
+      if (__GWEN_DEV__) {
         const label =
           variant === "physics2d" ? "Physics2D" : variant === "physics3d" ? "Physics3D" : "Light";
         // eslint-disable-next-line no-console

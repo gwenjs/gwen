@@ -72,10 +72,14 @@ if (typeof window !== 'undefined') {
  */
 export function gwenSceneRouterPlugin(options: GwenViteOptions = {}): Plugin {
   const disableNameInjection = options.sceneRouter?.disableNameInjection ?? false;
+  let dev = true;
   return {
     name: "gwen:scene-router",
+    configResolved(config) {
+      dev = typeof config.env?.DEV === "boolean" ? config.env.DEV : config.command !== "build";
+    },
     transform(code, id) {
-      if (disableNameInjection) return;
+      if (!dev || disableNameInjection) return;
       if (!/\.(ts|js)x?$/.test(id)) return;
       if (!code.includes("defineSceneRouter")) return;
       const transformed = transformRouterNames(code);

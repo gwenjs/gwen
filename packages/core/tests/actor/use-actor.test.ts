@@ -277,7 +277,25 @@ describe("useActor — auto-cleanup on scene exit", () => {
     scope.dispose();
   });
 
-  it("logs a dev warning (debug: true) when auto-cleanup runs", async () => {
+  it.runIf(!__GWEN_DEV__)("prod + debug: true does not log auto-cleanup", async () => {
+    const engine = await createEngine({ debug: true });
+    const Actor = defineActor(SimplePrefab, () => {});
+    await engine.use(Actor._plugin);
+
+    const warnSpy = vi.spyOn(engine.logger, "warn");
+    const scope = new GwenScope(engine, { type: "scene" });
+    const handle = scope.run(() => engine.run(() => useActor(Actor)));
+
+    handle.spawn();
+
+    await engine.hooks.callHook("scene:beforeLeave", "any");
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+    scope.dispose();
+  });
+
+  it.runIf(__GWEN_DEV__)("logs a dev warning (debug: true) when auto-cleanup runs", async () => {
     const engine = await createEngine({ debug: true });
     const Actor = defineActor(SimplePrefab, () => {});
     await engine.use(Actor._plugin);

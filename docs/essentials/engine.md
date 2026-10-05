@@ -102,7 +102,7 @@ export const DebugSystem = defineSystem(() => {
 | `fps` | `number` | Frames per second |
 | `frameCount` | `number` | Total frames since start |
 | `deltaTime` | `number` | Last frame delta in seconds |
-| `overBudget` | `boolean` | `true` if last frame exceeded the FPS budget |
+| `overBudget` | `boolean` | Present only when `__GWEN_DEV__` and `debug` are both true. `true` if that frame exceeded the FPS budget |
 
 For external loop mode (`engine.loop: 'external'`), advance frames manually with `engine.advance(delta)`:
 

@@ -150,6 +150,28 @@ describe("P0 physics loop", () => {
       await handle.dispose();
     }
   });
+
+  it("default debug omits phase timing and a body still falls", async () => {
+    const { engine, advance } = await createRealEngine({
+      variant: "physics3d",
+      maxEntities: 64,
+    });
+    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
+    const physics = engine.inject("physics3d");
+    const body = engine.createEntity();
+    const startY = 5;
+    physics.createBody(body, {
+      kind: "dynamic",
+      initialPosition: { x: 0, y: startY, z: 0 },
+      initialLinearVelocity: { x: 0, y: 0, z: 0 },
+    });
+
+    await advance(10, 1 / 60);
+
+    expect(requireState(physics.getBodyState(body)).position.y).toBeLessThan(startY);
+    expect("phaseMs" in engine.getStats()).toBe(false);
+    expect("overBudget" in engine.getStats()).toBe(false);
+  });
 });
 
 async function instantiate(

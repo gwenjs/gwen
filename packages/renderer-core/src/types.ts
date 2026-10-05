@@ -140,7 +140,7 @@ export interface RendererService {
   /**
    * Optional. Called by LayerManager after mount() to inject the stats collector.
    * When provided, the renderer should call `collector.reportLayer()` each frame.
-   * Only called when `import.meta.env.DEV || engine.debug` is true.
+   * Only called when `__GWEN_DEV__ && engine.debug` is true.
    */
   setStatsCollector?(collector: RendererStatsCollector): void;
 }

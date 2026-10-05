@@ -130,7 +130,7 @@ export function gwenTweenPlugin(options: GwenViteOptions = {}): Plugin {
     },
 
     buildEnd() {
-      if (this.environment?.mode === "dev" || process.env["NODE_ENV"] === "development") {
+      if (this.environment?.mode === "dev") {
         const count = collectedEasings.size;
         const names = [...collectedEasings].sort().join(", ") || "(none)";
         // eslint-disable-next-line no-console

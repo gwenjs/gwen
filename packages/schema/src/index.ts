@@ -36,7 +36,13 @@ export type { GwenDisposable, DisposableRegistryBase } from "./disposable";
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
 export { GwenError } from "./errors";
-export type { GwenErrorLevel, GwenErrorPayload, GwenErrorTarget, GwenErrorBusBase } from "./errors";
+export type {
+  GwenErrorLevel,
+  GwenErrorPayload,
+  GwenErrorTarget,
+  GwenErrorBusBase,
+  GwenErrorOptions,
+} from "./errors";
 export { GwenErrorCode } from "./error-codes";
 
 // ─── Logger ──────────────────────────────────────────────────────────────────

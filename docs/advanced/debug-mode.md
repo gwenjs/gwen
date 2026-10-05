@@ -102,18 +102,20 @@ console.log(stats.fps)           // current FPS
 console.log(stats.deltaTime)     // last frame delta in ms
 console.log(stats.frameCount)    // total frames since start
 console.log(stats.budgetMs)      // frame budget (1000 / targetFPS)
-console.log(stats.overBudget)    // true if last frame exceeded budget
+console.log(stats.overBudget)    // set only when __GWEN_DEV__ && debug
 
-// Per-phase breakdown (all in ms)
+// Per-phase breakdown (all in ms). Absent in production builds.
 const p = stats.phaseMs
-console.log(p.tick)       // engine:tick hook
-console.log(p.plugins)    // onBeforeUpdate() calls
-console.log(p.physics)    // physics2d/3d step
-console.log(p.wasm)       // WASM module steps
-console.log(p.update)     // onUpdate() calls
-console.log(p.render)     // onAfterUpdate() + onRender() calls
-console.log(p.afterTick)  // engine:afterTick hook
-console.log(p.total)      // full frame wall-clock time
+if (p) {
+  console.log(p.tick)       // engine:tick hook
+  console.log(p.plugins)    // onBeforeUpdate() calls
+  console.log(p.physics)    // physics2d/3d step
+  console.log(p.wasm)       // WASM module steps
+  console.log(p.update)     // onUpdate() calls
+  console.log(p.render)     // onAfterUpdate() + onRender() calls
+  console.log(p.afterTick)  // engine:afterTick hook
+  console.log(p.total)      // full frame wall-clock time
+}
 ```
 
 > **Note:** Use `engine.getStats()` — not `engine.stats`. It is a method call.
@@ -194,23 +196,11 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 ## Conditional Features
 
-### Environment-Based Debugging
+### Debug stays off unless you set it
 
-Use `process.env.NODE_ENV` to enable debug features only during development:
+`engine.debug` defaults to `false`. A development server does not turn it on.
 
-```ts
-// gwen.config.ts
-export default defineConfig({
-  engine: {
-    debug: process.env.NODE_ENV !== 'production',
-  },
-  modules: ['@gwenjs/physics2d'],
-})
-```
-
-Now:
-- Development builds (`npm run dev`) have `debug: true`
-- Production builds (`npm run build`) have `debug: false`
+`__GWEN_DEV__` is the build-time flag. It is `true` for `vite` and `vite build --mode development`, and `false` for `vite build`. Per-frame timing and the WASM memory sentinel run only when both `__GWEN_DEV__` and `debug` are true.
 
 ### Conditional System Registration
 
@@ -223,7 +213,7 @@ export const GameScene = defineScene({
   name: 'game',
   systems: [
     GameplaySystem,
-    ...(import.meta.env.DEV ? [DebugVisualizationSystem, PerformanceProfilingSystem] : []),
+    ...(__GWEN_DEV__ ? [DebugVisualizationSystem, PerformanceProfilingSystem] : []),
   ],
 })
 ```
@@ -299,16 +289,11 @@ Debug mode has measurable overhead:
 - Timing overlay: <0.1ms
 - Structured logging: Negligible if filtered at runtime
 
-Use `import.meta.env.DEV` to disable all overhead in production.
+Production builds (`__GWEN_DEV__ === false`) remove dev-only warnings and the per-frame instrumentation, even when `debug` is `true`. Logger `debug` and `info` still follow `engine.debug`.
 
 ### Sentinel Checks
 
-When `debug: true`, GWEN performs extra validation:
-- Component arrays are bounds-checked
-- Entity IDs are verified to exist
-- WASM memory layout is inspected for corruption
-
-These checks catch bugs early but add ~5–10% overhead.
+When `__GWEN_DEV__` and `debug: true`, GWEN checks the WASM memory sentinel after each frame. It does not bounds-check component arrays and it does not verify that entity IDs exist. The check is absent from production builds.
 
 ## API Summary
 
@@ -322,7 +307,7 @@ These checks catch bugs early but add ~5–10% overhead.
 | `logger.error(msg, data?)` | Error log (always active) |
 | `logger.child(source)` | Create a scoped child logger |
 | `logger.setSink(callback)` | Redirect logs to custom sink |
-| `import.meta.env.DEV` | Vite flag for development builds |
+| `__GWEN_DEV__` | Build-time flag. `true` in dev, `false` in production |
 
 ## Next Steps
 

@@ -39,6 +39,7 @@ import {
   gwenLocalModulesPlugin,
   gwenAutoImportsPlugin,
   gwenTypesPlugin,
+  gwenDevStripPlugin,
 } from "./plugins/index.js";
 import {
   extractGlobalCssFromConfig,
@@ -456,7 +457,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     name: "gwen",
     enforce: "pre",
 
-    async config(userConfig) {
+    async config(userConfig, _env) {
       const root = userConfig.root ?? process.cwd();
       await _loadModules(root);
       return {
@@ -693,6 +694,7 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
 
   return [
     mainPlugin,
+    gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
     gwenTypesPlugin({ typeTemplates: _sharedTypeTemplates }),
     gwenLocalPluginsPlugin({}),
