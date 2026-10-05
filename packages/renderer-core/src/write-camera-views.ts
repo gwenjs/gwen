@@ -10,18 +10,14 @@ import type { CameraState, ViewportContext } from "./camera-types.js";
 import type { ScreenService } from "./screen-service.js";
 import type { RenderView } from "./types.js";
 
-interface WritableRenderView {
-  viewportId: string;
-  eye: RenderView["eye"];
-  viewMatrix: Float32Array;
-  projectionMatrix: Float32Array;
-  pixelRect: { x: number; y: number; width: number; height: number };
-}
-
 /**
- * Fill `out` from cameras, viewports, and screen info. Returns the view count.
+ * Fill `out` from cameras, viewports, and screen info.
+ * Returns how many active cameras were seen, including slots that were not written.
  * Does not push onto `out` and does not replace matrix or pixelRect objects.
- * A short `out` still returns the full count. Slots without length-16 matrices are left untouched.
+ *
+ * A short `out`, or a slot whose matrices are shorter than 16, is still counted
+ * and left unchanged. The returned count can therefore include a stale or missing
+ * view. Size `out` and both matrices to length 16 before reading the slots.
  */
 export function writeCameraViews(engine: GwenEngine, out: RenderView[]): number {
   const viewports = engine.tryInject("viewportManager");
@@ -35,7 +31,7 @@ export function writeCameraViews(engine: GwenEngine, out: RenderView[]): number 
     if (camera === undefined || !camera.active) continue;
     const slot = out[count];
     if (slot !== undefined && canWrite(slot)) {
-      writeOne(slot as WritableRenderView, viewport, camera, screen);
+      writeOne(slot, viewport, camera, screen);
     }
     count += 1;
   }
@@ -47,7 +43,7 @@ function canWrite(slot: RenderView): boolean {
 }
 
 function writeOne(
-  slot: WritableRenderView,
+  slot: RenderView,
   viewport: ViewportContext,
   camera: CameraState,
   screen: ScreenService,

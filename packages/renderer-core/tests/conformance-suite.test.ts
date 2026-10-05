@@ -146,6 +146,34 @@ describe("runSurfaceConformance", () => {
     expect(RENDERER_CONTRACT_VERSION).toBe(2);
   });
 
+  it("passes a surface that creates its canvas in mount", () => {
+    const engine = makeEngine();
+    screenDpr = 2;
+    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
+    getOrCreateScreenService(engine).setContainerSize(800, 600, screenDpr);
+    let canvas: HTMLCanvasElement | null = null;
+    const service = makeSurface((svc) => {
+      svc.mount = (container) => {
+        canvas = document.createElement("canvas");
+        container.appendChild(canvas);
+      };
+      svc.unmount = () => {
+        canvas?.remove();
+        canvas = null;
+      };
+      svc.getLayerElement = () => {
+        if (canvas === null) throw new Error("canvas is created in mount()");
+        return canvas;
+      };
+      svc.resize = (width, height) => {
+        if (canvas === null) throw new Error("resize before mount");
+        canvas.width = Math.round(width * screenDpr);
+        canvas.height = Math.round(height * screenDpr);
+      };
+    });
+    expect(() => runSurfaceConformance(service, engine)).not.toThrow();
+  });
+
   it("fails when the canvas stays attached after unmount", () => {
     const engine = makeEngine();
     getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });

@@ -453,14 +453,18 @@ for using this metadata to position its elements.
 ### Surface renderer and HUD
 
 A single-surface renderer (`kind: "surface"`) declares one world layer and owns one
-canvas. Give every HUD layer a strictly greater `order` than that surface layer.
+canvas. Create that canvas in `mount()` and remove it in `unmount()`. `LayerManager`
+reads it only after `mount()`.
+
+Give every HUD layer a strictly greater `order` than that surface layer.
 An equal order fails at register with `RENDERER:LAYER_ORDER_CONFLICT`. Screen-space
 HUD layers keep `pointer-events: none`. The surface world layer does not.
 
-Call `renderViews` once inside the `engine:render` listener. Pass that frame's alpha
-and your own `RenderView` buffer. Fill the buffer with `writeCameraViews`. Do not
-read camera stores directly. `runSurfaceConformance(service, engine)` from
-`@gwenjs/renderer-core/testing` checks this shape.
+`LayerManager` calls `renderViews` once per `engine:render`, with the buffer filled
+by `writeCameraViews`. The alpha is `1` until #79 supplies `engine.frame`. Do not
+call `renderViews` yourself and do not read camera stores directly.
+`runSurfaceConformance(service, engine)` from `@gwenjs/renderer-core/testing` checks
+this shape.
 
 ## Required vs. optional
 

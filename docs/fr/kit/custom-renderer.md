@@ -432,6 +432,22 @@ layers: {
 `LayerManager` n'impose pas de disposition — le plugin renderer est responsable d'utiliser
 ces métadonnées pour positionner ses éléments.
 
+### Renderer surface et HUD
+
+Un renderer à surface unique (`kind: "surface"`) déclare un seul layer monde et possède
+un canvas. Créez ce canvas dans `mount()` et retirez-le dans `unmount()`. `LayerManager`
+ne le lit qu'après `mount()`.
+
+Donnez à chaque layer HUD un `order` strictement supérieur à celui de la surface.
+Un `order` égal échoue à l'enregistrement avec `RENDERER:LAYER_ORDER_CONFLICT`. Les layers
+HUD en espace écran gardent `pointer-events: none`. Le layer monde de la surface ne le fait pas.
+
+`LayerManager` appelle `renderViews` une fois par `engine:render`, avec le tampon rempli
+par `writeCameraViews`. L'alpha vaut `1` tant que #79 ne fournit pas `engine.frame`.
+N'appelez pas `renderViews` vous-même et ne lisez pas les stores caméra directement.
+`runSurfaceConformance(service, engine)` depuis `@gwenjs/renderer-core/testing` vérifie
+cette forme.
+
 ## Membres requis vs optionnels
 
 | Membre RendererService | Requis | Notes |

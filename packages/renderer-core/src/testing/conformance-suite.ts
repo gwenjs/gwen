@@ -63,6 +63,9 @@ function assertRequiredMethods(service: RendererService): void {
 }
 
 function assertLayerElementsAccessible(service: RendererService): void {
+  // A surface canvas is created in mount() and does not exist yet.
+  // runSurfaceConformance reads it after mount.
+  if (service.kind === "surface") return;
   for (const layerName of Object.keys(service.layers)) {
     try {
       const el = service.getLayerElement(layerName);
@@ -117,22 +120,39 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
     );
   }
 
-  const canvas = service.getLayerElement(layerName);
-  if (!(canvas instanceof HTMLCanvasElement)) {
-    throw new Error(
-      `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
-    );
-  }
-
+  const dpr = readConformanceDpr(engine);
+  const cssW = 320;
+  const cssH = 180;
   const container = document.createElement("div");
   document.body.appendChild(container);
   let mounted = false;
   try {
     service.mount(container);
     mounted = true;
+    const canvas = service.getLayerElement(layerName);
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error(
+        `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+      );
+    }
     if (!canvas.isConnected) {
       throw new Error(
         `[runSurfaceConformance] "${service.name}" did not attach its canvas during mount().`,
+      );
+    }
+    service.resize(cssW, cssH);
+    const sized = service.getLayerElement(layerName);
+    if (!(sized instanceof HTMLCanvasElement)) {
+      throw new Error(
+        `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+      );
+    }
+    const expectW = Math.round(cssW * dpr);
+    const expectH = Math.round(cssH * dpr);
+    if (sized.width !== expectW || sized.height !== expectH) {
+      throw new Error(
+        `[runSurfaceConformance] "${service.name}" resize(${cssW}, ${cssH}) ` +
+          `left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
       );
     }
     service.unmount();
@@ -145,25 +165,6 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
   } finally {
     if (mounted) service.unmount();
     container.remove();
-  }
-
-  const dpr = readConformanceDpr(engine);
-  const cssW = 320;
-  const cssH = 180;
-  service.resize(cssW, cssH);
-  const sized = service.getLayerElement(layerName);
-  if (!(sized instanceof HTMLCanvasElement)) {
-    throw new Error(
-      `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
-    );
-  }
-  const expectW = Math.round(cssW * dpr);
-  const expectH = Math.round(cssH * dpr);
-  if (sized.width !== expectW || sized.height !== expectH) {
-    throw new Error(
-      `[runSurfaceConformance] "${service.name}" resize(${cssW}, ${cssH}) ` +
-        `left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
-    );
   }
 
   const views: RenderView[] = [

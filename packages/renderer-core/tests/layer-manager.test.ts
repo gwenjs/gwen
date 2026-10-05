@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { createEngine } from "@gwenjs/core";
 import { LayerManager } from "../src/layer-manager.js";
-import type { RendererService } from "../src/types.js";
+import { getOrCreateLayerManager } from "../src/get-or-create-layer-manager.js";
+import { getOrCreateCameraManager } from "../src/get-or-create-camera-manager.js";
+import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
+import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
+import { writeCameraViews } from "../src/write-camera-views.js";
+import type { RendererService, RenderView, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 import {
   EmptyLayersError,
@@ -251,6 +257,122 @@ describe("LayerManager", () => {
     expect(scene.style.pointerEvents).not.toBe("none");
     expect(hudEl.style.zIndex).toBe("10");
     expect(hudEl.style.pointerEvents).toBe("none");
+  });
+
+  it("reads a surface canvas after mount and removes it on unregister", () => {
+    let canvas: HTMLCanvasElement | null = null;
+    let mounted = false;
+    const service: SurfaceRendererService = {
+      name: "renderer:surface",
+      contractVersion: RENDERER_CONTRACT_VERSION,
+      kind: "surface",
+      layers: { scene: { order: 0, coordinate: "world" } },
+      mount() {
+        mounted = true;
+        canvas = document.createElement("canvas");
+      },
+      unmount() {
+        canvas?.remove();
+        canvas = null;
+        mounted = false;
+      },
+      resize() {},
+      getLayerElement() {
+        if (!mounted || canvas === null) throw new Error("canvas is created in mount()");
+        return canvas;
+      },
+      renderViews() {},
+    };
+    manager.register(service);
+    expect(() => manager.mount()).not.toThrow();
+    const scene = root.querySelector("[data-gwen-layer='renderer:surface:scene']");
+    expect(scene).toBeInstanceOf(HTMLCanvasElement);
+    expect(scene).toBe(canvas);
+    manager.unregister("renderer:surface");
+    expect(canvas).toBeNull();
+    expect(root.querySelector("[data-gwen-layer='renderer:surface:scene']")).toBeNull();
+  });
+
+  it("calls renderViews once per engine:render with writeCameraViews output", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    try {
+      getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
+      getOrCreateScreenService(engine).setContainerSize(200, 100, 1);
+      getOrCreateCameraManager(engine).set("main", {
+        worldTransform: {
+          position: { x: 4, y: 5, z: 6 },
+          rotation: { x: 0, y: 0, z: 0 },
+        },
+        projection: { type: "perspective", fov: Math.PI / 2, near: 1, far: 3 },
+        viewportId: "main",
+        active: true,
+        priority: 0,
+      });
+
+      const calls: Array<{ alpha: number; views: RenderView[] }> = [];
+      let canvas: HTMLCanvasElement | null = null;
+      const service: SurfaceRendererService = {
+        name: "renderer:surface",
+        contractVersion: RENDERER_CONTRACT_VERSION,
+        kind: "surface",
+        layers: { scene: { order: 0, coordinate: "world" } },
+        mount(container) {
+          canvas = document.createElement("canvas");
+          container.appendChild(canvas);
+        },
+        unmount() {
+          canvas?.remove();
+          canvas = null;
+        },
+        resize() {},
+        getLayerElement() {
+          if (canvas === null) throw new Error("canvas is created in mount()");
+          return canvas;
+        },
+        renderViews(views, alpha) {
+          calls.push({
+            alpha,
+            views: views.map((view) => ({
+              viewportId: view.viewportId,
+              eye: view.eye,
+              viewMatrix: new Float32Array(view.viewMatrix),
+              projectionMatrix: new Float32Array(view.projectionMatrix),
+              pixelRect: { ...view.pixelRect },
+            })),
+          });
+        },
+      };
+
+      const wired = getOrCreateLayerManager(engine, root);
+      wired.register(service);
+      wired.mount();
+      await engine.hooks.callHook("engine:render");
+      expect(calls).toHaveLength(1);
+      const first = calls[0];
+      expect(first?.alpha).toBe(1);
+      expect(first?.views).toHaveLength(1);
+
+      const expected: RenderView = {
+        viewportId: "",
+        eye: "none",
+        viewMatrix: new Float32Array(16),
+        projectionMatrix: new Float32Array(16),
+        pixelRect: { x: 0, y: 0, width: 0, height: 0 },
+      };
+      expect(writeCameraViews(engine, [expected])).toBe(1);
+      const seen = first?.views[0];
+      expect(seen?.viewportId).toBe(expected.viewportId);
+      expect(seen?.eye).toBe(expected.eye);
+      expect(Array.from(seen?.viewMatrix ?? [])).toEqual(Array.from(expected.viewMatrix));
+      expect(Array.from(seen?.projectionMatrix ?? [])).toEqual(
+        Array.from(expected.projectionMatrix),
+      );
+
+      await engine.hooks.callHook("engine:render");
+      expect(calls).toHaveLength(2);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("warns only once for a duplicate order within a single renderer", () => {

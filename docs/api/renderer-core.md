@@ -79,7 +79,7 @@ A renderer that owns exactly one drawing surface. It extends `RendererService`.
 | `kind` | `'surface'` | Required. |
 | `layers` | one `LayerDef` | Exactly one entry, `coordinate: 'world'`. A second layer throws `RENDERER:SURFACE_INVALID` at register. |
 | `getLayerElement` | `HTMLCanvasElement` | The canvas created in `mount()` and removed in `unmount()`. |
-| `renderViews(views, alpha)` | `void` | Once per display frame. The renderer iterates the views. |
+| `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render`. `alpha` is `1` until #79 supplies `engine.frame`. |
 
 `resize(width, height)` stays in CSS pixels. The canvas backing store is
 `width × dpr` and `height × dpr`, with `dpr` from `ViewportScreenInfo`.
@@ -92,8 +92,8 @@ Order clashes that do not involve a surface layer still warn.
 
 ```ts
 interface RenderView {
-  readonly viewportId: string
-  readonly eye: 'left' | 'right' | 'none'
+  viewportId: string
+  eye: 'left' | 'right' | 'none'
   readonly viewMatrix: Float32Array       // length 16, column-major, world → view
   readonly projectionMatrix: Float32Array // length 16, column-major
   readonly pixelRect: { x: number; y: number; width: number; height: number } // device px
@@ -108,9 +108,11 @@ Caller-owned. Reused across frames. `eye` matches `XRViewData.eye`. Non-XR views
 function writeCameraViews(engine: GwenEngine, out: RenderView[]): number
 ```
 
-Fills `out` from `CameraManager`, `ViewportManager`, and screen pixels. Returns the
-view count. Does not allocate view objects or replace the matrix buffers. A short
-`out` still returns the full count. Euler `WorldTransform` rotation is YXZ, written
+Fills `out` from `CameraManager`, `ViewportManager`, and screen pixels. Returns how
+many active cameras were seen, including slots that were not written. Does not
+allocate view objects or replace the matrix buffers. A short `out`, or a slot whose
+matrices are shorter than 16, is still counted and left unchanged. Size `out` and
+both matrices before reading the slots. Euler `WorldTransform` rotation is YXZ, written
 as a column-major view matrix. Projection aspect comes from viewport pixels.
 `@gwenjs/math` `Mat4` is not used on this seam.
 

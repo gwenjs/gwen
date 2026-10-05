@@ -5,7 +5,7 @@ import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js
 import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
 import { writeCameraViews } from "../src/write-camera-views.js";
 import type { CameraState } from "../src/camera-types.js";
-import type { RenderView, SurfaceRendererService } from "../src/types.js";
+import type { RenderView } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 
 function makeEngine(): GwenEngine {
@@ -88,17 +88,8 @@ describe("writeCameraViews", () => {
     const projectionMatrix = slot.projectionMatrix;
     const pixelRect = slot.pixelRect;
     const out = [slot];
-    const seen: Array<readonly RenderView[]> = [];
-    const surface: Pick<SurfaceRendererService, "renderViews"> = {
-      renderViews(views) {
-        seen.push(views);
-      },
-    };
 
     expect(writeCameraViews(engine, out)).toBe(1);
-    surface.renderViews(out.slice(0, 1), 0.25);
-    expect(seen).toHaveLength(1);
-    expect(seen[0]).toHaveLength(1);
     expect(out).toHaveLength(1);
     expect(out[0]).toBe(slot);
     expect(slot.viewMatrix).toBe(viewMatrix);
@@ -199,5 +190,27 @@ describe("writeCameraViews", () => {
     const out: RenderView[] = [];
     expect(writeCameraViews(engine, out)).toBe(1);
     expect(out).toHaveLength(0);
+  });
+
+  it("counts a short matrix without writing the slot", () => {
+    const engine = makeEngine();
+    getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
+    getOrCreateScreenService(engine).setContainerSize(10, 10, 1);
+    getOrCreateCameraManager(engine).set(
+      "main",
+      camera({ projection: { type: "orthographic", zoom: 1, near: -1, far: 1 } }),
+    );
+    const short = new Float32Array(4);
+    const before = Array.from(short);
+    const slot: RenderView = {
+      viewportId: "",
+      eye: "left",
+      viewMatrix: short,
+      projectionMatrix: new Float32Array(16),
+      pixelRect: { x: -1, y: -1, width: -1, height: -1 },
+    };
+    expect(writeCameraViews(engine, [slot])).toBe(1);
+    expect(Array.from(slot.viewMatrix)).toEqual(before);
+    expect(slot.viewportId).toBe("");
   });
 });

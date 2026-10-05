@@ -27,14 +27,15 @@ export type RendererKind = "layers" | "surface";
  * Caller-owned and reused. `writeCameraViews` fills it and does not allocate a new one.
  */
 export interface RenderView {
-  readonly viewportId: string;
+  /** Filled by `writeCameraViews`. The matrix and `pixelRect` objects stay put. */
+  viewportId: string;
   /** Same union as `XRViewData.eye`. Non-XR views use `"none"`. */
-  readonly eye: "left" | "right" | "none";
-  /** Length 16, column-major, world → view. */
+  eye: "left" | "right" | "none";
+  /** Length 16, column-major, world → view. The buffer is reused, not replaced. */
   readonly viewMatrix: Float32Array;
-  /** Length 16, column-major. */
+  /** Length 16, column-major. The buffer is reused, not replaced. */
   readonly projectionMatrix: Float32Array;
-  /** Device pixels. */
+  /** Device pixels. The object is reused, not replaced. */
   readonly pixelRect: { x: number; y: number; width: number; height: number };
 }
 
@@ -154,7 +155,11 @@ export interface SurfaceRendererService extends RendererService {
   readonly layers: Record<string, LayerDef>;
   /** Canvas created by the renderer in `mount()`, removed in `unmount()`. */
   getLayerElement(layerName: string): HTMLCanvasElement;
-  /** Called once per display frame inside `engine:render`. The renderer iterates the views. */
+  /**
+   * Called by `LayerManager` once per `engine:render` after the surface is mounted.
+   * `views` is the written prefix of the `writeCameraViews` buffer.
+   * `alpha` is `1` until #79 supplies `engine.frame`.
+   */
   renderViews(views: readonly RenderView[], alpha: number): void;
 }
 

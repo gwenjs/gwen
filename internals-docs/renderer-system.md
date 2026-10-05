@@ -54,8 +54,10 @@ size is not in this repo. The follow-up bundle spike measures it against
 
 - `RendererKind`: `"layers"` when omitted, or `"surface"`.
 - `SurfaceRendererService` owns exactly one canvas (`coordinate: "world"`). It creates
-  that canvas in `mount` and removes it in `unmount`. `renderViews` runs once per
-  display frame. The renderer iterates the views. The engine does not call once per view.
+  that canvas in `mount` and removes it in `unmount`. `LayerManager` reads the canvas
+  after `mount`. `LayerManager` calls `renderViews` once per `engine:render` with the
+  `writeCameraViews` buffer. `alpha` is `1` until #79 supplies `engine.frame`. The
+  renderer iterates the views. The engine does not call once per view.
 - `RenderView` carries column-major `viewMatrix` and `projectionMatrix` (length 16)
   plus a device-pixel rect. `writeCameraViews(engine, out)` fills caller-owned slots
   from `CameraManager`, `ViewportManager`, and `ViewportScreenInfo`. It does not
