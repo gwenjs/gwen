@@ -14,7 +14,8 @@ import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 /**
  * Deferred releases. Two id buffers swap on flush so a release() inside a
  * callback lands in the other buffer and waits for the next flush.
- * Dedup is a per-slot byte, allocated once `maxEntities` is known.
+ * Dedup is a per-slot byte and a queue position, allocated once `maxEntities`
+ * is known. A recycled generation replaces the queued id in that slot.
  *
  * @internal
  */
@@ -25,6 +26,7 @@ class DeferredReleaseQueue {
   private _drain: EntityId[];
   private _fillCount = 0;
   private _flags: Uint8Array | null = null;
+  private _pos: Int32Array | null = null;
 
   constructor(capacity: number) {
     this._bufA = new Array(capacity);
@@ -35,14 +37,29 @@ class DeferredReleaseQueue {
 
   bind(maxEntities: number): void {
     this._flags = new Uint8Array(maxEntities);
+    this._pos = new Int32Array(maxEntities);
+    this._pos.fill(-1);
   }
 
   enqueue(id: EntityId): boolean {
     const flags = this._flags;
-    if (!flags) return false;
+    const pos = this._pos;
+    if (!flags || !pos) return false;
     const index = entityIndex(id);
-    if (index >= flags.length || flags[index] === 1) return false;
+    if (index >= flags.length) return false;
+    if (flags[index] === 1) {
+      const at = pos[index] ?? -1;
+      if (at < 0 || at >= this._fillCount) return false;
+      const queued = this._fill[at];
+      if (queued === id) return false;
+      if (queued !== undefined && entityIndex(queued) === index) {
+        this._fill[at] = id;
+        return true;
+      }
+      return false;
+    }
     flags[index] = 1;
+    pos[index] = this._fillCount;
     this._fill[this._fillCount] = id;
     this._fillCount += 1;
     return true;
@@ -61,7 +78,12 @@ class DeferredReleaseQueue {
     this._drain = draining;
     this._fillCount = 0;
     if (flags) {
-      for (let i = 0; i < count; i += 1) flags[entityIndex(draining[i]!)] = 0;
+      const pos = this._pos;
+      for (let i = 0; i < count; i += 1) {
+        const index = entityIndex(draining[i]!);
+        flags[index] = 0;
+        if (pos) pos[index] = -1;
+      }
     }
     for (let i = 0; i < count; i += 1) releaseFn(draining[i]!);
   }
@@ -69,6 +91,7 @@ class DeferredReleaseQueue {
   reset(): void {
     this._fillCount = 0;
     this._flags?.fill(0);
+    this._pos?.fill(-1);
   }
 }
 
@@ -278,9 +301,12 @@ export function defineActorPool<Props, PublicAPI>(
 
   function isActive(id: EntityId): boolean {
     const flags = activeFlag;
-    if (!flags) return false;
+    const slots = activeSlot;
+    if (!flags || !slots) return false;
     const index = entityIndex(id);
-    return index < flags.length && flags[index] === 1;
+    if (index >= flags.length || flags[index] !== 1) return false;
+    const slot = slots[index] ?? -1;
+    return slot >= 0 && slot < activeCount && activeIds[slot] === id;
   }
 
   function activate(id: EntityId): void {
@@ -288,7 +314,11 @@ export function defineActorPool<Props, PublicAPI>(
     const slots = activeSlot;
     if (!flags || !slots) return;
     const index = entityIndex(id);
-    if (flags[index] === 1) return;
+    if (index < flags.length && flags[index] === 1) {
+      const slot = slots[index] ?? -1;
+      if (slot >= 0 && slot < activeCount && activeIds[slot] !== id) activeIds[slot] = id;
+      return;
+    }
     flags[index] = 1;
     slots[index] = activeCount;
     activeIds[activeCount] = id;
@@ -301,7 +331,8 @@ export function defineActorPool<Props, PublicAPI>(
     if (!flags || !slots) return;
     const index = entityIndex(id);
     if (index >= flags.length || flags[index] !== 1) return;
-    const slot = slots[index] ?? 0;
+    const slot = slots[index] ?? -1;
+    if (slot < 0 || slot >= activeCount || activeIds[slot] !== id) return;
     const last = activeCount - 1;
     const moved = activeIds[last];
     if (moved !== undefined && last !== slot) {

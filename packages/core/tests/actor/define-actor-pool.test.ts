@@ -16,6 +16,7 @@ import { useHook } from "../../src/hooks/use-hook";
 import { onRelease, onReset } from "../../src/actor/runtime/define-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
+import { entityIndex } from "../../src/types/entity";
 import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
@@ -1034,6 +1035,33 @@ describe("defineActorPool — dormancy (#56)", () => {
     const next = pool.acquire();
     expect(next).not.toBe(id);
     expect(engine.isAlive(next)).toBe(true);
+  });
+
+  it("tracks the new entity id when a released index is destroyed and acquired again", async () => {
+    const { engine, pool } = await markedPool(2);
+    const oldId = pool.acquire();
+    pool.release(oldId);
+    expect(engine.destroyEntity(oldId)).toBe(true);
+
+    const next = pool.acquire();
+    expect(next).not.toBe(oldId);
+    expect(entityIndex(next)).toBe(entityIndex(oldId));
+
+    await flush(engine);
+    expect(pool.stats().active).toBe(1);
+    expect(engine.isAlive(next)).toBe(true);
+    expect(engine.isAlive(oldId)).toBe(false);
+
+    pool.release(next);
+    expect(engine.destroyEntity(next)).toBe(true);
+    const recycled = pool.acquire();
+    expect(recycled).not.toBe(next);
+    expect(entityIndex(recycled)).toBe(entityIndex(next));
+    pool.release(recycled);
+    await flush(engine);
+    expect(pool.stats().active).toBe(0);
+    expect(pool.stats().available).toBe(1);
+    expect(pool.acquire()).toBe(recycled);
   });
 
   it("keeps the cached query id list across an in-place component write", async () => {

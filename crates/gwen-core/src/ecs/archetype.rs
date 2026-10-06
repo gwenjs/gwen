@@ -138,8 +138,8 @@ impl ArchetypeColumn {
     }
 
     /// Remove a row using swap-remove. Returns false before any mutation when `row` is invalid.
-    /// Variable-size rows move by `copy_within`: the last blob's bytes stay where they are
-    /// unless they sit in the hole, and no intermediate buffer is allocated.
+    /// Variable-size rows close the hole with `copy_within`: every byte after the hole
+    /// shifts down by the removed length. No intermediate buffer is allocated.
     pub fn swap_remove(&mut self, row: usize) -> bool {
         if self.element_size == 0 {
             if !self.row_ok(row) {
