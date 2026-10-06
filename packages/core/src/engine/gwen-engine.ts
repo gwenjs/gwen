@@ -1247,8 +1247,8 @@ class GwenEngineImpl implements GwenEngine {
       message: event.message,
       cause: event.error,
       frame,
-      source: event.source,
-      target: event.target,
+      ...(event.source !== undefined ? { source: event.source } : {}),
+      ...(event.target !== undefined ? { target: event.target } : {}),
     };
     try {
       const result: unknown = this.hooks.callHook("engine:error", payload);
@@ -1381,7 +1381,7 @@ class GwenEngineImpl implements GwenEngine {
         level: "error",
         code: isTrap ? CoreErrorCodes.WASM_PANIC : (forced.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
         message,
-        source: forced.source,
+        ...(forced.source !== undefined ? { source: forced.source } : {}),
         error: err,
         target: forced.target,
         context: { frame, hook },
@@ -1400,7 +1400,7 @@ class GwenEngineImpl implements GwenEngine {
         source:
           forced?.source ?? (err instanceof GwenWasmPanicError ? "gwen_core.wasm" : "@gwenjs/core"),
         error: err,
-        target,
+        ...(target !== undefined ? { target } : {}),
         context: { frame, hook },
       });
       return;
