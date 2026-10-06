@@ -16,7 +16,7 @@ import type {
   ExpressionStatement,
   StaticMemberExpression,
   IdentifierName,
-  Statement,
+  Node,
   VariableDeclaration,
   VariableDeclarator,
   IfStatement,
@@ -181,7 +181,7 @@ function getDirectCalleeName(call: CallExpression): string | null {
  * @param out          - Accumulator array for detected patterns.
  */
 function collectPhysicsCalls(
-  node: Statement,
+  node: Node,
   callbackType: PhysicsCallbackType,
   filename: string,
   out: PhysicsQueryPattern[],
@@ -205,8 +205,7 @@ function collectPhysicsCalls(
       break;
     }
     case "BlockStatement": {
-      const block = node as unknown as { body: Statement[] };
-      for (const s of block.body) {
+      for (const s of node.body) {
         collectPhysicsCalls(s, callbackType, filename, out);
       }
       break;
@@ -220,9 +219,8 @@ function collectPhysicsCalls(
       break;
     }
     case "ReturnStatement": {
-      const retStmt = node as unknown as { argument?: Statement };
-      if (retStmt.argument) {
-        collectPhysicsCalls(retStmt.argument, callbackType, filename, out);
+      if (node.argument) {
+        collectPhysicsCalls(node.argument, callbackType, filename, out);
       }
       break;
     }
@@ -231,8 +229,7 @@ function collectPhysicsCalls(
     case "ForStatement":
     case "WhileStatement":
     case "DoWhileStatement": {
-      const loopStmt = node as unknown as { body: Statement };
-      collectPhysicsCalls(loopStmt.body, callbackType, filename, out);
+      collectPhysicsCalls(node.body, callbackType, filename, out);
       break;
     }
     default:

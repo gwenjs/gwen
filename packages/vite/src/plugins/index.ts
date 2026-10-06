@@ -97,7 +97,11 @@ function resolveOptimizerOptions(
   if (!opt) return { mode: "detect" };
   if (opt === true) return { mode: "transform" };
   const { componentsDir, tier, debug } = opt as GwenOptimizerUserOptions;
-  return { mode: "transform", componentsDir, tier, debug };
+  const resolved: Parameters<typeof gwenOptimizerPlugin>[0] = { mode: "transform" };
+  if (componentsDir !== undefined) resolved.componentsDir = componentsDir;
+  if (tier !== undefined) resolved.tier = tier;
+  if (debug !== undefined) resolved.debug = debug;
+  return resolved;
 }
 
 export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {

@@ -86,7 +86,9 @@ export function generateAutoImportsModule(entries: AutoImport[]): string {
   const grouped = new Map<string, Array<{ name: string; as?: string }>>();
   for (const entry of entries) {
     const list = grouped.get(entry.from) ?? [];
-    list.push({ name: entry.name, as: entry.as });
+    const item: { name: string; as?: string } = { name: entry.name };
+    if (entry.as !== undefined) item.as = entry.as;
+    list.push(item);
     grouped.set(entry.from, list);
   }
 

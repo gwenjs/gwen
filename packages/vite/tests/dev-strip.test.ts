@@ -87,6 +87,7 @@ function stripTypesForParser(): Plugin {
       if (!code.includes("import type") && !code.includes("export type")) return null;
       const lang = file.endsWith("tsx") ? "tsx" : "ts";
       const result = await transformWithOxc(code, file, { lang });
+      if (result.map === undefined) return { code: result.code };
       return { code: result.code, map: result.map };
     },
   };

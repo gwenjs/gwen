@@ -3,7 +3,6 @@ import MagicString from "magic-string";
 import { parseSync } from "oxc-parser";
 import type {
   Program,
-  Statement,
   ImportDeclaration,
   ImportSpecifier,
   ModuleExportName,
@@ -135,19 +134,19 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
   const specifiers = (Object.keys(needed) as (keyof typeof needed)[]).filter((k) => needed[k]);
   if (specifiers.length === 0) return;
 
-  // Program.body is Array<Directive | Statement>.  Directives have
-  // type: "ExpressionStatement" so they will not be matched here.
-  const body = program.body as unknown as Statement[];
+  // Program.body is Array<Directive | Statement>. Directives use
+  // type: "ExpressionStatement", so an ImportDeclaration check skips them.
+  const body = program.body;
 
   const coreImportNode = body.find(
-    (node) =>
+    (node): node is ImportDeclaration =>
       node.type === "ImportDeclaration" &&
-      (node as ImportDeclaration).source.value === CORE_IMPORT &&
-      (node as ImportDeclaration).importKind !== "type",
+      node.source.value === CORE_IMPORT &&
+      node.importKind !== "type",
   );
 
   if (coreImportNode) {
-    const coreImport = coreImportNode as ImportDeclaration;
+    const coreImport = coreImportNode;
     const existing: string[] = coreImport.specifiers
       .filter((sp): sp is ImportSpecifier => sp.type === "ImportSpecifier")
       .map((sp) => {
@@ -174,7 +173,9 @@ function applyAutoImports(program: Program, code: string, s: MagicString): void 
     return;
   }
 
-  const imports = body.filter((node) => node.type === "ImportDeclaration");
+  const imports = body.filter(
+    (node): node is ImportDeclaration => node.type === "ImportDeclaration",
+  );
   const insertLine = `import { ${specifiers.join(", ")} } from '${CORE_IMPORT}';\n`;
 
   if (imports.length > 0) {

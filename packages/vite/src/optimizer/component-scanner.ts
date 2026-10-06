@@ -85,7 +85,7 @@ export class ComponentScanner {
         const args = getCallArgs(init as CallExpression);
         if (args.length === 0) return;
         const configArg = args[0];
-        if (configArg.type !== "ObjectExpression") return;
+        if (configArg === undefined || configArg.type !== "ObjectExpression") return;
 
         const entry = this._extractEntry(configArg as ObjectExpression, exportName, filename);
         if (entry) this.manifest.register(entry);

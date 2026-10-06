@@ -1,4 +1,5 @@
 import type { Plugin } from "vite";
+import type { Node } from "oxc-parser";
 import MagicString from "magic-string";
 import { walk, parseSource } from "../oxc/index.js";
 import { getCallArgs, getArrayElements, getIdentifierName } from "../oxc/index.js";
@@ -52,7 +53,7 @@ export function gwenQueryHoistPlugin(): Plugin {
       const edits: Array<{ start: number; end: number; replacement: string }> = [];
 
       walk(parsed.program, {
-        enter(node: any) {
+        enter(node: Node) {
           // Look for VariableDeclarator (const/let/var x = ...)
           if (node.type !== "VariableDeclarator") return;
 
@@ -70,8 +71,8 @@ export function gwenQueryHoistPlugin(): Plugin {
           const args = getCallArgs(callExpr);
           if (args.length < 1) return;
 
-          const firstArg = args[0]!;
-          if (firstArg.type !== "ArrayExpression") return;
+          const firstArg = args[0];
+          if (firstArg === undefined || firstArg.type !== "ArrayExpression") return;
 
           // Get all array elements (getArrayElements filters spreads and nulls)
           const elements = getArrayElements(firstArg);
@@ -79,8 +80,7 @@ export function gwenQueryHoistPlugin(): Plugin {
 
           // If the original array had spreads/holes, getArrayElements would filter them,
           // but we want to detect and skip arrays with spreads entirely
-          const rawArray = firstArg as any;
-          if (rawArray.elements && rawArray.elements.length !== elements.length) {
+          if (firstArg.elements.length !== elements.length) {
             // Array had spreads or holes — skip it
             return;
           }
@@ -124,7 +124,7 @@ export function gwenQueryHoistPlugin(): Plugin {
       let insertAt = 0;
       for (const node of parsed.program.body) {
         if (node.type === "ImportDeclaration") {
-          insertAt = (node as any).end;
+          insertAt = node.end;
         }
       }
 

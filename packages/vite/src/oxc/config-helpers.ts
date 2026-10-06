@@ -8,7 +8,7 @@
 import { parseSource } from "./parse.js";
 import { walk } from "oxc-walker";
 import { getObjectProperties, getPropertyKeyName, getStringValue } from "./helpers.js";
-import type { ObjectExpression, ObjectProperty, ArrayExpression } from "oxc-parser";
+import type { Node, ObjectExpression, ObjectProperty, ArrayExpression } from "oxc-parser";
 
 /**
  * Find the ObjectExpression from `export default { ... }` in source.
@@ -30,14 +30,10 @@ export function findDefaultExportObject(source: string): ObjectExpression | null
   let found: ObjectExpression | null = null;
 
   walk(result.program, {
-    enter(node: any) {
-      if (
-        node.type === "ExportDefaultDeclaration" &&
-        node.declaration &&
-        node.declaration.type === "ObjectExpression"
-      ) {
-        found = node.declaration as ObjectExpression;
-      }
+    enter(node: Node) {
+      if (node.type !== "ExportDefaultDeclaration") return;
+      if (node.declaration.type !== "ObjectExpression") return;
+      found = node.declaration;
     },
   });
 

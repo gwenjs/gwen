@@ -59,7 +59,7 @@ export function extractUseActorNames(factory: ArrowFunctionExpression | OxcFunct
     enter(node) {
       if (node.type !== "CallExpression") return;
       const call = node as CallExpression;
-      if (!isCallTo(call as unknown as import("oxc-parser").Expression, "useActor")) return;
+      if (!isCallTo(call, "useActor")) return;
       const args = getCallArgs(call);
       if (args.length === 0) return;
       const name = getIdentifierName(args[0]!);
