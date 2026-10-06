@@ -161,6 +161,9 @@ export function defineActorPool<Props, PublicAPI>(
     "pool:exhausted": 0,
   };
   const rawHook = _hooks.hook.bind(_hooks);
+  const rawBeforeEach = _hooks.beforeEach.bind(_hooks);
+  const rawAfterEach = _hooks.afterEach.bind(_hooks);
+  let spyCount = 0;
   _hooks.hook = (name, fn, options) => {
     if (typeof fn !== "function") return rawHook(name, fn, options);
     hookCount[name] += 1;
@@ -173,13 +176,32 @@ export function defineActorPool<Props, PublicAPI>(
       off();
     };
   };
+  _hooks.beforeEach = (fn) => {
+    spyCount += 1;
+    const off = rawBeforeEach(fn);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      spyCount -= 1;
+      off();
+    };
+  };
+  _hooks.afterEach = (fn) => {
+    spyCount += 1;
+    const off = rawAfterEach(fn);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      spyCount -= 1;
+      off();
+    };
+  };
 
-  // No listeners: `void callHook` only. A catch is attached only when a listener is registered.
+  // No listener and no before/after spy: callHook would only allocate.
   function callAcquire(id: EntityId, props: unknown): void {
-    if (hookCount["pool:acquire"] === 0) {
-      void _hooks.callHook("pool:acquire", { id, props });
-      return;
-    }
+    if (hookCount["pool:acquire"] === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
@@ -189,10 +211,7 @@ export function defineActorPool<Props, PublicAPI>(
   }
 
   function callRelease(id: EntityId): void {
-    if (hookCount["pool:release"] === 0) {
-      void _hooks.callHook("pool:release", { id });
-      return;
-    }
+    if (hookCount["pool:release"] === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
@@ -202,18 +221,12 @@ export function defineActorPool<Props, PublicAPI>(
   }
 
   function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
-    if (hookCount[name] === 0) {
-      void _hooks.callHook(name, { active, size, ratio });
-      return;
-    }
+    if (hookCount[name] === 0 && spyCount === 0) return;
     reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
   }
 
   function callExhausted(): void {
-    if (hookCount["pool:exhausted"] === 0) {
-      void _hooks.callHook("pool:exhausted", { size });
-      return;
-    }
+    if (hookCount["pool:exhausted"] === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
