@@ -23,4 +23,16 @@ describe("entityIndex", () => {
     const id = 0xffffffffn as EntityId;
     expect(entityIndex(id)).toBe(0xffffffff);
   });
+
+  it("reads the index at the last exact id and the first rounded id", () => {
+    const lastExact = createEntityId(0xffffffff, 2 ** 21 - 1);
+    expect(entityIndex(lastExact)).toBe(0xffffffff);
+    const firstRounded = createEntityId(1, 2 ** 21);
+    expect(entityIndex(firstRounded)).toBe(1);
+  });
+
+  it("rejects a number id", () => {
+    const id: unknown = 1;
+    expect(() => entityIndex(id as EntityId)).toThrow(TypeError);
+  });
 });

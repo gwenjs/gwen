@@ -21,6 +21,6 @@
     "bulk.components": { "bytesPerFrame": 133828, "bytesPerEntityFrame": 128.1 },
     "pool.cycle": { "bytesPerFrame": 1414406, "bytesPerEntityFrame": 1363.2, "frames": 4 },
     "tween.tick": { "bytesPerFrame": 4731, "bytesPerEntityFrame": 0 },
-    "entity.index": { "bytesPerFrame": 44479, "bytesPerEntityFrame": 40.1 }
+    "entity.index": { "bytesPerFrame": 3342, "bytesPerEntityFrame": 0 }
   }
 }
