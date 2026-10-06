@@ -80,11 +80,7 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import {
-  GwenPluginNotFoundError,
-  CoreErrorCodes,
-  GwenWasmPanicError,
-} from "./engine-errors.js";
+import { GwenPluginNotFoundError, CoreErrorCodes, GwenWasmPanicError } from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
@@ -189,6 +185,8 @@ class GwenEngineImpl implements GwenEngine {
   private _emitBridgeActive = false;
   /** Set when `emit` cannot be wrapped. `engine:error` then fires from `on`. */
   private _engineErrorFromOn = false;
+  /** One core trap is published. A later poisoned-bridge rethrow is not a second panic. */
+  private _wasmPanicPublished = false;
 
   get errors(): EngineErrorBus {
     return this._errorBus;
@@ -1346,9 +1344,15 @@ class GwenEngineImpl implements GwenEngine {
     if (forced === undefined && err instanceof WebAssembly.RuntimeError) {
       poisonWasmBridge(this._bridge, err);
     }
+    if (
+      err instanceof GwenWasmPanicError &&
+      err.exportName === undefined &&
+      this._wasmPanicPublished
+    ) {
+      return;
+    }
     const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
-    const isTrap =
-      err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
+    const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
     const target = forced?.target;
     const frame = this._frameCountOwn;
 
@@ -1366,6 +1370,7 @@ class GwenEngineImpl implements GwenEngine {
     }
 
     if (isTrap || forced?.level === "fatal") {
+      if (isTrap) this._wasmPanicPublished = true;
       this._publish({
         level: "fatal",
         code: isTrap
@@ -1373,8 +1378,7 @@ class GwenEngineImpl implements GwenEngine {
           : (forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
         message,
         source:
-          forced?.source ??
-          (err instanceof GwenWasmPanicError ? "gwen_core.wasm" : "@gwenjs/core"),
+          forced?.source ?? (err instanceof GwenWasmPanicError ? "gwen_core.wasm" : "@gwenjs/core"),
         error: err,
         target,
         context: { frame, hook },

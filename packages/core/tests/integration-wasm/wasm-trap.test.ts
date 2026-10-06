@@ -60,6 +60,7 @@ describe("WASM trap", () => {
       bridge.syncTransformsToBufferSparse(0x7000_0000);
     });
 
+    await engine.startExternal();
     await engine.advance(1 / 60);
     expect(engine.state).toBe("faulted");
 
