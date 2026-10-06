@@ -273,6 +273,24 @@ describe("engine state machine", () => {
     expect(engine.state).toBe("faulted");
   });
 
+  it("a fatal while stopping lets one nested stop() finish teardown once", async () => {
+    const engine = await createEngine();
+    let stops = 0;
+    engine.hooks.hook("engine:stop", () => {
+      stops += 1;
+    });
+    engine.hooks.hook("engine:state-change", (payload) => {
+      if (payload.to === "stopping") {
+        engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "during stopping" });
+      }
+      if (payload.to === "faulted") void engine.stop();
+    });
+    await engine.startExternal();
+    await engine.stop();
+    expect(stops).toBe(1);
+    expect(engine.state).toBe("faulted");
+  });
+
   it("a throwing state-change handler does not undo the transition", async () => {
     const engine = await createEngine();
     const logs: string[] = [];

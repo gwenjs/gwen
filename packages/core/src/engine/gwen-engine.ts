@@ -214,7 +214,10 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
-  /** Re-entry claim for faulted teardown. Not a lifecycle state. Set before the first await. */
+  /**
+   * Re-entry claim for teardown. Not a lifecycle state.
+   * Set before any await on every path that calls `_teardown`. Never cleared.
+   */
   private _faultedStopClaimed = false;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
@@ -689,13 +692,9 @@ class GwenEngineImpl implements GwenEngine {
     const from = this._state;
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
-    if (from === "faulted") {
-      if (this._faultedStopClaimed) return;
-      this._faultedStopClaimed = true;
-      await this._teardown();
-      return;
-    }
-    await this._transition("stopping", "USER");
+    if (this._faultedStopClaimed) return;
+    this._faultedStopClaimed = true;
+    if (from !== "faulted") await this._transition("stopping", "USER");
     await this._teardown();
     if (this._state === "stopping") await this._transition("stopped", "USER");
   }
