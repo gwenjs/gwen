@@ -582,6 +582,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
     fn test_transform_performance_update_100() {
         let mut ts = TransformSystem::new();
 

@@ -341,6 +341,8 @@ export interface GwenEngineOptions {
    * registered with `onUpdate` receive `1 / physicsHz` as `dt` regardless of
    * actual frame pacing.
    *
+   * The 1.0 reproducibility statement for these fixed steps is the Determinism note in the engine essentials.
+   *
    * @default 0 (variable dt — standard game loop)
    * @see maxCatchupSteps
    */

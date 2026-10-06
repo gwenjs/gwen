@@ -106,6 +106,7 @@ fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
     let mut y_max = f32::MIN;
 
     for _ in 0..STACK_MEASURE_STEPS {
+        #[allow(clippy::disallowed_methods, reason = "bench binary, not engine runtime")]
         let t0 = Instant::now();
         world.step(DT);
         let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;

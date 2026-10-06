@@ -166,8 +166,8 @@ Le pattern accumulateur :
 
 `engine.timeScale` s'applique toujours : un `timeScale` de `0.5` divise par deux la vitesse de simulation effective.
 
-::: tip Quand utiliser physicsHz
-Utilisez `physicsHz` quand votre simulation nécessite des pas déterministes et reproductibles — physique, réseau, replay. Pour la logique de rendu uniquement, la boucle à delta variable est plus simple.
+::: info Déterminisme
+Avec `physicsHz > 0`, chaque pas de simulation s'exécute avec le même `dt`. Deux exécutions atteignent le même état du monde lorsque chaque pas fixe reçoit les mêmes entrées dans le même ordre, en partant de la même configuration, sur la même version de GWEN, la même variante WASM et le même navigateur ou runtime. Pour contrôler les pas exactement, pilotez la boucle vous-même avec `engine.advance(1 / physicsHz)`. GWEN 1.0 ne garantit pas le déterminisme entre navigateurs, systèmes d'exploitation ou processeurs, et n'en donne aucune pour la boucle à delta variable (`physicsHz: 0`). Lire `performance.now()`, `Date.now()` ou `Math.random()` dans un système casse la reproductibilité. GWEN 1.0 n'a pas de snapshot du monde ni de sauvegarde/restauration intégrés.
 :::
 
 ## Résumé de l'API

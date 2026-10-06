@@ -285,6 +285,7 @@ mod tests {
     // === Performance Tests ===
 
     #[test]
+    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
     fn test_component_storage_large_entity_set() {
         let mut storage = ArchetypeStorage::new();
         let handle = ComponentHandle::<u32>::new(&mut storage);
@@ -318,6 +319,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
     fn test_allocator_reset_performance() {
         let mut alloc = LinearAllocator::new(10000);
 
