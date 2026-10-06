@@ -250,6 +250,29 @@ describe("engine state machine", () => {
     expect(engine.state).toBe("faulted");
   });
 
+  it("an overlapping stop() while faulted does not run engine:stop again", async () => {
+    const engine = await createEngine();
+    let stops = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    engine.hooks.hook("engine:stop", () => {
+      stops += 1;
+      if (stops === 1) void engine.stop();
+      return gate;
+    });
+    await engine.startExternal();
+    engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+    expect(engine.state).toBe("faulted");
+    const pending = engine.stop();
+    expect(stops).toBe(1);
+    release();
+    await pending;
+    expect(stops).toBe(1);
+    expect(engine.state).toBe("faulted");
+  });
+
   it("a throwing state-change handler does not undo the transition", async () => {
     const engine = await createEngine();
     const logs: string[] = [];

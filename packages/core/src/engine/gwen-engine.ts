@@ -214,6 +214,8 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
+  /** Re-entry claim for faulted teardown. Not a lifecycle state. Set before the first await. */
+  private _faultedStopClaimed = false;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
@@ -688,9 +690,8 @@ class GwenEngineImpl implements GwenEngine {
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
     if (from === "faulted") {
-      // Constructor registers at least one disposable. disposeAll clears it.
-      // A second faulted stop sees an empty registry and does no teardown.
-      if (this.disposables.size === 0) return;
+      if (this._faultedStopClaimed) return;
+      this._faultedStopClaimed = true;
       await this._teardown();
       return;
     }
