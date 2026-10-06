@@ -402,43 +402,58 @@ export interface GwenProvides {
 }
 
 /**
- * Per-phase timing breakdown for a single frame (in milliseconds).
+ * Per-phase timing for one display frame, in milliseconds.
  * Measured with `performance.now()` around each phase of `_runFrame`.
+ * With `physicsHz > 0`, each field is the sum of the simulation steps in that
+ * display frame. `render` still runs once per step, so it is the sum of those
+ * passes until one render per display frame lands. `total` covers those steps.
  */
 export interface EngineFramePhaseMs {
   /** Duration of the `engine:tick` hook. */
   tick: number;
-  /** Combined duration of all plugin `onBeforeUpdate()` calls. */
+  /** `engine:before-update`, including the physics step and kinematic sync. */
   plugins: number;
-  /** Duration of the built-in physics2d + physics3d step. */
+  /** Built-in bridge stub step only. About 0 until that stub is removed. */
   physics: number;
-  /** Combined duration of all community WASM module steps. */
+  /** Community WASM module steps. */
   wasm: number;
-  /** Combined duration of all plugin `onUpdate()` calls. */
+  /** `update_transforms` and the `engine:update` hook. */
   update: number;
-  /** Combined duration of all plugin `onAfterUpdate()` + `onRender()` calls. */
+  /** `engine:after-update` and `engine:render`. */
   render: number;
   /** Duration of the `engine:afterTick` hook. */
   afterTick: number;
-  /** Total `_runFrame` duration (wall-clock, includes async overhead). */
+  /** Whole `_runFrame`. In fixed mode, the summed steps of the display frame. */
   total: number;
 }
 
 /**
- * Runtime statistics snapshot.
+ * Runtime statistics snapshot returned by `engine.getStats()`.
  */
 export interface EngineStats {
+  /** Smoothed frames per second from the raw frame duration. Ignores `timeScale`. */
   fps: number;
+  /** Uncapped, unscaled frame duration in seconds. Same value as `engine.rawFrameTime`. */
+  rawFrameTime: number;
+  /** Last step duration in seconds, after the cap and `timeScale`. */
   deltaTime: number;
+  /** Completed `_runFrame` calls. In fixed mode, one per simulation step. */
   frameCount: number;
+  /** Alive entities at the time of the call. */
+  entityCount: number;
   /**
-   * Per-phase timing for the most recent completed frame.
+   * WASM linear-memory size in bytes.
+   * Omitted when the bridge has no memory.
+   */
+  wasmMemoryBytes?: number;
+  /** Frame time budget in ms (`1000 / targetFPS`). */
+  budgetMs: number;
+  /**
+   * Per-phase timings for the latest display frame.
    * Present only when `__GWEN_DEV__` and `engine.debug` are both true.
    */
   phaseMs?: EngineFramePhaseMs;
-  /** Frame time budget in ms derived from `targetFPS` (e.g. 16.67 ms at 60 FPS). */
-  budgetMs: number;
-  /** Present only when `phaseMs` is present. `true` if that frame exceeded the budget. */
+  /** Present only when `phaseMs` is present. `true` when `phaseMs.total` exceeds `budgetMs`. */
   overBudget?: boolean;
 }
 

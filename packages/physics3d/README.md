@@ -6,7 +6,7 @@ Current scope:
 
 - validates `physics3d` core variant,
 - initializes 3D physics world via `physics3d_init`,
-- auto-steps simulation on engine `onBeforeUpdate` when enabled,
+- auto-steps simulation on the `engine:before-update` hook when enabled,
 - registers typed `physics3d` service,
 - exposes an EntityId-native body registry foundation (`createBody/removeBody/hasBody/getBodyCount`).
 

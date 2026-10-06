@@ -85,7 +85,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
 
       setup(engine: GwenEngine): void {
         _engine = engine;
-        physics = engine.tryInject("physics3d") ?? null;
+        physics = engine.inject("physics3d");
         offBeforeUpdate = engine.hooks.hook("engine:before-update", () => {
           if (!physics || !_engine) return;
 

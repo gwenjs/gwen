@@ -82,21 +82,3 @@ export interface EngineConfig {
    */
   tweenPoolSize?: number;
 }
-
-// ── Stats ─────────────────────────────────────────────────────────────────────
-
-/**
- * Snapshot of engine runtime metrics — returned by `engine.getStats()`.
- */
-export interface EngineStats {
-  /** Measured frames per second (updated every 60 frames). */
-  fps: number;
-  /** Total frames rendered since `engine.start()`. */
-  frameCount: number;
-  /** Delta time of the last frame in seconds (capped at 0.1 s). */
-  deltaTime: number;
-  /** Number of currently alive entities. */
-  entityCount: number;
-  /** `true` if the game loop is currently running. */
-  isRunning: boolean;
-}

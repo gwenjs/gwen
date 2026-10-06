@@ -23,6 +23,14 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 });
 
 vi.mock("@gwenjs/core", () => ({
+  GwenComposableError: class GwenComposableError extends Error {
+    readonly code: string;
+    constructor(code: string, message: string) {
+      super(message);
+      this.name = "GwenComposableError";
+      this.code = code;
+    }
+  },
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, gen: number) => BigInt(index) | (BigInt(gen) << 32n),
@@ -142,6 +150,15 @@ describe("createPhysicsKinematicSyncSystem", () => {
     instance.setup(engine);
 
     expect(engine.tryInject).toBeDefined();
+  });
+
+  it("setup rejects when physics3d is not registered", async () => {
+    const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
+    const instance = factory();
+    const engine = createMockEngine();
+    await expect(Promise.resolve(instance.setup(engine))).rejects.toMatchObject({
+      code: "engine:plugin-setup-failed",
+    });
   });
 
   it("syncs kinematic entity positions on engine:before-update", () => {

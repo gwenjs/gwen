@@ -98,25 +98,30 @@ Accédez aux données de performance par frame via `engine.getStats()` :
 ```typescript
 const stats = engine.getStats()
 
-console.log(stats.fps)           // FPS actuel
-console.log(stats.deltaTime)     // delta de la dernière frame en ms
-console.log(stats.frameCount)    // total de frames depuis le démarrage
-console.log(stats.budgetMs)      // budget de frame (1000 / targetFPS)
-console.log(stats.overBudget)    // présent seulement si __GWEN_DEV__ && debug
+console.log(stats.fps)              // FPS lissé à partir de la frame brute
+console.log(stats.rawFrameTime)     // durée de frame en secondes, sans plafond ni timeScale
+console.log(stats.deltaTime)        // dernier pas en secondes, après le plafond et timeScale
+console.log(stats.frameCount)       // frames terminées
+console.log(stats.entityCount)      // entités vivantes à cet appel
+console.log(stats.budgetMs)         // budget de frame (1000 / targetFPS)
+console.log(stats.wasmMemoryBytes)  // octets de mémoire linéaire, ou undefined
+console.log(stats.overBudget)       // présent seulement si __GWEN_DEV__ && debug
 
-// Décomposition par phase (toutes en ms). Absente des builds de production.
+// Décomposition par phase (toutes en ms). Présente seulement si __GWEN_DEV__ et debug sont vrais.
 const p = stats.phaseMs
 if (p) {
-  console.log(p.tick)       // hook engine:tick
-  console.log(p.plugins)    // appels onBeforeUpdate()
-  console.log(p.physics)    // étape physics2d/3d
-  console.log(p.wasm)       // étapes des modules WASM
-  console.log(p.update)     // appels onUpdate()
-  console.log(p.render)     // appels onAfterUpdate() + onRender()
-  console.log(p.afterTick)  // hook engine:afterTick
-  console.log(p.total)      // temps total de la frame
+  console.log(p.tick)       // engine:tick
+  console.log(p.plugins)    // engine:before-update, y compris le pas physique et la synchro cinématique
+  console.log(p.physics)    // uniquement le stub du bridge intégré (environ 0)
+  console.log(p.wasm)       // pas des modules WASM communautaires
+  console.log(p.update)     // update_transforms et engine:update
+  console.log(p.render)     // engine:after-update et engine:render
+  console.log(p.afterTick)  // engine:afterTick
+  console.log(p.total)      // tout _runFrame
 }
 ```
+
+Avec `physicsHz > 0`, une frame d'affichage peut exécuter plusieurs pas de simulation. `getStats()` additionne ces pas dans chaque champ de `phaseMs`. `total` couvre ces pas. `frameCount` compte les pas. `engine:render` tourne encore une fois par pas, donc `phaseMs.render` est la somme de ces passages.
 
 > **Note :** Utilisez `engine.getStats()` — et non `engine.stats`. C'est un appel de méthode.
 
