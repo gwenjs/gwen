@@ -5,10 +5,10 @@
 //! Results are written to the path buffer as `[x, y, z, x, y, z, …]` f32 triples.
 //!
 //! # State ownership
-//! The nav grid and the path buffer are thread-local. On `wasm32` there is one
-//! thread, so this is the single global state the JS bridge reads. In native
-//! test runs each test thread owns its own grid and buffer, so parallel tests
-//! never see each other's state.
+//! Each `PhysicsWorld3D` owns its nav grid. The path buffer is thread-local.
+//! On `wasm32` there is one thread, so this is the single buffer the JS bridge
+//! reads. In native test runs each test thread owns its own buffer, so
+//! parallel tests never see each other's path.
 //!
 //! # Feature gate
 //! Full A* search is only available with the `pathfinding-3d` feature. Without
@@ -33,7 +33,7 @@ pub const MAX_PATH_NODES_3D: usize = 512;
 
 /// Voxel grid state uploaded by [`init_navgrid_3d`].
 #[derive(Default)]
-struct NavGrid3D {
+pub(crate) struct NavGrid3D {
     /// Flat voxel array in row-major order: `index = x + y*width + z*width*height`.
     cells: Vec<u8>,
     /// Number of cells along the X axis.
@@ -60,9 +60,6 @@ thread_local! {
     /// lifetime, so the pointer handed to JS stays valid.
     static PATH_BUFFER_3D: RefCell<[f32; MAX_PATH_NODES_3D * 3]> =
         const { RefCell::new([0.0_f32; MAX_PATH_NODES_3D * 3]) };
-
-    /// Nav grid, populated by [`init_navgrid_3d`].
-    static NAV_GRID_3D: RefCell<Option<NavGrid3D>> = const { RefCell::new(None) };
 }
 
 // ─── Public WASM API ──────────────────────────────────────────────────────────
@@ -109,7 +106,11 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 /// # Safety
 /// `ptr` must point to a valid, readable allocation of at least
 /// `width * height * depth` bytes for the duration of this call.
+/// ABI shim. The live grid is stored on each `PhysicsWorld3D`.
+///
+/// This function keeps the export name and signature and does not store a grid.
 #[wasm_bindgen]
+#[allow(unused_variables)]
 pub fn init_navgrid_3d(
     ptr: *const u8,
     width: usize,
@@ -120,10 +121,28 @@ pub fn init_navgrid_3d(
     origin_y: f32,
     origin_z: f32,
 ) {
-    let len = width * height * depth;
-    // SAFETY: the contract requires `ptr` to point to at least `len` readable bytes.
+}
+
+/// Copy a voxel grid into `slot`. `ptr` must address `width * height * depth` bytes.
+pub(crate) fn install_navgrid(
+    slot: &mut Option<NavGrid3D>,
+    ptr: *const u8,
+    width: usize,
+    height: usize,
+    depth: usize,
+    cell_size: f32,
+    origin_x: f32,
+    origin_y: f32,
+    origin_z: f32,
+) {
+    let len = width.saturating_mul(height).saturating_mul(depth);
+    if ptr.is_null() || len == 0 {
+        *slot = None;
+        return;
+    }
+    // SAFETY: the caller contract requires `ptr` to address at least `len` bytes.
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
-    set_nav_grid(Some(NavGrid3D {
+    *slot = Some(NavGrid3D {
         cells,
         width,
         height,
@@ -132,7 +151,7 @@ pub fn init_navgrid_3d(
         origin_x,
         origin_y,
         origin_z,
-    }));
+    });
 }
 
 /// Find a path between two world-space points using A* on the uploaded voxel grid.
@@ -153,7 +172,9 @@ pub fn init_navgrid_3d(
 /// # Returns
 /// The number of waypoints written to the path buffer, or `0` if no grid has
 /// been uploaded via [`init_navgrid_3d`].
+/// ABI shim. Returns `0`. Call `Engine::physics3d_find_path_3d`.
 #[wasm_bindgen]
+#[allow(unused_variables)]
 pub fn find_path_3d(
     from_x: f32,
     from_y: f32,
@@ -162,22 +183,28 @@ pub fn find_path_3d(
     to_y: f32,
     to_z: f32,
 ) -> usize {
-    NAV_GRID_3D.with_borrow(|grid| {
-        let Some(grid) = grid.as_ref() else {
-            return 0;
-        };
-        PATH_BUFFER_3D.with_borrow_mut(|buffer| {
-            write_path(grid, buffer, (from_x, from_y, from_z), (to_x, to_y, to_z))
-        })
+    0
+}
+
+/// Find a path on `grid` and write waypoints into the calling thread's path buffer.
+pub(crate) fn find_path_on_grid(
+    grid: Option<&NavGrid3D>,
+    from_x: f32,
+    from_y: f32,
+    from_z: f32,
+    to_x: f32,
+    to_y: f32,
+    to_z: f32,
+) -> usize {
+    let Some(grid) = grid else {
+        return 0;
+    };
+    PATH_BUFFER_3D.with_borrow_mut(|buffer| {
+        write_path(grid, buffer, (from_x, from_y, from_z), (to_x, to_y, to_z))
     })
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
-
-/// Replaces the calling thread's nav grid.
-fn set_nav_grid(grid: Option<NavGrid3D>) {
-    NAV_GRID_3D.with_borrow_mut(|slot| *slot = grid);
-}
 
 /// Searches `grid` from `from` to `to` and writes the waypoints to `buffer`.
 ///
@@ -353,9 +380,7 @@ mod tests {
 
     #[test]
     fn test_find_path_3d_no_grid_returns_zero() {
-        // Ensure no grid is installed.
-        set_nav_grid(None);
-        let count = find_path_3d(0.0, 0.0, 0.0, 5.0, 0.0, 5.0);
+        let count = find_path_on_grid(None, 0.0, 0.0, 0.0, 5.0, 0.0, 5.0);
         assert_eq!(count, 0);
     }
 
@@ -363,18 +388,17 @@ mod tests {
     #[test]
     fn test_find_path_3d_trivial_same_cell() {
         // A path from a cell to itself should return at least 1 waypoint.
-        set_nav_grid(Some(make_open_grid(5, 5, 5)));
-        let count = find_path_3d(2.0, 2.0, 2.0, 2.0, 2.0, 2.0);
+        let grid = make_open_grid(5, 5, 5);
+        let count = find_path_on_grid(Some(&grid), 2.0, 2.0, 2.0, 2.0, 2.0, 2.0);
         assert!(count >= 1, "expected at least 1 waypoint for same-cell path");
-        set_nav_grid(None);
     }
 
     #[cfg(feature = "pathfinding-3d")]
     #[test]
     fn test_find_path_3d_straight_line() {
         // Open 10×1×10 slab — a straight path from (0,0,0) to (0,0,5).
-        set_nav_grid(Some(make_open_grid(10, 1, 10)));
-        let count = find_path_3d(0.0, 0.0, 0.0, 0.0, 0.0, 5.0);
+        let grid = make_open_grid(10, 1, 10);
+        let count = find_path_on_grid(Some(&grid), 0.0, 0.0, 0.0, 0.0, 0.0, 5.0);
         assert!(count >= 2, "expected at least 2 waypoints for a 5-cell path");
         // First waypoint should be near the origin.
         let first_x = PATH_BUFFER_3D.with_borrow(|buf| buf[0]);
@@ -383,7 +407,6 @@ mod tests {
             "first waypoint x ({}) should be near 0",
             first_x
         );
-        set_nav_grid(None);
     }
 
     #[cfg(feature = "pathfinding-3d")]
@@ -395,17 +418,17 @@ mod tests {
         g.cells[0 + 0 * 3 + 1 * 3 * 1] = 1; // (0,0,1)
         g.cells[1 + 0 * 3 + 1 * 3 * 1] = 1; // (1,0,1)
         g.cells[2 + 0 * 3 + 1 * 3 * 1] = 1; // (2,0,1)
-        set_nav_grid(Some(g));
         // No walkable path from z=0 side to z=2 side; expect fallback 2-node path.
-        let count = find_path_3d(1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
+        let count = find_path_on_grid(Some(&g), 1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
         assert_eq!(count, 2, "blocked path should fall back to 2-waypoint straight line");
-        set_nav_grid(None);
     }
 
-    /// Uploads a 3×1×3 grid (cell size 1, origin 0) through the public [`init_navgrid_3d`] export.
+    /// Copies a 3×1×3 grid (cell size 1, origin 0) through [`install_navgrid`].
     #[cfg(feature = "pathfinding-3d")]
-    fn upload_3x1x3(cells: &[u8; 9]) {
-        init_navgrid_3d(cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+    fn upload_3x1x3(cells: &[u8; 9]) -> Option<NavGrid3D> {
+        let mut slot = None;
+        install_navgrid(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        slot
     }
 
     /// Reads the first `count` waypoints through the public [`get_path_buffer_ptr_3d`] export.
@@ -413,7 +436,7 @@ mod tests {
     fn read_path(count: usize) -> Vec<f32> {
         let ptr = get_path_buffer_ptr_3d();
         // SAFETY: the buffer holds MAX_PATH_NODES_3D * 3 floats and `count` comes
-        // from `find_path_3d`, which never exceeds MAX_PATH_NODES_3D.
+        // from `find_path_on_grid`, which never exceeds MAX_PATH_NODES_3D.
         unsafe { std::slice::from_raw_parts(ptr, count * 3).to_vec() }
     }
 
@@ -431,10 +454,10 @@ mod tests {
         // route and the result is the 2-node straight fallback.
         let a_barrier = Arc::clone(&barrier);
         let a = std::thread::spawn(move || {
-            upload_3x1x3(&[0, 0, 0, 1, 1, 1, 0, 0, 0]);
+            let grid = upload_3x1x3(&[0, 0, 0, 1, 1, 1, 0, 0, 0]);
             a_barrier.wait(); // 1: A uploaded
             a_barrier.wait(); // 2: B uploaded its own grid
-            let count = find_path_3d(1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
+            let count = find_path_on_grid(grid.as_ref(), 1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
             a_barrier.wait(); // 3: A searched
             a_barrier.wait(); // 4: B searched and wrote its own path
             (count, read_path(count))
@@ -444,10 +467,10 @@ mod tests {
         let b_barrier = Arc::clone(&barrier);
         let b = std::thread::spawn(move || {
             b_barrier.wait(); // 1
-            upload_3x1x3(&[0; 9]);
+            let grid = upload_3x1x3(&[0; 9]);
             b_barrier.wait(); // 2
             b_barrier.wait(); // 3
-            let count = find_path_3d(1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
+            let count = find_path_on_grid(grid.as_ref(), 1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
             b_barrier.wait(); // 4
             (count, read_path(count))
         });

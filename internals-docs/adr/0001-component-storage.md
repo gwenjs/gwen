@@ -14,7 +14,7 @@ Contributor docs described `Position.x[entityId]`: one typed array per field, in
 
 The Rust store is already archetype tables. One column per component. Each row packs that component's fields. JS-registered columns are variable-size. Adding or removing a component copies the whole entity through a `HashMap`. The archetype mask is `BitSet128` (128 component types). Query results are one flat list of entity ids, with no chunk boundary.
 
-`defineComponent` still stores a packed-row layout (`_byteSize`, `_f32Stride`, `_fields[].byteOffset`) and a module-level `_typeId`.
+`defineComponent` still stores a packed-row layout (`_byteSize`, `_f32Stride`, `_fields[].byteOffset`). `_typeId` is always `0`. The runtime id comes from the current engine's registry.
 
 ## Decision drivers
 

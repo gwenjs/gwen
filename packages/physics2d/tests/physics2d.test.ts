@@ -62,6 +62,7 @@ function makeMockEngine(_wasm: any) {
       provided[key] = value;
     }),
     isAlive: () => true,
+    disposables: { add() {} },
     hooks: {
       hook: vi.fn((name: string, handler: (...args: any[]) => void) => {
         hookHandlers[name] = hookHandlers[name] ?? [];
@@ -110,7 +111,7 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 });
 
 import { createEntityId } from "@gwenjs/core";
-import { getWasmBridge } from "@gwenjs/core/internal";
+import { engineContext, getWasmBridge } from "@gwenjs/core/internal";
 import { Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
 
@@ -134,6 +135,7 @@ async function initPlugin(
   mockEngine: ReturnType<typeof makeMockEngine>,
 ) {
   (getWasmBridge as Mock).mockReturnValue(mockBridge);
+  engineContext.set(mockEngine as never, true);
   (mockEngine as { memory: unknown }).memory = {
     view(desc: { name: string; type: string; ptr: () => number; length: () => number }) {
       let cached: DataView | Float32Array | Uint32Array | null = null;

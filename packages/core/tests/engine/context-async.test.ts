@@ -61,6 +61,25 @@ describe("executeAsync", () => {
     expect(engineContext.tryUse()).toBe(engine);
     engineContext.unset();
     await p;
+    await engine.stop();
+  });
+
+  it("restores the captured engine when another engine is current", async () => {
+    const first = await createEngine({ maxEntities: 16 });
+    const second = await createEngine({ maxEntities: 16 });
+    try {
+      first.activate();
+      const [pending, restore] = executeAsync(() => Promise.resolve(1));
+      second.activate();
+      expect(useEngine()).toBe(second);
+      restore();
+      expect(useEngine()).toBe(first);
+      await pending;
+    } finally {
+      engineContext.unset();
+      await first.stop();
+      await second.stop();
+    }
   });
 });
 
@@ -87,17 +106,29 @@ describe("withAsyncContext", () => {
     expect(capturedInsideFn).toBe(engine);
   });
 
-  it("restores null context when _ctx was null at definition time", async () => {
+  it("throws OUTSIDE_ENGINE when invoked after being defined with no engine", () => {
     engineContext.unset();
-    let capturedInsideFn: unknown = "not-set";
+    const wrapped = withAsyncContext(async () => {});
+    expect(() => wrapped()).toThrow(GwenContextError);
+  });
 
-    const wrappedFn = withAsyncContext(async () => {
-      capturedInsideFn = engineContext.tryUse();
-    });
-
-    await wrappedFn();
-    // context was falsy when withAsyncContext was defined — remains falsy inside fn
-    expect(capturedInsideFn).toBeFalsy();
+  it("restores the engine that was current when the wrapped call started", async () => {
+    const first = await createEngine({ maxEntities: 16 });
+    const second = await createEngine({ maxEntities: 16 });
+    try {
+      const wrapped = first.run(() =>
+        withAsyncContext(async () => {
+          expect(useEngine()).toBe(first);
+        }),
+      );
+      second.activate();
+      await wrapped();
+      expect(useEngine()).toBe(second);
+    } finally {
+      second.deactivate();
+      await first.stop();
+      await second.stop();
+    }
   });
 
   it("does not permanently pollute the context after fn completes", async () => {

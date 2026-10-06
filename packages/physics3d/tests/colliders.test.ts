@@ -28,10 +28,19 @@ vi.mock("@gwenjs/core", () => ({
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
   entityIndex: (id: bigint) => Number(id & 0xffffffffn),
+  createEngineLocal,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
 }));
 
+import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
+import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
+import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
 import type { Physics3DColliderOptions } from "../src/types";
 
 function makeEngine() {
@@ -55,6 +64,7 @@ function makeEngine() {
     getComponent: vi.fn(),
     isAlive: () => true,
     wasmBridge: null,
+    disposables: { add() {} },
   } as unknown as GwenEngine;
 
   return { engine, services, hookMap };
@@ -70,6 +80,7 @@ describe("Physics3D colliders — local mode", () => {
   function setup() {
     const { engine, services } = makeEngine();
     const plugin = Physics3DPlugin();
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     return { plugin, service, engine };
@@ -207,6 +218,7 @@ describe("Physics3D colliders — local mode", () => {
       layers: ["default", "player", "enemy"],
     });
     const { engine, services } = makeEngine();
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
 

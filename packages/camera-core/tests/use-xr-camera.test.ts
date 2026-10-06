@@ -1,10 +1,9 @@
 // packages/camera-core/tests/use-xr-camera.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createEngine } from "@gwenjs/core";
 import { defineActor, useActor } from "@gwenjs/core/actor";
 import { Camera } from "../src/components.js";
-import { cameraViewportMap } from "../src/camera-viewport-map.js";
-import { cameraMatrixStore } from "../src/camera-matrix-store.js";
+import { getCameraStores } from "../src/camera-stores.js";
 import { XRCameraPrefab } from "../src/xr-camera-prefab.js";
 import { useXRCamera } from "../src/use-xr-camera.js";
 
@@ -22,11 +21,6 @@ function makeViewMatrix(tx: number, ty: number, tz: number): Float32Array {
   return m;
 }
 
-beforeEach(() => {
-  cameraViewportMap.clear();
-  cameraMatrixStore.clear();
-});
-
 describe("useXRCamera", () => {
   it("registers viewport and sets projectionType 2", async () => {
     const engine = await createEngine({ maxEntities: 100 });
@@ -35,7 +29,7 @@ describe("useXRCamera", () => {
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
 
-    expect(cameraViewportMap.get(id)).toBe("main");
+    expect(getCameraStores(engine).viewports.get(id)).toBe("main");
     expect(engine.getComponent(id, Camera)?.projectionType).toBe(2);
   });
 
@@ -46,7 +40,7 @@ describe("useXRCamera", () => {
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
 
-    expect(cameraViewportMap.get(id)).toBe("main");
+    expect(getCameraStores(engine).viewports.get(id)).toBe("main");
     expect(engine.getComponent(id, Camera)?.priority).toBe(0);
   });
 
@@ -68,7 +62,7 @@ describe("useXRCamera", () => {
     const id = actor.spawn();
     actor.get()!.setViewport("hud");
 
-    expect(cameraViewportMap.get(id)).toBe("hud");
+    expect(getCameraStores(engine).viewports.get(id)).toBe("hud");
     expect(actor.get()!.getViewport()).toBe("hud");
   });
 
@@ -115,8 +109,8 @@ describe("useXRCamera", () => {
     ];
     actor.get()!._setViews(views);
 
-    expect(cameraMatrixStore.get(id)).toBe(views);
-    expect(cameraMatrixStore.get(id)!.length).toBe(2);
+    expect(getCameraStores(engine).matrices.get(id)).toBe(views);
+    expect(getCameraStores(engine).matrices.get(id)!.length).toBe(2);
   });
 
   it("getHeadPosition returns undefined before _setViews", async () => {
@@ -166,12 +160,12 @@ describe("useXRCamera", () => {
         projectionMatrix: new Float32Array(16),
       },
     ]);
-    expect(cameraViewportMap.has(id)).toBe(true);
-    expect(cameraMatrixStore.has(id)).toBe(true);
+    expect(getCameraStores(engine).viewports.has(id)).toBe(true);
+    expect(getCameraStores(engine).matrices.has(id)).toBe(true);
 
     actor.despawn(id);
-    expect(cameraViewportMap.has(id)).toBe(false);
-    expect(cameraMatrixStore.has(id)).toBe(false);
+    expect(getCameraStores(engine).viewports.has(id)).toBe(false);
+    expect(getCameraStores(engine).matrices.has(id)).toBe(false);
   });
 });
 

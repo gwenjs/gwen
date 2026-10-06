@@ -1,10 +1,24 @@
 /**
  * @file onContact() — register a callback for 3D contact events this frame.
+ *
+ * Callbacks live on the current engine. Engine A never receives engine B's contacts.
  */
+import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
 import type { Physics3DCollisionContact } from "../types";
 
-/** Registry of all active contact callbacks for the current frame. */
-const _contactCallbacks: ((e: Physics3DCollisionContact) => void)[] = [];
+type ContactCallback = (e: Physics3DCollisionContact) => void;
+
+const contacts = createEngineLocal<ContactCallback[]>(() => []);
+
+function listOrNull(): ContactCallback[] | undefined {
+  try {
+    return contacts.use();
+  } catch (error) {
+    if (error instanceof GwenContextError) return undefined;
+    throw error;
+  }
+}
 
 /**
  * Register a callback to be invoked for every 3D contact event dispatched this frame.
@@ -32,10 +46,11 @@ const _contactCallbacks: ((e: Physics3DCollisionContact) => void)[] = [];
  * @since 1.0.0
  */
 export function onContact(callback: (contact: Physics3DCollisionContact) => void): () => void {
-  _contactCallbacks.push(callback);
+  const list = contacts.use();
+  list.push(callback);
   return () => {
-    const idx = _contactCallbacks.indexOf(callback);
-    if (idx !== -1) _contactCallbacks.splice(idx, 1);
+    const idx = list.indexOf(callback);
+    if (idx !== -1) list.splice(idx, 1);
   };
 }
 
@@ -49,9 +64,9 @@ export function onContact(callback: (contact: Physics3DCollisionContact) => void
  * @internal
  */
 export function _dispatchContactEvent(event: Physics3DCollisionContact): void {
-  for (const cb of _contactCallbacks) {
-    cb(event);
-  }
+  const list = listOrNull();
+  if (!list) return;
+  for (const cb of list) cb(event);
 }
 
 /**
@@ -62,5 +77,14 @@ export function _dispatchContactEvent(event: Physics3DCollisionContact): void {
  * @internal
  */
 export function _clearContactCallbacks(): void {
-  _contactCallbacks.length = 0;
+  const list = listOrNull();
+  if (!list) return;
+  list.length = 0;
+}
+
+/** Drop every contact callback owned by `engine`. */
+export function clearEngineContacts(engine: GwenEngine): void {
+  const list = contacts.peek(engine);
+  if (!list) return;
+  list.length = 0;
 }

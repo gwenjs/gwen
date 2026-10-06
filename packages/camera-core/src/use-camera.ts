@@ -1,7 +1,7 @@
-import { onCleanup } from "@gwenjs/core";
+import { onCleanup, useEngine } from "@gwenjs/core";
 import { useEntityId, useComponent } from "@gwenjs/core/actor";
 import { Camera, CameraBounds, CameraShake } from "./components";
-import { cameraViewportMap } from "./camera-viewport-map";
+import { getCameraStores } from "./camera-stores";
 import type { Camera2DHandle, Camera3DHandle, BoundsOpts2D, BoundsOpts3D } from "./camera-handle";
 import type { ShakeOpts, ShakeHandle } from "./types";
 
@@ -74,9 +74,10 @@ export function useCamera(opts: Camera2DOpts | Camera3DOpts): Camera2DHandle | C
   const boundsComp = useComponent(CameraBounds);
   const shakeComp = useComponent(CameraShake);
 
+  const viewports = getCameraStores(useEngine()).viewports;
   let currentViewport = opts.viewport ?? "main";
-  cameraViewportMap.set(entityId, currentViewport);
-  onCleanup(() => cameraViewportMap.delete(entityId));
+  viewports.set(entityId, currentViewport);
+  onCleanup(() => viewports.delete(entityId));
 
   camComp.$set({
     priority: opts.priority ?? 0,
@@ -92,7 +93,7 @@ export function useCamera(opts: Camera2DOpts | Camera3DOpts): Camera2DHandle | C
   const base = {
     setViewport(id: string): void {
       currentViewport = id;
-      cameraViewportMap.set(entityId, id);
+      viewports.set(entityId, id);
     },
     getViewport(): string {
       return currentViewport;

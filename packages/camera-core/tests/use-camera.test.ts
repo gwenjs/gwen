@@ -1,15 +1,11 @@
 // packages/camera-core/tests/use-camera.test.ts
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createEngine } from "@gwenjs/core";
 import { defineActor, useActor } from "@gwenjs/core/actor";
 import { Camera, CameraBounds, CameraShake } from "../src/components.js";
-import { cameraViewportMap } from "../src/camera-viewport-map.js";
+import { getCameraStores } from "../src/camera-stores.js";
 import { OrthographicCameraPrefab, PerspectiveCameraPrefab } from "../src/camera-prefabs.js";
 import { useCamera } from "../src/use-camera.js";
-
-beforeEach(() => {
-  cameraViewportMap.clear();
-});
 
 // ── Orthographic ───────────────────────────────────────────────────────────────
 
@@ -23,7 +19,7 @@ describe("useCamera — orthographic", () => {
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
 
-    expect(cameraViewportMap.get(id)).toBe("main");
+    expect(getCameraStores(engine).viewports.get(id)).toBe("main");
     expect(engine.getComponent(id, Camera)?.projectionType).toBe(0);
   });
 
@@ -119,7 +115,7 @@ describe("useCamera — orthographic", () => {
     const id = actor.spawn();
     actor.get()!.setViewport("hud");
 
-    expect(cameraViewportMap.get(id)).toBe("hud");
+    expect(getCameraStores(engine).viewports.get(id)).toBe("hud");
     expect(actor.get()!.getViewport()).toBe("hud");
   });
 
@@ -209,10 +205,10 @@ describe("useCamera — orthographic", () => {
     await engine.use(Actor._plugin);
     const actor = engine.run(() => useActor(Actor));
     const id = actor.spawn();
-    expect(cameraViewportMap.has(id)).toBe(true);
+    expect(getCameraStores(engine).viewports.has(id)).toBe(true);
     actor.despawn(id);
 
-    expect(cameraViewportMap.has(id)).toBe(false);
+    expect(getCameraStores(engine).viewports.has(id)).toBe(false);
   });
 });
 

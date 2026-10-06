@@ -1,14 +1,14 @@
-// ─── BVH fetch cache (module-level — shared across plugin instances) ────────────
+// ─── BVH fetch cache (one map per engine) ───────────────────────────────────────
 
+import { createEngineLocal, GwenContextError, useEngine } from "@gwenjs/core";
 import { Physics3DErrorCodes } from "../errors/codes";
 import { GwenError } from "@gwenjs/schema";
 
 /**
  * Cache mapping BVH asset URL to its in-flight or resolved fetch Promise.
- * Deduplicates concurrent fetches for the same URL across multiple `useMeshCollider`
- * calls and `preloadMeshCollider` calls.
+ * One cache per engine. A rejected fetch is removed so a later call can retry.
  */
-const _bvhCache = new Map<string, Promise<ArrayBuffer>>();
+const bvhCaches = createEngineLocal(() => new Map<string, Promise<ArrayBuffer>>());
 
 /**
  * Fetch a pre-baked BVH binary, deduplicating concurrent requests for the same URL.
@@ -20,29 +20,38 @@ const _bvhCache = new Map<string, Promise<ArrayBuffer>>();
  * @internal
  */
 export function _fetchBvhBuffer(url: string): Promise<ArrayBuffer> {
-  if (!_bvhCache.has(url)) {
-    _bvhCache.set(
-      url,
-      fetch(url).then((r) => {
-        if (!r.ok)
-          throw new GwenError(
-            Physics3DErrorCodes.BVH_LOAD_FAILED,
-            `[GWEN:Physics3D] BVH fetch failed: ${r.status} ${url}`,
-          );
-        return r.arrayBuffer();
-      }),
-    );
-  }
-  return _bvhCache.get(url)!;
+  const cache = bvhCaches.use();
+  const existing = cache.get(url);
+  if (existing) return existing;
+  const pending = fetch(url).then((r) => {
+    if (!r.ok)
+      throw new GwenError(
+        Physics3DErrorCodes.BVH_LOAD_FAILED,
+        `[GWEN:Physics3D] BVH fetch failed: ${r.status} ${url}`,
+      );
+    return r.arrayBuffer();
+  });
+  cache.set(url, pending);
+  void pending.then(undefined, () => {
+    if (cache.get(url) === pending) cache.delete(url);
+  });
+  return pending;
 }
 
 /**
- * Clear the module-level BVH fetch cache.
+ * Clear the current engine's BVH fetch cache.
  *
- * @internal Test helper — clears the SharedShape cache so test cases are isolated.
+ * Outside an engine this is a no-op.
+ *
+ * @internal
  */
 export function _clearBvhCache(): void {
-  _bvhCache.clear();
+  try {
+    bvhCaches.use().clear();
+  } catch (error) {
+    if (error instanceof GwenContextError) return;
+    throw error;
+  }
 }
 
 // ─── BVH worker (module-level — lazy singleton) ───────────────────────────────
@@ -202,6 +211,7 @@ export interface PreloadedBvhHandle {
  * @since 2.0.0
  */
 export function preloadMeshCollider(url: string): PreloadedBvhHandle {
+  useEngine();
   const handle: PreloadedBvhHandle = {
     status: "loading",
     url,

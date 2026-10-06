@@ -29,7 +29,7 @@ import { _getActorContext } from "./define-actor";
 import { _applyTransformOpts } from "./place";
 import type { PlaceOptions } from "./place";
 import { spawnActor } from "./spawn-tuple";
-import { _actorRegistry, _instanceRegistry, _ownerRegistry } from "./define-actor";
+import { actorTablesFor, type ActorTables } from "./define-actor";
 
 // ─── Public types ─────────────────────────────────────────────────────────────
 
@@ -80,12 +80,12 @@ export interface ChildrenHandle {
  * Only traverses live entities (present in `_instanceRegistry`) to avoid false
  * positives from stale entries across engine lifetimes.
  */
-function _isAncestor(candidate: EntityId, of: EntityId): boolean {
+function _isAncestor(tables: ActorTables, candidate: EntityId, of: EntityId): boolean {
   let current: EntityId | undefined = of;
   while (current !== undefined) {
     // Only follow the ownership link if the current entity is actually alive.
-    if (!_instanceRegistry.has(current)) break;
-    const ownerId = _ownerRegistry.get(current);
+    if (!tables.instances.has(current)) break;
+    const ownerId = tables.owners.get(current);
     if (ownerId === candidate) return true;
     current = ownerId;
   }
@@ -133,6 +133,7 @@ export function useChildren(): ChildrenHandle {
   }
 
   const { instance, engine } = ctx;
+  const tables = actorTablesFor(engine);
   if (!instance._children) instance._children = new Set();
   const owned: Set<EntityId> = instance._children;
   const parentId: EntityId = instance.entityId;
@@ -140,7 +141,7 @@ export function useChildren(): ChildrenHandle {
   const _handles = new Map<EntityId, PlaceHandle<unknown>>();
 
   function _registerOwnership(childId: EntityId): void {
-    const existingOwnerId = _ownerRegistry.get(childId);
+    const existingOwnerId = tables.owners.get(childId);
     if (existingOwnerId !== undefined && existingOwnerId !== parentId) {
       if (__GWEN_DEV__) {
         engine.logger
@@ -149,11 +150,11 @@ export function useChildren(): ChildrenHandle {
             `Actor ${String(childId)} adopted — ownership transferred from parent ${String(existingOwnerId)}`,
           );
       }
-      const prevOwnerInstance = _instanceRegistry.get(existingOwnerId);
+      const prevOwnerInstance = tables.instances.get(existingOwnerId);
       prevOwnerInstance?._children?.delete(childId);
     }
     owned.add(childId);
-    _ownerRegistry.set(childId, parentId);
+    tables.owners.set(childId, parentId);
   }
 
   return {
@@ -201,7 +202,7 @@ export function useChildren(): ChildrenHandle {
 
       const childId = handle.entityId;
 
-      if (childId === parentId || _isAncestor(childId, parentId)) {
+      if (childId === parentId || _isAncestor(tables, childId, parentId)) {
         throw new GwenActorError(
           ActorErrorCodes.CIRCULAR_OWNERSHIP,
           `[GWEN] useChildren().adopt(): circular ownership detected — actor ${String(childId)} is an ancestor of ${String(parentId)}. Code: ${ActorErrorCodes.CIRCULAR_OWNERSHIP}`,
@@ -225,7 +226,7 @@ export function useChildren(): ChildrenHandle {
         return;
       }
       owned.delete(childId);
-      _ownerRegistry.delete(childId);
+      tables.owners.delete(childId);
       _handles.delete(childId);
     },
 

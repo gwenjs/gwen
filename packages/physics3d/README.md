@@ -76,6 +76,6 @@ Types: none
 
 no semver guarantee — framework packages and generated code only
 
-Values: `COLLIDER_ID_ABSENT`, `EVENT_STRIDE_3D`, `MAX_EVENTS_3D`, `QUALITY_PRESETS`, `_clearBvhCache`, `_clearContactCallbacks`, `_clearSensorCallbacks`, `_dispatchContactEvent`, `_dispatchSensorEnter`, `_dispatchSensorExit`, `normalizePhysics3DConfig`
+Values: `COLLIDER_ID_ABSENT`, `EVENT_STRIDE_3D`, `MAX_EVENTS_3D`, `QUALITY_PRESETS`, `normalizePhysics3DConfig`
 
 Types: none

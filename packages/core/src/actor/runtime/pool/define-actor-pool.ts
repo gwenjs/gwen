@@ -7,7 +7,7 @@ import type { ActorDefinition } from "../types";
 import { PoolExhaustedError } from "./errors";
 import type { ActorPool, ActorPoolDefinition, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
-import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
+import { actorTablesFor } from "../define-actor";
 import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 
@@ -314,10 +314,11 @@ export function defineActorPool<Props, PublicAPI>(
     if (inst._children && inst._children.size > 0) {
       const childIds = [...inst._children];
       inst._children.clear();
+      const tables = _engine ? actorTablesFor(_engine) : undefined;
       for (const childId of childIds) {
-        const childRelease = _poolReleaseRegistry.get(childId);
+        const childRelease = tables?.poolRelease.get(childId);
         if (childRelease) childRelease(childId);
-        else _actorRegistry.get(childId)?.despawn(childId);
+        else tables?.actors.get(childId)?.despawn(childId);
       }
     }
 
@@ -438,7 +439,7 @@ export function defineActorPool<Props, PublicAPI>(
         const spawnActor = actor._plugin.spawn as (next?: Props) => EntityId;
         id = spawnActor(props);
         const spawned = id;
-        _poolReleaseRegistry.set(spawned, (childId: EntityId) => {
+        actorTablesFor(engine).poolRelease.set(spawned, (childId: EntityId) => {
           if (isActive(childId)) _doRelease(childId);
         });
       } else {
@@ -476,10 +477,11 @@ export function defineActorPool<Props, PublicAPI>(
     if (inst._children && inst._children.size > 0) {
       const childIds = [...inst._children];
       inst._children.clear();
+      const tables = _engine ? actorTablesFor(_engine) : undefined;
       for (const childId of childIds) {
-        const childRelease = _poolReleaseRegistry.get(childId);
+        const childRelease = tables?.poolRelease.get(childId);
         if (childRelease) childRelease(childId);
-        else _actorRegistry.get(childId)?.despawn(childId);
+        else tables?.actors.get(childId)?.despawn(childId);
       }
     }
 

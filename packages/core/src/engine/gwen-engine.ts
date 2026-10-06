@@ -30,6 +30,9 @@ import {
 } from "@gwenjs/schema";
 import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
 import { engineContext } from "./context";
+import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
+import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
+import { stringPoolFor } from "../utils/string-pool";
 import { withCleanup } from "../cleanup-context";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
@@ -134,6 +137,49 @@ import type {
 } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
 import { clamp } from "@gwenjs/math";
+import type { ComponentType } from "../types";
+
+type EngineHookFn = (...args: unknown[]) => unknown;
+
+function callHooksWithEngine(
+  engine: GwenEngine,
+  hooks: readonly EngineHookFn[],
+  args: readonly unknown[],
+  start: number,
+): unknown {
+  for (let i = start; i < hooks.length; i++) {
+    const hook = hooks[i];
+    if (hook === undefined) continue;
+    const previous = pushEngine(engine);
+    try {
+      const result = hook(...args);
+      if (isThenable(result)) {
+        return Promise.resolve(result)
+          .then(() => callHooksWithEngine(engine, hooks, args, i + 1))
+          .finally(() => popEngine(engine, previous));
+      }
+    } catch (error) {
+      popEngine(engine, previous);
+      return Promise.reject(error);
+    }
+    popEngine(engine, previous);
+  }
+  return undefined;
+}
+
+function callHooksWithEngineParallel(
+  engine: GwenEngine,
+  hooks: readonly EngineHookFn[],
+  args: readonly unknown[],
+): unknown {
+  if (hooks.length === 0) return undefined;
+  return Promise.all(
+    hooks.map((hook) => {
+      engineContext.set(engine, true);
+      return hook(...args);
+    }),
+  );
+}
 
 // #region Internal helpers
 
@@ -194,6 +240,14 @@ interface WasmModuleEntry {
 }
 
 class GwenEngineImpl implements GwenEngine {
+  /** Real engine behind a hooks proxy. */
+  get [gwenEngineSelf](): this {
+    return this;
+  }
+
+  /** Engine that `activate()` replaced. Restored by `deactivate()` when this engine is still current. */
+  private _engineBeforeActivate: GwenEngine | undefined;
+  private _activateCaptured = false;
   // ─── Config ──────────────────────────────────────────────────────────────
   readonly maxEntities: number;
   readonly targetFPS: number;
@@ -463,6 +517,26 @@ class GwenEngineImpl implements GwenEngine {
     );
     this._attachErrorPolicy();
     this._rememberInternals(this);
+    this._bindEngineOnHooks();
+    stringPoolFor(this);
+  }
+
+  private _bindEngineOnHooks(): void {
+    const hooks = this.hooks;
+    const engine = this;
+    const callWith = hooks.callHookWith.bind(hooks);
+    hooks.callHook = ((name, ...args) =>
+      callWith(
+        (list, hookArgs) => callHooksWithEngine(engine, list, hookArgs, 0),
+        name,
+        args,
+      )) as typeof hooks.callHook;
+    hooks.callHookParallel = ((name, ...args) =>
+      callWith(
+        (list, hookArgs) => callHooksWithEngineParallel(engine, list, hookArgs),
+        name,
+        args,
+      )) as typeof hooks.callHookParallel;
   }
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
@@ -475,16 +549,21 @@ class GwenEngineImpl implements GwenEngine {
     const engineWithScopedHooks = this._withScopedHooks(scopedHooks);
 
     try {
-      // Run setup inside engine context so useEngine() resolves to this instance.
-      // engineContext.call() saves and restores the previous context (safe for nesting).
+      // Run the synchronous part of setup with this engine current, then restore
+      // whoever was current. Nesting another engine is allowed (no "Context conflict").
       // Attribution covers only the synchronous part of setup.
       let setupResult: void | Promise<void> | undefined;
       const previousSetup = beginPluginSetup(plugin);
+      const previousEngine = pushEngine(this);
       try {
-        const [, dispose] = withCleanup(() => {
-          setupResult = engineContext.call(this, () => plugin.setup(engineWithScopedHooks));
-        });
-        this._pluginCleanups.set(plugin.name, dispose);
+        try {
+          const [, dispose] = withCleanup(() => {
+            setupResult = plugin.setup(engineWithScopedHooks);
+          });
+          this._pluginCleanups.set(plugin.name, dispose);
+        } finally {
+          popEngine(this, previousEngine);
+        }
       } finally {
         endPluginSetup(previousSetup);
       }
@@ -515,10 +594,14 @@ class GwenEngineImpl implements GwenEngine {
     const plugin = this._plugins[idx]!;
     this._pluginCleanups.get(name)?.();
     this._pluginCleanups.delete(name);
+    const previousEngine = pushEngine(this);
     try {
-      await plugin.teardown?.();
+      const pending = plugin.teardown?.();
+      if (pending instanceof Promise) await pending;
     } catch (err) {
       this._reportTeardown(plugin, err);
+    } finally {
+      popEngine(this, previousEngine);
     }
     this._plugins.splice(idx, 1);
     this._pluginNames.delete(name);
@@ -566,7 +649,12 @@ class GwenEngineImpl implements GwenEngine {
    */
   run<T>(fn: () => T): T {
     this._assertNotFaulted("run");
-    return engineContext.call(this, fn);
+    const previous = pushEngine(this);
+    try {
+      return fn();
+    } finally {
+      popEngine(this, previous);
+    }
   }
 
   /**
@@ -577,16 +665,25 @@ class GwenEngineImpl implements GwenEngine {
    */
   activate(): void {
     this._assertNotFaulted("activate");
+    if (!this._activateCaptured) {
+      this._engineBeforeActivate = engineContext.tryUse() ?? undefined;
+      this._activateCaptured = true;
+    }
     engineContext.set(this, true);
   }
 
   /**
-   * Clears this engine from the active global context.
-   * Must be called after {@link activate} when the frame is complete.
+   * Restores the engine captured by {@link activate} when this engine is still current.
+   * A no-op when another engine has replaced the context.
    */
   deactivate(): void {
     this._assertNotFaulted("deactivate");
-    engineContext.unset();
+    if (engineContext.tryUse() !== this) return;
+    const previous = this._engineBeforeActivate;
+    this._engineBeforeActivate = undefined;
+    this._activateCaptured = false;
+    if (previous) engineContext.set(previous, true);
+    else engineContext.unset();
   }
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
@@ -716,7 +813,7 @@ class GwenEngineImpl implements GwenEngine {
     if (this._state === "stopping") await this._transition("stopped", "USER");
   }
 
-  /** Cancel the frame, run `engine:stop`, then clear hooks, glue, and disposables. */
+  /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
   private async _teardown(): Promise<void> {
     this._cancelScheduledFrame();
     try {
@@ -727,12 +824,8 @@ class GwenEngineImpl implements GwenEngine {
     this._tracker.clearAll(this.hooks);
     clearIsolated(this);
 
-    // Clean up WASM modules and globalThis glue cache
-    // Clear all __gwenGlue_* keys from globalThis so that next init reloads fresh
-    const ctx = globalThis as Record<string, unknown>;
-    for (const key of Object.keys(ctx)) {
-      if (key.startsWith("__gwenGlue_")) delete ctx[key];
-    }
+    // Per-engine module handles only. The glue cache is shared by variant:
+    // another live engine may still need those keys.
     this._wasmModules.clear();
 
     this.disposables.disposeAll(); // LIFO — last registered, first disposed
@@ -1047,6 +1140,7 @@ class GwenEngineImpl implements GwenEngine {
     this.hooks.callHookWith(
       (hooks, args) => {
         for (const handler of hooks) {
+          const previous = pushEngine(this);
           try {
             const result = handler(...args);
             if (result instanceof Promise) {
@@ -1056,6 +1150,8 @@ class GwenEngineImpl implements GwenEngine {
             }
           } catch (error) {
             this._reportEntityDestroyFailure(id, error);
+          } finally {
+            popEngine(this, previous);
           }
         }
       },
@@ -1105,12 +1201,28 @@ class GwenEngineImpl implements GwenEngine {
    * @param def - Component definition
    * @param data - Partial data to store (merged with defaults)
    */
+  /**
+   * Rust component type id for `name`, owned by this engine.
+   * The same name (including an HMR re-definition) keeps the same id.
+   * Numeric ids are not baked by the Vite optimizer; cached lookup is #66.
+   */
+  getOrRegisterComponent(type: ComponentType): number {
+    this._assertNotFaulted("getOrRegisterComponent");
+    return componentRegistryFor(this).getOrRegister(type);
+  }
+
+  /** Names registered on this engine. Does not create the registry. */
+  registeredComponentTypes(): ReadonlyMap<ComponentType, number> {
+    return componentTypeIds(this);
+  }
+
   addComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
     data: Partial<InferComponent<D>>,
   ): void {
     this._assertNotFaulted("addComponent");
+    this.getOrRegisterComponent(def.name);
     const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
     if (existing !== undefined) {
       // Membership is unchanged, so the query cache stays as it is.
@@ -1947,11 +2059,11 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   private async _runFrame(dt: number): Promise<void> {
-    // All 8 frame phases run inside this engine's context.
-    // engineContext.set(this, true) makes useEngine() resolve to this instance
-    // for the entire duration of the frame (across await points).
-    // The _advancing guard (set before _runFrame is called) prevents re-entrance,
-    // so it is safe to use set/unset here instead of call() for async compatibility.
+    // Phases start with this engine current. Each hook handler re-asserts it
+    // before it runs. After an await, the continuation keeps this engine only
+    // when no other engine has run. `finally` restores the engine found on
+    // entry when this engine is still current, and never clears another engine.
+    const previousEngine = engineContext.tryUse() ?? undefined;
     engineContext.set(this, true);
     // Single per-frame debug read. Timers, sentinels, and the budget scan sit under it.
     const instrument = __GWEN_DEV__ && this.debug;
@@ -2183,7 +2295,7 @@ class GwenEngineImpl implements GwenEngine {
         }
       }
     } finally {
-      engineContext.unset();
+      popEngine(this, previousEngine);
     }
   }
 

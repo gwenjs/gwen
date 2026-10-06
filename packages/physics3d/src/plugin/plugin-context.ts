@@ -3,7 +3,7 @@
  *
  * All sub-modules receive a reference to this context object, which holds the
  * Maps, Sets, and scalar flags that were previously local variables inside the
- * Physics3DPlugin closure. The context is created once per plugin instance.
+ * Physics3DPlugin closure. One context is created per engine.
  */
 
 import type { GwenEngine, MemoryView } from "@gwenjs/core";

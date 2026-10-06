@@ -68,10 +68,19 @@ vi.mock("@gwenjs/core", () => ({
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
   entityIndex: (id: bigint) => Number(id & 0xffffffffn),
+  createEngineLocal,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
 }));
 
+import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
+import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
+import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -129,6 +138,7 @@ function makeEngine(generationFor: (slot: number) => number | undefined = () => 
     getComponent: vi.fn(),
     isAlive: () => true,
     wasmBridge: null,
+    disposables: { add() {} },
     memory: {
       view(desc: { name: string; type: string; ptr: () => number; length: () => number }) {
         let cached: DataView | Float32Array | Uint32Array | null = null;
@@ -176,6 +186,7 @@ describe("Physics3D collision events — WASM backend mode", () => {
   function setup() {
     const { engine, services, hookMap } = makeEngine();
     const plugin = Physics3DPlugin();
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     return { plugin, service, engine, hookMap };
@@ -438,6 +449,7 @@ describe("Physics3D collision events — local mode", () => {
 
     const { engine, services, hookMap } = makeEngine();
     const plugin = Physics3DPlugin();
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
 

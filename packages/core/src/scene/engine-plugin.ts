@@ -1,6 +1,6 @@
 // packages/core/src/scene/engine-plugin.ts
 import { createDisposable } from "../disposable.js";
-import { engineContext } from "../engine/context.js";
+import { popEngine, pushEngine } from "../engine/engine-local.js";
 import type { GwenPlugin, GwenEngineBase } from "@gwenjs/schema";
 import type { SceneDefinition } from "./runtime/define-scene.js";
 
@@ -36,11 +36,11 @@ export class SceneHookRegistry {
       const enterCb = def.onEnter;
       const handler = async (sceneName: string, params?: Record<string, unknown>) => {
         if (sceneName !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await enterCb(params);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       };
       engine.hooks.hook("scene:enter", handler);
@@ -51,11 +51,11 @@ export class SceneHookRegistry {
       const exitCb = def.onExit;
       const handler = async (sceneName: string) => {
         if (sceneName !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await exitCb();
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       };
       engine.hooks.hook("scene:beforeLeave", handler);
@@ -66,11 +66,11 @@ export class SceneHookRegistry {
       const leaveCb = def.onTransitionLeave;
       const handler = async (payload: { from: string; to: string }) => {
         if (payload.from !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await leaveCb(payload);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       };
       engine.hooks.hook("scene:transition:leave", handler);
@@ -81,11 +81,11 @@ export class SceneHookRegistry {
       const enterCb = def.onTransitionEnter;
       const handler = async (payload: { from: string; to: string }) => {
         if (payload.to !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await enterCb(payload);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       };
       engine.hooks.hook("scene:transition:enter", handler);

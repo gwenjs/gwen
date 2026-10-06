@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createEngine } from "@gwenjs/core";
 import { ciThreshold } from "./helpers/perf";
 
 // ─── Mocks for dynamic body perf test ─────────────────────────────────────
@@ -56,7 +57,9 @@ describe("physics3d performance", () => {
     expect(elapsed).toBeLessThan(ciThreshold(20));
   });
 
-  it("500 onContact dispatches per frame < 1ms", () => {
+  it("500 onContact dispatches per frame < 1ms", async () => {
+    const engine = await createEngine();
+    engine.activate();
     _clearContactCallbacks();
     const cb = vi.fn();
     onContact(cb);
@@ -76,5 +79,7 @@ describe("physics3d performance", () => {
     expect(elapsed).toBeLessThan(ciThreshold(1));
     expect(cb).toHaveBeenCalledTimes(500);
     _clearContactCallbacks();
+    engine.deactivate();
+    await engine.stop();
   });
 });

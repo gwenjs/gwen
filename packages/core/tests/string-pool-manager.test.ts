@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { StringPool, StringPoolManager, GlobalStringPoolManager } from "../src/utils/string-pool";
+import { StringPool, StringPoolManager } from "../src/utils/string-pool";
 
 describe("StringPool", () => {
   let pool: StringPool;
@@ -94,56 +94,55 @@ describe("StringPoolManager", () => {
 });
 
 describe("GlobalStringPoolManager", () => {
+  let pool: StringPoolManager;
   beforeEach(() => {
-    // Clean up before each test
-    GlobalStringPoolManager.scene.clear();
-    GlobalStringPoolManager.persistent.clear();
+    pool = new StringPoolManager();
   });
 
   it("should be a singleton instance", () => {
-    const id = GlobalStringPoolManager.scene.intern("global-test");
-    expect(GlobalStringPoolManager.scene.get(id)).toBe("global-test");
+    const id = pool.scene.intern("global-test");
+    expect(pool.scene.get(id)).toBe("global-test");
   });
 
   it("should clear scene pool without affecting persistent pool", () => {
-    GlobalStringPoolManager.scene.intern("scene1");
-    GlobalStringPoolManager.scene.intern("scene2");
-    GlobalStringPoolManager.persistent.intern("persistent1");
+    pool.scene.intern("scene1");
+    pool.scene.intern("scene2");
+    pool.persistent.intern("persistent1");
 
-    expect(GlobalStringPoolManager.scene.size).toBe(2);
-    expect(GlobalStringPoolManager.persistent.size).toBe(1);
+    expect(pool.scene.size).toBe(2);
+    expect(pool.persistent.size).toBe(1);
 
-    GlobalStringPoolManager.clearScene();
+    pool.clearScene();
 
-    expect(GlobalStringPoolManager.scene.size).toBe(0);
-    expect(GlobalStringPoolManager.persistent.size).toBe(1);
+    expect(pool.scene.size).toBe(0);
+    expect(pool.persistent.size).toBe(1);
   });
 
   it("should handle multiple scene transitions without leaking persistent pool", () => {
     // Simulate 100 scene transitions
     for (let i = 0; i < 100; i++) {
-      GlobalStringPoolManager.scene.intern(`scene-entity-${i}`);
-      GlobalStringPoolManager.clearScene();
+      pool.scene.intern(`scene-entity-${i}`);
+      pool.clearScene();
     }
 
     // Scene pool should be empty after each clearScene()
-    expect(GlobalStringPoolManager.scene.size).toBe(0);
+    expect(pool.scene.size).toBe(0);
 
     // Persistent pool should remain stable if not used
-    expect(GlobalStringPoolManager.persistent.size).toBe(0);
+    expect(pool.persistent.size).toBe(0);
   });
 
   it("should correctly manage persistent strings across transitions", () => {
     const playerName = "Hero";
-    const persistentId = GlobalStringPoolManager.persistent.intern(playerName);
+    const persistentId = pool.persistent.intern(playerName);
 
     // Simulate scene transitions
     for (let i = 0; i < 10; i++) {
-      GlobalStringPoolManager.scene.intern(`temp-${i}`);
-      GlobalStringPoolManager.clearScene();
+      pool.scene.intern(`temp-${i}`);
+      pool.clearScene();
     }
 
     // Persistent string should still be accessible
-    expect(GlobalStringPoolManager.persistent.get(persistentId)).toBe(playerName);
+    expect(pool.persistent.get(persistentId)).toBe(playerName);
   });
 });

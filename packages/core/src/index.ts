@@ -84,6 +84,8 @@ export type { LogLevel, LogEntry, IGwenLogger } from "./logger/index";
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 
 export { useEngine, GwenContextError, withAsyncContext } from "./engine/context";
+export { createEngineLocal } from "./engine/engine-local";
+export type { EngineLocal } from "./engine/engine-local";
 
 export type { WasmBridge, CoreVariant } from "./engine/wasm-bridge";
 

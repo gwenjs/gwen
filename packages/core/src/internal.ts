@@ -44,7 +44,7 @@ export {
   writeTransform3DScale,
 } from "./components/transform3d";
 
-export { GlobalStringPoolManager, StringPoolManager, StringPool } from "./utils/string-pool";
+export { StringPoolManager, StringPool, stringPoolFor } from "./utils/string-pool";
 
 export { detectCoreVariant } from "./utils/variant-detector";
 

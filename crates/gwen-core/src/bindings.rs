@@ -1481,12 +1481,20 @@ impl Engine {
 
     #[cfg(feature = "physics2d")]
     pub fn physics_get_collision_events_ptr(&self) -> *const u8 {
-        crate::physics2d::events::get_collision_events_ptr() as *const u8
+        if let Some(world) = self.physics_world.as_ref() {
+            world.collision_events_ptr() as *const u8
+        } else {
+            std::ptr::null()
+        }
     }
 
     #[cfg(feature = "physics2d")]
     pub fn physics_get_collision_event_count(&self) -> u32 {
-        crate::physics2d::events::get_collision_event_count() as u32
+        if let Some(world) = self.physics_world.as_ref() {
+            world.collision_event_count()
+        } else {
+            0
+        }
     }
 
     // ─── Pathfinding (2D) ──────────────────────────────────────────────────────
@@ -1529,7 +1537,9 @@ impl Engine {
         origin_y: f32,
         origin_z: f32,
     ) {
-        crate::physics3d::pathfinding::init_navgrid_3d(
+        if let Some(world) = self.physics3d_world.as_mut() {
+        crate::physics3d::pathfinding::install_navgrid(
+                world.nav_grid_mut(),
             ptr as *const u8,
             width as usize,
             height as usize,
@@ -1539,6 +1549,7 @@ impl Engine {
             origin_y,
             origin_z,
         );
+        }
     }
 
     /// Find a path in the uploaded 3D voxel grid using A*.
@@ -1562,8 +1573,13 @@ impl Engine {
         to_y: f32,
         to_z: f32,
     ) -> u32 {
-        crate::physics3d::pathfinding::find_path_3d(from_x, from_y, from_z, to_x, to_y, to_z)
+        if let Some(world) = self.physics3d_world.as_ref() {
+        crate::physics3d::pathfinding::find_path_on_grid(
+                world.nav_grid(),from_x, from_y, from_z, to_x, to_y, to_z)
             as u32
+        } else {
+            0
+        }
     }
 
     /// Returns the WASM linear-memory pointer to the 3D path waypoint buffer.
@@ -2857,7 +2873,11 @@ impl Engine {
     /// Slot index is returned by [`physics3d_add_character_controller`].
     #[cfg(feature = "physics3d")]
     pub fn physics3d_get_cc_sab_ptr(&self) -> u32 {
-        crate::physics3d::world::get_cc_sab_ptr() as u32
+        if let Some(world) = self.physics3d_world.as_ref() {
+            world.cc_state_ptr() as u32
+        } else {
+            0
+        }
     }
 
     /// Returns the maximum number of concurrent character controllers.

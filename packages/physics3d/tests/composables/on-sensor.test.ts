@@ -1,15 +1,26 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
 import {
   onSensorEnter,
   onSensorExit,
   _dispatchSensorEnter,
   _dispatchSensorExit,
   _clearSensorCallbacks,
+  clearEngineSensors,
 } from "../../src/composables/on-sensor.js";
 
 describe("onSensorEnter / onSensorExit", () => {
-  beforeEach(() => {
+  let engine: GwenEngine;
+
+  beforeEach(async () => {
+    engine = await createEngine();
+    engine.activate();
     _clearSensorCallbacks();
+  });
+
+  afterEach(async () => {
+    engine.deactivate();
+    await engine.stop();
   });
 
   it("onSensorEnter callback triggered by _dispatchSensorEnter with matching sensorId", () => {
@@ -125,5 +136,39 @@ describe("onSensorEnter / onSensorExit", () => {
     const unregister = onSensorExit(99, () => {});
     unregister();
     expect(() => unregister()).not.toThrow();
+  });
+});
+
+describe("onSensor engine isolation", () => {
+  it("throws OUTSIDE_ENGINE when no engine is current", () => {
+    expect(() => onSensorEnter(1, () => {})).toThrow(GwenContextError);
+  });
+
+  it("clears sensors on one engine only", async () => {
+    const a = await createEngine();
+    const b = await createEngine();
+    try {
+      let hits = 0;
+      a.activate();
+      onSensorEnter(4, () => {
+        hits += 1;
+      });
+      a.deactivate();
+      b.activate();
+      onSensorEnter(4, () => {
+        hits += 100;
+      });
+      clearEngineSensors(b);
+      _dispatchSensorEnter(4, 1n);
+      expect(hits).toBe(0);
+      b.deactivate();
+      a.activate();
+      _dispatchSensorEnter(4, 1n);
+      expect(hits).toBe(1);
+      a.deactivate();
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
   });
 });

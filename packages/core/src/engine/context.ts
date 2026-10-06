@@ -58,7 +58,7 @@ export function executeAsync<T>(fn: () => Promise<T>): [Promise<T>, () => void] 
     fn(),
     () => {
       if (_ctx !== null && _ctx !== undefined) {
-        engineContext.set(_ctx);
+        engineContext.set(_ctx, true);
       } else {
         engineContext.unset();
       }
@@ -113,15 +113,21 @@ export function withAsyncContext<T extends (...args: unknown[]) => Promise<unkno
   const _ctx = engineContext.tryUse();
   const _scope = GwenScope.current();
   return ((...args: unknown[]) => {
-    if (_ctx !== null && _ctx !== undefined) {
-      engineContext.set(_ctx);
+    if (_ctx === null || _ctx === undefined) {
+      throw new GwenContextError(
+        "[GWEN] withAsyncContext() was called outside an active engine context.",
+        CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
+      );
     }
+    const previousEngine = engineContext.tryUse();
+    const previousScope = GwenScope.current();
+    engineContext.set(_ctx, true);
     GwenScope._setCurrent(_scope);
     return fn(...args).finally(() => {
-      if (_ctx !== null && _ctx !== undefined) {
-        engineContext.unset();
-      }
-      GwenScope._setCurrent(null);
+      if (engineContext.tryUse() !== _ctx) return;
+      if (previousEngine) engineContext.set(previousEngine, true);
+      else engineContext.unset();
+      GwenScope._setCurrent(previousScope);
     });
   }) as T;
 }

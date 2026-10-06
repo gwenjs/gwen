@@ -198,6 +198,6 @@ Types: none
 
 no semver guarantee — framework packages and generated code only
 
-Values: `cameraMatrixStore`, `cameraPathStore`, `cameraViewportMap`
+Values: `getCameraStores`
 
 Types: none

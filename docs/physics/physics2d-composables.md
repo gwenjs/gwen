@@ -393,7 +393,7 @@ onUpdate(() => {
 
 | Function | Callback Signature | Purpose |
 |---|---|---|
-| `onContact(callback)` | `(contact: ContactEvent) => void` | Fires when this entity collides with another. |
+| `onContact(callback, entityId?)` | `(contact: ContactEvent) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. |
 | `onSensorEnter(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity enters a sensor collider. |
 | `onSensorExit(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity leaves a sensor collider. |
 

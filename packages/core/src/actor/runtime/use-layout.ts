@@ -14,7 +14,8 @@
  * ```
  */
 
-import { useEngine, engineContext } from "../../engine/context";
+import { useEngine } from "../../engine/context";
+import { popEngine, pushEngine } from "../../engine/engine-local";
 import { _withLayoutContext } from "./place";
 import { entityIndex } from "../../engine/engine-api";
 import type { EntityId } from "../../engine/engine-api";
@@ -63,10 +64,17 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
       );
     }
 
-    const { result, entities } = engineContext.call(engine, () =>
-      _withLayoutContext(() => layoutDef._factory()),
-    );
-    _refs = result;
+    const previous = pushEngine(engine);
+    let result: Refs | undefined;
+    let entities: EntityId[] = [];
+    try {
+      const loaded = _withLayoutContext(() => layoutDef._factory());
+      result = loaded.result;
+      entities = loaded.entities;
+    } finally {
+      popEngine(engine, previous);
+    }
+    if (result !== undefined) _refs = result;
     _entityIds = entities;
     _active = true;
   }

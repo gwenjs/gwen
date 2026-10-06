@@ -1,55 +1,39 @@
 /**
- * _resetWasmBridge() — globalThis glue cache eviction.
+ * Glue cache is shared by WASM variant.
  *
- * Verifies that _resetWasmBridge() clears any __gwenGlue_* keys that
- * loadWasmGlue() would have set on globalThis, so tests start clean.
- *
- * engine.stop() — WASM module and glue cache cleanup.
- *
- * Verifies that engine.stop() clears _wasmModules and corresponding
- * globalThis glue keys so that next init can reload fresh.
+ * Resetting one bridge, or stopping one engine, must leave `__gwenGlue_*`
+ * keys in place for any other engine on the same variant.
  */
 
 import { describe, it, expect, afterEach } from "vitest";
-import { getWasmBridge, WasmBridgeImpl } from "../../src/internal";
-
-function _resetWasmBridge(): void {
-  const bridge = getWasmBridge();
-  if (!(bridge instanceof WasmBridgeImpl)) {
-    throw new Error("expected WasmBridgeImpl");
-  }
-  bridge._reset();
-}
+import { WasmBridgeImpl } from "../../src/internal";
 import { createEngine } from "../../src/engine/gwen-engine";
 
-describe("_resetWasmBridge — globalThis glue cache eviction", () => {
+describe("WasmBridgeImpl._reset keeps the shared glue cache", () => {
   afterEach(() => {
-    // Belt-and-suspenders: clean up any leftover keys from the test itself.
     const ctx = globalThis as Record<string, unknown>;
     for (const key of Object.keys(ctx)) {
       if (key.startsWith("__gwenGlue_")) delete ctx[key];
     }
-    _resetWasmBridge();
   });
 
-  it("removes __gwenGlue_ module cache keys set by loadWasmGlue", () => {
+  it("keeps __gwenGlue_ module cache keys", () => {
     const ctx = globalThis as Record<string, unknown>;
-    // Simulate what loadWasmGlue() writes after a successful load.
     ctx["__gwenGlue_https___cdn_example_com_gwen_js"] = { version: "mock" };
 
-    _resetWasmBridge();
+    new WasmBridgeImpl()._reset();
 
-    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js"]).toBeUndefined();
+    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js"]).toEqual({ version: "mock" });
   });
 
-  it("removes __resolve callback keys left by the blob script path", () => {
+  it("keeps __resolve callback keys left by the blob script path", () => {
     const ctx = globalThis as Record<string, unknown>;
-    // Simulate what the main-thread blob path writes before the script runs.
-    ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"] = () => {};
+    const resolve = () => {};
+    ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"] = resolve;
 
-    _resetWasmBridge();
+    new WasmBridgeImpl()._reset();
 
-    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"]).toBeUndefined();
+    expect(ctx["__gwenGlue_https___cdn_example_com_gwen_js__resolve"]).toBe(resolve);
   });
 });
 
@@ -82,7 +66,7 @@ describe("engine.stop() — WASM module and glue cache cleanup", () => {
     expect(wasmModules.size).toBe(0);
   });
 
-  it("deletes globalThis glue cache keys on stop()", async () => {
+  it("keeps globalThis glue cache keys on stop()", async () => {
     const engine = await createEngine();
     const wasmModules = (engine as any)._wasmModules as Map<string, unknown>;
     const ctx = globalThis as Record<string, unknown>;
@@ -100,7 +84,6 @@ describe("engine.stop() — WASM module and glue cache cleanup", () => {
     // Stop the engine
     await engine.stop();
 
-    // Verify glue key was deleted
-    expect(ctx[glueKey]).toBeUndefined();
+    expect(ctx[glueKey]).toEqual({ mock: true });
   });
 });

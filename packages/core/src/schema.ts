@@ -137,12 +137,13 @@ export interface SchemaLayout<T> {
    * Serialize `data` into `view` and return the total bytes written.
    * Always present — `computeSchemaLayout` unconditionally produces this function.
    */
-  serialize: (data: T, view: DataView) => number;
+  serialize: (data: T, view: DataView, strings: StringPoolManager) => number;
   /**
    * Deserialize a component from `view` and return the typed value.
    * Always present — `computeSchemaLayout` unconditionally produces this function.
+   * `strings` is the caller's pool (one manager per engine).
    */
-  deserialize: (view: DataView) => T;
+  deserialize: (view: DataView, strings: StringPoolManager) => T;
 }
 
 // ── Internal types for serialization ──────────────────────────────────────────
@@ -161,11 +162,18 @@ interface FieldMeta {
  * Adding a new schema type only requires adding one entry here — no other code changes needed.
  */
 interface SchemaTypeHandler {
-  serialize(view: DataView, offset: number, value: unknown, typeObj: SchemaType): void;
+  serialize(
+    view: DataView,
+    offset: number,
+    value: unknown,
+    typeObj: SchemaType,
+    strings: StringPoolManager,
+  ): void;
   deserialize(
     view: DataView,
     offset: number,
     typeObj: SchemaType,
+    strings: StringPoolManager,
   ): FieldValue | Record<string, number>;
 }
 
@@ -184,7 +192,7 @@ const COMPOSITE_FIELDS: Record<string, readonly string[]> = Object.fromEntries(
     .map((t) => [t.type, t.fields]),
 );
 
-import { GlobalStringPoolManager } from "./utils/string-pool.js";
+import type { StringPoolManager } from "./utils/string-pool.js";
 
 // Typed helpers for dynamic DataView numeric read/write dispatch.
 // Avoids `as any` on DataView for dynamic method name calls.
@@ -230,17 +238,17 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
   },
 
   string: {
-    serialize(view, offset, value, typeObj) {
+    serialize(view, offset, value, typeObj, strings) {
       const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
-        ? GlobalStringPoolManager.persistent
-        : GlobalStringPoolManager.scene;
+        ? strings.persistent
+        : strings.scene;
       view.setInt32(offset, pool.intern(value as string), true);
     },
-    deserialize(view, offset, typeObj) {
+    deserialize(view, offset, typeObj, strings) {
       const strId = view.getInt32(offset, true);
       const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
-        ? GlobalStringPoolManager.persistent
-        : GlobalStringPoolManager.scene;
+        ? strings.persistent
+        : strings.scene;
       return pool.get(strId);
     },
   },
@@ -328,19 +336,19 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
     handler: (SCHEMA_TYPE_HANDLERS[meta.type] ?? SCHEMA_TYPE_HANDLERS["_numeric"])!,
   }));
 
-  const serialize = (data: T, view: DataView): number => {
+  const serialize = (data: T, view: DataView, strings: StringPoolManager): number => {
     let bytesWritten = 0;
     for (const { key, meta, typeObj, handler } of handlers) {
-      handler.serialize(view, meta.offset, data[key as keyof T], typeObj);
+      handler.serialize(view, meta.offset, data[key as keyof T], typeObj, strings);
       bytesWritten += meta.byteLength;
     }
     return bytesWritten;
   };
 
-  const deserialize = (view: DataView): T => {
+  const deserialize = (view: DataView, strings: StringPoolManager): T => {
     const obj: Record<string, FieldValue | Record<string, number>> = {};
     for (const { key, meta, typeObj, handler } of handlers) {
-      obj[key] = handler.deserialize(view, meta.offset, typeObj);
+      obj[key] = handler.deserialize(view, meta.offset, typeObj, strings);
     }
     return obj as T;
   };
@@ -517,7 +525,7 @@ export interface ComponentDefinition<S extends ComponentSchema> {
    * returns the same id, with another layout it throws.
    * Matches the ID used in `register_component_type` on the Rust side.
    *
-   * @internal Used by the gwen:optimizer Vite plugin — do not rely on the specific value.
+   * @internal
    */
   readonly _typeId: number;
   /**

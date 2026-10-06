@@ -1,12 +1,14 @@
 /**
  * @file onContact() / _dispatchContactEvent() tests.
  */
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
 import {
   _dispatchContactEvent,
   onContact,
   _setCurrentContactEntityId,
   _clearContactCallbacks,
+  clearEngineContacts,
 } from "../../src/composables/on-contact.js";
 import type { ContactEvent } from "../../src/types.js";
 
@@ -22,9 +24,17 @@ const sampleEvent: ContactEvent = {
 };
 
 describe("onContact / _dispatchContactEvent", () => {
-  beforeEach(() => {
-    // Clear current entity context before each test
+  let engine: GwenEngine;
+
+  beforeEach(async () => {
+    engine = await createEngine();
+    engine.activate();
     _setCurrentContactEntityId(null);
+  });
+
+  afterEach(async () => {
+    engine.deactivate();
+    await engine.stop();
   });
 
   it("dispatches to a callback registered with an explicit entity ID", () => {
@@ -57,13 +67,9 @@ describe("onContact / _dispatchContactEvent", () => {
     expect(() => _dispatchContactEvent(999n, sampleEvent)).not.toThrow();
   });
 
-  it("does not register callback when entityId is not provided and context is null", () => {
-    let received: ContactEvent | null = null;
-    onContact((e) => {
-      received = e;
-    }); // no entityId, context is null
-    _dispatchContactEvent(1n, sampleEvent);
-    expect(received).toBeNull();
+  it("throws ACTOR_SETUP_ONLY when entityId is missing and no actor is current", () => {
+    _setCurrentContactEntityId(null);
+    expect(() => onContact(() => {})).toThrow(GwenContextError);
   });
 
   it("registers callback using context entity ID set via _setCurrentContactEntityId", () => {
@@ -101,5 +107,39 @@ describe("onContact / _dispatchContactEvent", () => {
     _clearContactCallbacks(5n);
     _dispatchContactEvent(5n, sampleEvent);
     expect(called).toBe(false);
+  });
+});
+
+describe("onContact engine isolation", () => {
+  it("throws OUTSIDE_ENGINE when no engine is current", () => {
+    expect(() => onContact(() => {}, 1n)).toThrow(GwenContextError);
+  });
+
+  it("keeps engine A callbacks when engine B is cleared", async () => {
+    const a = await createEngine();
+    const b = await createEngine();
+    try {
+      let hits = 0;
+      a.activate();
+      onContact(() => {
+        hits += 1;
+      }, 1n);
+      a.deactivate();
+      b.activate();
+      onContact(() => {
+        hits += 100;
+      }, 1n);
+      clearEngineContacts(b);
+      _dispatchContactEvent(1n, sampleEvent);
+      expect(hits).toBe(0);
+      b.deactivate();
+      a.activate();
+      _dispatchContactEvent(1n, sampleEvent);
+      expect(hits).toBe(1);
+      a.deactivate();
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
   });
 });

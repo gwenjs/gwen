@@ -1,3 +1,6 @@
+import type { GwenEngine } from "../engine/gwen-engine";
+import { createEngineLocal } from "../engine/engine-local";
+
 /**
  * String Pool — bidirectional string ↔ i32 ID mapping.
  *
@@ -18,7 +21,7 @@ export class StringPool {
    *
    * ❌ **BAD**:
    * ```ts
-   * const cachedId = GlobalStringPoolManager.scene.intern('Name');
+   * const cachedId = strings.scene.intern('Name');
    * ```
    *
    * ✅ **GOOD**:
@@ -136,14 +139,9 @@ export class StringPoolManager {
   }
 }
 
-/**
- * Global StringPoolManager instance.
- * Manages both scene-scoped and persistent string pools.
- * Debug mode is disabled by default (pass true if needed during development).
- */
-export const GlobalStringPoolManager = new StringPoolManager(false);
+const stringPools = createEngineLocal(() => new StringPoolManager(false));
 
-/**
- * Global StringPool alias bound to the scene pool.
- */
-export const GlobalStringPool = GlobalStringPoolManager.scene;
+/** The string pools owned by `engine`. Created on first access and released by `stop()`. */
+export function stringPoolFor(engine: GwenEngine): StringPoolManager {
+  return stringPools.get(engine);
+}

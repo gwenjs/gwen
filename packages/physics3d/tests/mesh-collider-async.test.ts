@@ -1,10 +1,20 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { createEngine, type GwenEngine } from "@gwenjs/core";
 import { preloadMeshCollider } from "../src/index.js";
-import { _clearBvhCache } from "../src/internal.js";
+import { _clearBvhCache } from "../src/plugin/bvh.js";
 
-beforeEach(() => {
+let engine: GwenEngine;
+
+beforeEach(async () => {
+  engine = await createEngine();
+  engine.activate();
   _clearBvhCache();
   vi.clearAllMocks();
+});
+
+afterEach(async () => {
+  engine.deactivate();
+  await engine.stop();
 });
 
 describe("useMeshCollider async pipeline", () => {

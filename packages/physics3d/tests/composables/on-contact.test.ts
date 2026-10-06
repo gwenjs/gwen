@@ -1,8 +1,10 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
 import {
   onContact,
   _dispatchContactEvent,
   _clearContactCallbacks,
+  clearEngineContacts,
 } from "../../src/composables/on-contact.js";
 import type { Physics3DCollisionContact } from "../../src/types.js";
 import type { EntityId } from "@gwenjs/core";
@@ -16,8 +18,17 @@ const sampleContact: Physics3DCollisionContact = {
 };
 
 describe("onContact / _dispatchContactEvent", () => {
-  beforeEach(() => {
+  let engine: GwenEngine;
+
+  beforeEach(async () => {
+    engine = await createEngine();
+    engine.activate();
     _clearContactCallbacks();
+  });
+
+  afterEach(async () => {
+    engine.deactivate();
+    await engine.stop();
   });
 
   it("registered callback is invoked on dispatch", () => {
@@ -92,5 +103,39 @@ describe("onContact / _dispatchContactEvent", () => {
     const unregister = onContact(() => {});
     unregister();
     expect(() => unregister()).not.toThrow();
+  });
+});
+
+describe("onContact engine isolation", () => {
+  it("throws OUTSIDE_ENGINE when no engine is current", () => {
+    expect(() => onContact(() => {})).toThrow(GwenContextError);
+  });
+
+  it("clears callbacks on one engine only", async () => {
+    const a = await createEngine();
+    const b = await createEngine();
+    try {
+      let hits = 0;
+      a.activate();
+      onContact(() => {
+        hits += 1;
+      });
+      a.deactivate();
+      b.activate();
+      onContact(() => {
+        hits += 100;
+      });
+      clearEngineContacts(b);
+      _dispatchContactEvent(sampleContact);
+      expect(hits).toBe(0);
+      b.deactivate();
+      a.activate();
+      _dispatchContactEvent(sampleContact);
+      expect(hits).toBe(1);
+      a.deactivate();
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
   });
 });

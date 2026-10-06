@@ -1,11 +1,31 @@
 /**
  * @file onSensorEnter / onSensorExit — register callbacks for sensor zone events.
+ *
+ * Maps live on the current engine.
  */
+import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
 
-/** Per-sensor enter callbacks. Key = sensorId. */
-const _enterCallbacks = new Map<number, ((entityId: bigint) => void)[]>();
-/** Per-sensor exit callbacks. Key = sensorId. */
-const _exitCallbacks = new Map<number, ((entityId: bigint) => void)[]>();
+type SensorCallback = (entityId: bigint) => void;
+
+interface SensorRegistry {
+  enter: Map<number, SensorCallback[]>;
+  exit: Map<number, SensorCallback[]>;
+}
+
+const sensors = createEngineLocal<SensorRegistry>(() => ({
+  enter: new Map(),
+  exit: new Map(),
+}));
+
+function registryOrNull(): SensorRegistry | undefined {
+  try {
+    return sensors.use();
+  } catch (error) {
+    if (error instanceof GwenContextError) return undefined;
+    throw error;
+  }
+}
 
 /**
  * Register a callback invoked when an entity enters a physics sensor zone.
@@ -30,11 +50,12 @@ const _exitCallbacks = new Map<number, ((entityId: bigint) => void)[]>();
  * @since 1.0.0
  */
 export function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void {
-  const existing = _enterCallbacks.get(sensorId) ?? [];
+  const registry = sensors.use();
+  const existing = registry.enter.get(sensorId) ?? [];
   existing.push(callback);
-  _enterCallbacks.set(sensorId, existing);
+  registry.enter.set(sensorId, existing);
   return () => {
-    const cbs = _enterCallbacks.get(sensorId);
+    const cbs = registry.enter.get(sensorId);
     if (!cbs) return;
     const idx = cbs.indexOf(callback);
     if (idx !== -1) cbs.splice(idx, 1);
@@ -57,11 +78,12 @@ export function onSensorEnter(sensorId: number, callback: (entityId: bigint) => 
  * @since 1.0.0
  */
 export function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void {
-  const existing = _exitCallbacks.get(sensorId) ?? [];
+  const registry = sensors.use();
+  const existing = registry.exit.get(sensorId) ?? [];
   existing.push(callback);
-  _exitCallbacks.set(sensorId, existing);
+  registry.exit.set(sensorId, existing);
   return () => {
-    const cbs = _exitCallbacks.get(sensorId);
+    const cbs = registry.exit.get(sensorId);
     if (!cbs) return;
     const idx = cbs.indexOf(callback);
     if (idx !== -1) cbs.splice(idx, 1);
@@ -78,12 +100,9 @@ export function onSensorExit(sensorId: number, callback: (entityId: bigint) => v
  * @internal
  */
 export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
-  const cbs = _enterCallbacks.get(sensorId);
-  if (cbs) {
-    for (const cb of cbs) {
-      cb(entityId);
-    }
-  }
+  const cbs = registryOrNull()?.enter.get(sensorId);
+  if (!cbs) return;
+  for (const cb of cbs) cb(entityId);
 }
 
 /**
@@ -94,12 +113,9 @@ export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
  * @internal
  */
 export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
-  const cbs = _exitCallbacks.get(sensorId);
-  if (cbs) {
-    for (const cb of cbs) {
-      cb(entityId);
-    }
-  }
+  const cbs = registryOrNull()?.exit.get(sensorId);
+  if (!cbs) return;
+  for (const cb of cbs) cb(entityId);
 }
 
 /**
@@ -110,6 +126,16 @@ export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
  * @internal
  */
 export function _clearSensorCallbacks(): void {
-  _enterCallbacks.clear();
-  _exitCallbacks.clear();
+  const registry = registryOrNull();
+  if (!registry) return;
+  registry.enter.clear();
+  registry.exit.clear();
+}
+
+/** Drop every sensor callback owned by `engine`. */
+export function clearEngineSensors(engine: GwenEngine): void {
+  const registry = sensors.peek(engine);
+  if (!registry) return;
+  registry.enter.clear();
+  registry.exit.clear();
 }

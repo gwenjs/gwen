@@ -14,7 +14,7 @@ import type {
   PhysicsEntitySnapshot,
 } from "../src/types";
 import { createEngine, type EntityId } from "@gwenjs/core";
-import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
+import { engineContext, entityIndex, getWasmBridge } from "@gwenjs/core/internal";
 import {
   Physics2DErrorCodes,
   Physics2DPlugin,
@@ -176,8 +176,10 @@ function installPhysics2D(wasm = mockPhysicsWasm()) {
       hook: vi.fn(() => () => {}),
       callHook: vi.fn(),
     },
+    disposables: { add() {} },
   };
   const plugin = Physics2DPlugin();
+  engineContext.set(engine as never, true);
   plugin.setup!(engine as never);
   return {
     wasm,
@@ -265,20 +267,26 @@ describe("Physics2D stale entity guards", () => {
       getLinearMemory: () => ({ buffer: new ArrayBuffer(65536) }),
     });
     const engine = await createEngine({ maxEntities: 16 });
-    const plugin = Physics2DPlugin();
-    await engine.use(plugin);
-    const api = engine.inject("physics2d");
+    engine.activate();
+    try {
+      const plugin = Physics2DPlugin();
+      await engine.use(plugin);
+      const api = engine.inject("physics2d");
 
-    const first = engine.createEntity();
-    api.addRigidBody(first, "dynamic", 0, 0);
-    api.updateSensorState(first, 3, true);
-    expect(api.getSensorState(first, 3).contactCount).toBe(1);
+      const first = engine.createEntity();
+      api.addRigidBody(first, "dynamic", 0, 0);
+      api.updateSensorState(first, 3, true);
+      expect(api.getSensorState(first, 3).contactCount).toBe(1);
 
-    expect(engine.destroyEntity(first)).toBe(true);
-    const second = engine.createEntity();
-    expect(entityIndex(second)).toBe(entityIndex(first));
-    api.addRigidBody(second, "dynamic", 0, 0);
-    expect(api.getSensorState(second, 3)).toEqual({ contactCount: 0, isActive: false });
+      expect(engine.destroyEntity(first)).toBe(true);
+      const second = engine.createEntity();
+      expect(entityIndex(second)).toBe(entityIndex(first));
+      api.addRigidBody(second, "dynamic", 0, 0);
+      expect(api.getSensorState(second, 3)).toEqual({ contactCount: 0, isActive: false });
+    } finally {
+      engine.deactivate();
+      await engine.stop();
+    }
   });
 
   it("unhooks every registered hook on teardown", async () => {
@@ -288,6 +296,7 @@ describe("Physics2D stale entity guards", () => {
       getLinearMemory: () => ({ buffer: new ArrayBuffer(65536) }),
     });
     const engine = await createEngine({ maxEntities: 16 });
+    engine.activate();
     const original = engine.hooks.hook.bind(engine.hooks);
     const unhooks: Array<{ name: string; off: Mock }> = [];
     engine.hooks.hook = ((name: string, fn: (...args: unknown[]) => unknown) => {
@@ -300,18 +309,23 @@ describe("Physics2D stale entity guards", () => {
     }) as typeof engine.hooks.hook;
 
     const plugin = Physics2DPlugin();
-    await engine.use(plugin);
-    plugin.teardown?.();
+    try {
+      await engine.use(plugin);
+      plugin.teardown?.();
 
-    for (const name of [
-      "prefab:instantiate",
-      "entity:destroy",
-      "engine:before-update",
-      "engine:update",
-    ]) {
-      const matches = unhooks.filter((entry) => entry.name === name);
-      expect(matches).toHaveLength(1);
-      expect(matches[0]!.off).toHaveBeenCalledTimes(1);
+      for (const name of [
+        "prefab:instantiate",
+        "entity:destroy",
+        "engine:before-update",
+        "engine:update",
+      ]) {
+        const matches = unhooks.filter((entry) => entry.name === name);
+        expect(matches).toHaveLength(1);
+        expect(matches[0]!.off).toHaveBeenCalledTimes(1);
+      }
+    } finally {
+      engine.deactivate();
+      await engine.stop();
     }
   });
 });
