@@ -24,6 +24,13 @@
  * ```
  */
 
+import { GwenError } from "@gwenjs/schema";
+
+import { CoreErrorCodes } from "./engine/engine-errors";
+
+/** Distinct component types one program can define. Matches the Rust bit cap. */
+const MAX_COMPONENT_TYPES = 128;
+
 // Supported scalar types for WASM memory layout
 export const Types = {
   f32: {
@@ -515,6 +522,9 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * @param nameOrConfig Either a string name or a full ComponentDefinition
  * @param factory Optional factory function (required for Form 2)
  * @returns The component definition with schema and name
+ * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
+ *   would define a 129th component type. The limit is 128. The check runs
+ *   here, before any WASM call.
  *
  * @example
  * ```ts
@@ -548,6 +558,13 @@ export function defineComponent<S extends ComponentSchema>(
   }
 
   _validateComponentSchema(config.name, config.schema);
+
+  if (_nextTypeId > MAX_COMPONENT_TYPES) {
+    throw new GwenError(
+      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+      `Component type limit reached: ${MAX_COMPONENT_TYPES}`,
+    );
+  }
 
   const _typeId = _nextTypeId++;
 

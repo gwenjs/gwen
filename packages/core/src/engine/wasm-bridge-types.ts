@@ -829,6 +829,9 @@ export interface WasmBridge {
    * @param componentTypeId Component type ID from `registerComponentType()`.
    * @param data            Packed component data; total byte length must equal
    *                        `entities.length * componentSize`.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when `data`
+   *   is not that length for a type that already has a stride. The message
+   *   names both sizes. Nothing is written.
    */
   writeComponentsBulk(entities: EntityId[], componentTypeId: number, data: Float32Array): void;
 
@@ -858,6 +861,8 @@ export interface WasmBridge {
    * @param gens        - Entity generation counters (from `queryReadBulk` result)
    * @param writeTypeId - Component type ID to write
    * @param data        - Updated packed Float32 data (`entityCount x f32Stride` elements)
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when `gens` or
+   *   `data` has the wrong length. The message names both sizes. Nothing is written.
    */
   queryWriteBulk(
     slots: Uint32Array,

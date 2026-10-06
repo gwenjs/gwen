@@ -34,6 +34,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::InvalidMaxEntities { .. } => {
             assert_eq!(err.code(), "CORE:INVALID_MAX_ENTITIES");
         }
+        CoreError::BufferLengthMismatch { .. } => {
+            assert_eq!(err.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        }
     }
 }
 
@@ -99,9 +102,7 @@ fn query_over_capacity_leaves_the_buffer_unchanged() {
             .expect("component");
     }
     engine.testing_shrink_query_buffer(2);
-    let before = unsafe {
-        std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec()
-    };
+    let before = unsafe { std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec() };
     let err = engine
         .query_entities_to_buffer(&[type_id])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -127,8 +128,7 @@ fn component_type_limit_is_raised_before_any_write() {
             .add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4])
             .expect("component");
     }
-    assert!(engine
-        .has_component(id.index(), id.generation(), 127));
+    assert!(engine.has_component(id.index(), id.generation(), 127));
     let err = engine
         .add_component(id.index(), id.generation(), 128, &[9, 9, 9, 9])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -183,7 +183,9 @@ fn invalid_parent_leaves_the_hierarchy_unchanged() {
     assert_known_code(&cycle);
     assert!(!engine.has_entity_parent(0));
 
-    engine.set_entity_parent(2, u32::MAX, false).expect("detach");
+    engine
+        .set_entity_parent(2, u32::MAX, false)
+        .expect("detach");
     assert!(!engine.has_entity_parent(2));
     assert!(engine.has_entity_parent(1));
     assert!(engine.has_entity_parent(3));
@@ -280,4 +282,69 @@ fn sync_from_buffer_writes_the_first_flagged_slot() {
     assert!(raw.len() >= 4);
     let x = f32::from_le_bytes(raw[0..4].try_into().expect("f32"));
     assert_eq!(x, 1.5);
+}
+
+#[test]
+fn set_components_bulk_rejects_a_wrongly_sized_buffer() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+
+    let err = engine.set_components_bulk(&[0], &[0], type_id, &[9, 9, 9, 9, 9, 9, 9, 9]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "data",
+            expected: 4,
+            actual: 8
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer data length mismatch: expected 4, actual 8"
+        );
+    }
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+}
+
+#[test]
+fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
+    let mut engine = engine(4);
+    let type_id = 3u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+
+    let err = engine.set_components_bulk(&[0, 0], &[0], type_id, &[9, 9, 9, 9, 8, 8, 8, 8]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 2,
+            actual: 1
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 2, actual 1"
+        );
+    }
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
 }

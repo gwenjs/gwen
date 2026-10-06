@@ -40,6 +40,8 @@ export const Health = defineComponent({
 
 Chaque champ est stocké sous forme de tableau typé contigu en mémoire WASM. Les entités servent d'index :
 
+`defineComponent` lève `GwenError` avec le code `CORE:COMPONENT_TYPE_LIMIT_REACHED` au 129e type de composant. La limite est 128. La vérification a lieu à la définition et n'appelle pas WASM.
+
 ```ts
 // Dans un système — entity.id est un bigint
 Position.x[entity.id] = 100

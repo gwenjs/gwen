@@ -743,6 +743,10 @@ export class WasmBridgeImpl implements WasmBridge {
    * @performance One WASM boundary crossing for any number of entities.
    *
    * @throws If `initWasm()` has not been called.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when `gens`
+   *   differs in length from `slots`, or when `data` is not
+   *   `slots.length × stride` bytes. The message names the buffer, the
+   *   expected length, and the actual length. Nothing is written.
    */
   queryWriteBulk(
     slots: Uint32Array,

@@ -362,4 +362,42 @@ describe("WASM coded errors", () => {
       await engine.stop();
     }
   });
+
+  it("a wrongly sized bulk buffer throws both sizes and the next frame runs", async () => {
+    const { engine, bridge } = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const entity = bridge.createEntity();
+    const typeId = 7;
+    const original = new Uint8Array([1, 2, 3, 4]);
+    expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
+
+    let caught: unknown;
+    try {
+      bridge.queryWriteBulk(
+        new Uint32Array([entity.index]),
+        new Uint32Array([entity.generation]),
+        typeId,
+        new Float32Array([9, 9]),
+      );
+    } catch (error: unknown) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenWasmError)) {
+      throw new Error("expected GwenWasmError");
+    }
+    expect(caught.code).toBe(CoreErrorCodes.BUFFER_LENGTH_MISMATCH);
+    expect(caught.exportName).toBe("query_write_bulk");
+    expect(caught.message).toContain("data");
+    expect(caught.message).toContain("expected");
+    expect(caught.message).toContain("actual");
+    expect(caught.message).toContain("4");
+    expect(caught.message).toContain("8");
+    expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(bridge.countEntities()).toBe(1);
+    await expectNextFrame(engine);
+  });
 });
