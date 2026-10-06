@@ -63,8 +63,15 @@ impl Model {
     }
 }
 
+fn must_ok<T, E>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(_) => unreachable!(),
+    }
+}
+
 fn fresh_engine() -> (Engine, Model) {
-    let mut engine = Engine::new(ENGINE_CAP);
+    let mut engine = must_ok(Engine::new(ENGINE_CAP));
     let mut type_ids = [0u32; TYPE_COUNT];
     for (i, slot) in type_ids.iter_mut().enumerate() {
         *slot = engine.register_component_type();
@@ -82,7 +89,8 @@ fn fresh_engine() -> (Engine, Model) {
     assert_eq!(index, 0);
     assert_eq!(generation, 0);
     for &type_id in &type_ids {
-        assert!(engine.add_component(index, generation, type_id, &[1]));
+        let added = must_ok(engine.add_component(index, generation, type_id, &[1]));
+        assert_eq!(added, true);
     }
     for &type_id in &type_ids {
         assert!(engine.remove_component(index, generation, type_id));
@@ -122,10 +130,9 @@ fn assert_invariants(engine: &mut Engine, model: &Model) {
                 !engine.delete_entity(index, slot.generation),
                 "stale delete accepted at {index}",
             );
-            assert!(
-                !engine.add_component(index, slot.generation, model.type_ids[0], &[1]),
-                "stale add accepted at {index}",
-            );
+            let stale_add =
+                must_ok(engine.add_component(index, slot.generation, model.type_ids[0], &[1]));
+            assert_eq!(stale_add, false, "stale add accepted at {index}");
         }
     }
 
@@ -203,7 +210,8 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
             let stale = model.slots[index as usize].generation.wrapping_add(1);
             assert!(!engine.delete_entity(index, stale));
             assert!(!engine.is_alive(index, stale));
-            assert!(!engine.add_component(index, stale, model.type_ids[0], &[1]));
+            let stale_add = must_ok(engine.add_component(index, stale, model.type_ids[0], &[1]));
+            assert_eq!(stale_add, false);
         }
         Op::AddComponent(raw, ty_raw) => {
             let Some(index) = model.slot_index(raw) else {
@@ -211,8 +219,12 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
             };
             let ty = usize::from(ty_raw) % TYPE_COUNT;
             let slot = &mut model.slots[index as usize];
-            let added =
-                engine.add_component(index, slot.generation, model.type_ids[ty], &[1, 2, 3, 4]);
+            let added = must_ok(engine.add_component(
+                index,
+                slot.generation,
+                model.type_ids[ty],
+                &[1, 2, 3, 4],
+            ));
             if slot.alive {
                 assert!(added, "add on a live id returned false");
                 slot.components[ty] = true;

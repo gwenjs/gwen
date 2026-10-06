@@ -188,26 +188,26 @@ jobs:
     runs-on: ubuntu-latest
     needs: [rust]
     steps:
-      - uses: actions/checkout@v6
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
       - uses: ./.github/actions/setup-node-pnpm
       - name: Download build-tools artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: physics3d-build-tools
           path: packages/physics3d/build-tools/
       - name: Download physics3d wasm/bvh artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: physics3d-wasm-bvh
           path: packages/physics3d/wasm/bvh/
       - name: Download physics3d-fracture wasm artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: physics3d-fracture-wasm
           path: packages/physics3d-fracture/wasm/
       - name: Download core wasm artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: core-wasm
           path: packages/core/wasm/
@@ -221,7 +221,7 @@ jobs:
       - name: Report
         run: node scripts/storage-bench-report.mjs
       - name: Upload storage bench
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: storage-bench
           path: |
@@ -236,22 +236,22 @@ jobs:
     runs-on: ubuntu-latest
     needs: [rust]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
         with:
           node-version: "22"
       - name: Download build-tools artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: physics3d-build-tools
           path: packages/physics3d/build-tools/
       - name: Download physics3d wasm/bvh artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: physics3d-wasm-bvh
           path: packages/physics3d/wasm/bvh/
       - name: Download core wasm artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: core-wasm
           path: packages/core/wasm/
@@ -288,10 +288,10 @@ jobs:
       contents: read
       pull-requests: read
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 22
       - name: Scanner unit tests
