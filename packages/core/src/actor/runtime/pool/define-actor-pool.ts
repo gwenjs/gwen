@@ -139,6 +139,7 @@ export function defineActorPool<Props, PublicAPI>(
 ): ActorPool<Props, PublicAPI> {
   const { size, warnThreshold = 0.8, criticalThreshold = 0.95 } = options;
   const actorName = actor.__actorName__;
+  const hookSource = `pool:${actorName}`;
 
   // The engine reference is set in setup() and is guaranteed to be non-null
   // for any call that reaches acquire() or release() after plugin installation.
@@ -152,6 +153,74 @@ export function defineActorPool<Props, PublicAPI>(
   let _acquireCount = 0;
 
   const _hooks = createHooks<PoolHooks>();
+  const hookCount: Record<keyof PoolHooks, number> = {
+    "pool:acquire": 0,
+    "pool:release": 0,
+    "pool:warn": 0,
+    "pool:critical": 0,
+    "pool:exhausted": 0,
+  };
+  const rawHook = _hooks.hook.bind(_hooks);
+  _hooks.hook = (name, fn, options) => {
+    if (typeof fn !== "function") return rawHook(name, fn, options);
+    hookCount[name] += 1;
+    const off = rawHook(name, fn, options);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      hookCount[name] -= 1;
+      off();
+    };
+  };
+
+  // No listeners: `void callHook` only. A catch is attached only when a listener is registered.
+  function callAcquire(id: EntityId, props: unknown): void {
+    if (hookCount["pool:acquire"] === 0) {
+      void _hooks.callHook("pool:acquire", { id, props });
+      return;
+    }
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:acquire",
+      _hooks.callHook("pool:acquire", { id, props }),
+    );
+  }
+
+  function callRelease(id: EntityId): void {
+    if (hookCount["pool:release"] === 0) {
+      void _hooks.callHook("pool:release", { id });
+      return;
+    }
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:release",
+      _hooks.callHook("pool:release", { id }),
+    );
+  }
+
+  function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
+    if (hookCount[name] === 0) {
+      void _hooks.callHook(name, { active, size, ratio });
+      return;
+    }
+    reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
+  }
+
+  function callExhausted(): void {
+    if (hookCount["pool:exhausted"] === 0) {
+      void _hooks.callHook("pool:exhausted", { size });
+      return;
+    }
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:exhausted",
+      _hooks.callHook("pool:exhausted", { size }),
+    );
+  }
 
   // ─── internal helpers ──────────────────────────────────────────────────────
 
@@ -177,24 +246,14 @@ export function defineActorPool<Props, PublicAPI>(
         size,
         ratio,
       });
-      reportRejectedHook(
-        engine,
-        `pool:${actorName}`,
-        "pool:critical",
-        _hooks.callHook("pool:critical", { active: _active.size, size, ratio }),
-      );
+      callPressure("pool:critical", _active.size, ratio);
     } else if (ratio >= warnThreshold) {
       log.warn(`pool at ${Math.round(ratio * 100)}% capacity (${_active.size}/${size})`, {
         active: _active.size,
         size,
         ratio,
       });
-      reportRejectedHook(
-        engine,
-        `pool:${actorName}`,
-        "pool:warn",
-        _hooks.callHook("pool:warn", { active: _active.size, size, ratio }),
-      );
+      callPressure("pool:warn", _active.size, ratio);
     }
   }
 
@@ -246,12 +305,7 @@ export function defineActorPool<Props, PublicAPI>(
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);
       log.error(`pool exhausted — all ${size} slots are active`, { actorName, size });
-      reportRejectedHook(
-        engine,
-        `pool:${actorName}`,
-        "pool:exhausted",
-        _hooks.callHook("pool:exhausted", { size }),
-      );
+      callExhausted();
       throw new PoolExhaustedError(actorName, size);
     }
 
@@ -260,12 +314,7 @@ export function defineActorPool<Props, PublicAPI>(
     if (_active.size > _peakActive) _peakActive = _active.size;
 
     _checkThresholds(engine);
-    reportRejectedHook(
-      engine,
-      `pool:${actorName}`,
-      "pool:acquire",
-      _hooks.callHook("pool:acquire", { id, props }),
-    );
+    callAcquire(id, props);
     return id;
   }
 
@@ -318,12 +367,7 @@ export function defineActorPool<Props, PublicAPI>(
     _active.delete(id);
     _available.push(id);
 
-    reportRejectedHook(
-      _engine,
-      `pool:${actorName}`,
-      "pool:release",
-      _hooks.callHook("pool:release", { id }),
-    );
+    callRelease(id);
   }
 
   // ─── destroyAll ─────────────────────────────────────────────────────────────
@@ -364,7 +408,7 @@ export function defineActorPool<Props, PublicAPI>(
   // ─── plugin ─────────────────────────────────────────────────────────────────
 
   const _plugin: GwenPlugin = {
-    name: `pool:${actorName}`,
+    name: hookSource,
     teardown(): void {
       // Reset all mutable state so the pool closure is ready for re-registration.
       // Entities were already destroyed by the engine:stop hook (scope: "global") or
