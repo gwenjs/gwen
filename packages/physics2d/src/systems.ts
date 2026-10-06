@@ -2,6 +2,8 @@ import type { GwenEngine, EntityId } from "@gwenjs/core";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "@gwenjs/core/system";
 import type { Physics2DAPI, SensorState } from "./types";
 import type {} from "./augment";
+import { GwenError } from "@gwenjs/schema";
+import { Physics2DErrorCodes } from "./errors";
 
 /** Default pixel-to-meter conversion ratio for Rapier2D. */
 const DEFAULT_PIXELS_PER_METER = 50;
@@ -74,7 +76,10 @@ export interface PhysicsKinematicSyncSystemOptions {
  */
 export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSystemOptions) {
   if (options?.positionComponent === undefined) {
-    throw new TypeError("physics2d positionComponent is required");
+    throw new GwenError(
+      Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
+      "physics2d positionComponent is required",
+    );
   }
   const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;
   const _positionComponent = options.positionComponent;

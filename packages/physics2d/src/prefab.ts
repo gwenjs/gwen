@@ -6,6 +6,8 @@ import type {
 } from "./types";
 import { PHYSICS_MATERIAL_PRESETS } from "./types";
 import { LayerRegistry, PIXELS_PER_METER } from "./config";
+import { GwenError } from "@gwenjs/schema";
+import { Physics2DErrorCodes } from "./errors";
 
 /**
  * Resolves a material definition from presets or overrides.
@@ -59,7 +61,8 @@ export function addPrefabCollider(
 
   if (collider.shape === "ball") {
     if (collider.radius === undefined) {
-      throw new Error(
+      throw new GwenError(
+        Physics2DErrorCodes.INVALID_COLLIDER,
         `[Physics2D] Invalid collider config: shape="ball" requires \`radius\` (collider id: ${collider.id ?? "<unnamed>"}).`,
       );
     }
@@ -69,7 +72,8 @@ export function addPrefabCollider(
 
   if (collider.shape === "box") {
     if (collider.hw === undefined || collider.hh === undefined) {
-      throw new Error(
+      throw new GwenError(
+        Physics2DErrorCodes.INVALID_COLLIDER,
         `[Physics2D] Invalid collider config: shape="box" requires both \`hw\` and \`hh\` (collider id: ${collider.id ?? "<unnamed>"}).`,
       );
     }
@@ -82,7 +86,8 @@ export function addPrefabCollider(
     return;
   }
 
-  throw new Error(
+  throw new GwenError(
+    Physics2DErrorCodes.INVALID_COLLIDER,
     `[Physics2D] Invalid collider shape \`${String(collider.shape)}\` (collider id: ${collider.id ?? "<unnamed>"}).`,
   );
 }

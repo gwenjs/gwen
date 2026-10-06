@@ -7,6 +7,7 @@
  */
 
 import { createContext } from "unctx";
+import { GwenError } from "@gwenjs/schema";
 import type { GwenEngine } from "./gwen-engine";
 import { GwenScope } from "../context/scope.js";
 
@@ -144,15 +145,15 @@ export type GwenContextErrorCode = "OUTSIDE_ENGINE" | "ACTOR_SETUP_ONLY";
  * Check {@link GwenContextError.code} to distinguish the root cause, and read
  * the message for a step-by-step fix.
  */
-export class GwenContextError extends Error {
+export class GwenContextError extends GwenError {
   /**
    * Structured code identifying the root cause.
    * @see {@link GwenContextErrorCode}
    */
-  readonly code: GwenContextErrorCode;
+  override readonly code: GwenContextErrorCode;
 
   constructor(message: string, code: GwenContextErrorCode = "OUTSIDE_ENGINE") {
-    super(message);
+    super(code, message);
     this.name = "GwenContextError";
     this.code = code;
   }

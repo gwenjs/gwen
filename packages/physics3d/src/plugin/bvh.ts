@@ -1,6 +1,7 @@
 // ─── BVH fetch cache (module-level — shared across plugin instances) ────────────
 
 import { Physics3DErrorCodes } from "../errors/codes";
+import { GwenError } from "@gwenjs/schema";
 
 /**
  * Cache mapping BVH asset URL to its in-flight or resolved fetch Promise.
@@ -14,7 +15,7 @@ const _bvhCache = new Map<string, Promise<ArrayBuffer>>();
  *
  * @param url - Absolute or relative URL to the `.bin` BVH asset.
  * @returns A Promise that resolves with the raw `ArrayBuffer`.
- * @throws When the HTTP response status is not OK.
+ * @throws {GwenError} When the HTTP response status is not OK.
  *
  * @internal
  */
@@ -23,7 +24,11 @@ export function _fetchBvhBuffer(url: string): Promise<ArrayBuffer> {
     _bvhCache.set(
       url,
       fetch(url).then((r) => {
-        if (!r.ok) throw new Error(`[GWEN:Physics3D] BVH fetch failed: ${r.status} ${url}`);
+        if (!r.ok)
+          throw new GwenError(
+            Physics3DErrorCodes.BVH_LOAD_FAILED,
+            `[GWEN:Physics3D] BVH fetch failed: ${r.status} ${url}`,
+          );
         return r.arrayBuffer();
       }),
     );
@@ -81,7 +86,12 @@ export function getBvhWorker(): Worker {
       clearTimeout(cb.timeoutId);
       _bvhWorkerCallbacks.delete(data.id);
       if (data.error || !data.bvhBytes) {
-        cb.reject(new Error(data.error ?? "[GWEN:Physics3D] BVH worker returned empty result"));
+        cb.reject(
+          new GwenError(
+            Physics3DErrorCodes.BVH_LOAD_FAILED,
+            data.error ?? "[GWEN:Physics3D] BVH worker returned empty result",
+          ),
+        );
       } else {
         cb.resolve(data.bvhBytes);
       }
@@ -114,7 +124,8 @@ export function registerBvhCallback(
   const timeoutId = setTimeout(() => {
     _bvhWorkerCallbacks.delete(id);
     reject(
-      new Error(
+      new GwenError(
+        Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
         `[${Physics3DErrorCodes.BVH_WORKER_TIMEOUT}] BVH worker did not respond within ${timeoutMs}ms`,
       ),
     );
@@ -128,7 +139,8 @@ export function queueBvhJob(vertices: Float32Array, indices: Uint32Array): Promi
     const timeoutId = setTimeout(() => {
       _bvhWorkerCallbacks.delete(id);
       reject(
-        new Error(
+        new GwenError(
+          Physics3DErrorCodes.BVH_WORKER_TIMEOUT,
           `[${Physics3DErrorCodes.BVH_WORKER_TIMEOUT}] BVH worker did not respond within 30s`,
         ),
       );

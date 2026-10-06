@@ -1,5 +1,11 @@
 import type { ComponentManifest } from "./component-manifest";
 import type { WasmTier } from "./types";
+import { GwenError } from "@gwenjs/schema";
+
+const OptimizerErrorCodes = {
+  UNKNOWN_COMPONENT: "VITE:OPTIMIZER_UNKNOWN_COMPONENT",
+  UNKNOWN_FIELD: "VITE:OPTIMIZER_UNKNOWN_FIELD",
+} as const;
 
 /**
  * Generates TypeScript code snippets for bulk WASM operations.
@@ -40,15 +46,23 @@ export class CodeGenerator {
    * @param queryComponents - All component type names entities must ALL have
    * @param readComponent   - Which component to bulk-read
    * @returns TypeScript source snippet (no trailing newline)
-   * @throws Error if any component is not registered in the manifest
+   * @throws {GwenError} if any component is not registered in the manifest
    */
   generateBulkRead(queryComponents: string[], readComponent: string): string {
     const entry = this.manifest.get(readComponent);
-    if (!entry) throw new Error(`[gwen:optimizer] Unknown component: ${readComponent}`);
+    if (!entry)
+      throw new GwenError(
+        OptimizerErrorCodes.UNKNOWN_COMPONENT,
+        `[gwen:optimizer] Unknown component: ${readComponent}`,
+      );
 
     const typeIds = queryComponents.map((name) => {
       const e = this.manifest.get(name);
-      if (!e) throw new Error(`[gwen:optimizer] Unknown component: ${name}`);
+      if (!e)
+        throw new GwenError(
+          OptimizerErrorCodes.UNKNOWN_COMPONENT,
+          `[gwen:optimizer] Unknown component: ${name}`,
+        );
       return e.typeId;
     });
 
@@ -67,11 +81,15 @@ export class CodeGenerator {
    * @param gensVar    - Variable name holding entity generation counters
    * @param dataVar    - Variable name holding the Float32Array with updated data
    * @returns TypeScript source snippet
-   * @throws Error if the component is not registered in the manifest
+   * @throws {GwenError} if the component is not registered in the manifest
    */
   generateBulkWrite(component: string, slotsVar: string, gensVar: string, dataVar: string): string {
     const entry = this.manifest.get(component);
-    if (!entry) throw new Error(`[gwen:optimizer] Unknown component: ${component}`);
+    if (!entry)
+      throw new GwenError(
+        OptimizerErrorCodes.UNKNOWN_COMPONENT,
+        `[gwen:optimizer] Unknown component: ${component}`,
+      );
 
     return `__gwen_bridge__.queryWriteBulk(${slotsVar}, ${gensVar}, ${entry.typeId}, ${dataVar})`;
   }
@@ -85,7 +103,7 @@ export class CodeGenerator {
    * @param indexVar  - Loop variable name (e.g. `'i'`)
    * @param dataVar   - Float32Array variable name
    * @returns e.g. `"_pos[i * 2 + 0]"` for Position.x with f32Stride=2
-   * @throws Error if the component or field is not registered in the manifest
+   * @throws {GwenError} if the component or field is not registered in the manifest
    */
   generateFieldAccessor(
     component: string,
@@ -94,10 +112,18 @@ export class CodeGenerator {
     dataVar: string,
   ): string {
     const entry = this.manifest.get(component);
-    if (!entry) throw new Error(`[gwen:optimizer] Unknown component: ${component}`);
+    if (!entry)
+      throw new GwenError(
+        OptimizerErrorCodes.UNKNOWN_COMPONENT,
+        `[gwen:optimizer] Unknown component: ${component}`,
+      );
 
     const fieldMeta = entry.fields.find((f) => f.name === field);
-    if (!fieldMeta) throw new Error(`[gwen:optimizer] Unknown field: ${component}.${field}`);
+    if (!fieldMeta)
+      throw new GwenError(
+        OptimizerErrorCodes.UNKNOWN_FIELD,
+        `[gwen:optimizer] Unknown field: ${component}.${field}`,
+      );
 
     const fieldIndex = fieldMeta.byteOffset / 4;
     return `${dataVar}[${indexVar} * ${entry.f32Stride} + ${fieldIndex}]`;

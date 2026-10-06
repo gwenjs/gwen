@@ -19,6 +19,8 @@
  */
 
 import type { RouteConfig, SceneRouterOptions, SceneRouterDefinition } from "../router-types";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 
 /**
  * Declares a type-safe FSM scene router.
@@ -50,7 +52,8 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   const keys = Object.keys(options.routes);
 
   if (!keys.includes(options.initial as string)) {
-    throw new Error(
+    throw new GwenError(
+      CoreErrorCodes.INVALID_SCENE_ROUTE,
       `[GWEN] defineSceneRouter: initial state "${String(options.initial)}" not found in routes. ` +
         `Valid states: ${keys.join(", ")}`,
     );
@@ -63,7 +66,8 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
     if (config.on) {
       for (const [event, target] of Object.entries(config.on)) {
         if (!keys.includes(target as string)) {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.INVALID_SCENE_ROUTE,
             `[GWEN] defineSceneRouter: transition "${event}" in state "${state}" points to ` +
               `"${String(target)}" which is not a valid route. Valid states: ${keys.join(", ")}`,
           );

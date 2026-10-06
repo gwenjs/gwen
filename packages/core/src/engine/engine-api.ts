@@ -4,6 +4,8 @@
  */
 
 import { createEntityId, unpackEntityId, type EntityId } from "../types/entity";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "./engine-errors";
 
 // ── EntityId Re-exports ────────────────────────────────────────────────────────
 export { createEntityId, unpackEntityId, entityIndex, type EntityId } from "../types/entity";
@@ -31,13 +33,17 @@ export function entityIdToString(id: EntityId): string {
 export function entityIdFromString(str: string): EntityId {
   const [indexStr, generationStr] = str.split(":");
   if (indexStr === undefined || generationStr === undefined) {
-    throw new Error(`Invalid EntityId string format: "${str}". Expected "index:generation".`);
+    throw new GwenError(
+      CoreErrorCodes.INVALID_ENTITY_ID,
+      `Invalid EntityId string format: "${str}". Expected "index:generation".`,
+    );
   }
   const index = Number.parseInt(indexStr, 10);
   const generation = Number.parseInt(generationStr, 10);
 
   if (Number.isNaN(index) || Number.isNaN(generation)) {
-    throw new Error(
+    throw new GwenError(
+      CoreErrorCodes.INVALID_ENTITY_ID,
       `Invalid EntityId string format: "${str}". Expected "index:generation" ` +
         `where both are valid integers.`,
     );

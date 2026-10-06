@@ -3,6 +3,7 @@ import { createEngine } from "../src/index.js";
 import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
 import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
 import { SharedMemoryManager } from "@gwenjs/core/internal";
+import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 declare module "../src/engine/engine-types.js" {
   interface GwenWasmModules {
@@ -149,6 +150,7 @@ describe("Frame Loop v2", () => {
         }),
       );
 
+      activateTestWasm(engine);
       await engine.start();
       const callCountBeforeStop = rafCalls.length;
 

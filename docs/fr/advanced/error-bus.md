@@ -75,6 +75,7 @@ CoreErrorCodes.PLUGIN_RUNTIME_ERROR // Le plugin a levé une exception dans un c
 CoreErrorCodes.WASM_LOAD_ERROR      // Échec du chargement du module WASM
 CoreErrorCodes.WASM_TIMEOUT         // Le module WASM n'a pas initialisé à temps
 CoreErrorCodes.WASM_PANIC           // Panic Rust propagé depuis le WASM
+CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() avant que le bridge soit actif
 ```
 
 Les plugins définissent leurs propres codes d'erreur en suivant le même modèle : `'PLUGIN_NAME:ERROR_TYPE'`.

@@ -1,5 +1,7 @@
 import type { ComponentDefinition, ComponentSchema } from "../schema";
 import type { ComponentType } from "../types/entity";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../engine/engine-errors";
 
 /**
  * Public component reference accepted by ECS APIs.
@@ -30,7 +32,10 @@ export function normalizeComponentType(input: unknown, strict = true): string {
     const name = input.trim();
     if (name.length > 0) return name;
     if (strict) {
-      throw new Error("[GWEN] Component type must not be an empty string.");
+      throw new GwenError(
+        CoreErrorCodes.INVALID_COMPONENT_TYPE,
+        "[GWEN] Component type must not be an empty string.",
+      );
     }
     return "";
   }
@@ -39,13 +44,19 @@ export function normalizeComponentType(input: unknown, strict = true): string {
     const name = input.name.trim();
     if (name.length > 0) return name;
     if (strict) {
-      throw new Error("[GWEN] ComponentDefinition.name must not be empty.");
+      throw new GwenError(
+        CoreErrorCodes.INVALID_COMPONENT_TYPE,
+        "[GWEN] ComponentDefinition.name must not be empty.",
+      );
     }
     return "";
   }
 
   if (strict) {
-    throw new Error("[GWEN] Invalid component type. Expected string or ComponentDefinition.");
+    throw new GwenError(
+      CoreErrorCodes.INVALID_COMPONENT_TYPE,
+      "[GWEN] Invalid component type. Expected string or ComponentDefinition.",
+    );
   }
 
   return "";

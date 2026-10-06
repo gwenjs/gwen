@@ -405,7 +405,7 @@ const _VALID_SCHEMA_TYPES = new Set<string>(Object.values(Types).map((t) => t.ty
  * @param componentName - Name passed to `defineComponent`, used in the error message.
  * @param schema        - The schema object to validate.
  *
- * @throws {Error} When any field value is not a valid `SchemaType`.
+ * @throws {GwenError} When any field value is not a valid `SchemaType`.
  *
  * @example
  * ```ts
@@ -426,7 +426,8 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
       !("type" in typeObj) ||
       !_VALID_SCHEMA_TYPES.has((typeObj as SchemaType).type)
     ) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
         `[GWEN] defineComponent('${componentName}'): field '${field}' is not a valid SchemaType. ` +
           `Received ${JSON.stringify(typeObj)}. ` +
           `Did you accidentally use a nested object instead of a Types.* value? ` +

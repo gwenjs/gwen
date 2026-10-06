@@ -1,5 +1,6 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
 import { getWasmBridge } from "@gwenjs/core/internal";
+import { CoreErrorCodes } from "@gwenjs/core";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 
 import type {
@@ -67,6 +68,8 @@ import { createCharacterControllerMethods } from "./character-controller";
 import { createSpatialQueryMethods } from "./spatial-queries";
 
 import { createPathfindingMethods } from "./pathfinding-service";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
@@ -75,6 +78,48 @@ import { createPathfindingMethods } from "./pathfinding-service";
  * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
  * physics3d variant is not loaded (e.g. during tests).
  */
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
+}
+
+function reportRejectedHook(
+  engine: {
+    errors: {
+      emit(payload: {
+        level: "error";
+        code: string;
+        message: string;
+        source: string;
+        error: unknown;
+        context: { frame: number; hook: string };
+      }): void;
+    };
+    frameCount: number;
+  } | null,
+  source: string,
+  hook: string,
+  result: unknown,
+): void {
+  if (engine === null || !isThenable(result)) return;
+  void Promise.resolve(result).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    engine.errors.emit({
+      level: "error",
+      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message,
+      source,
+      error,
+      context: { frame: engine.frameCount, hook },
+    });
+  });
+}
+
 export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
   const cfg = normalizePhysics3DConfig(config);
   const layerRegistry = buildLayerRegistry(cfg.layers);
@@ -124,7 +169,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
     step: (deltaSeconds: number) => {
       if (!ctx.stepFn) {
-        throw new Error("[GWEN:Physics3D] step() called before plugin initialization.");
+        throw new GwenError(
+          Physics3DErrorCodes.NOT_INITIALIZED,
+          "[GWEN:Physics3D] step() called before plugin initialization.",
+        );
       }
       ctx.stepFn(deltaSeconds);
       if (deltaSeconds > 0 && ctx.backendMode === "local") {
@@ -225,7 +273,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.bridgeRuntime = bridge;
 
       if (ctx._variant !== "physics3d") {
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
           `[GWEN:Physics3D] Active core variant is "${ctx._variant}". ` +
             'Pass variant: "physics3d" when initialising WasmBridgeImpl.',
         );
@@ -234,7 +283,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       const pb = bridge.getPhysicsBridge();
 
       if (typeof pb.physics3d_init !== "function") {
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
           "[GWEN:Physics3D] physics3d_init() is not available in current WASM exports.",
         );
       }
@@ -336,7 +386,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (contacts.length === 0) return;
 
         // Dispatch hook
-        void ctx._engine.hooks.callHook("physics3d:collision", contacts);
+        reportRejectedHook(
+          ctx._engine,
+          "@gwenjs/physics3d",
+          "physics3d:collision",
+          ctx._engine.hooks.callHook("physics3d:collision", contacts),
+        );
 
         // Dispatch to composable onContact() callbacks
         for (const contact of contacts) {
@@ -369,7 +424,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
             sensorMap.set(colliderId, next);
 
             if (prev.isActive !== newActive) {
-              void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
+              reportRejectedHook(
+                ctx._engine,
+                "@gwenjs/physics3d",
+                "physics3d:sensor:changed",
+                ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next),
+              );
               if (newActive) {
                 _dispatchSensorEnter(colliderId, eid);
               } else {

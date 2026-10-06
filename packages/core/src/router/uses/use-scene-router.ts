@@ -29,6 +29,8 @@ import type {
   StatesOf,
 } from "../router-types";
 import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 
 // Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
 // WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.
@@ -64,7 +66,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     engine = useEngine();
   } catch {
     // Rethrow with a useSceneRouter-specific message for test compatibility
-    throw new Error(
+    throw new GwenError(
+      CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
       "[GWEN] useSceneRouter() must be called inside an active engine context. Call it inside engine.run(), defineActor(), defineSystem(), or scene lifecycle hooks.",
     );
   }

@@ -116,7 +116,7 @@ GWEN supporte trois configurations de boucle, définies via `engine.loop` et `en
 
 ### Boucle interne (défaut)
 
-Le framework appelle `requestAnimationFrame` en interne. `onUpdate` reçoit un `dt` variable à chaque frame.
+Le framework appelle `requestAnimationFrame` en interne. `onUpdate` reçoit un `dt` variable à chaque frame. `engine.start()` lève `GwenError` `CORE:WASM_NOT_INITIALIZED` quand le bridge WASM n'est pas actif, et il ne programme aucune frame.
 
 ```ts
 // gwen.config.ts

@@ -21,9 +21,10 @@
  *
  * @example
  * ```typescript
- * await initWasm();          // Auto-resolves from @gwenjs/core/wasm/
- * const engine = getEngine();
- * engine.start();
+ * const bridge = new WasmBridgeImpl()
+ * await bridge.init()
+ * const engine = await createEngine({ _bridge: bridge })
+ * await engine.start()
  * ```
  */
 
@@ -314,7 +315,7 @@ export class WasmBridgeImpl implements WasmBridge {
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
    * @param options Initialization options (urls, max entities, SAB requirement)
-   * @throws {Error} If WASM cannot be loaded or has invalid format
+   * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
     if (this._wasmEngine) return;
@@ -326,7 +327,8 @@ export class WasmBridgeImpl implements WasmBridge {
 
     // ── P0: Validate SharedArrayBuffer availability ──────────────────────────
     if (requireSAB && typeof SharedArrayBuffer === "undefined") {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.SHARED_ARRAY_BUFFER_UNAVAILABLE,
         "[GWEN] SharedArrayBuffer is required by a WASM plugin but not available.\n" +
           "Your server MUST send COOP/COEP headers to enable SharedArrayBuffer.\n" +
           "See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer",
@@ -343,7 +345,8 @@ export class WasmBridgeImpl implements WasmBridge {
       wasmUrl ?? (_pkgWasmBase ? `${_pkgWasmBase}${variantPath}gwen_core_bg.wasm` : null);
 
     if (!resolvedJsUrl) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
         `[GWEN] bridge.init(): unable to resolve WASM URL for variant "${variant}".\n` +
           "Make sure @gwenjs/core is correctly installed.",
       );
@@ -360,14 +363,16 @@ export class WasmBridgeImpl implements WasmBridge {
         if (resolvedWasmUrl) {
           wasmInput = await fetch(resolvedWasmUrl, { signal: _fetchController.signal });
           if (!wasmInput.ok) {
-            throw new Error(
+            throw new GwenError(
+              CoreErrorCodes.WASM_LOAD_ERROR,
               `[GWEN] WASM fetch failed with HTTP ${wasmInput.status} ${wasmInput.statusText}`,
             );
           }
         }
       } catch (err) {
         if (err instanceof Error && err.name === "AbortError") {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.WASM_TIMEOUT,
             `[CORE:WASM_TIMEOUT] bridge.init() timed out after 10s waiting for WASM binary.`,
           );
         }
@@ -383,11 +388,17 @@ export class WasmBridgeImpl implements WasmBridge {
         const buf = await (await fetch(resolvedWasmUrl!)).arrayBuffer();
         this._wasmExports = glue.initSync({ module: buf });
       } else {
-        throw new Error("[GWEN] WASM glue has no init() function — corrupted file?");
+        throw new GwenError(
+          CoreErrorCodes.WASM_LOAD_ERROR,
+          "[GWEN] WASM glue has no init() function — corrupted file?",
+        );
       }
 
       if (typeof glue.Engine !== "function") {
-        throw new Error("[GWEN] WASM glue loaded but Engine class not found.");
+        throw new GwenError(
+          CoreErrorCodes.WASM_LOAD_ERROR,
+          "[GWEN] WASM glue loaded but Engine class not found.",
+        );
       }
 
       this._wasmModule = glue as GwenCoreWasm;
@@ -409,12 +420,15 @@ export class WasmBridgeImpl implements WasmBridge {
       this._wasmEngine = null;
       this._wasmModule = null;
       this._wasmExports = null;
-      if (err instanceof GwenWasmError || err instanceof GwenWasmPanicError) {
+      if (err instanceof GwenError) {
         throw err;
       }
-      const tagged = err instanceof Error ? err : new Error(String(err));
-      (tagged as Error & { code?: string }).code = CoreErrorCodes.WASM_LOAD_ERROR;
-      throw tagged;
+      const message = err instanceof Error ? err.message : String(err);
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
+        message,
+        err instanceof Error ? { cause: err } : undefined,
+      );
     });
 
     return this._initPromise;
@@ -426,7 +440,7 @@ export class WasmBridgeImpl implements WasmBridge {
    * Guard that returns the active WasmEngine or throws a descriptive error.
    * All bridge methods call this so the error message is consistent and actionable.
    *
-   * @throws {Error} If `init()` has not been called yet.
+   * @throws {GwenError} If `init()` has not been called yet.
    * @internal
    */
   private _requireWasm(): WasmEngine {
@@ -434,7 +448,8 @@ export class WasmBridgeImpl implements WasmBridge {
       throw new GwenWasmPanicError(undefined, this._panicCause);
     }
     if (!this._wasmEngine) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
         "[GWEN] WASM core not initialized.\n" +
           "Call `await bridge.init()` or `setupGwen()` before starting the Engine.",
       );
@@ -501,7 +516,8 @@ export class WasmBridgeImpl implements WasmBridge {
 
   getPhysicsBridge(): WasmEnginePhysics2D | WasmEnginePhysics3D {
     if (!this.hasPhysics()) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_VARIANT_MISMATCH,
         `[GWEN] getPhysicsBridge(): physics is not available in variant "${this._activeVariant}". ` +
           'Use "physics2d" or "physics3d" variant instead.',
       );
@@ -694,7 +710,10 @@ export class WasmBridgeImpl implements WasmBridge {
     const gensBuf = this._queryGensBuf;
     const dataBuf = this._queryDataBuf;
     if (slotsBuf === undefined || gensBuf === undefined || dataBuf === undefined) {
-      throw new Error("[GWEN] query buffers were not allocated.");
+      throw new GwenError(
+        CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED,
+        "[GWEN] query buffers were not allocated.",
+      );
     }
 
     const typeIds = new Uint32Array(componentTypeIds);
@@ -824,7 +843,10 @@ export class WasmBridgeImpl implements WasmBridge {
   private _getQueryResultView(): Uint32Array {
     const mem = this._wasmExports?.memory;
     if (!mem) {
-      throw new Error("[GWEN] Cannot access WASM memory (not initialized or mock).");
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
+        "[GWEN] Cannot access WASM memory (not initialized or mock).",
+      );
     }
 
     const wasm = this._requireWasm();
@@ -859,7 +881,8 @@ export class WasmBridgeImpl implements WasmBridge {
   allocSharedBuffer(byteLength: number): number {
     const ptr = this._requireWasm().alloc_shared_buffer(byteLength);
     if (ptr === 0) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED,
         `[GwenBridge] alloc_shared_buffer failed: requested ${byteLength} bytes. ` +
           `This is either an OOM condition or a zero-size request.`,
       );

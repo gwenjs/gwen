@@ -6,6 +6,7 @@ import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 // Minimal component defs
 const Position = stubComponent("Position");
@@ -83,6 +84,7 @@ describe("lifecycle hooks inside factory", () => {
     await engine.use(Actor._plugin);
     Actor._plugin.spawn?.();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();

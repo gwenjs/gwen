@@ -32,6 +32,9 @@
     },
     {
       "path": "../renderer-core"
+    },
+    {
+      "path": "../schema"
     }
   ]
 }

@@ -15,6 +15,7 @@ import {
 } from "../src/index";
 import { defineScene, useSystem, type SystemHandle } from "../src/scene/index";
 import { defineSystem, onUpdate } from "../src/system/index";
+import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 const FiveArgHooks = defineHooks({
   "game:five": (_a: number, _b: number, _c: number, _d: number, _e: number): void => undefined,
@@ -336,15 +337,23 @@ describe("frame isolation", () => {
     expect(engine.state).toBe("idle");
   });
 
-  it("runs the next system in the same frame when an earlier system throws", async () => {
+  it("runs the third system in the same frame when the second throws", async () => {
     const engine = await createEngine();
     const runtime: GwenErrorPayload[] = [];
+    let first = 0;
     let throws = 0;
-    let sibling = 0;
+    let third = 0;
     engine.errors.on((event) => {
       if (event.code === CoreErrorCodes.PLUGIN_RUNTIME_ERROR) runtime.push(event);
     });
 
+    await engine.use(
+      defineSystem("FirstSys", () => {
+        onUpdate(() => {
+          first += 1;
+        });
+      })(),
+    );
     await engine.use(
       defineSystem("BadSys", () => {
         onUpdate(() => {
@@ -354,17 +363,18 @@ describe("frame isolation", () => {
       })(),
     );
     await engine.use(
-      defineSystem("Sibling", () => {
+      defineSystem("ThirdSys", () => {
         onUpdate(() => {
-          sibling += 1;
+          third += 1;
         });
       })(),
     );
 
     await engine.advance(0.016);
 
+    expect(first).toBe(1);
     expect(throws).toBe(1);
-    expect(sibling).toBe(1);
+    expect(third).toBe(1);
     expect(engine.frameCount).toBe(1);
     expect(runtime).toHaveLength(1);
     expect(runtime[0]?.target?.name).toBe("BadSys");
@@ -373,7 +383,8 @@ describe("frame isolation", () => {
     await engine.advance(0.016);
 
     expect(throws).toBe(1);
-    expect(sibling).toBe(2);
+    expect(first).toBe(2);
+    expect(third).toBe(2);
     expect(runtime).toHaveLength(1);
     expect(engine.isolated().map((target) => target.name)).toEqual(["BadSys"]);
   });
@@ -777,6 +788,7 @@ describe("plugin lifecycle errors", () => {
     );
 
     try {
+      activateTestWasm(engine);
       await engine.start();
       await wait(100);
       expect(engine.frameCount).toBeGreaterThanOrEqual(3);

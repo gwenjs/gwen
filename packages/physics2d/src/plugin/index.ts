@@ -5,7 +5,7 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { createLogger, createEntityId } from "@gwenjs/core";
+import { CoreErrorCodes, createLogger, createEntityId } from "@gwenjs/core";
 import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
 import type { GwenEngine, EntityId, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
@@ -35,7 +35,11 @@ import {
 } from "../config";
 
 import { addPrefabCollider } from "../prefab";
-import { Physics2DStaleBodyHandleError, Physics2DStaleEntityError } from "../errors";
+import {
+  Physics2DErrorCodes,
+  Physics2DStaleBodyHandleError,
+  Physics2DStaleEntityError,
+} from "../errors";
 import { tilemapChunkIdFromKey, tilemapPseudoEntityFromChunkId } from "../utils";
 
 // Public exports
@@ -68,6 +72,7 @@ export type {
   SensorState,
   TilemapPhysicsChunkMap,
 } from "../types";
+import { GwenError } from "@gwenjs/schema";
 
 export {
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
@@ -96,6 +101,48 @@ function processSensorId(
 /**
  * GWEN plugin providing 2D rigid-body physics via Rapier2D integrated in the core WASM.
  */
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
+}
+
+function reportRejectedHook(
+  engine: {
+    errors: {
+      emit(payload: {
+        level: "error";
+        code: string;
+        message: string;
+        source: string;
+        error: unknown;
+        context: { frame: number; hook: string };
+      }): void;
+    };
+    frameCount: number;
+  } | null,
+  source: string,
+  hook: string,
+  result: unknown,
+): void {
+  if (engine === null || !isThenable(result)) return;
+  void Promise.resolve(result).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    engine.errors.emit({
+      level: "error",
+      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message,
+      source,
+      error,
+      context: { frame: engine.frameCount, hook },
+    });
+  });
+}
+
 export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   const cfg = normalizeConfig(config);
   const layerRegistry = new LayerRegistry(cfg.layers);
@@ -562,7 +609,10 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       bridge = getWasmBridge();
 
       if (!bridge.hasPhysics()) {
-        throw new Error("[Physics2D] Core WASM variant does not include physics.");
+        throw new GwenError(
+          Physics2DErrorCodes.WASM_VARIANT_MISMATCH,
+          "[Physics2D] Core WASM variant does not include physics.",
+        );
       }
 
       currentEngine = engine;
@@ -610,7 +660,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             }
             if (sensors.size > 0) activeSensors.set(slot, sensors);
           } else {
-            throw new Error(
+            throw new GwenError(
+              Physics2DErrorCodes.INVALID_PREFAB_EXTENSION,
               "[Physics2D] Prefab extension must declare `extensions.physics.colliders[]` in v2.",
             );
           }
@@ -650,7 +701,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           if (batch.count === 0) return;
 
           if (cfg.eventMode === "hybrid")
-            void currentEngine?.hooks.callHook("physics:collision:batch", batch);
+            reportRejectedHook(
+              currentEngine,
+              "@gwenjs/physics2d",
+              "physics:collision:batch",
+              currentEngine?.hooks.callHook("physics:collision:batch", batch),
+            );
 
           const internalEvents = batch.events;
 
@@ -672,18 +728,28 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
               physicsService.updateSensorState(entityId, item.id, event.started);
               const nextState = physicsService.getSensorState(entityId, item.id);
               if (prevState.isActive !== nextState.isActive)
-                void currentEngine?.hooks.callHook(
+                reportRejectedHook(
+                  currentEngine,
+                  "@gwenjs/physics2d",
                   "physics:sensor:changed",
-                  entityId,
-                  item.id,
-                  nextState,
+                  currentEngine?.hooks.callHook(
+                    "physics:sensor:changed",
+                    entityId,
+                    item.id,
+                    nextState,
+                  ),
                 );
             }
           }
 
           const contacts = resolveContacts(internalEvents);
 
-          void currentEngine?.hooks.callHook("physics:collision", contacts);
+          reportRejectedHook(
+            currentEngine,
+            "@gwenjs/physics2d",
+            "physics:collision",
+            currentEngine?.hooks.callHook("physics:collision", contacts),
+          );
           for (const contact of contacts) {
             const slotA = entityIndex(contact.entityA);
             const slotB = entityIndex(contact.entityB);

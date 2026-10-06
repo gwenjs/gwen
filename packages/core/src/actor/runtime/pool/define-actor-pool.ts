@@ -8,6 +8,7 @@ import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
+import { ActorErrorCodes, CoreErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 
 /**
  * Manages the queue of actor pool slots scheduled for deferred release.
@@ -90,6 +91,48 @@ class DeferredReleaseQueue {
  * - `onRelease` callbacks fire immediately when `release()` is flushed.
  * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "then" in value &&
+    typeof value.then === "function"
+  );
+}
+
+function reportRejectedHook(
+  engine: {
+    errors: {
+      emit(payload: {
+        level: "error";
+        code: string;
+        message: string;
+        source: string;
+        error: unknown;
+        context: { frame: number; hook: string };
+      }): void;
+    };
+    frameCount: number;
+  } | null,
+  source: string,
+  hook: string,
+  result: unknown,
+): void {
+  if (engine === null || !isThenable(result)) return;
+  void Promise.resolve(result).catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    engine.errors.emit({
+      level: "error",
+      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message,
+      source,
+      error,
+      context: { frame: engine.frameCount, hook },
+    });
+  });
+}
+
 export function defineActorPool<Props, PublicAPI>(
   actor: ActorDefinition<Props, PublicAPI>,
   options: PoolOptions,
@@ -114,7 +157,8 @@ export function defineActorPool<Props, PublicAPI>(
 
   function _getEngine(): GwenEngine {
     if (!_engine) {
-      throw new Error(
+      throw new GwenActorError(
+        ActorErrorCodes.PLUGIN_NOT_READY,
         `[GWEN] pool(${actorName}).acquire() or release() was called before the pool plugin was installed.\n` +
           `  Fix: await engine.use(pool._plugin) before calling pool methods.\n` +
           `  Make sure engine.use(Actor._plugin) is called first.`,
@@ -133,14 +177,24 @@ export function defineActorPool<Props, PublicAPI>(
         size,
         ratio,
       });
-      void _hooks.callHook("pool:critical", { active: _active.size, size, ratio });
+      reportRejectedHook(
+        engine,
+        `pool:${actorName}`,
+        "pool:critical",
+        _hooks.callHook("pool:critical", { active: _active.size, size, ratio }),
+      );
     } else if (ratio >= warnThreshold) {
       log.warn(`pool at ${Math.round(ratio * 100)}% capacity (${_active.size}/${size})`, {
         active: _active.size,
         size,
         ratio,
       });
-      void _hooks.callHook("pool:warn", { active: _active.size, size, ratio });
+      reportRejectedHook(
+        engine,
+        `pool:${actorName}`,
+        "pool:warn",
+        _hooks.callHook("pool:warn", { active: _active.size, size, ratio }),
+      );
     }
   }
 
@@ -192,7 +246,12 @@ export function defineActorPool<Props, PublicAPI>(
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);
       log.error(`pool exhausted — all ${size} slots are active`, { actorName, size });
-      void _hooks.callHook("pool:exhausted", { size });
+      reportRejectedHook(
+        engine,
+        `pool:${actorName}`,
+        "pool:exhausted",
+        _hooks.callHook("pool:exhausted", { size }),
+      );
       throw new PoolExhaustedError(actorName, size);
     }
 
@@ -201,7 +260,12 @@ export function defineActorPool<Props, PublicAPI>(
     if (_active.size > _peakActive) _peakActive = _active.size;
 
     _checkThresholds(engine);
-    void _hooks.callHook("pool:acquire", { id, props });
+    reportRejectedHook(
+      engine,
+      `pool:${actorName}`,
+      "pool:acquire",
+      _hooks.callHook("pool:acquire", { id, props }),
+    );
     return id;
   }
 
@@ -254,7 +318,12 @@ export function defineActorPool<Props, PublicAPI>(
     _active.delete(id);
     _available.push(id);
 
-    void _hooks.callHook("pool:release", { id });
+    reportRejectedHook(
+      _engine,
+      `pool:${actorName}`,
+      "pool:release",
+      _hooks.callHook("pool:release", { id }),
+    );
   }
 
   // ─── destroyAll ─────────────────────────────────────────────────────────────

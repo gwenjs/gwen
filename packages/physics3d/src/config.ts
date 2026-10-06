@@ -3,6 +3,8 @@
  */
 
 import type { Physics3DConfig, ResolvedPhysics3DConfig, Physics3DQualityPreset } from "./types";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "./errors/codes";
 
 export { QUALITY_PRESETS } from "./types";
 
@@ -74,7 +76,7 @@ export function buildLayerRegistry(layers: string[]): Map<string, number> {
  * @param names    - Layer names to resolve.
  * @param registry - Layer registry built by {@link buildLayerRegistry}.
  * @returns Combined bitmask.
- * @throws Error if a layer name is not declared in the registry.
+ * @throws {GwenError} if a layer name is not declared in the registry.
  */
 export function resolveLayerBits(
   names: (string | number)[] | undefined,
@@ -89,7 +91,8 @@ export function resolveLayerBits(
     } else {
       const bit = registry.get(name);
       if (bit === undefined) {
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.UNKNOWN_LAYER,
           `[GWEN:Physics3D] Unknown layer "${name}". Declared layers: [${declared.join(", ")}]`,
         );
       }

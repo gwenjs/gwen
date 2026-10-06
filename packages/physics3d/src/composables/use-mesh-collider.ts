@@ -17,6 +17,8 @@ import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
 import { nextColliderId } from "./collider-id";
 import type { PreloadedBvhHandle } from "../index";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 /**
  * Type guard for {@link PreloadedBvhHandle}.
@@ -154,7 +156,8 @@ export function useMeshCollider(
       const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);
       if (!ok) {
         _status = "error";
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.MESH_REBUILD_FAILED,
           `physics3d_rebuild_mesh_collider failed for entity ${String(entityId)}, colliderId ${colliderId}`,
         );
       }

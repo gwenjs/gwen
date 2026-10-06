@@ -72,7 +72,7 @@ export const defaultOptions: GwenOptions = {
  *
  * @param input - Partial user configuration (can include legacy `tsPlugins`/`wasmPlugins`)
  * @returns Fully resolved and validated GwenOptions
- * @throws Error if validation fails with descriptive message
+ * @throws {GwenError} if validation fails with descriptive message
  *
  * @example
  * ```ts

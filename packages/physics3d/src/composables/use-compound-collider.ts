@@ -17,6 +17,8 @@
 import type { CompoundColliderHandle3D, CompoundColliderOptions3D } from "../types";
 import { usePhysics3D } from "../composables";
 import { _getActorEntityId } from "@gwenjs/core/internal";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 export type { CompoundColliderOptions3D };
 
@@ -38,7 +40,7 @@ export type { CompoundColliderOptions3D };
  * @returns A {@link CompoundColliderHandle3D} containing stable IDs for each
  *   shape (in `options.shapes` order) and a `remove()` method that detaches
  *   all shapes at once.
- * @throws {Error} If the current entity has no registered rigid body.
+ * @throws {GwenError} If the current entity has no registered rigid body.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics3d` is not registered.
  *
  * @example
@@ -83,7 +85,8 @@ export function useCompoundCollider(options: CompoundColliderOptions3D): Compoun
 
   const handle = physics.addCompoundCollider(entityId, options);
   if (!handle) {
-    throw new Error(
+    throw new GwenError(
+      Physics3DErrorCodes.NO_RIGID_BODY,
       "[GWEN:useCompoundCollider] No rigid body found for this entity. " +
         "Call useDynamicBody() or useStaticBody() before useCompoundCollider().",
     );

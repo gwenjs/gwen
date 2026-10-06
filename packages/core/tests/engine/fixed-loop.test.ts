@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { createEngine } from "../../src";
 import { defineSystem, onUpdate } from "@gwenjs/core/system";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 /**
  * Stubs requestAnimationFrame so start() can be driven manually.
@@ -52,6 +53,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start(); // _lastFrameTime = 0
 
     // Advance exactly one fixed step
@@ -75,6 +77,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
 
     await harness.tick((1000 / 60) * 2); // rawDt = 2 frames
@@ -98,6 +101,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
 
     // 10 frames worth of time — should only produce 2 steps
@@ -120,6 +124,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
 
     engine.timeScale = 0.5;
@@ -144,6 +149,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
 
     // Frame 1: 20ms — not enough for one 33.33ms step → 0 steps
@@ -163,6 +169,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     const engine = await createEngine({ physicsHz: 60 });
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
 
     expect(harness.pending()).toBe(1); // initial frame scheduled
@@ -185,6 +192,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     );
 
     harness.setNow(0);
+    activateTestWasm(engine);
     await engine.start();
     await engine.stop();
 

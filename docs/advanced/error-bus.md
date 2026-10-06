@@ -75,6 +75,7 @@ CoreErrorCodes.PLUGIN_RUNTIME_ERROR // Plugin threw during a frame callback
 CoreErrorCodes.WASM_LOAD_ERROR      // WASM module failed to load
 CoreErrorCodes.WASM_TIMEOUT         // WASM module did not initialise in time
 CoreErrorCodes.WASM_PANIC           // Rust panic propagated from WASM
+CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() before the bridge is active
 ```
 
 Plugins define their own error codes following the same pattern: `'PLUGIN_NAME:ERROR_TYPE'`.

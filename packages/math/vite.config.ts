@@ -26,7 +26,7 @@ export default defineConfig({
       fileName: () => "index.js",
     },
     rollupOptions: {
-      // No external dependencies — pure math library
+      external: ["@gwenjs/schema"],
     },
   },
 });
