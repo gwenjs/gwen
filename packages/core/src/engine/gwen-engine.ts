@@ -746,7 +746,8 @@ class GwenEngineImpl implements GwenEngine {
       max_entities: builtImports.max_entities,
     };
 
-    let instance: WebAssembly.Instance;
+    let wasmModule: WebAssembly.Module;
+    let probeExports: WebAssembly.Exports | null = null;
     try {
       const response = await fetch(
         options.url instanceof URL ? options.url.toString() : options.url,
@@ -758,8 +759,34 @@ class GwenEngineImpl implements GwenEngine {
         );
       }
       const buffer = await response.arrayBuffer();
-      const result = await WebAssembly.instantiate(buffer, { gwen: gwenImports });
-      instance = result.instance;
+      wasmModule = await WebAssembly.compile(buffer);
+      if (declared) {
+        const exportName = `gwen_${declared.name}_ptr`;
+        const hasPtrExport = WebAssembly.Module.exports(wasmModule).some(
+          (item) => item.name === exportName && item.kind === "function",
+        );
+        if (hasPtrExport) {
+          const probe = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
+          probeExports = probe.exports;
+        }
+      }
+    } catch (err) {
+      throw new Error(
+        `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
+          `Cause: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+
+    if (declared && probeExports) {
+      modulePtr = this._resolveTransformOffset(probeExports, declared);
+      const probeMemory =
+        probeExports["memory"] instanceof WebAssembly.Memory ? probeExports["memory"] : undefined;
+      this._validateResolvedRegion(options.name, declared, modulePtr, probeMemory);
+    }
+
+    let instance: WebAssembly.Instance;
+    try {
+      instance = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
     } catch (err) {
       throw new GwenError(
         CoreErrorCodes.WASM_LOAD_ERROR,

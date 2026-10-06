@@ -84,7 +84,7 @@ export const FLAGS_OFFSET = 20;
 /** Byte offset of the `flags` field within a single 3D entity slot. */
 export const FLAGS3D_OFFSET = 40;
 
-/** Bit flag: this entity slot is actively managed by a physics plugin. */
+/** Bit 0 of the 2D transform flags: the slot has a transform. Every other bit is 0. */
 export const FLAG_PHYSICS_ACTIVE = 0b01;
 
 /**

@@ -317,7 +317,8 @@ export interface WasmEngineBase {
    */
   free_shared_buffer(ptr: number, byteLength: number): void;
   /**
-   * Copy ECS transform data into the shared buffer so WASM plugins can read it.
+   * Copy hierarchy world transforms into a live core buffer.
+   * The pointer stays in this engine. Community modules do not receive it.
    * @param ptr    Pointer returned by `alloc_shared_buffer`.
    * @param maxEntities  Number of entity slots to sync.
    */

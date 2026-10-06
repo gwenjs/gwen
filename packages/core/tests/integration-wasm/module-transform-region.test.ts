@@ -8,6 +8,7 @@ import type { RealEngineHandle } from "../../src/testing/create-real-engine.js";
 import {
   NO_MEMORY_WASM,
   TRANSFORM_READER_EXPORT_WASM,
+  TRANSFORM_READER_START_WASM,
   TRANSFORM_READER_WASM,
   wasmDataUrl,
 } from "./fixtures/transform-reader.js";
@@ -31,6 +32,13 @@ interface ExportFormExports extends TransformReaderExports {
   gwen_transforms_ptr: () => number;
 }
 
+interface StartCachedExports extends WebAssembly.Exports {
+  memory: WebAssembly.Memory;
+  cached_ptr: () => number;
+  ptr: () => number;
+  gwen_transforms_ptr: () => number;
+}
+
 declare module "../../src/engine/engine-types.js" {
   interface GwenWasmModules {
     reader: TransformReaderExports;
@@ -45,6 +53,7 @@ declare module "../../src/engine/engine-types.js" {
     "past-end": TransformReaderExports;
     "no-memory": WebAssembly.Exports;
     "export-form": ExportFormExports;
+    "start-cache": StartCachedExports;
   }
 }
 
@@ -86,6 +95,7 @@ interface GwenWasmModulesReader {
   "past-end": TransformReaderExports;
   "no-memory": WebAssembly.Exports;
   "export-form": ExportFormExports;
+  "start-cache": StartCachedExports;
 }
 
 async function withEngine(run: (started: RealEngineHandle) => Promise<void>): Promise<void> {
@@ -107,6 +117,7 @@ describe("module transform region", () => {
   it("the fixture bytes are valid wasm", () => {
     expect(WebAssembly.validate(TRANSFORM_READER_WASM)).toBe(true);
     expect(WebAssembly.validate(TRANSFORM_READER_EXPORT_WASM)).toBe(true);
+    expect(WebAssembly.validate(TRANSFORM_READER_START_WASM)).toBe(true);
     expect(WebAssembly.validate(NO_MEMORY_WASM)).toBe(true);
   });
 
@@ -315,6 +326,20 @@ describe("module transform region", () => {
       expect(handle.exports.ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
+    });
+  });
+
+  it("gives start the same pointer as later calls", async () => {
+    await withEngine(async (started) => {
+      const handle = await started.engine.loadWasmModule<StartCachedExports>({
+        name: "start-cache",
+        url: wasmDataUrl(TRANSFORM_READER_START_WASM),
+        memory: { regions: [region(0, REQUIRED_BYTES)] },
+        transformRegion: "transforms",
+      });
+      expect(handle.exports.gwen_transforms_ptr()).toBe(REGION_OFFSET);
+      expect(handle.exports.cached_ptr()).toBe(REGION_OFFSET);
+      expect(handle.exports.ptr()).toBe(REGION_OFFSET);
     });
   });
 });
