@@ -143,7 +143,7 @@ export function createSpatialQueryMethods(
           maxResults = ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
         } = opts;
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
-        if (!wasmMem || !ctx.overlapScratchView || ctx.overlapScratchPtr === 0) {
+        if (!wasmMem || ctx.overlapScratchPtr === 0 || ctx._engine === null) {
           if (__GWEN_DEV__) {
             ctx.log.warn("overlapShape() scratch buffer unavailable");
           }
@@ -152,11 +152,14 @@ export function createSpatialQueryMethods(
         const [shapeType, p0, p1, p2] = encodeShape(shape);
         const safeMax = Math.min(maxResults, ctx.MAX_COMPOSABLE_OVERLAP_RESULTS);
 
-        const scratchView = new Uint32Array(
-          wasmMem.buffer,
-          ctx.overlapScratchPtr,
-          ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
-        );
+        if (ctx.overlapScratch === null) {
+          ctx.overlapScratch = ctx._engine.memory.view({
+            name: "physics3d:overlap-scratch",
+            type: "u32",
+            ptr: () => ctx.overlapScratchPtr,
+            length: () => ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
+          });
+        }
         const count =
           ctx.wasmBridge!.physics3d_overlap_shape?.(
             pos.x,
@@ -176,6 +179,7 @@ export function createSpatialQueryMethods(
             safeMax,
           ) ?? 0;
 
+        const scratchView = ctx.overlapScratch.array;
         const entities: EntityId[] = [];
         for (let i = 0; i < count; i++) {
           const id = entityIndexToId(ctx, scratchView[i]!);

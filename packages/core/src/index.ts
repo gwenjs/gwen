@@ -42,6 +42,13 @@ export {
   GwenWasmPanicError,
 } from "./engine/gwen-engine";
 export type { CoreWasmErrorCode } from "./engine/gwen-engine";
+export { EngineMemory } from "./engine/engine-memory";
+export type {
+  MemoryView,
+  MemoryViewArray,
+  MemoryViewDescriptor,
+  MemoryViewType,
+} from "./engine/engine-memory";
 export { createErrorBus } from "./engine/error-bus";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
 export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";

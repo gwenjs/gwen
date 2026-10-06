@@ -7,7 +7,7 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
 import { createLogger, createEntityId } from "@gwenjs/core";
 import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
-import type { GwenEngine, EntityId, WasmBridge } from "@gwenjs/core";
+import type { GwenEngine, EntityId, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 
 import type {
@@ -183,9 +183,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   let physicsService: Physics2DAPI | null = null;
   let log: import("@gwenjs/schema").IGwenLogger = createLogger("@gwenjs/physics2d", cfg.debug);
 
-  // Binary buffer state (encapsulated per plugin instance)
-  let eventsView: DataView | null = null;
-  let eventsBufferRef: ArrayBuffer | null = null;
+  // Collision events live in gwen-core memory. The view rebuilds after memory.grow.
+  let collisionEvents: MemoryView<"dataview"> | null = null;
   const pooledCollisionEvents: InternalCollisionEvent[] = [];
   let cachedCollisionBatch: InternalCollisionEventsBatch | null = null;
 
@@ -210,20 +209,44 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         events: [],
       };
     }
-    const ptr = pb.physics_get_collision_events_ptr();
     const count = pb.physics_get_collision_event_count();
-
-    if (!eventsView || eventsBufferRef !== memory.buffer || eventsView.byteLength === 0) {
-      eventsBufferRef = memory.buffer;
-      eventsView = new DataView(memory.buffer, ptr, MAX_EVENTS * EVENT_STRIDE);
-    }
-
     const visibleCount = max !== undefined && max >= 0 ? Math.min(max, count) : count;
+    const length = (): number => {
+      const live = bridge!.getLinearMemory();
+      if (live === null) return 0;
+      const bytes = live.buffer.byteLength - pb.physics_get_collision_events_ptr();
+      const cap = MAX_EVENTS * EVENT_STRIDE;
+      if (bytes <= 0) return 0;
+      return bytes > cap ? cap : bytes;
+    };
+    let eventsView: DataView | null = null;
+    if (visibleCount > 0) {
+      if (collisionEvents === null && currentEngine !== null) {
+        collisionEvents = currentEngine.memory.view({
+          name: "physics2d:collision-events",
+          type: "dataview",
+          ptr: () => pb.physics_get_collision_events_ptr(),
+          length,
+        });
+      }
+      if (collisionEvents === null || length() <= 0) {
+        return {
+          frame: 0,
+          count: 0,
+          droppedSinceLastRead: 0,
+          droppedCritical: 0,
+          droppedNonCritical: 0,
+          coalesced: false,
+          events: [],
+        };
+      }
+      eventsView = collisionEvents.array;
+    }
 
     pooledCollisionEvents.length = visibleCount;
     for (let i = 0; i < visibleCount; i++) {
       const offset = i * EVENT_STRIDE;
-      const type = eventsView.getUint32(offset + 8, true);
+      const type = eventsView!.getUint32(offset + 8, true);
 
       let ev = pooledCollisionEvents[i];
       if (!ev) {
@@ -231,12 +254,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         pooledCollisionEvents[i] = ev;
       }
 
-      ev.slotA = eventsView.getUint32(offset, true);
-      ev.slotB = eventsView.getUint32(offset + 4, true);
+      ev.slotA = eventsView!.getUint32(offset, true);
+      ev.slotB = eventsView!.getUint32(offset + 4, true);
       ev.started = type === 0 || type === 2;
 
-      const aId = eventsView.getUint16(offset + 12, true);
-      const bId = eventsView.getUint16(offset + 14, true);
+      const aId = eventsView!.getUint16(offset + 12, true);
+      const bId = eventsView!.getUint16(offset + 14, true);
       if (aId === 0xffff) delete ev.aColliderId;
       else ev.aColliderId = aId;
       if (bId === 0xffff) delete ev.bColliderId;
@@ -674,8 +697,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     teardown(): void {
       for (const off of unhooks) off();
       unhooks.length = 0;
-      eventsView = null;
-      eventsBufferRef = null;
+      collisionEvents?.dispose();
+      collisionEvents = null;
       physicsService = null;
       currentEngine = null;
       entityCollisionCallbacks.clear();

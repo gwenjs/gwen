@@ -124,7 +124,7 @@ export function createCharacterControllerMethods(
               desiredVelocity.z,
               dt,
             );
-            const view = ctx.ccSABView.view;
+            const view = ctx.ccState === null ? null : ctx.ccState.array;
             if (view !== null) {
               const base = slotIndex * ctx.CC_STATE_STRIDE;
               _grounded = view[base] !== 0;

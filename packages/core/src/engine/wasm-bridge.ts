@@ -396,6 +396,7 @@ export class WasmBridgeImpl implements WasmBridge {
       } catch (err: unknown) {
         throw this._mapWasmError(err, "new");
       }
+      this._captureMemoryBaseline();
 
       if (__GWEN_DEV__) {
         const label =
@@ -910,6 +911,16 @@ export class WasmBridgeImpl implements WasmBridge {
    */
   getLinearMemory(): WebAssembly.Memory | null {
     return this._wasmExports?.memory ?? null;
+  }
+
+  /**
+   * Record `memory.buffer` at the end of `init`.
+   * The mock-injection path does not call this: the first `checkMemoryGrow()` still records.
+   * @internal
+   */
+  _captureMemoryBaseline(): void {
+    const mem = this._wasmExports?.memory;
+    if (mem) this._lastMemoryBuffer = mem.buffer;
   }
 
   /**

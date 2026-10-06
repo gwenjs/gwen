@@ -503,6 +503,19 @@ describe("WasmBridge — checkMemoryGrow()", () => {
     expect(bridge.checkMemoryGrow()).toBe(false);
   });
 
+  it("records the buffer at init, so the next check sees later growth", () => {
+    const bridge = new WasmBridgeImpl();
+    const buf1 = new ArrayBuffer(100);
+    const buf2 = new ArrayBuffer(200);
+    const mockMemory = { buffer: buf1 } as { buffer: ArrayBuffer };
+
+    bridge._injectMockExports({ memory: mockMemory as unknown as WebAssembly.Memory });
+    bridge._captureMemoryBaseline();
+
+    mockMemory.buffer = buf2;
+    expect(bridge.checkMemoryGrow()).toBe(true);
+  });
+
   it("should be idempotent after a grow detection", () => {
     const bridge = new WasmBridgeImpl();
     const buf1 = new ArrayBuffer(100);

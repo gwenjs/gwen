@@ -6,7 +6,7 @@
  * Physics3DPlugin closure. The context is created once per plugin instance.
  */
 
-import type { GwenEngine } from "@gwenjs/core";
+import type { GwenEngine, MemoryView } from "@gwenjs/core";
 import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type {
   Physics3DBodyHandle,
@@ -84,8 +84,7 @@ export interface PluginContext {
   previousLocalContactKeys: Set<string>;
 
   // ── WASM event buffer ──────────────────────────────────────────────────────
-  eventsView: DataView | null;
-  eventsBufferRef: ArrayBuffer | null;
+  collisionEvents: MemoryView<"dataview"> | null;
   pooledEvents: InternalCollisionEvent3D[];
   lastFrameEventCount: number;
 
@@ -101,7 +100,7 @@ export interface PluginContext {
 
   // ── Character Controller ───────────────────────────────────────────────────
   ccRegistrations: Map<number, { slotIndex: number; entityIndex: number }>;
-  ccSABView: { view: Float32Array | null };
+  ccState: MemoryView<"f32"> | null;
   ccDescriptorBuffer: { view: Float32Array | null };
   _emittedCCLocalWarning: boolean;
 
@@ -122,7 +121,7 @@ export interface PluginContext {
   nextOverlapSlotId: number;
   overlapSlots: Map<number, { opts: OverlapOpts; result: OverlapSlotResult; _si: Float32Array }>;
   _overlapOutputSABPtr: number;
-  overlapScratchView: DataView | null;
+  overlapScratch: MemoryView<"u32"> | null;
   overlapScratchPtr: number;
 
   // ── Pathfinding ────────────────────────────────────────────────────────────
@@ -193,8 +192,7 @@ export function createPluginContext(
     currentFrameContacts: [],
     previousLocalContactKeys: new Set(),
 
-    eventsView: null,
-    eventsBufferRef: null,
+    collisionEvents: null,
     pooledEvents: [],
     lastFrameEventCount: 0,
 
@@ -205,7 +203,7 @@ export function createPluginContext(
     localGravityScales: new Map(),
 
     ccRegistrations: new Map(),
-    ccSABView: { view: null },
+    ccState: null,
     ccDescriptorBuffer: { view: null },
     _emittedCCLocalWarning: false,
 
@@ -220,7 +218,7 @@ export function createPluginContext(
     nextOverlapSlotId: 0,
     overlapSlots: new Map(),
     _overlapOutputSABPtr: 0,
-    overlapScratchView: null,
+    overlapScratch: null,
     overlapScratchPtr: 0,
 
     _localNavGrid: null,

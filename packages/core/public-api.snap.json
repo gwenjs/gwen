@@ -4,6 +4,7 @@
       "ActorErrorCodes",
       "ComposableErrorCodes",
       "CoreErrorCodes",
+      "EngineMemory",
       "GwenActorError",
       "GwenComposableError",
       "GwenConfigError",

@@ -44,10 +44,10 @@ export interface GwenCoreWasm {
    *   1. Build `DataView` / `TypedArray` views for debug tools.
    *   2. Detect `memory.grow()` events: when Rust allocates enough to
    *      trigger a grow, the underlying `ArrayBuffer` is replaced. Any
-   *      previously constructed JS views become "detached" and must be
-   *      recreated.  `getLinearMemory()` on the bridge always returns the
-   *      live `WebAssembly.Memory` object, so callers should re-wrap
-   *      `memory.buffer` on every frame rather than caching the buffer.
+   *      previously constructed JS views become "detached".
+   *      `getLinearMemory()` returns the live `WebAssembly.Memory`.
+   *      A view kept across a WASM call must go through `engine.memory.view`:
+   *      `.array` rebuilds when `byteLength === 0`. Do not cache the buffer.
    */
   memory?: WebAssembly.Memory;
 }

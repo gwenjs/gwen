@@ -116,27 +116,41 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
   const memory = ctx.bridgeRuntime?.getLinearMemory?.() ?? pb.memory ?? null;
   if (!memory) return [];
 
-  const ptr = pb.physics3d_get_collision_events_ptr();
   const count = Math.min(pb.physics3d_get_collision_event_count(), MAX_EVENTS_3D);
   if (count === 0) return [];
 
-  const availableBytes = memory.buffer.byteLength - ptr;
-  if (availableBytes <= 0) return [];
-
-  if (!ctx.eventsView || ctx.eventsBufferRef !== memory.buffer || ctx.eventsView.byteLength === 0) {
-    ctx.eventsBufferRef = memory.buffer;
-    ctx.eventsView = new DataView(memory.buffer, ptr, availableBytes);
+  const engine = ctx._engine;
+  if (engine === null) return [];
+  const ptr = pb.physics3d_get_collision_events_ptr();
+  const available = memory.buffer.byteLength - ptr;
+  if (available <= 0) return [];
+  if (ctx.collisionEvents === null) {
+    ctx.collisionEvents = engine.memory.view({
+      name: "physics3d:collision-events",
+      type: "dataview",
+      ptr: () => pb.physics3d_get_collision_events_ptr?.() ?? 0,
+      length: () => {
+        const live = ctx.bridgeRuntime?.getLinearMemory?.() ?? pb.memory ?? null;
+        const livePtr = pb.physics3d_get_collision_events_ptr?.() ?? 0;
+        if (live === null) return 0;
+        const liveAvailable = live.buffer.byteLength - livePtr;
+        const cap = MAX_EVENTS_3D * EVENT_STRIDE_3D;
+        if (liveAvailable <= 0) return 0;
+        return liveAvailable > cap ? cap : liveAvailable;
+      },
+    });
   }
+  const eventsView = ctx.collisionEvents.array;
 
   // Reuse pooled array
   ctx.pooledEvents.length = count;
   for (let i = 0; i < count; i++) {
     const base = i * EVENT_STRIDE_3D;
-    const slotA = ctx.eventsView.getUint32(base, true);
-    const slotB = ctx.eventsView.getUint32(base + 4, true);
-    const rawFlags = ctx.eventsView.getUint32(base + 8, true);
-    const rawColliderA = ctx.eventsView.getUint16(base + 12, true);
-    const rawColliderB = ctx.eventsView.getUint16(base + 14, true);
+    const slotA = eventsView.getUint32(base, true);
+    const slotB = eventsView.getUint32(base + 4, true);
+    const rawFlags = eventsView.getUint32(base + 8, true);
+    const rawColliderA = eventsView.getUint16(base + 12, true);
+    const rawColliderB = eventsView.getUint16(base + 14, true);
 
     const existing = ctx.pooledEvents[i];
     if (existing) {

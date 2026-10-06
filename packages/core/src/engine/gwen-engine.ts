@@ -35,6 +35,7 @@ import type { IGwenLogger } from "@gwenjs/schema";
 import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
 import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
+import { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
@@ -202,6 +203,8 @@ class GwenEngineImpl implements GwenEngine {
   /** One core trap is published. A later poisoned-bridge rethrow is not a second panic. */
   private _wasmPanicPublished = false;
 
+  private readonly _memory: EngineMemory;
+
   get errors(): EngineErrorBus {
     return this._errorBus;
   }
@@ -212,6 +215,10 @@ class GwenEngineImpl implements GwenEngine {
 
   reenable(id: string): boolean {
     return forgetTarget(this, id);
+  }
+
+  get memory(): EngineMemory {
+    return this._memory;
   }
 
   get state(): EngineState {
@@ -361,6 +368,14 @@ class GwenEngineImpl implements GwenEngine {
     bindFailureReporter(this, (error, target, hook) => {
       this._reportCaught(error, hook, { target });
     });
+    this._memory = new EngineMemory(this._bridge, errorBus);
+    this.provide("memory", this._memory);
+    this.disposables.add(
+      "engine:memory",
+      createDisposable(() => {
+        this._memory.disposeAll();
+      }),
+    );
     this._attachErrorPolicy();
   }
 
@@ -1487,6 +1502,49 @@ class GwenEngineImpl implements GwenEngine {
     this._fps = alpha * sample + (1 - alpha) * this._fps;
   }
 
+  /**
+   * One identity check before a frame phase.
+   * Returns a promise only when memory grew, so a quiet frame stays synchronous.
+   * A handler that throws is an error on the bus. The frame continues.
+   */
+  private _onPhaseBoundary(): Promise<void> | void {
+    if (!this._bridge.checkMemoryGrow()) return;
+    const memory = this._bridge.getLinearMemory();
+    const byteLength = memory === null ? 0 : memory.buffer.byteLength;
+    const frame = this._frameCountOwn;
+    this._memory.noteGrowth(frame);
+    let pending: Promise<unknown> | void;
+    try {
+      pending = this.hooks.callHook("engine:memory-grow", {
+        epoch: this._memory.epoch,
+        byteLength,
+        frame,
+      }) as Promise<unknown> | void;
+    } catch (error: unknown) {
+      this._reportMemoryGrow(error, frame);
+      return;
+    }
+    if (pending === undefined || pending === null || typeof pending.then !== "function") return;
+    return pending.then(
+      () => undefined,
+      (error: unknown) => {
+        this._reportMemoryGrow(error, frame);
+      },
+    );
+  }
+
+  private _reportMemoryGrow(error: unknown, frame: number): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this._errorBus.emit({
+      level: "error",
+      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+      message: `[engine:memory-grow] ${message}`,
+      source: "engine:memory-grow",
+      error,
+      context: { frame },
+    });
+  }
+
   private async _runFrame(dt: number): Promise<void> {
     // All 8 frame phases run inside this engine's context.
     // engineContext.set(this, true) makes useEngine() resolve to this instance
@@ -1509,16 +1567,28 @@ class GwenEngineImpl implements GwenEngine {
     try {
       // Phase 1 — engine:tick hook (fires before any plugin work)
       if (instrument) t1 = performance.now();
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       const tickDone = this._guardHook1("engine:tick", dt);
       if (isThenable(tickDone)) await tickDone;
       if (instrument) t2 = performance.now();
 
       // Phase 2 — emit before-update hook
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       const beforeDone = this._guardHook1("engine:before-update", dt);
       if (isThenable(beforeDone)) await beforeDone;
       if (instrument) t3 = performance.now();
 
       // Phase 3 — built-in physics step (Cas A: wasmBridge physics)
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       try {
         if (this.wasmBridge.physics2d.enabled) this.wasmBridge.physics2d.step(dt);
         if (this.wasmBridge.physics3d.enabled) this.wasmBridge.physics3d.step(dt);
@@ -1536,6 +1606,10 @@ class GwenEngineImpl implements GwenEngine {
       if (instrument) t4 = performance.now();
 
       // Phase 4 — community WASM modules step (Cas B: user WASM, registration order)
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       for (const [name, entry] of this._wasmModules.entries()) {
         if (isIsolated(this, `wasm:${name}`)) continue;
         try {
@@ -1568,6 +1642,10 @@ class GwenEngineImpl implements GwenEngine {
       }
 
       // Phase 5 — ECS query flush + transform propagation
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       // update_transforms() propagates local→world transforms so that
       // get_entity_world_x/y/rotation return up-to-date values in onUpdate.
       try {
@@ -1580,11 +1658,19 @@ class GwenEngineImpl implements GwenEngine {
       }
 
       // Phase 6 — emit update hook
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       const updateDone = this._guardHook1("engine:update", dt);
       if (isThenable(updateDone)) await updateDone;
       if (instrument) t6 = performance.now();
 
       // Phase 7a — emit after-update hook
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       const afterDone = this._guardHook1("engine:after-update", dt);
       if (isThenable(afterDone)) await afterDone;
 
@@ -1594,6 +1680,10 @@ class GwenEngineImpl implements GwenEngine {
       if (instrument) t7 = performance.now();
 
       // Phase 8 — update stats, then fire engine:afterTick hook
+      {
+        const memoryGrow = this._onPhaseBoundary();
+        if (memoryGrow !== undefined) await memoryGrow;
+      }
       this._frameCountOwn++;
       const afterTickDone = this._guardHook1("engine:afterTick", dt);
       if (isThenable(afterTickDone)) await afterTickDone;
@@ -1657,13 +1747,36 @@ class GwenEngineImpl implements GwenEngine {
     const tracker = this._tracker;
     const realHooks = this.hooks;
     const engine = this;
+    // A memory-grow failure keeps the plugin name and does not isolate it.
+    // Later hooks in the same frame, including this plugin, still run.
+    const emitGrowError = (error: unknown): void => {
+      const message = error instanceof Error ? error.message : String(error);
+      this._errorBus.emit({
+        level: "error",
+        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+        message: `[${pluginName}] engine:memory-grow threw: ${message}`,
+        source: pluginName,
+        error,
+        context: { frame: this._frameCountOwn },
+      });
+    };
     return new Proxy(realHooks, {
       get(target, prop) {
         if (prop === "hook") {
           return (event: string, fn: (...args: unknown[]) => unknown) => {
             const setup = currentPluginSetupTarget();
             const registered =
-              setup && setup.id === pluginName ? guardHandler(fn, setup, event, engine) : fn;
+              event === "engine:memory-grow"
+                ? async (info: unknown) => {
+                    try {
+                      await fn(info);
+                    } catch (error: unknown) {
+                      emitGrowError(error);
+                    }
+                  }
+                : setup && setup.id === pluginName
+                  ? guardHandler(fn, setup, event, engine)
+                  : fn;
             tracker.track(pluginName, event, registered);
             return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
               ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(
