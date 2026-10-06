@@ -43,12 +43,21 @@ export function unpackEntityId(id: EntityId): { index: number; generation: numbe
 }
 
 /**
+ * Highest EntityId that Number can convert without rounding.
+ * That is generation 2^21 - 1 with any index.
+ */
+const MAX_EXACT_ENTITY_ID = (1n << 53n) - 1n;
+
+/**
  * Extract the entity index (lower 32 bits) from an EntityId.
  *
- * Masks in BigInt space before converting to Number to avoid the precision
- * loss that occurs with `Number(id) & 0xffffffff` when generation >= 2^21.
+ * Ids up to 2^53 - 1 are exact as Number, so a uint32 cast reads the index
+ * and allocates nothing. A BigInt mask is required above that, and it allocates.
  */
 export function entityIndex(id: EntityId): number {
+  // A number used to throw when mixed with the BigInt mask. Keep that rejection.
+  if (typeof id !== "bigint") throw new TypeError("EntityId must be a bigint");
+  if (id <= MAX_EXACT_ENTITY_ID) return Number(id) >>> 0;
   return Number(id & 0xffffffffn);
 }
 
