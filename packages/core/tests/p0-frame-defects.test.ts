@@ -101,7 +101,8 @@ describe("P0 frame defects", () => {
     const engine = await createEngine({
       debug: true,
       // Skip the uninitialized WASM bridge so the error logger does not call performance.now().
-      _bridge: { engine: () => ({}) } as never,
+      // checkMemoryGrow is called on every phase. A missing method throws and the logger times it.
+      _bridge: { engine: () => ({}), checkMemoryGrow: () => false } as never,
     });
     await engine.startExternal();
     const now = vi.spyOn(performance, "now");

@@ -193,11 +193,15 @@ async function samplePhases(handle: RealEngineHandle): Promise<EngineFramePhaseM
     await handle.advance(1, FRAME_LOOP_DT);
   }
   const rows: EngineFramePhaseMs[] = [];
+  const totals: number[] = [];
   for (let index = 0; index < FRAME_LOOP_SAMPLES; index += 1) {
+    const started = performance.now();
     await handle.advance(1, FRAME_LOOP_DT);
-    rows.push(handle.engine.getStats().phaseMs);
+    totals.push(performance.now() - started);
+    const phaseMs = handle.engine.getStats().phaseMs;
+    if (phaseMs !== undefined) rows.push(phaseMs);
   }
-  const phases = {
+  const phases: EngineFramePhaseMs = {
     tick: 0,
     plugins: 0,
     physics: 0,
@@ -205,10 +209,13 @@ async function samplePhases(handle: RealEngineHandle): Promise<EngineFramePhaseM
     update: 0,
     render: 0,
     afterTick: 0,
-    total: 0,
+    total: median(totals),
   };
-  for (const phase of PHASES) {
-    phases[phase] = median(rows.map((row) => row[phase]));
+  // Prod, and dev with debug off, do not record phaseMs. Keep the wall-clock total.
+  if (rows.length === FRAME_LOOP_SAMPLES) {
+    for (const phase of PHASES) {
+      phases[phase] = median(rows.map((row) => row[phase]));
+    }
   }
   if (updateFrames !== expected || renderFrames !== expected) {
     throw new Error(

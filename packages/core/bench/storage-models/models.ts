@@ -745,22 +745,22 @@ export class TodayModel implements StorageModel {
   static async build(entityCount: number): Promise<TodayModel> {
     const engine = await createEngine({ maxEntities: entityCount, variant: "light" });
     try {
-      const gc = (globalThis as { gc?: () => void }).gc;
-      gc?.();
-      const before = process.memoryUsage().heapUsed;
       const ids: EntityId[] = [];
+      // process.memoryUsage().heapUsed stays flat when the young generation has room.
+      // Count the f32 bytes stored on the engine. That number does not depend on GC.
+      let bytes = 0;
       for (let entity = 0; entity < entityCount; entity++) {
         const id = engine.createEntity();
         ids.push(id);
         engine.addComponent(id, Position, { x: entity, y: entity * 0.5 });
         engine.addComponent(id, Velocity, { vx: 1, vy: entity * 0.01 });
+        bytes += 16;
         if (entity % 2 === 0) {
           engine.addComponent(id, Health, { current: entity, max: 100 });
+          bytes += 8;
         }
         if (entity % 4 === 0) engine.addComponent(id, Enemy, {});
       }
-      gc?.();
-      const bytes = Math.max(0, process.memoryUsage().heapUsed - before);
       const movementQuery = engine.run(() => useQuery([Position, Velocity]));
       const healthQuery = engine.run(() => useQuery([Health]));
       return new TodayModel(engine, ids, movementQuery, healthQuery, bytes);
