@@ -246,8 +246,7 @@ function collectUseComponentReads(node: Statement, reads: Set<string>): void {
   if (node.type === "ForOfStatement") {
     const forOf = node as ForOfStatement;
     if (forOf.body.type === "BlockStatement") {
-      const block = forOf.body as unknown as { body: Statement[] };
-      for (const s of block.body) collectUseComponentReads(s, reads);
+      for (const s of forOf.body.body) collectUseComponentReads(s, reads);
     }
     return;
   }
@@ -287,8 +286,7 @@ function collectAssignmentWrites(
   if (node.type === "ForOfStatement") {
     const forOf = node as ForOfStatement;
     if (forOf.body.type === "BlockStatement") {
-      const block = forOf.body as unknown as { body: Statement[] };
-      for (const s of block.body) collectAssignmentWrites(s, readVarMap, writes);
+      for (const s of forOf.body.body) collectAssignmentWrites(s, readVarMap, writes);
     }
     return;
   }
@@ -327,7 +325,7 @@ function buildReadVarMap(
       if (s.type === "ForOfStatement") {
         const forOf = s as ForOfStatement;
         if (forOf.body.type === "BlockStatement") {
-          collect((forOf.body as unknown as { body: Statement[] }).body);
+          collect(forOf.body.body);
         }
         continue;
       }
@@ -385,7 +383,7 @@ function extractForOfPositions(
     const forOfStart = forOf.start;
     const forOfEnd = forOf.end;
 
-    const bodyStmts = (forOf.body as unknown as { body: Statement[] }).body;
+    const bodyStmts = forOf.body.body;
 
     // Read declarations: `const pos = useComponentFor(entity.id, Position)` — to be removed.
     const readDecls: { varName: string; component: string; start: number; end: number }[] = [];

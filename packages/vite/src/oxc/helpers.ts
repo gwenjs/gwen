@@ -17,7 +17,6 @@ import type {
   Function as OxcFunction,
   ArrowFunctionExpression,
   IdentifierName,
-  FunctionBody,
   StringLiteral,
   NumericLiteral,
 } from "oxc-parser";
@@ -138,11 +137,12 @@ export function getCallArgs(node: CallExpression): Expression[] {
 export function getFunctionBodyStatements(fn: OxcFunction | ArrowFunctionExpression): Statement[] {
   const { body } = fn;
   if (!body || body.type !== "BlockStatement") return [];
-  // FunctionBody.body is Array<Directive | Statement>.  Directive is
-  // structurally an ExpressionStatement (same `type` discriminant) and is
-  // safely treated as one here.
-  // boundary: oxc FunctionBody mixes directives and statements, owned by #66
-  return (body as FunctionBody).body as unknown as Statement[];
+  // oxc sets `directive: null` on every ExpressionStatement. A real directive
+  // is the only node whose `directive` field is a string.
+  return body.body.filter((node): node is Statement => {
+    if (!("directive" in node)) return true;
+    return typeof node.directive !== "string";
+  });
 }
 
 // ─── Variable declarator ─────────────────────────────────────────────────────

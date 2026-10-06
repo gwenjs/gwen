@@ -444,8 +444,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       _declarations = app.pluginDeclarations;
       _sharedAutoImports.push(...app.autoImports);
       _sharedTypeTemplates.push(...app.typeTemplates);
-      // boundary: module plugin list is untyped here, owned by #66
-      _moduleVitePlugins.push(...(app.vitePlugins as unknown as Plugin[]));
+      _moduleVitePlugins.push(
+        ...(app.vitePlugins as unknown as Plugin[]), // boundary: app VitePlugin is not vite's Plugin #77
+      );
     } catch (err) {
       console.warn(`[gwen-vite] Failed to setup modules: ${err}`);
       _declarations = [];
