@@ -29,7 +29,9 @@ runPhysicsConformance({
     physics = next.inject("physics2d");
   },
   async installKinematicSync(next: GwenEngine): Promise<void> {
-    await next.use(createPhysicsKinematicSyncSystem({ pixelsPerMeter: 1 }));
+    await next.use(
+      createPhysicsKinematicSyncSystem({ pixelsPerMeter: 1, positionComponent: Position2D }),
+    );
   },
   createDynamicBody(id: EntityId, at: Vec, collider: boolean): void {
     const api = requirePhysics();

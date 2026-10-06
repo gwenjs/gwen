@@ -40,7 +40,7 @@ runPhysicsConformance({
     physics = next.inject("physics3d");
   },
   async installKinematicSync(next: GwenEngine): Promise<void> {
-    await next.use(createPhysicsKinematicSyncSystem()());
+    await next.use(createPhysicsKinematicSyncSystem({ positionComponent: Transform3D })());
   },
   createDynamicBody(id: EntityId, at: Vec, collider: boolean): void {
     requirePhysics().createBody(id, {
