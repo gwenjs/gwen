@@ -54,11 +54,76 @@ export const CoreErrorCodes = {
   WASM_PANIC: "CORE:WASM_PANIC",
   QUERY_CAPACITY_EXCEEDED: "CORE:QUERY_CAPACITY_EXCEEDED",
   ENTITY_LIMIT_REACHED: "CORE:ENTITY_LIMIT_REACHED",
+  COMPONENT_TYPE_LIMIT_REACHED: "CORE:COMPONENT_TYPE_LIMIT_REACHED",
+  INVALID_PARENT: "CORE:INVALID_PARENT",
+  INVALID_MAX_ENTITIES: "CORE:INVALID_MAX_ENTITIES",
   UNCAUGHT_ERROR: "CORE:UNCAUGHT_ERROR",
   UNHANDLED_REJECTION: "CORE:UNHANDLED_REJECTION",
   /** Logged when an `on` / `onFatal` / hook handler throws. Never emitted on the bus. */
   ERROR_HANDLER_FAILED: "CORE:ERROR_HANDLER_FAILED",
 } as const;
+
+/**
+ * Codes a core WASM export puts on the thrown `Error`.
+ * Panic is not in this set: a trap is `GwenWasmPanicError`, not `GwenWasmError`.
+ */
+export type CoreWasmErrorCode =
+  | typeof CoreErrorCodes.ENTITY_LIMIT_REACHED
+  | typeof CoreErrorCodes.QUERY_CAPACITY_EXCEEDED
+  | typeof CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED
+  | typeof CoreErrorCodes.INVALID_PARENT
+  | typeof CoreErrorCodes.INVALID_MAX_ENTITIES;
+
+const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
+  CoreErrorCodes.ENTITY_LIMIT_REACHED,
+  CoreErrorCodes.QUERY_CAPACITY_EXCEEDED,
+  CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+  CoreErrorCodes.INVALID_PARENT,
+  CoreErrorCodes.INVALID_MAX_ENTITIES,
+];
+
+/** True when `code` is one of the five recoverable core WASM codes. */
+export function isCoreWasmErrorCode(code: unknown): code is CoreWasmErrorCode {
+  return typeof code === "string" && CORE_WASM_ERROR_CODE_LIST.some((known) => known === code);
+}
+
+/**
+ * Recoverable failure of one core WASM export.
+ *
+ * The type parameter defaults to `` `CORE:${string}` `` so other packages can
+ * instantiate it with their own code union. Core never names a physics code.
+ */
+export class GwenWasmError<C extends string = `CORE:${string}`> extends GwenError {
+  override readonly code: C;
+  readonly exportName: string;
+  readonly cause: unknown;
+
+  constructor(code: C, message: string, exportName: string, cause: unknown) {
+    super(code, message);
+    this.name = "GwenWasmError";
+    this.code = code;
+    this.exportName = exportName;
+    this.cause = cause;
+  }
+}
+
+/**
+ * A core WASM trap. This does not extend {@link GwenWasmError}: a catch of the
+ * recoverable class must not swallow a panic.
+ */
+export class GwenWasmPanicError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.WASM_PANIC;
+  readonly exportName: string | undefined;
+  readonly cause: WebAssembly.RuntimeError;
+
+  constructor(exportName: string | undefined, cause: WebAssembly.RuntimeError) {
+    super(CoreErrorCodes.WASM_PANIC, cause.message);
+    this.name = "GwenWasmPanicError";
+    this.code = CoreErrorCodes.WASM_PANIC;
+    this.exportName = exportName;
+    this.cause = cause;
+  }
+}
 
 /** Error codes emitted by the GWEN actor system. */
 export const ActorErrorCodes = {

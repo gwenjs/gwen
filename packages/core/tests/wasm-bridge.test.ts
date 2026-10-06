@@ -15,43 +15,9 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { GwenError } from "@gwenjs/schema";
-import { WasmBridgeImpl, type WasmEngine, type WasmEntityId } from "../src/engine/wasm-bridge";
-import { CoreErrorCodes } from "../src/engine/engine-errors";
-
-// ── Mock helper ───────────────────────────────────────────────────────────────
-
-function createMockEngine(): WasmEngine {
-  return {
-    create_entity: vi.fn((): WasmEntityId => ({ index: 0, generation: 0 })),
-    delete_entity: vi.fn(() => true),
-    is_alive: vi.fn(() => true),
-    count_entities: vi.fn(() => 0),
-    register_component_type: vi.fn(() => 0),
-    add_component: vi.fn(() => true),
-    remove_component: vi.fn(() => true),
-    has_component: vi.fn(() => false),
-    get_component_raw: vi.fn(() => new Uint8Array(0)),
-    update_entity_archetype: vi.fn(),
-    remove_entity_from_query: vi.fn(),
-    query_entities: vi.fn(() => new Uint32Array(0)),
-    query_entities_to_buffer: vi.fn(() => 0),
-    get_query_result_ptr: vi.fn(() => 8192),
-    get_query_result_capacity: vi.fn(() => 10_000),
-    get_entity_generation: vi.fn(() => 0),
-    tick: vi.fn(),
-    frame_count: vi.fn(() => BigInt(1)),
-    delta_time: vi.fn(() => 0.016),
-    total_time: vi.fn(() => 1.0),
-    // SAB methods
-    alloc_shared_buffer: vi.fn(() => 4096),
-    sync_transforms_to_buffer: vi.fn(),
-    sync_transforms_to_buffer_sparse: vi.fn(),
-    dirty_transform_count: vi.fn(() => 0),
-    clear_transform_dirty: vi.fn(),
-    sync_transforms_from_buffer: vi.fn(),
-    stats: vi.fn(() => '{"entities":0,"frame":1}'),
-  } as unknown as WasmEngine;
-}
+import { toGwenWasmError, WasmBridgeImpl } from "../src/engine/wasm-bridge";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../src/engine/engine-errors";
+import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
 
 // ── Without WASM (not initialized) ───────────────────────────────────────────
 
@@ -103,7 +69,7 @@ describe("WasmBridge — not initialized", () => {
 
 describe("WasmBridge — with injected mock", () => {
   const bridge = new WasmBridgeImpl();
-  const mock = createMockEngine();
+  const mock = createMockWasmEngine();
   bridge._injectMock(mock);
 
   it("isActive() returns true", () => {
@@ -120,31 +86,96 @@ describe("WasmBridge — with injected mock", () => {
     expect(id).toEqual({ index: 0, generation: 0 });
   });
 
-  it("createEntity throws when the wasm entity limit is reached", () => {
+  it("createEntity maps a coded entity-limit error and stays usable", () => {
     const limitBridge = new WasmBridgeImpl();
-    const limitMock = createMockEngine();
+    const limitMock = createMockWasmEngine();
     limitBridge._injectMock(limitMock);
+    const cause = new Error("Entity limit reached: 4");
+    (cause as Error & { code: string }).code = CoreErrorCodes.ENTITY_LIMIT_REACHED;
     limitMock.create_entity = vi.fn(() => {
-      throw new Error("Entity limit reached: 4");
+      throw cause;
     });
 
-    let caught: GwenError | null = null;
+    let caught: GwenWasmError | null = null;
     try {
       limitBridge.createEntity();
     } catch (e: unknown) {
-      if (e instanceof GwenError) caught = e;
+      if (e instanceof GwenWasmError) caught = e;
       else throw e;
     }
+    expect(caught).toBeInstanceOf(GwenWasmError);
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught?.code).toBe(CoreErrorCodes.ENTITY_LIMIT_REACHED);
-    expect(caught?.code).toBe("CORE:ENTITY_LIMIT_REACHED");
-    expect(caught?.message).toMatch(/limit/i);
+    expect(caught?.exportName).toBe("create_entity");
+    expect(caught?.cause).toBe(cause);
     expect(limitBridge.countEntities()).toBe(0);
+  });
+
+  it("toGwenWasmError maps each core code and leaves other errors unchanged", () => {
+    const poison = vi.fn();
+    const codes = [
+      CoreErrorCodes.ENTITY_LIMIT_REACHED,
+      CoreErrorCodes.QUERY_CAPACITY_EXCEEDED,
+      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+      CoreErrorCodes.INVALID_PARENT,
+      CoreErrorCodes.INVALID_MAX_ENTITIES,
+    ] as const;
+    for (const code of codes) {
+      const cause = new Error(code);
+      (cause as Error & { code: string }).code = code;
+      const mapped = toGwenWasmError(cause, "add_component", poison);
+      expect(mapped).toBeInstanceOf(GwenWasmError);
+      expect(mapped).toMatchObject({ code, exportName: "add_component", cause });
+    }
+    expect(poison).not.toHaveBeenCalled();
+    const other = new Error("boom");
+    expect(toGwenWasmError(other, "add_component", poison)).toBe(other);
+    const trap = new WebAssembly.RuntimeError("unreachable");
+    const panicked = toGwenWasmError(trap, "tick", poison);
+    expect(panicked).toBeInstanceOf(GwenWasmPanicError);
+    expect(panicked).not.toBeInstanceOf(GwenWasmError);
+    expect(poison).toHaveBeenCalledWith(trap);
+  });
+
+  it("a RuntimeError poisons the bridge so the next call never enters WASM", () => {
+    const poisoned = new WasmBridgeImpl();
+    const mock = createMockWasmEngine();
+    poisoned._injectMock(mock);
+    const trap = new WebAssembly.RuntimeError("unreachable");
+    mock.sync_transforms_from_buffer = vi.fn(() => {
+      throw trap;
+    });
+
+    let first: unknown;
+    try {
+      poisoned.syncTransformsFromBuffer(8, 1);
+    } catch (error: unknown) {
+      first = error;
+    }
+    expect(first).toBeInstanceOf(GwenWasmPanicError);
+    expect(first).not.toBeInstanceOf(GwenWasmError);
+    expect((first as GwenWasmPanicError).code).toBe(CoreErrorCodes.WASM_PANIC);
+    expect((first as GwenWasmPanicError).exportName).toBe("sync_transforms_from_buffer");
+    expect((first as GwenWasmPanicError).cause).toBe(trap);
+
+    mock.create_entity = vi.fn(() => ({ index: 1, generation: 0 }));
+    let second: unknown;
+    try {
+      poisoned.createEntity();
+    } catch (error: unknown) {
+      second = error;
+    }
+    expect(second).toBeInstanceOf(GwenWasmPanicError);
+    expect(mock.create_entity).not.toHaveBeenCalled();
+
+    poisoned._reset();
+    poisoned._injectMock(mock);
+    expect(poisoned.createEntity()).toEqual({ index: 1, generation: 0 });
   });
 
   it("createEntity rethrows a non-limit wasm error unchanged", () => {
     const boomBridge = new WasmBridgeImpl();
-    const boomMock = createMockEngine();
+    const boomMock = createMockWasmEngine();
     boomBridge._injectMock(boomMock);
     const boom = new Error("boom");
     boomMock.create_entity = vi.fn(() => {
@@ -254,7 +285,7 @@ describe("WasmBridge — with injected mock", () => {
 
     // Fresh bridge to avoid state from previous test
     const growBridge = new WasmBridgeImpl();
-    const growMock = createMockEngine();
+    const growMock = createMockWasmEngine();
     growBridge._injectMock(growMock);
     growBridge._injectMockExports({ memory: mockMemory });
 
@@ -278,7 +309,7 @@ describe("WasmBridge — with injected mock", () => {
     const buf = new ArrayBuffer(32);
     const mockMemory = { buffer: buf } as WebAssembly.Memory;
     const viewBridge = new WasmBridgeImpl();
-    const viewMock = createMockEngine();
+    const viewMock = createMockWasmEngine();
     viewBridge._injectMock(viewMock);
     viewBridge._injectMockExports({ memory: mockMemory });
 
@@ -305,7 +336,7 @@ describe("WasmBridge — with injected mock", () => {
 
   it("queryReadBulk does not call query_entities when the buffer has room", () => {
     const bulkBridge = new WasmBridgeImpl();
-    const bulkMock = createMockEngine();
+    const bulkMock = createMockWasmEngine();
     bulkBridge._injectMock(bulkMock, 4);
     const queryEntities = vi.fn((): Uint32Array => new Uint32Array(0));
     bulkMock.query_entities = queryEntities;
@@ -318,7 +349,7 @@ describe("WasmBridge — with injected mock", () => {
 
   it("queryReadBulk returns when the uncapped query matches the full buffer", () => {
     const bulkBridge = new WasmBridgeImpl();
-    const bulkMock = createMockEngine();
+    const bulkMock = createMockWasmEngine();
     bulkBridge._injectMock(bulkMock, 4);
     bulkMock.query_read_bulk = vi.fn(() => new Uint32Array([4, 4]));
     bulkMock.query_entities = vi.fn((): Uint32Array => new Uint32Array(4));
@@ -329,7 +360,7 @@ describe("WasmBridge — with injected mock", () => {
 
   it("queryReadBulk throws when the uncapped query is longer than the buffer", () => {
     const bulkBridge = new WasmBridgeImpl();
-    const bulkMock = createMockEngine();
+    const bulkMock = createMockWasmEngine();
     bulkBridge._injectMock(bulkMock, 4);
     bulkMock.query_read_bulk = vi.fn(() => new Uint32Array([4, 4]));
     bulkMock.query_entities = vi.fn((): Uint32Array => new Uint32Array(5));
@@ -366,7 +397,7 @@ describe("WasmBridge — with injected mock", () => {
   it("allocSharedBuffer() with 0 bytes delegates to mock", () => {
     // Use a separate bridge because allocSharedBuffer throws on ptr=0
     const zeroBridge = new WasmBridgeImpl();
-    const zeroMock = createMockEngine();
+    const zeroMock = createMockWasmEngine();
     (zeroMock.alloc_shared_buffer as ReturnType<typeof vi.fn>).mockReturnValue(0);
     zeroBridge._injectMock(zeroMock);
     // The bridge throws when alloc returns 0 — we just verify the call was made
@@ -400,7 +431,7 @@ describe("WasmBridge — with injected mock", () => {
   it("getLinearMemory() returns null with a mock engine (no real WASM module)", () => {
     // A fresh bridge with only _injectMock (no _injectMockExports) has null memory
     const freshBridge = new WasmBridgeImpl();
-    freshBridge._injectMock(createMockEngine());
+    freshBridge._injectMock(createMockWasmEngine());
     expect(freshBridge.getLinearMemory()).toBeNull();
   });
 });
@@ -412,7 +443,7 @@ describe("WasmBridge — per-instance isolation", () => {
     const bridge1 = new WasmBridgeImpl();
     const bridge2 = new WasmBridgeImpl();
 
-    bridge1._injectMock(createMockEngine());
+    bridge1._injectMock(createMockWasmEngine());
 
     // bridge2 was not injected — must remain inactive
     expect(bridge1.isActive()).toBe(true);
@@ -421,7 +452,7 @@ describe("WasmBridge — per-instance isolation", () => {
 
   it("_reset() resets isActive() to false", () => {
     const bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine());
+    bridge._injectMock(createMockWasmEngine());
     expect(bridge.isActive()).toBe(true);
     bridge._reset();
     expect(bridge.isActive()).toBe(false);

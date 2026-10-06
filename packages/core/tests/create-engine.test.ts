@@ -2,7 +2,8 @@
  * RFC-001: createEngine() acceptance tests
  */
 import { describe, it, expect } from "vitest";
-import { createEngine, GwenConfigError } from "../src/index";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes, createEngine, GwenConfigError } from "../src/index";
 
 describe("createEngine", () => {
   it("returns a GwenEngine (not {engine, scenes})", async () => {
@@ -29,6 +30,20 @@ describe("createEngine", () => {
     expect(engine.maxEntities).toBe(500);
     expect(engine.targetFPS).toBe(30);
     expect(engine.maxDeltaSeconds).toBe(0.05);
+  });
+
+  it("createEntity throws GwenError CORE:ENTITY_LIMIT_REACHED at capacity", async () => {
+    const engine = await createEngine({ maxEntities: 1 });
+    engine.createEntity();
+    let caught: unknown;
+    try {
+      engine.createEntity();
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenError);
+    expect(caught).toMatchObject({ code: CoreErrorCodes.ENTITY_LIMIT_REACHED });
+    expect((caught as GwenError).message).toContain("1");
   });
 
   it("rejects with GwenConfigError on invalid maxEntities", async () => {

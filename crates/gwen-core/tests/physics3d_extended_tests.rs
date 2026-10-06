@@ -15,7 +15,7 @@ mod physics3d_extended {
     /// Return an `Engine` with a 3D physics world initialised and one dynamic
     /// body registered at entity index 0, positioned at the origin.
     fn engine_with_one_body() -> Engine {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(engine.physics3d_add_body(0, 0.0, 5.0, 0.0, 1, 1.0, 0.0, 0.0));
         engine
@@ -39,7 +39,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_box_collider_no_body_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Entity 99 has no body registered.
         assert!(!engine.physics3d_add_box_collider(
@@ -50,7 +50,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_box_collider_world_uninitialised_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         // No physics3d_init call.
         assert!(!engine.physics3d_add_box_collider(
             0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
@@ -73,7 +73,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_sphere_collider_no_body_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_add_sphere_collider(
             5, 0.4, 0.0, 0.0, 0.0, false, 0.5, 0.0,
@@ -97,7 +97,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_capsule_collider_no_body_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_add_capsule_collider(
             7, 0.3, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
@@ -126,7 +126,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_remove_collider_world_uninitialised_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         assert!(!engine.physics3d_remove_collider(0, 1));
     }
 
@@ -163,7 +163,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_get_sensor_state_world_uninitialised_returns_zero() {
-        let engine = Engine::new(32);
+        let engine = Engine::new(32).expect("max entities");
         assert_eq!(engine.physics3d_get_sensor_state(0, 1), 0);
     }
 
@@ -193,7 +193,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_update_sensor_state_world_uninitialised_is_noop() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         // Should not panic even without a world.
         engine.physics3d_update_sensor_state(0, 1, true, 5);
     }
@@ -215,7 +215,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_quality_all_presets_do_not_panic() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         for preset in 0u8..=3 {
             engine.physics3d_set_quality(preset);
@@ -224,7 +224,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_quality_unknown_preset_maps_to_medium() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Any value outside [0, 3] must not panic and fall back to Medium.
         engine.physics3d_set_quality(255);
@@ -233,14 +233,14 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_quality_world_uninitialised_is_noop() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         // No panic expected when world is not initialised.
         engine.physics3d_set_quality(2);
     }
 
     #[test]
     fn test_physics3d_set_quality_step_still_runs_after_preset_change() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(engine.physics3d_add_body(0, 0.0, 10.0, 0.0, 1, 1.0, 0.0, 0.0));
         // Switch to High quality and verify the simulation advances without error.
@@ -254,7 +254,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_event_coalescing_toggle_does_not_panic() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         engine.physics3d_set_event_coalescing(true);
         engine.physics3d_set_event_coalescing(false);
@@ -262,7 +262,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_event_coalescing_world_uninitialised_is_noop() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_set_event_coalescing(true);
     }
 
@@ -270,19 +270,19 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_get_collision_event_count_initial_is_zero() {
-        let engine = Engine::new(32);
+        let engine = Engine::new(32).expect("max entities");
         assert_eq!(engine.physics3d_get_collision_event_count(), 0);
     }
 
     #[test]
     fn test_physics3d_get_collision_events_ptr_world_uninitialised_returns_zero() {
-        let engine = Engine::new(32);
+        let engine = Engine::new(32).expect("max entities");
         assert_eq!(engine.physics3d_get_collision_events_ptr(), 0);
     }
 
     #[test]
     fn test_physics3d_get_collision_events_ptr_initialised_nonzero() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // After initialisation the buffer pointer must refer to valid WASM memory.
         let ptr = engine.physics3d_get_collision_events_ptr();
@@ -291,7 +291,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_consume_events_resets_count() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Step to let Rapier potentially populate the buffer (it will be empty
         // with no colliders, but consume_events must not panic either way).
@@ -302,7 +302,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_consume_events_world_uninitialised_is_noop() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_consume_events();
     }
 
@@ -310,7 +310,7 @@ mod physics3d_extended {
     fn test_physics3d_collision_event_flush_with_sensors() {
         // Set up two bodies with overlapping sensor box colliders so that
         // Rapier fires a collision-started event on the first step.
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, 0.0, 0.0, 32); // zero gravity to keep bodies still
         // Both bodies at the same position so their colliders immediately overlap.
         assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0));
@@ -351,7 +351,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_kinematic_position_returns_true() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Kind 2 = KinematicPositionBased
         assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
@@ -363,7 +363,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_kinematic_position_no_body_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_set_kinematic_position(
             99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0
@@ -372,7 +372,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_set_kinematic_position_world_uninitialised_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         assert!(!engine.physics3d_set_kinematic_position(
             0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0
         ));
@@ -388,14 +388,14 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_apply_angular_impulse_no_body_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_apply_angular_impulse(42, 1.0, 0.0, 0.0));
     }
 
     #[test]
     fn test_physics3d_apply_angular_impulse_world_uninitialised_returns_false() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         assert!(!engine.physics3d_apply_angular_impulse(0, 1.0, 0.0, 0.0));
     }
 
@@ -439,7 +439,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_compound_collider_no_body_returns_zero() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Entity 5 has no body.
         let data: Vec<f32> = vec![0.0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 1.0];
@@ -451,7 +451,7 @@ mod physics3d_extended {
 
     #[test]
     fn test_physics3d_add_compound_collider_world_uninitialised_returns_zero() {
-        let mut engine = Engine::new(32);
+        let mut engine = Engine::new(32).expect("max entities");
         // No physics3d_init call.
         let data: Vec<f32> = vec![0.0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 1.0];
         assert_eq!(

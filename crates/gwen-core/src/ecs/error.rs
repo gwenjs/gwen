@@ -1,6 +1,12 @@
-//! Errors returned by the entity-component system.
+//! Errors returned by the entity-component system and by core WASM exports.
 
 use std::fmt;
+
+/// Upper bound accepted by `Engine::new`. Matches the TypeScript config check.
+pub const MAX_ENTITIES_LIMIT: u32 = 2_000_000;
+
+/// Distinct component type ids a core engine can address.
+pub const MAX_COMPONENT_TYPES: u32 = 128;
 
 /// Failure from an entity-component operation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -12,6 +18,65 @@ pub enum EcsError {
     },
 }
 
+/// Failure returned by a fallible core export.
+///
+/// The `code()` string is the value TypeScript copies onto the thrown `Error`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoreError {
+    /// No free entity slot remains.
+    EntityLimitReached {
+        /// Configured maximum number of entities.
+        max: u32,
+    },
+    /// A query matched more entities than the result buffer can hold.
+    QueryCapacityExceeded {
+        /// Number of matches.
+        matches: u32,
+        /// Buffer capacity in entity ids.
+        capacity: u32,
+    },
+    /// The 129th distinct component type id was refused.
+    ComponentTypeLimitReached {
+        /// Maximum number of component types (128).
+        max: u32,
+    },
+    /// `set_entity_parent` refused a self-parent or a cycle.
+    InvalidParent {
+        /// Child entity index.
+        child: u32,
+        /// Requested parent index.
+        parent: u32,
+    },
+    /// `max_entities` is outside the accepted range, or a sync length exceeds capacity.
+    InvalidMaxEntities {
+        /// Rejected value.
+        value: u32,
+        /// Inclusive upper bound that applies to this call.
+        max: u32,
+    },
+}
+
+impl CoreError {
+    /// Stable `CORE:` code. Matches `CoreErrorCodes` in TypeScript.
+    pub fn code(&self) -> &'static str {
+        match self {
+            Self::EntityLimitReached { .. } => "CORE:ENTITY_LIMIT_REACHED",
+            Self::QueryCapacityExceeded { .. } => "CORE:QUERY_CAPACITY_EXCEEDED",
+            Self::ComponentTypeLimitReached { .. } => "CORE:COMPONENT_TYPE_LIMIT_REACHED",
+            Self::InvalidParent { .. } => "CORE:INVALID_PARENT",
+            Self::InvalidMaxEntities { .. } => "CORE:INVALID_MAX_ENTITIES",
+        }
+    }
+}
+
+impl From<EcsError> for CoreError {
+    fn from(err: EcsError) -> Self {
+        match err {
+            EcsError::EntityLimitReached { max } => Self::EntityLimitReached { max },
+        }
+    }
+}
+
 impl fmt::Display for EcsError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let EcsError::EntityLimitReached { max } = self;
@@ -20,3 +85,40 @@ impl fmt::Display for EcsError {
 }
 
 impl std::error::Error for EcsError {}
+
+impl fmt::Display for CoreError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EntityLimitReached { max } => write!(f, "Entity limit reached: {max}"),
+            Self::QueryCapacityExceeded { matches, capacity } => {
+                write!(
+                    f,
+                    "query exceeded the buffer capacity ({matches} > {capacity})"
+                )
+            }
+            Self::ComponentTypeLimitReached { max } => {
+                write!(f, "Component type limit reached: {max}")
+            }
+            Self::InvalidParent { child, parent } => {
+                write!(f, "Invalid parent: child {child} parent {parent}")
+            }
+            Self::InvalidMaxEntities { value, max } => {
+                write!(f, "Invalid max entities: {value}, max {max}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CoreError {}
+
+impl From<CoreError> for wasm_bindgen::JsValue {
+    fn from(err: CoreError) -> Self {
+        let js_error = js_sys::Error::new(&err.to_string());
+        let _ = js_sys::Reflect::set(
+            &js_error,
+            &wasm_bindgen::JsValue::from_str("code"),
+            &wasm_bindgen::JsValue::from_str(err.code()),
+        );
+        wasm_bindgen::JsValue::from(js_error)
+    }
+}

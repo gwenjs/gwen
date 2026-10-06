@@ -2,6 +2,7 @@
 //!
 //! Stores and retrieves component data using Structure of Arrays (SoA) layout for cache efficiency.
 
+use super::error::{CoreError, MAX_COMPONENT_TYPES};
 use bytemuck::{Pod, Zeroable};
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -61,7 +62,10 @@ impl ComponentRegistry {
             .insert(id, std::any::type_name::<T>().to_string());
         self.rust_type_ids.insert(rust_type_id, id);
 
-        self.assign_bit_index(id);
+        if !self.assign_bit_index(id) {
+            // Native `register::<T>` only. WASM exports use `register_raw`.
+            panic!("Maximum of 128 component types exceeded");
+        }
 
         id
     }
@@ -82,12 +86,26 @@ impl ComponentRegistry {
     }
 
     /// Register a raw component type by numeric ID and element size.
-    pub fn register_raw(&mut self, id: ComponentTypeId, element_size: usize) {
+    ///
+    /// Returns [`CoreError::ComponentTypeLimitReached`] before any insert when
+    /// this id would be the 129th distinct type.
+    pub fn register_raw(
+        &mut self,
+        id: ComponentTypeId,
+        element_size: usize,
+    ) -> Result<(), CoreError> {
+        if !self.bit_indices.contains_key(&id) && u32::from(self.next_bit_index) >= MAX_COMPONENT_TYPES
+        {
+            return Err(CoreError::ComponentTypeLimitReached {
+                max: MAX_COMPONENT_TYPES,
+            });
+        }
         self.type_sizes.insert(id, element_size);
         if id.raw() >= self.next_id {
             self.next_id = id.raw() + 1;
         }
-        self.assign_bit_index(id);
+        let _ = self.assign_bit_index(id);
+        Ok(())
     }
 
     /// Get all registered component sizes.
@@ -100,12 +118,17 @@ impl ComponentRegistry {
         &self.bit_indices
     }
 
-    fn assign_bit_index(&mut self, id: ComponentTypeId) {
-        if !self.bit_indices.contains_key(&id) {
-            assert!(self.next_bit_index < 128, "Maximum of 128 component types exceeded");
-            self.bit_indices.insert(id, self.next_bit_index);
-            self.next_bit_index += 1;
+    /// Assign a bit index. Returns false when the id is new and the cap is full.
+    fn assign_bit_index(&mut self, id: ComponentTypeId) -> bool {
+        if self.bit_indices.contains_key(&id) {
+            return true;
         }
+        if u32::from(self.next_bit_index) >= MAX_COMPONENT_TYPES {
+            return false;
+        }
+        self.bit_indices.insert(id, self.next_bit_index);
+        self.next_bit_index += 1;
+        true
     }
 }
 

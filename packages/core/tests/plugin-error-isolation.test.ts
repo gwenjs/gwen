@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
 import { CoreErrorCodes } from "../src/index";
+import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
 
 // ─── Minimal mock error bus ───────────────────────────────────────────────────
 
@@ -114,6 +115,34 @@ describe("plugin error isolation", () => {
       );
       expect(frameErrors).toHaveLength(1);
       expect(frameErrors[0]!.level).toBe("fatal");
+    });
+
+    it("keeps a community WASM trap at error level and does not poison the core bridge", async () => {
+      const bus = createMockErrorBus();
+      const engine = await createEngine({ errorBus: bus });
+      const bridge = engine.tryInject("wasm:bridge");
+      if (bridge === undefined) {
+        throw new Error("wasm bridge missing");
+      }
+      bridge._injectMock(createMockWasmEngine());
+      const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+      await engine.loadWasmModule({
+        name: "community-mod",
+        url: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
+        versionPolicy: "ignore",
+        step() {
+          throw new WebAssembly.RuntimeError("unreachable");
+        },
+      });
+
+      await engine.advance(0.016);
+
+      const events = bus.emitted.filter((event) => event.source === "wasm:community-mod");
+      expect(events).toHaveLength(1);
+      expect(events[0]!.level).toBe("error");
+      expect(events[0]!.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(bus.emitted.filter((event) => event.level === "fatal")).toHaveLength(0);
+      expect(bridge.createEntity()).toEqual({ index: 0, generation: 0 });
     });
 
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {

@@ -9,7 +9,7 @@ use gwen_core::bindings::Engine;
 
 #[test]
 fn bulk_destroy_frees_all_provided_entities() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let a = engine.create_entity().expect("entity limit").index();
     let b = engine.create_entity().expect("entity limit").index();
     let c = engine.create_entity().expect("entity limit").index();
@@ -21,7 +21,7 @@ fn bulk_destroy_frees_all_provided_entities() {
 
 #[test]
 fn bulk_destroy_skips_already_dead_entities() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let a = engine.create_entity().expect("entity limit").index();
     let gen = engine.get_entity_generation(a);
     engine.delete_entity(a, gen);
@@ -32,7 +32,7 @@ fn bulk_destroy_skips_already_dead_entities() {
 
 #[test]
 fn bulk_destroy_with_mixed_alive_and_dead() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let a = engine.create_entity().expect("entity limit").index();
     let b = engine.create_entity().expect("entity limit").index();
     let c = engine.create_entity().expect("entity limit").index();
@@ -48,7 +48,7 @@ fn bulk_destroy_with_mixed_alive_and_dead() {
 
 #[test]
 fn bulk_spawn_with_transforms_creates_correct_count() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let positions = [0.0f32, 0.0, 16.0, 0.0, 32.0, 0.0];
     let rotations = [0.0f32, 0.0, 0.0];
     let ids = engine
@@ -60,7 +60,7 @@ fn bulk_spawn_with_transforms_creates_correct_count() {
 
 #[test]
 fn bulk_spawn_assigns_correct_positions() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let positions = [10.0f32, 20.0, 30.0, 40.0];
     let ids = engine
         .bulk_spawn_with_transforms(&positions, &[])
@@ -75,7 +75,7 @@ fn bulk_spawn_assigns_correct_positions() {
 
 #[test]
 fn bulk_spawn_assigns_correct_rotations() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let positions = [0.0f32, 0.0, 0.0, 0.0, 0.0, 0.0];
     let rotations = [0.5f32, 1.0, 1.5];
     let ids = engine
@@ -90,7 +90,7 @@ fn bulk_spawn_assigns_correct_rotations() {
 
 #[test]
 fn bulk_spawn_handles_fewer_rotations_than_entities() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     // Create 4 entities but only provide 2 rotations
     let positions = [0.0f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
     let rotations = [0.5f32, 1.0]; // Only 2 rotations
@@ -105,7 +105,7 @@ fn bulk_spawn_handles_fewer_rotations_than_entities() {
 
 #[test]
 fn bulk_spawn_with_empty_rotations() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let positions = [5.0f32, 10.0, 15.0, 20.0];
     let ids = engine
         .bulk_spawn_with_transforms(&positions, &[])
@@ -119,7 +119,7 @@ fn bulk_spawn_with_empty_rotations() {
 
 #[test]
 fn bulk_destroy_then_spawn_reuses_slots() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
 
     // Create 5 entities
     let ids: Vec<u32> = (0..5)
@@ -146,7 +146,7 @@ fn bulk_destroy_then_spawn_reuses_slots() {
 
 #[test]
 fn bulk_spawn_large_batch() {
-    let mut engine = Engine::new(1000);
+    let mut engine = Engine::new(1000).expect("max entities");
 
     // Create 100 entities
     let mut positions = Vec::new();
@@ -164,7 +164,7 @@ fn bulk_spawn_large_batch() {
 
 #[test]
 fn bulk_destroy_large_batch() {
-    let mut engine = Engine::new(1000);
+    let mut engine = Engine::new(1000).expect("max entities");
 
     // Create 100 entities
     let ids: Vec<u32> = (0..100)
@@ -180,7 +180,7 @@ fn bulk_destroy_large_batch() {
 
 #[test]
 fn bulk_spawn_assigns_scale_one() {
-    let mut engine = Engine::new(100);
+    let mut engine = Engine::new(100).expect("max entities");
     let positions = [0.0f32, 0.0];
     let ids = engine
         .bulk_spawn_with_transforms(&positions, &[])

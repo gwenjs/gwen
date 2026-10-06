@@ -6,6 +6,7 @@ use crate::ecs::archetype::{Archetype, ArchetypeId};
 use crate::ecs::archetype_graph::ArchetypeGraph;
 use crate::ecs::component::{ComponentRegistry, ComponentTypeId};
 use crate::ecs::bitset::BitSet128;
+use crate::ecs::error::CoreError;
 use crate::transform::TRANSFORM_SAB_TYPE_ID;
 use std::collections::HashMap;
 
@@ -41,10 +42,14 @@ impl ArchetypeStorage {
     }
 
     /// Register a raw component type by numeric ID and element size.
-    pub fn register_raw(&mut self, id: ComponentTypeId, element_size: usize) {
+    pub fn register_raw(
+        &mut self,
+        id: ComponentTypeId,
+        element_size: usize,
+    ) -> Result<(), CoreError> {
         // We just need to ensure the registry knows about this type.
         // The graph will create archetypes with this size when needed.
-        self.registry.register_raw(id, element_size);
+        self.registry.register_raw(id, element_size)
     }
 
     /// Register a new component type
@@ -53,13 +58,20 @@ impl ArchetypeStorage {
     }
 
     /// **JS bridge upsert**: add or update a component.
-    pub fn upsert_js(&mut self, entity_id: u32, type_id: ComponentTypeId, data: &[u8]) -> Option<Migration> {
+    ///
+    /// A new type id past the 128 cap returns an error before any write.
+    pub fn upsert_js(
+        &mut self,
+        entity_id: u32,
+        type_id: ComponentTypeId,
+        data: &[u8],
+    ) -> Result<Option<Migration>, CoreError> {
         // Ensure registry knows this type as variable size (0) if not already known
         if self.registry.size(type_id).is_none() {
-            self.registry.register_raw(type_id, 0);
+            self.registry.register_raw(type_id, 0)?;
         }
 
-        self.add_component(entity_id, type_id, data)
+        Ok(self.add_component(entity_id, type_id, data))
     }
 
     /// Add a component to an entity.
@@ -253,9 +265,13 @@ impl ArchetypeStorage {
         self.get_component(entity_id, type_id)
     }
 
-    pub fn upsert_transform_raw(&mut self, entity_id: u32, data: &[u8]) {
+    pub fn upsert_transform_raw(
+        &mut self,
+        entity_id: u32,
+        data: &[u8],
+    ) -> Result<Option<Migration>, CoreError> {
         let type_id = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
-        self.upsert_js(entity_id, type_id, data);
+        self.upsert_js(entity_id, type_id, data)
     }
 }
 

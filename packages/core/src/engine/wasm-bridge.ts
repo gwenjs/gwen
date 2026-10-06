@@ -29,7 +29,12 @@
 
 import { createEntityId, unpackEntityId, type EntityId } from "./engine-api";
 import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "./engine-errors";
+import {
+  CoreErrorCodes,
+  GwenWasmError,
+  GwenWasmPanicError,
+  isCoreWasmErrorCode,
+} from "./engine-errors";
 import { engineContext } from "./context";
 
 // ─── Re-exports from extracted type module ──────────────────────────────────
@@ -197,6 +202,39 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
 // #region WasmBridge implementation (hot path — do not split) ─────────────────
 
 /**
+ * Map a core export failure onto a typed error.
+ * Internal: not on {@link WasmBridge} and not a method of {@link WasmBridgeImpl}.
+ * `poison` marks the calling bridge after a core trap.
+ */
+export function toGwenWasmError(
+  err: unknown,
+  exportName: string,
+  poison: (cause: WebAssembly.RuntimeError) => void,
+): unknown {
+  if (err instanceof WebAssembly.RuntimeError) {
+    poison(err);
+    return new GwenWasmPanicError(exportName, err);
+  }
+  if (err instanceof Error) {
+    const code = (err as Error & { code?: unknown }).code;
+    if (isCoreWasmErrorCode(code)) {
+      return new GwenWasmError(code, err.message, exportName, err);
+    }
+  }
+  return err;
+}
+
+const bridgePoisoners = new WeakMap<object, (cause: WebAssembly.RuntimeError) => void>();
+
+/**
+ * Mark a core bridge poisoned after a trap that never passed through
+ * {@link toGwenWasmError}. Frame loop only. Not a public bridge method.
+ */
+export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError): void {
+  bridgePoisoners.get(bridge)?.(cause);
+}
+
+/**
  * Concrete implementation of `WasmBridge`.
  *
  * Every public method delegates to the `_wasmEngine` instance via
@@ -217,6 +255,9 @@ export class WasmBridgeImpl implements WasmBridge {
   private _initPromise: Promise<void> | null = null;
   private _maxEntities = 10_000;
   private _activeVariant: CoreVariant = "light";
+  /** Set after a core trap. Later calls throw without entering WASM. */
+  private _poisoned = false;
+  private _panicCause: WebAssembly.RuntimeError | null = null;
 
   /** Track the last seen ArrayBuffer to detect memory.grow() events. */
   private _lastMemoryBuffer: ArrayBuffer | null = null;
@@ -228,7 +269,9 @@ export class WasmBridgeImpl implements WasmBridge {
   private _typeIdBuffer = new Uint32Array(16);
 
   constructor() {
-    // Buffer initialization is now done on-demand in _getTypeIdView()
+    bridgePoisoners.set(this, (cause) => {
+      this._poison(cause);
+    });
   }
 
   /**
@@ -276,6 +319,8 @@ export class WasmBridgeImpl implements WasmBridge {
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
     if (this._wasmEngine) return;
     if (this._initPromise) return this._initPromise;
+    this._poisoned = false;
+    this._panicCause = null;
 
     const { maxEntities = 10_000, requireSAB = false, jsUrl, wasmUrl } = options;
 
@@ -346,7 +391,11 @@ export class WasmBridgeImpl implements WasmBridge {
       }
 
       this._wasmModule = glue as GwenCoreWasm;
-      this._wasmEngine = new glue.Engine(maxEntities);
+      try {
+        this._wasmEngine = new glue.Engine(maxEntities);
+      } catch (err: unknown) {
+        throw this._mapWasmError(err, "new");
+      }
 
       if (__GWEN_DEV__) {
         const label =
@@ -354,13 +403,16 @@ export class WasmBridgeImpl implements WasmBridge {
         // eslint-disable-next-line no-console
         console.log(`[GWEN] WASM core loaded — ${label} variant active`);
       }
-    })().catch((err) => {
+    })().catch((err: unknown) => {
       this._initPromise = null;
       this._wasmEngine = null;
       this._wasmModule = null;
       this._wasmExports = null;
+      if (err instanceof GwenWasmError || err instanceof GwenWasmPanicError) {
+        throw err;
+      }
       const tagged = err instanceof Error ? err : new Error(String(err));
-      (tagged as Error & { code?: string }).code = "CORE:WASM_LOAD_ERROR";
+      (tagged as Error & { code?: string }).code = CoreErrorCodes.WASM_LOAD_ERROR;
       throw tagged;
     });
 
@@ -377,6 +429,9 @@ export class WasmBridgeImpl implements WasmBridge {
    * @internal
    */
   private _requireWasm(): WasmEngine {
+    if (this._poisoned && this._panicCause) {
+      throw new GwenWasmPanicError(undefined, this._panicCause);
+    }
     if (!this._wasmEngine) {
       throw new Error(
         "[GWEN] WASM core not initialized.\n" +
@@ -384,6 +439,17 @@ export class WasmBridgeImpl implements WasmBridge {
       );
     }
     return this._wasmEngine;
+  }
+
+  private _poison(cause: WebAssembly.RuntimeError): void {
+    this._poisoned = true;
+    this._panicCause = cause;
+  }
+
+  private _mapWasmError(err: unknown, exportName: string): unknown {
+    return toGwenWasmError(err, exportName, (cause) => {
+      this._poison(cause);
+    });
   }
 
   // ── Test utilities ────────────────────────────────────────────────────────
@@ -406,6 +472,8 @@ export class WasmBridgeImpl implements WasmBridge {
     this._wasmModule = null;
     this._wasmExports = null;
     this._initPromise = null;
+    this._poisoned = false;
+    this._panicCause = null;
     this._lastMemoryBuffer = null;
     this._queryResultView = null;
     this._maxEntities = 10_000;
@@ -449,7 +517,7 @@ export class WasmBridgeImpl implements WasmBridge {
   /**
    * Create a new entity and return its packed handle (index + generation).
    *
-   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when `maxEntities` is reached.
+   * @throws {GwenWasmError} code `CORE:ENTITY_LIMIT_REACHED` when `maxEntities` is reached.
    *   The bridge stays usable after that throw.
    */
   createEntity(): WasmEntityId {
@@ -457,14 +525,14 @@ export class WasmBridgeImpl implements WasmBridge {
     try {
       return wasm.create_entity();
     } catch (error: unknown) {
-      throw this._entityLimitOrRethrow(error);
+      throw this._mapWasmError(error, "create_entity");
     }
   }
 
   /**
    * Create N entities, each with a transform.
    *
-   * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining
+   * @throws {GwenWasmError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining
    *   capacity. No entity is created in that case. The bridge stays usable.
    */
   bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array {
@@ -472,15 +540,21 @@ export class WasmBridgeImpl implements WasmBridge {
     try {
       return wasm.bulk_spawn_with_transforms(positions, rotations);
     } catch (error: unknown) {
-      throw this._entityLimitOrRethrow(error);
+      throw this._mapWasmError(error, "bulk_spawn_with_transforms");
     }
   }
 
-  private _entityLimitOrRethrow(error: unknown): never {
-    if (error instanceof Error && /limit/i.test(error.message)) {
-      throw new GwenError(CoreErrorCodes.ENTITY_LIMIT_REACHED, error.message);
+  /**
+   * Re-parent through the fallible export. Checks poison before entering WASM.
+   * @internal
+   */
+  setEntityParent(childIndex: number, parentIndex: number, keepWorldPos: boolean): void {
+    const wasm = this._requireWasm();
+    try {
+      wasm.set_entity_parent(childIndex, parentIndex, keepWorldPos);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "set_entity_parent");
     }
-    throw error;
   }
 
   deleteEntity(index: number, generation: number): boolean {
@@ -502,7 +576,12 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   addComponent(index: number, generation: number, typeId: number, data: Uint8Array): boolean {
-    return this._requireWasm().add_component(index, generation, typeId, data);
+    const wasm = this._requireWasm();
+    try {
+      return wasm.add_component(index, generation, typeId, data);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "add_component");
+    }
   }
 
   removeComponent(index: number, generation: number, typeId: number): boolean {
@@ -556,7 +635,12 @@ export class WasmBridgeImpl implements WasmBridge {
 
     // Pass data as a Uint8Array view over the Float32Array buffer — no copy.
     const dataBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    this._requireWasm().set_components_bulk(slots, gens, componentTypeId, dataBytes);
+    const wasm = this._requireWasm();
+    try {
+      wasm.set_components_bulk(slots, gens, componentTypeId, dataBytes);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "set_components_bulk");
+    }
   }
 
   /**
@@ -666,7 +750,12 @@ export class WasmBridgeImpl implements WasmBridge {
     data: Float32Array,
   ): void {
     const dataBytes = new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    this._requireWasm().query_write_bulk(slots, gens, writeTypeId, dataBytes);
+    const wasm = this._requireWasm();
+    try {
+      wasm.query_write_bulk(slots, gens, writeTypeId, dataBytes);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "query_write_bulk");
+    }
   }
 
   // ── Query ────────────────────────────────────────────────────────────────
@@ -705,8 +794,12 @@ export class WasmBridgeImpl implements WasmBridge {
     }
     // Get a view sized to the actual count, growing the buffer if needed
     const view = this._getTypeIdView(count);
-    // A capacity miss throws. Do not catch it and do not return a short count.
-    return this._requireWasm().query_entities_to_buffer(view);
+    const wasm = this._requireWasm();
+    try {
+      return wasm.query_entities_to_buffer(view);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "query_entities_to_buffer");
+    }
   }
 
   forEachQueryResultRaw(typeIds: number[], callback: (entityIndex: number) => void): void {
@@ -774,7 +867,12 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   syncTransformsToBuffer(ptr: number, maxEntities: number): void {
-    this._requireWasm().sync_transforms_to_buffer(ptr, maxEntities);
+    const wasm = this._requireWasm();
+    try {
+      wasm.sync_transforms_to_buffer(ptr, maxEntities);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "sync_transforms_to_buffer");
+    }
   }
 
   syncTransformsToBufferSparse(ptr: number): void {
@@ -790,7 +888,12 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   syncTransformsFromBuffer(ptr: number, maxEntities: number): void {
-    this._requireWasm().sync_transforms_from_buffer(ptr, maxEntities);
+    const wasm = this._requireWasm();
+    try {
+      wasm.sync_transforms_from_buffer(ptr, maxEntities);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "sync_transforms_from_buffer");
+    }
   }
 
   // ── Linear memory ────────────────────────────────────────────────────────

@@ -12,7 +12,9 @@ import {
   normalizeComponentTypesForQuery,
   type ComponentTypeInput,
 } from "./component-type-normalizer";
+import { GwenError } from "@gwenjs/schema";
 import { createEntityId, unpackEntityId } from "../engine/engine-api";
+import { CoreErrorCodes } from "../engine/engine-errors";
 import { LRUMap } from "../utils/lru-map.js";
 
 // Re-export EntityId as part of the ECS module's public API
@@ -85,7 +87,10 @@ export class EntityManager {
     } else {
       index = this.liveCount;
       if (index >= this.maxEntities) {
-        throw new Error(`[ECS] Entity capacity exceeded (max: ${this.maxEntities})`);
+        throw new GwenError(
+          CoreErrorCodes.ENTITY_LIMIT_REACHED,
+          `[ECS] Entity capacity exceeded (max: ${this.maxEntities})`,
+        );
       }
     }
 

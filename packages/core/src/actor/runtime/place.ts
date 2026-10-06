@@ -23,6 +23,7 @@
  */
 
 import { useEngine } from "../../engine/context";
+import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition } from "./define-prefab";
 import type { EntityId } from "../../engine/engine-api";
@@ -78,7 +79,16 @@ export function _applyTransformOpts(
   bridge.add_entity_transform(idx, x, y, rotation, sx, sy);
   if (options.parent) {
     const parentIdx = entityIndex(options.parent.entityId);
-    bridge.set_entity_parent(idx, parentIdx, false);
+    const owner = getWasmBridge();
+    if (
+      owner instanceof WasmBridgeImpl &&
+      owner.isActive() &&
+      owner.engine() === (bridge as unknown)
+    ) {
+      owner.setEntityParent(idx, parentIdx, false);
+    } else {
+      bridge.set_entity_parent(idx, parentIdx, false);
+    }
   }
 }
 

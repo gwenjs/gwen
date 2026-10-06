@@ -11,7 +11,7 @@
 use crate::ecs::component::ComponentTypeId;
 use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
-use crate::ecs::error::EcsError;
+use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::ArchetypeStorage;
 use crate::gameloop::GameLoop;
@@ -97,10 +97,21 @@ pub struct Engine {
 
 #[wasm_bindgen]
 impl Engine {
-    /// Create a new engine instance
+    /// Create a new engine instance.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is outside
+    /// `[1, 2_000_000]`. Nothing is allocated in that case.
     #[wasm_bindgen(constructor)]
-    pub fn new(max_entities: u32) -> Engine {
-        Engine {
+    pub fn new(max_entities: u32) -> Result<Engine, CoreError> {
+        if max_entities < 1 || max_entities > MAX_ENTITIES_LIMIT {
+            return Err(CoreError::InvalidMaxEntities {
+                value: max_entities,
+                max: MAX_ENTITIES_LIMIT,
+            });
+        }
+        Ok(Engine {
             entity_manager: EntityManager::new(max_entities),
             storage: ArchetypeStorage::new(),
             query_system: QuerySystem::new(),
@@ -113,7 +124,7 @@ impl Engine {
             physics_world: None,
             #[cfg(feature = "physics3d")]
             physics3d_world: None,
-        }
+        })
     }
 
     // ─── Constructor ──────────────────────────────────────────────────────────
@@ -125,13 +136,13 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// Returns an error when the entity limit is reached. The message is the
-    /// display text of the ECS error and contains `limit`. No entity is created.
-    pub fn create_entity(&mut self) -> Result<JsEntityId, JsError> {
+    /// Returns [`CoreError::EntityLimitReached`] when the entity limit is reached.
+    /// No entity is created.
+    pub fn create_entity(&mut self) -> Result<JsEntityId, CoreError> {
         self.entity_manager
             .create_entity()
             .map(Into::into)
-            .map_err(|err| JsError::new(&err.to_string()))
+            .map_err(CoreError::from)
     }
 
     /// Delete an entity. Requires the full `{index, generation}` pair so
@@ -189,15 +200,15 @@ impl Engine {
         generation: u32,
         component_type_id: u32,
         data: &[u8],
-    ) -> bool {
+    ) -> Result<bool, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return false;
+            return Ok(false);
         }
         let type_id = ComponentTypeId::from_raw(component_type_id);
-        if let Some(migration) = self.storage.upsert_js(index, type_id, data) {
+        if let Some(migration) = self.storage.upsert_js(index, type_id, data)? {
             if let Some(from) = migration.from {
                 self.query_system.on_archetype_change(from);
             }
@@ -208,7 +219,7 @@ impl Engine {
             self.dirty_transforms.mark_dirty(index);
         }
 
-        true
+        Ok(true)
     }
 
     /// Remove a component from an entity.
@@ -387,27 +398,37 @@ impl Engine {
     /// * `data` – Packed component data; total length must equal
     ///   `slots.len() × component_size_bytes`.
     ///
-    /// # Panics
-    /// Does not panic; silently skips dead entities or malformed data.
+    /// # Errors
+    ///
+    /// Returns [`CoreError::ComponentTypeLimitReached`] before any write when
+    /// this call would introduce the 129th distinct component type.
+    /// Dead entities are skipped.
     pub fn set_components_bulk(
         &mut self,
         slots: &[u32],
         gens: &[u32],
         component_type_id: u32,
         data: &[u8],
-    ) {
+    ) -> Result<(), CoreError> {
         let n = slots.len().min(gens.len());
         if n == 0 || data.is_empty() {
-            return;
+            return Ok(());
         }
 
         // Infer per-entity stride from the total data length.
         let comp_size = data.len() / n;
         if comp_size == 0 {
-            return;
+            return Ok(());
         }
 
         let type_id = ComponentTypeId::from_raw(component_type_id);
+        let will_write = (0..n).any(|i| {
+            self.entity_manager
+                .is_alive(EntityId::from_parts(slots[i], gens[i]))
+        });
+        if will_write && self.storage.registry().size(type_id).is_none() {
+            self.storage.register_raw(type_id, 0)?;
+        }
 
         for i in 0..n {
             let slot = slots[i];
@@ -427,7 +448,7 @@ impl Engine {
             }
 
             let slice = &data[src_start..src_end];
-            if let Some(migration) = self.storage.upsert_js(slot, type_id, slice) {
+            if let Some(migration) = self.storage.upsert_js(slot, type_id, slice)? {
                 if let Some(from) = migration.from {
                     self.query_system.on_archetype_change(from);
                 }
@@ -438,6 +459,7 @@ impl Engine {
                 self.dirty_transforms.mark_dirty(slot);
             }
         }
+        Ok(())
     }
 
     // ─── Component queries ────────────────────────────────────────────────────
@@ -492,14 +514,17 @@ impl Engine {
     /// # Example
     /// ```rust
     /// # use gwen_core::bindings::Engine;
-    /// # let mut engine = Engine::new(100);
+    /// # let mut engine = Engine::new(100).expect("max entities");
     /// let count = engine.query_entities_to_buffer(&[0, 1]).unwrap();
     /// let ptr = engine.get_query_result_ptr();
     /// // Read `count` entity ids from `ptr` in JS. The view length is
     /// // `engine.get_query_result_capacity()`, not a fixed 10_000.
     /// let _ = (count, ptr);
     /// ```
-    pub fn query_entities_to_buffer(&mut self, component_type_ids: &[u32]) -> Result<u32, JsError> {
+    pub fn query_entities_to_buffer(
+        &mut self,
+        component_type_ids: &[u32],
+    ) -> Result<u32, CoreError> {
         let types: Vec<ComponentTypeId> = component_type_ids
             .iter()
             .map(|&id| ComponentTypeId::from_raw(id))
@@ -508,7 +533,10 @@ impl Engine {
         let results = self.query_system.query(&self.storage, query_id);
         let matches = results.len();
         if matches > self.query_result_buffer.len() {
-            return Err(JsError::new(QUERY_EXCEEDED_BUFFER_CAPACITY));
+            return Err(CoreError::QueryCapacityExceeded {
+                matches: matches as u32,
+                capacity: self.query_result_buffer.len() as u32,
+            });
         }
         self.query_result_buffer[..matches].copy_from_slice(results.entities());
         Ok(matches as u32)
@@ -610,12 +638,24 @@ impl Engine {
     /// * `parent_index` - New parent entity index, or `u32::MAX` to detach.
     /// * `keep_world_pos` - If true, recalculate local transform so world position is preserved.
     #[wasm_bindgen]
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidParent`] when `child_index == parent_index`
+    /// or when the parent is a descendant of the child. The hierarchy is unchanged.
+    /// `parent_index == u32::MAX` detaches.
     pub fn set_entity_parent(
         &mut self,
         child_index: u32,
         parent_index: u32,
         keep_world_pos: bool,
-    ) {
+    ) -> Result<(), CoreError> {
+        if parent_index != u32::MAX && child_index == parent_index {
+            return Err(CoreError::InvalidParent {
+                child: child_index,
+                parent: parent_index,
+            });
+        }
+
         let child_gen = self.get_entity_generation(child_index);
         let child = EntityId::from_parts(child_index, child_gen);
 
@@ -638,7 +678,7 @@ impl Engine {
                 .map(|t| t.world_rotation())
                 .unwrap_or(0.0);
 
-            self.transform_system.set_parent(child, parent);
+            self.transform_system.set_parent(child, parent)?;
 
             if let Some(node) = self.transform_system.get_transform_mut(child) {
                 if parent.is_none() {
@@ -647,8 +687,9 @@ impl Engine {
                 }
             }
         } else {
-            self.transform_system.set_parent(child, parent);
+            self.transform_system.set_parent(child, parent)?;
         }
+        Ok(())
     }
 
     /// Translate entity's local position by (dx, dy). Marks transform dirty.
@@ -849,7 +890,22 @@ impl Engine {
     ///
     /// Only entities that have a `Transform` component are written.
     /// Stride is 32 bytes per slot (see `alloc_shared_buffer` layout).
-    pub fn sync_transforms_to_buffer(&mut self, ptr: usize, max_entities: u32) {
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is above
+    /// this engine's capacity. No slot is written in that case.
+    pub fn sync_transforms_to_buffer(
+        &mut self,
+        ptr: usize,
+        max_entities: u32,
+    ) -> Result<(), CoreError> {
+        let cap = self.entity_manager.max_entities();
+        if max_entities > cap {
+            return Err(CoreError::InvalidMaxEntities {
+                value: max_entities,
+                max: cap,
+            });
+        }
         for idx in 0..max_entities as usize {
             let offset = idx * STRIDE;
             // SAFETY: ptr was allocated by alloc_shared_buffer with size ≥ max_entities*32
@@ -875,6 +931,7 @@ impl Engine {
             }
         }
         self.dirty_transforms.clear();
+        Ok(())
     }
 
     /// Copies Transform data back from the shared buffer into the ECS
@@ -886,15 +943,36 @@ impl Engine {
     ///
     /// Only slots with the physics-active flag (bit 0) are written back.
     /// Stride is 32 bytes per slot (see `alloc_shared_buffer` layout).
-    pub fn sync_transforms_from_buffer(&mut self, ptr: usize, max_entities: u32) {
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is above
+    /// this engine's capacity, or [`CoreError::ComponentTypeLimitReached`] when
+    /// the transform column cannot be created. Neither case writes a slot.
+    /// The transform type is registered on the first flagged slot, before that
+    /// slot is written. An unflagged buffer does not register it.
+    pub fn sync_transforms_from_buffer(
+        &mut self,
+        ptr: usize,
+        max_entities: u32,
+    ) -> Result<(), CoreError> {
+        let cap = self.entity_manager.max_entities();
+        if max_entities > cap {
+            return Err(CoreError::InvalidMaxEntities {
+                value: max_entities,
+                max: cap,
+            });
+        }
+        let transform_type = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
         for idx in 0..max_entities as usize {
             let offset = idx * STRIDE;
+            let flags = unsafe { *((ptr + offset + 20) as *const u32) };
+            if flags & PHYS_FLAG == 0 {
+                continue;
+            }
+            if self.storage.registry().size(transform_type).is_none() {
+                self.storage.register_raw(transform_type, 0)?;
+            }
             unsafe {
-                let flags = *((ptr + offset + 20) as *const u32);
-                if flags & PHYS_FLAG == 0 {
-                    continue; // slot not managed by physics — skip
-                }
-
                 let base = (ptr + offset) as *const f32;
                 let x = *base;
                 let y = *base.add(1);
@@ -905,12 +983,12 @@ impl Engine {
                 // Write back into storage as raw f32 bytes
                 let packed: [f32; 5] = [x, y, rot, sx, sy];
                 let bytes = std::slice::from_raw_parts(packed.as_ptr() as *const u8, 20);
-                self.storage
-                    .upsert_transform_raw(idx as u32, bytes);
+                self.storage.upsert_transform_raw(idx as u32, bytes)?;
 
                 self.dirty_transforms.mark_dirty(idx as u32);
             }
         }
+        Ok(())
     }
 
     /// Optimized version of `sync_transforms_to_buffer` that only copies
@@ -3124,8 +3202,8 @@ impl Engine {
         gens: &[u32],
         write_type_id: u32,
         data: &[u8],
-    ) {
-        self.set_components_bulk(slots, gens, write_type_id, data);
+    ) -> Result<(), CoreError> {
+        self.set_components_bulk(slots, gens, write_type_id, data)
     }
 
     // ─── Bulk physics 2D API (Tier 2) ─────────────────────────────────────────
@@ -3301,8 +3379,8 @@ impl Engine {
     ///
     /// # Errors
     ///
-    /// Returns an error when N is greater than the remaining entity capacity.
-    /// Nothing is created in that case. The message contains `limit`.
+    /// Returns [`CoreError::EntityLimitReached`] when N is greater than the
+    /// remaining entity capacity. Nothing is created in that case.
     ///
     /// # Description
     /// This method efficiently spawns multiple entities with transforms in a single operation.
@@ -3322,13 +3400,11 @@ impl Engine {
         &mut self,
         positions: &[f32],
         rotations: &[f32],
-    ) -> Result<Vec<u32>, JsError> {
+    ) -> Result<Vec<u32>, CoreError> {
         let count = positions.len() / 2;
         if count > self.entity_manager.remaining_capacity() as usize {
             let max = self.entity_manager.max_entities();
-            return Err(JsError::new(
-                &EcsError::EntityLimitReached { max }.to_string(),
-            ));
+            return Err(CoreError::EntityLimitReached { max });
         }
 
         let mut indices = Vec::with_capacity(count);
@@ -3361,6 +3437,18 @@ impl Engine {
     }
 }
 
+impl Engine {
+    /// Shrink the query result buffer so tests can force
+    /// [`CoreError::QueryCapacityExceeded`].
+    ///
+    /// Not a `#[wasm_bindgen]` export. Production code never resizes this buffer:
+    /// its length is `max_entities`, so a normal query cannot exceed it.
+    #[doc(hidden)]
+    pub fn testing_shrink_query_buffer(&mut self, len: usize) {
+        self.query_result_buffer.truncate(len);
+    }
+}
+
 // ─── build-tools exports ──────────────────────────────────────────────────────
 
 #[cfg(feature = "build-tools")]
@@ -3378,10 +3466,11 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<String>) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::CoreError;
 
     #[test]
     fn test_query_entities_to_buffer() {
-        let mut engine = Engine::new(100);
+        let mut engine = Engine::new(100).expect("max entities");
         let t0 = engine.register_component_type();
         let t1 = engine.register_component_type();
 
@@ -3391,12 +3480,12 @@ mod tests {
 
         // Add components to entities
         // e0 has t0 and t1
-        engine.add_component(e0.index(), e0.generation(), t0, &[0u8; 4]);
-        engine.add_component(e0.index(), e0.generation(), t1, &[0u8; 4]);
+        engine.add_component(e0.index(), e0.generation(), t0, &[0u8; 4]).expect("component");
+        engine.add_component(e0.index(), e0.generation(), t1, &[0u8; 4]).expect("component");
         // e1 has t0 only
-        engine.add_component(e1.index(), e1.generation(), t0, &[0u8; 4]);
+        engine.add_component(e1.index(), e1.generation(), t0, &[0u8; 4]).expect("component");
         // e2 has t1 only
-        engine.add_component(e2.index(), e2.generation(), t1, &[0u8; 4]);
+        engine.add_component(e2.index(), e2.generation(), t1, &[0u8; 4]).expect("component");
 
         // Query for t0
         let count = engine.query_entities_to_buffer(&[t0]).unwrap();
@@ -3423,13 +3512,13 @@ mod tests {
     #[test]
     fn test_query_entities_to_buffer_cap() {
         let max = 11_000u32;
-        let mut engine = Engine::new(max);
+        let mut engine = Engine::new(max).expect("max entities");
         assert_eq!(engine.get_query_result_capacity(), max);
         let t0 = engine.register_component_type();
 
         for _ in 0..max {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
+            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]).expect("component");
         }
 
         let count = engine
@@ -3445,8 +3534,8 @@ mod tests {
 
     #[test]
     fn test_query_result_buffer_is_per_engine() {
-        let mut a = Engine::new(8);
-        let mut b = Engine::new(4);
+        let mut a = Engine::new(8).expect("max entities");
+        let mut b = Engine::new(4).expect("max entities");
         assert_eq!(a.get_query_result_capacity(), 8);
         assert_eq!(b.get_query_result_capacity(), 4);
         assert_ne!(
@@ -3458,10 +3547,9 @@ mod tests {
         let ta = a.register_component_type();
         let tb = b.register_component_type();
         let ea = a.create_entity().expect("entity limit");
-        a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0]);
+        a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0]).expect("component");
         let eb = b.create_entity().expect("entity limit");
-        b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0]);
-
+        b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0]).expect("component");
         assert_eq!(a.query_entities_to_buffer(&[ta]).unwrap(), 1);
         let ptr_a = a.get_query_result_ptr();
         let a_id = unsafe { *ptr_a };
@@ -3485,35 +3573,31 @@ mod tests {
             "query exceeded the buffer capacity"
         );
 
-        let mut engine = Engine::new(4);
+        let mut engine = Engine::new(4).expect("max entities");
         let t0 = engine.register_component_type();
         for _ in 0..4 {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]);
+            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]).expect("component");
         }
 
         // Force a buffer shorter than the match set. Production code never resizes it.
-        engine.query_result_buffer = vec![0xAAAA_AAAA, 0xBBBB_BBBB];
+        engine.testing_shrink_query_buffer(2);
         let before = engine.query_result_buffer.clone();
 
-        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            engine.query_entities_to_buffer(&[t0])
-        }));
-
-        match result {
-            Ok(Ok(count)) => panic!("must not return a short count, got {count}"),
-            Ok(Err(err)) => {
-                let msg = format!("{err:?}");
-                assert!(
-                    msg.contains(QUERY_EXCEEDED_BUFFER_CAPACITY),
-                    "JsError message must say the query exceeded the buffer capacity, got {msg}"
-                );
+        let err = engine
+            .query_entities_to_buffer(&[t0])
+            .expect_err("must not return a short count");
+        assert_eq!(err.code(), "CORE:QUERY_CAPACITY_EXCEEDED");
+        assert!(
+            err.to_string().contains(QUERY_EXCEEDED_BUFFER_CAPACITY),
+            "message must say the query exceeded the buffer capacity, got {err}"
+        );
+        match err {
+            CoreError::QueryCapacityExceeded { matches, capacity } => {
+                assert_eq!(matches, 4);
+                assert_eq!(capacity, 2);
             }
-            Err(_panic) => {
-                // Native tests cannot construct JsError: the JS Error constructor
-                // panics off wasm. Reaching that panic means we took the error path
-                // instead of returning a truncated count.
-            }
+            other => panic!("unexpected {other:?}"),
         }
 
         assert_eq!(
@@ -3525,7 +3609,7 @@ mod tests {
     #[cfg(feature = "physics3d")]
     #[test]
     fn test_physics3d_rebuild_mesh_collider_binding_happy_path() {
-        let mut engine = Engine::new(64);
+        let mut engine = Engine::new(64).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 64);
         engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed body
 
@@ -3541,7 +3625,7 @@ mod tests {
     #[cfg(feature = "physics3d")]
     #[test]
     fn test_physics3d_rebuild_mesh_collider_binding_returns_false_when_no_world() {
-        let mut engine = Engine::new(64);
+        let mut engine = Engine::new(64).expect("max entities");
         // physics3d not initialised.
         let verts: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];

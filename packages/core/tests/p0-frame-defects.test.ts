@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createEngine } from "../src/index.js";
+import { CoreErrorCodes, GwenWasmPanicError, createEngine } from "../src/index.js";
 
 describe("P0 frame defects", () => {
   afterEach(() => {
@@ -46,6 +46,26 @@ describe("P0 frame defects", () => {
       vi.restoreAllMocks();
       await engine.stop();
     }
+  });
+
+  it("classifies GwenWasmPanicError as one fatal WASM_PANIC", async () => {
+    const seen: Array<{ level: string; code: string; source?: string }> = [];
+    const engine = await createEngine();
+    engine.errors.on((event) => {
+      seen.push(event);
+    });
+    await engine.startExternal();
+    engine.hooks.hook("engine:before-update", () => {
+      throw new GwenWasmPanicError(undefined, new WebAssembly.RuntimeError("unreachable"));
+    });
+    await engine.advance(1 / 60);
+
+    const fatals = seen.filter(
+      (event) => event.level === "fatal" && event.code === CoreErrorCodes.WASM_PANIC,
+    );
+    expect(fatals).toHaveLength(1);
+    expect(fatals[0]?.source).toBe("gwen_core.wasm");
+    expect(engine.state).toBe("faulted");
   });
 
   it("D14 FPS: getFPS reports the real frame rate, not the scaled dt", async () => {
