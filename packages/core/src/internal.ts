@@ -46,7 +46,7 @@ export {
 
 export { GlobalStringPoolManager, StringPoolManager, StringPool } from "./utils/string-pool";
 
-export { detectCoreVariant, detectSharedMemoryRequired } from "./utils/variant-detector";
+export { detectCoreVariant } from "./utils/variant-detector";
 
 export { createDisposable } from "./disposable";
 

@@ -8,24 +8,22 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
- * Today's offenders. The list may only shrink (#115). Do not add a path.
- * Spec sites: vite preview headers and dev middleware, wasm-bridge requireSAB,
- * both contact ring buffers, and the physics3d BVH job worker.
+ * Offender ceilings for SharedArrayBuffer, Atomics, crossOriginIsolated,
+ * and shared WebAssembly.Memory. Empty after #115. The list may only shrink.
+ * Do not add a path.
  */
-const ALLOWED_IDENTIFIER_COUNTS: Readonly<Record<string, number>> = {
-  "packages/core/src/engine/wasm-bridge.ts SharedArrayBuffer": 1,
-  "packages/physics2d/src/ring-buffer.ts SharedArrayBuffer": 4,
-  "packages/physics3d/src/plugin/ring-buffer.ts SharedArrayBuffer": 4,
-};
+const ALLOWED_IDENTIFIER_COUNTS: Readonly<Record<string, number>> = {};
 
-/** File plus pattern. The count is a ceiling: the list may only shrink. */
+/**
+ * `new Worker(` is not an offender entry. The physics3d BVH job stays.
+ * The count is a ceiling: the list may only shrink.
+ */
 const ALLOWED_WORKERS: Readonly<Record<string, number>> = {
   "packages/physics3d/src/plugin/bvh.ts new Worker": 1,
 };
 
-const ALLOWED_COEP: Readonly<Record<string, number>> = {
-  "packages/vite/src/index.ts Cross-Origin-Embedder-Policy": 2,
-};
+/** Cross-Origin-Embedder-Policy ceilings in packages/vite/src. Empty after #115. */
+const ALLOWED_COEP: Readonly<Record<string, number>> = {};
 
 const IDENTIFIER_NAMES = new Set(["SharedArrayBuffer", "Atomics", "crossOriginIsolated"]);
 
@@ -211,6 +209,21 @@ describe("threading guard", () => {
       counts.set(key, (counts.get(key) ?? 0) + 1);
     }
     expect(growthPast(counts, ALLOWED_COEP)).toEqual([]);
+  });
+
+  it("finds no SharedArrayBuffer in user docs", () => {
+    const docs = path.join(REPO_ROOT, "docs");
+    const hits: string[] = [];
+    walk(docs, (file) => {
+      if (!file.endsWith(".md")) return;
+      const lines = readFileSync(file, "utf8").split("\n");
+      for (let index = 0; index < lines.length; index += 1) {
+        if ((lines[index] ?? "").includes("SharedArrayBuffer")) {
+          hits.push(`${rel(file)}:${index + 1}`);
+        }
+      }
+    });
+    expect(hits).toEqual([]);
   });
 
   it("flags SharedArrayBuffer, Atomics, crossOriginIsolated, shared Memory, and Worker in scanned text", () => {

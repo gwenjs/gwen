@@ -11,7 +11,7 @@ describe("WasmRingBuffer byteOffset resolution", () => {
    */
   function createMockMemory(pageSizeKB: number = 256): WebAssembly.Memory {
     return {
-      buffer: new SharedArrayBuffer(pageSizeKB * 1024),
+      buffer: new ArrayBuffer(pageSizeKB * 1024),
       grow: () => 1,
     } as unknown as WebAssembly.Memory;
   }

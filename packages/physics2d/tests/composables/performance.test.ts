@@ -1,5 +1,5 @@
 /**
- * @file Performance tests for composables and ring buffer.
+ * @file Performance tests for composables.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ciThreshold } from "../helpers/perf";
@@ -36,7 +36,6 @@ vi.mock("../../src/shape-component.js", () => ({
 }));
 
 import { useStaticBody } from "../../src/composables/use-static-body.js";
-import { ContactRingBuffer } from "../../src/ring-buffer.js";
 
 describe("Performance", () => {
   beforeEach(() => {
@@ -52,39 +51,6 @@ describe("Performance", () => {
     }
     const elapsed = performance.now() - start;
     expect(elapsed).toBeLessThan(ciThreshold(100));
-  });
-
-  it("drains 500 ring buffer events in under 0.5ms", () => {
-    const buf = new ContactRingBuffer();
-    for (let i = 0; i < 500; i++) {
-      buf.write({
-        entityAIdx: i,
-        entityBIdx: i + 1,
-        contactX: 0,
-        contactY: 0,
-        normalX: 1,
-        normalY: 0,
-        relativeVelocity: 5,
-      });
-    }
-
-    // Warm-up run to avoid JIT cold-start timing skew
-    const warmup = new ContactRingBuffer();
-    warmup.write({
-      entityAIdx: 0,
-      entityBIdx: 1,
-      contactX: 0,
-      contactY: 0,
-      normalX: 1,
-      normalY: 0,
-      relativeVelocity: 0,
-    });
-    warmup.drain();
-
-    const start = performance.now();
-    buf.drain();
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(0.5, 40));
   });
 
   it("applies 1000 impulses in under 5ms", async () => {

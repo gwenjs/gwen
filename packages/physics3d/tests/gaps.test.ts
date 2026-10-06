@@ -32,12 +32,12 @@ const physics3dInitNavgrid3d = vi.fn();
 /** Byte offset for the CC SAB in tests that need it (must be > 0 and 4-aligned). */
 const CC_SAB_TEST_OFFSET = 4;
 /** Shared SAB for CC SAB tests — re-created per test. */
-let _ccTestSAB: SharedArrayBuffer = new SharedArrayBuffer(65536);
+let _ccTestSAB: ArrayBuffer = new ArrayBuffer(65536);
 
 const mockBridge = {
   variant: "physics3d" as const,
   getLinearMemory: vi.fn(() => ({
-    buffer: new SharedArrayBuffer(65536),
+    buffer: new ArrayBuffer(65536),
     byteLength: 65536,
   })),
   getPhysicsBridge: vi.fn(() => ({
@@ -170,7 +170,7 @@ function setupWasm(): { service: Physics3DAPI } {
  * can pre-populate CC state (simulating what Rust would write per frame).
  */
 function setupWasmWithCcSab(): { service: Physics3DAPI; ccView: Float32Array } {
-  _ccTestSAB = new SharedArrayBuffer(65536);
+  _ccTestSAB = new ArrayBuffer(65536);
   const ccView = new Float32Array(_ccTestSAB, CC_SAB_TEST_OFFSET, 32 * 5);
   mockBridge.getLinearMemory.mockReturnValue({ buffer: _ccTestSAB, byteLength: 65536 });
   physics3dGetCcSabPtr.mockReturnValue(CC_SAB_TEST_OFFSET);
@@ -222,7 +222,7 @@ beforeEach(() => {
   physics3dGetCcSabPtr.mockReturnValue(0); // no SAB view by default
   physics3dGetMaxCcEntities.mockReturnValue(32);
   mockBridge.getLinearMemory.mockReturnValue({
-    buffer: new SharedArrayBuffer(65536),
+    buffer: new ArrayBuffer(65536),
     byteLength: 65536,
   });
 });

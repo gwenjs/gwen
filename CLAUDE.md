@@ -65,7 +65,7 @@ Game code (TypeScript)
   └─ @gwenjs/kit     Plugin + Module authoring
   └─ @gwenjs/app     defineConfig() — build-time framework config
   └─ @gwenjs/vite    Vite plugin: WASM, code transforms, virtual modules
-       ↕ WASM bridge (JS TypedArray ↔ Rust SharedArrayBuffer)
+       ↕ WASM bridge (typed-array views over WebAssembly.Memory)
 gwen_core.wasm       SoA linear memory, ECS kernel, Rapier physics
 ```
 

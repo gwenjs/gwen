@@ -7,6 +7,7 @@ import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import * as path from "node:path";
+import { createServer } from "vite";
 import { gwen } from "../src/index";
 import {
   generateEntryModule,
@@ -215,8 +216,48 @@ describe("generateEntryModule — bootstrap correctness", () => {
       'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
     );
     expect(code).toContain(
-      'import { WasmBridgeImpl, detectCoreVariant, detectSharedMemoryRequired } from "@gwenjs/core/internal";',
+      'import { WasmBridgeImpl, detectCoreVariant } from "@gwenjs/core/internal";',
     );
+  });
+
+  it("bootstrap does not pass requireSAB", () => {
+    const code = generateEntryModule(false);
+    expect(code).not.toContain("requireSAB");
+    expect(code).not.toContain("detectSharedMemoryRequired");
+    expect(code).not.toContain("crossOriginIsolated");
+  });
+
+  it("serves dev and preview with no COOP or COEP", async () => {
+    const root = makeTmp();
+    fs.writeFileSync(path.join(root, "index.html"), "<!DOCTYPE html><html><body></body></html>");
+    fs.writeFileSync(path.join(root, "gwen.config.ts"), "export default { modules: [] };\n");
+    const server = await createServer({
+      configFile: false,
+      root,
+      logLevel: "silent",
+      plugins: gwen({ watch: false }),
+      server: { host: "127.0.0.1", port: 0 },
+    });
+    try {
+      await server.listen();
+      const address = server.httpServer?.address();
+      if (address === null || address === undefined || typeof address === "string") {
+        throw new Error("dev server has no TCP port");
+      }
+      const response = await fetch(`http://127.0.0.1:${address.port}/`);
+      await response.arrayBuffer();
+      expect(response.headers.get("cross-origin-opener-policy")).toBeNull();
+      expect(response.headers.get("cross-origin-embedder-policy")).toBeNull();
+      const previewHeaders = server.config.preview.headers;
+      const previewNames = (previewHeaders === undefined ? [] : Object.keys(previewHeaders)).map(
+        (name) => name.toLowerCase(),
+      );
+      expect(previewNames).not.toContain("cross-origin-opener-policy");
+      expect(previewNames).not.toContain("cross-origin-embedder-policy");
+    } finally {
+      await server.close();
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it("imports createViewportsPlugin and createScreenPlugin from @gwenjs/app", () => {

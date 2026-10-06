@@ -33,7 +33,9 @@ The TypeScript layer calls into WASM to query entities, read component data, and
 
 ## The WASM Bridge
 
-Communication between TypeScript and WASM happens through **shared memory and function calls**. There is no serialization; instead, WASM linear memory is exposed to TypeScript via `SharedArrayBuffer` and `TypedArray` views.
+Communication between TypeScript and WASM happens through function calls. There is no serialization. WASM linear memory is exposed to TypeScript as typed-array views over `WebAssembly.Memory`.
+
+Cross-origin isolation is optional. Set it through Vite `server.headers` and `preview.headers` when you need it.
 
 ```
 ┌──────────────────────────────────────┐
@@ -44,7 +46,7 @@ Communication between TypeScript and WASM happens through **shared memory and fu
 └──────────────┬───────────────────────┘
                │ Direct memory access (no copying)
 ┌──────────────┴───────────────────────┐
-│ SharedArrayBuffer                    │
+│ WebAssembly.Memory                   │
 │ ┌────────────────────────────────┐   │
 │ │ WASM Linear Memory             │   │
 │ │ ┌──────────────────────────┐   │   │

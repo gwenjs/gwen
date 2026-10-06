@@ -5,7 +5,6 @@
 
 export { _clearBvhCache } from "./plugin/bvh";
 export { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./plugin/constants";
-export { ContactRingBuffer3D, CONTACT_EVENT_FLOATS, RING_CAPACITY_3D } from "./plugin/ring-buffer";
 export { normalizePhysics3DConfig, QUALITY_PRESETS } from "./config";
 export {
   _dispatchContactEvent,

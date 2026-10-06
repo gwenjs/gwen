@@ -183,6 +183,6 @@ Types: `CollisionEvent`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `CONTACT_EVENT_BYTES`, `ContactRingBuffer`, `PHYSICS2D_BRIDGE_SCHEMA_VERSION`, `RING_CAPACITY`, `ShapeComponent`, `_clearContactCallbacks`, `_clearSensorCallbacks`
+Values: `PHYSICS2D_BRIDGE_SCHEMA_VERSION`, `ShapeComponent`, `_clearContactCallbacks`, `_clearSensorCallbacks`
 
 Types: `ShapeData`

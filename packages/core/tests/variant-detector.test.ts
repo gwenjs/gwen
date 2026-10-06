@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { detectCoreVariant, detectSharedMemoryRequired } from "../src/utils/variant-detector";
+import { detectCoreVariant } from "../src/utils/variant-detector";
 
 describe("detectCoreVariant", () => {
   it("returns light when config is empty", () => {
@@ -63,23 +63,5 @@ describe("detectCoreVariant", () => {
         modules: ["@gwenjs/physics3d"],
       }),
     ).toBe("physics3d");
-  });
-});
-
-describe("detectSharedMemoryRequired", () => {
-  it("returns false when config has no plugins", () => {
-    expect(detectSharedMemoryRequired({})).toBe(false);
-  });
-
-  it("returns false when no plugin opts into SAB", () => {
-    expect(detectSharedMemoryRequired({ plugins: [{ name: "Physics2D" }] })).toBe(false);
-  });
-
-  it("returns true when a plugin has wasm.sharedMemory: true", () => {
-    expect(
-      detectSharedMemoryRequired({
-        plugins: [{ name: "Physics2D", wasm: { sharedMemory: true } }],
-      }),
-    ).toBe(true);
   });
 });
