@@ -237,6 +237,9 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
             const handles: Array<{ readonly value: number }> = Array.from({ length: entities });
             for (let i = 0; i < entities; i++) {
               const tween = useTween<number>({ duration: 10_000, loop: true });
+              if (tween === null) {
+                throw new Error("[ALLOC GATE] tween.tick: tween pool dropped a slot");
+              }
               tween.play({ from: 0, to: 1 });
               handles[i] = tween;
             }

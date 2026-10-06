@@ -6,6 +6,7 @@ import { defineConfig } from "vitest/config";
 const kitPlugin = fileURLToPath(new URL("../kit/src/plugin/index.ts", import.meta.url));
 
 export default defineConfig({
+  define: { __GWEN_DEV__: "true" },
   resolve: {
     alias: {
       "@gwenjs/kit/plugin": kitPlugin,
