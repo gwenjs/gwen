@@ -13,7 +13,7 @@ import {
 import { defineComponent, Types } from "../../src/schema";
 import { onDestroy } from "../../src/actor/runtime/define-actor";
 import { useHook } from "../../src/hooks/use-hook";
-import { onRelease, onReset } from "../../src/actor/runtime/define-actor";
+import { onDisable, onRelease, onReset, useEntityId } from "../../src/actor/runtime/define-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
 import { entityIndex } from "../../src/types/entity";
@@ -1038,7 +1038,23 @@ describe("defineActorPool — dormancy (#56)", () => {
   });
 
   it("tracks the new entity id when a released index is destroyed and acquired again", async () => {
-    const { engine, pool } = await markedPool(2);
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Mark, defaults: { value: 7 } }]);
+    const disabled: bigint[] = [];
+    const released: bigint[] = [];
+    const Actor = defineActor(prefab, () => {
+      const id = useEntityId();
+      onDisable(() => {
+        disabled.push(id);
+      });
+      onRelease(() => {
+        released.push(id);
+      });
+    });
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 2 });
+    await engine.use(pool.plugin);
+
     const oldId = pool.acquire();
     pool.release(oldId);
     expect(engine.destroyEntity(oldId)).toBe(true);
@@ -1046,11 +1062,15 @@ describe("defineActorPool — dormancy (#56)", () => {
     const next = pool.acquire();
     expect(next).not.toBe(oldId);
     expect(entityIndex(next)).toBe(entityIndex(oldId));
+    expect(released).toEqual([oldId]);
+    expect(disabled).toEqual([oldId]);
 
     await flush(engine);
     expect(pool.stats().active).toBe(1);
     expect(engine.isAlive(next)).toBe(true);
     expect(engine.isAlive(oldId)).toBe(false);
+    expect(released).toEqual([oldId]);
+    expect(disabled).toEqual([oldId]);
 
     pool.release(next);
     expect(engine.destroyEntity(next)).toBe(true);

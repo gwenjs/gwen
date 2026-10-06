@@ -309,6 +309,28 @@ export function defineActorPool<Props, PublicAPI>(
     return slot >= 0 && slot < activeCount && activeIds[slot] === id;
   }
 
+  function releaseSuperseded(id: EntityId): void {
+    const inst = actor._instances.get(id);
+    if (!inst) return;
+
+    for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
+
+    if (inst._children && inst._children.size > 0) {
+      const childIds = [...inst._children];
+      inst._children.clear();
+      for (const childId of childIds) {
+        const childRelease = _poolReleaseRegistry.get(childId);
+        if (childRelease) childRelease(childId);
+        else _actorRegistry.get(childId)?.despawn(childId);
+      }
+    }
+
+    inst._scope.forgetIsolation();
+    inst._scope.pause();
+    if (listeners.release > 0) void hooks.callHook("pool:release", { id });
+  }
+
   function activate(id: EntityId): void {
     const flags = activeFlag;
     const slots = activeSlot;
@@ -316,7 +338,13 @@ export function defineActorPool<Props, PublicAPI>(
     const index = entityIndex(id);
     if (index < flags.length && flags[index] === 1) {
       const slot = slots[index] ?? -1;
-      if (slot >= 0 && slot < activeCount && activeIds[slot] !== id) activeIds[slot] = id;
+      if (slot >= 0 && slot < activeCount) {
+        const previous = activeIds[slot];
+        if (previous !== undefined && previous !== id) {
+          activeIds[slot] = id;
+          releaseSuperseded(previous);
+        }
+      }
       return;
     }
     flags[index] = 1;
