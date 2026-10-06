@@ -67,7 +67,8 @@ describe("pool acquire/release allocation (#56)", () => {
       const bytesBefore = memory.buffer.byteLength;
 
       // The two cycles above are the contract. V8 still tiers this path on the
-      // next cycle, so the helper repeats it twice more before the counted run.
+      // next cycles, including the generation compare, so the helper repeats
+      // the measured frame six more times before the counted run.
       const baseline = await measureAllocations(() => handle.advance(1, 1 / 60), {
         warmup: 1,
         ops,
@@ -78,7 +79,7 @@ describe("pool acquire/release allocation (#56)", () => {
           drop();
           await handle.advance(1, 1 / 60);
         },
-        { warmup: 2, ops },
+        { warmup: 6, ops },
       );
 
       const memoryAfter = bridge.getLinearMemory();
