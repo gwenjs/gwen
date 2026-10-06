@@ -30,4 +30,9 @@ describe("entityIndex", () => {
     const firstRounded = createEntityId(1, 2 ** 21);
     expect(entityIndex(firstRounded)).toBe(1);
   });
+
+  it("rejects a number id", () => {
+    const id: unknown = 1;
+    expect(() => entityIndex(id as EntityId)).toThrow(TypeError);
+  });
 });
