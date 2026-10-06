@@ -29,14 +29,10 @@ export { watchActorLeaks } from "./runtime/watch-actor-leaks";
 export { placeActor, placeGroup, placePrefab } from "./runtime/place";
 
 // Actor Pool
-export {
-  defineActorPool,
-  useActorPool,
-  DormantTag,
-  PoolExhaustedError,
-} from "./runtime/pool/index";
+export { defineActorPool, useActorPool, PoolExhaustedError } from "./runtime/pool/index";
 export type {
   ActorPool,
+  ActorPoolDefinition,
   PoolOptions,
   PoolStats,
   PoolHooks,

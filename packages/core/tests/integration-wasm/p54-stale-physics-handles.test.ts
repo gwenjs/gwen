@@ -229,7 +229,7 @@ describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%
     const Actor = defineActor(definePrefab([]), () => {});
     await handle.engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 2 });
-    await handle.engine.use(pool._plugin);
+    await handle.engine.use(pool.plugin);
 
     const id = pool.acquire();
     addBody(variant, physics, id, 0, 1, false);

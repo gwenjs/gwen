@@ -15,7 +15,7 @@ use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::ecs::query::{QueryId, QuerySystem};
-use crate::ecs::storage::ArchetypeStorage;
+use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
 use crate::gameloop::GameLoop;
 use crate::transform::{Transform, TransformSystem, TRANSFORM_SAB_TYPE_ID};
 use crate::transform_math::Vec2;
@@ -224,11 +224,15 @@ impl Engine {
             return Ok(false);
         }
         let type_id = ComponentTypeId::from_raw(component_type_id);
-        if let Some(migration) = self.storage.upsert_js(index, type_id, data)? {
-            if let Some(from) = migration.from {
-                self.query_system.on_archetype_change(from);
+        match self.storage.upsert_js(index, type_id, data)? {
+            ColumnMove::Rejected => return Ok(false),
+            ColumnMove::InPlace => {}
+            ColumnMove::Migrated(migration) => {
+                if let Some(from) = migration.from {
+                    self.query_system.on_archetype_change(from);
+                }
+                self.query_system.on_archetype_change(migration.to);
             }
-            self.query_system.on_archetype_change(migration.to);
         }
 
         if component_type_id == TRANSFORM_SAB_TYPE_ID {
@@ -519,7 +523,7 @@ impl Engine {
             let src_start = i * comp_size;
             let src_end = src_start + comp_size;
             let slice = &data[src_start..src_end];
-            if let Some(migration) = self.storage.upsert_js(slot, type_id, slice)? {
+            if let ColumnMove::Migrated(migration) = self.storage.upsert_js(slot, type_id, slice)? {
                 if let Some(from) = migration.from {
                     self.query_system.on_archetype_change(from);
                 }

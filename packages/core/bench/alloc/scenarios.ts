@@ -211,7 +211,7 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
           });
           const pool = defineActorPool(actor, { size: entities });
           await handle.engine.use(actor._plugin);
-          await handle.engine.use(pool._plugin);
+          await handle.engine.use(pool.plugin);
           const system = defineSystem("alloc-pool-driver", () => {
             const held: EntityId[] = Array.from({ length: entities });
             let frame = 0;

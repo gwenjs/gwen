@@ -231,7 +231,7 @@ describe("frame isolation", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const firstId = pool.acquire();
     await engine.advance(0.016);

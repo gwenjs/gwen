@@ -43,7 +43,7 @@ export interface PoolOptions {
  * User-supplied lifecycle hooks for a custom pool scope.
  */
 export interface CustomScope {
-  /** Called once when the pool plugin is installed via `engine.use(pool._plugin)`. */
+  /** Called once when the pool plugin is installed via `engine.use(pool.plugin)`. */
   onMount: (pool: ActorPool<unknown, unknown>) => void;
   /** Called when the engine stops or the scope is torn down. */
   onUnmount: (pool: ActorPool<unknown, unknown>) => void;
@@ -82,28 +82,19 @@ export interface PoolStats {
 }
 
 /**
- * Public interface of an actor pool returned by `defineActorPool()`.
+ * Handle returned by `useActorPool()`.
+ * Dormancy is internal: queries skip a released slot, and there is no public flag.
  *
  * @template Props - Props type forwarded to `onReset()` on reuse.
  * @template _PublicAPI - Actor public API type (matches `defineActor`). Carried for type inference — not used in the interface body directly.
  */
 export interface ActorPool<Props, _PublicAPI> {
-  /** Plugin to register with `engine.use()`. Must be installed before calling `acquire()`. */
-  readonly _plugin: GwenPlugin;
-  /**
-   * The underlying actor's plugin. Must be installed before `_plugin`.
-   * Used by `useActorPool()` to register both plugins in the correct order
-   * during scene setup.
-   * @internal
-   */
-  readonly _actorPlugin: GwenPlugin;
   /** Name of the pooled actor, used in logs and diagnostics. */
   readonly actorName: string;
   /**
    * Acquires a slot from the pool.
    *
-   * - Reuses a dormant slot when one is available. Reuse still allocates
-   *   (alloc gate `pool.cycle`, #56).
+   * - Reuses a dormant slot when one is available. After warm-up, reuse allocates nothing.
    * - Creates a new entity lazily when `size` has not been reached yet.
    * - Throws `PoolExhaustedError` when all slots are active.
    *
@@ -127,4 +118,13 @@ export interface ActorPool<Props, _PublicAPI> {
   stats(): PoolStats;
   /** Subscribe to pool lifecycle events. */
   readonly hooks: Hookable<PoolHooks>;
+}
+
+/**
+ * Value returned by `defineActorPool()`.
+ * `useActorPool()` returns the narrower {@link ActorPool} handle.
+ */
+export interface ActorPoolDefinition<Props, PublicAPI> extends ActorPool<Props, PublicAPI> {
+  /** Plugin to register with `engine.use()`. Install the actor plugin first. */
+  readonly plugin: GwenPlugin;
 }

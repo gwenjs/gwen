@@ -64,6 +64,17 @@ export function entityIndex(id: EntityId): number {
   return Number(id & 0xffffffffn);
 }
 
+/**
+ * Generation (upper bits) of an EntityId.
+ * Ids up to 2^53 - 1 stay on the Number path and allocate nothing.
+ */
+export function entityGeneration(id: EntityId): number {
+  if (typeof id !== "bigint")
+    throw new GwenError(CoreErrorCodes.INVALID_ENTITY_ID, "EntityId must be a bigint");
+  if (id <= MAX_EXACT_ENTITY_ID) return Math.floor(Number(id) / 4294967296);
+  return Number(id >> 32n);
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /** String name identifying a component type (e.g. `'Transform'`, `'Velocity'`). */

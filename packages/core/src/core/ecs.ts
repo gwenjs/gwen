@@ -13,7 +13,8 @@ import {
   type ComponentTypeInput,
 } from "./component-type-normalizer";
 import { GwenError } from "@gwenjs/schema";
-import { createEntityId, unpackEntityId } from "../engine/engine-api";
+import { createEntityId } from "../engine/engine-api";
+import { entityGeneration, entityIndex } from "../types/entity";
 import { CoreErrorCodes } from "../engine/engine-errors";
 import { LRUMap } from "../utils/lru-map.js";
 
@@ -60,18 +61,18 @@ function isComponentList(query: SystemQuery): query is readonly ComponentDef[] {
  */
 
 function idIndex(id: EntityId): number {
-  const { index } = unpackEntityId(id);
-  return index;
+  return entityIndex(id);
 }
 
 function idGeneration(id: EntityId): number {
-  const { generation } = unpackEntityId(id);
-  return generation;
+  return entityGeneration(id);
 }
 
 export class EntityManager {
   private generations: Uint32Array;
   private alive: Uint8Array; // 1 = alive, 0 = dead
+  /** 0 = awake, 1 = dormant. Not a component. Cleared by create and destroy. */
+  private dormant: Uint8Array;
   private freeList: number[] = [];
   private liveCount = 0;
   readonly maxEntities: number;
@@ -80,6 +81,7 @@ export class EntityManager {
     this.maxEntities = maxEntities;
     this.generations = new Uint32Array(maxEntities);
     this.alive = new Uint8Array(maxEntities);
+    this.dormant = new Uint8Array(maxEntities);
   }
 
   /** Create a new entity. Returns its EntityId. Throws if at capacity. */
@@ -100,6 +102,7 @@ export class EntityManager {
 
     const gen = this.generations[index] ?? 0;
     this.alive[index] = 1;
+    this.dormant[index] = 0;
     this.liveCount++;
     return createEntityId(index, gen);
   }
@@ -112,11 +115,29 @@ export class EntityManager {
     if (!this.isAlive(id)) return false;
 
     this.alive[index] = 0;
+    this.dormant[index] = 0;
     // Increment generation to invalidate all old references (u32 wrapping like Rust)
     this.generations[index] = (gen + 1) >>> 0; // >>> 0 forces unsigned 32-bit
     this.freeList.push(index);
     this.liveCount--;
     return true;
+  }
+
+  /**
+   * Mark a live slot dormant or awake. Returns false when `id` is not alive.
+   * Does not change components. A recycled slot is born awake.
+   */
+  setDormant(id: EntityId, dormant: boolean): boolean {
+    if (!this.isAlive(id)) return false;
+    const index = entityIndex(id);
+    this.dormant[index] = dormant ? 1 : 0;
+    return true;
+  }
+
+  /** True when the live slot is dormant. Dead ids are not dormant. */
+  isDormant(id: EntityId): boolean {
+    if (!this.isAlive(id)) return false;
+    return this.dormant[entityIndex(id)] === 1;
   }
 
   /** Check if entity is still alive (validates generation). */

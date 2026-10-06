@@ -32,8 +32,8 @@ onUpdate(() => {
 ## The Solution: `defineActorPool`
 
 A pool keeps a fixed number of entities alive. When you "despawn" one, it becomes **dormant**
-instead of being destroyed. The next `acquire()` call reuses a dormant slot. That reuse still
-allocates (alloc gate `pool.cycle`, #56).
+instead of being destroyed. The next `acquire()` call reuses a dormant slot. After warm-up,
+that reuse does not allocate.
 
 ```ts
 // pools/BulletPool.ts
@@ -351,9 +351,9 @@ onEnter(async () => {
 | `useActorPool(pool)` → `ActorPool` | `@gwenjs/core/actor` |
 | `onRelease(fn)` | `@gwenjs/core/actor` |
 | `onReset(fn)` | `@gwenjs/core/actor` |
-| `DormantTag` | `@gwenjs/core/actor` |
 | `PoolExhaustedError` | `@gwenjs/core/actor` |
 | `ActorPool<Props, PublicAPI>` | `@gwenjs/core/actor` |
+| `ActorPoolDefinition<Props, PublicAPI>` | `@gwenjs/core/actor` |
 | `PoolOptions` | `@gwenjs/core/actor` |
 | `PoolStats` | `@gwenjs/core/actor` |
 | `PoolHooks` | `@gwenjs/core/actor` |
@@ -372,7 +372,7 @@ project), register the pool plugin manually **after** the actor plugin:
 ```ts
 // main.ts — only needed outside a standard Gwen project
 await engine.use(BulletActor._plugin)  // actor first
-await engine.use(BulletPool._plugin)   // then the pool
+await engine.use(BulletPool.plugin)    // then the pool
 ```
 
 ## Next Steps

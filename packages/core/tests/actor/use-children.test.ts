@@ -292,9 +292,9 @@ describe("useChildren — pool release cascade", () => {
     const ParentPool = defineActorPool(Parent, { size: 5 });
 
     await engine.use(ChildActor._plugin);
-    await engine.use(ChildPool._plugin);
+    await engine.use(ChildPool.plugin);
     await engine.use(Parent._plugin);
-    await engine.use(ParentPool._plugin);
+    await engine.use(ParentPool.plugin);
 
     activateTestWasm(engine);
     await engine.start();
@@ -334,7 +334,7 @@ describe("useChildren — pool release cascade", () => {
 
     await engine.use(Child._plugin);
     await engine.use(Parent._plugin);
-    await engine.use(ParentPool._plugin);
+    await engine.use(ParentPool.plugin);
 
     activateTestWasm(engine);
     await engine.start();

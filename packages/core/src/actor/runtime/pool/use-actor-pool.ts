@@ -27,17 +27,18 @@
 import { useEngine } from "../../../engine/context";
 import { SCENE_REGISTRAR_KEY } from "../../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../../context/scope.js";
-import type { ActorPool } from "./types";
+import { actorPluginOf } from "./define-actor-pool";
+import type { ActorPool, ActorPoolDefinition } from "./types";
 
 export function useActorPool<Props, PublicAPI>(
-  pool: ActorPool<Props, PublicAPI>,
+  pool: ActorPoolDefinition<Props, PublicAPI>,
 ): ActorPool<Props, PublicAPI> {
   const engine = useEngine();
 
   // Register actor and pool plugins with the active scene.
   const registrar = engine.inject(SCENE_REGISTRAR_KEY);
-  registrar.register(pool._actorPlugin);
-  registrar.register(pool._plugin);
+  registrar.register(actorPluginOf(pool));
+  registrar.register(pool.plugin);
 
   // Auto-destroy pool when the scene leaves.
   // Use the active scope (the scene's GwenScope) to register the cleanup hook.
