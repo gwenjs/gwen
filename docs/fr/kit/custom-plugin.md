@@ -539,9 +539,30 @@ export const PhysicsPlugin = definePlugin(() => ({
 | `url` | `URL \| string` | Chemin vers le binaire `.wasm` |
 | `memory.regions` | `WasmMemoryRegion[]` | Tranches nommées de la mémoire linéaire WASM |
 | `channels` | `WasmChannelOptions[]` | Ring buffers pour l'échange de messages TS↔WASM |
-| `step` | `(handle, dt) => void` | Callback par image (optionnel) |
+| `transformRegion` | `string` | Nom optionnel d'une entrée de `memory.regions` qui reçoit la copie des transforms à chaque image |
+| `step` | `(handle, dt) => void` | Callback par image (optionnel). `dt` est en secondes |
 | `expectedVersion` | `number` | Valeur attendue de l'export `gwen_plugin_api_version` |
 | `versionPolicy` | `'warn' \| 'throw' \| 'ignore'` | Comportement en cas d'incompatibilité de version |
+
+### Région de transforms
+
+`transformRegion` nomme une entrée de `memory.regions`. À chaque image, avant `step`, le moteur copie les transforms monde dans le début de cette région. La copie est une seule écriture en bloc. Le module ne fait que la lire. Ce qu'il y écrit est écrasé à l'image suivante et n'atteint jamais la mémoire du cœur.
+
+L'offset est l'export `gwen_<name>_ptr()` quand le module le fournit, sinon le `byteOffset` de la région. Sans `transformRegion`, `transform_buffer_ptr()` vaut `0` et rien n'est copié.
+
+Importez `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32) et `gwen.max_entities`. Le format est little-endian, 32 octets par index d'entité :
+
+| Offset | Type | Sens |
+|---|---|---|
+| 0 | f32 | x monde |
+| 4 | f32 | y monde |
+| 8 | f32 | rotation monde, radians |
+| 12 | f32 | scale x monde |
+| 16 | f32 | scale y monde |
+| 20 | u32 | bit 0 = le slot a un transform ; les autres bits sont à 0 |
+| 24 | 8 octets | réservé, zéros |
+
+Un slot sans transform fait 32 octets à zéro. Les octets au-delà de `maxEntities * 32` ne sont pas écrits.
 
 ### WasmRegionView
 

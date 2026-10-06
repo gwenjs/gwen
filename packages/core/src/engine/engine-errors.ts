@@ -59,6 +59,9 @@ export const CoreErrorCodes = {
   INVALID_MAX_ENTITIES: "CORE:INVALID_MAX_ENTITIES",
   BUFFER_LENGTH_MISMATCH: "CORE:BUFFER_LENGTH_MISMATCH",
   INVALID_COMPONENT_SCHEMA: "CORE:INVALID_COMPONENT_SCHEMA",
+  WASM_MODULE_REGION_TOO_SMALL: "CORE:WASM_MODULE_REGION_TOO_SMALL",
+  WASM_MODULE_REGION_INVALID: "CORE:WASM_MODULE_REGION_INVALID",
+  INVALID_SHARED_BUFFER: "CORE:INVALID_SHARED_BUFFER",
   UNCAUGHT_ERROR: "CORE:UNCAUGHT_ERROR",
   UNHANDLED_REJECTION: "CORE:UNHANDLED_REJECTION",
   /** Logged when an `on` / `onFatal` / hook handler throws. Never emitted on the bus. */
@@ -96,7 +99,8 @@ export type CoreWasmErrorCode =
   | typeof CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED
   | typeof CoreErrorCodes.INVALID_PARENT
   | typeof CoreErrorCodes.INVALID_MAX_ENTITIES
-  | typeof CoreErrorCodes.BUFFER_LENGTH_MISMATCH;
+  | typeof CoreErrorCodes.BUFFER_LENGTH_MISMATCH
+  | typeof CoreErrorCodes.INVALID_SHARED_BUFFER;
 
 const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.ENTITY_LIMIT_REACHED,
@@ -105,6 +109,7 @@ const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.INVALID_PARENT,
   CoreErrorCodes.INVALID_MAX_ENTITIES,
   CoreErrorCodes.BUFFER_LENGTH_MISMATCH,
+  CoreErrorCodes.INVALID_SHARED_BUFFER,
 ];
 
 /** True when `code` is one of the recoverable core WASM codes. */

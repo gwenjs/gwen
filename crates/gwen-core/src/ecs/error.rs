@@ -63,6 +63,14 @@ pub enum CoreError {
         /// Length the caller passed.
         actual: u32,
     },
+    /// `ptr` is not the start of a live `alloc_shared_buffer` allocation
+    /// long enough for the requested slot count.
+    InvalidSharedBuffer {
+        /// Pointer the caller passed.
+        ptr: usize,
+        /// Byte length of the live allocation, or 0 when `ptr` is not live.
+        len: usize,
+    },
 }
 
 impl CoreError {
@@ -75,6 +83,7 @@ impl CoreError {
             Self::InvalidParent { .. } => "CORE:INVALID_PARENT",
             Self::InvalidMaxEntities { .. } => "CORE:INVALID_MAX_ENTITIES",
             Self::BufferLengthMismatch { .. } => "CORE:BUFFER_LENGTH_MISMATCH",
+            Self::InvalidSharedBuffer { .. } => "CORE:INVALID_SHARED_BUFFER",
         }
     }
 }
@@ -124,6 +133,9 @@ impl fmt::Display for CoreError {
                     f,
                     "buffer {buffer} length mismatch: expected {expected}, actual {actual}"
                 )
+            }
+            Self::InvalidSharedBuffer { ptr, len } => {
+                write!(f, "invalid shared buffer: ptr {ptr}, len {len}")
             }
         }
     }

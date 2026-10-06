@@ -1,5 +1,5 @@
 /**
- * Host-function imports for community WASM plugins to access the gwen-core transform buffer.
+ * Host-function imports for a community WASM module's own transform region.
  *
  * V1 implementation: passes JavaScript accessor functions via `importObject.gwen` so community
  * plugins can call them from Rust once during init() to cache the buffer address, stride,
@@ -17,7 +17,8 @@
  */
 export interface GwenTransformImports extends WebAssembly.ModuleImports {
   /**
-   * Returns the byte offset of the transform buffer in WASM linear memory.
+   * Returns the byte offset of the transform region in the module's own linear memory.
+   * The value is 0 when the module declared no `transformRegion`.
    *
    * @example
    * ```rust
@@ -56,7 +57,7 @@ export interface GwenTransformImports extends WebAssembly.ModuleImports {
  *
  * This function never throws; it is a pure closure factory.
  *
- * @param transformPtr - Byte offset of the transform buffer (from `SharedMemoryManager.transformBufferPtr`)
+ * @param transformPtr - Byte offset of the module region, or 0 when the module has no region. Never a core-memory address.
  * @param stride - Byte stride per entity transform entry (e.g., `TRANSFORM_STRIDE` = 32 for 2D)
  * @param maxEntities - Maximum entity count (e.g., engine config `maxEntities`)
  * @returns `GwenTransformImports` object to pass as `importObject.gwen`
@@ -65,11 +66,7 @@ export interface GwenTransformImports extends WebAssembly.ModuleImports {
  * ```typescript
  * import { buildTransformImports, TRANSFORM_STRIDE } from './wasm/transform-imports';
  *
- * const gwenImports = buildTransformImports(
- *   sharedMemory.transformBufferPtr,
- *   TRANSFORM_STRIDE,
- *   engine.maxEntities,
- * );
+ * const gwenImports = buildTransformImports(1024, TRANSFORM_STRIDE, engine.maxEntities);
  * const instance = await WebAssembly.instantiate(wasmBuffer, { gwen: gwenImports });
  * ```
  */

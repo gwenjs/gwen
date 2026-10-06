@@ -541,9 +541,30 @@ export const PhysicsPlugin = definePlugin(() => ({
 | `url` | `URL \| string` | Path to the `.wasm` binary |
 | `memory.regions` | `WasmMemoryRegion[]` | Named slices of WASM linear memory |
 | `channels` | `WasmChannelOptions[]` | Ring buffers for TS↔WASM message passing |
-| `step` | `(handle, dt) => void` | Per-frame callback (optional) |
+| `transformRegion` | `string` | Optional name of a `memory.regions` entry that receives the per-frame transform copy |
+| `step` | `(handle, dt) => void` | Per-frame callback (optional). `dt` is seconds |
 | `expectedVersion` | `number` | Expected `gwen_plugin_api_version` export value |
 | `versionPolicy` | `'warn' \| 'throw' \| 'ignore'` | How to handle version mismatches |
+
+### Transform region
+
+`transformRegion` names one entry of `memory.regions`. Each frame, before `step`, the engine copies that frame's world transforms into the start of the region. The copy is one bulk write. The module only reads it. Writes there are overwritten next frame and never reach core memory.
+
+The offset is the export `gwen_<name>_ptr()` when the module provides it, otherwise the region's `byteOffset`. Without `transformRegion`, `transform_buffer_ptr()` returns `0` and nothing is copied.
+
+Import `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32) and `gwen.max_entities`. Layout is little-endian, 32 bytes per entity index:
+
+| Offset | Type | Meaning |
+|---|---|---|
+| 0 | f32 | world x |
+| 4 | f32 | world y |
+| 8 | f32 | world rotation, radians |
+| 12 | f32 | world scale x |
+| 16 | f32 | world scale y |
+| 20 | u32 | bit 0 = the slot has a transform; every other bit is 0 |
+| 24 | 8 bytes | reserved, zeros |
+
+A slot with no transform is 32 zero bytes. Bytes past `maxEntities * 32` are left untouched.
 
 ### WasmRegionView
 

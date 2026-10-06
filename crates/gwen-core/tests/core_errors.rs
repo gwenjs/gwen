@@ -37,6 +37,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::BufferLengthMismatch { .. } => {
             assert_eq!(err.code(), "CORE:BUFFER_LENGTH_MISMATCH");
         }
+        CoreError::InvalidSharedBuffer { .. } => {
+            assert_eq!(err.code(), "CORE:INVALID_SHARED_BUFFER");
+        }
     }
 }
 

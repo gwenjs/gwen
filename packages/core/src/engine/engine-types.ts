@@ -61,10 +61,15 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
    */
   readonly channels?: import("./wasm-module-handle.js").WasmChannelOptions[];
   /**
+   * Name of a `memory.regions` entry that receives the per-frame transform copy.
+   * Absent means no copy, and `transform_buffer_ptr()` returns 0.
+   */
+  readonly transformRegion?: string;
+  /**
    * Optional per-frame step callback.
-   * Called during Phase 4 of every frame with the live handle and delta time in milliseconds.
+   * Called during Phase 4 of every frame with the live handle and delta time in seconds.
    * @param handle - The live module handle with typed exports and memory.
-   * @param dt - Delta time in milliseconds since the last frame.
+   * @param dt - Delta time in seconds since the last frame.
    */
   readonly step?: (handle: WasmModuleHandle<Exports>, dt: number) => void;
   /**

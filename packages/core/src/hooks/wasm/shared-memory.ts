@@ -1,11 +1,11 @@
 /**
- * SharedMemoryManager — shared buffer between gwen-core and WASM plugins.
+ * SharedMemoryManager — core-side transform buffer.
  *
  * ## Mechanism
  * `gwen-core.wasm` allocates a buffer inside its own linear memory via
- * `alloc_shared_buffer(byteLength)`. This raw pointer is handed to every
- * WASM plugin so they can read/write the same memory region without going
- * through JavaScript. Zero copies, zero GC pressure.
+ * `alloc_shared_buffer(byteLength)`. The host fills that buffer and copies
+ * it into each community module's `transformRegion`. Modules do not receive
+ * this address, and the host does not read the region back.
  *
  * ## Transform buffer layout (stride = 32 bytes per entity slot)
  * ```
@@ -16,7 +16,7 @@
  * slot_offset +  8 : rotation (f32, 4 B) — angle in radians
  * slot_offset + 12 : scale_x  (f32, 4 B)
  * slot_offset + 16 : scale_y  (f32, 4 B)
- * slot_offset + 20 : flags    (u32, 4 B) — bit 0 = physics_active, bit 1 = dirty
+ * slot_offset + 20 : flags    (u32, 4 B) — bit 0 = slot has a transform; every other bit is 0
  * slot_offset + 24 : reserved (8  B)     — reserved for future use
  * ```
  *
@@ -339,11 +339,10 @@ export class SharedMemoryManager {
   // ── Core transform region ──────────────────────────────────────────────────
 
   /**
-   * Returns a descriptor for the full shared buffer as used by gwen-core.
+   * Returns a descriptor for the full core allocation (`basePtr` → `basePtr + totalBytes`).
    *
-   * This region spans the entire allocation (`basePtr` → `basePtr + totalBytes`).
-   * It is passed to `sync_transforms_to_buffer` / `sync_transforms_from_buffer`
-   * which iterate over all entity slots to sync ECS ↔ plugins each frame.
+   * The host fills the transform prefix with `sync_transforms_to_buffer`.
+   * Community modules do not receive this pointer.
    */
   getTransformRegion(): MemoryRegion {
     return {
@@ -391,9 +390,8 @@ export class SharedMemoryManager {
   }
 
   /**
-   * Absolute address of the transform buffer in WASM linear memory
-   * (identical to the raw pointer returned by `alloc_shared_buffer`).
-   * Pass directly to {@link buildTransformImports} as `transformPtr`.
+   * Address of the core fill buffer returned by `alloc_shared_buffer`.
+   * The host passes it to `syncTransformsToBuffer`. It is not a module import pointer.
    */
   get transformBufferPtr(): number {
     return this.basePtr;

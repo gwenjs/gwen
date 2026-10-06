@@ -33,10 +33,10 @@ import { engineContext } from "./context";
 import { withCleanup } from "../cleanup-context";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
-import { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
+import { WasmRegionView, WasmRingBuffer, type WasmMemoryRegion } from "./wasm-module-handle";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
 import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
-import { EngineMemory } from "./engine-memory.js";
+import { EngineMemory, type MemoryView } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
@@ -83,7 +83,12 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import { GwenPluginNotFoundError, CoreErrorCodes, GwenWasmPanicError } from "./engine-errors.js";
+import {
+  GwenPluginNotFoundError,
+  CoreErrorCodes,
+  GwenWasmError,
+  GwenWasmPanicError,
+} from "./engine-errors.js";
 
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
@@ -164,6 +169,17 @@ function readProvidedService<K extends keyof GwenProvides>(
   key: K,
 ): GwenProvides[K] {
   return services.get(key) as GwenProvides[K];
+}
+
+interface WasmModuleTransformCopy {
+  offset: number;
+  bytes: Uint8Array | null;
+}
+
+interface WasmModuleEntry {
+  handle: WasmModuleHandle<WebAssembly.Exports>;
+  step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
+  transformCopy: WasmModuleTransformCopy | null;
 }
 
 class GwenEngineImpl implements GwenEngine {
@@ -253,13 +269,7 @@ class GwenEngineImpl implements GwenEngine {
    * Each entry holds the public handle and the optional per-frame step function.
    * @internal
    */
-  private readonly _wasmModules = new Map<
-    string,
-    {
-      handle: WasmModuleHandle<WebAssembly.Exports>;
-      step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
-    }
-  >();
+  private readonly _wasmModules = new Map<string, WasmModuleEntry>();
 
   /**
    * Lazily-created shared memory manager for community WASM plugin transform access.
@@ -267,6 +277,8 @@ class GwenEngineImpl implements GwenEngine {
    * @internal
    */
   private _sharedMemory: SharedMemoryManager | null = null;
+  /** Core-memory view of the fill buffer. Disposed before that buffer is freed. */
+  private _transformView: MemoryView<"u8"> | null = null;
 
   // ─── Frame scheduler ─────────────────────────────────────────────────────
   /**
@@ -707,6 +719,9 @@ class GwenEngineImpl implements GwenEngine {
    * @param options - Load options: name, URL, and optional per-frame step.
    * @returns The typed {@link WasmModuleHandle}.
    * @throws {GwenError} If `fetch` or `WebAssembly.instantiate` fails.
+   * @throws {GwenError} `CORE:WASM_MODULE_REGION_TOO_SMALL` or
+   *   `CORE:WASM_MODULE_REGION_INVALID` when `transformRegion` fails a load check.
+   *   The module is not registered and the engine keeps running.
    */
   async loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
@@ -717,6 +732,19 @@ class GwenEngineImpl implements GwenEngine {
     if (existing) {
       return existing.handle as WasmModuleHandle<Exports>;
     }
+
+    const declared = this._declaredTransformRegion(options);
+    let modulePtr = declared !== null && declared.byteOffset !== 0 ? declared.byteOffset : 0;
+    const builtImports = buildTransformImports(
+      modulePtr,
+      /* stride */ TRANSFORM_STRIDE,
+      /* maxEntities */ this.maxEntities,
+    );
+    const gwenImports = {
+      transform_buffer_ptr: () => modulePtr,
+      transform_stride: builtImports.transform_stride,
+      max_entities: builtImports.max_entities,
+    };
 
     let instance: WebAssembly.Instance;
     try {
@@ -730,16 +758,6 @@ class GwenEngineImpl implements GwenEngine {
         );
       }
       const buffer = await response.arrayBuffer();
-      // Lazily create shared memory manager so community plugins can read transform data.
-      // Only initialize if the WASM bridge is active.
-      const transformPtr = this._getOrCreateTransformPtr();
-      // V1: always 2D stride. For 3D support, expose options.stride and thread it through here.
-      // Build transform buffer accessors for community plugins (RFC-GAP2 V1)
-      const gwenImports = buildTransformImports(
-        transformPtr,
-        /* stride */ TRANSFORM_STRIDE,
-        /* maxEntities */ this.maxEntities,
-      );
       const result = await WebAssembly.instantiate(buffer, { gwen: gwenImports });
       instance = result.instance;
     } catch (err) {
@@ -763,6 +781,14 @@ class GwenEngineImpl implements GwenEngine {
       instance.exports["memory"] instanceof WebAssembly.Memory
         ? instance.exports["memory"]
         : undefined;
+
+    let transformCopy: WasmModuleTransformCopy | null = null;
+    if (declared) {
+      modulePtr = this._resolveTransformOffset(instance.exports, declared);
+      this._validateResolvedRegion(options.name, declared, modulePtr, memory);
+      transformCopy = { offset: modulePtr, bytes: null };
+      this._getOrCreateTransformPtr();
+    }
 
     // Build region and channel maps from options.
     const regionMap = new Map((options.memory?.regions ?? []).map((r) => [r.name, r]));
@@ -814,11 +840,9 @@ class GwenEngineImpl implements GwenEngine {
       },
     };
 
-    const stored: {
-      handle: WasmModuleHandle<WebAssembly.Exports>;
-      step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
-    } = {
+    const stored: WasmModuleEntry = {
       handle: handle as WasmModuleHandle<WebAssembly.Exports>,
+      transformCopy,
     };
     if (options.step !== undefined) {
       // Cast through unknown to satisfy the Map's invariant generic type.
@@ -1133,14 +1157,161 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Shared memory transform pointer accessor ────────────────────────────
 
+  private _declaredTransformRegion(options: {
+    name: string;
+    transformRegion?: string;
+    memory?: { regions: readonly WasmMemoryRegion[] };
+  }): WasmMemoryRegion | null {
+    const regionName = options.transformRegion;
+    if (regionName === undefined) return null;
+    const found = options.memory?.regions.find((region) => region.name === regionName);
+    if (!found) {
+      throw this._regionInvalid(options.name, regionName, "unknown region name");
+    }
+    const required = this.maxEntities * TRANSFORM_STRIDE;
+    if (found.byteLength < required) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL,
+        `[GWEN] loadWasmModule("${options.name}"): transform region "${regionName}" is ${found.byteLength} bytes; ${required} bytes are required.`,
+      );
+    }
+    if (found.byteOffset !== 0 && (found.byteOffset % 4 !== 0 || found.byteOffset < 0)) {
+      throw this._regionInvalid(
+        options.name,
+        regionName,
+        `offset ${found.byteOffset} is not a positive multiple of 4`,
+      );
+    }
+    return found;
+  }
+
+  private _regionInvalid(moduleName: string, regionName: string, reason: string): GwenError {
+    return new GwenError(
+      CoreErrorCodes.WASM_MODULE_REGION_INVALID,
+      `[GWEN] loadWasmModule("${moduleName}"): transform region "${regionName}" is invalid: ${reason}.`,
+    );
+  }
+
+  private _resolveTransformOffset(exports: WebAssembly.Exports, region: WasmMemoryRegion): number {
+    const exported = exports[`gwen_${region.name}_ptr`];
+    if (typeof exported === "function") {
+      const value: unknown = (exported as () => unknown)();
+      if (typeof value === "number" && Number.isFinite(value)) return value;
+      return 0;
+    }
+    return region.byteOffset;
+  }
+
+  private _validateResolvedRegion(
+    moduleName: string,
+    region: WasmMemoryRegion,
+    offset: number,
+    memory: WebAssembly.Memory | undefined,
+  ): void {
+    if (!(offset > 0) || offset % 4 !== 0) {
+      throw this._regionInvalid(
+        moduleName,
+        region.name,
+        `offset ${offset} must be a positive multiple of 4`,
+      );
+    }
+    if (!(memory instanceof WebAssembly.Memory)) {
+      throw this._regionInvalid(moduleName, region.name, "the module does not export memory");
+    }
+    const end = offset + region.byteLength;
+    if (end > memory.buffer.byteLength) {
+      throw this._regionInvalid(
+        moduleName,
+        region.name,
+        `region ends at ${end}, past memory of ${memory.buffer.byteLength} bytes`,
+      );
+    }
+  }
+
+  /** @returns true when the fill trapped. Copies are skipped either way. */
+  private _reportTransformFill(err: unknown): boolean {
+    const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
+    if (isTrap) {
+      const message = err instanceof Error ? err.message : String(err);
+      this._reportCaught(err, "sync_transforms_to_buffer", {
+        level: "fatal",
+        source: "gwen_core.wasm",
+        code: CoreErrorCodes.WASM_PANIC,
+        message,
+      });
+      return true;
+    }
+    const code = err instanceof GwenWasmError ? err.code : CoreErrorCodes.FRAME_LOOP_ERROR;
+    const message = err instanceof Error ? err.message : String(err);
+    this._publish({
+      level: "error",
+      code,
+      message,
+      source: "gwen_core.wasm",
+      error: err,
+      context: { frame: this._frameCountOwn, hook: "sync_transforms_to_buffer" },
+    });
+    return false;
+  }
+
+  private _copyTransformRegion(entry: WasmModuleEntry): void {
+    const copy = entry.transformCopy;
+    const memory = entry.handle.memory;
+    const view = this._transformView;
+    if (!copy || !memory || !view) return;
+    const length = this.maxEntities * TRANSFORM_STRIDE;
+    let dest = copy.bytes;
+    if (!dest || dest.byteLength === 0) {
+      dest = new Uint8Array(memory.buffer, copy.offset, length);
+      copy.bytes = dest;
+    }
+    dest.set(view.array);
+  }
+
+  private _runWasmModules(dt: number): void {
+    let needsFill = false;
+    for (const [name, entry] of this._wasmModules) {
+      if (entry.transformCopy && !isIsolated(this, `wasm:${name}`)) {
+        needsFill = true;
+        break;
+      }
+    }
+    let skipCopies = false;
+    let fillTrapped = false;
+    if (needsFill) {
+      try {
+        const ptr = this._getOrCreateTransformPtr();
+        this._bridge.syncTransformsToBuffer(ptr, this.maxEntities);
+      } catch (err: unknown) {
+        fillTrapped = this._reportTransformFill(err);
+        skipCopies = true;
+      }
+    }
+    if (fillTrapped || this._state === "faulted") return;
+    for (const [name, entry] of this._wasmModules) {
+      if (isIsolated(this, `wasm:${name}`)) continue;
+      try {
+        if (entry.transformCopy && !skipCopies) this._copyTransformRegion(entry);
+        entry.step?.(entry.handle, dt);
+      } catch (err) {
+        const detail = err instanceof Error ? err.message : String(err);
+        const isWasmPanic =
+          err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
+        this._reportCaught(err, "wasm", {
+          source: `wasm:${name}`,
+          message: `WASM module "${name}" step failed: ${detail}`,
+          target: { kind: "wasm-module", id: `wasm:${name}`, name },
+          code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
+        });
+      }
+    }
+  }
+
   /**
-   * Get or create the transform buffer pointer for community WASM plugins.
+   * Core buffer filled once per frame before the host copies it into module regions.
+   * The address stays in this engine. Community modules never receive it.
    *
-   * If the WASM bridge is not initialized, returns `0` (null pointer placeholder).
-   * Otherwise lazily initializes `SharedMemoryManager` and returns its transform pointer.
-   *
-   * @returns The transform buffer pointer (base address in WASM linear memory)
-   *          or `0` if the bridge is not yet initialized.
+   * @throws {Error} When the WASM bridge is not active.
    * @internal
    */
   private _getOrCreateTransformPtr(): number {
@@ -1159,6 +1330,23 @@ class GwenEngineImpl implements GwenEngine {
         createDisposable(() => {
           this._sharedMemory?.dispose(this._bridge);
           this._sharedMemory = null;
+        }),
+      );
+    }
+    if (!this._transformView && this._sharedMemory) {
+      const byteLength = this.maxEntities * TRANSFORM_STRIDE;
+      const ptr = this._sharedMemory.transformBufferPtr;
+      this._transformView = this._memory.view({
+        name: "core:module-transforms",
+        type: "u8",
+        ptr: () => ptr,
+        length: () => byteLength,
+      });
+      this.disposables.add(
+        "wasm:module-transforms",
+        createDisposable(() => {
+          this._transformView?.dispose();
+          this._transformView = null;
         }),
       );
     }
@@ -1685,22 +1873,7 @@ class GwenEngineImpl implements GwenEngine {
         const memoryGrow = this._onPhaseBoundary();
         if (memoryGrow !== undefined) await memoryGrow;
       }
-      for (const [name, entry] of this._wasmModules.entries()) {
-        if (isIsolated(this, `wasm:${name}`)) continue;
-        try {
-          entry.step?.(entry.handle, dt);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          const isWasmPanic =
-            err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
-          this._reportCaught(err, "wasm", {
-            source: `wasm:${name}`,
-            message: `WASM module "${name}" step failed: ${detail}`,
-            target: { kind: "wasm-module", id: `wasm:${name}`, name },
-            code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
-          });
-        }
-      }
+      this._runWasmModules(dt);
       if (instrument) t5 = performance.now();
 
       // Memory sentinel — dev+debug only, and only when a SharedMemoryManager is active.
