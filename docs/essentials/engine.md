@@ -121,7 +121,7 @@ GWEN supports three loop configurations, set via `engine.loop` and `engine.physi
 
 ### Internal loop (default)
 
-The framework calls `requestAnimationFrame` internally. `onUpdate` receives a variable `dt` each frame. `engine.start()` throws `GwenError` `CORE:WASM_NOT_INITIALIZED` when the WASM bridge is not active, and it does not schedule a frame.
+The framework calls `requestAnimationFrame` internally. `onUpdate` receives a variable `dt` each frame. `engine.start()` throws `GwenError` `CORE:WASM_NOT_INITIALIZED` when the WASM bridge is not active, and it does not schedule a frame. `start()`, `startExternal()`, and `advance()` throw `GwenEngineStateError` (`CORE:INVALID_STATE_TRANSITION`) on an illegal lifecycle call. A fatal error moves the engine to `faulted` and does not call `stop()`.
 
 ```ts
 // gwen.config.ts

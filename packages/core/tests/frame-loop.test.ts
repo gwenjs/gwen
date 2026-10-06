@@ -154,7 +154,7 @@ describe("Frame Loop v2", () => {
       await engine.start();
       const callCountBeforeStop = rafCalls.length;
 
-      // stop() should set _running to false and cancel the frame handle
+      // stop() leaves the engine stopped and cancels the frame handle
       await engine.stop();
 
       // After stop, no additional frame callbacks should be scheduled

@@ -7,6 +7,7 @@ import {
   CoreErrorCodes,
   createEngine,
   createErrorBus,
+  GwenEngineStateError,
   defineHooks,
   emit,
   useHook,
@@ -83,7 +84,7 @@ describe("error policy table", () => {
 
     expect(logs.at(-1)?.level).toBe("error");
     expect(hookLevels).toEqual(["error", "fatal"]);
-    expect(engine.state).toBe("idle");
+    expect(engine.state).toBe("faulted");
     expect(stopped).toBe(false);
   });
 
@@ -452,7 +453,7 @@ describe("frame isolation", () => {
     expect(engine.isolated().map((target) => target.id)).toEqual(["outer"]);
   });
 
-  it("isolates again after stop and startExternal", async () => {
+  it("clears isolation on stop and refuses startExternal after stop", async () => {
     const engine = await createEngine();
     let hits = 0;
     await engine.use(
@@ -470,16 +471,28 @@ describe("frame isolation", () => {
 
     await engine.stop();
     expect(engine.isolated()).toEqual([]);
+    await expect(engine.startExternal()).rejects.toBeInstanceOf(GwenEngineStateError);
+    expect(engine.state).toBe("stopped");
+    expect(hits).toBe(1);
 
-    await engine.startExternal();
-    await engine.advance(0.016);
+    const restarted = await createEngine();
+    let again = 0;
+    await restarted.use(
+      defineSystem("RestartAgain", () => {
+        onUpdate(() => {
+          again += 1;
+          throw new Error("again");
+        });
+      })(),
+    );
+    await restarted.advance(0.016);
 
-    expect(hits).toBe(2);
-    expect(engine.isolated()).toHaveLength(1);
-    expect(engine.state).toBe("running");
+    expect(again).toBe(1);
+    expect(restarted.isolated()).toHaveLength(1);
+    expect(restarted.state).toBe("idle");
 
-    engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "after restart" });
-    expect(engine.state).toBe("faulted");
+    restarted.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "after restart" });
+    expect(restarted.state).toBe("faulted");
   });
 
   it("delivers a fifth argument from emit to a scoped hook", async () => {

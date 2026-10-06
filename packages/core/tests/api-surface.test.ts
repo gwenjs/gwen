@@ -18,6 +18,8 @@ describe("API surface (RFC-V2-013)", () => {
     expect(typeof system.defineSystem).toBe("function");
     expect(typeof scene.defineScene).toBe("function");
     expect(typeof actor.definePrefab).toBe("function");
+    expect(typeof core.GwenEngineStateError).toBe("function");
+    expect(core.CoreErrorCodes.INVALID_STATE_TRANSITION).toBe("CORE:INVALID_STATE_TRANSITION");
     expect(typeof actor.onEnable).toBe("function");
     expect(typeof actor.onDisable).toBe("function");
   });

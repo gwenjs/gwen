@@ -22,9 +22,18 @@ describe("engine state", () => {
     await engine.stop();
     expect(engine.state).toBe("stopped");
     expect(seen).toEqual([
-      { from: "idle", to: "running", reason: "start-external" },
-      { from: "running", to: "stopped", reason: "stop" },
+      { from: "idle", to: "starting", reason: "USER" },
+      { from: "starting", to: "running", reason: "USER" },
+      { from: "running", to: "stopping", reason: "USER" },
+      { from: "stopping", to: "stopped", reason: "USER" },
     ]);
+  });
+
+  it("rejects a second startExternal while running", async () => {
+    const engine = await createEngine();
+    await engine.startExternal();
+    await expect(engine.startExternal()).rejects.toThrow(/running/);
+    expect(engine.state).toBe("running");
   });
 
   it("throws on start and advance after a wasm panic", async () => {

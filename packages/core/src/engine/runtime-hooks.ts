@@ -1,6 +1,6 @@
 import type { GwenErrorTarget } from "@gwenjs/schema";
 import type { EntityId } from "./engine-api.js";
-import type { EngineStateChange } from "./engine-types.js";
+import type { EngineStateChangePayload } from "./engine-types.js";
 
 // Re-export so existing `import { GwenRuntimeHooks } from '@gwenjs/core'` still works.
 export type { GwenRuntimeHooks } from "@gwenjs/schema";
@@ -16,7 +16,7 @@ export type { GwenRuntimeHooks } from "@gwenjs/schema";
  * ```
  */
 export interface EngineErrorPayload {
-  /** `error` isolates a target when one is set. `fatal` faults a running engine. */
+  /** `error` isolates a target when one is set. `fatal` moves a non-terminal engine to `faulted`. `stop()` is not called. */
   readonly level: "error" | "fatal";
   /** Error code identifying the failure (e.g., `CORE:FRAME_LOOP_ERROR`). */
   readonly code: string;
@@ -52,8 +52,8 @@ declare module "@gwenjs/schema" {
     "engine:start": () => void;
     /** Fired once when `engine.stop()` tears down the engine. */
     "engine:stop": () => void;
-    /** Fired after every lifecycle transition. */
-    "engine:state-change": (payload: EngineStateChange) => void;
+    /** Fired once per real lifecycle transition. Not fired for a no-op. */
+    "engine:state-change": (payload: EngineStateChangePayload) => void;
     /** Fired after a plugin completes its `setup()` and is registered in the engine. */
     "plugin:registered": (pluginName: string) => void;
     /** Fired at the start of every tick, before any phase runs. */

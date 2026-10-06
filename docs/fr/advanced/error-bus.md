@@ -220,7 +220,7 @@ engine.errors.on((event) => {
 - **`info`** — Événements informationnels (par exemple, « Physique initialisée avec 42 corps »)
 - **`warning`** — Quelque chose d'inattendu mais récupérable
 - **`error`** — Un problème qui nécessite une attention
-- **`fatal`** — Le moteur ne peut pas continuer ; récupération requise
+- **`fatal`** — Le moteur passe à `faulted` et la boucle s'arrête. `stop()` n'est pas appelé. Créez un nouveau moteur.
 
 ### Gestionnaire d'erreur fatale
 
@@ -236,7 +236,7 @@ engine.errors.onFatal(() => {
 
 `emit` exécute d'abord chaque gestionnaire `on`, puis chaque rappel `onFatal`. Les deux s'exécutent de façon synchrone dans `emit`. Une exception dans un gestionnaire est capturée. Les autres gestionnaires s'exécutent quand même, et la boucle de frames continue.
 
-Un bus personnalisé passé via `errorBus` doit implémenter `on()`. Le moteur l'appelle pour appliquer sa politique. `onFatal` seul ne suffit pas. `stop()` se désabonne. `start()` et `startExternal()` s'abonnent à nouveau. `stop()` restaure aussi `emit` quand le moteur l'a enveloppé, pour que `engine:error` parte après les gestionnaires `on`.
+Un bus personnalisé passé via `errorBus` doit implémenter `on()` et `onFatal()`. Le moteur appelle `on()` pour journaliser et isoler. `onFatal()` fait passer un moteur non terminal à `faulted` et n'appelle pas `stop()`. Le moteur s'abonne dans le constructeur. `stop()` se désabonne. `start()` après `stop()` est rejeté : créez un nouveau moteur. `stop()` restaure aussi `emit` quand le moteur l'a enveloppé, pour que `engine:error` parte après les gestionnaires `on`.
 
 ### Installation
 

@@ -40,6 +40,7 @@ export {
   CoreErrorCodes,
   GwenWasmError,
   GwenWasmPanicError,
+  GwenEngineStateError,
 } from "./engine/gwen-engine";
 export type { CoreWasmErrorCode } from "./engine/gwen-engine";
 export { EngineMemory } from "./engine/engine-memory";
@@ -57,6 +58,10 @@ export type { GwenDisposable } from "@gwenjs/schema";
 export type {
   GwenEngine,
   EngineState,
+  EngineStateChange,
+  EngineStateChangePayload,
+  GwenEngineState,
+  GwenEngineStateChangeReason,
   GwenPlugin,
   GwenProvides,
   GwenWasmModules,

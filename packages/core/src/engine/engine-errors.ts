@@ -6,6 +6,16 @@
  */
 
 import { GwenError } from "@gwenjs/schema";
+import type { GwenEngineState } from "./engine-types.js";
+
+/** Lifecycle call rejected by {@link GwenEngineStateError}. */
+export type GwenEngineStateMethod =
+  | "start"
+  | "startExternal"
+  | "advance"
+  | "stop"
+  | "use"
+  | "unuse";
 
 // ─── Error options ──────────────────────────────────────────────────────────
 
@@ -155,6 +165,27 @@ export class GwenWasmPanicError extends GwenError {
     this.code = CoreErrorCodes.WASM_PANIC;
     this.exportName = exportName;
     this.cause = cause;
+  }
+}
+
+/**
+ * Rejected lifecycle call. `code` is `CORE:INVALID_STATE_TRANSITION`.
+ * `from` is the state at the call. The message names that state.
+ */
+export class GwenEngineStateError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.INVALID_STATE_TRANSITION;
+  readonly from: GwenEngineState;
+  readonly method: GwenEngineStateMethod;
+
+  constructor(from: GwenEngineState, method: GwenEngineStateMethod) {
+    super(
+      CoreErrorCodes.INVALID_STATE_TRANSITION,
+      `[GwenEngine] ${method}() is not allowed while the engine is ${from}.`,
+    );
+    this.name = "GwenEngineStateError";
+    this.code = CoreErrorCodes.INVALID_STATE_TRANSITION;
+    this.from = from;
+    this.method = method;
   }
 }
 
