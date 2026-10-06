@@ -231,10 +231,39 @@ jobs:
             target/storage-bench-bytes-js.json
           retention-days: 7
 
+  alloc-gate:
+    name: Allocation gate
+    runs-on: ubuntu-latest
+    needs: [rust]
+    steps:
+      - uses: actions/checkout@v6
+      - uses: ./.github/actions/setup-node-pnpm
+        with:
+          node-version: "22"
+      - name: Download build-tools artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-build-tools
+          path: packages/physics3d/build-tools/
+      - name: Download physics3d wasm/bvh artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: physics3d-wasm-bvh
+          path: packages/physics3d/wasm/bvh/
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
+      - name: Build packages
+        run: pnpm build:ts
+      - name: Allocation gate
+        run: pnpm test:alloc
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, typescript, bench, api-surface, storage-bench]
+    needs: [lint, rust, typescript, bench, api-surface, storage-bench, alloc-gate]
     if: always()
     steps:
       - name: Check all jobs
@@ -244,7 +273,8 @@ jobs:
              [ "${{ needs.typescript.result }}"    != "success" ] || \
              [ "${{ needs.bench.result }}"         != "success" ] || \
              [ "${{ needs.api-surface.result }}"   != "success" ] || \
-             [ "${{ needs.storage-bench.result }}" != "success" ]; then
+             [ "${{ needs.storage-bench.result }}" != "success" ] || \
+             [ "${{ needs.alloc-gate.result }}"    != "success" ]; then
             echo "❌ CI failed"
             exit 1
           fi

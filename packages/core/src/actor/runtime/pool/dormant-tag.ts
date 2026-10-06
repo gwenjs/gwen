@@ -10,7 +10,7 @@ import { defineComponent } from "../../../schema";
  *
  * Both mechanisms work together:
  * - `DormantTag` → ECS query exclusion
- * - `_isDormant` flag → zero-allocation frame skip
+ * - `_isDormant` flag → frame skip. Pool acquire/release still allocates (`pool.cycle`, #56).
  *
  * @example
  * ```ts

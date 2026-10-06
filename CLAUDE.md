@@ -210,7 +210,7 @@ This is the canonical way to share runtime state between unrelated parts of the 
 ### Actor pool (high-frequency actors)
 
 For bullets, particles, and other high-frequency spawns, `defineActorPool` keeps a fixed set
-of entities alive and marks them dormant instead of destroying them — zero allocation cost.
+of entities alive and marks them dormant instead of destroying them. Reuse still allocates (alloc gate `pool.cycle`, #56).
 The pool handle is obtained via `useActorPool()` inside a scene and passed explicitly to the
 systems that need it. Never call `.acquire()` on the `defineActorPool` value directly.
 

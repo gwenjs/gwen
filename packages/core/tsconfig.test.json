@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["src", "tests/types"]
+  "include": ["src", "tests/types", "bench/alloc", "vitest.alloc.config.ts"]
 }

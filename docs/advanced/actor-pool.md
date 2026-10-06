@@ -32,8 +32,8 @@ onUpdate(() => {
 ## The Solution: `defineActorPool`
 
 A pool keeps a fixed number of entities alive. When you "despawn" one, it becomes **dormant**
-instead of being destroyed. The next `acquire()` call reuses a dormant slot instantly, at
-zero allocation cost.
+instead of being destroyed. The next `acquire()` call reuses a dormant slot. That reuse still
+allocates (alloc gate `pool.cycle`, #56).
 
 ```ts
 // pools/BulletPool.ts

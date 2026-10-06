@@ -8,7 +8,14 @@ const shared = {
   environment: "node" as const,
   // `exclude` replaces Vitest defaults. Keep node_modules, .git, and dist.
   // `bench/**` is relative to the package root, so `vitest run --dir bench` still matches.
-  exclude: [...defaultExclude, "**/dist/**", "tests/integration-wasm/**", "bench/**"],
+  // measure.test.ts needs --expose-gc. Only vitest.alloc.config.ts sets that flag.
+  exclude: [
+    ...defaultExclude,
+    "**/dist/**",
+    "tests/integration-wasm/**",
+    "bench/**",
+    "tests/alloc-gate/measure.test.ts",
+  ],
 };
 
 export default defineConfig({
