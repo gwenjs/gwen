@@ -102,7 +102,9 @@ fn query_over_capacity_leaves_the_buffer_unchanged() {
             .expect("component");
     }
     engine.testing_shrink_query_buffer(2);
-    let before = unsafe { std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec() };
+    let before = unsafe {
+        std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec()
+    };
     let err = engine
         .query_entities_to_buffer(&[type_id])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -128,7 +130,8 @@ fn component_type_limit_is_raised_before_any_write() {
             .add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4])
             .expect("component");
     }
-    assert!(engine.has_component(id.index(), id.generation(), 127));
+    assert!(engine
+        .has_component(id.index(), id.generation(), 127));
     let err = engine
         .add_component(id.index(), id.generation(), 128, &[9, 9, 9, 9])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -183,9 +186,7 @@ fn invalid_parent_leaves_the_hierarchy_unchanged() {
     assert_known_code(&cycle);
     assert!(!engine.has_entity_parent(0));
 
-    engine
-        .set_entity_parent(2, u32::MAX, false)
-        .expect("detach");
+    engine.set_entity_parent(2, u32::MAX, false).expect("detach");
     assert!(!engine.has_entity_parent(2));
     assert!(engine.has_entity_parent(1));
     assert!(engine.has_entity_parent(3));
