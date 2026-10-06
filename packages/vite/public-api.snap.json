@@ -11,6 +11,7 @@
     "types": [
       "ActorPluginOptions",
       "CoreVariant",
+      "GwenDevStripReport",
       "GwenOptimizerOptions",
       "GwenPhysics3DOptimizerOptions",
       "GwenPluginOptions",

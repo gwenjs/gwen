@@ -5,6 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createLogger } from "../src/logger/index";
 import { createEngine } from "../src/index";
 import type { LogEntry } from "../src/logger/index";
+import type { GwenLogger } from "@gwenjs/schema";
 
 describe("GwenLogger", () => {
   describe("sink routing", () => {
@@ -149,7 +150,7 @@ describe("GwenLogger", () => {
     it("engine.logger.child() produces a scoped logger", async () => {
       const engine = await createEngine({ debug: true });
       const sink = vi.fn();
-      engine.logger.setSink(sink);
+      (engine.logger as GwenLogger).setSink(sink);
 
       const child = engine.logger.child("@gwenjs/test-plugin");
       child.warn("child message");
@@ -161,7 +162,7 @@ describe("GwenLogger", () => {
     it("debug mode off: engine.logger.debug() is silent", async () => {
       const engine = await createEngine({ debug: false });
       const sink = vi.fn();
-      engine.logger.setSink(sink);
+      (engine.logger as GwenLogger).setSink(sink);
 
       engine.logger.debug("this should be silent");
       engine.logger.info("this too");
@@ -172,7 +173,7 @@ describe("GwenLogger", () => {
     it("debug mode on: engine.logger.debug() reaches the sink", async () => {
       const engine = await createEngine({ debug: true });
       const sink = vi.fn();
-      engine.logger.setSink(sink);
+      (engine.logger as GwenLogger).setSink(sink);
 
       engine.logger.debug("visible in debug mode");
 

@@ -27,7 +27,11 @@ import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
 import type { ActorDefinition, PrefabDefinition } from "./types";
-import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
+import type { PrefabOverrides } from "./define-prefab";
+import type { InferComponent } from "../../schema";
+import type { ComponentDef } from "../../system/runtime/define-system";
+import { useComponentFor } from "../../system/runtime/use-component";
+import { spawnActor } from "./spawn-tuple";
 import type { EntityId } from "../../engine/engine-api";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 
@@ -118,7 +122,7 @@ export interface ActorHandle<Props, PublicAPI> {
  * Handle returned by {@link usePrefab}.
  * Provides `spawn` / `despawn` helpers for a prefab-backed entity without actor behaviour.
  */
-export interface PrefabHandle {
+export interface PrefabHandle<E extends readonly ComponentDef[]> {
   /**
    * Create an entity and add the prefab's components with optional value overrides.
    *
@@ -133,7 +137,7 @@ export interface PrefabHandle {
    * const id = spawn({ x: 99 }); // overrides Position.x
    * ```
    */
-  spawn(overrides?: Record<string, unknown>): EntityId;
+  spawn(overrides?: PrefabOverrides<E>): EntityId;
 
   /**
    * Destroy the entity with the given ID.
@@ -213,7 +217,7 @@ export function useActor<Props, PublicAPI>(
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): EntityId {
-      return (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
+      return spawnActor(actorDef._plugin, props);
     },
 
     despawn(id: EntityId): void {
@@ -243,7 +247,7 @@ export function useActor<Props, PublicAPI>(
     getAll(): PublicAPI[] {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        result.push(instance.api);
+        result.push(instance.api!);
       }
       return result;
     },
@@ -251,7 +255,7 @@ export function useActor<Props, PublicAPI>(
     [Symbol.iterator](): IterableIterator<PublicAPI> {
       const result: PublicAPI[] = [];
       for (const instance of actorDef._instances.values()) {
-        result.push(instance.api);
+        result.push(instance.api!);
       }
       return result.values();
     },
@@ -260,7 +264,7 @@ export function useActor<Props, PublicAPI>(
       if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
         return _singletonId;
       }
-      _singletonId = (actorDef._plugin.spawn as (props?: Props) => EntityId)(props);
+      _singletonId = spawnActor(actorDef._plugin, props);
       return _singletonId;
     },
   };
@@ -350,15 +354,17 @@ export function useActor<Props, PublicAPI>(
  * bullet.despawn(id);
  * ```
  */
-export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
+export function usePrefab<E extends readonly ComponentDef[]>(
+  prefabDef: PrefabDefinition<E>,
+): PrefabHandle<E> {
   const engine = useEngine();
 
   return {
-    spawn(overrides: Record<string, unknown> = {}): EntityId {
+    spawn(overrides: PrefabOverrides<E> = {}): EntityId {
       const id = engine.createEntity();
-      for (const { def, defaults } of prefabDef.components) {
-        engine.addComponent(id, def as ComponentDefinition<ComponentSchema>, {
-          ...defaults,
+      for (const entry of prefabDef.components) {
+        engine.addComponent(id, entry.def, {
+          ...entry.defaults,
           ...overrides,
         });
       }
@@ -421,7 +427,7 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
  * @example
  * ```typescript
  * const Actor = defineActor(PosPrefab, () => {
- *   const pos = useComponent<{ x: number; y: number }>(Position);
+ *   const pos = useComponent(Position);
  *   onUpdate((dt) => {
  *     // Single-field write — one allocation:
  *     pos.x += 100 * dt;
@@ -432,62 +438,8 @@ export function usePrefab(prefabDef: PrefabDefinition): PrefabHandle {
  * });
  * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function useComponent<T extends Record<string, any> = Record<string, any>>(
-  def: unknown,
-): T & { $set(values: Partial<T>): void } {
-  // Capture both entity ID and engine at factory-call time.
-  // These are set by _actorCtx.run() during spawn() and are valid here.
-  const entityId = _getActorEntityId();
-  const engine = _getActorEngine();
-
-  /** Typed shorthand for the unsafe cast needed by the engine API. */
-  const typedDef = def as ComponentDefinition<ComponentSchema>;
-
-  return new Proxy({} as T, {
-    get(_target: T, prop: string | symbol): unknown {
-      /**
-       * `$set(values)` — writes multiple fields in a single `addComponent` call,
-       * producing one query invalidation instead of one per field. Prefer over
-       * repeated property assignments when updating two or more fields per frame.
-       *
-       * Because `addComponent` now merges `values` into the existing component
-       * object in place, there is no need to read the current state first —
-       * fields absent from `values` are left untouched.
-       *
-       * @example
-       * ```ts
-       * // ❌ Two addComponent calls, two query invalidations per frame:
-       * pos.x += vx * dt;
-       * pos.y += vy * dt;
-       *
-       * // ✅ One addComponent call, one query invalidation per frame:
-       * pos.$set({ x: pos.x + vx * dt, y: pos.y + vy * dt });
-       * ```
-       */
-      if (prop === "$set") {
-        return (values: Partial<T>) => {
-          engine.addComponent(
-            entityId,
-            typedDef,
-            values as Partial<InferComponent<typeof typedDef>>,
-          );
-        };
-      }
-
-      if (typeof prop !== "string") return undefined;
-      const comp = engine.getComponent(entityId, typedDef) as Record<string, unknown> | undefined;
-      return comp?.[prop];
-    },
-
-    set(_target: T, prop: string | symbol, value: unknown): boolean {
-      if (typeof prop !== "string") return false;
-      // Pass only the changed field — addComponent merges it into the existing
-      // component object in place. No read of current state needed.
-      engine.addComponent(entityId, typedDef, { [prop]: value } as Partial<
-        InferComponent<typeof typedDef>
-      >);
-      return true;
-    },
-  }) as T & { $set(values: Partial<T>): void };
+export function useComponent<D extends ComponentDef>(
+  def: D,
+): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void } {
+  return useComponentFor(_getActorEntityId(), def, _getActorEngine());
 }

@@ -11,7 +11,7 @@
  */
 
 import { GwenContextError, engineContext } from "../../engine/context";
-import type { GwenEngine, GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/gwen-engine";
 import { ContextSlot } from "../../engine/context-slot";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";
@@ -66,7 +66,7 @@ export function _withSceneContext(factory: () => void): SceneSetupContext {
 
   // Provide the registrar for the duration of the factory call.
   // engine.provide() is a simple Map.set — safe to call each time.
-  const engine = engineContext.tryUse() as GwenEngine | null;
+  const engine = engineContext.tryUse();
   if (engine) engine.provide(SCENE_REGISTRAR_KEY, registrar);
 
   // Phase 4: Create a GwenScope for the scene factory

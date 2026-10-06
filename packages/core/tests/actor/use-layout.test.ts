@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, beforeEach } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { defineLayout } from "../../src/actor/runtime/define-layout";
@@ -46,7 +47,7 @@ beforeEach(() => {
   bridge._injectMock(makePlacementMock());
 });
 
-const Pos = { __name__: "Position" };
+const Pos = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Pos, defaults: { x: 0, y: 0 } }]);
 
 describe("useLayout — lazy mode", () => {

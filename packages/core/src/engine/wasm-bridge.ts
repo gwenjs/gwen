@@ -294,11 +294,11 @@ export class WasmBridgeImpl implements WasmBridge {
   // ── Query buffers (zero-alloc query optimization) ──────────────────────────
 
   /** Reused buffer for bulk query slots. Sized to `maxEntities`. */
-  private _querySlotsBuf?: Uint32Array;
+  private _querySlotsBuf?: Uint32Array | undefined;
   /** Reused buffer for bulk query generations. Sized to `maxEntities`. */
-  private _queryGensBuf?: Uint32Array;
+  private _queryGensBuf?: Uint32Array | undefined;
   /** Reused buffer for bulk component data. */
-  private _queryDataBuf?: Uint8Array;
+  private _queryDataBuf?: Uint8Array | undefined;
 
   /** @internal */
   _resetQueryBuffers(): void {
@@ -981,8 +981,7 @@ function _getDefaultBridge(): WasmBridgeImpl {
 export function getWasmBridge(): WasmBridge {
   const engine = engineContext.tryUse();
   if (engine) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const bridge = (engine as any).tryInject("wasm:bridge") as WasmBridgeImpl | undefined;
+    const bridge = engine.tryInject("wasm:bridge");
     if (bridge) return bridge;
   }
   return _getDefaultBridge();

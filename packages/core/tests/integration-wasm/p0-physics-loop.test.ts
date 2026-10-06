@@ -5,10 +5,22 @@ import { createRealEngine } from "./harness.js";
 import "../../../physics3d/src/augment";
 import { Physics3DPlugin } from "../../../physics3d/src/plugin/index";
 import { createPhysicsKinematicSyncSystem as createKinematicSync3D } from "../../../physics3d/src/systems";
-import type { Physics3DBodyState, Physics3DColliderOptions } from "../../../physics3d/src/types";
+import type {
+  Physics3DAPI,
+  Physics3DBodyState,
+  Physics3DColliderOptions,
+} from "../../../physics3d/src/types";
+import type { Physics2DAPI } from "../../../physics2d/src/types";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { createPhysicsKinematicSyncSystem as createKinematicSync2D } from "../../../physics2d/src/systems";
+
+declare module "../../src/engine/gwen-engine.js" {
+  interface GwenProvides {
+    physics2d: Physics2DAPI;
+    physics3d: Physics3DAPI;
+  }
+}
 
 const OVERLAP_BOX: Physics3DColliderOptions = {
   shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },

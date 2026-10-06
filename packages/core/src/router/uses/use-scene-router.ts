@@ -101,7 +101,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
   // Build a route-key → scene-name map so hook emissions use the scene's canonical name.
   const sceneNameByRoute = new Map<string, string>();
   for (const routeKey of Object.keys(routes)) {
-    const def = resolveScene(routes[routeKey as keyof TRoutes].scene);
+    const def = resolveScene(routes[routeKey as keyof TRoutes]!.scene);
     sceneNameByRoute.set(routeKey, def.name);
   }
 
@@ -132,7 +132,7 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
       const fromState = currentState;
       const fromName = sceneNameByRoute.get(String(fromState)) ?? String(fromState);
       const toName = sceneNameByRoute.get(String(target)) ?? String(target);
-      const toConfig = routes[target as keyof TRoutes];
+      const toConfig = routes[target as keyof TRoutes]!;
 
       if (toConfig.overlay) {
         // Push onto overlay stack — do NOT exit current scene

@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine.js";
 import { defineScene } from "../../src/scene/runtime/define-scene";
@@ -35,7 +36,7 @@ const AppRouter = defineSceneRouter({
   },
 });
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 describe("useSceneRouter()", () => {
   it("starts in the initial state", async () => {

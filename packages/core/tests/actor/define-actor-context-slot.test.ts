@@ -1,10 +1,11 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { defineActor, useEntityId, onStart, onDestroy } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 
 // Minimal component def
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 const EmptyPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 

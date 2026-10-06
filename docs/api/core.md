@@ -107,10 +107,10 @@ function useTween<T>(options: {
   easing?: string
   loop?: boolean
   yoyo?: boolean
-}): TweenHandle<T>
+}): TweenHandle<T> | null
 ```
 
-**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks.
+**Description.** Creates an animation tween. Returns a handle with methods to play, pause, reset, queue follow-ups, and register completion callbacks. Returns `null` when the pool policy is `drop` and the pool is exhausted. The default policy grows the pool instead.
 
 **Parameters:**
 | Param | Type | Description |
@@ -120,7 +120,7 @@ function useTween<T>(options: {
 | options.loop | `boolean` | Loop animation (optional) |
 | options.yoyo | `boolean` | Reverse animation on loop (optional) |
 
-**Returns:** `TweenHandle<T>` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`.
+**Returns:** `TweenHandle<T> | null` — tween controller with methods: `.play({ from, to })`, `.pause()`, `.reset()`, `.to({ value, duration })`, `.onComplete(cb)`, `.onLoop(cb)`, and properties: `.value`, `.playing`. `null` when a `drop` pool is exhausted.
 
 **Example:**
 ```ts
@@ -182,7 +182,7 @@ export const moveSystem = defineSystem(function moveSystem() {
 
 **Signature:**
 ```ts
-function useQuery(components: ComponentDef[]): LiveQuery
+function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
 ```
 
 **Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
@@ -209,7 +209,7 @@ onUpdate(() => {
 
 **Signature:**
 ```ts
-function useService(name: string): any
+function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 ```
 
 **Description.** Returns a service registered by a plugin.
@@ -230,7 +230,7 @@ const physics = useService('physics');
 
 **Signature:**
 ```ts
-function useWasmModule(name: string): any
+function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]>
 ```
 
 **Description.** Returns a WASM module loaded by a plugin.
@@ -372,7 +372,7 @@ defineSystem(() => {
 
 **Signature:**
 ```ts
-function useComponent<T extends Record<string, any>>(def: ComponentDef): T
+function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
 ```
 
 **Description.** Returns a live proxy over the current actor's component data. Field reads and writes are forwarded directly to the ECS. Must be called during the setup phase.
@@ -591,7 +591,7 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit(event: string, payload?: any): void
+function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
 **Description.** Emits a custom event to all listeners registered with [`useHook()`](#usehookevent-handler).

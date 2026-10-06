@@ -56,7 +56,7 @@ describe("useHook() with declared hooks", () => {
     await engine.run(() => {
       useHook("enemy:died", (id) => spy(id));
     });
-    engine.hooks.callHook("enemy:died" as never, 99n as never);
+    engine.hooks.callHook("enemy:died", 99n);
     expect(spy).toHaveBeenCalledWith(99n);
     await engine.stop();
   });

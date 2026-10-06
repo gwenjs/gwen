@@ -1,3 +1,4 @@
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { defineScene } from "../../src/scene/runtime/define-scene";
 import {
@@ -20,7 +21,7 @@ const dummyPlugin = (name: string) =>
   ({ name, apiVersion: 1, setup() {} }) as unknown as GwenPlugin;
 
 const REGISTRY = { register: () => {} };
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 
 describe("defineScene composable API", () => {
   it("useSystem registers systems in the SceneDefinition", () => {

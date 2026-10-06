@@ -58,11 +58,12 @@ export type { GwenHooks } from "./types";
  * Type alias for a GWEN hooks instance.
  *
  * Intentionally unconstrained (`H extends Record<string, any>` rather than
- * `extends GwenHooks`) so that hook maps carrying an open index signature
- * `[key: string]: any` can be used as `H` without error.
+ * `extends GwenHooks`) so that hook maps carrying an interface can be used
+ * as `H`. An `any` index is the only constraint hookable accepts for that.
  *
  * Defaults to `GwenHooks` (system hooks only) for tests and internal usage.
  */
+// boundary: hookable only accepts an any-valued index signature for interface hook maps.
 export type GwenHookable<H extends Record<string, any> = GwenHooks> = Hookable<H>;
 
 // Re-export useHook composable
@@ -143,6 +144,7 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  * @see {@link GwenHookable} for the return type
  * @see https://github.com/unjs/hookable for hookable documentation
  */
+// boundary: hookable only accepts an any-valued index signature for interface hook maps.
 export function createGwenHooks<H extends Record<string, any> = GwenHooks>(): GwenHookable<H> {
   return createHooks<H>();
 }

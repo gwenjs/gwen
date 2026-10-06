@@ -33,11 +33,11 @@ export type ComponentDef = ComponentDefinition<ComponentSchema>;
  */
 export interface SystemQueryDescriptor {
   /** Entities that have ALL of these components. */
-  all?: ComponentDef[];
+  all?: readonly ComponentDef[];
   /** Entities that have AT LEAST ONE of these components. */
-  any?: ComponentDef[];
+  any?: readonly ComponentDef[];
   /** Entities that have NONE of these components. */
-  none?: ComponentDef[];
+  none?: readonly ComponentDef[];
   /**
    * Entities that carry this tag (marker-component name).
    * Tags are zero-data components registered as strings.
@@ -46,7 +46,11 @@ export interface SystemQueryDescriptor {
 }
 
 /** Query type accepted by systems. */
-export type SystemQuery = ComponentDef[] | SystemQueryDescriptor;
+export type SystemQuery = readonly ComponentDef[] | SystemQueryDescriptor;
+
+function isComponentList(query: SystemQuery): query is readonly ComponentDef[] {
+  return Array.isArray(query);
+}
 
 // ============= Entity Manager =============
 
@@ -261,7 +265,7 @@ export class QueryEngine {
     components: ComponentRegistry,
     precomputedKey?: string,
   ): EntityId[] {
-    const desc: SystemQueryDescriptor = Array.isArray(queryDesc) ? { all: queryDesc } : queryDesc;
+    const desc: SystemQueryDescriptor = isComponentList(queryDesc) ? { all: queryDesc } : queryDesc;
 
     // 1. 'all' filter — primary requirement
     const allRequired = (desc.all ?? []).map((d) => (typeof d === "string" ? d : d.name));

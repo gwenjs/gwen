@@ -155,7 +155,7 @@ schema: {
 
 **Signature:**
 ```ts
-function useComponent<T extends Record<string, any>>(def: ComponentDef): T
+function useComponent<D extends ComponentDef>(def: D): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void }
 ```
 
 **Description.** Retourne un proxy live sur les données du composant de l'acteur courant. Les lectures et écritures de champs sont transmises directement à l'ECS. Doit être appelé pendant la phase de setup.
@@ -208,7 +208,7 @@ export const MovementSystem = defineSystem('MovementSystem', () => {
 
 **Signature:**
 ```ts
-function useQuery(components: ComponentDef[]): LiveQuery
+function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
 ```
 
 **Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.
@@ -772,7 +772,7 @@ const Hooks = defineHooks({
 
 **Signature:**
 ```ts
-function emit(event: string, payload?: any): void
+function emit<K extends keyof GwenRuntimeHooks>(name: K, ...args: Parameters<GwenRuntimeHooks[K]>): void
 ```
 
 **Description.** Émet un événement personnalisé à tous les écouteurs enregistrés avec [`useHook()`](#usehookevent-handler).
@@ -825,10 +825,10 @@ function useTween(options: {
   loop?: boolean;
   onProgress?: (t: number) => void;
   onComplete?: () => void;
-}): TweenHandle
+}): TweenHandle | null
 ```
 
-**Description.** Crée une animation tween. Retourne un gestionnaire avec les méthodes `.play()`, `.stop()`, et `.to(target)`.
+**Description.** Crée une animation tween. Retourne un gestionnaire avec les méthodes `.play()`, `.stop()`, et `.to(target)`. Retourne `null` si la politique du pool est `drop` et que le pool est épuisé. La politique par défaut agrandit le pool.
 
 **Paramètres:**
 | Paramètre | Type | Description |
@@ -839,7 +839,7 @@ function useTween(options: {
 | options.onProgress | `function` | Callback de progression (0–1) |
 | options.onComplete | `function` | Callback de complétion |
 
-**Retourne:** `TweenHandle` — contrôleur tween.
+**Retourne:** `TweenHandle | null` — contrôleur tween, ou `null` si un pool `drop` est épuisé.
 
 **Exemple:**
 ```ts
@@ -865,7 +865,7 @@ function createGwenHooks(): GwenHooks
 
 **Signature:**
 ```ts
-function useService(name: string): any
+function useService<K extends keyof GwenProvides>(key: K): GwenProvides[K]
 ```
 
 **Description.** Retourne un service enregistré par un plugin.
@@ -886,7 +886,7 @@ const physics = useService('physics');
 
 **Signature:**
 ```ts
-function useWasmModule(name: string): any
+function useWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]>
 ```
 
 **Description.** Retourne un module WASM chargé par un plugin.

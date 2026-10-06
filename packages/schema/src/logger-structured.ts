@@ -8,11 +8,11 @@ export interface GwenLogEntry {
   /** Human-readable message. */
   message: string;
   /** Arbitrary structured data attached to this entry. */
-  payload?: Record<string, unknown>;
+  payload?: Record<string, unknown> | undefined;
   /** Scope tag — e.g. `'actor:Player'`, `'plugin:physics2d'`. */
-  tag?: string;
+  tag?: string | undefined;
   /** Stringified entityId when the logger was created via `child()` inside an actor scope. */
-  entityId?: string;
+  entityId?: string | undefined;
   /** Timestamp from `performance.now()` at the moment of emission. */
   timestamp: number;
 }

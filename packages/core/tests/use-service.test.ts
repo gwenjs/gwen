@@ -4,7 +4,6 @@
  * Tests for the `useService()` composable defined in system.ts.
  * Covers:
  * - Typed lookup via GwenProvides declaration merging
- * - Generic untyped fallback
  * - Throws GwenPluginNotFoundError when service is absent
  * - Throws GwenContextError when called outside engine context
  * - Service captured at setup time is accessible inside lifecycle callbacks
@@ -115,16 +114,6 @@ describe("useService()", () => {
     await engine.advance(0.016);
 
     expect(counter.count()).toBe(2);
-  });
-
-  it("generic fallback returns T when key is not in GwenProvides", async () => {
-    const engine = await createEngine({ maxEntities: 10 });
-    const rawService = { ping: () => "pong" };
-    engine.provide("testCounter", rawService as never);
-
-    // Using generic fallback <{ ping(): string }>
-    const result = engine.run(() => useService<{ ping(): string }>("testCounter"));
-    expect(result.ping()).toBe("pong");
   });
 
   it("useService() spy is called each time inside run()", async () => {

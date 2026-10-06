@@ -52,6 +52,7 @@ export type {
   EngineState,
   GwenPlugin,
   GwenProvides,
+  GwenWasmModules,
   GwenEngineOptions,
   GwenPluginNotFoundErrorOptions,
   EngineStats,

@@ -4,6 +4,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
+import type { GwenLogger } from "@gwenjs/schema";
 import { CoreErrorCodes } from "../src/index";
 import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
 
@@ -191,7 +192,7 @@ describe("plugin error isolation", () => {
       const engine = await createEngine({ debug: true });
       const logger = engine.inject("logger");
       const sink = vi.fn();
-      logger.setSink(sink);
+      (logger as GwenLogger).setSink(sink);
 
       const child = logger.child("@gwenjs/test");
       child.warn("test");

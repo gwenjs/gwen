@@ -4,6 +4,13 @@ import type { GwenEngine, GwenPlugin, WasmModuleHandle } from "../src/index.js";
 import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
 import { SharedMemoryManager } from "@gwenjs/core/internal";
 
+declare module "../src/engine/engine-types.js" {
+  interface GwenWasmModules {
+    g: WebAssembly.Exports;
+    nope: WebAssembly.Exports;
+  }
+}
+
 // ─── Minimal valid WASM binary ────────────────────────────────────────────────
 // A wasm module that exports nothing (but is syntactically valid):
 // (module)

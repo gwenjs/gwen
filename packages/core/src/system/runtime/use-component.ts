@@ -1,6 +1,8 @@
 import { useEngine } from "../../engine/context";
+import type { GwenEngine } from "../../engine/gwen-engine";
 import type { EntityId } from "../../engine/engine-api";
-import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
+import type { InferComponent } from "../../schema";
+import type { ComponentDef } from "./define-system";
 
 /**
  * Returns a mutable proxy for a component on a specific entity, for use inside
@@ -42,35 +44,34 @@ import type { ComponentDefinition, ComponentSchema, InferComponent } from "../..
  * pos.$set({ x: pos.x + vel.x * dt, y: pos.y + vel.y * dt })
  * ```
  */
-export function useComponentFor<S extends ComponentSchema, D extends ComponentDefinition<S>>(
+type ComponentProxy<D extends ComponentDef> = InferComponent<D> & {
+  $set(patch: Partial<InferComponent<D>>): void;
+};
+
+export function useComponentFor<D extends ComponentDef>(
   entityId: EntityId,
   def: D,
-): InferComponent<D> & { $set(values: Partial<InferComponent<D>>): void } {
-  const engine = useEngine();
-  const typedDef = def as ComponentDefinition<ComponentSchema>;
-
-  return new Proxy({} as InferComponent<D>, {
+  engine: GwenEngine = useEngine(),
+): ComponentProxy<D> {
+  return new Proxy({} as ComponentProxy<D>, {
     get(_target, prop: string | symbol): unknown {
       if (prop === "$set") {
         return (values: Partial<InferComponent<D>>) => {
-          engine.addComponent(
-            entityId,
-            typedDef,
-            values as Partial<InferComponent<typeof typedDef>>,
-          );
+          engine.addComponent(entityId, def, values);
         };
       }
       if (typeof prop !== "string") return undefined;
-      const comp = engine.getComponent(entityId, typedDef) as Record<string, unknown> | undefined;
-      return comp?.[prop];
+      const comp = engine.getComponent(entityId, def);
+      if (comp === undefined || !(prop in comp)) return undefined;
+      return comp[prop as keyof InferComponent<D>];
     },
 
     set(_target, prop: string | symbol, value: unknown): boolean {
       if (typeof prop !== "string") return false;
-      engine.addComponent(entityId, typedDef, { [prop]: value } as Partial<
-        InferComponent<typeof typedDef>
-      >);
+      const patch: Partial<InferComponent<D>> = {};
+      patch[prop as keyof InferComponent<D>] = value as InferComponent<D>[keyof InferComponent<D>];
+      engine.addComponent(entityId, def, patch);
       return true;
     },
-  }) as InferComponent<D> & { $set(values: Partial<InferComponent<D>>): void };
+  });
 }

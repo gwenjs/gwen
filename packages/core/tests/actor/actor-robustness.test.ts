@@ -13,6 +13,7 @@
  *    type signature while skipping dispatch for dormant pool instances.
  */
 
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
@@ -25,7 +26,7 @@ import type { ActorDefinition } from "../../src/actor/runtime/types";
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────
 
-const Position = { __name__: "Position" };
+const Position = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 // ─── 1. despawn cleanup chain — try/catch isolation ───────────────────────────
@@ -191,7 +192,7 @@ describe("useComponent — $set batch write", () => {
 
     const Actor = defineActor(SimplePrefab, () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pos = useComponent<{ x: number; y: number }>(Position) as any;
+      const pos = useComponent(Position) as any;
       onUpdate(() => {
         pos.$set({ x: 42, y: 99 });
       });
@@ -212,7 +213,7 @@ describe("useComponent — $set batch write", () => {
 
     const Actor = defineActor(SimplePrefab, () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const pos = useComponent<{ x: number; y: number }>(Position) as any;
+      const pos = useComponent(Position) as any;
       onStart(() => {
         // Set initial y value.
         pos.y = 77;

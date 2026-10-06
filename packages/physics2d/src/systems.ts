@@ -80,7 +80,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
   const _positionComponent = options.positionComponent;
 
   let _physics: Physics2DAPI | null = null;
-  let _liveQuery: LiveQuery<EntityAccessor> | null = null;
+  let _liveQuery: LiveQuery<EntityAccessor<readonly ComponentDef[]>> | null = null;
   let _offBeforeUpdate: (() => void) | null = null;
 
   return {

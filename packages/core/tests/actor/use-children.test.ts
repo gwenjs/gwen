@@ -1,8 +1,10 @@
+import { stubValue } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "../../src/engine/gwen-engine";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor, onStart, onDestroy } from "../../src/actor/runtime/define-actor";
 import { useChildren } from "../../src/actor/runtime/use-children";
+import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import {
   GwenComposableError,
@@ -11,7 +13,7 @@ import {
   ActorErrorCodes,
 } from "../../src/engine/engine-errors";
 
-const Hp = { __name__: "Hp" };
+const Hp = stubValue("Hp");
 const Prefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
 
 // ─── Context guard ─────────────────────────────────────────────────────────────
@@ -80,12 +82,7 @@ describe("useChildren — basic ownership", () => {
     const engine = await createEngine();
     const Child = defineActor(Prefab, () => {});
     let childrenHandle: ReturnType<typeof useChildren>;
-    let childHandle: {
-      entityId: bigint;
-      api: void;
-      moveTo: (pos: [number, number]) => void;
-      despawn: () => void;
-    };
+    let childHandle: PlaceHandle<void>;
     const Parent = defineActor(Prefab, () => {
       childrenHandle = useChildren();
       onStart(() => {
@@ -226,12 +223,7 @@ describe("useChildren — despawn cascade", () => {
       onDestroy(destroySpy);
     });
     let childrenHandle: ReturnType<typeof useChildren>;
-    let childHandle: {
-      entityId: bigint;
-      api: void;
-      moveTo: (pos: [number, number]) => void;
-      despawn: () => void;
-    };
+    let childHandle: PlaceHandle<void>;
     const Parent = defineActor(Prefab, () => {
       childrenHandle = useChildren();
       onStart(() => {
@@ -258,12 +250,7 @@ describe("useChildren — error cases", () => {
     let childrenA: ReturnType<typeof useChildren>;
     let childrenB: ReturnType<typeof useChildren>;
     // oxlint-disable-next-line prefer-const
-    let handleA: {
-      entityId: bigint;
-      api: void;
-      moveTo: (pos: [number, number]) => void;
-      despawn: () => void;
-    };
+    let handleA: PlaceHandle<void>;
 
     const ActorB = defineActor(Prefab, () => {
       childrenB = useChildren();
@@ -283,7 +270,7 @@ describe("useChildren — error cases", () => {
     const aId = ActorA._plugin.spawn();
     handleA = {
       entityId: aId,
-      api: undefined as void,
+      api: undefined,
       moveTo: vi.fn(),
       despawn: vi.fn(),
     };

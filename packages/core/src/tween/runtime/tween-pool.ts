@@ -239,7 +239,8 @@ export class TweenSlot implements TweenHandle<TweenableValue> {
     if (cycleComplete) {
       // Fire complete callbacks
       for (let i = 0; i < this._completeCbs.length; i++) {
-        this._completeCbs[i]();
+        const cb = this._completeCbs[i];
+        if (cb !== undefined) cb();
       }
 
       if (this._loop) {
@@ -412,6 +413,8 @@ export class TweenPool {
   private _slots: TweenSlot[] = [];
   private _available: TweenSlot[] = [];
   private _active: Set<TweenSlot> = new Set();
+  /** Slot objects keyed by themselves, so release can accept a retyped handle. */
+  private readonly _known = new Map<object, TweenSlot>();
   /** Pre-allocated buffer for zero-alloc tick iteration. @since 1.0.0 */
   private _tickBuffer: TweenSlot[];
   /** Resolved growth policy for this pool instance. @internal */
@@ -450,6 +453,7 @@ export class TweenPool {
       const slot = new TweenSlot();
       this._slots.push(slot);
       this._available.push(slot);
+      this._known.set(slot, slot);
     }
 
     // Pre-allocate tick buffer for zero-alloc iteration
@@ -471,13 +475,13 @@ export class TweenPool {
    * `debug` log is emitted via the injected {@link IGwenLogger}.
    *
    * @param options - Tween configuration
-   * @returns A configured {@link TweenSlot} ready to use, or `null` when
+   * @returns A configured {@link TweenHandle} ready to use, or `null` when
    *   policy is `'drop'` and the pool is exhausted.
    * @throws {GwenConfigError} When policy is `'throw'` and the pool is
    *   exhausted, or when policy is `'grow'` but `maxSize` has been reached.
    * @since 1.0.0
    */
-  claim(options: TweenOptions<TweenableValue>): TweenSlot | null {
+  claim<T extends TweenableValue>(options: TweenOptions<T>): TweenHandle<T> | null {
     if (this._available.length === 0) {
       switch (this._policy.onExhausted) {
         case "grow": {
@@ -516,7 +520,7 @@ export class TweenPool {
       this._logger.debug("[TweenPool] Approaching capacity", { used, capacity });
     }
 
-    return slot;
+    return slot as unknown as TweenHandle<T>; // boundary: recycled slot is retyped per claim (#77)
   }
 
   /**
@@ -526,12 +530,12 @@ export class TweenPool {
    * @param slot - The slot to release
    * @since 1.0.0
    */
-  release(slot: TweenSlot): void {
-    if (this._active.has(slot)) {
-      this._active.delete(slot);
-      slot._reset();
-      this._available.push(slot);
-    }
+  release<T extends TweenableValue>(slot: TweenHandle<T>): void {
+    const stored = this._known.get(slot);
+    if (stored === undefined || !this._active.has(stored)) return;
+    this._active.delete(stored);
+    stored._reset();
+    this._available.push(stored);
   }
 
   /**
@@ -575,6 +579,7 @@ export class TweenPool {
       const slot = new TweenSlot();
       this._slots.push(slot);
       this._available.push(slot);
+      this._known.set(slot, slot);
     }
 
     // Resize tick buffer to cover the new capacity

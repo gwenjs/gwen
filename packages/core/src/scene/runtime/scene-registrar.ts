@@ -39,7 +39,7 @@ export interface SceneRegistrar {
 }
 
 // Augment GwenProvides so engine.inject('scene:registrar') is fully typed.
-declare module "../../engine/gwen-engine.js" {
+declare module "../../engine/engine-types.js" {
   interface GwenProvides {
     "scene:registrar": SceneRegistrar;
   }

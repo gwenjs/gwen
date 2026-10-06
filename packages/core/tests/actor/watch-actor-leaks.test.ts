@@ -1,6 +1,7 @@
 /**
  * Tests for watchActorLeaks — dev-time actor instance leak detector.
  */
+import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { watchActorLeaks } from "../../src/actor/runtime/watch-actor-leaks";
 import type { ActorDefinition } from "../../src/actor/runtime/types";
@@ -161,7 +162,7 @@ describe("watchActorLeaks", () => {
 describe("watchActorLeaks — hook-based mode", () => {
   it("detects a leak via engine afterTick instead of setInterval", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
@@ -189,7 +190,7 @@ describe("watchActorLeaks — hook-based mode", () => {
 
   it("stop() unregisters the afterTick handler", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
@@ -209,7 +210,7 @@ describe("watchActorLeaks — hook-based mode", () => {
 
   it("auto-stops the afterTick hook when engine stops — no need to call stop()", async () => {
     const engine = await createEngine();
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);

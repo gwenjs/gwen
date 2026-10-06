@@ -34,6 +34,7 @@ import { useEngine } from "../../engine/context.js";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
+import type { ComponentDef } from "../../system/runtime/define-system";
 import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 import type { IGwenLogger } from "@gwenjs/schema";
 import type {
@@ -62,8 +63,7 @@ import { GwenScope } from "../../context/scope.js";
  */
 interface ActorContext {
   entityId: EntityId;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  instance: ActorInstance<any>;
+  instance: ActorInstance<unknown>;
   engine: GwenEngine;
 }
 
@@ -411,9 +411,9 @@ type ActorFactory<Props, PublicAPI> = Props extends void
  */
 export interface DefineActorOptions<
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  Props = void,
+  Props,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  PublicAPI = void,
+  PublicAPI,
 > {
   /**
    * Child actor definitions this actor's factory depends on via `useActor()`.
@@ -449,47 +449,52 @@ export interface DefineActorOptions<
  * @param options - Optional configuration. Pass `{ deps: [...] }` to declare
  *                  child actor dependencies explicitly.
  */
-export function defineActor<Props = void, PublicAPI = void>(
+export function defineActor<PublicAPI>(
+  prefab: PrefabDefinition<readonly ComponentDef[]>,
+  factory: () => PublicAPI,
+  options?: DefineActorOptions<void, PublicAPI>,
+): ActorDefinition<void, PublicAPI>;
+export function defineActor<Props, PublicAPI>(
+  prefab: PrefabDefinition<readonly ComponentDef[]>,
+  factory: (props: Props) => PublicAPI,
+  options?: DefineActorOptions<Props, PublicAPI>,
+): ActorDefinition<Props, PublicAPI>;
+export function defineActor<PublicAPI>(
   name: string,
-  prefab: PrefabDefinition,
-  factory: ActorFactory<Props, PublicAPI>,
+  prefab: PrefabDefinition<readonly ComponentDef[]>,
+  factory: () => PublicAPI,
+  options?: DefineActorOptions<void, PublicAPI>,
+): ActorDefinition<void, PublicAPI>;
+export function defineActor<Props, PublicAPI>(
+  name: string,
+  prefab: PrefabDefinition<readonly ComponentDef[]>,
+  factory: (props: Props) => PublicAPI,
   options?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI>;
-/**
- * @overload
- * Anonymous form — the Vite plugin injects the exported variable name automatically.
- * Without the Vite plugin, a stable counter-based name is generated (`actor-1`, `actor-2`, …).
- * @param prefab  - Prefab defining the ECS component layout for this actor.
- * @param factory - Per-instance setup function.
- * @param options - Optional configuration. Pass `{ deps: [...] }` to declare
- *                  child actor dependencies explicitly.
- */
-export function defineActor<Props = void, PublicAPI = void>(
-  prefab: PrefabDefinition,
-  factory: ActorFactory<Props, PublicAPI>,
-  options?: DefineActorOptions<Props, PublicAPI>,
-): ActorDefinition<Props, PublicAPI>;
-export function defineActor<Props = void, PublicAPI = void>(
-  nameOrPrefab: string | PrefabDefinition,
-  prefabOrFactory: PrefabDefinition | ActorFactory<Props, PublicAPI>,
-  factoryOrOptions?: ActorFactory<Props, PublicAPI> | DefineActorOptions<Props, PublicAPI>,
+export function defineActor<Props, PublicAPI>(
+  nameOrPrefab: string | PrefabDefinition<readonly ComponentDef[]>,
+  prefabOrFactory:
+    | PrefabDefinition<readonly ComponentDef[]>
+    | ActorFactory<Props, PublicAPI>
+    | (() => PublicAPI),
+  factoryOrOptions?:
+    | ActorFactory<Props, PublicAPI>
+    | (() => PublicAPI)
+    | DefineActorOptions<Props, PublicAPI>,
   maybeOptions?: DefineActorOptions<Props, PublicAPI>,
 ): ActorDefinition<Props, PublicAPI> {
   const isNamedForm = typeof nameOrPrefab === "string";
   const pluginName = isNamedForm ? nameOrPrefab : `actor-${++_actorPluginCounter}`;
   const prefab = isNamedForm
-    ? (prefabOrFactory as PrefabDefinition)
-    : (nameOrPrefab as PrefabDefinition);
+    ? (prefabOrFactory as PrefabDefinition<readonly ComponentDef[]>)
+    : (nameOrPrefab as PrefabDefinition<readonly ComponentDef[]>);
 
-  // Resolve factory and options from the variable-arity overloads.
-  let factory: ActorFactory<Props, PublicAPI>;
+  let factory: ActorFactory<Props, PublicAPI> | (() => PublicAPI);
   let options: DefineActorOptions<Props, PublicAPI> | undefined;
   if (isNamedForm) {
-    // (name, prefab, factory[, options])
     factory = factoryOrOptions as ActorFactory<Props, PublicAPI>;
     options = maybeOptions;
   } else {
-    // (prefab, factory[, options])
     factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
     options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
   }
@@ -503,7 +508,8 @@ export function defineActor<Props = void, PublicAPI = void>(
   // ─── spawn ───────────────────────────────────────────────────────────────
 
   function spawn(props?: Props): EntityId {
-    if (!_engine) {
+    const engine = _engine;
+    if (!engine) {
       throw new GwenActorError(
         ActorErrorCodes.PLUGIN_NOT_READY,
         "[GWEN] Actor.spawn() was called before the actor plugin was installed.\n" +
@@ -519,32 +525,32 @@ export function defineActor<Props = void, PublicAPI = void>(
     }
 
     // 1. Create the ECS entity.
-    const entityId = _engine.createEntity();
+    const entityId = engine.createEntity();
 
     // 2. Add prefab components with their declared defaults.
     for (let i = 0; i < prefab.components.length; i++) {
       const entry = prefab.components[i]!;
-      _engine.addComponent(entityId, entry.def, entry.defaults);
+      engine.addComponent(entityId, entry.def, entry.defaults);
     }
 
     // 3. Build a blank instance.
     const instance: ActorInstance<PublicAPI> = {
       entityId,
-      _scope: new ScopedHookable(_engine!.hooks),
+      _scope: new ScopedHookable(engine.hooks),
       _start: [],
       _destroy: [],
       _enable: [],
       _disable: [],
       _release: [],
       _reset: [],
-      api: undefined as unknown as PublicAPI,
+      api: undefined,
     };
 
     // 4. Create the actor scope (Phase 4 — GwenScope.current() support).
     // Pass instance._scope as the custom hookable so that hooks registered
     // via useHook() use the same _scope, enabling dormancy via pause/resume.
     const actorScope = new GwenScope(
-      _engine!,
+      engine,
       {
         type: "actor",
         name: pluginName,
@@ -561,9 +567,9 @@ export function defineActor<Props = void, PublicAPI = void>(
     //    Only set/unset the engine context when it is not already active — we must
     //    not clobber an outer engine.run() context.
     let api: PublicAPI | undefined;
-    _actorCtx.run({ entityId: instance.entityId, instance, engine: _engine! }, () => {
+    _actorCtx.run({ entityId: instance.entityId, instance, engine }, () => {
       const needsEngineCtx = !engineContext.tryUse();
-      if (needsEngineCtx) engineContext.set(_engine!);
+      if (needsEngineCtx) engineContext.set(engine);
       try {
         actorScope.run(() => {
           api = (factory as (props?: Props) => PublicAPI)(props);
@@ -573,7 +579,7 @@ export function defineActor<Props = void, PublicAPI = void>(
       }
     });
 
-    instance.api = api as PublicAPI;
+    instance.api = api;
 
     // 6. Register instance.
     _instances.set(entityId, instance);
@@ -635,7 +641,7 @@ export function defineActor<Props = void, PublicAPI = void>(
     }
 
     // 5. Destroy the ECS entity.
-    _engine?.destroyEntity(entityId as unknown as EntityId);
+    _engine?.destroyEntity(entityId);
 
     // ── Registry cleanup ────────────────────────────────────────────────────
     // Resolve parent link before deleting own entries (ownerId !== entityId — no conflict).
@@ -656,11 +662,6 @@ export function defineActor<Props = void, PublicAPI = void>(
   const _plugin: ActorPlugin<Props> = {
     name: pluginName,
 
-    // Populate _deps from the explicit `options.deps` when provided.
-    // The Vite transform may later overwrite this with the injected array;
-    // explicit options take precedence during the current module evaluation.
-    _deps: options?.deps?.map((d) => d._plugin),
-
     setup(engine: GwenEngineBase): void {
       _engine = useEngine();
       _log = engine.logger.child(`actor:${pluginName}`);
@@ -670,12 +671,16 @@ export function defineActor<Props = void, PublicAPI = void>(
     despawn,
   };
 
+  // The Vite transform may later overwrite this with the injected array.
+  // Explicit options take precedence during the current module evaluation.
+  if (options?.deps !== undefined) {
+    _plugin._deps = options.deps.map((d) => d._plugin);
+  }
+
   return {
     _plugin,
     _instances,
     _prefab: prefab,
-    __actorName__: pluginName, // ← was "anonymous"
-    __props__: undefined as unknown as Props,
-    __api__: undefined as unknown as PublicAPI,
+    __actorName__: pluginName,
   };
 }

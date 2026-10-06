@@ -16,15 +16,7 @@ import { useHook, emit } from '@gwenjs/core'
 
 ## Définir les événements en premier
 
-Sans `defineHooks`, les noms d'événements sont des strings brutes et les arguments ne sont pas vérifiés — les fautes de frappe et les mauvais types d'arguments sont invisibles pour TypeScript :
-
-```ts
-emit('ennemy:hit', 50)           // faute de frappe — aucune erreur
-emit('enemy:hit', 'fifty')       // mauvais type — aucune erreur
-useHook('enemy:hit', (n) => {})  // n est unknown
-```
-
-`defineHooks()` déclare des contrats typés qui corrigent tout cela. Placez vos déclarations de hooks dans `src/hooks.ts` ou répartissez-les dans des fichiers sous `src/hooks/` :
+`emit` et `useHook` n'acceptent que les noms déclarés sur `GwenRuntimeHooks`. Un nom non déclaré, y compris une faute de frappe, est une erreur de compilation. `defineHooks()` déclare le contrat. Placez vos déclarations de hooks dans `src/hooks.ts` ou répartissez-les dans des fichiers sous `src/hooks/` :
 
 ```ts
 // src/hooks/game.ts
@@ -40,7 +32,7 @@ export const GameHooks = defineHooks({
 `gwenHooksPlugin` (inclus dans `@gwenjs/vite`) scanne `src/hooks.ts` et `src/hooks/*.ts` et génère automatiquement le bloc `declare module '@gwenjs/schema'` dans `.gwen/types/hooks.d.ts`. Vous n'écrivez jamais ce bloc à la main.
 :::
 
-`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Une fois l'augmentation générée, les noms d'événements incorrects ou les types d'arguments sont détectés à la compilation — dans chaque acteur, système et plugin du projet.
+`defineHooks` est une fonction d'identité — son seul but est de laisser TypeScript déduire la carte d'événements. Le plugin Vite écrit cette carte sur `GwenRuntimeHooks`. Ensuite, un mauvais nom ou un mauvais type d'argument est une erreur de compilation dans chaque acteur, système et plugin.
 
 ## Écouter des événements
 

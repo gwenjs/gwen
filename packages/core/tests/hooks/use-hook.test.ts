@@ -11,6 +11,7 @@
  * - Hooks registered via GwenScope are auto-disposed when scope is disposed
  */
 
+import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect, vi } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api.js";
 import { createEngine, useHook, GwenContextError } from "../../src/index";
@@ -135,7 +136,7 @@ describe("useHook() auto-cleanup in actor context", () => {
   it("handler is removed when actor is despawned", async () => {
     const engine = await createEngine();
 
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
     const handler = vi.fn();
@@ -163,7 +164,7 @@ describe("useHook() auto-cleanup in actor context", () => {
   it("handler fires while actor is alive", async () => {
     const engine = await createEngine();
 
-    const Position = { __name__: "Position" };
+    const Position = stubComponent("Position");
     const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
     const events: number[] = [];
@@ -198,7 +199,7 @@ describe("useHook() auto-cleanup in actor context", () => {
 // ── useHook() in actor context — ScopedHookable silences dormant actors ──────
 
 describe("useHook() in actor context — dormancy via ScopedHookable", () => {
-  const Hp = { __name__: "Hp" };
+  const Hp = stubValue("Hp");
   const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
 
   it("handler fires normally when the actor is active", async () => {

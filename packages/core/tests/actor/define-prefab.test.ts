@@ -1,9 +1,10 @@
+import { stubComponent, stubHealth } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 
 // Minimal component-like objects for testing (no real ECS needed)
-const Position = { __componentName__: "Position" };
-const Health = { __componentName__: "Health" };
+const Position = stubComponent("Position");
+const Health = stubHealth("Health");
 
 describe("definePrefab", () => {
   it("returns a PrefabDefinition with the given components", () => {
@@ -13,9 +14,12 @@ describe("definePrefab", () => {
     ]);
 
     expect(prefab.components).toHaveLength(2);
-    expect(prefab.components[0].def).toBe(Position);
-    expect(prefab.components[0].defaults).toEqual({ x: 0, y: 0 });
-    expect(prefab.components[1].def).toBe(Health);
+    const first = prefab.components[0];
+    const second = prefab.components[1];
+    if (first === undefined || second === undefined) throw new Error("missing prefab slot");
+    expect(first.def).toBe(Position);
+    expect(first.defaults).toEqual({ x: 0, y: 0 });
+    expect(second.def).toBe(Health);
   });
 
   it('sets __prefabName__ to "anonymous" by default', () => {

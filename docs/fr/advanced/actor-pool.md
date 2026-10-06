@@ -201,7 +201,7 @@ export const BulletActor = defineActor(BulletPrefab, (props: { pool: ActorPool<B
 
   onUpdate(() => {
     if (Position.y[id] < 0) {
-      props.pool.release(id as EntityId)
+      props.pool.release(id)
     }
   })
 })

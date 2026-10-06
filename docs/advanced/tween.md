@@ -260,7 +260,7 @@ If you need to stop a tween early, call `reset()`. The slot is not released auto
 
 | Function | Description |
 |---|---|
-| `useTween<T>(options)` | Create a tween inside a system; returns a `TweenHandle<T>` |
+| `useTween<T>(options)` | Create a tween inside a system; returns a `TweenHandle<T>`, or `null` if a `drop` pool is exhausted |
 | `tween.play(segment)` | Start animation from `from` to `to` over `duration` |
 | `tween.pause()` | Freeze at current value (don't reset) |
 | `tween.reset()` | Stop and reset to initial state |

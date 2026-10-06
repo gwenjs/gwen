@@ -8,7 +8,7 @@
 import type { GwenHooks as SchemaGwenHooks } from "@gwenjs/schema";
 
 export type EngineLifecycleHooks = import("@gwenjs/schema").EngineLifecycleHooks;
-export type PluginLifecycleHooks = import("@gwenjs/schema").PluginLifecycleHooks<any, any>;
+export type PluginLifecycleHooks = import("@gwenjs/schema").PluginLifecycleHooks<unknown, unknown>;
 export type EntityLifecycleHooks = import("@gwenjs/schema").EntityLifecycleHooks<
   import("../types").EntityId
 >;
@@ -19,7 +19,7 @@ export type ComponentLifecycleHooks = import("@gwenjs/schema").ComponentLifecycl
 /** Engine-core concrete hooks map used by Hookable. */
 export interface GwenHooks extends SchemaGwenHooks<
   import("../types").EntityId,
-  any,
-  any,
+  unknown,
+  unknown,
   unknown
 > {}
