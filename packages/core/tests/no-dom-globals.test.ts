@@ -17,12 +17,12 @@ const ALLOWED_LINE_CEILING: Record<string, Record<string, number>> = {
     'if (typeof globalThis.window !== "undefined") {': 1,
   },
   "error-bus.ts": {
-    'if (typeof window === "undefined") return () => {};': 1,
+    'if (typeof window === "undefined") {': 1,
     "const previous = window.onerror;": 1,
-    "window.onerror = (message, source, lineno, colno, error) => {": 1,
     "const result: unknown = previous.call(window, message, source, lineno, colno, error);": 1,
+    "window.onerror = onError;": 1,
     'window.addEventListener("unhandledrejection", onUnhandled);': 1,
-    "window.onerror = previous;": 1,
+    "if (window.onerror === onError) window.onerror = previous;": 1,
     'window.removeEventListener("unhandledrejection", onUnhandled);': 1,
   },
   "wasm-bridge.ts": {

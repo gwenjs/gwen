@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { entityIndex, type EntityId } from "../../src/index.js";
+import { type EntityId } from "../../src/index.js";
+import { entityIndex } from "../../src/internal.js";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 const STEPS = 600;

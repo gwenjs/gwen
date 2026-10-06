@@ -182,7 +182,7 @@ These are 1.0 targets. A line marked Target is not true on this tree.
 5. A fatal error moves only that engine to `faulted`.
 6. Global error handlers are optional. Core installs none unless `window` exists.
 7. Fixed-step reproducibility is the Determinism note in this section (#84).
-8. Target (#90): running out of entity capacity throws a typed error instead of trapping the WASM module. Until #90, that path throws a plain `Error`.
+8. Running out of entity capacity throws `GwenWasmError` with code `CORE:ENTITY_LIMIT_REACHED`. The bridge stays usable. The WASM module does not trap.
 
 1.0 does not provide lockstep, rollback, a world snapshot, tick-indexed input, or an `advance(dt, inputs)` overload. Two peers on different platforms may diverge.
 :::

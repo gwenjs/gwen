@@ -182,7 +182,7 @@ Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code ac
 5. Une erreur fatale ne fait passer que ce moteur à `faulted`.
 6. Les gestionnaires d'erreur globaux sont optionnels. Le cœur n'en installe aucun sauf si `window` existe.
 7. La reproductibilité des pas fixes est la note Déterminisme de cette section (#84).
-8. Cible (#90) : dépasser la capacité d'entités lève une erreur typée au lieu de piéger le module WASM. Jusqu'à #90, ce chemin lève un `Error` simple.
+8. Dépasser la capacité d'entités lève `GwenWasmError` avec le code `CORE:ENTITY_LIMIT_REACHED`. Le pont reste utilisable. Le module WASM ne piège pas.
 
 La 1.0 ne fournit ni lockstep, ni rollback, ni snapshot du monde, ni entrée indexée par tick, ni surcharge `advance(dt, inputs)`. Deux pairs sur des plateformes différentes peuvent diverger.
 :::
