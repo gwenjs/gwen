@@ -170,6 +170,23 @@ The accumulator pattern:
 With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs reach the same world state when every fixed step receives the same inputs in the same order, starting from the same configuration, on the same GWEN version, WASM variant and browser or runtime. To control steps exactly, drive the loop yourself with `engine.advance(1 / physicsHz)`. GWEN 1.0 makes no determinism guarantee across browsers, operating systems or CPUs, and none for the variable-dt loop (`physicsHz: 0`). Reading `performance.now()`, `Date.now()` or `Math.random()` inside a system breaks reproducibility. GWEN 1.0 has no built-in world snapshot or save/restore.
 :::
 
+::: info Multiplayer (1.0)
+Networked play is not part of GWEN 1.0. Transport, prediction, and interest management stay future plugins. In Node, the only supported loop is `startExternal()` followed by `advance(dt)`. `start()` and its `setTimeout` fallback are not a supported server loop.
+
+These are 1.0 targets. A line marked Target is not true on this tree.
+
+1. Target (#89): the engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
+2. Target (#79): `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step. `engine:afterTick` runs once per step, and `frameCount` counts those steps. Until #79, `advance(dt)` uses the caller `dt` and ignores `physicsHz`.
+3. On the `advance` path, simulation `dt` is the value the caller passes, capped by `maxDeltaSeconds` and scaled by `timeScale`. It does not come from the wall clock.
+4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. Until #59, `stop()` deletes every `__gwenGlue_*` key on `globalThis`.
+5. A fatal error moves only that engine to `faulted`.
+6. Global error handlers are optional. Core installs none unless `window` exists.
+7. Fixed-step reproducibility is the Determinism note in this section (#84).
+8. Running out of entity capacity throws `GwenWasmError` with code `CORE:ENTITY_LIMIT_REACHED`. The bridge stays usable. The WASM module does not trap.
+
+1.0 does not provide lockstep, rollback, a world snapshot, tick-indexed input, or an `advance(dt, inputs)` overload. Two peers on different platforms may diverge.
+:::
+
 ## API Summary
 
 | | |
