@@ -1718,13 +1718,36 @@ class GwenEngineImpl implements GwenEngine {
     const tracker = this._tracker;
     const realHooks = this.hooks;
     const engine = this;
+    // A memory-grow failure keeps the plugin name and does not isolate it.
+    // Later hooks in the same frame, including this plugin, still run.
+    const emitGrowError = (error: unknown): void => {
+      const message = error instanceof Error ? error.message : String(error);
+      this._errorBus.emit({
+        level: "error",
+        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+        message: `[${pluginName}] engine:memory-grow threw: ${message}`,
+        source: pluginName,
+        error,
+        context: { frame: this._frameCountOwn },
+      });
+    };
     return new Proxy(realHooks, {
       get(target, prop) {
         if (prop === "hook") {
           return (event: string, fn: (...args: unknown[]) => unknown) => {
             const setup = currentPluginSetupTarget();
             const registered =
-              setup && setup.id === pluginName ? guardHandler(fn, setup, event, engine) : fn;
+              event === "engine:memory-grow"
+                ? async (info: unknown) => {
+                    try {
+                      await fn(info);
+                    } catch (error: unknown) {
+                      emitGrowError(error);
+                    }
+                  }
+                : setup && setup.id === pluginName
+                  ? guardHandler(fn, setup, event, engine)
+                  : fn;
             tracker.track(pluginName, event, registered);
             return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
               ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(

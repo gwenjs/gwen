@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { CoreErrorCodes, SharedMemoryManager } from "../../src/index.js";
+import { SharedMemoryManager } from "@gwenjs/core/internal";
+import { CoreErrorCodes } from "../../src/index.js";
 import { createRealEngine } from "./harness.js";
 
 describe("memory growth", () => {
