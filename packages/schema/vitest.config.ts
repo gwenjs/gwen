@@ -17,7 +17,15 @@ export default defineConfig({
       {
         resolve: { alias },
         define: { __GWEN_DEV__: "true" },
-        test: { name: "dev", ...shared },
+        test: {
+          name: "dev",
+          ...shared,
+          typecheck: {
+            enabled: true,
+            include: ["tests/types/**/*.test-d.ts"],
+            tsconfig: "tsconfig.test.json",
+          },
+        },
       },
       {
         resolve: { alias },

@@ -20,8 +20,14 @@ export interface GwenPluginBase {
   provides?: Record<string, unknown>;
   /** Hooks provided by this plugin to the engine */
   providesHooks?: Record<string, GwenHookHandler>;
-  /** Optional WASM context (present if plugin is WASM-based) */
-  wasm?: unknown;
+  /**
+   * Optional WASM context for a WASM-based plugin.
+   * A `sharedMemory` flag is not accepted.
+   */
+  wasm?: {
+    readonly sharedMemory?: never;
+    readonly [key: string]: unknown;
+  };
 }
 
 /**
