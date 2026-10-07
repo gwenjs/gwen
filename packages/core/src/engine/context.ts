@@ -10,6 +10,7 @@ import { createContext } from "unctx";
 import { GwenError } from "@gwenjs/schema";
 import type { GwenEngine } from "./gwen-engine";
 import { GwenScope } from "../context/scope.js";
+import { CoreErrorCodes } from "./engine-errors.js";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -130,12 +131,14 @@ export function withAsyncContext<T extends (...args: unknown[]) => Promise<unkno
 /**
  * Structured error codes for {@link GwenContextError}.
  *
- * - `OUTSIDE_ENGINE` — composable called outside any active engine context
+ * - `CORE:OUTSIDE_ENGINE_CONTEXT` — composable called outside any active engine context
  *   (e.g. at module top-level, in a plain DOM callback, or after an `await`
- *   without context propagation).
+ *   without context propagation). Same code as {@link CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT}.
  * - `ACTOR_SETUP_ONLY` — composable is only valid during an actor factory phase.
  */
-export type GwenContextErrorCode = "OUTSIDE_ENGINE" | "ACTOR_SETUP_ONLY";
+export type GwenContextErrorCode =
+  | typeof CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT
+  | "ACTOR_SETUP_ONLY";
 
 // ─── GwenContextError ────────────────────────────────────────────────────────
 
@@ -152,7 +155,7 @@ export class GwenContextError extends GwenError {
    */
   override readonly code: GwenContextErrorCode;
 
-  constructor(message: string, code: GwenContextErrorCode = "OUTSIDE_ENGINE") {
+  constructor(message: string, code: GwenContextErrorCode = CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT) {
     super(code, message);
     this.name = "GwenContextError";
     this.code = code;
@@ -227,7 +230,7 @@ Common causes and fixes:
 export function useEngine(): GwenEngine {
   const engine = engineContext.tryUse();
   if (!engine) {
-    throw new GwenContextError(OUTSIDE_ENGINE_MESSAGE, "OUTSIDE_ENGINE");
+    throw new GwenContextError(OUTSIDE_ENGINE_MESSAGE, CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
   }
   return engine;
 }

@@ -141,7 +141,7 @@ try {
   useEngine()
 } catch (e) {
   if (e instanceof GwenContextError) {
-    console.log(e.code)     // 'OUTSIDE_ENGINE'
+    console.log(e.code)     // 'CORE:OUTSIDE_ENGINE_CONTEXT'
     console.log(e.message)  // explains the fix step by step
   }
 }
