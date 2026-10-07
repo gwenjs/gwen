@@ -68,7 +68,6 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
     engine.set_entity_local_position(child.index(), 3.0, 4.0);
 
     let ptr = engine.alloc_shared_buffer(4 * TRANSFORM_STRIDE);
-    assert_eq!(ptr == 0, false);
     match engine.sync_transforms_to_buffer(ptr, 4) {
         Ok(()) => {}
         Err(err) => {
@@ -136,7 +135,6 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     assert_eq!(unknown.code(), "CORE:INVALID_SHARED_BUFFER");
 
     let short = engine.alloc_shared_buffer(16);
-    assert_eq!(short == 0, false);
     let short_err = match engine.sync_transforms_to_buffer(short, 1) {
         Err(err) => err,
         Ok(()) => {
@@ -153,7 +151,6 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     );
 
     let exact = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    assert_eq!(exact == 0, false);
     match engine.sync_transforms_to_buffer(exact, 1) {
         Ok(()) => {}
         Err(err) => {

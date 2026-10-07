@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type { GwenErrorPayload } from "@gwenjs/schema";
+
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
 import { createEngine, type GwenEngine } from "../../src/engine/gwen-engine.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
@@ -65,12 +67,16 @@ describe("transform region copy counts", () => {
 
   it("fills once per frame and copies once per region module", async () => {
     const { engine, fill, copies } = await boot();
-    await engine.loadWasmModule(regionModule("a"));
-    await engine.loadWasmModule(regionModule("b"));
-    await engine.advance(0.016);
-    expect(fill).toHaveBeenCalledTimes(1);
-    expect(copies).toEqual([REGION_OFFSET, REGION_OFFSET]);
-    await engine.stop();
+    try {
+      await engine.loadWasmModule(regionModule("a"));
+      await engine.loadWasmModule(regionModule("b"));
+      await engine.advance(0.016);
+      await engine.advance(0.016);
+      expect(fill).toHaveBeenCalledTimes(2);
+      expect(copies).toEqual([REGION_OFFSET, REGION_OFFSET, REGION_OFFSET, REGION_OFFSET]);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("does not copy an isolated module", async () => {
@@ -101,17 +107,29 @@ describe("transform region copy counts", () => {
         new Error("cause"),
       );
     });
+    const seen: GwenErrorPayload[] = [];
+    const unsubscribe = engine.errors.on((event: GwenErrorPayload) => {
+      seen.push(event);
+    });
     let stepped = false;
-    await engine.loadWasmModule(
-      regionModule("a", () => {
-        stepped = true;
-      }),
-    );
-    await engine.advance(0.016);
-    expect(copies).toEqual([]);
-    expect(stepped).toBe(true);
-    expect(engine.state).not.toBe("faulted");
-    await engine.stop();
+    try {
+      await engine.loadWasmModule(
+        regionModule("a", () => {
+          stepped = true;
+        }),
+      );
+      await engine.advance(0.016);
+      expect(fill).toHaveBeenCalledTimes(1);
+      expect(copies).toEqual([]);
+      expect(stepped).toBe(true);
+      expect(engine.state).not.toBe("faulted");
+      const payload = seen.find((event) => event.code === CoreErrorCodes.INVALID_SHARED_BUFFER);
+      expect(payload?.code).toBe(CoreErrorCodes.INVALID_SHARED_BUFFER);
+      expect(payload?.source).toBe("gwen_core.wasm");
+    } finally {
+      unsubscribe();
+      await engine.stop();
+    }
   });
 
   it("does not step modules after the fill traps", async () => {

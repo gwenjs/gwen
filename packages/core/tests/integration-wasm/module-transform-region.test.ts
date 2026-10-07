@@ -7,7 +7,9 @@ import type { WasmModuleOptions } from "../../src/engine/engine-types.js";
 import type { RealEngineHandle } from "../../src/testing/create-real-engine.js";
 import {
   NO_MEMORY_WASM,
+  TRANSFORM_READER_ABI_WASM,
   TRANSFORM_READER_EXPORT_WASM,
+  TRANSFORM_READER_SHIFT_WASM,
   TRANSFORM_READER_START_WASM,
   TRANSFORM_READER_WASM,
   wasmDataUrl,
@@ -54,6 +56,9 @@ declare module "../../src/engine/engine-types.js" {
     "no-memory": WebAssembly.Exports;
     "export-form": ExportFormExports;
     "start-cache": StartCachedExports;
+    "second-frame": TransformReaderExports;
+    "offset-mismatch": WebAssembly.Exports;
+    "abi-before-region": WebAssembly.Exports;
   }
 }
 
@@ -96,6 +101,9 @@ interface GwenWasmModulesReader {
   "no-memory": WebAssembly.Exports;
   "export-form": ExportFormExports;
   "start-cache": StartCachedExports;
+  "second-frame": TransformReaderExports;
+  "offset-mismatch": WebAssembly.Exports;
+  "abi-before-region": WebAssembly.Exports;
 }
 
 async function withEngine(run: (started: RealEngineHandle) => Promise<void>): Promise<void> {
@@ -118,6 +126,8 @@ describe("module transform region", () => {
     expect(WebAssembly.validate(TRANSFORM_READER_WASM)).toBe(true);
     expect(WebAssembly.validate(TRANSFORM_READER_EXPORT_WASM)).toBe(true);
     expect(WebAssembly.validate(TRANSFORM_READER_START_WASM)).toBe(true);
+    expect(WebAssembly.validate(TRANSFORM_READER_SHIFT_WASM)).toBe(true);
+    expect(WebAssembly.validate(TRANSFORM_READER_ABI_WASM)).toBe(true);
     expect(WebAssembly.validate(NO_MEMORY_WASM)).toBe(true);
   });
 
@@ -132,6 +142,37 @@ describe("module transform region", () => {
       expect(handle.exports.ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
+    });
+  });
+
+  it("copies the moved entity again on the second frame", async () => {
+    await withEngine(async (started) => {
+      placeOrigin(started);
+      const handle = await started.engine.loadWasmModule(
+        readerOptions(
+          "second-frame",
+          TRANSFORM_READER_WASM,
+          "transforms",
+          REGION_OFFSET,
+          REQUIRED_BYTES,
+        ),
+      );
+      const bridge = started.bridge;
+      const previous = bridge.syncTransformsToBuffer.bind(bridge);
+      let fills = 0;
+      bridge.syncTransformsToBuffer = (ptr: number, maxEntities: number): void => {
+        fills += 1;
+        previous(ptr, maxEntities);
+      };
+      await started.advance(1);
+      started.bridge.engine().set_entity_local_position(0, 9, 8);
+      await started.advance(1);
+      const wasm = started.bridge.engine();
+      expect(handle.exports.read_x()).toBe(9);
+      expect(handle.exports.read_y()).toBe(8);
+      expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
+      expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
+      expect(fills).toBe(2);
     });
   });
 
@@ -340,6 +381,74 @@ describe("module transform region", () => {
       expect(handle.exports.gwen_transforms_ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.cached_ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.ptr()).toBe(REGION_OFFSET);
+    });
+  });
+
+  it("rejects a probe offset that differs from the instance offset", async () => {
+    await withEngine(async (started) => {
+      let caught: unknown;
+      try {
+        await started.engine.loadWasmModule({
+          name: "offset-mismatch",
+          url: wasmDataUrl(TRANSFORM_READER_SHIFT_WASM),
+          memory: { regions: [region(64, REQUIRED_BYTES)] },
+          transformRegion: "transforms",
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) {
+        throw new Error("expected GwenError");
+      }
+      expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
+      expect(() => started.engine.getWasmModule("offset-mismatch")).toThrow();
+      await started.advance(1);
+      expect(started.engine.state).not.toBe("faulted");
+    });
+  });
+
+  it("checks the plugin API version before the region offset", async () => {
+    await withEngine(async (started) => {
+      let caught: unknown;
+      try {
+        await started.engine.loadWasmModule({
+          name: "abi-before-region",
+          url: wasmDataUrl(TRANSFORM_READER_ABI_WASM),
+          memory: { regions: [region(REGION_OFFSET, REQUIRED_BYTES)] },
+          transformRegion: "transforms",
+          versionPolicy: "throw",
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      if (!(caught instanceof Error)) {
+        throw new Error("expected Error");
+      }
+      expect(caught.message).toContain("API version");
+      expect(() => started.engine.getWasmModule("abi-before-region")).toThrow();
+      await started.advance(1);
+      expect(started.engine.state).not.toBe("faulted");
+    });
+  });
+
+  it("throws GwenError when the module bytes do not compile", async () => {
+    await withEngine(async (started) => {
+      let caught: unknown;
+      try {
+        await started.engine.loadWasmModule({
+          name: "plain",
+          url: "data:application/wasm;base64,AAAA",
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) {
+        throw new Error("expected GwenError");
+      }
+      expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+      expect(() => started.engine.getWasmModule("plain")).toThrow();
     });
   });
 });
