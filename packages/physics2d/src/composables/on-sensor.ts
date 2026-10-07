@@ -124,9 +124,5 @@ export function onSensorEnter(sensorId: number, callback: SensorCallback): () =>
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
 export function onSensorExit(sensorId: number, callback: SensorCallback): () => void {
-  return subscribe(
-    sensors.use().exit,
-    sensorKey(sensorId, _getActorContext()?.entityId),
-    callback,
-  );
+  return subscribe(sensors.use().exit, sensorKey(sensorId, _getActorContext()?.entityId), callback);
 }
