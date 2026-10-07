@@ -242,6 +242,21 @@ describe("WASM export signatures", () => {
     expect(() => skipImport(new Uint8Array([0x00]), cursor, 2)).toThrow(/not a function/);
   });
 
+  // 1 table, 2 memory (above), 3 global, 4 tag. A shared-memory build imports its memory,
+  // so this parser, and this suite, would reject it.
+  it.each([1, 3, 4])("rejects a wasm import of kind %i", (kind) => {
+    const cursor = { i: 0 };
+    expect(() => skipImport(new Uint8Array([0x00]), cursor, kind)).toThrow(
+      `wasm import is not a function (kind ${kind})`,
+    );
+  });
+
+  it("reads the type index of a function import", () => {
+    const cursor = { i: 0 };
+    skipImport(new Uint8Array([0x85, 0x01]), cursor, 0);
+    expect(cursor.i).toBe(2);
+  });
+
   it("glue parameters and wasm types match for light, physics2d and physics3d", async () => {
     for (const variant of VARIANTS) {
       expect(await glueLines(variant), `${variant} glue`).toEqual(expectedJs(variant));
