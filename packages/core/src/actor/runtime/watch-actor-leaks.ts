@@ -28,6 +28,7 @@
 
 import type { ActorDefinition } from "./types";
 import type { GwenEngine } from "../../engine/gwen-engine";
+import { engineContext } from "../../engine/context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -85,6 +86,8 @@ function defaultLeak(name: string, count: number, delta: number): void {
  *   reporter. See {@link WatchActorLeaksOptions}.
  * @returns A `stop` function — call it to cancel the interval (e.g. in test
  *   `afterEach` or before engine teardown).
+ * @throws {GwenContextError} When no engine is given or current and an actor
+ *   is installed on two or more engines.
  */
 export function watchActorLeaks(
   actorDefs: ActorDefinition<unknown, unknown>[],
@@ -94,9 +97,14 @@ export function watchActorLeaks(
 
   const prevCounts = new Map<string, number>();
   const streaks = new Map<string, number>();
+  // The timer runs with no engine current. Counts are read on the engine given
+  // in `options`, else on the engine current at this call.
+  const owner = engine ?? engineContext.tryUse() ?? null;
+  const countOf = (def: ActorDefinition<unknown, unknown>): number =>
+    owner ? owner.run(() => def._instances.size) : def._instances.size;
 
   for (const def of actorDefs) {
-    prevCounts.set(def.__actorName__, def._instances.size);
+    prevCounts.set(def.__actorName__, countOf(def));
   }
 
   /**
@@ -106,7 +114,7 @@ export function watchActorLeaks(
   function tick(): void {
     for (const def of actorDefs) {
       const name = def.__actorName__;
-      const count = def._instances.size;
+      const count = countOf(def);
       const prev = prevCounts.get(name)!;
 
       if (count > prev) {

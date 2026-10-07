@@ -176,6 +176,9 @@ const _HANDLE_OWN_KEYS = new Set<string>([
  * Must be called inside an active engine context (e.g. `engine.run()`, a plugin
  * `setup()` callback, or a `defineSystem()` factory).
  *
+ * The handle keeps that engine. Every handle method runs on it, even when
+ * another engine is current or none is.
+ *
  * @param actorDef - The actor definition produced by `defineActor()`.
  * @returns A Proxy implementing both `ActorHandle<Props, PublicAPI>` and `PublicAPI`.
  *
@@ -215,9 +218,12 @@ export function useActor<Props, PublicAPI>(
   let _singletonId: EntityId | undefined;
   const _methodCache = new Map<string, (...args: unknown[]) => unknown>();
 
+  /** Every handle call runs on the engine the handle was created on. */
+  const onOwnEngine = <T>(fn: () => T): T => engine.run(fn);
+
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): EntityId {
-      return spawnActor(actorDef._plugin, props);
+      return onOwnEngine(() => spawnActor(actorDef._plugin, props));
     },
 
     despawn(id: EntityId): void {
@@ -225,47 +231,49 @@ export function useActor<Props, PublicAPI>(
         _singletonId = undefined;
         _methodCache.clear();
       }
-      actorDef._plugin.despawn(id);
+      onOwnEngine(() => actorDef._plugin.despawn(id));
     },
 
     despawnAll(): void {
       _singletonId = undefined;
       _methodCache.clear();
-      for (const id of Array.from(actorDef._instances.keys())) {
-        actorDef._plugin.despawn(id);
-      }
+      onOwnEngine(() => {
+        for (const id of Array.from(actorDef._instances.keys())) {
+          actorDef._plugin.despawn(id);
+        }
+      });
     },
 
     count(): number {
-      return actorDef._instances.size;
+      return onOwnEngine(() => actorDef._instances.size);
     },
 
     get(): PublicAPI | undefined {
-      return actorDef._instances.values().next().value?.api;
+      return onOwnEngine(() => actorDef._instances.values().next().value?.api);
     },
 
     getAll(): PublicAPI[] {
-      const result: PublicAPI[] = [];
-      for (const instance of actorDef._instances.values()) {
-        result.push(instance.api!);
-      }
-      return result;
+      return onOwnEngine(() => {
+        const result: PublicAPI[] = [];
+        for (const instance of actorDef._instances.values()) {
+          result.push(instance.api!);
+        }
+        return result;
+      });
     },
 
     [Symbol.iterator](): IterableIterator<PublicAPI> {
-      const result: PublicAPI[] = [];
-      for (const instance of actorDef._instances.values()) {
-        result.push(instance.api!);
-      }
-      return result.values();
+      return baseHandle.getAll().values();
     },
 
     spawnOnce(props?: Props): EntityId {
-      if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
+      return onOwnEngine(() => {
+        if (_singletonId !== undefined && actorDef._instances.has(_singletonId)) {
+          return _singletonId;
+        }
+        _singletonId = spawnActor(actorDef._plugin, props);
         return _singletonId;
-      }
-      _singletonId = spawnActor(actorDef._plugin, props);
-      return _singletonId;
+      });
     },
   };
 
@@ -303,9 +311,7 @@ export function useActor<Props, PublicAPI>(
         const cached = _methodCache.get(prop);
         if (cached) return cached;
 
-        const api = actorDef._instances.values().next().value?.api as
-          | Record<string, unknown>
-          | undefined;
+        const api = baseHandle.get() as Record<string, unknown> | undefined;
         if (!api) {
           return () => {
             throw new GwenActorError(

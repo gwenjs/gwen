@@ -30,7 +30,7 @@
  * ```
  */
 
-import { engineContext, useEngine } from "../../engine/context.js";
+import { engineContext, GwenContextError, useEngine } from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
 import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/gwen-engine";
@@ -113,11 +113,21 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
     super();
   }
 
-  /** Current engine only. One installed engine is used when none is current. */
+  /**
+   * Current engine only. One installed engine is used when none is current.
+   *
+   * @throws {GwenContextError} When no engine is current and the actor is
+   *   installed on two or more engines: the read would have no owner.
+   */
   private bucket(): Map<EntityId, ActorInstance<API>> | undefined {
     const current = engineContext.tryUse();
     if (current) return this.buckets.get(unwrapEngine(current));
-    if (this.engines.size !== 1) return undefined;
+    if (this.engines.size > 1) {
+      throw new GwenContextError(
+        "[GWEN] An actor installed on several engines was read with no engine current.\n" +
+          "  Fix: read it inside engine.run(), or through a useActor() handle.",
+      );
+    }
     for (const engine of this.engines) return this.buckets.get(engine);
     return undefined;
   }
@@ -590,8 +600,7 @@ export function defineActor<Props, PublicAPI>(
     if (current) {
       const real = unwrapEngine(current);
       if (_engines.has(real)) return real;
-    }
-    if (_engines.size === 1) {
+    } else if (_engines.size === 1) {
       for (const only of _engines) return only;
     }
     throw new GwenActorError(
@@ -606,7 +615,9 @@ export function defineActor<Props, PublicAPI>(
         "     Fix: also call useActor(MyActor) inside the defineScene() factory that\n" +
         "     includes the system, so the plugin is auto-installed at bootstrap.\n" +
         "  3. The same actor is installed on more than one engine.\n" +
-        "     Fix: call spawn() inside engine.run() so the engine is current.",
+        "     Fix: call spawn() inside engine.run() so the engine is current.\n" +
+        "  4. The current engine does not have this actor installed.\n" +
+        "     Fix: install it on that engine, or spawn inside the run() of the engine that has it.",
     );
   }
 
