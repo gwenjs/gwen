@@ -111,7 +111,8 @@ test('verify-red fails a test that passes on the base', () => {
   );
   const output = `${result.stdout}\n${result.stderr}`;
   assert.doesNotMatch(output, /skipping running files/);
-  assert.match(output, /ℹ pass 1/);
+  // node 22 prints "# pass 1" (tap). node 24 prints "ℹ pass 1" (spec).
+  assert.match(output, /(?:ℹ|#) pass 1/);
   assert.notEqual(result.status, 0);
   assert.match(output, /NOT RED added\.test\.mjs/);
 });
