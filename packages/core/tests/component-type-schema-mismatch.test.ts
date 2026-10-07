@@ -61,5 +61,4 @@ describe("defineComponent same name, different schema", () => {
       expect(caught.code).toBe("CORE:INVALID_COMPONENT_SCHEMA");
     }
   });
-
 });
