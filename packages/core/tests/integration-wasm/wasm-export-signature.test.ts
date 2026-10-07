@@ -6,12 +6,15 @@ import { describe, expect, it } from "vitest";
 import { createRealEngine } from "./harness.js";
 import {
   JS_ENTITY_ID,
+  LIGHT_DTS,
   LIGHT_JS,
   LIGHT_WASM,
+  PHYSICS2D_DTS_EXTRA,
   PHYSICS2D_FREE_JS,
   PHYSICS2D_FREE_WASM,
   PHYSICS2D_JS_EXTRA,
   PHYSICS2D_WASM_EXTRA,
+  PHYSICS3D_DTS_EXTRA,
   PHYSICS3D_FREE_JS,
   PHYSICS3D_FREE_WASM,
   PHYSICS3D_JS_EXTRA,
@@ -221,6 +224,44 @@ async function glueLines(variant: Variant): Promise<string[]> {
   ].sort();
 }
 
+const DTS_EXTRA = {
+  physics2d: PHYSICS2D_DTS_EXTRA,
+  physics3d: PHYSICS3D_DTS_EXTRA,
+} as const;
+
+// One line per class member (`Engine.`, `JsEntityId.`) and per free function of the glue
+// .d.ts, comments stripped, up to the wasm-bindgen init types.
+function dtsLines(variant: Variant): string[] {
+  const dtsPath = fileURLToPath(new URL(`../../wasm/${variant}/gwen_core.d.ts`, import.meta.url));
+  const source = readFileSync(dtsPath, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  const end = source.indexOf("export type InitInput");
+  if (end === -1) throw new Error(`${variant} glue .d.ts has no InitInput type`);
+  const lines: string[] = [];
+  let owner: string | null = null;
+  for (const raw of source.slice(0, end).split("\n")) {
+    const line = raw.trim().replace(/\s+/g, " ");
+    if (line === "") continue;
+    const cls = /^export class (\w+) \{$/.exec(line);
+    if (cls?.[1] !== undefined) {
+      owner = cls[1];
+    } else if (line === "}") {
+      owner = null;
+    } else if (owner !== null) {
+      lines.push(`${owner}.${line}`);
+    } else if (line.startsWith("export function ")) {
+      lines.push(line.slice("export function ".length));
+    } else {
+      throw new Error(`${variant} glue .d.ts has an unexpected line: ${line}`);
+    }
+  }
+  return lines.sort();
+}
+
+function expectedDts(variant: Variant): string[] {
+  if (variant === "light") return [...LIGHT_DTS];
+  return [...LIGHT_DTS, ...DTS_EXTRA[variant]].sort();
+}
+
 function expectedJs(variant: Variant): string[] {
   const shared = [...LIGHT_JS, ...JS_ENTITY_ID];
   if (variant === "light") return shared.sort();
@@ -258,6 +299,12 @@ describe("WASM export signatures", () => {
       expect(await glueLines(variant), `${variant} glue`).toEqual(expectedJs(variant));
       expect(wasmExportSignatures(variant), `${variant} wasm`).toEqual(expectedWasm(variant));
     }
+  });
+
+  // Parameter names and wasm types miss a Rust change that keeps both, such as `bool`
+  // against `u32`. The glue .d.ts carries the TypeScript type of each parameter.
+  it.each(VARIANTS)("glue .d.ts signatures match for %s", (variant) => {
+    expect(dtsLines(variant)).toEqual(expectedDts(variant));
   });
 
   it.each(VARIANTS)("create_entity and the %s step use that signature", async (variant) => {
