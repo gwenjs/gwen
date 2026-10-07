@@ -503,7 +503,18 @@ function parseTap(text) {
   const tests = [];
   /** @type {string[]} */
   const subtests = [];
+  /** @type {string | null} indent of the open YAML diagnostic block */
+  let yaml = null;
   for (const line of text.split(/\r?\n/)) {
+    if (yaml !== null) {
+      if (line === `${yaml}...`) yaml = null;
+      continue;
+    }
+    const yamlStart = line.match(/^( *)---$/);
+    if (yamlStart) {
+      yaml = yamlStart[1] ?? '';
+      continue;
+    }
     const subtest = line.match(/^( *)# Subtest: (.*)$/);
     if (subtest) {
       const level = Math.floor((subtest[1] ?? '').length / 4);
