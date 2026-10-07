@@ -51,3 +51,15 @@ test('judge still reads a TAP SKIP directive after an escaped #', () => {
   assert.equal(status, 1, output);
   assert.match(output, /PASS issue #3/);
 });
+
+test('judge rejects a new name that the runner never reported', () => {
+  const kept = "import test from 'node:test';\ntest('kept', () => {});\n";
+  const { status, output } = judge({
+    source: `${kept}if (process.env.NEVER) test('new one', () => {});\n`,
+    base: kept,
+    format: 'tap',
+    report: 'TAP version 13\nnot ok 1 - kept\n1..1\n',
+  });
+  assert.equal(status, 1, output);
+  assert.match(output, /ABSENT new one/);
+});
