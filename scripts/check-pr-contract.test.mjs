@@ -10,12 +10,14 @@ const testFile = 'scripts/check-pr-contract.test.mjs';
 /**
  * @param {string} body
  * @param {string} [title]
+ * @param {string[]} [changedTestFiles]
  */
-function review(body, title = 'ci: add checks') {
+function review(body, title = 'ci: add checks', changedTestFiles = [testFile]) {
   return reviewPrContract({
     title,
     body,
     exists: (file) => file === testFile,
+    changedTestFiles,
   });
 }
 
@@ -25,6 +27,12 @@ const goodBody = [
   '| Acceptance | Test |',
   '| --- | --- |',
   `| Contract accepts a complete body | ${testFile}::accepts a complete body |`,
+  '',
+  '## Red proof',
+  '',
+  '| Test file | Command | Failing line |',
+  '| --- | --- | --- |',
+  `| ${testFile} | git diff | AssertionError |`,
   '',
   '## Breaking changes',
   '',
@@ -62,4 +70,58 @@ test('requires a breaking footer when the title has a bang', () => {
 test('rejects an empty breaking section', () => {
   const body = goodBody.replace('None.\n', '');
   assert.ok(review(body).some((error) => error.includes('empty')));
+});
+
+test('rejects a body with no red proof section', () => {
+  const body = goodBody.replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes');
+  const errors = review(body);
+  assert.ok(errors.some((error) => error.includes('Red proof')));
+});
+
+test('accepts the docs-only red proof line', () => {
+  const body = goodBody
+    .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
+    .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  assert.deepEqual(review(body, 'docs: clarify the contract', []), []);
+});
+
+test('rejects a docs-only line when a test file changed', () => {
+  const body = `${goodBody}\nRed proof: n/a (no code change)\n`;
+  const errors = review(body, 'docs: clarify the contract', [testFile]);
+  assert.ok(errors.some((error) => error.includes('no code change')));
+});
+
+test('requires one red proof row per changed test file', () => {
+  const other = 'scripts/check-diff-hygiene.test.mjs';
+  const errors = review(goodBody, 'ci: add checks', [testFile, other]);
+  assert.ok(errors.some((error) => error.includes(other)));
+});
+
+test('rejects a self-written verdict section', () => {
+  const body = `${goodBody}\n## Reviewer verdict\n\nShip it.\n`;
+  const errors = review(body);
+  assert.ok(errors.some((error) => error.includes('verdict')));
+});
+
+test('rejects a reviewed-by approve section', () => {
+  const body = `${goodBody}\n## Reviewed by Ada\n\napprove\n`;
+  const errors = review(body);
+  assert.ok(errors.some((error) => error.includes('reviewed-by')));
+});
+
+test('rejects NO TEST when the body closes an issue', () => {
+  const body = goodBody.replace(
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |`,
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |\n| Gap | NO TEST |`,
+  );
+  const errors = review(`${body}\nCloses #12\n`);
+  assert.ok(errors.some((error) => error.includes('NO TEST')));
+});
+
+test('allows NO TEST when the body does not close an issue', () => {
+  const body = goodBody.replace(
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |`,
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |\n| Gap | NO TEST |`,
+  );
+  assert.deepEqual(review(body), []);
 });

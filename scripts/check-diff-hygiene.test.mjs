@@ -206,3 +206,119 @@ test('a diff that does not touch allowlist.json never needs the label', () => {
   const text = diff('src/a.ts', ['const x = 1;']);
   assert.deepEqual(reviewAllowlistChange(text, false, [], []), []);
 });
+
+const wasmFile = 'packages/core/tests/integration-wasm/engine.test.ts';
+
+test('rejects createRealEngine without dispose in finally or afterEach', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, ['const handle = await createRealEngine();', 'handle.step();']),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('rejects dispose that sits outside finally and afterEach', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, ['function cleanup() { handle.dispose(); }', 'const handle = await createRealEngine();']),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('accepts dispose inside finally', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, ['try {', '  await createRealEngine();', '} finally {', '  handle.dispose();', '}']),
+  );
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'wasm-dispose' || hit.rule === 'expect-in-finally'),
+    [],
+  );
+});
+
+test('accepts dispose inside afterEach', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, ['afterEach(() => {', '  handle.dispose();', '});', 'const handle = await createRealEngine();']),
+  );
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'wasm-dispose'),
+    [],
+  );
+});
+
+test('rejects an added expect inside finally', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'try {',
+      '  await createRealEngine();',
+      '} finally {',
+      '  expect(1).toBe(1);',
+      '  handle.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'expect-in-finally'));
+});
+
+test('allows expect outside finally', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'try {',
+      '  await createRealEngine();',
+      '  expect(1).toBe(1);',
+      '} finally {',
+      '  handle.dispose();',
+      '}',
+    ]),
+  );
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'expect-in-finally'),
+    [],
+  );
+});
+
+test('does not flag a pre-existing expect inside finally', () => {
+  const content = [
+    'try {',
+    '  await createRealEngine();',
+    '} finally {',
+    '  expect(1).toBe(1);',
+    '  const note = 1;',
+    '  handle.dispose();',
+    '}',
+  ].join('\n');
+  const text = [
+    `diff --git a/${wasmFile} b/${wasmFile}`,
+    `--- a/${wasmFile}`,
+    `+++ b/${wasmFile}`,
+    '@@ -1,6 +1,7 @@',
+    ' try {',
+    '   await createRealEngine();',
+    ' } finally {',
+    '   expect(1).toBe(1);',
+    '+  const note = 1;',
+    '   handle.dispose();',
+    ' }',
+  ].join('\n');
+  const hits = findDiffViolations(text, [], { [wasmFile]: content });
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'expect-in-finally' || hit.rule === 'wasm-dispose'),
+    [],
+  );
+});
+
+test('rejects a changed file that calls createRealEngine and never disposes', () => {
+  const content = 'const handle = await createRealEngine();\nhandle.step();\n';
+  const text = [
+    `diff --git a/${wasmFile} b/${wasmFile}`,
+    `--- a/${wasmFile}`,
+    `+++ b/${wasmFile}`,
+    '@@ -1 +1,2 @@',
+    ' const handle = await createRealEngine();',
+    '+handle.step();',
+  ].join('\n');
+  const hits = findDiffViolations(text, [], { [wasmFile]: content });
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('does not require dispose outside integration-wasm', () => {
+  const hits = findDiffViolations(diff('packages/core/src/testing.ts', ['await createRealEngine();']));
+  assert.deepEqual(hits, []);
+});
