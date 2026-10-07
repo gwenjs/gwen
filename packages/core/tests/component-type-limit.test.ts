@@ -28,6 +28,7 @@ describe("defineComponent type limit", () => {
       throw new Error("expected GwenError");
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
+    expect(caught.message).toContain("127");
     expect(caught.message).toContain("128");
     expect(caught.name).toBe("GwenError");
   });
