@@ -9,5 +9,15 @@
     "skipLibCheck": true,
     "types": ["vitest/globals"]
   },
-  "include": ["tests/types"]
+  "include": ["src", "tests"],
+  "exclude": [
+    "tests/conformance-suite.test.ts",
+    "tests/exports-map.test.ts",
+    "tests/get-or-create-layer-manager.test.ts",
+    "tests/public-api.test.ts",
+    "tests/screen/get-or-create-screen-service.test.ts",
+    "tests/screen/screen-plugin.test.ts",
+    "tests/screen/screen-service.test.ts",
+    "tests/write-camera-views.test.ts"
+  ]
 }

@@ -2,8 +2,8 @@
 /**
  * Fail added lines that match PR-contract rule 3, attribution trailers
  * in origin/v1-alpha..HEAD, mock helpers or spyOn under tests/integration-wasm,
- * a createRealEngine call with no dispose( in finally or afterEach, and an
- * added expect( inside finally.
+ * a createRealEngine call whose variable is not disposed or stopped in finally
+ * or afterEach, and an added expect( inside finally.
  *
  * A flagged line is skipped only when scripts/agent-hygiene/allowlist.json
  * has an entry for that file and rule. A same-line allowlist comment grants
@@ -250,41 +250,207 @@ function matchingBrace(content, openIndex, open, close) {
 }
 
 /**
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * @param {string} masked
+ * @returns {Set<string>}
+ */
+function collectAliases(masked) {
+  /** @type {Set<string>} */
+  const names = new Set(['createRealEngine']);
+  const importRe = /\bimport\s*\{([^}]+)\}/g;
+  let match = importRe.exec(masked);
+  while (match) {
+    for (const part of (match[1] ?? '').split(',')) {
+      const item = part.trim();
+      const renamed = item.match(/^createRealEngine\s+as\s+([A-Za-z_$][\w$]*)$/);
+      if (renamed?.[1]) names.add(renamed[1]);
+    }
+    match = importRe.exec(masked);
+  }
+  let grew = true;
+  while (grew) {
+    grew = false;
+    const bindRe = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\b(?!\s*\()/g;
+    let bind = bindRe.exec(masked);
+    while (bind) {
+      const lhs = bind[1] ?? '';
+      const rhs = bind[2] ?? '';
+      if (lhs && names.has(rhs) && !names.has(lhs)) {
+        names.add(lhs);
+        grew = true;
+      }
+      bind = bindRe.exec(masked);
+    }
+  }
+  return names;
+}
+
+/**
+ * @param {string} text
+ * @returns {{ name: string, kind: 'engine' } | null}
+ */
+function engineFromDestructure(text) {
+  const inner = text.replace(/^\{\s*/, '').replace(/\s*\}$/, '');
+  for (const part of inner.split(',')) {
+    const piece = part.trim();
+    const renamed = piece.match(/^engine\s*:\s*([A-Za-z_$][\w$]*)$/);
+    if (renamed?.[1]) return { name: renamed[1], kind: 'engine' };
+    if (piece === 'engine') return { name: 'engine', kind: 'engine' };
+  }
+  return null;
+}
+
+/**
+ * @param {string} masked
+ * @param {Set<string>} names
+ * @returns {{ index: number, binding: { name: string, kind: 'handle' | 'engine' } | null }[]}
+ */
+function findEngineCalls(masked, names) {
+  const alt = [...names].map(escapeRegExp).join('|');
+  /** @type {{ index: number, binding: { name: string, kind: 'handle' | 'engine' } | null }[]} */
+  const calls = [];
+  if (!alt) return calls;
+  /** @type {Set<number>} */
+  const taken = new Set();
+  const assigned = new RegExp(
+    `\\b(?:const|let|var)?\\s*(?:(\\{[^}]*\\})|([A-Za-z_$][\\w$]*))\\s*=\\s*(?:await\\s+)?(?:${alt})\\s*\\(`,
+    'g',
+  );
+  let match = assigned.exec(masked);
+  while (match) {
+    const destructure = match[1];
+    const ident = match[2];
+    const binding = destructure ? engineFromDestructure(destructure) : ident ? { name: ident, kind: 'handle' } : null;
+    calls.push({ index: match.index, binding });
+    taken.add(match.index + match[0].length);
+    match = assigned.exec(masked);
+  }
+  const bare = new RegExp(`(?:^|[^\\w$.])(?:await\\s+)?(?:${alt})\\s*\\(`, 'g');
+  let bareMatch = bare.exec(masked);
+  while (bareMatch) {
+    const end = bareMatch.index + bareMatch[0].length;
+    if (!taken.has(end)) calls.push({ index: bareMatch.index, binding: null });
+    bareMatch = bare.exec(masked);
+  }
+  return calls;
+}
+
+/**
+ * @param {string} masked
+ * @param {number} index
+ * @returns {[number, number][]}
+ */
+function containingBodies(masked, index) {
+  /** @type {[number, number][]} */
+  const spans = [];
+  let depth = 0;
+  for (let i = index; i >= 0; i -= 1) {
+    const char = masked[i];
+    if (char === '}') depth += 1;
+    else if (char === '{') {
+      if (depth === 0) spans.push([i, matchingBrace(masked, i, '{', '}')]);
+      else depth -= 1;
+    }
+  }
+  return spans;
+}
+
+/**
+ * @param {string} slice
  * @param {RegExp} re
  * @param {string} open
  * @param {string} close
- * @returns {boolean}
+ * @param {boolean} skipDot
+ * @returns {string}
  */
-function spanHasDispose(masked, re, open, close) {
-  let match = re.exec(masked);
+function collectSpans(slice, re, open, close, skipDot) {
+  let out = '';
+  let match = re.exec(slice);
   while (match) {
-    const start = masked.indexOf(open, match.index + match[0].length);
-    if (start === -1) break;
-    const end = matchingBrace(masked, start, open, close);
-    if (/\bdispose\s*\(/.test(masked.slice(start, end + 1))) return true;
-    re.lastIndex = end + 1;
-    match = re.exec(masked);
+    if (!(skipDot && match.index > 0 && slice[match.index - 1] === '.')) {
+      const start = slice.indexOf(open, match.index + match[0].length);
+      if (start === -1) break;
+      const end = matchingBrace(slice, start, open, close);
+      out += slice.slice(start, end + 1);
+      re.lastIndex = end + 1;
+    }
+    match = re.exec(slice);
   }
-  return false;
+  return out;
+}
+
+/**
+ * @param {string} masked
+ * @param {number} endIndex
+ * @returns {string}
+ */
+function finallyAttached(masked, endIndex) {
+  let i = endIndex + 1;
+  while (i < masked.length && /\s/.test(masked[i] ?? '')) i += 1;
+  if (!masked.startsWith('finally', i)) return '';
+  if (i > 0 && masked[i - 1] === '.') return '';
+  const brace = masked.indexOf('{', i + 'finally'.length);
+  if (brace === -1) return '';
+  const close = matchingBrace(masked, brace, '{', '}');
+  return masked.slice(brace, close + 1);
+}
+
+/**
+ * @param {string} masked
+ * @param {number} index
+ * @returns {string}
+ */
+function cleanupFor(masked, index) {
+  const bodies = containingBodies(masked, index);
+  /** @type {string[]} */
+  const chunks = [];
+  if (bodies.length === 0) {
+    chunks.push(collectSpans(masked, /\bfinally\b/g, '{', '}', true));
+    chunks.push(collectSpans(masked, /\bafterEach\b/g, '(', ')', false));
+    return chunks.join('\n');
+  }
+  for (let i = 0; i < bodies.length; i += 1) {
+    const start = bodies[i]?.[0] ?? 0;
+    const end = bodies[i]?.[1] ?? start;
+    const slice = masked.slice(start, end + 1);
+    if (i === 0) chunks.push(collectSpans(slice, /\bfinally\b/g, '{', '}', true));
+    chunks.push(finallyAttached(masked, end));
+    chunks.push(collectSpans(slice, /\bafterEach\b/g, '(', ')', false));
+  }
+  return chunks.join('\n');
+}
+
+/**
+ * @param {string} cleanup
+ * @param {{ name: string, kind: 'handle' | 'engine' } | null} binding
+ * @returns {boolean}
+ */
+function isGuarded(cleanup, binding) {
+  if (!binding) return false;
+  const name = escapeRegExp(binding.name);
+  if (binding.kind === 'handle') {
+    return new RegExp(
+      `\\b${name}\\s*\\?\\.\\s*dispose\\s*\\(|\\b${name}\\.dispose\\s*\\(|\\b${name}\\s*\\?\\.\\s*engine\\.stop\\s*\\(|\\b${name}\\.engine\\.stop\\s*\\(`,
+    ).test(cleanup);
+  }
+  return new RegExp(`\\b${name}\\s*\\?\\.\\s*(?:stop|dispose)\\s*\\(|\\b${name}\\.(?:stop|dispose)\\s*\\(`).test(cleanup);
 }
 
 /**
  * @param {string} content
  * @returns {boolean}
  */
-function callsCreateRealEngine(content) {
-  return /\bcreateRealEngine\s*\(/.test(maskSource(content));
-}
-
-/**
- * @param {string} content
- * @returns {boolean}
- */
-function hasGuardedDispose(content) {
+function unguardedRealEngines(content) {
   const masked = maskSource(content);
-  if (spanHasDispose(masked, /\bfinally\b/g, '{', '}')) return true;
-  return spanHasDispose(masked, /\bafterEach\b/g, '(', ')');
+  const calls = findEngineCalls(masked, collectAliases(masked));
+  return calls.some((call) => !isGuarded(cleanupFor(masked, call.index), call.binding));
 }
 
 /**
@@ -376,7 +542,7 @@ function wasmTeardownHits(diffText, entries, contents) {
     const provided = contents ? contents[filePath] : undefined;
     const content = typeof provided === 'string' ? provided : state.isNew ? state.rebuilt.join('\n') : null;
     if (content == null) continue;
-    if (callsCreateRealEngine(content) && !hasGuardedDispose(content) && !isAllowlisted(entries, filePath, 'wasm-dispose')) {
+    if (unguardedRealEngines(content) && !isAllowlisted(entries, filePath, 'wasm-dispose')) {
       hits.push({ file: filePath, rule: 'wasm-dispose', text: 'createRealEngine' });
     }
     const finallyLines = linesInsideFinally(content);

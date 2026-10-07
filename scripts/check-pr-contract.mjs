@@ -2,7 +2,9 @@
 /**
  * PR contract: Acceptance -> test table, Red proof, Breaking changes section,
  * BREAKING CHANGE: footer when the title contains "!", no unfinished markers,
- * no self-written verdict, no Closes next to a NO TEST row.
+ * no verdict, approve, or self-review heading, no bare APPROVE line,
+ * no closing keyword next to a "no test" cell. `Red proof: n/a (no code change)`
+ * is accepted only when every changed path is under docs/, a markdown file, or .github/.
  *
  * Tests pass the body in. CI (`pull_request`) reads `gh pr view`.
  * Run: node scripts/check-pr-contract.mjs
@@ -22,6 +24,7 @@ const UNFINISHED = /not done/i;
  *   body: string,
  *   exists: (file: string) => boolean,
  *   changedTestFiles?: string[],
+ *   changedFiles?: string[],
  * }} Input
  */
 
@@ -132,9 +135,10 @@ export function reviewPrContract(input) {
     errors.push('title has ! but the body has no BREAKING CHANGE: footer');
   }
 
-  checkRedProof(lines, errors, input.changedTestFiles);
-  checkVerdict(lines, errors);
-  checkNoTestCloses(lines, body, errors);
+  const visible = visibleLines(lines);
+  checkRedProof(visible, errors, input.changedTestFiles, input.changedFiles);
+  checkVerdict(visible, errors);
+  checkNoTestCloses(visible, visible.join('\n'), errors);
 
   return errors;
 }
@@ -164,11 +168,77 @@ function redProofRows(lines) {
  * @param {string[]} errors
  * @param {string[] | undefined} changedTestFiles
  */
-function checkRedProof(lines, errors, changedTestFiles) {
-  const docsOnly = lines.some((line) => line.trim() === DOCS_ONLY_LINE);
+const NA_ONLY =
+  'Red proof n/a is only allowed when every changed path is under docs/, a markdown file, or .github/';
+
+/**
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function visibleLines(lines) {
+  /** @type {string[]} */
+  const out = [];
+  let fence = false;
+  for (const line of lines) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      fence = !fence;
+      continue;
+    }
+    if (!fence) out.push(line);
+  }
+  return out;
+}
+
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isDocsPath(file) {
+  const normalized = String(file).split('\\').join('/');
+  return normalized.startsWith('docs/') || normalized.endsWith('.md') || normalized.startsWith('.github/');
+}
+
+/**
+ * @param {string[] | undefined} changedFiles
+ * @returns {boolean}
+ */
+function docsOnly(changedFiles) {
+  return Array.isArray(changedFiles) && changedFiles.length > 0 && changedFiles.every(isDocsPath);
+}
+
+/**
+ * @param {string} cell
+ * @returns {boolean}
+ */
+function isNaCell(cell) {
+  return /^n\/a$/i.test(cell.replace(/`/g, '').trim());
+}
+
+/**
+ * @param {string[]} row
+ * @returns {boolean}
+ */
+function isNaRow(row) {
+  return row.length > 0 && row.every(isNaCell);
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ * @param {string[] | undefined} changedTestFiles
+ * @param {string[] | undefined} changedFiles
+ */
+function checkRedProof(lines, errors, changedTestFiles, changedFiles) {
+  const docs = docsOnly(changedFiles);
   const files = changedTestFiles ?? [];
-  if (docsOnly) {
-    if (files.length > 0) errors.push('Red proof says no code change but test files changed');
+  const sourceChange = Array.isArray(changedFiles) && changedFiles.some((file) => !isDocsPath(file));
+  const naLine = lines.some((line) => line.trim() === DOCS_ONLY_LINE);
+  if (naLine) {
+    if (files.length > 0) {
+      errors.push('Red proof says no code change but test files changed');
+      return;
+    }
+    if (!docs) errors.push(NA_ONLY);
     return;
   }
   const rows = redProofRows(lines);
@@ -176,12 +246,17 @@ function checkRedProof(lines, errors, changedTestFiles) {
     errors.push('no Red proof section');
     return;
   }
+  if (rows.length > 0 && rows.every(isNaRow)) {
+    if (files.length > 0 || !docs) errors.push(NA_ONLY);
+    return;
+  }
+  if (sourceChange && files.length === 0) errors.push('a source file change needs a changed test file');
   if (files.length === 0) {
     if (rows.length === 0) errors.push('Red proof table has no row');
     return;
   }
   for (const file of files) {
-    const found = rows.some((row) => row.join(' ').replace(/`/g, '').includes(file));
+    const found = rows.some((row) => !isNaRow(row) && row.join(' ').replace(/`/g, '').includes(file));
     if (!found) errors.push(`Red proof table is missing a row for ${file}`);
   }
 }
@@ -190,22 +265,57 @@ function checkRedProof(lines, errors, changedTestFiles) {
  * @param {string[]} lines
  * @param {string[]} errors
  */
+/**
+ * @param {string} line
+ * @returns {string}
+ */
+function plainLine(line) {
+  return line.trim().replace(/^[*_`]+|[*_`]+$/g, '').trim();
+}
+
+/**
+ * @param {string} line
+ * @returns {boolean}
+ */
+function isBareApprove(line) {
+  return /^approve$/i.test(plainLine(line));
+}
+
+/**
+ * @param {string} title
+ * @returns {string}
+ */
+function headingProblem(title) {
+  const text = plainLine(title);
+  if (/\bverdict\b/i.test(text)) return 'self-written verdict section';
+  if (/\bself[-\s]review\b/i.test(text)) return 'self-review section';
+  if (/^approve$/i.test(text)) return 'approve heading';
+  return '';
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ */
 function checkVerdict(lines, errors) {
-  for (let i = 0; i < lines.length; i++) {
-    const heading = (lines[i] ?? '').match(/^#{1,6}\s+(.*)$/);
-    if (!heading) continue;
-    const title = heading[1] ?? '';
-    let end = lines.length;
-    for (let j = i + 1; j < lines.length; j++) {
-      if (/^#{1,6}\s+/.test(lines[j] ?? '')) {
-        end = j;
-        break;
-      }
+  for (const line of lines) {
+    if (/^#{1,6}\s+/.test(line)) continue;
+    if (isBareApprove(line)) {
+      errors.push('bare APPROVE line');
+      return;
     }
-    if (/reviewer\s+verdict/i.test(title)) errors.push('self-written verdict section');
-    const blob = [title, ...lines.slice(i + 1, end)].join('\n');
-    if (/reviewed\s+by\b/i.test(blob) && /\bapprove\b/i.test(blob)) {
-      errors.push('reviewed-by approve section');
+    if (/^verdict\s*:\s*approve$/i.test(plainLine(line))) {
+      errors.push('self-written verdict section');
+      return;
+    }
+  }
+  for (const line of lines) {
+    const heading = line.match(/^#{1,6}\s+(.*)$/);
+    if (!heading) continue;
+    const problem = headingProblem(heading[1] ?? '');
+    if (problem) {
+      errors.push(problem);
+      return;
     }
   }
 }
@@ -215,14 +325,30 @@ function checkVerdict(lines, errors) {
  * @param {string} body
  * @param {string[]} errors
  */
+const CLOSING =
+  /\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\b\s*:?\s*(?:#\d+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#\d+|https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/\d+)/i;
+
+/**
+ * @param {string} cell
+ * @returns {boolean}
+ */
+function cellHasNoTest(cell) {
+  return /\bno test\b/i.test(cell.replace(/`/g, ''));
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} body
+ * @param {string[]} errors
+ */
 function checkNoTestCloses(lines, body, errors) {
-  if (!/closes\s+#\d+/i.test(body)) return;
+  if (!CLOSING.test(body)) return;
   for (let i = 0; i < lines.length; i++) {
     if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
     for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
       for (const cell of splitRow(lines[j] ?? '')) {
-        if (cell.replace(/`/g, '').includes('NO TEST')) {
-          errors.push('NO TEST cannot use Closes');
+        if (cellHasNoTest(cell)) {
+          errors.push('NO TEST cannot use a closing keyword');
           return;
         }
       }
@@ -241,7 +367,7 @@ function isChangedTestFile(file) {
 /**
  * @returns {string[]}
  */
-function listChangedTestFiles() {
+function listChangedFiles() {
   const base = process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
   const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${base}...HEAD`], {
     encoding: 'utf8',
@@ -249,7 +375,7 @@ function listChangedTestFiles() {
   return out
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line !== '' && isChangedTestFile(line));
+    .filter((line) => line !== '');
 }
 
 /**
@@ -288,11 +414,13 @@ function main() {
     console.log('no pull request: skip PR contract');
     return;
   }
+  const changedFiles = listChangedFiles();
   const errors = reviewPrContract({
     title,
     body,
     exists: (file) => existsSync(path.resolve(process.cwd(), file)),
-    changedTestFiles: listChangedTestFiles(),
+    changedTestFiles: changedFiles.filter(isChangedTestFile),
+    changedFiles,
   });
   if (errors.length === 0) {
     console.log('PR contract ok');

@@ -114,7 +114,7 @@ test('rejects a self-written verdict section', () => {
 test('rejects a reviewed-by approve section', () => {
   const body = `${goodBody}\n## Reviewed by Ada\n\napprove\n`;
   const errors = review(body);
-  assert.ok(errors.some((error) => error.includes('reviewed-by')));
+  assert.ok(errors.some((error) => error.includes('bare APPROVE')));
 });
 
 test('rejects NO TEST when the body closes an issue', () => {

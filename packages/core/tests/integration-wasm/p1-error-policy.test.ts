@@ -18,68 +18,76 @@ function trapModuleBytes(): Uint8Array {
 describe("P1 error policy (real WASM)", () => {
   it("faults when a system calls an inline trap export", async () => {
     const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
-    const { instance } = await WebAssembly.instantiate(trapModuleBytes());
-    const trap = instance.exports["trap"];
-    if (typeof trap !== "function") throw new Error("expected trap export");
+    try {
+      const { instance } = await WebAssembly.instantiate(trapModuleBytes());
+      const trap = instance.exports["trap"];
+      if (typeof trap !== "function") throw new Error("expected trap export");
 
-    const errors: EngineErrorPayload[] = [];
-    engine.hooks.hook("engine:error", (payload) => {
-      errors.push(payload);
-    });
-    await engine.use(
-      defineSystem("TrapSys", () => {
-        onUpdate(() => {
-          trap();
-        });
-      })(),
-    );
-    await engine.startExternal();
-    await engine.advance(1 / 60);
+      const errors: EngineErrorPayload[] = [];
+      engine.hooks.hook("engine:error", (payload) => {
+        errors.push(payload);
+      });
+      await engine.use(
+        defineSystem("TrapSys", () => {
+          onUpdate(() => {
+            trap();
+          });
+        })(),
+      );
+      await engine.startExternal();
+      await engine.advance(1 / 60);
 
-    expect(errors).toHaveLength(1);
-    expect(errors[0]?.level).toBe("fatal");
-    expect(errors[0]?.code).toBe(CoreErrorCodes.WASM_PANIC);
-    expect(errors[0]?.target?.kind).toBe("system");
-    expect(engine.state).toBe("faulted");
-    await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.level).toBe("fatal");
+      expect(errors[0]?.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(errors[0]?.target?.kind).toBe("system");
+      expect(engine.state).toBe("faulted");
+      await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("isolates a community module trap and keeps other systems running", async () => {
     const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
-    let ticks = 0;
-    await engine.use(
-      defineSystem("Keeper", () => {
-        onUpdate(() => {
-          ticks += 1;
-        });
-      })(),
-    );
-    const url = `data:application/wasm;base64,${Buffer.from(trapModuleBytes()).toString("base64")}`;
-    await engine.loadWasmModule({
-      name: "trap-mod",
-      url,
-      step(handle) {
-        const trap = handle.exports["trap"];
-        if (typeof trap !== "function") throw new Error("expected trap export");
-        trap();
-      },
-    });
-    const errors: EngineErrorPayload[] = [];
-    engine.hooks.hook("engine:error", (payload) => {
-      errors.push(payload);
-    });
+    try {
+      let ticks = 0;
+      await engine.use(
+        defineSystem("Keeper", () => {
+          onUpdate(() => {
+            ticks += 1;
+          });
+        })(),
+      );
+      const url = `data:application/wasm;base64,${Buffer.from(trapModuleBytes()).toString("base64")}`;
+      await engine.loadWasmModule({
+        name: "trap-mod",
+        url,
+        step(handle) {
+          const trap = handle.exports["trap"];
+          if (typeof trap !== "function") throw new Error("expected trap export");
+          trap();
+        },
+      });
+      const errors: EngineErrorPayload[] = [];
+      engine.hooks.hook("engine:error", (payload) => {
+        errors.push(payload);
+      });
 
-    await engine.startExternal();
-    await engine.advance(1 / 60);
-    await engine.advance(1 / 60);
+      await engine.startExternal();
+      await engine.advance(1 / 60);
+      await engine.advance(1 / 60);
 
-    expect(errors).toHaveLength(1);
-    expect(errors[0]?.level).toBe("error");
-    expect(errors[0]?.code).toBe(CoreErrorCodes.WASM_PANIC);
-    expect(errors[0]?.target).toMatchObject({ kind: "wasm-module", id: "wasm:trap-mod" });
-    expect(engine.isolated().some((target) => target.id === "wasm:trap-mod")).toBe(true);
-    expect(ticks).toBe(2);
-    expect(engine.state).toBe("running");
+      expect(errors).toHaveLength(1);
+      expect(errors[0]?.level).toBe("error");
+      expect(errors[0]?.code).toBe(CoreErrorCodes.WASM_PANIC);
+      expect(errors[0]?.target).toMatchObject({ kind: "wasm-module", id: "wasm:trap-mod" });
+      expect(engine.isolated().some((target) => target.id === "wasm:trap-mod")).toBe(true);
+      expect(ticks).toBe(2);
+      expect(engine.state).toBe("running");
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("keeps a physics2d body falling while a sibling system throws", async () => {
@@ -87,37 +95,41 @@ describe("P1 error policy (real WASM)", () => {
       variant: "physics2d",
       maxEntities: 64,
     });
-    await engine.use(Physics2DPlugin({ gravity: -10 }));
-    let ticks = 0;
-    await engine.use(
-      defineSystem("Keeper", () => {
-        onUpdate(() => {
-          ticks += 1;
-        });
-      })(),
-    );
-    await engine.use(
-      defineSystem("BadSys", () => {
-        onUpdate(() => {
-          throw new Error("every frame");
-        });
-      })(),
-    );
-    const physics = engine.inject("physics2d");
-    const body = engine.createEntity();
-    physics.addRigidBody(body, "dynamic", 0, 5);
-    const start = physics.getPosition(body);
-    if (start === null) throw new Error("expected a physics2d body position");
+    try {
+      await engine.use(Physics2DPlugin({ gravity: -10 }));
+      let ticks = 0;
+      await engine.use(
+        defineSystem("Keeper", () => {
+          onUpdate(() => {
+            ticks += 1;
+          });
+        })(),
+      );
+      await engine.use(
+        defineSystem("BadSys", () => {
+          onUpdate(() => {
+            throw new Error("every frame");
+          });
+        })(),
+      );
+      const physics = engine.inject("physics2d");
+      const body = engine.createEntity();
+      physics.addRigidBody(body, "dynamic", 0, 5);
+      const start = physics.getPosition(body);
+      if (start === null) throw new Error("expected a physics2d body position");
 
-    await advance(10, 1 / 60);
+      await advance(10, 1 / 60);
 
-    const end = physics.getPosition(body);
-    if (end === null) throw new Error("expected a physics2d body position");
-    expect(end.y).toBeLessThan(start.y);
-    expect(ticks).toBe(10);
-    expect(
-      engine.isolated().some((target) => target.kind === "system" && target.name === "BadSys"),
-    ).toBe(true);
-    expect(engine.state).toBe("running");
+      const end = physics.getPosition(body);
+      if (end === null) throw new Error("expected a physics2d body position");
+      expect(end.y).toBeLessThan(start.y);
+      expect(ticks).toBe(10);
+      expect(
+        engine.isolated().some((target) => target.kind === "system" && target.name === "BadSys"),
+      ).toBe(true);
+      expect(engine.state).toBe("running");
+    } finally {
+      await engine.stop();
+    }
   });
 });
