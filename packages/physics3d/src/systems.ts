@@ -62,8 +62,14 @@ function readQuat(value: unknown): Physics3DQuat | null {
  * Only entities that have both a registered kinematic body AND the configured
  * position component are affected.
  *
+ * Register `Physics3DPlugin` first. `setup` resolves `physics3d` with
+ * `engine.inject`, and Rapier applies a kinematic target on the next step.
+ *
  * @param options - Position component, and an optional rotation component.
  * @returns A `definePlugin` class ready to be instantiated and registered.
+ * @throws {GwenPluginNotFoundError} when `physics3d` is not registered.
+ * `engine.use` reports that failure as `GwenComposableError` with code
+ * `engine:plugin-setup-failed`.
  *
  * @example
  * ```ts
