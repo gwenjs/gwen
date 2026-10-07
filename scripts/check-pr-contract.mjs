@@ -169,7 +169,7 @@ function redProofRows(lines) {
  * @param {string[] | undefined} changedTestFiles
  */
 const NA_ONLY =
-  'Red proof n/a is only allowed when every changed path is under docs/, a markdown file, or .github/';
+  'Red proof n/a is only allowed when every changed path is static docs under docs/, a markdown file, or .github/ outside workflows and actions';
 
 /**
  * @param {string[]} lines
@@ -204,6 +204,8 @@ function visibleLines(lines) {
  */
 function isDocsPath(file) {
   const normalized = String(file).split('\\').join('/');
+  if (normalized.startsWith('.github/workflows/') || normalized.startsWith('.github/actions/')) return false;
+  if (normalized.startsWith('docs/') && /\.(?:[cm]?[jt]s|tsx|jsx|vue)$/.test(normalized)) return false;
   return normalized.startsWith('docs/') || normalized.endsWith('.md') || normalized.startsWith('.github/');
 }
 
