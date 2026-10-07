@@ -11,10 +11,10 @@ Le mode debug active les diagnostics visuels et console pour comprendre ce qui s
 
 ### Debug global du moteur
 
-Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Cela active :
-- Journalisation détaillée de l'enregistrement des plugins et des événements de cycle de vie
+Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Les logs `debug` et `info` suivent ce drapeau dans chaque build. Ceci ne tourne que si `__GWEN_DEV__` est aussi vrai :
 - Vérifications sentinelles par frame
 - Avertissements de timing de phase en cas de dépassement du budget de frame
+- L'avertissement d'isolation (`isolated after …`)
 
 ```typescript
 // gwen.config.ts
@@ -56,7 +56,7 @@ Quand `debug: true` :
 - Les colliseurs de physique s'affichent comme des wireframes colorés
 - Le minutage du système apparaît à l'écran
 - La journalisation détaillée est active
-- Les vérifications de sentinelle valident l'intégrité des données
+- La sentinelle de mémoire WASM n'est vérifiée que si `__GWEN_DEV__` est aussi vrai. Les tableaux de composants ne sont pas vérifiés aux bornes, et les ID d'entités ne sont pas vérifiés.
 
 ## Débogage visuel
 

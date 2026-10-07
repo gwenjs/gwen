@@ -321,9 +321,9 @@ export interface GwenEngineOptions {
   /**
    * Enable debug mode for the engine and all plugins.
    * Logger `debug` and `info` follow this flag in every build.
-   * Per-frame sentinel checks and phase timing run only when this is `true`
-   * and the build is a development build (`__GWEN_DEV__`).
-   * Production builds skip that instrumentation even when this is `true`.
+   * Per-frame sentinel checks, phase timing, and the isolation warning run only
+   * when this is `true` and the build is a development build (`__GWEN_DEV__`).
+   * Production builds skip them even when this is `true`.
    * @default false
    */
   debug?: boolean;

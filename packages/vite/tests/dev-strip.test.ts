@@ -52,6 +52,7 @@ const SENTINELS = [
   "exceeded 50% of frame budget",
   "WASM memory sentinel violation",
   "ownership transferred",
+  "isolated after",
   "__routerName__",
   // The injector writes single quotes. Oxc reprints them as double quotes.
   '__layoutName__: "Level1"',

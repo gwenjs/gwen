@@ -11,10 +11,10 @@ Debug mode enables visual and console diagnostics to understand what's happening
 
 ### Global Engine Debug
 
-Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. This enables:
-- Verbose logging for plugin registration and lifecycle events
+Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. Logger `debug` and `info` follow this flag in every build. These run only when `__GWEN_DEV__` is also true:
 - Per-frame sentinel checks
-- Phase timing warnings when frame budget is exceeded
+- Phase timing warnings when the frame budget is exceeded
+- The isolation warning (`isolated after …`)
 
 ```typescript
 // gwen.config.ts
@@ -56,7 +56,7 @@ When `debug: true`:
 - Physics colliders render as colored wireframes
 - System timing appears on screen
 - Verbose logging is active
-- Sentinel checks validate data integrity
+- The WASM memory sentinel is checked only when `__GWEN_DEV__` is also true. Component arrays are not bounds-checked, and entity IDs are not verified.
 
 ## Visual Debugging
 

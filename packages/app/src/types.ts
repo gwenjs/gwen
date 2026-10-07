@@ -116,8 +116,8 @@ export interface GwenUserConfig extends GwenModuleOptions {
     maxDeltaSeconds?: number;
     /**
      * Enable global debug mode. Logger `debug` and `info` follow this flag.
-     * Per-frame sentinel checks and phase timing run only in a development build
-     * (`__GWEN_DEV__`) when this is also `true`.
+     * Per-frame sentinel checks, phase timing, and the isolation warning run only
+     * in a development build (`__GWEN_DEV__`) when this is also `true`.
      * @default false
      */
     debug?: boolean;
