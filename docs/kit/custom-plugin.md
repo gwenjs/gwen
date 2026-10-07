@@ -552,6 +552,8 @@ export const PhysicsPlugin = definePlugin(() => ({
 
 The offset is the export `gwen_<name>_ptr()` when the module provides it, otherwise the region's `byteOffset`. Without `transformRegion`, `transform_buffer_ptr()` returns `0` and nothing is copied.
 
+When that export exists, the engine instantiates the module twice. The first instance reads the offset. The second is the handle the game keeps. The `start` function runs on both instances. The second `start` sees the offset the first export returned. The plugin API version is checked before that offset is accepted. A probe offset that differs from the second instance is `CORE:WASM_MODULE_REGION_INVALID`.
+
 Import `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32) and `gwen.max_entities`. Layout is little-endian, 32 bytes per entity index:
 
 | Offset | Type | Meaning |

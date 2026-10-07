@@ -718,10 +718,13 @@ class GwenEngineImpl implements GwenEngine {
    *
    * @param options - Load options: name, URL, and optional per-frame step.
    * @returns The typed {@link WasmModuleHandle}.
-   * @throws {GwenError} If `fetch` or `WebAssembly.instantiate` fails.
+   * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when fetch, compile, the probe
+   *   instantiate or the second instantiate fails.
    * @throws {GwenError} `CORE:WASM_MODULE_REGION_TOO_SMALL` or
    *   `CORE:WASM_MODULE_REGION_INVALID` when `transformRegion` fails a load check.
    *   The module is not registered and the engine keeps running.
+   * @throws {GwenError} `CORE:WASM_API_VERSION_MISMATCH` when `versionPolicy`
+   *   is `throw` and `gwen_plugin_api_version` does not match.
    */
   async loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
@@ -747,7 +750,7 @@ class GwenEngineImpl implements GwenEngine {
     };
 
     let wasmModule: WebAssembly.Module;
-    let probeExports: WebAssembly.Exports | null = null;
+    let probeOffset: number | undefined;
     try {
       const response = await fetch(
         options.url instanceof URL ? options.url.toString() : options.url,
@@ -767,21 +770,17 @@ class GwenEngineImpl implements GwenEngine {
         );
         if (hasPtrExport) {
           const probe = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
-          probeExports = probe.exports;
+          probeOffset = this._resolveTransformOffset(probe.exports, declared);
+          // The real start() reads modulePtr, so publish the probe offset first.
+          modulePtr = probeOffset;
         }
       }
     } catch (err) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
         `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
           `Cause: ${err instanceof Error ? err.message : String(err)}`,
       );
-    }
-
-    if (declared && probeExports) {
-      modulePtr = this._resolveTransformOffset(probeExports, declared);
-      const probeMemory =
-        probeExports["memory"] instanceof WebAssembly.Memory ? probeExports["memory"] : undefined;
-      this._validateResolvedRegion(options.name, declared, modulePtr, probeMemory);
     }
 
     let instance: WebAssembly.Instance;
@@ -795,8 +794,7 @@ class GwenEngineImpl implements GwenEngine {
       );
     }
 
-    // Check plugin API version compatibility if configured
-    // Version check: side-effects only (warn/throw). Module loads regardless unless policy='throw'.
+    // Plugin API version (#92) before any resolved-region check.
     void checkPluginApiVersion(
       instance.exports,
       options.name,
@@ -811,7 +809,15 @@ class GwenEngineImpl implements GwenEngine {
 
     let transformCopy: WasmModuleTransformCopy | null = null;
     if (declared) {
-      modulePtr = this._resolveTransformOffset(instance.exports, declared);
+      const resolved = this._resolveTransformOffset(instance.exports, declared);
+      if (probeOffset !== undefined && resolved !== probeOffset) {
+        throw this._regionInvalid(
+          options.name,
+          declared.name,
+          `probe offset ${probeOffset} differs from the instance offset ${resolved}`,
+        );
+      }
+      modulePtr = resolved;
       this._validateResolvedRegion(options.name, declared, modulePtr, memory);
       transformCopy = { offset: modulePtr, bytes: null };
       this._getOrCreateTransformPtr();
