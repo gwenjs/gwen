@@ -111,51 +111,33 @@ export function actorPluginOf(pool: object): GwenPlugin {
   return plugin;
 }
 
-interface ListenerCounts {
-  acquire: number;
-  release: number;
-  warn: number;
-  critical: number;
-  exhausted: number;
+type PoolListener = PoolHooks[keyof PoolHooks];
+
+/**
+ * Mirror of the listener list hookable keeps per pool hook, in the same order.
+ * The hot path reads `.length` instead of hookable's private `_hooks`.
+ */
+interface ListenerLists {
+  acquire: PoolListener[];
+  release: PoolListener[];
+  warn: PoolListener[];
+  critical: PoolListener[];
+  exhausted: PoolListener[];
 }
 
-function countOf(counts: ListenerCounts, name: keyof PoolHooks): number {
+function listOf(lists: ListenerLists, name: keyof PoolHooks): PoolListener[] {
   switch (name) {
     case "pool:acquire":
-      return counts.acquire;
+      return lists.acquire;
     case "pool:release":
-      return counts.release;
+      return lists.release;
     case "pool:warn":
-      return counts.warn;
+      return lists.warn;
     case "pool:critical":
-      return counts.critical;
+      return lists.critical;
     case "pool:exhausted":
-      return counts.exhausted;
+      return lists.exhausted;
   }
-}
-
-function addCount(counts: ListenerCounts, name: keyof PoolHooks, delta: number): void {
-  switch (name) {
-    case "pool:acquire":
-      counts.acquire = Math.max(0, counts.acquire + delta);
-      break;
-    case "pool:release":
-      counts.release = Math.max(0, counts.release + delta);
-      break;
-    case "pool:warn":
-      counts.warn = Math.max(0, counts.warn + delta);
-      break;
-    case "pool:critical":
-      counts.critical = Math.max(0, counts.critical + delta);
-      break;
-    case "pool:exhausted":
-      counts.exhausted = Math.max(0, counts.exhausted + delta);
-      break;
-  }
-}
-
-function zeroCount(counts: ListenerCounts, name: keyof PoolHooks): void {
-  addCount(counts, name, -countOf(counts, name));
 }
 
 /**
@@ -218,41 +200,25 @@ export function defineActorPool<Props, PublicAPI>(
   let acquireCount = 0;
 
   const hooks = createHooks<PoolHooks>();
-  const listeners: ListenerCounts = { acquire: 0, release: 0, warn: 0, critical: 0, exhausted: 0 };
+  const listeners: ListenerLists = { acquire: [], release: [], warn: [], critical: [], exhausted: [] };
+  // hookable's own unsubscribe, removeHooks and hookOnce all go through
+  // `this.removeHook`, so this override sees every single removal once.
+  // Like hookable, one removal drops the first matching registration.
   const rawHook = hooks.hook.bind(hooks);
   const rawBeforeEach = hooks.beforeEach.bind(hooks);
   const rawAfterEach = hooks.afterEach.bind(hooks);
   let spyCount = 0;
-  interface OpenListener {
-    name: keyof PoolHooks;
-    fn: PoolHooks[keyof PoolHooks];
-    open: boolean;
-  }
-  const openListeners: OpenListener[] = [];
-  function retire(listener: OpenListener, decrement: boolean): void {
-    if (!listener.open) return;
-    listener.open = false;
-    const at = openListeners.indexOf(listener);
-    if (at >= 0) openListeners.splice(at, 1);
-    if (decrement) addCount(listeners, listener.name, -1);
-  }
-  function retireName(name: keyof PoolHooks): void {
-    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
-      const listener = openListeners[i]!;
-      if (listener.name === name) retire(listener, false);
-    }
-  }
   hooks.hook = (name, fn, hookOptions) => {
-    if (typeof fn !== "function") return rawHook(name, fn, hookOptions);
-    addCount(listeners, name, 1);
     const off = rawHook(name, fn, hookOptions);
-    const listener: OpenListener = { name, fn, open: true };
-    openListeners.push(listener);
-    return () => {
-      if (!listener.open) return;
-      retire(listener, true);
-      off();
-    };
+    if (typeof fn === "function") listOf(listeners, name).push(fn);
+    return off;
+  };
+  const rawRemoveHook = hooks.removeHook.bind(hooks);
+  hooks.removeHook = (name, fn) => {
+    const list = listOf(listeners, name);
+    const at = list.indexOf(fn);
+    if (at >= 0) list.splice(at, 1);
+    rawRemoveHook(name, fn);
   };
   hooks.beforeEach = (fn) => {
     spyCount += 1;
@@ -278,38 +244,22 @@ export function defineActorPool<Props, PublicAPI>(
   };
   const rawClear = hooks.clearHook.bind(hooks);
   hooks.clearHook = (name) => {
-    retireName(name);
-    zeroCount(listeners, name);
+    listOf(listeners, name).length = 0;
     rawClear(name);
   };
   const rawRemoveAll = hooks.removeAllHooks.bind(hooks);
   hooks.removeAllHooks = () => {
-    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
-      retire(openListeners[i]!, false);
-    }
-    listeners.acquire = 0;
-    listeners.release = 0;
-    listeners.warn = 0;
-    listeners.critical = 0;
-    listeners.exhausted = 0;
+    listeners.acquire.length = 0;
+    listeners.release.length = 0;
+    listeners.warn.length = 0;
+    listeners.critical.length = 0;
+    listeners.exhausted.length = 0;
     rawRemoveAll();
-  };
-  const rawRemoveHook = hooks.removeHook.bind(hooks);
-  hooks.removeHook = (name, fn) => {
-    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
-      const listener = openListeners[i]!;
-      if (listener.name === name && listener.fn === fn) retire(listener, true);
-    }
-    rawRemoveHook(name, fn);
-  };
-  const rawRemoveHooks = hooks.removeHooks.bind(hooks);
-  hooks.removeHooks = (config) => {
-    rawRemoveHooks(config);
   };
 
   // No listener and no before/after spy: callHook would only allocate.
   function callAcquire(id: EntityId, props: unknown): void {
-    if (listeners.acquire === 0 && spyCount === 0) return;
+    if (listeners.acquire.length === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
@@ -319,17 +269,17 @@ export function defineActorPool<Props, PublicAPI>(
   }
 
   function callRelease(id: EntityId): void {
-    if (listeners.release === 0 && spyCount === 0) return;
+    if (listeners.release.length === 0 && spyCount === 0) return;
     reportRejectedHook(_engine, hookSource, "pool:release", hooks.callHook("pool:release", { id }));
   }
 
   function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
-    if (countOf(listeners, name) === 0 && spyCount === 0) return;
+    if (listOf(listeners, name).length === 0 && spyCount === 0) return;
     reportRejectedHook(_engine, hookSource, name, hooks.callHook(name, { active, size, ratio }));
   }
 
   function callExhausted(): void {
-    if (listeners.exhausted === 0 && spyCount === 0) return;
+    if (listeners.exhausted.length === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
@@ -367,7 +317,7 @@ export function defineActorPool<Props, PublicAPI>(
 
     inst._scope.forgetIsolation();
     inst._scope.pause();
-    if (listeners.release > 0) void hooks.callHook("pool:release", { id });
+    callRelease(id);
   }
 
   function activate(id: EntityId): void {
