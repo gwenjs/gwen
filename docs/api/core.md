@@ -21,29 +21,32 @@ import { useTween } from '@gwenjs/core'
 
 ### Engine
 
-### createEngine(options)
+### setupGwen(options)
 
 **Signature:**
 ```ts
-function createEngine(options: GwenEngineOptions): GwenEngine
+function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 ```
 
-**Description.** Creates and initializes the GWEN engine with the provided configuration. This is the foundation of your game/app.
+**Description.** Loads the WASM core and creates the engine. This is the entry point for an application. `createEngine()` does not load WASM. `engine.start()` returns a promise and throws `CORE:WASM_NOT_INITIALIZED` until WASM is loaded.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options | `GwenEngineOptions` | Engine configuration (scenes, plugins, etc.) |
+| options | `GwenEngineOptions` | Engine configuration (variant, maxEntities, debug). |
 
-**Returns:** `GwenEngine` — the initialized engine instance.
+**Returns:** `Promise<GwenEngine>` — the engine, with WASM loaded.
 
 **Example:**
 ```ts
-const engine = await createEngine({
+import { setupGwen } from '@gwenjs/core'
+
+const engine = await setupGwen({
   maxEntities: 10_000,
   variant: 'physics2d',
   debug: true,
 })
+await engine.start()
 ```
 
 ### useEngine()

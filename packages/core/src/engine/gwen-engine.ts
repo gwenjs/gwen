@@ -1840,7 +1840,7 @@ class GwenEngineImpl implements GwenEngine {
  * Create a GWEN engine instance.
  *
  * @param options - Engine configuration. All fields optional.
- * @returns A fully initialised {@link GwenEngine}.
+ * @returns The engine. WASM is not loaded. Use {@link setupGwen} to load it.
  *
  * @example
  * ```typescript
