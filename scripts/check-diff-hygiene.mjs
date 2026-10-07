@@ -274,10 +274,22 @@ function collectAliases(masked) {
     }
     match = importRe.exec(masked);
   }
+  // `const { createRealEngine: mk } = H` and `= await import('./harness.js')`.
+  const destructureRe = /\{([^{}]*)\}\s*=/g;
+  let destructure = destructureRe.exec(masked);
+  while (destructure) {
+    for (const part of (destructure[1] ?? '').split(',')) {
+      const renamed = part.trim().match(/^createRealEngine\s*:\s*([A-Za-z_$][\w$]*)$/);
+      if (renamed?.[1]) names.add(renamed[1]);
+    }
+    destructure = destructureRe.exec(masked);
+  }
   let grew = true;
   while (grew) {
     grew = false;
-    const bindRe = /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)\b(?!\s*\()/g;
+    // `const mk = alias` and `const mk = H.createRealEngine`.
+    const bindRe =
+      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)?([A-Za-z_$][\w$]*)\b(?!\s*[(.])/g;
     let bind = bindRe.exec(masked);
     while (bind) {
       const lhs = bind[1] ?? '';
@@ -310,21 +322,30 @@ function engineFromDestructure(text) {
 /**
  * @param {string} masked
  * @param {Set<string>} names
- * @returns {{ index: number, binding: { name: string, kind: 'handle' | 'engine' } | null }[]}
+ * @returns {{ index: number, binding: { name: string, kind: 'handle' | 'engine' | 'array' } | null }[]}
  */
 function findEngineCalls(masked, names) {
   const alt = [...names].map(escapeRegExp).join('|');
-  /** @type {{ index: number, binding: { name: string, kind: 'handle' | 'engine' } | null }[]} */
+  /** @type {{ index: number, binding: { name: string, kind: 'handle' | 'engine' | 'array' } | null }[]} */
   const calls = [];
   if (!alt) return calls;
   /** @type {Set<number>} */
   const taken = new Set();
   // `X.createRealEngine(` (namespace import, re-export object) counts too.
-  const callee = `(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*)?(?:${alt})`;
+  // `(await import('./harness.js')).createRealEngine(` too.
+  const callee = `(?:(?:[A-Za-z_$][\\w$]*|\\(\\s*await\\s+import\\s*\\([^()]*\\)\\s*\\))\\s*\\.\\s*)?(?:${alt})`;
   const assigned = new RegExp(
     `\\b(?:const|let|var)?\\s*(?:(\\{[^}]*\\})|([A-Za-z_$][\\w$]*))\\s*=\\s*(?:await\\s+)?${callee}\\s*\\(`,
     'g',
   );
+  // `engines.push(await createRealEngine())`: the array is the binding.
+  const pushed = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*push\\s*\\(\\s*(?:await\\s+)?${callee}\\s*\\(`, 'g');
+  let push = pushed.exec(masked);
+  while (push) {
+    calls.push({ index: push.index, binding: { name: push[1] ?? '', kind: 'array' } });
+    taken.add(push.index + push[0].length);
+    push = pushed.exec(masked);
+  }
   let match = assigned.exec(masked);
   while (match) {
     const destructure = match[1];
@@ -431,12 +452,13 @@ function cleanupFor(masked, index) {
 
 /**
  * @param {string} cleanup
- * @param {{ name: string, kind: 'handle' | 'engine' } | null} binding
+ * @param {{ name: string, kind: 'handle' | 'engine' | 'array' } | null} binding
  * @param {number} [needed] releases required for this binding
  * @returns {boolean}
  */
 function isGuarded(cleanup, binding, needed = 1) {
   if (!binding) return false;
+  if (binding.kind === 'array') return arrayReleased(cleanup, binding.name);
   const name = escapeRegExp(binding.name);
   const re =
     binding.kind === 'handle'
@@ -445,7 +467,54 @@ function isGuarded(cleanup, binding, needed = 1) {
           'g',
         )
       : new RegExp(`\\b${name}\\s*\\?\\.\\s*(?:stop|dispose)\\s*\\(|\\b${name}\\.(?:stop|dispose)\\s*\\(`, 'g');
-  return (cleanup.match(re) ?? []).length >= needed;
+  let count = 0;
+  for (const match of cleanup.matchAll(re)) {
+    if (!deadCondition(cleanup, match.index ?? 0, binding.name)) count += 1;
+  }
+  return count >= needed;
+}
+
+/**
+ * True when the release at `index` sits behind an `if` whose condition does
+ * not name the binding (`if (false) h.dispose()`): it may never run.
+ *
+ * @param {string} cleanup
+ * @param {number} index
+ * @param {string} name
+ * @returns {boolean}
+ */
+function deadCondition(cleanup, index, name) {
+  const before = cleanup.slice(0, index);
+  const guard = before.match(/\bif\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*\{?\s*(?:await\s+)?$/);
+  if (!guard) return false;
+  return !new RegExp(`\\b${escapeRegExp(name)}\\b`).test(guard[1] ?? '');
+}
+
+/**
+ * True when the cleanup releases every element of `name` in a loop:
+ * `for (const h of name) h.dispose()`, `name.forEach((h) => h.dispose())`,
+ * `name.map((h) => h.dispose())`.
+ *
+ * @param {string} cleanup
+ * @param {string} name
+ * @returns {boolean}
+ */
+function arrayReleased(cleanup, name) {
+  const list = escapeRegExp(name);
+  const loops = [
+    new RegExp(`\\bfor\\s*\\(\\s*(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s+of\\s+${list}\\s*\\)`, 'g'),
+    new RegExp(
+      `\\b${list}\\s*\\.\\s*(?:forEach|map)\\s*\\(\\s*(?:async\\s+)?\\(?\\s*([A-Za-z_$][\\w$]*)\\s*\\)?\\s*=>`,
+      'g',
+    ),
+  ];
+  for (const re of loops) {
+    for (const match of cleanup.matchAll(re)) {
+      const item = match[1] ?? '';
+      if (item && isGuarded(cleanup.slice(match.index ?? 0), { name: item, kind: 'handle' })) return true;
+    }
+  }
+  return false;
 }
 
 /**
@@ -453,7 +522,8 @@ function isGuarded(cleanup, binding, needed = 1) {
  * @returns {boolean}
  */
 function unguardedRealEngines(content) {
-  const masked = maskSource(content);
+  // `H['createRealEngine']` reads as `H.createRealEngine` (masking blanks strings).
+  const masked = maskSource(content.replace(/\[\s*(['"`])([A-Za-z_$][\w$]*)\1\s*\]/g, '.$2'));
   const calls = findEngineCalls(masked, collectAliases(masked));
   // A binding assigned N engines needs N releases in reach: one dispose in
   // finally does not release the engine the second assignment replaced.
@@ -463,7 +533,7 @@ function unguardedRealEngines(content) {
   /** @type {Map<string, number>} */
   const perBinding = new Map();
   for (const call of calls) {
-    if (call.binding) perBinding.set(key(call), (perBinding.get(key(call)) ?? 0) + 1);
+    if (call.binding && call.binding.kind !== 'array') perBinding.set(key(call), (perBinding.get(key(call)) ?? 0) + 1);
   }
   return calls.some(
     (call) => !isGuarded(cleanupFor(masked, call.index), call.binding, perBinding.get(key(call)) ?? 1),
