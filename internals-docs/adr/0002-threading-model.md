@@ -167,7 +167,7 @@ This record does not remove `requireSAB`, `detectSharedMemoryRequired`, `wasm.sh
 
 ~~The SAB sentences in the published docs and in `internals-docs/architecture.md` stay until #62.~~ Superseded by #115: it removes those sentences from `docs/`, `docs/fr/` and `internals-docs/architecture.md`.
 
-~~The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts` (R8).~~ Superseded by #115: the `SharedArrayBuffer` / `Atomics` / `crossOriginIsolated` list and the COOP/COEP list are empty. Only `packages/physics3d/src/plugin/bvh.ts` (R8) stays, in the `new Worker` list.
+~~The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts` (R8).~~ Superseded by #115: the `SharedArrayBuffer` / `Atomics` / `crossOriginIsolated` / shared `WebAssembly.Memory` list and the COOP/COEP list are empty. Only `packages/physics3d/src/plugin/bvh.ts` (R8) stays, in the `new Worker` list.
 
 The allow-list may only shrink. Keys are the file plus the pattern. A removed site stays green. A new site, or a higher count, fails.
 
