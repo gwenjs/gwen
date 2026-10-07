@@ -114,7 +114,7 @@ test('rejects a self-written verdict section', () => {
 test('rejects a reviewed-by approve section', () => {
   const body = `${goodBody}\n## Reviewed by Ada\n\napprove\n`;
   const errors = review(body);
-  assert.ok(errors.some((error) => error.includes('bare APPROVE')));
+  assert.ok(errors.some((error) => error.includes('reviewed-by')));
 });
 
 test('rejects NO TEST when the body closes an issue', () => {
@@ -154,11 +154,11 @@ test('allows n/a only for docs, markdown, and github', () => {
     .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
   const docs = review(body, 'docs: clarify the contract', [], ['docs/guide.md']);
   const markdown = review(body, 'docs: clarify the contract', [], ['CLAUDE.md']);
-  const workflow = review(body, 'ci: workflow only', [], ['.github/workflows/ci.yml']);
+  const template = review(body, 'docs: issue template', [], ['.github/ISSUE_TEMPLATE/bug.md']);
   const code = review(body, 'ci: change a script', [], ['scripts/check-pr-contract.mjs']);
   assert.deepEqual(docs, []);
   assert.deepEqual(markdown, []);
-  assert.deepEqual(workflow, []);
+  assert.deepEqual(template, []);
   assert.ok(code.some((error) => /n\/a|docs\/|changed test file/i.test(error)));
 });
 
@@ -251,4 +251,71 @@ test('rejects every GitHub closing keyword next to a NO TEST cell', () => {
     const errors = review(withGap(keyword));
     assert.ok(errors.some((error) => error.includes('NO TEST')), keyword);
   }
+});
+
+test('rejects review outcome words in any markdown shape', () => {
+  const shapes = [
+    '**Verdict**: APPROVE',
+    '**Verdict:** approve',
+    'Verdict: APPROVED',
+    'Reviewer verdict: APPROVE',
+    'APPROVE WITH NOTES',
+    '> APPROVE',
+    '- APPROVE',
+    'APPROVE.',
+    '`APPROVE`',
+    '## Review\n\nApproved by the author after a self check.',
+    "## Reviewer's decision\n\nAPPROVE WITH NOTES",
+    '    ```\n## Verdict\n\nAPPROVE',
+  ];
+  for (const shape of shapes) {
+    const errors = review(`${goodBody}\n${shape}\n`);
+    assert.ok(errors.length > 0, shape);
+  }
+});
+
+test('rejects a Reviewed-by line', () => {
+  const errors = review(`${goodBody}\nReviewed-by: claude, approve\n`);
+  assert.ok(errors.some((error) => error.includes('reviewed-by')));
+});
+
+test('keeps the maintainer sentence inside a longer line', () => {
+  const errors = review(`${goodBody}\nThis was reviewed by the maintainer, who will approve or not.\n`);
+  assert.deepEqual(errors, []);
+});
+
+test('treats a fence indented by three spaces as a fence and by four as text', () => {
+  const three = review(`${goodBody}\n   \`\`\`\nAPPROVE\n   \`\`\`\n`);
+  const four = review(`${goodBody}\n    \`\`\`\nAPPROVE\n`);
+  assert.deepEqual(three, []);
+  assert.ok(four.length > 0);
+});
+
+test('rejects every spelling of no test next to a closing keyword', () => {
+  for (const gap of ['No tests', 'NO-TEST', 'no-tests', 'untested']) {
+    const errors = review(withGap('Closes #12', gap));
+    assert.ok(errors.some((error) => error.includes('NO TEST')), gap);
+  }
+});
+
+test('reads no test only in the Acceptance tables', () => {
+  const body = `${goodBody}\nThis closes #12.\n\n| File | Note |\n| --- | --- |\n| docs/a.md | no test needed for docs |\n`;
+  assert.deepEqual(review(body), []);
+});
+
+test('treats workflows and docs scripts as code for the n/a rule', () => {
+  const body = goodBody
+    .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
+    .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  for (const file of [
+    '.github/workflows/ci.yml',
+    '.github/actions/setup-node-pnpm/action.yml',
+    'docs/.vitepress/config.ts',
+    'docs/.vitepress/theme/index.js',
+    'docs/scripts/build.mjs',
+  ]) {
+    const errors = review(body, 'ci: change', [], [file]);
+    assert.ok(errors.length > 0, file);
+  }
+  assert.deepEqual(review(body, 'docs: logo', [], ['docs/public/logo.svg']), []);
 });
