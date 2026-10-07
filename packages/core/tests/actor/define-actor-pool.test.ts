@@ -16,7 +16,7 @@ import { useHook } from "../../src/hooks/use-hook";
 import { onDisable, onRelease, onReset, useEntityId } from "../../src/actor/runtime/define-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
-import { entityIndex, type EntityId } from "../../src/types/entity";
+import { entityIndex } from "../../src/types/entity";
 import type { ActorPool } from "../../src/actor/runtime/pool/types";
 import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
@@ -1112,23 +1112,21 @@ describe("defineActorPool — dormancy (#56)", () => {
   it("a release inside onRelease is processed at the next flush", async () => {
     const engine = await createEngine();
     const prefab = definePrefab([{ def: Mark, defaults: { value: 1 } }]);
-    let releaseOther: (id: EntityId) => void = () => {};
+    let releaseHeld: () => void = () => {};
     let nested = false;
-    let held: EntityId | undefined;
     const Actor = defineActor(prefab, () => {
       onRelease(() => {
-        if (nested || held === undefined) return;
+        if (nested) return;
         nested = true;
-        releaseOther(held);
+        releaseHeld();
       });
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 4 });
     await engine.use(pool.plugin);
-    releaseOther = (id) => pool.release(id);
 
     const first = pool.acquire();
-    held = first;
+    releaseHeld = () => pool.release(first);
     const second = pool.acquire();
     pool.release(second);
     await flush(engine);
