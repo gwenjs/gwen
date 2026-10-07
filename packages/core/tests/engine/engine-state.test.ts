@@ -168,6 +168,7 @@ describe("engine state machine", () => {
   it("rejects start and advance after stop and ignores a fatal", async () => {
     const engine = await createEngine();
     try {
+      activateTestWasm(engine);
       const seen = watch(engine);
       let inits = 0;
       let starts = 0;
@@ -182,7 +183,15 @@ describe("engine state machine", () => {
       expect(starts).toBe(1);
       await engine.stop();
       const afterStop = seen.length;
-      await expect(engine.start()).rejects.toMatchObject({ from: "stopped", method: "start" });
+      let startError: unknown;
+      try {
+        await engine.start();
+      } catch (error) {
+        startError = error;
+      }
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+      expect(startError).toMatchObject({ from: "stopped", method: "start" });
       await expect(engine.startExternal()).rejects.toMatchObject({
         from: "stopped",
         method: "startExternal",
