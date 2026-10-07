@@ -135,19 +135,19 @@ function countOf(counts: ListenerCounts, name: keyof PoolHooks): number {
 function addCount(counts: ListenerCounts, name: keyof PoolHooks, delta: number): void {
   switch (name) {
     case "pool:acquire":
-      counts.acquire += delta;
+      counts.acquire = Math.max(0, counts.acquire + delta);
       break;
     case "pool:release":
-      counts.release += delta;
+      counts.release = Math.max(0, counts.release + delta);
       break;
     case "pool:warn":
-      counts.warn += delta;
+      counts.warn = Math.max(0, counts.warn + delta);
       break;
     case "pool:critical":
-      counts.critical += delta;
+      counts.critical = Math.max(0, counts.critical + delta);
       break;
     case "pool:exhausted":
-      counts.exhausted += delta;
+      counts.exhausted = Math.max(0, counts.exhausted + delta);
       break;
   }
 }
@@ -219,15 +219,34 @@ export function defineActorPool<Props, PublicAPI>(
   const rawBeforeEach = hooks.beforeEach.bind(hooks);
   const rawAfterEach = hooks.afterEach.bind(hooks);
   let spyCount = 0;
+  interface OpenListener {
+    name: keyof PoolHooks;
+    fn: PoolHooks[keyof PoolHooks];
+    open: boolean;
+  }
+  const openListeners: OpenListener[] = [];
+  function retire(listener: OpenListener, decrement: boolean): void {
+    if (!listener.open) return;
+    listener.open = false;
+    const at = openListeners.indexOf(listener);
+    if (at >= 0) openListeners.splice(at, 1);
+    if (decrement) addCount(listeners, listener.name, -1);
+  }
+  function retireName(name: keyof PoolHooks): void {
+    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
+      const listener = openListeners[i]!;
+      if (listener.name === name) retire(listener, false);
+    }
+  }
   hooks.hook = (name, fn, hookOptions) => {
     if (typeof fn !== "function") return rawHook(name, fn, hookOptions);
     addCount(listeners, name, 1);
     const off = rawHook(name, fn, hookOptions);
-    let open = true;
+    const listener: OpenListener = { name, fn, open: true };
+    openListeners.push(listener);
     return () => {
-      if (!open) return;
-      open = false;
-      addCount(listeners, name, -1);
+      if (!listener.open) return;
+      retire(listener, true);
       off();
     };
   };
@@ -255,17 +274,33 @@ export function defineActorPool<Props, PublicAPI>(
   };
   const rawClear = hooks.clearHook.bind(hooks);
   hooks.clearHook = (name) => {
+    retireName(name);
     zeroCount(listeners, name);
     rawClear(name);
   };
   const rawRemoveAll = hooks.removeAllHooks.bind(hooks);
   hooks.removeAllHooks = () => {
+    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
+      retire(openListeners[i]!, false);
+    }
     listeners.acquire = 0;
     listeners.release = 0;
     listeners.warn = 0;
     listeners.critical = 0;
     listeners.exhausted = 0;
     rawRemoveAll();
+  };
+  const rawRemoveHook = hooks.removeHook.bind(hooks);
+  hooks.removeHook = (name, fn) => {
+    for (let i = openListeners.length - 1; i >= 0; i -= 1) {
+      const listener = openListeners[i]!;
+      if (listener.name === name && listener.fn === fn) retire(listener, true);
+    }
+    rawRemoveHook(name, fn);
+  };
+  const rawRemoveHooks = hooks.removeHooks.bind(hooks);
+  hooks.removeHooks = (config) => {
+    rawRemoveHooks(config);
   };
 
   // No listener and no before/after spy: callHook would only allocate.
@@ -413,15 +448,11 @@ export function defineActorPool<Props, PublicAPI>(
     while (availableCount > 0) {
       availableCount -= 1;
       const candidate = available[availableCount]!;
-      // A dead id fails this write and is dropped. The slot stays dormant
-      // while prefab defaults are copied onto the existing component objects.
+      // A dead id fails this write and is dropped. The slot stays dormant.
+      // Reuse does not add or remove a component.
       if (!setEntityDormant(engine, candidate, true)) continue;
       const inst = actor._instances.get(candidate);
       if (!inst) continue;
-      for (let i = 0; i < actor._prefab.components.length; i += 1) {
-        const entry = actor._prefab.components[i]!;
-        engine.addComponent(candidate, entry.def, entry.defaults);
-      }
       if (!setEntityDormant(engine, candidate, false)) continue;
       inst._scope.resume();
       for (let i = 0; i < inst._reset.length; i += 1) inst._reset[i]!(props);
