@@ -60,26 +60,29 @@ describe("physics3d performance", () => {
   it("500 onContact dispatches per frame < 1ms", async () => {
     const engine = await createEngine();
     engine.activate();
-    _clearContactCallbacks();
-    const cb = vi.fn();
-    onContact(cb);
+    try {
+      _clearContactCallbacks();
+      const cb = vi.fn();
+      onContact(cb);
 
-    const event: Physics3DCollisionContact = {
-      entityA: 1n,
-      entityB: 2n,
-      started: true,
-    };
+      const event: Physics3DCollisionContact = {
+        entityA: 1n,
+        entityB: 2n,
+        started: true,
+      };
 
-    const start = performance.now();
-    for (let i = 0; i < 500; i++) {
-      _dispatchContactEvent(event);
+      const start = performance.now();
+      for (let i = 0; i < 500; i++) {
+        _dispatchContactEvent(event);
+      }
+      const elapsed = performance.now() - start;
+
+      expect(elapsed).toBeLessThan(ciThreshold(1));
+      expect(cb).toHaveBeenCalledTimes(500);
+      _clearContactCallbacks();
+    } finally {
+      engine.deactivate();
+      await engine.stop();
     }
-    const elapsed = performance.now() - start;
-
-    expect(elapsed).toBeLessThan(ciThreshold(1));
-    expect(cb).toHaveBeenCalledTimes(500);
-    _clearContactCallbacks();
-    engine.deactivate();
-    await engine.stop();
   });
 });
