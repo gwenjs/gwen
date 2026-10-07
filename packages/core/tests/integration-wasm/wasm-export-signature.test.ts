@@ -3,7 +3,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { createRealEngine, type RealEngineHandle } from "./harness.js";
+import { createRealEngine } from "./harness.js";
 import {
   JS_ENTITY_ID,
   LIGHT_JS,
@@ -232,10 +232,6 @@ function expectedWasm(variant: Variant): string[] {
   return [...LIGHT_WASM, ...WASM_EXTRA[variant], ...FREE_WASM[variant]].sort();
 }
 
-async function stop(handle: RealEngineHandle): Promise<void> {
-  await handle.dispose();
-}
-
 describe("WASM export signatures", () => {
   it("rejects a non-function wasm import", () => {
     const cursor = { i: 0 };
@@ -305,7 +301,7 @@ describe("WASM export signatures", () => {
         expect(typeof raw.physics3d_get_collision_event_count()).toBe("number");
       }
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
     expect(handle.engine.state).toBe("stopped");
   });

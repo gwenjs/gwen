@@ -561,13 +561,59 @@ test('wasm-trap disposes every real engine', () => {
 test('netcode-ready local dispose is still a wasm-dispose hit', () => {
   const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
   assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
-  assert.ok(scanWasmFile('packages/core/tests/integration-wasm/netcode-ready.test.ts').length > 0);
+  // The pre-#70 netcode-ready shape: a local dispose that stops engines through
+  // handle.engine.stop() instead of the harness dispose().
+  const local = findDiffViolations(
+    diff('packages/core/tests/integration-wasm/netcode-ready.test.ts', [
+      'const first = await createRealEngine({ variant: "physics2d" });',
+      'const second = await createRealEngine({ variant: "physics2d" });',
+      'const stopped = new Set<Handle>();',
+      'const stopOnce = async (handle: Handle): Promise<void> => {',
+      '  if (stopped.has(handle)) return;',
+      '  await handle.engine.stop();',
+      '  stopped.add(handle);',
+      '};',
+      'const dispose = async (): Promise<void> => {',
+      '  await stopOnce(first);',
+      '  await stopOnce(second);',
+      '};',
+      'try {',
+      '  await first.advance(STEPS, DT);',
+      '  await stopOnce(first);',
+      '} finally {',
+      '  await dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(local.some((hit) => hit.rule === 'wasm-dispose'));
 });
 
 test('determinism local dispose is still a wasm-dispose hit', () => {
   const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
   assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
-  assert.ok(scanWasmFile('packages/core/tests/integration-wasm/determinism.test.ts').length > 0);
+  // The pre-#70 determinism shape: a local dispose that calls engine.stop()
+  // on a destructured engine instead of the harness dispose().
+  const local = findDiffViolations(
+    diff('packages/core/tests/integration-wasm/determinism.test.ts', [
+      'const { engine, bridge, advance } = await createRealEngine({',
+      '  variant,',
+      '  maxEntities: MAX_ENTITIES,',
+      '  physicsHz: 60,',
+      '});',
+      'let unsubscribe = (): void => {};',
+      'const dispose = async (): Promise<void> => {',
+      '  unsubscribe();',
+      '  await engine.stop();',
+      '};',
+      'try {',
+      '  await advance(1, DT);',
+      '  return captureWorldBytes(engine, bridge, ids, physics);',
+      '} finally {',
+      '  await dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(local.some((hit) => hit.rule === 'wasm-dispose'));
 });
 
 test('rejects createRealEngine called through a namespace import', () => {

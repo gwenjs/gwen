@@ -30,7 +30,8 @@ interface ActivationCounts {
  * await one scene:enter for the main scene, then startExternal and advance.
  */
 async function replayBootstrap(place: "none" | "host" | "routed-scene"): Promise<ActivationCounts> {
-  const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
+  const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
+  const { engine } = handle;
   const seenEnter: string[] = [];
   const onSceneEnter = (name: string): void => {
     seenEnter.push(name);
@@ -143,7 +144,7 @@ async function replayBootstrap(place: "none" | "host" | "routed-scene"): Promise
   } finally {
     engine.hooks.removeHook("scene:enter", onSceneEnter);
     if (resumeHook) engine.hooks.removeHook("scene:enter", resumeHook);
-    await engine.stop();
+    await handle.dispose();
   }
 }
 
