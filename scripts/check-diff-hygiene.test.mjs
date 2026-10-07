@@ -569,3 +569,56 @@ test('determinism local dispose is still a wasm-dispose hit', () => {
   assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
   assert.ok(scanWasmFile('packages/core/tests/integration-wasm/determinism.test.ts').length > 0);
 });
+
+test('rejects createRealEngine called through a namespace import', () => {
+  const bare = findDiffViolations(
+    diff(wasmFile, [
+      "import * as H from './harness.js';",
+      'const handle = await H.createRealEngine();',
+      'handle.step();',
+    ]),
+  );
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  const guarded = findDiffViolations(
+    diff(wasmFile, [
+      "import * as H from './harness.js';",
+      'const handle = await H.createRealEngine();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  await handle.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(!guarded.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('rejects a binding assigned two engines with one dispose', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'let handle = await createRealEngine();',
+      'handle = await createRealEngine();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  await handle.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('accepts a late assignment disposed in finally', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'let handle;',
+      'try {',
+      '  handle = await createRealEngine();',
+      '  handle.step();',
+      '} finally {',
+      '  await handle?.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(!hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
