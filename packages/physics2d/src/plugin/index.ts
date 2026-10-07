@@ -161,26 +161,38 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     cachedCollisionBatch: null,
   }));
 
+  let cachedEngine: GwenEngine | null = null;
+  let cachedState: P2State | null = null;
+  function stateNow(): P2State {
+    const current = engineContext.tryUse() ?? null;
+    if (cachedState && current === cachedEngine) return cachedState;
+    cachedState = p2States.use();
+    cachedEngine = engineContext.tryUse() ?? null;
+    return cachedState;
+  }
   const st = new Proxy({} as P2State, {
     get(_target, prop) {
-      return Reflect.get(p2States.use(), prop);
+      return Reflect.get(stateNow(), prop);
     },
     set(_target, prop, value) {
-      return Reflect.set(p2States.use(), prop, value);
+      return Reflect.set(stateNow(), prop, value);
     },
   });
 
   /** Service calls keep this engine current, even when the caller is outside `run`. */
   function bindToEngine<T extends object>(engine: GwenEngine, api: T): T {
+    const bound = new Map<PropertyKey, unknown>();
     return new Proxy(api, {
       get(target, prop, receiver) {
+        const hit = bound.get(prop);
+        if (hit !== undefined) return hit;
         const value: unknown = Reflect.get(target, prop, receiver);
         if (typeof value !== "function") return value;
-        return (...args: unknown[]) => {
+        const fn = (...args: unknown[]): unknown => {
           const previous = engineContext.tryUse() ?? undefined;
           engineContext.set(engine, true);
           try {
-            return Reflect.apply(value, target, args);
+            return Reflect.apply(value as (...inner: unknown[]) => unknown, target, args);
           } finally {
             if (engineContext.tryUse() === engine) {
               if (previous !== undefined) engineContext.set(previous, true);
@@ -188,6 +200,8 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             }
           }
         };
+        bound.set(prop, fn);
+        return fn;
       },
     });
   }
@@ -310,7 +324,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     st.pooledCollisionEvents.length = visibleCount;
     for (let i = 0; i < visibleCount; i++) {
       const offset = i * EVENT_STRIDE;
-      const type = eventsView!.getUint32(offset + 8, true);
 
       let ev = st.pooledCollisionEvents[i];
       if (!ev) {
@@ -320,13 +333,14 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
       ev.slotA = eventsView!.getUint32(offset, true);
       ev.slotB = eventsView!.getUint32(offset + 4, true);
-      ev.started = type === 0 || type === 2;
+      const flags = eventsView!.getUint8(offset + 16);
+      ev.started = (flags & 1) === 1;
 
-      const aId = eventsView!.getUint16(offset + 12, true);
-      const bId = eventsView!.getUint16(offset + 14, true);
-      if (aId === 0xffff) delete ev.aColliderId;
+      const aId = eventsView!.getUint32(offset + 8, true);
+      const bId = eventsView!.getUint32(offset + 12, true);
+      if (aId === 0xffffffff) delete ev.aColliderId;
       else ev.aColliderId = aId;
-      if (bId === 0xffff) delete ev.bColliderId;
+      if (bId === 0xffffffff) delete ev.bColliderId;
       else ev.bColliderId = bId;
     }
 
@@ -703,7 +717,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           _clearContactCallbacks(entityId);
           const dyingSensors = st.activeSensors.get(slot);
           if (dyingSensors) {
-            for (const sensorId of dyingSensors) _clearSensorCallbacks(sensorId);
+            for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
           }
           st.entityCollisionCallbacks.delete(slot);
           st.activeSensors.delete(slot);
@@ -790,11 +804,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             const event: ContactEvent = {
               entityA: contact.entityA,
               entityB: contact.entityB,
-              contactX: 0,
-              contactY: 0,
-              normalX: 0,
-              normalY: 0,
-              relativeVelocity: 0,
+              started: contact.started,
             };
             _dispatchContactEvent(contact.entityA, event);
             _dispatchContactEvent(contact.entityB, event);

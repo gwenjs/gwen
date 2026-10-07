@@ -201,8 +201,8 @@ const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   onContact((event) => {
-    if (event.relativeVelocity > 10) {
-      // Hard impact — take damage
+    if (event.started) {
+      // Contact began this frame
     }
   })
 })
@@ -215,11 +215,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 interface ContactEvent {
   entityA: bigint;
   entityB: bigint;
-  contactX: number;
-  contactY: number;
-  normalX: number;
-  normalY: number;
-  relativeVelocity: number;
+  started: boolean;
 }
 ```
 

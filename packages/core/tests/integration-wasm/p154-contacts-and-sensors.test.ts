@@ -63,19 +63,20 @@ describe("physics2d contact payload", () => {
       const { engine, advance } = handle;
       await engine.use(Physics2DPlugin({ gravity: 0 }));
       const physics = engine.inject("physics2d");
-      let seen: { started?: boolean } | null = null;
+      const seen: { started?: boolean }[] = [];
       const left = engine.createEntity();
       const right = engine.createEntity();
       engine.run(() => {
         onContact((event) => {
-          seen = event;
+          seen.push(event);
         }, left);
       });
       physics.addBoxCollider(physics.addRigidBody(left, "dynamic", 0, 0), 0.5, 0.5);
       physics.addBoxCollider(physics.addRigidBody(right, "dynamic", 0.2, 0), 0.5, 0.5);
       await advance(5, 1 / 60);
-      expect(seen?.started).toBe(true);
-      expect(Object.hasOwn(seen ?? {}, "contactX")).toBe(false);
+      expect(seen.map((event) => event.started)).toContain(true);
+      expect(seen.every((event) => event.started === true || event.started === false)).toBe(true);
+      expect(Object.hasOwn(seen[0] ?? {}, "contactX")).toBe(false);
     } finally {
       await stop(handle);
     }

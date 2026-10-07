@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import {
+  createEngine,
+  defineComponent,
+  GwenContextError,
+  Types,
+  type GwenEngine,
+} from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { createRealEngine } from "../../../core/src/testing/create-real-engine.ts";
 import { Physics3DPlugin } from "../../src/plugin/index";
 import "../../src/augment";
@@ -185,7 +192,18 @@ describe("onSensor engine isolation", () => {
       await b.use(Physics3DPlugin());
       let hitsA = 0;
       let hitsB = 0;
-      const id = a.createEntity();
+      const Tag = defineComponent({ name: "P3SensorOwner", schema: { x: Types.f32 } });
+      const Prefab = definePrefab([{ def: Tag, defaults: { x: 0 } }]);
+      const Actor = defineActor(Prefab, () => {
+        onSensorEnter(7, () => {
+          hitsA += 1;
+        });
+        onSensorExit(7, () => {
+          hitsA += 1;
+        });
+      });
+      await a.use(Actor._plugin);
+      const id = a.run(() => Actor._plugin.spawn());
       a.run(() => {
         const physics = a.inject("physics3d");
         physics.createBody(id, {
@@ -197,12 +215,6 @@ describe("onSensor engine isolation", () => {
               colliderId: 7,
             },
           ],
-        });
-        onSensorEnter(7, () => {
-          hitsA += 1;
-        });
-        onSensorExit(7, () => {
-          hitsA += 1;
         });
       });
       b.run(() => {

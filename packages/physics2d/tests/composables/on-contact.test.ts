@@ -16,11 +16,7 @@ import type { ContactEvent } from "../../src/types.js";
 const sampleEvent: ContactEvent = {
   entityA: 1n,
   entityB: 2n,
-  contactX: 1,
-  contactY: 2,
-  normalX: 0,
-  normalY: 1,
-  relativeVelocity: 5,
+  started: true,
 };
 
 describe("onContact / _dispatchContactEvent", () => {

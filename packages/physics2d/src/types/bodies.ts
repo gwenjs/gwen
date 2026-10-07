@@ -217,16 +217,8 @@ export interface ContactEvent {
   entityA: bigint;
   /** Entity ID of the second body. */
   entityB: bigint;
-  /** Contact X position. */
-  contactX: number;
-  /** Contact Y position. */
-  contactY: number;
-  /** Contact normal X. */
-  normalX: number;
-  /** Contact normal Y. */
-  normalY: number;
-  /** Relative velocity at contact. */
-  relativeVelocity: number;
+  /** `true` when the contact started this frame. The WASM event has no point or normal. */
+  started: boolean;
 }
 
 export interface Physics2DLayerDefinition {

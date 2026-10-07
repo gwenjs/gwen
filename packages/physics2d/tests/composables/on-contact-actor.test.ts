@@ -32,11 +32,7 @@ describe("onContact inside defineActor", () => {
       const event: ContactEvent = {
         entityA: id,
         entityB: id + 1n,
-        contactX: 3,
-        contactY: 4,
-        normalX: 1,
-        normalY: 0,
-        relativeVelocity: 2,
+        started: true,
       };
       engine.run(() => {
         _dispatchContactEvent(id, event);

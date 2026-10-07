@@ -106,4 +106,5 @@ export interface Physics2DPrefabExtension {
 
 export const PHYSICS2D_BRIDGE_SCHEMA_VERSION = 2;
 export const PHYSICS2D_EVENTS_RING_FORMAT_VERSION = 2;
-export const PHYSICS2D_WASM_EVENT_STRIDE = 16;
+/** `repr(C)` size of `PhysicsCollisionEvent`: four `u32` plus a `u8` flag, padded to 20. */
+export const PHYSICS2D_WASM_EVENT_STRIDE = 20;

@@ -85,26 +85,38 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     const layerRegistry = buildLayerRegistry(cfg.layers);
     return createPluginContext(cfg, layerRegistry);
   });
+  let cachedEngine: GwenEngine | null = null;
+  let cachedContext: PluginContext | null = null;
+  function contextNow(): PluginContext {
+    const current = engineContext.tryUse() ?? null;
+    if (cachedContext && current === cachedEngine) return cachedContext;
+    cachedContext = contexts.use();
+    cachedEngine = engineContext.tryUse() ?? null;
+    return cachedContext;
+  }
   const ctx = new Proxy({} as PluginContext, {
     get(_target, prop) {
-      return Reflect.get(contexts.use(), prop);
+      return Reflect.get(contextNow(), prop);
     },
     set(_target, prop, value) {
-      return Reflect.set(contexts.use(), prop, value);
+      return Reflect.set(contextNow(), prop, value);
     },
   });
 
   /** Service calls keep this engine current, even when the caller is outside `run`. */
   function bindToEngine<T extends object>(engine: GwenEngine, api: T): T {
+    const bound = new Map<PropertyKey, unknown>();
     return new Proxy(api, {
       get(target, prop, receiver) {
+        const hit = bound.get(prop);
+        if (hit !== undefined) return hit;
         const value: unknown = Reflect.get(target, prop, receiver);
         if (typeof value !== "function") return value;
-        return (...args: unknown[]) => {
+        const fn = (...args: unknown[]): unknown => {
           const previous = engineContext.tryUse() ?? undefined;
           engineContext.set(engine, true);
           try {
-            return Reflect.apply(value, target, args);
+            return Reflect.apply(value as (...inner: unknown[]) => unknown, target, args);
           } finally {
             if (engineContext.tryUse() === engine) {
               if (previous !== undefined) engineContext.set(previous, true);
@@ -112,6 +124,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
             }
           }
         };
+        bound.set(prop, fn);
+        return fn;
       },
     });
   }
@@ -342,7 +356,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         ctx.localSensorStates.delete(slot);
         const dyingSensors = ctx.activeSensors.get(slot);
         if (dyingSensors) {
-          for (const sensorId of dyingSensors) _clearSensorCallbacks(sensorId);
+          for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
         }
         ctx.activeSensors.delete(slot);
         if (owner === entityId) _removeBody(entityId);

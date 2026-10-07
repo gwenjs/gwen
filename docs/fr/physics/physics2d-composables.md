@@ -81,7 +81,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   useBoxCollider({ w: 32, h: 48 })
 
   onContact((contact) => {
-    if (contact.relativeVelocity > 50) {
+    if (contact.started) {
       console.log('Hit something hard!')
     }
   })
@@ -183,18 +183,17 @@ Abonnez-vous aux événements de contact de collision avec `onContact()` :
 
 ```ts
 onContact((contact) => {
+  if (!contact.started) return
   console.log('Entités :', contact.entityA, contact.entityB)
-  console.log('Vitesse relative :', contact.relativeVelocity)
-  console.log('Normale :', contact.normalX, contact.normalY)
 })
 ```
 
 L'objet `contact` a :
 - `entityA` — ID de la première entité participante
 - `entityB` — ID de la deuxième entité participante
-- `contactX`, `contactY` — Coordonnées du point de contact en espace monde
-- `normalX`, `normalY` — Composantes de la normale de contact (vecteur unitaire)
-- `relativeVelocity` — Vitesse d'impact relative au point de contact (m/s)
+- `started` — `true` quand le contact commence dans cette frame
+
+L'enregistrement WASM fait 16 octets. Il n'a pas de point de contact, de normale, ni de vitesse relative.
 
 ### Événements des capteurs
 
@@ -413,7 +412,7 @@ onUpdate(() => {
 
 ### Types
 
-- `ContactEvent` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, normalX: number, normalY: number, relativeVelocity: number }`
+- `ContactEvent` — `{ entityA: bigint, entityB: bigint, started: boolean }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`
