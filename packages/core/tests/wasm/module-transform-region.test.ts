@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { GwenErrorPayload } from "@gwenjs/schema";
+import { GwenError, type GwenErrorPayload } from "@gwenjs/schema";
 
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
 import type { WasmModuleOptions } from "../../src/engine/engine-types.js";
@@ -30,6 +30,37 @@ function regionModule(name: string, step?: (dt: number) => void): WasmModuleOpti
   if (step === undefined) return options;
   return { ...options, step: (_handle, dt) => step(dt) };
 }
+
+describe("transform region before the bridge is active", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("throws GwenError CORE:WASM_LOAD_ERROR for a region module", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(WASM_WITH_MEMORY, { status: 200 })),
+    );
+    const bridge = new WasmBridgeImpl();
+    vi.spyOn(bridge, "isActive").mockImplementation(() => false);
+    const engine = await createEngine({ maxEntities: MAX_ENTITIES, _bridge: bridge });
+    let caught: unknown;
+    try {
+      try {
+        await engine.loadWasmModule(regionModule("early"));
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) {
+        throw new Error("expected GwenError");
+      }
+      expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+      expect(caught.message).toContain("bridge");
+    } finally {
+      await engine.stop();
+    }
+  });
+});
 
 describe("transform region copy counts", () => {
   afterEach(() => {

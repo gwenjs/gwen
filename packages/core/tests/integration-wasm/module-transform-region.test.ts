@@ -6,6 +6,7 @@ import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import type { WasmModuleOptions } from "../../src/engine/engine-types.js";
 import type { RealEngineHandle } from "../../src/testing/create-real-engine.js";
 import {
+  LINK_ERROR_WASM,
   NO_MEMORY_WASM,
   TRANSFORM_READER_ABI_WASM,
   TRANSFORM_READER_EXPORT_WASM,
@@ -59,6 +60,7 @@ declare module "../../src/engine/engine-types.js" {
     "second-frame": TransformReaderExports;
     "offset-mismatch": WebAssembly.Exports;
     "abi-before-region": WebAssembly.Exports;
+    "link-error": WebAssembly.Exports;
   }
 }
 
@@ -133,6 +135,7 @@ describe("module transform region", () => {
     expect(WebAssembly.validate(TRANSFORM_READER_SHIFT_WASM)).toBe(true);
     expect(WebAssembly.validate(TRANSFORM_READER_ABI_WASM)).toBe(true);
     expect(WebAssembly.validate(NO_MEMORY_WASM)).toBe(true);
+    expect(WebAssembly.validate(LINK_ERROR_WASM)).toBe(true);
   });
 
   it("reads the moved entity through the region pointer", async () => {
@@ -455,6 +458,29 @@ describe("module transform region", () => {
       }
       expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
       expect(() => started.engine.getWasmModule("plain")).toThrow();
+    });
+  });
+
+  it("throws GwenError when the second instantiate cannot link", async () => {
+    await withEngine(async (started) => {
+      let caught: unknown;
+      try {
+        await started.engine.loadWasmModule({
+          name: "link-error",
+          url: wasmDataUrl(LINK_ERROR_WASM),
+        });
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) {
+        throw new Error("expected GwenError");
+      }
+      expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+      expect(caught.message).toContain("link-error");
+      expect(() => started.engine.getWasmModule("link-error")).toThrow(/link-error/);
+      await started.advance(1, 1 / 60);
+      expect(started.engine.state).not.toBe("faulted");
     });
   });
 });

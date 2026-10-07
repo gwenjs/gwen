@@ -82,6 +82,13 @@ export const TRANSFORM_READER_EXPORT_WASM = bytesFromHex(EXPORT_HEX);
 export const TRANSFORM_READER_START_WASM = bytesFromHex(START_HEX);
 export const TRANSFORM_READER_SHIFT_WASM = bytesFromHex(SHIFT_HEX);
 export const TRANSFORM_READER_ABI_WASM = bytesFromHex(ABI_HEX);
+/**
+ * Compiles, but cannot link: it imports a function the engine never provides.
+ *
+ * (module
+ *   (import "env" "f" (func)))
+ */
+export const LINK_ERROR_WASM = bytesFromHex("0061736d0100000001040160000002090103656e7601660000");
 export const NO_MEMORY_WASM = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
 
 export function wasmDataUrl(bytes: Uint8Array<ArrayBuffer>): string {
