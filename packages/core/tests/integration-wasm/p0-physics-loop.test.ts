@@ -407,6 +407,7 @@ describe("P0 physics loop", () => {
       await expect(handle.engine.use(sync)).rejects.toBeInstanceOf(GwenComposableError);
       await expect(handle.engine.use(sync)).rejects.toMatchObject({
         code: "engine:plugin-setup-failed",
+        message: expect.stringContaining('Plugin/service "physics3d" not found'),
       });
     } finally {
       await handle.dispose();
