@@ -94,6 +94,8 @@ watchActorLeaks(actorDefs, {
 | `growthStreak` | `number` | `3` | Consecutive growth observations to trigger `onLeak` |
 | `onLeak` | `function` | `console.warn` | Called when a leak is detected |
 
+With several engines: without the `engine` option, counts are read on the engine current at the call (or the only engine that installed the actor). If no engine is current and an actor is installed on two or more engines, the call throws `GwenContextError`. If a second engine installs the actor later, each tick skips that actor and keeps watching the others. Pass `engine` to watch it.
+
 ### Stopping the monitor
 
 `watchActorLeaks` returns a `stop` function. Call it before engine teardown or in test `afterEach`:

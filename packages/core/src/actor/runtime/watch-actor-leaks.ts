@@ -28,7 +28,7 @@
 
 import type { ActorDefinition } from "./types";
 import type { GwenEngine } from "../../engine/gwen-engine";
-import { engineContext } from "../../engine/context.js";
+import { engineContext, GwenContextError } from "../../engine/context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -87,7 +87,9 @@ function defaultLeak(name: string, count: number, delta: number): void {
  * @returns A `stop` function — call it to cancel the interval (e.g. in test
  *   `afterEach` or before engine teardown).
  * @throws {GwenContextError} When no engine is given or current and an actor
- *   is installed on two or more engines.
+ *   is installed on two or more engines at this call. If that happens later,
+ *   the timer skips that actor on each tick (its count has no owner) and keeps
+ *   watching the others; pass `engine` to watch it.
  */
 export function watchActorLeaks(
   actorDefs: ActorDefinition<unknown, unknown>[],
@@ -114,7 +116,14 @@ export function watchActorLeaks(
   function tick(): void {
     for (const def of actorDefs) {
       const name = def.__actorName__;
-      const count = countOf(def);
+      let count: number;
+      try {
+        count = countOf(def);
+      } catch (error) {
+        // Unbound watcher and the actor is now on several engines: no owner to count on.
+        if (error instanceof GwenContextError) continue;
+        throw error;
+      }
       const prev = prevCounts.get(name)!;
 
       if (count > prev) {
