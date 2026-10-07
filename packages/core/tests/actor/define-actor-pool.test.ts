@@ -986,6 +986,61 @@ describe("defineActorPool — dormancy (#56)", () => {
     }
   });
 
+  it("keeps calling a listener registered twice after one unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      const off = pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      off();
+      off();
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps calling a listener registered twice after one removeHook", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.removeHook("pool:acquire", listener);
+      pool.acquire();
+      expect(calls).toBe(1);
+      pool.hooks.removeHook("pool:acquire", listener);
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps calling a listener registered twice after one removeHooks", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.removeHooks({ "pool:acquire": listener });
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
   it("does not add or remove a component on acquire or release", async () => {
     const { engine, pool } = await markedPool(4);
     try {
