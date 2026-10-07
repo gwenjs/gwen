@@ -19,19 +19,19 @@ async function useReal(
   variant: "light" | "physics2d",
   maxEntities: number,
   body: (handle: RealEngineHandle) => Promise<void>,
-): Promise<void> {
+): Promise<RealEngineHandle> {
   const handle = await createRealEngine({ variant, maxEntities });
   try {
     await body(handle);
   } finally {
     await handle.dispose();
-    expect(handle.engine.state).toBe("stopped");
   }
+  return handle;
 }
 
 describe("P1 error policy (real WASM)", () => {
   it("faults when a system calls an inline trap export", async () => {
-    await useReal("light", 64, async ({ engine }) => {
+    const handle = await useReal("light", 64, async ({ engine }) => {
       const { instance } = await WebAssembly.instantiate(trapModuleBytes());
       const trap = instance.exports["trap"];
       if (typeof trap !== "function") throw new Error("expected trap export");
@@ -57,10 +57,11 @@ describe("P1 error policy (real WASM)", () => {
       expect(engine.state).toBe("faulted");
       await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
     });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("isolates a community module trap and keeps other systems running", async () => {
-    await useReal("light", 64, async ({ engine }) => {
+    const handle = await useReal("light", 64, async ({ engine }) => {
       let ticks = 0;
       await engine.use(
         defineSystem("Keeper", () => {
@@ -96,10 +97,11 @@ describe("P1 error policy (real WASM)", () => {
       expect(ticks).toBe(2);
       expect(engine.state).toBe("running");
     });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("keeps a physics2d body falling while a sibling system throws", async () => {
-    await useReal("physics2d", 64, async ({ engine, advance }) => {
+    const handle = await useReal("physics2d", 64, async ({ engine, advance }) => {
       await engine.use(Physics2DPlugin({ gravity: -10 }));
       let ticks = 0;
       await engine.use(
@@ -133,6 +135,7 @@ describe("P1 error policy (real WASM)", () => {
       ).toBe(true);
       expect(engine.state).toBe("running");
     });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("reports a rejected physics:collision hook on the error bus", async () => {

@@ -2,6 +2,16 @@
 // `light` is the shared surface. `physics2d` and `physics3d` add the extra lines.
 // A rebuilt binary whose glue parameters or wasm types differ fails
 // wasm-export-signature.test.ts.
+//
+// CI installs Rust with `toolchain: stable`. There is no rust-toolchain file
+// to pin. Regenerate this golden file on each toolchain bump.
+
+export const JS_ENTITY_ID = [
+  "__destroy_into_raw()",
+  "free()",
+  "get generation()",
+  "get index()",
+] as const;
 
 export const LIGHT_JS = [
   "__destroy_into_raw()",
@@ -219,6 +229,8 @@ export const LIGHT_WASM = [
   "engine_translate_entity (i32,i32,f32,f32)->()",
   "engine_update_entity_archetype (i32,i32,i32,i32)->()",
   "engine_update_transforms (i32)->()",
+  "jsentityid_generation (i32)->(i32)",
+  "jsentityid_index (i32)->(i32)",
 ] as const;
 
 export const PHYSICS2D_WASM_EXTRA = [

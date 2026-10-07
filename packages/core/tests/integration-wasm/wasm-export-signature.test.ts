@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 import {
+  JS_ENTITY_ID,
   LIGHT_JS,
   LIGHT_WASM,
   PHYSICS2D_JS_EXTRA,
@@ -130,7 +131,13 @@ function wasmExportSignatures(variant: Variant): string[] {
         cursor.i += 1;
         const index = readLeb(bytes, cursor);
         if (kind !== 0) continue;
-        if (!name.startsWith("engine_") && !name.startsWith("physics")) continue;
+        if (
+          !name.startsWith("engine_") &&
+          !name.startsWith("physics") &&
+          !name.startsWith("jsentityid_")
+        ) {
+          continue;
+        }
         const signature = types[funcs[index - importFuncs] ?? -1];
         if (signature === undefined) throw new Error(`wasm export ${name} has no type`);
         lines.push(`${name} ${signature}`);
@@ -142,26 +149,38 @@ function wasmExportSignatures(variant: Variant): string[] {
   return lines.sort();
 }
 
-async function glueLines(variant: Variant): Promise<string[]> {
-  const jsPath = fileURLToPath(new URL(`../../wasm/${variant}/gwen_core.js`, import.meta.url));
-  const glue = (await import(pathToFileURL(jsPath).href)) as { Engine: WasmCtor };
-  const proto = glue.Engine.prototype as Record<string, unknown>;
+function prototypeLines(proto: object, label: string): string[] {
   return Object.getOwnPropertyNames(proto)
     .filter((name) => name !== "constructor")
     .sort()
     .map((name) => {
-      const fn = proto[name];
-      if (typeof fn !== "function") throw new Error(`${variant} Engine.${name} is not a function`);
+      const desc = Object.getOwnPropertyDescriptor(proto, name);
+      const fn = desc?.get ?? desc?.value;
+      if (typeof fn !== "function") throw new Error(`${label}.${name} is not a function`);
       const source = Function.prototype.toString.call(fn);
       const head = source.slice(0, source.indexOf("{"));
       const params = head.match(/\(([^)]*)\)/)?.[1]?.trim() ?? "";
-      return `${name}(${params})`;
+      const prefix = desc?.get !== undefined ? "get " : "";
+      return `${prefix}${name}(${params})`;
     });
 }
 
+async function glueLines(variant: Variant): Promise<string[]> {
+  const jsPath = fileURLToPath(new URL(`../../wasm/${variant}/gwen_core.js`, import.meta.url));
+  const glue = (await import(pathToFileURL(jsPath).href)) as {
+    Engine: WasmCtor;
+    JsEntityId: WasmCtor;
+  };
+  return [
+    ...prototypeLines(glue.Engine.prototype, `${variant} Engine`),
+    ...prototypeLines(glue.JsEntityId.prototype, `${variant} JsEntityId`),
+  ].sort();
+}
+
 function expectedJs(variant: Variant): string[] {
-  if (variant === "light") return [...LIGHT_JS];
-  return [...LIGHT_JS, ...JS_EXTRA[variant]].sort();
+  const shared = [...LIGHT_JS, ...JS_ENTITY_ID];
+  if (variant === "light") return shared.sort();
+  return [...shared, ...JS_EXTRA[variant]].sort();
 }
 
 function expectedWasm(variant: Variant): string[] {
@@ -171,7 +190,6 @@ function expectedWasm(variant: Variant): string[] {
 
 async function stop(handle: RealEngineHandle): Promise<void> {
   await handle.dispose();
-  expect(handle.engine.state).toBe("stopped");
 }
 
 describe("WASM export signatures", () => {
@@ -230,5 +248,6 @@ describe("WASM export signatures", () => {
     } finally {
       await stop(handle);
     }
+    expect(handle.engine.state).toBe("stopped");
   });
 });
