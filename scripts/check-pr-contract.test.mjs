@@ -11,13 +11,15 @@ const testFile = 'scripts/check-pr-contract.test.mjs';
  * @param {string} body
  * @param {string} [title]
  * @param {string[]} [changedTestFiles]
+ * @param {string[]} [changedFiles]
  */
-function review(body, title = 'ci: add checks', changedTestFiles = [testFile]) {
+function review(body, title = 'ci: add checks', changedTestFiles = [testFile], changedFiles) {
   return reviewPrContract({
     title,
     body,
     exists: (file) => file === testFile,
     changedTestFiles,
+    changedFiles,
   });
 }
 
@@ -88,7 +90,7 @@ test('accepts the docs-only red proof line', () => {
     [],
   );
   assert.ok(missing.some((error) => error.includes('Red proof')));
-  assert.deepEqual(review(body, 'docs: clarify the contract', []), []);
+  assert.deepEqual(review(body, 'docs: clarify the contract', [], ['docs/guide.md']), []);
 });
 
 test('rejects a docs-only line when a test file changed', () => {
@@ -132,4 +134,121 @@ test('allows NO TEST when the body does not close an issue', () => {
   const closed = review(`${body}\nCloses #12\n`);
   assert.ok(closed.some((error) => error.includes('NO TEST')));
   assert.deepEqual(review(body), []);
+});
+
+/**
+ * @param {string} closing
+ * @param {string} [gap]
+ */
+function withGap(closing, gap = 'NO TEST') {
+  const body = goodBody.replace(
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |`,
+    `| Contract accepts a complete body | ${testFile}::accepts a complete body |\n| Gap | ${gap} |`,
+  );
+  return `${body}\n${closing}\n`;
+}
+
+test('allows n/a only for docs, markdown, and github', () => {
+  const body = goodBody
+    .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
+    .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  const docs = review(body, 'docs: clarify the contract', [], ['docs/guide.md']);
+  const markdown = review(body, 'docs: clarify the contract', [], ['CLAUDE.md']);
+  const workflow = review(body, 'ci: workflow only', [], ['.github/workflows/ci.yml']);
+  const code = review(body, 'ci: change a script', [], ['scripts/check-pr-contract.mjs']);
+  assert.deepEqual(docs, []);
+  assert.deepEqual(markdown, []);
+  assert.deepEqual(workflow, []);
+  assert.ok(code.some((error) => /n\/a|docs\/|changed test file/i.test(error)));
+});
+
+test('rejects an n/a line hidden in a code block', () => {
+  const body = [
+    goodBody.replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes'),
+    '```',
+    'Red proof: n/a (no code change)',
+    '```',
+    '',
+  ].join('\n');
+  const errors = review(body, 'docs: clarify the contract', [], ['docs/guide.md']);
+  assert.ok(errors.some((error) => error.includes('Red proof')));
+});
+
+test('rejects an n/a red proof row for a source change', () => {
+  const body = goodBody.replace(
+    `| ${testFile} | git diff | AssertionError |`,
+    '| n/a | n/a |',
+  );
+  const errors = review(body, 'ci: change a script', [], ['scripts/check-pr-contract.mjs']);
+  assert.ok(errors.some((error) => /n\/a|changed test file/i.test(error)));
+});
+
+test('requires a changed test file when a source file changes', () => {
+  const errors = review(goodBody, 'ci: add checks', [], ['scripts/check-pr-contract.mjs']);
+  assert.ok(errors.some((error) => error.includes('changed test file')));
+});
+
+test('rejects a Verdict heading and APPROVE', () => {
+  const errors = review(`${goodBody}\n## Verdict\n\nAPPROVE\n`);
+  assert.ok(errors.some((error) => /verdict|approve/i.test(error)));
+});
+
+test('rejects a Self-review heading with Verdict: APPROVE', () => {
+  const errors = review(`${goodBody}\n## Self-review\n\nVerdict: APPROVE\n`);
+  assert.ok(errors.some((error) => /self-review|verdict|approve/i.test(error)));
+});
+
+test('rejects a bare APPROVE line', () => {
+  const errors = review(`${goodBody}\nAPPROVE\n`);
+  assert.ok(errors.some((error) => /approve/i.test(error)));
+});
+
+test('rejects an Approve heading', () => {
+  const errors = review(`${goodBody}\n## Approve\n\nShip.\n`);
+  assert.ok(errors.some((error) => /approve/i.test(error)));
+});
+
+test('allows the maintainer sentence that says approve', () => {
+  const sentence = review(`${goodBody}\nreviewed by the maintainer, who will approve or not\n`);
+  const verdict = review(`${goodBody}\n## Verdict\n\nAPPROVE\n`);
+  assert.deepEqual(sentence, []);
+  assert.ok(verdict.some((error) => /verdict|approve/i.test(error)));
+});
+
+test('rejects Fixes #12 next to a NO TEST cell', () => {
+  const errors = review(withGap('Fixes #12'));
+  assert.ok(errors.some((error) => error.includes('NO TEST')));
+});
+
+test('rejects Resolves #12 next to a NO TEST cell', () => {
+  const errors = review(withGap('Resolves #12'));
+  assert.ok(errors.some((error) => error.includes('NO TEST')));
+});
+
+test('rejects Closes owner/repo#12 next to a NO TEST cell', () => {
+  const errors = review(withGap('Closes gwenjs/gwen#12'));
+  assert.ok(errors.some((error) => error.includes('NO TEST')));
+});
+
+test('rejects a lowercase no test cell when the body closes an issue', () => {
+  const errors = review(withGap('Closes #12', 'no test'));
+  assert.ok(errors.some((error) => error.includes('NO TEST')));
+});
+
+test('rejects every GitHub closing keyword next to a NO TEST cell', () => {
+  const lines = [
+    'close #4',
+    'closed #4',
+    'fix #4',
+    'fixed #4',
+    'resolve #4',
+    'resolved #4',
+    'FIXES #4',
+    'https://github.com/gwenjs/gwen/issues/4',
+  ];
+  for (const line of lines) {
+    const keyword = line.startsWith('http') ? `Resolves ${line}` : line;
+    const errors = review(withGap(keyword));
+    assert.ok(errors.some((error) => error.includes('NO TEST')), keyword);
+  }
 });

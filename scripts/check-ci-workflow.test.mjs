@@ -26,11 +26,46 @@ test('pull request runs for every base', () => {
   assert.doesNotMatch(on, /pull_request:\n {4}branches:/);
 });
 
+/**
+ * @param {string} yaml
+ * @param {string} key
+ * @returns {string | null}
+ */
+function concurrencyValue(yaml, key) {
+  const lines = yaml.split(/\r?\n/);
+  let inBlock = false;
+  for (const line of lines) {
+    if (line === 'concurrency:') {
+      inBlock = true;
+      continue;
+    }
+    if (inBlock && line !== '' && !/^ /.test(line)) break;
+    if (!inBlock) continue;
+    const prefix = `  ${key}:`;
+    if (line.startsWith(prefix)) return line.slice(prefix.length).trim();
+  }
+  return null;
+}
+
+/**
+ * @param {string} yaml
+ * @param {string} eventName
+ * @returns {boolean}
+ */
+function cancelsInProgress(yaml, eventName) {
+  const raw = concurrencyValue(yaml, 'cancel-in-progress');
+  if (raw === 'true') return true;
+  if (raw === 'false') return false;
+  if (raw === "${{ github.event_name == 'pull_request' }}") return eventName === 'pull_request';
+  if (raw === '${{ github.event_name == "pull_request" }}') return eventName === 'pull_request';
+  return false;
+}
+
 test('cancels an in-progress run for the same ref', () => {
   const yaml = readCi();
-  assert.match(yaml, /^concurrency:/m);
-  assert.match(yaml, /group:.*github\.workflow.*github\.ref/s);
-  assert.match(yaml, /cancel-in-progress:\s*true/);
+  assert.equal(concurrencyValue(yaml, 'group'), '${{ github.workflow }}-${{ github.ref }}');
+  assert.equal(cancelsInProgress(yaml, 'pull_request'), true);
+  assert.equal(cancelsInProgress(yaml, 'push'), false);
 });
 
 test('runs verify-red against the pull request base', () => {
@@ -63,17 +98,22 @@ function git(dir, args) {
 /**
  * @param {string} source
  * @param {string} base
+ * @param {{ file?: string, seed?: (dir: string) => void, pathPrefix?: string }} [options]
  */
-function runVerifyRed(source, base) {
+function runVerifyRed(source, base, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gwen-verify-red-fixture-'));
+  const file = options.file ?? 'added.test.mjs';
   try {
     git(dir, ['init', '-b', 'base']);
     writeFileSync(join(dir, 'README.md'), 'base\n');
-    git(dir, ['add', 'README.md']);
+    if (options.seed) options.seed(dir);
+    git(dir, ['add', '-A']);
     git(dir, ['commit', '-m', 'base']);
     git(dir, ['checkout', '-b', 'change']);
-    writeFileSync(join(dir, 'added.test.mjs'), source);
-    git(dir, ['add', 'added.test.mjs']);
+    const dest = join(dir, file);
+    mkdirSync(dirname(dest), { recursive: true });
+    writeFileSync(dest, source);
+    git(dir, ['add', '-A']);
     git(dir, ['commit', '-m', 'add test']);
     const env = {
       ...process.env,
@@ -83,6 +123,7 @@ function runVerifyRed(source, base) {
       PR_NUMBER: '',
       PR_REPO: '',
     };
+    if (options.pathPrefix) env.PATH = `${options.pathPrefix}:${env.PATH ?? ''}`;
     for (const key of Object.keys(env)) {
       if (key.startsWith('NODE_TEST') || key === 'NODE_CHANNEL_FD') delete env[key];
     }
@@ -183,4 +224,113 @@ test('verify-red accepts a test that fails on the base', () => {
   assert.match(output, /1 !== 2/);
   assert.equal(result.status, 0, output);
   assert.match(output, /RED added\.test\.mjs/);
+});
+
+test('verify-red does not treat one passing test as red when another fails', () => {
+  const result = runVerifyRed(
+    [
+      "import assert from 'node:assert/strict';",
+      "import test from 'node:test';",
+      "test('stays green', () => {",
+      '  assert.equal(1, 1);',
+      '});',
+      "test('fails on the base', () => {",
+      '  assert.equal(1, 2);',
+      '});',
+      '',
+    ].join('\n'),
+    'base',
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.match(output, /stays green/);
+  assert.notEqual(result.status, 0, output);
+  assert.match(output, /NOT RED added\.test\.mjs :: stays green/);
+});
+
+test('verify-red does not count a wasm file as red when it cannot run', () => {
+  const result = runVerifyRed(
+    ["import { it } from 'vitest';", "it('passes on the base', () => {});", ''].join('\n'),
+    'base',
+    { file: 'packages/core/tests/integration-wasm/added.test.ts' },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 2, output);
+  assert.match(output, /not verifiable/);
+  assert.doesNotMatch(output, /verify-red: RED /);
+});
+
+test('verify-red does not count a passing wasm test as red', () => {
+  const wasmFile = 'packages/core/tests/integration-wasm/added.test.ts';
+  const result = runVerifyRed(
+    ["import { it } from 'vitest';", "it('passes on the base', () => {});", ''].join('\n'),
+    'base',
+    {
+      file: wasmFile,
+      seed(dir) {
+        mkdirSync(join(dir, 'packages/core/wasm/light'), { recursive: true });
+        writeFileSync(join(dir, 'packages/core/package.json'), '{}\n');
+        writeFileSync(join(dir, 'packages/core/vitest.wasm.config.ts'), 'export default {};\n');
+        writeFileSync(join(dir, 'packages/core/wasm/light/gwen_core_bg.wasm'), 'wasm\n');
+      },
+      pathPrefix: writeFakePnpm(),
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.match(output, /passes on the base/);
+  assert.notEqual(result.status, 0, output);
+  assert.match(output, /NOT RED packages\/core\/tests\/integration-wasm\/added\.test\.ts/);
+});
+
+const fakePnpmDirs = [];
+
+function writeFakePnpm() {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-fake-pnpm-'));
+  fakePnpmDirs.push(dir);
+  const bin = join(dir, 'pnpm');
+  writeFileSync(
+    bin,
+    [
+      '#!/bin/sh',
+      'out=""',
+      'prev=""',
+      'for arg in "$@"; do',
+      '  if [ "$prev" = "--outputFile" ]; then',
+      '    out="$arg"',
+      '  fi',
+      '  prev="$arg"',
+      'done',
+      'case "$*" in',
+      '  *vitest.wasm.config.ts*)',
+      '    if [ -n "$out" ]; then',
+      '      printf \'%s\\n\' \'{"testResults":[{"assertionResults":[{"fullName":"passes on the base","status":"passed"}]}]}\' > "$out"',
+      '    fi',
+      '    exit 0',
+      '    ;;',
+      '  *vitest*)',
+      '    echo "No test files found" >&2',
+      '    exit 1',
+      '    ;;',
+      'esac',
+      'exit 0',
+      '',
+    ].join('\n'),
+  );
+  chmodSync(bin, 0o755);
+  return dir;
+}
+
+test('pnpm typecheck includes the core and renderer test projects', () => {
+  const rootPackage = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+  const typecheck = rootPackage.scripts.typecheck;
+  assert.match(typecheck, /tsconfig\.test\.json/);
+  const core = JSON.parse(readFileSync(join(root, 'packages/core/tsconfig.test.json'), 'utf8'));
+  const renderer = JSON.parse(
+    readFileSync(join(root, 'packages/renderer-core/tsconfig.test.json'), 'utf8'),
+  );
+  assert.ok(core.include.includes('tests'));
+  assert.ok(renderer.include.includes('tests'));
+  assert.ok(Array.isArray(core.exclude));
+  assert.ok(core.exclude.every((item) => item.endsWith('.ts')));
+  assert.ok(Array.isArray(renderer.exclude));
+  assert.ok(renderer.exclude.every((item) => item.endsWith('.ts')));
 });

@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import {
   addedAllowlistEntries,
   findDiffViolations,
@@ -226,7 +228,14 @@ test('rejects dispose that sits outside finally and afterEach', () => {
 test('accepts dispose inside finally', () => {
   const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
   const hits = findDiffViolations(
-    diff(wasmFile, ['try {', '  await createRealEngine();', '} finally {', '  handle.dispose();', '}']),
+    diff(wasmFile, [
+      'const handle = await createRealEngine();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  await handle.dispose();',
+      '}',
+    ]),
   );
   assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
   assert.deepEqual(
@@ -238,7 +247,12 @@ test('accepts dispose inside finally', () => {
 test('accepts dispose inside afterEach', () => {
   const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
   const hits = findDiffViolations(
-    diff(wasmFile, ['afterEach(() => {', '  handle.dispose();', '});', 'const handle = await createRealEngine();']),
+    diff(wasmFile, [
+      'afterEach(() => {',
+      '  handle.dispose();',
+      '});',
+      'const handle = await createRealEngine();',
+    ]),
   );
   assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
   assert.deepEqual(
@@ -250,11 +264,12 @@ test('accepts dispose inside afterEach', () => {
 test('rejects an added expect inside finally', () => {
   const hits = findDiffViolations(
     diff(wasmFile, [
+      'const handle = await createRealEngine();',
       'try {',
-      '  await createRealEngine();',
+      '  handle.step();',
       '} finally {',
       '  expect(1).toBe(1);',
-      '  handle.dispose();',
+      '  await handle.dispose();',
       '}',
     ]),
   );
@@ -264,21 +279,23 @@ test('rejects an added expect inside finally', () => {
 test('allows expect outside finally', () => {
   const inside = findDiffViolations(
     diff(wasmFile, [
+      'const handle = await createRealEngine();',
       'try {',
-      '  await createRealEngine();',
+      '  handle.step();',
       '} finally {',
       '  expect(1).toBe(1);',
-      '  handle.dispose();',
+      '  await handle.dispose();',
       '}',
     ]),
   );
   const hits = findDiffViolations(
     diff(wasmFile, [
+      'const handle = await createRealEngine();',
       'try {',
-      '  await createRealEngine();',
+      '  handle.step();',
       '  expect(1).toBe(1);',
       '} finally {',
-      '  handle.dispose();',
+      '  await handle.dispose();',
       '}',
     ]),
   );
@@ -291,34 +308,37 @@ test('allows expect outside finally', () => {
 
 test('does not flag a pre-existing expect inside finally', () => {
   const content = [
+    'const handle = await createRealEngine();',
     'try {',
-    '  await createRealEngine();',
+    '  handle.step();',
     '} finally {',
     '  expect(1).toBe(1);',
     '  const note = 1;',
-    '  handle.dispose();',
+    '  await handle.dispose();',
     '}',
   ].join('\n');
   const text = [
     `diff --git a/${wasmFile} b/${wasmFile}`,
     `--- a/${wasmFile}`,
     `+++ b/${wasmFile}`,
-    '@@ -1,6 +1,7 @@',
+    '@@ -1,7 +1,8 @@',
+    ' const handle = await createRealEngine();',
     ' try {',
-    '   await createRealEngine();',
+    '   handle.step();',
     ' } finally {',
     '   expect(1).toBe(1);',
     '+  const note = 1;',
-    '   handle.dispose();',
+    '   await handle.dispose();',
     ' }',
   ].join('\n');
   const added = findDiffViolations(
     diff(wasmFile, [
+      'const handle = await createRealEngine();',
       'try {',
-      '  await createRealEngine();',
+      '  handle.step();',
       '} finally {',
       '  expect(1).toBe(1);',
-      '  handle.dispose();',
+      '  await handle.dispose();',
       '}',
     ]),
   );
@@ -349,4 +369,203 @@ test('does not require dispose outside integration-wasm', () => {
   const hits = findDiffViolations(diff('packages/core/src/testing.ts', ['await createRealEngine();']));
   assert.ok(inside.some((hit) => hit.rule === 'wasm-dispose'));
   assert.deepEqual(hits, []);
+});
+
+const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+
+/**
+ * @param {string} file
+ * @returns {{ file: string, rule: string, text: string }[]}
+ */
+function scanWasmFile(file) {
+  const content = readFileSync(`${repoRoot}/${file}`, 'utf8');
+  return findDiffViolations(diff(file, content.split('\n'))).filter((hit) => hit.rule === 'wasm-dispose');
+}
+
+test('accepts engine.stop in finally for a destructured engine', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'const { engine } = await createRealEngine();',
+      'try {',
+      '  engine.step();',
+      '} finally {',
+      '  await engine.stop();',
+      '}',
+    ]),
+  );
+  const renamed = findDiffViolations(
+    diff(wasmFile, [
+      'const { engine: eng } = await createRealEngine();',
+      'try {',
+      '  eng.step();',
+      '} finally {',
+      '  await eng.stop();',
+      '}',
+    ]),
+  );
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'wasm-dispose'),
+    [],
+  );
+  assert.deepEqual(
+    renamed.filter((hit) => hit.rule === 'wasm-dispose'),
+    [],
+  );
+});
+
+test('accepts handle.engine.stop in finally', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'const handle = await createRealEngine();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  await handle.engine.stop();',
+      '}',
+    ]),
+  );
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'wasm-dispose'),
+    [],
+  );
+});
+
+test('rejects two engines when only one is disposed', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'const first = await createRealEngine();',
+      'const second = await createRealEngine();',
+      'try {',
+      '  first.step();',
+      '} finally {',
+      '  await first.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('rejects an unrelated dispose call', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'function dispose() { return 1; }',
+      'const handle = await createRealEngine();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('rejects createRealEngine imported under another name', () => {
+  const bare = findDiffViolations(
+    diff(wasmFile, [
+      'import { createRealEngine as make } from "./harness.js";',
+      'const handle = await make();',
+    ]),
+  );
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'import { createRealEngine as make } from "./harness.js";',
+      'const handle = await make();',
+      'try {',
+      '  handle.step();',
+      '} finally {',
+      '  await handle.dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(
+    hits.filter((hit) => hit.rule === 'wasm-dispose'),
+    [],
+  );
+});
+
+test('rejects a local function named dispose', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'const { engine } = await createRealEngine();',
+      'const dispose = async () => { await engine.stop(); };',
+      'try {',
+      '  engine.step();',
+      '} finally {',
+      '  await dispose();',
+      '}',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('rejects dispose inside promise.finally', () => {
+  const hits = findDiffViolations(
+    diff(wasmFile, [
+      'const handle = await createRealEngine();',
+      'promise.finally(() => {',
+      '  handle.dispose();',
+      '});',
+    ]),
+  );
+  assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
+});
+
+test('initial-scene-activation is not a wasm-dispose hit', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/initial-scene-activation.test.ts'), []);
+});
+
+test('p1-memory-growth is not a wasm-dispose hit', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/p1-memory-growth.test.ts'), []);
+});
+
+test('query-accessor is not a wasm-dispose hit', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/query-accessor.test.ts'), []);
+});
+
+test('p1-error-policy disposes every real engine', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/p1-error-policy.test.ts'), []);
+});
+
+test('p54-stale-physics-handles disposes every real engine', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/p54-stale-physics-handles.test.ts'), []);
+});
+
+test('wasm-errors disposes every real engine', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/wasm-errors.test.ts'), []);
+});
+
+test('wasm-trap disposes every real engine', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.deepEqual(scanWasmFile('packages/core/tests/integration-wasm/wasm-trap.test.ts'), []);
+});
+
+test('netcode-ready local dispose is still a wasm-dispose hit', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const handle = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.ok(scanWasmFile('packages/core/tests/integration-wasm/netcode-ready.test.ts').length > 0);
+});
+
+test('determinism local dispose is still a wasm-dispose hit', () => {
+  const bare = findDiffViolations(diff(wasmFile, ['const { engine } = await createRealEngine();']));
+  assert.ok(bare.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.ok(scanWasmFile('packages/core/tests/integration-wasm/determinism.test.ts').length > 0);
 });
