@@ -171,8 +171,12 @@ describe("P1 error policy (real WASM)", () => {
         level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         source: "@gwenjs/physics2d",
-        target: { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
       });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(
+        events.find((event) => event.message === "collision hook failed")?.target,
+      ).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
     } finally {
       process.off("unhandledRejection", onUnhandled);
       await engine.stop();
