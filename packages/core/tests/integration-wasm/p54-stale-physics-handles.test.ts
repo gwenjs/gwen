@@ -27,27 +27,6 @@ function eventCount(handle: RealEngineHandle, variant: Variant): number {
   return bridge.physics3d_get_collision_event_count?.() ?? 0;
 }
 
-let opened: RealEngineHandle | undefined;
-
-afterEach(async () => {
-  const handle = opened;
-  opened = undefined;
-  if (handle === undefined) throw new Error("p54 test did not open an engine");
-  await handle.dispose();
-  expect(handle.engine.state).toBe("stopped");
-});
-
-async function boot(variant: Variant): Promise<RealEngineHandle> {
-  const handle = await createRealEngine({ variant, maxEntities: 32 });
-  opened = handle;
-  if (variant === "physics2d") {
-    await handle.engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
-  } else {
-    await handle.engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-  }
-  return handle;
-}
-
 function physicsOf(handle: RealEngineHandle, variant: "physics2d"): Physics2DAPI;
 function physicsOf(handle: RealEngineHandle, variant: "physics3d"): Physics3DAPI;
 function physicsOf(handle: RealEngineHandle, variant: Variant): Physics2DAPI | Physics3DAPI;
@@ -108,6 +87,29 @@ function staleError(
 }
 
 describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%s)", (variant) => {
+  // Each test opens one engine through boot(). afterEach releases it.
+  let opened: RealEngineHandle | undefined;
+
+  afterEach(async () => {
+    const handle = opened;
+    opened = undefined;
+    // A boot that threw already failed the test. Nothing is open to release.
+    if (handle === undefined) return;
+    await handle.dispose();
+    expect(handle.engine.state).toBe("stopped");
+  });
+
+  async function boot(variant: Variant): Promise<RealEngineHandle> {
+    const handle = await createRealEngine({ variant, maxEntities: 32 });
+    opened = handle;
+    if (variant === "physics2d") {
+      await handle.engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+    } else {
+      await handle.engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+    }
+    return handle;
+  }
+
   it("(a) a recycled slot does not keep the destroyed body", async () => {
     const handle = await boot(variant);
     const physics = physicsOf(handle, variant);
