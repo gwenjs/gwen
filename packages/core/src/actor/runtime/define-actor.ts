@@ -113,17 +113,17 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
     super();
   }
 
-  private lookup(id: EntityId): ActorInstance<API> | undefined {
+  /** Current engine only. One installed engine is used when none is current. */
+  private bucket(): Map<EntityId, ActorInstance<API>> | undefined {
     const current = engineContext.tryUse();
-    if (current) {
-      const hit = this.buckets.get(unwrapEngine(current))?.get(id);
-      if (hit) return hit;
-    }
-    for (const engine of this.engines) {
-      const hit = this.buckets.get(engine)?.get(id);
-      if (hit) return hit;
-    }
+    if (current) return this.buckets.get(unwrapEngine(current));
+    if (this.engines.size !== 1) return undefined;
+    for (const engine of this.engines) return this.buckets.get(engine);
     return undefined;
+  }
+
+  private lookup(id: EntityId): ActorInstance<API> | undefined {
+    return this.bucket()?.get(id);
   }
 
   override get(id: EntityId): ActorInstance<API> | undefined {
@@ -135,45 +135,52 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
   }
 
   override get size(): number {
-    let count = 0;
-    for (const engine of this.engines) count += this.buckets.get(engine)?.size ?? 0;
-    return count;
+    return this.bucket()?.size ?? 0;
   }
 
   override delete(id: EntityId): boolean {
-    const current = engineContext.tryUse();
-    if (current) {
-      const bucket = this.buckets.get(unwrapEngine(current));
-      if (bucket?.delete(id)) return true;
-    }
-    for (const engine of this.engines) {
-      if (this.buckets.get(engine)?.delete(id)) return true;
-    }
-    return false;
+    return this.bucket()?.delete(id) ?? false;
+  }
+
+  override set(id: EntityId, value: ActorInstance<API>): this {
+    this.bucket()?.set(id, value);
+    return this;
+  }
+
+  override clear(): void {
+    this.bucket()?.clear();
+  }
+
+  override forEach(
+    callback: (
+      value: ActorInstance<API>,
+      key: EntityId,
+      map: Map<EntityId, ActorInstance<API>>,
+    ) => void,
+    thisArg?: unknown,
+  ): void {
+    const bucket = this.bucket();
+    if (!bucket) return;
+    for (const [key, value] of bucket) callback.call(thisArg, value, key, this);
+  }
+
+  override [Symbol.iterator](): MapIterator<[EntityId, ActorInstance<API>]> {
+    return this.entries();
   }
 
   override *keys(): MapIterator<EntityId> {
-    for (const engine of this.engines) {
-      const bucket = this.buckets.get(engine);
-      if (!bucket) continue;
-      yield* bucket.keys();
-    }
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.keys();
   }
 
   override *values(): MapIterator<ActorInstance<API>> {
-    for (const engine of this.engines) {
-      const bucket = this.buckets.get(engine);
-      if (!bucket) continue;
-      yield* bucket.values();
-    }
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.values();
   }
 
   override *entries(): MapIterator<[EntityId, ActorInstance<API>]> {
-    for (const engine of this.engines) {
-      const bucket = this.buckets.get(engine);
-      if (!bucket) continue;
-      yield* bucket.entries();
-    }
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.entries();
   }
 }
 
@@ -607,8 +614,9 @@ export function defineActor<Props, PublicAPI>(
     const current = engineContext.tryUse();
     if (current) {
       const real = unwrapEngine(current);
-      if (_buckets.get(real)?.has(entityId)) return real;
+      return _buckets.get(real)?.has(entityId) ? real : null;
     }
+    if (_engines.size !== 1) return null;
     for (const engine of _engines) {
       if (_buckets.get(engine)?.has(entityId)) return engine;
     }
