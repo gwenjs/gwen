@@ -19,6 +19,37 @@ function watch(engine: GwenEngine): Change[] {
   return seen;
 }
 
+/**
+ * Resolve `true` when `promise` settles within `turns` macrotask turns, `false` otherwise.
+ * A bounded wait: a hang shows up as `false` instead of a test timeout.
+ */
+async function settles(promise: Promise<unknown>, turns = 50): Promise<boolean> {
+  let done = false;
+  void promise.then(
+    () => {
+      done = true;
+    },
+    () => {
+      done = true;
+    },
+  );
+  for (let turn = 0; turn < turns && !done; turn += 1) {
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+  return done;
+}
+
+/**
+ * Cleanup for `finally`: never throws and never hangs. Calls nothing while `starting`
+ * (`stop()` would throw and hide the failure); otherwise a bounded `stop()`.
+ */
+async function shutdown(engine: GwenEngine): Promise<void> {
+  if (engine.state === "starting") return;
+  await settles(engine.stop());
+}
+
 describe("engine state machine", () => {
   it("orders start and stop hooks around the lifecycle transitions", async () => {
     const engine = await createEngine();
@@ -51,7 +82,7 @@ describe("engine state machine", () => {
       ]);
       expect(engine.state).toBe("stopped");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -74,7 +105,7 @@ describe("engine state machine", () => {
       expect(engine.state).toBe("running");
       await engine.stop();
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -92,7 +123,7 @@ describe("engine state machine", () => {
       expect(seen).toHaveLength(2);
       expect(engine.state).toBe("stopped");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -129,7 +160,7 @@ describe("engine state machine", () => {
       }
       expect(engine.state).toBe("running");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -157,25 +188,23 @@ describe("engine state machine", () => {
         { from: "starting", to: "running", reason: "USER" },
       ]);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
-  it("rejects start and advance while stopping, and a nested stop joins the running teardown", async () => {
+  it("rejects start and advance while stopping, and a nested stop is a no-op that resolves", async () => {
     const engine = await createEngine();
     try {
       const seen = watch(engine);
       let nested = 0;
       let stops = 0;
-      let nestedJoin: Promise<void> = Promise.resolve();
       const rejected: string[] = [];
       engine.hooks.hook("engine:stop", () => {
         stops += 1;
       });
       engine.hooks.hook("engine:state-change", async () => {
         if (engine.state !== "stopping") return;
-        // Awaiting it here would wait for this very teardown (#107 amendment).
-        nestedJoin = engine.stop();
+        await engine.stop();
         nested += 1;
         const startError = await engine.start().then(
           () => undefined,
@@ -189,8 +218,7 @@ describe("engine state machine", () => {
         if (advanceError instanceof GwenEngineStateError) rejected.push(advanceError.method);
       });
       await engine.startExternal();
-      await engine.stop();
-      await nestedJoin;
+      expect(await settles(engine.stop())).toBe(true);
       expect(nested).toBe(1);
       expect(stops).toBe(1);
       expect(rejected).toEqual(["start", "advance"]);
@@ -198,7 +226,7 @@ describe("engine state machine", () => {
       expect(seen.filter((event) => event.to === "stopping")).toHaveLength(1);
       expect(seen.filter((event) => event.to === "stopped")).toHaveLength(1);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -243,7 +271,7 @@ describe("engine state machine", () => {
       expect(inits).toBe(1);
       expect(starts).toBe(1);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -269,7 +297,7 @@ describe("engine state machine", () => {
       expect(errors).toBe(2);
       expect(engine.state).toBe("faulted");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -291,7 +319,7 @@ describe("engine state machine", () => {
       expect(engine.state).toBe("faulted");
       expect(disposed).toBe(1);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -320,15 +348,15 @@ describe("engine state machine", () => {
       expect(stops).toBe(1);
       expect(engine.state).toBe("faulted");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
   it("an overlapping stop() while faulted does not run engine:stop again", async () => {
     const engine = await createEngine();
+    let release: () => void = () => undefined;
     try {
       let stops = 0;
-      let release: () => void = () => undefined;
       const gate = new Promise<void>((resolve) => {
         release = resolve;
       });
@@ -347,17 +375,18 @@ describe("engine state machine", () => {
       expect(stops).toBe(1);
       expect(engine.state).toBe("faulted");
     } finally {
-      await engine.stop();
+      release();
+      await shutdown(engine);
     }
   });
 
-  it("a second stop() during teardown resolves after teardown, and a later stop() is a no-op", async () => {
+  it("a second stop() during teardown resolves immediately, and a later stop() is a no-op", async () => {
     const engine = await createEngine();
+    let open: () => void = () => undefined;
     try {
       let stops = 0;
-      let release: () => void = () => undefined;
       const gate = new Promise<void>((resolve) => {
-        release = resolve;
+        open = resolve;
       });
       engine.hooks.hook("engine:stop", () => {
         stops += 1;
@@ -371,25 +400,62 @@ describe("engine state machine", () => {
       // engine:stop is running and blocked on the gate.
       expect(stops).toBe(1);
       expect(engine.state).toBe("stopping");
-      let secondState: string | null = null;
-      const second = engine.stop().then(() => {
-        secondState = engine.state;
-      });
-      await new Promise<void>((resolve) => {
-        setImmediate(resolve);
-      });
-      expect(secondState).toBeNull();
-      release();
-      await second;
-      await first;
-      expect(secondState).toBe("stopped");
+      expect(await settles(engine.stop())).toBe(true);
+      expect(engine.state).toBe("stopping");
+      open();
+      expect(await settles(first)).toBe(true);
+      expect(engine.state).toBe("stopped");
       expect(stops).toBe(1);
 
       await engine.stop();
       expect(stops).toBe(1);
       expect(engine.state).toBe("stopped");
     } finally {
-      await engine.stop();
+      open();
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() awaited inside an engine:stop hook resolves, and the first stop() completes", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", async () => {
+        stops += 1;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      await engine.startExternal();
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() awaited inside an engine:state-change handler for stopping resolves, and engine:stop fires once", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+      });
+      engine.hooks.hook("engine:state-change", async (payload) => {
+        if (payload.to !== "stopping") return;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      await engine.startExternal();
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
     }
   });
 
@@ -411,7 +477,7 @@ describe("engine state machine", () => {
       expect(stops).toBe(1);
       expect(engine.state).toBe("faulted");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -429,7 +495,7 @@ describe("engine state machine", () => {
       expect(engine.state).toBe("running");
       expect(logs.some((message) => message.includes("handler blew up"))).toBe(true);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -446,7 +512,7 @@ describe("engine state machine", () => {
       await first;
       expect(engine.state).toBe("running");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -479,7 +545,7 @@ describe("engine state machine", () => {
         { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
       ]);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -502,7 +568,7 @@ describe("engine state machine", () => {
         { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
       ]);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -526,7 +592,7 @@ describe("engine state machine", () => {
       expect(seen).toEqual([]);
       expect(levels).toEqual(["error"]);
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 
@@ -565,6 +631,8 @@ describe("engine state machine", () => {
       await engine.unuse("ok");
       await engine.stop();
       await engine.use({ name: "after", setup() {} });
+      // Plugin installed in `stopped`: removed explicitly so it does not leak (Decision needed in #152).
+      await engine.unuse("after");
       expect(engine.state).toBe("stopped");
       engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
       expect(engine.state).toBe("stopped");
@@ -580,8 +648,8 @@ describe("engine state machine", () => {
       });
       expect(methods).toEqual(["starting:use", "starting:unuse", "stopping:use"]);
     } finally {
-      await engine.stop();
-      await faulted.stop();
+      await shutdown(engine);
+      await shutdown(faulted);
     }
   });
 
@@ -597,7 +665,7 @@ describe("engine state machine", () => {
       expect(codes).toEqual([]);
       expect(engine.state).toBe("running");
     } finally {
-      await engine.stop();
+      await shutdown(engine);
     }
   });
 });
