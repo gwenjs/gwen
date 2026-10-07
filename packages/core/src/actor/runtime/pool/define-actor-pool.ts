@@ -419,7 +419,10 @@ export function defineActorPool<Props, PublicAPI>(
       for (let i = 0; i < entries.length; i += 1) {
         const entry = entries[i]!;
         const existing = engine.getComponent(candidate, entry.def);
-        if (existing !== undefined) Object.assign(existing, entry.defaults);
+        if (existing === undefined) continue;
+        // Same order as a fresh spawn: component defaults, then the prefab entry.
+        if (entry.def.defaults) Object.assign(existing, entry.def.defaults);
+        Object.assign(existing, entry.defaults);
       }
       if (!setEntityDormant(engine, candidate, false)) continue;
       inst._scope.resume();
