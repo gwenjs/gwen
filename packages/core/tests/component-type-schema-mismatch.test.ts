@@ -61,4 +61,19 @@ describe("defineComponent same name, different schema", () => {
       expect(caught.code).toBe("CORE:INVALID_COMPONENT_SCHEMA");
     }
   });
+
+  it("Types.string and Types.persistentString for the same name throw", () => {
+    defineComponent({ name: "Label", schema: { s: Types.string } });
+
+    const caught = catchError(() =>
+      defineComponent({ name: "Label", schema: { s: Types.persistentString } }),
+    );
+
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) {
+      throw new Error("expected GwenError");
+    }
+    expect(caught.code).toBe("CORE:INVALID_COMPONENT_SCHEMA");
+    expect(caught.message).toContain("Label");
+  });
 });

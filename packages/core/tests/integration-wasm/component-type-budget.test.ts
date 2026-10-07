@@ -56,6 +56,7 @@ describe("component type budget", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     const registry = new EngineComponentRegistry(handle.bridge);
     let caught: unknown;
+    let nextBridgeId = -1;
     try {
       for (let i = 1; i <= 128; i += 1) {
         registry.getOrRegister(`Reg${i}`);
@@ -63,9 +64,14 @@ describe("component type budget", () => {
     } catch (error: unknown) {
       caught = error;
     } finally {
+      // The WASM counter behind registerComponentType: one more id per call.
+      nextBridgeId = handle.bridge.registerComponentType();
       await handle.dispose();
     }
 
+    const firstId = registry.get("Reg1");
+    expect(firstId).toEqual(expect.any(Number));
+    expect(nextBridgeId - (firstId ?? 0)).toBe(127);
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught).not.toBeInstanceOf(GwenWasmError);
     expect(caught).not.toBeInstanceOf(GwenWasmPanicError);
