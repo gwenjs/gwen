@@ -193,7 +193,7 @@ L'objet `contact` a :
 - `entityB` — ID de la deuxième entité participante
 - `started` — `true` quand le contact commence dans cette frame
 
-L'enregistrement WASM fait 16 octets. Il n'a pas de point de contact, de normale, ni de vitesse relative.
+L'enregistrement WASM fait 20 octets : quatre champs `u32` et un octet de drapeaux. Il n'a pas de point de contact, de normale, ni de vitesse relative. `started` est le bit 0 de cet octet.
 
 ### Événements des capteurs
 
@@ -284,9 +284,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   let grounded = false
 
   onContact((contact) => {
-    // Détection simple du sol : toute collision compte comme au sol
-    // (En production, vérifiez la normale de collision pour une meilleure précision)
-    grounded = true
+    // L'enregistrement n'a pas de normale. Tout contact compte comme au sol.
+    if (contact.started) grounded = true
   })
 
   onUpdate(({ input }) => {

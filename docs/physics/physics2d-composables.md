@@ -193,7 +193,7 @@ The `contact` object has:
 - `entityB` — Entity ID of the second participant
 - `started` — `true` when the contact started this frame
 
-The WASM collision record is 16 bytes. It has no contact point, normal, or relative velocity.
+The WASM collision record is 20 bytes: four `u32` fields and a flags byte. It has no contact point, normal, or relative velocity. `started` is bit 0 of that flags byte.
 
 ### Sensor Events
 
@@ -284,9 +284,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   let grounded = false
 
   onContact((contact) => {
-    // Simple ground detection: any collision counts as grounded
-    // (In production, check the collision normal for better accuracy)
-    grounded = true
+    // The contact record has no normal. Any contact counts as grounded.
+    if (contact.started) grounded = true
   })
 
   onUpdate(({ input }) => {
