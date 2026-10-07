@@ -167,6 +167,8 @@ This record does not remove `requireSAB`, `detectSharedMemoryRequired`, `wasm.sh
 
 The SAB sentences in the published docs and in `internals-docs/architecture.md` stay until #62.
 
+The SharedArrayBuffer sentences in the published docs are superseded by #115.
+
 The guard test allow-list is today's offenders and may only shrink: the vite header sites, `wasm-bridge.ts`, both contact ring buffers, and `packages/physics3d/src/plugin/bvh.ts` (R8). Keys are the file plus the pattern. A removed site stays green. A new site, or a higher count, fails.
 
 CI does collect `packages/core/bench/`. Vitest reads the `test` key only, so the top-level `benchmark.include` in `packages/core/vitest.config.ts` is ignored and the default glob runs `bench/frame-loop.bench.ts`. When `CI=true`, the light and physics2d benches skip N = 50 000 and keep 1 000 and 10 000. The medians above are the local run, not the CI trend.
