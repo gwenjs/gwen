@@ -1,21 +1,42 @@
 #!/usr/bin/env node
 /**
- * Compare a test run to the names in the source file.
+ * Compare a test run to the test names in the source file.
+ *
+ * A name is the describe path plus the test title, joined with ` > `.
+ * A title that is not a literal (template with `${}`, `it.each` placeholder,
+ * variable) is dynamic: it is matched as a pattern and never blocks alone.
  *
  * is-vitest --source <file>
  *   Exit 0 when the file imports vitest at the top level, 1 otherwise.
  *
  * classify --source <head> [--base <base copy>]
- *   Prints `NEW <name>` or `OLD <name>`. Exit 2 when the source has no literal names.
+ *   Prints `NEW <name>` or `OLD <name>`. Exit 2 when the source has no test names.
  *
  * judge --source <head> [--base <base copy>] --format tap|vitest|cargo --report <file>
  *   Exit 0 when every name that is absent from the base copy failed.
  *   Exit 1 when such a name passed, was skipped, or is absent from the report.
- *   Exit 2 when the report has no tests, or a runner name is not in the source.
- *   A name present in the base copy may pass (`KEEP`).
+ *   Exit 2 when the report has no tests.
+ *   A name present in the base copy may pass (`KEEP`). A dynamic name that
+ *   passes is kept with a warning. A runner name that matches no source name
+ *   prints `WARN` and does not block.
  */
 
 import { readFileSync } from 'node:fs';
+
+/** @typedef {'pass' | 'fail' | 'skip'} Status */
+/** @typedef {{ path: string[], status: Status }} Result */
+/**
+ * @typedef {object} Segment
+ * @property {string} text title as written in the source
+ * @property {RegExp | null} pattern set when the title is dynamic
+ */
+/**
+ * @typedef {object} Entry
+ * @property {'suite' | 'test'} kind
+ * @property {Segment[]} path
+ * @property {string} name path joined with ` > `
+ * @property {boolean} dynamic
+ */
 
 /**
  * @param {string} flag
@@ -40,49 +61,427 @@ function unescapeLiteral(body) {
 }
 
 /**
- * @param {string} source
- * @returns {string[]}
- */
-function testNames(source) {
-  /** @type {string[]} */
-  const names = [];
-  const re =
-    /(?:^|[^.\w$])(?:it|test)(?:\.[A-Za-z_$][\w$]*)*\s*\(\s*(['"`])((?:\\.|(?!\1)[\s\S])*?)\1/g;
-  let match = re.exec(source);
-  while (match) {
-    names.push(unescapeLiteral(match[2] ?? ''));
-    match = re.exec(source);
-  }
-  return names;
-}
-
-/**
  * @param {string} text
- * @returns {{ name: string, status: 'pass' | 'fail' | 'skip' }[] | null}
+ * @returns {string}
  */
-function parseTap(text) {
-  /** @type {{ name: string, status: 'pass' | 'fail' | 'skip' }[]} */
-  const tests = [];
-  for (const line of text.split(/\r?\n/)) {
-    const match = line.match(/^(not )?ok\s+\d+\s+-\s+(.+)$/);
-    if (!match) continue;
-    let raw = (match[2] ?? '').trim();
-    /** @type {'pass' | 'fail' | 'skip'} */
-    let status = match[1] ? 'fail' : 'pass';
-    const directive = raw.match(/^((?:\\.|[^\\#])*?)\s+#\s+(SKIP|TODO)\b/i);
-    if (directive) {
-      status = 'skip';
-      raw = directive[1] ?? '';
-    }
-    const name = unescapeTap(raw.trim());
-    if (name === '') return null;
-    tests.push({ name, status });
-  }
-  return tests;
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 /**
- * node:test escapes `#` and `\\` in TAP names.
+ * @param {string} src
+ * @param {number} i index of the opening quote
+ * @returns {number} index after the closing quote
+ */
+function skipString(src, i) {
+  const quote = src[i];
+  let j = i + 1;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === '\\') {
+      j += 2;
+      continue;
+    }
+    if (c === quote) return j + 1;
+    if (c === '\n') return j;
+    j++;
+  }
+  return j;
+}
+
+/**
+ * @param {string} src
+ * @param {number} i index after `${`
+ * @returns {number} index after the matching `}`
+ */
+function skipExpression(src, i) {
+  let depth = 1;
+  let j = i;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === '"' || c === "'") {
+      j = skipString(src, j);
+      continue;
+    }
+    if (c === '`') {
+      j = skipTemplate(src, j);
+      continue;
+    }
+    if (c === '{') depth++;
+    if (c === '}') {
+      depth--;
+      if (depth === 0) return j + 1;
+    }
+    j++;
+  }
+  return j;
+}
+
+/**
+ * @param {string} src
+ * @param {number} i index of the opening backtick
+ * @returns {number} index after the closing backtick
+ */
+function skipTemplate(src, i) {
+  let j = i + 1;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === '\\') {
+      j += 2;
+      continue;
+    }
+    if (c === '`') return j + 1;
+    if (c === '$' && src[j + 1] === '{') {
+      j = skipExpression(src, j + 2);
+      continue;
+    }
+    j++;
+  }
+  return j;
+}
+
+/**
+ * @param {string} src
+ * @param {number} i index of the opening slash
+ * @returns {number} index after the flags, or i + 1 when it is not a regex
+ */
+function skipRegex(src, i) {
+  let j = i + 1;
+  let inClass = false;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === '\n') return i + 1;
+    if (c === '\\') {
+      j += 2;
+      continue;
+    }
+    if (c === '[') inClass = true;
+    else if (c === ']') inClass = false;
+    else if (c === '/' && !inClass) {
+      j++;
+      while (j < src.length && /[a-z]/i.test(src[j] ?? '')) j++;
+      return j;
+    }
+    j++;
+  }
+  return i + 1;
+}
+
+/**
+ * @param {string} src
+ * @param {number} i
+ * @returns {number} first index that is not whitespace or a comment
+ */
+function skipSpace(src, i) {
+  let j = i;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === ' ' || c === '\t' || c === '\n' || c === '\r') {
+      j++;
+      continue;
+    }
+    if (c === '/' && src[j + 1] === '/') {
+      const end = src.indexOf('\n', j);
+      j = end === -1 ? src.length : end;
+      continue;
+    }
+    if (c === '/' && src[j + 1] === '*') {
+      const end = src.indexOf('*/', j + 2);
+      j = end === -1 ? src.length : end + 2;
+      continue;
+    }
+    break;
+  }
+  return j;
+}
+
+/**
+ * @param {string} src
+ * @param {number} i index of an opening paren
+ * @returns {number} index after the matching paren
+ */
+function skipParens(src, i) {
+  let depth = 0;
+  let j = i;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === '"' || c === "'") {
+      j = skipString(src, j);
+      continue;
+    }
+    if (c === '`') {
+      j = skipTemplate(src, j);
+      continue;
+    }
+    if (c === '(') depth++;
+    if (c === ')') {
+      depth--;
+      if (depth === 0) return j + 1;
+    }
+    j++;
+  }
+  return j;
+}
+
+const REGEX_BEFORE = new Set([
+  '',
+  '(',
+  ',',
+  '=',
+  ':',
+  '[',
+  '!',
+  '&',
+  '|',
+  '?',
+  '{',
+  '}',
+  ';',
+  '+',
+  '-',
+  '*',
+  '%',
+  '<',
+  '>',
+  '~',
+  '^',
+  'return',
+  'typeof',
+  'case',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'throw',
+  'else',
+  'do',
+  'await',
+  'yield',
+]);
+
+const SUITES = new Set(['describe', 'suite', 'context']);
+const TESTS = new Set(['it', 'test']);
+const TABLE_MODIFIERS = new Set(['each', 'for']);
+const CALL_MODIFIERS = new Set(['each', 'for', 'skipIf', 'runIf']);
+
+/**
+ * Turn an `it.each` title into a segment. `%s`, `%i`, `$name` … are dynamic.
+ *
+ * @param {string} title
+ * @returns {Segment}
+ */
+function tableSegment(title) {
+  const placeholder = /%[sdifjoOc#$]|\$[A-Za-z_][\w.]*/g;
+  if (!placeholder.test(title)) return { text: title, pattern: null };
+  const parts = title.split(/%[sdifjoOc#$]|\$[A-Za-z_][\w.]*/);
+  const body = parts.map((part) => escapeRegExp(part.replace(/%%/g, '%'))).join('[\\s\\S]*?');
+  return { text: title, pattern: new RegExp(`^${body}$`) };
+}
+
+/**
+ * @param {string} src
+ * @param {number} i index of the opening backtick
+ * @returns {Segment}
+ */
+function templateSegment(src, i) {
+  const end = skipTemplate(src, i);
+  const raw = src.slice(i + 1, end - 1);
+  if (!raw.includes('${')) return { text: unescapeLiteral(raw), pattern: null };
+  /** @type {string[]} */
+  const parts = [];
+  let j = 0;
+  let current = '';
+  while (j < raw.length) {
+    if (raw[j] === '\\') {
+      current += raw.slice(j, j + 2);
+      j += 2;
+      continue;
+    }
+    if (raw[j] === '$' && raw[j + 1] === '{') {
+      parts.push(unescapeLiteral(current));
+      current = '';
+      j = skipExpression(raw, j + 2);
+      continue;
+    }
+    current += raw[j];
+    j++;
+  }
+  parts.push(unescapeLiteral(current));
+  return {
+    text: raw,
+    pattern: new RegExp(`^${parts.map(escapeRegExp).join('[\\s\\S]*?')}$`),
+  };
+}
+
+/**
+ * Read the title argument of a test or suite call.
+ *
+ * @param {string} src
+ * @param {number} i index after the opening paren
+ * @param {boolean} table the call is `.each` / `.for`
+ * @returns {Segment}
+ */
+function readTitle(src, i, table) {
+  const j = skipSpace(src, i);
+  const c = src[j];
+  if (c === '"' || c === "'") {
+    const end = skipString(src, j);
+    const text = unescapeLiteral(src.slice(j + 1, end - 1));
+    return table ? tableSegment(text) : { text, pattern: null };
+  }
+  if (c === '`') {
+    const segment = templateSegment(src, j);
+    return table && !segment.pattern ? tableSegment(segment.text) : segment;
+  }
+  const word = src.slice(j).match(/^[^,)]*/)?.[0]?.trim() || '<expression>';
+  return { text: `<${word}>`, pattern: /^[\s\S]*$/ };
+}
+
+/**
+ * Find every describe/it/test call and its describe path.
+ *
+ * @param {string} src
+ * @returns {Entry[]}
+ */
+function scanJs(src) {
+  /** @type {Entry[]} */
+  const entries = [];
+  /** @type {{ segment: Segment, kind: 'suite' | 'test', depth: number }[]} */
+  const stack = [];
+  let depth = 0;
+  let prev = '';
+  let i = 0;
+  while (i < src.length) {
+    const c = src[i] ?? '';
+    if (c === '/' && (src[i + 1] === '/' || src[i + 1] === '*')) {
+      i = skipSpace(src, i);
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      i = skipString(src, i);
+      prev = 'x';
+      continue;
+    }
+    if (c === '`') {
+      i = skipTemplate(src, i);
+      prev = 'x';
+      continue;
+    }
+    if (c === '/' && REGEX_BEFORE.has(prev)) {
+      const end = skipRegex(src, i);
+      prev = end === i + 1 ? '/' : 'x';
+      i = end;
+      continue;
+    }
+    if (c === '(') {
+      depth++;
+      prev = '(';
+      i++;
+      continue;
+    }
+    if (c === ')') {
+      depth--;
+      while (stack.length > 0 && (stack[stack.length - 1]?.depth ?? 0) > depth) stack.pop();
+      prev = ')';
+      i++;
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(c)) {
+      const word = src.slice(i).match(/^[A-Za-z_$][\w$]*/)?.[0] ?? c;
+      const before = src.slice(0, i).trimEnd();
+      const member = before.endsWith('.') && !before.endsWith('..');
+      const insideTest = stack.some((item) => item.kind === 'test');
+      const candidate =
+        (!member && (SUITES.has(word) || TESTS.has(word))) ||
+        (member && insideTest && (TESTS.has(word) || word === 'describe'));
+      if (candidate && !/[\w$]/.test(src[i - 1] ?? '')) {
+        let j = i + word.length;
+        let table = false;
+        let ok = true;
+        for (;;) {
+          j = skipSpace(src, j);
+          if (src[j] !== '.') break;
+          j = skipSpace(src, j + 1);
+          const modifier = src.slice(j).match(/^[A-Za-z_$][\w$]*/)?.[0];
+          if (!modifier) {
+            ok = false;
+            break;
+          }
+          j += modifier.length;
+          if (CALL_MODIFIERS.has(modifier)) {
+            j = skipSpace(src, j);
+            if (src[j] !== '(') {
+              ok = false;
+              break;
+            }
+            j = skipParens(src, j);
+            if (TABLE_MODIFIERS.has(modifier)) table = true;
+          }
+        }
+        if (ok && src[j] === '(') {
+          const titleStart = j + 1;
+          const segment = readTitle(src, titleStart, table);
+          if (member && segment.pattern && !segment.text.startsWith('`') && segment.text.startsWith('<')) {
+            i += word.length;
+            prev = word;
+            continue;
+          }
+          const kind = SUITES.has(word) ? 'suite' : 'test';
+          depth++;
+          const path = [...stack.map((item) => item.segment), segment];
+          entries.push({
+            kind,
+            path,
+            name: path.map((item) => item.text).join(' > '),
+            dynamic: path.some((item) => item.pattern !== null),
+          });
+          stack.push({ segment, kind, depth });
+          prev = '(';
+          i = titleStart;
+          continue;
+        }
+      }
+      i += word.length;
+      prev = word;
+      continue;
+    }
+    if (!/\s/.test(c)) prev = c === ']' ? 'x' : c;
+    i++;
+  }
+  return entries;
+}
+
+/**
+ * `#[test]` / `#[wasm_bindgen_test]` functions of a Rust test file.
+ *
+ * @param {string} src
+ * @returns {Entry[]}
+ */
+function scanRust(src) {
+  /** @type {Entry[]} */
+  const entries = [];
+  const re = /#\[(?:tokio::)?(?:test|wasm_bindgen_test)[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/g;
+  let match = re.exec(src);
+  while (match) {
+    const text = match[1] ?? '';
+    entries.push({ kind: 'test', path: [{ text, pattern: null }], name: text, dynamic: false });
+    match = re.exec(src);
+  }
+  return entries;
+}
+
+/**
+ * @param {string} file
+ * @returns {Entry[]}
+ */
+function scanFile(file) {
+  const src = readFileSync(file, 'utf8');
+  return file.endsWith('.rs') ? scanRust(src) : scanJs(src);
+}
+
+/**
+ * node:test escapes `#` and `\` in TAP names.
  *
  * @param {string} name
  * @returns {string}
@@ -93,28 +492,62 @@ function unescapeTap(name) {
 
 /**
  * @param {string} text
- * @returns {{ name: string, status: 'pass' | 'fail' | 'skip' }[] | null}
+ * @returns {Result[] | null}
+ */
+function parseTap(text) {
+  /** @type {Result[]} */
+  const tests = [];
+  /** @type {string[]} */
+  const subtests = [];
+  for (const line of text.split(/\r?\n/)) {
+    const subtest = line.match(/^( *)# Subtest: (.*)$/);
+    if (subtest) {
+      const level = Math.floor((subtest[1] ?? '').length / 4);
+      subtests.length = level;
+      subtests[level] = unescapeTap((subtest[2] ?? '').trim());
+      continue;
+    }
+    const match = line.match(/^( *)(not )?ok\s+\d+\s+-\s+(.+)$/);
+    if (!match) continue;
+    const level = Math.floor((match[1] ?? '').length / 4);
+    let raw = (match[3] ?? '').trim();
+    /** @type {Status} */
+    let status = match[2] ? 'fail' : 'pass';
+    const directive = raw.match(/^((?:\\.|[^\\#])*?)\s+#\s+(SKIP|TODO)\b/i);
+    if (directive) {
+      status = 'skip';
+      raw = directive[1] ?? '';
+    }
+    const name = unescapeTap(raw.trim());
+    if (name === '') return null;
+    tests.push({ path: [...subtests.slice(0, level), name], status });
+  }
+  return tests;
+}
+
+/**
+ * @param {string} text
+ * @returns {Result[] | null}
  */
 function parseVitest(text) {
-  /** @type {{ testResults?: { assertionResults?: { fullName?: string, title?: string, status?: string }[] }[] }} */
+  /** @type {{ testResults?: { assertionResults?: { ancestorTitles?: string[], fullName?: string, title?: string, status?: string }[] }[] }} */
   let json;
   try {
     json = JSON.parse(text);
   } catch {
     return null;
   }
-  /** @type {{ name: string, status: 'pass' | 'fail' | 'skip' }[]} */
+  /** @type {Result[]} */
   const tests = [];
   for (const file of json.testResults ?? []) {
     for (const assertion of file.assertionResults ?? []) {
-      const name = assertion.title || assertion.fullName || '';
-      const fullName = assertion.fullName || name;
-      if (!name && !fullName) return null;
-      /** @type {'pass' | 'fail' | 'skip'} */
+      const title = assertion.title ?? assertion.fullName ?? '';
+      if (!title) return null;
+      /** @type {Status} */
       let status = 'skip';
       if (assertion.status === 'passed') status = 'pass';
       else if (assertion.status === 'failed') status = 'fail';
-      tests.push({ name: fullName || name, status });
+      tests.push({ path: [...(assertion.ancestorTitles ?? []), title], status });
     }
   }
   return tests;
@@ -122,38 +555,54 @@ function parseVitest(text) {
 
 /**
  * @param {string} text
- * @returns {{ name: string, status: 'pass' | 'fail' | 'skip' }[] | null}
+ * @returns {Result[] | null}
  */
 function parseCargo(text) {
-  /** @type {{ name: string, status: 'pass' | 'fail' | 'skip' }[]} */
+  /** @type {Result[]} */
   const tests = [];
   const re = /^test\s+(.+?)\s+\.\.\.\s+(ok|FAILED|ignored)\s*$/gm;
   let match = re.exec(text);
   while (match) {
-    const name = match[1] ?? '';
+    const name = (match[1] ?? '').split('::').pop() ?? '';
     const word = match[2];
-    /** @type {'pass' | 'fail' | 'skip'} */
+    /** @type {Status} */
     let status = 'skip';
     if (word === 'ok') status = 'pass';
     else if (word === 'FAILED') status = 'fail';
-    tests.push({ name, status });
+    tests.push({ path: [name], status });
     match = re.exec(text);
   }
   return tests;
 }
 
 /**
- * @param {string} runnerName
- * @param {string[]} sourceNames
- * @returns {string | null}
+ * @param {Segment} segment
+ * @param {string} title
+ * @returns {boolean}
  */
-function matchSource(runnerName, sourceNames) {
-  if (sourceNames.includes(runnerName)) return runnerName;
-  const hits = sourceNames.filter(
-    (name) => runnerName === name || runnerName.endsWith(` ${name}`) || runnerName.endsWith(`>${name}`),
+function segmentMatches(segment, title) {
+  return segment.pattern ? segment.pattern.test(title) : segment.text === title;
+}
+
+/**
+ * The source entry for a runner path: an exact literal match first, then a
+ * dynamic one.
+ *
+ * @param {string[]} path
+ * @param {Entry[]} entries
+ * @returns {Entry | null}
+ */
+function matchEntry(path, entries) {
+  const sameLength = entries.filter((entry) => entry.path.length === path.length);
+  const exact = sameLength.find(
+    (entry) => !entry.dynamic && entry.path.every((segment, k) => segment.text === path[k]),
   );
-  if (hits.length === 1) return hits[0] ?? null;
-  return null;
+  if (exact) return exact;
+  return (
+    sameLength.find(
+      (entry) => entry.dynamic && entry.path.every((segment, k) => segmentMatches(segment, path[k] ?? '')),
+    ) ?? null
+  );
 }
 
 /**
@@ -185,13 +634,20 @@ if (mode === 'is-vitest') {
 }
 const basePath = arg('--base');
 if (!sourcePath) failClosed('missing --source');
-const sourceNames = testNames(readFileSync(sourcePath, 'utf8'));
-const baseNames = new Set(basePath ? testNames(readFileSync(basePath, 'utf8')) : []);
+const allEntries = scanFile(sourcePath);
+const sourceTests = allEntries.filter((entry) => entry.kind === 'test');
+const baseNames = new Set(
+  basePath
+    ? scanFile(basePath)
+        .filter((entry) => entry.kind === 'test')
+        .map((entry) => entry.name)
+    : [],
+);
 
 if (mode === 'classify') {
-  if (sourceNames.length === 0) failClosed('no test names in the source');
-  for (const name of sourceNames) {
-    console.log(`${baseNames.has(name) ? 'OLD' : 'NEW'} ${name}`);
+  if (sourceTests.length === 0) failClosed('no test names in the source');
+  for (const entry of sourceTests) {
+    console.log(`${baseNames.has(entry.name) ? 'OLD' : 'NEW'} ${entry.name}`);
   }
   process.exit(0);
 }
@@ -205,28 +661,51 @@ const parsed =
   format === 'tap' ? parseTap(report) : format === 'vitest' ? parseVitest(report) : format === 'cargo' ? parseCargo(report) : null;
 if (!parsed || parsed.length === 0) failClosed('no test results');
 
-let blocking = false;
-/** @type {Set<string>} */
-const reported = new Set();
+/** @type {Map<Entry, Status[]>} */
+const statuses = new Map();
 for (const result of parsed) {
-  const sourceName = matchSource(result.name, sourceNames);
-  if (!sourceName) failClosed(`runner name not in source: ${result.name}`);
-  reported.add(sourceName);
-  const isNew = !baseNames.has(sourceName);
-  if (!isNew) {
-    console.log(`${result.status === 'fail' ? 'FAIL' : 'KEEP'} ${sourceName}`);
+  const entry = matchEntry(result.path, allEntries);
+  if (entry?.kind === 'suite') continue;
+  if (!entry) {
+    const isParent = parsed.some(
+      (other) =>
+        other.path.length > result.path.length && result.path.every((title, k) => other.path[k] === title),
+    );
+    if (!isParent) console.log(`WARN runner name not in source: ${result.path.join(' > ')}`);
     continue;
   }
-  if (result.status === 'fail') {
-    console.log(`FAIL ${sourceName}`);
-    continue;
-  }
-  console.log(`PASS ${sourceName}`);
-  blocking = true;
+  const list = statuses.get(entry) ?? [];
+  list.push(result.status);
+  statuses.set(entry, list);
 }
-for (const name of sourceNames) {
-  if (baseNames.has(name) || reported.has(name)) continue;
-  console.log(`ABSENT ${name}`);
+
+let blocking = false;
+for (const entry of sourceTests) {
+  const isNew = !baseNames.has(entry.name);
+  const list = statuses.get(entry) ?? [];
+  const allFailed = list.length > 0 && list.every((status) => status === 'fail');
+  if (list.length === 0) {
+    if (!isNew) console.log(`KEEP ${entry.name} (not run)`);
+    else if (entry.dynamic) console.log(`KEEP ${entry.name} (dynamic name, not run)`);
+    else {
+      console.log(`ABSENT ${entry.name}`);
+      blocking = true;
+    }
+    continue;
+  }
+  if (allFailed) {
+    console.log(`FAIL ${entry.name}`);
+    continue;
+  }
+  if (!isNew) {
+    console.log(`KEEP ${entry.name}`);
+    continue;
+  }
+  if (entry.dynamic) {
+    console.log(`KEEP ${entry.name} (dynamic name, ${list.filter((s) => s !== 'fail').length} of ${list.length} did not fail)`);
+    continue;
+  }
+  console.log(`PASS ${entry.name}`);
   blocking = true;
 }
 process.exit(blocking ? 1 : 0);

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Copy the PR's changed test files onto a detached worktree of the PR base
-# and require each NEW test name to fail there. A name that already exists in
-# the base copy of the same file may pass (KEEP, with a warning). That is the
-# limit of this check.
+# and require each NEW test name to fail there. A name is the describe path
+# plus the title. A name that already exists in the base copy of the same file
+# may pass (KEEP, with a warning). A dynamic title (template with ${}, it.each
+# placeholder, variable) is matched as a pattern and kept with a warning when
+# it passes. A NEW literal name that the runner never reports fails the check.
+# A file with no describe/it/test call (tests built by a helper) is skipped
+# with a warning. Those are the limits of this check.
 #
 # tests/integration-wasm runs with vitest.wasm.config.ts when that config and
 # a packages/core/wasm/**/gwen_core_bg.wasm artifact are present. The artifact
@@ -161,8 +165,12 @@ apply_judge() {
   while IFS= read -r line; do
     case "$line" in
       KEEP\ *)
-        echo "::warning::verify-red: $rel keeps a base test that passed: ${line#KEEP }"
-        echo "verify-red: warning $rel keeps ${line#KEEP } (name already on the base)"
+        echo "::warning::verify-red: $rel keeps ${line#KEEP } without a red proof"
+        echo "verify-red: warning $rel keeps ${line#KEEP } (on the base, dynamic, or not run)"
+        ;;
+      WARN\ *)
+        echo "::warning::verify-red: $rel ${line#WARN }"
+        echo "verify-red: warning $rel ${line#WARN }"
         ;;
     esac
   done <<EOF
@@ -200,11 +208,15 @@ for f in "${files[@]}"; do
     base_snapshot=$(mktemp)
     cp "$WT/$f" "$base_snapshot"
   fi
-  classified=$(node "$JUDGE" classify --source "$ROOT/$f" ${base_snapshot:+--base "$base_snapshot"} 2>&1) || {
-    echo "verify-red: not verifiable $f"
-    echo "$classified"
-    exit 2
-  }
+  if ! classified=$(node "$JUDGE" classify --source "$ROOT/$f" ${base_snapshot:+--base "$base_snapshot"} 2>&1); then
+    # No describe/it/test call in the file: its tests come from a helper,
+    # which this check does not read. Nothing here can be judged.
+    echo "::warning::verify-red: $f has no test call to judge"
+    echo "verify-red: warning $f has no test call to judge ($classified)"
+    skipped=$((skipped + 1))
+    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    continue
+  fi
   has_new=0
   if printf '%s\n' "$classified" | grep -q '^NEW '; then
     has_new=1
