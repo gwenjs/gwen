@@ -8,8 +8,12 @@ import {
   JS_ENTITY_ID,
   LIGHT_JS,
   LIGHT_WASM,
+  PHYSICS2D_FREE_JS,
+  PHYSICS2D_FREE_WASM,
   PHYSICS2D_JS_EXTRA,
   PHYSICS2D_WASM_EXTRA,
+  PHYSICS3D_FREE_JS,
+  PHYSICS3D_FREE_WASM,
   PHYSICS3D_JS_EXTRA,
   PHYSICS3D_WASM_EXTRA,
 } from "./wasm-export-signatures.js";
@@ -26,6 +30,30 @@ const WASM_EXTRA = {
   physics2d: PHYSICS2D_WASM_EXTRA,
   physics3d: PHYSICS3D_WASM_EXTRA,
 } as const;
+
+const FREE_JS = {
+  physics2d: PHYSICS2D_FREE_JS,
+  physics3d: PHYSICS3D_FREE_JS,
+} as const;
+
+const FREE_WASM = {
+  physics2d: PHYSICS2D_FREE_WASM,
+  physics3d: PHYSICS3D_FREE_WASM,
+} as const;
+
+// Free functions exported by wasm-bindgen, outside the Engine and JsEntityId classes.
+const FREE_FUNCTIONS = new Set([
+  "find_path_2d",
+  "get_collision_event_count",
+  "get_collision_events_ptr",
+  "get_path_buffer_ptr",
+  "find_path_3d",
+  "get_path_buffer_ptr_3d",
+  "init_navgrid_3d",
+]);
+
+// Glue module exports that are not compiled Rust functions.
+const GLUE_RUNTIME = new Set(["Engine", "JsEntityId", "default", "initSync"]);
 
 const VALTYPE: Record<number, string> = {
   0x7f: "i32",
@@ -134,7 +162,8 @@ function wasmExportSignatures(variant: Variant): string[] {
         if (
           !name.startsWith("engine_") &&
           !name.startsWith("physics") &&
-          !name.startsWith("jsentityid_")
+          !name.startsWith("jsentityid_") &&
+          !FREE_FUNCTIONS.has(name)
         ) {
           continue;
         }
@@ -149,6 +178,23 @@ function wasmExportSignatures(variant: Variant): string[] {
   return lines.sort();
 }
 
+function paramsOf(fn: object): string {
+  const source = Function.prototype.toString.call(fn);
+  const head = source.slice(0, source.indexOf("{"));
+  return head.match(/\(([^)]*)\)/)?.[1]?.trim() ?? "";
+}
+
+function freeLines(glue: Record<string, unknown>, label: string): string[] {
+  return Object.keys(glue)
+    .filter((name) => !GLUE_RUNTIME.has(name))
+    .sort()
+    .map((name) => {
+      const fn = glue[name];
+      if (typeof fn !== "function") throw new Error(`${label}.${name} is not a function`);
+      return `${name}(${paramsOf(fn)})`;
+    });
+}
+
 function prototypeLines(proto: object, label: string): string[] {
   return Object.getOwnPropertyNames(proto)
     .filter((name) => name !== "constructor")
@@ -157,11 +203,8 @@ function prototypeLines(proto: object, label: string): string[] {
       const desc = Object.getOwnPropertyDescriptor(proto, name);
       const fn = desc?.get ?? desc?.value;
       if (typeof fn !== "function") throw new Error(`${label}.${name} is not a function`);
-      const source = Function.prototype.toString.call(fn);
-      const head = source.slice(0, source.indexOf("{"));
-      const params = head.match(/\(([^)]*)\)/)?.[1]?.trim() ?? "";
       const prefix = desc?.get !== undefined ? "get " : "";
-      return `${prefix}${name}(${params})`;
+      return `${prefix}${name}(${paramsOf(fn)})`;
     });
 }
 
@@ -170,22 +213,23 @@ async function glueLines(variant: Variant): Promise<string[]> {
   const glue = (await import(pathToFileURL(jsPath).href)) as {
     Engine: WasmCtor;
     JsEntityId: WasmCtor;
-  };
+  } & Record<string, unknown>;
   return [
     ...prototypeLines(glue.Engine.prototype, `${variant} Engine`),
     ...prototypeLines(glue.JsEntityId.prototype, `${variant} JsEntityId`),
+    ...freeLines(glue, `${variant} glue`),
   ].sort();
 }
 
 function expectedJs(variant: Variant): string[] {
   const shared = [...LIGHT_JS, ...JS_ENTITY_ID];
   if (variant === "light") return shared.sort();
-  return [...shared, ...JS_EXTRA[variant]].sort();
+  return [...shared, ...JS_EXTRA[variant], ...FREE_JS[variant]].sort();
 }
 
 function expectedWasm(variant: Variant): string[] {
   if (variant === "light") return [...LIGHT_WASM];
-  return [...LIGHT_WASM, ...WASM_EXTRA[variant]].sort();
+  return [...LIGHT_WASM, ...WASM_EXTRA[variant], ...FREE_WASM[variant]].sort();
 }
 
 async function stop(handle: RealEngineHandle): Promise<void> {

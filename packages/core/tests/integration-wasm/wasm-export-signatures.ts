@@ -341,3 +341,30 @@ export const PHYSICS3D_WASM_EXTRA = [
   "engine_physics3d_update_sensor_state (i32,i32,i32,i32,i32)->()",
   "engine_physics3d_wake_all (i32)->()",
 ] as const;
+
+// Free functions: wasm-bindgen exports them from the glue module, outside Engine.
+export const PHYSICS2D_FREE_JS = [
+  "find_path_2d(start_x, start_y, end_x, end_y)",
+  "get_collision_event_count()",
+  "get_collision_events_ptr()",
+  "get_path_buffer_ptr()",
+];
+
+export const PHYSICS2D_FREE_WASM = [
+  "find_path_2d (f32,f32,f32,f32)->(i32)",
+  "get_collision_event_count ()->(i32)",
+  "get_collision_events_ptr ()->(i32)",
+  "get_path_buffer_ptr ()->(i32)",
+];
+
+export const PHYSICS3D_FREE_JS = [
+  "find_path_3d(from_x, from_y, from_z, to_x, to_y, to_z)",
+  "get_path_buffer_ptr_3d()",
+  "init_navgrid_3d(ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z)",
+];
+
+export const PHYSICS3D_FREE_WASM = [
+  "find_path_3d (f32,f32,f32,f32,f32,f32)->(i32)",
+  "get_path_buffer_ptr_3d ()->(i32)",
+  "init_navgrid_3d (i32,i32,i32,i32,f32,f32,f32,f32)->()",
+];
