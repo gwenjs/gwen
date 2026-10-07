@@ -63,3 +63,136 @@ test('judge rejects a new name that the runner never reported', () => {
   assert.equal(status, 1, output);
   assert.match(output, /ABSENT new one/);
 });
+
+/**
+ * @param {{ ancestorTitles: string[], title: string, status: string }[]} assertions
+ * @returns {string}
+ */
+function vitestReport(assertions) {
+  return JSON.stringify({
+    testResults: [
+      {
+        name: '/repo/x.test.ts',
+        status: 'failed',
+        message: '',
+        assertionResults: assertions.map((a) => ({
+          ...a,
+          fullName: [...a.ancestorTitles, a.title].join(' '),
+        })),
+      },
+    ],
+  });
+}
+
+test('judge reads nested node:test subtests by their describe path', () => {
+  const { status, output } = judge({
+    source: [
+      "import { describe, it } from 'node:test';",
+      "describe('outer', () => {",
+      "  describe('inner', () => {",
+      "    it('deep', () => {});",
+      '  });',
+      "  it('flat', () => {});",
+      '});',
+      '',
+    ].join('\n'),
+    format: 'tap',
+    report: [
+      'TAP version 13',
+      '# Subtest: outer',
+      '    # Subtest: inner',
+      '        # Subtest: deep',
+      '        not ok 1 - deep',
+      '        1..1',
+      '    not ok 1 - inner',
+      '    # Subtest: flat',
+      '    not ok 2 - flat',
+      '    1..2',
+      'not ok 1 - outer',
+      '1..1',
+      '',
+    ].join('\n'),
+  });
+  assert.equal(status, 0, output);
+  assert.match(output, /FAIL outer > inner > deep/);
+  assert.match(output, /FAIL outer > flat/);
+});
+
+test('judge tells the same title apart in two describe blocks', () => {
+  const base = [
+    "import { describe, it } from 'vitest';",
+    "describe('dev', () => { it('light rejects', () => {}); });",
+    '',
+  ].join('\n');
+  const source = `${base}describe('prod', () => { it('light rejects', () => {}); });\n`;
+  const red = judge({
+    source,
+    base,
+    format: 'vitest',
+    report: vitestReport([
+      { ancestorTitles: ['dev'], title: 'light rejects', status: 'passed' },
+      { ancestorTitles: ['prod'], title: 'light rejects', status: 'failed' },
+    ]),
+  });
+  assert.equal(red.status, 0, red.output);
+  assert.match(red.output, /KEEP dev > light rejects/);
+  assert.match(red.output, /FAIL prod > light rejects/);
+  const green = judge({
+    source,
+    base,
+    format: 'vitest',
+    report: vitestReport([
+      { ancestorTitles: ['dev'], title: 'light rejects', status: 'passed' },
+      { ancestorTitles: ['prod'], title: 'light rejects', status: 'passed' },
+    ]),
+  });
+  assert.equal(green.status, 1, green.output);
+  assert.match(green.output, /PASS prod > light rejects/);
+});
+
+test('judge matches it.each titles and judges them', () => {
+  const source = [
+    "import { it, expect } from 'vitest';",
+    "it.each([1, 2])('adds %i', (n) => { expect(n).toBe(0); });",
+    '',
+  ].join('\n');
+  const red = judge({
+    source,
+    format: 'vitest',
+    report: vitestReport([
+      { ancestorTitles: [], title: 'adds 1', status: 'failed' },
+      { ancestorTitles: [], title: 'adds 2', status: 'failed' },
+    ]),
+  });
+  assert.equal(red.status, 0, red.output);
+  assert.match(red.output, /FAIL adds %i/);
+});
+
+test('judge keeps a dynamic title that passes with a warning', () => {
+  const source = [
+    "import test from 'node:test';",
+    'for (const n of [1]) {',
+    '  test(`case ${n}`, () => {});',
+    '}',
+    "test('fixed', () => {});",
+    '',
+  ].join('\n');
+  const { status, output } = judge({
+    source,
+    format: 'tap',
+    report: 'TAP version 13\nok 1 - case 1\nnot ok 2 - fixed\n1..2\n',
+  });
+  assert.equal(status, 0, output);
+  assert.match(output, /KEEP case \$\{n\} \(dynamic name/);
+  assert.match(output, /FAIL fixed/);
+});
+
+test('judge warns about a runner name it cannot place instead of giving up', () => {
+  const { status, output } = judge({
+    source: "import test from 'node:test';\nconst name = 'from a variable';\ntest(name, () => {});\ntest('fixed', () => {});\n",
+    format: 'tap',
+    report: 'TAP version 13\nnot ok 1 - from a variable\nnot ok 2 - fixed\n1..2\n',
+  });
+  assert.equal(status, 0, output);
+  assert.match(output, /FAIL fixed/);
+});
