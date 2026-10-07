@@ -337,3 +337,23 @@ impl Archetype {
         self.entities.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::ArchetypeColumn;
+
+    #[test]
+    fn set_after_swap_remove_keeps_the_other_row() {
+        let mut column = ArchetypeColumn::new(0);
+        column.push(b"aaaa");
+        column.push(b"bb");
+        column.push(b"cccc");
+        assert_eq!(column.swap_remove(0), true);
+        column.set(0, b"CCCCCC");
+        assert_eq!(column.get(1), b"bb");
+        assert_eq!(column.get(0), b"CCCCCC");
+        column.set(1, b"b");
+        assert_eq!(column.get(0), b"CCCCCC");
+        assert_eq!(column.get(1), b"b");
+    }
+}
