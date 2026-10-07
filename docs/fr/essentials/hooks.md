@@ -113,6 +113,7 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 | `engine:init` | — | Une fois, après la configuration de tous les plugins |
 | `engine:start` | — | Une fois, au démarrage de la boucle de frame |
 | `engine:stop` | — | Une fois, à l'arrêt du moteur |
+| `engine:state-change` | `{ from, to, reason }` | Une fois par vraie transition du cycle de vie |
 | `engine:tick` | `dt: number` | Chaque début de frame |
 | `engine:afterTick` | `dt: number` | Chaque fin de frame |
 | `engine:before-update` | `dt: number` | Avant la physique |

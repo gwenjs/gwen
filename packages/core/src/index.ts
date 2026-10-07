@@ -42,7 +42,7 @@ export {
   GwenWasmPanicError,
   GwenEngineStateError,
 } from "./engine/gwen-engine";
-export type { CoreWasmErrorCode } from "./engine/gwen-engine";
+export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/gwen-engine";
 export { EngineMemory } from "./engine/engine-memory";
 export type {
   MemoryView,

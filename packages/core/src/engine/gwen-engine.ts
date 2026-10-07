@@ -55,7 +55,11 @@ export {
   GwenWasmPanicError,
   GwenEngineStateError,
 } from "./engine-errors.js";
-export type { GwenPluginNotFoundErrorOptions, CoreWasmErrorCode } from "./engine-errors.js";
+export type {
+  GwenPluginNotFoundErrorOptions,
+  CoreWasmErrorCode,
+  GwenEngineStateMethod,
+} from "./engine-errors.js";
 export type { PluginErrorContext } from "./engine-types.js";
 
 export { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
@@ -214,11 +218,8 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
-  /**
-   * Re-entry claim for teardown. Not a lifecycle state.
-   * Set before any await on every path that calls `_teardown`. Never cleared.
-   */
-  private _faultedStopClaimed = false;
+  /** Teardown started by `stop()`. A later `stop()` returns without running it again. */
+  private _teardownOnce: Promise<void> | null = null;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
@@ -310,10 +311,12 @@ class GwenEngineImpl implements GwenEngine {
     );
   }
 
-  /** `use` / `unuse` are legal in idle, running, and stopped. */
+  /** `use` / `unuse` reject in `stopping` and `faulted`. They stay legal in `starting`. */
   private _assertPluginCall(method: "use" | "unuse"): void {
     const state = this._state;
-    if (state === "idle" || state === "running" || state === "stopped") return;
+    if (state === "idle" || state === "starting" || state === "running" || state === "stopped") {
+      return;
+    }
     throw new GwenEngineStateError(state, method);
   }
 
@@ -689,14 +692,21 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async stop(): Promise<void> {
+    if (this._teardownOnce !== null) return;
     const from = this._state;
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
-    if (this._faultedStopClaimed) return;
-    this._faultedStopClaimed = true;
-    if (from !== "faulted") await this._transition("stopping", "USER");
-    await this._teardown();
-    if (this._state === "stopping") await this._transition("stopped", "USER");
+    let resolveDone: () => void = () => undefined;
+    this._teardownOnce = new Promise<void>((resolve) => {
+      resolveDone = resolve;
+    });
+    try {
+      if (from !== "faulted") await this._transition("stopping", "USER");
+      await this._teardown();
+      if (this._state === "stopping") await this._transition("stopped", "USER");
+    } finally {
+      resolveDone();
+    }
   }
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, glue, and disposables. */
@@ -727,8 +737,11 @@ class GwenEngineImpl implements GwenEngine {
    */
   private async _beginStart(): Promise<void> {
     await this._transition("starting", "USER");
+    let hook: "engine:init" | "engine:start" = "engine:init";
     try {
       await this.hooks.callHook("engine:init");
+      if (this._state !== "starting") return;
+      hook = "engine:start";
       await this.hooks.callHook("engine:start");
     } catch (err) {
       this._enterFaulted("FATAL_ERROR");
@@ -739,7 +752,7 @@ class GwenEngineImpl implements GwenEngine {
         message,
         source: "@gwenjs/core",
         error: err,
-        context: { frame: this._frameCountOwn, hook: "engine:start" },
+        context: { frame: this._frameCountOwn, hook },
       });
       throw err;
     }

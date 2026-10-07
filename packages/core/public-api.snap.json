@@ -57,6 +57,7 @@
       "GwenEngineOptions",
       "GwenEngineState",
       "GwenEngineStateChangeReason",
+      "GwenEngineStateMethod",
       "GwenHookable",
       "GwenHooks",
       "GwenPlugin",
