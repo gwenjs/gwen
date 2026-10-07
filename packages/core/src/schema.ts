@@ -28,8 +28,16 @@ import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes } from "./engine/engine-errors";
 
-/** Distinct component types one program can define. Matches the Rust bit cap. */
+/** Distinct component types the Rust bitset can hold. */
 const MAX_COMPONENT_TYPES = 128;
+
+/**
+ * The transform column (`TRANSFORM_SAB_TYPE_ID`) takes one bit when a module
+ * syncs or writes that type. User names cannot use that bit.
+ */
+const RESERVED_INTERNAL_COMPONENT_TYPES = 1;
+
+const MAX_USER_COMPONENT_TYPES = MAX_COMPONENT_TYPES - RESERVED_INTERNAL_COMPONENT_TYPES;
 
 // Supported scalar types for WASM memory layout
 export const Types = {
@@ -428,8 +436,26 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
   }
 }
 
-/** Monotonic counter for assigning unique numeric IDs to components at definition time. */
+/** Next id for a component name that has not been defined yet. Starts at 1. */
 let _nextTypeId = 1;
+
+/** Name → id. A second `defineComponent` of the same name reuses the id. */
+const _typeIdsByName = new Map<string, number>();
+
+function _claimTypeId(name: string): number {
+  const existing = _typeIdsByName.get(name);
+  if (existing !== undefined) return existing;
+  if (_typeIdsByName.size >= MAX_USER_COMPONENT_TYPES) {
+    throw new GwenError(
+      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+      `Component type limit reached: ${MAX_COMPONENT_TYPES}`,
+    );
+  }
+  const id = _nextTypeId;
+  _nextTypeId += 1;
+  _typeIdsByName.set(name, id);
+  return id;
+}
 
 /**
  * Definition of an ECS component with a typed schema and optional default values.
@@ -523,8 +549,10 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * @param factory Optional factory function (required for Form 2)
  * @returns The component definition with schema and name
  * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
- *   would define a 129th component type. The limit is 128. The check runs
- *   here, before any WASM call.
+ *   would define a new name past the user budget. The Rust cap is 128 types.
+ *   One type is reserved for the transform column, so 127 distinct user names
+ *   fit. Defining the same name again reuses its id. The check runs here,
+ *   before any WASM call.
  *
  * @example
  * ```ts
@@ -559,14 +587,7 @@ export function defineComponent<S extends ComponentSchema>(
 
   _validateComponentSchema(config.name, config.schema);
 
-  if (_nextTypeId > MAX_COMPONENT_TYPES) {
-    throw new GwenError(
-      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-      `Component type limit reached: ${MAX_COMPONENT_TYPES}`,
-    );
-  }
-
-  const _typeId = _nextTypeId++;
+  const _typeId = _claimTypeId(config.name);
 
   let byteOffset = 0;
   const _fields = Object.entries(config.schema).map(([fieldName, schemaType]) => {
