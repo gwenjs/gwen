@@ -111,71 +111,78 @@ describe("P0 physics loop", () => {
   });
 
   it("reads a collision after WASM memory grows", async () => {
-    const { engine, bridge, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
-    await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-    let hits = 0;
-    const left = engine.createEntity();
-    const right = engine.createEntity();
-    await instantiate(engine, left, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 0, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-      onCollision: () => {
-        hits += 1;
-      },
-    });
-    await instantiate(engine, right, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 0.2, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-    });
-    await advance(5, 1 / 60);
-    expect(hits).toBeGreaterThan(0);
+    try {
+      const { engine, bridge, advance } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      let hits = 0;
+      const left = engine.createEntity();
+      const right = engine.createEntity();
+      await instantiate(engine, left, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+        onCollision: () => {
+          hits += 1;
+        },
+      });
+      await instantiate(engine, right, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 0.2, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+      });
+      await advance(5, 1 / 60);
+      expect(hits).toBeGreaterThan(0);
 
-    const memory = bridge.getLinearMemory();
-    if (memory === null) throw new Error("physics3d wasm did not export memory");
-    const epochBefore = engine.memory.epoch;
-    memory.grow(1);
+      const memory = bridge.getLinearMemory();
+      if (memory === null) throw new Error("physics3d wasm did not export memory");
+      const epochBefore = engine.memory.epoch;
+      memory.grow(1);
 
-    const hitsBeforeGrow = hits;
-    const againLeft = engine.createEntity();
-    const againRight = engine.createEntity();
-    await instantiate(engine, againLeft, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 5, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-      onCollision: () => {
-        hits += 1;
-      },
-    });
-    await instantiate(engine, againRight, {
-      body: {
-        kind: "dynamic",
-        initialPosition: { x: 5.2, y: 0, z: 0 },
-        colliders: [OVERLAP_BOX],
-      },
-    });
-    await advance(5, 1 / 60);
+      const hitsBeforeGrow = hits;
+      const againLeft = engine.createEntity();
+      const againRight = engine.createEntity();
+      await instantiate(engine, againLeft, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 5, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+        onCollision: () => {
+          hits += 1;
+        },
+      });
+      await instantiate(engine, againRight, {
+        body: {
+          kind: "dynamic",
+          initialPosition: { x: 5.2, y: 0, z: 0 },
+          colliders: [OVERLAP_BOX],
+        },
+      });
+      await advance(5, 1 / 60);
 
-    expect(hits).toBeGreaterThan(hitsBeforeGrow);
-    expect(engine.memory.epoch).toBeGreaterThan(epochBefore);
-    expect(engine.state).not.toBe("faulted");
+      expect(hits).toBeGreaterThan(hitsBeforeGrow);
+      expect(engine.memory.epoch).toBeGreaterThan(epochBefore);
+      expect(engine.state).not.toBe("faulted");
+    } finally {
+      await handle.dispose();
+    }
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("moves a character controller after a first read and then WASM memory grows", async () => {
-    const { engine, bridge } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics3d",
       maxEntities: 64,
     });
+    const { engine, bridge } = handle;
     try {
       await engine.use(Physics3DPlugin({ gravity: { x: 0, y: -10, z: 0 } }));
       const physics = engine.inject("physics3d");
@@ -197,15 +204,16 @@ describe("P0 physics loop", () => {
       expect(cc.groundNormal).toBeNull();
       expect(engine.state).not.toBe("faulted");
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 
   it("reads a physics2d collision after a first read and then WASM memory grows", async () => {
-    const { engine, bridge, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics2d",
       maxEntities: 64,
     });
+    const { engine, bridge, advance } = handle;
     try {
       await engine.use(Physics2DPlugin({ gravity: 0 }));
       const physics = engine.inject("physics2d");
@@ -240,7 +248,7 @@ describe("P0 physics loop", () => {
       expect(engine.memory.epoch).toBeGreaterThan(epochBefore);
       expect(engine.state).not.toBe("faulted");
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 
