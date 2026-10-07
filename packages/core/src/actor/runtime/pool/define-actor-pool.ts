@@ -200,7 +200,13 @@ export function defineActorPool<Props, PublicAPI>(
   let acquireCount = 0;
 
   const hooks = createHooks<PoolHooks>();
-  const listeners: ListenerLists = { acquire: [], release: [], warn: [], critical: [], exhausted: [] };
+  const listeners: ListenerLists = {
+    acquire: [],
+    release: [],
+    warn: [],
+    critical: [],
+    exhausted: [],
+  };
   // hookable's own unsubscribe, removeHooks and hookOnce all go through
   // `this.removeHook`, so this override sees every single removal once.
   // Like hookable, one removal drops the first matching registration.
