@@ -535,18 +535,13 @@ class GwenEngineImpl implements GwenEngine {
     const hooks = this.hooks;
     const engine = this;
     const callWith = hooks.callHookWith.bind(hooks);
-    hooks.callHook = ((name, ...args) =>
-      callWith(
-        (list, hookArgs) => callHooksWithEngine(engine, list, hookArgs, 0),
-        name,
-        args,
-      )) as typeof hooks.callHook;
+    const runSerial = (list: readonly EngineHookFn[], hookArgs: readonly unknown[]): unknown =>
+      callHooksWithEngine(engine, list, hookArgs, 0);
+    const runParallel = (list: readonly EngineHookFn[], hookArgs: readonly unknown[]): unknown =>
+      callHooksWithEngineParallel(engine, list, hookArgs);
+    hooks.callHook = ((name, ...args) => callWith(runSerial, name, args)) as typeof hooks.callHook;
     hooks.callHookParallel = ((name, ...args) =>
-      callWith(
-        (list, hookArgs) => callHooksWithEngineParallel(engine, list, hookArgs),
-        name,
-        args,
-      )) as typeof hooks.callHookParallel;
+      callWith(runParallel, name, args)) as typeof hooks.callHookParallel;
   }
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
@@ -1232,14 +1227,15 @@ class GwenEngineImpl implements GwenEngine {
     data: Partial<InferComponent<D>>,
   ): void {
     this._assertNotFaulted("addComponent");
-    this.getOrRegisterComponent(def.name);
     const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
     if (existing !== undefined) {
       // Membership is unchanged, so the query cache stays as it is.
+      // The type id was registered on the first add.
       Object.assign(existing, data);
       return;
     }
     // Cold path — first add for this entity/component pair: allocate once.
+    this.getOrRegisterComponent(def.name);
     const merged = Object.assign({}, def.defaults, data) as InferComponent<D>;
     this._componentRegistry.add(id, def, merged);
     this._queryEngine.invalidate();
