@@ -473,7 +473,7 @@ describe("engine state machine", () => {
     }
   });
 
-  it("use and unuse are legal while starting and reject in stopping and faulted", async () => {
+  it("use and unuse reject while starting, stopping and faulted", async () => {
     const engine = await createEngine();
     const faulted = await createEngine();
     try {
@@ -493,9 +493,17 @@ describe("engine state machine", () => {
             (caught: unknown) => caught,
           );
         if (error instanceof GwenEngineStateError) methods.push(`${engine.state}:${error.method}`);
+        if (engine.state !== "starting") return;
+        const unuseError = await engine.unuse("ok").then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        if (unuseError instanceof GwenEngineStateError) {
+          methods.push(`${engine.state}:${unuseError.method}`);
+        }
       });
       await engine.startExternal();
-      expect(setups).toBe(1);
+      expect(setups).toBe(0);
       await engine.use({ name: "ok", setup() {} });
       await engine.unuse("ok");
       await engine.stop();
@@ -513,7 +521,7 @@ describe("engine state machine", () => {
         from: "faulted",
         method: "unuse",
       });
-      expect(methods).toEqual(["stopping:use"]);
+      expect(methods).toEqual(["starting:use", "starting:unuse", "stopping:use"]);
     } finally {
       await engine.stop();
       await faulted.stop();
