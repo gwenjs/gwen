@@ -20,6 +20,7 @@ const Bullet = defineComponent({
 describe("pool acquire/release allocation (#56)", () => {
   it("acquires and releases 10000 pooled actors with no heap growth", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 32_768 });
+    let stateAfterDispose = "";
     try {
       const { engine, bridge } = handle;
       const memory = bridge.getLinearMemory();
@@ -66,9 +67,7 @@ describe("pool acquire/release allocation (#56)", () => {
       const hadBullet = engine.hasComponent(sampleId, Bullet);
       const bytesBefore = memory.buffer.byteLength;
 
-      // The two cycles above are the contract. V8 still tiers this path on the
-      // next cycles, including the generation compare, so the helper repeats
-      // the measured frame six more times before the counted run.
+      // The spec contract: two warm-up cycles, then the measured cycle.
       const baseline = await measureAllocations(() => handle.advance(1, 1 / 60), {
         warmup: 1,
         ops,
@@ -79,7 +78,7 @@ describe("pool acquire/release allocation (#56)", () => {
           drop();
           await handle.advance(1, 1 / 60);
         },
-        { warmup: 6, ops },
+        { warmup: 0, ops },
       );
 
       const memoryAfter = bridge.getLinearMemory();
@@ -94,7 +93,8 @@ describe("pool acquire/release allocation (#56)", () => {
       expect(memoryAfter.buffer.byteLength).toBe(bytesBefore);
     } finally {
       await handle.dispose();
-      expect(handle.engine.state).toBe("stopped");
+      stateAfterDispose = handle.engine.state;
     }
+    expect(stateAfterDispose).toBe("stopped");
   });
 });
