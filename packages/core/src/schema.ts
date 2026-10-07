@@ -448,7 +448,8 @@ function _claimTypeId(name: string): number {
   if (_typeIdsByName.size >= MAX_USER_COMPONENT_TYPES) {
     throw new GwenError(
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-      `Component type limit reached: ${MAX_COMPONENT_TYPES}`,
+      `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit ` +
+        `(${MAX_COMPONENT_TYPES} type bits, ${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
     );
   }
   const id = _nextTypeId;
