@@ -82,6 +82,12 @@ test('accepts the docs-only red proof line', () => {
   const body = goodBody
     .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
     .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  const missing = review(
+    goodBody.replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes'),
+    'docs: clarify the contract',
+    [],
+  );
+  assert.ok(missing.some((error) => error.includes('Red proof')));
   assert.deepEqual(review(body, 'docs: clarify the contract', []), []);
 });
 
@@ -123,5 +129,7 @@ test('allows NO TEST when the body does not close an issue', () => {
     `| Contract accepts a complete body | ${testFile}::accepts a complete body |`,
     `| Contract accepts a complete body | ${testFile}::accepts a complete body |\n| Gap | NO TEST |`,
   );
+  const closed = review(`${body}\nCloses #12\n`);
+  assert.ok(closed.some((error) => error.includes('NO TEST')));
   assert.deepEqual(review(body), []);
 });

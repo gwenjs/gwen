@@ -97,6 +97,7 @@ function runVerifyRed(source, base) {
 }
 
 test('verify-red fails a test that passes on the base', () => {
+  assert.match(readCi(), /scripts\/verify-red\.sh/);
   const result = runVerifyRed(
     [
       "import assert from 'node:assert/strict';",
@@ -164,6 +165,7 @@ test('verify-red asks gh for the pull request number', () => {
 });
 
 test('verify-red accepts a test that fails on the base', () => {
+  assert.match(readCi(), /HYGIENE_BASE:\s*origin\/\$\{\{\s*github\.base_ref\s*\}\}/);
   const result = runVerifyRed(
     [
       "import assert from 'node:assert/strict';",
