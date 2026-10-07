@@ -62,8 +62,10 @@ describe("physics3d performance", () => {
     engine.activate();
     try {
       _clearContactCallbacks();
-      const cb = vi.fn();
-      onContact(cb);
+      let calls = 0;
+      onContact(() => {
+        calls += 1;
+      });
 
       const event: Physics3DCollisionContact = {
         entityA: 1n,
@@ -78,7 +80,7 @@ describe("physics3d performance", () => {
       const elapsed = performance.now() - start;
 
       expect(elapsed).toBeLessThan(ciThreshold(1));
-      expect(cb).toHaveBeenCalledTimes(500);
+      expect(calls).toBe(500);
       _clearContactCallbacks();
     } finally {
       engine.deactivate();
