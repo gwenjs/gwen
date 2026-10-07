@@ -92,7 +92,6 @@ class DeferredReleaseQueue {
  * - `onRelease` callbacks fire immediately when `release()` is flushed.
  * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
-
 export function defineActorPool<Props, PublicAPI>(
   actor: ActorDefinition<Props, PublicAPI>,
   options: PoolOptions,

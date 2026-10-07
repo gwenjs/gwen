@@ -9,6 +9,7 @@ import { createLogger, createEntityId } from "@gwenjs/core";
 import { entityIndex, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import type { GwenEngine, EntityId, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
+import { GwenError } from "@gwenjs/schema";
 
 import type {
   Physics2DConfig,
@@ -72,7 +73,6 @@ export type {
   SensorState,
   TilemapPhysicsChunkMap,
 } from "../types";
-import { GwenError } from "@gwenjs/schema";
 
 export {
   PHYSICS2D_BRIDGE_SCHEMA_VERSION,
