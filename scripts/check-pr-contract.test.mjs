@@ -272,16 +272,13 @@ test('rejects review outcome words in any markdown shape', () => {
     const errors = review(`${goodBody}\n${shape}\n`);
     assert.ok(errors.length > 0, shape);
   }
+  const sentence = review(`${goodBody}\nThis was reviewed by the maintainer, who will approve or not.\n`);
+  assert.deepEqual(sentence, []);
 });
 
 test('rejects a Reviewed-by line', () => {
   const errors = review(`${goodBody}\nReviewed-by: claude, approve\n`);
   assert.ok(errors.some((error) => error.includes('reviewed-by')));
-});
-
-test('keeps the maintainer sentence inside a longer line', () => {
-  const errors = review(`${goodBody}\nThis was reviewed by the maintainer, who will approve or not.\n`);
-  assert.deepEqual(errors, []);
 });
 
 test('treats a fence indented by three spaces as a fence and by four as text', () => {
@@ -299,8 +296,10 @@ test('rejects every spelling of no test next to a closing keyword', () => {
 });
 
 test('reads no test only in the Acceptance tables', () => {
-  const body = `${goodBody}\nThis closes #12.\n\n| File | Note |\n| --- | --- |\n| docs/a.md | no test needed for docs |\n`;
-  assert.deepEqual(review(body), []);
+  const acceptance = review(withGap('This closes #12.', 'no test needed for docs'));
+  assert.ok(acceptance.some((error) => error.includes('NO TEST')));
+  const other = `${goodBody}\nThis closes #12.\n\n| File | Note |\n| --- | --- |\n| docs/a.md | no test needed for docs |\n`;
+  assert.deepEqual(review(other), []);
 });
 
 test('treats workflows and docs scripts as code for the n/a rule', () => {

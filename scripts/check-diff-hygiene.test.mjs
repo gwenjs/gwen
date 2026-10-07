@@ -606,10 +606,7 @@ test('rejects a binding assigned two engines with one dispose', () => {
     ]),
   );
   assert.ok(hits.some((hit) => hit.rule === 'wasm-dispose'));
-});
-
-test('accepts a late assignment disposed in finally', () => {
-  const hits = findDiffViolations(
+  const late = findDiffViolations(
     diff(wasmFile, [
       'let handle;',
       'try {',
@@ -620,5 +617,5 @@ test('accepts a late assignment disposed in finally', () => {
       '}',
     ]),
   );
-  assert.ok(!hits.some((hit) => hit.rule === 'wasm-dispose'));
+  assert.ok(!late.some((hit) => hit.rule === 'wasm-dispose'));
 });
