@@ -292,3 +292,22 @@ test('judge still blocks a new name the head run does not report', () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('judge ignores TAP lines quoted inside a YAML diagnostic block', () => {
+  const { status, output } = judge({
+    source: "import test from 'node:test';\ntest('real', () => {});\n",
+    format: 'tap',
+    report: [
+      'TAP version 13',
+      'not ok 1 - real',
+      '  ---',
+      '  error: |-',
+      '    not ok 1 - quoted from a child run',
+      '  ...',
+      '1..1',
+      '',
+    ].join('\n'),
+  });
+  assert.equal(status, 0, output);
+  assert.doesNotMatch(output, /quoted from a child run/);
+});
