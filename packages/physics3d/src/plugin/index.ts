@@ -19,6 +19,7 @@ import {
   _dispatchSensorEnter,
   _dispatchSensorExit,
   _clearSensorCallbacks,
+  clearEngineSensors,
 } from "../composables/on-sensor";
 
 import type { Physics3DBridgeRuntime } from "./bridge";
@@ -339,6 +340,11 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (owner !== undefined && owner !== entityId) return;
         ctx.entityCollisionCallbacks.delete(slot);
         ctx.localSensorStates.delete(slot);
+        const dyingSensors = ctx.activeSensors.get(slot);
+        if (dyingSensors) {
+          for (const sensorId of dyingSensors) _clearSensorCallbacks(sensorId);
+        }
+        ctx.activeSensors.delete(slot);
         if (owner === entityId) _removeBody(entityId);
       });
 
@@ -469,7 +475,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       }
       ctx.ready = false;
       _clearContactCallbacks();
-      _clearSensorCallbacks();
+      clearEngineSensors(useEngine());
       ctx.stepFn = null;
       ctx.backendMode = "local";
       ctx.wasmBridge = null;
@@ -485,6 +491,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.stateByEntity.clear();
       ctx.localColliders.clear();
       ctx.localSensorStates.clear();
+      ctx.activeSensors.clear();
       ctx.entityCollisionCallbacks.clear();
       ctx.currentFrameContacts = [];
       ctx.lastFrameEventCount = 0;

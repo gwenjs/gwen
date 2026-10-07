@@ -118,18 +118,12 @@ export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
   for (const cb of cbs) cb(entityId);
 }
 
-/**
- * Remove all registered sensor callbacks for all sensors.
- *
- * Used in tests and plugin teardown to reset the callback registries.
- *
- * @internal
- */
-export function _clearSensorCallbacks(): void {
+/** Remove this engine's enter and exit callbacks for one sensor. */
+export function _clearSensorCallbacks(sensorId: number): void {
   const registry = registryOrNull();
   if (!registry) return;
-  registry.enter.clear();
-  registry.exit.clear();
+  registry.enter.delete(sensorId);
+  registry.exit.delete(sensorId);
 }
 
 /** Drop every sensor callback owned by `engine`. */

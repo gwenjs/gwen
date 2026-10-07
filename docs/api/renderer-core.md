@@ -116,7 +116,7 @@ both matrices before reading the slots. Euler `WorldTransform` rotation is YXZ, 
 as a column-major view matrix. Projection aspect comes from viewport pixels.
 `@gwenjs/math` `Mat4` is not used on this seam.
 
-XR eyes are not copied until `getCameraStores` (#59) exists.
+XR eyes are not copied. `writeCameraViews` stays non-XR. Eye matrices live in `getCameraStores(engine).matrices`.
 
 ### `SpriteHandle`
 

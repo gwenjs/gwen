@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { createEngine, GwenContextError, type GwenEngine } from "@gwenjs/core";
+import { createRealEngine } from "../../../core/src/testing/create-real-engine.ts";
+import { Physics3DPlugin } from "../../src/plugin/index";
+import "../../src/augment";
 import {
   onSensorEnter,
   onSensorExit,
@@ -15,7 +18,7 @@ describe("onSensorEnter / onSensorExit", () => {
   beforeEach(async () => {
     engine = await createEngine();
     engine.activate();
-    _clearSensorCallbacks();
+    clearEngineSensors(engine);
   });
 
   afterEach(async () => {
@@ -91,7 +94,7 @@ describe("onSensorEnter / onSensorExit", () => {
     onSensorEnter(1, () => {
       invoked = true;
     });
-    _clearSensorCallbacks();
+    _clearSensorCallbacks(1);
     _dispatchSensorEnter(1, 0n);
     expect(invoked).toBe(false);
   });
@@ -169,6 +172,61 @@ describe("onSensor engine isolation", () => {
     } finally {
       await a.stop();
       await b.stop();
+    }
+  });
+
+  it("drops destroyed entity sensors on A and keeps the same id on B", async () => {
+    const handleA = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const handleB = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const a = handleA.engine;
+    const b = handleB.engine;
+    try {
+      await a.use(Physics3DPlugin());
+      await b.use(Physics3DPlugin());
+      let hitsA = 0;
+      let hitsB = 0;
+      const id = a.createEntity();
+      a.run(() => {
+        const physics = a.inject("physics3d");
+        physics.createBody(id, {
+          kind: "static",
+          colliders: [
+            {
+              shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+              isSensor: true,
+              colliderId: 7,
+            },
+          ],
+        });
+        onSensorEnter(7, () => {
+          hitsA += 1;
+        });
+        onSensorExit(7, () => {
+          hitsA += 1;
+        });
+      });
+      b.run(() => {
+        onSensorEnter(7, () => {
+          hitsB += 1;
+        });
+        onSensorExit(7, () => {
+          hitsB += 1;
+        });
+      });
+      a.destroyEntity(id);
+      a.run(() => {
+        _dispatchSensorEnter(7, 1n);
+        _dispatchSensorExit(7, 1n);
+      });
+      b.run(() => {
+        _dispatchSensorEnter(7, 1n);
+        _dispatchSensorExit(7, 1n);
+      });
+      expect(hitsA).toBe(0);
+      expect(hitsB).toBe(2);
+    } finally {
+      await handleA.dispose();
+      await handleB.dispose();
     }
   });
 });

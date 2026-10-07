@@ -462,8 +462,10 @@ For large mesh colliders, preload the BVH to avoid stutters during gameplay:
 ```ts
 import { preloadMeshCollider } from '@gwenjs/physics3d'
 
-// During app initialization:
-const terrainBvh = await preloadMeshCollider('./models/terrain.glb')
+// The call needs a current engine. Outside one it throws
+// GwenContextError OUTSIDE_ENGINE.
+const terrainBvh = engine.run(() => preloadMeshCollider('./models/terrain.glb'))
+await terrainBvh.ready
 
 // Later, in an actor:
 const TerrainActor = defineActor(TerrainPrefab, () => {

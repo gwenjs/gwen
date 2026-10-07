@@ -62,7 +62,7 @@ size is not in this repo. The follow-up bundle spike measures it against
   plus a device-pixel rect. `writeCameraViews(engine, out)` fills caller-owned slots
   from `CameraManager`, `ViewportManager`, and `ViewportScreenInfo`. It does not
   allocate those slots. Non-XR eyes are `"none"`.
-- XR eyes are not copied yet. `getCameraStores(engine)` from #59 is not on this branch.
+- XR eyes are not copied yet. `writeCameraViews` stays non-XR. `getCameraStores(engine).matrices` holds the eye matrices.
 - A second layer on a surface renderer throws `RENDERER:SURFACE_INVALID` at register.
 - An equal `order` between a surface layer and any other layer throws
   `RENDERER:LAYER_ORDER_CONFLICT`. Other order clashes still warn. A DOM HUD uses

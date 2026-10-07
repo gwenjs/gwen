@@ -175,8 +175,18 @@ function callHooksWithEngineParallel(
   if (hooks.length === 0) return undefined;
   return Promise.all(
     hooks.map((hook) => {
-      engineContext.set(engine, true);
-      return hook(...args);
+      const previous = pushEngine(engine);
+      try {
+        const result = hook(...args);
+        if (isThenable(result)) {
+          return Promise.resolve(result).finally(() => popEngine(engine, previous));
+        }
+        popEngine(engine, previous);
+        return result;
+      } catch (error) {
+        popEngine(engine, previous);
+        return Promise.reject(error);
+      }
     }),
   );
 }

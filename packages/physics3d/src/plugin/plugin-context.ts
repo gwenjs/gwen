@@ -75,6 +75,8 @@ export interface PluginContext {
 
   // ── Sensor state ───────────────────────────────────────────────────────────
   localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
+  /** Collider ids created as sensors, keyed by entity slot. */
+  activeSensors: Map<number, Set<number>>;
 
   // ── Collision callbacks ────────────────────────────────────────────────────
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
@@ -186,6 +188,7 @@ export function createPluginContext(
     _pendingBvhLoads: new Map(),
 
     localSensorStates: new Map(),
+    activeSensors: new Map(),
 
     entityCollisionCallbacks: new Map(),
 

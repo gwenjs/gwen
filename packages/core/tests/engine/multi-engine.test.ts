@@ -114,6 +114,40 @@ describe("two engines", () => {
     }
   });
 
+  it("restores the outer engine after callHookParallel", async () => {
+    const [a, b] = await twoEngines();
+    try {
+      let syncEngine: GwenEngine | undefined;
+      let asyncEngine: GwenEngine | undefined;
+      b.hooks.hook("engine:tick", () => {
+        syncEngine = engineContext.tryUse() ?? undefined;
+      });
+      b.hooks.hook("engine:afterTick", () => {
+        asyncEngine = engineContext.tryUse() ?? undefined;
+        return Promise.resolve();
+      });
+      a.activate();
+      await b.hooks.callHookParallel("engine:tick", 0);
+      expect(engineContext.tryUse()).toBe(a);
+      await b.hooks.callHookParallel("engine:afterTick", 0);
+      expect(engineContext.tryUse()).toBe(a);
+      expect(syncEngine).toBe(b);
+      expect(asyncEngine).toBe(b);
+      a.deactivate();
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("refuses spawn after the only installed engine has stopped", async () => {
+    const Actor = defineActor(Prefab, () => ({}));
+    const a = await createEngine({ maxEntities: 16 });
+    await a.use(Actor._plugin);
+    await a.stop();
+    expect(() => Actor._plugin.spawn()).toThrow(/ACTOR:PLUGIN_NOT_READY/);
+  });
+
   it("leaves the other engine's local intact after stop", async () => {
     const [a, b] = await twoEngines();
     const slot = createEngineLocal(() => ({ v: 0 }));

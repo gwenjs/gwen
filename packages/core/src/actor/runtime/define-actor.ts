@@ -32,6 +32,7 @@
 
 import { engineContext, useEngine } from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
+import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
@@ -759,7 +760,18 @@ export function defineActor<Props, PublicAPI>(
 
     setup(engine: GwenEngineBase): void {
       const real = useEngine();
+      if (_engines.has(real)) {
+        _log = engine.logger.child(`actor:${pluginName}`);
+        return;
+      }
       _engines.add(real);
+      real.disposables.add(
+        "actor-engine",
+        createDisposable(() => {
+          _engines.delete(real);
+          _buckets.delete(real);
+        }),
+      );
       _log = engine.logger.child(`actor:${pluginName}`);
     },
 

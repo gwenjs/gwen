@@ -195,11 +195,12 @@ export interface PreloadedBvhHandle {
  *   the `gwen:physics3d` Vite plugin (e.g. `'/assets/bvh-terrain-abc12345.bin'`).
  * @returns A {@link PreloadedBvhHandle} whose `ready` Promise resolves once the
  *   binary is in memory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  *
  * @example
  * ```typescript
- * // At scene load — kick off the fetch immediately
- * const zone2Bvh = preloadMeshCollider('/assets/bvh-zone2.bin')
+ * // The call needs a current engine. `engine.run` or a `defineActor` factory.
+ * const zone2Bvh = engine.run(() => preloadMeshCollider('/assets/bvh-zone2.bin'))
  *
  * // Later, when the player approaches Zone 2
  * const Zone2Terrain = defineActor(Zone2Prefab, () => {
