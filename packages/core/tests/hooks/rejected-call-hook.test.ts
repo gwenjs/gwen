@@ -62,8 +62,10 @@ describe("rejected callHook sites", () => {
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         source: "scene:LeaveMenu",
         context: { hook: "scene:leave" },
-        target: { kind: "scene", id: "LeaveMenu", name: "LeaveMenu" },
       });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(hit?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
       expect(tracked.unhandled).toEqual([]);
     } finally {
       tracked.stop();
@@ -102,8 +104,10 @@ describe("rejected callHook sites", () => {
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         source: "scene:OverlayPause",
         context: { hook: "scene:leave" },
-        target: { kind: "scene", id: "OverlayPause", name: "OverlayPause" },
       });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(hit?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
       expect(tracked.unhandled).toEqual([]);
     } finally {
       tracked.stop();
@@ -132,6 +136,8 @@ describe("rejected callHook sites", () => {
         source: "emit",
         context: { hook: "reject-hook:ping" },
       });
+      expect(hit?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
       expect(tracked.unhandled).toEqual([]);
     } finally {
       tracked.stop();

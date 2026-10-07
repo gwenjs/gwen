@@ -13,23 +13,23 @@ describe("rejected hook calls", () => {
     const onUnhandled = (reason: unknown): void => {
       unhandled.push(reason);
     };
-    process.on("unhandledRejection", onUnhandled);
 
     const engine = await createEngine();
-    const events: GwenErrorPayload[] = [];
-    engine.errors.on((event) => {
-      events.push(event);
-    });
-    const actor = defineActor(
-      definePrefab([{ def: stubValue("HookHp"), defaults: { value: 1 } }]),
-      () => {},
-    );
-    const pool = defineActorPool(actor, { size: 2 });
-    await engine.use(actor._plugin);
-    await engine.use(pool._plugin);
-    pool.hooks.hook("pool:acquire", () => Promise.reject(new Error("pool hook failed")));
-
     try {
+      process.on("unhandledRejection", onUnhandled);
+      const events: GwenErrorPayload[] = [];
+      engine.errors.on((event) => {
+        events.push(event);
+      });
+      const actor = defineActor(
+        definePrefab([{ def: stubValue("HookHp"), defaults: { value: 1 } }]),
+        () => {},
+      );
+      const pool = defineActorPool(actor, { size: 2 });
+      await engine.use(actor._plugin);
+      await engine.use(pool._plugin);
+      pool.hooks.hook("pool:acquire", () => Promise.reject(new Error("pool hook failed")));
+
       pool.acquire();
       await new Promise<void>((resolve) => {
         setImmediate(resolve);
@@ -42,8 +42,10 @@ describe("rejected hook calls", () => {
         message: "pool hook failed",
         source: `pool:${pool.actorName}`,
         context: { hook: "pool:acquire", frame: engine.frameCount },
-        target: { kind: "actor", id: pool.actorName, name: pool.actorName },
       });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(events[0]?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
     } finally {
       process.off("unhandledRejection", onUnhandled);
       await engine.stop();

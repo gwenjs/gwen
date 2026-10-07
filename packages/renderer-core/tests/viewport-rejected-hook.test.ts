@@ -36,6 +36,8 @@ describe("viewport hook rejection", () => {
         source: "@gwenjs/renderer-core",
         context: { hook: "viewport:add" },
       });
+      expect(hit?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
       expect(unhandled).toEqual([]);
     } finally {
       process.off("unhandledRejection", onUnhandled);

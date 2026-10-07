@@ -44,8 +44,10 @@ describe("physics3d rejected collision hook", () => {
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
         source: "@gwenjs/physics3d",
         context: { hook: "physics3d:collision" },
-        target: { kind: "plugin", id: "@gwenjs/physics3d", name: "@gwenjs/physics3d" },
       });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(hit?.target).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
       expect(unhandled).toEqual([]);
     } finally {
       process.off("unhandledRejection", onUnhandled);
