@@ -121,7 +121,7 @@ GWEN supporte trois configurations de boucle, définies via `engine.loop` et `en
 
 ### Boucle interne (défaut)
 
-Le framework appelle `requestAnimationFrame` en interne. `onUpdate` reçoit un `dt` variable à chaque frame. `engine.start()` lève `GwenError` `CORE:WASM_NOT_INITIALIZED` quand le bridge WASM n'est pas actif, et il ne programme aucune frame. `start()`, `startExternal()` et `advance()` lèvent `GwenEngineStateError` (`CORE:INVALID_STATE_TRANSITION`) sur un appel de cycle de vie illégal. Une erreur fatale fait passer le moteur à `faulted` et n'appelle pas `stop()`.
+Le framework appelle `requestAnimationFrame` en interne. `onUpdate` reçoit un `dt` variable à chaque frame. `engine.start()` lève `GwenError` `CORE:WASM_NOT_INITIALIZED` quand le bridge WASM n'est pas actif, et il ne programme aucune frame. `start()`, `startExternal()` et `advance()` lèvent `GwenEngineStateError` (`CORE:INVALID_STATE_TRANSITION`) sur un appel de cycle de vie illégal. Une erreur fatale fait passer le moteur à `faulted` et n'appelle pas `stop()`. Seul le premier `stop()` lance le teardown. `stop()` ne bloque pas en ré-entrée : un `stop()` appelé pendant le teardown rend la main immédiatement. Pour savoir quand le teardown est fini, écoutez `engine:state-change` vers `stopped`.
 
 ```ts
 // gwen.config.ts

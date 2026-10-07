@@ -219,10 +219,11 @@ class GwenEngineImpl implements GwenEngine {
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
   /**
-   * The one teardown claim allowed by the #107 amendment: the memoized `stop()` promise.
-   * Every later `stop()` returns it. Only `stop()` reads it; every other check reads `state`.
+   * The one teardown claim allowed by the #107 amendment. Set when the first `stop()`
+   * starts teardown. While it is set, every `stop()` returns at once. Only `stop()`
+   * reads it; every other check reads `state`.
    */
-  private _teardownOnce: Promise<void> | null = null;
+  private _teardownOnce: true | null = null;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
@@ -695,27 +696,21 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   /**
-   * Tear down once. A second `stop()` returns the same promise: it resolves when
-   * the first teardown has finished. Awaiting `stop()` from inside a teardown hook
-   * (`engine:stop`, or `engine:state-change` to `stopping`) therefore never resolves.
+   * Tear down once. Only the first `stop()` runs teardown. A `stop()` called while
+   * teardown runs returns immediately and does not wait for it, so awaiting `stop()`
+   * inside `engine:stop` or an `engine:state-change` handler for `stopping` resolves.
+   * To know when teardown has finished, observe `engine:state-change` to `stopped`.
    */
   async stop(): Promise<void> {
-    if (this._teardownOnce !== null) return this._teardownOnce;
+    if (this._teardownOnce !== null) return;
     const from = this._state;
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
     // Claim before the first hook runs: a stop() from inside teardown must see it.
-    let resolveDone: () => void = () => undefined;
-    this._teardownOnce = new Promise<void>((resolve) => {
-      resolveDone = resolve;
-    });
-    try {
-      if (from !== "faulted") await this._transition("stopping", "USER");
-      await this._teardown();
-      if (this._state === "stopping") await this._transition("stopped", "USER");
-    } finally {
-      resolveDone();
-    }
+    this._teardownOnce = true;
+    if (from !== "faulted") await this._transition("stopping", "USER");
+    await this._teardown();
+    if (this._state === "stopping") await this._transition("stopped", "USER");
   }
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, glue, and disposables. */
