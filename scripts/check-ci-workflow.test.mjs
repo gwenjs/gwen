@@ -522,6 +522,13 @@ test('pnpm typecheck includes the core and renderer test projects', () => {
   assert.ok(renderer.include.includes('tests'));
   assert.ok(Array.isArray(core.exclude));
   assert.ok(core.exclude.every((item) => item.endsWith('.ts')));
+  for (const file of [
+    'tests/integration-wasm/p1-error-policy.test.ts',
+    'tests/integration-wasm/p54-stale-physics-handles.test.ts',
+    'tests/integration-wasm/wasm-errors.test.ts',
+  ]) {
+    assert.ok(!core.exclude.includes(file), `${file} is excluded from the test typecheck`);
+  }
   assert.ok(Array.isArray(renderer.exclude));
   assert.ok(renderer.exclude.every((item) => item.endsWith('.ts')));
 });
