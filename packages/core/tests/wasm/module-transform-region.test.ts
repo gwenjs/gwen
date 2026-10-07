@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { GwenErrorPayload } from "@gwenjs/schema";
 
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
+import type { WasmModuleOptions } from "../../src/engine/engine-types.js";
 import { createEngine, type GwenEngine } from "../../src/engine/gwen-engine.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 
@@ -15,8 +16,8 @@ const WASM_WITH_MEMORY = new Uint8Array([
   0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
 ]);
 
-function regionModule(name: string, step?: (dt: number) => void) {
-  return {
+function regionModule(name: string, step?: (dt: number) => void): WasmModuleOptions {
+  const options: WasmModuleOptions = {
     name,
     url: "http://x/mod.wasm",
     memory: {
@@ -25,8 +26,9 @@ function regionModule(name: string, step?: (dt: number) => void) {
       ],
     },
     transformRegion: "transforms",
-    step: step === undefined ? undefined : (_handle: unknown, dt: number) => step(dt),
   };
+  if (step === undefined) return options;
+  return { ...options, step: (_handle, dt) => step(dt) };
 }
 
 describe("transform region copy counts", () => {
@@ -81,20 +83,23 @@ describe("transform region copy counts", () => {
 
   it("does not copy an isolated module", async () => {
     const { engine, fill, copies } = await boot();
-    await engine.loadWasmModule(
-      regionModule("boom", () => {
-        throw new Error("step failed");
-      }),
-    );
-    await engine.advance(0.016);
-    const firstFrameCopies = copies.length;
-    copies.length = 0;
-    const fillsAfterFirst = fill.mock.calls.length;
-    await engine.advance(0.016);
-    expect(firstFrameCopies).toBe(1);
-    expect(copies).toEqual([]);
-    expect(fill.mock.calls.length).toBe(fillsAfterFirst);
-    await engine.stop();
+    try {
+      await engine.loadWasmModule(
+        regionModule("boom", () => {
+          throw new Error("step failed");
+        }),
+      );
+      await engine.advance(0.016);
+      const firstFrameCopies = copies.length;
+      copies.length = 0;
+      const fillsAfterFirst = fill.mock.calls.length;
+      await engine.advance(0.016);
+      expect(firstFrameCopies).toBe(1);
+      expect(copies).toEqual([]);
+      expect(fill.mock.calls.length).toBe(fillsAfterFirst);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("skips copies after a recoverable fill error and still steps", async () => {
@@ -141,13 +146,16 @@ describe("transform region copy counts", () => {
       );
     });
     let stepped = false;
-    await engine.loadWasmModule(
-      regionModule("a", () => {
-        stepped = true;
-      }),
-    );
-    await engine.advance(0.016);
-    expect(stepped).toBe(false);
-    await engine.stop();
+    try {
+      await engine.loadWasmModule(
+        regionModule("a", () => {
+          stepped = true;
+        }),
+      );
+      await engine.advance(0.016);
+      expect(stepped).toBe(false);
+    } finally {
+      await engine.stop();
+    }
   });
 });
