@@ -161,8 +161,10 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory();
     const engine = createMockEngine();
+    // definePlugin keeps only the inject error message, not the error as `cause`.
     await expect(Promise.resolve(instance.setup(engine))).rejects.toMatchObject({
       code: "engine:plugin-setup-failed",
+      message: expect.stringContaining("No service: physics3d"),
     });
   });
 
