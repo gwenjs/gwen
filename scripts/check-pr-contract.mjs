@@ -178,13 +178,22 @@ const NA_ONLY =
 function visibleLines(lines) {
   /** @type {string[]} */
   const out = [];
-  let fence = false;
+  /** @type {string | null} */
+  let fence = null;
   for (const line of lines) {
-    if (/^\s*(```|~~~)/.test(line)) {
-      fence = !fence;
+    // CommonMark: a fence is indented by at most three spaces. A line with
+    // four spaces is text (an indented code block renders, but it never
+    // opens a fence that hides the lines after it).
+    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1] ?? null;
+    if (fence === null && marker) {
+      fence = marker;
       continue;
     }
-    if (!fence) out.push(line);
+    if (fence !== null) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = null;
+      continue;
+    }
+    out.push(line);
   }
   return out;
 }
@@ -261,60 +270,43 @@ function checkRedProof(lines, errors, changedTestFiles, changedFiles) {
   }
 }
 
+const MAINTAINER_SENTENCE = /reviewed by the maintainer, who will approve or not/gi;
+
 /**
- * @param {string[]} lines
- * @param {string[]} errors
- */
-/**
+ * The words of a line with markdown and punctuation removed, and the allowed
+ * maintainer sentence cut out.
+ *
  * @param {string} line
  * @returns {string}
  */
-function plainLine(line) {
-  return line.trim().replace(/^[*_`]+|[*_`]+$/g, '').trim();
+function plainWords(line) {
+  return line
+    .replace(MAINTAINER_SENTENCE, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 /**
- * @param {string} line
- * @returns {boolean}
- */
-function isBareApprove(line) {
-  return /^approve$/i.test(plainLine(line));
-}
-
-/**
- * @param {string} title
- * @returns {string}
- */
-function headingProblem(title) {
-  const text = plainLine(title);
-  if (/\bverdict\b/i.test(text)) return 'self-written verdict section';
-  if (/\bself[-\s]review\b/i.test(text)) return 'self-review section';
-  if (/^approve$/i.test(text)) return 'approve heading';
-  return '';
-}
-
-/**
+ * Reject any line or heading that carries a review outcome. Only the
+ * maintainer gives one, outside the body.
+ *
  * @param {string[]} lines
  * @param {string[]} errors
  */
 function checkVerdict(lines, errors) {
   for (const line of lines) {
-    if (/^#{1,6}\s+/.test(line)) continue;
-    if (isBareApprove(line)) {
-      errors.push('bare APPROVE line');
+    const words = plainWords(line);
+    if (/\breviewed[-\s]by\b/i.test(words)) {
+      errors.push(`reviewed-by line: ${line.trim()}`);
       return;
     }
-    if (/^verdict\s*:\s*approve$/i.test(plainLine(line))) {
-      errors.push('self-written verdict section');
+    if (/\bself[-\s]review\b/i.test(words)) {
+      errors.push(`self-review section: ${line.trim()}`);
       return;
     }
-  }
-  for (const line of lines) {
-    const heading = line.match(/^#{1,6}\s+(.*)$/);
-    if (!heading) continue;
-    const problem = headingProblem(heading[1] ?? '');
-    if (problem) {
-      errors.push(problem);
+    if (/\b(?:verdict|approved?)\b/i.test(words)) {
+      errors.push(`self-written verdict or approve: ${line.trim()}`);
       return;
     }
   }
