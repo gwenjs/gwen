@@ -406,3 +406,46 @@ impl Default for ArchetypeStorage {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{ArchetypeStorage, ColumnMove};
+    use crate::ecs::ComponentTypeId;
+
+    #[test]
+    fn move_row_rejects_a_fixed_column_with_the_wrong_length() {
+        let mut storage = ArchetypeStorage::new();
+        let marker = ComponentTypeId::from_raw(1);
+        let fixed = ComponentTypeId::from_raw(2);
+        assert_eq!(storage.register_raw(marker, 0).is_ok(), true);
+        assert_eq!(storage.register_raw(fixed, 4).is_ok(), true);
+        let marker_bytes = b"mark";
+        let added = storage.add_component(7, marker, marker_bytes);
+        assert_eq!(matches!(added, ColumnMove::Migrated(_)), true);
+        let source_len = storage
+            .entity_locations
+            .get(7)
+            .copied()
+            .flatten()
+            .map(|(arch_id, _)| storage.archetype(arch_id).len());
+        assert_eq!(source_len, Some(1));
+        let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            storage.add_component(7, fixed, &[9, 9])
+        }));
+        assert_eq!(outcome.is_ok(), true);
+        let rejected = match outcome {
+            Ok(value) => value,
+            Err(_) => return,
+        };
+        assert_eq!(matches!(rejected, ColumnMove::Rejected), true);
+        assert_eq!(storage.get_component(7, marker), Some(marker_bytes.as_slice()));
+        assert_eq!(storage.has_component(7, fixed), false);
+        let source_after = storage
+            .entity_locations
+            .get(7)
+            .copied()
+            .flatten()
+            .map(|(arch_id, _)| storage.archetype(arch_id).len());
+        assert_eq!(source_after, Some(1));
+    }
+}
