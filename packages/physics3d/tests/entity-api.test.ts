@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 const physics3dInit = vi.fn();
@@ -32,6 +32,10 @@ import {
 } from "../src/index";
 import { createEngine, type GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 describe("Physics3D entity API (foundation)", () => {
   beforeEach(() => {

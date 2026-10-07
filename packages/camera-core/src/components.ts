@@ -4,7 +4,7 @@
  *
  * All SoA arrays are indexed by EntityId.
  * String data (viewportId) and object data (CameraPathData) live in separate
- * Maps — see camera-viewport-map.ts and camera-path-store.ts.
+ * Maps — see `getCameraStores` in camera-stores.ts.
  */
 
 import { defineComponent, Types } from "@gwenjs/core";

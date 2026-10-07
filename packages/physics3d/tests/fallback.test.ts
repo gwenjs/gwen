@@ -6,7 +6,7 @@
  * linear/angular damping, gravity integration, quaternion rotation, applyTorque,
  * and setAngularVelocity. No WASM module is required.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock WASM bridge in local (non-physics3d) fallback mode ───────────────────
 // Omitting `physics3d_add_body` forces the plugin into local simulation mode.
@@ -52,6 +52,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI, type Physics3DConfig } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 // ─── Test factory ─────────────────────────────────────────────────────────────
 

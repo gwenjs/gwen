@@ -7,7 +7,7 @@
  * 4. mesh/convex AABB computed from vertices
  * 5. Local-mode 3D A* pathfinding via initNavGrid3D + findPath3D
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { ciThreshold } from "./helpers/perf";
 
 // ─── WASM mock setup ─────────────────────────────────────────────────────────
@@ -101,6 +101,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 import { computeColliderAABB } from "../src/plugin/physics3d-utils";
 
 // ─── Engine / service factory ─────────────────────────────────────────────────

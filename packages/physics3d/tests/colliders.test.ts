@@ -2,7 +2,7 @@
  * Tests for Physics3D collider management (addCollider / removeCollider)
  * in local simulation mode.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const physics3dInit = vi.fn();
 const physics3dStep = vi.fn();
@@ -41,6 +41,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 import type { Physics3DColliderOptions } from "../src/types";
 
 function makeEngine() {

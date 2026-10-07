@@ -2,7 +2,7 @@
  * Tests for Physics3D collision event parsing, hook dispatch, sensor state
  * updates, and per-entity callbacks.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock WASM bridge ────────────────────────────────────────────────────────
 
@@ -81,6 +81,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

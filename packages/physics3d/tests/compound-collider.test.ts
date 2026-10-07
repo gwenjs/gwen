@@ -6,7 +6,7 @@
  * falls back to a deterministic local simulation when no WASM bridge is
  * available (same approach as colliders.test.ts).
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Minimal mock — forces local-mode by omitting physics3d_add_body ──────────
 const physics3dInit = vi.fn();
@@ -46,6 +46,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 import type { CompoundColliderOptions3D } from "../src/types";
 
 // ─── Engine factory ───────────────────────────────────────────────────────────

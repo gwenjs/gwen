@@ -1,7 +1,7 @@
 /**
  * Tests for Physics3DAPI.bulkSpawnStaticBoxes — local and WASM modes.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 // ── WASM bridge mock (physics3d variant, with bulk spawn) ─────────────────────
@@ -49,6 +49,10 @@ import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/e
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine, EntityId } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 function makeEngine() {
   const services = new Map<string, unknown>();
