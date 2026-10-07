@@ -136,14 +136,20 @@ describe("engine state machine", () => {
     ]);
   });
 
-  it("rejects start and advance while stopping, and a nested stop is a no-op", async () => {
+  it("rejects start and advance while stopping, and a nested stop joins the running teardown", async () => {
     const engine = await createEngine();
     const seen = watch(engine);
     let nested = 0;
+    let stops = 0;
+    let nestedJoin: Promise<void> = Promise.resolve();
     const rejected: string[] = [];
+    engine.hooks.hook("engine:stop", () => {
+      stops += 1;
+    });
     engine.hooks.hook("engine:state-change", async () => {
       if (engine.state !== "stopping") return;
-      await engine.stop();
+      // Awaiting it here would wait for this very teardown (#107 amendment).
+      nestedJoin = engine.stop();
       nested += 1;
       const startError = await engine.start().then(
         () => undefined,
@@ -158,7 +164,9 @@ describe("engine state machine", () => {
     });
     await engine.startExternal();
     await engine.stop();
+    await nestedJoin;
     expect(nested).toBe(1);
+    expect(stops).toBe(1);
     expect(rejected).toEqual(["start", "advance"]);
     expect(engine.state).toBe("stopped");
     expect(seen.filter((event) => event.to === "stopping")).toHaveLength(1);

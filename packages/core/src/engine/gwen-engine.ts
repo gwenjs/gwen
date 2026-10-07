@@ -218,7 +218,10 @@ class GwenEngineImpl implements GwenEngine {
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
-  /** Teardown started by `stop()`. A later `stop()` returns without running it again. */
+  /**
+   * The one teardown claim allowed by the #107 amendment: the memoized `stop()` promise.
+   * Every later `stop()` returns it. Only `stop()` reads it; every other check reads `state`.
+   */
   private _teardownOnce: Promise<void> | null = null;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
@@ -691,11 +694,17 @@ class GwenEngineImpl implements GwenEngine {
     }
   }
 
+  /**
+   * Tear down once. A second `stop()` returns the same promise: it resolves when
+   * the first teardown has finished. Awaiting `stop()` from inside a teardown hook
+   * (`engine:stop`, or `engine:state-change` to `stopping`) therefore never resolves.
+   */
   async stop(): Promise<void> {
-    if (this._teardownOnce !== null) return;
+    if (this._teardownOnce !== null) return this._teardownOnce;
     const from = this._state;
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
+    // Claim before the first hook runs: a stop() from inside teardown must see it.
     let resolveDone: () => void = () => undefined;
     this._teardownOnce = new Promise<void>((resolve) => {
       resolveDone = resolve;
