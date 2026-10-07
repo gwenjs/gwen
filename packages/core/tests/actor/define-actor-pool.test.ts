@@ -373,6 +373,36 @@ describe("defineActorPool — acquire", () => {
     }
   });
 
+  it("reused equals fresh: a field set only by the component defaults is reset on reuse", async () => {
+    const Pair = defineComponent({
+      name: "PoolPairDefaults56",
+      schema: { a: Types.i32, b: Types.i32 },
+      defaults: { a: 1, b: 2 },
+    });
+    const engine = await createEngine();
+    try {
+      const Actor = defineActor(definePrefab([{ def: Pair, defaults: { a: 7 } }]), () => {});
+      await engine.use(Actor._plugin);
+      const pool = defineActorPool(Actor, { size: 2 });
+      await engine.use(pool.plugin);
+
+      const id = pool.acquire();
+      const pair = engine.getComponent(id, Pair);
+      if (!pair) throw new Error("the pooled actor has no Pair component");
+      pair.b = 99;
+      pool.release(id);
+      await flush(engine);
+
+      expect(pool.acquire()).toBe(id);
+      const fresh = pool.acquire();
+      expect(fresh).not.toBe(id);
+      expect(engine.getComponent(fresh, Pair)).toEqual({ a: 7, b: 2 });
+      expect(engine.getComponent(id, Pair)).toEqual(engine.getComponent(fresh, Pair));
+    } finally {
+      await engine.stop();
+    }
+  });
+
   it("does not re-add a prefab component removed during the previous life", async () => {
     const { engine, pool } = await makePool(5);
     try {
