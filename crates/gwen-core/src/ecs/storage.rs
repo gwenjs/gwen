@@ -418,16 +418,31 @@ mod tests {
     use super::{ArchetypeStorage, ColumnMove};
     use crate::ecs::ComponentTypeId;
 
+    fn registered(result: Result<(), crate::ecs::CoreError>) -> u8 {
+        match result {
+            Ok(()) => 1,
+            Err(_) => 0,
+        }
+    }
+
+    fn move_code(value: &ColumnMove) -> u8 {
+        match value {
+            ColumnMove::Rejected => 0,
+            ColumnMove::InPlace => 1,
+            ColumnMove::Migrated(_) => 2,
+        }
+    }
+
     #[test]
     fn move_row_rejects_a_fixed_column_with_the_wrong_length() {
         let mut storage = ArchetypeStorage::new();
         let marker = ComponentTypeId::from_raw(1);
         let fixed = ComponentTypeId::from_raw(2);
-        assert_eq!(storage.register_raw(marker, 0).is_ok(), true);
-        assert_eq!(storage.register_raw(fixed, 4).is_ok(), true);
+        assert_eq!(registered(storage.register_raw(marker, 0)), 1);
+        assert_eq!(registered(storage.register_raw(fixed, 4)), 1);
         let marker_bytes = b"mark";
         let added = storage.add_component(7, marker, marker_bytes);
-        assert_eq!(matches!(added, ColumnMove::Migrated(_)), true);
+        assert_eq!(move_code(&added), 2);
         let source_len = storage
             .entity_locations
             .get(7)
@@ -438,17 +453,16 @@ mod tests {
         let outcome = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             storage.add_component(7, fixed, &[9, 9])
         }));
-        assert_eq!(outcome.is_ok(), true);
-        let rejected = match outcome {
-            Ok(value) => value,
-            Err(_) => return,
+        let code = match &outcome {
+            Ok(value) => move_code(value),
+            Err(_) => 9,
         };
-        assert_eq!(matches!(rejected, ColumnMove::Rejected), true);
+        assert_eq!(code, 0);
         assert_eq!(
             storage.get_component(7, marker),
             Some(marker_bytes.as_slice())
         );
-        assert_eq!(storage.has_component(7, fixed), false);
+        assert_eq!(storage.get_component(7, fixed), None);
         let source_after = storage
             .entity_locations
             .get(7)

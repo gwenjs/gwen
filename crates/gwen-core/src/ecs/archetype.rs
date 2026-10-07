@@ -353,7 +353,8 @@ mod tests {
         column.push(b"aaaa");
         column.push(b"bb");
         column.push(b"cccc");
-        assert_eq!(column.swap_remove(0), true);
+        let removed = if column.swap_remove(0) { 1 } else { 0 };
+        assert_eq!(removed, 1);
         column.set(0, b"CCCCCC");
         assert_eq!(column.get(1), b"bb");
         assert_eq!(column.get(0), b"CCCCCC");
