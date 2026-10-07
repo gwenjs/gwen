@@ -247,6 +247,25 @@ test('verify-red does not treat one passing test as red when another fails', () 
   assert.match(output, /NOT RED added\.test\.mjs :: stays green/);
 });
 
+test('verify-red runs a node:test file that quotes a vitest import with node', () => {
+  const result = runVerifyRed(
+    [
+      "import assert from 'node:assert/strict';",
+      "import test from 'node:test';",
+      "const fixture = [\"import { it } from 'vitest';\", \"it('x', () => {});\"];",
+      "test('fails on the base', () => {",
+      '  assert.equal(fixture.length, 3);',
+      '});',
+      '',
+    ].join('\n'),
+    'base',
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.doesNotMatch(output, /pnpm install/);
+  assert.equal(result.status, 0, output);
+  assert.match(output, /verify-red: RED added\.test\.mjs/);
+});
+
 test('verify-red does not count a wasm file as red when it cannot run', () => {
   const result = runVerifyRed(
     ["import { it } from 'vitest';", "it('passes on the base', () => {});", ''].join('\n'),
