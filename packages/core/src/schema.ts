@@ -442,10 +442,17 @@ let _nextTypeId = 1;
 /** Name → id and layout. A second `defineComponent` of the same name reuses the id. */
 const _typeIdsByName = new Map<string, { id: number; layout: string }>();
 
-/** Field names, order and types. Defaults are not part of the layout. */
+/**
+ * Field names, order and types. Defaults are not part of the layout.
+ * `Types.persistentString` is written `persistentString`: it shares `type: "string"`
+ * with `Types.string` but uses another string pool.
+ */
 function _schemaLayout(schema: ComponentSchema): string {
   return Object.entries(schema)
-    .map(([field, schemaType]) => `${field}:${schemaType.type}`)
+    .map(([field, schemaType]) => {
+      const persistent = "isPersistent" in schemaType && schemaType.isPersistent === true;
+      return `${field}:${persistent ? "persistentString" : schemaType.type}`;
+    })
     .join(",");
 }
 
