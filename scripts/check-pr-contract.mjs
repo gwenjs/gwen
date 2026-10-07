@@ -325,7 +325,7 @@ const CLOSING =
  * @returns {boolean}
  */
 function cellHasNoTest(cell) {
-  return /\bno test\b/i.test(cell.replace(/`/g, ''));
+  return /\bno[-\s]?tests?\b|\buntested\b/i.test(cell.replace(/`/g, ''));
 }
 
 /**
@@ -337,6 +337,8 @@ function checkNoTestCloses(lines, body, errors) {
   if (!CLOSING.test(body)) return;
   for (let i = 0; i < lines.length; i++) {
     if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
+    const header = splitRow(lines[i] ?? '').join(' ').toLowerCase();
+    if (!header.includes('acceptance')) continue;
     for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
       for (const cell of splitRow(lines[j] ?? '')) {
         if (cellHasNoTest(cell)) {
