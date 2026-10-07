@@ -5,13 +5,13 @@ import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../../src/engine/engine-errors";
 import { EngineComponentRegistry } from "../../src/engine/engine-component-registry";
 import { defineComponent, Types } from "../../src/schema";
-import { createRealEngine, type RealEngineHandle } from "./harness.js";
+import { createRealEngine } from "./harness.js";
 
 const TRANSFORM_TYPE_ID = 0xffffffff - 1;
 
 describe("component type budget", () => {
   it("127 user types and the transform accept writes in WASM; the 128th name throws in defineComponent", async () => {
-    const handle: RealEngineHandle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     let caught: unknown;
     try {
       const defs = [];
