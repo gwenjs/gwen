@@ -77,6 +77,43 @@ test('runs verify-red against the pull request base', () => {
 });
 
 /**
+ * The lines of one job in ci.yml.
+ *
+ * @param {string} yaml
+ * @param {string} id
+ * @returns {string}
+ */
+function jobBlock(yaml, id) {
+  const lines = yaml.split(/\r?\n/);
+  const start = lines.indexOf(`  ${id}:`);
+  if (start === -1) return '';
+  let end = start + 1;
+  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:\s*$/.test(lines[end] ?? '') && !/^\S/.test(lines[end] ?? '')) end++;
+  return lines.slice(start, end).join('\n');
+}
+
+test('verify-red runs after the rust job with the WASM artifacts', () => {
+  const yaml = readCi();
+  const ids = [...yaml.matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)].map((m) => m[1] ?? '');
+  const owners = ids.filter((id) => jobBlock(yaml, id).includes('scripts/verify-red.sh'));
+  assert.equal(owners.length, 1, `jobs running verify-red: ${owners.join(', ')}`);
+  const job = jobBlock(yaml, owners[0] ?? '');
+  assert.match(job, /needs: \[[^\]]*\brust\b[^\]]*\]/);
+  assert.match(job, /fetch-depth: 0/);
+  for (const [name, path] of [
+    ['core-wasm', 'packages/core/wasm/'],
+    ['physics3d-build-tools', 'packages/physics3d/build-tools/'],
+    ['physics3d-wasm-bvh', 'packages/physics3d/wasm/bvh/'],
+    ['physics3d-fracture-wasm', 'packages/physics3d-fracture/wasm/'],
+  ]) {
+    assert.match(job, new RegExp(`name: ${name}\\n\\s+path: ${path.replace(/\//g, '\\/')}`));
+    assert.match(jobBlock(yaml, 'rust'), new RegExp(`name: ${name}\\n`));
+  }
+  const status = spawnSync('node', [join(root, 'scripts/check-ci-status-needs.mjs')], { cwd: root, encoding: 'utf8' });
+  assert.equal(status.status, 0, `${status.stdout}${status.stderr}`);
+});
+
+/**
  * @param {string} dir
  * @param {string[]} args
  */
