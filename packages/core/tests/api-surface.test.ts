@@ -45,6 +45,14 @@ describe("API surface (RFC-V2-013)", () => {
     expect(typeof internal._getActorEntityId).toBe("function");
   });
 
+  it("exposes per-engine state helpers and drops the global string pool (#59)", () => {
+    expect(typeof core.createEngineLocal).toBe("function");
+    expect(typeof internal.stringPoolFor).toBe("function");
+    expect(typeof internal._getActorContext).toBe("function");
+    expect("GlobalStringPoolManager" in internal).toBe(false);
+    expect("GlobalStringPoolManager" in core).toBe(false);
+  });
+
   it("does not expose legacy V1 engine infrastructure", () => {
     expect("Engine" in core).toBe(false);
     expect("PluginManager" in core).toBe(false);
