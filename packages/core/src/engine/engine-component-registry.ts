@@ -59,7 +59,9 @@ export class EngineComponentRegistry {
     if (this.typeIds.size + RESERVED_INTERNAL_COMPONENT_TYPES >= MAX_COMPONENT_TYPES) {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-        `Component type limit reached: ${MAX_COMPONENT_TYPES}`,
+        `Component type limit reached: ${MAX_COMPONENT_TYPES - RESERVED_INTERNAL_COMPONENT_TYPES} ` +
+        `user types fit (${MAX_COMPONENT_TYPES} type bits, ` +
+        `${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
       );
     }
     const typeId = this.wasmBridge.registerComponentType();
