@@ -34,10 +34,24 @@
  *
  * No-memory variant is `(module)`.
  *
- * Shift variant: `gwen_transforms_ptr` returns `transform_buffer_ptr() + 64`.
- * The probe and the real instance therefore report different offsets.
+ * Shift variant (`SHIFT_HEX`). `gwen_transforms_ptr` returns
+ * `transform_buffer_ptr() + 64`, so the probe and the real instance report
+ * different offsets:
  *
- * ABI variant exports `gwen_transforms_ptr` as 2 and `gwen_plugin_api_version` as 2.
+ * (module
+ *   (import "gwen" "transform_buffer_ptr" (func $ptr (result i32)))
+ *   (memory (export "memory") 1)
+ *   (func (export "gwen_transforms_ptr") (result i32)
+ *     (i32.add (call $ptr) (i32.const 64))))
+ *
+ * ABI variant (`ABI_HEX`). The region offset 2 is invalid and the plugin API
+ * version 2 does not match, so the order of the two checks is observable:
+ *
+ * (module
+ *   (import "gwen" "transform_buffer_ptr" (func $ptr (result i32)))
+ *   (memory (export "memory") 1)
+ *   (func (export "gwen_transforms_ptr") (result i32) (i32.const 2))
+ *   (func (export "gwen_plugin_api_version") (result i32) (i32.const 2)))
  */
 
 const READER_HEX =
@@ -55,7 +69,7 @@ const SHIFT_HEX =
 const ABI_HEX =
   "0061736d010000000105016000017f021d01046777656e147472616e73666f726d5f6275666665725f707472000003030200000503010001073a03066d656d6f72790200136777656e5f7472616e73666f726d735f7074720001176777656e5f706c7567696e5f6170695f76657273696f6e00020a0b02040041020b040041020b";
 
-function bytesFromHex(hex: string): Uint8Array {
+function bytesFromHex(hex: string): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(hex.length / 2);
   for (let i = 0; i < bytes.length; i += 1) {
     bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
@@ -70,7 +84,7 @@ export const TRANSFORM_READER_SHIFT_WASM = bytesFromHex(SHIFT_HEX);
 export const TRANSFORM_READER_ABI_WASM = bytesFromHex(ABI_HEX);
 export const NO_MEMORY_WASM = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
 
-export function wasmDataUrl(bytes: Uint8Array): string {
+export function wasmDataUrl(bytes: Uint8Array<ArrayBuffer>): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return `data:application/wasm;base64,${btoa(binary)}`;

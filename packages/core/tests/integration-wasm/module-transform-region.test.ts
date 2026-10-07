@@ -62,13 +62,16 @@ declare module "../../src/engine/engine-types.js" {
   }
 }
 
+/** `dt` values the reader modules received, in call order. */
+const stepDts: number[] = [];
+
 function region(byteOffset: number, byteLength: number) {
   return { name: "transforms", byteOffset, byteLength, type: "f32" as const };
 }
 
 function readerOptions(
   name: keyof GwenWasmModulesReader,
-  bytes: Uint8Array,
+  bytes: Uint8Array<ArrayBuffer>,
   transformRegion: string | undefined,
   byteOffset: number,
   byteLength: number,
@@ -78,6 +81,7 @@ function readerOptions(
     url: wasmDataUrl(bytes),
     memory: { regions: [region(byteOffset, byteLength)] },
     step: (handle, dt) => {
+      stepDts.push(dt);
       handle.exports.step(dt);
     },
   };
@@ -137,8 +141,10 @@ describe("module transform region", () => {
       const handle = await started.engine.loadWasmModule(
         readerOptions("reader", TRANSFORM_READER_WASM, "transforms", REGION_OFFSET, REQUIRED_BYTES),
       );
-      await started.advance(1);
+      stepDts.length = 0;
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
+      expect(stepDts).toEqual([1 / 60]);
       expect(handle.exports.ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
@@ -164,9 +170,9 @@ describe("module transform region", () => {
         fills += 1;
         previous(ptr, maxEntities);
       };
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       started.bridge.engine().set_entity_local_position(0, 9, 8);
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(handle.exports.read_x()).toBe(9);
       expect(handle.exports.read_y()).toBe(8);
@@ -193,7 +199,7 @@ describe("module transform region", () => {
       expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL);
       expect(caught.message).toContain(String(REQUIRED_BYTES));
       expect(() => started.engine.getWasmModule("too-small")).toThrow(/too-small/);
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");
     });
   });
@@ -219,9 +225,9 @@ describe("module transform region", () => {
           REQUIRED_BYTES,
         ),
       );
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       handle.exports.scribble();
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(wasm.get_entity_world_x(0)).toBe(3.5);
       expect(wasm.get_entity_world_y(0)).toBe(-2);
@@ -250,8 +256,8 @@ describe("module transform region", () => {
           moduleHandle.exports.step(dt);
         },
       });
-      await started.advance(1);
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(grown).toBe(true);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
@@ -271,9 +277,9 @@ describe("module transform region", () => {
           REQUIRED_BYTES,
         ),
       );
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       started.bridge.getLinearMemory()!.grow(1);
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
@@ -283,7 +289,7 @@ describe("module transform region", () => {
   it("rejects each invalid region at load and keeps the engine running", async () => {
     const cases: Array<{
       name: GwenWasmModulesReaderKey;
-      bytes: Uint8Array;
+      bytes: Uint8Array<ArrayBuffer>;
       offset: number;
       length: number;
       regionName: string;
@@ -343,7 +349,7 @@ describe("module transform region", () => {
         }
         expect(caught.code, item.name).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
         expect(() => started.engine.getWasmModule(item.name)).toThrow();
-        await started.advance(1);
+        await started.advance(1, 1 / 60);
         expect(started.engine.state).not.toBe("faulted");
       });
     }
@@ -361,7 +367,7 @@ describe("module transform region", () => {
           moduleHandle.exports.step(dt);
         },
       });
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(handle.exports.gwen_transforms_ptr()).toBe(REGION_OFFSET);
       expect(handle.exports.ptr()).toBe(REGION_OFFSET);
@@ -403,7 +409,7 @@ describe("module transform region", () => {
       }
       expect(caught.code).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
       expect(() => started.engine.getWasmModule("offset-mismatch")).toThrow();
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");
     });
   });
@@ -427,7 +433,7 @@ describe("module transform region", () => {
       }
       expect(caught.message).toContain("API version");
       expect(() => started.engine.getWasmModule("abi-before-region")).toThrow();
-      await started.advance(1);
+      await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");
     });
   });
