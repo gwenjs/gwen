@@ -88,7 +88,7 @@ describe("a rejected physics listener does not stop the physics plugin", () => {
 
       const yLater = physics.getPosition(faller)?.y;
       if (yLater === undefined) throw new Error("expected a physics2d body position");
-      expect(Math.abs(yLater - yAfterReject)).toBeGreaterThan(0.5);
+      expect(yLater).toBeLessThan(yAfterReject - 0.5);
       expect(engine.isolated()).toEqual([]);
     } finally {
       await handle.dispose();
