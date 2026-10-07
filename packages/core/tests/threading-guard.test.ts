@@ -22,11 +22,11 @@ const ALLOWED_WORKERS: Readonly<Record<string, number>> = {
   "packages/physics3d/src/plugin/bvh.ts new Worker": 1,
 };
 
-/** Cross-Origin-Embedder-Policy ceilings in packages/vite/src. Empty after #115. */
+/** COOP and COEP ceilings in packages/vite/src. Empty after #115. Any hit fails. */
 const ALLOWED_COEP: Readonly<Record<string, number>> = {};
 
-/** Cross-Origin-Embedder-Policy text. One hit fails because the allow-list is empty. */
-const ISOLATION_HEADER = /Cross-Origin-Embedder-Policy/;
+/** Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy. One hit fails. */
+const ISOLATION_HEADER = /Cross-Origin-(Embedder|Opener)-Policy/;
 
 /** Problems when `text` sets an isolation header. An empty allow-list fails any hit. */
 function isolationHeaderProblems(file: string, text: string): string[] {
@@ -181,6 +181,15 @@ function textHits(files: readonly string[], pattern: RegExp, kind: string): stri
   return hits;
 }
 
+/** Script sources of the vite plugin, where the dev and preview servers set headers. */
+function viteSources(): string[] {
+  const files: string[] = [];
+  walk(path.join(REPO_ROOT, "packages", "vite", "src"), (file) => {
+    if (isScript(file) || file.endsWith(".js") || file.endsWith(".mjs")) files.push(file);
+  });
+  return files;
+}
+
 describe("threading guard", () => {
   const sources = packageSources();
   const astHits = sources.flatMap((file) => scanSource(file));
@@ -211,11 +220,8 @@ describe("threading guard", () => {
     expect(growthPast(counts, ALLOWED_WORKERS)).toEqual([]);
   });
 
-  it("rejects Cross-Origin-Embedder-Policy in vite sources", () => {
-    const files: string[] = [];
-    walk(path.join(REPO_ROOT, "packages", "vite", "src"), (file) => {
-      if (isScript(file) || file.endsWith(".js") || file.endsWith(".mjs")) files.push(file);
-    });
+  it("rejects Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy in vite sources", () => {
+    const files = viteSources();
     const problems = files.flatMap((file) =>
       isolationHeaderProblems(rel(file), readFileSync(file, "utf8")),
     );
@@ -223,6 +229,7 @@ describe("threading guard", () => {
   });
 
   it("rejects a header that sets Cross-Origin-Opener-Policy", () => {
+    expect(textHits(viteSources(), /Cross-Origin-Opener-Policy/, "COOP")).toEqual([]);
     expect(
       isolationHeaderProblems(
         "packages/vite/src/index.ts",
