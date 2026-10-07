@@ -13,36 +13,41 @@ const TRAP_WASM = new Uint8Array([
 
 describe("engine state fault", () => {
   it("an executed unreachable traps into faulted and stop stays there", async () => {
-    const { engine } = await createRealEngine({ variant: "light", maxEntities: 8 });
-    const mod = await WebAssembly.instantiate(TRAP_WASM);
-    const trap = mod.instance.exports["trap"];
-    if (typeof trap !== "function") {
-      throw new Error("trap export missing");
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { engine } = handle;
+      const mod = await WebAssembly.instantiate(TRAP_WASM);
+      const trap = mod.instance.exports["trap"];
+      if (typeof trap !== "function") {
+        throw new Error("trap export missing");
+      }
+      const changes: Array<{ from: string; to: string; reason: string }> = [];
+      const panics: string[] = [];
+      engine.hooks.hook("engine:state-change", (payload) => {
+        changes.push({ from: payload.from, to: payload.to, reason: payload.reason });
+      });
+      engine.errors.on((event) => {
+        if (event.code === CoreErrorCodes.WASM_PANIC) panics.push(event.code);
+      });
+      engine.hooks.hook("engine:before-update", () => {
+        trap();
+      });
+
+      await engine.startExternal();
+      await engine.advance(1 / 60);
+
+      expect(engine.state).toBe("faulted");
+      expect(changes).toContainEqual({ from: "running", to: "faulted", reason: "WASM_PANIC" });
+      expect(panics).toEqual([CoreErrorCodes.WASM_PANIC]);
+      await expect(engine.advance(1 / 60)).rejects.toMatchObject({
+        code: CoreErrorCodes.INVALID_STATE_TRANSITION,
+      });
+      await expect(engine.advance(1 / 60)).rejects.toBeInstanceOf(GwenEngineStateError);
+      await engine.stop();
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await handle.dispose();
     }
-    const changes: Array<{ from: string; to: string; reason: string }> = [];
-    const panics: string[] = [];
-    engine.hooks.hook("engine:state-change", (payload) => {
-      changes.push({ from: payload.from, to: payload.to, reason: payload.reason });
-    });
-    engine.errors.on((event) => {
-      if (event.code === CoreErrorCodes.WASM_PANIC) panics.push(event.code);
-    });
-    engine.hooks.hook("engine:before-update", () => {
-      trap();
-    });
-
-    await engine.startExternal();
-    await engine.advance(1 / 60);
-
-    expect(engine.state).toBe("faulted");
-    expect(changes).toContainEqual({ from: "running", to: "faulted", reason: "WASM_PANIC" });
-    expect(panics).toEqual([CoreErrorCodes.WASM_PANIC]);
-    await expect(engine.advance(1 / 60)).rejects.toMatchObject({
-      code: CoreErrorCodes.INVALID_STATE_TRANSITION,
-    });
-    await expect(engine.advance(1 / 60)).rejects.toBeInstanceOf(GwenEngineStateError);
-    await engine.stop();
-    expect(engine.state).toBe("faulted");
   });
 
   it("advance after faulted does not run update_transforms", async () => {
