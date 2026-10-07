@@ -3,6 +3,7 @@ import { createEngine, createEngineLocal, useEngine, type GwenEngine } from "../
 import { engineContext } from "../../src/engine/context.js";
 import { defineActor } from "../../src/actor/runtime/define-actor.js";
 import { actorTablesFor } from "../../src/actor/runtime/define-actor.js";
+import { useActor } from "../../src/actor/runtime/use-actor.js";
 import { definePrefab } from "../../src/actor/runtime/define-prefab.js";
 import { stubComponent } from "../helpers/stub-component.js";
 import type { WasmEngine } from "../../src/engine/wasm-bridge-types.js";
@@ -54,6 +55,70 @@ describe("two engines", () => {
       expect(calls).toBe(1);
     } finally {
       await engine.stop();
+    }
+  });
+
+  it("counts and lists only the actors of the current engine", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({ tag: "live" as const }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handleA = a.run(() => useActor(Actor));
+      const handleB = b.run(() => useActor(Actor));
+      b.run(() => {
+        handleB.spawn();
+      });
+      expect(a.run(() => handleA.count())).toBe(0);
+      expect(a.run(() => handleA.getAll())).toEqual([]);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("does not despawn an actor that lives on the other engine", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({ tag: "live" as const }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handleA = a.run(() => useActor(Actor));
+      const handleB = b.run(() => useActor(Actor));
+      const idB = b.run(() => handleB.spawn());
+      a.run(() => {
+        handleA.despawn(idB);
+      });
+      expect(b.run(() => handleB.count())).toBe(1);
+      expect(b.run(() => handleB.get()?.tag)).toBe("live");
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("despawnAll on one engine leaves the other engine's actors", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({ tag: "live" as const }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handleA = a.run(() => useActor(Actor));
+      const handleB = b.run(() => useActor(Actor));
+      a.run(() => {
+        handleA.spawn();
+      });
+      b.run(() => {
+        handleB.spawn();
+      });
+      a.run(() => {
+        handleA.despawnAll();
+      });
+      expect(a.run(() => handleA.count())).toBe(0);
+      expect(b.run(() => handleB.count())).toBe(1);
+    } finally {
+      await a.stop();
+      await b.stop();
     }
   });
 
