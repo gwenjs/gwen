@@ -33,7 +33,7 @@ onUpdate(() => {
 
 A pool keeps a fixed number of entities alive. When you "despawn" one, it becomes **dormant**
 instead of being destroyed. The next `acquire()` call reuses a dormant slot. After warm-up,
-that reuse does not allocate.
+that reuse keeps the entity. It still allocates. `useQuery` skips dormant pooled entities.
 
 ```ts
 // pools/BulletPool.ts

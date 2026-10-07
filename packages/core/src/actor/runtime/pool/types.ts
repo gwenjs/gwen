@@ -94,7 +94,7 @@ export interface ActorPool<Props, _PublicAPI> {
   /**
    * Acquires a slot from the pool.
    *
-   * - Reuses a dormant slot when one is available. After warm-up, reuse allocates nothing.
+   * - Reuses a dormant slot when one is available. After warm-up, reuse keeps the entity. It still allocates.
    * - Creates a new entity lazily when `size` has not been reached yet.
    * - Throws `PoolExhaustedError` when all slots are active.
    *
@@ -105,6 +105,7 @@ export interface ActorPool<Props, _PublicAPI> {
   /**
    * Returns a slot to the pool (deferred to end of frame for mid-frame safety).
    * Calls `onRelease()` callbacks and marks the instance dormant.
+   * `onRelease` also runs inside `acquire()` when a new id replaces the id in that slot.
    * No-op if the id is unknown or already released.
    */
   release(id: EntityId): void;

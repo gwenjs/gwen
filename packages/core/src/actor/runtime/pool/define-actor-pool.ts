@@ -16,6 +16,8 @@ import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
  * callback lands in the other buffer and waits for the next flush.
  * Dedup is a per-slot byte and a queue position, allocated once `maxEntities`
  * is known. A recycled generation replaces the queued id in that slot.
+ * `onRelease` also runs inside `acquire()` when that replacement happens,
+ * not only when `release()` is flushed.
  *
  * @internal
  */
@@ -162,7 +164,8 @@ function zeroCount(counts: ListenerCounts, name: keyof PoolHooks): void {
  *
  * Entities are allocated lazily on demand up to `options.size`. Once released,
  * a slot becomes dormant and is reused by the next `acquire()` call. After
- * warm-up, that reuse allocates nothing and does not change the component set.
+ * warm-up, that reuse keeps the entity and does not change the component set.
+ * It still allocates.
  * Releases are deferred to the end of the current frame.
  *
  * Install the actor plugin, then the pool plugin:
@@ -182,7 +185,8 @@ function zeroCount(counts: ListenerCounts, name: keyof PoolHooks): void {
  *
  * - {@link useHook} handlers are **silently skipped**.
  * - ECS queries skip the entity. The component set is unchanged.
- * - `onRelease` callbacks fire when `release()` is flushed.
+ * - `onRelease` callbacks fire when `release()` is flushed, and inside
+ *   `acquire()` when a new id replaces the id stored in that slot.
  * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
 export function defineActorPool<Props, PublicAPI>(
