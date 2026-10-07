@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { createEngine, createEngineLocal, useEngine, type GwenEngine } from "../../src/index.js";
+import {
+  createEngine,
+  createEngineLocal,
+  GwenContextError,
+  useEngine,
+  type GwenEngine,
+} from "../../src/index.js";
 import { engineContext } from "../../src/engine/context.js";
 import { defineActor } from "../../src/actor/runtime/define-actor.js";
 import { actorTablesFor } from "../../src/actor/runtime/define-actor.js";
@@ -116,6 +122,78 @@ describe("two engines", () => {
       });
       expect(a.run(() => handleA.count())).toBe(0);
       expect(b.run(() => handleB.count())).toBe(1);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("despawnAll on a handle acts on the engine it was created on", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({ tag: "live" as const }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handleA = a.run(() => useActor(Actor));
+      const handleB = b.run(() => useActor(Actor));
+      a.run(() => handleA.spawn());
+      b.run(() => handleB.spawn());
+      b.run(() => {
+        handleA.despawnAll();
+      });
+      expect(a.run(() => handleA.count())).toBe(0);
+      expect(b.run(() => handleB.count())).toBe(1);
+      expect(b.run(() => handleB.get()?.tag)).toBe("live");
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("spawns and counts through a handle on its own engine while another is current", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({ tag: "live" as const }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handleA = a.run(() => useActor(Actor));
+      const handleB = b.run(() => useActor(Actor));
+      b.run(() => handleA.spawn());
+      b.run(() => handleA.spawnOnce());
+      expect(b.run(() => handleA.count())).toBe(2);
+      expect(b.run(() => handleA.getAll().length)).toBe(2);
+      expect(b.run(() => handleB.count())).toBe(0);
+      expect(a.run(() => Actor._instances.size)).toBe(2);
+      expect(b.run(() => Actor._instances.size)).toBe(0);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("throws GwenContextError when the definition is read with two engines and none current", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({}));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      a.run(() => Actor._plugin.spawn());
+      engineContext.unset();
+      expect(() => Actor._instances.size).toThrow(GwenContextError);
+      expect(() => [...Actor._instances.values()]).toThrow(GwenContextError);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("refuses spawn on a current engine that does not have the actor installed", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({}));
+    try {
+      await a.use(Actor._plugin);
+      expect(() => b.run(() => Actor._plugin.spawn())).toThrow(/ACTOR:PLUGIN_NOT_READY/);
+      expect(a.run(() => Actor._instances.size)).toBe(0);
     } finally {
       await a.stop();
       await b.stop();
