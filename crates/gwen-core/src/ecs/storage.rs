@@ -276,8 +276,14 @@ impl ArchetypeStorage {
             if dst.columns.len() != dst.component_types.len() {
                 return false;
             }
-            if let Some(id) = added_id {
-                if dst.component_types.binary_search(&id).is_err() {
+            if let Some((id, bytes)) = added {
+                let Ok(col_i) = dst.component_types.binary_search(&id) else {
+                    return false;
+                };
+                let Some(column) = dst.columns.get(col_i) else {
+                    return false;
+                };
+                if column.element_size != 0 && bytes.len() != column.element_size {
                     return false;
                 }
             }
@@ -438,7 +444,10 @@ mod tests {
             Err(_) => return,
         };
         assert_eq!(matches!(rejected, ColumnMove::Rejected), true);
-        assert_eq!(storage.get_component(7, marker), Some(marker_bytes.as_slice()));
+        assert_eq!(
+            storage.get_component(7, marker),
+            Some(marker_bytes.as_slice())
+        );
         assert_eq!(storage.has_component(7, fixed), false);
         let source_after = storage
             .entity_locations
