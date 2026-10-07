@@ -71,16 +71,10 @@ function valtypes(bytes: Uint8Array, cursor: { i: number }): string[] {
 }
 
 function skipImport(bytes: Uint8Array, cursor: { i: number }, kind: number): void {
-  if (kind === 0 || kind === 1 || kind === 3 || kind === 4) {
-    readLeb(bytes, cursor);
-    return;
+  if (kind !== 0) {
+    throw new Error(`wasm import is not a function (kind ${kind})`);
   }
-  if (kind === 2) {
-    readLeb(bytes, cursor);
-    cursor.i += 1;
-    return;
-  }
-  throw new Error(`unknown wasm import kind ${kind}`);
+  readLeb(bytes, cursor);
 }
 
 function wasmExportSignatures(variant: Variant): string[] {
