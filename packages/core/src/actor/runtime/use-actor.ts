@@ -182,7 +182,8 @@ const _HANDLE_OWN_KEYS = new Set<string>([
  * Must be called inside an active engine context (e.g. `engine.run()`, a plugin
  * `setup()` callback, or a `defineSystem()` factory).
  *
- * The handle keeps that engine. Every handle method runs on it, even when
+ * The handle keeps that engine. Every handle method, and every `PublicAPI`
+ * method called through the handle, runs on it (lookup and call), even when
  * another engine is current or none is. Exception: `count()` and `getAll()`
  * with no engine current follow the rule of `ActorDefinition._instances`: they
  * throw `GwenContextError` when the actor is installed on two or more engines.
@@ -342,7 +343,7 @@ export function useActor<Props, PublicAPI>(
         const value = api[prop];
         if (typeof value === "function") {
           const wrapped = (...args: unknown[]): unknown =>
-            (value as (...a: unknown[]) => unknown).apply(api, args);
+            onOwnEngine(() => (value as (...a: unknown[]) => unknown).apply(api, args));
           _methodCache.set(prop, wrapped);
           return wrapped;
         }
