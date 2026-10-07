@@ -348,26 +348,43 @@ describe("defineActorPool — acquire", () => {
     expect(resetSpy).toHaveBeenCalledWith({ value: 77 });
   });
 
-  it("resets prefab defaults on slot reuse", async () => {
-    const engine = await createEngine();
-    const Actor = defineActor(TestPrefab, () => {});
-    await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool.plugin);
+  it("writes prefab defaults back into the same component object on slot reuse", async () => {
+    const { engine, pool } = await makePool(5);
+    try {
+      const id = pool.acquire();
+      const hp = engine.getComponent(id, Hp);
+      expect(hp).toEqual({ value: 100 });
+      if (!hp) return;
+      hp.value = 3;
+      pool.release(id);
+      await flush(engine);
+      // Dormant: the previous life's value stays until the slot is reused.
+      expect(hp.value).toBe(3);
+      const cached = readLiveQueryIds(engine, [Hp]);
 
-    const id = pool.acquire();
-    // Mutate the component value
-    (Hp as unknown as Record<string, unknown[]>).value =
-      (Hp as unknown as Record<string, unknown[]>).value ?? [];
-    // Simulate mutation (engine.addComponent re-applies defaults on reuse)
-    pool.release(id);
-    await flush(engine);
+      expect(pool.acquire()).toBe(id);
+      expect(engine.getComponent(id, Hp)).toBe(hp);
+      expect(hp.value).toBe(100);
+      // In place: the cached query id list is not invalidated.
+      expect(readLiveQueryIds(engine, [Hp])).toBe(cached);
+    } finally {
+      await engine.stop();
+    }
+  });
 
-    // After reacquire, hasComponent returns true (defaults were re-applied)
-    pool.acquire();
-    expect(
-      engine.hasComponent(id, Hp as unknown as Parameters<typeof engine.hasComponent>[1]),
-    ).toBe(true);
+  it("does not re-add a prefab component removed during the previous life", async () => {
+    const { engine, pool } = await makePool(5);
+    try {
+      const id = pool.acquire();
+      expect(engine.removeComponent(id, Hp)).toBe(true);
+      pool.release(id);
+      await flush(engine);
+
+      expect(pool.acquire()).toBe(id);
+      expect(engine.hasComponent(id, Hp)).toBe(false);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("throws PoolExhaustedError when all slots are active", async () => {
@@ -975,16 +992,22 @@ describe("defineActorPool — dormancy (#56)", () => {
       const id = pool.acquire();
       const mark = engine.getComponent(id, Mark);
       expect(mark).toEqual({ value: 7 });
-      if (!mark) return;
-      mark.value = 9;
+      // Any add or remove on any entity replaces the cached id list.
+      const cached = readLiveQueryIds(engine, [Mark]);
+      const setOf = () => [engine.hasComponent(id, Mark), engine.hasComponent(id, Hp)];
+      const before = setOf();
+      expect(before).toEqual([true, false]);
+
       pool.release(id);
       await flush(engine);
-      expect(engine.hasComponent(id, Mark)).toBe(true);
+      expect(setOf()).toEqual(before);
       expect(engine.getComponent(id, Mark)).toBe(mark);
-      expect(mark.value).toBe(9);
+      expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
+
       expect(pool.acquire()).toBe(id);
+      expect(setOf()).toEqual(before);
       expect(engine.getComponent(id, Mark)).toBe(mark);
-      expect(mark.value).toBe(9);
+      expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
     } finally {
       await engine.stop();
     }
