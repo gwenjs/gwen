@@ -78,22 +78,55 @@ export function clearEngineSensors(engine: GwenEngine): void {
   registry.exit.clear();
 }
 
+/** Adds `callback` under `key` and returns a function that removes it once. */
+function subscribe(
+  map: Map<string, SensorCallback[]>,
+  key: string,
+  callback: SensorCallback,
+): () => void {
+  const list = listFor(map, key);
+  list.push(callback);
+  let active = true;
+  return () => {
+    if (!active) return;
+    active = false;
+    const current = map.get(key);
+    if (!current) return;
+    const index = current.indexOf(callback);
+    if (index !== -1) current.splice(index, 1);
+  };
+}
+
 /**
  * Subscribes to sensor overlap entry events on the current engine.
- * Inside `defineActor`, the callback belongs to that actor's entity.
+ * Inside `defineActor`, the callback belongs to that actor's entity and is
+ * removed when that entity is destroyed. Outside an actor, call the returned
+ * function to remove it.
  *
+ * @returns A function that removes this callback.
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
-export function onSensorEnter(sensorId: number, callback: SensorCallback): void {
-  listFor(sensors.use().enter, sensorKey(sensorId, _getActorContext()?.entityId)).push(callback);
+export function onSensorEnter(sensorId: number, callback: SensorCallback): () => void {
+  return subscribe(
+    sensors.use().enter,
+    sensorKey(sensorId, _getActorContext()?.entityId),
+    callback,
+  );
 }
 
 /**
  * Subscribes to sensor overlap exit events on the current engine.
- * Inside `defineActor`, the callback belongs to that actor's entity.
+ * Inside `defineActor`, the callback belongs to that actor's entity and is
+ * removed when that entity is destroyed. Outside an actor, call the returned
+ * function to remove it.
  *
+ * @returns A function that removes this callback.
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
-export function onSensorExit(sensorId: number, callback: SensorCallback): void {
-  listFor(sensors.use().exit, sensorKey(sensorId, _getActorContext()?.entityId)).push(callback);
+export function onSensorExit(sensorId: number, callback: SensorCallback): () => void {
+  return subscribe(
+    sensors.use().exit,
+    sensorKey(sensorId, _getActorContext()?.entityId),
+    callback,
+  );
 }

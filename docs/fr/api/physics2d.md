@@ -222,10 +222,10 @@ interface ContactEvent {
 
 **Signature:**
 ```ts
-function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Appelé quand une autre entité entre dans un collider capteur. Utiliser le `colliderId` du handle de collider comme `sensorId`.
+**Description.** Appelé quand une autre entité entre dans un collider capteur. Utiliser le `colliderId` du handle de collider comme `sensorId`. Dans un acteur, le callback est retiré quand l'entité de l'acteur est détruite. Hors d'un acteur, appeler la fonction retournée pour le retirer.
 
 **Exemple:**
 ```ts
@@ -242,10 +242,10 @@ export const CoinActor = defineActor(CoinPrefab, () => {
 
 **Signature:**
 ```ts
-function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Appelé quand une autre entité quitte un collider capteur.
+**Description.** Appelé quand une autre entité quitte un collider capteur. Retourne une fonction qui retire le callback.
 
 ## Couches
 

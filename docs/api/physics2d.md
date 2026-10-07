@@ -223,10 +223,10 @@ interface ContactEvent {
 
 **Signature:**
 ```ts
-function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Called when another entity enters a sensor collider. Use the `colliderId` from the collider handle as `sensorId`.
+**Description.** Called when another entity enters a sensor collider. Use the `colliderId` from the collider handle as `sensorId`. Inside an actor, the callback is removed when the actor's entity is destroyed. Outside an actor, call the returned function to remove it.
 
 **Example:**
 ```ts
@@ -243,10 +243,10 @@ export const CoinActor = defineActor(CoinPrefab, () => {
 
 **Signature:**
 ```ts
-function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Called when another entity leaves a sensor collider.
+**Description.** Called when another entity leaves a sensor collider. Returns a function that removes the callback.
 
 ## Layers
 
