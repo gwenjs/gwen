@@ -6,8 +6,8 @@ import { CoreErrorCodes, GwenWasmError } from "../src/engine/engine-errors";
 import { defineComponent, Types } from "../src/schema";
 
 describe("defineComponent type limit", () => {
-  it("defining a 129th component throws at definition time before any WASM call", () => {
-    for (let i = 1; i <= 128; i += 1) {
+  it("defining a 128th user component throws at definition time before any WASM call", () => {
+    for (let i = 1; i <= 127; i += 1) {
       const defined = defineComponent({
         name: `Limit${i}`,
         schema: { v: Types.f32 },
