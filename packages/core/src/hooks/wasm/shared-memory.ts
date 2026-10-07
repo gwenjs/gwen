@@ -85,7 +85,7 @@ export const FLAGS_OFFSET = 20;
 export const FLAGS3D_OFFSET = 40;
 
 /** Bit 0 of the 2D transform flags: the slot has a transform. Every other bit is 0. */
-export const FLAG_PHYSICS_ACTIVE = 0b01;
+export const FLAG_HAS_TRANSFORM = 0b01;
 
 /**
  * Sentinel value written at the end of each allocated region.

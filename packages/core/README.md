@@ -329,7 +329,7 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_PHYSICS_ACTIVE`, `GlobalStringPoolManager`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GlobalStringPoolManager`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
 Types: `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`
 
