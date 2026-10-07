@@ -12,7 +12,15 @@ set -u
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 
-if labels=$(gh pr view --json labels --jq '.labels[].name' 2>/dev/null); then
+gh_args=(pr view)
+if [ -n "${PR_NUMBER:-}" ]; then
+  gh_args+=("$PR_NUMBER")
+fi
+if [ -n "${PR_REPO:-}" ]; then
+  gh_args+=(--repo "$PR_REPO")
+fi
+gh_args+=(--json labels --jq '.labels[].name')
+if labels=$(gh "${gh_args[@]}" 2>/dev/null); then
   if printf '%s\n' "$labels" | grep -qx 'no-red-check'; then
     echo 'verify-red: skip (label no-red-check)'
     exit 0

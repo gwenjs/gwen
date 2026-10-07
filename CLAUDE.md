@@ -270,6 +270,8 @@ One PR per ticket, against `v1-alpha`. The ticket's `## Technical spec` is the c
 8. Commits are conventional, with no `Co-authored-by` and no AI attribution trailer.
 9. Quality gate before every push: `pnpm format`, `pnpm lint`, `pnpm typecheck`, `pnpm test`. Then check the PR's own CI, and that CI checks the artifact that is published.
 
+Write the failing test first. The body has a Red proof table, one row per changed test file, or the exact line `Red proof: n/a (no code change)` when there is no code change. Assert the observable effect, not a mock call. Cover two instances and teardown. `Closes #N` only when every acceptance line is met and CI ran on that head. Do not write a review verdict in the body.
+
 The eight defect classes to make impossible:
 
 - lifecycle methods core never calls

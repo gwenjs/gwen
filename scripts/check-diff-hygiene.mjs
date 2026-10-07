@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Fail added lines that match PR-contract rule 3, attribution trailers
- * in origin/v1-alpha..HEAD, and mock helpers or spyOn under tests/integration-wasm.
+ * in origin/v1-alpha..HEAD, mock helpers or spyOn under tests/integration-wasm,
+ * a createRealEngine call with no dispose( in finally or afterEach, and an
+ * added expect( inside finally.
  *
  * A flagged line is skipped only when scripts/agent-hygiene/allowlist.json
  * has an entry for that file and rule. A same-line allowlist comment grants
@@ -119,11 +121,304 @@ export function matchAddedLine(text, file) {
  */
 
 /**
+ * @param {string} content
+ * @returns {string}
+ */
+function maskSource(content) {
+  let out = '';
+  let i = 0;
+  while (i < content.length) {
+    const c = content[i];
+    const next = content[i + 1];
+    if (c === '/' && next === '/') {
+      while (i < content.length && content[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      out += '  ';
+      i += 2;
+      while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) {
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length) {
+        out += '  ';
+        i += 2;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      out += ' ';
+      i += 1;
+      while (i < content.length && content[i] !== quote) {
+        if (content[i] === '\\') {
+          out += ' ';
+          i += 1;
+          if (i < content.length) {
+            out += content[i] === '\n' ? '\n' : ' ';
+            i += 1;
+          }
+          continue;
+        }
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length) {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (c === '`') {
+      out += ' ';
+      i += 1;
+      while (i < content.length && content[i] !== '`') {
+        if (content[i] === '\\') {
+          out += ' ';
+          i += 1;
+          if (i < content.length) {
+            out += content[i] === '\n' ? '\n' : ' ';
+            i += 1;
+          }
+          continue;
+        }
+        if (content[i] === '$' && content[i + 1] === '{') {
+          out += '  ';
+          i += 2;
+          let depth = 1;
+          while (i < content.length && depth > 0) {
+            if (content[i] === '{') depth += 1;
+            else if (content[i] === '}') depth -= 1;
+            if (depth === 0) {
+              out += ' ';
+              i += 1;
+              break;
+            }
+            out += content[i] === '\n' ? '\n' : content[i];
+            i += 1;
+          }
+          continue;
+        }
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length && content[i] === '`') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    out += c;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * @param {string} content
+ * @param {number} index
+ * @returns {number}
+ */
+function lineNumberAt(content, index) {
+  let line = 1;
+  const stop = Math.min(index, content.length);
+  for (let i = 0; i < stop; i += 1) if (content[i] === '\n') line += 1;
+  return line;
+}
+
+/**
+ * @param {string} content
+ * @param {number} openIndex
+ * @param {string} open
+ * @param {string} close
+ * @returns {number}
+ */
+function matchingBrace(content, openIndex, open, close) {
+  let depth = 0;
+  for (let i = openIndex; i < content.length; i += 1) {
+    if (content[i] === open) depth += 1;
+    else if (content[i] === close) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return content.length - 1;
+}
+
+/**
+ * @param {string} masked
+ * @param {RegExp} re
+ * @param {string} open
+ * @param {string} close
+ * @returns {boolean}
+ */
+function spanHasDispose(masked, re, open, close) {
+  let match = re.exec(masked);
+  while (match) {
+    const start = masked.indexOf(open, match.index + match[0].length);
+    if (start === -1) break;
+    const end = matchingBrace(masked, start, open, close);
+    if (/\bdispose\s*\(/.test(masked.slice(start, end + 1))) return true;
+    re.lastIndex = end + 1;
+    match = re.exec(masked);
+  }
+  return false;
+}
+
+/**
+ * @param {string} content
+ * @returns {boolean}
+ */
+function callsCreateRealEngine(content) {
+  return /\bcreateRealEngine\s*\(/.test(maskSource(content));
+}
+
+/**
+ * @param {string} content
+ * @returns {boolean}
+ */
+function hasGuardedDispose(content) {
+  const masked = maskSource(content);
+  if (spanHasDispose(masked, /\bfinally\b/g, '{', '}')) return true;
+  return spanHasDispose(masked, /\bafterEach\b/g, '(', ')');
+}
+
+/**
+ * @param {string} content
+ * @returns {Set<number>}
+ */
+function linesInsideFinally(content) {
+  const masked = maskSource(content);
+  /** @type {Set<number>} */
+  const lines = new Set();
+  const re = /\bfinally\b/g;
+  let match = re.exec(masked);
+  while (match) {
+    const brace = masked.indexOf('{', match.index + match[0].length);
+    if (brace === -1) break;
+    const end = matchingBrace(masked, brace, '{', '}');
+    const from = lineNumberAt(masked, brace);
+    const to = lineNumberAt(masked, end);
+    for (let n = from; n <= to; n += 1) lines.add(n);
+    re.lastIndex = end + 1;
+    match = re.exec(masked);
+  }
+  return lines;
+}
+
+/**
+ * @typedef {{ added: Set<number>, isNew: boolean, rebuilt: string[] }} WasmFile
+ */
+
+/**
  * @param {string} diffText
- * @param {AllowEntry[]} [entries]
+ * @param {AllowEntry[]} entries
+ * @param {Record<string, string> | null | undefined} contents
  * @returns {Hit[]}
  */
-export function findDiffViolations(diffText, entries = []) {
+function wasmTeardownHits(diffText, entries, contents) {
+  /** @type {Map<string, WasmFile>} */
+  const files = new Map();
+  let file = '';
+  let isNew = false;
+  let inHunk = false;
+  let newLine = 0;
+  for (const line of diffText.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      file = match ? (match[2] ?? '') : '';
+      isNew = false;
+      inHunk = false;
+      continue;
+    }
+    if (!file.split('\\').join('/').includes('tests/integration-wasm')) continue;
+    if (line.startsWith('--- ')) {
+      isNew = line.slice(4).trim() === '/dev/null';
+      continue;
+    }
+    if (line.startsWith('+++ ')) {
+      const next = line.slice(4).trim();
+      if (next !== '/dev/null') file = next.replace(/^b\//, '');
+      continue;
+    }
+    if (line.startsWith('@@')) {
+      const match = line.match(/\+(\d+)/);
+      newLine = match ? Number(match[1]) : 1;
+      inHunk = true;
+      const key = file.split('\\').join('/');
+      const state = files.get(key) ?? { added: new Set(), isNew: false, rebuilt: [] };
+      state.isNew = state.isNew || isNew;
+      files.set(key, state);
+      continue;
+    }
+    if (!inHunk) continue;
+    const key = file.split('\\').join('/');
+    const state = files.get(key) ?? { added: new Set(), isNew, rebuilt: [] };
+    files.set(key, state);
+    if (line.startsWith('+')) {
+      state.added.add(newLine);
+      state.rebuilt.push(line.slice(1));
+      newLine += 1;
+      continue;
+    }
+    if (line.startsWith('-') || line.startsWith('\\')) continue;
+    state.rebuilt.push(line.startsWith(' ') ? line.slice(1) : line);
+    newLine += 1;
+  }
+
+  /** @type {Hit[]} */
+  const hits = [];
+  for (const [filePath, state] of files) {
+    const provided = contents ? contents[filePath] : undefined;
+    const content = typeof provided === 'string' ? provided : state.isNew ? state.rebuilt.join('\n') : null;
+    if (content == null) continue;
+    if (callsCreateRealEngine(content) && !hasGuardedDispose(content) && !isAllowlisted(entries, filePath, 'wasm-dispose')) {
+      hits.push({ file: filePath, rule: 'wasm-dispose', text: 'createRealEngine' });
+    }
+    const finallyLines = linesInsideFinally(content);
+    const sourceLines = content.split('\n');
+    for (const n of state.added) {
+      const text = sourceLines[n - 1] ?? '';
+      if (!finallyLines.has(n)) continue;
+      if (!/\bexpect\s*\(/.test(maskSource(text))) continue;
+      if (isAllowlisted(entries, filePath, 'expect-in-finally')) continue;
+      hits.push({ file: filePath, rule: 'expect-in-finally', text });
+    }
+  }
+  return hits;
+}
+
+/**
+ * @param {string} diffText
+ * @returns {Record<string, string>}
+ */
+function readWasmContents(diffText) {
+  /** @type {Record<string, string>} */
+  const contents = {};
+  for (const line of diffText.split('\n')) {
+    if (!line.startsWith('diff --git ')) continue;
+    const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+    if (!match) continue;
+    const file = (match[2] ?? '').split('\\').join('/');
+    if (!file.includes('tests/integration-wasm')) continue;
+    const abs = path.resolve(process.cwd(), file);
+    if (!existsSync(abs)) continue;
+    contents[file] = readFileSync(abs, 'utf8');
+  }
+  return contents;
+}
+
+/**
+ * @param {string} diffText
+ * @param {AllowEntry[]} [entries]
+ * @param {Record<string, string> | null} [contents]
+ * @returns {Hit[]}
+ */
+export function findDiffViolations(diffText, entries = [], contents = null) {
   /** @type {Hit[]} */
   const hits = [];
   let file = '';
@@ -154,6 +449,7 @@ export function findDiffViolations(diffText, entries = []) {
       hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
     }
   }
+  hits.push(...wasmTeardownHits(diffText, entries, contents));
   return hits;
 }
 
@@ -345,7 +641,7 @@ function main() {
   const diff = git(['diff', `${base}...HEAD`]);
   const log = git(['log', `${base}..HEAD`, '--format=%B%x1e']);
   const headEntries = loadAllowlistEntries();
-  const hits = [...findDiffViolations(diff, headEntries), ...findLogViolations(log)];
+  const hits = [...findDiffViolations(diff, headEntries, readWasmContents(diff)), ...findLogViolations(log)];
   const baseEntries = diffChangesAllowlist(diff) ? loadBaseAllowlistEntries(base) : [];
   const needsLabel =
     diffChangesAllowlist(diff) &&

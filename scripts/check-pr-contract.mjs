@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * PR contract: Acceptance -> test table, Breaking changes section,
- * BREAKING CHANGE: footer when the title contains "!", no unfinished markers.
+ * PR contract: Acceptance -> test table, Red proof, Breaking changes section,
+ * BREAKING CHANGE: footer when the title contains "!", no unfinished markers,
+ * no self-written verdict, no Closes next to a NO TEST row.
  *
  * Tests pass the body in. CI (`pull_request`) reads `gh pr view`.
  * Run: node scripts/check-pr-contract.mjs
@@ -16,8 +17,15 @@ const PLACEHOLDER = ['MISS', 'ING'].join('');
 const UNFINISHED = /not done/i;
 
 /**
- * @typedef {{ title: string, body: string, exists: (file: string) => boolean }} Input
+ * @typedef {{
+ *   title: string,
+ *   body: string,
+ *   exists: (file: string) => boolean,
+ *   changedTestFiles?: string[],
+ * }} Input
  */
+
+const DOCS_ONLY_LINE = 'Red proof: n/a (no code change)';
 
 /**
  * @param {string} line
@@ -124,7 +132,124 @@ export function reviewPrContract(input) {
     errors.push('title has ! but the body has no BREAKING CHANGE: footer');
   }
 
+  checkRedProof(lines, errors, input.changedTestFiles);
+  checkVerdict(lines, errors);
+  checkNoTestCloses(lines, body, errors);
+
   return errors;
+}
+
+/**
+ * @param {string[]} lines
+ * @returns {string[][] | null}
+ */
+function redProofRows(lines) {
+  const heading = lines.findIndex((line) => /^#{1,6}\s+Red proof\b/i.test(line));
+  if (heading === -1) return null;
+  /** @type {string[][]} */
+  const rows = [];
+  for (let i = heading + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s+/.test(lines[i] ?? '')) break;
+    if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
+    for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
+      rows.push(splitRow(lines[j] ?? ''));
+    }
+    break;
+  }
+  return rows;
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ * @param {string[] | undefined} changedTestFiles
+ */
+function checkRedProof(lines, errors, changedTestFiles) {
+  const docsOnly = lines.some((line) => line.trim() === DOCS_ONLY_LINE);
+  const files = changedTestFiles ?? [];
+  if (docsOnly) {
+    if (files.length > 0) errors.push('Red proof says no code change but test files changed');
+    return;
+  }
+  const rows = redProofRows(lines);
+  if (rows === null) {
+    errors.push('no Red proof section');
+    return;
+  }
+  if (files.length === 0) {
+    if (rows.length === 0) errors.push('Red proof table has no row');
+    return;
+  }
+  for (const file of files) {
+    const found = rows.some((row) => row.join(' ').replace(/`/g, '').includes(file));
+    if (!found) errors.push(`Red proof table is missing a row for ${file}`);
+  }
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ */
+function checkVerdict(lines, errors) {
+  for (let i = 0; i < lines.length; i++) {
+    const heading = (lines[i] ?? '').match(/^#{1,6}\s+(.*)$/);
+    if (!heading) continue;
+    const title = heading[1] ?? '';
+    let end = lines.length;
+    for (let j = i + 1; j < lines.length; j++) {
+      if (/^#{1,6}\s+/.test(lines[j] ?? '')) {
+        end = j;
+        break;
+      }
+    }
+    if (/reviewer\s+verdict/i.test(title)) errors.push('self-written verdict section');
+    const blob = [title, ...lines.slice(i + 1, end)].join('\n');
+    if (/reviewed\s+by\b/i.test(blob) && /\bapprove\b/i.test(blob)) {
+      errors.push('reviewed-by approve section');
+    }
+  }
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} body
+ * @param {string[]} errors
+ */
+function checkNoTestCloses(lines, body, errors) {
+  if (!/closes\s+#\d+/i.test(body)) return;
+  for (let i = 0; i < lines.length; i++) {
+    if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
+    for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
+      for (const cell of splitRow(lines[j] ?? '')) {
+        if (cell.replace(/`/g, '').includes('NO TEST')) {
+          errors.push('NO TEST cannot use Closes');
+          return;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isChangedTestFile(file) {
+  return /\.(?:test|spec)\.(?:mjs|cjs|js|ts|tsx|mts)$/.test(file) || /(?:_test|\.test)\.rs$/.test(file);
+}
+
+/**
+ * @returns {string[]}
+ */
+function listChangedTestFiles() {
+  const base = process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
+  const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${base}...HEAD`], {
+    encoding: 'utf8',
+  });
+  return out
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && isChangedTestFile(line));
 }
 
 /**
@@ -167,6 +292,7 @@ function main() {
     title,
     body,
     exists: (file) => existsSync(path.resolve(process.cwd(), file)),
+    changedTestFiles: listChangedTestFiles(),
   });
   if (errors.length === 0) {
     console.log('PR contract ok');
