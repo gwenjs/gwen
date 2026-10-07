@@ -124,6 +124,12 @@ ensure_js() {
   fi
 }
 
+# A .mjs/.js file is Vitest when it imports vitest at the top level, not when
+# a string inside it mentions vitest.
+is_vitest_file() {
+  node "$JUDGE" is-vitest --source "$1"
+}
+
 wasm_runnable() {
   local pkg="$1"
   local config="$WT/$pkg/vitest.wasm.config.ts"
@@ -232,7 +238,7 @@ for f in "${files[@]}"; do
   format=""
   case "$f" in
     *.test.mjs | *.test.cjs | *.test.js | *.spec.mjs | *.spec.js)
-      if grep -E -q "from ['\"]vitest['\"]|require\\(['\"]vitest['\"]\\)" "$WT/$f"; then
+      if is_vitest_file "$WT/$f"; then
         ensure_js
         if ! pkg=$(package_dir "$f"); then
           echo "verify-red: no package.json for $f" >&2

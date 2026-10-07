@@ -2,6 +2,9 @@
 /**
  * Compare a test run to the names in the source file.
  *
+ * is-vitest --source <file>
+ *   Exit 0 when the file imports vitest at the top level, 1 otherwise.
+ *
  * classify --source <head> [--base <base copy>]
  *   Prints `NEW <name>` or `OLD <name>`. Exit 2 when the source has no literal names.
  *
@@ -63,17 +66,29 @@ function parseTap(text) {
   for (const line of text.split(/\r?\n/)) {
     const match = line.match(/^(not )?ok\s+\d+\s+-\s+(.+)$/);
     if (!match) continue;
-    let name = (match[2] ?? '').trim();
+    let raw = (match[2] ?? '').trim();
     /** @type {'pass' | 'fail' | 'skip'} */
     let status = match[1] ? 'fail' : 'pass';
-    if (/\s#\s+(?:SKIP|TODO)\b/i.test(name)) {
+    const directive = raw.match(/^((?:\\.|[^\\#])*?)\s+#\s+(SKIP|TODO)\b/i);
+    if (directive) {
       status = 'skip';
-      name = name.replace(/\s+#\s+(?:SKIP|TODO)\b.*$/i, '').trim();
+      raw = directive[1] ?? '';
     }
+    const name = unescapeTap(raw.trim());
     if (name === '') return null;
     tests.push({ name, status });
   }
   return tests;
+}
+
+/**
+ * node:test escapes `#` and `\\` in TAP names.
+ *
+ * @param {string} name
+ * @returns {string}
+ */
+function unescapeTap(name) {
+  return name.replace(/\\([\\#])/g, '$1');
 }
 
 /**
@@ -149,8 +164,25 @@ function failClosed(message) {
   process.exit(2);
 }
 
+/**
+ * True when the file imports vitest at the top level. A string that quotes a
+ * vitest import (a fixture) does not count.
+ *
+ * @param {string} source
+ * @returns {boolean}
+ */
+function importsVitest(source) {
+  return /^(?:import\s(?:[^;'"`]*?\sfrom\s*)?|(?:const|let|var)\s[^=;]*=\s*require\(\s*)['"]vitest(?:\/[^'"]*)?['"]/m.test(
+    source,
+  );
+}
+
 const mode = process.argv[2];
 const sourcePath = arg('--source');
+if (mode === 'is-vitest') {
+  if (!sourcePath) failClosed('missing --source');
+  process.exit(importsVitest(readFileSync(sourcePath, 'utf8')) ? 0 : 1);
+}
 const basePath = arg('--base');
 if (!sourcePath) failClosed('missing --source');
 const sourceNames = testNames(readFileSync(sourcePath, 'utf8'));
