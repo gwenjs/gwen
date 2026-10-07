@@ -10,7 +10,7 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
 const TRANSFORM_TYPE_ID = 0xffffffff - 1;
 
 describe("component type budget", () => {
-  it("128 definitions plus a transform throw a typed error before WASM", async () => {
+  it("127 user types and the transform accept writes in WASM; the 128th name throws in defineComponent", async () => {
     const handle: RealEngineHandle = await createRealEngine({ variant: "light", maxEntities: 4 });
     let caught: unknown;
     try {
@@ -52,7 +52,7 @@ describe("component type budget", () => {
     expect(caught.name).toBe("GwenError");
   });
 
-  it("registering 128 names plus the transform bit throws before WASM", async () => {
+  it("the registry rejects its 128th name before registerComponentType", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     const registry = new EngineComponentRegistry(handle.bridge);
     let caught: unknown;
@@ -73,6 +73,8 @@ describe("component type budget", () => {
       throw new Error("expected GwenError");
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
+    expect(caught.message).toContain("127");
+    expect(caught.message).toContain("128");
     expect(registry.get("Reg128")).toBeUndefined();
     expect(registry.get("Reg127")).toEqual(expect.any(Number));
   });
