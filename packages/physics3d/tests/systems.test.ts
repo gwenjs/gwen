@@ -70,7 +70,6 @@ function createMockEngine(services: Record<string, unknown> = {}): any {
       if (v === undefined) throw new Error(`No service: ${key}`);
       return v;
     },
-    tryInject: (key: string) => svc.get(key) ?? null,
     use: vi.fn().mockResolvedValue(undefined),
     unuse: vi.fn().mockResolvedValue(undefined),
     hooks,
@@ -141,15 +140,21 @@ describe("createPhysicsKinematicSyncSystem", () => {
     expect(instance.name).toBe("Physics3DKinematicSyncSystem");
   });
 
-  it("resolves physics3d service on setup", () => {
+  it("resolves physics3d through inject on setup", () => {
     const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
-    const instance = factory() as any;
+    const instance = factory() as { setup(engine: ReturnType<typeof createMockEngine>): void };
     const physics = makePhysicsMock();
     const engine = createMockEngine({ physics3d: physics });
+    const seen: string[] = [];
+    const inject = engine.inject as (key: string) => unknown;
+    engine.inject = (key: string) => {
+      seen.push(key);
+      return inject(key);
+    };
 
     instance.setup(engine);
 
-    expect(engine.tryInject).toBeDefined();
+    expect(seen).toEqual(["physics3d"]);
   });
 
   it("setup rejects when physics3d is not registered", async () => {
@@ -167,8 +172,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const physics = makePhysicsMock();
     const entityId = 1n;
     const engine = makeEngine([liveEntity(entityId, () => ({ x: 1, y: 2, z: 3 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     engine.hooks.callHook("engine:before-update", 0);
 
@@ -185,8 +188,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const physics = makePhysicsMock();
     physics.hasBody.mockReturnValue(false);
     const engine = makeEngine([liveEntity(1n, () => ({ x: 0, y: 0, z: 0 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     engine.hooks.callHook("engine:before-update", 0);
 
@@ -199,8 +200,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const physics = makePhysicsMock();
     physics.getBodyKind.mockReturnValue("dynamic");
     const engine = makeEngine([liveEntity(1n, () => ({ x: 0, y: 0, z: 0 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     engine.hooks.callHook("engine:before-update", 0);
 
@@ -212,8 +211,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => null)], physics);
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     engine.hooks.callHook("engine:before-update", 0);
 
@@ -239,8 +236,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
       ],
       physics,
     );
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     engine.hooks.callHook("engine:before-update", 0);
 
@@ -261,8 +256,6 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const instance = factory() as any;
     const physics = makePhysicsMock();
     const engine = makeEngine([liveEntity(1n, () => ({ x: 0, y: 0, z: 0 }))], physics);
-    engine.tryInject = vi.fn(() => physics);
-
     instance.setup(engine);
     instance.teardown();
     engine.hooks.callHook("engine:before-update", 0);
