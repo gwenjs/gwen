@@ -439,12 +439,30 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
 /** Next id for a component name that has not been defined yet. Starts at 1. */
 let _nextTypeId = 1;
 
-/** Name → id. A second `defineComponent` of the same name reuses the id. */
-const _typeIdsByName = new Map<string, number>();
+/** Name → id and layout. A second `defineComponent` of the same name reuses the id. */
+const _typeIdsByName = new Map<string, { id: number; layout: string }>();
 
-function _claimTypeId(name: string): number {
+/** Field names, order and types. Defaults are not part of the layout. */
+function _schemaLayout(schema: ComponentSchema): string {
+  return Object.entries(schema)
+    .map(([field, schemaType]) => `${field}:${schemaType.type}`)
+    .join(",");
+}
+
+function _claimTypeId(name: string, schema: ComponentSchema): number {
+  const layout = _schemaLayout(schema);
   const existing = _typeIdsByName.get(name);
-  if (existing !== undefined) return existing;
+  if (existing !== undefined) {
+    if (existing.layout !== layout) {
+      throw new GwenError(
+        CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
+        `[GWEN] defineComponent('${name}'): this name is already defined with schema ` +
+          `{ ${existing.layout} }, not { ${layout} }. One name has one WASM type id. ` +
+          `Use another name or the same schema.`,
+      );
+    }
+    return existing.id;
+  }
   if (_typeIdsByName.size >= MAX_USER_COMPONENT_TYPES) {
     throw new GwenError(
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
@@ -454,7 +472,7 @@ function _claimTypeId(name: string): number {
   }
   const id = _nextTypeId;
   _nextTypeId += 1;
-  _typeIdsByName.set(name, id);
+  _typeIdsByName.set(name, { id, layout });
   return id;
 }
 
@@ -486,7 +504,9 @@ export interface ComponentDefinition<S extends ComponentSchema> {
    */
   readonly defaults?: Partial<{ [K in keyof S]: InferSchemaType<S[K]> }>;
   /**
-   * Unique numeric ID assigned at call time, used as the WASM `component_type_id`.
+   * Numeric ID of the component name, used as the WASM `component_type_id`.
+   * One id per name: defining the same name again with the same layout
+   * returns the same id, with another layout it throws.
    * Matches the ID used in `register_component_type` on the Rust side.
    *
    * @internal Used by the gwen:optimizer Vite plugin — do not rely on the specific value.
@@ -554,6 +574,9 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  *   One type is reserved for the transform column, so 127 distinct user names
  *   fit. Defining the same name again reuses its id. The check runs here,
  *   before any WASM call.
+ * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when the name is
+ *   already defined with other fields, field order or field types. Defaults
+ *   may differ.
  *
  * @example
  * ```ts
@@ -588,7 +611,7 @@ export function defineComponent<S extends ComponentSchema>(
 
   _validateComponentSchema(config.name, config.schema);
 
-  const _typeId = _claimTypeId(config.name);
+  const _typeId = _claimTypeId(config.name, config.schema);
 
   let byteOffset = 0;
   const _fields = Object.entries(config.schema).map(([fieldName, schemaType]) => {
