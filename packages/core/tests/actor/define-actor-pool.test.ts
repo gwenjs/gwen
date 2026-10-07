@@ -931,6 +931,65 @@ describe("defineActorPool — dormancy (#56)", () => {
     return { engine, pool, seen };
   }
 
+  it("calls the next acquire listener after clearHook and the old unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      const seen: string[] = [];
+      const off = pool.hooks.hook("pool:acquire", () => {
+        seen.push("A");
+      });
+      pool.hooks.clearHook("pool:acquire");
+      off();
+      pool.hooks.hook("pool:acquire", () => {
+        seen.push("B");
+      });
+      pool.acquire();
+      expect(seen).toEqual(["B"]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("calls the next acquire listener after removeAllHooks and the old unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      const seen: string[] = [];
+      const off = pool.hooks.hook("pool:acquire", () => {
+        seen.push("A");
+      });
+      pool.hooks.removeAllHooks();
+      off();
+      pool.hooks.hook("pool:acquire", () => {
+        seen.push("B");
+      });
+      pool.acquire();
+      expect(seen).toEqual(["B"]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("does not add or remove a component on acquire or release", async () => {
+    const { engine, pool } = await markedPool(4);
+    try {
+      const id = pool.acquire();
+      const mark = engine.getComponent(id, Mark);
+      expect(mark).toEqual({ value: 7 });
+      if (!mark) return;
+      mark.value = 9;
+      pool.release(id);
+      await flush(engine);
+      expect(engine.hasComponent(id, Mark)).toBe(true);
+      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(mark.value).toBe(9);
+      expect(pool.acquire()).toBe(id);
+      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(mark.value).toBe(9);
+    } finally {
+      await engine.stop();
+    }
+  });
+
   it("keeps the component set and isAlive across release and acquire", async () => {
     const { engine, pool } = await markedPool(4);
     const id = pool.acquire();
