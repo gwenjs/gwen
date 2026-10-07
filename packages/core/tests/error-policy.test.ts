@@ -129,18 +129,22 @@ describe("error policy table", () => {
 describe("frame isolation", () => {
   it.runIf(!__GWEN_DEV__)("prod + debug: true does not log the isolation warning", async () => {
     const engine = await createEngine({ debug: true });
-    const warns: string[] = [];
-    engine.logger.setSink((entry) => {
-      if (entry.level === "warn") warns.push(entry.message);
-    });
-    engine.errors.emit({
-      level: "error",
-      code: "TEST:ERROR",
-      message: "error",
-      target: { kind: "system", id: "system#prod", name: "Prod" },
-    });
-    expect(engine.isolated().map((target) => target.id)).toEqual(["system#prod"]);
-    expect(warns.filter((message) => message.includes("isolated after"))).toEqual([]);
+    try {
+      const warns: string[] = [];
+      engine.logger.setSink((entry) => {
+        if (entry.level === "warn") warns.push(entry.message);
+      });
+      engine.errors.emit({
+        level: "error",
+        code: "TEST:ERROR",
+        message: "error",
+        target: { kind: "system", id: "system#prod", name: "Prod" },
+      });
+      expect(engine.isolated().map((target) => target.id)).toEqual(["system#prod"]);
+      expect(warns.filter((message) => message.includes("isolated after"))).toEqual([]);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("isolates a throwing system, keeps the sibling and the frame, then re-isolates after reenable", async () => {
