@@ -319,8 +319,10 @@ function findEngineCalls(masked, names) {
   if (!alt) return calls;
   /** @type {Set<number>} */
   const taken = new Set();
+  // `X.createRealEngine(` (namespace import, re-export object) counts too.
+  const callee = `(?:[A-Za-z_$][\\w$]*\\s*\\.\\s*)?(?:${alt})`;
   const assigned = new RegExp(
-    `\\b(?:const|let|var)?\\s*(?:(\\{[^}]*\\})|([A-Za-z_$][\\w$]*))\\s*=\\s*(?:await\\s+)?(?:${alt})\\s*\\(`,
+    `\\b(?:const|let|var)?\\s*(?:(\\{[^}]*\\})|([A-Za-z_$][\\w$]*))\\s*=\\s*(?:await\\s+)?${callee}\\s*\\(`,
     'g',
   );
   let match = assigned.exec(masked);
@@ -332,7 +334,7 @@ function findEngineCalls(masked, names) {
     taken.add(match.index + match[0].length);
     match = assigned.exec(masked);
   }
-  const bare = new RegExp(`(?:^|[^\\w$.])(?:await\\s+)?(?:${alt})\\s*\\(`, 'g');
+  const bare = new RegExp(`(?:^|[^\\w$.])(?:await\\s+)?${callee}\\s*\\(`, 'g');
   let bareMatch = bare.exec(masked);
   while (bareMatch) {
     const end = bareMatch.index + bareMatch[0].length;
@@ -430,17 +432,20 @@ function cleanupFor(masked, index) {
 /**
  * @param {string} cleanup
  * @param {{ name: string, kind: 'handle' | 'engine' } | null} binding
+ * @param {number} [needed] releases required for this binding
  * @returns {boolean}
  */
-function isGuarded(cleanup, binding) {
+function isGuarded(cleanup, binding, needed = 1) {
   if (!binding) return false;
   const name = escapeRegExp(binding.name);
-  if (binding.kind === 'handle') {
-    return new RegExp(
-      `\\b${name}\\s*\\?\\.\\s*dispose\\s*\\(|\\b${name}\\.dispose\\s*\\(|\\b${name}\\s*\\?\\.\\s*engine\\.stop\\s*\\(|\\b${name}\\.engine\\.stop\\s*\\(`,
-    ).test(cleanup);
-  }
-  return new RegExp(`\\b${name}\\s*\\?\\.\\s*(?:stop|dispose)\\s*\\(|\\b${name}\\.(?:stop|dispose)\\s*\\(`).test(cleanup);
+  const re =
+    binding.kind === 'handle'
+      ? new RegExp(
+          `\\b${name}\\s*\\?\\.\\s*dispose\\s*\\(|\\b${name}\\.dispose\\s*\\(|\\b${name}\\s*\\?\\.\\s*engine\\.stop\\s*\\(|\\b${name}\\.engine\\.stop\\s*\\(`,
+          'g',
+        )
+      : new RegExp(`\\b${name}\\s*\\?\\.\\s*(?:stop|dispose)\\s*\\(|\\b${name}\\.(?:stop|dispose)\\s*\\(`, 'g');
+  return (cleanup.match(re) ?? []).length >= needed;
 }
 
 /**
@@ -450,7 +455,19 @@ function isGuarded(cleanup, binding) {
 function unguardedRealEngines(content) {
   const masked = maskSource(content);
   const calls = findEngineCalls(masked, collectAliases(masked));
-  return calls.some((call) => !isGuarded(cleanupFor(masked, call.index), call.binding));
+  // A binding assigned N engines needs N releases in reach: one dispose in
+  // finally does not release the engine the second assignment replaced.
+  // Assignments are counted per binding and per enclosing block.
+  /** @param {{ index: number, binding: { name: string } | null }} call */
+  const key = (call) => `${call.binding?.name ?? ''}@${containingBodies(masked, call.index)[0]?.[0] ?? -1}`;
+  /** @type {Map<string, number>} */
+  const perBinding = new Map();
+  for (const call of calls) {
+    if (call.binding) perBinding.set(key(call), (perBinding.get(key(call)) ?? 0) + 1);
+  }
+  return calls.some(
+    (call) => !isGuarded(cleanupFor(masked, call.index), call.binding, perBinding.get(key(call)) ?? 1),
+  );
 }
 
 /**
