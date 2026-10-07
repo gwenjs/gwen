@@ -298,6 +298,48 @@ describe("engine state machine", () => {
     expect(engine.state).toBe("faulted");
   });
 
+  it("a second stop() during teardown resolves after teardown, and a later stop() is a no-op", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let release: () => void = () => undefined;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+        return gate;
+      });
+      await engine.startExternal();
+      const first = engine.stop();
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      // engine:stop is running and blocked on the gate.
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopping");
+      let secondState: string | null = null;
+      const second = engine.stop().then(() => {
+        secondState = engine.state;
+      });
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      expect(secondState).toBeNull();
+      release();
+      await second;
+      await first;
+      expect(secondState).toBe("stopped");
+      expect(stops).toBe(1);
+
+      await engine.stop();
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await engine.stop();
+    }
+  });
+
   it("a fatal while stopping lets one nested stop() finish teardown once", async () => {
     const engine = await createEngine();
     let stops = 0;
