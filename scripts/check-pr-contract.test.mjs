@@ -267,10 +267,16 @@ test('rejects review outcome words in any markdown shape', () => {
     '## Review\n\nApproved by the author after a self check.',
     "## Reviewer's decision\n\nAPPROVE WITH NOTES",
     '    ```\n## Verdict\n\nAPPROVE',
+    '```note```\n## Verdict\n\nAPPROVE',
+    'AP\u200BPROVE',
+    'AP\u00ADPROVE',
   ];
   for (const shape of shapes) {
     const errors = review(`${goodBody}\n${shape}\n`);
-    assert.ok(errors.length > 0, shape);
+    assert.ok(
+      errors.some((error) => error.startsWith('self-written verdict or approve:')),
+      `${shape}\n${errors.join('\n')}`,
+    );
   }
   const sentence = review(`${goodBody}\nThis was reviewed by the maintainer, who will approve or not.\n`);
   assert.deepEqual(sentence, []);
@@ -284,8 +290,10 @@ test('rejects a Reviewed-by line', () => {
 test('treats a fence indented by three spaces as a fence and by four as text', () => {
   const three = review(`${goodBody}\n   \`\`\`\nAPPROVE\n   \`\`\`\n`);
   const four = review(`${goodBody}\n    \`\`\`\nAPPROVE\n`);
+  const infoTick = review(`${goodBody}\n   \`\`\`a\`b\nAPPROVE\n`);
   assert.deepEqual(three, []);
-  assert.ok(four.length > 0);
+  assert.deepEqual(four, ['self-written verdict or approve: APPROVE']);
+  assert.deepEqual(infoTick, ['self-written verdict or approve: APPROVE']);
 });
 
 test('rejects every spelling of no test next to a closing keyword', () => {
@@ -317,4 +325,36 @@ test('treats workflows and docs scripts as code for the n/a rule', () => {
     assert.ok(errors.length > 0, file);
   }
   assert.deepEqual(review(body, 'docs: logo', [], ['docs/public/logo.svg']), []);
+});
+
+test('allows the word verdict in prose and inline code', () => {
+  const prose = review(`${goodBody}\n\`pnpm test:alloc\`: 4 passed, verdict \`pass\`, \`failures\` empty.\n`);
+  const code = review(`${goodBody}\n\`frame-alloc.gate.ts\` asserts \`verdict === "pass"\`.\n`);
+  const heading = review(`${goodBody}\n## Reviewer verdict\n\nShip it.\n`);
+  const start = review(`${goodBody}\nVerdict: ship it\n`);
+  assert.deepEqual(prose, []);
+  assert.deepEqual(code, []);
+  assert.ok(heading.some((error) => error.startsWith('self-written verdict or approve:')));
+  assert.ok(start.some((error) => error.startsWith('self-written verdict or approve:')));
+});
+
+test('rejects NO_TEST, not tested, and no automated test next to a closing keyword', () => {
+  for (const gap of ['NO_TEST', 'not tested', 'no automated test']) {
+    const errors = review(withGap('Closes #12', gap));
+    assert.ok(errors.includes('NO TEST cannot use a closing keyword'), gap);
+  }
+});
+
+test('treats github scripts and docs package.json as code for the n/a rule', () => {
+  const body = goodBody
+    .replace(/## Red proof[\s\S]*?## Breaking changes/, '## Breaking changes')
+    .replace('## Breaking changes', 'Red proof: n/a (no code change)\n\n## Breaking changes');
+  for (const file of ['.github/scripts/check.mjs', 'docs/package.json']) {
+    const errors = review(body, 'ci: change', [], [file]);
+    assert.ok(
+      errors.some((error) => error.startsWith('Red proof n/a is only allowed')),
+      `${file}\n${errors.join('\n')}`,
+    );
+  }
+  assert.deepEqual(review(body, 'docs: template', [], ['.github/ISSUE_TEMPLATE/bug.md']), []);
 });

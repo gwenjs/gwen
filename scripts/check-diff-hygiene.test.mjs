@@ -619,3 +619,58 @@ test('rejects a binding assigned two engines with one dispose', () => {
   );
   assert.ok(!late.some((hit) => hit.rule === 'wasm-dispose'));
 });
+
+/**
+ * @param {string[]} lines
+ * @returns {boolean}
+ */
+function disposeHit(lines) {
+  return findDiffViolations(diff(wasmFile, lines)).some((hit) => hit.rule === 'wasm-dispose');
+}
+
+test('rejects createRealEngine reached through a renamed or computed reference', () => {
+  const shapes = [
+    ["import * as H from './harness.js';", 'const { createRealEngine: mk } = H;', 'const handle = await mk();'],
+    ["import * as H from './harness.js';", 'const mk = H.createRealEngine;', 'const handle = await mk();'],
+    ["import * as H from './harness.js';", "const handle = await H['createRealEngine']();"],
+    ["const { createRealEngine: mk } = await import('./harness.js');", 'const handle = await mk();'],
+    ["const { engine } = await (await import('./harness.js')).createRealEngine();"],
+  ];
+  for (const shape of shapes) {
+    assert.ok(disposeHit([...shape, 'handle.step();']), shape.join('\n'));
+  }
+  const guarded = [
+    ["import * as H from './harness.js';", 'const mk = H.createRealEngine;', 'const handle = await mk();'],
+    ['try {', '  handle.step();', '} finally {', '  await handle.dispose();', '}'],
+  ].flat();
+  assert.ok(!disposeHit(guarded), guarded.join('\n'));
+});
+
+test('rejects a dispose behind a condition that never holds', () => {
+  const dead = [
+    'const handle = await createRealEngine();',
+    'try {',
+    '  handle.step();',
+    '} finally {',
+    '  if (false) handle.dispose();',
+    '}',
+  ];
+  assert.ok(disposeHit(dead));
+  const live = dead.map((line) => line.replace('if (false)', 'if (handle)'));
+  assert.ok(!disposeHit(live), live.join('\n'));
+});
+
+test('accepts engines pushed into an array and released by a loop in finally', () => {
+  const loop = [
+    'const engines = [];',
+    'try {',
+    '  engines.push(await createRealEngine());',
+    '  engines.push(await createRealEngine());',
+    '} finally {',
+    '  for (const h of engines) await h.dispose();',
+    '}',
+  ];
+  assert.ok(!disposeHit(loop), loop.join('\n'));
+  const leaked = loop.filter((line) => !line.includes('dispose'));
+  assert.ok(disposeHit(leaked), leaked.join('\n'));
+});

@@ -532,3 +532,17 @@ test('pnpm typecheck includes the core and renderer test projects', () => {
   assert.ok(Array.isArray(renderer.exclude));
   assert.ok(renderer.exclude.every((item) => item.endsWith('.ts')));
 });
+
+test('verify-red prints KEEP-ONLY for a changed file with no new test name', () => {
+  const kept = ["import test from 'node:test';", "test('kept', () => {});", ''].join('\n');
+  const result = runVerifyRed(`${kept}// a comment changes the file\n`, 'base', {
+    seed(dir) {
+      writeFileSync(join(dir, 'added.test.mjs'), kept);
+    },
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /verify-red: KEEP-ONLY added\.test\.mjs/);
+  assert.doesNotMatch(output, /verify-red: RED /);
+  assert.doesNotMatch(output, /every checked test group failed on the base/);
+});
