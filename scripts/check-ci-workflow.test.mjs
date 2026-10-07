@@ -319,6 +319,74 @@ function writeFakePnpm() {
   return dir;
 }
 
+/**
+ * Run verify-red.sh in a clean checkout of this repository's HEAD, as the CI
+ * job does: real pnpm, no node_modules, no WASM artifacts.
+ *
+ * @param {Record<string, string>} files paths relative to the repo root
+ * @returns {{ status: number | null, output: string }}
+ */
+function runVerifyRedOnRepo(files) {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-verify-red-repo-'));
+  rmSync(dir, { recursive: true, force: true });
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' });
+  assert.equal(head.status, 0, head.stderr);
+  const base = head.stdout.trim();
+  git(root, ['worktree', 'add', '--detach', dir, base]);
+  try {
+    for (const [file, content] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, file)), { recursive: true });
+      writeFileSync(join(dir, file), content);
+    }
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '--no-verify', '-m', 'fixture']);
+    const env = {
+      ...process.env,
+      HYGIENE_BASE: base,
+      GH_TOKEN: '',
+      GITHUB_TOKEN: '',
+      PR_NUMBER: '',
+      PR_REPO: '',
+    };
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('NODE_TEST') || key.startsWith('VITEST') || key === 'NODE_CHANNEL_FD') {
+        delete env[key];
+      }
+    }
+    const result = spawnSync('bash', [join(root, 'scripts/verify-red.sh')], {
+      cwd: dir,
+      encoding: 'utf8',
+      env,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    return { status: result.status, output: `${result.stdout}\n${result.stderr}` };
+  } finally {
+    spawnSync('git', ['worktree', 'remove', '--force', dir], { cwd: root });
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('verify-red runs a real Vitest file without WASM or a build', () => {
+  const file = 'packages/core/tests/verify-red-fixture.test.ts';
+  const { status, output } = runVerifyRedOnRepo({
+    [file]: [
+      "import { describe, expect, it } from 'vitest';",
+      "import { defineComponent, Types } from '@gwenjs/core';",
+      '',
+      "describe('verify-red fixture', () => {",
+      "  it('fails on the base', () => {",
+      "    const Probe = defineComponent({ name: 'VerifyRedProbe', schema: { x: Types.f32 } });",
+      "    expect(Probe.name).toBe('not the base');",
+      '  });',
+      '});',
+      '',
+    ].join('\n'),
+  });
+  assert.doesNotMatch(output, /build:ts/);
+  assert.equal(status, 0, output);
+  assert.match(output, /verify-red: RED packages\/core\/tests\/verify-red-fixture\.test\.ts/);
+});
+
 test('pnpm typecheck includes the core and renderer test projects', () => {
   const rootPackage = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   const typecheck = rootPackage.scripts.typecheck;
