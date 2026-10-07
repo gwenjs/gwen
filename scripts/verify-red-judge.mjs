@@ -13,7 +13,11 @@
  *   Prints `NEW <name>` or `OLD <name>`. Exit 2 when the source has no test names.
  *
  * judge --source <head> [--base <base copy>] --format tap|vitest|cargo --report <file>
+ *       [--file <path given to the runner>] [--head-report <head run>]
  *   Exit 0 when every name that is absent from the base copy failed.
+ *   Exit 3 (`LOAD-ERROR`) when the file did not load on the base and no head
+ *   run is given. With --head-report, every name the head run reports counts
+ *   as failed on the base; a file that does not load on the head either exits 2.
  *   Exit 1 when such a name passed, was skipped, or is absent from the report.
  *   Exit 2 when the report has no tests.
  *   A name present in the base copy may pass (`KEEP`). A dynamic name that
@@ -655,11 +659,83 @@ if (mode === 'classify') {
 if (mode !== 'judge') failClosed('unknown mode');
 const format = arg('--format');
 const reportPath = arg('--report');
+const runFile = arg('--file');
+const headReportPath = arg('--head-report');
 if (!reportPath) failClosed('missing --report');
+
+/**
+ * @param {string} text
+ * @returns {Result[] | null}
+ */
+function parseReport(text) {
+  if (format === 'tap') return parseTap(text);
+  if (format === 'vitest') return parseVitest(text);
+  if (format === 'cargo') return parseCargo(text);
+  return null;
+}
+
+/**
+ * The reason a test file did not load (import error, compile error), or null
+ * when it loaded and ran.
+ *
+ * @param {string} text raw report
+ * @param {Result[] | null} results
+ * @returns {string | null}
+ */
+function loadFailure(text, results) {
+  if (format === 'vitest') {
+    if (results && results.length > 0) return null;
+    /** @type {{ testResults?: { status?: string, message?: string, assertionResults?: unknown[] }[] }} */
+    let json;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      return null;
+    }
+    const broken = (json.testResults ?? []).find(
+      (file) => file.status === 'failed' && (file.assertionResults ?? []).length === 0,
+    );
+    if (!broken) return null;
+    return (broken.message ?? '').split('\n')[0] || 'the file failed to load';
+  }
+  if (format === 'tap') {
+    if (!results || !runFile) return null;
+    const fileEntry = (result) =>
+      result.path.length === 1 &&
+      (result.path[0] === runFile || runFile.endsWith(`/${result.path[0]}`) || (result.path[0] ?? '').endsWith(runFile));
+    const others = results.filter((result) => !fileEntry(result));
+    const failed = results.some((result) => fileEntry(result) && result.status === 'fail');
+    if (!failed || others.length > 0) return null;
+    const error = text.split(/\r?\n/).find((line) => /^# .*(?:Error|error)\b/.test(line));
+    return error ? error.slice(2).trim() : 'the file failed to load';
+  }
+  if (format === 'cargo') {
+    if (results && results.length > 0) return null;
+    const error = text.split(/\r?\n/).find((line) => /^error(?:\[E\d+\])?:/.test(line));
+    return error ?? null;
+  }
+  return null;
+}
+
 const report = readFileSync(reportPath, 'utf8');
-const parsed =
-  format === 'tap' ? parseTap(report) : format === 'vitest' ? parseVitest(report) : format === 'cargo' ? parseCargo(report) : null;
+let parsed = parseReport(report);
+const baseLoadError = loadFailure(report, parsed);
+if (baseLoadError && !headReportPath) {
+  console.log(`LOAD-ERROR ${baseLoadError}`);
+  process.exit(3);
+}
+if (baseLoadError) {
+  const headText = readFileSync(headReportPath, 'utf8');
+  const headParsed = parseReport(headText);
+  const headError = loadFailure(headText, headParsed);
+  if (headError || !headParsed || headParsed.length === 0) {
+    failClosed(`does not load on the head either: ${headError ?? 'no test results'}`);
+  }
+  // Every name the head runs failed on the base: the file could not load there.
+  parsed = (headParsed ?? []).map((result) => ({ path: result.path, status: /** @type {Status} */ ('fail') }));
+}
 if (!parsed || parsed.length === 0) failClosed('no test results');
+const suffix = baseLoadError ? ` (base load error: ${baseLoadError})` : '';
 
 /** @type {Map<Entry, Status[]>} */
 const statuses = new Map();
@@ -694,7 +770,7 @@ for (const entry of sourceTests) {
     continue;
   }
   if (allFailed) {
-    console.log(`FAIL ${entry.name}`);
+    console.log(`FAIL ${entry.name}${suffix}`);
     continue;
   }
   if (!isNew) {

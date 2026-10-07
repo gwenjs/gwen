@@ -85,16 +85,23 @@ if ! git -C "$ROOT" worktree add --detach "$WT" "$BASE"; then
   exit 2
 fi
 
-if [ -d "$ROOT/packages/core/wasm" ]; then
-  mkdir -p "$WT/packages/core/wasm"
-  cp -R "$ROOT/packages/core/wasm/." "$WT/packages/core/wasm/"
-fi
+# Build outputs are not tracked. Copy the ones this checkout has (the CI job
+# downloads them from the rust job) so the base runs with the same artifacts
+# and a missing artifact never looks like a red test.
+for artifact in "$ROOT"/packages/*/wasm "$ROOT"/packages/*/build-tools; do
+  [ -d "$artifact" ] || continue
+  rel_artifact=${artifact#"$ROOT"/}
+  [ -e "$WT/$rel_artifact" ] && continue
+  mkdir -p "$WT/$rel_artifact"
+  cp -R "$artifact/." "$WT/$rel_artifact/"
+done
 if [ ! -f "$WT/packages/core/vitest.wasm.config.ts" ] && [ -f "$ROOT/packages/core/vitest.wasm.config.ts" ]; then
   mkdir -p "$WT/packages/core"
   cp "$ROOT/packages/core/vitest.wasm.config.ts" "$WT/packages/core/vitest.wasm.config.ts"
 fi
 
 installed=0
+head_installed=0
 not_red=0
 skipped=0
 
@@ -117,14 +124,22 @@ package_dir() {
   done
 }
 
+# pnpm install once per tree: the base worktree always, this checkout only
+# when a base load failure needs a head run and it has no node_modules.
 ensure_js() {
-  if [ "$installed" -eq 0 ]; then
-    echo 'verify-red: pnpm install --frozen-lockfile in the base worktree'
-    if ! (cd "$WT" && pnpm install --frozen-lockfile); then
-      echo 'verify-red: install failed' >&2
-      exit 2
-    fi
+  local tree="$1"
+  if [ "$tree" = "$WT" ]; then
+    [ "$installed" -eq 1 ] && return 0
     installed=1
+  else
+    [ "$head_installed" -eq 1 ] && return 0
+    head_installed=1
+    [ -d "$tree/node_modules" ] && return 0
+  fi
+  echo "verify-red: pnpm install --frozen-lockfile in $tree"
+  if ! (cd "$tree" && pnpm install --frozen-lockfile); then
+    echo 'verify-red: install failed' >&2
+    exit 2
   fi
 }
 
@@ -144,20 +159,81 @@ wasm_runnable() {
   find "$WT/packages/core/wasm" -name 'gwen_core_bg.wasm' -type f -print -quit 2>/dev/null | grep -q .
 }
 
+# run_tests <tree> <file> <report> <log>: run one test file inside <tree>
+# (the base worktree or this checkout). Sets $format.
+run_tests() {
+  local tree="$1"
+  local f="$2"
+  local out="$3"
+  local log="$4"
+  local pkg rel crate_dir stem
+  case "$f" in
+    *.test.mjs | *.test.cjs | *.test.js | *.spec.mjs | *.spec.js)
+      if ! is_vitest_file "$ROOT/$f"; then
+        (cd "$tree" && node --test --test-reporter=tap "$f") >"$out" 2>&1 || true
+        cat "$out" >"$log"
+        format=tap
+        return 0
+      fi
+      ;;
+    *.test.ts | *.test.tsx | *.test.mts | *.spec.ts | *.spec.tsx) ;;
+    *_test.rs | *.test.rs)
+      crate_dir=$(printf '%s\n' "$f" | awk -F/ 'NF >= 2 { print $1 "/" $2; exit }')
+      stem=$(basename "$f" .rs)
+      if [ -z "$crate_dir" ] || [ ! -f "$tree/$crate_dir/Cargo.toml" ]; then
+        echo "verify-red: no Cargo.toml for $f" >&2
+        exit 2
+      fi
+      (cd "$tree" && cargo test --manifest-path "$crate_dir/Cargo.toml" --test "$stem") >"$out" 2>&1 || true
+      cat "$out" >"$log"
+      format=cargo
+      return 0
+      ;;
+    *)
+      echo "verify-red: no runner for $f" >&2
+      exit 2
+      ;;
+  esac
+  ensure_js "$tree"
+  if ! pkg=$(package_dir "$f"); then
+    echo "verify-red: no package.json for $f" >&2
+    exit 2
+  fi
+  rel="$f"
+  if [ "$pkg" != "." ]; then
+    rel=${f#"$pkg"/}
+  fi
+  : >"$out"
+  if [[ "$f" == */tests/integration-wasm/* ]]; then
+    (cd "$tree/$pkg" && pnpm exec vitest run --config vitest.wasm.config.ts --reporter=json --outputFile "$out" "$rel") >"$log" 2>&1 || true
+  else
+    (cd "$tree/$pkg" && pnpm exec vitest run --reporter=json --outputFile "$out" "$rel") >"$log" 2>&1 || true
+  fi
+  format=vitest
+}
+
+# judge_file <file> <base report> <base snapshot> [head report]: prints the
+# judge lines and sets $judge_out and $judge_code.
+judge_file() {
+  local rel="$1"
+  local base_report="$2"
+  local base_snapshot="$3"
+  local head_report="${4:-}"
+  local args=(judge --source "$ROOT/$rel" --file "$rel" --format "$format" --report "$base_report")
+  if [ -n "$base_snapshot" ]; then
+    args+=(--base "$base_snapshot")
+  fi
+  if [ -n "$head_report" ]; then
+    args+=(--head-report "$head_report")
+  fi
+  judge_code=0
+  judge_out=$(node "$JUDGE" "${args[@]}" 2>&1) || judge_code=$?
+  printf '%s\n' "$judge_out"
+}
+
 apply_judge() {
   local rel="$1"
-  local format="$2"
-  local report="$3"
-  local base_snapshot="$4"
-  local judge_out judge_code
-  if [ -n "$base_snapshot" ]; then
-    judge_out=$(node "$JUDGE" judge --source "$ROOT/$rel" --base "$base_snapshot" --format "$format" --report "$report" 2>&1) || judge_code=$?
-  else
-    judge_out=$(node "$JUDGE" judge --source "$ROOT/$rel" --format "$format" --report "$report" 2>&1) || judge_code=$?
-  fi
-  judge_code=${judge_code:-0}
-  printf '%s\n' "$judge_out"
-  if [ "$judge_code" -eq 2 ]; then
+  if [ "$judge_code" -eq 2 ] || [ "$judge_code" -eq 3 ]; then
     echo "verify-red: not verifiable $rel"
     exit 2
   fi
@@ -173,9 +249,9 @@ apply_judge() {
         echo "verify-red: warning $rel ${line#WARN }"
         ;;
     esac
-  done <<EOF
+  done <<JUDGE_LINES
 $judge_out
-EOF
+JUDGE_LINES
   if [ "$judge_code" -eq 0 ]; then
     echo "verify-red: RED $rel"
     return 0
@@ -192,9 +268,9 @@ EOF
         printed=1
         ;;
     esac
-  done <<EOF
+  done <<JUDGE_LINES
 $judge_out
-EOF
+JUDGE_LINES
   if [ "$printed" -eq 0 ]; then
     echo "verify-red: NOT RED $rel"
   fi
@@ -250,67 +326,25 @@ for f in "${files[@]}"; do
   mkdir -p "$WT/$(dirname "$f")"
   cp "$ROOT/$f" "$WT/$f"
   log=$(mktemp)
-  report="$log"
+  report=$(mktemp)
   format=""
-  case "$f" in
-    *.test.mjs | *.test.cjs | *.test.js | *.spec.mjs | *.spec.js)
-      if is_vitest_file "$WT/$f"; then
-        ensure_js
-        if ! pkg=$(package_dir "$f"); then
-          echo "verify-red: no package.json for $f" >&2
-          exit 2
-        fi
-        rel="$f"
-        if [ "$pkg" != "." ]; then
-          rel=${f#"$pkg"/}
-        fi
-        report=$(mktemp)
-        (cd "$WT/$pkg" && pnpm exec vitest run --reporter=json --outputFile "$report" "$rel") >"$log" 2>&1 || true
-        format=vitest
-      else
-        (cd "$WT" && node --test --test-reporter=tap "$f") >"$log" 2>&1 || true
-        format=tap
-      fi
-      ;;
-    *.test.ts | *.test.tsx | *.test.mts | *.spec.ts | *.spec.tsx)
-      ensure_js
-      if ! pkg=$(package_dir "$f"); then
-        echo "verify-red: no package.json for $f" >&2
-        exit 2
-      fi
-      rel="$f"
-      if [ "$pkg" != "." ]; then
-        rel=${f#"$pkg"/}
-      fi
-      report=$(mktemp)
-      if [[ "$f" == */tests/integration-wasm/* ]]; then
-        (cd "$WT/$pkg" && pnpm exec vitest run --config vitest.wasm.config.ts --reporter=json --outputFile "$report" "$rel") >"$log" 2>&1 || true
-      else
-        (cd "$WT/$pkg" && pnpm exec vitest run --reporter=json --outputFile "$report" "$rel") >"$log" 2>&1 || true
-      fi
-      format=vitest
-      ;;
-    *_test.rs | *.test.rs)
-      crate_dir=$(printf '%s\n' "$f" | awk -F/ 'NF >= 2 { print $1 "/" $2; exit }')
-      stem=$(basename "$f" .rs)
-      if [ -z "$crate_dir" ] || [ ! -f "$WT/$crate_dir/Cargo.toml" ]; then
-        echo "verify-red: no Cargo.toml for $f" >&2
-        exit 2
-      fi
-      (cd "$WT" && cargo test --manifest-path "$crate_dir/Cargo.toml" --test "$stem") >"$log" 2>&1 || true
-      format=cargo
-      ;;
-    *)
-      echo "verify-red: no runner for $f" >&2
-      exit 2
-      ;;
-  esac
+  run_tests "$WT" "$f" "$report" "$log"
   cat "$log"
-  apply_judge "$f" "$format" "$report" "$base_snapshot"
-  rm -f "$log"
-  if [ "$report" != "$log" ]; then
-    rm -f "$report"
+  judge_file "$f" "$report" "$base_snapshot"
+  if [ "$judge_code" -eq 3 ]; then
+    # The file does not load on the base (for example it imports a module
+    # this PR adds). Run it on this checkout: when it loads here, every new
+    # name it reports counts red; when it fails here too, it needs something
+    # neither tree has (a WASM build) and is not verifiable.
+    echo "verify-red: $f does not load on the base; running it on the head"
+    head_report=$(mktemp)
+    run_tests "$ROOT" "$f" "$head_report" "$log"
+    cat "$log"
+    judge_file "$f" "$report" "$base_snapshot" "$head_report"
+    rm -f "$head_report"
   fi
+  apply_judge "$f"
+  rm -f "$log" "$report"
   if [ -n "$base_snapshot" ]; then
     rm -f "$base_snapshot"
   fi
