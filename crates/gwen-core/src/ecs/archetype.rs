@@ -281,9 +281,7 @@ impl Archetype {
         if !self.can_remove(entity_id) {
             return None;
         }
-        let Some(&row) = self.entity_row.get(&entity_id) else {
-            return None;
-        };
+        let row = *self.entity_row.get(&entity_id)?;
         let last_row = self.entities.len() - 1;
         self.entity_row.remove(&entity_id);
 
@@ -295,10 +293,7 @@ impl Archetype {
             self.entities.pop();
             Some(None)
         } else {
-            let last_entity = match self.entities.pop() {
-                Some(id) => id,
-                None => return None,
-            };
+            let last_entity = self.entities.pop()?;
             self.entities[row] = last_entity;
             self.entity_row.insert(last_entity, row);
             Some(Some(last_entity))
