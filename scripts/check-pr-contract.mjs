@@ -184,7 +184,10 @@ function visibleLines(lines) {
     // CommonMark: a fence is indented by at most three spaces. A line with
     // four spaces is text (an indented code block renders, but it never
     // opens a fence that hides the lines after it).
-    const marker = line.match(/^ {0,3}(`{3,}|~{3,})/)?.[1] ?? null;
+    // GFM: a backtick fence has no backtick in its info string; such a line
+    // (```note```) is inline code and opens nothing.
+    const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    const marker = match && !(match[1]?.[0] === '`' && (match[2] ?? '').includes('`')) ? (match[1] ?? null) : null;
     if (fence === null && marker) {
       fence = marker;
       continue;
@@ -205,7 +208,7 @@ function visibleLines(lines) {
 function isDocsPath(file) {
   const normalized = String(file).split('\\').join('/');
   if (normalized.startsWith('.github/workflows/') || normalized.startsWith('.github/actions/')) return false;
-  if (normalized.startsWith('docs/') && /\.(?:[cm]?[jt]s|tsx|jsx|vue)$/.test(normalized)) return false;
+  if (/\.(?:[cm]?[jt]s|tsx|jsx|vue|sh)$/.test(normalized) || /(?:^|\/)package\.json$/.test(normalized)) return false;
   return normalized.startsWith('docs/') || normalized.endsWith('.md') || normalized.startsWith('.github/');
 }
 
@@ -283,10 +286,26 @@ const MAINTAINER_SENTENCE = /reviewed by the maintainer, who will approve or not
  */
 function plainWords(line) {
   return line
+    .replace(/\p{Cf}/gu, '')
     .replace(MAINTAINER_SENTENCE, ' ')
     .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/**
+ * The word verdict as a review outcome: in a heading, at the start of a line,
+ * or followed by a colon. Inline code spans are cut out first, so a field
+ * named verdict in code (`verdict === "pass"`) or in prose is allowed.
+ *
+ * @param {string} line
+ * @returns {boolean}
+ */
+function verdictForm(line) {
+  const text = line.replace(/\p{Cf}/gu, '').replace(/(`+)[\s\S]*?\1/g, ' ');
+  if (/^\s{0,3}#{1,6}\s/.test(text) && /\bverdict\b/i.test(text)) return true;
+  if (/^[\s>*_\-+]*verdict\b/i.test(text)) return true;
+  return /\bverdict\b[*_\s]*:/i.test(text);
 }
 
 /**
@@ -307,7 +326,7 @@ function checkVerdict(lines, errors) {
       errors.push(`self-review section: ${line.trim()}`);
       return;
     }
-    if (/\b(?:verdict|approved?)\b/i.test(words)) {
+    if (/\bapproved?\b/i.test(words) || verdictForm(line)) {
       errors.push(`self-written verdict or approve: ${line.trim()}`);
       return;
     }
@@ -327,7 +346,7 @@ const CLOSING =
  * @returns {boolean}
  */
 function cellHasNoTest(cell) {
-  return /\bno[-\s]?tests?\b|\buntested\b/i.test(cell.replace(/`/g, ''));
+  return /\bno(?:[-\s_]+automated)?[-\s_]?tests?\b|\bnot[-\s_]+tested\b|\buntested\b/i.test(cell.replace(/`/g, ''));
 }
 
 /**
