@@ -11,7 +11,8 @@
 # whose names all exist on the base, and that cannot run, warns and continues.
 #
 # Cost: an extra git worktree. A Vitest file also runs
-# `pnpm install --frozen-lockfile` and `pnpm build:ts` once in that worktree.
+# `pnpm install --frozen-lockfile` once in that worktree. Nothing is built:
+# the Vitest configs alias @gwenjs/* to their sources (vitest.aliases.ts).
 # A Cargo file under crates/<crate>/tests/ runs `cargo test --test <stem>`.
 # node:test files only need node. Skip when the PR has the label no-red-check.
 
@@ -90,7 +91,6 @@ if [ ! -f "$WT/packages/core/vitest.wasm.config.ts" ] && [ -f "$ROOT/packages/co
 fi
 
 installed=0
-built=0
 not_red=0
 skipped=0
 
@@ -121,14 +121,6 @@ ensure_js() {
       exit 2
     fi
     installed=1
-  fi
-  if [ "$built" -eq 0 ]; then
-    echo 'verify-red: pnpm build:ts in the base worktree'
-    if ! (cd "$WT" && pnpm build:ts); then
-      echo 'verify-red: build:ts failed' >&2
-      exit 2
-    fi
-    built=1
   fi
 }
 
