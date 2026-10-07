@@ -14,6 +14,14 @@
     "types": ["vitest/globals", "node"]
   },
   "include": ["src", "tests", "bench/alloc", "vitest.alloc.config.ts"],
+  // The four integration-wasm files are excluded until their type errors are fixed (#70):
+  // - determinism.test.ts: :104, :109, :114 pass a SchemaLayout whose record type does not
+  //   match the parameter; :218 reads `physicsHz`, absent from the public GwenEngine type
+  //   (it exists on the class at src/engine/gwen-engine.ts:194).
+  // - netcode-ready.test.ts: :91 reads `physicsHz`, same cause.
+  // - p1-memory-growth.test.ts: :140 passes `source: string | undefined` under
+  //   exactOptionalPropertyTypes.
+  // - wasm-export-inventory.test.ts: :11, :69 widen a "result" | "infallible" literal to string.
   "exclude": [
     "tests/error-policy.test.ts",
     "tests/storage-models.test.ts",

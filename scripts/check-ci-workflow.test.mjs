@@ -512,14 +512,42 @@ test('verify-red reports not verifiable when a test needs a WASM build', () => {
   assert.doesNotMatch(output, /verify-red: RED /);
 });
 
+/**
+ * Parses a tsconfig file, which is JSONC: `//` and `/* *\/` comments outside
+ * strings are dropped before JSON.parse.
+ *
+ * @param {string} file
+ * @returns {any}
+ */
+function readJsonc(file) {
+  const text = readFileSync(file, 'utf8');
+  let out = '';
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    if (char === '"') {
+      let j = i + 1;
+      while (j < text.length && text[j] !== '"') j += text[j] === '\\' ? 2 : 1;
+      out += text.slice(i, j + 1);
+      i = j;
+    } else if (char === '/' && text[i + 1] === '/') {
+      while (i < text.length && text[i] !== '\n') i += 1;
+      out += '\n';
+    } else if (char === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      i = end === -1 ? text.length : end + 1;
+    } else {
+      out += char;
+    }
+  }
+  return JSON.parse(out);
+}
+
 test('pnpm typecheck includes the core and renderer test projects', () => {
   const rootPackage = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
   const typecheck = rootPackage.scripts.typecheck;
   assert.match(typecheck, /tsconfig\.test\.json/);
-  const core = JSON.parse(readFileSync(join(root, 'packages/core/tsconfig.test.json'), 'utf8'));
-  const renderer = JSON.parse(
-    readFileSync(join(root, 'packages/renderer-core/tsconfig.test.json'), 'utf8'),
-  );
+  const core = readJsonc(join(root, 'packages/core/tsconfig.test.json'));
+  const renderer = readJsonc(join(root, 'packages/renderer-core/tsconfig.test.json'));
   assert.ok(core.include.includes('tests'));
   assert.ok(renderer.include.includes('tests'));
   assert.ok(Array.isArray(core.exclude));
