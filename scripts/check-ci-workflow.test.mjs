@@ -266,6 +266,44 @@ test('verify-red runs a node:test file that quotes a vitest import with node', (
   assert.match(output, /verify-red: RED added\.test\.mjs/);
 });
 
+test('verify-red counts a new test red when its new module is missing on the base', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-verify-red-load-'));
+  try {
+    git(dir, ['init', '-b', 'base']);
+    writeFileSync(join(dir, 'README.md'), 'base\n');
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-m', 'base']);
+    git(dir, ['checkout', '-b', 'change']);
+    mkdirSync(join(dir, 'lib'));
+    writeFileSync(join(dir, 'lib/answer.mjs'), 'export const answer = 42;\n');
+    writeFileSync(
+      join(dir, 'lib/answer.test.mjs'),
+      [
+        "import assert from 'node:assert/strict';",
+        "import test from 'node:test';",
+        "import { answer } from './answer.mjs';",
+        "test('answers 42', () => {",
+        '  assert.equal(answer, 42);',
+        '});',
+        '',
+      ].join('\n'),
+    );
+    git(dir, ['add', '-A']);
+    git(dir, ['commit', '-m', 'add module and test']);
+    const env = { ...process.env, HYGIENE_BASE: 'base', GH_TOKEN: '', GITHUB_TOKEN: '', PR_NUMBER: '', PR_REPO: '' };
+    for (const key of Object.keys(env)) {
+      if (key.startsWith('NODE_TEST') || key === 'NODE_CHANNEL_FD') delete env[key];
+    }
+    const result = spawnSync('bash', [join(root, 'scripts/verify-red.sh')], { cwd: dir, encoding: 'utf8', env });
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, output);
+    assert.match(output, /FAIL answers 42 \(base load error/);
+    assert.match(output, /verify-red: RED lib\/answer\.test\.mjs/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('verify-red does not count a wasm file as red when it cannot run', () => {
   const result = runVerifyRed(
     ["import { it } from 'vitest';", "it('passes on the base', () => {});", ''].join('\n'),
@@ -404,6 +442,35 @@ test('verify-red runs a real Vitest file without WASM or a build', () => {
   assert.doesNotMatch(output, /build:ts/);
   assert.equal(status, 0, output);
   assert.match(output, /verify-red: RED packages\/core\/tests\/verify-red-fixture\.test\.ts/);
+});
+
+test('verify-red counts a real Vitest file red when it imports a module the PR adds', () => {
+  const { status, output } = runVerifyRedOnRepo({
+    'packages/core/tests/verify-red-fixture-lib.ts': 'export const answer = 42;\n',
+    'packages/core/tests/verify-red-fixture.test.ts': [
+      "import { expect, it } from 'vitest';",
+      "import { answer } from './verify-red-fixture-lib';",
+      '',
+      "it('answers 42', () => {",
+      '  expect(answer).toBe(42);',
+      '});',
+      '',
+    ].join('\n'),
+  });
+  assert.equal(status, 0, output);
+  assert.match(output, /FAIL answers 42 \(base load error/);
+  assert.match(output, /verify-red: RED packages\/core\/tests\/verify-red-fixture\.test\.ts/);
+});
+
+test('verify-red reports not verifiable when a test needs a WASM build', () => {
+  const file = 'packages/physics3d-fracture/tests/voronoi-fracture.test.ts';
+  const current = readFileSync(join(root, file), 'utf8');
+  const { status, output } = runVerifyRedOnRepo({
+    [file]: `${current}\nit('verify-red fixture needs the fracture wasm', () => {\n  expect(1).toBe(1);\n});\n`,
+  });
+  assert.equal(status, 2, output);
+  assert.match(output, /does not load on the head either/);
+  assert.doesNotMatch(output, /verify-red: RED /);
 });
 
 test('pnpm typecheck includes the core and renderer test projects', () => {

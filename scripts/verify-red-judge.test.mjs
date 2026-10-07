@@ -196,3 +196,99 @@ test('judge warns about a runner name it cannot place instead of giving up', () 
   assert.equal(status, 0, output);
   assert.match(output, /FAIL fixed/);
 });
+
+const loadFailure = JSON.stringify({
+  testResults: [
+    {
+      name: '/base/x.test.ts',
+      status: 'failed',
+      message: "Cannot find module './lib' imported from '/base/x.test.ts'",
+      assertionResults: [],
+    },
+  ],
+});
+
+/**
+ * @param {string} dir
+ * @param {string} text
+ * @returns {string[]}
+ */
+function headReport(dir, text) {
+  const file = join(dir, 'head-report.txt');
+  writeFileSync(file, text);
+  return ['--head-report', file];
+}
+
+test('judge counts a base load failure red when the head runs the new names', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-judge-head-'));
+  try {
+    const { status, output } = judge({
+      source: "import { it } from 'vitest';\nimport { lib } from './lib';\nit('uses lib', () => {});\n",
+      format: 'vitest',
+      report: loadFailure,
+      extra: headReport(dir, vitestReport([{ ancestorTitles: [], title: 'uses lib', status: 'passed' }])),
+    });
+    assert.equal(status, 0, output);
+    assert.match(output, /FAIL uses lib \(base load error: Cannot find module '\.\/lib'/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('judge asks for a head run when the base does not load', () => {
+  const { status, output } = judge({
+    source: "import { it } from 'vitest';\nit('uses lib', () => {});\n",
+    format: 'vitest',
+    report: loadFailure,
+  });
+  assert.equal(status, 3, output);
+  assert.match(output, /LOAD-ERROR Cannot find module/);
+});
+
+test('judge does not count a file that fails to load on the head too', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-judge-head-'));
+  try {
+    const { status, output } = judge({
+      source: "import { it } from 'vitest';\nit('needs wasm', () => {});\n",
+      format: 'vitest',
+      report: loadFailure,
+      extra: headReport(dir, loadFailure),
+    });
+    assert.equal(status, 2, output);
+    assert.match(output, /does not load on the head either/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('judge reads a node:test load failure from the file entry', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-judge-head-'));
+  try {
+    const { status, output } = judge({
+      source: "import test from 'node:test';\nimport { x } from './lib.mjs';\ntest('uses lib', () => {});\n",
+      format: 'tap',
+      report: 'TAP version 13\n# Error [ERR_MODULE_NOT_FOUND]: Cannot find module\n# Subtest: dir/added.test.mjs\nnot ok 1 - dir/added.test.mjs\n1..1\n',
+      extra: ['--file', 'dir/added.test.mjs', ...headReport(dir, 'TAP version 13\nok 1 - uses lib\n1..1\n')],
+    });
+    assert.equal(status, 0, output);
+    assert.match(output, /FAIL uses lib \(base load error/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('judge still blocks a new name the head run does not report', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'gwen-judge-head-'));
+  try {
+    const { status, output } = judge({
+      source: "import { it } from 'vitest';\nit('uses lib', () => {});\nif (process.env.NEVER) it('hidden', () => {});\n",
+      format: 'vitest',
+      report: loadFailure,
+      extra: headReport(dir, vitestReport([{ ancestorTitles: [], title: 'uses lib', status: 'passed' }])),
+    });
+    assert.equal(status, 1, output);
+    assert.match(output, /ABSENT hidden/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
