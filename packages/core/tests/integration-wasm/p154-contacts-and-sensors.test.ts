@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { defineComponent, Types, type EntityId } from "../../src/index.js";
 import { defineActor, definePrefab, useEntityId } from "../../src/actor/index.js";
-import { createRealEngine, type RealEngineHandle } from "./harness.js";
+import { createRealEngine } from "./harness.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { onContact } from "../../../physics2d/src/composables/on-contact.js";
@@ -34,10 +34,6 @@ const Position = defineComponent({
 });
 const Prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
-async function stop(handle: RealEngineHandle): Promise<void> {
-  await handle.dispose();
-}
-
 describe("real engine component ids", () => {
   it("does not grow the type count when the same name is registered again", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
@@ -51,7 +47,7 @@ describe("real engine component ids", () => {
       expect(engine.registeredComponentTypes().size).toBe(2);
       expect(engine.registeredComponentTypes().get("Position")).toBe(first);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 });
@@ -78,7 +74,7 @@ describe("physics2d contact payload", () => {
       expect(seen.every((event) => event.started === true || event.started === false)).toBe(true);
       expect(Object.hasOwn(seen[0] ?? {}, "contactX")).toBe(false);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 });
@@ -114,7 +110,7 @@ describe("sensor callbacks survive the other entity", () => {
       expect(hits.get(idB)).toBe(1);
       expect(hits.get(idA) ?? 0).toBe(0);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 
@@ -151,7 +147,7 @@ describe("sensor callbacks survive the other entity", () => {
       expect(hits.get(idB)).toBe(1);
       expect(hits.get(idA) ?? 0).toBe(0);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 
@@ -187,7 +183,7 @@ describe("sensor callbacks survive the other entity", () => {
       expect(before).toBe(1);
       expect(hits.get(idA) ?? 0).toBe(1);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 
@@ -223,7 +219,7 @@ describe("sensor callbacks survive the other entity", () => {
       expect(before).toBe(1);
       expect(hits.get(idA) ?? 0).toBe(1);
     } finally {
-      await stop(handle);
+      await handle.dispose();
     }
   });
 });
