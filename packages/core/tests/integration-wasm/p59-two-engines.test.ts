@@ -70,8 +70,11 @@ describe("p59 two engines", () => {
           if (useEngine() === a) hookEngineA += 1;
         }, leftA);
       });
-      a.hooks.hook("physics:collision", () => {
+      const seenA = new Set<EntityId>();
+      const seenB = new Set<EntityId>();
+      a.hooks.hook("physics:collision", (contacts) => {
         if (useEngine() === a) hookEngineA += 1;
+        for (const contact of contacts) seenA.add(contact.entityA).add(contact.entityB);
       });
       const leftB = b.createEntity();
       const rightB = b.createEntity();
@@ -81,21 +84,29 @@ describe("p59 two engines", () => {
           if (useEngine() === b) hookEngineB += 1;
         }, leftB);
       });
-      b.hooks.hook("physics:collision", () => {
+      b.hooks.hook("physics:collision", (contacts) => {
         if (useEngine() === b) hookEngineB += 1;
+        for (const contact of contacts) seenB.add(contact.entityA).add(contact.entityB);
       });
 
       physicsA.addBoxCollider(physicsA.addRigidBody(leftA, "dynamic", 0, 0), 0.5, 0.5);
       physicsA.addBoxCollider(physicsA.addRigidBody(rightA, "dynamic", 0.2, 0), 0.5, 0.5);
       physicsB.addBoxCollider(physicsB.addRigidBody(leftB, "dynamic", 0, 0), 0.5, 0.5);
       physicsB.addBoxCollider(physicsB.addRigidBody(rightB, "dynamic", 50, 0), 0.5, 0.5);
+      // B collides too, with entities A never created: a shared buffer would leak them to A.
+      const farB = b.createEntity();
+      const farRightB = b.createEntity();
+      physicsB.addBoxCollider(physicsB.addRigidBody(farB, "dynamic", 100, 0), 0.5, 0.5);
+      physicsB.addBoxCollider(physicsB.addRigidBody(farRightB, "dynamic", 100.2, 0), 0.5, 0.5);
 
       await Promise.all([advanceA(5, 1 / 60), advanceB(5, 1 / 60)]);
 
       expect(contactsA).toBeGreaterThan(0);
       expect(hookEngineA).toBeGreaterThan(0);
       expect(contactsB).toBe(0);
-      expect(hookEngineB).toBe(0);
+      expect(hookEngineB).toBeGreaterThan(0);
+      expect([...seenA].sort()).toEqual([leftA, rightA].sort());
+      expect([...seenB].sort()).toEqual([farB, farRightB].sort());
 
       await handleA.dispose();
 
@@ -129,24 +140,28 @@ describe("p59 two engines", () => {
 
       let contactsA = 0;
       let contactsB = 0;
+      let hookEngineA = 0;
+      let wrongEngine = 0;
       a.run(() => {
         onContact3d(() => {
           contactsA += 1;
-          expect(useEngine()).toBe(a);
+          if (useEngine() === a) hookEngineA += 1;
+          else wrongEngine += 1;
         });
       });
       b.run(() => {
         onContact3d(() => {
           contactsB += 1;
-          expect(useEngine()).toBe(b);
+          if (useEngine() !== b) wrongEngine += 1;
         });
       });
       a.hooks.hook("physics3d:collision", () => {
-        expect(useEngine()).toBe(a);
+        if (useEngine() === a) hookEngineA += 1;
+        else wrongEngine += 1;
       });
       b.hooks.hook("physics3d:collision", () => {
         contactsB += 1;
-        expect(useEngine()).toBe(b);
+        if (useEngine() !== b) wrongEngine += 1;
       });
 
       const leftA = a.createEntity();
@@ -161,6 +176,7 @@ describe("p59 two engines", () => {
       await Promise.all([advanceA(5, 1 / 60), advanceB(5, 1 / 60)]);
 
       expect(contactsA).toBeGreaterThan(0);
+      expect(hookEngineA).toBeGreaterThan(contactsA);
       expect(contactsB).toBe(0);
 
       await handleA.dispose();
@@ -171,6 +187,7 @@ describe("p59 two engines", () => {
       await instantiate3d(b, nearRight, { x: 0.2, y: 0, z: 0 });
       await advanceB(5, 1 / 60);
       expect(contactsB).toBeGreaterThan(0);
+      expect(wrongEngine).toBe(0);
       expect(b.state).not.toBe("faulted");
     } finally {
       await handleA.dispose();
