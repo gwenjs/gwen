@@ -161,14 +161,18 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     cachedCollisionBatch: null,
   }));
 
-  let cachedEngine: GwenEngine | null = null;
-  let cachedState: P2State | null = null;
+  // Weak: this plugin object may outlive the engines it was installed on.
+  let cachedEngine: WeakRef<GwenEngine> | null = null;
+  let cachedState: WeakRef<P2State> | null = null;
   function stateNow(): P2State {
     const current = engineContext.tryUse() ?? null;
-    if (cachedState && current === cachedEngine) return cachedState;
-    cachedState = p2States.use();
-    cachedEngine = engineContext.tryUse() ?? null;
-    return cachedState;
+    const hit = cachedState?.deref();
+    if (hit && current !== null && current === cachedEngine?.deref()) return hit;
+    const next = p2States.use();
+    const owner = engineContext.tryUse() ?? null;
+    cachedState = new WeakRef(next);
+    cachedEngine = owner ? new WeakRef(owner) : null;
+    return next;
   }
   const st = new Proxy({} as P2State, {
     get(_target, prop) {
@@ -834,6 +838,9 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       st.ownerChangedSinceStep.clear();
       st.loadedTilemapChunks.clear();
       st.bridge = null;
+      // Drop the per-call cache: the next call resolves the engine again.
+      cachedEngine = null;
+      cachedState = null;
     },
   };
 });
