@@ -85,14 +85,18 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     const layerRegistry = buildLayerRegistry(cfg.layers);
     return createPluginContext(cfg, layerRegistry);
   });
-  let cachedEngine: GwenEngine | null = null;
-  let cachedContext: PluginContext | null = null;
+  // Weak: this plugin object may outlive the engines it was installed on.
+  let cachedEngine: WeakRef<GwenEngine> | null = null;
+  let cachedContext: WeakRef<PluginContext> | null = null;
   function contextNow(): PluginContext {
     const current = engineContext.tryUse() ?? null;
-    if (cachedContext && current === cachedEngine) return cachedContext;
-    cachedContext = contexts.use();
-    cachedEngine = engineContext.tryUse() ?? null;
-    return cachedContext;
+    const hit = cachedContext?.deref();
+    if (hit && current !== null && current === cachedEngine?.deref()) return hit;
+    const next = contexts.use();
+    const owner = engineContext.tryUse() ?? null;
+    cachedContext = new WeakRef(next);
+    cachedEngine = owner ? new WeakRef(owner) : null;
+    return next;
   }
   const ctx = new Proxy({} as PluginContext, {
     get(_target, prop) {
@@ -512,6 +516,9 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.pooledEvents.length = 0;
       ctx.previousLocalContactKeys.clear();
       ctx.ownerChangedSinceStep.clear();
+      // Drop the per-call cache: the next call resolves the engine again.
+      cachedEngine = null;
+      cachedContext = null;
     },
   };
 });
