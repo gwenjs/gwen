@@ -170,8 +170,9 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
   })
 
   onReset((newProps: BulletProps) => {
-    // Appelé à chaque réutilisation — reset avec les nouvelles props
-    // (les defaults du prefab sont déjà réappliqués automatiquement)
+    // Appelé à chaque réutilisation — reset avec les nouvelles props.
+    // Les defaults du prefab sont déjà réécrits dans les composants existants.
+    // Un composant du prefab retiré pendant la vie précédente n'est pas rajouté.
     Position.x[id] = newProps.x
     Velocity.vx[id] = newProps.speed * Math.cos(newProps.direction)
     physics.addBody(id, { ... })
