@@ -19,10 +19,7 @@
     "tests/storage-models.test.ts",
     "tests/integration-wasm/determinism.test.ts",
     "tests/integration-wasm/netcode-ready.test.ts",
-    "tests/integration-wasm/p1-error-policy.test.ts",
     "tests/integration-wasm/p1-memory-growth.test.ts",
-    "tests/integration-wasm/p54-stale-physics-handles.test.ts",
-    "tests/integration-wasm/wasm-errors.test.ts",
     "tests/integration-wasm/wasm-export-inventory.test.ts"
   ]
 }

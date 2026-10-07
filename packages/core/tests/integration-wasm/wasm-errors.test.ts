@@ -165,8 +165,8 @@ describe("WASM coded errors", () => {
 
       const parentId = Actor._plugin.spawn();
       const childId = Actor._plugin.spawn();
-      const parent = Actor._instances.get(parentId)?.api.transform;
-      const child = Actor._instances.get(childId)?.api.transform;
+      const parent = Actor._instances.get(parentId)?.api?.transform;
+      const child = Actor._instances.get(childId)?.api?.transform;
       if (parent === undefined || child === undefined) {
         throw new Error("actor factory did not return a transform");
       }

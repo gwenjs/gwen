@@ -46,6 +46,7 @@ async function withBoot(
 
 function physicsOf(handle: RealEngineHandle, variant: "physics2d"): Physics2DAPI;
 function physicsOf(handle: RealEngineHandle, variant: "physics3d"): Physics3DAPI;
+function physicsOf(handle: RealEngineHandle, variant: Variant): Physics2DAPI | Physics3DAPI;
 function physicsOf(handle: RealEngineHandle, variant: Variant): Physics2DAPI | Physics3DAPI {
   return variant === "physics2d"
     ? handle.engine.inject("physics2d")
