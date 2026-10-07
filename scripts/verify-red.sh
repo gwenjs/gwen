@@ -8,9 +8,14 @@
 # A file with no describe/it/test call (tests built by a helper) is skipped
 # with a warning. Those are the limits of this check.
 #
+# A file that does not load on the base (it imports a module the PR adds) is
+# run on this checkout too: when it loads here, its new names count red; when
+# it fails here as well, it exits 2 (not verifiable).
+#
 # tests/integration-wasm runs with vitest.wasm.config.ts when that config and
-# a packages/core/wasm/**/gwen_core_bg.wasm artifact are present. The artifact
-# is copied from this checkout when the base commit does not have it. A new
+# a packages/core/wasm/**/gwen_core_bg.wasm artifact are present. The untracked
+# packages/*/wasm and packages/*/build-tools directories are copied from this
+# checkout (CI: the verify-red job downloads them from the rust job). A new
 # test name with no config or no artifact exits 2 (not verifiable). A file
 # whose names all exist on the base, and that cannot run, warns and continues.
 #
