@@ -181,6 +181,11 @@ async function stop(handle: RealEngineHandle): Promise<void> {
 }
 
 describe("WASM export signatures", () => {
+  it("rejects a non-function wasm import", () => {
+    const cursor = { i: 0 };
+    expect(() => skipImport(new Uint8Array([0x00]), cursor, 2)).toThrow(/not a function/);
+  });
+
   it("glue parameters and wasm types match for light, physics2d and physics3d", async () => {
     for (const variant of VARIANTS) {
       expect(await glueLines(variant), `${variant} glue`).toEqual(expectedJs(variant));
