@@ -167,22 +167,38 @@ describe("engine state machine", () => {
 
   it("rejects start and advance after stop and ignores a fatal", async () => {
     const engine = await createEngine();
-    const seen = watch(engine);
-    await engine.startExternal();
-    await engine.stop();
-    const afterStop = seen.length;
-    await expect(engine.start()).rejects.toMatchObject({ from: "stopped", method: "start" });
-    await expect(engine.startExternal()).rejects.toMatchObject({
-      from: "stopped",
-      method: "startExternal",
-    });
-    await expect(engine.advance(1 / 60)).rejects.toMatchObject({
-      from: "stopped",
-      method: "advance",
-    });
-    engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "late" });
-    expect(engine.state).toBe("stopped");
-    expect(seen).toHaveLength(afterStop);
+    try {
+      const seen = watch(engine);
+      let inits = 0;
+      let starts = 0;
+      engine.hooks.hook("engine:init", () => {
+        inits += 1;
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await engine.startExternal();
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+      await engine.stop();
+      const afterStop = seen.length;
+      await expect(engine.start()).rejects.toMatchObject({ from: "stopped", method: "start" });
+      await expect(engine.startExternal()).rejects.toMatchObject({
+        from: "stopped",
+        method: "startExternal",
+      });
+      await expect(engine.advance(1 / 60)).rejects.toMatchObject({
+        from: "stopped",
+        method: "advance",
+      });
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "late" });
+      expect(engine.state).toBe("stopped");
+      expect(seen).toHaveLength(afterStop);
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("a third-party fatal faults without engine:stop", async () => {
@@ -320,54 +336,129 @@ describe("engine state machine", () => {
 
   it("an engine:init throw faults, emits one engine:error, and rejects", async () => {
     const engine = await createEngine();
-    const seen = watch(engine);
-    let errors = 0;
-    engine.hooks.hook("engine:error", () => {
-      errors += 1;
-    });
-    engine.hooks.hook("engine:init", () => {
-      throw new Error("init failed");
-    });
-    await expect(engine.startExternal()).rejects.toThrow("init failed");
-    expect(engine.state).toBe("faulted");
-    expect(errors).toBe(1);
-    expect(seen).toEqual([
-      { from: "idle", to: "starting", reason: "USER" },
-      { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
-    ]);
+    try {
+      const seen = watch(engine);
+      const bus: Array<{ context?: Record<string, unknown> }> = [];
+      let errors = 0;
+      let starts = 0;
+      engine.errors.on((event) => {
+        bus.push(event);
+      });
+      engine.hooks.hook("engine:error", () => {
+        errors += 1;
+      });
+      engine.hooks.hook("engine:init", () => {
+        throw new Error("init failed");
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await expect(engine.startExternal()).rejects.toThrow("init failed");
+      expect(engine.state).toBe("faulted");
+      expect(errors).toBe(1);
+      expect(starts).toBe(0);
+      expect(bus[0]).toMatchObject({ context: { hook: "engine:init" } });
+      expect(seen).toEqual([
+        { from: "idle", to: "starting", reason: "USER" },
+        { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
+      ]);
+    } finally {
+      await engine.stop();
+    }
   });
 
-  it("use and unuse reject in starting, stopping, and faulted", async () => {
+  it("a fatal on the bus during engine:init does not run engine:start", async () => {
     const engine = await createEngine();
-    const methods: string[] = [];
-    engine.hooks.hook("engine:state-change", async () => {
-      if (engine.state !== "starting" && engine.state !== "stopping") return;
-      const error = await engine.use({ name: "late", setup() {} }).then(
-        () => undefined,
-        (caught: unknown) => caught,
-      );
-      if (error instanceof GwenEngineStateError) methods.push(`${engine.state}:${error.method}`);
-    });
-    await engine.startExternal();
-    await engine.use({ name: "ok", setup() {} });
-    await engine.unuse("ok");
-    await engine.stop();
-    await engine.use({ name: "after", setup() {} });
-    expect(engine.state).toBe("stopped");
-    engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
-    expect(engine.state).toBe("stopped");
+    try {
+      const seen = watch(engine);
+      let starts = 0;
+      engine.hooks.hook("engine:init", () => {
+        engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "during init" });
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await engine.startExternal();
+      expect(starts).toBe(0);
+      expect(engine.state).toBe("faulted");
+      expect(seen).toEqual([
+        { from: "idle", to: "starting", reason: "USER" },
+        { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
+      ]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("a trap in plugin setup rejects use, stays idle, and publishes error", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      const levels: string[] = [];
+      engine.errors.on((event) => {
+        levels.push(event.level);
+      });
+      await expect(
+        engine.use({
+          name: "trap",
+          setup() {
+            throw new WebAssembly.RuntimeError("setup trap");
+          },
+        }),
+      ).rejects.toThrow(/setup trap/);
+      expect(engine.state).toBe("idle");
+      expect(seen).toEqual([]);
+      expect(levels).toEqual(["error"]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("use and unuse are legal while starting and reject in stopping and faulted", async () => {
+    const engine = await createEngine();
     const faulted = await createEngine();
-    await faulted.startExternal();
-    faulted.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
-    await expect(faulted.use({ name: "no", setup() {} })).rejects.toMatchObject({
-      from: "faulted",
-      method: "use",
-    });
-    await expect(faulted.unuse("missing")).rejects.toMatchObject({
-      from: "faulted",
-      method: "unuse",
-    });
-    expect(methods).toEqual(["starting:use", "stopping:use"]);
+    try {
+      let setups = 0;
+      const methods: string[] = [];
+      engine.hooks.hook("engine:state-change", async () => {
+        if (engine.state !== "starting" && engine.state !== "stopping") return;
+        const error = await engine
+          .use({
+            name: `late-${engine.state}`,
+            setup() {
+              setups += 1;
+            },
+          })
+          .then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+        if (error instanceof GwenEngineStateError) methods.push(`${engine.state}:${error.method}`);
+      });
+      await engine.startExternal();
+      expect(setups).toBe(1);
+      await engine.use({ name: "ok", setup() {} });
+      await engine.unuse("ok");
+      await engine.stop();
+      await engine.use({ name: "after", setup() {} });
+      expect(engine.state).toBe("stopped");
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
+      expect(engine.state).toBe("stopped");
+      await faulted.startExternal();
+      faulted.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
+      await expect(faulted.use({ name: "no", setup() {} })).rejects.toMatchObject({
+        from: "faulted",
+        method: "use",
+      });
+      await expect(faulted.unuse("missing")).rejects.toMatchObject({
+        from: "faulted",
+        method: "unuse",
+      });
+      expect(methods).toEqual(["stopping:use"]);
+    } finally {
+      await engine.stop();
+      await faulted.stop();
+    }
   });
 
   it("an invalid call does not emit on the error bus", async () => {

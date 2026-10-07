@@ -53,4 +53,11 @@ describe(`${manifest.name} public API`, () => {
       expect(values, subpath).toEqual(snap[subpath]?.values ?? []);
     }
   });
+
+  it("exports GwenEngineStateMethod", () => {
+    const snap = loadSnap();
+    expect(snap["."]?.types ?? []).toContain("GwenEngineStateMethod");
+    const index = readFileSync(path.join(pkgRoot, "src/index.ts"), "utf8");
+    expect(index).toContain("GwenEngineStateMethod");
+  });
 });

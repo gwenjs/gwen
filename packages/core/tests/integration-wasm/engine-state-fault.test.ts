@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CoreErrorCodes, GwenEngineStateError } from "../../src/index.js";
+import { entityIndex } from "../../src/internal.js";
 import { createRealEngine } from "./harness.js";
 
 /** Minimal module: `(func (export "trap") unreachable)`. */
@@ -42,5 +43,32 @@ describe("engine state fault", () => {
     await expect(engine.advance(1 / 60)).rejects.toBeInstanceOf(GwenEngineStateError);
     await engine.stop();
     expect(engine.state).toBe("faulted");
+  });
+
+  it("advance after faulted does not run update_transforms", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const wasm = handle.bridge.engine();
+      await handle.engine.startExternal();
+      const id = handle.engine.createEntity();
+      const index = entityIndex(id);
+      wasm.add_entity_transform(index, 0, 0, 0, 1, 1);
+      wasm.set_entity_local_position(index, 4, 0);
+      await handle.engine.advance(1 / 60);
+      expect(wasm.get_entity_world_x(index)).toBe(4);
+      wasm.set_entity_local_position(index, 9, 0);
+      handle.engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
+      expect(handle.engine.state).toBe("faulted");
+      let caught: unknown;
+      try {
+        await handle.engine.advance(1 / 60);
+      } catch (error) {
+        caught = error;
+      }
+      expect(wasm.get_entity_world_x(index)).toBe(4);
+      expect(caught).toBeInstanceOf(GwenEngineStateError);
+    } finally {
+      await handle.dispose();
+    }
   });
 });
