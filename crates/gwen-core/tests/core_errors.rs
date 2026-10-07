@@ -151,6 +151,51 @@ fn component_type_limit_is_raised_before_any_write() {
     assert_eq!(engine.count_entities(), 1);
 }
 
+/// TS reserves one bit for the transform: 127 user names fit.
+/// 127 user types plus the transform must all accept writes.
+#[test]
+fn transform_fits_beside_127_user_types() {
+    let mut engine = engine(2);
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    for type_id in 1..=127u32 {
+        assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    }
+    assert_eq!(
+        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
+        Ok(true)
+    );
+    assert_eq!(
+        engine.get_component_raw(0, 0, TRANSFORM_SAB_TYPE_ID),
+        vec![7, 7, 7, 7]
+    );
+    assert_eq!(engine.get_component_raw(0, 0, 127), vec![1, 2, 3, 4]);
+}
+
+/// Without the reserve, a 128th user type leaves no bit for the transform.
+#[test]
+fn transform_is_refused_after_128_user_types() {
+    let mut engine = engine(2);
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    for type_id in 1..=128u32 {
+        assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    }
+    assert_eq!(
+        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
+        Err(CoreError::ComponentTypeLimitReached { max: 128 })
+    );
+    assert_eq!(engine.has_component(0, 0, TRANSFORM_SAB_TYPE_ID), false);
+}
+
 #[test]
 fn invalid_parent_leaves_the_hierarchy_unchanged() {
     let mut engine = engine(8);
