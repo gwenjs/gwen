@@ -97,7 +97,7 @@ describe("sensor callbacks survive the other entity", () => {
       const idB = engine.run(() => Actor._plugin.spawn());
       const sensor = {
         physics: {
-          bodyType: "static" as const,
+          bodyType: "fixed" as const,
           colliders: [{ shape: "box" as const, hw: 0.5, hh: 0.5, isSensor: true, colliderId: 0 }],
         },
       };
@@ -131,7 +131,7 @@ describe("sensor callbacks survive the other entity", () => {
       const idA = engine.run(() => Actor._plugin.spawn());
       const idB = engine.run(() => Actor._plugin.spawn());
       const body = (id: EntityId): void => {
-        physics.createBody(id, { kind: "static", initialPosition: { x: 0, y: 0, z: 0 } });
+        physics.createBody(id, { kind: "fixed", initialPosition: { x: 0, y: 0, z: 0 } });
         physics.addCollider(id, {
           colliderId: 0,
           isSensor: true,
@@ -167,7 +167,7 @@ describe("sensor callbacks survive the other entity", () => {
       const idA = engine.run(() => Actor._plugin.spawn());
       const sensor = {
         physics: {
-          bodyType: "static" as const,
+          bodyType: "fixed" as const,
           colliders: [{ shape: "box" as const, hw: 0.5, hh: 0.5, isSensor: true, colliderId: 0 }],
         },
       };
@@ -202,7 +202,7 @@ describe("sensor callbacks survive the other entity", () => {
       });
       await engine.use(Actor._plugin);
       const idA = engine.run(() => Actor._plugin.spawn());
-      physics.createBody(idA, { kind: "static", initialPosition: { x: 0, y: 0, z: 0 } });
+      physics.createBody(idA, { kind: "fixed", initialPosition: { x: 0, y: 0, z: 0 } });
       physics.addCollider(idA, {
         colliderId: 0,
         isSensor: true,
