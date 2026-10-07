@@ -228,6 +228,27 @@ describe("two engines", () => {
     }
   });
 
+  it("runs a PublicAPI method called through a useActor handle on the handle's engine", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({
+      engineSeen: (): GwenEngine => useEngine(),
+    }));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handle = a.run(() => useActor(Actor));
+      handle.spawn();
+      const engineOfA = a.run(() => useEngine());
+      const engineOfB = b.run(() => useEngine());
+      expect(engineOfA).not.toBe(engineOfB);
+      const seen = b.run(() => handle.engineSeen());
+      expect(seen).toBe(engineOfA);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
   it("does not cross actor registries when two engines reuse a slot", async () => {
     const [a, b] = await twoEngines();
     const Actor = defineActor(Prefab, () => ({}));
