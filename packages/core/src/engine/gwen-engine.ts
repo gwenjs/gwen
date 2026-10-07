@@ -314,10 +314,10 @@ class GwenEngineImpl implements GwenEngine {
     );
   }
 
-  /** `use` / `unuse` reject in `stopping` and `faulted`. They stay legal in `starting`. */
+  /** `use` / `unuse` are legal in `idle`, `running` and `stopped` (#72 amendment to #107). */
   private _assertPluginCall(method: "use" | "unuse"): void {
     const state = this._state;
-    if (state === "idle" || state === "starting" || state === "running" || state === "stopped") {
+    if (state === "idle" || state === "running" || state === "stopped") {
       return;
     }
     throw new GwenEngineStateError(state, method);
