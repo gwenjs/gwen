@@ -3,8 +3,10 @@
 # and require each NEW test name to fail there. A name is the describe path
 # plus the title. A name that already exists in the base copy of the same file
 # may pass (KEEP, with a warning). A dynamic title (template with ${}, it.each
-# placeholder, variable) is matched as a pattern and kept with a warning when
-# it passes. A NEW literal name that the runner never reports fails the check.
+# placeholder, variable) is matched as a pattern; it may pass only when the
+# base copy has the same title. A NEW name that the runner never reports, and a
+# passing runner name that matches no source name (renamed or aliased runner,
+# test.extend), fail the check. A file with no new name prints KEEP-ONLY.
 # A file with no describe/it/test call (tests built by a helper) is skipped
 # with a warning. Those are the limits of this check.
 #
@@ -109,6 +111,7 @@ installed=0
 head_installed=0
 not_red=0
 skipped=0
+keep_only=0
 
 package_dir() {
   local rel="$1"
@@ -258,6 +261,12 @@ apply_judge() {
 $judge_out
 JUDGE_LINES
   if [ "$judge_code" -eq 0 ]; then
+    # No new name: nothing was proven red, every name was only kept.
+    if [ "$has_new" -eq 0 ]; then
+      echo "verify-red: KEEP-ONLY $rel (no new test name)"
+      keep_only=$((keep_only + 1))
+      return 0
+    fi
     echo "verify-red: RED $rel"
     return 0
   fi
@@ -361,6 +370,11 @@ if [ "$not_red" -ne 0 ]; then
 fi
 if [ "$skipped" -ne 0 ]; then
   echo "verify-red: $skipped group(s) were not verifiable and were not counted red"
+fi
+if [ "$keep_only" -ne 0 ]; then
+  echo "verify-red: $keep_only group(s) had no new test name (KEEP-ONLY)"
+  echo 'verify-red: every checked group with a new test name failed on the base'
+  exit 0
 fi
 echo 'verify-red: every checked test group failed on the base'
 exit 0

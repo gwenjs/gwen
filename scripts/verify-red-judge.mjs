@@ -4,7 +4,8 @@
  *
  * A name is the describe path plus the test title, joined with ` > `.
  * A title that is not a literal (template with `${}`, `it.each` placeholder,
- * variable) is dynamic: it is matched as a pattern and never blocks alone.
+ * variable) is dynamic: it is matched as a pattern. It may pass only when the
+ * base copy of the file has the same title.
  *
  * is-vitest --source <file>
  *   Exit 0 when the file imports vitest at the top level, 1 otherwise.
@@ -20,9 +21,10 @@
  *   as failed on the base; a file that does not load on the head either exits 2.
  *   Exit 1 when such a name passed, was skipped, or is absent from the report.
  *   Exit 2 when the report has no tests.
- *   A name present in the base copy may pass (`KEEP`). A dynamic name that
- *   passes is kept with a warning. A runner name that matches no source name
- *   prints `WARN` and does not block.
+ *   A name present in the base copy may pass (`KEEP`), a dynamic one too. A
+ *   new dynamic name follows the rule of a new literal one. A runner name that
+ *   matches no source name (renamed or aliased runner, `test.extend`) blocks
+ *   when it passes; when it fails it prints `WARN` and does not block.
  */
 
 import { readFileSync } from 'node:fs';
@@ -270,15 +272,16 @@ const TABLE_MODIFIERS = new Set(['each', 'for']);
 const CALL_MODIFIERS = new Set(['each', 'for', 'skipIf', 'runIf']);
 
 /**
- * Turn an `it.each` title into a segment. `%s`, `%i`, `$name` … are dynamic.
+ * Turn an `it.each` / `test.for` title into a segment. `%s`, `%i`, `$name`,
+ * `$0` … are dynamic.
  *
  * @param {string} title
  * @returns {Segment}
  */
 function tableSegment(title) {
-  const placeholder = /%[sdifjoOc#$]|\$[A-Za-z_][\w.]*/g;
+  const placeholder = /%[sdifjoOc#$]|\$[A-Za-z_][\w.]*|\$\d+/;
   if (!placeholder.test(title)) return { text: title, pattern: null };
-  const parts = title.split(/%[sdifjoOc#$]|\$[A-Za-z_][\w.]*/);
+  const parts = title.split(/%[sdifjoOc#$]|\$[A-Za-z_][\w.]*|\$\d+/);
   const body = parts.map((part) => escapeRegExp(part.replace(/%%/g, '%'))).join('[\\s\\S]*?');
   return { text: title, pattern: new RegExp(`^${body}$`) };
 }
@@ -413,6 +416,11 @@ function scanJs(src) {
             break;
           }
           j += modifier.length;
+          // `test.extend({...})` builds a runner, it is not a test.
+          if (modifier === 'extend') {
+            ok = false;
+            break;
+          }
           if (CALL_MODIFIERS.has(modifier)) {
             j = skipSpace(src, j);
             if (src[j] !== '(') {
@@ -750,6 +758,7 @@ const suffix = baseLoadError ? ` (base load error: ${baseLoadError})` : '';
 
 /** @type {Map<Entry, Status[]>} */
 const statuses = new Map();
+let unplacedPassed = false;
 for (const result of parsed) {
   const entry = matchEntry(result.path, allEntries);
   if (entry?.kind === 'suite') continue;
@@ -758,7 +767,14 @@ for (const result of parsed) {
       (other) =>
         other.path.length > result.path.length && result.path.every((title, k) => other.path[k] === title),
     );
-    if (!isParent) console.log(`WARN runner name not in source: ${result.path.join(' > ')}`);
+    if (isParent) continue;
+    // A renamed or aliased runner (`import { test as check }`, `const t = test`,
+    // `test.extend`) hides its names from the scan: a passing one blocks.
+    if (result.status === 'fail') console.log(`WARN runner name not in source: ${result.path.join(' > ')}`);
+    else {
+      console.log(`PASS ${result.path.join(' > ')} (runner name not in source)`);
+      unplacedPassed = true;
+    }
     continue;
   }
   const list = statuses.get(entry) ?? [];
@@ -773,7 +789,6 @@ for (const entry of sourceTests) {
   const allFailed = list.length > 0 && list.every((status) => status === 'fail');
   if (list.length === 0) {
     if (!isNew) console.log(`KEEP ${entry.name} (not run)`);
-    else if (entry.dynamic) console.log(`KEEP ${entry.name} (dynamic name, not run)`);
     else {
       console.log(`ABSENT ${entry.name}`);
       blocking = true;
@@ -788,11 +803,7 @@ for (const entry of sourceTests) {
     console.log(`KEEP ${entry.name}`);
     continue;
   }
-  if (entry.dynamic) {
-    console.log(`KEEP ${entry.name} (dynamic name, ${list.filter((s) => s !== 'fail').length} of ${list.length} did not fail)`);
-    continue;
-  }
   console.log(`PASS ${entry.name}`);
   blocking = true;
 }
-process.exit(blocking ? 1 : 0);
+process.exit(blocking || unplacedPassed ? 1 : 0);
