@@ -348,7 +348,6 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           "@gwenjs/physics3d",
           "physics3d:collision",
           ctx._engine.hooks.callHook("physics3d:collision", contacts),
-          { kind: "plugin", id: "@gwenjs/physics3d", name: "@gwenjs/physics3d" },
         );
 
         // Dispatch to composable onContact() callbacks
@@ -387,7 +386,6 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
                 "@gwenjs/physics3d",
                 "physics3d:sensor:changed",
                 ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next),
-                { kind: "plugin", id: "@gwenjs/physics3d", name: "@gwenjs/physics3d" },
               );
               if (newActive) {
                 _dispatchSensorEnter(colliderId, eid);

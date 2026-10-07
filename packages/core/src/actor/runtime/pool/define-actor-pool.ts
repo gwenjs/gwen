@@ -1,7 +1,7 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
 import type { GwenEngine, GwenPlugin } from "../../../engine/gwen-engine";
-import type { GwenEngineBase, GwenErrorTarget } from "@gwenjs/schema";
+import type { GwenEngineBase } from "@gwenjs/schema";
 import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
@@ -100,7 +100,6 @@ export function defineActorPool<Props, PublicAPI>(
   const { size, warnThreshold = 0.8, criticalThreshold = 0.95 } = options;
   const actorName = actor.__actorName__;
   const hookSource = `pool:${actorName}`;
-  const poolTarget: GwenErrorTarget = { kind: "actor", id: actorName, name: actorName };
 
   // The engine reference is set in setup() and is guaranteed to be non-null
   // for any call that reaches acquire() or release() after plugin installation.
@@ -168,7 +167,6 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:acquire",
       _hooks.callHook("pool:acquire", { id, props }),
-      poolTarget,
     );
   }
 
@@ -179,19 +177,12 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:release",
       _hooks.callHook("pool:release", { id }),
-      poolTarget,
     );
   }
 
   function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
     if (hookCount[name] === 0 && spyCount === 0) return;
-    reportRejectedHook(
-      _engine,
-      hookSource,
-      name,
-      _hooks.callHook(name, { active, size, ratio }),
-      poolTarget,
-    );
+    reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
   }
 
   function callExhausted(): void {
@@ -201,7 +192,6 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:exhausted",
       _hooks.callHook("pool:exhausted", { size }),
-      poolTarget,
     );
   }
 

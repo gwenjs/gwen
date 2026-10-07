@@ -2,10 +2,11 @@
  * Attach a rejection handler to a fire-and-forget `callHook` result.
  *
  * A sync return is ignored. A rejected promise is published once on the
- * error bus. `target` is set only when the caller knows the owner.
+ * error bus, at level `error`, with no `target`: a rejected `callHook` does
+ * not say which listener failed, so nothing is isolated (#55 attribution
+ * invariant).
  */
 
-import type { GwenErrorTarget } from "@gwenjs/schema";
 import { CoreErrorCodes } from "../engine/engine-errors.js";
 import { isThenable } from "../engine/error-isolation.js";
 
@@ -18,7 +19,6 @@ interface RejectedHookHost {
       source?: string;
       error?: unknown;
       context?: Record<string, unknown>;
-      target?: GwenErrorTarget;
     }): void;
   };
   frameCount: number;
@@ -29,7 +29,6 @@ export function reportRejectedHook(
   source: string,
   hook: string,
   result: unknown,
-  target?: GwenErrorTarget,
 ): void {
   if (engine === null || !isThenable(result)) return;
   void Promise.resolve(result).catch((error: unknown) => {
@@ -41,7 +40,6 @@ export function reportRejectedHook(
       source,
       error,
       context: { frame: engine.frameCount, hook },
-      ...(target !== undefined ? { target } : {}),
     });
   });
 }

@@ -152,7 +152,6 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
           `scene:${fromName}`,
           "scene:leave",
           engine.hooks.callHook("scene:leave", fromName),
-          { kind: "scene", id: fromName, name: fromName },
         );
 
         overlayStack.pop();
@@ -175,7 +174,6 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
           `scene:${fromName}`,
           "scene:leave",
           engine.hooks.callHook("scene:leave", fromName),
-          { kind: "scene", id: fromName, name: fromName },
         );
       }
 

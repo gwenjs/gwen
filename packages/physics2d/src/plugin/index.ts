@@ -664,7 +664,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
               "@gwenjs/physics2d",
               "physics:collision:batch",
               currentEngine?.hooks.callHook("physics:collision:batch", batch),
-              { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
             );
 
           const internalEvents = batch.events;
@@ -697,7 +696,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
                     item.id,
                     nextState,
                   ),
-                  { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
                 );
             }
           }
@@ -709,7 +707,6 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             "@gwenjs/physics2d",
             "physics:collision",
             currentEngine?.hooks.callHook("physics:collision", contacts),
-            { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
           );
           for (const contact of contacts) {
             const slotA = entityIndex(contact.entityA);
