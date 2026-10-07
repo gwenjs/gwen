@@ -122,6 +122,27 @@ describe("onSensorEnter and onSensorExit independence", () => {
     expect(enterFired).toBe(false);
   });
 
+  it("returns an unsubscribe that removes only that enter callback", () => {
+    const hits: string[] = [];
+    const off = onSensorEnter(11, () => hits.push("first"));
+    onSensorEnter(11, () => hits.push("second"));
+    expect(typeof off).toBe("function");
+    off();
+    off();
+    _dispatchSensorEnter(11, 1n);
+    expect(hits).toEqual(["second"]);
+  });
+
+  it("returns an unsubscribe that removes only that exit callback", () => {
+    const hits: string[] = [];
+    const off = onSensorExit(12, () => hits.push("first"));
+    onSensorExit(12, () => hits.push("second"));
+    expect(typeof off).toBe("function");
+    off();
+    _dispatchSensorExit(12, 1n);
+    expect(hits).toEqual(["second"]);
+  });
+
   it("_clearSensorCallbacks removes enter/exit callbacks", () => {
     let enterCalled = false;
     onSensorEnter(10, () => {
