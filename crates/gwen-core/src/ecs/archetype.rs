@@ -83,11 +83,16 @@ impl ArchetypeColumn {
             } else {
                 self.data.splice(start..old_end, data.iter().copied());
                 self.offsets[row] = (start, new_len);
-                // Shift subsequent offsets
-                for offset in &mut self.offsets[(row + 1)..] {
+                // swap_remove copies the last offset into the hole, so later
+                // rows are not later in the byte buffer. Shift every other
+                // blob that starts at or after the edited end.
+                for (index, offset) in self.offsets.iter_mut().enumerate() {
+                    if index == row || offset.0 < old_end {
+                        continue;
+                    }
                     if new_len > old_len {
                         offset.0 += new_len - old_len;
-                    } else {
+                    } else if offset.0 >= old_len - new_len {
                         offset.0 -= old_len - new_len;
                     }
                 }
