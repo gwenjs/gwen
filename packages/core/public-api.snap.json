@@ -271,6 +271,7 @@
       "TweenPlugin",
       "TweenPool",
       "WasmBridgeImpl",
+      "_getActorContext",
       "_getActorEntityId",
       "buildTransformImports",
       "createDisposable",
