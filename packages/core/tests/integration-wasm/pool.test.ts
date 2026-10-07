@@ -22,6 +22,7 @@ function activeIds(engine: {
 describe("real WASM actor pool", () => {
   it("acquire is alive, a flushed release leaves queries, and overflow throws", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 32 });
+    let stateAfterDispose = "";
     try {
       const { engine } = handle;
       const prefab = definePrefab([{ def: Marker, defaults: { v: 1 } }]);
@@ -47,7 +48,8 @@ describe("real WASM actor pool", () => {
       expect(() => pool.acquire()).toThrow(PoolExhaustedError);
     } finally {
       await handle.dispose();
-      expect(handle.engine.state).toBe("stopped");
+      stateAfterDispose = handle.engine.state;
     }
+    expect(stateAfterDispose).toBe("stopped");
   });
 });
