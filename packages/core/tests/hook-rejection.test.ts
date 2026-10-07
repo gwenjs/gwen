@@ -42,6 +42,7 @@ describe("rejected hook calls", () => {
         message: "pool hook failed",
         source: `pool:${pool.actorName}`,
         context: { hook: "pool:acquire", frame: engine.frameCount },
+        target: { kind: "actor", id: pool.actorName, name: pool.actorName },
       });
     } finally {
       process.off("unhandledRejection", onUnhandled);

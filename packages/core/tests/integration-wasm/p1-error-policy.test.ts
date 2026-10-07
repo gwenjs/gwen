@@ -170,6 +170,8 @@ describe("P1 error policy (real WASM)", () => {
       expect(events.find((event) => event.message === "collision hook failed")).toMatchObject({
         level: "error",
         code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+        source: "@gwenjs/physics2d",
+        target: { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
       });
     } finally {
       process.off("unhandledRejection", onUnhandled);
