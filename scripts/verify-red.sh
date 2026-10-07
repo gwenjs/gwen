@@ -179,6 +179,10 @@ EOF
         echo "verify-red: NOT RED $rel :: ${line#PASS }"
         printed=1
         ;;
+      ABSENT\ *)
+        echo "verify-red: NOT RED $rel :: ${line#ABSENT } (new name not run)"
+        printed=1
+        ;;
     esac
   done <<EOF
 $judge_out

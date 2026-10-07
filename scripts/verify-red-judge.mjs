@@ -10,7 +10,7 @@
  *
  * judge --source <head> [--base <base copy>] --format tap|vitest|cargo --report <file>
  *   Exit 0 when every name that is absent from the base copy failed.
- *   Exit 1 when such a name passed or was skipped.
+ *   Exit 1 when such a name passed, was skipped, or is absent from the report.
  *   Exit 2 when the report has no tests, or a runner name is not in the source.
  *   A name present in the base copy may pass (`KEEP`).
  */
@@ -206,9 +206,12 @@ const parsed =
 if (!parsed || parsed.length === 0) failClosed('no test results');
 
 let blocking = false;
+/** @type {Set<string>} */
+const reported = new Set();
 for (const result of parsed) {
   const sourceName = matchSource(result.name, sourceNames);
   if (!sourceName) failClosed(`runner name not in source: ${result.name}`);
+  reported.add(sourceName);
   const isNew = !baseNames.has(sourceName);
   if (!isNew) {
     console.log(`${result.status === 'fail' ? 'FAIL' : 'KEEP'} ${sourceName}`);
@@ -219,6 +222,11 @@ for (const result of parsed) {
     continue;
   }
   console.log(`PASS ${sourceName}`);
+  blocking = true;
+}
+for (const name of sourceNames) {
+  if (baseNames.has(name) || reported.has(name)) continue;
+  console.log(`ABSENT ${name}`);
   blocking = true;
 }
 process.exit(blocking ? 1 : 0);
