@@ -1,14 +1,15 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
 import type { GwenEngine, GwenPlugin } from "../../../engine/gwen-engine";
-import type { GwenEngineBase } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenErrorTarget } from "@gwenjs/schema";
 import type { ActorDefinition } from "../types";
 import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
-import { ActorErrorCodes, CoreErrorCodes, GwenActorError } from "../../../engine/engine-errors";
+import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
+import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 
 /**
  * Manages the queue of actor pool slots scheduled for deferred release.
@@ -92,47 +93,6 @@ class DeferredReleaseQueue {
  * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
 
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof value.then === "function"
-  );
-}
-
-function reportRejectedHook(
-  engine: {
-    errors: {
-      emit(payload: {
-        level: "error";
-        code: string;
-        message: string;
-        source: string;
-        error: unknown;
-        context: { frame: number; hook: string };
-      }): void;
-    };
-    frameCount: number;
-  } | null,
-  source: string,
-  hook: string,
-  result: unknown,
-): void {
-  if (engine === null || !isThenable(result)) return;
-  void Promise.resolve(result).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    engine.errors.emit({
-      level: "error",
-      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message,
-      source,
-      error,
-      context: { frame: engine.frameCount, hook },
-    });
-  });
-}
-
 export function defineActorPool<Props, PublicAPI>(
   actor: ActorDefinition<Props, PublicAPI>,
   options: PoolOptions,
@@ -140,6 +100,7 @@ export function defineActorPool<Props, PublicAPI>(
   const { size, warnThreshold = 0.8, criticalThreshold = 0.95 } = options;
   const actorName = actor.__actorName__;
   const hookSource = `pool:${actorName}`;
+  const poolTarget: GwenErrorTarget = { kind: "actor", id: actorName, name: actorName };
 
   // The engine reference is set in setup() and is guaranteed to be non-null
   // for any call that reaches acquire() or release() after plugin installation.
@@ -207,6 +168,7 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:acquire",
       _hooks.callHook("pool:acquire", { id, props }),
+      poolTarget,
     );
   }
 
@@ -217,12 +179,19 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:release",
       _hooks.callHook("pool:release", { id }),
+      poolTarget,
     );
   }
 
   function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
     if (hookCount[name] === 0 && spyCount === 0) return;
-    reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      name,
+      _hooks.callHook(name, { active, size, ratio }),
+      poolTarget,
+    );
   }
 
   function callExhausted(): void {
@@ -232,6 +201,7 @@ export function defineActorPool<Props, PublicAPI>(
       hookSource,
       "pool:exhausted",
       _hooks.callHook("pool:exhausted", { size }),
+      poolTarget,
     );
   }
 

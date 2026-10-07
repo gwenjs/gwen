@@ -8,6 +8,7 @@
 
 import { useEngine } from "../engine/context";
 import type { GwenRuntimeHooks } from "../engine/runtime-hooks";
+import { reportRejectedHook } from "./report-rejected-hook.js";
 
 /**
  * Emits a named event via the engine's hookable system.
@@ -50,5 +51,5 @@ export function emit<K extends keyof GwenRuntimeHooks>(
   ...args: Parameters<GwenRuntimeHooks[K]>
 ): void {
   const engine = useEngine();
-  engine.hooks.callHook(name, ...args);
+  reportRejectedHook(engine, "emit", String(name), engine.hooks.callHook(name, ...args));
 }

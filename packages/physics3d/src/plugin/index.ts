@@ -1,6 +1,5 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { getWasmBridge } from "@gwenjs/core/internal";
-import { CoreErrorCodes } from "@gwenjs/core";
+import { getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 
 import type {
@@ -78,48 +77,6 @@ import { Physics3DErrorCodes } from "../errors/codes";
  * core WASM. Falls back to a deterministic TypeScript simulation when the WASM
  * physics3d variant is not loaded (e.g. during tests).
  */
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof value.then === "function"
-  );
-}
-
-function reportRejectedHook(
-  engine: {
-    errors: {
-      emit(payload: {
-        level: "error";
-        code: string;
-        message: string;
-        source: string;
-        error: unknown;
-        context: { frame: number; hook: string };
-      }): void;
-    };
-    frameCount: number;
-  } | null,
-  source: string,
-  hook: string,
-  result: unknown,
-): void {
-  if (engine === null || !isThenable(result)) return;
-  void Promise.resolve(result).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    engine.errors.emit({
-      level: "error",
-      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message,
-      source,
-      error,
-      context: { frame: engine.frameCount, hook },
-    });
-  });
-}
-
 export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
   const cfg = normalizePhysics3DConfig(config);
   const layerRegistry = buildLayerRegistry(cfg.layers);
@@ -391,6 +348,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
           "@gwenjs/physics3d",
           "physics3d:collision",
           ctx._engine.hooks.callHook("physics3d:collision", contacts),
+          { kind: "plugin", id: "@gwenjs/physics3d", name: "@gwenjs/physics3d" },
         );
 
         // Dispatch to composable onContact() callbacks
@@ -429,6 +387,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
                 "@gwenjs/physics3d",
                 "physics3d:sensor:changed",
                 ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next),
+                { kind: "plugin", id: "@gwenjs/physics3d", name: "@gwenjs/physics3d" },
               );
               if (newActive) {
                 _dispatchSensorEnter(colliderId, eid);

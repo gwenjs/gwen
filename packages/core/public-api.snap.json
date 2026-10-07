@@ -278,6 +278,7 @@
       "readTransform3DPosition",
       "readTransform3DRotation",
       "readTransform3DScale",
+      "reportRejectedHook",
       "writeTransform3DPosition",
       "writeTransform3DRotation",
       "writeTransform3DScale"

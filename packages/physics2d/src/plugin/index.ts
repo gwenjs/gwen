@@ -5,8 +5,8 @@
  */
 
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { CoreErrorCodes, createLogger, createEntityId } from "@gwenjs/core";
-import { entityIndex, getWasmBridge } from "@gwenjs/core/internal";
+import { createLogger, createEntityId } from "@gwenjs/core";
+import { entityIndex, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import type { GwenEngine, EntityId, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
 
@@ -101,48 +101,6 @@ function processSensorId(
 /**
  * GWEN plugin providing 2D rigid-body physics via Rapier2D integrated in the core WASM.
  */
-
-function isThenable(value: unknown): value is PromiseLike<unknown> {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "then" in value &&
-    typeof value.then === "function"
-  );
-}
-
-function reportRejectedHook(
-  engine: {
-    errors: {
-      emit(payload: {
-        level: "error";
-        code: string;
-        message: string;
-        source: string;
-        error: unknown;
-        context: { frame: number; hook: string };
-      }): void;
-    };
-    frameCount: number;
-  } | null,
-  source: string,
-  hook: string,
-  result: unknown,
-): void {
-  if (engine === null || !isThenable(result)) return;
-  void Promise.resolve(result).catch((error: unknown) => {
-    const message = error instanceof Error ? error.message : String(error);
-    engine.errors.emit({
-      level: "error",
-      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message,
-      source,
-      error,
-      context: { frame: engine.frameCount, hook },
-    });
-  });
-}
-
 export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
   const cfg = normalizeConfig(config);
   const layerRegistry = new LayerRegistry(cfg.layers);
@@ -706,6 +664,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
               "@gwenjs/physics2d",
               "physics:collision:batch",
               currentEngine?.hooks.callHook("physics:collision:batch", batch),
+              { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
             );
 
           const internalEvents = batch.events;
@@ -738,6 +697,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
                     item.id,
                     nextState,
                   ),
+                  { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
                 );
             }
           }
@@ -749,6 +709,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             "@gwenjs/physics2d",
             "physics:collision",
             currentEngine?.hooks.callHook("physics:collision", contacts),
+            { kind: "plugin", id: "@gwenjs/physics2d", name: "@gwenjs/physics2d" },
           );
           for (const contact of contacts) {
             const slotA = entityIndex(contact.entityA);

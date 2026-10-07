@@ -6,6 +6,7 @@
 export { entityIndex } from "./types";
 
 export { createGwenHooks } from "./hooks";
+export { reportRejectedHook } from "./hooks/report-rejected-hook";
 
 export { engineContext, executeAsync } from "./engine/context";
 
