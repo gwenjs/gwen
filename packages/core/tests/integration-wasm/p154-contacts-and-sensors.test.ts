@@ -154,4 +154,76 @@ describe("sensor callbacks survive the other entity", () => {
       await stop(handle);
     }
   });
+
+  it("removes the 2d callback of the destroyed entity", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    try {
+      const { engine } = handle;
+      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      const hits = new Map<EntityId, number>();
+      const Actor = defineActor(Prefab, () => {
+        const id = useEntityId();
+        onSensorEnter2d(0, () => {
+          hits.set(id, (hits.get(id) ?? 0) + 1);
+        });
+      });
+      await engine.use(Actor._plugin);
+      const idA = engine.run(() => Actor._plugin.spawn());
+      const sensor = {
+        physics: {
+          bodyType: "static" as const,
+          colliders: [{ shape: "box" as const, hw: 0.5, hh: 0.5, isSensor: true, colliderId: 0 }],
+        },
+      };
+      await engine.hooks.callHook("prefab:instantiate", idA, sensor);
+      engine.run(() => {
+        dispatchSensor2d(0, idA);
+      });
+      const before = hits.get(idA) ?? 0;
+      engine.destroyEntity(idA);
+      engine.run(() => {
+        dispatchSensor2d(0, idA);
+      });
+      expect(before).toBe(1);
+      expect(hits.get(idA) ?? 0).toBe(1);
+    } finally {
+      await stop(handle);
+    }
+  });
+
+  it("removes the 3d callback of the destroyed entity", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    try {
+      const { engine } = handle;
+      await engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+      const physics = engine.inject("physics3d");
+      const hits = new Map<EntityId, number>();
+      const Actor = defineActor(Prefab, () => {
+        const id = useEntityId();
+        onSensorEnter3d(0, () => {
+          hits.set(id, (hits.get(id) ?? 0) + 1);
+        });
+      });
+      await engine.use(Actor._plugin);
+      const idA = engine.run(() => Actor._plugin.spawn());
+      physics.createBody(idA, { kind: "static", initialPosition: { x: 0, y: 0, z: 0 } });
+      physics.addCollider(idA, {
+        colliderId: 0,
+        isSensor: true,
+        shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+      });
+      engine.run(() => {
+        dispatchSensor3d(0, idA);
+      });
+      const before = hits.get(idA) ?? 0;
+      engine.destroyEntity(idA);
+      engine.run(() => {
+        dispatchSensor3d(0, idA);
+      });
+      expect(before).toBe(1);
+      expect(hits.get(idA) ?? 0).toBe(1);
+    } finally {
+      await stop(handle);
+    }
+  });
 });
