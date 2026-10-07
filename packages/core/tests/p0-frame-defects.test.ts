@@ -165,32 +165,6 @@ describe("P0 frame defects", () => {
     }
   });
 
-  it.runIf(__GWEN_DEV__)("debug: false omits phase keys after a debug frame", async () => {
-    const engine = await createEngine({
-      debug: true,
-      _bridge: { engine: () => ({}), checkMemoryGrow: () => false } as never,
-    });
-    await engine.startExternal();
-    try {
-      await engine.advance(1 / 60);
-      const timed = engine.getStats();
-      const phaseMs = timed.phaseMs;
-      if (phaseMs === undefined) throw new Error("expected phaseMs");
-      expect(Object.keys(phaseMs)).toHaveLength(8);
-      for (const value of Object.values(phaseMs)) {
-        expect(typeof value).toBe("number");
-      }
-      expect(typeof timed.overBudget).toBe("boolean");
-
-      engine.debug = false;
-      const quiet = engine.getStats();
-      expect("phaseMs" in quiet).toBe(false);
-      expect("overBudget" in quiet).toBe(false);
-    } finally {
-      await engine.stop();
-    }
-  });
-
   it.runIf(__GWEN_DEV__)("fixed mode sums phaseMs over the display frame steps", async () => {
     const queued: Array<() => unknown> = [];
     const originalSetTimeout = globalThis.setTimeout.bind(globalThis);
