@@ -41,7 +41,6 @@ describe("transform region before the bridge is active", () => {
       Promise.resolve(new Response(WASM_WITH_MEMORY, { status: 200 })),
     );
     const bridge = new WasmBridgeImpl();
-    vi.spyOn(bridge, "isActive").mockImplementation(() => false);
     const engine = await createEngine({ maxEntities: MAX_ENTITIES, _bridge: bridge });
     let caught: unknown;
     try {
