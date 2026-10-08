@@ -95,6 +95,13 @@ pub struct Engine {
     physics3d_world: Option<PhysicsWorld3D>,
 }
 
+fn bulk_len_u32(len: usize) -> u32 {
+    match u32::try_from(len) {
+        Ok(value) => value,
+        Err(_) => u32::MAX,
+    }
+}
+
 #[wasm_bindgen]
 impl Engine {
     /// Create a new engine instance.
@@ -387,7 +394,9 @@ impl Engine {
     /// ```text
     /// [ entity_0_bytes | entity_1_bytes | … | entity_N_bytes ]
     /// ```
-    /// The stride (bytes per entity) is derived as `data.len() / slots.len()`.
+    /// `slots` and `gens` must have the same length. `data` must be exactly
+    /// `slots.len() × stride` bytes. `stride` is the size already stored for
+    /// this type, or `data.len() / slots.len()` when the type is new.
     /// Dead or unknown entities are silently skipped.
     ///
     /// # Arguments
@@ -400,6 +409,10 @@ impl Engine {
     ///
     /// # Errors
     ///
+    /// Returns [`CoreError::BufferLengthMismatch`] before any write when
+    /// `gens` differs in length from `slots`, or when `data` is not
+    /// `slots.len() × stride` bytes. The message names the buffer, the
+    /// expected length, and the actual length.
     /// Returns [`CoreError::ComponentTypeLimitReached`] before any write when
     /// this call would introduce the 129th distinct component type.
     /// Dead entities are skipped.
@@ -410,18 +423,71 @@ impl Engine {
         component_type_id: u32,
         data: &[u8],
     ) -> Result<(), CoreError> {
-        let n = slots.len().min(gens.len());
-        if n == 0 || data.is_empty() {
-            return Ok(());
+        if slots.len() != gens.len() {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "gens",
+                expected: bulk_len_u32(slots.len()),
+                actual: bulk_len_u32(gens.len()),
+            });
         }
 
-        // Infer per-entity stride from the total data length.
-        let comp_size = data.len() / n;
-        if comp_size == 0 {
+        let n = slots.len();
+        if n == 0 {
             return Ok(());
         }
 
         let type_id = ComponentTypeId::from_raw(component_type_id);
+        let known_stride = (0..n).find_map(|i| {
+            if !self
+                .entity_manager
+                .is_alive(EntityId::from_parts(slots[i], gens[i]))
+            {
+                return None;
+            }
+            self.storage
+                .get_component(slots[i], type_id)
+                .map(|bytes| bytes.len())
+        });
+
+        let comp_size = match known_stride {
+            Some(size) => {
+                let expected_len = match n.checked_mul(size) {
+                    Some(len) => len,
+                    None => {
+                        return Err(CoreError::BufferLengthMismatch {
+                            buffer: "data",
+                            expected: u32::MAX,
+                            actual: bulk_len_u32(data.len()),
+                        });
+                    }
+                };
+                if data.len() != expected_len {
+                    return Err(CoreError::BufferLengthMismatch {
+                        buffer: "data",
+                        expected: bulk_len_u32(expected_len),
+                        actual: bulk_len_u32(data.len()),
+                    });
+                }
+                size
+            }
+            None => {
+                if data.is_empty() || !data.len().is_multiple_of(n) {
+                    let aligned = data.len() / n * n;
+                    let expected = if aligned == 0 { n } else { aligned };
+                    return Err(CoreError::BufferLengthMismatch {
+                        buffer: "data",
+                        expected: bulk_len_u32(expected),
+                        actual: bulk_len_u32(data.len()),
+                    });
+                }
+                data.len() / n
+            }
+        };
+
+        if comp_size == 0 {
+            return Ok(());
+        }
+
         let will_write = (0..n).any(|i| {
             self.entity_manager
                 .is_alive(EntityId::from_parts(slots[i], gens[i]))
@@ -443,10 +509,6 @@ impl Engine {
 
             let src_start = i * comp_size;
             let src_end = src_start + comp_size;
-            if src_end > data.len() {
-                break;
-            }
-
             let slice = &data[src_start..src_end];
             if let Some(migration) = self.storage.upsert_js(slot, type_id, slice)? {
                 if let Some(from) = migration.from {
@@ -3193,6 +3255,11 @@ impl Engine {
     /// * `write_type_id`  – Component type ID to write.
     /// * `data`           – Packed component bytes; total length must equal
     ///   `slots.len() × component_size_bytes`.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`Engine::set_components_bulk`]: [`CoreError::BufferLengthMismatch`]
+    /// when `gens` or `data` has the wrong length, before any write.
     ///
     /// # Performance
     /// One WASM boundary crossing regardless of entity count.

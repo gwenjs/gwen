@@ -12,9 +12,16 @@
  * @internal Used exclusively by the Engine class.
  */
 
+import { GwenError } from "@gwenjs/schema";
+
 import type { ComponentType } from "../types";
-import type { WasmBridge } from "./wasm-bridge";
 import { unpackEntityId, type EntityId } from "./engine-api";
+import { CoreErrorCodes } from "./engine-errors";
+import type { WasmBridge } from "./wasm-bridge";
+
+/** Rust bit cap. One bit is the transform column, not a user name. */
+const MAX_COMPONENT_TYPES = 128;
+const RESERVED_INTERNAL_COMPONENT_TYPES = 1;
 
 export class EngineComponentRegistry {
   /** TS component name → Rust numeric typeId */
@@ -41,13 +48,24 @@ export class EngineComponentRegistry {
   /**
    * Get the Rust typeId for a component type name.
    * Registers a new ID with the WASM core if this is the first use.
+   *
+   * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this name
+   *   would be the 128th user type. One bit is reserved for the transform
+   *   column. The check runs before `registerComponentType`.
    */
   getOrRegister(type: ComponentType): number {
-    let typeId = this.typeIds.get(type);
-    if (typeId === undefined) {
-      typeId = this.wasmBridge.registerComponentType();
-      this.typeIds.set(type, typeId);
+    const existing = this.typeIds.get(type);
+    if (existing !== undefined) return existing;
+    if (this.typeIds.size + RESERVED_INTERNAL_COMPONENT_TYPES >= MAX_COMPONENT_TYPES) {
+      throw new GwenError(
+        CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
+        `Component type limit reached: ${MAX_COMPONENT_TYPES - RESERVED_INTERNAL_COMPONENT_TYPES} ` +
+          `user types fit (${MAX_COMPONENT_TYPES} type bits, ` +
+          `${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
+      );
     }
+    const typeId = this.wasmBridge.registerComponentType();
+    this.typeIds.set(type, typeId);
     return typeId;
   }
 

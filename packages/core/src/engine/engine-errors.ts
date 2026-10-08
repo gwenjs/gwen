@@ -57,6 +57,8 @@ export const CoreErrorCodes = {
   COMPONENT_TYPE_LIMIT_REACHED: "CORE:COMPONENT_TYPE_LIMIT_REACHED",
   INVALID_PARENT: "CORE:INVALID_PARENT",
   INVALID_MAX_ENTITIES: "CORE:INVALID_MAX_ENTITIES",
+  BUFFER_LENGTH_MISMATCH: "CORE:BUFFER_LENGTH_MISMATCH",
+  INVALID_COMPONENT_SCHEMA: "CORE:INVALID_COMPONENT_SCHEMA",
   UNCAUGHT_ERROR: "CORE:UNCAUGHT_ERROR",
   UNHANDLED_REJECTION: "CORE:UNHANDLED_REJECTION",
   /** Logged when an `on` / `onFatal` / hook handler throws. Never emitted on the bus. */
@@ -74,7 +76,8 @@ export type CoreWasmErrorCode =
   | typeof CoreErrorCodes.QUERY_CAPACITY_EXCEEDED
   | typeof CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED
   | typeof CoreErrorCodes.INVALID_PARENT
-  | typeof CoreErrorCodes.INVALID_MAX_ENTITIES;
+  | typeof CoreErrorCodes.INVALID_MAX_ENTITIES
+  | typeof CoreErrorCodes.BUFFER_LENGTH_MISMATCH;
 
 const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.ENTITY_LIMIT_REACHED,
@@ -82,9 +85,10 @@ const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
   CoreErrorCodes.INVALID_PARENT,
   CoreErrorCodes.INVALID_MAX_ENTITIES,
+  CoreErrorCodes.BUFFER_LENGTH_MISMATCH,
 ];
 
-/** True when `code` is one of the five recoverable core WASM codes. */
+/** True when `code` is one of the recoverable core WASM codes. */
 export function isCoreWasmErrorCode(code: unknown): code is CoreWasmErrorCode {
   return typeof code === "string" && CORE_WASM_ERROR_CODE_LIST.some((known) => known === code);
 }

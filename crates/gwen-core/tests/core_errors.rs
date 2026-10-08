@@ -34,6 +34,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::InvalidMaxEntities { .. } => {
             assert_eq!(err.code(), "CORE:INVALID_MAX_ENTITIES");
         }
+        CoreError::BufferLengthMismatch { .. } => {
+            assert_eq!(err.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        }
     }
 }
 
@@ -146,6 +149,51 @@ fn component_type_limit_is_raised_before_any_write() {
         vec![4, 3, 2, 1]
     );
     assert_eq!(engine.count_entities(), 1);
+}
+
+/// TS reserves one bit for the transform: 127 user names fit.
+/// 127 user types plus the transform must all accept writes.
+#[test]
+fn transform_fits_beside_127_user_types() {
+    let mut engine = engine(2);
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    for type_id in 1..=127u32 {
+        assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    }
+    assert_eq!(
+        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
+        Ok(true)
+    );
+    assert_eq!(
+        engine.get_component_raw(0, 0, TRANSFORM_SAB_TYPE_ID),
+        vec![7, 7, 7, 7]
+    );
+    assert_eq!(engine.get_component_raw(0, 0, 127), vec![1, 2, 3, 4]);
+}
+
+/// Without the reserve, a 128th user type leaves no bit for the transform.
+#[test]
+fn transform_is_refused_after_128_user_types() {
+    let mut engine = engine(2);
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    for type_id in 1..=128u32 {
+        assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    }
+    assert_eq!(
+        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
+        Err(CoreError::ComponentTypeLimitReached { max: 128 })
+    );
+    assert_eq!(engine.has_component(0, 0, TRANSFORM_SAB_TYPE_ID), false);
 }
 
 #[test]
@@ -280,4 +328,69 @@ fn sync_from_buffer_writes_the_first_flagged_slot() {
     assert!(raw.len() >= 4);
     let x = f32::from_le_bytes(raw[0..4].try_into().expect("f32"));
     assert_eq!(x, 1.5);
+}
+
+#[test]
+fn set_components_bulk_rejects_a_wrongly_sized_buffer() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+
+    let err = engine.set_components_bulk(&[0], &[0], type_id, &[9, 9, 9, 9, 9, 9, 9, 9]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "data",
+            expected: 4,
+            actual: 8
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer data length mismatch: expected 4, actual 8"
+        );
+    }
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+}
+
+#[test]
+fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
+    let mut engine = engine(4);
+    let type_id = 3u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+
+    let err = engine.set_components_bulk(&[0, 0], &[0], type_id, &[9, 9, 9, 9, 8, 8, 8, 8]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 2,
+            actual: 1
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 2, actual 1"
+        );
+    }
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
 }

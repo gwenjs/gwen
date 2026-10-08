@@ -54,6 +54,15 @@ pub enum CoreError {
         /// Inclusive upper bound that applies to this call.
         max: u32,
     },
+    /// A bulk write was given slices whose lengths do not agree.
+    BufferLengthMismatch {
+        /// Name of the buffer that disagreed (`"data"` or `"gens"`).
+        buffer: &'static str,
+        /// Length the call required, in elements or bytes.
+        expected: u32,
+        /// Length the caller passed.
+        actual: u32,
+    },
 }
 
 impl CoreError {
@@ -65,6 +74,7 @@ impl CoreError {
             Self::ComponentTypeLimitReached { .. } => "CORE:COMPONENT_TYPE_LIMIT_REACHED",
             Self::InvalidParent { .. } => "CORE:INVALID_PARENT",
             Self::InvalidMaxEntities { .. } => "CORE:INVALID_MAX_ENTITIES",
+            Self::BufferLengthMismatch { .. } => "CORE:BUFFER_LENGTH_MISMATCH",
         }
     }
 }
@@ -104,6 +114,16 @@ impl fmt::Display for CoreError {
             }
             Self::InvalidMaxEntities { value, max } => {
                 write!(f, "Invalid max entities: {value}, max {max}")
+            }
+            Self::BufferLengthMismatch {
+                buffer,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "buffer {buffer} length mismatch: expected {expected}, actual {actual}"
+                )
             }
         }
     }

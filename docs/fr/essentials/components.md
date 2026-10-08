@@ -46,6 +46,8 @@ Position.x[entity.id] = 100
 Position.y[entity.id] = 200
 ```
 
+`defineComponent` lève `GwenError` avec le code `CORE:COMPONENT_TYPE_LIMIT_REACHED` quand un nouveau nom dépasserait la limite. La limite est de 128 types. Un type est réservé à la colonne transform, donc 127 noms utilisateur distincts tiennent. Définir à nouveau le même nom avec les mêmes champs réutilise son id. Avec d'autres champs, un autre ordre ou d'autres types, il lève `GwenError` avec le code `CORE:INVALID_COMPONENT_SCHEMA`. La vérification a lieu à la définition et n'appelle pas WASM.
+
 ## Types disponibles
 
 | Type | TypeScript | Description |

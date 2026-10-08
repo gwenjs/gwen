@@ -119,6 +119,7 @@ describe("WasmBridge — with injected mock", () => {
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
       CoreErrorCodes.INVALID_PARENT,
       CoreErrorCodes.INVALID_MAX_ENTITIES,
+      CoreErrorCodes.BUFFER_LENGTH_MISMATCH,
     ] as const;
     for (const code of codes) {
       const cause = new Error(code);
