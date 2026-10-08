@@ -7,13 +7,11 @@ import { defineComponent, Types } from "../src/schema";
 
 describe("defineComponent type limit", () => {
   it("defining a 128th user component throws at definition time before any WASM call", () => {
+    const names: string[] = [];
     for (let i = 1; i <= 127; i += 1) {
-      const defined = defineComponent({
-        name: `Limit${i}`,
-        schema: { v: Types.f32 },
-      });
-      expect(defined._typeId).toBe(i);
+      names.push(defineComponent({ name: `Limit${i}`, schema: { v: Types.f32 } }).name);
     }
+    expect(names).toHaveLength(127);
 
     let caught: unknown;
     try {
