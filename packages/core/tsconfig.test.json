@@ -13,5 +13,13 @@
     "noEmit": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["src", "tests/types", "bench/alloc", "vitest.alloc.config.ts"]
+  "include": ["src", "tests", "bench/alloc", "vitest.alloc.config.ts"],
+  "exclude": [
+    "tests/error-policy.test.ts",
+    "tests/storage-models.test.ts",
+    "tests/integration-wasm/determinism.test.ts",
+    "tests/integration-wasm/netcode-ready.test.ts",
+    "tests/integration-wasm/p1-memory-growth.test.ts",
+    "tests/integration-wasm/wasm-export-inventory.test.ts"
+  ]
 }

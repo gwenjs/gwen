@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
  * Fail added lines that match PR-contract rule 3, attribution trailers
- * in origin/v1-alpha..HEAD, and mock helpers or spyOn under tests/integration-wasm.
+ * in origin/v1-alpha..HEAD, mock helpers or spyOn under tests/integration-wasm,
+ * a createRealEngine call whose variable is not disposed or stopped in finally
+ * or afterEach, and an added expect( inside finally.
  *
  * A flagged line is skipped only when scripts/agent-hygiene/allowlist.json
  * has an entry for that file and rule. A same-line allowlist comment grants
@@ -119,11 +121,635 @@ export function matchAddedLine(text, file) {
  */
 
 /**
+ * @param {string} content
+ * @returns {string}
+ */
+function maskSource(content) {
+  let out = '';
+  let i = 0;
+  while (i < content.length) {
+    const c = content[i];
+    const next = content[i + 1];
+    if (c === '/' && next === '/') {
+      while (i < content.length && content[i] !== '\n') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (c === '/' && next === '*') {
+      out += '  ';
+      i += 2;
+      while (i < content.length && !(content[i] === '*' && content[i + 1] === '/')) {
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length) {
+        out += '  ';
+        i += 2;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      const quote = c;
+      out += ' ';
+      i += 1;
+      while (i < content.length && content[i] !== quote) {
+        if (content[i] === '\\') {
+          out += ' ';
+          i += 1;
+          if (i < content.length) {
+            out += content[i] === '\n' ? '\n' : ' ';
+            i += 1;
+          }
+          continue;
+        }
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length) {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    if (c === '`') {
+      out += ' ';
+      i += 1;
+      while (i < content.length && content[i] !== '`') {
+        if (content[i] === '\\') {
+          out += ' ';
+          i += 1;
+          if (i < content.length) {
+            out += content[i] === '\n' ? '\n' : ' ';
+            i += 1;
+          }
+          continue;
+        }
+        if (content[i] === '$' && content[i + 1] === '{') {
+          out += '  ';
+          i += 2;
+          let depth = 1;
+          while (i < content.length && depth > 0) {
+            if (content[i] === '{') depth += 1;
+            else if (content[i] === '}') depth -= 1;
+            if (depth === 0) {
+              out += ' ';
+              i += 1;
+              break;
+            }
+            out += content[i] === '\n' ? '\n' : content[i];
+            i += 1;
+          }
+          continue;
+        }
+        out += content[i] === '\n' ? '\n' : ' ';
+        i += 1;
+      }
+      if (i < content.length && content[i] === '`') {
+        out += ' ';
+        i += 1;
+      }
+      continue;
+    }
+    out += c;
+    i += 1;
+  }
+  return out;
+}
+
+/**
+ * @param {string} content
+ * @param {number} index
+ * @returns {number}
+ */
+function lineNumberAt(content, index) {
+  let line = 1;
+  const stop = Math.min(index, content.length);
+  for (let i = 0; i < stop; i += 1) if (content[i] === '\n') line += 1;
+  return line;
+}
+
+/**
+ * @param {string} content
+ * @param {number} openIndex
+ * @param {string} open
+ * @param {string} close
+ * @returns {number}
+ */
+function matchingBrace(content, openIndex, open, close) {
+  let depth = 0;
+  for (let i = openIndex; i < content.length; i += 1) {
+    if (content[i] === open) depth += 1;
+    else if (content[i] === close) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
+  }
+  return content.length - 1;
+}
+
+/**
+ * @param {string} value
+ * @returns {string}
+ */
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * @param {string} masked
+ * @returns {Set<string>}
+ */
+function collectAliases(masked) {
+  /** @type {Set<string>} */
+  const names = new Set(['createRealEngine']);
+  const importRe = /\bimport\s*\{([^}]+)\}/g;
+  let match = importRe.exec(masked);
+  while (match) {
+    for (const part of (match[1] ?? '').split(',')) {
+      const item = part.trim();
+      const renamed = item.match(/^createRealEngine\s+as\s+([A-Za-z_$][\w$]*)$/);
+      if (renamed?.[1]) names.add(renamed[1]);
+    }
+    match = importRe.exec(masked);
+  }
+  // `const { createRealEngine: mk } = H` and `= await import('./harness.js')`.
+  const destructureRe = /\{([^{}]*)\}\s*=/g;
+  let destructure = destructureRe.exec(masked);
+  while (destructure) {
+    for (const part of (destructure[1] ?? '').split(',')) {
+      const renamed = part.trim().match(/^createRealEngine\s*:\s*([A-Za-z_$][\w$]*)$/);
+      if (renamed?.[1]) names.add(renamed[1]);
+    }
+    destructure = destructureRe.exec(masked);
+  }
+  let grew = true;
+  while (grew) {
+    grew = false;
+    // `const mk = alias` and `const mk = H.createRealEngine`.
+    const bindRe =
+      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(?:[A-Za-z_$][\w$]*\s*\.\s*)?([A-Za-z_$][\w$]*)\b(?!\s*[(.])/g;
+    let bind = bindRe.exec(masked);
+    while (bind) {
+      const lhs = bind[1] ?? '';
+      const rhs = bind[2] ?? '';
+      if (lhs && names.has(rhs) && !names.has(lhs)) {
+        names.add(lhs);
+        grew = true;
+      }
+      bind = bindRe.exec(masked);
+    }
+  }
+  return names;
+}
+
+/**
+ * @param {string} text
+ * @returns {{ name: string, kind: 'engine' } | null}
+ */
+function engineFromDestructure(text) {
+  const inner = text.replace(/^\{\s*/, '').replace(/\s*\}$/, '');
+  for (const part of inner.split(',')) {
+    const piece = part.trim();
+    const renamed = piece.match(/^engine\s*:\s*([A-Za-z_$][\w$]*)$/);
+    if (renamed?.[1]) return { name: renamed[1], kind: 'engine' };
+    if (piece === 'engine') return { name: 'engine', kind: 'engine' };
+  }
+  return null;
+}
+
+/**
+ * @param {string} masked
+ * @param {Set<string>} names
+ * @returns {{ index: number, binding: { name: string, kind: 'handle' | 'engine' | 'array' } | null }[]}
+ */
+function findEngineCalls(masked, names) {
+  const alt = [...names].map(escapeRegExp).join('|');
+  /** @type {{ index: number, binding: { name: string, kind: 'handle' | 'engine' | 'array' } | null }[]} */
+  const calls = [];
+  if (!alt) return calls;
+  /** @type {Set<number>} */
+  const taken = new Set();
+  // `X.createRealEngine(` (namespace import, re-export object) counts too.
+  // `(await import('./harness.js')).createRealEngine(` too.
+  const callee = `(?:(?:[A-Za-z_$][\\w$]*|\\(\\s*await\\s+import\\s*\\([^()]*\\)\\s*\\))\\s*\\.\\s*)?(?:${alt})`;
+  const assigned = new RegExp(
+    `\\b(?:const|let|var)?\\s*(?:(\\{[^}]*\\})|([A-Za-z_$][\\w$]*))\\s*=\\s*(?:await\\s+)?${callee}\\s*\\(`,
+    'g',
+  );
+  // `engines.push(await createRealEngine())`: the array is the binding.
+  const pushed = new RegExp(`\\b([A-Za-z_$][\\w$]*)\\s*\\.\\s*push\\s*\\(\\s*(?:await\\s+)?${callee}\\s*\\(`, 'g');
+  let push = pushed.exec(masked);
+  while (push) {
+    calls.push({ index: push.index, binding: { name: push[1] ?? '', kind: 'array' } });
+    taken.add(push.index + push[0].length);
+    push = pushed.exec(masked);
+  }
+  let match = assigned.exec(masked);
+  while (match) {
+    const destructure = match[1];
+    const ident = match[2];
+    const binding = destructure ? engineFromDestructure(destructure) : ident ? { name: ident, kind: 'handle' } : null;
+    calls.push({ index: match.index, binding });
+    taken.add(match.index + match[0].length);
+    match = assigned.exec(masked);
+  }
+  const bare = new RegExp(`(?:^|[^\\w$.])(?:await\\s+)?${callee}\\s*\\(`, 'g');
+  let bareMatch = bare.exec(masked);
+  while (bareMatch) {
+    const end = bareMatch.index + bareMatch[0].length;
+    if (!taken.has(end)) calls.push({ index: bareMatch.index, binding: null });
+    bareMatch = bare.exec(masked);
+  }
+  return calls;
+}
+
+/**
+ * @param {string} masked
+ * @param {number} index
+ * @returns {[number, number][]}
+ */
+function containingBodies(masked, index) {
+  /** @type {[number, number][]} */
+  const spans = [];
+  let depth = 0;
+  for (let i = index; i >= 0; i -= 1) {
+    const char = masked[i];
+    if (char === '}') depth += 1;
+    else if (char === '{') {
+      if (depth === 0) spans.push([i, matchingBrace(masked, i, '{', '}')]);
+      else depth -= 1;
+    }
+  }
+  return spans;
+}
+
+/**
+ * @param {string} slice
+ * @param {RegExp} re
+ * @param {string} open
+ * @param {string} close
+ * @param {boolean} skipDot
+ * @returns {string}
+ */
+function collectSpans(slice, re, open, close, skipDot) {
+  let out = '';
+  let match = re.exec(slice);
+  while (match) {
+    if (!(skipDot && match.index > 0 && slice[match.index - 1] === '.')) {
+      const start = slice.indexOf(open, match.index + match[0].length);
+      if (start === -1) break;
+      const end = matchingBrace(slice, start, open, close);
+      out += slice.slice(start, end + 1);
+      re.lastIndex = end + 1;
+    }
+    match = re.exec(slice);
+  }
+  return out;
+}
+
+/**
+ * @param {string} masked
+ * @param {number} endIndex
+ * @returns {string}
+ */
+function finallyAttached(masked, endIndex) {
+  let i = endIndex + 1;
+  while (i < masked.length && /\s/.test(masked[i] ?? '')) i += 1;
+  if (!masked.startsWith('finally', i)) return '';
+  if (i > 0 && masked[i - 1] === '.') return '';
+  const brace = masked.indexOf('{', i + 'finally'.length);
+  if (brace === -1) return '';
+  const close = matchingBrace(masked, brace, '{', '}');
+  return masked.slice(brace, close + 1);
+}
+
+/**
+ * @param {string} masked
+ * @param {number} index
+ * @returns {string}
+ */
+function cleanupFor(masked, index) {
+  const bodies = containingBodies(masked, index);
+  /** @type {string[]} */
+  const chunks = [];
+  if (bodies.length === 0) {
+    chunks.push(collectSpans(masked, /\bfinally\b/g, '{', '}', true));
+    chunks.push(collectSpans(masked, /\bafterEach\b/g, '(', ')', false));
+    return chunks.join('\n');
+  }
+  for (let i = 0; i < bodies.length; i += 1) {
+    const start = bodies[i]?.[0] ?? 0;
+    const end = bodies[i]?.[1] ?? start;
+    const slice = masked.slice(start, end + 1);
+    if (i === 0) chunks.push(collectSpans(slice, /\bfinally\b/g, '{', '}', true));
+    chunks.push(finallyAttached(masked, end));
+    chunks.push(collectSpans(slice, /\bafterEach\b/g, '(', ')', false));
+  }
+  // An engine made in a `beforeEach` callback is released by an `afterEach`
+  // of the scope that holds that `beforeEach` (the next body out, or the file).
+  const hook = bodies[0];
+  if (hook && /\bbeforeEach\s*\(\s*(?:async\s*)?(?:\(\s*\)|function\s*\(\s*\))\s*(?:=>)?\s*$/.test(masked.slice(0, hook[0]))) {
+    const outer = bodies[1];
+    const scope = outer ? masked.slice(outer[0], outer[1] + 1) : masked;
+    chunks.push(collectSpans(scope, /\bafterEach\b/g, '(', ')', false));
+  }
+  return chunks.join('\n');
+}
+
+/**
+ * @param {string} cleanup
+ * @param {{ name: string, kind: 'handle' | 'engine' | 'array' } | null} binding
+ * @param {number} [needed] releases required for this binding
+ * @returns {boolean}
+ */
+function isGuarded(cleanup, binding, needed = 1) {
+  if (!binding) return false;
+  if (binding.kind === 'array') return arrayReleased(cleanup, binding.name);
+  const name = escapeRegExp(binding.name);
+  const re =
+    binding.kind === 'handle'
+      ? new RegExp(
+          `\\b${name}\\s*\\?\\.\\s*dispose\\s*\\(|\\b${name}\\.dispose\\s*\\(|\\b${name}\\s*\\?\\.\\s*engine\\.stop\\s*\\(|\\b${name}\\.engine\\.stop\\s*\\(`,
+          'g',
+        )
+      : new RegExp(`\\b${name}\\s*\\?\\.\\s*(?:stop|dispose)\\s*\\(|\\b${name}\\.(?:stop|dispose)\\s*\\(`, 'g');
+  let count = 0;
+  for (const match of cleanup.matchAll(re)) {
+    if (!deadCondition(cleanup, match.index ?? 0, binding.name)) count += 1;
+  }
+  return count >= needed;
+}
+
+/**
+ * True when a condition can never hold: one of its `&&` terms is a falsy
+ * literal (`false`, `0`, `null`, `undefined`). A condition that tests a
+ * binding or a local flag (`if (handle)`, `if (!disposed)`) may hold.
+ *
+ * @param {string} condition
+ * @returns {boolean}
+ */
+function neverHolds(condition) {
+  return condition.split('||').every((disjunct) =>
+    disjunct.split('&&').some((raw) => {
+      const term = raw.trim().replace(/^\(+|\)+$/g, '').trim();
+      if (/^(?:false|0|null|undefined|void\s+0|!\s*true)$/.test(term)) return true;
+      const compare = term.match(/^(-?\d+(?:\.\d+)?)\s*(===|==|!==|!=)\s*(-?\d+(?:\.\d+)?)$/);
+      if (!compare) return false;
+      const same = Number(compare[1]) === Number(compare[3]);
+      return compare[2]?.startsWith('!') ? same : !same;
+    }),
+  );
+}
+
+const IF_BEFORE = /\b(?:if|while)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/;
+const FALSY_LITERAL = '(?:false|0|null|undefined)';
+
+/**
+ * True when `text` (the rest of a statement after `return` or `throw`) ends
+ * that statement with a `;` outside any brace or paren.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function endsStatement(text) {
+  let depth = 0;
+  for (const char of text) {
+    if (char === '(' || char === '{' || char === '[') depth += 1;
+    else if (char === ')' || char === '}' || char === ']') depth -= 1;
+    else if (char === ';' && depth === 0) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the release at `index` may never run: behind `false &&` or
+ * `false ?`, behind an `if` or `while` whose condition never holds (directly
+ * or around its block), or after a `return …;` or `throw …;` in the same
+ * block.
+ *
+ * @param {string} cleanup
+ * @param {number} index
+ * @param {string} _name
+ * @returns {boolean}
+ */
+function deadCondition(cleanup, index, _name) {
+  const before = cleanup.slice(0, index).replace(/(?:\bawait\s+)$/, '').trimEnd();
+  if (new RegExp(`(?:^|[^\\w$.])${FALSY_LITERAL}\\s*(?:&&|\\?)$`).test(before)) return true;
+  const direct = before.match(IF_BEFORE);
+  if (direct && neverHolds(direct[1] ?? '')) return true;
+  let depth = 0;
+  let innermost = true;
+  for (let i = before.length - 1; i >= 0; i -= 1) {
+    const char = before[i];
+    if (char === '}') {
+      depth += 1;
+      continue;
+    }
+    if (char === '{') {
+      if (depth > 0) {
+        depth -= 1;
+        continue;
+      }
+      innermost = false;
+      const guard = before.slice(0, i).trimEnd().match(IF_BEFORE);
+      if (guard && neverHolds(guard[1] ?? '')) return true;
+      continue;
+    }
+    // `return;`, `return x;` or `throw x;` as its own statement in the
+    // innermost block, before the release.
+    if (!innermost || depth !== 0 || /[\w$]/.test(before[i - 1] ?? '')) continue;
+    const keyword = ['return', 'throw'].find((word) => before.startsWith(word, i) && !/[\w$]/.test(before[i + word.length] ?? ''));
+    if (!keyword) continue;
+    const lead = before.slice(0, i).trimEnd();
+    if ((lead === '' || /[;{}]$/.test(lead)) && endsStatement(before.slice(i + keyword.length))) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the cleanup releases every element of `name` in a loop:
+ * `for (const h of name) h.dispose()`, `name.forEach((h) => h.dispose())`,
+ * `name.map((h) => h.dispose())`.
+ *
+ * @param {string} cleanup
+ * @param {string} name
+ * @returns {boolean}
+ */
+function arrayReleased(cleanup, name) {
+  const list = escapeRegExp(name);
+  const loops = [
+    new RegExp(`\\bfor\\s*\\(\\s*(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s+of\\s+${list}\\s*\\)`, 'g'),
+    new RegExp(
+      `\\b${list}\\s*\\.\\s*(?:forEach|map)\\s*\\(\\s*(?:async\\s+)?\\(?\\s*([A-Za-z_$][\\w$]*)\\s*\\)?\\s*=>`,
+      'g',
+    ),
+  ];
+  for (const re of loops) {
+    for (const match of cleanup.matchAll(re)) {
+      const item = match[1] ?? '';
+      if (item && isGuarded(cleanup.slice(match.index ?? 0), { name: item, kind: 'handle' })) return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * @param {string} content
+ * @returns {boolean}
+ */
+function unguardedRealEngines(content) {
+  // `H['createRealEngine']` reads as `H.createRealEngine` (masking blanks strings).
+  const masked = maskSource(content.replace(/\[\s*(['"`])([A-Za-z_$][\w$]*)\1\s*\]/g, '.$2'));
+  const calls = findEngineCalls(masked, collectAliases(masked));
+  // A binding assigned N engines needs N releases in reach: one dispose in
+  // finally does not release the engine the second assignment replaced.
+  // Assignments are counted per binding and per enclosing block.
+  /** @param {{ index: number, binding: { name: string } | null }} call */
+  const key = (call) => `${call.binding?.name ?? ''}@${containingBodies(masked, call.index)[0]?.[0] ?? -1}`;
+  /** @type {Map<string, number>} */
+  const perBinding = new Map();
+  for (const call of calls) {
+    if (call.binding && call.binding.kind !== 'array') perBinding.set(key(call), (perBinding.get(key(call)) ?? 0) + 1);
+  }
+  return calls.some(
+    (call) => !isGuarded(cleanupFor(masked, call.index), call.binding, perBinding.get(key(call)) ?? 1),
+  );
+}
+
+/**
+ * @param {string} content
+ * @returns {Set<number>}
+ */
+function linesInsideFinally(content) {
+  const masked = maskSource(content);
+  /** @type {Set<number>} */
+  const lines = new Set();
+  const re = /\bfinally\b/g;
+  let match = re.exec(masked);
+  while (match) {
+    const brace = masked.indexOf('{', match.index + match[0].length);
+    if (brace === -1) break;
+    const end = matchingBrace(masked, brace, '{', '}');
+    const from = lineNumberAt(masked, brace);
+    const to = lineNumberAt(masked, end);
+    for (let n = from; n <= to; n += 1) lines.add(n);
+    re.lastIndex = end + 1;
+    match = re.exec(masked);
+  }
+  return lines;
+}
+
+/**
+ * @typedef {{ added: Set<number>, isNew: boolean, rebuilt: string[] }} WasmFile
+ */
+
+/**
  * @param {string} diffText
- * @param {AllowEntry[]} [entries]
+ * @param {AllowEntry[]} entries
+ * @param {Record<string, string> | null | undefined} contents
  * @returns {Hit[]}
  */
-export function findDiffViolations(diffText, entries = []) {
+function wasmTeardownHits(diffText, entries, contents) {
+  /** @type {Map<string, WasmFile>} */
+  const files = new Map();
+  let file = '';
+  let isNew = false;
+  let inHunk = false;
+  let newLine = 0;
+  for (const line of diffText.split('\n')) {
+    if (line.startsWith('diff --git ')) {
+      const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+      file = match ? (match[2] ?? '') : '';
+      isNew = false;
+      inHunk = false;
+      continue;
+    }
+    if (!file.split('\\').join('/').includes('tests/integration-wasm')) continue;
+    if (line.startsWith('--- ')) {
+      isNew = line.slice(4).trim() === '/dev/null';
+      continue;
+    }
+    if (line.startsWith('+++ ')) {
+      const next = line.slice(4).trim();
+      if (next !== '/dev/null') file = next.replace(/^b\//, '');
+      continue;
+    }
+    if (line.startsWith('@@')) {
+      const match = line.match(/\+(\d+)/);
+      newLine = match ? Number(match[1]) : 1;
+      inHunk = true;
+      const key = file.split('\\').join('/');
+      const state = files.get(key) ?? { added: new Set(), isNew: false, rebuilt: [] };
+      state.isNew = state.isNew || isNew;
+      files.set(key, state);
+      continue;
+    }
+    if (!inHunk) continue;
+    const key = file.split('\\').join('/');
+    const state = files.get(key) ?? { added: new Set(), isNew, rebuilt: [] };
+    files.set(key, state);
+    if (line.startsWith('+')) {
+      state.added.add(newLine);
+      state.rebuilt.push(line.slice(1));
+      newLine += 1;
+      continue;
+    }
+    if (line.startsWith('-') || line.startsWith('\\')) continue;
+    state.rebuilt.push(line.startsWith(' ') ? line.slice(1) : line);
+    newLine += 1;
+  }
+
+  /** @type {Hit[]} */
+  const hits = [];
+  for (const [filePath, state] of files) {
+    const provided = contents ? contents[filePath] : undefined;
+    const content = typeof provided === 'string' ? provided : state.isNew ? state.rebuilt.join('\n') : null;
+    if (content == null) continue;
+    if (unguardedRealEngines(content) && !isAllowlisted(entries, filePath, 'wasm-dispose')) {
+      hits.push({ file: filePath, rule: 'wasm-dispose', text: 'createRealEngine' });
+    }
+    const finallyLines = linesInsideFinally(content);
+    const sourceLines = content.split('\n');
+    for (const n of state.added) {
+      const text = sourceLines[n - 1] ?? '';
+      if (!finallyLines.has(n)) continue;
+      if (!/\bexpect\s*\(/.test(maskSource(text))) continue;
+      if (isAllowlisted(entries, filePath, 'expect-in-finally')) continue;
+      hits.push({ file: filePath, rule: 'expect-in-finally', text });
+    }
+  }
+  return hits;
+}
+
+/**
+ * @param {string} diffText
+ * @returns {Record<string, string>}
+ */
+function readWasmContents(diffText) {
+  /** @type {Record<string, string>} */
+  const contents = {};
+  for (const line of diffText.split('\n')) {
+    if (!line.startsWith('diff --git ')) continue;
+    const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
+    if (!match) continue;
+    const file = (match[2] ?? '').split('\\').join('/');
+    if (!file.includes('tests/integration-wasm')) continue;
+    const abs = path.resolve(process.cwd(), file);
+    if (!existsSync(abs)) continue;
+    contents[file] = readFileSync(abs, 'utf8');
+  }
+  return contents;
+}
+
+/**
+ * @param {string} diffText
+ * @param {AllowEntry[]} [entries]
+ * @param {Record<string, string> | null} [contents]
+ * @returns {Hit[]}
+ */
+export function findDiffViolations(diffText, entries = [], contents = null) {
   /** @type {Hit[]} */
   const hits = [];
   let file = '';
@@ -154,6 +780,7 @@ export function findDiffViolations(diffText, entries = []) {
       hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
     }
   }
+  hits.push(...wasmTeardownHits(diffText, entries, contents));
   return hits;
 }
 
@@ -345,7 +972,7 @@ function main() {
   const diff = git(['diff', `${base}...HEAD`]);
   const log = git(['log', `${base}..HEAD`, '--format=%B%x1e']);
   const headEntries = loadAllowlistEntries();
-  const hits = [...findDiffViolations(diff, headEntries), ...findLogViolations(log)];
+  const hits = [...findDiffViolations(diff, headEntries, readWasmContents(diff)), ...findLogViolations(log)];
   const baseEntries = diffChangesAllowlist(diff) ? loadBaseAllowlistEntries(base) : [];
   const needsLabel =
     diffChangesAllowlist(diff) &&

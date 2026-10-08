@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 /**
- * PR contract: Acceptance -> test table, Breaking changes section,
- * BREAKING CHANGE: footer when the title contains "!", no unfinished markers.
+ * PR contract: Acceptance -> test table, Red proof, Breaking changes section,
+ * BREAKING CHANGE: footer when the title contains "!", no unfinished markers,
+ * no verdict, approve, or self-review heading, no bare APPROVE line,
+ * no closing keyword next to a "no test" cell. `Red proof: n/a (no code change)`
+ * is accepted only when every changed path is under docs/, a markdown file, or .github/.
  *
  * Tests pass the body in. CI (`pull_request`) reads `gh pr view`.
  * Run: node scripts/check-pr-contract.mjs
@@ -16,8 +19,16 @@ const PLACEHOLDER = ['MISS', 'ING'].join('');
 const UNFINISHED = /not done/i;
 
 /**
- * @typedef {{ title: string, body: string, exists: (file: string) => boolean }} Input
+ * @typedef {{
+ *   title: string,
+ *   body: string,
+ *   exists: (file: string) => boolean,
+ *   changedTestFiles?: string[],
+ *   changedFiles?: string[],
+ * }} Input
  */
+
+const DOCS_ONLY_LINE = 'Red proof: n/a (no code change)';
 
 /**
  * @param {string} line
@@ -124,7 +135,344 @@ export function reviewPrContract(input) {
     errors.push('title has ! but the body has no BREAKING CHANGE: footer');
   }
 
+  const visible = visibleLines(lines);
+  checkRedProof(visible, errors, input.changedTestFiles, input.changedFiles);
+  checkVerdict(visible, errors);
+  checkNoTestCloses(visible, visible.join('\n'), errors);
+
   return errors;
+}
+
+/**
+ * @param {string[]} lines
+ * @returns {string[][] | null}
+ */
+function redProofRows(lines) {
+  const heading = lines.findIndex((line) => /^#{1,6}\s+Red proof\b/i.test(line));
+  if (heading === -1) return null;
+  /** @type {string[][]} */
+  const rows = [];
+  for (let i = heading + 1; i < lines.length; i++) {
+    if (/^#{1,6}\s+/.test(lines[i] ?? '')) break;
+    if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
+    for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
+      rows.push(splitRow(lines[j] ?? ''));
+    }
+    break;
+  }
+  return rows;
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ * @param {string[] | undefined} changedTestFiles
+ */
+const NA_ONLY =
+  'Red proof n/a is only allowed when every changed path is static docs under docs/, a markdown file, or .github/ outside workflows and actions';
+
+/**
+ * @param {string[]} lines
+ * @returns {string[]}
+ */
+function visibleLines(lines) {
+  /** @type {string[]} */
+  const out = [];
+  /** @type {string | null} */
+  let fence = null;
+  for (const line of lines) {
+    // CommonMark: a fence is indented by at most three spaces. A line with
+    // four spaces is text (an indented code block renders, but it never
+    // opens a fence that hides the lines after it).
+    // GFM: a backtick fence has no backtick in its info string; such a line
+    // (```note```) is inline code and opens nothing.
+    const match = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    const marker = match && !(match[1]?.[0] === '`' && (match[2] ?? '').includes('`')) ? (match[1] ?? null) : null;
+    if (fence === null && marker) {
+      fence = marker;
+      continue;
+    }
+    if (fence !== null) {
+      if (marker && marker[0] === fence[0] && marker.length >= fence.length && line.trim() === marker) fence = null;
+      continue;
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
+ * @param {string} file
+ * @returns {boolean}
+ */
+function isDocsPath(file) {
+  const normalized = String(file).split('\\').join('/');
+  if (normalized.startsWith('.github/workflows/') || normalized.startsWith('.github/actions/')) return false;
+  if (/\.(?:[cm]?[jt]s|tsx|jsx|vue|sh)$/.test(normalized) || /(?:^|\/)package\.json$/.test(normalized)) return false;
+  return normalized.startsWith('docs/') || normalized.endsWith('.md') || normalized.startsWith('.github/');
+}
+
+/**
+ * @param {string[] | undefined} changedFiles
+ * @returns {boolean}
+ */
+function docsOnly(changedFiles) {
+  return Array.isArray(changedFiles) && changedFiles.length > 0 && changedFiles.every(isDocsPath);
+}
+
+/**
+ * @param {string} cell
+ * @returns {boolean}
+ */
+function isNaCell(cell) {
+  return /^n\/a$/i.test(cell.replace(/`/g, '').trim());
+}
+
+/**
+ * @param {string[]} row
+ * @returns {boolean}
+ */
+function isNaRow(row) {
+  return row.length > 0 && row.every(isNaCell);
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string[]} errors
+ * @param {string[] | undefined} changedTestFiles
+ * @param {string[] | undefined} changedFiles
+ */
+function checkRedProof(lines, errors, changedTestFiles, changedFiles) {
+  const docs = docsOnly(changedFiles);
+  const files = changedTestFiles ?? [];
+  const sourceChange = Array.isArray(changedFiles) && changedFiles.some((file) => !isDocsPath(file));
+  const naLine = lines.some((line) => line.trim() === DOCS_ONLY_LINE);
+  if (naLine) {
+    if (files.length > 0) {
+      errors.push('Red proof says no code change but test files changed');
+      return;
+    }
+    if (!docs) errors.push(NA_ONLY);
+    return;
+  }
+  const rows = redProofRows(lines);
+  if (rows === null) {
+    errors.push('no Red proof section');
+    return;
+  }
+  if (rows.length > 0 && rows.every(isNaRow)) {
+    if (files.length > 0 || !docs) errors.push(NA_ONLY);
+    return;
+  }
+  if (sourceChange && files.length === 0) errors.push('a source file change needs a changed test file');
+  if (files.length === 0) {
+    if (rows.length === 0) errors.push('Red proof table has no row');
+    return;
+  }
+  for (const file of files) {
+    const found = rows.some((row) => !isNaRow(row) && row.join(' ').replace(/`/g, '').includes(file));
+    if (!found) errors.push(`Red proof table is missing a row for ${file}`);
+  }
+}
+
+const MAINTAINER_SENTENCE = /reviewed by the maintainer, who will approve or not/gi;
+
+/**
+ * The words of a line with markdown and punctuation removed, and the allowed
+ * maintainer sentence cut out.
+ *
+ * @param {string} line
+ * @returns {string}
+ */
+function plainWords(line) {
+  return line
+    .replace(/\p{Cf}/gu, '')
+    .replace(MAINTAINER_SENTENCE, ' ')
+    .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+const CONCLUSION =
+  /^(?:ship|lgtm|looks good|approv|accept|reject|merge|ready|good|ok\b|okay|sound|solid|block|request|changes requested|needs (?:work|changes)|go\b|no-go|green|lg\b)/i;
+const BARE_OUTCOME = /^(?:pass(?:ed)?|fail(?:ed)?|ok|yes|no)$/i;
+
+/**
+ * True when the text reads as a review conclusion: it starts with a
+ * conclusion word (ship it, LGTM, ready to merge, …), or it is a bare pass or
+ * fail.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isConclusion(text) {
+  const t = text.replace(/^[\s:*_"'>\-\u2014\u2013]+/, '').replace(/[\s.!*_"']+$/, '');
+  // `ok only when …`, `green or red`, `rejected when …`: a condition or an
+  // alternative right after the first word describes a field, not an outcome.
+  if (/^[\w'-]+\s+(?:only\s+when|when|if|unless|or)\b/i.test(t)) return false;
+  return t !== '' && (CONCLUSION.test(t) || BARE_OUTCOME.test(t));
+}
+
+/**
+ * The word verdict before `is`, a dash or an em dash, followed by a
+ * conclusion (`Final verdict — ship it`, `My verdict is: ship it`).
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function verdictThenConclusion(text) {
+  const match = text.match(/\bverdict\b[*_\s]*(?:\u2014|\u2013|-(?![\w-])|is\b)(.*)$/i);
+  return match !== null && isConclusion(match[1] ?? '');
+}
+
+/**
+ * The word verdict as a review outcome: in a heading, at the start of a line,
+ * before a colon, or before `is` / a dash / an em dash followed by a
+ * conclusion. In a table each cell is read on its own: a cell that starts or
+ * ends with the word is a label, rejected when its value (the rest of the
+ * cell, or the next non-empty cell) is a conclusion. Inline code spans are cut
+ * out first, so a field named verdict in code (`verdict === "pass"`) or in
+ * prose is allowed.
+ *
+ * @param {string} line
+ * @returns {boolean}
+ */
+function verdictForm(line) {
+  const text = line.replace(/\p{Cf}/gu, '').replace(/(`+)[\s\S]*?\1/g, ' ');
+  if (/^\s{0,3}#{1,6}\s/.test(text) && /\bverdict\b/i.test(text)) return true;
+  const colon = /\bverdict\b[*_\s]*:/i;
+  if (!isRow(text)) {
+    return /^[\s>*_\-+]*verdict\b/i.test(text) || colon.test(text) || verdictThenConclusion(text);
+  }
+  const cells = splitRow(text);
+  return cells.some((cell, k) => {
+    if (colon.test(cell) || verdictThenConclusion(cell)) return true;
+    if (!/^[\s>*_\-+]*verdict\b/i.test(cell) && !/\bverdict[*_\s]*$/i.test(cell)) return false;
+    if (isConclusion(cell.replace(/^[\s\S]*?\bverdict\b/i, ''))) return true;
+    const next = cells.slice(k + 1).find((other) => other.trim() !== '');
+    return next !== undefined && isConclusion(next);
+  });
+}
+
+/**
+ * Reject any line or heading that carries a review outcome. Only the
+ * maintainer gives one, outside the body.
+ *
+ * @param {string[]} lines
+ * @param {string[]} errors
+ */
+function checkVerdict(lines, errors) {
+  for (const line of lines) {
+    const words = plainWords(line);
+    if (/\breviewed[-\s]by\b/i.test(words)) {
+      errors.push(`reviewed-by line: ${line.trim()}`);
+      return;
+    }
+    if (/\bself[-\s]review\b/i.test(words)) {
+      errors.push(`self-review section: ${line.trim()}`);
+      return;
+    }
+    if (/\bapproved?\b/i.test(words) || verdictForm(line)) {
+      errors.push(`self-written verdict or approve: ${line.trim()}`);
+      return;
+    }
+  }
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} body
+ * @param {string[]} errors
+ */
+const CLOSING =
+  /\b(?:clos(?:e|es|ed)|fix(?:es|ed)?|resolv(?:e|es|ed))\b\s*:?\s*(?:#\d+|[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+#\d+|https?:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(?:issues|pull)\/\d+)/i;
+
+/**
+ * @param {string} cell
+ * @returns {boolean}
+ */
+function cellHasNoTest(cell) {
+  return /\bno(?:[-\s_]+automated)?[-\s_]?tests?\b|\bnot[-\s_]+(?:(?:unit|automatically)[-\s_]+)?tested\b|\buntested\b|\bno[-\s_]+coverage\b/i.test(
+    cell.replace(/`/g, ''),
+  );
+}
+
+/**
+ * @param {string[]} lines
+ * @param {string} body
+ * @param {string[]} errors
+ */
+function checkNoTestCloses(lines, body, errors) {
+  if (!CLOSING.test(body)) return;
+  for (let i = 0; i < lines.length; i++) {
+    if (!isRow(lines[i] ?? '') || i + 1 >= lines.length || !isSeparator(lines[i + 1] ?? '')) continue;
+    const header = splitRow(lines[i] ?? '').join(' ').toLowerCase();
+    if (!header.includes('acceptance')) continue;
+    for (let j = i + 2; j < lines.length && isRow(lines[j] ?? ''); j++) {
+      for (const cell of splitRow(lines[j] ?? '')) {
+        if (cellHasNoTest(cell)) {
+          errors.push('NO TEST cannot use a closing keyword');
+          return;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * True when a diff adds a Rust test function (`#[test]`, `#[tokio::test]`,
+ * `#[wasm_bindgen_test]`, `#[rstest]`, `#[test_case(…)]`), also on a one-line
+ * `mod tests { #[test] … }`.
+ *
+ * @param {string} diff
+ * @returns {boolean}
+ */
+export function addsRustTest(diff) {
+  return /^\+(?!\+\+).*#\[(?:tokio::)?(?:test|wasm_bindgen_test|rstest|test_case)\b/m.test(diff);
+}
+
+/**
+ * A changed file that needs a Red proof row: a JS/TS test file, a Cargo
+ * integration test (`crates/<crate>/tests/<name>.rs`), a `*_test.rs` file, or
+ * any `.rs` file whose diff adds a `#[test]` function (inline tests).
+ *
+ * @param {string} file
+ * @param {string} [diff] the file's diff, read for `.rs` files
+ * @returns {boolean}
+ */
+export function isChangedTestFile(file, diff = '') {
+  if (/\.(?:test|spec)\.(?:mjs|cjs|js|ts|tsx|mts)$/.test(file) || /(?:_test|\.test)\.rs$/.test(file)) return true;
+  if (/^crates\/[^/]+\/tests\/[^/]+\.rs$/.test(file)) return true;
+  return file.endsWith('.rs') && addsRustTest(diff);
+}
+
+/**
+ * @returns {string}
+ */
+function hygieneBase() {
+  return process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
+}
+
+/**
+ * @param {string} file
+ * @returns {string}
+ */
+function fileDiff(file) {
+  return execFileSync('git', ['diff', `${hygieneBase()}...HEAD`, '--', file], { encoding: 'utf8', maxBuffer: 1 << 26 });
+}
+
+/**
+ * @returns {string[]}
+ */
+function listChangedFiles() {
+  const base = hygieneBase();
+  const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${base}...HEAD`], {
+    encoding: 'utf8',
+  });
+  return out
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
 }
 
 /**
@@ -163,10 +511,13 @@ function main() {
     console.log('no pull request: skip PR contract');
     return;
   }
+  const changedFiles = listChangedFiles();
   const errors = reviewPrContract({
     title,
     body,
     exists: (file) => existsSync(path.resolve(process.cwd(), file)),
+    changedTestFiles: changedFiles.filter((file) => isChangedTestFile(file, file.endsWith('.rs') ? fileDiff(file) : '')),
+    changedFiles,
   });
   if (errors.length === 0) {
     console.log('PR contract ok');
