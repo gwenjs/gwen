@@ -409,7 +409,8 @@ export function defineActorPool<Props, PublicAPI>(
       availableCount -= 1;
       const candidate = available[availableCount]!;
       // A dead id fails this write and is dropped. The slot stays dormant
-      // while prefab defaults are written into the existing component objects.
+      // while component defaults, then prefab defaults, are written into the
+      // existing component objects.
       // Reuse does not add or remove a component and does not invalidate queries:
       // a prefab component removed during the previous life stays removed.
       if (!setEntityDormant(engine, candidate, true)) continue;

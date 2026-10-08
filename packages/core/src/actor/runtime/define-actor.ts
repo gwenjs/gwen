@@ -307,8 +307,8 @@ export function onRelease(fn: VoidFn): void {
 /**
  * Registers a callback invoked when this actor instance is reacquired from a
  * pool via `pool.acquire(props)`. Use it to reset component data and any
- * internal state using the new props. Called after prefab defaults are
- * re-applied automatically.
+ * internal state using the new props. Called after component defaults, then
+ * prefab defaults, are written into the existing components automatically.
  *
  * Must be called synchronously inside a `defineActor()` factory function.
  *
