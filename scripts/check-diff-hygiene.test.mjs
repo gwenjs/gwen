@@ -707,3 +707,21 @@ test('rejects a dispose behind a falsy literal or a bare return, accepts one beh
   );
   assert.ok(!disposeHit(block), block.join('\n'));
 });
+
+test('rejects a dispose behind an always-false or, comparison, loop, ternary, return value or throw', () => {
+  const setup = ['const handle = await createRealEngine();'];
+  const shapes = [
+    ['if (false || false) handle.dispose();'],
+    ['if (0 === 1) handle.dispose();'],
+    ['while (false) {', '  handle.dispose();', '}'],
+    ['false ? handle.dispose() : 0;'],
+    ['return undefined;', 'handle.dispose();'],
+    ["throw new Error('stop');", 'handle.dispose();'],
+  ];
+  for (const cleanup of shapes) {
+    const lines = withFinally(setup, cleanup);
+    assert.ok(disposeHit(lines), lines.join('\n'));
+  }
+  const live = withFinally(setup, ['if (handle || false) await handle.dispose();']);
+  assert.ok(!disposeHit(live), live.join('\n'));
+});
