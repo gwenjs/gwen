@@ -383,18 +383,51 @@ function checkNoTestCloses(lines, body, errors) {
 }
 
 /**
- * @param {string} file
+ * True when a diff adds a Rust test function (`#[test]`, `#[tokio::test]`,
+ * `#[wasm_bindgen_test]`).
+ *
+ * @param {string} diff
  * @returns {boolean}
  */
-function isChangedTestFile(file) {
-  return /\.(?:test|spec)\.(?:mjs|cjs|js|ts|tsx|mts)$/.test(file) || /(?:_test|\.test)\.rs$/.test(file);
+export function addsRustTest(diff) {
+  return /^\+\s*#\[(?:tokio::)?(?:test|wasm_bindgen_test)\b/m.test(diff);
+}
+
+/**
+ * A changed file that needs a Red proof row: a JS/TS test file, a Cargo
+ * integration test (`crates/<crate>/tests/<name>.rs`), a `*_test.rs` file, or
+ * any `.rs` file whose diff adds a `#[test]` function (inline tests).
+ *
+ * @param {string} file
+ * @param {string} [diff] the file's diff, read for `.rs` files
+ * @returns {boolean}
+ */
+export function isChangedTestFile(file, diff = '') {
+  if (/\.(?:test|spec)\.(?:mjs|cjs|js|ts|tsx|mts)$/.test(file) || /(?:_test|\.test)\.rs$/.test(file)) return true;
+  if (/^crates\/[^/]+\/tests\/[^/]+\.rs$/.test(file)) return true;
+  return file.endsWith('.rs') && addsRustTest(diff);
+}
+
+/**
+ * @returns {string}
+ */
+function hygieneBase() {
+  return process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
+}
+
+/**
+ * @param {string} file
+ * @returns {string}
+ */
+function fileDiff(file) {
+  return execFileSync('git', ['diff', `${hygieneBase()}...HEAD`, '--', file], { encoding: 'utf8', maxBuffer: 1 << 26 });
 }
 
 /**
  * @returns {string[]}
  */
 function listChangedFiles() {
-  const base = process.env.HYGIENE_BASE ?? 'origin/v1-alpha';
+  const base = hygieneBase();
   const out = execFileSync('git', ['diff', '--name-only', '--diff-filter=AMR', `${base}...HEAD`], {
     encoding: 'utf8',
   });
@@ -445,7 +478,7 @@ function main() {
     title,
     body,
     exists: (file) => existsSync(path.resolve(process.cwd(), file)),
-    changedTestFiles: changedFiles.filter(isChangedTestFile),
+    changedTestFiles: changedFiles.filter((file) => isChangedTestFile(file, file.endsWith('.rs') ? fileDiff(file) : '')),
     changedFiles,
   });
   if (errors.length === 0) {
