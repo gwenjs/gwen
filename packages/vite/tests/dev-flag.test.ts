@@ -88,6 +88,8 @@ describe("dev flag follows Vite DEV", () => {
         { mode: "production", nodeEnv: "production", expected: false },
         { mode: "development", nodeEnv: undefined, expected: true },
         { mode: "development", nodeEnv: "production", expected: true },
+        { mode: "production", nodeEnv: "development", expected: false },
+        { mode: "development", nodeEnv: "development", expected: true },
       ] as const;
       const previous = process.env.NODE_ENV;
       try {
