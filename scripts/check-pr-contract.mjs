@@ -293,13 +293,43 @@ function plainWords(line) {
     .trim();
 }
 
+const CONCLUSION =
+  /^(?:ship|lgtm|looks good|approv|accept|reject|merge|ready|good|ok\b|okay|sound|solid|block|request|changes requested|needs (?:work|changes)|go\b|no-go|green|lg\b)/i;
+const BARE_OUTCOME = /^(?:pass(?:ed)?|fail(?:ed)?|ok|yes|no)$/i;
+
 /**
- * The word verdict as a review outcome: in a heading, at the start of a line
- * or of a table cell, as the last word of a table cell (a label whose value
- * sits in the next cell), or followed by a colon, a dash, an em dash or `is`.
- * Each table cell is read as its own line. Inline code spans are cut out
- * first, so a field named verdict in code (`verdict === "pass"`) or in prose
- * is allowed.
+ * True when the text reads as a review conclusion: it starts with a
+ * conclusion word (ship it, LGTM, ready to merge, …), or it is a bare pass or
+ * fail.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function isConclusion(text) {
+  const t = text.replace(/^[\s:*_"'>\-\u2014\u2013]+/, '').replace(/[\s.!*_"']+$/, '');
+  return t !== '' && (CONCLUSION.test(t) || BARE_OUTCOME.test(t));
+}
+
+/**
+ * The word verdict before `is`, a dash or an em dash, followed by a
+ * conclusion (`Final verdict — ship it`, `My verdict is: ship it`).
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function verdictThenConclusion(text) {
+  const match = text.match(/\bverdict\b[*_\s]*(?:\u2014|\u2013|-(?![\w-])|is\b)(.*)$/i);
+  return match !== null && isConclusion(match[1] ?? '');
+}
+
+/**
+ * The word verdict as a review outcome: in a heading, at the start of a line,
+ * before a colon, or before `is` / a dash / an em dash followed by a
+ * conclusion. In a table each cell is read on its own: a cell that starts or
+ * ends with the word is a label, rejected when its value (the rest of the
+ * cell, or the next non-empty cell) is a conclusion. Inline code spans are cut
+ * out first, so a field named verdict in code (`verdict === "pass"`) or in
+ * prose is allowed.
  *
  * @param {string} line
  * @returns {boolean}
@@ -307,14 +337,18 @@ function plainWords(line) {
 function verdictForm(line) {
   const text = line.replace(/\p{Cf}/gu, '').replace(/(`+)[\s\S]*?\1/g, ' ');
   if (/^\s{0,3}#{1,6}\s/.test(text) && /\bverdict\b/i.test(text)) return true;
-  const row = isRow(text);
-  const parts = row ? splitRow(text) : [text];
-  return parts.some(
-    (part) =>
-      /^[\s>*_\-+|]*verdict\b/i.test(part) ||
-      (row && /\bverdict[*_\s]*$/i.test(part)) ||
-      /\bverdict\b[*_\s]*(?::|\u2014|\u2013|-(?![\w-])|is\b)/i.test(part),
-  );
+  const colon = /\bverdict\b[*_\s]*:/i;
+  if (!isRow(text)) {
+    return /^[\s>*_\-+]*verdict\b/i.test(text) || colon.test(text) || verdictThenConclusion(text);
+  }
+  const cells = splitRow(text);
+  return cells.some((cell, k) => {
+    if (colon.test(cell) || verdictThenConclusion(cell)) return true;
+    if (!/^[\s>*_\-+]*verdict\b/i.test(cell) && !/\bverdict[*_\s]*$/i.test(cell)) return false;
+    if (isConclusion(cell.replace(/^[\s\S]*?\bverdict\b/i, ''))) return true;
+    const next = cells.slice(k + 1).find((other) => other.trim() !== '');
+    return next !== undefined && isConclusion(next);
+  });
 }
 
 /**
@@ -384,13 +418,14 @@ function checkNoTestCloses(lines, body, errors) {
 
 /**
  * True when a diff adds a Rust test function (`#[test]`, `#[tokio::test]`,
- * `#[wasm_bindgen_test]`).
+ * `#[wasm_bindgen_test]`, `#[rstest]`, `#[test_case(…)]`), also on a one-line
+ * `mod tests { #[test] … }`.
  *
  * @param {string} diff
  * @returns {boolean}
  */
 export function addsRustTest(diff) {
-  return /^\+\s*#\[(?:tokio::)?(?:test|wasm_bindgen_test)\b/m.test(diff);
+  return /^\+(?!\+\+).*#\[(?:tokio::)?(?:test|wasm_bindgen_test|rstest|test_case)\b/m.test(diff);
 }
 
 /**
