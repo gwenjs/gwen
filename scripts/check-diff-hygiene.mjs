@@ -447,6 +447,14 @@ function cleanupFor(masked, index) {
     chunks.push(finallyAttached(masked, end));
     chunks.push(collectSpans(slice, /\bafterEach\b/g, '(', ')', false));
   }
+  // An engine made in a `beforeEach` callback is released by an `afterEach`
+  // of the scope that holds that `beforeEach` (the next body out, or the file).
+  const hook = bodies[0];
+  if (hook && /\bbeforeEach\s*\(\s*(?:async\s*)?(?:\(\s*\)|function\s*\(\s*\))\s*(?:=>)?\s*$/.test(masked.slice(0, hook[0]))) {
+    const outer = bodies[1];
+    const scope = outer ? masked.slice(outer[0], outer[1] + 1) : masked;
+    chunks.push(collectSpans(scope, /\bafterEach\b/g, '(', ')', false));
+  }
   return chunks.join('\n');
 }
 
