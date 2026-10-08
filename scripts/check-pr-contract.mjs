@@ -307,6 +307,9 @@ const BARE_OUTCOME = /^(?:pass(?:ed)?|fail(?:ed)?|ok|yes|no)$/i;
  */
 function isConclusion(text) {
   const t = text.replace(/^[\s:*_"'>\-\u2014\u2013]+/, '').replace(/[\s.!*_"']+$/, '');
+  // `ok only when …`, `green or red`, `rejected when …`: a condition or an
+  // alternative right after the first word describes a field, not an outcome.
+  if (/^[\w'-]+\s+(?:only\s+when|when|if|unless|or)\b/i.test(t)) return false;
   return t !== '' && (CONCLUSION.test(t) || BARE_OUTCOME.test(t));
 }
 
