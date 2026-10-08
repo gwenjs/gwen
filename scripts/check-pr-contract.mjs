@@ -294,9 +294,12 @@ function plainWords(line) {
 }
 
 /**
- * The word verdict as a review outcome: in a heading, at the start of a line,
- * or followed by a colon. Inline code spans are cut out first, so a field
- * named verdict in code (`verdict === "pass"`) or in prose is allowed.
+ * The word verdict as a review outcome: in a heading, at the start of a line
+ * or of a table cell, as the last word of a table cell (a label whose value
+ * sits in the next cell), or followed by a colon, a dash, an em dash or `is`.
+ * Each table cell is read as its own line. Inline code spans are cut out
+ * first, so a field named verdict in code (`verdict === "pass"`) or in prose
+ * is allowed.
  *
  * @param {string} line
  * @returns {boolean}
@@ -304,8 +307,14 @@ function plainWords(line) {
 function verdictForm(line) {
   const text = line.replace(/\p{Cf}/gu, '').replace(/(`+)[\s\S]*?\1/g, ' ');
   if (/^\s{0,3}#{1,6}\s/.test(text) && /\bverdict\b/i.test(text)) return true;
-  if (/^[\s>*_\-+]*verdict\b/i.test(text)) return true;
-  return /\bverdict\b[*_\s]*:/i.test(text);
+  const row = isRow(text);
+  const parts = row ? splitRow(text) : [text];
+  return parts.some(
+    (part) =>
+      /^[\s>*_\-+|]*verdict\b/i.test(part) ||
+      (row && /\bverdict[*_\s]*$/i.test(part)) ||
+      /\bverdict\b[*_\s]*(?::|\u2014|\u2013|-(?![\w-])|is\b)/i.test(part),
+  );
 }
 
 /**
