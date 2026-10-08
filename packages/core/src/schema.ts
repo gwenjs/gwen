@@ -445,11 +445,13 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
   }
 }
 
-/** Next id for a component name that has not been defined yet. Starts at 1. */
-let _nextTypeId = 1;
-
-/** Name → id and layout. A second `defineComponent` of the same name reuses the id. */
-const _typeIdsByName = new Map<string, { id: number; layout: string }>();
+/**
+ * Process-wide definition metadata: component name → schema layout. Holds no
+ * WASM type id. Ids are per engine (`getOrRegisterComponent`, #59). This map
+ * only detects a redefinition with another layout and counts distinct names
+ * for the definition-time budget (#52).
+ */
+const _definedLayouts = new Map<string, string>();
 
 /**
  * Field names, order and types. Defaults are not part of the layout.
@@ -465,31 +467,33 @@ function _schemaLayout(schema: ComponentSchema): string {
     .join(",");
 }
 
-function _claimTypeId(name: string, schema: ComponentSchema): number {
+/**
+ * Record the layout of `name`, or check it against the recorded one.
+ * Throws before any WASM call: `CORE:INVALID_COMPONENT_SCHEMA` for another
+ * layout, `CORE:COMPONENT_TYPE_LIMIT_REACHED` for the 128th distinct name.
+ */
+function _checkDefinition(name: string, schema: ComponentSchema): void {
   const layout = _schemaLayout(schema);
-  const existing = _typeIdsByName.get(name);
+  const existing = _definedLayouts.get(name);
   if (existing !== undefined) {
-    if (existing.layout !== layout) {
+    if (existing !== layout) {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
         `[GWEN] defineComponent('${name}'): this name is already defined with schema ` +
-          `{ ${existing.layout} }, not { ${layout} }. One name has one WASM type id. ` +
+          `{ ${existing} }, not { ${layout} }. One name has one layout. ` +
           `Use another name or the same schema.`,
       );
     }
-    return existing.id;
+    return;
   }
-  if (_typeIdsByName.size >= MAX_USER_COMPONENT_TYPES) {
+  if (_definedLayouts.size >= MAX_USER_COMPONENT_TYPES) {
     throw new GwenError(
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
       `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit ` +
         `(${MAX_COMPONENT_TYPES} type bits, ${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
     );
   }
-  const id = _nextTypeId;
-  _nextTypeId += 1;
-  _typeIdsByName.set(name, { id, layout });
-  return id;
+  _definedLayouts.set(name, layout);
 }
 
 /**
@@ -520,10 +524,9 @@ export interface ComponentDefinition<S extends ComponentSchema> {
    */
   readonly defaults?: Partial<{ [K in keyof S]: InferSchemaType<S[K]> }>;
   /**
-   * Numeric ID of the component name, used as the WASM `component_type_id`.
-   * One id per name: defining the same name again with the same layout
-   * returns the same id, with another layout it throws.
-   * Matches the ID used in `register_component_type` on the Rust side.
+   * Not a WASM type id. Runtime ids come from the current engine's
+   * `getOrRegisterComponent(name)`. Kept so existing definition objects still
+   * have the field; the value is always `0`.
    *
    * @internal
    */
@@ -627,7 +630,8 @@ export function defineComponent<S extends ComponentSchema>(
 
   _validateComponentSchema(config.name, config.schema);
 
-  const _typeId = _claimTypeId(config.name, config.schema);
+  _checkDefinition(config.name, config.schema);
+  const _typeId = 0;
 
   let byteOffset = 0;
   const _fields = Object.entries(config.schema).map(([fieldName, schemaType]) => {
