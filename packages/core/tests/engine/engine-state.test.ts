@@ -352,6 +352,36 @@ describe("engine state machine", () => {
     }
   });
 
+  it("stop() awaited inside an engine:stop hook after a fatal resolves, and teardown runs once", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let disposed = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", async () => {
+        stops += 1;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      engine.disposables.add(
+        "probe",
+        createDisposable(() => {
+          disposed += 1;
+        }),
+      );
+      await engine.startExternal();
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+      expect(engine.state).toBe("faulted");
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(disposed).toBe(1);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
   it("an overlapping stop() while faulted does not run engine:stop again", async () => {
     const engine = await createEngine();
     let release: () => void = () => undefined;
@@ -616,7 +646,6 @@ describe("engine state machine", () => {
             (caught: unknown) => caught,
           );
         if (error instanceof GwenEngineStateError) methods.push(`${engine.state}:${error.method}`);
-        if (engine.state !== "starting") return;
         const unuseError = await engine.unuse("ok").then(
           () => undefined,
           (caught: unknown) => caught,
@@ -631,11 +660,20 @@ describe("engine state machine", () => {
       await engine.unuse("ok");
       await engine.stop();
       expect(engine.state).toBe("stopped");
+      expect(setups).toBe(0);
       engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
       expect(engine.state).toBe("stopped");
+      let faultedSetups = 0;
       await faulted.startExternal();
       faulted.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
-      await expect(faulted.use({ name: "no", setup() {} })).rejects.toMatchObject({
+      await expect(
+        faulted.use({
+          name: "no",
+          setup() {
+            faultedSetups += 1;
+          },
+        }),
+      ).rejects.toMatchObject({
         from: "faulted",
         method: "use",
       });
@@ -643,7 +681,8 @@ describe("engine state machine", () => {
         from: "faulted",
         method: "unuse",
       });
-      expect(methods).toEqual(["starting:use", "starting:unuse", "stopping:use"]);
+      expect(faultedSetups).toBe(0);
+      expect(methods).toEqual(["starting:use", "starting:unuse", "stopping:use", "stopping:unuse"]);
     } finally {
       await shutdown(engine);
       await shutdown(faulted);
