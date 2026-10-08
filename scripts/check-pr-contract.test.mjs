@@ -436,3 +436,37 @@ test('accepts a Rust-only fix shaped like PR #157 when its Red proof has the row
     check(codeBlockOnly).join('\n'),
   );
 });
+
+test('accepts prose that names the field and rejects a review outcome after it', () => {
+  for (const line of [
+    'The alloc gate verdict is unchanged by this PR.',
+    '| verdict | string |',
+    '| alloc | per-row verdict |',
+    'A run prints a verdict — pass or fail — per file.',
+  ]) {
+    assert.deepEqual(review(`${goodBody}\n${line}\n`), [], line);
+  }
+  for (const line of [
+    '| Verdict | LGTM |',
+    '| Reviewer verdict | Ship it |',
+    'Final verdict — ship it',
+    'My verdict is: ship it',
+    'The verdict is ready to merge',
+    '| Verdict | Pass |',
+  ]) {
+    const errors = review(`${goodBody}\n${line}\n`);
+    assert.ok(errors.some((error) => error.startsWith('self-written verdict or approve:')), `${line}\n${errors.join('\n')}`);
+  }
+});
+
+test('counts rstest, test_case and a one-line test module as added Rust tests', () => {
+  const file = 'crates/gwen-core/src/ecs/storage.rs';
+  for (const added of [
+    '+    #[rstest]',
+    '+    #[test_case(1 ; "one")]',
+    '+mod tests { #[test] fn one() { assert_eq!(1, 1); } }',
+  ]) {
+    const diff = [`--- a/${file}`, `+++ b/${file}`, '@@ -1 +1,2 @@', ' fn a() {}', added].join('\n');
+    assert.equal(contract.isChangedTestFile(file, diff), true, added);
+  }
+});
