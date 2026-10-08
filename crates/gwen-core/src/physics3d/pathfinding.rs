@@ -410,6 +410,74 @@ mod tests {
         }
     }
 
+    /// Uploads a 3×1×3 grid (cell size 1, origin 0) through the public [`init_navgrid_3d`] export.
+    #[cfg(feature = "pathfinding-3d")]
+    fn upload_3x1x3(cells: &[u8; 9]) {
+        init_navgrid_3d(cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+    }
+
+    /// Reads the first `count` waypoints through the public [`get_path_buffer_ptr_3d`] export.
+    #[cfg(feature = "pathfinding-3d")]
+    fn read_path(count: usize) -> Vec<f32> {
+        let ptr = get_path_buffer_ptr_3d();
+        // SAFETY: the buffer holds MAX_PATH_NODES_3D * 3 floats and `count` comes
+        // from `find_path_3d`, which never exceeds MAX_PATH_NODES_3D.
+        unsafe { std::slice::from_raw_parts(ptr, count * 3).to_vec() }
+    }
+
+    /// Two callers on two threads, each with its own grid, interleaved step by step
+    /// with a barrier. Each caller must search its own grid and read its own path,
+    /// whatever the other caller did in between. The parallel test runner does this.
+    #[cfg(feature = "pathfinding-3d")]
+    #[test]
+    fn test_state_is_not_shared_between_threads() {
+        use std::sync::{Arc, Barrier};
+
+        let barrier = Arc::new(Barrier::new(2));
+
+        // Thread A: the whole z=1 row is blocked, so (1,0,0) → (1,0,2) has no
+        // route and the result is the 2-node straight fallback.
+        let a_barrier = Arc::clone(&barrier);
+        let a = std::thread::spawn(move || {
+            upload_3x1x3(&[0, 0, 0, 1, 1, 1, 0, 0, 0]);
+            a_barrier.wait(); // 1: A uploaded
+            a_barrier.wait(); // 2: B uploaded its own grid
+            let count = find_path_3d(1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
+            a_barrier.wait(); // 3: A searched
+            a_barrier.wait(); // 4: B searched and wrote its own path
+            (count, read_path(count))
+        });
+
+        // Thread B: open grid, so (1,0,0) → (1,0,2) is a 3-node route along +Z.
+        let b_barrier = Arc::clone(&barrier);
+        let b = std::thread::spawn(move || {
+            b_barrier.wait(); // 1
+            upload_3x1x3(&[0; 9]);
+            b_barrier.wait(); // 2
+            b_barrier.wait(); // 3
+            let count = find_path_3d(1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
+            b_barrier.wait(); // 4
+            (count, read_path(count))
+        });
+
+        // Re-raise a thread's panic so its own message is the test failure.
+        let (a_count, a_path) = a.join().unwrap_or_else(|e| std::panic::resume_unwind(e));
+        let (b_count, b_path) = b.join().unwrap_or_else(|e| std::panic::resume_unwind(e));
+
+        assert_eq!(a_count, 2, "thread A must search its own blocked grid");
+        assert_eq!(
+            a_path,
+            vec![1.0, 0.0, 0.0, 1.0, 0.0, 2.0],
+            "thread A must read its own path"
+        );
+        assert_eq!(b_count, 3, "thread B must search its own open grid");
+        assert_eq!(
+            b_path,
+            vec![1.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0, 2.0],
+            "thread B must read its own path"
+        );
+    }
+
     #[test]
     fn test_get_path_buffer_ptr_not_null() {
         let ptr = get_path_buffer_ptr_3d();
