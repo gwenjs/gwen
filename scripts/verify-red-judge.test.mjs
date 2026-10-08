@@ -394,3 +394,83 @@ test("judge ignores TAP lines quoted inside a YAML diagnostic block", () => {
   assert.equal(status, 0, output);
   assert.doesNotMatch(output, /quoted from a child run/);
 });
+
+test("judge blocks a passing name it cannot place that equals a describe path", () => {
+  const source = [
+    "import { describe, test as check, test } from 'vitest';",
+    "check('A', () => {});",
+    "describe('A', () => { test('b', () => {}); });",
+    "",
+  ].join("\n");
+  const vitest = judge({
+    source,
+    base: "import { test } from 'vitest';\n",
+    format: "vitest",
+    report: vitestReport([
+      { ancestorTitles: [], title: "A", status: "passed" },
+      { ancestorTitles: ["A"], title: "b", status: "failed" },
+    ]),
+  });
+  assert.equal(vitest.status, 1, vitest.output);
+  assert.match(vitest.output, /PASS A \(runner name not in source\)/);
+  const tap = judge({
+    source: source.replace("'vitest'", "'node:test'"),
+    base: "import test from 'node:test';\n",
+    format: "tap",
+    report: [
+      "TAP version 13",
+      "# Subtest: A",
+      "ok 1 - A",
+      "# Subtest: A",
+      "    # Subtest: b",
+      "    not ok 1 - b",
+      "    1..1",
+      "not ok 2 - A",
+      "1..2",
+      "",
+    ].join("\n"),
+  });
+  assert.equal(tap.status, 1, tap.output);
+  assert.match(tap.output, /PASS A \(runner name not in source\)/);
+});
+
+test("judge warns about a passing name built by a helper when the base run passes it too", () => {
+  const base = [
+    "import { test } from 'vitest';",
+    "import { conformance } from './helper';",
+    "conformance();",
+    "test('old', () => {});",
+    "",
+  ].join("\n");
+  const dir = mkdtempSync(join(tmpdir(), "gwen-judge-base-run-"));
+  try {
+    const baseRun = join(dir, "base-run.json");
+    writeFileSync(
+      baseRun,
+      vitestReport([
+        { ancestorTitles: ["conformance"], title: "shared case", status: "passed" },
+        { ancestorTitles: [], title: "old", status: "passed" },
+      ]),
+    );
+    const input = {
+      source: `${base}test('new', () => { throw new Error('red'); });\n`,
+      base,
+      format: "vitest",
+      report: vitestReport([
+        { ancestorTitles: ["conformance"], title: "shared case", status: "passed" },
+        { ancestorTitles: [], title: "old", status: "passed" },
+        { ancestorTitles: [], title: "new", status: "failed" },
+      ]),
+    };
+    const warned = judge({ ...input, extra: ["--base-run", baseRun] });
+    assert.equal(warned.status, 0, warned.output);
+    assert.match(warned.output, /WARN runner name not in source, passes in the base run: conformance > shared case/);
+    assert.match(warned.output, /FAIL new/);
+    writeFileSync(baseRun, vitestReport([{ ancestorTitles: [], title: "old", status: "passed" }]));
+    const blocked = judge({ ...input, extra: ["--base-run", baseRun] });
+    assert.equal(blocked.status, 1, blocked.output);
+    assert.match(blocked.output, /PASS conformance > shared case \(runner name not in source\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
