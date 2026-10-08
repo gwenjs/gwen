@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { reviewPrContract } from './check-pr-contract.mjs';
+import * as contract from './check-pr-contract.mjs';
+
+const { reviewPrContract } = contract;
 
 const placeholder = ['MISS', 'ING'].join('');
 const unfinished = ['not', 'done'].join(' ');
@@ -270,6 +272,10 @@ test('rejects review outcome words in any markdown shape', () => {
     '```note```\n## Verdict\n\nAPPROVE',
     'AP\u200BPROVE',
     'AP\u00ADPROVE',
+    '| Verdict | LGTM |',
+    '| Reviewer verdict | Ship it |',
+    'Final verdict \u2014 ship it',
+    'My verdict is: ship it',
   ];
   for (const shape of shapes) {
     const errors = review(`${goodBody}\n${shape}\n`);
@@ -330,6 +336,8 @@ test('treats workflows and docs scripts as code for the n/a rule', () => {
 test('allows the word verdict in prose and inline code', () => {
   const prose = review(`${goodBody}\n\`pnpm test:alloc\`: 4 passed, verdict \`pass\`, \`failures\` empty.\n`);
   const code = review(`${goodBody}\n\`frame-alloc.gate.ts\` asserts \`verdict === "pass"\`.\n`);
+  const field = review(`${goodBody}\nThe alloc gate prints \`verdict: "pass"\` per row.\n`);
+  assert.deepEqual(field, []);
   const heading = review(`${goodBody}\n## Reviewer verdict\n\nShip it.\n`);
   const start = review(`${goodBody}\nVerdict: ship it\n`);
   assert.deepEqual(prose, []);
@@ -357,4 +365,74 @@ test('treats github scripts and docs package.json as code for the n/a rule', () 
     );
   }
   assert.deepEqual(review(body, 'docs: template', [], ['.github/ISSUE_TEMPLATE/bug.md']), []);
+});
+
+test('rejects not unit-tested, not automatically tested and no coverage next to a closing keyword', () => {
+  for (const gap of ['Not unit-tested', 'not automatically tested', 'no coverage']) {
+    const errors = review(withGap('Closes #12', gap));
+    assert.ok(errors.includes('NO TEST cannot use a closing keyword'), gap);
+  }
+});
+
+const rustFile = 'crates/gwen-core/src/physics3d/pathfinding.rs';
+const rustTestDiff = [
+  `diff --git a/${rustFile} b/${rustFile}`,
+  `--- a/${rustFile}`,
+  `+++ b/${rustFile}`,
+  '@@ -1,2 +1,6 @@',
+  ' mod tests {',
+  '+    #[test]',
+  '+    fn test_state_is_not_shared_between_threads() {',
+  '+        assert_eq!(1, 1);',
+  '+    }',
+  ' }',
+].join('\n');
+
+test('counts a Rust integration test file and an added inline #[test] as changed test files', () => {
+  assert.equal(typeof contract.isChangedTestFile, 'function');
+  const isTest = contract.isChangedTestFile;
+  assert.equal(isTest('crates/gwen-core/tests/core_errors.rs', ''), true);
+  assert.equal(isTest('crates/gwen-physics3d-fracture/tests/voronoi.rs', ''), true);
+  assert.equal(isTest(rustFile, rustTestDiff), true);
+  assert.equal(isTest(rustFile, rustTestDiff.replace('+    #[test]', '+    // no test attribute')), false);
+  assert.equal(isTest('crates/gwen-core/src/lib.rs', ''), false);
+  assert.equal(isTest('crates/gwen-core/tests/common/mod.rs', ''), false);
+});
+
+test('accepts a Rust-only fix shaped like PR #157 when its Red proof has the row', () => {
+  assert.equal(typeof contract.isChangedTestFile, 'function');
+  const changedFiles = [rustFile];
+  const changedTestFiles = changedFiles.filter((file) => contract.isChangedTestFile(file, rustTestDiff));
+  const body = [
+    '## Acceptance -> test',
+    '',
+    '| Acceptance | Test |',
+    '|---|---|',
+    `| Two callers on two threads each search their own grid | \`${rustFile}::tests::test_state_is_not_shared_between_threads\` |`,
+    '',
+    '## Red proof',
+    '',
+    '| Test file | Command | Failing line |',
+    '|---|---|---|',
+    `| \`${rustFile}\` | \`cargo test -q -p gwen-core --lib --features physics3d test_state_is_not_shared_between_threads\` | \`assertion left == right failed: thread A must search its own blocked grid\` |`,
+    '',
+    '## Breaking changes',
+    '',
+    'None.',
+    '',
+  ].join('\n');
+  const check = (text) =>
+    reviewPrContract({
+      title: 'fix(core): give the 3D pathfinding state an owner so tests stop racing',
+      body: text,
+      exists: (file) => file === rustFile,
+      changedTestFiles,
+      changedFiles,
+    });
+  assert.deepEqual(check(body), []);
+  const codeBlockOnly = body.replace(/\| Test file[\s\S]*?\|\n\n## Breaking/, '```\n$ cargo test\n```\n\n## Breaking');
+  assert.ok(
+    check(codeBlockOnly).includes(`Red proof table is missing a row for ${rustFile}`),
+    check(codeBlockOnly).join('\n'),
+  );
 });
