@@ -355,7 +355,9 @@ const CLOSING =
  * @returns {boolean}
  */
 function cellHasNoTest(cell) {
-  return /\bno(?:[-\s_]+automated)?[-\s_]?tests?\b|\bnot[-\s_]+tested\b|\buntested\b/i.test(cell.replace(/`/g, ''));
+  return /\bno(?:[-\s_]+automated)?[-\s_]?tests?\b|\bnot[-\s_]+(?:(?:unit|automatically)[-\s_]+)?tested\b|\buntested\b|\bno[-\s_]+coverage\b/i.test(
+    cell.replace(/`/g, ''),
+  );
 }
 
 /**
