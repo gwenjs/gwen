@@ -202,14 +202,11 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
         name: path,
         async build(handle, entities) {
           const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
-          const actor = defineActor("alloc-pool-actor", prefab, () => {
-            const id = useEntityId();
-            const pos = useEngine().getComponent(id, Position);
-            onUpdate(() => {
-              if (pos) pos.x += 1;
-            });
-          });
-          const pool = defineActorPool(actor, { size: entities });
+          // Pool alone: twice the acquired count keeps the pool below its 80%
+          // usage warning, and no actor onUpdate means no per-handler hook
+          // closure (update.actor already measures that dispatch cost).
+          const actor = defineActor("alloc-pool-actor", prefab, () => {});
+          const pool = defineActorPool(actor, { size: 2 * entities });
           await handle.engine.use(actor._plugin);
           await handle.engine.use(pool.plugin);
           const system = defineSystem("alloc-pool-driver", () => {
