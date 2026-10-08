@@ -1,8 +1,12 @@
+/**
+ * Bulk-operation behaviour: body creation and contact dispatch at
+ * frame-sized counts. Wall-clock budgets for the same operations
+ * live in `bench/timing-gate.test.ts`.
+ */
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { createEngine } from "@gwenjs/core";
-import { ciThreshold } from "./helpers/perf";
 
-// ─── Mocks for dynamic body perf test ─────────────────────────────────────
+// ─── Mocks for dynamic body test ─────────────────────────────────────
 
 vi.mock("@gwenjs/core/internal", () => ({
   _getActorEntityId: vi.fn(() => 1n),
@@ -42,29 +46,29 @@ import {
 } from "../src/composables/on-contact.js";
 import type { Physics3DCollisionContact } from "../src/types.js";
 
-describe("physics3d performance", () => {
+describe("physics3d bulk operations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPhysics3D.createBody.mockReturnValue(mockBodyHandle);
   });
 
-  it("500 dynamic bodies created < 20ms", () => {
-    const start = performance.now();
+  it("creates 500 dynamic bodies, one physics body each", () => {
     for (let i = 0; i < 500; i++) {
       useDynamicBody();
     }
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(20));
+    expect(mockPhysics3D.createBody).toHaveBeenCalledTimes(500);
   });
 
-  it("500 onContact dispatches per frame < 1ms", async () => {
+  it("delivers 500 contact dispatches in one frame to the callback", async () => {
     const engine = await createEngine();
     engine.activate();
     try {
       _clearContactCallbacks();
       let calls = 0;
-      onContact(() => {
+      let last: Physics3DCollisionContact | undefined;
+      onContact((contact) => {
         calls += 1;
+        last = contact;
       });
 
       const event: Physics3DCollisionContact = {
@@ -73,14 +77,12 @@ describe("physics3d performance", () => {
         started: true,
       };
 
-      const start = performance.now();
       for (let i = 0; i < 500; i++) {
         _dispatchContactEvent(event);
       }
-      const elapsed = performance.now() - start;
 
-      expect(elapsed).toBeLessThan(ciThreshold(1));
       expect(calls).toBe(500);
+      expect(last).toBe(event);
       _clearContactCallbacks();
     } finally {
       engine.deactivate();
