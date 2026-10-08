@@ -17,6 +17,7 @@ import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
 import { useSceneRouter } from "../../src/router/uses/use-scene-router";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 const Hp = stubValue("Hp");
 const TestPrefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
@@ -48,6 +49,7 @@ describe("dormant frame skip", () => {
     const id = Actor._plugin.spawn!();
     Actor._instances.get(id)!._scope.pause();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();
@@ -65,6 +67,7 @@ describe("dormant frame skip", () => {
 
     Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();
@@ -82,6 +85,7 @@ describe("dormant frame skip", () => {
 
     Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();
@@ -99,6 +103,7 @@ describe("dormant frame skip", () => {
 
     Actor._instances.get(Actor._plugin.spawn!())!._scope.pause();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();
@@ -117,6 +122,7 @@ describe("dormant frame skip", () => {
     const inst = Actor._instances.get(Actor._plugin.spawn!())!;
     inst._scope.pause();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     expect(spy).not.toHaveBeenCalled();
@@ -137,6 +143,7 @@ describe("dormant frame skip", () => {
     await engine.use(Actor._plugin);
     Actor._plugin.spawn!();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.advance(0.016);
     await engine.stop();
@@ -619,6 +626,7 @@ describe("defineActorPool — scope", () => {
     pool.acquire();
     pool.acquire();
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.stop();
 
@@ -653,6 +661,7 @@ describe("defineActorPool — scope", () => {
     });
     await engine.use(pool._plugin);
 
+    activateTestWasm(engine);
     await engine.start();
     await engine.stop();
 

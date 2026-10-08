@@ -6,6 +6,7 @@ import { defineActor, onStart, onDestroy } from "../../src/actor/runtime/define-
 import { useChildren } from "../../src/actor/runtime/use-children";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 import {
   GwenComposableError,
   GwenActorError,
@@ -295,6 +296,7 @@ describe("useChildren — pool release cascade", () => {
     await engine.use(Parent._plugin);
     await engine.use(ParentPool._plugin);
 
+    activateTestWasm(engine);
     await engine.start();
 
     const parentId = ParentPool.acquire();
@@ -334,6 +336,7 @@ describe("useChildren — pool release cascade", () => {
     await engine.use(Parent._plugin);
     await engine.use(ParentPool._plugin);
 
+    activateTestWasm(engine);
     await engine.start();
 
     const parentId = ParentPool.acquire();

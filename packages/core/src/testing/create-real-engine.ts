@@ -7,6 +7,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createEngine, type GwenEngine } from "../engine/gwen-engine.js";
 import { WasmBridgeImpl } from "../engine/wasm-bridge.js";
 import type { CoreVariant } from "../engine/wasm-bridge-types.js";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../engine/engine-errors.js";
 
 export interface RealEngineHandle {
   readonly engine: GwenEngine;
@@ -36,7 +38,8 @@ function artifactPath(variant: CoreVariant, fileName: string): string {
 
 function assertArtifact(variant: CoreVariant, filePath: string): void {
   if (!existsSync(filePath)) {
-    throw new Error(
+    throw new GwenError(
+      CoreErrorCodes.WASM_LOAD_ERROR,
       `WASM artifact missing for variant "${variant}": ${filePath}. Run pnpm build:wasm.`,
     );
   }

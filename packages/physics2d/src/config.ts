@@ -1,4 +1,6 @@
 import type { Physics2DConfig, PhysicsQualityPreset } from "./types";
+import { GwenError } from "@gwenjs/schema";
+import { Physics2DErrorCodes } from "./errors";
 
 /** Pixel to meter ratio used for internal conversions. */
 export const PIXELS_PER_METER = 50;
@@ -24,14 +26,15 @@ export type NormalizedPhysics2DConfig = {
 
 /**
  * Validates and normalizes user-provided configuration.
- * @throws {Error} If layer configuration is invalid.
+ * @throws {GwenError} If layer configuration is invalid.
  */
 export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DConfig {
   const layers: Record<string, number> = {};
   if (config.layers) {
     for (const [name, bit] of Object.entries(config.layers)) {
       if (bit < 0 || bit >= MAX_LAYERS || !Number.isInteger(bit)) {
-        throw new Error(
+        throw new GwenError(
+          Physics2DErrorCodes.INVALID_LAYERS,
           `[Physics2D] Layer "${name}" has invalid bit index ${bit}. Must be an integer in [0, ${MAX_LAYERS - 1}].`,
         );
       }
@@ -68,7 +71,8 @@ export class LayerRegistry {
 
   constructor(layers: Record<string, number>) {
     if (Object.keys(layers).length > MAX_LAYERS) {
-      throw new Error(
+      throw new GwenError(
+        Physics2DErrorCodes.INVALID_LAYERS,
         `[Physics2D] Too many layers declared: ${Object.keys(layers).length}. Maximum is ${MAX_LAYERS}.`,
       );
     }
@@ -90,7 +94,8 @@ export class LayerRegistry {
       const bit = this.bits[name];
       if (bit === undefined) {
         const known = Object.keys(this.bits).join(", ");
-        throw new Error(
+        throw new GwenError(
+          Physics2DErrorCodes.UNKNOWN_LAYER,
           `[Physics2D] Unknown layer "${name}" in ${role}. Declared layers: [${known}]. ` +
             `Add it to Physics2DConfig.layers or fix the typo.`,
         );

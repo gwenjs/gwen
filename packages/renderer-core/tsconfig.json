@@ -8,5 +8,5 @@
     "outDir": "./dist"
   },
   "include": ["src"],
-  "references": [{ "path": "../core" }, { "path": "../kit" }]
+  "references": [{ "path": "../core" }, { "path": "../kit" }, { "path": "../schema" }]
 }

@@ -1,3 +1,4 @@
+import { GwenError } from "@gwenjs/schema";
 // packages/camera-core/src/errors.ts
 /**
  * @file Camera error codes and error classes.
@@ -26,13 +27,13 @@ export type CameraErrorCode = (typeof CameraErrorCodes)[keyof typeof CameraError
  * throw err
  * ```
  */
-export class CameraViewportNotFoundError extends Error {
-  readonly code = CameraErrorCodes.VIEWPORT_NOT_FOUND;
+export class CameraViewportNotFoundError extends GwenError {
+  override readonly code = CameraErrorCodes.VIEWPORT_NOT_FOUND;
   readonly hint: string;
   readonly docsUrl: string;
 
   constructor(viewportId: string) {
-    super(`[GwenCamera] Viewport "${viewportId}" not found.`);
+    super(CameraErrorCodes.VIEWPORT_NOT_FOUND, `[GwenCamera] Viewport "${viewportId}" not found.`);
     this.name = "CameraViewportNotFoundError";
     this.hint =
       `Declare it in defineConfig({ viewports: { "${viewportId}": { x, y, width, height } } }) ` +
@@ -51,13 +52,13 @@ export class CameraViewportNotFoundError extends Error {
  * throw err
  * ```
  */
-export class CameraEmptyPathError extends Error {
-  readonly code = CameraErrorCodes.EMPTY_PATH;
+export class CameraEmptyPathError extends GwenError {
+  override readonly code = CameraErrorCodes.EMPTY_PATH;
   readonly hint: string;
   readonly docsUrl: string;
 
   constructor() {
-    super(`[GwenCamera] playPath() requires at least one waypoint.`);
+    super(CameraErrorCodes.EMPTY_PATH, `[GwenCamera] playPath() requires at least one waypoint.`);
     this.name = "CameraEmptyPathError";
     this.hint = "Provide a non-empty waypoints array to playPath().";
     this.docsUrl = "https://gwenengine.dev/docs/camera#playPath";

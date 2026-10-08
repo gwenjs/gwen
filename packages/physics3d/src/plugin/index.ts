@@ -1,5 +1,5 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { getWasmBridge } from "@gwenjs/core/internal";
+import { getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 
 import type {
@@ -67,6 +67,8 @@ import { createCharacterControllerMethods } from "./character-controller";
 import { createSpatialQueryMethods } from "./spatial-queries";
 
 import { createPathfindingMethods } from "./pathfinding-service";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
@@ -124,7 +126,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
 
     step: (deltaSeconds: number) => {
       if (!ctx.stepFn) {
-        throw new Error("[GWEN:Physics3D] step() called before plugin initialization.");
+        throw new GwenError(
+          Physics3DErrorCodes.NOT_INITIALIZED,
+          "[GWEN:Physics3D] step() called before plugin initialization.",
+        );
       }
       ctx.stepFn(deltaSeconds);
       if (deltaSeconds > 0 && ctx.backendMode === "local") {
@@ -225,7 +230,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.bridgeRuntime = bridge;
 
       if (ctx._variant !== "physics3d") {
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
           `[GWEN:Physics3D] Active core variant is "${ctx._variant}". ` +
             'Pass variant: "physics3d" when initialising WasmBridgeImpl.',
         );
@@ -234,7 +240,8 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       const pb = bridge.getPhysicsBridge();
 
       if (typeof pb.physics3d_init !== "function") {
-        throw new Error(
+        throw new GwenError(
+          Physics3DErrorCodes.WASM_VARIANT_MISMATCH,
           "[GWEN:Physics3D] physics3d_init() is not available in current WASM exports.",
         );
       }
@@ -336,7 +343,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (contacts.length === 0) return;
 
         // Dispatch hook
-        void ctx._engine.hooks.callHook("physics3d:collision", contacts);
+        reportRejectedHook(
+          ctx._engine,
+          "@gwenjs/physics3d",
+          "physics3d:collision",
+          ctx._engine.hooks.callHook("physics3d:collision", contacts),
+        );
 
         // Dispatch to composable onContact() callbacks
         for (const contact of contacts) {
@@ -369,7 +381,12 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
             sensorMap.set(colliderId, next);
 
             if (prev.isActive !== newActive) {
-              void ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next);
+              reportRejectedHook(
+                ctx._engine,
+                "@gwenjs/physics3d",
+                "physics3d:sensor:changed",
+                ctx._engine.hooks.callHook("physics3d:sensor:changed", eid, colliderId, next),
+              );
               if (newActive) {
                 _dispatchSensorEnter(colliderId, eid);
               } else {

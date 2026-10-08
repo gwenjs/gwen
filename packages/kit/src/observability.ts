@@ -20,7 +20,7 @@
  * ```
  */
 
-import type { IGwenLogger } from "@gwenjs/schema";
+import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 
 /**
  * No-op logger that silently drops all messages.
@@ -93,11 +93,11 @@ export function useErrorReporter() {
      *
      * @param code - Error code (e.g., 'CONFIG_ERROR', 'VALIDATION_ERROR')
      * @param message - Human-readable error message
-     * @throws {Error} Always throws with the structured error message
+     * @throws {GwenError} Always throws with the structured error message
      */
     report(code: string, message: string): never {
       log.error(`[${code}] ${message}`);
-      throw new Error(`[${code}] ${message}`);
+      throw new GwenError(code, `[${code}] ${message}`);
     },
   };
 }

@@ -69,8 +69,8 @@ export class GwenError extends Error {
    */
   public readonly code: string;
 
-  constructor(code: string, message: string) {
-    super(message);
+  constructor(code: string, message: string, options?: GwenErrorOptions) {
+    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "GwenError";
     this.code = code;
   }

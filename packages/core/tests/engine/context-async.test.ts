@@ -1,10 +1,16 @@
 import { describe, it, expect } from "vitest";
-import { withAsyncContext, createEngine, useEngine, GwenContextError } from "../../src";
+import {
+  withAsyncContext,
+  createEngine,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+} from "../../src";
 import { engineContext, executeAsync } from "../../src/internal";
 import { GwenScope } from "../../src/context/scope.js";
 
 describe("GwenContextError — error codes", () => {
-  it("has code OUTSIDE_ENGINE when called outside any context", () => {
+  it("has code CORE:OUTSIDE_ENGINE_CONTEXT when called outside any context", () => {
     engineContext.unset();
     let err: GwenContextError | null = null;
     try {
@@ -13,7 +19,7 @@ describe("GwenContextError — error codes", () => {
       err = e as GwenContextError;
     }
     expect(err).toBeInstanceOf(GwenContextError);
-    expect(err!.code).toBe("OUTSIDE_ENGINE");
+    expect(err!.code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
   });
 
   it("error message mentions withAsyncContext and capture pattern", () => {
@@ -30,13 +36,13 @@ describe("GwenContextError — error codes", () => {
   });
 
   it("GwenContextError has a code property", () => {
-    const err = new GwenContextError("test", "OUTSIDE_ENGINE");
-    expect(err.code).toBe("OUTSIDE_ENGINE");
+    const err = new GwenContextError("test", CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    expect(err.code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
   });
 
-  it("GwenContextError defaults code to OUTSIDE_ENGINE", () => {
+  it("GwenContextError defaults code to CORE:OUTSIDE_ENGINE_CONTEXT", () => {
     const err = new GwenContextError("test");
-    expect(err.code).toBe("OUTSIDE_ENGINE");
+    expect(err.code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
   });
 });
 

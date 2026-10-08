@@ -40,6 +40,8 @@
 
 import { GwenConfigError } from "../../engine/config-error";
 import type { WasmBridge } from "../../engine/wasm-bridge";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 
 // ─── Public constants ─────────────────────────────────────────────────────────
 
@@ -169,11 +171,11 @@ export class SharedMemoryManager {
    * @param bridge       Active WasmBridge — `initWasm()` must have been called.
    * @param maxEntities  Number of entity slots (default: 10 000).
    *
-   * @throws {Error} If the bridge is not active or the allocation returns null.
+   * @throws {GwenError} If the bridge is not active or the allocation returns null.
    */
   static create(bridge: WasmBridge, maxEntities = 10_000): SharedMemoryManager {
     if (!bridge.isActive()) {
-      throw new Error(
+      throw new GwenError(CoreErrorCodes.WASM_NOT_INITIALIZED, 
         "[GWEN:SharedMemory] bridge.init() or setupGwen() must be called before SharedMemoryManager.create().",
       );
     }
@@ -199,7 +201,7 @@ export class SharedMemoryManager {
     const ptr = bridge.allocSharedBuffer(totalBytes);
 
     if (ptr === 0) {
-      throw new Error(
+      throw new GwenError(CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED, 
         "[GWEN:SharedMemory] alloc_shared_buffer() returned a null pointer — out of WASM memory?",
       );
     }
@@ -226,11 +228,11 @@ export class SharedMemoryManager {
    *                   multiple. The actual allocation also reserves
    *                   `SENTINEL_BYTES` after the usable area.
    *
-   * @throws {Error} If there is not enough space remaining in the buffer.
+   * @throws {GwenError} If there is not enough space remaining in the buffer.
    */
   allocateRegion(pluginId: string, byteLength: number): MemoryRegion {
     if (byteLength <= 0) {
-      throw new Error(
+      throw new GwenError(CoreErrorCodes.SHARED_MEMORY_INVALID_SIZE, 
         `[GWEN:SharedMemory] Invalid byteLength ${byteLength} for plugin '${pluginId}'.`,
       );
     }
@@ -246,7 +248,7 @@ export class SharedMemoryManager {
     const totalReservation = aligned + SENTINEL_BYTES;
 
     if (this.usedBytes + totalReservation > this.totalBytes) {
-      throw new Error(
+      throw new GwenError(CoreErrorCodes.SHARED_MEMORY_EXHAUSTED, 
         `[GWEN:SharedMemory] Insufficient space for plugin '${pluginId}': ` +
           `need ${totalReservation}B (${aligned}B data + ${SENTINEL_BYTES}B sentinel), ` +
           `only ${this.totalBytes - this.usedBytes}B remaining.`,
@@ -285,7 +287,7 @@ export class SharedMemoryManager {
    *
    * @param bridge  Active WasmBridge — needed to access the linear memory view.
    *
-   * @throws {Error} If any sentinel has been overwritten, indicating a
+   * @throws {GwenError} If any sentinel has been overwritten, indicating a
    *   buffer-overrun bug in the offending Rust plugin.
    */
   checkSentinels(bridge: WasmBridge): void {
@@ -301,7 +303,7 @@ export class SharedMemoryManager {
       // so sentinelAddr is already the correct byte offset.
       const value = view.getUint32(sentinelAddr, /* littleEndian= */ true);
       if (value !== SENTINEL) {
-        throw new Error(
+        throw new GwenError(CoreErrorCodes.SHARED_MEMORY_SENTINEL_OVERWRITE, 
           `[GWEN:SharedMemory] Sentinel overwrite detected for plugin '${pluginId}'!\n` +
             `Expected 0x${SENTINEL.toString(16).toUpperCase()} at address ${sentinelAddr}, ` +
             `found 0x${value.toString(16).toUpperCase()}.\n` +

@@ -22,7 +22,7 @@ npm install @gwenjs/core
 ## Quick start
 
 ```ts
-import { createEngine, defineComponent, Types } from "@gwenjs/core";
+import { setupGwen, defineComponent, Types } from "@gwenjs/core";
 import { defineSystem, useQuery, onUpdate } from "@gwenjs/core/system";
 
 // 1. Define components (Structure-of-Arrays)
@@ -50,10 +50,10 @@ const MovementSystem = defineSystem("MovementSystem", () => {
   });
 });
 
-// 3. Create and start the engine
-const engine = await createEngine();
+// 3. Create and start the engine. setupGwen() loads WASM. start() is async.
+const engine = await setupGwen();
 await engine.use(MovementSystem);
-engine.start();
+await engine.start();
 ```
 
 ## Components
@@ -230,16 +230,16 @@ const NavSystem = defineSystem('NavSystem', () => {
 ## Plugin system
 
 ```ts
-import { createEngine } from "@gwenjs/core";
+import { setupGwen } from "@gwenjs/core";
 
-const engine = await createEngine();
+const engine = await setupGwen();
 
 // Plugins are GwenPlugin objects returned by defineSystem, defineActor._plugin, etc.
 await engine.use(MovementSystem);
 await engine.use(EnemyActor._plugin);
 
-engine.start();
-engine.stop();
+await engine.start();
+await engine.stop();
 ```
 
 ## Logger

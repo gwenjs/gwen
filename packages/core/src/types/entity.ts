@@ -1,8 +1,10 @@
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../engine/engine-errors";
 /**
  * Entity & component primitive types.
  *
- * These are the foundational types with ZERO dependencies.
- * All other modules depend on these.
+ * Foundational entity types. `entityIndex` throws {@link GwenError}
+ * `CORE:INVALID_ENTITY_ID` when the id is not a bigint.
  */
 
 // ── Entity ────────────────────────────────────────────────────────────────────
@@ -56,7 +58,8 @@ const MAX_EXACT_ENTITY_ID = (1n << 53n) - 1n;
  */
 export function entityIndex(id: EntityId): number {
   // A number used to throw when mixed with the BigInt mask. Keep that rejection.
-  if (typeof id !== "bigint") throw new TypeError("EntityId must be a bigint");
+  if (typeof id !== "bigint")
+    throw new GwenError(CoreErrorCodes.INVALID_ENTITY_ID, "EntityId must be a bigint");
   if (id <= MAX_EXACT_ENTITY_ID) return Number(id) >>> 0;
   return Number(id & 0xffffffffn);
 }

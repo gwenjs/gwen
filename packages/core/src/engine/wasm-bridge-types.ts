@@ -746,7 +746,7 @@ export interface WasmBridge {
 
   /**
    * Get physics-specific bridge.
-   * @throws {Error} If the active variant is 'light'.
+   * @throws {GwenError} If the active variant is 'light'.
    */
   getPhysicsBridge(): WasmEnginePhysics2D | WasmEnginePhysics3D;
 

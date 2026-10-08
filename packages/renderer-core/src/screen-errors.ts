@@ -1,3 +1,4 @@
+import { GwenError } from "@gwenjs/schema";
 /**
  * @file Screen error codes and error classes.
  *
@@ -32,13 +33,14 @@ export type ScreenErrorCode = (typeof ScreenErrorCodes)[keyof typeof ScreenError
  * throw new ScreenResizeObserverError()
  * ```
  */
-export class ScreenResizeObserverError extends Error {
-  readonly code = ScreenErrorCodes.ResizeObserverNotAvailable;
+export class ScreenResizeObserverError extends GwenError {
+  override readonly code = ScreenErrorCodes.ResizeObserverNotAvailable;
   readonly hint: string;
   readonly docsUrl: string;
 
   constructor() {
     super(
+      ScreenErrorCodes.ResizeObserverNotAvailable,
       "[GwenScreen] ResizeObserver is not available in this environment. " +
         "Configure `screen.sizeProvider` in gwen.config.ts for non-browser environments.",
     );
@@ -59,8 +61,8 @@ export class ScreenResizeObserverError extends Error {
  * throw new ScreenViewportNotFoundError('p3', ['main', 'p1', 'p2'])
  * ```
  */
-export class ScreenViewportNotFoundError extends Error {
-  readonly code = ScreenErrorCodes.ViewportNotFound;
+export class ScreenViewportNotFoundError extends GwenError {
+  override readonly code = ScreenErrorCodes.ViewportNotFound;
   readonly viewportId: string;
   readonly knownViewports: string[];
   readonly hint: string;
@@ -68,6 +70,7 @@ export class ScreenViewportNotFoundError extends Error {
 
   constructor(viewportId: string, knownViewports: string[]) {
     super(
+      ScreenErrorCodes.ViewportNotFound,
       `[GwenScreen] Viewport "${viewportId}" is not registered. ` +
         `Known viewports: ${knownViewports.length > 0 ? knownViewports.map((v) => `"${v}"`).join(", ") : "(none)"}.`,
     );

@@ -1,7 +1,7 @@
 # @gwenjs/math
 
 Pure-function math library for the GWEN game engine.
-Zero dependencies, fully tree-shakeable, works in any environment (browser, Node, WASM).
+Depends on `@gwenjs/schema` for `GwenError`. Fully tree-shakeable, works in any environment (browser, Node, WASM).
 
 ## Installation
 

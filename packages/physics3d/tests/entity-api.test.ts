@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 
 const physics3dInit = vi.fn();
 const physics3dStep = vi.fn();
@@ -97,11 +98,11 @@ describe("Physics3D entity API (foundation)", () => {
     expect(service.getBodyCount()).toBe(0);
   });
 
-  it("throws TypeError when createBody receives a number id", () => {
+  it("throws GwenError when createBody receives a number id", () => {
     const { service } = setup();
     expect(() => {
       service.createBody(1);
-    }).toThrow(TypeError);
+    }).toThrow(GwenError);
     expect(service.getBodyCount()).toBe(0);
   });
 

@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { entityIndex } from "../src/engine/engine-api";
 import type { EntityId } from "../src/engine/engine-api";
 import { createEntityId } from "../src/engine/engine-api";
@@ -33,6 +34,6 @@ describe("entityIndex", () => {
 
   it("rejects a number id", () => {
     const id: unknown = 1;
-    expect(() => entityIndex(id as EntityId)).toThrow(TypeError);
+    expect(() => entityIndex(id as EntityId)).toThrow(GwenError);
   });
 });

@@ -84,7 +84,7 @@ export interface Physics3DAPI {
    * (gravity, damping, position, quaternion rotation).
    *
    * @param deltaSeconds - Time to simulate in seconds. Must be positive.
-   * @throws Error when called before plugin initialization.
+   * @throws {GwenError} when called before plugin initialization.
    *
    * @since 1.0.0
    */

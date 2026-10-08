@@ -7,6 +7,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import type { Mock } from "vitest";
 import type { EntityId } from "@gwenjs/core";
 import type { ComponentDef } from "@gwenjs/core/system";
@@ -221,7 +222,7 @@ describe("Physics2DKinematicSyncSystem", () => {
     });
 
     it("does not query a component by the string name position", () => {
-      expect(() => createPhysicsKinematicSyncSystem()).toThrow(TypeError);
+      expect(() => createPhysicsKinematicSyncSystem()).toThrow(GwenError);
     });
 
     it("passes the configured position component to createLiveQuery", () => {

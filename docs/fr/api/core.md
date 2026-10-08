@@ -11,29 +11,32 @@ Moteur ECS principal, composants, systèmes, acteurs et hooks de cycle de vie du
 
 ## Moteur
 
-### createEngine(options)
+### setupGwen(options)
 
 **Signature:**
 ```ts
-function createEngine(options: GwenEngineOptions): GwenEngine
+function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 ```
 
-**Description.** Crée et initialise le moteur GWEN avec la configuration fournie. C'est la base de votre jeu/app.
+**Description.** Charge le cœur WASM et crée le moteur. C'est le point d'entrée d'une application. `createEngine()` ne charge pas le WASM. `engine.start()` renvoie une promesse et lance `CORE:WASM_NOT_INITIALIZED` tant que le WASM n'est pas chargé.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options | `GwenEngineOptions` | Configuration du moteur (scènes, plugins, etc.) |
+| options | `GwenEngineOptions` | Configuration du moteur (variant, maxEntities, debug). |
 
-**Retourne:** `GwenEngine` — l'instance du moteur initialisée.
+**Retourne:** `Promise<GwenEngine>` — le moteur, WASM chargé.
 
 **Exemple:**
 ```ts
-const engine = await createEngine({
+import { setupGwen } from '@gwenjs/core'
+
+const engine = await setupGwen({
   maxEntities: 10_000,
   variant: 'physics2d',
   debug: true,
 })
+await engine.start()
 ```
 
 ### useEngine()

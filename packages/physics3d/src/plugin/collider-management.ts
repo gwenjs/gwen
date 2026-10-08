@@ -31,6 +31,8 @@ import { guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { nextColliderIdForEntity } from "./plugin-helpers";
 import { createBodyLocal } from "./body-management";
 import type { PluginContext } from "./plugin-context";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 // ─── Helper ────────────────────────────────────────────────────────────────────
 
@@ -202,7 +204,12 @@ export function addColliderImpl(
               ) ?? false;
             if (ok) resolveReady();
             else
-              rejectReady(new Error("[GWEN:Physics3D] physics3d_load_bvh_collider returned false"));
+              rejectReady(
+                new GwenError(
+                  Physics3DErrorCodes.BVH_LOAD_FAILED,
+                  "[GWEN:Physics3D] physics3d_load_bvh_collider returned false",
+                ),
+              );
           })
           .catch(rejectReady);
 
@@ -241,7 +248,12 @@ export function addColliderImpl(
               ) ?? false;
             if (ok) resolveReady();
             else
-              rejectReady(new Error("[GWEN:Physics3D] physics3d_load_bvh_collider returned false"));
+              rejectReady(
+                new GwenError(
+                  Physics3DErrorCodes.BVH_LOAD_FAILED,
+                  "[GWEN:Physics3D] physics3d_load_bvh_collider returned false",
+                ),
+              );
           },
           rejectReady,
         );
@@ -398,7 +410,8 @@ export function createBulkSpawnStaticBoxes(
 ): (options: BulkStaticBoxesOptions) => BulkStaticBoxesResult {
   return (options) => {
     if (options.positions.length % 3 !== 0) {
-      throw new RangeError(
+      throw new GwenError(
+        Physics3DErrorCodes.INVALID_MESH_BUFFER,
         `[GWEN:Physics3D] positions.length must be a multiple of 3, got ${options.positions.length}`,
       );
     }

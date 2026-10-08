@@ -15,6 +15,7 @@
  */
 
 import type { GwenEngine } from "@gwenjs/core";
+import { reportRejectedHook } from "@gwenjs/core/internal";
 import { ViewportManagerImpl } from "./viewport-manager.js";
 import type { ViewportManager } from "./viewport-manager.js";
 import type { ViewportRegion } from "./camera-types.js";
@@ -42,9 +43,12 @@ export function getOrCreateViewportManager(engine: GwenEngine): ViewportManager 
   if (existing) return existing;
 
   const manager = new ViewportManagerImpl((event, payload) => {
-    // fire-and-forget — viewport hooks are synchronous listeners only
-    // cast mirrors emit.ts: callHook only accepts known keys statically
-    (engine.hooks.callHook as (name: string, ...args: unknown[]) => void)(event, payload);
+    reportRejectedHook(
+      engine,
+      "@gwenjs/renderer-core",
+      event,
+      (engine.hooks.callHook as (name: string, ...args: unknown[]) => unknown)(event, payload),
+    );
   });
   engine.provide("viewportManager", manager);
   return manager;

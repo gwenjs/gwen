@@ -7,6 +7,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createEngine } from "../../src/index.js";
 import type { GwenPlugin } from "../../src/index.js";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -300,6 +301,7 @@ describe("Engine lifecycle — stop()", () => {
       }),
     );
 
+    activateTestWasm(engine);
     await engine.start();
     const initialCallCount = rafCalls.length + timeoutCalls.length;
     expect(initialCallCount).toBeGreaterThan(0);

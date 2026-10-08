@@ -37,7 +37,8 @@ export default defineConfig({
       formats: ["es"],
     },
     rollupOptions: {
-      external: (id) => id.startsWith("node:"),
+      external: (id) =>
+        id.startsWith("node:") || id === "@gwenjs/schema" || id.startsWith("@gwenjs/schema/"),
       output: {
         entryFileNames: "[name].js",
         chunkFileNames: "chunks/[name].js",

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { CoreErrorCodes, createEngine } from "../src/index";
+import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 describe("plugin setup failure", () => {
   it("does not tear down a healthy sibling plugin", async () => {
@@ -76,6 +77,7 @@ describe("fixed-step loop", () => {
     });
 
     try {
+      activateTestWasm(engine);
       await engine.start();
       await new Promise((resolve) => setTimeout(resolve, 100));
       expect(frames).toBeGreaterThanOrEqual(3);

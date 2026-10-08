@@ -7,6 +7,9 @@
 
 import type { Color } from "./types.js";
 import { clamp01 } from "./scalar.js";
+import { GwenError } from "@gwenjs/schema";
+
+const MATH_INVALID_HEX_COLOR = "MATH:INVALID_HEX_COLOR";
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 
@@ -58,11 +61,11 @@ export function colorFromHex(hex: string): Color {
     b = parseInt(h.slice(4, 6), 16) / 255;
     if (h.length === 8) a = parseInt(h.slice(6, 8), 16) / 255;
   } else {
-    throw new Error(`colorFromHex: invalid hex "${hex}"`);
+    throw new GwenError(MATH_INVALID_HEX_COLOR, `colorFromHex: invalid hex "${hex}"`);
   }
 
   if (isNaN(r) || isNaN(g) || isNaN(b) || isNaN(a)) {
-    throw new Error(`colorFromHex: invalid hex "${hex}"`);
+    throw new GwenError(MATH_INVALID_HEX_COLOR, `colorFromHex: invalid hex "${hex}"`);
   }
 
   return { r, g, b, a };

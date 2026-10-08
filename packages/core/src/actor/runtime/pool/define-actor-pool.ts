@@ -8,6 +8,8 @@ import { PoolExhaustedError } from "./errors";
 import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
+import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
+import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 
 /**
  * Manages the queue of actor pool slots scheduled for deferred release.
@@ -96,6 +98,7 @@ export function defineActorPool<Props, PublicAPI>(
 ): ActorPool<Props, PublicAPI> {
   const { size, warnThreshold = 0.8, criticalThreshold = 0.95 } = options;
   const actorName = actor.__actorName__;
+  const hookSource = `pool:${actorName}`;
 
   // The engine reference is set in setup() and is guaranteed to be non-null
   // for any call that reaches acquire() or release() after plugin installation.
@@ -109,12 +112,94 @@ export function defineActorPool<Props, PublicAPI>(
   let _acquireCount = 0;
 
   const _hooks = createHooks<PoolHooks>();
+  const hookCount: Record<keyof PoolHooks, number> = {
+    "pool:acquire": 0,
+    "pool:release": 0,
+    "pool:warn": 0,
+    "pool:critical": 0,
+    "pool:exhausted": 0,
+  };
+  const rawHook = _hooks.hook.bind(_hooks);
+  const rawBeforeEach = _hooks.beforeEach.bind(_hooks);
+  const rawAfterEach = _hooks.afterEach.bind(_hooks);
+  let spyCount = 0;
+  _hooks.hook = (name, fn, options) => {
+    if (typeof fn !== "function") return rawHook(name, fn, options);
+    hookCount[name] += 1;
+    const off = rawHook(name, fn, options);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      hookCount[name] -= 1;
+      off();
+    };
+  };
+  _hooks.beforeEach = (fn) => {
+    spyCount += 1;
+    const off = rawBeforeEach(fn);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      spyCount -= 1;
+      off();
+    };
+  };
+  _hooks.afterEach = (fn) => {
+    spyCount += 1;
+    const off = rawAfterEach(fn);
+    let live = true;
+    return () => {
+      if (!live) return;
+      live = false;
+      spyCount -= 1;
+      off();
+    };
+  };
+
+  // No listener and no before/after spy: callHook would only allocate.
+  function callAcquire(id: EntityId, props: unknown): void {
+    if (hookCount["pool:acquire"] === 0 && spyCount === 0) return;
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:acquire",
+      _hooks.callHook("pool:acquire", { id, props }),
+    );
+  }
+
+  function callRelease(id: EntityId): void {
+    if (hookCount["pool:release"] === 0 && spyCount === 0) return;
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:release",
+      _hooks.callHook("pool:release", { id }),
+    );
+  }
+
+  function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
+    if (hookCount[name] === 0 && spyCount === 0) return;
+    reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
+  }
+
+  function callExhausted(): void {
+    if (hookCount["pool:exhausted"] === 0 && spyCount === 0) return;
+    reportRejectedHook(
+      _engine,
+      hookSource,
+      "pool:exhausted",
+      _hooks.callHook("pool:exhausted", { size }),
+    );
+  }
 
   // ─── internal helpers ──────────────────────────────────────────────────────
 
   function _getEngine(): GwenEngine {
     if (!_engine) {
-      throw new Error(
+      throw new GwenActorError(
+        ActorErrorCodes.PLUGIN_NOT_READY,
         `[GWEN] pool(${actorName}).acquire() or release() was called before the pool plugin was installed.\n` +
           `  Fix: await engine.use(pool._plugin) before calling pool methods.\n` +
           `  Make sure engine.use(Actor._plugin) is called first.`,
@@ -133,14 +218,14 @@ export function defineActorPool<Props, PublicAPI>(
         size,
         ratio,
       });
-      void _hooks.callHook("pool:critical", { active: _active.size, size, ratio });
+      callPressure("pool:critical", _active.size, ratio);
     } else if (ratio >= warnThreshold) {
       log.warn(`pool at ${Math.round(ratio * 100)}% capacity (${_active.size}/${size})`, {
         active: _active.size,
         size,
         ratio,
       });
-      void _hooks.callHook("pool:warn", { active: _active.size, size, ratio });
+      callPressure("pool:warn", _active.size, ratio);
     }
   }
 
@@ -192,7 +277,7 @@ export function defineActorPool<Props, PublicAPI>(
       // All slots are active: pool is exhausted.
       const log = engine.logger.child(`pool:${actorName}`);
       log.error(`pool exhausted — all ${size} slots are active`, { actorName, size });
-      void _hooks.callHook("pool:exhausted", { size });
+      callExhausted();
       throw new PoolExhaustedError(actorName, size);
     }
 
@@ -201,7 +286,7 @@ export function defineActorPool<Props, PublicAPI>(
     if (_active.size > _peakActive) _peakActive = _active.size;
 
     _checkThresholds(engine);
-    void _hooks.callHook("pool:acquire", { id, props });
+    callAcquire(id, props);
     return id;
   }
 
@@ -254,7 +339,7 @@ export function defineActorPool<Props, PublicAPI>(
     _active.delete(id);
     _available.push(id);
 
-    void _hooks.callHook("pool:release", { id });
+    callRelease(id);
   }
 
   // ─── destroyAll ─────────────────────────────────────────────────────────────
@@ -295,7 +380,7 @@ export function defineActorPool<Props, PublicAPI>(
   // ─── plugin ─────────────────────────────────────────────────────────────────
 
   const _plugin: GwenPlugin = {
-    name: `pool:${actorName}`,
+    name: hookSource,
     teardown(): void {
       // Reset all mutable state so the pool closure is ready for re-registration.
       // Entities were already destroyed by the engine:stop hook (scope: "global") or

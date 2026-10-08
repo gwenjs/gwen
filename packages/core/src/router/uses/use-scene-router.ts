@@ -29,6 +29,9 @@ import type {
   StatesOf,
 } from "../router-types";
 import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
+import { reportRejectedHook } from "../../hooks/report-rejected-hook.js";
 
 // Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
 // WeakMap allows the map entry (and the inner Map) to be GC'd when the engine is destroyed.
@@ -64,7 +67,8 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
     engine = useEngine();
   } catch {
     // Rethrow with a useSceneRouter-specific message for test compatibility
-    throw new Error(
+    throw new GwenError(
+      CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
       "[GWEN] useSceneRouter() must be called inside an active engine context. Call it inside engine.run(), defineActor(), defineSystem(), or scene lifecycle hooks.",
     );
   }
@@ -143,7 +147,12 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         // so we must not fire scene:enter either — it would double-resume its systems.
         await engine.hooks.callHook("scene:transition:leave", { from: fromName, to: toName });
         await engine.hooks.callHook("scene:beforeLeave", fromName);
-        engine.hooks.callHook("scene:leave", fromName);
+        reportRejectedHook(
+          engine,
+          `scene:${fromName}`,
+          "scene:leave",
+          engine.hooks.callHook("scene:leave", fromName),
+        );
 
         overlayStack.pop();
         currentState = target;
@@ -160,7 +169,12 @@ export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoute
         // 2. Systems pause + onExit callbacks (awaited for async safety)
         await engine.hooks.callHook("scene:beforeLeave", fromName);
         // 3. Scene fully left
-        engine.hooks.callHook("scene:leave", fromName);
+        reportRejectedHook(
+          engine,
+          `scene:${fromName}`,
+          "scene:leave",
+          engine.hooks.callHook("scene:leave", fromName),
+        );
       }
 
       currentState = target;

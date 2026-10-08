@@ -14,12 +14,12 @@ Les vrais jeux ont souvent besoin de plusieurs plugins qui fonctionnent ensemble
 Les plugins sont enregistrés dans `main.ts` avec `engine.use()`. **Les dépendances doivent être enregistrées avant les plugins qui en dépendent.**
 
 ```ts
-import { createEngine } from '@gwenjs/core'
+import { setupGwen } from '@gwenjs/core'
 import { InputPlugin } from './plugins/input'
 import { AudioPlugin } from './plugins/audio'
 import { GamePlugin } from './plugins/game' // Depends on Input and Audio
 
-const engine = await createEngine()
+const engine = await setupGwen()
 
 // Register in dependency order
 await engine.use(InputPlugin())      // Registered first
@@ -84,10 +84,10 @@ export const PhysicsSystemPlugin = definePlugin(() => ({
 Puis dans `main.ts` :
 
 ```ts
-import { createEngine } from '@gwenjs/core'
+import { setupGwen } from '@gwenjs/core'
 import { PhysicsSystemPlugin } from './plugins/physics-system'
 
-const engine = await createEngine()
+const engine = await setupGwen()
 await engine.use(PhysicsSystemPlugin())
 await engine.start()
 ```
@@ -195,10 +195,10 @@ export default defineConfig({
 **Enregistrement dans `main.ts` :**
 
 ```ts
-import { createEngine } from '@gwenjs/core'
+import { setupGwen } from '@gwenjs/core'
 import { GamePlugin } from './plugins/game'
 
-const engine = await createEngine()
+const engine = await setupGwen()
 await engine.use(GamePlugin()) // Internally registers Input and Physics
 await engine.start()
 ```
@@ -242,12 +242,12 @@ export const DebugUIPlugin = definePlugin(() => ({
 Exemple dans `main.ts` :
 
 ```ts
-import { createEngine } from '@gwenjs/core'
+import { setupGwen } from '@gwenjs/core'
 import { InputPlugin } from './plugins/input'
 import { AudioPlugin } from './plugins/audio'
 import { Physics2DPlugin } from '@gwenjs/physics2d'
 
-const engine = await createEngine()
+const engine = await setupGwen()
 
 // Infrastructure
 await engine.use(InputPlugin())
@@ -418,7 +418,7 @@ const MyPlugin = definePlugin(() => ({
 Puis dans `main.ts` :
 
 ```ts
-const engine = await createEngine()
+const engine = await setupGwen()
 await engine.use(RequiredPlugin())
 await engine.use(MyPlugin())
 await engine.start()

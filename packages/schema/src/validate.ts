@@ -7,6 +7,12 @@
  */
 
 import type { GwenOptions, GwenModuleEntry, GwenConfigInput } from "./config";
+import { GwenError } from "./errors";
+
+const SchemaErrorCodes = {
+  MODULES_REQUIRED: "SCHEMA:MODULES_REQUIRED",
+  INVALID_CONFIG: "SCHEMA:INVALID_CONFIG",
+} as const;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -62,7 +68,8 @@ export function assertModuleFirstInput(input: GwenConfigInput): void {
     return;
   }
 
-  throw new Error(
+  throw new GwenError(
+    SchemaErrorCodes.MODULES_REQUIRED,
     "Module-first configuration required: declare at least one entry in `modules` and migrate legacy `plugins`/`tsPlugins`/`wasmPlugins` usage.",
   );
 }
@@ -72,47 +79,57 @@ export function assertModuleFirstInput(input: GwenConfigInput): void {
  *
  * @param config - The resolved configuration to validate
  * @returns The same config object if valid
- * @throws Error with stable message if validation fails
+ * @throws {GwenError} with stable message if validation fails
  */
 export function validateResolvedConfig(config: GwenOptions): GwenOptions {
   const maxEntities = config.engine.maxEntities;
   if (!Number.isInteger(maxEntities) || maxEntities < 100 || maxEntities > 1_000_000) {
-    throw new Error("maxEntities must be between 100 and 1000000");
+    throw new GwenError(
+      SchemaErrorCodes.INVALID_CONFIG,
+      "maxEntities must be between 100 and 1000000",
+    );
   }
 
   const targetFPS = config.engine.targetFPS;
   if (typeof targetFPS !== "number" || targetFPS < 30 || targetFPS > 240) {
-    throw new Error("targetFPS must be between 30 and 240");
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "targetFPS must be between 30 and 240");
   }
 
   if (config.engine.loop !== "internal" && config.engine.loop !== "external") {
-    throw new Error("engine.loop must be 'internal' or 'external'");
+    throw new GwenError(
+      SchemaErrorCodes.INVALID_CONFIG,
+      "engine.loop must be 'internal' or 'external'",
+    );
   }
 
   const maxDelta = config.engine.maxDeltaSeconds;
   if (typeof maxDelta !== "number" || maxDelta <= 0 || maxDelta > 1) {
-    throw new Error("engine.maxDeltaSeconds must be > 0 and <= 1");
+    throw new GwenError(
+      SchemaErrorCodes.INVALID_CONFIG,
+      "engine.maxDeltaSeconds must be > 0 and <= 1",
+    );
   }
 
   const hexColorRegex = /^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/;
   if (!hexColorRegex.test(config.html.background)) {
-    throw new Error("background must be a valid hex color");
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "background must be a valid hex color");
   }
 
   if (!Array.isArray(config.modules)) {
-    throw new Error("modules must be an array");
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "modules must be an array");
   }
 
   for (let index = 0; index < config.modules.length; index += 1) {
     if (!isValidModuleEntry(config.modules[index])) {
-      throw new Error(
+      throw new GwenError(
+        SchemaErrorCodes.INVALID_CONFIG,
         `modules[${index}] must be a string or a [name, options] tuple with object options`,
       );
     }
   }
 
   if (!Array.isArray(config.plugins)) {
-    throw new Error("plugins must be an array");
+    throw new GwenError(SchemaErrorCodes.INVALID_CONFIG, "plugins must be an array");
   }
 
   return config;

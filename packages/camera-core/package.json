@@ -34,7 +34,8 @@
     "@gwenjs/core": "workspace:^",
     "@gwenjs/kit": "workspace:^",
     "@gwenjs/math": "workspace:^",
-    "@gwenjs/renderer-core": "workspace:^"
+    "@gwenjs/renderer-core": "workspace:^",
+    "@gwenjs/schema": "workspace:^"
   },
   "devDependencies": {
     "typescript": "^6.0.2",

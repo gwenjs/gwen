@@ -5,6 +5,8 @@
  * `Float32Array` accepted by `physics3d_add_compound_collider`.
  */
 import type { CompoundShapeSpec } from "../types";
+import { GwenError } from "@gwenjs/schema";
+import { Physics3DErrorCodes } from "../errors/codes";
 
 /** Shape-type discriminant values — must match Rust `COMPOUND_SHAPE_*` constants. */
 export const COMPOUND_SHAPE_BOX = 0;
@@ -27,14 +29,15 @@ export const FLOATS_PER_COMPOUND_SHAPE = 12;
  * @param shapes      - Ordered array of shape specifications.
  * @param colliderIds - Stable IDs in the same order as `shapes`.
  * @returns Flat `Float32Array` ready to send to WASM.
- * @throws {Error} If `shapes.length !== colliderIds.length`.
+ * @throws {GwenError} If `shapes.length !== colliderIds.length`.
  */
 export function encodeCompoundShapes(
   shapes: CompoundShapeSpec[],
   colliderIds: number[],
 ): Float32Array {
   if (shapes.length !== colliderIds.length) {
-    throw new Error(
+    throw new GwenError(
+      Physics3DErrorCodes.INVALID_COMPOUND,
       `[GWEN:compound] shapes.length (${shapes.length}) must equal colliderIds.length (${colliderIds.length})`,
     );
   }

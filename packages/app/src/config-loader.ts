@@ -23,7 +23,9 @@
 
 import { existsSync } from "node:fs";
 import { loadConfig } from "c12";
+import { GwenError } from "@gwenjs/schema";
 import type { GwenUserConfig } from "./types";
+import { AppErrorCodes } from "./error-codes";
 
 // ─── GwenConfigLoadError ─────────────────────────────────────────────────────
 
@@ -31,13 +33,13 @@ import type { GwenUserConfig } from "./types";
  * Thrown when `gwen.config.ts` cannot be loaded.
  * Carries the resolved config file path and the original cause.
  */
-export class GwenConfigLoadError extends Error {
+export class GwenConfigLoadError extends GwenError {
   constructor(
     message: string,
     public readonly configFile: string | undefined,
     public readonly cause: unknown,
   ) {
-    super(message);
+    super(AppErrorCodes.CONFIG_LOAD_FAILED, message, { cause });
     this.name = "GwenConfigLoadError";
   }
 }

@@ -22,10 +22,11 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
-import type {
-  GwenErrorPayload as BusErrorPayload,
-  GwenErrorTarget,
-  PluginErrorContext,
+import {
+  GwenError,
+  type GwenErrorPayload as BusErrorPayload,
+  type GwenErrorTarget,
+  type PluginErrorContext,
 } from "@gwenjs/schema";
 import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
 import { engineContext } from "./context";
@@ -240,7 +241,10 @@ class GwenEngineImpl implements GwenEngine {
 
   private _assertNotFaulted(method: string): void {
     if (this._state !== "faulted") return;
-    throw new Error(`[GwenEngine] ${method}() is not allowed while the engine is faulted.`);
+    throw new GwenError(
+      CoreErrorCodes.INVALID_STATE_TRANSITION,
+      `[GwenEngine] ${method}() is not allowed while the engine is faulted.`,
+    );
   }
 
   // ─── WASM module registry (RFC-008) ───────────────────────────────────────
@@ -516,9 +520,23 @@ class GwenEngineImpl implements GwenEngine {
     }
   }
 
+  /**
+   * Start the RAF or fixed-step loop.
+   *
+   * Throws {@link GwenError} `CORE:WASM_NOT_INITIALIZED` when the bridge is not
+   * active. No frame is scheduled. A later `start()` throws again until `bridge.init()`
+   * or `setupGwen()` has run. `stop()` is not required between those calls.
+   */
   async start(): Promise<void> {
     this._assertNotFaulted("start");
     if (this._running) return;
+    if (!this._bridge.isActive()) {
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
+        "[GWEN] WASM core not initialized.\n" +
+          "Call `await bridge.init()` or `setupGwen()` before starting the Engine.",
+      );
+    }
     this._attachErrorPolicy();
     this._running = true;
     this._lastFrameTime = performance.now();
@@ -649,7 +667,10 @@ class GwenEngineImpl implements GwenEngine {
   async advance(dt: number): Promise<void> {
     this._assertNotFaulted("advance");
     if (this._advancing) {
-      throw new Error("[GwenEngine] advance() called re-entrantly — only one advance per frame.");
+      throw new GwenError(
+        CoreErrorCodes.ADVANCE_REENTRANT,
+        "[GwenEngine] advance() called re-entrantly — only one advance per frame.",
+      );
     }
     this._advancing = true;
     this._recordRawFrameTime(dt);
@@ -673,7 +694,7 @@ class GwenEngineImpl implements GwenEngine {
    *
    * @param options - Load options: name, URL, and optional per-frame step.
    * @returns The typed {@link WasmModuleHandle}.
-   * @throws {Error} If `fetch` or `WebAssembly.instantiate` fails.
+   * @throws {GwenError} If `fetch` or `WebAssembly.instantiate` fails.
    */
   async loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
@@ -691,7 +712,8 @@ class GwenEngineImpl implements GwenEngine {
         options.url instanceof URL ? options.url.toString() : options.url,
       );
       if (!response.ok) {
-        throw new Error(
+        throw new GwenError(
+          CoreErrorCodes.WASM_LOAD_ERROR,
           `[GWEN] loadWasmModule("${options.name}"): fetch failed with status ${response.status} ${response.statusText}.`,
         );
       }
@@ -709,7 +731,8 @@ class GwenEngineImpl implements GwenEngine {
       const result = await WebAssembly.instantiate(buffer, { gwen: gwenImports });
       instance = result.instance;
     } catch (err) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_LOAD_ERROR,
         `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
           `Cause: ${err instanceof Error ? err.message : String(err)}`,
       );
@@ -734,7 +757,8 @@ class GwenEngineImpl implements GwenEngine {
     const channelMap = new Map(
       (options.channels ?? []).map((c) => {
         if (!memory) {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.WASM_MODULE_NO_MEMORY,
             `[GWEN] loadWasmModule("${options.name}"): channel '${c.name}' declared but ` +
               `the WASM binary does not export "memory". ` +
               `Add "(export \\"memory\\" (memory ...))" to your WASM module.`,
@@ -751,13 +775,15 @@ class GwenEngineImpl implements GwenEngine {
       region(regionName: string): WasmRegionView {
         const def = regionMap.get(regionName);
         if (!def) {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.WASM_REGION_NOT_FOUND,
             `[GWEN] WASM region '${regionName}' not found in module '${options.name}'. ` +
               `Declare it in WasmModuleOptions.memory.regions.`,
           );
         }
         if (!memory) {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.WASM_MODULE_NO_MEMORY,
             `[GWEN] WASM module '${options.name}' does not export memory — cannot create region view.`,
           );
         }
@@ -766,7 +792,8 @@ class GwenEngineImpl implements GwenEngine {
       channel(channelName: string): WasmRingBuffer {
         const ch = channelMap.get(channelName);
         if (!ch) {
-          throw new Error(
+          throw new GwenError(
+            CoreErrorCodes.WASM_CHANNEL_NOT_FOUND,
             `[GWEN] WASM channel '${channelName}' not found in module '${options.name}'. ` +
               `Declare it in WasmModuleOptions.channels.`,
           );
@@ -798,12 +825,13 @@ class GwenEngineImpl implements GwenEngine {
    *
    * @param name - The name supplied to {@link loadWasmModule}.
    * @returns The typed {@link WasmModuleHandle}.
-   * @throws {Error} If no module has been loaded under `name`.
+   * @throws {GwenError} If no module has been loaded under `name`.
    */
   getWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]> {
     const entry = this._wasmModules.get(name);
     if (!entry) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_MODULE_NOT_FOUND,
         `[GWEN] getWasmModule("${String(name)}"): no WASM module loaded under that name. ` +
           `Call engine.loadWasmModule({ name: "${String(name)}", url: ... }) first.`,
       );
@@ -1016,7 +1044,8 @@ class GwenEngineImpl implements GwenEngine {
   getPlacementBridge(): PlacementBridge {
     const bridge = this._bridge.engine();
     if (!bridge) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
         "[GWEN] getPlacementBridge() called before WASM is initialised. " +
           "Await bridge.init() before calling placement composables.",
       );
@@ -1073,7 +1102,8 @@ class GwenEngineImpl implements GwenEngine {
   private _getOrCreateTransformPtr(): number {
     const bridge = this._bridge;
     if (!bridge.isActive()) {
-      throw new Error(
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
         "[GWEN] loadWasmModule() was called before WASM bridge initialisation. " +
           "Await bridge.init() (or setupGwen()) before loading community WASM modules.",
       );
@@ -1810,14 +1840,14 @@ class GwenEngineImpl implements GwenEngine {
  * Create a GWEN engine instance.
  *
  * @param options - Engine configuration. All fields optional.
- * @returns A fully initialised {@link GwenEngine}.
+ * @returns The engine. WASM is not loaded. Use {@link setupGwen} to load it.
  *
  * @example
  * ```typescript
  * import { createEngine } from '@gwenjs/core'
  * const engine = await createEngine({ maxEntities: 5_000, variant: 'physics2d' })
  * await engine.use(myPlugin())
- * engine.start()
+ * // start() throws CORE:WASM_NOT_INITIALIZED until setupGwen() or bridge.init().
  * ```
  */
 export async function createEngine(options?: GwenEngineOptions): Promise<GwenEngine> {

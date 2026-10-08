@@ -35,6 +35,7 @@
   "dependencies": {
     "@gwenjs/app": "workspace:*",
     "@gwenjs/kit": "workspace:*",
+    "@gwenjs/schema": "workspace:*",
     "magic-string": "^0.30.21",
     "oxc-parser": "^0.123.0",
     "oxc-walker": "^0.7.0",

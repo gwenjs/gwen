@@ -1,9 +1,9 @@
 /**
  * @file Engine public type contracts.
  *
- * Extracted from gwen-engine.ts — all interfaces and type-only constants
- * used by consumers of the GwenEngine API. These are erased at compile time
- * and have no impact on V8 inlining of the implementation in gwen-engine.ts.
+ * Extracted from gwen-engine.ts — public type contracts, plus
+ * `checkPluginApiVersion`, which throws {@link GwenError}
+ * `CORE:WASM_API_VERSION_MISMATCH` when policy is `"throw"`.
  */
 
 import type { Hookable } from "hookable";
@@ -23,6 +23,8 @@ import type {
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import type { EngineMemory } from "./engine-memory.js";
 import { DisposableRegistry } from "../disposable";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "./engine-errors.js";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
 export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
@@ -97,7 +99,7 @@ export const GWEN_PLUGIN_API_VERSION = 1_000_000; // v1.0.0
  * @param expectedVersion - The version to check against (defaults to GWEN_PLUGIN_API_VERSION)
  * @param policy - How to handle mismatches: 'warn' | 'throw' | 'ignore'
  * @returns true if versions match or no version export found, false if mismatch with 'warn'/'ignore'
- * @throws {Error} When policy is 'throw' and versions don't match
+ * @throws {GwenError} When policy is 'throw' and versions don't match
  *
  * @example
  * ```typescript
@@ -121,7 +123,7 @@ export function checkPluginApiVersion(
   }
   const msg = `[GWEN] Plugin "${moduleName}" was compiled against API version ${actual} but engine expects ${expectedVersion}.`;
   if (policy === "throw") {
-    throw new Error(msg);
+    throw new GwenError(CoreErrorCodes.WASM_API_VERSION_MISMATCH, msg);
   }
   if (policy === "warn") {
     // eslint-disable-next-line no-console

@@ -36,7 +36,8 @@
   },
   "dependencies": {
     "@gwenjs/core": "workspace:^",
-    "@gwenjs/kit": "workspace:^"
+    "@gwenjs/kit": "workspace:^",
+    "@gwenjs/schema": "workspace:^"
   },
   "devDependencies": {
     "happy-dom": "^18.0.0",

@@ -132,4 +132,54 @@ describe("P1 error policy (real WASM)", () => {
       await engine.stop();
     }
   });
+
+  it("reports a rejected physics:collision hook on the error bus", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown): void => {
+      unhandled.push(reason);
+    };
+    process.on("unhandledRejection", onUnhandled);
+    const { engine, advance } = await createRealEngine({
+      variant: "physics2d",
+      maxEntities: 64,
+    });
+    try {
+      await engine.use(Physics2DPlugin({ gravity: 0 }));
+      const events: EngineErrorPayload[] = [];
+      engine.hooks.hook("engine:error", (payload) => {
+        events.push(payload);
+      });
+      engine.hooks.hook("physics:collision", () =>
+        Promise.reject(new Error("collision hook failed")),
+      );
+      const physics = engine.inject("physics2d");
+      const left = engine.createEntity();
+      const right = engine.createEntity();
+      const leftHandle = physics.addRigidBody(left, "dynamic", 0, 0);
+      const rightHandle = physics.addRigidBody(right, "dynamic", 0.2, 0);
+      physics.addBoxCollider(leftHandle, 0.5, 0.5);
+      physics.addBoxCollider(rightHandle, 0.5, 0.5);
+
+      await advance(5, 1 / 60);
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+
+      expect(unhandled).toEqual([]);
+      expect(events.some((event) => event.message === "collision hook failed")).toBe(true);
+      expect(events.find((event) => event.message === "collision hook failed")).toMatchObject({
+        level: "error",
+        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
+        source: "@gwenjs/physics2d",
+      });
+      // A rejected callHook does not say which listener failed: no target, no isolation.
+      expect(
+        events.find((event) => event.message === "collision hook failed")?.target,
+      ).toBeUndefined();
+      expect(engine.isolated()).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+      await engine.stop();
+    }
+  });
 });

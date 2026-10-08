@@ -18,6 +18,8 @@ import type { ResolvedGwenConfig } from "./config";
 import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
 import { BUILT_IN_MODULES } from "./built-in-modules";
+import { GwenError } from "@gwenjs/schema";
+import { AppErrorCodes } from "./error-codes";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -129,7 +131,7 @@ export class GwenApp {
    * @param moduleLoader - Optional loader for test injection / CLI override.
    *   Receives the module name string and must return a `GwenModule`.
    *
-   * @throws {Error} If a module cannot be resolved or has no `setup` function.
+   * @throws {GwenError} If a module cannot be resolved or has no `setup` function.
    *
    * @example
    * ```typescript
@@ -161,7 +163,8 @@ export class GwenApp {
       try {
         await mod.setup(options as Record<string, unknown>, kit);
       } catch (cause) {
-        throw new Error(
+        throw new GwenError(
+          AppErrorCodes.MODULE_SETUP_FAILED,
           `[gwen] Built-in module "${mod.meta.name}" setup() threw: ${cause instanceof Error ? cause.message : String(cause)}`,
           { cause },
         );
@@ -202,7 +205,8 @@ export class GwenApp {
           cause instanceof Error && cause.message.includes("Cannot find package")
             ? ` Hint: run 'gwen add ${name}' to install it.`
             : "";
-        throw new Error(
+        throw new GwenError(
+          AppErrorCodes.MODULE_LOAD_FAILED,
           `[gwen] Failed to load module "${name}": ${cause instanceof Error ? cause.message : String(cause)}.${hint}`,
           { cause },
         );
@@ -232,7 +236,8 @@ export class GwenApp {
       try {
         await mod.setup(options as Record<string, unknown>, kit);
       } catch (cause) {
-        throw new Error(
+        throw new GwenError(
+          AppErrorCodes.MODULE_SETUP_FAILED,
           `[gwen] Module "${name}" setup() threw: ${cause instanceof Error ? cause.message : String(cause)}`,
           { cause },
         );
@@ -463,7 +468,7 @@ function mergeDefaults(
  * @param name - The npm package name or file path to import.
  * @returns The resolved `GwenModule` exported as `default` or as the module object.
  *
- * @throws {Error} `[GWEN] Module "${name}" does not export a valid GwenModule`
+ * @throws {GwenError} `[GWEN] Module "${name}" does not export a valid GwenModule`
  *   if the imported value has no `setup` function.
  */
 async function loadModule(name: string): Promise<GwenModule> {
@@ -472,7 +477,8 @@ async function loadModule(name: string): Promise<GwenModule> {
   try {
     imported = (await import(/* @vite-ignore */ name)) as typeof imported;
   } catch (cause) {
-    throw new Error(
+    throw new GwenError(
+      AppErrorCodes.MODULE_LOAD_FAILED,
       `[GWEN] Failed to load module "${name}". ` +
         `Check that the package is installed and the name is spelled correctly.\n` +
         `Cause: ${cause instanceof Error ? cause.message : String(cause)}`,
@@ -483,7 +489,8 @@ async function loadModule(name: string): Promise<GwenModule> {
   const definition: unknown = imported.default ?? imported;
 
   if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {
-    throw new Error(
+    throw new GwenError(
+      AppErrorCodes.MODULE_INVALID,
       `[GWEN] Module "${name}" does not export a valid GwenModule (missing setup function). ` +
         `Ensure the module exports a default object created with defineGwenModule().`,
     );

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CoreErrorCodes, GwenWasmPanicError, createEngine } from "../src/index.js";
+import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 describe("P0 frame defects", () => {
   afterEach(() => {
@@ -30,6 +31,7 @@ describe("P0 frame defects", () => {
       engine.hooks.hook("engine:before-update", () => {
         throw new WebAssembly.RuntimeError("unreachable");
       });
+      activateTestWasm(engine);
       await engine.start();
       expect(queued).toHaveLength(1);
       const runFrame = queued.shift();

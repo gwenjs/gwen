@@ -2,6 +2,7 @@
  * Tests for Physics3DAPI.bulkSpawnStaticBoxes — local and WASM modes.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 
 // ── WASM bridge mock (physics3d variant, with bulk spawn) ─────────────────────
 
@@ -145,14 +146,16 @@ describe("bulkSpawnStaticBoxes — local mode (no bulk WASM call)", () => {
     expect(entityIds).toHaveLength(2);
   });
 
-  it("throws RangeError when positions.length is not a multiple of 3", () => {
+  it("throws GwenError when positions.length is not a multiple of 3", () => {
     const { service } = setup();
-    expect(() =>
+    const spawn = (): void => {
       service.bulkSpawnStaticBoxes({
-        positions: new Float32Array([0, 0, 0, 1, 0]), // length 5 — invalid
+        positions: new Float32Array([0, 0, 0, 1, 0]),
         halfExtents: new Float32Array([0.5, 0.5, 0.5]),
-      }),
-    ).toThrow("[GWEN:Physics3D] positions.length must be a multiple of 3");
+      });
+    };
+    expect(spawn).toThrow(GwenError);
+    expect(spawn).toThrow("[GWEN:Physics3D] positions.length must be a multiple of 3");
   });
 });
 
