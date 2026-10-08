@@ -30,6 +30,10 @@
 # A Cargo integration test (crates/<crate>/tests/<stem>.rs) runs
 # `cargo test -p <crate> --test <stem>`; when it does not compile on the base
 # (it uses an API the PR adds) it is a load error, run on the head as above.
+# A Cargo group whose new tests are all #[wasm_bindgen_test] or
+# cfg(target_arch = "wasm32"), or that runs 0 tests natively on the base and
+# on the head, prints KEEP-ONLY (not verifiable natively) and does not block.
+# Each tree builds in its own Cargo target dir.
 # Any other changed .rs file whose diff adds a #[test] function (inline
 # #[cfg(test)] tests, *_test.rs modules) cannot be run by test name: it prints
 # KEEP-ONLY (not verifiable) and does not block.
@@ -85,7 +89,7 @@ while IFS= read -r f; do
       if is_cargo_test "$f"; then
         files+=("$f")
       elif case "$f" in *_test.rs | *.test.rs) true ;; *) false ;; esac ||
-        git diff "$BASE...HEAD" -- "$f" | grep -qE '^\+[[:space:]]*#\[(tokio::)?(test|wasm_bindgen_test)\b'; then
+        git diff "$BASE...HEAD" -- "$f" | grep -v '^+++' | grep -qE '^\+.*#\[(tokio::)?(test|wasm_bindgen_test|rstest|test_case)\b'; then
         files+=("$f")
       fi
       ;;
@@ -219,7 +223,17 @@ run_tests() {
         echo "verify-red: no package name in $crate_dir/Cargo.toml" >&2
         exit 2
       fi
-      (cd "$tree" && cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
+      # One target dir per tree: a shared CARGO_TARGET_DIR would let the head
+      # run reuse the test binary built for the base.
+      local target="${CARGO_TARGET_DIR:-}"
+      if [ "$tree" = "$WT" ]; then
+        target="$WT/target"
+      fi
+      if [ -n "$target" ]; then
+        (cd "$tree" && CARGO_TARGET_DIR="$target" cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
+      else
+        (cd "$tree" && env -u CARGO_TARGET_DIR cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
+      fi
       cat "$out" >"$log"
       format=cargo
       return 0
@@ -352,6 +366,15 @@ for f in "${files[@]}"; do
   if printf '%s\n' "$classified" | grep -q '^NEW '; then
     has_new=1
   fi
+  if is_cargo_test "$f" && [ "$has_new" -eq 0 ] && printf '%s\n' "$classified" | grep -q '^NEW-WASM '; then
+    # Every new test is #[wasm_bindgen_test] or cfg(target_arch = "wasm32"):
+    # a native cargo run never reports it.
+    echo "::warning::verify-red: $f adds wasm-only Rust tests; not verifiable natively"
+    echo "verify-red: KEEP-ONLY $f (wasm-only Rust tests: not verifiable natively)"
+    keep_only=$((keep_only + 1))
+    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    continue
+  fi
 
   case "$f" in
     */tests/integration-wasm/*)
@@ -388,12 +411,13 @@ for f in "${files[@]}"; do
   run_tests "$WT" "$f" "$report" "$log"
   cat "$log"
   judge_file "$f" "$report" "$base_snapshot"
-  if [ "$judge_code" -eq 3 ]; then
+  if [ "$judge_code" -eq 3 ] || [ "$judge_code" -eq 4 ]; then
     # The file does not load on the base (for example it imports a module
     # this PR adds). Run it on this checkout: when it loads here, every new
     # name it reports counts red; when it fails here too, it needs something
-    # neither tree has (a WASM build) and is not verifiable.
-    echo "verify-red: $f does not load on the base; running it on the head"
+    # neither tree has (a WASM build) and is not verifiable. Exit 4: a Cargo
+    # target that runs no test on the base; 0 tests on the head too is 5.
+    echo "verify-red: $f does not load or runs no test on the base; running it on the head"
     head_report=$(mktemp)
     run_tests "$ROOT" "$f" "$head_report" "$log"
     cat "$log"
@@ -412,6 +436,14 @@ for f in "${files[@]}"; do
     rm -f "$base_run"
   fi
   [ -n "$head_report" ] && rm -f "$head_report"
+  if [ "$judge_code" -eq 5 ]; then
+    echo "::warning::verify-red: $f runs no test natively on the base or the head; not verifiable"
+    echo "verify-red: KEEP-ONLY $f (no test runs natively on the base or the head)"
+    keep_only=$((keep_only + 1))
+    rm -f "$log" "$report"
+    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    continue
+  fi
   apply_judge "$f"
   rm -f "$log" "$report"
   if [ -n "$base_snapshot" ]; then

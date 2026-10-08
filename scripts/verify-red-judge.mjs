@@ -11,7 +11,8 @@
  *   Exit 0 when the file imports vitest at the top level, 1 otherwise.
  *
  * classify --source <head> [--base <base copy>]
- *   Prints `NEW <name>` or `OLD <name>`. Exit 2 when the source has no test names.
+ *   Prints `NEW <name>`, `NEW-WASM <name>` (a new Rust test that only runs on
+ *   wasm32) or `OLD <name>`. Exit 2 when the source has no test names.
  *
  * judge --source <head> [--base <base copy>] --format tap|vitest|cargo --report <file>
  *       [--file <path given to the runner>] [--head-report <head run>]
@@ -20,7 +21,9 @@
  *   run is given. With --head-report, every name the head run reports counts
  *   as failed on the base; a file that does not load on the head either exits 2.
  *   Exit 1 when such a name passed, was skipped, or is absent from the report.
- *   Exit 2 when the report has no tests.
+ *   Exit 2 when the report has no tests. A Cargo run that reports
+ *   `running 0 tests` exits 4 without a head run, 5 when the head run has 0
+ *   tests too (not verifiable natively).
  *   A name present in the base copy may pass (`KEEP`), a dynamic one too. A
  *   new dynamic name follows the rule of a new literal one. A runner name that
  *   matches no source test name (renamed or aliased runner, `test.extend`, a
@@ -47,6 +50,7 @@ import { readFileSync } from 'node:fs';
  * @property {Segment[]} path
  * @property {string} name path joined with ` > `
  * @property {boolean} dynamic
+ * @property {boolean} [wasm] a Rust test that only runs on wasm32
  */
 
 /**
@@ -478,11 +482,16 @@ function scanJs(src) {
 function scanRust(src) {
   /** @type {Entry[]} */
   const entries = [];
-  const re = /#\[(?:tokio::)?(?:test|wasm_bindgen_test)[^\]]*\]\s*(?:#\[[^\]]*\]\s*)*(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/g;
+  const fileWasm = /#!\[cfg\(\s*target_arch\s*=\s*"wasm32"\s*\)\]/.test(src);
+  const wasmCfg = /#\[cfg\(\s*target_arch\s*=\s*"wasm32"\s*\)\]/;
+  const re =
+    /((?:#\[[^\]]*\]\s*)*)#\[(?:tokio::)?(test|wasm_bindgen_test)\b[^\]]*\]\s*((?:#\[[^\]]*\]\s*)*)(?:pub\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)/g;
   let match = re.exec(src);
   while (match) {
-    const text = match[1] ?? '';
-    entries.push({ kind: 'test', path: [{ text, pattern: null }], name: text, dynamic: false });
+    const text = match[4] ?? '';
+    const attrs = `${match[1] ?? ''}${match[3] ?? ''}`;
+    const wasm = fileWasm || match[2] === 'wasm_bindgen_test' || wasmCfg.test(attrs);
+    entries.push({ kind: 'test', path: [{ text, pattern: null }], name: text, dynamic: false, wasm });
     match = re.exec(src);
   }
   return entries;
@@ -680,8 +689,11 @@ const baseNames = new Set(
 
 if (mode === 'classify') {
   if (sourceTests.length === 0) failClosed('no test names in the source');
+  // `NEW-WASM`: a new Rust test that only runs on wasm32 (#[wasm_bindgen_test]
+  // or cfg(target_arch = "wasm32")); a native cargo run never reports it.
   for (const entry of sourceTests) {
-    console.log(`${baseNames.has(entry.name) ? 'OLD' : 'NEW'} ${entry.name}`);
+    const state = baseNames.has(entry.name) ? 'OLD' : entry.wasm ? 'NEW-WASM' : 'NEW';
+    console.log(`${state} ${entry.name}`);
   }
   process.exit(0);
 }
@@ -751,6 +763,21 @@ function loadFailure(text, results) {
 const report = readFileSync(reportPath, 'utf8');
 let parsed = parseReport(report);
 const baseLoadError = loadFailure(report, parsed);
+// A Cargo test target that compiles and runs no test natively (wasm-only or
+// cfg-gated tests): exit 4, run it on the head; 0 tests there too exits 5.
+if (format === 'cargo' && !baseLoadError && parsed && parsed.length === 0 && /\brunning 0 tests\b/.test(report)) {
+  if (!headReportPath) {
+    console.log('NO-TESTS the base run reports no test');
+    process.exit(4);
+  }
+  const headText = readFileSync(headReportPath, 'utf8');
+  const headParsed = parseReport(headText);
+  if (!loadFailure(headText, headParsed) && headParsed && headParsed.length === 0 && /\brunning 0 tests\b/.test(headText)) {
+    console.log('NO-TESTS no test runs natively on the base or the head');
+    process.exit(5);
+  }
+  failClosed('no test runs on the base, the head runs tests or does not build');
+}
 if (baseLoadError && !headReportPath) {
   console.log(`LOAD-ERROR ${baseLoadError}`);
   process.exit(3);
