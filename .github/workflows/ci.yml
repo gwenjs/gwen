@@ -310,6 +310,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_REPO: ${{ github.repository }}
+          HYGIENE_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || 'origin/v1-alpha' }}
         run: node scripts/check-diff-hygiene.mjs
       - name: PR contract
         if: github.event_name == 'pull_request'
