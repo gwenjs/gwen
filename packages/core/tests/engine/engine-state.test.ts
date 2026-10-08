@@ -653,6 +653,48 @@ describe("engine state machine", () => {
     }
   });
 
+  it("use and unuse reject after stop and register nothing", async () => {
+    const engine = await createEngine();
+    try {
+      let setups = 0;
+      let teardowns = 0;
+      const registered: string[] = [];
+      engine.hooks.hook("plugin:registered", (name) => {
+        registered.push(name);
+      });
+      await engine.stop();
+      expect(engine.state).toBe("stopped");
+      const useError = await engine
+        .use({
+          name: "late",
+          setup() {
+            setups += 1;
+          },
+          teardown() {
+            teardowns += 1;
+          },
+        })
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+      expect(useError).toBeInstanceOf(GwenEngineStateError);
+      expect(useError).toMatchObject({ from: "stopped", method: "use" });
+      const unuseError = await engine.unuse("late").then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(unuseError).toBeInstanceOf(GwenEngineStateError);
+      expect(unuseError).toMatchObject({ from: "stopped", method: "unuse" });
+      expect(setups).toBe(0);
+      expect(teardowns).toBe(0);
+      expect(registered).toEqual([]);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
   it("an invalid call does not emit on the error bus", async () => {
     const engine = await createEngine();
     try {
