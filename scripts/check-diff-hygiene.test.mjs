@@ -684,20 +684,7 @@ function withFinally(setup, cleanup) {
   return [...setup, 'try {', '  handle.step();', '} finally {', ...cleanup.map((line) => `  ${line}`), '}'];
 }
 
-test('accepts a dispose behind a local flag in finally', () => {
-  const flagged = withFinally(
-    ['const handle = await createRealEngine();', 'let disposed = false;'],
-    ['if (!disposed) await handle.dispose();'],
-  );
-  assert.ok(!disposeHit(flagged), flagged.join('\n'));
-  const block = withFinally(
-    ['const handle = await createRealEngine();', 'let disposed = false;'],
-    ['if (!disposed) {', '  await handle.dispose();', '}'],
-  );
-  assert.ok(!disposeHit(block), block.join('\n'));
-});
-
-test('rejects a dispose behind false &&, a false conjunct, a false block, or a bare return', () => {
+test('rejects a dispose behind a falsy literal or a bare return, accepts one behind a local flag', () => {
   const setup = ['const handle = await createRealEngine();'];
   const shapes = [
     ['false && handle.dispose();'],
@@ -709,4 +696,14 @@ test('rejects a dispose behind false &&, a false conjunct, a false block, or a b
     const lines = withFinally(setup, cleanup);
     assert.ok(disposeHit(lines), lines.join('\n'));
   }
+  const flagged = withFinally(
+    ['const handle = await createRealEngine();', 'let disposed = false;'],
+    ['if (!disposed) await handle.dispose();'],
+  );
+  assert.ok(!disposeHit(flagged), flagged.join('\n'));
+  const block = withFinally(
+    ['const handle = await createRealEngine();', 'let disposed = false;'],
+    ['if (!disposed) {', '  await handle.dispose();', '}'],
+  );
+  assert.ok(!disposeHit(block), block.join('\n'));
 });
