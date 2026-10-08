@@ -3656,6 +3656,49 @@ mod tests {
     }
 
     #[test]
+    fn set_components_bulk_returns_a_typed_error_when_storage_rejects_the_write() {
+        let made = Engine::new(4).and_then(|mut engine| {
+            let e = engine.create_entity()?;
+            Ok((engine, e))
+        });
+        let Ok((mut engine, e)) = made else {
+            unreachable!("Engine::new(4) and one entity always succeed");
+        };
+        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        // WASM exports register every column as variable size. A fixed 4-byte
+        // column is the one storage state that rejects a write of another size.
+        // The entity has no transform yet, so no stored length fixes the stride
+        // and the 8-byte write reaches storage.
+        let registered = engine.storage.register_raw(transform, 4);
+        assert_eq!(registered, Ok(()));
+        engine.dirty_transforms.clear();
+
+        let result = engine.set_components_bulk(
+            &[e.index()],
+            &[e.generation()],
+            TRANSFORM_SAB_TYPE_ID,
+            &[9u8; 8],
+        );
+
+        let err = result.err();
+        assert_eq!(
+            err.map(|err| err.code()),
+            Some("CORE:COMPONENT_WRITE_REJECTED")
+        );
+        assert_eq!(
+            err.map(|err| err.to_string()),
+            Some(format!(
+                "Component write rejected: entity {} component type {} ({} bytes)",
+                e.index(),
+                TRANSFORM_SAB_TYPE_ID,
+                8
+            ))
+        );
+        assert_eq!(engine.storage.get_component(e.index(), transform), None);
+        assert_eq!(engine.dirty_transforms.is_dirty(e.index()), false);
+    }
+
+    #[test]
     fn test_query_entities_to_buffer_exceeds_capacity() {
         assert_eq!(
             QUERY_EXCEEDED_BUFFER_CAPACITY,
