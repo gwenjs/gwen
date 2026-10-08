@@ -23,7 +23,11 @@ export function readFlags(): { flag: boolean; viteDev: boolean; gwenDev: boolean
   return { flag, viteDev, gwenDev: GWEN_DEV };
 }
 
-console.log(readFlags);
+export function devOnly(): void {
+  if (__GWEN_DEV__) console.warn("isolated after sentinel");
+}
+
+console.log(readFlags, devOnly);
 `;
 
 const dirs: string[] = [];
@@ -75,19 +79,21 @@ describe("dev flag follows Vite DEV", () => {
   });
 
   it.runIf(__GWEN_DEV__)(
-    "build and build --mode development match import.meta.env.DEV",
+    "build follows the Vite mode: production gives false, development gives true",
     async () => {
-      // Vite 8 sets import.meta.env.DEV from NODE_ENV. `vite build` defaults
-      // NODE_ENV to production even when --mode development.
+      // Vite 8 sets import.meta.env.DEV from NODE_ENV, and `vite build` forces
+      // NODE_ENV=production even with --mode development. The flag follows the mode.
       const cases = [
+        { mode: "production", nodeEnv: undefined, expected: false },
         { mode: "production", nodeEnv: "production", expected: false },
-        { mode: "development", nodeEnv: "production", expected: false },
-        { mode: "development", nodeEnv: "development", expected: true },
+        { mode: "development", nodeEnv: undefined, expected: true },
+        { mode: "development", nodeEnv: "production", expected: true },
       ] as const;
       const previous = process.env.NODE_ENV;
       try {
         for (const { mode, nodeEnv, expected } of cases) {
-          process.env.NODE_ENV = nodeEnv;
+          if (nodeEnv === undefined) delete process.env.NODE_ENV;
+          else process.env.NODE_ENV = nodeEnv;
           const root = fixture();
           await build({
             configFile: false,
@@ -108,11 +114,13 @@ describe("dev flag follows Vite DEV", () => {
           });
           const code = readDist(join(root, "dist"));
           const literal = expected ? "true" : "false";
-          expect(code, code.slice(0, 500)).toContain(`flag: ${literal}`);
-          expect(code).toContain(`viteDev: ${literal}`);
-          expect(code).toContain(`gwenDev: ${literal}`);
-          expect(code).not.toContain("__GWEN_DEV__");
-          expect(code).not.toContain("import.meta.env");
+          const label = `mode ${mode}, NODE_ENV ${nodeEnv ?? "unset"}`;
+          expect(code, label).toContain(`flag: ${literal}`);
+          expect(code, label).toContain(`gwenDev: ${literal}`);
+          if (expected) expect(code, label).toContain("isolated after sentinel");
+          else expect(code, label).not.toContain("isolated after sentinel");
+          expect(code, label).not.toContain("__GWEN_DEV__");
+          expect(code, label).not.toContain("import.meta.env");
         }
       } finally {
         if (previous === undefined) delete process.env.NODE_ENV;
