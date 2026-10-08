@@ -725,3 +725,28 @@ test('rejects a dispose behind an always-false or, comparison, loop, ternary, re
   const live = withFinally(setup, ['if (handle || false) await handle.dispose();']);
   assert.ok(!disposeHit(live), live.join('\n'));
 });
+
+test('accepts an engine created in beforeEach and released in afterEach of the same scope', () => {
+  const lines = [
+    'let handle;',
+    'beforeEach(async () => {',
+    '  handle = await createRealEngine();',
+    '});',
+    'afterEach(() => handle.dispose());',
+  ];
+  assert.ok(!disposeHit(lines), lines.join('\n'));
+  const nested = [
+    "describe('x', () => {",
+    '  let handle;',
+    '  beforeEach(async () => {',
+    '    handle = await createRealEngine();',
+    '  });',
+    '  afterEach(async () => {',
+    '    await handle.dispose();',
+    '  });',
+    '});',
+  ];
+  assert.ok(!disposeHit(nested), nested.join('\n'));
+  const leaked = lines.slice(0, 4);
+  assert.ok(disposeHit(leaked), leaked.join('\n'));
+});
