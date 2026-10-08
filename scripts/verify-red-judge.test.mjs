@@ -151,6 +151,77 @@ test("judge tells the same title apart in two describe blocks", () => {
   assert.match(green.output, /PASS prod > light rejects/);
 });
 
+/**
+ * A Vitest JSON report of one file run by two projects (`dev`, `prod`): Vitest
+ * lists the file once per project with the same titles.
+ *
+ * @param {string} dev status of the test in the dev project
+ * @param {string} prod status of the test in the prod project
+ * @returns {string}
+ */
+function twoProjectReport(dev, prod) {
+  const file = (status) => ({
+    name: "/repo/x.test.ts",
+    status: "failed",
+    message: "",
+    assertionResults: [
+      { ancestorTitles: ["S"], title: "dev only", fullName: "S dev only", status },
+    ],
+  });
+  return JSON.stringify({ testResults: [file(dev), file(prod)] });
+}
+
+const devOnlySource = [
+  "import { describe, it } from 'vitest';",
+  "describe('S', () => { it.runIf(__GWEN_DEV__)('dev only', () => {}); });",
+  "",
+].join("\n");
+const devOnlyBase = "import { describe, it } from 'vitest';\n";
+
+test("judge counts a new name red when it fails in dev and is skipped in prod", () => {
+  const result = judge({
+    source: devOnlySource,
+    base: devOnlyBase,
+    format: "vitest",
+    report: twoProjectReport("failed", "skipped"),
+  });
+  assert.match(result.output, /FAIL S > dev only/);
+  assert.equal(result.status, 0, result.output);
+});
+
+test("judge does not count a new name red when it fails in dev and passes in prod", () => {
+  const result = judge({
+    source: devOnlySource,
+    base: devOnlyBase,
+    format: "vitest",
+    report: twoProjectReport("failed", "passed"),
+  });
+  assert.match(result.output, /PASS S > dev only/);
+  assert.equal(result.status, 1, result.output);
+});
+
+test("judge blocks a new name that passes in dev and is skipped in prod", () => {
+  const result = judge({
+    source: devOnlySource,
+    base: devOnlyBase,
+    format: "vitest",
+    report: twoProjectReport("passed", "skipped"),
+  });
+  assert.match(result.output, /PASS S > dev only/);
+  assert.equal(result.status, 1, result.output);
+});
+
+test("judge blocks a new name that every project skipped", () => {
+  const result = judge({
+    source: devOnlySource,
+    base: devOnlyBase,
+    format: "vitest",
+    report: twoProjectReport("skipped", "skipped"),
+  });
+  assert.match(result.output, /PASS S > dev only/);
+  assert.equal(result.status, 1, result.output);
+});
+
 test("judge matches it.each titles and judges them", () => {
   const source = [
     "import { it, expect } from 'vitest';",
