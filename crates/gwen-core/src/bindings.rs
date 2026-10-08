@@ -3781,6 +3781,67 @@ mod tests {
     }
 
     #[test]
+    fn set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size() {
+        let made = Engine::new(4).and_then(|mut engine| {
+            let first = engine.create_entity()?;
+            let second = engine.create_entity()?;
+            Ok((engine, first, second))
+        });
+        let Ok((mut engine, first, second)) = made else {
+            unreachable!("Engine::new(4) and two entities always succeed");
+        };
+        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        let other = engine.register_component_type();
+        // The second entity's column is built while the transform is fixed
+        // 4 bytes, then the type is registered variable size: the check before
+        // the loop lets the write through and that column refuses it.
+        assert_eq!(engine.storage.register_raw(transform, 4), Ok(()));
+        let added_second = engine.add_component(
+            second.index(),
+            second.generation(),
+            TRANSFORM_SAB_TYPE_ID,
+            &[1, 2, 3, 4],
+        );
+        assert_eq!(added_second, Ok(true));
+        assert_eq!(engine.storage.register_raw(transform, 0), Ok(()));
+        // The first entity holds another component, so its transform lands in a
+        // new archetype whose column is variable size. Its 8 bytes set the stride.
+        let added_other =
+            engine.add_component(first.index(), first.generation(), other, &[0, 0, 0, 0]);
+        assert_eq!(added_other, Ok(true));
+        let added_first = engine.add_component(
+            first.index(),
+            first.generation(),
+            TRANSFORM_SAB_TYPE_ID,
+            &[5, 6, 7, 8, 5, 6, 7, 8],
+        );
+        assert_eq!(added_first, Ok(true));
+        engine.dirty_transforms.clear();
+
+        let result = engine.set_components_bulk(
+            &[first.index(), second.index()],
+            &[first.generation(), second.generation()],
+            TRANSFORM_SAB_TYPE_ID,
+            &[9u8; 16],
+        );
+
+        assert_eq!(
+            result.err().map(|err| err.code()),
+            Some("CORE:COMPONENT_WRITE_REJECTED")
+        );
+        assert_eq!(
+            engine.storage.get_component(second.index(), transform),
+            Some([1u8, 2, 3, 4].as_slice())
+        );
+        assert_eq!(engine.dirty_transforms.is_dirty(second.index()), false);
+        // The entity before the refused one keeps its new value.
+        assert_eq!(
+            engine.storage.get_component(first.index(), transform),
+            Some([9u8; 8].as_slice())
+        );
+    }
+
+    #[test]
     fn test_query_entities_to_buffer_exceeds_capacity() {
         assert_eq!(
             QUERY_EXCEEDED_BUFFER_CAPACITY,
