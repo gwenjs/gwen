@@ -36,7 +36,7 @@ describe("transform region before the bridge is active", () => {
     vi.restoreAllMocks();
   });
 
-  it("throws GwenError CORE:WASM_LOAD_ERROR for a region module", async () => {
+  it("throws GwenError CORE:WASM_NOT_INITIALIZED for a region module", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
       Promise.resolve(new Response(WASM_WITH_MEMORY, { status: 200 })),
     );
@@ -53,7 +53,7 @@ describe("transform region before the bridge is active", () => {
       if (!(caught instanceof GwenError)) {
         throw new Error("expected GwenError");
       }
-      expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+      expect(caught.code).toBe("CORE:WASM_NOT_INITIALIZED");
       expect(caught.message).toContain("bridge");
     } finally {
       await engine.stop();
