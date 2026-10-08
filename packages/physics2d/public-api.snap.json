@@ -141,10 +141,7 @@
   },
   "./internal": {
     "values": [
-      "CONTACT_EVENT_BYTES",
-      "ContactRingBuffer",
       "PHYSICS2D_BRIDGE_SCHEMA_VERSION",
-      "RING_CAPACITY",
       "ShapeComponent",
       "_clearContactCallbacks",
       "_clearSensorCallbacks"

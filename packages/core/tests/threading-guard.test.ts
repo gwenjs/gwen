@@ -8,24 +8,36 @@ import { describe, expect, it } from "vitest";
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
 /**
- * Today's offenders. The list may only shrink (#115). Do not add a path.
- * Spec sites: vite preview headers and dev middleware, wasm-bridge requireSAB,
- * both contact ring buffers, and the physics3d BVH job worker.
+ * Offender ceilings for SharedArrayBuffer, Atomics, crossOriginIsolated,
+ * and shared WebAssembly.Memory. Empty after #115. The list may only shrink.
+ * Do not add a path.
  */
-const ALLOWED_IDENTIFIER_COUNTS: Readonly<Record<string, number>> = {
-  "packages/core/src/engine/wasm-bridge.ts SharedArrayBuffer": 1,
-  "packages/physics2d/src/ring-buffer.ts SharedArrayBuffer": 4,
-  "packages/physics3d/src/plugin/ring-buffer.ts SharedArrayBuffer": 4,
-};
+const ALLOWED_IDENTIFIER_COUNTS: Readonly<Record<string, number>> = {};
 
-/** File plus pattern. The count is a ceiling: the list may only shrink. */
+/**
+ * `new Worker(` is not an offender entry. The physics3d BVH job stays.
+ * The count is a ceiling: the list may only shrink.
+ */
 const ALLOWED_WORKERS: Readonly<Record<string, number>> = {
   "packages/physics3d/src/plugin/bvh.ts new Worker": 1,
 };
 
-const ALLOWED_COEP: Readonly<Record<string, number>> = {
-  "packages/vite/src/index.ts Cross-Origin-Embedder-Policy": 2,
-};
+/** COOP and COEP ceilings in packages/vite/src. Empty after #115. Any hit fails. */
+const ALLOWED_COEP: Readonly<Record<string, number>> = {};
+
+/** Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy. One hit fails. */
+const ISOLATION_HEADER = /Cross-Origin-(Embedder|Opener)-Policy/;
+
+/** Problems when `text` sets an isolation header. An empty allow-list fails any hit. */
+function isolationHeaderProblems(file: string, text: string): string[] {
+  const counts = new Map<string, number>();
+  for (const line of text.split("\n")) {
+    if (!ISOLATION_HEADER.test(line)) continue;
+    const key = `${file} Cross-Origin-(Embedder|Opener)-Policy`;
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  return growthPast(counts, ALLOWED_COEP);
+}
 
 const IDENTIFIER_NAMES = new Set(["SharedArrayBuffer", "Atomics", "crossOriginIsolated"]);
 
@@ -169,11 +181,20 @@ function textHits(files: readonly string[], pattern: RegExp, kind: string): stri
   return hits;
 }
 
+/** Script sources of the vite plugin, where the dev and preview servers set headers. */
+function viteSources(): string[] {
+  const files: string[] = [];
+  walk(path.join(REPO_ROOT, "packages", "vite", "src"), (file) => {
+    if (isScript(file) || file.endsWith(".js") || file.endsWith(".mjs")) files.push(file);
+  });
+  return files;
+}
+
 describe("threading guard", () => {
   const sources = packageSources();
   const astHits = sources.flatMap((file) => scanSource(file));
 
-  it("allows SharedArrayBuffer, Atomics, crossOriginIsolated, and shared Memory only at today's sites", () => {
+  it("rejects SharedArrayBuffer, Atomics, crossOriginIsolated, and shared Memory in package sources", () => {
     const counts = new Map<string, number>();
     const unexpected: Hit[] = [];
     for (const hit of astHits) {
@@ -199,18 +220,37 @@ describe("threading guard", () => {
     expect(growthPast(counts, ALLOWED_WORKERS)).toEqual([]);
   });
 
-  it("allows Cross-Origin-Embedder-Policy only in vite, and the list may only shrink", () => {
-    const files: string[] = [];
-    walk(path.join(REPO_ROOT, "packages", "vite", "src"), (file) => {
-      if (isScript(file) || file.endsWith(".js") || file.endsWith(".mjs")) files.push(file);
+  it("rejects Cross-Origin-Opener-Policy and Cross-Origin-Embedder-Policy in vite sources", () => {
+    const files = viteSources();
+    const problems = files.flatMap((file) =>
+      isolationHeaderProblems(rel(file), readFileSync(file, "utf8")),
+    );
+    expect(problems).toEqual([]);
+  });
+
+  it("rejects a header that sets Cross-Origin-Opener-Policy", () => {
+    expect(textHits(viteSources(), /Cross-Origin-Opener-Policy/, "COOP")).toEqual([]);
+    expect(
+      isolationHeaderProblems(
+        "packages/vite/src/index.ts",
+        '"Cross-Origin-Opener-Policy": "same-origin"\n',
+      ),
+    ).toEqual(["new packages/vite/src/index.ts Cross-Origin-(Embedder|Opener)-Policy (1)"]);
+  });
+
+  it("finds no SharedArrayBuffer in user docs", () => {
+    const docs = path.join(REPO_ROOT, "docs");
+    const hits: string[] = [];
+    walk(docs, (file) => {
+      if (!file.endsWith(".md")) return;
+      const lines = readFileSync(file, "utf8").split("\n");
+      for (let index = 0; index < lines.length; index += 1) {
+        if ((lines[index] ?? "").includes("SharedArrayBuffer")) {
+          hits.push(`${rel(file)}:${index + 1}`);
+        }
+      }
     });
-    const counts = new Map<string, number>();
-    for (const hit of textHits(files, /Cross-Origin-Embedder-Policy/, "coep")) {
-      const file = hit.slice(0, hit.indexOf(":"));
-      const key = `${file} Cross-Origin-Embedder-Policy`;
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-    expect(growthPast(counts, ALLOWED_COEP)).toEqual([]);
+    expect(hits).toEqual([]);
   });
 
   it("flags SharedArrayBuffer, Atomics, crossOriginIsolated, shared Memory, and Worker in scanned text", () => {

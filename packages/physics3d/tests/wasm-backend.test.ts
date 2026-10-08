@@ -113,7 +113,7 @@ const physics3dRemoveCharacterController = vi.fn();
 const mockBridge = {
   variant: "physics3d" as const,
   getLinearMemory: vi.fn(() => ({
-    buffer: new SharedArrayBuffer(65536),
+    buffer: new ArrayBuffer(65536),
     byteLength: 65536,
   })),
   getPhysicsBridge: vi.fn(() => ({
@@ -1082,7 +1082,7 @@ describe("Group C — RFC-07: spatial queries", () => {
  * `physics3d_character_controller_move`, and
  * `physics3d_remove_character_controller`.
  *
- * Because no real SharedArrayBuffer is set up in this mock environment,
+ * Because no real WASM memory is set up in this mock environment,
  * `isGrounded` always reads `false` and `groundNormal` always returns `null`.
  */
 describe("Group D — RFC-09: character controller", () => {

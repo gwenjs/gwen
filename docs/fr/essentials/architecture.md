@@ -33,7 +33,9 @@ La couche TypeScript appelle WASM pour interroger les entités, lire les donnée
 
 ## Le pont WASM
 
-La communication entre TypeScript et WASM s'effectue via **la mémoire partagée et des appels de fonctions**. Il n'y a pas de sérialisation ; la mémoire linéaire WASM est exposée à TypeScript via `SharedArrayBuffer` et des vues `TypedArray`.
+La communication entre TypeScript et WASM s'effectue via des appels de fonctions. Il n'y a pas de sérialisation. La mémoire linéaire WASM est exposée à TypeScript sous forme de vues de tableaux typés sur `WebAssembly.Memory`.
+
+L'isolation cross-origin est facultative. Définissez-la via les en-têtes Vite `server.headers` et `preview.headers` si vous en avez besoin.
 
 ```
 ┌──────────────────────────────────────┐
@@ -44,7 +46,7 @@ La communication entre TypeScript et WASM s'effectue via **la mémoire partagée
 └──────────────┬───────────────────────┘
                │ Accès direct à la mémoire (sans copie)
 ┌──────────────┴───────────────────────┐
-│ SharedArrayBuffer                    │
+│ WebAssembly.Memory                   │
 │ ┌────────────────────────────────┐   │
 │ │ Mémoire linéaire WASM          │   │
 │ │ ┌──────────────────────────┐   │   │

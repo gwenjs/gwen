@@ -314,7 +314,7 @@ export class WasmBridgeImpl implements WasmBridge {
    * Load and initialize the gwen_core WASM module for this bridge instance.
    *
    * @param variant The core variant to load ('light', 'physics2d', 'physics3d')
-   * @param options Initialization options (urls, max entities, SAB requirement)
+   * @param options Initialization options (urls, max entities)
    * @throws {GwenError} If WASM cannot be loaded or has invalid format
    */
   async init(variant: CoreVariant = "light", options: InitWasmOptions = {}): Promise<void> {
@@ -323,17 +323,7 @@ export class WasmBridgeImpl implements WasmBridge {
     this._poisoned = false;
     this._panicCause = null;
 
-    const { maxEntities = 10_000, requireSAB = false, jsUrl, wasmUrl } = options;
-
-    // ── P0: Validate SharedArrayBuffer availability ──────────────────────────
-    if (requireSAB && typeof SharedArrayBuffer === "undefined") {
-      throw new GwenError(
-        CoreErrorCodes.SHARED_ARRAY_BUFFER_UNAVAILABLE,
-        "[GWEN] SharedArrayBuffer is required by a WASM plugin but not available.\n" +
-          "Your server MUST send COOP/COEP headers to enable SharedArrayBuffer.\n" +
-          "See: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/SharedArrayBuffer",
-      );
-    }
+    const { maxEntities = 10_000, jsUrl, wasmUrl } = options;
 
     this._maxEntities = maxEntities;
     this._activeVariant = variant;

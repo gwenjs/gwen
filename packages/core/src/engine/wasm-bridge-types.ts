@@ -725,11 +725,6 @@ export interface InitWasmOptions {
   jsUrl?: string;
   /** Optional URL to the WASM binary (gwen_core_bg.wasm). */
   wasmUrl?: string;
-  /**
-   * Whether SharedArrayBuffer is strictly required (default: false).
-   * If true and SAB is unavailable, `initWasm` will throw.
-   */
-  requireSAB?: boolean;
 }
 
 // ─── WasmBridge public interface ────────────────────────────────────────────

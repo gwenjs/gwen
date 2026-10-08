@@ -11,7 +11,7 @@ import type { CoreVariant } from "../engine/wasm-bridge";
  * Interface that matches the relevant part of GwenConfig for detection.
  */
 interface VariantConfig {
-  plugins?: Array<{ name: string; wasm?: { sharedMemory?: boolean } }>;
+  plugins?: Array<{ name: string }>;
   modules?: Array<string | [string, unknown]>;
 }
 
@@ -39,16 +39,6 @@ export function detectCoreVariant(config: VariantConfig): CoreVariant {
   }
 
   return "light";
-}
-
-/**
- * Returns true when at least one plugin explicitly opts into SAB.
- */
-export function detectSharedMemoryRequired(config: VariantConfig): boolean {
-  if (!config || !Array.isArray(config.plugins)) {
-    return false;
-  }
-  return config.plugins.some((p) => p?.wasm?.sharedMemory === true);
 }
 
 function resolveModuleNames(modules: VariantConfig["modules"]): string[] {

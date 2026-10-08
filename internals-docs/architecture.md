@@ -94,7 +94,7 @@ The engine runs updates in this order each frame:
 Phase hooks are registered via `engine.on(phase, callback)`.
 
 ### WASM Bridge
-- Shared memory regions (typed arrays + SharedArrayBuffer)
+- WASM linear memory exposed to TypeScript as typed-array views over WebAssembly.Memory
 - Ring buffers for command queues (TS → WASM)
 - SoA data mapped directly via typed array views
 - Minimal serialization/deserialization overhead

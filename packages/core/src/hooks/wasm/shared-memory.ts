@@ -46,7 +46,7 @@ import { CoreErrorCodes } from "../../engine/engine-errors";
 // ─── Public constants ─────────────────────────────────────────────────────────
 
 /**
- * Maximum allowed SharedArrayBuffer size in bytes (256 MiB).
+ * Maximum bytes `SharedMemoryManager` may allocate in WASM linear memory (256 MiB).
  *
  * Enough for approximately 2 million entities × 128 bytes each.
  * Raise this constant only if you understand the memory implications

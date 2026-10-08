@@ -481,12 +481,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         resolve: {
           dedupe: ["@gwenjs/core"],
         },
-        preview: {
-          headers: {
-            "Cross-Origin-Opener-Policy": "same-origin",
-            "Cross-Origin-Embedder-Policy": "require-corp",
-          },
-        },
       };
     },
 
@@ -583,12 +577,9 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
         startWatcher(projectRoot, devServer);
       }
 
-      // WASM middleware + COOP/COEP headers + generated HTML if index.html missing
+      // WASM middleware, and generated HTML if index.html is missing.
+      // Isolation is optional. Users set Vite server.headers and preview.headers.
       devServer.middlewares.use((req, res, next) => {
-        // ── COOP/COEP headers — required for SharedArrayBuffer (WASM plugins) ──
-        res.setHeader("Cross-Origin-Opener-Policy", "same-origin");
-        res.setHeader("Cross-Origin-Embedder-Policy", "require-corp");
-
         // Serve WASM files directly from wasmSourceDir (no copy to public/)
         const wasmPrefix = wasmPublicPath.endsWith("/") ? wasmPublicPath : wasmPublicPath + "/";
         if (req.url?.startsWith(wasmPrefix)) {
