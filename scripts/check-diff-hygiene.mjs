@@ -483,17 +483,43 @@ function isGuarded(cleanup, binding, needed = 1) {
  * @returns {boolean}
  */
 function neverHolds(condition) {
-  return condition.split('&&').some((term) =>
-    /^(?:false|0|null|undefined|void\s+0|!\s*true)$/.test(term.trim().replace(/^\(+|\)+$/g, '').trim()),
+  return condition.split('||').every((disjunct) =>
+    disjunct.split('&&').some((raw) => {
+      const term = raw.trim().replace(/^\(+|\)+$/g, '').trim();
+      if (/^(?:false|0|null|undefined|void\s+0|!\s*true)$/.test(term)) return true;
+      const compare = term.match(/^(-?\d+(?:\.\d+)?)\s*(===|==|!==|!=)\s*(-?\d+(?:\.\d+)?)$/);
+      if (!compare) return false;
+      const same = Number(compare[1]) === Number(compare[3]);
+      return compare[2]?.startsWith('!') ? same : !same;
+    }),
   );
 }
 
-const IF_BEFORE = /\bif\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/;
+const IF_BEFORE = /\b(?:if|while)\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/;
+const FALSY_LITERAL = '(?:false|0|null|undefined)';
 
 /**
- * True when the release at `index` may never run: behind `false &&`, behind
- * an `if` whose condition never holds (directly or around its block), or
- * after a bare `return;` in the same block.
+ * True when `text` (the rest of a statement after `return` or `throw`) ends
+ * that statement with a `;` outside any brace or paren.
+ *
+ * @param {string} text
+ * @returns {boolean}
+ */
+function endsStatement(text) {
+  let depth = 0;
+  for (const char of text) {
+    if (char === '(' || char === '{' || char === '[') depth += 1;
+    else if (char === ')' || char === '}' || char === ']') depth -= 1;
+    else if (char === ';' && depth === 0) return true;
+  }
+  return false;
+}
+
+/**
+ * True when the release at `index` may never run: behind `false &&` or
+ * `false ?`, behind an `if` or `while` whose condition never holds (directly
+ * or around its block), or after a `return …;` or `throw …;` in the same
+ * block.
  *
  * @param {string} cleanup
  * @param {number} index
@@ -502,7 +528,7 @@ const IF_BEFORE = /\bif\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/;
  */
 function deadCondition(cleanup, index, _name) {
   const before = cleanup.slice(0, index).replace(/(?:\bawait\s+)$/, '').trimEnd();
-  if (/(?:^|[^\w$.])(?:false|0|null|undefined)\s*&&$/.test(before)) return true;
+  if (new RegExp(`(?:^|[^\\w$.])${FALSY_LITERAL}\\s*(?:&&|\\?)$`).test(before)) return true;
   const direct = before.match(IF_BEFORE);
   if (direct && neverHolds(direct[1] ?? '')) return true;
   let depth = 0;
@@ -523,12 +549,13 @@ function deadCondition(cleanup, index, _name) {
       if (guard && neverHolds(guard[1] ?? '')) return true;
       continue;
     }
-    // `return;` as its own statement in the innermost block, before the release.
-    if (innermost && depth === 0 && before.startsWith('return', i) && !/[\w$]/.test(before[i - 1] ?? '')) {
-      const after = before.slice(i + 'return'.length);
-      const lead = before.slice(0, i).trimEnd();
-      if (/^\s*;/.test(after) && (lead === '' || /[;{}]$/.test(lead))) return true;
-    }
+    // `return;`, `return x;` or `throw x;` as its own statement in the
+    // innermost block, before the release.
+    if (!innermost || depth !== 0 || /[\w$]/.test(before[i - 1] ?? '')) continue;
+    const keyword = ['return', 'throw'].find((word) => before.startsWith(word, i) && !/[\w$]/.test(before[i + word.length] ?? ''));
+    if (!keyword) continue;
+    const lead = before.slice(0, i).trimEnd();
+    if ((lead === '' || /[;{}]$/.test(lead)) && endsStatement(before.slice(i + keyword.length))) return true;
   }
   return false;
 }
