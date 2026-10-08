@@ -81,8 +81,9 @@ describe("dev flag follows Vite DEV", () => {
   it.runIf(__GWEN_DEV__)(
     "build follows the Vite mode: production gives false, development gives true",
     async () => {
-      // Vite 8 sets import.meta.env.DEV from NODE_ENV, and `vite build` forces
-      // NODE_ENV=production even with --mode development. The flag follows the mode.
+      // Vite 8 sets import.meta.env.DEV from NODE_ENV, and `vite build` defaults
+      // NODE_ENV to production when it is unset, even with --mode development.
+      // The flag follows the mode, whatever NODE_ENV is.
       const cases = [
         { mode: "production", nodeEnv: undefined, expected: false },
         { mode: "production", nodeEnv: "production", expected: false },
