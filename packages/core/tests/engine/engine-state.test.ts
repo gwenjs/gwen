@@ -8,6 +8,7 @@ import {
   type GwenEngine,
 } from "../../src/index";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
+import type { GwenLogger, IGwenLogger } from "@gwenjs/schema";
 
 type Change = { from: string; to: string; reason: string };
 
@@ -17,6 +18,11 @@ function watch(engine: GwenEngine): Change[] {
     seen.push({ from: payload.from, to: payload.to, reason: payload.reason });
   });
   return seen;
+}
+
+/** True when the logger exposes the `setSink()` of the core console logger. */
+function hasSink(logger: IGwenLogger): logger is IGwenLogger & Pick<GwenLogger, "setSink"> {
+  return "setSink" in logger && typeof logger.setSink === "function";
 }
 
 /**
@@ -515,7 +521,9 @@ describe("engine state machine", () => {
     const engine = await createEngine();
     try {
       const logs: string[] = [];
-      engine.logger.setSink((entry) => {
+      const logger = engine.logger;
+      if (!hasSink(logger)) throw new Error("the engine logger has no setSink()");
+      logger.setSink((entry) => {
         if (entry.level === "error") logs.push(entry.message);
       });
       engine.hooks.hook("engine:state-change", () => {
