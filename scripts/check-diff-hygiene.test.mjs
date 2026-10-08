@@ -674,3 +674,39 @@ test('accepts engines pushed into an array and released by a loop in finally', (
   const leaked = loop.filter((line) => !line.includes('dispose'));
   assert.ok(disposeHit(leaked), leaked.join('\n'));
 });
+
+/**
+ * @param {string[]} setup
+ * @param {string[]} cleanup
+ * @returns {string[]}
+ */
+function withFinally(setup, cleanup) {
+  return [...setup, 'try {', '  handle.step();', '} finally {', ...cleanup.map((line) => `  ${line}`), '}'];
+}
+
+test('accepts a dispose behind a local flag in finally', () => {
+  const flagged = withFinally(
+    ['const handle = await createRealEngine();', 'let disposed = false;'],
+    ['if (!disposed) await handle.dispose();'],
+  );
+  assert.ok(!disposeHit(flagged), flagged.join('\n'));
+  const block = withFinally(
+    ['const handle = await createRealEngine();', 'let disposed = false;'],
+    ['if (!disposed) {', '  await handle.dispose();', '}'],
+  );
+  assert.ok(!disposeHit(block), block.join('\n'));
+});
+
+test('rejects a dispose behind false &&, a false conjunct, a false block, or a bare return', () => {
+  const setup = ['const handle = await createRealEngine();'];
+  const shapes = [
+    ['false && handle.dispose();'],
+    ['if (handle && false) handle.dispose();'],
+    ['if (false) {', '  log();', '  handle.dispose();', '}'],
+    ['return;', 'handle.dispose();'],
+  ];
+  for (const cleanup of shapes) {
+    const lines = withFinally(setup, cleanup);
+    assert.ok(disposeHit(lines), lines.join('\n'));
+  }
+});
