@@ -474,3 +474,31 @@ test("judge warns about a passing name built by a helper when the base run passe
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("judge keeps a new wasm-only Rust test that a native run does not report", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-judge-rs-"));
+  try {
+    const source = [
+      "#[test]",
+      "fn new_native() { assert_eq!(1, 2); }",
+      "",
+      "#[wasm_bindgen_test]",
+      "fn new_wasm() {}",
+      "",
+    ].join("\n");
+    writeFileSync(join(dir, "head.rs"), source);
+    writeFileSync(join(dir, "base.rs"), "");
+    writeFileSync(join(dir, "report.txt"), "running 1 test\ntest new_native ... FAILED\n");
+    const result = spawnSync(
+      "node",
+      [judgePath, "judge", "--source", join(dir, "head.rs"), "--base", join(dir, "base.rs"), "--format", "cargo", "--report", join(dir, "report.txt")],
+      { encoding: "utf8" },
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, output);
+    assert.match(output, /FAIL new_native/);
+    assert.match(output, /KEEP new_wasm \(wasm-only, not run natively\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
