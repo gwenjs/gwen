@@ -470,3 +470,18 @@ test('counts rstest, test_case and a one-line test module as added Rust tests', 
     assert.equal(contract.isChangedTestFile(file, diff), true, added);
   }
 });
+
+test('accepts a conclusion word followed by a condition or an alternative', () => {
+  for (const line of [
+    'The verdict is ok only when every row passes.',
+    "Each row's verdict is green or red.",
+    'The verdict is rejected when the file does not load.',
+    'The per-file verdict — accepted or blocked — is printed.',
+  ]) {
+    assert.deepEqual(review(`${goodBody}\n${line}\n`), [], line);
+  }
+  for (const line of ['Final verdict — ship it if CI passes', 'My verdict is: ready', '| Verdict | LGTM |']) {
+    const errors = review(`${goodBody}\n${line}\n`);
+    assert.ok(errors.some((error) => error.startsWith('self-written verdict or approve:')), line);
+  }
+});
