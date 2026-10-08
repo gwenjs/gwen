@@ -135,7 +135,7 @@ function git(dir, args) {
 /**
  * @param {string} source
  * @param {string} base
- * @param {{ file?: string, seed?: (dir: string) => void, headSeed?: (dir: string) => void, pathPrefix?: string }} [options]
+ * @param {{ file?: string, seed?: (dir: string) => void, headSeed?: (dir: string) => void, pathPrefix?: string, env?: Record<string, string> }} [options]
  */
 function runVerifyRed(source, base, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gwen-verify-red-fixture-'));
@@ -162,6 +162,7 @@ function runVerifyRed(source, base, options = {}) {
       PR_REPO: '',
     };
     if (options.pathPrefix) env.PATH = `${options.pathPrefix}:${env.PATH ?? ''}`;
+    if (options.env) Object.assign(env, options.env);
     for (const key of Object.keys(env)) {
       if (key.startsWith('NODE_TEST') || key === 'NODE_CHANNEL_FD') delete env[key];
     }
@@ -707,4 +708,84 @@ test('verify-red prints KEEP-ONLY for a new inline Rust test it cannot judge by 
   assert.equal(result.status, 0, output);
   assert.match(output, /verify-red: KEEP-ONLY crates\/demo\/src\/lib\.rs \(inline Rust tests: not verifiable by test name\)/);
   assert.doesNotMatch(output, /verify-red: RED /);
+});
+
+test('verify-red runs the base and the head Cargo builds in separate target dirs', () => {
+  const target = mkdtempSync(join(tmpdir(), 'gwen-verify-red-target-'));
+  try {
+    const result = runVerifyRed(
+      ['#[test]', 'fn two_is_two() {', '    assert_eq!(verify_red_demo::two(), 2);', '}', ''].join('\n'),
+      'base',
+      {
+        file: 'crates/demo/tests/added.rs',
+        seed(dir) {
+          writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+        },
+        headSeed(dir) {
+          writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n\npub fn two() -> i32 {\n    2\n}\n');
+        },
+        env: { CARGO_TARGET_DIR: target },
+      },
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, output);
+    assert.match(output, /verify-red: RED crates\/demo\/tests\/added\.rs/);
+  } finally {
+    rmSync(target, { recursive: true, force: true });
+  }
+});
+
+test('verify-red keeps a Cargo test file with only wasm tests as KEEP-ONLY', () => {
+  for (const source of [
+    ['use wasm_bindgen_test::*;', '', '#[wasm_bindgen_test]', 'fn wasm_only() {', '    assert_eq!(1, 1);', '}', ''],
+    ['#[cfg(target_arch = "wasm32")]', '#[test]', 'fn wasm_gated() {', '    assert_eq!(1, 1);', '}', ''],
+  ]) {
+    const result = runVerifyRed(source.join('\n'), 'base', {
+      file: 'crates/demo/tests/wasm.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+      },
+    });
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, `${source.join('\n')}\n${output}`);
+    assert.match(output, /verify-red: KEEP-ONLY crates\/demo\/tests\/wasm\.rs \(wasm-only Rust tests: not verifiable natively\)/);
+  }
+});
+
+test('verify-red still fails another passing test when a Cargo file runs no test', () => {
+  const result = runVerifyRed(
+    ['#[cfg(any())]', '#[test]', 'fn never_built() {', '    assert_eq!(1, 1);', '}', ''].join('\n'),
+    'base',
+    {
+      file: 'crates/demo/tests/gated.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+      },
+      headSeed(dir) {
+        writeFileSync(
+          join(dir, 'added.test.mjs'),
+          ["import assert from 'node:assert/strict';", "import test from 'node:test';", "test('passes on the base', () => {", '  assert.equal(1, 1);', '});', ''].join('\n'),
+        );
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 1, output);
+  assert.match(output, /verify-red: KEEP-ONLY crates\/demo\/tests\/gated\.rs \(no test runs natively on the base or the head\)/);
+  assert.match(output, /verify-red: NOT RED added\.test\.mjs/);
+});
+
+test('verify-red installs the same pinned Rust toolchain as the rust job', () => {
+  const yaml = readCi();
+  const toolchain = (id) => {
+    const lines = jobBlock(yaml, id).split(/\r?\n/);
+    const start = lines.findIndex((line) => /^\s*- uses: dtolnay\/rust-toolchain@/.test(line));
+    if (start === -1) return null;
+    const out = [(lines[start] ?? '').trim()];
+    for (let i = start + 1; i < lines.length && !/^\s*- /.test(lines[i] ?? ''); i++) out.push((lines[i] ?? '').trim());
+    return out.filter((line) => line !== '').join('\n');
+  };
+  const rust = toolchain('rust');
+  assert.ok(rust, 'rust job has no toolchain step');
+  assert.equal(toolchain('verify-red'), rust);
 });
