@@ -510,9 +510,17 @@ export interface GwenEngine extends GwenEngineBase {
   /** Current lifecycle state. Starts at `idle`. Getter only. */
   readonly state: GwenEngineState;
   // ─── Plugin runner ──────────────────────────────────────────────────────
-  /** Register and initialise a plugin. Deduplicates by `plugin.name`. */
+  /**
+   * Register and initialise a plugin. Deduplicates by `plugin.name`.
+   * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
+   * `starting`, `stopping`, `stopped` and `faulted`.
+   */
   use(plugin: GwenPlugin): Promise<void>;
-  /** Tear down and unregister a plugin by name. Safe to call with unknown names. */
+  /**
+   * Tear down and unregister a plugin by name. Safe to call with unknown names.
+   * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
+   * `starting`, `stopping`, `stopped` and `faulted`.
+   */
   unuse(name: string): Promise<void>;
 
   // ─── Typed provide/inject (narrows GwenEngineBase to typed keys) ────────

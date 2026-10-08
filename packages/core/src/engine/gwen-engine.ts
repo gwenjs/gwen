@@ -315,10 +315,13 @@ class GwenEngineImpl implements GwenEngine {
     );
   }
 
-  /** `use` / `unuse` are legal in `idle`, `running` and `stopped` (#72 amendment to #107). */
+  /**
+   * `use` / `unuse` are legal in `idle` and `running` only. `stopped` is terminal (#107):
+   * a plugin installed after `stop()` would never be torn down.
+   */
   private _assertPluginCall(method: "use" | "unuse"): void {
     const state = this._state;
-    if (state === "idle" || state === "running" || state === "stopped") {
+    if (state === "idle" || state === "running") {
       return;
     }
     throw new GwenEngineStateError(state, method);

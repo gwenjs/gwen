@@ -630,9 +630,6 @@ describe("engine state machine", () => {
       await engine.use({ name: "ok", setup() {} });
       await engine.unuse("ok");
       await engine.stop();
-      await engine.use({ name: "after", setup() {} });
-      // Plugin installed in `stopped`: removed explicitly so it does not leak (Decision needed in #152).
-      await engine.unuse("after");
       expect(engine.state).toBe("stopped");
       engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
       expect(engine.state).toBe("stopped");
