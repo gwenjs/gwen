@@ -428,9 +428,12 @@ impl Engine {
     /// expected length, and the actual length.
     /// Returns [`CoreError::ComponentTypeLimitReached`] before any write when
     /// this call would introduce the 129th distinct component type.
-    /// Returns [`CoreError::ComponentWriteRejected`] when storage refuses the
-    /// write of one entity. That entity is not written and not marked dirty;
-    /// entities earlier in `slots` keep their new value.
+    /// Returns [`CoreError::ComponentWriteRejected`] before any write when the
+    /// type is registered fixed size and the stride differs from that size.
+    /// Also returns it when storage refuses the write of one entity in the
+    /// loop (an inconsistent row, or a column built under another registered
+    /// size): that entity is not written and not marked dirty, but entities
+    /// earlier in `slots` keep their new value.
     /// Dead entities are skipped.
     pub fn set_components_bulk(
         &mut self,
@@ -504,12 +507,26 @@ impl Engine {
             return Ok(());
         }
 
-        let will_write = (0..n).any(|i| {
+        let first_live = (0..n).find(|&i| {
             self.entity_manager
                 .is_alive(EntityId::from_parts(slots[i], gens[i]))
         });
-        if will_write && self.storage.registry().size(type_id).is_none() {
-            self.storage.register_raw(type_id, 0)?;
+        let Some(first_live) = first_live else {
+            return Ok(());
+        };
+        match self.storage.registry().size(type_id) {
+            None => self.storage.register_raw(type_id, 0)?,
+            // A type registered fixed size gets columns that refuse a write of
+            // another length. Refuse it before the loop: nothing is written or
+            // marked dirty.
+            Some(size) if size != 0 && size != comp_size => {
+                return Err(CoreError::ComponentWriteRejected {
+                    entity: slots[first_live],
+                    component_type: component_type_id,
+                    bytes: u32::try_from(comp_size).unwrap_or(u32::MAX),
+                });
+            }
+            Some(_) => {}
         }
 
         for i in 0..n {
