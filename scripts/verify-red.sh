@@ -8,7 +8,10 @@
 # passing runner name that matches no source name (renamed or aliased runner,
 # test.extend), fail the check. A file with no new name prints KEEP-ONLY.
 # A file with no describe/it/test call (tests built by a helper) is skipped
-# with a warning. Those are the limits of this check.
+# with a warning. In a file with its own calls, a passing name the scan cannot
+# place blocks, unless the base copy of the file, run on the base, passes it
+# too (an old test a helper registers): then it warns. Those are the limits of
+# this check.
 #
 # A file that does not load on the base (it imports a module the PR adds) is
 # run on this checkout too: when it loads here, its new names count red; when
@@ -24,7 +27,12 @@
 # Cost: an extra git worktree. A Vitest file also runs
 # `pnpm install --frozen-lockfile` once in that worktree. Nothing is built:
 # the Vitest configs alias @gwenjs/* to their sources (vitest.aliases.ts).
-# A Cargo file under crates/<crate>/tests/ runs `cargo test --test <stem>`.
+# A Cargo integration test (crates/<crate>/tests/<stem>.rs) runs
+# `cargo test -p <crate> --test <stem>`; when it does not compile on the base
+# (it uses an API the PR adds) it is a load error, run on the head as above.
+# Any other changed .rs file whose diff adds a #[test] function (inline
+# #[cfg(test)] tests, *_test.rs modules) cannot be run by test name: it prints
+# KEEP-ONLY (not verifiable) and does not block.
 # node:test files only need node. Skip when the PR has the label no-red-check.
 
 set -u
@@ -54,6 +62,11 @@ if ! git rev-parse --verify "$BASE" >/dev/null 2>&1; then
   git fetch --no-tags origin v1-alpha:refs/remotes/origin/v1-alpha
 fi
 
+# crates/<crate>/tests/<stem>.rs: a Cargo integration test target.
+is_cargo_test() {
+  [[ "$1" =~ ^crates/[^/]+/tests/[^/]+\.rs$ ]]
+}
+
 files=()
 names=$(git diff --name-only --diff-filter=AMR "$BASE...HEAD") || {
   echo 'verify-red: git diff failed' >&2
@@ -62,8 +75,17 @@ names=$(git diff --name-only --diff-filter=AMR "$BASE...HEAD") || {
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   case "$f" in
-    *.test.mjs | *.test.js | *.test.cjs | *.test.ts | *.test.tsx | *.test.mts | *.spec.ts | *.spec.tsx | *.spec.mjs | *.spec.js | *_test.rs | *.test.rs)
+    *.test.mjs | *.test.js | *.test.cjs | *.test.ts | *.test.tsx | *.test.mts | *.spec.ts | *.spec.tsx | *.spec.mjs | *.spec.js)
       if [ -f "$ROOT/$f" ]; then
+        files+=("$f")
+      fi
+      ;;
+    *.rs)
+      [ -f "$ROOT/$f" ] || continue
+      if is_cargo_test "$f"; then
+        files+=("$f")
+      elif case "$f" in *_test.rs | *.test.rs) true ;; *) false ;; esac ||
+        git diff "$BASE...HEAD" -- "$f" | grep -qE '^\+[[:space:]]*#\[(tokio::)?(test|wasm_bindgen_test)\b'; then
         files+=("$f")
       fi
       ;;
@@ -174,7 +196,7 @@ run_tests() {
   local f="$2"
   local out="$3"
   local log="$4"
-  local pkg rel crate_dir stem
+  local pkg rel crate_dir stem crate
   case "$f" in
     *.test.mjs | *.test.cjs | *.test.js | *.spec.mjs | *.spec.js)
       if ! is_vitest_file "$ROOT/$f"; then
@@ -185,14 +207,19 @@ run_tests() {
       fi
       ;;
     *.test.ts | *.test.tsx | *.test.mts | *.spec.ts | *.spec.tsx) ;;
-    *_test.rs | *.test.rs)
+    *.rs)
       crate_dir=$(printf '%s\n' "$f" | awk -F/ 'NF >= 2 { print $1 "/" $2; exit }')
       stem=$(basename "$f" .rs)
       if [ -z "$crate_dir" ] || [ ! -f "$tree/$crate_dir/Cargo.toml" ]; then
         echo "verify-red: no Cargo.toml for $f" >&2
         exit 2
       fi
-      (cd "$tree" && cargo test --manifest-path "$crate_dir/Cargo.toml" --test "$stem") >"$out" 2>&1 || true
+      crate=$(awk '/^\[package\]/ { p = 1; next } /^\[/ { p = 0 } p && /^name[[:space:]]*=/ { sub(/^[^"]*"/, ""); sub(/".*$/, ""); print; exit }' "$tree/$crate_dir/Cargo.toml")
+      if [ -z "$crate" ]; then
+        echo "verify-red: no package name in $crate_dir/Cargo.toml" >&2
+        exit 2
+      fi
+      (cd "$tree" && cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
       cat "$out" >"$log"
       format=cargo
       return 0
@@ -233,6 +260,9 @@ judge_file() {
   fi
   if [ -n "$head_report" ]; then
     args+=(--head-report "$head_report")
+  fi
+  if [ -n "$base_run" ]; then
+    args+=(--base-run "$base_run")
   fi
   judge_code=0
   judge_out=$(node "$JUDGE" "${args[@]}" 2>&1) || judge_code=$?
@@ -293,6 +323,17 @@ JUDGE_LINES
 
 for f in "${files[@]}"; do
   echo "verify-red: group $f"
+  case "$f" in
+    *.rs)
+      if ! is_cargo_test "$f"; then
+        # Inline #[cfg(test)] tests run with the whole crate: no per-name run.
+        echo "::warning::verify-red: $f adds inline Rust tests; not verifiable by test name"
+        echo "verify-red: KEEP-ONLY $f (inline Rust tests: not verifiable by test name)"
+        keep_only=$((keep_only + 1))
+        continue
+      fi
+      ;;
+  esac
   base_snapshot=""
   if [ -f "$WT/$f" ]; then
     base_snapshot=$(mktemp)
@@ -342,6 +383,8 @@ for f in "${files[@]}"; do
   log=$(mktemp)
   report=$(mktemp)
   format=""
+  base_run=""
+  head_report=""
   run_tests "$WT" "$f" "$report" "$log"
   cat "$log"
   judge_file "$f" "$report" "$base_snapshot"
@@ -355,8 +398,20 @@ for f in "${files[@]}"; do
     run_tests "$ROOT" "$f" "$head_report" "$log"
     cat "$log"
     judge_file "$f" "$report" "$base_snapshot" "$head_report"
-    rm -f "$head_report"
   fi
+  if [ "$judge_code" -eq 1 ] && [ -n "$base_snapshot" ] &&
+    printf '%s\n' "$judge_out" | grep -q '(runner name not in source)$'; then
+    # A passing name the scan cannot place: run the base copy on the base.
+    # A name that passes there too is an old test (a helper's) and only warns.
+    echo "verify-red: $f has passing names outside the source; running the base copy on the base"
+    base_run=$(mktemp)
+    cp "$base_snapshot" "$WT/$f"
+    run_tests "$WT" "$f" "$base_run" "$log"
+    cp "$ROOT/$f" "$WT/$f"
+    judge_file "$f" "$report" "$base_snapshot" "$head_report"
+    rm -f "$base_run"
+  fi
+  [ -n "$head_report" ] && rm -f "$head_report"
   apply_judge "$f"
   rm -f "$log" "$report"
   if [ -n "$base_snapshot" ]; then
