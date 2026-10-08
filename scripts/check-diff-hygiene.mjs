@@ -475,19 +475,62 @@ function isGuarded(cleanup, binding, needed = 1) {
 }
 
 /**
- * True when the release at `index` sits behind an `if` whose condition does
- * not name the binding (`if (false) h.dispose()`): it may never run.
+ * True when a condition can never hold: one of its `&&` terms is a falsy
+ * literal (`false`, `0`, `null`, `undefined`). A condition that tests a
+ * binding or a local flag (`if (handle)`, `if (!disposed)`) may hold.
+ *
+ * @param {string} condition
+ * @returns {boolean}
+ */
+function neverHolds(condition) {
+  return condition.split('&&').some((term) =>
+    /^(?:false|0|null|undefined|void\s+0|!\s*true)$/.test(term.trim().replace(/^\(+|\)+$/g, '').trim()),
+  );
+}
+
+const IF_BEFORE = /\bif\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*$/;
+
+/**
+ * True when the release at `index` may never run: behind `false &&`, behind
+ * an `if` whose condition never holds (directly or around its block), or
+ * after a bare `return;` in the same block.
  *
  * @param {string} cleanup
  * @param {number} index
- * @param {string} name
+ * @param {string} _name
  * @returns {boolean}
  */
-function deadCondition(cleanup, index, name) {
-  const before = cleanup.slice(0, index);
-  const guard = before.match(/\bif\s*\(([^()]*(?:\([^()]*\)[^()]*)*)\)\s*\{?\s*(?:await\s+)?$/);
-  if (!guard) return false;
-  return !new RegExp(`\\b${escapeRegExp(name)}\\b`).test(guard[1] ?? '');
+function deadCondition(cleanup, index, _name) {
+  const before = cleanup.slice(0, index).replace(/(?:\bawait\s+)$/, '').trimEnd();
+  if (/(?:^|[^\w$.])(?:false|0|null|undefined)\s*&&$/.test(before)) return true;
+  const direct = before.match(IF_BEFORE);
+  if (direct && neverHolds(direct[1] ?? '')) return true;
+  let depth = 0;
+  let innermost = true;
+  for (let i = before.length - 1; i >= 0; i -= 1) {
+    const char = before[i];
+    if (char === '}') {
+      depth += 1;
+      continue;
+    }
+    if (char === '{') {
+      if (depth > 0) {
+        depth -= 1;
+        continue;
+      }
+      innermost = false;
+      const guard = before.slice(0, i).trimEnd().match(IF_BEFORE);
+      if (guard && neverHolds(guard[1] ?? '')) return true;
+      continue;
+    }
+    // `return;` as its own statement in the innermost block, before the release.
+    if (innermost && depth === 0 && before.startsWith('return', i) && !/[\w$]/.test(before[i - 1] ?? '')) {
+      const after = before.slice(i + 'return'.length);
+      const lead = before.slice(0, i).trimEnd();
+      if (/^\s*;/.test(after) && (lead === '' || /[;{}]$/.test(lead))) return true;
+    }
+  }
+  return false;
 }
 
 /**
