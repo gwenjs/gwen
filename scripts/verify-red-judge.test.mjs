@@ -178,48 +178,27 @@ const devOnlySource = [
 ].join("\n");
 const devOnlyBase = "import { describe, it } from 'vitest';\n";
 
-test("judge counts a new name red when it fails in dev and is skipped in prod", () => {
-  const result = judge({
-    source: devOnlySource,
-    base: devOnlyBase,
-    format: "vitest",
-    report: twoProjectReport("failed", "skipped"),
-  });
-  assert.match(result.output, /FAIL S > dev only/);
-  assert.equal(result.status, 0, result.output);
-});
-
-test("judge does not count a new name red when it fails in dev and passes in prod", () => {
-  const result = judge({
-    source: devOnlySource,
-    base: devOnlyBase,
-    format: "vitest",
-    report: twoProjectReport("failed", "passed"),
-  });
-  assert.match(result.output, /PASS S > dev only/);
-  assert.equal(result.status, 1, result.output);
-});
-
-test("judge blocks a new name that passes in dev and is skipped in prod", () => {
-  const result = judge({
-    source: devOnlySource,
-    base: devOnlyBase,
-    format: "vitest",
-    report: twoProjectReport("passed", "skipped"),
-  });
-  assert.match(result.output, /PASS S > dev only/);
-  assert.equal(result.status, 1, result.output);
-});
-
-test("judge blocks a new name that every project skipped", () => {
-  const result = judge({
-    source: devOnlySource,
-    base: devOnlyBase,
-    format: "vitest",
-    report: twoProjectReport("skipped", "skipped"),
-  });
-  assert.match(result.output, /PASS S > dev only/);
-  assert.equal(result.status, 1, result.output);
+test("judge counts a new name red when one project fails and no project passes", () => {
+  /** @type {[string, string, number, RegExp][]} */
+  const cases = [
+    // dev-only contract: fails in dev, skipped in prod -> red
+    ["failed", "skipped", 0, /FAIL S > dev only/],
+    // a pass in any project still blocks
+    ["failed", "passed", 1, /PASS S > dev only/],
+    ["passed", "skipped", 1, /PASS S > dev only/],
+    // skipped everywhere still blocks
+    ["skipped", "skipped", 1, /PASS S > dev only/],
+  ];
+  for (const [dev, prod, status, line] of cases) {
+    const result = judge({
+      source: devOnlySource,
+      base: devOnlyBase,
+      format: "vitest",
+      report: twoProjectReport(dev, prod),
+    });
+    assert.match(result.output, line, `dev ${dev}, prod ${prod}: ${result.output.trim()}`);
+    assert.equal(result.status, status, result.output);
+  }
 });
 
 test("judge matches it.each titles and judges them", () => {
