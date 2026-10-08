@@ -720,6 +720,8 @@ class GwenEngineImpl implements GwenEngine {
    * @returns The typed {@link WasmModuleHandle}.
    * @throws {GwenError} `CORE:WASM_LOAD_ERROR` when fetch, compile, the probe
    *   instantiate or the second instantiate fails.
+   * @throws {GwenError} `CORE:WASM_NOT_INITIALIZED` when `transformRegion` is
+   *   set and the WASM bridge is not active.
    * @throws {GwenError} `CORE:WASM_MODULE_REGION_TOO_SMALL` or
    *   `CORE:WASM_MODULE_REGION_INVALID` when `transformRegion` fails a load check.
    *   The module is not registered and the engine keeps running.
@@ -1344,7 +1346,7 @@ class GwenEngineImpl implements GwenEngine {
    * Core buffer filled once per frame before the host copies it into module regions.
    * The address stays in this engine. Community modules never receive it.
    *
-   * @throws {Error} When the WASM bridge is not active.
+   * @throws {GwenError} `CORE:WASM_NOT_INITIALIZED` when the WASM bridge is not active.
    * @internal
    */
   private _getOrCreateTransformPtr(): number {
