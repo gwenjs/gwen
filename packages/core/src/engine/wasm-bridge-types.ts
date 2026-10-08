@@ -828,6 +828,8 @@ export interface WasmBridge {
    * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when `data`
    *   is not that length for a type that already has a stride. The message
    *   names both sizes. Nothing is written.
+   * @throws `CORE:COMPONENT_WRITE_REJECTED` when core storage refuses the write
+   *   of one entity. Entities before it in `entities` keep their new value.
    */
   writeComponentsBulk(entities: EntityId[], componentTypeId: number, data: Float32Array): void;
 

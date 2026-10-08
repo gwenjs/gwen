@@ -428,6 +428,9 @@ impl Engine {
     /// expected length, and the actual length.
     /// Returns [`CoreError::ComponentTypeLimitReached`] before any write when
     /// this call would introduce the 129th distinct component type.
+    /// Returns [`CoreError::ComponentWriteRejected`] when storage refuses the
+    /// write of one entity. That entity is not written and not marked dirty;
+    /// entities earlier in `slots` keep their new value.
     /// Dead entities are skipped.
     pub fn set_components_bulk(
         &mut self,
@@ -523,11 +526,21 @@ impl Engine {
             let src_start = i * comp_size;
             let src_end = src_start + comp_size;
             let slice = &data[src_start..src_end];
-            if let ColumnMove::Migrated(migration) = self.storage.upsert_js(slot, type_id, slice)? {
-                if let Some(from) = migration.from {
-                    self.query_system.on_archetype_change(from);
+            match self.storage.upsert_js(slot, type_id, slice)? {
+                ColumnMove::Rejected => {
+                    return Err(CoreError::ComponentWriteRejected {
+                        entity: slot,
+                        component_type: component_type_id,
+                        bytes: u32::try_from(comp_size).unwrap_or(u32::MAX),
+                    });
                 }
-                self.query_system.on_archetype_change(migration.to);
+                ColumnMove::InPlace => {}
+                ColumnMove::Migrated(migration) => {
+                    if let Some(from) = migration.from {
+                        self.query_system.on_archetype_change(from);
+                    }
+                    self.query_system.on_archetype_change(migration.to);
+                }
             }
 
             if component_type_id == TRANSFORM_SAB_TYPE_ID {
