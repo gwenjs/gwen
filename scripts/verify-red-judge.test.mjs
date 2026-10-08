@@ -502,3 +502,80 @@ test("judge keeps a new wasm-only Rust test that a native run does not report", 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// Real lines from CI run 37808189647 (PR #146, job Verify red): the
+// dtolnay/rust-toolchain step sets CARGO_TERM_COLOR=always, so Cargo colors them.
+const ESC = "\u001b";
+const coloredCargoError = [
+  `${ESC}[1m${ESC}[33mwarning${ESC}[0m: \`gwen-core\` (lib) generated 1 warning`,
+  `${ESC}[1m${ESC}[91merror[E0599]${ESC}[0m${ESC}[1m: no variant named \`BufferLengthMismatch\` found for enum \`CoreError\`${ESC}[0m`,
+  `   ${ESC}[1m${ESC}[94m--> ${ESC}[0mcrates/gwen-core/tests/core_errors.rs:37:20`,
+  `${ESC}[1mFor more information about this error, try \`rustc --explain E0599\`.${ESC}[0m`,
+  `${ESC}[1m${ESC}[91merror${ESC}[0m: could not compile \`gwen-core\` (test "core_errors") due to 3 previous errors`,
+  "",
+].join("\n");
+
+test("judge reads a colored Cargo compile error as a base load failure", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-judge-rs-"));
+  try {
+    writeFileSync(join(dir, "head.rs"), "#[test]\nfn buffer_length_mismatch() {}\n");
+    writeFileSync(join(dir, "base.rs"), "");
+    writeFileSync(join(dir, "report.txt"), coloredCargoError);
+    writeFileSync(
+      join(dir, "head-report.txt"),
+      [
+        "running 1 test",
+        `test buffer_length_mismatch ... ${ESC}[32mok${ESC}[0m`,
+        "",
+        `test result: ${ESC}[32mok${ESC}[0m. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out`,
+        "",
+      ].join("\n"),
+    );
+    const args = [judgePath, "judge", "--source", join(dir, "head.rs"), "--base", join(dir, "base.rs"), "--format", "cargo"];
+    const asked = spawnSync("node", [...args, "--report", join(dir, "report.txt")], { encoding: "utf8" });
+    const askedOutput = `${asked.stdout}\n${asked.stderr}`;
+    assert.equal(asked.status, 3, askedOutput);
+    assert.match(askedOutput, /LOAD-ERROR error\[E0599\]: no variant named `BufferLengthMismatch` found for enum `CoreError`$/m);
+    const result = spawnSync(
+      "node",
+      [...args, "--report", join(dir, "report.txt"), "--head-report", join(dir, "head-report.txt")],
+      { encoding: "utf8" },
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, output);
+    assert.match(output, /FAIL buffer_length_mismatch \(base load error: error\[E0599\]/);
+    assert.doesNotMatch(output, /\u001b/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("judge reads colored Cargo test result lines", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-judge-rs-"));
+  try {
+    writeFileSync(join(dir, "head.rs"), "#[test]\nfn old_one() {}\n\n#[test]\nfn new_red() { assert_eq!(1, 2); }\n");
+    writeFileSync(join(dir, "base.rs"), "#[test]\nfn old_one() {}\n");
+    writeFileSync(
+      join(dir, "report.txt"),
+      [
+        "running 2 tests",
+        `test new_red ... ${ESC}[31mFAILED${ESC}[0m`,
+        `test old_one ... ${ESC}[32mok${ESC}[0m`,
+        "",
+        `test result: ${ESC}[31mFAILED${ESC}[0m. 1 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out`,
+        "",
+      ].join("\n"),
+    );
+    const result = spawnSync(
+      "node",
+      [judgePath, "judge", "--source", join(dir, "head.rs"), "--base", join(dir, "base.rs"), "--format", "cargo", "--report", join(dir, "report.txt")],
+      { encoding: "utf8" },
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, output);
+    assert.match(output, /FAIL new_red/);
+    assert.match(output, /KEEP old_one/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

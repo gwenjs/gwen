@@ -830,3 +830,42 @@ test('verify-red counts a failing test added to an existing Cargo test file red'
   assert.match(output, /FAIL new_red/);
   assert.match(output, /verify-red: RED crates\/demo\/tests\/existing\.rs/);
 });
+
+// The verify-red job's dtolnay/rust-toolchain step writes CARGO_TERM_COLOR=always
+// to GITHUB_ENV (CI run 37808189647, PR #146): the script must read Cargo
+// output with that variable set.
+const coloredCargo = { CARGO_TERM_COLOR: 'always', CLICOLOR_FORCE: '1' };
+
+test('verify-red counts a Cargo test red when it does not compile on the base with CARGO_TERM_COLOR=always', () => {
+  const result = runVerifyRed(
+    ['#[test]', 'fn two_is_two() {', '    assert_eq!(verify_red_demo::two(), 2);', '}', ''].join('\n'),
+    'base',
+    {
+      file: 'crates/demo/tests/added.rs',
+      env: coloredCargo,
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+      },
+      headSeed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n\npub fn two() -> i32 {\n    2\n}\n');
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /FAIL two_is_two \(base load error: error\[E0425\]/);
+  assert.match(output, /verify-red: RED crates\/demo\/tests\/added\.rs/);
+});
+
+test('the verify-red job gets CARGO_TERM_COLOR from its toolchain step and the script turns it off', () => {
+  const lines = readCi().split('\n');
+  const start = lines.findIndex((line) => /^ {2}verify-red:\s*$/.test(line));
+  assert.ok(start >= 0);
+  let end = start + 1;
+  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:\s*$/.test(lines[end] ?? '')) end++;
+  assert.match(lines.slice(start, end).join('\n'), /dtolnay\/rust-toolchain@/);
+  const script = readFileSync(join(root, 'scripts/verify-red.sh'), 'utf8');
+  const cargoRuns = script.split('\n').filter((line) => /\bcargo test\b/.test(line) && !/^\s*#/.test(line));
+  assert.ok(cargoRuns.length > 0);
+  for (const line of cargoRuns) assert.match(line, /CARGO_TERM_COLOR=never/, line);
+});

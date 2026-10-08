@@ -707,6 +707,17 @@ const baseRunPath = arg('--base-run');
 if (!reportPath) failClosed('missing --report');
 
 /**
+ * A runner report without ANSI escape sequences: Cargo colors its output when
+ * CARGO_TERM_COLOR=always (set by the CI toolchain step).
+ *
+ * @param {string} path
+ * @returns {string}
+ */
+function readReport(path) {
+  return readFileSync(path, 'utf8').replace(/\u001b\[[0-?]*[ -/]*[@-~]/g, '');
+}
+
+/**
  * @param {string} text
  * @returns {Result[] | null}
  */
@@ -760,7 +771,7 @@ function loadFailure(text, results) {
   return null;
 }
 
-const report = readFileSync(reportPath, 'utf8');
+const report = readReport(reportPath);
 let parsed = parseReport(report);
 const baseLoadError = loadFailure(report, parsed);
 // A Cargo test target that compiles and runs no test natively (wasm-only or
@@ -770,7 +781,7 @@ if (format === 'cargo' && !baseLoadError && parsed && parsed.length === 0 && /\b
     console.log('NO-TESTS the base run reports no test');
     process.exit(4);
   }
-  const headText = readFileSync(headReportPath, 'utf8');
+  const headText = readReport(headReportPath);
   const headParsed = parseReport(headText);
   if (!loadFailure(headText, headParsed) && headParsed && headParsed.length === 0 && /\brunning 0 tests\b/.test(headText)) {
     console.log('NO-TESTS no test runs natively on the base or the head');
@@ -783,7 +794,7 @@ if (baseLoadError && !headReportPath) {
   process.exit(3);
 }
 if (baseLoadError) {
-  const headText = readFileSync(headReportPath, 'utf8');
+  const headText = readReport(headReportPath);
   const headParsed = parseReport(headText);
   const headError = loadFailure(headText, headParsed);
   if (headError || !headParsed || headParsed.length === 0) {
@@ -798,7 +809,7 @@ const suffix = baseLoadError ? ` (base load error: ${baseLoadError})` : '';
 /** @type {Set<string>} names that pass when the base copy runs on the base */
 const basePassing = new Set();
 if (baseRunPath) {
-  for (const result of parseReport(readFileSync(baseRunPath, 'utf8')) ?? []) {
+  for (const result of parseReport(readReport(baseRunPath)) ?? []) {
     if (result.status === 'pass') basePassing.add(result.path.join(' > '));
   }
 }
