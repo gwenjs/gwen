@@ -19,7 +19,7 @@
     "query.entities": { "bytesPerFrame": 166295, "bytesPerEntityFrame": 146.1 },
     "bulk.query": { "bytesPerFrame": 6622, "bytesPerEntityFrame": 0 },
     "bulk.components": { "bytesPerFrame": 133828, "bytesPerEntityFrame": 128.1 },
-    "pool.cycle": { "bytesPerFrame": 484830, "bytesPerEntityFrame": 423.2, "frames": 4 },
+    "pool.cycle": { "bytesPerFrame": 4148, "bytesPerEntityFrame": 0, "frames": 4 },
     "tween.tick": { "bytesPerFrame": 4731, "bytesPerEntityFrame": 0 },
     "entity.index": { "bytesPerFrame": 3342, "bytesPerEntityFrame": 0 }
   }
