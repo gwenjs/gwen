@@ -789,3 +789,44 @@ test('verify-red installs the same pinned Rust toolchain as the rust job', () =>
   assert.ok(rust, 'rust job has no toolchain step');
   assert.equal(toolchain('verify-red'), rust);
 });
+
+const oldNative = ['#[test]', 'fn old_native() {', '    assert_eq!(verify_red_demo::one(), 1);', '}', ''].join('\n');
+
+test('verify-red keeps a wasm-only test added to an existing Cargo test file', () => {
+  const result = runVerifyRed(
+    `${oldNative}\n#[cfg(target_arch = "wasm32")]\n#[test]\nfn new_wasm() {}\n`,
+    'base',
+    {
+      file: 'crates/demo/tests/existing.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+        mkdirSync(join(dir, 'crates/demo/tests'), { recursive: true });
+        writeFileSync(join(dir, 'crates/demo/tests/existing.rs'), oldNative);
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /verify-red: KEEP-ONLY crates\/demo\/tests\/existing\.rs \(wasm-only Rust tests: not verifiable natively\)/);
+  assert.doesNotMatch(output, /NOT RED/);
+});
+
+test('verify-red counts a failing test added to an existing Cargo test file red', () => {
+  const result = runVerifyRed(
+    `${oldNative}\n#[test]\nfn new_red() {\n    assert_eq!(verify_red_demo::one(), 2);\n}\n`,
+    'base',
+    {
+      file: 'crates/demo/tests/existing.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+        mkdirSync(join(dir, 'crates/demo/tests'), { recursive: true });
+        writeFileSync(join(dir, 'crates/demo/tests/existing.rs'), oldNative);
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /KEEP old_native/);
+  assert.match(output, /FAIL new_red/);
+  assert.match(output, /verify-red: RED crates\/demo\/tests\/existing\.rs/);
+});
