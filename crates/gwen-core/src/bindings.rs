@@ -3712,6 +3712,58 @@ mod tests {
     }
 
     #[test]
+    fn set_components_bulk_rejects_a_fixed_size_mismatch_before_writing_the_first_entity() {
+        let made = Engine::new(4).and_then(|mut engine| {
+            let first = engine.create_entity()?;
+            let second = engine.create_entity()?;
+            Ok((engine, first, second))
+        });
+        let Ok((mut engine, first, second)) = made else {
+            unreachable!("Engine::new(4) and two entities always succeed");
+        };
+        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        let other = engine.register_component_type();
+        // The first entity gets an 8-byte transform while its column is variable
+        // size, so the 8-byte stride below matches its stored length.
+        let added_first = engine.add_component(
+            first.index(),
+            first.generation(),
+            TRANSFORM_SAB_TYPE_ID,
+            &[1, 2, 3, 4, 5, 6, 7, 8],
+        );
+        assert_eq!(added_first, Ok(true));
+        // Then the transform is registered fixed 4 bytes. The second entity holds
+        // another component, so its move builds a new archetype whose transform
+        // column is fixed 4 bytes and refuses an 8-byte write.
+        assert_eq!(engine.storage.register_raw(transform, 4), Ok(()));
+        let added_second =
+            engine.add_component(second.index(), second.generation(), other, &[0, 0, 0, 0]);
+        assert_eq!(added_second, Ok(true));
+        engine.dirty_transforms.clear();
+
+        let result = engine.set_components_bulk(
+            &[first.index(), second.index()],
+            &[first.generation(), second.generation()],
+            TRANSFORM_SAB_TYPE_ID,
+            &[9u8; 16],
+        );
+
+        assert_eq!(
+            result.err().map(|err| err.code()),
+            Some("CORE:COMPONENT_WRITE_REJECTED")
+        );
+        assert_eq!(
+            engine.storage.get_component(first.index(), transform),
+            Some([1u8, 2, 3, 4, 5, 6, 7, 8].as_slice())
+        );
+        assert_eq!(engine.dirty_transforms.is_dirty(first.index()), false);
+        assert_eq!(
+            engine.storage.get_component(second.index(), transform),
+            None
+        );
+    }
+
+    #[test]
     fn test_query_entities_to_buffer_exceeds_capacity() {
         assert_eq!(
             QUERY_EXCEEDED_BUFFER_CAPACITY,
