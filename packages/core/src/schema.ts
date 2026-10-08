@@ -591,8 +591,9 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
  *   would define a new name past the user budget. The Rust cap is 128 types.
  *   One type is reserved for the transform column, so 127 distinct user names
- *   fit. Defining the same name again reuses its id. The check runs here,
- *   before any WASM call.
+ *   fit. Defining the same name again is accepted and counts once toward the
+ *   127-name budget, which counts names in the whole process. The check runs
+ *   here, before any WASM call.
  * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when the name is
  *   already defined with other fields, field order or field types. Defaults
  *   may differ.

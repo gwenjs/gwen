@@ -46,7 +46,7 @@ Position.x[entity.id] = 100
 Position.y[entity.id] = 200
 ```
 
-`defineComponent` throws `GwenError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when a new name would pass the limit. The limit is 128 types. One type is reserved for the transform column, so 127 distinct user names fit. The limit counts distinct names defined in the process. Defining the same name again with the same fields is accepted (hot reload) and keeps the type id in each engine. Type ids are per engine: each engine assigns one the first time it sees a name, so two engines can give the same component different ids. With other fields, field order or field types it throws `GwenError` with code `CORE:INVALID_COMPONENT_SCHEMA`. The check runs at definition time and does not call WASM.
+`defineComponent` throws `GwenError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when a new name would pass the limit. The limit is 128 types. One type is reserved for the transform column, so 127 distinct user names fit. The limit counts distinct names defined in the process. Defining the same name again with the same fields is accepted (hot reload) and keeps the type id in each engine. Type ids are per engine: each engine assigns one the first time it sees a name, so two engines can give the same component different ids. With other fields, field order or field types it throws `GwenError` with code `CORE:INVALID_COMPONENT_SCHEMA`. The check runs at definition time and does not call WASM. One layout per component name in the whole process: two engines in one page cannot define the same name with different fields, and a hot reload that changes the fields throws `CORE:INVALID_COMPONENT_SCHEMA`.
 
 ## Available Types
 
