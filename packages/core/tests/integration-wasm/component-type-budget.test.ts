@@ -58,14 +58,16 @@ describe("component type budget", () => {
     let caught: unknown;
     let nextBridgeId = -1;
     try {
-      for (let i = 1; i <= 128; i += 1) {
-        registry.getOrRegister(`Reg${i}`);
+      try {
+        for (let i = 1; i <= 128; i += 1) {
+          registry.getOrRegister(`Reg${i}`);
+        }
+      } catch (error: unknown) {
+        caught = error;
       }
-    } catch (error: unknown) {
-      caught = error;
-    } finally {
       // The WASM counter behind registerComponentType: one more id per call.
       nextBridgeId = handle.bridge.registerComponentType();
+    } finally {
       await handle.dispose();
     }
 
