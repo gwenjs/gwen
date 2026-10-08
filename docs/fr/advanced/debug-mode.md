@@ -207,7 +207,7 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 `engine.debug` vaut `false` par défaut. Le serveur de développement ne l'active pas.
 
-`__GWEN_DEV__` est le drapeau de build. Il suit `import.meta.env.DEV` de Vite, donc `NODE_ENV`, pas le nom du mode. `vite` le met à `true`. `vite build` met `NODE_ENV` à `production`, donc le drapeau vaut `false`, y compris pour `vite build --mode development`. Le minutage par frame et la sentinelle mémoire WASM ne tournent que si `__GWEN_DEV__` et `debug` sont vrais.
+`__GWEN_DEV__` est le drapeau de build. Sur un build, il suit le mode Vite, pas `NODE_ENV`. `vite build` (mode `production`) le met à `false`. `vite build --mode development` le met à `true` : un build de développement garde toutes les vérifications. Avec `vite` / `vite dev`, il suit `import.meta.env.DEV` de Vite, qui vaut `true`. `import.meta.env.DEV` de Vite suit `NODE_ENV`, et `vite build` force `NODE_ENV` à `production` : il reste `false` sur `vite build --mode development` ([Vite : NODE_ENV and Modes](https://vite.dev/guide/env-and-mode#node-env-and-modes)). `GWEN_DEV` de `virtual:gwen/env` a la même valeur que `__GWEN_DEV__`. Le minutage par frame et la sentinelle mémoire WASM ne tournent que si `__GWEN_DEV__` et `debug` sont vrais.
 
 ### Enregistrement de système conditionnel
 

@@ -205,7 +205,7 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 `engine.debug` defaults to `false`. A development server does not turn it on.
 
-`__GWEN_DEV__` is the build-time flag. It follows Vite's `import.meta.env.DEV`, which follows `NODE_ENV`, not the mode name. `vite` sets it to `true`. `vite build` sets `NODE_ENV` to `production`, so the flag is `false`, including `vite build --mode development`. Per-frame timing and the WASM memory sentinel run only when both `__GWEN_DEV__` and `debug` are true.
+`__GWEN_DEV__` is the build-time flag. On a build it follows the Vite mode, not `NODE_ENV`. `vite build` (mode `production`) sets it to `false`. `vite build --mode development` sets it to `true`, so a development build keeps every check. On `vite` / `vite dev` it follows Vite's `import.meta.env.DEV`, which is `true`. Vite's own `import.meta.env.DEV` follows `NODE_ENV`, and `vite build` forces `NODE_ENV` to `production`, so it stays `false` on `vite build --mode development` ([Vite: NODE_ENV and Modes](https://vite.dev/guide/env-and-mode#node-env-and-modes)). `GWEN_DEV` from `virtual:gwen/env` has the same value as `__GWEN_DEV__`. Per-frame timing and the WASM memory sentinel run only when both `__GWEN_DEV__` and `debug` are true.
 
 ### Conditional System Registration
 

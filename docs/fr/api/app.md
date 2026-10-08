@@ -55,7 +55,7 @@ export default defineConfig({
 | `engine.maxDeltaSeconds` | `number` | `0.1` | Clamp maximum du delta time par frame (secondes). |
 | `engine.physicsHz` | `number` | `0` | Fréquence de simulation fixe en Hz. Si non nul, `start()` utilise une boucle à pas fixe avec accumulateur. |
 | `engine.maxCatchupSteps` | `number` | `2` | Nombre maximum de pas fixes par frame réelle (protection contre la spirale de rattrapage). |
-| `engine.debug` | `boolean` | `false` | Les logs `debug` et `info`, et les logs d'initialisation des plugins, suivent ce drapeau dans chaque build. Les vérifications sentinelles par frame, le timing de phase et l'avertissement d'isolation ne tournent que si `__GWEN_DEV__` est aussi vrai. |
+| `engine.debug` | `boolean` | `false` | Les logs `debug` et `info`, et les logs d'initialisation des plugins, suivent ce drapeau dans chaque build. Les vérifications sentinelles par frame, le timing de phase et l'avertissement d'isolation ne tournent que si `__GWEN_DEV__` est aussi vrai (`true` avec `vite` et `vite build --mode development`, `false` avec `vite build`). |
 | `globalCss` | `string[]` | `[]` | Fichiers CSS injectés dans chaque page, relatifs à la racine du projet (ex. `'./src/styles/global.css'`). |
 | `viewports` | `Record<string, ViewportRegion>` | — | Déclarations statiques de viewports (régions normalisées 0–1). Si absent, un viewport `'main'` plein écran est créé automatiquement. |
 | `screen.sizeProvider` | `ScreenSizeProvider` | auto | Fournisseur de taille personnalisé pour `ScreenPlugin`. Détecté automatiquement en navigateur (ResizeObserver). Requis pour Node.js ou les environnements sans DOM. |
