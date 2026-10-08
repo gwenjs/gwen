@@ -135,7 +135,7 @@ function git(dir, args) {
 /**
  * @param {string} source
  * @param {string} base
- * @param {{ file?: string, seed?: (dir: string) => void, pathPrefix?: string }} [options]
+ * @param {{ file?: string, seed?: (dir: string) => void, headSeed?: (dir: string) => void, pathPrefix?: string }} [options]
  */
 function runVerifyRed(source, base, options = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'gwen-verify-red-fixture-'));
@@ -147,6 +147,7 @@ function runVerifyRed(source, base, options = {}) {
     git(dir, ['add', '-A']);
     git(dir, ['commit', '-m', 'base']);
     git(dir, ['checkout', '-b', 'change']);
+    if (options.headSeed) options.headSeed(dir);
     const dest = join(dir, file);
     mkdirSync(dirname(dest), { recursive: true });
     writeFileSync(dest, source);
@@ -545,4 +546,165 @@ test('verify-red prints KEEP-ONLY for a changed file with no new test name', () 
   assert.match(output, /verify-red: KEEP-ONLY added\.test\.mjs/);
   assert.doesNotMatch(output, /verify-red: RED /);
   assert.doesNotMatch(output, /every checked test group failed on the base/);
+});
+
+/**
+ * The env map of one step of one job, read from the YAML lines.
+ *
+ * @param {string} yaml
+ * @param {string} job
+ * @param {string} step
+ * @returns {Record<string, string>}
+ */
+function stepEnv(yaml, job, step) {
+  const lines = jobBlock(yaml, job).split(/\r?\n/);
+  const start = lines.findIndex((line) => line.trim() === `- name: ${step}`);
+  assert.notEqual(start, -1, `${job} has no step ${step}`);
+  const indent = (lines[start] ?? '').indexOf('-');
+  /** @type {Record<string, string>} */
+  const env = {};
+  let inEnv = false;
+  for (let i = start + 1; i < lines.length; i++) {
+    const line = lines[i] ?? '';
+    if (line.trim() === '') continue;
+    const depth = line.length - line.trimStart().length;
+    if (depth <= indent) break;
+    if (depth === indent + 2) {
+      inEnv = line.trim() === 'env:';
+      continue;
+    }
+    if (!inEnv) continue;
+    const match = line.trim().match(/^([A-Za-z_][A-Za-z0-9_]*):\s*(.*)$/);
+    if (match) env[match[1] ?? ''] = match[2] ?? '';
+  }
+  return env;
+}
+
+/**
+ * Resolve the HYGIENE_BASE value of a step for one event, as Actions would.
+ *
+ * @param {string} value
+ * @param {'pull_request' | 'push'} event
+ * @returns {string}
+ */
+function resolveBase(value, event) {
+  const baseRef = event === 'pull_request' ? 'main' : '';
+  const conditional = value.match(
+    /^\$\{\{\s*github\.event_name\s*==\s*'pull_request'\s*&&\s*format\('origin\/\{0\}',\s*github\.base_ref\)\s*\|\|\s*'([^']*)'\s*\}\}$/,
+  );
+  if (conditional) return event === 'pull_request' ? `origin/${baseRef}` : (conditional[1] ?? '');
+  return value.replace(/\$\{\{\s*github\.base_ref\s*\}\}/g, baseRef);
+}
+
+test('the diff hygiene step diffs against the pull request base', () => {
+  const yaml = readCi();
+  const hygiene = stepEnv(yaml, 'agent-hygiene', 'Diff hygiene');
+  assert.ok('HYGIENE_BASE' in hygiene, JSON.stringify(hygiene));
+  assert.equal(resolveBase(hygiene.HYGIENE_BASE ?? '', 'pull_request'), 'origin/main');
+  assert.equal(resolveBase(hygiene.HYGIENE_BASE ?? '', 'push'), 'origin/v1-alpha');
+  const contractStep = stepEnv(yaml, 'agent-hygiene', 'PR contract');
+  assert.equal(resolveBase(contractStep.HYGIENE_BASE ?? '', 'pull_request'), 'origin/main');
+  const red = stepEnv(yaml, 'verify-red', 'Verify red');
+  assert.equal(resolveBase(red.HYGIENE_BASE ?? '', 'pull_request'), 'origin/main');
+});
+
+test('verify-red warns instead of blocking a helper test name that passes in the base run', () => {
+  const helper = [
+    "import test from 'node:test';",
+    'export function conformance() {',
+    "  test('shared case', () => {});",
+    '}',
+    '',
+  ].join('\n');
+  const base = [
+    "import test from 'node:test';",
+    "import { conformance } from './helper.mjs';",
+    'conformance();',
+    "test('old', () => {});",
+    '',
+  ].join('\n');
+  const result = runVerifyRed(`${base}test('new', () => { throw new Error('red'); });\n`, 'base', {
+    seed(dir) {
+      writeFileSync(join(dir, 'helper.mjs'), helper);
+      writeFileSync(join(dir, 'added.test.mjs'), base);
+    },
+  });
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /passes in the base run: shared case/);
+  assert.match(output, /verify-red: RED added\.test\.mjs/);
+});
+
+const crateToml = [
+  '[package]',
+  'name = "verify-red-demo"',
+  'version = "0.1.0"',
+  'edition = "2021"',
+  '',
+  '[workspace]',
+  '',
+].join('\n');
+
+/**
+ * @param {string} dir
+ * @param {string} lib
+ */
+function writeCrate(dir, lib) {
+  mkdirSync(join(dir, 'crates/demo/src'), { recursive: true });
+  writeFileSync(join(dir, 'crates/demo/Cargo.toml'), crateToml);
+  writeFileSync(join(dir, 'crates/demo/src/lib.rs'), lib);
+}
+
+test('verify-red blocks a new Cargo integration test that passes on the base', () => {
+  const result = runVerifyRed(
+    ['#[test]', 'fn one_is_one() {', '    assert_eq!(verify_red_demo::one(), 1);', '}', ''].join('\n'),
+    'base',
+    {
+      file: 'crates/demo/tests/added.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 1, output);
+  assert.match(output, /verify-red: NOT RED crates\/demo\/tests\/added\.rs :: one_is_one/);
+});
+
+test('verify-red counts a Cargo integration test red when it does not compile on the base', () => {
+  const result = runVerifyRed(
+    ['#[test]', 'fn two_is_two() {', '    assert_eq!(verify_red_demo::two(), 2);', '}', ''].join('\n'),
+    'base',
+    {
+      file: 'crates/demo/tests/added.rs',
+      seed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n');
+      },
+      headSeed(dir) {
+        writeCrate(dir, 'pub fn one() -> i32 {\n    1\n}\n\npub fn two() -> i32 {\n    2\n}\n');
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /FAIL two_is_two \(base load error/);
+  assert.match(output, /verify-red: RED crates\/demo\/tests\/added\.rs/);
+});
+
+test('verify-red prints KEEP-ONLY for a new inline Rust test it cannot judge by name', () => {
+  const lib = 'pub fn one() -> i32 {\n    1\n}\n';
+  const result = runVerifyRed(
+    `${lib}\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn inline_one() {\n        assert_eq!(super::one(), 1);\n    }\n}\n`,
+    'base',
+    {
+      file: 'crates/demo/src/lib.rs',
+      seed(dir) {
+        writeCrate(dir, lib);
+      },
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /verify-red: KEEP-ONLY crates\/demo\/src\/lib\.rs \(inline Rust tests: not verifiable by test name\)/);
+  assert.doesNotMatch(output, /verify-red: RED /);
 });
