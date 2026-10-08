@@ -23,14 +23,19 @@
  *   Exit 2 when the report has no tests.
  *   A name present in the base copy may pass (`KEEP`), a dynamic one too. A
  *   new dynamic name follows the rule of a new literal one. A runner name that
- *   matches no source name (renamed or aliased runner, `test.extend`) blocks
- *   when it passes; when it fails it prints `WARN` and does not block.
+ *   matches no source test name (renamed or aliased runner, `test.extend`, a
+ *   helper in another file) blocks when it passes; when it fails it prints
+ *   `WARN` and does not block. With --base-run (the base copy of the file run
+ *   on the base), such a name that also passes there prints `WARN` and does
+ *   not block: it is an old test, for example one a helper registers.
+ *   Only a TAP line with children is a suite; a leaf that shares a describe
+ *   path (`check('A')` next to `describe('A', …)`) is a test.
  */
 
 import { readFileSync } from 'node:fs';
 
 /** @typedef {'pass' | 'fail' | 'skip'} Status */
-/** @typedef {{ path: string[], status: Status }} Result */
+/** @typedef {{ path: string[], status: Status, parent?: boolean }} Result */
 /**
  * @typedef {object} Segment
  * @property {string} text title as written in the source
@@ -513,6 +518,8 @@ function parseTap(text) {
   const subtests = [];
   /** @type {string | null} indent of the open YAML diagnostic block */
   let yaml = null;
+  /** @type {boolean[]} hasChild[level]: a result was seen at this level since its parent opened */
+  const hasChild = [];
   for (const line of text.split(/\r?\n/)) {
     if (yaml !== null) {
       if (line === `${yaml}...`) yaml = null;
@@ -543,7 +550,11 @@ function parseTap(text) {
     }
     const name = unescapeTap(raw.trim());
     if (name === '') return null;
-    tests.push({ path: [...subtests.slice(0, level), name], status });
+    // node:test prints a parent's line after its children, one level deeper.
+    const parent = hasChild[level + 1] === true;
+    hasChild.length = level + 1;
+    hasChild[level] = true;
+    tests.push({ path: [...subtests.slice(0, level), name], status, parent });
   }
   return tests;
 }
@@ -680,6 +691,7 @@ const format = arg('--format');
 const reportPath = arg('--report');
 const runFile = arg('--file');
 const headReportPath = arg('--head-report');
+const baseRunPath = arg('--base-run');
 if (!reportPath) failClosed('missing --report');
 
 /**
@@ -751,28 +763,53 @@ if (baseLoadError) {
     failClosed(`does not load on the head either: ${headError ?? 'no test results'}`);
   }
   // Every name the head runs failed on the base: the file could not load there.
-  parsed = (headParsed ?? []).map((result) => ({ path: result.path, status: /** @type {Status} */ ('fail') }));
+  parsed = (headParsed ?? []).map((result) => ({ ...result, status: /** @type {Status} */ ('fail') }));
 }
 if (!parsed || parsed.length === 0) failClosed('no test results');
 const suffix = baseLoadError ? ` (base load error: ${baseLoadError})` : '';
+
+/** @type {Set<string>} names that pass when the base copy runs on the base */
+const basePassing = new Set();
+if (baseRunPath) {
+  for (const result of parseReport(readFileSync(baseRunPath, 'utf8')) ?? []) {
+    if (result.status === 'pass') basePassing.add(result.path.join(' > '));
+  }
+}
+
+const suiteEntries = allEntries.filter((entry) => entry.kind === 'suite');
+
+/**
+ * A suite with no test in the source (an empty `describe`): node:test reports
+ * it as a leaf.
+ *
+ * @param {string[]} path
+ * @returns {boolean}
+ */
+function emptySuite(path) {
+  const suite = matchEntry(path, suiteEntries);
+  if (!suite) return false;
+  return !sourceTests.some(
+    (test) => test.path.length > suite.path.length && suite.path.every((segment, k) => test.path[k] === segment),
+  );
+}
 
 /** @type {Map<Entry, Status[]>} */
 const statuses = new Map();
 let unplacedPassed = false;
 for (const result of parsed) {
-  const entry = matchEntry(result.path, allEntries);
-  if (entry?.kind === 'suite') continue;
+  // A TAP line with children is a suite, or a test with subtests.
+  const entry = matchEntry(result.path, result.parent ? allEntries : sourceTests);
+  if (result.parent && entry?.kind !== 'test') continue;
   if (!entry) {
-    const isParent = parsed.some(
-      (other) =>
-        other.path.length > result.path.length && result.path.every((title, k) => other.path[k] === title),
-    );
-    if (isParent) continue;
+    if (format === 'tap' && emptySuite(result.path)) continue;
+    const name = result.path.join(' > ');
     // A renamed or aliased runner (`import { test as check }`, `const t = test`,
-    // `test.extend`) hides its names from the scan: a passing one blocks.
-    if (result.status === 'fail') console.log(`WARN runner name not in source: ${result.path.join(' > ')}`);
+    // `test.extend`) or a helper hides its names from the scan: a passing one
+    // blocks, unless the base copy passes it too (an old test).
+    if (result.status === 'fail') console.log(`WARN runner name not in source: ${name}`);
+    else if (basePassing.has(name)) console.log(`WARN runner name not in source, passes in the base run: ${name}`);
     else {
-      console.log(`PASS ${result.path.join(' > ')} (runner name not in source)`);
+      console.log(`PASS ${name} (runner name not in source)`);
       unplacedPassed = true;
     }
     continue;
