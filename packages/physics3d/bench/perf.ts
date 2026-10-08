@@ -53,9 +53,9 @@ export function measureMedianMs<T>(
  * then returns the median for the budget assertion.
  */
 export function reportTiming(name: string, sample: TimingSample, budgetMs: number): number {
-  console.log(
+  process.stdout.write(
     `[timing-gate] ${name}: median ${sample.medianMs.toFixed(4)} ms, ` +
-      `max ${sample.maxMs.toFixed(4)} ms, budget ${budgetMs} ms`,
+      `max ${sample.maxMs.toFixed(4)} ms, budget ${budgetMs} ms\n`,
   );
   return sample.medianMs;
 }

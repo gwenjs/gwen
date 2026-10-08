@@ -30,7 +30,8 @@
     "build": "vite build",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench:ci": "BENCH_SLOW=1 vitest run --reporter=verbose bench/timing-gate.test.ts"
   },
   "dependencies": {
     "@gwenjs/core": "workspace:^",

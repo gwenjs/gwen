@@ -34,6 +34,7 @@ const EXPECTED_TEST_FILES = [
   "solver.test.ts",
   "bundle-size.test.ts",
   "bench-ci.test.ts",
+  "timing-gate.test.ts",
 ] as const;
 
 describe("bench infrastructure", () => {
