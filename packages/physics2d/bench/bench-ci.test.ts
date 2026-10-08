@@ -50,6 +50,25 @@ describe("bench infrastructure", () => {
     }
   });
 
+  it("bench:ci runs bench/timing-gate.test.ts with BENCH_SLOW set", () => {
+    const pkg: unknown = JSON.parse(
+      fs.readFileSync(path.join(benchDir, "..", "package.json"), "utf8"),
+    );
+    const scripts =
+      typeof pkg === "object" && pkg !== null && "scripts" in pkg ? pkg.scripts : undefined;
+    const benchCi =
+      typeof scripts === "object" && scripts !== null && "bench:ci" in scripts
+        ? scripts["bench:ci"]
+        : undefined;
+    expect(typeof benchCi).toBe("string");
+    const gate = String(benchCi)
+      .split("&&")
+      .map((step) => step.trim())
+      .find((step) => step.includes("bench/timing-gate.test.ts"));
+    expect(gate, "bench:ci has no step for bench/timing-gate.test.ts").toBeDefined();
+    expect(gate).toMatch(/^BENCH_SLOW=1 vitest run /);
+  });
+
   it("physics-perf-thresholds.json has all required metric keys", () => {
     const required = [
       "solverHighStepP95Ms",
