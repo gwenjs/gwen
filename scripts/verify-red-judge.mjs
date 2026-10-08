@@ -853,6 +853,7 @@ for (const entry of sourceTests) {
   const allFailed = list.length > 0 && list.every((status) => status === 'fail');
   if (list.length === 0) {
     if (!isNew) console.log(`KEEP ${entry.name} (not run)`);
+    else if (entry.wasm) console.log(`KEEP ${entry.name} (wasm-only, not run natively)`);
     else {
       console.log(`ABSENT ${entry.name}`);
       blocking = true;

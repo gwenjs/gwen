@@ -350,7 +350,9 @@ for f in "${files[@]}"; do
   esac
   base_snapshot=""
   if [ -f "$WT/$f" ]; then
-    base_snapshot=$(mktemp)
+    # Keep the file name: the judge picks its scanner from the extension.
+    snap_dir=$(mktemp -d "${TMPDIR:-/tmp}/vr-base.XXXXXX")
+    base_snapshot="$snap_dir/$(basename "$f")"
     cp "$WT/$f" "$base_snapshot"
   fi
   if ! classified=$(node "$JUDGE" classify --source "$ROOT/$f" ${base_snapshot:+--base "$base_snapshot"} 2>&1); then
@@ -359,7 +361,7 @@ for f in "${files[@]}"; do
     echo "::warning::verify-red: $f has no test call to judge"
     echo "verify-red: warning $f has no test call to judge ($classified)"
     skipped=$((skipped + 1))
-    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    [ -n "$base_snapshot" ] && rm -rf "$(dirname "$base_snapshot")"
     continue
   fi
   has_new=0
@@ -372,7 +374,7 @@ for f in "${files[@]}"; do
     echo "::warning::verify-red: $f adds wasm-only Rust tests; not verifiable natively"
     echo "verify-red: KEEP-ONLY $f (wasm-only Rust tests: not verifiable natively)"
     keep_only=$((keep_only + 1))
-    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    [ -n "$base_snapshot" ] && rm -rf "$(dirname "$base_snapshot")"
     continue
   fi
 
@@ -441,13 +443,13 @@ for f in "${files[@]}"; do
     echo "verify-red: KEEP-ONLY $f (no test runs natively on the base or the head)"
     keep_only=$((keep_only + 1))
     rm -f "$log" "$report"
-    [ -n "$base_snapshot" ] && rm -f "$base_snapshot"
+    [ -n "$base_snapshot" ] && rm -rf "$(dirname "$base_snapshot")"
     continue
   fi
   apply_judge "$f"
   rm -f "$log" "$report"
   if [ -n "$base_snapshot" ]; then
-    rm -f "$base_snapshot"
+    rm -rf "$(dirname "$base_snapshot")"
   fi
 done
 
