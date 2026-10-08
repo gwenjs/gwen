@@ -229,10 +229,12 @@ run_tests() {
       if [ "$tree" = "$WT" ]; then
         target="$WT/target"
       fi
+      # Plain output: the CI toolchain step sets CARGO_TERM_COLOR=always and
+      # the judge reads the Cargo lines as text.
       if [ -n "$target" ]; then
-        (cd "$tree" && CARGO_TARGET_DIR="$target" cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
+        (cd "$tree" && CARGO_TERM_COLOR=never NO_COLOR=1 CARGO_TARGET_DIR="$target" cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
       else
-        (cd "$tree" && env -u CARGO_TARGET_DIR cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
+        (cd "$tree" && env -u CARGO_TARGET_DIR CARGO_TERM_COLOR=never NO_COLOR=1 cargo test --manifest-path "$crate_dir/Cargo.toml" -p "$crate" --test "$stem") >"$out" 2>&1 || true
       fi
       cat "$out" >"$log"
       format=cargo
