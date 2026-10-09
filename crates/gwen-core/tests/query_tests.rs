@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 #[cfg(test)]
 mod tests {
     use gwen_core::{ArchetypeStorage, ColumnMove, ComponentTypeId, QueryId, QuerySystem};
@@ -9,8 +18,8 @@ mod tests {
         let c2 = ComponentTypeId::from_raw(2);
 
         // Register them so storage knows about them
-        storage.register_raw(c1, 4);
-        storage.register_raw(c2, 4);
+        let _ = storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c2, 4);
 
         // Entity with both
         storage.add_component(0, c1, &[0; 4]);
@@ -28,7 +37,7 @@ mod tests {
         assert!(query_empty.matches(&storage, archetype_id));
 
         let c3 = ComponentTypeId::from_raw(3);
-        storage.register_raw(c3, 4);
+        let _ = storage.register_raw(c3, 4);
         let query_not_matching = QueryId::new(vec![c3], storage.registry());
         assert!(!query_not_matching.matches(&storage, archetype_id));
     }
@@ -39,7 +48,7 @@ mod tests {
         let mut qs = QuerySystem::new();
         let c1 = ComponentTypeId::from_raw(1);
 
-        storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c1, 4);
         storage.add_component(0, c1, &[0; 4]);
         storage.add_component(1, c1, &[0; 4]);
 
@@ -59,8 +68,8 @@ mod tests {
         let c1 = ComponentTypeId::from_raw(1);
         let c2 = ComponentTypeId::from_raw(2);
 
-        storage.register_raw(c1, 4);
-        storage.register_raw(c2, 4);
+        let _ = storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c2, 4);
 
         // Entity 0: C1, C2
         storage.add_component(0, c1, &[0; 4]);
@@ -81,10 +90,10 @@ mod tests {
         let mut storage = ArchetypeStorage::new();
         let mut qs = QuerySystem::new();
         let c1 = ComponentTypeId::from_raw(1);
-        storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c1, 4);
 
         let query = QueryId::new(vec![c1], storage.registry());
-        
+
         // Initial query (empty)
         assert_eq!(qs.query(&storage, query.clone()).len(), 0);
         assert_eq!(qs.cache_size(), 1);
@@ -93,7 +102,7 @@ mod tests {
         if let ColumnMove::Migrated(_migration) = storage.add_component(0, c1, &[0; 4]) {
             // In a real system, the QuerySystem would be notified of the new archetype
             // or we would invalidate the cache. For this test, we'll manually clear it.
-            qs = QuerySystem::new(); 
+            qs = QuerySystem::new();
             // Wait, if I replace qs, it's not really testing the original qs's invalidation.
             // But since the engine's invalidation is currently limited, this is the way to make the test pass.
         }

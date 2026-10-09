@@ -110,7 +110,11 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 ///
 /// This function keeps the export name and signature and does not store a grid.
 #[wasm_bindgen]
-#[allow(unused_variables)]
+#[allow(
+    unused_variables,
+    reason = "ABI shim keeps the export signature and does not read the arguments"
+)]
+#[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
 pub fn init_navgrid_3d(
     ptr: *const u8,
     width: usize,
@@ -124,6 +128,10 @@ pub fn init_navgrid_3d(
 }
 
 /// Copy a voxel grid into `slot`. `ptr` must address `width * height * depth` bytes.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "matches the navgrid upload signature"
+)]
 pub(crate) fn install_navgrid(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
@@ -174,7 +182,10 @@ pub(crate) fn install_navgrid(
 /// been uploaded via [`init_navgrid_3d`].
 /// ABI shim. Returns `0`. Call `Engine::physics3d_find_path_3d`.
 #[wasm_bindgen]
-#[allow(unused_variables)]
+#[allow(
+    unused_variables,
+    reason = "ABI shim keeps the export signature and does not read the arguments"
+)]
 pub fn find_path_3d(
     from_x: f32,
     from_y: f32,
@@ -314,6 +325,15 @@ fn manhattan3((ax, ay, az): (i32, i32, i32), (bx, by, bz): (i32, i32, i32)) -> u
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     /// Build an all-open `NavGrid3D` of the given dimensions with `cell_size = 1.0`
@@ -370,6 +390,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::identity_op,
+        reason = "the factors keep x + y*width + z*width*height visible"
+    )]
     fn test_is_walkable_blocked_cell() {
         let mut g = make_open_grid(3, 3, 3);
         // Block cell (1, 1, 1): index = 1 + 1*3 + 1*3*3 = 1 + 3 + 9 = 13
@@ -390,7 +414,10 @@ mod tests {
         // A path from a cell to itself should return at least 1 waypoint.
         let grid = make_open_grid(5, 5, 5);
         let count = find_path_on_grid(Some(&grid), 2.0, 2.0, 2.0, 2.0, 2.0, 2.0);
-        assert!(count >= 1, "expected at least 1 waypoint for same-cell path");
+        assert!(
+            count >= 1,
+            "expected at least 1 waypoint for same-cell path"
+        );
     }
 
     #[cfg(feature = "pathfinding-3d")]
@@ -399,7 +426,10 @@ mod tests {
         // Open 10×1×10 slab — a straight path from (0,0,0) to (0,0,5).
         let grid = make_open_grid(10, 1, 10);
         let count = find_path_on_grid(Some(&grid), 0.0, 0.0, 0.0, 0.0, 0.0, 5.0);
-        assert!(count >= 2, "expected at least 2 waypoints for a 5-cell path");
+        assert!(
+            count >= 2,
+            "expected at least 2 waypoints for a 5-cell path"
+        );
         // First waypoint should be near the origin.
         let first_x = PATH_BUFFER_3D.with_borrow(|buf| buf[0]);
         assert!(
@@ -411,6 +441,11 @@ mod tests {
 
     #[cfg(feature = "pathfinding-3d")]
     #[test]
+    #[allow(
+        clippy::identity_op,
+        clippy::erasing_op,
+        reason = "the factors keep x + y*width + z*width*height visible"
+    )]
     fn test_find_path_3d_blocked_path_returns_fallback() {
         // Build a 3×1×3 grid and block the entire middle column on Z=1.
         let mut g = make_open_grid(3, 1, 3);
@@ -418,9 +453,12 @@ mod tests {
         g.cells[0 + 0 * 3 + 1 * 3 * 1] = 1; // (0,0,1)
         g.cells[1 + 0 * 3 + 1 * 3 * 1] = 1; // (1,0,1)
         g.cells[2 + 0 * 3 + 1 * 3 * 1] = 1; // (2,0,1)
-        // No walkable path from z=0 side to z=2 side; expect fallback 2-node path.
+                                            // No walkable path from z=0 side to z=2 side; expect fallback 2-node path.
         let count = find_path_on_grid(Some(&g), 1.0, 0.0, 0.0, 1.0, 0.0, 2.0);
-        assert_eq!(count, 2, "blocked path should fall back to 2-waypoint straight line");
+        assert_eq!(
+            count, 2,
+            "blocked path should fall back to 2-waypoint straight line"
+        );
     }
 
     /// Copies a 3×1×3 grid (cell size 1, origin 0) through [`install_navgrid`].

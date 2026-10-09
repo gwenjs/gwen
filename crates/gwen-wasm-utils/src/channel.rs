@@ -49,7 +49,7 @@
 macro_rules! __gwen_channel_inner {
     ($name:ident, $capacity:expr, $item_size:expr) => {
         ::paste::paste! {
-            #[allow(non_upper_case_globals)]
+            #[allow(non_upper_case_globals, reason = "paste builds the exported channel symbol")]
             /// Backing store for the ring-buffer channel.
             ///
             /// Lives in the WASM data segment. Size = `HEADER_BYTES + capacity * item_size`.
@@ -59,7 +59,7 @@ macro_rules! __gwen_channel_inner {
                 [0u8; $crate::ring::HEADER_BYTES + $capacity * $item_size];
 
             #[no_mangle]
-            #[allow(static_mut_refs)]
+            #[allow(static_mut_refs, reason = "static mut event slot stays until #59")]
             /// Returns the byte offset of this ring buffer in WASM linear memory.
             ///
             /// The GWEN TypeScript engine calls this function immediately after

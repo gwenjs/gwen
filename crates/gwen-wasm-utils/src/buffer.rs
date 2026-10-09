@@ -89,7 +89,10 @@ pub fn flush_local_to_js(buf: &Uint8Array, local: &[u8]) {
 /// - `byte_offset`: Starting offset in `buf` where the u32 is written.
 /// - `value`: The u32 value to write.
 #[inline]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "raw helpers kept for the channel macro and later callers"
+)]
 pub(crate) fn write_u32_raw(buf: &mut [u8], byte_offset: usize, value: u32) {
     buf[byte_offset] = (value & 0xFF) as u8;
     buf[byte_offset + 1] = ((value >> 8) & 0xFF) as u8;
@@ -104,7 +107,10 @@ pub(crate) fn write_u32_raw(buf: &mut [u8], byte_offset: usize, value: u32) {
 /// - `byte_offset`: Starting offset in `buf` where the u16 is written.
 /// - `value`: The u16 value to write.
 #[inline]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "raw helpers kept for the channel macro and later callers"
+)]
 pub(crate) fn write_u16_raw(buf: &mut [u8], byte_offset: usize, value: u16) {
     buf[byte_offset] = (value & 0xFF) as u8;
     buf[byte_offset + 1] = ((value >> 8) & 0xFF) as u8;
@@ -119,7 +125,10 @@ pub(crate) fn write_u16_raw(buf: &mut [u8], byte_offset: usize, value: u16) {
 /// # Returns
 /// The u32 value read in little-endian byte order.
 #[inline]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "raw helpers kept for the channel macro and later callers"
+)]
 pub(crate) fn read_u32_raw(buf: &[u8], byte_offset: usize) -> u32 {
     (buf[byte_offset] as u32)
         | ((buf[byte_offset + 1] as u32) << 8)
@@ -136,7 +145,10 @@ pub(crate) fn read_u32_raw(buf: &[u8], byte_offset: usize) -> u32 {
 /// # Returns
 /// The u16 value read in little-endian byte order.
 #[inline]
-#[allow(dead_code)]
+#[allow(
+    dead_code,
+    reason = "raw helpers kept for the channel macro and later callers"
+)]
 pub(crate) fn read_u16_raw(buf: &[u8], byte_offset: usize) -> u16 {
     (buf[byte_offset] as u16) | ((buf[byte_offset + 1] as u16) << 8)
 }

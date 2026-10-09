@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! ECS property test.
 //!
 //! `wasm-pack test` compiles every file under `tests/` for wasm32.
@@ -70,6 +79,10 @@ fn must_ok<T, E>(result: Result<T, E>) -> T {
     }
 }
 
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn fresh_engine() -> (Engine, Model) {
     let mut engine = must_ok(Engine::new(ENGINE_CAP));
     let mut type_ids = [0u32; TYPE_COUNT];
@@ -110,6 +123,10 @@ fn fresh_engine() -> (Engine, Model) {
     (engine, model)
 }
 
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn assert_invariants(engine: &mut Engine, model: &Model) {
     assert_eq!(engine.count_entities(), model.live, "live count drifted");
 
@@ -159,6 +176,10 @@ fn assert_query(engine: &mut Engine, model: &Model, types: &[usize]) {
     assert_eq!(actual, expected, "query {types:?} diverged from the model");
 }
 
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
     match op {
         Op::Create => {

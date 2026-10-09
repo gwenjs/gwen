@@ -254,7 +254,8 @@ impl TransformNode {
         }
 
         // Calculate local matrix
-        let local_matrix = Mat3::transform(self.local.position, self.local.rotation, self.local.scale);
+        let local_matrix =
+            Mat3::transform(self.local.position, self.local.rotation, self.local.scale);
 
         // Calculate world matrix
         self.world_matrix = parent_matrix.multiply(local_matrix);
@@ -282,7 +283,8 @@ impl TransformNode {
             return;
         }
 
-        self.world_matrix = Mat3::transform(self.local.position, self.local.rotation, self.local.scale);
+        self.world_matrix =
+            Mat3::transform(self.local.position, self.local.rotation, self.local.scale);
         self.world_position = self.local.position;
         self.world_rotation = self.local.rotation;
         self.world_scale = self.local.scale;
@@ -294,7 +296,7 @@ impl TransformNode {
 pub struct TransformSystem {
     transforms: HashMap<EntityId, TransformNode>,
     root_entities: Vec<EntityId>,
-    #[allow(dead_code)] // Reserved for future O(1) index lookup
+    #[allow(dead_code, reason = "reserved for a future O(1) index lookup")]
     entity_to_index: HashMap<EntityId, usize>,
     update_order: Vec<EntityId>,
     /// `update_order` is rebuilt on the next `update`, not on every link change.
@@ -502,6 +504,15 @@ impl Default for TransformSystem {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     fn entity(id: u32) -> EntityId {
@@ -582,7 +593,10 @@ mod tests {
     }
 
     #[test]
-    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "wall-clock measurement in a test"
+    )]
     fn test_transform_performance_update_100() {
         let mut ts = TransformSystem::new();
 

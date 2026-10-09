@@ -59,7 +59,9 @@ compile_error!(
 /// Shared memory layout constants re-exported for external crate consumers.
 /// These values are defined in `transform` (the canonical source of truth).
 pub mod shared_memory {
-    pub use crate::transform::{FLAGS3D_OFFSET, FLAGS_OFFSET, TRANSFORM3D_STRIDE, TRANSFORM_STRIDE};
+    pub use crate::transform::{
+        FLAGS3D_OFFSET, FLAGS_OFFSET, TRANSFORM3D_STRIDE, TRANSFORM_STRIDE,
+    };
 }
 
 pub use ecs::*;

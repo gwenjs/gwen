@@ -77,13 +77,22 @@ impl DirtySet {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     #[test]
     fn test_dirty_set_basic() {
         let mut ds = DirtySet::new(10);
         assert!(!ds.is_dirty(5));
-        
+
         ds.mark_dirty(5);
         assert!(ds.is_dirty(5));
         assert_eq!(ds.dirty_entities(), &[5]);

@@ -1,8 +1,26 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 /// Integration tests – full multi-system scenarios
 ///
 /// These tests exercise Entity + Component + Query working together.
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use bytemuck::{Pod, Zeroable};
     use gwen_core::*;
 
@@ -48,7 +66,9 @@ mod tests {
         let vel_handle = ComponentHandle::<Velocity>::new(&mut storage);
 
         // Spawn 3 entities with Position + Velocity
-        let entities: Vec<_> = (0..3).map(|_| em.create_entity().expect("entity limit")).collect();
+        let entities: Vec<_> = (0..3)
+            .map(|_| em.create_entity().expect("entity limit"))
+            .collect();
         for (i, &e) in entities.iter().enumerate() {
             pos_handle.add(
                 &mut storage,
@@ -63,7 +83,10 @@ mod tests {
         }
 
         // Query entities with both components
-        let query = QueryId::new(vec![pos_handle.type_id(), vel_handle.type_id()], storage.registry());
+        let query = QueryId::new(
+            vec![pos_handle.type_id(), vel_handle.type_id()],
+            storage.registry(),
+        );
         let result = qs.query(&storage, query.clone());
         assert_eq!(result.len(), 3);
 
@@ -147,7 +170,10 @@ mod tests {
         vel_handle.add(&mut storage, 0, Velocity { dx: 1.0, dy: 0.0 });
         qs.update_entity_archetype(0, vec![pos_handle.type_id(), vel_handle.type_id()]);
 
-        let full_query = QueryId::new(vec![pos_handle.type_id(), vel_handle.type_id()], storage.registry());
+        let full_query = QueryId::new(
+            vec![pos_handle.type_id(), vel_handle.type_id()],
+            storage.registry(),
+        );
         let pos_only = QueryId::new(vec![pos_handle.type_id()], storage.registry());
 
         assert_eq!(qs.query(&storage, full_query.clone()).len(), 1);
@@ -217,16 +243,36 @@ mod tests {
         qs.update_entity_archetype(2, vec![pos_handle.type_id()]);
 
         // All 3 have Position
-        assert_eq!(qs.query(&storage, QueryId::new(vec![pos_handle.type_id()], storage.registry())).len(), 3);
+        assert_eq!(
+            qs.query(
+                &storage,
+                QueryId::new(vec![pos_handle.type_id()], storage.registry())
+            )
+            .len(),
+            3
+        );
         // 2 have Velocity
-        assert_eq!(qs.query(&storage, QueryId::new(vec![vel_handle.type_id()], storage.registry())).len(), 2);
+        assert_eq!(
+            qs.query(
+                &storage,
+                QueryId::new(vec![vel_handle.type_id()], storage.registry())
+            )
+            .len(),
+            2
+        );
         // 1 has all three
         assert_eq!(
-            qs.query(&storage, QueryId::new(vec![
-                pos_handle.type_id(),
-                vel_handle.type_id(),
-                hp_handle.type_id()
-            ], storage.registry()))
+            qs.query(
+                &storage,
+                QueryId::new(
+                    vec![
+                        pos_handle.type_id(),
+                        vel_handle.type_id(),
+                        hp_handle.type_id()
+                    ],
+                    storage.registry()
+                )
+            )
             .len(),
             1
         );

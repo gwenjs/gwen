@@ -47,6 +47,10 @@ impl ComponentRegistry {
     }
 
     /// Register a new component type
+    #[allow(
+        clippy::panic,
+        reason = "the 129th component type is a caller bug; removal is #52"
+    )]
     pub fn register<T: 'static>(&mut self) -> ComponentTypeId {
         let rust_type_id = TypeId::of::<T>();
 
@@ -94,7 +98,8 @@ impl ComponentRegistry {
         id: ComponentTypeId,
         element_size: usize,
     ) -> Result<(), CoreError> {
-        if !self.bit_indices.contains_key(&id) && u32::from(self.next_bit_index) >= MAX_COMPONENT_TYPES
+        if !self.bit_indices.contains_key(&id)
+            && u32::from(self.next_bit_index) >= MAX_COMPONENT_TYPES
         {
             return Err(CoreError::ComponentTypeLimitReached {
                 max: MAX_COMPONENT_TYPES,
@@ -201,9 +206,18 @@ impl<T: Pod + Zeroable + Copy + 'static> ComponentHandle<T> {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
-    use crate::transform::Transform;
     use crate::ecs::storage::ArchetypeStorage;
+    use crate::transform::Transform;
     use bytemuck::{Pod, Zeroable};
 
     #[repr(C)]

@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Integration tests for bulk operations on layout (transforms).
 //!
 //! These tests verify that the Engine correctly:

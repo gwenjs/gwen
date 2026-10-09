@@ -91,21 +91,25 @@ pub fn voronoi_fracture(
     shard_count: u32,
     seed: u32,
 ) -> Vec<f32> {
-    voronoi_fracture_core(vertices_flat, indices_flat, impact_x, impact_y, impact_z, shard_count, seed)
+    voronoi_fracture_core(
+        vertices_flat,
+        indices_flat,
+        impact_x,
+        impact_y,
+        impact_z,
+        shard_count,
+        seed,
+    )
 }
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 fn parse_vertices(flat: &[f32]) -> Vec<[f32; 3]> {
-    flat.chunks_exact(3)
-        .map(|c| [c[0], c[1], c[2]])
-        .collect()
+    flat.as_chunks::<3>().0.to_vec()
 }
 
 fn parse_triangles(flat: &[u32]) -> Vec<[u32; 3]> {
-    flat.chunks_exact(3)
-        .map(|c| [c[0], c[1], c[2]])
-        .collect()
+    flat.as_chunks::<3>().0.to_vec()
 }
 
 /// Generate `count` Voronoi site positions.
@@ -156,9 +160,15 @@ fn assign_triangles(
 ) -> Vec<Vec<[u32; 3]>> {
     let mut buckets: Vec<Vec<[u32; 3]>> = vec![Vec::new(); shard_count];
     for tri in tris {
-        let cx = (verts[tri[0] as usize][0] + verts[tri[1] as usize][0] + verts[tri[2] as usize][0]) / 3.0;
-        let cy = (verts[tri[0] as usize][1] + verts[tri[1] as usize][1] + verts[tri[2] as usize][1]) / 3.0;
-        let cz = (verts[tri[0] as usize][2] + verts[tri[1] as usize][2] + verts[tri[2] as usize][2]) / 3.0;
+        let cx =
+            (verts[tri[0] as usize][0] + verts[tri[1] as usize][0] + verts[tri[2] as usize][0])
+                / 3.0;
+        let cy =
+            (verts[tri[0] as usize][1] + verts[tri[1] as usize][1] + verts[tri[2] as usize][1])
+                / 3.0;
+        let cz =
+            (verts[tri[0] as usize][2] + verts[tri[1] as usize][2] + verts[tri[2] as usize][2])
+                / 3.0;
         let nearest = sites
             .iter()
             .enumerate()
@@ -199,7 +209,7 @@ fn encode_output(verts: &[[f32; 3]], buckets: &[Vec<[u32; 3]>], shard_count: usi
         }
 
         out.push((shard_verts.len() / 3) as f32); // vertex count
-        out.push((shard_idxs.len() / 3) as f32);  // triangle count
+        out.push((shard_idxs.len() / 3) as f32); // triangle count
         out.extend_from_slice(&shard_verts);
         out.extend_from_slice(&shard_idxs);
     }
@@ -210,4 +220,3 @@ fn encode_output(verts: &[[f32; 3]], buckets: &[Vec<[u32; 3]>], shard_count: usi
 
 #[cfg(test)]
 mod fracture_tests;
-

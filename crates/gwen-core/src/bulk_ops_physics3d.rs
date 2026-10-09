@@ -59,7 +59,7 @@ pub fn physics3d_bulk_sync_to_rapier(
     transform_type_id: u32,
     data: &[u8],
 ) {
-    engine.set_components_bulk(slots, gens, transform_type_id, data);
+    let _ = engine.set_components_bulk(slots, gens, transform_type_id, data);
 }
 
 /// Bulk-apply 3D impulses `[fx: f32, fy: f32, fz: f32]` (12 bytes per entity).
@@ -79,7 +79,7 @@ pub fn physics3d_bulk_apply_impulse(
     rigidbody_type_id: u32,
     impulse_data: &[u8],
 ) {
-    engine.set_components_bulk(slots, gens, rigidbody_type_id, impulse_data);
+    let _ = engine.set_components_bulk(slots, gens, rigidbody_type_id, impulse_data);
 }
 
 // ---------------------------------------------------------------------------
@@ -88,6 +88,15 @@ pub fn physics3d_bulk_apply_impulse(
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
     use crate::bindings::Engine;
 
@@ -125,7 +134,14 @@ mod tests {
         transform_bytes[4..8].copy_from_slice(&2.0f32.to_le_bytes());
         transform_bytes[8..12].copy_from_slice(&3.0f32.to_le_bytes());
         transform_bytes[24..28].copy_from_slice(&1.0f32.to_le_bytes()); // qw=1.0
-        engine.add_component(e.index(), e.generation(), transform_type_id, &transform_bytes).expect("component");
+        engine
+            .add_component(
+                e.index(),
+                e.generation(),
+                transform_type_id,
+                &transform_bytes,
+            )
+            .expect("component");
         let mut out_slots = vec![0u32; 16];
         let mut out_gens = vec![0u32; 16];
         let mut out_buf = vec![0u8; 28];

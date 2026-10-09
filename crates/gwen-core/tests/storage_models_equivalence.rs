@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! After 60 frames of the reference scene, the bench-only models agree bitwise.
 //! See internals-docs/adr/0001-component-storage.md.
 

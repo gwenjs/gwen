@@ -35,6 +35,7 @@
     "bench:physics3d:ci": "pnpm --filter @gwenjs/physics3d bench:ci",
     "clean": "./scripts/clean-cargo.sh clean && pnpm -r clean",
     "lint": "oxlint --config oxlint.json packages/",
+    "lint:rust": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p gwen-core --all-targets --features physics2d -- -D warnings && cargo clippy -p gwen-core --all-targets --features physics3d -- -D warnings && cargo clippy -p gwen-core --all-targets --features build-tools -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics2d -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics3d -- -D warnings",
     "lint:fix": "oxlint --config oxlint.json --fix packages/",
     "format": "oxfmt packages/",
     "format:check": "oxfmt --check packages/",
