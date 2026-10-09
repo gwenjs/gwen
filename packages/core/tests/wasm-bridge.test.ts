@@ -56,8 +56,8 @@ describe("WasmBridge — not initialized", () => {
     expect(() => bridge.addComponent(0, 0, 1, new Uint8Array(4))).toThrow("WASM");
   });
 
-  it("tick() throws", () => {
-    expect(() => bridge.tick(16)).toThrow("WASM");
+  it("has no millisecond tick", () => {
+    expect("tick" in bridge).toBe(false);
   });
 
   it("stats() throws", () => {
@@ -377,11 +377,6 @@ describe("WasmBridge — with injected mock", () => {
     }
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught?.code).toBe(CoreErrorCodes.QUERY_CAPACITY_EXCEEDED);
-  });
-
-  it("tick() delegates to mock", () => {
-    bridge.tick(16.5);
-    expect(mock.tick).toHaveBeenCalledWith(16.5);
   });
 
   it("stats() returns mock stats string", () => {
