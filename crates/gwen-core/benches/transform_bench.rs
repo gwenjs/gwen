@@ -1,7 +1,16 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Criterion benchmarks for TransformSystem propagation and bulk operations.
 //!
 //! Run with: `cargo bench -p gwen-core`
-//! 
+//!
 //! These benchmarks measure:
 //! - Transform propagation in flat hierarchies (no parents)
 //! - Transform propagation in deep chains (32 levels)
@@ -11,9 +20,9 @@
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use gwen_core::bindings::Engine;
+use gwen_core::entity::EntityId;
 use gwen_core::transform::{Transform, TransformSystem};
 use gwen_core::transform_math::Vec2;
-use gwen_core::entity::EntityId;
 
 fn entity(i: u32) -> EntityId {
     EntityId::from_parts(i, 0)
@@ -42,7 +51,7 @@ fn make_chain_system(count: usize) -> TransformSystem {
         );
     }
     for i in 1..chain_count {
-        sys.set_parent(entity(i as u32), Some(entity(i as u32 - 1)));
+        let _ = sys.set_parent(entity(i as u32), Some(entity(i as u32 - 1)));
     }
     sys
 }
@@ -119,9 +128,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
     group.bench_function("bulk_spawn_200_with_transforms", |b| {
         b.iter(|| {
             let mut engine = Engine::new(300).expect("max entities");
-            let positions: Vec<f32> = (0..200)
-                .flat_map(|i| [i as f32 * 16.0, 0.0])
-                .collect();
+            let positions: Vec<f32> = (0..200).flat_map(|i| [i as f32 * 16.0, 0.0]).collect();
             engine
                 .bulk_spawn_with_transforms(&positions, &[])
                 .expect("entity limit");
@@ -131,12 +138,8 @@ fn bench_bulk_ops(c: &mut Criterion) {
     group.bench_function("bulk_spawn_500_with_rotations", |b| {
         b.iter(|| {
             let mut engine = Engine::new(600).expect("max entities");
-            let positions: Vec<f32> = (0..500)
-                .flat_map(|i| [i as f32 * 8.0, 0.0])
-                .collect();
-            let rotations: Vec<f32> = (0..500)
-                .map(|i| (i as f32) * 0.01)
-                .collect();
+            let positions: Vec<f32> = (0..500).flat_map(|i| [i as f32 * 8.0, 0.0]).collect();
+            let rotations: Vec<f32> = (0..500).map(|i| (i as f32) * 0.01).collect();
             engine
                 .bulk_spawn_with_transforms(&positions, &rotations)
                 .expect("entity limit");

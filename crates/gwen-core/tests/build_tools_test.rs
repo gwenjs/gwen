@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 // crates/gwen-core/tests/build_tools_test.rs
 #[cfg(feature = "build-tools")]
 mod build_tools_tests {

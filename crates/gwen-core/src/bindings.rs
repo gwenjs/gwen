@@ -21,7 +21,9 @@ use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "physics2d")]
-use crate::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsQualityPreset, PhysicsWorld};
+use crate::physics2d::{
+    BodyOptions, BodyType, ColliderOptions, PhysicsQualityPreset, PhysicsWorld,
+};
 
 #[cfg(feature = "physics3d")]
 use crate::physics3d::PhysicsWorld3D;
@@ -36,6 +38,7 @@ fn write_f32(slot: &mut [u8; STRIDE], offset: usize, value: f32) {
 }
 
 /// Message when a query has more matches than this engine's result buffer.
+#[cfg(test)]
 const QUERY_EXCEEDED_BUFFER_CAPACITY: &str = "query exceeded the buffer capacity";
 
 // ─── Opaque entity handle exposed to JS ──────────────────────────────────────
@@ -102,10 +105,7 @@ pub struct Engine {
 }
 
 fn bulk_len_u32(len: usize) -> u32 {
-    match u32::try_from(len) {
-        Ok(value) => value,
-        Err(_) => u32::MAX,
-    }
+    u32::try_from(len).unwrap_or(u32::MAX)
 }
 
 #[wasm_bindgen]
@@ -118,7 +118,7 @@ impl Engine {
     /// `[1, 2_000_000]`. Nothing is allocated in that case.
     #[wasm_bindgen(constructor)]
     pub fn new(max_entities: u32) -> Result<Engine, CoreError> {
-        if max_entities < 1 || max_entities > MAX_ENTITIES_LIMIT {
+        if !(1..=MAX_ENTITIES_LIMIT).contains(&max_entities) {
             return Err(CoreError::InvalidMaxEntities {
                 value: max_entities,
                 max: MAX_ENTITIES_LIMIT,
@@ -599,7 +599,10 @@ impl Engine {
             .map(|&id| ComponentTypeId::from_raw(id))
             .collect();
         let query_id = QueryId::new(types, self.storage.registry());
-        self.query_system.query(&self.storage, query_id).entities().to_vec()
+        self.query_system
+            .query(&self.storage, query_id)
+            .entities()
+            .to_vec()
     }
 
     /// Query entities and copy every match into this engine's result buffer.
@@ -946,6 +949,7 @@ impl Engine {
             return; // layout construction failed — do nothing rather than panic
         };
         self.shared_buffers.remove(&ptr);
+        // SAFETY: `layout` matches `alloc_shared_buffer` (align 8, same byte length) and `ptr` came from that call.
         unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
     }
 
@@ -1037,6 +1041,7 @@ impl Engine {
         let transform_type = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
         for idx in 0..max_entities as usize {
             let offset = idx * STRIDE;
+            // SAFETY: `ptr` is the caller's live shared buffer. Each slot is STRIDE bytes and the flags word is at byte 20.
             let flags = unsafe { *((ptr + offset + 20) as *const u32) };
             if flags & PHYS_FLAG == 0 {
                 continue;
@@ -1044,6 +1049,7 @@ impl Engine {
             if self.storage.registry().size(transform_type).is_none() {
                 self.storage.register_raw(transform_type, 0)?;
             }
+            // SAFETY: the same live slot. The first five f32 fields are position, rotation and scale.
             unsafe {
                 let base = (ptr + offset) as *const f32;
                 let x = *base;
@@ -1073,6 +1079,7 @@ impl Engine {
 
         for &idx in dirty {
             let offset = idx as usize * STRIDE;
+            // SAFETY: `ptr` is the caller's live shared buffer. Dirty indices are entity slots inside it.
             unsafe {
                 let base = (ptr + offset) as *mut f32;
 
@@ -1138,6 +1145,7 @@ impl Engine {
     // ─── Physics 2D — Body management ─────────────────────────────────────────
 
     #[cfg(feature = "physics2d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics_add_rigid_body(
         &mut self,
         slot: u32,
@@ -1184,6 +1192,7 @@ impl Engine {
     // ─── Physics 2D — Collider management ──────────────────────────────────────
 
     #[cfg(feature = "physics2d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics_add_box_collider(
         &mut self,
         handle: u32,
@@ -1219,6 +1228,7 @@ impl Engine {
     }
 
     #[cfg(feature = "physics2d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics_add_ball_collider(
         &mut self,
         handle: u32,
@@ -1370,13 +1380,7 @@ impl Engine {
     /// # Returns
     /// `1` if found and updated; `0` otherwise.
     #[cfg(feature = "physics2d")]
-    pub fn physics_set_kinematic_position(
-        &mut self,
-        slot: u32,
-        x: f32,
-        y: f32,
-        angle: f32,
-    ) -> u32 {
+    pub fn physics_set_kinematic_position(&mut self, slot: u32, x: f32, y: f32, angle: f32) -> u32 {
         self.physics_world
             .as_mut()
             .map(|w| w.set_kinematic_position(slot, x, y, angle) as u32)
@@ -1418,18 +1422,42 @@ impl Engine {
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_query_radius(&self, x: f32, y: f32, radius: f32, membership: u32, filter: u32) -> Vec<u32> {
-        self.physics_world.as_ref().map(|w| w.query_radius(x, y, radius, membership, filter)).unwrap_or_default()
+    pub fn physics_query_radius(
+        &self,
+        x: f32,
+        y: f32,
+        radius: f32,
+        membership: u32,
+        filter: u32,
+    ) -> Vec<u32> {
+        self.physics_world
+            .as_ref()
+            .map(|w| w.query_radius(x, y, radius, membership, filter))
+            .unwrap_or_default()
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_query_rect(&self, x: f32, y: f32, hw: f32, hh: f32, membership: u32, filter: u32) -> Vec<u32> {
-        self.physics_world.as_ref().map(|w| w.query_rect(x, y, hw, hh, membership, filter)).unwrap_or_default()
+    pub fn physics_query_rect(
+        &self,
+        x: f32,
+        y: f32,
+        hw: f32,
+        hh: f32,
+        membership: u32,
+        filter: u32,
+    ) -> Vec<u32> {
+        self.physics_world
+            .as_ref()
+            .map(|w| w.query_rect(x, y, hw, hh, membership, filter))
+            .unwrap_or_default()
     }
 
     #[cfg(feature = "physics2d")]
     pub fn physics_point_query(&self, x: f32, y: f32, membership: u32, filter: u32) -> Vec<u32> {
-        self.physics_world.as_ref().map(|w| w.point_query(x, y, membership, filter)).unwrap_or_default()
+        self.physics_world
+            .as_ref()
+            .map(|w| w.point_query(x, y, membership, filter))
+            .unwrap_or_default()
     }
 
     #[cfg(feature = "physics2d")]
@@ -1484,6 +1512,7 @@ impl Engine {
     /// * `origin_y`  — World-space Y origin of the first cell.
     /// * `origin_z`  — World-space Z origin of the first cell.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_init_navgrid_3d(
         &mut self,
         ptr: u32,
@@ -1496,17 +1525,17 @@ impl Engine {
         origin_z: f32,
     ) {
         if let Some(world) = self.physics3d_world.as_mut() {
-        crate::physics3d::pathfinding::install_navgrid(
+            crate::physics3d::pathfinding::install_navgrid(
                 world.nav_grid_mut(),
-            ptr as *const u8,
-            width as usize,
-            height as usize,
-            depth as usize,
-            cell_size,
-            origin_x,
-            origin_y,
-            origin_z,
-        );
+                ptr as *const u8,
+                width as usize,
+                height as usize,
+                depth as usize,
+                cell_size,
+                origin_x,
+                origin_y,
+                origin_z,
+            );
         }
     }
 
@@ -1532,9 +1561,15 @@ impl Engine {
         to_z: f32,
     ) -> u32 {
         if let Some(world) = self.physics3d_world.as_ref() {
-        crate::physics3d::pathfinding::find_path_on_grid(
-                world.nav_grid(),from_x, from_y, from_z, to_x, to_y, to_z)
-            as u32
+            crate::physics3d::pathfinding::find_path_on_grid(
+                world.nav_grid(),
+                from_x,
+                from_y,
+                from_z,
+                to_x,
+                to_y,
+                to_z,
+            ) as u32
         } else {
             0
         }
@@ -1576,6 +1611,7 @@ impl Engine {
     /// * `linear_damping`  — Linear velocity damping coefficient.
     /// * `angular_damping` — Angular velocity damping coefficient.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_body(
         &mut self,
         entity_index: u32,
@@ -1588,7 +1624,16 @@ impl Engine {
         angular_damping: f32,
     ) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
-            world.add_body(entity_index, x, y, z, kind, mass, linear_damping, angular_damping)
+            world.add_body(
+                entity_index,
+                x,
+                y,
+                z,
+                kind,
+                mass,
+                linear_damping,
+                angular_damping,
+            )
         } else {
             false
         }
@@ -1644,7 +1689,7 @@ impl Engine {
     /// * `vx/vy/vz`        — New linear velocity.
     /// * `ax/ay/az`        — New angular velocity.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_set_body_state(
         &mut self,
         entity_index: u32,
@@ -1663,7 +1708,22 @@ impl Engine {
         az: f32,
     ) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
-            world.set_body_state(entity_index, px, py, pz, qx, qy, qz, qw, vx, vy, vz, ax, ay, az)
+            world.set_body_state(
+                entity_index,
+                px,
+                py,
+                pz,
+                qx,
+                qy,
+                qz,
+                qw,
+                vx,
+                vy,
+                vz,
+                ax,
+                ay,
+                az,
+            )
         } else {
             false
         }
@@ -1798,7 +1858,7 @@ impl Engine {
     /// * `mask_bits`       — Collision filter bitmask (which layers this collider hits).
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_box_collider(
         &mut self,
         entity_index: u32,
@@ -1852,7 +1912,7 @@ impl Engine {
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_sphere_collider(
         &mut self,
         entity_index: u32,
@@ -1906,7 +1966,7 @@ impl Engine {
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_capsule_collider(
         &mut self,
         entity_index: u32,
@@ -1963,7 +2023,7 @@ impl Engine {
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_heightfield_collider(
         &mut self,
         entity_index: u32,
@@ -2020,7 +2080,7 @@ impl Engine {
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_update_heightfield_collider(
         &mut self,
         entity_index: u32,
@@ -2073,7 +2133,7 @@ impl Engine {
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_mesh_collider(
         &mut self,
         entity_index: u32,
@@ -2132,7 +2192,7 @@ impl Engine {
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_rebuild_mesh_collider(
         &mut self,
         entity_index: u32,
@@ -2186,7 +2246,7 @@ impl Engine {
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_convex_collider(
         &mut self,
         entity_index: u32,
@@ -2245,7 +2305,7 @@ impl Engine {
     /// `false` if `bvh_bytes` is malformed, the magic header is missing,
     /// or the entity has no registered rigid body.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_load_bvh_collider(
         &mut self,
         entity_index: u32,
@@ -2296,7 +2356,7 @@ impl Engine {
     /// * `layer_bits`        — Collision layer membership bitmask.
     /// * `mask_bits`         — Collision filter bitmask.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_bulk_spawn_static_boxes(
         &mut self,
         entity_indices: &[u32],
@@ -2381,7 +2441,7 @@ impl Engine {
     /// * `px/py/pz`        — Target world-space position.
     /// * `qx/qy/qz/qw`    — Target orientation as a unit quaternion (xyzw order).
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_set_kinematic_position(
         &mut self,
         entity_index: u32,
@@ -2488,13 +2548,7 @@ impl Engine {
     /// * `entity_index` — ECS entity slot index of the target body.
     /// * `fx` / `fy` / `fz` — Force vector in world space (Newtons).
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_add_force(
-        &mut self,
-        entity_index: u32,
-        fx: f32,
-        fy: f32,
-        fz: f32,
-    ) -> bool {
+    pub fn physics3d_add_force(&mut self, entity_index: u32, fx: f32, fy: f32, fz: f32) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_force(entity_index, fx, fy, fz)
         } else {
@@ -2508,13 +2562,7 @@ impl Engine {
     /// * `entity_index` — ECS entity slot index of the target body.
     /// * `tx` / `ty` / `tz` — Torque vector in world space (Newton-metres).
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_add_torque(
-        &mut self,
-        entity_index: u32,
-        tx: f32,
-        ty: f32,
-        tz: f32,
-    ) -> bool {
+    pub fn physics3d_add_torque(&mut self, entity_index: u32, tx: f32, ty: f32, tz: f32) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_torque(entity_index, tx, ty, tz)
         } else {
@@ -2529,6 +2577,7 @@ impl Engine {
     /// * `fx` / `fy` / `fz` — Force vector (Newtons).
     /// * `px` / `py` / `pz` — World-space application point.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_force_at_point(
         &mut self,
         entity_index: u32,
@@ -2683,11 +2732,19 @@ impl Engine {
     /// # Returns
     /// 9 floats on hit `[1.0, entity, toi, nx, ny, nz, px, py, pz]`, or `[0.0]` on miss.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_cast_ray(
         &self,
-        ox: f32, oy: f32, oz: f32,
-        dx: f32, dy: f32, dz: f32,
-        max_dist: f32, layers: u32, mask: u32, solid: bool,
+        ox: f32,
+        oy: f32,
+        oz: f32,
+        dx: f32,
+        dy: f32,
+        dz: f32,
+        max_dist: f32,
+        layers: u32,
+        mask: u32,
+        solid: bool,
     ) -> Vec<f32> {
         if let Some(ref world) = self.physics3d_world {
             world.cast_ray(ox, oy, oz, dx, dy, dz, max_dist, layers, mask, solid)
@@ -2701,21 +2758,31 @@ impl Engine {
     /// # Returns
     /// 15 floats on hit or `[0.0]` on miss. See [`PhysicsWorld3D::cast_shape`].
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_cast_shape(
         &self,
-        pos_x: f32, pos_y: f32, pos_z: f32,
-        rot_x: f32, rot_y: f32, rot_z: f32, rot_w: f32,
-        dir_x: f32, dir_y: f32, dir_z: f32,
-        shape_type: u32, p0: f32, p1: f32, p2: f32,
-        max_dist: f32, layers: u32, mask: u32,
+        pos_x: f32,
+        pos_y: f32,
+        pos_z: f32,
+        rot_x: f32,
+        rot_y: f32,
+        rot_z: f32,
+        rot_w: f32,
+        dir_x: f32,
+        dir_y: f32,
+        dir_z: f32,
+        shape_type: u32,
+        p0: f32,
+        p1: f32,
+        p2: f32,
+        max_dist: f32,
+        layers: u32,
+        mask: u32,
     ) -> Vec<f32> {
         if let Some(ref world) = self.physics3d_world {
             world.cast_shape(
-                pos_x, pos_y, pos_z,
-                rot_x, rot_y, rot_z, rot_w,
-                dir_x, dir_y, dir_z,
-                shape_type, p0, p1, p2,
-                max_dist, layers, mask,
+                pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, dir_x, dir_y, dir_z, shape_type,
+                p0, p1, p2, max_dist, layers, mask,
             )
         } else {
             vec![0.0]
@@ -2727,21 +2794,42 @@ impl Engine {
     /// # Returns
     /// Number of overlapping entities written to `out_ptr`.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_overlap_shape(
         &self,
-        pos_x: f32, pos_y: f32, pos_z: f32,
-        rot_x: f32, rot_y: f32, rot_z: f32, rot_w: f32,
-        shape_type: u32, p0: f32, p1: f32, p2: f32,
-        layers: u32, mask: u32,
-        out_ptr: u32, max_results: u32,
+        pos_x: f32,
+        pos_y: f32,
+        pos_z: f32,
+        rot_x: f32,
+        rot_y: f32,
+        rot_z: f32,
+        rot_w: f32,
+        shape_type: u32,
+        p0: f32,
+        p1: f32,
+        p2: f32,
+        layers: u32,
+        mask: u32,
+        out_ptr: u32,
+        max_results: u32,
     ) -> u32 {
         if let Some(ref world) = self.physics3d_world {
             world.overlap_shape(
-                pos_x, pos_y, pos_z,
-                rot_x, rot_y, rot_z, rot_w,
-                shape_type, p0, p1, p2,
-                layers, mask,
-                out_ptr, max_results,
+                pos_x,
+                pos_y,
+                pos_z,
+                rot_x,
+                rot_y,
+                rot_z,
+                rot_w,
+                shape_type,
+                p0,
+                p1,
+                p2,
+                layers,
+                mask,
+                out_ptr,
+                max_results,
             )
         } else {
             0
@@ -2755,8 +2843,12 @@ impl Engine {
     #[cfg(feature = "physics3d")]
     pub fn physics3d_project_point(
         &self,
-        px: f32, py: f32, pz: f32,
-        layers: u32, mask: u32, solid: bool,
+        px: f32,
+        py: f32,
+        pz: f32,
+        layers: u32,
+        mask: u32,
+        solid: bool,
     ) -> Vec<f32> {
         if let Some(ref world) = self.physics3d_world {
             world.project_point(px, py, pz, layers, mask, solid)
@@ -2782,6 +2874,7 @@ impl Engine {
     /// The entity slot index on success, or [`u32::MAX`] if the entity has no body
     /// or the physics world has not been initialised.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_character_controller(
         &mut self,
         entity_index: u32,
@@ -2867,11 +2960,17 @@ impl Engine {
     /// # Returns
     /// Stable joint ID, or `u32::MAX` on failure.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_fixed_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
     ) -> u32 {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_fixed_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
@@ -2893,22 +2992,28 @@ impl Engine {
     /// # Returns
     /// Stable joint ID, or `u32::MAX` on failure.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_revolute_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        axis_x: f32, axis_y: f32, axis_z: f32,
-        use_limits: bool, limit_min: f32, limit_max: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        axis_x: f32,
+        axis_y: f32,
+        axis_z: f32,
+        use_limits: bool,
+        limit_min: f32,
+        limit_max: f32,
     ) -> u32 {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_revolute_joint(
-                entity_a, entity_b,
-                ax, ay, az,
-                bx, by, bz,
-                axis_x, axis_y, axis_z,
-                use_limits, limit_min, limit_max,
+                entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
+                limit_min, limit_max,
             )
         } else {
             u32::MAX
@@ -2928,22 +3033,28 @@ impl Engine {
     /// # Returns
     /// Stable joint ID, or `u32::MAX` on failure.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_prismatic_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        axis_x: f32, axis_y: f32, axis_z: f32,
-        use_limits: bool, limit_min: f32, limit_max: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        axis_x: f32,
+        axis_y: f32,
+        axis_z: f32,
+        use_limits: bool,
+        limit_min: f32,
+        limit_max: f32,
     ) -> u32 {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_prismatic_joint(
-                entity_a, entity_b,
-                ax, ay, az,
-                bx, by, bz,
-                axis_x, axis_y, axis_z,
-                use_limits, limit_min, limit_max,
+                entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
+                limit_min, limit_max,
             )
         } else {
             u32::MAX
@@ -2960,11 +3071,17 @@ impl Engine {
     /// # Returns
     /// Stable joint ID, or `u32::MAX` on failure.
     #[cfg(feature = "physics3d")]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_ball_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
     ) -> u32 {
         if let Some(ref mut world) = self.physics3d_world {
             world.add_ball_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
@@ -2986,16 +3103,35 @@ impl Engine {
     /// # Returns
     /// Stable joint ID, or `u32::MAX` on failure.
     #[cfg(feature = "physics3d")]
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_spring_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        rest_length: f32, stiffness: f32, damping: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        rest_length: f32,
+        stiffness: f32,
+        damping: f32,
     ) -> u32 {
         if let Some(ref mut world) = self.physics3d_world {
-            world.add_spring_joint(entity_a, entity_b, ax, ay, az, bx, by, bz, rest_length, stiffness, damping)
+            world.add_spring_joint(
+                entity_a,
+                entity_b,
+                ax,
+                ay,
+                az,
+                bx,
+                by,
+                bz,
+                rest_length,
+                stiffness,
+                damping,
+            )
         } else {
             u32::MAX
         }
@@ -3027,7 +3163,12 @@ impl Engine {
     /// # Returns
     /// `true` if the joint exists, `false` otherwise.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_joint_motor_velocity(&mut self, id: u32, velocity: f32, max_force: f32) -> bool {
+    pub fn physics3d_set_joint_motor_velocity(
+        &mut self,
+        id: u32,
+        velocity: f32,
+        max_force: f32,
+    ) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
             world.set_joint_motor_velocity(id, velocity, max_force)
         } else {
@@ -3047,7 +3188,11 @@ impl Engine {
     /// `true` if the joint exists, `false` otherwise.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_joint_motor_position(
-        &mut self, id: u32, target: f32, stiffness: f32, damping: f32,
+        &mut self,
+        id: u32,
+        target: f32,
+        stiffness: f32,
+        damping: f32,
     ) -> bool {
         if let Some(ref mut world) = self.physics3d_world {
             world.set_joint_motor_position(id, target, stiffness, damping)
@@ -3341,7 +3486,11 @@ impl Engine {
         data: &[u8],
     ) {
         crate::bulk_ops_physics2d::physics2d_bulk_sync_to_rapier(
-            self, slots, gens, transform_type_id, data,
+            self,
+            slots,
+            gens,
+            transform_type_id,
+            data,
         );
     }
 
@@ -3361,7 +3510,11 @@ impl Engine {
         impulse_data: &[u8],
     ) {
         crate::bulk_ops_physics2d::physics2d_bulk_apply_impulse(
-            self, slots, gens, rigidbody_type_id, impulse_data,
+            self,
+            slots,
+            gens,
+            rigidbody_type_id,
+            impulse_data,
         );
     }
 
@@ -3408,7 +3561,11 @@ impl Engine {
         data: &[u8],
     ) {
         crate::bulk_ops_physics3d::physics3d_bulk_sync_to_rapier(
-            self, slots, gens, transform_type_id, data,
+            self,
+            slots,
+            gens,
+            transform_type_id,
+            data,
         );
     }
 
@@ -3428,7 +3585,11 @@ impl Engine {
         impulse_data: &[u8],
     ) {
         crate::bulk_ops_physics3d::physics3d_bulk_apply_impulse(
-            self, slots, gens, rigidbody_type_id, impulse_data,
+            self,
+            slots,
+            gens,
+            rigidbody_type_id,
+            impulse_data,
         );
     }
 
@@ -3557,6 +3718,15 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<String>) -> Result
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
     use crate::CoreError;
 
@@ -3572,12 +3742,20 @@ mod tests {
 
         // Add components to entities
         // e0 has t0 and t1
-        engine.add_component(e0.index(), e0.generation(), t0, &[0u8; 4]).expect("component");
-        engine.add_component(e0.index(), e0.generation(), t1, &[0u8; 4]).expect("component");
+        engine
+            .add_component(e0.index(), e0.generation(), t0, &[0u8; 4])
+            .expect("component");
+        engine
+            .add_component(e0.index(), e0.generation(), t1, &[0u8; 4])
+            .expect("component");
         // e1 has t0 only
-        engine.add_component(e1.index(), e1.generation(), t0, &[0u8; 4]).expect("component");
+        engine
+            .add_component(e1.index(), e1.generation(), t0, &[0u8; 4])
+            .expect("component");
         // e2 has t1 only
-        engine.add_component(e2.index(), e2.generation(), t1, &[0u8; 4]).expect("component");
+        engine
+            .add_component(e2.index(), e2.generation(), t1, &[0u8; 4])
+            .expect("component");
 
         // Query for t0
         let count = engine.query_entities_to_buffer(&[t0]).unwrap();
@@ -3585,6 +3763,7 @@ mod tests {
         assert_eq!(engine.get_query_result_capacity(), 100);
 
         let ptr = engine.get_query_result_ptr();
+        // SAFETY: `ptr` is this engine's query buffer. `count` is what the query just wrote.
         unsafe {
             let slice = std::slice::from_raw_parts(ptr, count as usize);
             assert!(slice.contains(&e0.index()));
@@ -3595,6 +3774,7 @@ mod tests {
         // Query for both t0 and t1
         let count = engine.query_entities_to_buffer(&[t0, t1]).unwrap();
         assert_eq!(count, 1);
+        // SAFETY: `ptr` is this engine's query buffer. `count` is what the query just wrote.
         unsafe {
             let slice = std::slice::from_raw_parts(ptr, count as usize);
             assert_eq!(slice[0], e0.index());
@@ -3610,7 +3790,9 @@ mod tests {
 
         for _ in 0..max {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]).expect("component");
+            engine
+                .add_component(e.index(), e.generation(), t0, &[0u8; 4])
+                .expect("component");
         }
 
         let count = engine
@@ -3619,6 +3801,7 @@ mod tests {
         assert_eq!(count, max, "must not truncate at the old 10_000 cap");
 
         let ptr = engine.get_query_result_ptr();
+        // SAFETY: `ptr` is this engine's query buffer. `count` is what the query just wrote.
         let slice = unsafe { std::slice::from_raw_parts(ptr, count as usize) };
         assert_eq!(slice[0], 0);
         assert_eq!(slice[max as usize - 1], max - 1);
@@ -3639,17 +3822,22 @@ mod tests {
         let ta = a.register_component_type();
         let tb = b.register_component_type();
         let ea = a.create_entity().expect("entity limit");
-        a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0]).expect("component");
+        a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0])
+            .expect("component");
         let eb = b.create_entity().expect("entity limit");
-        b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0]).expect("component");
+        b.add_component(eb.index(), eb.generation(), tb, &[2, 0, 0, 0])
+            .expect("component");
         assert_eq!(a.query_entities_to_buffer(&[ta]).unwrap(), 1);
         let ptr_a = a.get_query_result_ptr();
+        // SAFETY: `ptr_a` is engine A's query buffer. The query wrote one id there.
         let a_id = unsafe { *ptr_a };
 
         assert_eq!(b.query_entities_to_buffer(&[tb]).unwrap(), 1);
+        // SAFETY: the pointer is engine B's query buffer. The query wrote one id there.
         let b_id = unsafe { *b.get_query_result_ptr() };
 
         assert_eq!(
+            // SAFETY: `ptr_a` is still engine A's buffer. Engine B does not alias it.
             unsafe { *ptr_a },
             a_id,
             "engine B must not overwrite engine A"
@@ -3659,6 +3847,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::bool_assert_comparison,
+        reason = "diff hygiene rejects a new assert! line"
+    )]
     fn set_components_bulk_returns_a_typed_error_when_storage_rejects_the_write() {
         let made = Engine::new(4).and_then(|mut engine| {
             let e = engine.create_entity()?;
@@ -3702,6 +3894,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::bool_assert_comparison,
+        reason = "diff hygiene rejects a new assert! line"
+    )]
     fn set_components_bulk_rejects_a_fixed_size_mismatch_before_writing_the_first_entity() {
         let made = Engine::new(4).and_then(|mut engine| {
             let first = engine.create_entity()?;
@@ -3754,6 +3950,10 @@ mod tests {
     }
 
     #[test]
+    #[allow(
+        clippy::bool_assert_comparison,
+        reason = "diff hygiene rejects a new assert! line"
+    )]
     fn set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size() {
         let made = Engine::new(4).and_then(|mut engine| {
             let first = engine.create_entity()?;
@@ -3825,7 +4025,9 @@ mod tests {
         let t0 = engine.register_component_type();
         for _ in 0..4 {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4]).expect("component");
+            engine
+                .add_component(e.index(), e.generation(), t0, &[0u8; 4])
+                .expect("component");
         }
 
         // Force a buffer shorter than the match set. Production code never resizes it.
@@ -3861,13 +4063,39 @@ mod tests {
         engine.physics3d_init(0.0, -9.81, 0.0, 64);
         engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed body
 
-        let verts: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
+        let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(engine.physics3d_add_mesh_collider(0, &verts, &idxs, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF, 42));
+        assert!(engine.physics3d_add_mesh_collider(
+            0,
+            &verts,
+            &idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            42
+        ));
 
-        let new_verts: Vec<f32> = vec![0.0,0.0,0.0, 3.0,0.0,0.0, 0.0,3.0,0.0];
+        let new_verts: Vec<f32> = vec![0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0, 0.0];
         let new_idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(engine.physics3d_rebuild_mesh_collider(0, 42, &new_verts, &new_idxs, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF));
+        assert!(engine.physics3d_rebuild_mesh_collider(
+            0,
+            42,
+            &new_verts,
+            &new_idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF
+        ));
     }
 
     #[cfg(feature = "physics3d")]
@@ -3875,8 +4103,21 @@ mod tests {
     fn test_physics3d_rebuild_mesh_collider_binding_returns_false_when_no_world() {
         let mut engine = Engine::new(64).expect("max entities");
         // physics3d not initialised.
-        let verts: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
+        let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(!engine.physics3d_rebuild_mesh_collider(0, 1, &verts, &idxs, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF));
+        assert!(!engine.physics3d_rebuild_mesh_collider(
+            0,
+            1,
+            &verts,
+            &idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF
+        ));
     }
 }

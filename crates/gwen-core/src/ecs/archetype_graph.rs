@@ -20,7 +20,10 @@ pub struct ArchetypeGraph {
 
 impl ArchetypeGraph {
     /// Create a new archetype graph with an empty root archetype.
-    pub fn new(element_sizes: &HashMap<ComponentTypeId, usize>, bit_indices: &HashMap<ComponentTypeId, u8>) -> Self {
+    pub fn new(
+        element_sizes: &HashMap<ComponentTypeId, usize>,
+        bit_indices: &HashMap<ComponentTypeId, u8>,
+    ) -> Self {
         let mut graph = ArchetypeGraph {
             archetypes: Vec::new(),
             add_edges: HashMap::new(),

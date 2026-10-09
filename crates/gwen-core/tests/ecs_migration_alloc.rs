@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Counting-allocator proof that an archetype migration copies columns in place.
 //! Native only: wasm32 has no `std::alloc::System` global allocator interpose.
 
@@ -21,18 +30,22 @@ fn hold_lock() -> std::sync::MutexGuard<'static, ()> {
     }
 }
 
+// SAFETY: forwards to the system allocator and only counts calls. The test process is the only user.
 unsafe impl GlobalAlloc for CountingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         ALLOCS.fetch_add(1, Ordering::Relaxed);
+        // SAFETY: `layout` is the layout the caller passed to this allocator.
         unsafe { System.alloc(layout) }
     }
 
     unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        // SAFETY: `ptr` and `layout` are the pair this allocator returned.
         unsafe { System.dealloc(ptr, layout) }
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
         ALLOCS.fetch_add(1, Ordering::Relaxed);
+        // SAFETY: `ptr` and `layout` are the pair this allocator returned.
         unsafe { System.realloc(ptr, layout, new_size) }
     }
 }
@@ -46,6 +59,10 @@ fn allocs_during(body: impl FnOnce()) -> usize {
     ALLOCS.load(Ordering::Relaxed)
 }
 
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn register(storage: &mut ArchetypeStorage, id: u32, size: usize) {
     let ok = storage
         .register_raw(ComponentTypeId::from_raw(id), size)
@@ -61,6 +78,10 @@ fn kept(storage: &ArchetypeStorage, entity: u32, id: u32) -> Vec<u8> {
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn fixed_size_migration_allocates_nothing_after_warmup() {
     let _guard = hold_lock();
     let mut storage = ArchetypeStorage::new();
@@ -118,6 +139,10 @@ fn variable_size_migration_allocates_nothing_after_warmup() {
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn variable_size_swap_remove_of_a_middle_row_allocates_nothing() {
     let _guard = hold_lock();
     let mut column = ArchetypeColumn::new(0);

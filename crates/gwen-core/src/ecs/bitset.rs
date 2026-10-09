@@ -18,10 +18,11 @@ impl BitSet128 {
     }
 
     /// Set a bit at the given index.
-    /// 
+    ///
     /// # Panics
     /// Panics if index >= 128.
     #[inline]
+    #[allow(clippy::panic, reason = "index >= 128 is a caller bug; removal is #52")]
     pub fn set(&mut self, index: u8) {
         assert!(index < 128, "BitSet128 index out of bounds: {}", index);
         if index < 64 {
@@ -32,10 +33,11 @@ impl BitSet128 {
     }
 
     /// Check if a bit is set.
-    /// 
+    ///
     /// # Panics
     /// Panics if index >= 128.
     #[inline]
+    #[allow(clippy::panic, reason = "index >= 128 is a caller bug; removal is #52")]
     pub fn contains(&self, index: u8) -> bool {
         assert!(index < 128, "BitSet128 index out of bounds: {}", index);
         if index < 64 {
@@ -67,6 +69,15 @@ impl BitSet128 {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     #[test]

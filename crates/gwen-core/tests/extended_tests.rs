@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 #[cfg(test)]
 mod tests {
     use gwen_core::*;
@@ -73,7 +82,7 @@ mod tests {
         let mut storage = ArchetypeStorage::new();
         let mut qs = QuerySystem::new();
         let c0 = ComponentTypeId::from_raw(0);
-        storage.register_raw(c0, 4);
+        let _ = storage.register_raw(c0, 4);
         let query = QueryId::new(vec![c0], storage.registry());
 
         let result = qs.query(&storage, query);
@@ -123,7 +132,7 @@ mod tests {
 
         #[derive(Clone, Copy, Pod, Zeroable)]
         #[repr(C)]
-        #[allow(dead_code)]
+        #[allow(dead_code, reason = "Pod fields are read as bytes, not by name")]
         struct Position {
             x: f32,
             y: f32,
@@ -162,8 +171,8 @@ mod tests {
         let mut qs = QuerySystem::new();
         let c0 = ComponentTypeId::from_raw(0);
         let c1 = ComponentTypeId::from_raw(1);
-        storage.register_raw(c0, 4);
-        storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c0, 4);
+        let _ = storage.register_raw(c1, 4);
 
         // Update archetype
         storage.add_component(0, c0, &[0; 4]);
@@ -203,9 +212,9 @@ mod tests {
         let c0 = ComponentTypeId::from_raw(0);
         let c1 = ComponentTypeId::from_raw(1);
         let c2 = ComponentTypeId::from_raw(2);
-        storage.register_raw(c0, 4);
-        storage.register_raw(c1, 4);
-        storage.register_raw(c2, 4);
+        let _ = storage.register_raw(c0, 4);
+        let _ = storage.register_raw(c1, 4);
+        let _ = storage.register_raw(c2, 4);
 
         // Create entities with different combinations
         storage.add_component(0, c0, &[0; 4]);
@@ -214,7 +223,7 @@ mod tests {
 
         storage.add_component(1, c0, &[0; 4]);
         storage.add_component(1, c1, &[0; 4]);
-        
+
         storage.add_component(2, c0, &[0; 4]);
 
         // Query for [0, 1]
@@ -227,7 +236,10 @@ mod tests {
     // === Performance Tests ===
 
     #[test]
-    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "wall-clock measurement in a test"
+    )]
     fn test_component_storage_large_entity_set() {
         let mut storage = ArchetypeStorage::new();
         let handle = ComponentHandle::<u32>::new(&mut storage);
@@ -246,5 +258,4 @@ mod tests {
 
         assert!(elapsed.as_millis() < 200);
     }
-
 }

@@ -89,6 +89,5 @@ harness = false
 name = "storage_models"
 harness = false
 
-# Joins the #80 lint set. #80 has not landed, so this is only the disallowed-methods config.
-[lints.clippy]
-disallowed_methods = "deny"
+[lints]
+workspace = true

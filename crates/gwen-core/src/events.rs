@@ -93,6 +93,15 @@ impl Default for EventBus {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     #[derive(Debug, Clone, PartialEq)]
@@ -108,7 +117,7 @@ mod tests {
 
     #[derive(Debug, Clone)]
     struct OtherEvent {
-        #[allow(dead_code)]
+        #[allow(dead_code, reason = "test event keeps the field on the trait object")]
         name: String,
     }
 

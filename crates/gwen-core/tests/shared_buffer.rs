@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! World transforms packed into a live `alloc_shared_buffer` allocation.
 
 use gwen_core::bindings::Engine;
@@ -5,6 +14,7 @@ use gwen_core::{CoreError, TRANSFORM_STRIDE};
 
 fn read_f32(ptr: usize, offset: usize) -> f32 {
     let mut bytes = [0u8; 4];
+    // SAFETY: `ptr + offset` addresses 4 live bytes inside the shared buffer.
     unsafe {
         std::ptr::copy_nonoverlapping((ptr + offset) as *const u8, bytes.as_mut_ptr(), 4);
     }
@@ -13,6 +23,7 @@ fn read_f32(ptr: usize, offset: usize) -> f32 {
 
 fn read_u32(ptr: usize, offset: usize) -> u32 {
     let mut bytes = [0u8; 4];
+    // SAFETY: `ptr + offset` addresses 4 live bytes inside the shared buffer.
     unsafe {
         std::ptr::copy_nonoverlapping((ptr + offset) as *const u8, bytes.as_mut_ptr(), 4);
     }
@@ -21,6 +32,7 @@ fn read_u32(ptr: usize, offset: usize) -> u32 {
 
 fn slot_bytes(ptr: usize, index: usize) -> [u8; TRANSFORM_STRIDE] {
     let mut bytes = [0u8; TRANSFORM_STRIDE];
+    // SAFETY: `ptr + index * TRANSFORM_STRIDE` addresses one live transform slot.
     unsafe {
         std::ptr::copy_nonoverlapping(
             (ptr + index * TRANSFORM_STRIDE) as *const u8,

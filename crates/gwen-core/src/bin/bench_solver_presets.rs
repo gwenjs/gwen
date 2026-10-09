@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
 use std::time::Instant;
@@ -59,7 +68,12 @@ fn preset_runs() -> [PresetRun; 4] {
 
 fn add_box(world: &mut PhysicsWorld, entity: u32, x: f32, y: f32, kind: BodyType) {
     let handle = world.add_rigid_body(entity, x, y, kind, BodyOptions::default());
-    world.add_box_collider(handle, STACK_HALF_EXTENT, STACK_HALF_EXTENT, ColliderOptions::default());
+    world.add_box_collider(
+        handle,
+        STACK_HALF_EXTENT,
+        STACK_HALF_EXTENT,
+        ColliderOptions::default(),
+    );
 }
 
 fn setup_stack_world(run: PresetRun) -> PhysicsWorld {
@@ -100,13 +114,17 @@ fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
         world.step(DT);
     }
 
-    let probe_entity = 100u32 + (STACK_ROWS as u32 - 1) * STACK_COLS as u32 + (STACK_COLS as u32 / 2);
+    let probe_entity =
+        100u32 + (STACK_ROWS as u32 - 1) * STACK_COLS as u32 + (STACK_COLS as u32 / 2);
     let mut samples_ms = Vec::with_capacity(STACK_MEASURE_STEPS);
     let mut y_min = f32::MAX;
     let mut y_max = f32::MIN;
 
     for _ in 0..STACK_MEASURE_STEPS {
-        #[allow(clippy::disallowed_methods, reason = "bench binary, not engine runtime")]
+        #[allow(
+            clippy::disallowed_methods,
+            reason = "bench binary, not engine runtime"
+        )]
         let t0 = Instant::now();
         world.step(DT);
         let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
@@ -169,7 +187,6 @@ fn measure_tunnel_rate(run: PresetRun) -> f64 {
     tunneled as f64 / TUNNEL_TRIALS as f64
 }
 
-
 fn run_bench() -> Vec<PresetBenchResult> {
     preset_runs()
         .into_iter()
@@ -231,4 +248,3 @@ fn main() {
         );
     }
 }
-

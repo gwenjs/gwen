@@ -749,19 +749,65 @@ function readWasmContents(diffText) {
  * @param {Record<string, string> | null} [contents]
  * @returns {Hit[]}
  */
+/**
+ * A rustfmt reflow keeps the same number of matches in the hunk.
+ * An added call, or one extra call beside a reflow, still counts.
+ * @param {string} file
+ * @param {string[]} removed
+ * @param {string[]} added
+ * @param {AllowEntry[]} entries
+ * @param {Hit[]} hits
+ */
+function hunkViolations(file, removed, added, entries, hits) {
+  /** @type {Map<string, number>} */
+  const removedCounts = new Map();
+  /** @type {Map<string, number>} */
+  const addedCounts = new Map();
+  const count = (lines, into) => {
+    for (const text of lines) {
+      for (const rule of matchAddedLine(text, file)) {
+        into.set(rule, (into.get(rule) ?? 0) + 1);
+      }
+    }
+  };
+  count(removed, removedCounts);
+  count(added, addedCounts);
+  for (const text of added) {
+    for (const rule of matchAddedLine(text, file)) {
+      if (isAllowlisted(entries, file, rule)) continue;
+      if ((addedCounts.get(rule) ?? 0) <= (removedCounts.get(rule) ?? 0)) continue;
+      hits.push({ file, rule, text });
+    }
+    if (ALLOWLIST_COMMENT.test(text)) {
+      hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
+    }
+  }
+}
+
 export function findDiffViolations(diffText, entries = [], contents = null) {
   /** @type {Hit[]} */
   const hits = [];
   let file = '';
   let binary = false;
+  /** @type {string[]} */
+  let removed = [];
+  /** @type {string[]} */
+  let added = [];
+  const flush = () => {
+    if (!binary) hunkViolations(file, removed, added, entries, hits);
+    removed = [];
+    added = [];
+  };
   for (const line of diffText.split('\n')) {
     if (line.startsWith('diff --git ')) {
+      flush();
       binary = false;
       const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
       file = match ? match[2] : '';
       continue;
     }
     if (line.startsWith('Binary files ') || line.startsWith('GIT binary patch')) {
+      flush();
       binary = true;
       continue;
     }
@@ -770,16 +816,18 @@ export function findDiffViolations(diffText, entries = [], contents = null) {
       if (next !== '/dev/null') file = next.replace(/^b\//, '');
       continue;
     }
-    if (binary || !line.startsWith('+') || line.startsWith('+++')) continue;
-    const text = line.slice(1);
-    for (const rule of matchAddedLine(text, file)) {
-      if (isAllowlisted(entries, file, rule)) continue;
-      hits.push({ file, rule, text });
+    if (line.startsWith('@@')) {
+      flush();
+      continue;
     }
-    if (ALLOWLIST_COMMENT.test(text)) {
-      hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
+    if (binary) continue;
+    if (line.startsWith('+')) {
+      added.push(line.slice(1));
+      continue;
     }
+    if (line.startsWith('-') && !line.startsWith('---')) removed.push(line.slice(1));
   }
+  flush();
   hits.push(...wasmTeardownHits(diffText, entries, contents));
   return hits;
 }

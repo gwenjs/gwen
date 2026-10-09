@@ -121,7 +121,7 @@ impl Default for ColliderOptions {
             collider_id: u32::MAX,
             offset_x: 0.0,
             offset_y: 0.0,
-            is_one_way: false
+            is_one_way: false,
         }
     }
 }

@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Integration tests for TransformSystem hierarchy propagation.
 //!
 //! These tests verify that the TransformSystem correctly:
@@ -6,9 +15,9 @@
 //! - Marks entities dirty and clears flags after updates
 //! - Handles parent/child reparenting and detachment
 
+use gwen_core::entity::EntityId;
 use gwen_core::transform::{Transform, TransformNode, TransformSystem};
 use gwen_core::transform_math::Vec2;
-use gwen_core::entity::EntityId;
 
 fn entity(index: u32) -> EntityId {
     EntityId::from_parts(index, 0)
@@ -40,7 +49,7 @@ fn world_transform_propagates_one_level_deep() {
         entity(1),
         Transform::new(Vec2::new(10.0, 0.0), 0.0, Vec2::one()),
     );
-    sys.set_parent(entity(1), Some(entity(0)));
+    let _ = sys.set_parent(entity(1), Some(entity(0)));
     sys.update();
 
     let child = sys.get_transform(entity(1)).unwrap();
@@ -67,8 +76,8 @@ fn world_transform_propagates_three_levels_deep() {
         entity(2),
         Transform::new(Vec2::new(10.0, 0.0), 0.0, Vec2::one()),
     );
-    sys.set_parent(entity(1), Some(entity(0)));
-    sys.set_parent(entity(2), Some(entity(1)));
+    let _ = sys.set_parent(entity(1), Some(entity(0)));
+    let _ = sys.set_parent(entity(2), Some(entity(1)));
     sys.update();
 
     let leaf = sys.get_transform(entity(2)).unwrap();
@@ -82,10 +91,7 @@ fn world_transform_propagates_three_levels_deep() {
 #[test]
 fn dirty_flag_is_cleared_after_update() {
     let mut sys = TransformSystem::new();
-    sys.add_transform(
-        entity(0),
-        Transform::new(Vec2::zero(), 0.0, Vec2::one()),
-    );
+    sys.add_transform(entity(0), Transform::new(Vec2::zero(), 0.0, Vec2::one()));
     sys.update();
 
     let node = sys.get_transform(entity(0)).unwrap();
@@ -103,10 +109,10 @@ fn detach_preserves_entity_in_system() {
         entity(1),
         Transform::new(Vec2::new(5.0, 0.0), 0.0, Vec2::one()),
     );
-    sys.set_parent(entity(1), Some(entity(0)));
+    let _ = sys.set_parent(entity(1), Some(entity(0)));
     sys.update();
 
-    sys.set_parent(entity(1), None);
+    let _ = sys.set_parent(entity(1), None);
     sys.update();
 
     // After detach, local position is still 5,0 — world should match
@@ -121,12 +127,9 @@ fn detach_preserves_entity_in_system() {
 #[test]
 fn static_entity_not_marked_dirty_after_update() {
     let mut sys = TransformSystem::new();
-    sys.add_transform(
-        entity(0),
-        Transform::new(Vec2::zero(), 0.0, Vec2::one()),
-    );
+    sys.add_transform(entity(0), Transform::new(Vec2::zero(), 0.0, Vec2::one()));
     sys.update(); // clear dirty
-    // Do not mutate — update again
+                  // Do not mutate — update again
     sys.update();
 
     let node = sys.get_transform(entity(0)).unwrap();
@@ -163,10 +166,13 @@ fn system_hierarchy_parent_child_relationship() {
     let parent = entity(1);
     let child = entity(2);
 
-    sys.add_transform(parent, Transform::new(Vec2::new(10.0, 10.0), 0.0, Vec2::one()));
+    sys.add_transform(
+        parent,
+        Transform::new(Vec2::new(10.0, 10.0), 0.0, Vec2::one()),
+    );
     sys.add_transform(child, Transform::new(Vec2::new(5.0, 5.0), 0.0, Vec2::one()));
 
-    sys.set_parent(child, Some(parent));
+    let _ = sys.set_parent(child, Some(parent));
     sys.update();
 
     let child_transform = sys.get_transform(child).unwrap();
@@ -217,12 +223,12 @@ fn reparenting_changes_parent() {
     sys.add_transform(child, Transform::default());
 
     // Initial parent
-    sys.set_parent(child, Some(parent1));
+    let _ = sys.set_parent(child, Some(parent1));
     sys.update();
     assert_eq!(sys.get_transform(child).unwrap().parent(), Some(parent1));
 
     // Reparent to parent2
-    sys.set_parent(child, Some(parent2));
+    let _ = sys.set_parent(child, Some(parent2));
     sys.update();
     assert_eq!(sys.get_transform(child).unwrap().parent(), Some(parent2));
 }
@@ -233,10 +239,13 @@ fn deep_chain_propagates_correctly() {
 
     // Create chain: 0 -> 1 -> 2 -> 3 -> 4
     for i in 0..5 {
-        sys.add_transform(entity(i), Transform::new(Vec2::new(1.0, 1.0), 0.0, Vec2::one()));
+        sys.add_transform(
+            entity(i),
+            Transform::new(Vec2::new(1.0, 1.0), 0.0, Vec2::one()),
+        );
 
         if i > 0 {
-            sys.set_parent(entity(i), Some(entity(i - 1)));
+            let _ = sys.set_parent(entity(i), Some(entity(i - 1)));
         }
     }
 
@@ -260,13 +269,16 @@ fn branching_hierarchy_computes_correctly() {
     //   3   4
 
     for i in 0..5 {
-        sys.add_transform(entity(i), Transform::new(Vec2::new(10.0, 0.0), 0.0, Vec2::one()));
+        sys.add_transform(
+            entity(i),
+            Transform::new(Vec2::new(10.0, 0.0), 0.0, Vec2::one()),
+        );
     }
 
-    sys.set_parent(entity(1), Some(entity(0)));
-    sys.set_parent(entity(2), Some(entity(0)));
-    sys.set_parent(entity(3), Some(entity(1)));
-    sys.set_parent(entity(4), Some(entity(1)));
+    let _ = sys.set_parent(entity(1), Some(entity(0)));
+    let _ = sys.set_parent(entity(2), Some(entity(0)));
+    let _ = sys.set_parent(entity(3), Some(entity(1)));
+    let _ = sys.set_parent(entity(4), Some(entity(1)));
 
     sys.update();
 

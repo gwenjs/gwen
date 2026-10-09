@@ -415,6 +415,15 @@ impl Default for ArchetypeStorage {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::{ArchetypeStorage, ColumnMove};
     use crate::ecs::ComponentTypeId;
 

@@ -66,7 +66,12 @@ pub fn fill_and_read_bulk(
     }
 
     // One get_components_bulk call — no further WASM crossings.
-    let bytes = engine.get_components_bulk(&out_slots[..count], &out_gens[..count], read_type_id, out_buf);
+    let bytes = engine.get_components_bulk(
+        &out_slots[..count],
+        &out_gens[..count],
+        read_type_id,
+        out_buf,
+    );
 
     (count as u32, bytes)
 }
@@ -77,6 +82,15 @@ pub fn fill_and_read_bulk(
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
     use crate::bindings::Engine;
 
@@ -102,7 +116,9 @@ mod tests {
         let type_id = engine.register_component_type();
 
         let e = engine.create_entity().expect("entity limit");
-        engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0]).expect("component");
+        engine
+            .add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0])
+            .expect("component");
         let mut out_slots = vec![0u32; 16];
         let mut out_gens = vec![0u32; 16];
         let mut out_buf = vec![0u8; 4];
@@ -133,14 +149,19 @@ mod tests {
         let e2 = engine.create_entity().expect("entity limit");
 
         let seed_slots = [e0.index(), e1.index(), e2.index()];
-        let seed_gens  = [e0.generation(), e1.generation(), e2.generation()];
+        let seed_gens = [e0.generation(), e1.generation(), e2.generation()];
         engine
-            .set_components_bulk(&seed_slots, &seed_gens, type_id, &[1u8, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0])
+            .set_components_bulk(
+                &seed_slots,
+                &seed_gens,
+                type_id,
+                &[1u8, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0],
+            )
             .expect("component");
 
         let mut out_slots = vec![0u32; 16];
-        let mut out_gens  = vec![0u32; 16];
-        let mut out_buf   = vec![0u8; 12];
+        let mut out_gens = vec![0u32; 16];
+        let mut out_buf = vec![0u8; 12];
 
         let (count, bytes) = fill_and_read_bulk(
             &engine,
@@ -168,7 +189,9 @@ mod tests {
 
         for _ in 0..MATCHES {
             let e = engine.create_entity().expect("entity limit");
-            engine.add_component(e.index(), e.generation(), type_id, &[0u8; 4]).expect("component");
+            engine
+                .add_component(e.index(), e.generation(), type_id, &[0u8; 4])
+                .expect("component");
         }
 
         let mut out_slots = vec![0u32; MATCHES];

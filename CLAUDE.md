@@ -49,6 +49,7 @@ pnpm test:ts              # TS tests only
 pnpm test:wasm            # real WASM integration tests
 pnpm test:cargo           # Rust tests only
 pnpm lint:fix             # auto-fix lint
+pnpm lint:rust            # cargo fmt and the clippy deny set
 pnpm build:wasm           # rebuild WASM
 
 # Single test file

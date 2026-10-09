@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 /// wasm-bindgen integration tests
 ///
 /// These tests exercise the public JS-facing API (`bindings.rs`) as it
@@ -160,7 +169,9 @@ fn wasm_get_component_raw_returns_bytes() {
 
     let value: u32 = 0xDEAD_BEEF;
     let data = value.to_le_bytes();
-    engine.add_component(id.index(), id.generation(), type_id, &data[..]).expect("component");
+    engine
+        .add_component(id.index(), id.generation(), type_id, &data[..])
+        .expect("component");
     let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
     assert_eq!(raw.len(), 4);
     assert_eq!(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]), value);
@@ -182,7 +193,9 @@ fn wasm_remove_component() {
     let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
     let data: &[u8] = &[1u8, 0, 0, 0];
-    engine.add_component(id.index(), id.generation(), type_id, &data).expect("component");
+    engine
+        .add_component(id.index(), id.generation(), type_id, data)
+        .expect("component");
     assert!(engine.remove_component(id.index(), id.generation(), type_id));
     assert!(!engine.has_component(id.index(), id.generation(), type_id));
 }
@@ -200,12 +213,20 @@ fn wasm_query_entities_returns_correct_set() {
     let e2 = engine.create_entity().expect("entity limit");
 
     // e0: t0 + t1
-    engine.add_component(e0.index(), e0.generation(), t0, &[]).expect("component");
-    engine.add_component(e0.index(), e0.generation(), t1, &[]).expect("component");
+    engine
+        .add_component(e0.index(), e0.generation(), t0, &[])
+        .expect("component");
+    engine
+        .add_component(e0.index(), e0.generation(), t1, &[])
+        .expect("component");
     // e1: t0 only
-    engine.add_component(e1.index(), e1.generation(), t0, &[]).expect("component");
+    engine
+        .add_component(e1.index(), e1.generation(), t0, &[])
+        .expect("component");
     // e2: t1 only
-    engine.add_component(e2.index(), e2.generation(), t1, &[]).expect("component");
+    engine
+        .add_component(e2.index(), e2.generation(), t1, &[])
+        .expect("component");
     let results_t0 = engine.query_entities(&[t0]);
     assert_eq!(results_t0.len(), 2); // e0 and e1
 
@@ -227,6 +248,10 @@ fn wasm_query_empty_when_no_entities() {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn wasm_stats_is_valid_json_string() {
     let mut engine = make_engine();
     engine.create_entity().expect("entity limit");
