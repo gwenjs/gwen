@@ -1,17 +1,5 @@
 /**
- * Provides the new `createEngine(options?) → Promise<GwenEngine>` API
- *
- * PERF: This file intentionally co-locates hot-path functions to help V8's
- * inlining heuristics. Benchmark before splitting: packages/core/bench/engine-tick.bench.ts
- * Last measured: ~12% throughput loss when split across module boundaries (V8 12.x).
- * Do not split the implementation.
- * V8 inlines calls between functions in the same compilation unit.
- * A previous refactor attempt that split this file caused a measurable perf
- * regression on the hot path (frame loop + plugin dispatch at ~1000 entities/frame).
- * Keep all engine implementation code co-located so the JIT can inline across
- * method boundaries. Type-only definitions (interfaces, error classes) have been
- * extracted to engine-types.ts and engine-errors.ts since they are erased at
- * compile time and have no impact on V8 inlining.
+ * Provides the new `createEngine(options?) → Promise<GwenEngine>` API.
  *
  * NAVIGATION (use IDE region folding — Ctrl+Shift+[ / Cmd+Shift+[):
  *   engine-errors.ts                            — error classes & codes
@@ -48,7 +36,7 @@ import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memo
 import { validateEngineConfig } from "./engine-config-validator";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
-// All public types were in this file before extraction. Re-export them so
+// Public types live in ./engine-types.ts and ./engine-errors.ts. Re-export them so
 // existing `import { ... } from './gwen-engine.js'` statements keep working.
 
 export {
@@ -2065,7 +2053,7 @@ class GwenEngineImpl implements GwenEngine {
       if (isThenable(tickDone)) await tickDone;
       if (instrument) t2 = performance.now();
 
-      // Phase 2 — emit before-update hook
+      // Phase 2 — emit before-update hook (physics plugins step here)
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2076,7 +2064,7 @@ class GwenEngineImpl implements GwenEngine {
       if (isThenable(beforeDone)) await beforeDone;
       if (instrument) t3 = performance.now();
 
-      // Phase 4 — community WASM modules step (Cas B: user WASM, registration order)
+      // Phase 3 — community WASM modules step (Cas B: user WASM, registration order)
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2099,7 +2087,7 @@ class GwenEngineImpl implements GwenEngine {
         }
       }
 
-      // Phase 5 — ECS query flush + transform propagation
+      // Phase 4 — ECS query flush + transform propagation
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2117,7 +2105,7 @@ class GwenEngineImpl implements GwenEngine {
         });
       }
 
-      // Phase 6 — emit update hook
+      // Phase 5 — emit update hook
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2128,7 +2116,7 @@ class GwenEngineImpl implements GwenEngine {
       if (isThenable(updateDone)) await updateDone;
       if (instrument) t6 = performance.now();
 
-      // Phase 7a — emit after-update hook
+      // Phase 6a — emit after-update hook
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2139,12 +2127,12 @@ class GwenEngineImpl implements GwenEngine {
       if (isThenable(afterDone)) await afterDone;
       if (this._frameFaulted()) return;
 
-      // Phase 7b — emit render hook
+      // Phase 6b — emit render hook
       const renderDone = this._guardHook0("engine:render");
       if (isThenable(renderDone)) await renderDone;
       if (instrument) t7 = performance.now();
 
-      // Phase 8 — update stats, then fire engine:afterTick hook
+      // Phase 7 — update stats, then fire engine:afterTick hook
       if (this._frameFaulted()) return;
       {
         const memoryGrow = this._onPhaseBoundary();
@@ -2245,7 +2233,7 @@ class GwenEngineImpl implements GwenEngine {
   // RFC-001 (Plugin Lifecycle):
   // We provide `engineWithScopedHooks` (a Proxy of the engine) to `plugin.setup()`.
   // This proxy captures the plugin's name. Any hook registered via `engine.hooks.hook()`
-  // by this plugin is trapped and tracked by `PluginHookTracker` using this captured name.
+  // by this plugin is trapped and tracked by `ScopedHooksTracker` using this captured name.
   //
   // CRITICAL async factory lifetime warning:
   // If `plugin.setup()` is async, or returning an async factory, the Proxy
