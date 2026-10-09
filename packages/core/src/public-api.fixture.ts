@@ -358,3 +358,11 @@ import { _injectMockWasmExports } from "@gwenjs/core/testing";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/core/testing
 import { _resetWasmBridge } from "@gwenjs/core/testing";
+
+type _AbsentKey<T, K extends PropertyKey> = K extends keyof T ? 0 : 1;
+type _RemovedMembers = [
+  _AbsentKey<Root.GwenEngine, "wasmBridge">,
+  _AbsentKey<Root.EngineFramePhaseMs, "physics">,
+];
+const _removedMembers: _RemovedMembers = [1, 1];
+void _removedMembers;
