@@ -19,7 +19,7 @@ function methodNames(engine: object): string[] {
 }
 
 describe("gwen-core wasm binary", () => {
-  it("the core binary has no tick or allocator export", async () => {
+  it("the core binary has no tick or GameLoop reader", async () => {
     const handles: RealEngineHandle[] = [];
     try {
       handles.push(await createRealEngine({ variant: "light", maxEntities: 4 }));
