@@ -60,12 +60,11 @@ describe("DSL Components (schema.ts)", () => {
 });
 
 describe("defineComponent metadata", () => {
-  it("assigns a unique _typeId per component", () => {
+  it("keeps _typeId at 0 because runtime ids come from the engine", () => {
     const A = defineComponent({ name: "A", schema: { x: Types.f32 } });
     const B = defineComponent({ name: "B", schema: { x: Types.f32 } });
-    expect(typeof A._typeId).toBe("number");
-    expect(typeof B._typeId).toBe("number");
-    expect(A._typeId).not.toBe(B._typeId);
+    expect(A._typeId).toBe(0);
+    expect(B._typeId).toBe(0);
   });
 
   it("computes _byteSize from schema fields", () => {

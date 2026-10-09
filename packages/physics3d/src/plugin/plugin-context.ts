@@ -3,7 +3,7 @@
  *
  * All sub-modules receive a reference to this context object, which holds the
  * Maps, Sets, and scalar flags that were previously local variables inside the
- * Physics3DPlugin closure. The context is created once per plugin instance.
+ * Physics3DPlugin closure. One context is created per engine.
  */
 
 import type { GwenEngine, MemoryView } from "@gwenjs/core";
@@ -75,6 +75,8 @@ export interface PluginContext {
 
   // ── Sensor state ───────────────────────────────────────────────────────────
   localSensorStates: Map<number, Map<number, Physics3DSensorState>>;
+  /** Collider ids created as sensors, keyed by entity slot. */
+  activeSensors: Map<number, Set<number>>;
 
   // ── Collision callbacks ────────────────────────────────────────────────────
   entityCollisionCallbacks: Map<number, NonNullable<Physics3DPrefabExtension["onCollision"]>>;
@@ -186,6 +188,7 @@ export function createPluginContext(
     _pendingBvhLoads: new Map(),
 
     localSensorStates: new Map(),
+    activeSensors: new Map(),
 
     entityCollisionCallbacks: new Map(),
 

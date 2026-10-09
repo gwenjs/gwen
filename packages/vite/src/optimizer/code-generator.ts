@@ -8,6 +8,15 @@ const OptimizerErrorCodes = {
 } as const;
 
 /**
+ * Runtime component id for generated bulk calls.
+ *
+ * Baked numeric ids are disabled (#59). A cached per-engine lookup is #66.
+ */
+export function componentIdExpr(name: string): string {
+  return `useEngine().getOrRegisterComponent(${JSON.stringify(name)})`;
+}
+
+/**
  * Generates TypeScript code snippets for bulk WASM operations.
  *
  * The generated code replaces the ergonomic `useComponent` per-entity
@@ -63,13 +72,13 @@ export class CodeGenerator {
           OptimizerErrorCodes.UNKNOWN_COMPONENT,
           `[gwen:optimizer] Unknown component: ${name}`,
         );
-      return e.typeId;
+      return componentIdExpr(name);
     });
 
     const varName = `_${readComponent.toLowerCase()}`;
     return [
       `const { entityCount: _count_${readComponent.toLowerCase()}, data: ${varName}, slots: _slots, gens: _gens } =`,
-      `  __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride})`,
+      `  __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${componentIdExpr(readComponent)}, ${entry.f32Stride})`,
     ].join("\n");
   }
 
@@ -91,7 +100,7 @@ export class CodeGenerator {
         `[gwen:optimizer] Unknown component: ${component}`,
       );
 
-    return `__gwen_bridge__.queryWriteBulk(${slotsVar}, ${gensVar}, ${entry.typeId}, ${dataVar})`;
+    return `__gwen_bridge__.queryWriteBulk(${slotsVar}, ${gensVar}, ${componentIdExpr(component)}, ${dataVar})`;
   }
 
   /**

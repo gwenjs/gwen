@@ -44,7 +44,7 @@ export {
   writeTransform3DScale,
 } from "./components/transform3d";
 
-export { GlobalStringPoolManager, StringPoolManager, StringPool } from "./utils/string-pool";
+export { StringPoolManager, StringPool, stringPoolFor } from "./utils/string-pool";
 
 export { detectCoreVariant } from "./utils/variant-detector";
 
@@ -57,6 +57,6 @@ export { TweenManager, getTweenManager } from "./tween/runtime/tween-manager";
 export { TweenPlugin } from "./tween/engine-plugin";
 export type { TweenPluginOptions } from "./tween/engine-plugin";
 
-export { _getActorEntityId } from "./actor/runtime/define-actor";
+export { _getActorContext, _getActorEntityId } from "./actor/runtime/define-actor";
 
 export { GwenScope } from "./context/scope";

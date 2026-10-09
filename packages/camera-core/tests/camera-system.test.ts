@@ -1,11 +1,10 @@
 // packages/camera-core/tests/camera-system.test.ts
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
 import { getOrCreateCameraManager, getOrCreateViewportManager } from "@gwenjs/renderer-core";
 import { Camera, CameraBounds, CameraPath, CameraShake, FollowTarget } from "../src/components.js";
-import { cameraPathStore } from "../src/camera-path-store.js";
-import { cameraViewportMap } from "../src/camera-viewport-map.js";
+import { getCameraStores } from "../src/camera-stores.js";
 import { CameraSystem } from "../src/camera-system.js";
 
 async function makeEngine(): Promise<GwenEngine> {
@@ -14,11 +13,6 @@ async function makeEngine(): Promise<GwenEngine> {
   getOrCreateViewportManager(engine);
   return engine;
 }
-
-beforeEach(() => {
-  cameraViewportMap.clear();
-  cameraPathStore.clear();
-});
 
 describe("CameraSystem — follow target", () => {
   it("lerps camera position toward target position", async () => {
@@ -70,7 +64,7 @@ describe("CameraSystem — follow target", () => {
       offsetY: 0,
       offsetZ: 0,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016); // one frame
 
@@ -137,7 +131,7 @@ describe("CameraSystem — bounds clamp", () => {
       maxY: 200,
       maxZ: 0,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -175,7 +169,7 @@ describe("CameraSystem — shake", () => {
       maxX: 20,
       maxY: 20,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -215,7 +209,7 @@ describe("CameraSystem — shake", () => {
       maxX: 10,
       maxY: 10,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     // trauma starts at 1.0, decay=1.0 per second, dt=16ms → should be near 0.984
     await engine.advance(0.016);
@@ -246,7 +240,7 @@ describe("CameraSystem — inactive camera", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -280,7 +274,7 @@ describe("CameraSystem — semantic hooks", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -312,7 +306,7 @@ describe("CameraSystem — semantic hooks", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(cam1, "main");
+    getCameraStores(engine).viewports.set(cam1, "main");
 
     await engine.advance(0.016); // cam1 becomes active
 
@@ -332,7 +326,7 @@ describe("CameraSystem — semantic hooks", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(cam2, "main");
+    getCameraStores(engine).viewports.set(cam2, "main");
 
     // Deactivate cam1 by updating the component
     const cam1Data = engine.getComponent(cam1, Camera)!;
@@ -392,7 +386,7 @@ describe("CameraSystem — follow offset", () => {
       offsetY: -5,
       offsetZ: 0,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -446,7 +440,7 @@ describe("CameraSystem — follow offset", () => {
       offsetY: 0,
       offsetZ: 0,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -510,7 +504,7 @@ describe("CameraSystem — bounds min clamp", () => {
       maxY: 100,
       maxZ: 0,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -542,7 +536,7 @@ describe("CameraSystem — projection type", () => {
       near: -10,
       far: 10,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -576,7 +570,7 @@ describe("CameraSystem — projection type", () => {
       near: 0.1,
       far: 1000,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -618,7 +612,7 @@ describe("CameraSystem — shake offset affects position", () => {
       maxX: 100,
       maxY: 100,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016);
 
@@ -653,7 +647,7 @@ describe("CameraSystem — multi-camera priority", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(lowCam, "main");
+    getCameraStores(engine).viewports.set(lowCam, "main");
 
     const highCam = engine.createEntity();
     engine.addComponent(highCam, Camera, {
@@ -671,7 +665,7 @@ describe("CameraSystem — multi-camera priority", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(highCam, "main");
+    getCameraStores(engine).viewports.set(highCam, "main");
 
     await engine.advance(0.016);
 
@@ -707,7 +701,7 @@ describe("CameraSystem — camera:deactivate hook", () => {
       near: -1,
       far: 1,
     });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     await engine.advance(0.016); // camera becomes active
 
@@ -744,10 +738,10 @@ describe("CameraSystem — CameraPath", () => {
       far: 1,
     });
     engine.addComponent(camId, CameraPath, { index: 0, progress: 0 });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
     // Path with a single very short waypoint so it snaps in one frame (dt=16ms → 0.016s > 0.01s)
-    cameraPathStore.set(camId, {
+    getCameraStores(engine).paths.set(camId, {
       waypoints: [{ position: { x: 200, y: 300, z: 0 }, duration: 0.01 }],
       opts: {},
       elapsed: 0,
@@ -784,9 +778,9 @@ describe("CameraSystem — CameraPath", () => {
       far: 1,
     });
     engine.addComponent(camId, CameraPath, { index: 0, progress: 0 });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
-    cameraPathStore.set(camId, {
+    getCameraStores(engine).paths.set(camId, {
       waypoints: [{ position: { x: 50, y: 50, z: 0 }, duration: 0.001 }],
       opts: { onComplete },
       elapsed: 0,
@@ -796,7 +790,7 @@ describe("CameraSystem — CameraPath", () => {
 
     expect(onComplete).toHaveBeenCalledOnce();
     // path data should be removed after completion
-    expect(cameraPathStore.has(camId)).toBe(false);
+    expect(getCameraStores(engine).paths.has(camId)).toBe(false);
   });
 
   it("loops back to index 0 when loop:true", async () => {
@@ -821,9 +815,9 @@ describe("CameraSystem — CameraPath", () => {
       far: 1,
     });
     engine.addComponent(camId, CameraPath, { index: 0, progress: 0 });
-    cameraViewportMap.set(camId, "main");
+    getCameraStores(engine).viewports.set(camId, "main");
 
-    cameraPathStore.set(camId, {
+    getCameraStores(engine).paths.set(camId, {
       waypoints: [{ position: { x: 50, y: 0, z: 0 }, duration: 0.001 }],
       opts: { loop: true },
       elapsed: 0,
@@ -832,7 +826,7 @@ describe("CameraSystem — CameraPath", () => {
     await engine.advance(0.016);
 
     // After looping, index resets to 0 and path data is still present
-    expect(cameraPathStore.has(camId)).toBe(true);
+    expect(getCameraStores(engine).paths.has(camId)).toBe(true);
     const pathComp = engine.getComponent(camId, CameraPath);
     expect(pathComp?.index).toBe(0);
   });
@@ -863,5 +857,38 @@ describe("CameraSystem — CameraPath", () => {
     await engine.advance(0.016);
 
     expect(engine.inject("cameraManager").get("main")).toBeUndefined();
+  });
+});
+
+describe("camera stores per engine", () => {
+  it("keeps viewports and paths separate for the same entity id", async () => {
+    const a = await createEngine({ maxEntities: 16 });
+    const b = await createEngine({ maxEntities: 16 });
+    try {
+      const idA = a.createEntity();
+      const idB = b.createEntity();
+      expect(idA).toBe(idB);
+      getCameraStores(a).viewports.set(idA, "main");
+      getCameraStores(b).viewports.set(idB, "hud");
+      getCameraStores(a).paths.set(idA, {
+        waypoints: [{ position: { x: 1, y: 0, z: 0 }, duration: 1 }],
+        opts: { loop: false },
+        elapsed: 0,
+      });
+      getCameraStores(b).paths.set(idB, {
+        waypoints: [{ position: { x: 9, y: 0, z: 0 }, duration: 1 }],
+        opts: { loop: false },
+        elapsed: 1,
+      });
+      expect(getCameraStores(a).viewports.get(idA)).toBe("main");
+      expect(getCameraStores(b).viewports.get(idB)).toBe("hud");
+      expect(getCameraStores(a).paths.get(idA)?.elapsed).toBe(0);
+      expect(getCameraStores(b).paths.get(idB)?.elapsed).toBe(1);
+      await a.stop();
+      expect(getCameraStores(b).viewports.get(idB)).toBe("hud");
+      expect(getCameraStores(b).paths.get(idB)?.elapsed).toBe(1);
+    } finally {
+      await b.stop();
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 const physics3dInit = vi.fn();
@@ -31,6 +31,11 @@ import {
   type Physics3DConfig,
 } from "../src/index";
 import { createEngine, type GwenEngine } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 describe("Physics3D entity API (foundation)", () => {
   beforeEach(() => {
@@ -63,8 +68,10 @@ describe("Physics3D entity API (foundation)", () => {
       query: vi.fn(() => []),
       getComponent: vi.fn(),
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
 
+    engineContext.set(engine, true);
     plugin.setup(engine);
 
     const service = services.get("physics3d") as Physics3DAPI;
@@ -265,17 +272,23 @@ describe("Physics3D entity API (foundation)", () => {
 
   it("removes the body when engine.destroyEntity runs", async () => {
     const engine = await createEngine({ maxEntities: 16 });
-    await engine.use(Physics3DPlugin());
-    const service = engine.inject("physics3d");
-    const id = engine.createEntity();
+    engine.activate();
+    try {
+      await engine.use(Physics3DPlugin());
+      const service = engine.inject("physics3d");
+      const id = engine.createEntity();
 
-    service.createBody(id, { kind: "kinematic" });
-    expect(service.hasBody(id)).toBe(true);
+      service.createBody(id, { kind: "kinematic" });
+      expect(service.hasBody(id)).toBe(true);
 
-    expect(engine.destroyEntity(id)).toBe(true);
-    expect(engine.isAlive(id)).toBe(false);
-    expect(service.hasBody(id)).toBe(false);
-    expect(service.getBodyCount()).toBe(0);
+      expect(engine.destroyEntity(id)).toBe(true);
+      expect(engine.isAlive(id)).toBe(false);
+      expect(service.hasBody(id)).toBe(false);
+      expect(service.getBodyCount()).toBe(0);
+    } finally {
+      engine.deactivate();
+      await engine.stop();
+    }
   });
 
   it("cleans hook subscription and local registry on plugin destroy", () => {

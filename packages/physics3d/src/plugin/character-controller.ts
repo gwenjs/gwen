@@ -2,7 +2,8 @@
  * @fileoverview Character controller creation and management.
  */
 
-import type { EntityId } from "@gwenjs/core";
+import { useEngine, type EntityId } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
 import type {
   Physics3DAPI,
   Physics3DVec3,
@@ -55,6 +56,22 @@ export function createCharacterControllerMethods(
         applyImpulsesToDynamic = true,
       } = opts;
 
+      const engine = useEngine();
+      const withThisEngine = <A extends unknown[], R>(fn: (...args: A) => R) => {
+        return (...args: A): R => {
+          const previous = engineContext.tryUse() ?? undefined;
+          engineContext.set(engine, true);
+          try {
+            return fn(...args);
+          } finally {
+            if (engineContext.tryUse() === engine) {
+              if (previous !== undefined) engineContext.set(previous, true);
+              else engineContext.unset();
+            }
+          }
+        };
+      };
+
       const owned = guardOwned(ctx, entityId, "addCharacterController");
       if (!owned) return createInertCharacterControllerHandle();
       const entityIndex = owned.slot;
@@ -99,7 +116,7 @@ export function createCharacterControllerMethods(
           get lastTranslation() {
             return lastTranslation;
           },
-          move(desiredVelocity: Physics3DVec3, dt: number) {
+          move: withThisEngine((desiredVelocity: Physics3DVec3, dt: number) => {
             let myDescSlot = -1;
             let _ccSlotIdx = 0;
             for (const _ccEntry of ctx.ccRegistrations.values()) {
@@ -150,7 +167,7 @@ export function createCharacterControllerMethods(
               y: desiredVelocity.y * dt,
               z: desiredVelocity.z * dt,
             };
-          },
+          }),
         };
         return handle;
       }
@@ -170,7 +187,7 @@ export function createCharacterControllerMethods(
         get lastTranslation() {
           return lastTranslation;
         },
-        move(v: Physics3DVec3, dt: number) {
+        move: withThisEngine((v: Physics3DVec3, dt: number) => {
           if (__GWEN_DEV__) {
             if (!ctx._emittedCCLocalWarning) {
               ctx.log.warn("CharacterController uses local fallback — step-up/slope not supported");
@@ -186,7 +203,7 @@ export function createCharacterControllerMethods(
             };
           }
           lastTranslation = { x: v.x * dt, y: v.y * dt, z: v.z * dt };
-        },
+        }),
       } satisfies CharacterControllerHandle;
     },
 

@@ -36,15 +36,16 @@ describe("CodeGenerator", () => {
     const gen = new CodeGenerator(makeManifest(), "core");
     const code = gen.generateBulkRead(["Position", "Velocity"], "Position");
     expect(code).toContain("queryReadBulk");
-    expect(code).toContain("1"); // typeId of Position
-    expect(code).toContain("2"); // f32Stride of Position
+    expect(code).toContain('useEngine().getOrRegisterComponent("Position")');
+    expect(code).toContain('useEngine().getOrRegisterComponent("Velocity")');
+    expect(code).toContain(", 2)"); // f32Stride of Position
   });
 
   it("generates a queryWriteBulk call", () => {
     const gen = new CodeGenerator(makeManifest(), "core");
     const code = gen.generateBulkWrite("Position", "_slots", "_gens", "_posData");
     expect(code).toContain("queryWriteBulk");
-    expect(code).toContain("1"); // typeId of Position
+    expect(code).toContain('useEngine().getOrRegisterComponent("Position")');
   });
 
   it("generates accessor code for a field by byte offset", () => {

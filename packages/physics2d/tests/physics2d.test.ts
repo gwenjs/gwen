@@ -62,6 +62,7 @@ function makeMockEngine(_wasm: any) {
       provided[key] = value;
     }),
     isAlive: () => true,
+    disposables: { add() {} },
     hooks: {
       hook: vi.fn((name: string, handler: (...args: any[]) => void) => {
         hookHandlers[name] = hookHandlers[name] ?? [];
@@ -110,7 +111,7 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 });
 
 import { createEntityId } from "@gwenjs/core";
-import { getWasmBridge } from "@gwenjs/core/internal";
+import { engineContext, getWasmBridge } from "@gwenjs/core/internal";
 import { Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
 
@@ -134,6 +135,7 @@ async function initPlugin(
   mockEngine: ReturnType<typeof makeMockEngine>,
 ) {
   (getWasmBridge as Mock).mockReturnValue(mockBridge);
+  engineContext.set(mockEngine as never, true);
   (mockEngine as { memory: unknown }).memory = {
     view(desc: { name: string; type: string; ptr: () => number; length: () => number }) {
       let cached: DataView | Float32Array | Uint32Array | null = null;
@@ -525,17 +527,19 @@ describe("Physics2DPlugin", () => {
     mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
     mockWasmPlugin.physics_get_collision_event_count.mockReturnValue(2);
 
-    // Event 0
-    view.setUint32(0, 1, true); // slotA
-    view.setUint32(4, 2, true); // slotB
-    view.setUint32(8, 0, true); // type (0 = Started)
-    view.setUint32(12, 0, true); // flags (collider IDs)
+    // Event 0 — PhysicsCollisionEvent, 20 bytes, flags bit 0 = started
+    view.setUint32(0, 1, true);
+    view.setUint32(4, 2, true);
+    view.setUint32(8, 0xffffffff, true);
+    view.setUint32(12, 0xffffffff, true);
+    view.setUint8(16, 1);
 
     // Event 1
-    view.setUint32(16, 3, true); // slotA
-    view.setUint32(20, 4, true); // slotB
-    view.setUint32(24, 1, true); // type (1 = Stopped)
-    view.setUint32(28, 0, true); // flags
+    view.setUint32(20, 3, true);
+    view.setUint32(24, 4, true);
+    view.setUint32(28, 0xffffffff, true);
+    view.setUint32(32, 0xffffffff, true);
+    view.setUint8(36, 0);
 
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
@@ -591,10 +595,11 @@ describe("Physics2DPlugin", () => {
     mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
     mockWasmPlugin.physics_get_collision_event_count.mockReturnValue(1);
 
-    view.setUint32(0, 5, true); // slotA
-    view.setUint32(4, 7, true); // slotB
-    view.setUint32(8, 0, true); // started
-    view.setUint32(12, 0, true);
+    view.setUint32(0, 5, true);
+    view.setUint32(4, 7, true);
+    view.setUint32(8, 0xffffffff, true);
+    view.setUint32(12, 0xffffffff, true);
+    view.setUint8(16, 1);
 
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
@@ -620,8 +625,9 @@ describe("Physics2DPlugin", () => {
 
     view.setUint32(0, 1, true);
     view.setUint32(4, 2, true);
-    view.setUint32(8, 0, true);
-    view.setUint32(12, 0, true);
+    view.setUint32(8, 0xffffffff, true);
+    view.setUint32(12, 0xffffffff, true);
+    view.setUint8(16, 1);
 
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
@@ -1239,8 +1245,9 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     const view = new DataView(memory.buffer);
     view.setUint32(0, slotA, true);
     view.setUint32(4, slotB, true);
-    view.setUint32(8, started ? 0 : 1, true); // 0=Started, 1=Stopped
-    view.setUint32(12, 0xffffffff, true); // No collider IDs (absent)
+    view.setUint32(8, 0xffffffff, true);
+    view.setUint32(12, 0xffffffff, true);
+    view.setUint8(16, started ? 1 : 0);
 
     mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
     mockWasmPlugin.physics_get_collision_event_count.mockReturnValue(1);
@@ -1257,9 +1264,9 @@ describe("Physics2DPlugin — onUpdate policy", () => {
     const view = new DataView(memory.buffer);
     view.setUint32(0, slotA, true);
     view.setUint32(4, slotB, true);
-    view.setUint32(8, started ? 0 : 1, true);
-    const flags = (aColliderId & 0xffff) | ((bColliderId & 0xffff) << 16);
-    view.setUint32(12, flags, true);
+    view.setUint32(8, aColliderId, true);
+    view.setUint32(12, bColliderId, true);
+    view.setUint8(16, started ? 1 : 0);
 
     mockWasmPlugin.physics_get_collision_events_ptr.mockReturnValue(0);
     mockWasmPlugin.physics_get_collision_event_count.mockReturnValue(1);

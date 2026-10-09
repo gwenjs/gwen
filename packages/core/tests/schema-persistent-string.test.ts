@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { Types, defineComponent, computeSchemaLayout } from "../src/schema";
-import { GlobalStringPoolManager } from "../src/utils/string-pool";
+import { StringPoolManager } from "../src/utils/string-pool";
 import type { InferComponent } from "../src/schema";
 
 describe("Types.persistentString DSL", () => {
+  let strings: StringPoolManager;
   beforeEach(() => {
-    GlobalStringPoolManager.scene.clear();
-    GlobalStringPoolManager.persistent.clear();
+    strings = new StringPoolManager();
   });
 
   it("should define persistentString type correctly", () => {
@@ -46,11 +46,11 @@ describe("Types.persistentString DSL", () => {
     const view = new DataView(buffer);
 
     const data = { name: "Alice", score: 999 };
-    layout.serialize!(data, view);
+    layout.serialize!(data, view, strings);
 
     // Verify the string went to persistent pool, not scene pool
-    expect(GlobalStringPoolManager.persistent.size).toBe(1);
-    expect(GlobalStringPoolManager.scene.size).toBe(0);
+    expect(strings.persistent.size).toBe(1);
+    expect(strings.scene.size).toBe(0);
   });
 
   it("should serialize regular string to scene pool", () => {
@@ -64,11 +64,11 @@ describe("Types.persistentString DSL", () => {
     const view = new DataView(buffer);
 
     const data = { name: "Bob", score: 500 };
-    layout.serialize!(data, view);
+    layout.serialize!(data, view, strings);
 
     // Verify the string went to scene pool, not persistent pool
-    expect(GlobalStringPoolManager.scene.size).toBe(1);
-    expect(GlobalStringPoolManager.persistent.size).toBe(0);
+    expect(strings.scene.size).toBe(1);
+    expect(strings.persistent.size).toBe(0);
   });
 
   it("should deserialize persistentString from persistent pool", () => {
@@ -83,10 +83,10 @@ describe("Types.persistentString DSL", () => {
 
     // Serialize
     const originalData = { name: "Charlie", health: 75.5 };
-    layout.serialize!(originalData, view);
+    layout.serialize!(originalData, view, strings);
 
     // Deserialize
-    const deserialized = layout.deserialize!(view);
+    const deserialized = layout.deserialize!(view, strings);
     expect(deserialized.name).toBe("Charlie");
     expect(deserialized.health).toBeCloseTo(75.5);
   });
@@ -103,13 +103,13 @@ describe("Types.persistentString DSL", () => {
 
     // Serialize data
     const data = { playerName: "Hero", level: 5 };
-    layout.serialize!(data, view);
+    layout.serialize!(data, view, strings);
 
     // Simulate scene transition (clear scene pool)
-    GlobalStringPoolManager.clearScene();
+    strings.clearScene();
 
     // Deserialize after transition — should still work
-    const deserialized = layout.deserialize!(view);
+    const deserialized = layout.deserialize!(view, strings);
     expect(deserialized.playerName).toBe("Hero");
     expect(deserialized.level).toBe(5);
   });
@@ -126,13 +126,13 @@ describe("Types.persistentString DSL", () => {
 
     // Serialize data
     const data = { tempName: "Temp", id: 123 };
-    layout.serialize!(data, view);
+    layout.serialize!(data, view, strings);
 
     // Simulate scene transition (clear scene pool)
-    GlobalStringPoolManager.clearScene();
+    strings.clearScene();
 
     // Deserialize after transition — string ID is now invalid
-    const deserialized = layout.deserialize!(view);
+    const deserialized = layout.deserialize!(view, strings);
     expect(deserialized.tempName).toBe(""); // Empty string (ID not found)
     expect(deserialized.id).toBe(123); // Numeric data survives
   });
@@ -154,15 +154,15 @@ describe("Types.persistentString DSL", () => {
       value: 42.0,
     };
 
-    layout.serialize!(data, view);
+    layout.serialize!(data, view, strings);
 
-    expect(GlobalStringPoolManager.persistent.size).toBe(1);
-    expect(GlobalStringPoolManager.scene.size).toBe(1);
+    expect(strings.persistent.size).toBe(1);
+    expect(strings.scene.size).toBe(1);
 
     // Clear scene
-    GlobalStringPoolManager.clearScene();
+    strings.clearScene();
 
-    const deserialized = layout.deserialize!(view);
+    const deserialized = layout.deserialize!(view, strings);
     expect(deserialized.persistentData).toBe("KeepMe"); // Survives
     expect(deserialized.tempData).toBe(""); // Lost
     expect(deserialized.value).toBeCloseTo(42.0); // Numeric survives
@@ -170,9 +170,9 @@ describe("Types.persistentString DSL", () => {
 });
 
 describe("Schema layout with persistentString — integration", () => {
+  let strings: StringPoolManager;
   beforeEach(() => {
-    GlobalStringPoolManager.scene.clear();
-    GlobalStringPoolManager.persistent.clear();
+    strings = new StringPoolManager();
   });
 
   it("should correctly compute layout with persistentString", () => {
@@ -209,20 +209,20 @@ describe("Schema layout with persistentString — integration", () => {
     };
 
     // Serialize
-    layout.serialize!(saveData, view);
+    layout.serialize!(saveData, view, strings);
 
     // Verify both strings went to persistent pool
-    expect(GlobalStringPoolManager.persistent.size).toBe(2);
-    expect(GlobalStringPoolManager.scene.size).toBe(0);
+    expect(strings.persistent.size).toBe(2);
+    expect(strings.scene.size).toBe(0);
 
     // Simulate 10 scene transitions
     for (let i = 0; i < 10; i++) {
-      GlobalStringPoolManager.scene.intern(`temp-${i}`);
-      GlobalStringPoolManager.clearScene();
+      strings.scene.intern(`temp-${i}`);
+      strings.clearScene();
     }
 
     // Deserialize — should still work
-    const loaded = layout.deserialize!(view);
+    const loaded = layout.deserialize!(view, strings);
     expect(loaded.playerId).toBe(42);
     expect(loaded.playerName).toBe("Alice");
     expect(loaded.highScore).toBe(9999);

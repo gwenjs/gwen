@@ -5,7 +5,7 @@
  * to verify that the plugin delegates all body operations to the WASM layer when available,
  * and does NOT run the local TS simulation in that mode.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const physics3dInit = vi.fn();
 const physics3dStep = vi.fn();
@@ -172,10 +172,23 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 vi.mock("@gwenjs/core", () => ({
   getWasmBridge: () => mockBridge,
   entityIndex: (id: bigint) => Number(id & 0xffffffffn),
+  createEngineLocal,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
 }));
 
+import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
+import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
+import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 describe("Physics3D plugin — WASM backend mode", () => {
   beforeEach(() => {
@@ -206,7 +219,9 @@ describe("Physics3D plugin — WASM backend mode", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     return { plugin, service };
@@ -375,7 +390,9 @@ describe("Physics3D WASM backend — mesh and convex colliders", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
@@ -462,7 +479,9 @@ describe("Group A — RFC-09: forces, gravity, locks, sleep", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
@@ -622,7 +641,9 @@ describe("Group B — RFC-08: joints", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     service.createBody(entityId);
@@ -849,7 +870,9 @@ describe("Group C — RFC-07: spatial queries", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const api = services.get("physics3d") as Physics3DAPI;
     return { api };
@@ -1114,7 +1137,9 @@ describe("Group D — RFC-09: character controller", () => {
       getComponent: vi.fn(),
       isAlive: () => true,
       wasmBridge: null,
+      disposables: { add() {} },
     } as unknown as GwenEngine;
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const api = services.get("physics3d") as Physics3DAPI;
     api.createBody(entityId);

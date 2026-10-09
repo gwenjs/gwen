@@ -1,9 +1,8 @@
-//! Zero-allocation collision event buffer for the 3D physics pipeline.
+//! Per-world collision event buffer for the 3D physics pipeline.
 //!
-//! Collision events produced during each `step()` are written into a static
-//! ring buffer and read directly from WASM linear memory by JavaScript.
+//! Each `PhysicsWorld3D` owns one buffer. The free functions are ABI shims.
 
-/// Maximum number of 3D collision events stored in the static buffer per frame.
+/// Maximum number of 3D collision events stored per world per step.
 pub const MAX_COLLISION_EVENTS_3D: usize = 1024;
 
 /// A single 3D collision event.
@@ -33,43 +32,50 @@ pub struct PhysicsCollisionEvent3D {
     pub collider_b_id: u16,
 }
 
-static mut COLLISION_BUFFER_3D: [PhysicsCollisionEvent3D; MAX_COLLISION_EVENTS_3D] =
-    [PhysicsCollisionEvent3D {
-        entity_a: 0,
-        entity_b: 0,
-        flags: 0,
-        collider_a_id: 0,
-        collider_b_id: 0,
-    }; MAX_COLLISION_EVENTS_3D];
-
-static mut COLLISION_COUNT_3D: usize = 0;
-
-/// Returns a raw pointer to the static 3D collision event buffer.
-///
-/// Valid only for the duration of the current frame, after `physics3d_step`.
-/// The buffer must not be written to from JavaScript.
-pub fn get_collision_events_ptr_3d() -> *const PhysicsCollisionEvent3D {
-    std::ptr::addr_of!(COLLISION_BUFFER_3D) as *const PhysicsCollisionEvent3D
+/// Collision events for one 3D physics world.
+pub struct CollisionEventBuffer3D {
+    events: [PhysicsCollisionEvent3D; MAX_COLLISION_EVENTS_3D],
+    count: usize,
 }
 
-/// Returns the number of 3D collision events in the buffer for the current frame.
-pub fn get_collision_event_count_3d() -> usize {
-    unsafe { COLLISION_COUNT_3D }
-}
-
-/// Clears the collision event buffer. Called at the start of each `step()`.
-pub(crate) fn clear_collision_events_3d() {
-    unsafe {
-        COLLISION_COUNT_3D = 0;
-    }
-}
-
-/// Pushes a collision event into the buffer. Silently drops events when full.
-pub(crate) fn push_collision_event_3d(event: PhysicsCollisionEvent3D) {
-    unsafe {
-        if COLLISION_COUNT_3D < MAX_COLLISION_EVENTS_3D {
-            COLLISION_BUFFER_3D[COLLISION_COUNT_3D] = event;
-            COLLISION_COUNT_3D += 1;
+impl CollisionEventBuffer3D {
+    pub fn new() -> Self {
+        Self {
+            events: [PhysicsCollisionEvent3D::default(); MAX_COLLISION_EVENTS_3D],
+            count: 0,
         }
     }
+
+    pub fn clear(&mut self) {
+        self.count = 0;
+    }
+
+    pub fn push(&mut self, event: PhysicsCollisionEvent3D) {
+        if self.count < MAX_COLLISION_EVENTS_3D {
+            self.events[self.count] = event;
+            self.count += 1;
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const PhysicsCollisionEvent3D {
+        self.events.as_ptr()
+    }
+
+    pub fn get(&self, index: usize) -> PhysicsCollisionEvent3D {
+        self.events[index]
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+}
+
+/// ABI shim. The live buffer is on each `PhysicsWorld3D`.
+pub fn get_collision_events_ptr_3d() -> *const PhysicsCollisionEvent3D {
+    std::ptr::null()
+}
+
+/// ABI shim. The live count is on each `PhysicsWorld3D`.
+pub fn get_collision_event_count_3d() -> usize {
+    0
 }

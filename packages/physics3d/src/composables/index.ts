@@ -42,15 +42,9 @@ export type { HeightfieldColliderOptions } from "./use-heightfield-collider";
 
 export { defineLayers } from "./define-layers";
 
-export { onContact, _dispatchContactEvent, _clearContactCallbacks } from "./on-contact";
+export { onContact } from "./on-contact";
 
-export {
-  onSensorEnter,
-  onSensorExit,
-  _dispatchSensorEnter,
-  _dispatchSensorExit,
-  _clearSensorCallbacks,
-} from "./on-sensor";
+export { onSensorEnter, onSensorExit } from "./on-sensor";
 
 export { useBulkStaticBoxes } from "./use-bulk-static-boxes";
 

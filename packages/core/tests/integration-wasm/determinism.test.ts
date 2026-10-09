@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { computeSchemaLayout, type SchemaLayout } from "../../src/schema.js";
+import { StringPoolManager } from "../../src/utils/string-pool.js";
 import { defineComponent, Types, type EntityId } from "../../src/index.js";
 import { entityIndex } from "../../src/internal.js";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
@@ -58,7 +59,7 @@ function writeLayout(
   data: Record<string, number | Record<string, number>>,
 ): void {
   const buffer = new ArrayBuffer(layout.byteLength);
-  layout.serialize(data, new DataView(buffer));
+  layout.serialize(data, new DataView(buffer), new StringPoolManager());
   parts.push(new Uint8Array(buffer));
 }
 

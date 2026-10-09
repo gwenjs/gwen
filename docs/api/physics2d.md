@@ -201,8 +201,8 @@ const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   onContact((event) => {
-    if (event.relativeVelocity > 10) {
-      // Hard impact — take damage
+    if (event.started) {
+      // Contact began this frame
     }
   })
 })
@@ -215,11 +215,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 interface ContactEvent {
   entityA: bigint;
   entityB: bigint;
-  contactX: number;
-  contactY: number;
-  normalX: number;
-  normalY: number;
-  relativeVelocity: number;
+  started: boolean;
 }
 ```
 
@@ -227,10 +223,10 @@ interface ContactEvent {
 
 **Signature:**
 ```ts
-function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorEnter(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Called when another entity enters a sensor collider. Use the `colliderId` from the collider handle as `sensorId`.
+**Description.** Called when another entity enters a sensor collider. Use the `colliderId` from the collider handle as `sensorId`. Inside an actor, the callback is removed when the actor's entity is destroyed. Outside an actor, call the returned function to remove it.
 
 **Example:**
 ```ts
@@ -247,10 +243,10 @@ export const CoinActor = defineActor(CoinPrefab, () => {
 
 **Signature:**
 ```ts
-function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): void
+function onSensorExit(sensorId: number, callback: (entityId: bigint) => void): () => void
 ```
 
-**Description.** Called when another entity leaves a sensor collider.
+**Description.** Called when another entity leaves a sensor collider. Returns a function that removes the callback.
 
 ## Layers
 

@@ -13,7 +13,9 @@
 
 import { bench, describe } from "vitest";
 import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
-import { getWasmBridge, _resetWasmBridge } from "../src/engine/wasm-bridge";
+import { WasmBridgeImpl } from "../src/engine/wasm-bridge";
+
+const benchBridge = new WasmBridgeImpl();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -33,7 +35,7 @@ describe("Entity creation — 1 000 entities", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return; // Skip gracefully if WASM not loaded
     for (let i = 0; i < 1_000; i++) bridge.createEntity();
   });
@@ -46,7 +48,7 @@ describe("Entity creation — 10 000 entities", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return;
     for (let i = 0; i < 10_000; i++) bridge.createEntity();
   });
@@ -63,7 +65,7 @@ describe("isAlive — 10 000 checks", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return;
     const id = bridge.createEntity()!;
     for (let i = 0; i < 10_000; i++) bridge.isAlive(id.index, id.generation);
@@ -81,7 +83,7 @@ describe("Component add + get — 1 000 entities", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return;
     const typeId = bridge.registerComponentType()!;
     const data = new Uint8Array(8); // 2× f32
@@ -108,7 +110,7 @@ describe("Query — 1 000 entities, 1 component type", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return;
     const typeId = bridge.registerComponentType()!;
     const data = new Uint8Array(8);
@@ -131,7 +133,7 @@ describe("Entity lifecycle (create + delete) — 5 000 cycles", () => {
   });
 
   bench("WASM (if active)", () => {
-    const bridge = getWasmBridge();
+    const bridge = benchBridge;
     if (!bridge.isActive()) return;
     const ids: Array<{ index: number; generation: number }> = [];
     for (let i = 0; i < 5_000; i++) ids.push(bridge.createEntity()!);

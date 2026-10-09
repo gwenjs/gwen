@@ -1,12 +1,11 @@
-//! Static ring buffer for collision events.
+//! Per-world collision event buffer.
 //!
-//! Provides a zero-allocation bridge between the physics engine and JavaScript.
-//! Collision events are written to a fixed-size static buffer that can be
-//! read directly from WASM memory.
+//! Each `PhysicsWorld` owns one buffer. The free `wasm_bindgen` functions stay
+//! as ABI shims and no longer share state across engines.
 
 use wasm_bindgen::prelude::*;
 
-/// Maximum number of collision events stored in the static buffer.
+/// Maximum number of collision events stored per world per step.
 pub const MAX_COLLISION_EVENTS: usize = 1024;
 
 /// A collision event produced during the physics step.
@@ -25,47 +24,51 @@ pub struct PhysicsCollisionEvent {
     pub flags: u8,
 }
 
-static mut COLLISION_BUFFER: [PhysicsCollisionEvent; MAX_COLLISION_EVENTS] =
-    [PhysicsCollisionEvent {
-        entity_a: 0,
-        entity_b: 0,
-        collider_a_id: 0,
-        collider_b_id: 0,
-        flags: 0,
-    }; MAX_COLLISION_EVENTS];
-
-static mut COLLISION_COUNT: usize = 0;
-
-/// Returns a raw pointer to the static collision event buffer.
-///
-/// # Safety
-/// This pointer is only valid for the duration of the frame after the physics step.
-/// Writing to this buffer from JS is undefined behavior.
-#[wasm_bindgen]
-pub fn get_collision_events_ptr() -> *const PhysicsCollisionEvent {
-    std::ptr::addr_of!(COLLISION_BUFFER) as *const PhysicsCollisionEvent
+/// Collision events for one physics world.
+pub struct CollisionEventBuffer {
+    events: [PhysicsCollisionEvent; MAX_COLLISION_EVENTS],
+    count: usize,
 }
 
-/// Returns the number of collision events currently stored in the buffer.
-#[wasm_bindgen]
-pub fn get_collision_event_count() -> usize {
-    unsafe { COLLISION_COUNT }
-}
-
-/// Internal helper to clear the collision buffer.
-pub(crate) fn clear_collision_events() {
-    unsafe {
-        COLLISION_COUNT = 0;
-    }
-}
-
-/// Internal helper to push a collision event to the buffer.
-/// If the buffer is full, the event is dropped.
-pub(crate) fn push_collision_event(event: PhysicsCollisionEvent) {
-    unsafe {
-        if COLLISION_COUNT < MAX_COLLISION_EVENTS {
-            COLLISION_BUFFER[COLLISION_COUNT] = event;
-            COLLISION_COUNT += 1;
+impl CollisionEventBuffer {
+    pub fn new() -> Self {
+        Self {
+            events: [PhysicsCollisionEvent::default(); MAX_COLLISION_EVENTS],
+            count: 0,
         }
     }
+
+    pub fn clear(&mut self) {
+        self.count = 0;
+    }
+
+    pub fn push(&mut self, event: PhysicsCollisionEvent) {
+        if self.count < MAX_COLLISION_EVENTS {
+            self.events[self.count] = event;
+            self.count += 1;
+        }
+    }
+
+    pub fn as_ptr(&self) -> *const PhysicsCollisionEvent {
+        self.events.as_ptr()
+    }
+
+    pub fn len(&self) -> usize {
+        self.count
+    }
+}
+
+/// ABI shim. Returns a null pointer. Call `Engine::physics_get_collision_events_ptr`.
+///
+/// # Safety
+/// The returned pointer is null. The live buffer belongs to one `PhysicsWorld`.
+#[wasm_bindgen]
+pub fn get_collision_events_ptr() -> *const PhysicsCollisionEvent {
+    std::ptr::null()
+}
+
+/// ABI shim. Returns `0`. Call `Engine::physics_get_collision_event_count`.
+#[wasm_bindgen]
+pub fn get_collision_event_count() -> usize {
+    0
 }

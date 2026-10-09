@@ -89,6 +89,14 @@ export function addColliderImpl(
   // Always track in the local collider registry for inspection
   if (!ctx.localColliders.has(slot)) ctx.localColliders.set(slot, []);
   ctx.localColliders.get(slot)!.push(finalOptions);
+  if (finalOptions.isSensor) {
+    let sensors = ctx.activeSensors.get(slot);
+    if (!sensors) {
+      sensors = new Set();
+      ctx.activeSensors.set(slot, sensors);
+    }
+    sensors.add(colliderId);
+  }
 
   if (ctx.backendMode === "wasm") {
     const idx = slot;
@@ -351,6 +359,7 @@ export function createRemoveCollider(ctx: PluginContext): Physics3DAPI["removeCo
       const idx = colliders.findIndex((c) => c.colliderId === colliderId);
       if (idx !== -1) colliders.splice(idx, 1);
     }
+    ctx.activeSensors.get(slot)?.delete(colliderId);
 
     if (ctx.backendMode === "wasm") {
       return ctx.wasmBridge!.physics3d_remove_collider?.(slot, colliderId) ?? false;

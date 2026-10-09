@@ -9,9 +9,9 @@
  * No mocks needed — `computeSchemaLayout` is a pure function.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { computeSchemaLayout, Types, defineComponent } from "../src/schema";
-import { GlobalStringPoolManager } from "../src/utils/string-pool.js";
+import { StringPoolManager } from "../src/utils/string-pool.js";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -27,8 +27,9 @@ function roundTrip<T extends Record<string, unknown>>(
 ): T {
   const layout = computeSchemaLayout<any>(schema);
   const view = makeView(layout.byteLength);
-  layout.serialize!(data as any, view);
-  return layout.deserialize!(view) as T;
+  const strings = new StringPoolManager();
+  layout.serialize!(data, view, strings);
+  return layout.deserialize!(view, strings) as T;
 }
 
 // ── Byte layout verification ───────────────────────────────────────────────────
@@ -187,11 +188,6 @@ describe("bool round-trip", () => {
 });
 
 describe("string round-trip", () => {
-  beforeEach(() => {
-    // Reset the scene string pool so IDs are deterministic across tests
-    GlobalStringPoolManager.scene.reset?.();
-  });
-
   it("empty string", () => {
     const { v } = roundTrip({ v: Types.string }, { v: "" });
     expect(v).toBe("");
@@ -294,8 +290,8 @@ describe("multi-field component round-trips", () => {
     const layout = computeSchemaLayout({ x: Types.f32, y: Types.f32 });
     expect(layout.byteLength).toBe(8);
     const view = makeView(8);
-    layout.serialize!({ x: 100.5, y: -33.25 }, view);
-    const result = layout.deserialize!(view);
+    layout.serialize!({ x: 100.5, y: -33.25 }, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager());
     expect((result as any).x).toBeCloseTo(100.5, 4);
     expect((result as any).y).toBeCloseTo(-33.25, 4);
   });
@@ -310,8 +306,8 @@ describe("multi-field component round-trips", () => {
       scale: { x: 2, y: 2, z: 2 },
     };
     const view = makeView(layout.byteLength);
-    layout.serialize!(data, view);
-    const result = layout.deserialize!(view) as typeof data;
+    layout.serialize!(data, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager()) as typeof data;
     expect(result.position.x).toBeCloseTo(5, 4);
     expect(result.position.z).toBeCloseTo(-3, 4);
     expect(result.rotation.w).toBeCloseTo(1, 5);
@@ -323,8 +319,11 @@ describe("multi-field component round-trips", () => {
     const layout = computeSchemaLayout(schema);
     expect(layout.byteLength).toBe(5); // 4 + 1
     const view = makeView(layout.byteLength);
-    layout.serialize!({ health: 100, active: true }, view);
-    const result = layout.deserialize!(view) as { health: number; active: boolean };
+    layout.serialize!({ health: 100, active: true }, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager()) as {
+      health: number;
+      active: boolean;
+    };
     expect(result.health).toBe(100);
     expect(result.active).toBe(true);
   });
@@ -348,8 +347,12 @@ describe("field offset isolation", () => {
     const view = makeView(layout.byteLength);
 
     // Write only 'a' and 'c', leave 'b' default
-    layout.serialize!({ a: 99.9, b: false, c: -77.7 }, view);
-    const result = layout.deserialize!(view) as { a: number; b: boolean; c: number };
+    layout.serialize!({ a: 99.9, b: false, c: -77.7 }, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager()) as {
+      a: number;
+      b: boolean;
+      c: number;
+    };
     expect(result.a).toBeCloseTo(99.9, 4);
     expect(result.b).toBe(false);
     expect(result.c).toBeCloseTo(-77.7, 4);
@@ -360,8 +363,8 @@ describe("field offset isolation", () => {
     const layout = computeSchemaLayout(schema);
     expect(layout.byteLength).toBe(16);
     const view = makeView(16);
-    layout.serialize!({ p: { x: 1, y: 2 }, v: { x: 3, y: 4 } }, view);
-    const result = layout.deserialize!(view) as {
+    layout.serialize!({ p: { x: 1, y: 2 }, v: { x: 3, y: 4 } }, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager()) as {
       p: { x: number; y: number };
       v: { x: number; y: number };
     };
@@ -375,7 +378,7 @@ describe("field offset isolation", () => {
     const schema = { x: Types.i32, y: Types.i32, z: Types.i32 };
     const view = makeView(12);
     const layout = computeSchemaLayout(schema);
-    layout.serialize!({ x: 1, y: 2, z: 3 }, view);
+    layout.serialize!({ x: 1, y: 2, z: 3 }, view, new StringPoolManager());
     // Manually verify the offsets in the raw buffer
     expect(view.getInt32(0, true)).toBe(1);
     expect(view.getInt32(4, true)).toBe(2);
@@ -409,8 +412,8 @@ describe("defineComponent + computeSchemaLayout integration", () => {
     expect(layout.byteLength).toBe(8);
 
     const view = makeView(8);
-    layout.serialize!({ vx: 2.5, vy: -1.0 }, view);
-    const result = layout.deserialize!(view) as { vx: number; vy: number };
+    layout.serialize!({ vx: 2.5, vy: -1.0 }, view, new StringPoolManager());
+    const result = layout.deserialize!(view, new StringPoolManager()) as { vx: number; vy: number };
     expect(result.vx).toBeCloseTo(2.5, 4);
     expect(result.vy).toBeCloseTo(-1.0, 5);
   });

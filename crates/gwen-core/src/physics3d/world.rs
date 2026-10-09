@@ -38,12 +38,13 @@ use rapier3d::parry::query::ShapeCastOptions;
 use rapier3d::prelude::*;
 
 use crate::physics3d::components::{
-    PhysicsQualityPreset3D, QualitySolverConfig3D, quality_solver_config_3d,
+    quality_solver_config_3d,
+    PhysicsQualityPreset3D, QualitySolverConfig3D
 };
-use crate::physics3d::events::{
-    PhysicsCollisionEvent3D, clear_collision_events_3d, push_collision_event_3d,
-    get_collision_events_ptr_3d, get_collision_event_count_3d,
+use crate::physics3d::events::{CollisionEventBuffer3D,
+    PhysicsCollisionEvent3D
 };
+use crate::physics3d::pathfinding::NavGrid3D;
 
 /// Maximum number of simultaneously active character controllers.
 pub const MAX_CC_ENTITIES: usize = 32;
@@ -51,12 +52,7 @@ pub const MAX_CC_ENTITIES: usize = 32;
 /// f32 fields per CC slot: [grounded, normal_x, normal_y, normal_z, ground_entity_bits].
 pub const CC_STATE_STRIDE: usize = 5;
 
-/// Output buffer written by [`PhysicsWorld3D::character_controller_move`].
-///
-/// Indexed as `CC_STATE_BUFFER[slot_index * CC_STATE_STRIDE]`.
-/// JS reads this via a `Float32Array` view into WASM linear memory.
-static mut CC_STATE_BUFFER: [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE] =
-    [0.0_f32; MAX_CC_ENTITIES * CC_STATE_STRIDE];
+/// Each world stores its own CC state. JS reads it through `physics3d_get_cc_sab_ptr`.
 
 // ─── Debug logging macros ─────────────────────────────────────────────────────
 
@@ -170,12 +166,22 @@ fn body_type_to_kind(bt: RigidBodyType) -> u8 {
 
 // ─── Event collector ──────────────────────────────────────────────────────────
 
+/// Pointer valid only for the synchronous `step` on this thread.
+struct CollisionBufPtr3D(*mut CollisionEventBuffer3D);
+
+// SAFETY: Rapier invokes the handler on the thread that called `step`.
+// The pointer is dropped before `step` returns and is not shared.
+unsafe impl Send for CollisionBufPtr3D {}
+unsafe impl Sync for CollisionBufPtr3D {}
+
 /// Rapier [`EventHandler`] implementation that writes collision events into
-/// the zero-copy static ring buffer.
+/// this world's ring buffer.
 ///
 /// Instantiated per-step and passed directly to `PhysicsPipeline::step`.
 /// Sensor state updates happen in a post-step pass inside [`PhysicsWorld3D::step`].
-struct EventCollector3D;
+struct EventCollector3D {
+    buf: CollisionBufPtr3D,
+}
 
 impl EventHandler for EventCollector3D {
     fn handle_collision_event(
@@ -200,13 +206,24 @@ impl EventHandler for EventCollector3D {
             return;
         }
 
-        push_collision_event_3d(PhysicsCollisionEvent3D {
+        let collider_a_id = match ca {
+            Some(id) => id as u16,
+            None => u16::MAX,
+        };
+        let collider_b_id = match cb {
+            Some(id) => id as u16,
+            None => u16::MAX,
+        };
+        // SAFETY: `buf` points at this world's buffer and is exclusive for the step.
+        unsafe {
+            (*self.buf.0).push(PhysicsCollisionEvent3D {
             entity_a: ea,
             entity_b: eb,
             flags: if event.started() { 1 } else { 0 },
-            collider_a_id: ca.unwrap_or(u32::MAX) as u16,
-            collider_b_id: cb.unwrap_or(u32::MAX) as u16,
+            collider_a_id,
+            collider_b_id
         });
+        }
     }
 
     fn handle_contact_force_event(
@@ -283,6 +300,9 @@ pub struct PhysicsWorld3D {
     ///
     /// Kept in sync with [`entity_handles`] by [`add_body`] and [`remove_body`].
     handle_to_entity: HashMap<RigidBodyHandle, u32>,
+    collision_events: CollisionEventBuffer3D,
+    cc_state: [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE],
+    nav_grid: Option<NavGrid3D>,
 }
 
 // ─── Shape type constants for the compound batch buffer ─────────────────────
@@ -323,6 +343,9 @@ impl PhysicsWorld3D {
             next_cc_slot: 0,
             cc_free_slots: Vec::new(),
             handle_to_entity: HashMap::new(),
+            collision_events: CollisionEventBuffer3D::new(),
+            cc_state: [0.0; MAX_CC_ENTITIES * CC_STATE_STRIDE],
+            nav_grid: None
         };
         // Apply the default quality preset so solver parameters are consistent.
         world.apply_quality_config(quality_solver_config_3d(PhysicsQualityPreset3D::Medium));
@@ -385,8 +408,8 @@ impl PhysicsWorld3D {
     /// * `delta` — Elapsed time in seconds (e.g. `0.016` for 60 Hz).
     pub fn step(&mut self, delta: f32) {
         self.integration_params.dt = delta;
-        // Clear the ring buffer before generating new events for this tick.
-        clear_collision_events_3d();
+        self.collision_events.clear();
+        let buf = CollisionBufPtr3D(std::ptr::addr_of_mut!(self.collision_events));
 
         self.pipeline.step(
             &self.gravity,
@@ -401,7 +424,7 @@ impl PhysicsWorld3D {
             &mut self.ccd_solver,
             None,
             &(),
-            &EventCollector3D,
+            &EventCollector3D { buf }
         );
 
         // Post-step: update sensor_states from the event buffer that was just
@@ -417,16 +440,12 @@ impl PhysicsWorld3D {
     /// Scan the current ring buffer and update `sensor_states` for any sensor
     /// collider whose contacts started or stopped this step.
     fn update_sensor_states_from_events(&mut self) {
-        let count = get_collision_event_count_3d();
+        let count = self.collision_events.len();
         if count == 0 {
             return;
         }
-        // SAFETY: The pointer is valid until the next `clear_collision_events_3d()`,
-        // which only happens at the top of the next `step()` call. We do not
-        // mutate the buffer here.
-        let ptr = get_collision_events_ptr_3d();
         for i in 0..count {
-            let event = unsafe { &*ptr.add(i) };
+            let event = self.collision_events.get(i);
 
             // collider_a sensor
             let ca_id = event.collider_a_id as u32;
@@ -485,12 +504,12 @@ impl PhysicsWorld3D {
     /// # Returns
     /// Pointer (as `usize`) to the start of the [`PhysicsCollisionEvent3D`] array.
     pub fn get_collision_events_ptr(&self) -> usize {
-        get_collision_events_ptr_3d() as usize
+        self.collision_events.as_ptr() as usize
     }
 
     /// Return the number of collision events written since the last [`step`] call.
     pub fn get_collision_event_count(&self) -> u32 {
-        get_collision_event_count_3d() as u32
+        self.collision_events.len() as u32
     }
 
     /// Clear (consume) all pending collision events.
@@ -499,7 +518,7 @@ impl PhysicsWorld3D {
     /// signal that the events have been processed. The next [`step`] call also
     /// implicitly clears the buffer.
     pub fn consume_events(&mut self) {
-        clear_collision_events_3d();
+        self.collision_events.clear();
     }
 
     // ── Sensor state ──────────────────────────────────────────────────────────
@@ -2744,17 +2763,17 @@ impl PhysicsWorld3D {
 
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("character_controller_move: unknown entity {}", entity_index);
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let Some((cc, apply_impulses)) = self.cc_controllers.get(&entity_index) else {
             debug_warn!("character_controller_move: no CC for entity {}", entity_index);
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let apply_impulses = *apply_impulses;
         let Some(body) = self.rigid_body_set.get(handle) else {
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let position = *body.position();
@@ -2763,11 +2782,11 @@ impl PhysicsWorld3D {
         // Use the first collider attached to the body to determine the shape.
         let Some(collider_handle) = body.colliders().first().copied() else {
             debug_warn!("character_controller_move: entity {} has no collider", entity_index);
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let shape = collider.shape();
@@ -2807,7 +2826,7 @@ impl PhysicsWorld3D {
 
         // Write the resolved position back as a kinematic interpolation target.
         let Some(body_mut) = self.rigid_body_set.get_mut(handle) else {
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let mut new_pos = *body_mut.position();
@@ -2832,7 +2851,7 @@ impl PhysicsWorld3D {
             }
 
             unsafe {
-                let buf = &raw mut CC_STATE_BUFFER;
+                let buf = std::ptr::addr_of_mut!(self.cc_state);
                 (*buf)[base] = 1.0_f32;
                 (*buf)[base + 1] = n.x;
                 (*buf)[base + 2] = n.y;
@@ -2840,7 +2859,7 @@ impl PhysicsWorld3D {
                 (*buf)[base + 4] = f32::from_bits(ground_entity_bits);
             }
         } else {
-            unsafe { write_no_hit(&raw mut CC_STATE_BUFFER, base) };
+            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
         }
     }
 
@@ -2858,11 +2877,28 @@ impl PhysicsWorld3D {
     }
 }
 
-/// Returns a raw pointer to the start of the CC state buffer in WASM linear memory.
+/// ABI shim. The live CC state is on each `PhysicsWorld3D`.
 ///
-/// Layout per slot (stride 5): [grounded, nx, ny, nz, ground_entity_bits].
+/// Returns a null pointer. Call `Engine::physics3d_get_cc_sab_ptr`.
 pub fn get_cc_sab_ptr() -> *const f32 {
-    std::ptr::addr_of!(CC_STATE_BUFFER) as *const f32
+    std::ptr::null()
+}
+
+impl PhysicsWorld3D {
+    /// Pointer to this world's character-controller state.
+    pub fn cc_state_ptr(&self) -> *const f32 {
+        self.cc_state.as_ptr()
+    }
+
+    /// This world's navigation grid, if one has been uploaded.
+    pub(crate) fn nav_grid(&self) -> Option<&NavGrid3D> {
+        self.nav_grid.as_ref()
+    }
+
+    /// Mutable slot for this world's navigation grid.
+    pub(crate) fn nav_grid_mut(&mut self) -> &mut Option<NavGrid3D> {
+        &mut self.nav_grid
+    }
 }
 
 /// Returns the maximum number of simultaneous character controllers.
@@ -4450,7 +4486,7 @@ mod tests {
         // Move in empty scene — no floor, so not grounded.
         world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0);
         // Slot 0: grounded flag must be 0.0
-        let grounded = unsafe { CC_STATE_BUFFER[0] };
+        let grounded = world.cc_state[0];
         assert_eq!(grounded, 0.0_f32, "no-hit sentinel must set grounded=0.0");
     }
 
@@ -4480,7 +4516,56 @@ mod tests {
             world.step(1.0 / 60.0);
         }
         // Grounded flag is 0.0 or 1.0 — just verify no panic and valid float.
-        let grounded = unsafe { CC_STATE_BUFFER[0] };
+        let grounded = world.cc_state[0];
         assert!(grounded == 0.0 || grounded == 1.0, "grounded must be 0.0 or 1.0");
+    }
+}
+
+#[cfg(test)]
+mod multi_engine_state {
+    use super::*;
+    use crate::bindings::Engine;
+    use crate::physics3d::pathfinding::install_navgrid;
+
+    #[test]
+    fn two_engines_keep_separate_physics_state() {
+        let mut engines = Vec::new();
+        if let Ok(engine) = Engine::new(16) {
+            engines.push(engine);
+        }
+        if let Ok(engine) = Engine::new(16) {
+            engines.push(engine);
+        }
+        assert_eq!(engines.len(), 2);
+        engines[0].physics3d_init(0.0, 0.0, 0.0, 16);
+        engines[1].physics3d_init(0.0, 0.0, 0.0, 16);
+        let cc_a = engines[0].physics3d_get_cc_sab_ptr();
+        let cc_b = engines[1].physics3d_get_cc_sab_ptr();
+        assert_eq!(cc_a == 0, false);
+        assert_eq!(cc_a == cc_b, false);
+        let ev_a = engines[0].physics3d_get_collision_events_ptr();
+        let ev_b = engines[1].physics3d_get_collision_events_ptr();
+        assert_eq!(ev_a == ev_b, false);
+        engines[0].physics3d_step(1.0 / 60.0);
+        engines[1].physics3d_step(1.0 / 60.0);
+        assert_eq!(engines[0].physics3d_get_collision_event_count(), 0);
+        assert_eq!(engines[1].physics3d_get_collision_event_count(), 0);
+
+        let mut world_a = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+        let world_b = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+        let cells = [0u8; 8];
+        install_navgrid(
+            world_a.nav_grid_mut(),
+            cells.as_ptr(),
+            2,
+            2,
+            2,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+        );
+        assert_eq!(world_a.nav_grid().is_some(), true);
+        assert_eq!(world_b.nav_grid().is_none(), true);
     }
 }

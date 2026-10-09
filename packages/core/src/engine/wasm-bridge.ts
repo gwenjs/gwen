@@ -17,7 +17,7 @@
  *   wasm-bridge-types.ts                        — variant type contracts (WasmEngine*)
  *   #region Module loading & initialization     — variant detection, fetch, instantiation
  *   #region WasmBridge implementation           — hot path: entity/component/query calls
- *   #region Singleton management & test utils   — getWasmBridge(), _inject*, _reset*
+ *   #region Current-engine bridge               — getWasmBridge()
  *
  * @example
  * ```typescript
@@ -36,7 +36,7 @@ import {
   GwenWasmPanicError,
   isCoreWasmErrorCode,
 } from "./engine-errors";
-import { engineContext } from "./context";
+import { engineContext, GwenContextError } from "./context";
 
 // ─── Re-exports from extracted type module ──────────────────────────────────
 // All public types were in this file before extraction. Re-export them so
@@ -251,6 +251,8 @@ export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError
 export class WasmBridgeImpl implements WasmBridge {
   // ── Per-instance state (was module-level) ─────────────────────────────────
   private _wasmEngine: WasmEngine | null = null;
+  /** Ids for test mocks that do not export `register_component_type`. */
+  private _localTypeId = 0;
   private _wasmModule: GwenCoreWasm | null = null;
   private _wasmExports: { memory?: WebAssembly.Memory } | null = null;
   private _initPromise: Promise<void> | null = null;
@@ -484,10 +486,6 @@ export class WasmBridgeImpl implements WasmBridge {
     this._queryResultView = null;
     this._maxEntities = 10_000;
     this._resetQueryBuffers();
-    const ctx = globalThis as Record<string, unknown>;
-    for (const key of Object.keys(ctx)) {
-      if (key.startsWith("__gwenGlue_")) delete ctx[key];
-    }
   }
 
   // ── Status ───────────────────────────────────────────────────────────────
@@ -579,7 +577,12 @@ export class WasmBridgeImpl implements WasmBridge {
   // ── Component ────────────────────────────────────────────────────────────
 
   registerComponentType(): number {
-    return this._requireWasm().register_component_type();
+    const wasm = this._requireWasm();
+    if (typeof wasm.register_component_type !== "function") {
+      this._localTypeId += 1;
+      return this._localTypeId;
+    }
+    return wasm.register_component_type();
   }
 
   addComponent(index: number, generation: number, typeId: number, data: Uint8Array): boolean {
@@ -988,85 +991,24 @@ export class WasmBridgeImpl implements WasmBridge {
 
 // #endregion
 
-// #region Singleton management & test utilities ────────────────────────────────
-
-// Module-level fallback bridge — used by getWasmBridge() outside engine context
-// (benchmarks, test utilities) and by _injectMock* / _resetWasmBridge helpers.
-let _defaultBridge: WasmBridgeImpl | null = null;
-
-function _getDefaultBridge(): WasmBridgeImpl {
-  if (!_defaultBridge) _defaultBridge = new WasmBridgeImpl();
-  return _defaultBridge;
-}
+// #region Current-engine bridge ───────────────────────────────────────────────
 
 /**
- * Return the active `WasmBridge` for the current context.
+ * Return the `WasmBridge` provided by the current engine.
  *
- * When called inside an engine context (actor spawn, plugin setup, engine.run()),
- * returns the per-engine bridge registered via `engine.provide("wasm:bridge")`.
- * Falls back to the module-level default bridge when outside any engine context.
+ * There is no module-level fallback. Outside an engine, or when the engine
+ * has no `wasm:bridge` service, this throws `GwenContextError` `CORE:OUTSIDE_ENGINE_CONTEXT`.
  */
 export function getWasmBridge(): WasmBridge {
   const engine = engineContext.tryUse();
-  if (engine) {
-    const bridge = engine.tryInject("wasm:bridge");
-    if (bridge) return bridge;
+  const bridge = engine?.tryInject("wasm:bridge");
+  if (!engine || !bridge) {
+    throw new GwenContextError(
+      "[GWEN] getWasmBridge() was called outside an active engine context.",
+      CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
+    );
   }
-  return _getDefaultBridge();
-}
-
-/**
- * Inject a mock `WasmEngine` — **reserved for unit tests only**.
- *
- * Allows the `Engine` to be tested without a real browser or `.wasm` binary.
- * `getLinearMemory()` returns `null` in this mode because `_wasmModule` is
- * left `null` intentionally — sentinel checks and debug views are silently
- * skipped, which is the correct behaviour in a Node.js test environment.
- *
- * @param mock - A `WasmEngine` mock (typically built with `vi.fn()`).
- * @deprecated Use `bridge._injectMock()` on a `WasmBridgeImpl` instance instead.
- */
-export function _injectMockWasmEngine(mock: WasmEngine, maxEntities?: number): void {
-  _getDefaultBridge()._injectMock(mock, maxEntities);
-}
-
-/**
- * Inject mock WASM exports — **reserved for unit tests only**.
- *
- * Allows testing `checkMemoryGrow()` by injecting a fake memory object
- * that can be manipulated to simulate a grow event.
- *
- * @param exports - A mock exports object with optional `memory` property.
- *
- * @example
- * ```typescript
- * const buf1 = new ArrayBuffer(100);
- * const buf2 = new ArrayBuffer(200);
- * const mockMemory = { buffer: buf1 } as unknown as { memory?: WebAssembly.Memory };
- * _injectMockWasmExports({ memory: mockMemory });
- *
- * const bridge = getWasmBridge();
- * bridge.checkMemoryGrow(); // init
- * mockMemory.buffer = buf2; // simulate grow
- * expect(bridge.checkMemoryGrow()).toBe(true);
- * ```
- *
- * @internal
- * @deprecated Use `bridge._injectMockExports()` on a `WasmBridgeImpl` instance instead.
- */
-export function _injectMockWasmExports(exports: { memory?: WebAssembly.Memory }): void {
-  _getDefaultBridge()._injectMockExports(exports);
-}
-
-/**
- * Fully reset the bridge state — **reserved for unit tests only**.
- *
- * Clears `_wasmEngine`, `_wasmExports`, `_initPromise`, and `_lastMemoryBuffer`.
- * Call this in `afterEach` to prevent state leaking between tests.
- * @deprecated Use `bridge._reset()` on a `WasmBridgeImpl` instance instead.
- */
-export function _resetWasmBridge(): void {
-  _getDefaultBridge()._reset();
+  return bridge;
 }
 
 // #endregion

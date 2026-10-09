@@ -86,6 +86,8 @@ watchActorLeaks(actorDefs, {
 | `growthStreak` | `number` | `3` | Observations de croissance consécutives pour déclencher `onLeak` |
 | `onLeak` | `function` | `console.warn` | Appelé quand une fuite est détectée |
 
+Avec plusieurs moteurs : sans l'option `engine`, les compteurs sont lus sur le moteur courant à l'appel (ou sur le seul moteur qui a installé l'acteur). Si aucun moteur n'est courant et qu'un acteur est installé sur deux moteurs ou plus, l'appel lève `GwenContextError`. Si un second moteur installe l'acteur plus tard, chaque tick ignore cet acteur et continue de surveiller les autres. Passez `engine` pour le surveiller.
+
 ### Arrêter le monitoring
 
 `watchActorLeaks` retourne une fonction `stop`. Appelez-la avant le teardown du moteur ou dans un `afterEach` de test :

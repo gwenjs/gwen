@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { Types, computeSchemaLayout } from "../src/schema";
+import { StringPoolManager } from "../src/utils/string-pool";
 
 describe("computeSchemaLayout", () => {
   it("should compute exact byte size and offsets for numeric components", () => {
@@ -43,17 +44,17 @@ describe("computeSchemaLayout", () => {
       isFlying: true,
     };
 
-    const bytesWritten = layout.serialize!(data, view);
+    const bytesWritten = layout.serialize!(data, view, new StringPoolManager());
     expect(bytesWritten).toBe(9); // 4 + 4 + 1
 
-    const deserialized = layout.deserialize!(view);
+    const deserialized = layout.deserialize!(view, new StringPoolManager());
     expect(deserialized.speed).toBeCloseTo(12.5);
     expect(deserialized.maxHp).toBe(100);
     expect(deserialized.isFlying).toBe(true);
 
     // Test reverse bool
-    layout.serialize!({ speed: 0, maxHp: 0, isFlying: false }, view);
-    const deserialized2 = layout.deserialize!(view);
+    layout.serialize!({ speed: 0, maxHp: 0, isFlying: false }, view, new StringPoolManager());
+    const deserialized2 = layout.deserialize!(view, new StringPoolManager());
     expect(deserialized2.isFlying).toBe(false);
   });
 });

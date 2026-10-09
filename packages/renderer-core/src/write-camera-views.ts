@@ -1,7 +1,7 @@
 /**
  * @file writeCameraViews — fill caller-owned RenderView slots from camera state.
  *
- * Non-XR only. XR eyes stay unread until `getCameraStores(engine)` from #59 exists.
+ * Non-XR only. XR eye matrices live in `getCameraStores(engine).matrices`.
  * Matrices are column-major Float32Arrays. `@gwenjs/math` Mat4 is not used here.
  */
 

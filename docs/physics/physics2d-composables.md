@@ -81,8 +81,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   useBoxCollider({ w: 32, h: 48 })
 
   onContact((contact) => {
-    if (contact.relativeVelocity > 50) {
-      console.log('Hit something hard!')
+    if (contact.started) {
+      console.log('Hit', contact.entityB)
     }
   })
 
@@ -183,18 +183,17 @@ Subscribe to collision contact events with `onContact()`:
 
 ```ts
 onContact((contact) => {
+  if (!contact.started) return
   console.log('Entities:', contact.entityA, contact.entityB)
-  console.log('Relative velocity:', contact.relativeVelocity)
-  console.log('Normal:', contact.normalX, contact.normalY)
 })
 ```
 
 The `contact` object has:
 - `entityA` — Entity ID of the first participant
 - `entityB` — Entity ID of the second participant
-- `contactX`, `contactY` — World-space contact point coordinates
-- `normalX`, `normalY` — Contact normal components (unit vector)
-- `relativeVelocity` — Relative impact speed at the contact point (m/s)
+- `started` — `true` when the contact started this frame
+
+The WASM collision record is 20 bytes: four `u32` fields and a flags byte. It has no contact point, normal, or relative velocity. `started` is bit 0 of that flags byte.
 
 ### Sensor Events
 
@@ -285,9 +284,8 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
   let grounded = false
 
   onContact((contact) => {
-    // Simple ground detection: any collision counts as grounded
-    // (In production, check the collision normal for better accuracy)
-    grounded = true
+    // The contact record has no normal. Any contact counts as grounded.
+    if (contact.started) grounded = true
   })
 
   onUpdate(({ input }) => {
@@ -393,7 +391,7 @@ onUpdate(() => {
 
 | Function | Callback Signature | Purpose |
 |---|---|---|
-| `onContact(callback)` | `(contact: ContactEvent) => void` | Fires when this entity collides with another. |
+| `onContact(callback, entityId?)` | `(contact: ContactEvent) => void` | Fires on this engine when this entity collides. Inside an actor the entity is implied. Outside an actor, pass `entityId`. |
 | `onSensorEnter(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity enters a sensor collider. |
 | `onSensorExit(sensorId, callback)` | `(entityId: bigint) => void` | Fires when an entity leaves a sensor collider. |
 
@@ -413,7 +411,7 @@ onUpdate(() => {
 
 ### Types
 
-- `ContactEvent` — `{ entityA: bigint, entityB: bigint, contactX: number, contactY: number, normalX: number, normalY: number, relativeVelocity: number }`
+- `ContactEvent` — `{ entityA: bigint, entityB: bigint, started: boolean }`
 - `BoxColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `CapsuleColliderHandle` — `{ colliderId: number, isSensor: boolean }`
 - `SphereColliderHandle` — `{ colliderId: number, isSensor: boolean }`

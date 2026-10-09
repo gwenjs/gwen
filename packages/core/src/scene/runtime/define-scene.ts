@@ -29,6 +29,7 @@
 import { _withSceneContext } from "./scene-context";
 import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
 import { engineContext } from "../../engine/context";
+import { popEngine, pushEngine } from "../../engine/engine-local";
 import type { SystemHandle } from "./system-handle";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -129,11 +130,11 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
       const enterCb = def.onEnter;
       engine.hooks.hook("scene:enter", async (sceneName, params) => {
         if (sceneName !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await enterCb(params);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       });
     }
@@ -142,11 +143,11 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
       const exitCb = def.onExit;
       engine.hooks.hook("scene:beforeLeave", async (sceneName) => {
         if (sceneName !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await exitCb();
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       });
     }
@@ -155,11 +156,11 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
       const leaveCb = def.onTransitionLeave;
       engine.hooks.hook("scene:transition:leave", async (payload) => {
         if (payload.from !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await leaveCb(payload);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       });
     }
@@ -168,11 +169,11 @@ export function defineScene(name: string, factory: () => void): SceneFactory {
       const enterCb = def.onTransitionEnter;
       engine.hooks.hook("scene:transition:enter", async (payload) => {
         if (payload.to !== name) return;
-        engineContext.set(engine, true);
+        const previous = pushEngine(engine);
         try {
           await enterCb(payload);
         } finally {
-          engineContext.unset();
+          popEngine(engine, previous);
         }
       });
     }

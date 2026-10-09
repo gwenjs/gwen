@@ -102,12 +102,6 @@
       "EVENT_STRIDE_3D",
       "MAX_EVENTS_3D",
       "QUALITY_PRESETS",
-      "_clearBvhCache",
-      "_clearContactCallbacks",
-      "_clearSensorCallbacks",
-      "_dispatchContactEvent",
-      "_dispatchSensorEnter",
-      "_dispatchSensorExit",
       "normalizePhysics3DConfig"
     ],
     "types": []

@@ -1,32 +1,38 @@
 /**
- * @file collider-id.ts — shared auto-incrementing collider ID counter.
+ * @file collider-id.ts — per-engine auto-incrementing collider ID counter.
  *
- * A single module-level counter ensures each collider attached to any entity
- * receives a unique ID, regardless of which composable created it.
+ * Each engine has its own counter. IDs are unique inside that engine.
  */
 
-/** Internal counter. Starts at 0; first issued ID is 1. */
-let _colliderId = 0;
+import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+
+const counters = createEngineLocal(() => ({ next: 0 }));
 
 /**
- * Returns the next unique auto-incremented collider ID.
+ * Returns the next collider ID for the current engine.
  *
  * IDs are monotonically increasing integers starting from 1.
- * Each call advances the counter by 1.
  *
- * @returns A unique collider ID for the current session.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
  */
 export function nextColliderId(): number {
-  return ++_colliderId;
+  const box = counters.use();
+  box.next += 1;
+  return box.next;
 }
 
 /**
- * Reset the collider ID counter back to zero.
+ * Reset the current engine's collider ID counter back to zero.
  *
- * **For testing only.** Call this in `beforeEach` to ensure deterministic IDs.
+ * Outside an engine this is a no-op.
  *
  * @internal
  */
 export function _resetColliderId(): void {
-  _colliderId = 0;
+  try {
+    counters.use().next = 0;
+  } catch (error) {
+    if (error instanceof GwenContextError) return;
+    throw error;
+  }
 }

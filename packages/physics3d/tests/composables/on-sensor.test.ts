@@ -1,15 +1,36 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  createEngine,
+  defineComponent,
+  GwenContextError,
+  Types,
+  type GwenEngine,
+} from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { createRealEngine } from "../../../core/src/testing/create-real-engine.ts";
+import { Physics3DPlugin } from "../../src/plugin/index";
+import "../../src/augment";
 import {
   onSensorEnter,
   onSensorExit,
   _dispatchSensorEnter,
   _dispatchSensorExit,
   _clearSensorCallbacks,
+  clearEngineSensors,
 } from "../../src/composables/on-sensor.js";
 
 describe("onSensorEnter / onSensorExit", () => {
-  beforeEach(() => {
-    _clearSensorCallbacks();
+  let engine: GwenEngine;
+
+  beforeEach(async () => {
+    engine = await createEngine();
+    engine.activate();
+    clearEngineSensors(engine);
+  });
+
+  afterEach(async () => {
+    engine.deactivate();
+    await engine.stop();
   });
 
   it("onSensorEnter callback triggered by _dispatchSensorEnter with matching sensorId", () => {
@@ -80,7 +101,7 @@ describe("onSensorEnter / onSensorExit", () => {
     onSensorEnter(1, () => {
       invoked = true;
     });
-    _clearSensorCallbacks();
+    _clearSensorCallbacks(1);
     _dispatchSensorEnter(1, 0n);
     expect(invoked).toBe(false);
   });
@@ -125,5 +146,99 @@ describe("onSensorEnter / onSensorExit", () => {
     const unregister = onSensorExit(99, () => {});
     unregister();
     expect(() => unregister()).not.toThrow();
+  });
+});
+
+describe("onSensor engine isolation", () => {
+  it("throws OUTSIDE_ENGINE when no engine is current", () => {
+    expect(() => onSensorEnter(1, () => {})).toThrow(GwenContextError);
+  });
+
+  it("clears sensors on one engine only", async () => {
+    const a = await createEngine();
+    const b = await createEngine();
+    try {
+      let hits = 0;
+      a.activate();
+      onSensorEnter(4, () => {
+        hits += 1;
+      });
+      a.deactivate();
+      b.activate();
+      onSensorEnter(4, () => {
+        hits += 100;
+      });
+      clearEngineSensors(b);
+      _dispatchSensorEnter(4, 1n);
+      expect(hits).toBe(0);
+      b.deactivate();
+      a.activate();
+      _dispatchSensorEnter(4, 1n);
+      expect(hits).toBe(1);
+      a.deactivate();
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("drops destroyed entity sensors on A and keeps the same id on B", async () => {
+    const handleA = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const handleB = await createRealEngine({ variant: "physics3d", maxEntities: 32 });
+    const a = handleA.engine;
+    const b = handleB.engine;
+    try {
+      await a.use(Physics3DPlugin());
+      await b.use(Physics3DPlugin());
+      let hitsA = 0;
+      let hitsB = 0;
+      const Tag = defineComponent({ name: "P3SensorOwner", schema: { x: Types.f32 } });
+      const Prefab = definePrefab([{ def: Tag, defaults: { x: 0 } }]);
+      const Actor = defineActor(Prefab, () => {
+        onSensorEnter(7, () => {
+          hitsA += 1;
+        });
+        onSensorExit(7, () => {
+          hitsA += 1;
+        });
+      });
+      await a.use(Actor._plugin);
+      const id = a.run(() => Actor._plugin.spawn());
+      a.run(() => {
+        const physics = a.inject("physics3d");
+        physics.createBody(id, {
+          kind: "static",
+          colliders: [
+            {
+              shape: { type: "box", halfX: 0.5, halfY: 0.5, halfZ: 0.5 },
+              isSensor: true,
+              colliderId: 7,
+            },
+          ],
+        });
+      });
+      b.run(() => {
+        onSensorEnter(7, () => {
+          hitsB += 1;
+        });
+        onSensorExit(7, () => {
+          hitsB += 1;
+        });
+      });
+      a.destroyEntity(id);
+      a.run(() => {
+        _dispatchSensorEnter(7, 1n);
+        _dispatchSensorExit(7, 1n);
+      });
+      b.run(() => {
+        _dispatchSensorEnter(7, 1n);
+        _dispatchSensorExit(7, 1n);
+      });
+      expect(hitsA).toBe(0);
+      expect(hitsB).toBe(2);
+    } finally {
+      await handleA.dispose();
+      await handleB.dispose();
+    }
   });
 });

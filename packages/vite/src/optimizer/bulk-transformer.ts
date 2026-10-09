@@ -17,9 +17,9 @@
  * After (optimized):
  * ```ts
  * const { entityCount: _count_position, data: _position, slots: _slots, gens: _gens } =
- *   __gwen_bridge__.queryReadBulk([1, 2], 1, 2);
+ *   __gwen_bridge__.queryReadBulk([useEngine().getOrRegisterComponent("Position"), useEngine().getOrRegisterComponent("Velocity")], useEngine().getOrRegisterComponent("Position"), 2);
  * const { data: _velocity } =
- *   __gwen_bridge__.queryReadBulk([1, 2], 2, 2);
+ *   __gwen_bridge__.queryReadBulk([useEngine().getOrRegisterComponent("Position"), useEngine().getOrRegisterComponent("Velocity")], useEngine().getOrRegisterComponent("Velocity"), 2);
  * for (let _i = 0; _i < _count_position; _i++) {
  *   _position[_i * 2 + 0] += _velocity[_i * 2 + 0] * dt
  *   _position[_i * 2 + 1] += _velocity[_i * 2 + 1] * dt
@@ -31,7 +31,7 @@
 import MagicString from "magic-string";
 import type { ComponentManifest } from "./component-manifest.js";
 import type { OptimizablePattern, WasmTier } from "./types.js";
-import { CodeGenerator } from "./code-generator.js";
+import { CodeGenerator, componentIdExpr } from "./code-generator.js";
 
 /**
  * Applies the Phase 2 bulk WASM transformation to a single `OptimizablePattern`
@@ -137,9 +137,9 @@ export function applyBulkTransform(
       readLines.push(gen.generateBulkRead(pattern.queryComponents, comp) + ";");
       isFirst = false;
     } else {
-      const typeIds = pattern.queryComponents.map((n) => manifest.get(n)!.typeId);
+      const typeIds = pattern.queryComponents.map((n) => componentIdExpr(n));
       readLines.push(
-        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${componentIdExpr(comp)}, ${entry.f32Stride});`,
       );
     }
   }
@@ -151,15 +151,15 @@ export function applyBulkTransform(
     const entry = manifest.get(comp);
     if (!entry) continue;
     const dataVar = compToDataVar.get(comp)!;
-    const typeIds = pattern.queryComponents.map((n) => manifest.get(n)!.typeId);
+    const typeIds = pattern.queryComponents.map((n) => componentIdExpr(n));
     if (isFirst) {
       readLines.push(
-        `const { entityCount: ${countVar}, data: ${dataVar}, slots: _slots, gens: _gens } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { entityCount: ${countVar}, data: ${dataVar}, slots: _slots, gens: _gens } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${componentIdExpr(comp)}, ${entry.f32Stride});`,
       );
       isFirst = false;
     } else {
       readLines.push(
-        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${entry.typeId}, ${entry.f32Stride});`,
+        `const { data: ${dataVar} } = __gwen_bridge__.queryReadBulk([${typeIds.join(", ")}], ${componentIdExpr(comp)}, ${entry.f32Stride});`,
       );
     }
   }

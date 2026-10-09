@@ -1,7 +1,7 @@
 /**
  * Tests for Physics3DAPI.bulkSpawnStaticBoxes — local and WASM modes.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 
 // ── WASM bridge mock (physics3d variant, with bulk spawn) ─────────────────────
@@ -36,10 +36,23 @@ vi.mock("@gwenjs/core", () => ({
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
   entityIndex: (id: bigint) => Number(id & 0xffffffffn),
+  createEngineLocal,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
 }));
 
+import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
+import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
+import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine, EntityId } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 function makeEngine() {
   const services = new Map<string, unknown>();
@@ -59,6 +72,7 @@ function makeEngine() {
     getComponent: vi.fn(),
     isAlive: () => true,
     wasmBridge: null,
+    disposables: { add() {} },
     // createEntity returns stable bigint IDs
     createEntity: vi.fn(() => {
       const idx = entityCounter++;
@@ -81,6 +95,7 @@ describe("bulkSpawnStaticBoxes — local mode (no bulk WASM call)", () => {
       physics3d_step: physics3dStep,
       // NO physics3d_add_body → local mode
     });
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     return { service, engine };
@@ -170,6 +185,7 @@ describe("bulkSpawnStaticBoxes — WASM mode", () => {
       physics3d_bulk_spawn_static_boxes: physics3dBulkSpawnStaticBoxes,
     });
     const plugin = Physics3DPlugin();
+    engineContext.set(engine, true);
     plugin.setup(engine);
     const service = services.get("physics3d") as Physics3DAPI;
     return { service, engine };

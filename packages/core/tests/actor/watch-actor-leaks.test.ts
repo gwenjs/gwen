@@ -210,20 +210,26 @@ describe("watchActorLeaks — hook-based mode", () => {
 
   it("auto-stops the afterTick hook when engine stops — no need to call stop()", async () => {
     const engine = await createEngine();
+    const other = await createEngine();
     const Position = stubComponent("Position");
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
+    await other.use(Actor._plugin);
 
     const onLeak = vi.fn();
     // Intentionally discard the stop function — simulates a fire-and-forget call.
     watchActorLeaks([Actor], { engine, growthStreak: 1, onLeak });
 
-    await engine.stop(); // engine:stop must auto-remove the afterTick hook
+    try {
+      await engine.stop(); // engine:stop must auto-remove the afterTick hook
 
-    // Manually fire afterTick on the stopped engine — the hook must be gone.
-    Actor._plugin.spawn?.();
-    engine.hooks.callHook("engine:afterTick", 1);
-    expect(onLeak).not.toHaveBeenCalled();
+      // A stopped engine is not a spawn target. Grow the count on the live one.
+      Actor._plugin.spawn();
+      engine.hooks.callHook("engine:afterTick", 1);
+      expect(onLeak).not.toHaveBeenCalled();
+    } finally {
+      await other.stop();
+    }
   });
 });

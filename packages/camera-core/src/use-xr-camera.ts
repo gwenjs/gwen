@@ -1,9 +1,8 @@
 // packages/camera-core/src/use-xr-camera.ts
-import { onCleanup } from "@gwenjs/core";
+import { onCleanup, useEngine } from "@gwenjs/core";
 import { useEntityId, useComponent } from "@gwenjs/core/actor";
 import { Camera } from "./components";
-import { cameraViewportMap } from "./camera-viewport-map";
-import { cameraMatrixStore } from "./camera-matrix-store";
+import { getCameraStores } from "./camera-stores";
 import type { XRCameraHandle, XRViewData } from "./xr-camera-handle";
 
 /** Options accepted by {@link useXRCamera}. */
@@ -44,13 +43,14 @@ export function useXRCamera(opts: XRCameraOpts = {}): XRCameraHandle {
   const entityId = useEntityId();
   const camComp = useComponent(Camera);
 
+  const stores = getCameraStores(useEngine());
   let currentViewport = opts.viewport ?? "main";
   let lastViews: XRViewData[] | undefined;
 
-  cameraViewportMap.set(entityId, currentViewport);
+  stores.viewports.set(entityId, currentViewport);
   onCleanup(() => {
-    cameraViewportMap.delete(entityId);
-    cameraMatrixStore.delete(entityId);
+    stores.viewports.delete(entityId);
+    stores.matrices.delete(entityId);
   });
 
   camComp.$set({
@@ -61,7 +61,7 @@ export function useXRCamera(opts: XRCameraOpts = {}): XRCameraHandle {
   return {
     setViewport(id: string): void {
       currentViewport = id;
-      cameraViewportMap.set(entityId, id);
+      stores.viewports.set(entityId, id);
     },
     getViewport(): string {
       return currentViewport;
@@ -87,7 +87,7 @@ export function useXRCamera(opts: XRCameraOpts = {}): XRCameraHandle {
     },
     _setViews(views: XRViewData[]): void {
       lastViews = views;
-      cameraMatrixStore.set(entityId, views);
+      stores.matrices.set(entityId, views);
     },
   };
 }

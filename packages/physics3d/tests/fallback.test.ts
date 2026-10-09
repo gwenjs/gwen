@@ -6,7 +6,7 @@
  * linear/angular damping, gravity integration, quaternion rotation, applyTorque,
  * and setAngularVelocity. No WASM module is required.
  */
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 // ─── Mock WASM bridge in local (non-physics3d) fallback mode ───────────────────
 // Omitting `physics3d_add_body` forces the plugin into local simulation mode.
@@ -39,10 +39,23 @@ vi.mock("@gwenjs/core", () => ({
   createEntityId: (index: number, generation: number) =>
     BigInt(index) | (BigInt(generation) << 32n),
   entityIndex: (id: bigint) => Number(id & 0xffffffffn),
+  createEngineLocal,
+  useEngine,
+  GwenContextError,
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
 }));
 
+import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
+import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
+import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI, type Physics3DConfig } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
+import { engineContext } from "@gwenjs/core/internal";
+
+afterEach(() => {
+  engineContext.unset();
+});
 
 // ─── Test factory ─────────────────────────────────────────────────────────────
 
@@ -68,6 +81,7 @@ function makeEngine() {
     getComponent: vi.fn(),
     isAlive: () => true,
     wasmBridge: null,
+    disposables: { add() {} },
   } as unknown as GwenEngine;
 
   return { engine, services, hookMap, callHook };
@@ -80,6 +94,7 @@ function makeEngine() {
 function setup(config?: Physics3DConfig) {
   const plugin = Physics3DPlugin(config);
   const { engine, services, hookMap, callHook } = makeEngine();
+  engineContext.set(engine, true);
   plugin.setup(engine);
   const service = services.get("physics3d") as Physics3DAPI;
   return { plugin, service, engine, hookMap, callHook };

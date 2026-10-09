@@ -1,5 +1,6 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
-import { getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
+import { engineContext, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
+import { createEngineLocal, useEngine } from "@gwenjs/core";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 
 import type {
@@ -18,11 +19,12 @@ import {
   _dispatchSensorEnter,
   _dispatchSensorExit,
   _clearSensorCallbacks,
+  clearEngineSensors,
 } from "../composables/on-sensor";
 
 import type { Physics3DBridgeRuntime } from "./bridge";
 import { clearOwnerChanges, entitySlot, guardOwned, ownerEntityId } from "./entity-owner";
-import { createPluginContext } from "./plugin-context";
+import { createPluginContext, type PluginContext } from "./plugin-context";
 
 // ─── Sub-module imports ────────────────────────────────────────────────────────
 
@@ -78,9 +80,59 @@ import { Physics3DErrorCodes } from "../errors/codes";
  * physics3d variant is not loaded (e.g. during tests).
  */
 export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
-  const cfg = normalizePhysics3DConfig(config);
-  const layerRegistry = buildLayerRegistry(cfg.layers);
-  const ctx = createPluginContext(cfg, layerRegistry);
+  const contexts = createEngineLocal(() => {
+    const cfg = normalizePhysics3DConfig(config);
+    const layerRegistry = buildLayerRegistry(cfg.layers);
+    return createPluginContext(cfg, layerRegistry);
+  });
+  // Weak: this plugin object may outlive the engines it was installed on.
+  let cachedEngine: WeakRef<GwenEngine> | null = null;
+  let cachedContext: WeakRef<PluginContext> | null = null;
+  function contextNow(): PluginContext {
+    const current = engineContext.tryUse() ?? null;
+    const hit = cachedContext?.deref();
+    if (hit && current !== null && current === cachedEngine?.deref()) return hit;
+    const next = contexts.use();
+    const owner = engineContext.tryUse() ?? null;
+    cachedContext = new WeakRef(next);
+    cachedEngine = owner ? new WeakRef(owner) : null;
+    return next;
+  }
+  const ctx = new Proxy({} as PluginContext, {
+    get(_target, prop) {
+      return Reflect.get(contextNow(), prop);
+    },
+    set(_target, prop, value) {
+      return Reflect.set(contextNow(), prop, value);
+    },
+  });
+
+  /** Service calls keep this engine current, even when the caller is outside `run`. */
+  function bindToEngine<T extends object>(engine: GwenEngine, api: T): T {
+    const bound = new Map<PropertyKey, unknown>();
+    return new Proxy(api, {
+      get(target, prop, receiver) {
+        const hit = bound.get(prop);
+        if (hit !== undefined) return hit;
+        const value: unknown = Reflect.get(target, prop, receiver);
+        if (typeof value !== "function") return value;
+        const fn = (...args: unknown[]): unknown => {
+          const previous = engineContext.tryUse() ?? undefined;
+          engineContext.set(engine, true);
+          try {
+            return Reflect.apply(value as (...inner: unknown[]) => unknown, target, args);
+          } finally {
+            if (engineContext.tryUse() === engine) {
+              if (previous !== undefined) engineContext.set(previous, true);
+              else engineContext.unset();
+            }
+          }
+        };
+        bound.set(prop, fn);
+        return fn;
+      },
+    });
+  }
 
   // ─── Build bound API methods from sub-modules ──────────────────────────────
 
@@ -222,7 +274,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     name: "@gwenjs/physics3d",
 
     setup(engine: GwenEngine): void {
-      ctx._engine = engine;
+      ctx._engine = useEngine();
       ctx.log = engine.logger?.child("@gwenjs/physics3d") ?? ctx.log;
       // boundary: WASM bridge runtime is wider than the public GwenWasmModules handle.
       const bridge = getWasmBridge() as unknown as Physics3DBridgeRuntime;
@@ -246,14 +298,19 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         );
       }
 
-      pb.physics3d_init(cfg.gravity.x, cfg.gravity.y, cfg.gravity.z, cfg.maxEntities);
+      pb.physics3d_init(
+        ctx.cfg.gravity.x,
+        ctx.cfg.gravity.y,
+        ctx.cfg.gravity.z,
+        ctx.cfg.maxEntities,
+      );
 
       if (typeof pb.physics3d_set_quality === "function") {
-        pb.physics3d_set_quality(QUALITY_PRESETS[cfg.qualityPreset]);
+        pb.physics3d_set_quality(QUALITY_PRESETS[ctx.cfg.qualityPreset]);
       }
 
       if (typeof pb.physics3d_set_event_coalescing === "function") {
-        pb.physics3d_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
+        pb.physics3d_set_event_coalescing(ctx.cfg.coalesceEvents ? 1 : 0);
       }
 
       ctx.stepFn = typeof pb.physics3d_step === "function" ? pb.physics3d_step.bind(pb) : null;
@@ -301,6 +358,11 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (owner !== undefined && owner !== entityId) return;
         ctx.entityCollisionCallbacks.delete(slot);
         ctx.localSensorStates.delete(slot);
+        const dyingSensors = ctx.activeSensors.get(slot);
+        if (dyingSensors) {
+          for (const sensorId of dyingSensors) _clearSensorCallbacks(entityId, sensorId);
+        }
+        ctx.activeSensors.delete(slot);
         if (owner === entityId) _removeBody(entityId);
       });
 
@@ -405,10 +467,10 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         }
       });
 
-      engine.provide("physics3d", service);
+      engine.provide("physics3d", bindToEngine(useEngine(), service));
 
-      if (cfg.debug) {
-        ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${cfg.qualityPreset}`);
+      if (ctx.cfg.debug) {
+        ctx.log.debug(`Initialized. Backend=${ctx.backendMode} quality=${ctx.cfg.qualityPreset}`);
       }
     },
 
@@ -431,7 +493,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       }
       ctx.ready = false;
       _clearContactCallbacks();
-      _clearSensorCallbacks();
+      clearEngineSensors(useEngine());
       ctx.stepFn = null;
       ctx.backendMode = "local";
       ctx.wasmBridge = null;
@@ -447,12 +509,16 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       ctx.stateByEntity.clear();
       ctx.localColliders.clear();
       ctx.localSensorStates.clear();
+      ctx.activeSensors.clear();
       ctx.entityCollisionCallbacks.clear();
       ctx.currentFrameContacts = [];
       ctx.lastFrameEventCount = 0;
       ctx.pooledEvents.length = 0;
       ctx.previousLocalContactKeys.clear();
       ctx.ownerChangedSinceStep.clear();
+      // Drop the per-call cache: the next call resolves the engine again.
+      cachedEngine = null;
+      cachedContext = null;
     },
   };
 });

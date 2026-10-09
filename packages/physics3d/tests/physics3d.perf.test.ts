@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { createEngine } from "@gwenjs/core";
 import { ciThreshold } from "./helpers/perf";
 
 // ─── Mocks for dynamic body perf test ─────────────────────────────────────
@@ -56,25 +57,34 @@ describe("physics3d performance", () => {
     expect(elapsed).toBeLessThan(ciThreshold(20));
   });
 
-  it("500 onContact dispatches per frame < 1ms", () => {
-    _clearContactCallbacks();
-    const cb = vi.fn();
-    onContact(cb);
+  it("500 onContact dispatches per frame < 1ms", async () => {
+    const engine = await createEngine();
+    engine.activate();
+    try {
+      _clearContactCallbacks();
+      let calls = 0;
+      onContact(() => {
+        calls += 1;
+      });
 
-    const event: Physics3DCollisionContact = {
-      entityA: 1n,
-      entityB: 2n,
-      started: true,
-    };
+      const event: Physics3DCollisionContact = {
+        entityA: 1n,
+        entityB: 2n,
+        started: true,
+      };
 
-    const start = performance.now();
-    for (let i = 0; i < 500; i++) {
-      _dispatchContactEvent(event);
+      const start = performance.now();
+      for (let i = 0; i < 500; i++) {
+        _dispatchContactEvent(event);
+      }
+      const elapsed = performance.now() - start;
+
+      expect(elapsed).toBeLessThan(ciThreshold(1));
+      expect(calls).toBe(500);
+      _clearContactCallbacks();
+    } finally {
+      engine.deactivate();
+      await engine.stop();
     }
-    const elapsed = performance.now() - start;
-
-    expect(elapsed).toBeLessThan(ciThreshold(1));
-    expect(cb).toHaveBeenCalledTimes(500);
-    _clearContactCallbacks();
   });
 });

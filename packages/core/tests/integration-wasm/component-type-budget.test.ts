@@ -26,9 +26,10 @@ describe("component type budget", () => {
       const entity = handle.bridge.createEntity();
       const bytes = new Uint8Array([1, 0, 0, 0]);
       for (const def of defs) {
-        expect(
-          handle.bridge.addComponent(entity.index, entity.generation, def._typeId, bytes),
-        ).toBe(true);
+        const typeId = handle.engine.getOrRegisterComponent(def.name);
+        expect(handle.bridge.addComponent(entity.index, entity.generation, typeId, bytes)).toBe(
+          true,
+        );
       }
       expect(
         handle.bridge.addComponent(entity.index, entity.generation, TRANSFORM_TYPE_ID, bytes),

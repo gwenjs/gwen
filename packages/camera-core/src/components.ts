@@ -4,7 +4,7 @@
  *
  * All SoA arrays are indexed by EntityId.
  * String data (viewportId) and object data (CameraPathData) live in separate
- * Maps — see camera-viewport-map.ts and camera-path-store.ts.
+ * Maps — see `getCameraStores` in camera-stores.ts.
  */
 
 import { defineComponent, Types } from "@gwenjs/core";
@@ -15,7 +15,7 @@ import { defineComponent, Types } from "@gwenjs/core";
  * projectionType: 0 = orthographic, 1 = perspective
  * active: 0 = inactive, 1 = active
  *
- * The `viewportId` string is stored in `cameraViewportMap` (camera-viewport-map.ts),
+ * The `viewportId` string is stored in `getCameraStores(engine).viewports`,
  * not here — strings cannot live in SoA buffers.
  */
 export const Camera = defineComponent({
@@ -89,9 +89,8 @@ export const CameraShake = defineComponent({
 });
 
 /**
- * Path-following behaviour. The actual waypoints and options are stored in
- * `cameraPathStore` (camera-path-store.ts). This component tracks position
- * in the path.
+ * Path-following behaviour. The waypoints and options are stored in
+ * `getCameraStores(engine).paths`. This component tracks position in the path.
  *
  * Mutually exclusive with `FollowTarget`.
  */

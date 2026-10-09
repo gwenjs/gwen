@@ -6,7 +6,7 @@
 
 use crate::ecs::storage::ArchetypeStorage;
 use crate::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
-use crate::physics2d::events::{clear_collision_events, push_collision_event, PhysicsCollisionEvent as StaticCollisionEvent};
+use crate::physics2d::events::{CollisionEventBuffer, PhysicsCollisionEvent as StaticCollisionEvent};
 use rapier2d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -85,7 +85,17 @@ fn unpack_collider_user_data(user_data: u128) -> (u32, Option<u32>) {
 
 // ─── Event collector ─────────────────────────────────────────────────────────
 
-struct EventCollector;
+/// Pointer valid only for the synchronous `step` on this thread.
+struct CollisionBufPtr(*mut CollisionEventBuffer);
+
+// SAFETY: Rapier invokes the handler on the thread that called `step`.
+// The pointer is dropped before `step` returns and is not shared.
+unsafe impl Send for CollisionBufPtr {}
+unsafe impl Sync for CollisionBufPtr {}
+
+struct EventCollector {
+    buf: CollisionBufPtr,
+}
 
 impl EventHandler for EventCollector {
     fn handle_collision_event(
@@ -108,13 +118,18 @@ impl EventHandler for EventCollector {
             return;
         }
 
-        push_collision_event(StaticCollisionEvent {
-            entity_a: ea,
-            entity_b: eb,
-            collider_a_id: ca.unwrap_or(u32::MAX),
-            collider_b_id: cb.unwrap_or(u32::MAX),
-            flags: if event.started() { 1 } else { 0 },
-        });
+        let collider_a_id = ca.unwrap_or(u32::MAX);
+        let collider_b_id = cb.unwrap_or(u32::MAX);
+        // SAFETY: `buf` points at this world's buffer and is exclusive for the step.
+        unsafe {
+            (*self.buf.0).push(StaticCollisionEvent {
+                entity_a: ea,
+                entity_b: eb,
+                collider_a_id,
+                collider_b_id,
+                flags: if event.started() { 1 } else { 0 },
+            });
+        }
     }
 
     fn handle_contact_force_event(
@@ -152,6 +167,7 @@ pub struct PhysicsWorld {
     quality_preset: PhysicsQualityPreset,
     global_ccd_enabled: bool,
     pub one_way_colliders: HashSet<ColliderHandle>,
+    collision_events: CollisionEventBuffer,
 }
 
 struct OneWayHooks<'a> {
@@ -193,6 +209,7 @@ impl PhysicsWorld {
             quality_preset: PhysicsQualityPreset::Medium,
             global_ccd_enabled: false,
             one_way_colliders: HashSet::new(),
+            collision_events: CollisionEventBuffer::new(),
         };
         world.set_quality_preset(PhysicsQualityPreset::Medium);
         world
@@ -573,10 +590,19 @@ impl PhysicsWorld {
         }
     }
 
+    pub fn collision_events_ptr(&self) -> *const StaticCollisionEvent {
+        self.collision_events.as_ptr()
+    }
+
+    pub fn collision_event_count(&self) -> u32 {
+        self.collision_events.len() as u32
+    }
+
     /// Advances the simulation by `delta` seconds.
     pub fn step(&mut self, delta: f32) {
         self.integration_params.dt = delta;
-        clear_collision_events();
+        self.collision_events.clear();
+        let buf = CollisionBufPtr(std::ptr::addr_of_mut!(self.collision_events));
 
         self.pipeline.step(
             &self.gravity,
@@ -591,7 +617,7 @@ impl PhysicsWorld {
             &mut self.ccd_solver,
             Some(&mut self.query_pipeline),
             &OneWayHooks { set: &self.one_way_colliders },
-            &EventCollector,
+            &EventCollector { buf },
         );
     }
 
@@ -794,5 +820,29 @@ mod tests {
         // position = v * dt = (1.0, 0.5), allow some solver tolerance
         assert!(x > 0.5, "expected x > 0.5, got {x}");
         assert!(y > 0.2, "expected y > 0.2, got {y}");
+    }
+}
+
+#[cfg(test)]
+mod multi_engine_collision {
+    use super::*;
+
+    #[test]
+    fn two_engines_keep_separate_collision_buffers() {
+        let mut a = PhysicsWorld::new(0.0, 0.0);
+        let mut b = PhysicsWorld::new(0.0, 0.0);
+        let ha = a.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        a.add_box_collider(ha, 0.5, 0.5, ColliderOptions::default());
+        let hb = a.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default());
+        a.add_box_collider(hb, 0.5, 0.5, ColliderOptions::default());
+        let hc = b.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        b.add_box_collider(hc, 0.5, 0.5, ColliderOptions::default());
+        let hd = b.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        b.add_box_collider(hd, 0.5, 0.5, ColliderOptions::default());
+        a.step(1.0 / 60.0);
+        b.step(1.0 / 60.0);
+        assert_eq!(a.collision_events_ptr() == b.collision_events_ptr(), false);
+        assert_eq!(b.collision_event_count(), 0);
+        assert_eq!(a.collision_event_count() > 0, true);
     }
 }

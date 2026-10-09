@@ -24,8 +24,7 @@ import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
 import type { CameraState } from "@gwenjs/renderer-core";
 import { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components.js";
-import { cameraViewportMap } from "./camera-viewport-map.js";
-import { cameraPathStore } from "./camera-path-store.js";
+import { getCameraStores } from "./camera-stores.js";
 
 // Noise function for shake offset — simple deterministic pseudo-random based on trauma
 function shakeOffset(trauma: number, seed: number): number {
@@ -34,6 +33,7 @@ function shakeOffset(trauma: number, seed: number): number {
 
 export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem", () => {
   const engine = useEngine();
+  const cameraStores = getCameraStores(engine);
   const cameras = useCameraManager();
   const _viewports = useViewportManager();
 
@@ -56,7 +56,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
       if (!cam || cam.active !== 1) continue;
       if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
 
-      const viewportId = cameraViewportMap.get(id);
+      const viewportId = cameraStores.viewports.get(id);
       if (!viewportId) continue;
 
       let x = cam.x;
@@ -66,7 +66,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
       // ── Step 1: base position ──────────────────────────────────────────────
 
       const hasFollow = engine.hasComponent(id, FollowTarget);
-      const hasPath = cameraPathStore.has(id) && engine.hasComponent(id, CameraPath);
+      const hasPath = cameraStores.paths.has(id) && engine.hasComponent(id, CameraPath);
 
       if (hasFollow) {
         const follow = engine.getComponent(id, FollowTarget)!;
@@ -82,7 +82,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
           engine.addComponent(id, Camera, { ...cam, x, y, z });
         }
       } else if (hasPath) {
-        const pathData = cameraPathStore.get(id)!;
+        const pathData = cameraStores.paths.get(id)!;
         const pathComp = engine.getComponent(id, CameraPath);
         if (!pathComp) continue;
         const wp = pathData.waypoints[pathComp.index as number];
@@ -105,7 +105,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
               pathData.opts.onWaypoint?.(nextIndex - 1);
             } else {
               pathData.opts.onComplete?.();
-              cameraPathStore.delete(id);
+              cameraStores.paths.delete(id);
               engine.removeComponent(id, CameraPath);
             }
           } else {
@@ -191,7 +191,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
       const cam = engine.getComponent(id, Camera);
       if (!cam || cam.active !== 1) continue;
       if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
-      const viewportId = cameraViewportMap.get(id);
+      const viewportId = cameraStores.viewports.get(id);
       if (!viewportId) continue;
       if (!cameras.get(viewportId)) continue;
       const existing = currentActivePerViewport.get(viewportId);

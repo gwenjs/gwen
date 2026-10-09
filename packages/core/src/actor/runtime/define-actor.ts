@@ -30,7 +30,9 @@
  * ```
  */
 
-import { useEngine } from "../../engine/context.js";
+import { engineContext, GwenContextError, useEngine } from "../../engine/context.js";
+import { unwrapEngine } from "../../engine/engine-local.js";
+import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/gwen-engine";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
@@ -46,7 +48,7 @@ import type {
 } from "./types";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { ScopedHookable } from "../../hooks/scoped-hookable";
-import { engineContext } from "../../engine/context";
+import { createEngineLocal, popEngine, pushEngine } from "../../engine/engine-local";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenScope } from "../../context/scope.js";
 
@@ -80,34 +82,118 @@ const _actorCtx = new ContextSlot<ActorContext>();
  */
 const _actorScopes = new WeakMap<ActorInstance<unknown>, GwenScope>();
 
-/**
- * Maps every live entity ID to its actor plugin.
- * Used by `useChildren()` to cascade `despawn()` without knowing the actor type.
- * @internal
- */
-export const _actorRegistry = new Map<EntityId, ActorPlugin<unknown>>();
+export interface ActorTables {
+  actors: Map<EntityId, ActorPlugin<unknown>>;
+  instances: Map<EntityId, ActorInstance<unknown>>;
+  owners: Map<EntityId, EntityId>;
+  poolRelease: Map<EntityId, (id: EntityId) => void>;
+}
+
+const actorTables = createEngineLocal<ActorTables>(() => ({
+  actors: new Map(),
+  instances: new Map(),
+  owners: new Map(),
+  poolRelease: new Map(),
+}));
+
+/** Actor lookup tables for one engine. Entity ids are not unique across engines. */
+export function actorTablesFor(engine: GwenEngine): ActorTables {
+  return actorTables.get(engine);
+}
 
 /**
- * Maps every live entity ID to its `ActorInstance`.
- * Used by `useChildren()` to update `_children` when ownership is transferred.
- * @internal
+ * `ActorDefinition._instances` view.
+ * Each engine has its own bucket. The same entity id on two engines does not collide.
  */
-export const _instanceRegistry = new Map<EntityId, ActorInstance<unknown>>();
+class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
+  constructor(
+    private readonly buckets: WeakMap<GwenEngine, Map<EntityId, ActorInstance<API>>>,
+    private readonly engines: Set<GwenEngine>,
+  ) {
+    super();
+  }
 
-/**
- * Maps a child entity ID to its current owner's entity ID.
- * Used to clean up `_children` when a child is directly despawned.
- * @internal
- */
-export const _ownerRegistry = new Map<EntityId, EntityId>();
+  /**
+   * Current engine only. One installed engine is used when none is current.
+   *
+   * @throws {GwenContextError} When no engine is current and the actor is
+   *   installed on two or more engines: the read would have no owner.
+   */
+  private bucket(): Map<EntityId, ActorInstance<API>> | undefined {
+    const current = engineContext.tryUse();
+    if (current) return this.buckets.get(unwrapEngine(current));
+    if (this.engines.size > 1) {
+      throw new GwenContextError(
+        "[GWEN] An actor installed on several engines was read with no engine current.\n" +
+          "  Fix: read it inside engine.run(), or through a useActor() handle.\n" +
+          "  A useActor() handle's count() and getAll() follow this rule too: call them inside engine.run().",
+      );
+    }
+    for (const engine of this.engines) return this.buckets.get(engine);
+    return undefined;
+  }
 
-/**
- * Maps a pooled entity ID to the pool's `release` function.
- * Populated by `define-actor-pool.ts` on slot creation.
- * Used in `_doRelease()` to release pooled children instead of despawning them.
- * @internal
- */
-export const _poolReleaseRegistry = new Map<EntityId, (id: EntityId) => void>();
+  private lookup(id: EntityId): ActorInstance<API> | undefined {
+    return this.bucket()?.get(id);
+  }
+
+  override get(id: EntityId): ActorInstance<API> | undefined {
+    return this.lookup(id);
+  }
+
+  override has(id: EntityId): boolean {
+    return this.lookup(id) !== undefined;
+  }
+
+  override get size(): number {
+    return this.bucket()?.size ?? 0;
+  }
+
+  override delete(id: EntityId): boolean {
+    return this.bucket()?.delete(id) ?? false;
+  }
+
+  override set(id: EntityId, value: ActorInstance<API>): this {
+    this.bucket()?.set(id, value);
+    return this;
+  }
+
+  override clear(): void {
+    this.bucket()?.clear();
+  }
+
+  override forEach(
+    callback: (
+      value: ActorInstance<API>,
+      key: EntityId,
+      map: Map<EntityId, ActorInstance<API>>,
+    ) => void,
+    thisArg?: unknown,
+  ): void {
+    const bucket = this.bucket();
+    if (!bucket) return;
+    for (const [key, value] of bucket) callback.call(thisArg, value, key, this);
+  }
+
+  override [Symbol.iterator](): MapIterator<[EntityId, ActorInstance<API>]> {
+    return this.entries();
+  }
+
+  override *keys(): MapIterator<EntityId> {
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.keys();
+  }
+
+  override *values(): MapIterator<ActorInstance<API>> {
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.values();
+  }
+
+  override *entries(): MapIterator<[EntityId, ActorInstance<API>]> {
+    const bucket = this.bucket();
+    if (bucket) yield* bucket.entries();
+  }
+}
 
 // ─── Actor context helpers ────────────────────────────────────────────────────
 
@@ -498,31 +584,63 @@ export function defineActor<Props, PublicAPI>(
     factory = prefabOrFactory as ActorFactory<Props, PublicAPI>;
     options = factoryOrOptions as DefineActorOptions<Props, PublicAPI> | undefined;
   }
-  const _instances = new Map<EntityId, ActorInstance<PublicAPI>>();
+  const _buckets = new WeakMap<GwenEngine, Map<EntityId, ActorInstance<PublicAPI>>>();
+  const _engines = new Set<GwenEngine>();
+  const _instances = new DefinitionInstances<PublicAPI>(_buckets, _engines);
 
-  /** Real engine. The `setup` argument is a hooks proxy, and isolation is keyed on this object. */
-  let _engine: GwenEngine | null = null;
+  function bucketFor(engine: GwenEngine): Map<EntityId, ActorInstance<PublicAPI>> {
+    const existing = _buckets.get(engine);
+    if (existing) return existing;
+    const created = new Map<EntityId, ActorInstance<PublicAPI>>();
+    _buckets.set(engine, created);
+    return created;
+  }
+
+  function resolveEngine(): GwenEngine {
+    const current = engineContext.tryUse();
+    if (current) {
+      const real = unwrapEngine(current);
+      if (_engines.has(real)) return real;
+    } else if (_engines.size === 1) {
+      for (const only of _engines) return only;
+    }
+    throw new GwenActorError(
+      ActorErrorCodes.PLUGIN_NOT_READY,
+      "[GWEN] Actor.spawn() was called before the actor plugin was installed.\n" +
+        "  Code: ACTOR:PLUGIN_NOT_READY\n\n" +
+        "  Possible causes:\n" +
+        "  1. spawn() was called directly inside a defineScene() factory body.\n" +
+        "     Fix: wrap the call in onEnter(() => actor.spawnOnce(...)).\n" +
+        "  2. spawn() was called from a system (e.g. SpawnSystem.onUpdate), but the\n" +
+        "     actor was only declared inside defineSystem() — not in the scene factory.\n" +
+        "     Fix: also call useActor(MyActor) inside the defineScene() factory that\n" +
+        "     includes the system, so the plugin is auto-installed at bootstrap.\n" +
+        "  3. The same actor is installed on more than one engine.\n" +
+        "     Fix: call spawn() inside engine.run() so the engine is current.\n" +
+        "  4. The current engine does not have this actor installed.\n" +
+        "     Fix: install it on that engine, or spawn inside the run() of the engine that has it.",
+    );
+  }
+
+  function engineOwning(entityId: EntityId): GwenEngine | null {
+    const current = engineContext.tryUse();
+    if (current) {
+      const real = unwrapEngine(current);
+      return _buckets.get(real)?.has(entityId) ? real : null;
+    }
+    if (_engines.size !== 1) return null;
+    for (const engine of _engines) {
+      if (_buckets.get(engine)?.has(entityId)) return engine;
+    }
+    return null;
+  }
   /** Logger scoped to this actor — set in `setup()`, used for cleanup error reporting. */
   let _log: IGwenLogger | null = null;
 
   // ─── spawn ───────────────────────────────────────────────────────────────
 
   function spawn(props?: Props): EntityId {
-    const engine = _engine;
-    if (!engine) {
-      throw new GwenActorError(
-        ActorErrorCodes.PLUGIN_NOT_READY,
-        "[GWEN] Actor.spawn() was called before the actor plugin was installed.\n" +
-          "  Code: ACTOR:PLUGIN_NOT_READY\n\n" +
-          "  Possible causes:\n" +
-          "  1. spawn() was called directly inside a defineScene() factory body.\n" +
-          "     Fix: wrap the call in onEnter(() => actor.spawnOnce(...)).\n" +
-          "  2. spawn() was called from a system (e.g. SpawnSystem.onUpdate), but the\n" +
-          "     actor was only declared inside defineSystem() — not in the scene factory.\n" +
-          "     Fix: also call useActor(MyActor) inside the defineScene() factory that\n" +
-          "     includes the system, so the plugin is auto-installed at bootstrap.",
-      );
-    }
+    const engine = resolveEngine();
 
     // 1. Create the ECS entity.
     const entityId = engine.createEntity();
@@ -561,36 +679,32 @@ export function defineActor<Props, PublicAPI>(
     );
     _actorScopes.set(instance, actorScope);
 
-    // 5. Run the factory inside the actor context, scope slot, and GwenScope.
-    //    Also activate the engine context so that composables like useHook()
-    //    that call useEngine() work even when spawn() is called outside engine.run().
-    //    Only set/unset the engine context when it is not already active — we must
-    //    not clobber an outer engine.run() context.
+    // 5. Run the factory with this actor's engine current, even when another
+    //    engine is already current. Restore that engine afterwards.
     let api: PublicAPI | undefined;
-    _actorCtx.run({ entityId: instance.entityId, instance, engine }, () => {
-      const needsEngineCtx = !engineContext.tryUse();
-      if (needsEngineCtx) engineContext.set(engine);
-      try {
+    const previousEngine = pushEngine(engine);
+    try {
+      _actorCtx.run({ entityId: instance.entityId, instance, engine }, () => {
         actorScope.run(() => {
           api = (factory as (props?: Props) => PublicAPI)(props);
         });
-      } finally {
-        if (needsEngineCtx) engineContext.unset();
-      }
-    });
+      });
+    } finally {
+      popEngine(engine, previousEngine);
+    }
 
     instance.api = api;
 
-    // 6. Register instance.
-    _instances.set(entityId, instance);
+    // 6. Register instance on this engine only.
+    bucketFor(engine).set(entityId, instance);
 
-    // Register in module-level lookup tables for useChildren() cascade.
-    // Clear stale entries for this entity ID — IDs are reused across engine
-    // instances in tests. A freshly spawned entity is never owned or pooled.
-    _ownerRegistry.delete(entityId);
-    _poolReleaseRegistry.delete(entityId);
-    _actorRegistry.set(entityId, _plugin as ActorPlugin<unknown>);
-    _instanceRegistry.set(entityId, instance as ActorInstance<unknown>);
+    // Per-engine lookup tables for useChildren() cascade.
+    // A freshly spawned entity is never owned or pooled on this engine.
+    const tables = actorTablesFor(engine);
+    tables.owners.delete(entityId);
+    tables.poolRelease.delete(entityId);
+    tables.actors.set(entityId, _plugin as ActorPlugin<unknown>);
+    tables.instances.set(entityId, instance as ActorInstance<unknown>);
 
     // 7. Fire _start callbacks immediately after setup.
     for (let i = 0; i < instance._start.length; i++) {
@@ -604,22 +718,23 @@ export function defineActor<Props, PublicAPI>(
   // ─── despawn ─────────────────────────────────────────────────────────────
 
   function despawn(entityId: EntityId): void {
-    const instance = _instances.get(entityId);
-    if (!instance) return;
+    const engine = engineOwning(entityId);
+    const instance = engine ? _buckets.get(engine)?.get(entityId) : undefined;
+    if (!instance || !engine) return;
 
     // ── Children cascade ────────────────────────────────────────────────────
     // Cascade despawn to all owned children before removing from registries.
     // Always full despawn (not pool release) because the parent is being destroyed.
-    if (instance._children) {
+    if (instance._children && engine) {
       const childIds = [...instance._children];
       instance._children.clear(); // relinquish ownership before children despawn
       for (const childId of childIds) {
-        _actorRegistry.get(childId)?.despawn(childId);
+        actorTablesFor(engine).actors.get(childId)?.despawn(childId);
       }
     }
 
     // 1. Remove from registries FIRST (re-entrancy guard).
-    _instances.delete(entityId);
+    _buckets.get(engine)?.delete(entityId);
 
     // 2. Call onDestroy callbacks.
     for (let i = 0; i < instance._destroy.length; i++) {
@@ -641,18 +756,19 @@ export function defineActor<Props, PublicAPI>(
     }
 
     // 5. Destroy the ECS entity.
-    _engine?.destroyEntity(entityId);
+    engine.destroyEntity(entityId);
 
     // ── Registry cleanup ────────────────────────────────────────────────────
     // Resolve parent link before deleting own entries (ownerId !== entityId — no conflict).
-    const ownerId = _ownerRegistry.get(entityId);
-    _actorRegistry.delete(entityId);
-    _instanceRegistry.delete(entityId);
-    _poolReleaseRegistry.delete(entityId);
+    const tables = engine ? actorTablesFor(engine) : undefined;
+    const ownerId = tables?.owners.get(entityId);
+    tables?.actors.delete(entityId);
+    tables?.instances.delete(entityId);
+    tables?.poolRelease.delete(entityId);
 
-    if (ownerId !== undefined) {
-      _ownerRegistry.delete(entityId);
-      const ownerInstance = _instanceRegistry.get(ownerId);
+    if (ownerId !== undefined && tables) {
+      tables.owners.delete(entityId);
+      const ownerInstance = tables.instances.get(ownerId);
       ownerInstance?._children?.delete(entityId);
     }
   }
@@ -663,7 +779,19 @@ export function defineActor<Props, PublicAPI>(
     name: pluginName,
 
     setup(engine: GwenEngineBase): void {
-      _engine = useEngine();
+      const real = useEngine();
+      if (_engines.has(real)) {
+        _log = engine.logger.child(`actor:${pluginName}`);
+        return;
+      }
+      _engines.add(real);
+      real.disposables.add(
+        "actor-engine",
+        createDisposable(() => {
+          _engines.delete(real);
+          _buckets.delete(real);
+        }),
+      );
       _log = engine.logger.child(`actor:${pluginName}`);
     },
 

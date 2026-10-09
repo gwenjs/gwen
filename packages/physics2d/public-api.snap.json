@@ -140,12 +140,7 @@
     "types": ["CollisionEvent"]
   },
   "./internal": {
-    "values": [
-      "PHYSICS2D_BRIDGE_SCHEMA_VERSION",
-      "ShapeComponent",
-      "_clearContactCallbacks",
-      "_clearSensorCallbacks"
-    ],
+    "values": ["PHYSICS2D_BRIDGE_SCHEMA_VERSION", "ShapeComponent"],
     "types": ["ShapeData"]
   }
 }

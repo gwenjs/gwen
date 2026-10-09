@@ -44,7 +44,7 @@
     "types": []
   },
   "./internal": {
-    "values": ["cameraMatrixStore", "cameraPathStore", "cameraViewportMap"],
-    "types": []
+    "values": ["getCameraStores"],
+    "types": ["CameraStores"]
   }
 }

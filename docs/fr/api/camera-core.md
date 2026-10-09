@@ -17,7 +17,7 @@ pnpm add @gwenjs/camera-core
 
 ## Démarrage rapide
 
-`cameraViewportMap` vient de `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver.
+`getCameraStores` vient de `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver. Chaque moteur a ses propres maps.
 
 ```ts
 // gwen.config.ts
@@ -26,7 +26,7 @@ import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
 import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
-import { cameraViewportMap } from '@gwenjs/camera-core/internal'
+import { getCameraStores } from '@gwenjs/camera-core/internal'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -46,7 +46,7 @@ const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
     near: -1000,
     far: 1000,
   })
-  cameraViewportMap.set(camId, 'main')
+  getCameraStores(engine).viewports.set(camId, 'main')
 })
 
 export default defineConfig({
@@ -108,16 +108,16 @@ export default defineConfig({
 
 ## Stores annexes
 
-`cameraViewportMap` et `cameraPathStore` sont des `Map` au niveau module qui coexistent avec
-les composants ECS, car les chaînes et objets complexes ne peuvent pas être stockés dans les
-buffers SoA. Ils sont exposés par `@gwenjs/camera-core/internal`, sans garantie semver.
+`getCameraStores(engine)` renvoie les maps de ce moteur (`viewports`, `paths`, `matrices`).
+Les chaînes et objets complexes ne peuvent pas être stockés dans les buffers SoA.
+L'entrée est exposée par `@gwenjs/camera-core/internal`, sans garantie semver.
 
 ```ts
 import type { CameraPathData } from '@gwenjs/camera-core'
-import { cameraPathStore, cameraViewportMap } from '@gwenjs/camera-core/internal'
+import { getCameraStores } from '@gwenjs/camera-core/internal'
 
 // Associer une caméra à un viewport
-cameraViewportMap.set(camId, 'main')
+getCameraStores(engine).viewports.set(camId, 'main')
 
 // Démarrer un chemin
 const pathData: CameraPathData = {
@@ -129,7 +129,7 @@ const pathData: CameraPathData = {
   elapsed: 0,
 }
 engine.addComponent(camId, CameraPath, { index: 0, progress: 0 })
-cameraPathStore.set(camId, pathData)
+getCameraStores(engine).paths.set(camId, pathData)
 ```
 
 ## Hooks moteur

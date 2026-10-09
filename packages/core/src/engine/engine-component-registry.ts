@@ -16,6 +16,8 @@ import { GwenError } from "@gwenjs/schema";
 
 import type { ComponentType } from "../types";
 import { unpackEntityId, type EntityId } from "./engine-api";
+import type { GwenEngine } from "./gwen-engine";
+import { createEngineLocal } from "./engine-local";
 import { CoreErrorCodes } from "./engine-errors";
 import type { WasmBridge } from "./wasm-bridge";
 
@@ -23,9 +25,30 @@ import type { WasmBridge } from "./wasm-bridge";
 const MAX_COMPONENT_TYPES = 128;
 const RESERVED_INTERNAL_COMPONENT_TYPES = 1;
 
+const registries = createEngineLocal((engine: GwenEngine) => {
+  const bridge = engine.tryInject("wasm:bridge");
+  if (!bridge) {
+    throw new GwenError(
+      CoreErrorCodes.WASM_NOT_INITIALIZED,
+      "[GWEN] Component registry requires the engine wasm:bridge service.",
+    );
+  }
+  return new EngineComponentRegistry(bridge);
+});
+
+export function componentRegistryFor(engine: GwenEngine): EngineComponentRegistry {
+  return registries.get(engine);
+}
+
+export function componentTypeIds(engine: GwenEngine): ReadonlyMap<ComponentType, number> {
+  return registries.peek(engine)?.getAll() ?? new Map();
+}
+
 export class EngineComponentRegistry {
   /** TS component name → Rust numeric typeId */
   private typeIds = new Map<ComponentType, number>();
+  /** Used only while the bridge has no WASM engine. Each registry has its own counter. */
+  private nextLocalId = 0;
 
   /**
    * TS-side cache of active typeIds per entity slot.
@@ -64,7 +87,11 @@ export class EngineComponentRegistry {
           `${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
       );
     }
-    const typeId = this.wasmBridge.registerComponentType();
+    // Same name, including an HMR swap, keeps this id. A second call does not
+    // ask WASM again. Baked numeric ids are disabled; a hotter cache is #66.
+    const bridgeActive =
+      typeof this.wasmBridge.isActive === "function" && this.wasmBridge.isActive();
+    const typeId = bridgeActive ? this.wasmBridge.registerComponentType() : this.nextLocalId++;
     this.typeIds.set(type, typeId);
     return typeId;
   }

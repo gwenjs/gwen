@@ -7,6 +7,10 @@ import * as internal from "../src/internal";
 import * as system from "../src/system/index";
 import * as scene from "../src/scene/index";
 import * as actor from "../src/actor/index";
+import * as physics2d from "../../physics2d/src/index";
+import * as physics2dInternal from "../../physics2d/src/internal";
+import * as physics3d from "../../physics3d/src/index";
+import * as physics3dInternal from "../../physics3d/src/internal";
 
 const REPO_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 
@@ -43,6 +47,27 @@ describe("API surface (RFC-V2-013)", () => {
     expect(typeof internal.engineContext).toBe("object");
     expect(typeof internal.executeAsync).toBe("function");
     expect(typeof internal._getActorEntityId).toBe("function");
+  });
+
+  it("exposes per-engine state helpers and drops the global string pool (#59)", () => {
+    expect(typeof core.createEngineLocal).toBe("function");
+    expect(typeof internal.stringPoolFor).toBe("function");
+    expect(typeof internal._getActorContext).toBe("function");
+    expect("GlobalStringPoolManager" in internal).toBe(false);
+    expect("GlobalStringPoolManager" in core).toBe(false);
+  });
+
+  it("drops the module-global physics helpers from every entry (#59)", () => {
+    for (const name of [
+      "_dispatchContactEvent",
+      "_clearContactCallbacks",
+      "_setCurrentContactEntityId",
+    ]) {
+      expect(name in physics2d).toBe(false);
+      expect(name in physics2dInternal).toBe(false);
+    }
+    expect("_clearBvhCache" in physics3d).toBe(false);
+    expect("_clearBvhCache" in physics3dInternal).toBe(false);
   });
 
   it("does not expose legacy V1 engine infrastructure", () => {

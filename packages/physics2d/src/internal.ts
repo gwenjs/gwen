@@ -3,7 +3,6 @@
  * Framework packages and generated code only.
  */
 
-export { _clearContactCallbacks, _clearSensorCallbacks } from "./composables/index";
 export { ShapeComponent } from "./shape-component";
 export type { ShapeData } from "./shape-component";
 export { PHYSICS2D_BRIDGE_SCHEMA_VERSION } from "./types";

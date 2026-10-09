@@ -137,12 +137,13 @@ export interface SchemaLayout<T> {
    * Serialize `data` into `view` and return the total bytes written.
    * Always present — `computeSchemaLayout` unconditionally produces this function.
    */
-  serialize: (data: T, view: DataView) => number;
+  serialize: (data: T, view: DataView, strings: StringPoolManager) => number;
   /**
    * Deserialize a component from `view` and return the typed value.
    * Always present — `computeSchemaLayout` unconditionally produces this function.
+   * `strings` is the caller's pool (one manager per engine).
    */
-  deserialize: (view: DataView) => T;
+  deserialize: (view: DataView, strings: StringPoolManager) => T;
 }
 
 // ── Internal types for serialization ──────────────────────────────────────────
@@ -161,11 +162,18 @@ interface FieldMeta {
  * Adding a new schema type only requires adding one entry here — no other code changes needed.
  */
 interface SchemaTypeHandler {
-  serialize(view: DataView, offset: number, value: unknown, typeObj: SchemaType): void;
+  serialize(
+    view: DataView,
+    offset: number,
+    value: unknown,
+    typeObj: SchemaType,
+    strings: StringPoolManager,
+  ): void;
   deserialize(
     view: DataView,
     offset: number,
     typeObj: SchemaType,
+    strings: StringPoolManager,
   ): FieldValue | Record<string, number>;
 }
 
@@ -184,7 +192,7 @@ const COMPOSITE_FIELDS: Record<string, readonly string[]> = Object.fromEntries(
     .map((t) => [t.type, t.fields]),
 );
 
-import { GlobalStringPoolManager } from "./utils/string-pool.js";
+import type { StringPoolManager } from "./utils/string-pool.js";
 
 // Typed helpers for dynamic DataView numeric read/write dispatch.
 // Avoids `as any` on DataView for dynamic method name calls.
@@ -230,17 +238,17 @@ const SCHEMA_TYPE_HANDLERS: Record<string, SchemaTypeHandler> = {
   },
 
   string: {
-    serialize(view, offset, value, typeObj) {
+    serialize(view, offset, value, typeObj, strings) {
       const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
-        ? GlobalStringPoolManager.persistent
-        : GlobalStringPoolManager.scene;
+        ? strings.persistent
+        : strings.scene;
       view.setInt32(offset, pool.intern(value as string), true);
     },
-    deserialize(view, offset, typeObj) {
+    deserialize(view, offset, typeObj, strings) {
       const strId = view.getInt32(offset, true);
       const pool = (typeObj as SchemaType & { isPersistent?: boolean }).isPersistent
-        ? GlobalStringPoolManager.persistent
-        : GlobalStringPoolManager.scene;
+        ? strings.persistent
+        : strings.scene;
       return pool.get(strId);
     },
   },
@@ -328,19 +336,19 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
     handler: (SCHEMA_TYPE_HANDLERS[meta.type] ?? SCHEMA_TYPE_HANDLERS["_numeric"])!,
   }));
 
-  const serialize = (data: T, view: DataView): number => {
+  const serialize = (data: T, view: DataView, strings: StringPoolManager): number => {
     let bytesWritten = 0;
     for (const { key, meta, typeObj, handler } of handlers) {
-      handler.serialize(view, meta.offset, data[key as keyof T], typeObj);
+      handler.serialize(view, meta.offset, data[key as keyof T], typeObj, strings);
       bytesWritten += meta.byteLength;
     }
     return bytesWritten;
   };
 
-  const deserialize = (view: DataView): T => {
+  const deserialize = (view: DataView, strings: StringPoolManager): T => {
     const obj: Record<string, FieldValue | Record<string, number>> = {};
     for (const { key, meta, typeObj, handler } of handlers) {
-      obj[key] = handler.deserialize(view, meta.offset, typeObj);
+      obj[key] = handler.deserialize(view, meta.offset, typeObj, strings);
     }
     return obj as T;
   };
@@ -437,11 +445,13 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
   }
 }
 
-/** Next id for a component name that has not been defined yet. Starts at 1. */
-let _nextTypeId = 1;
-
-/** Name → id and layout. A second `defineComponent` of the same name reuses the id. */
-const _typeIdsByName = new Map<string, { id: number; layout: string }>();
+/**
+ * Process-wide definition metadata: component name → schema layout. Holds no
+ * WASM type id. Ids are per engine (`getOrRegisterComponent`, #59). This map
+ * only detects a redefinition with another layout and counts distinct names
+ * for the definition-time budget (#52).
+ */
+const _definedLayouts = new Map<string, string>();
 
 /**
  * Field names, order and types. Defaults are not part of the layout.
@@ -457,31 +467,33 @@ function _schemaLayout(schema: ComponentSchema): string {
     .join(",");
 }
 
-function _claimTypeId(name: string, schema: ComponentSchema): number {
+/**
+ * Record the layout of `name`, or check it against the recorded one.
+ * Throws before any WASM call: `CORE:INVALID_COMPONENT_SCHEMA` for another
+ * layout, `CORE:COMPONENT_TYPE_LIMIT_REACHED` for the 128th distinct name.
+ */
+function _checkDefinition(name: string, schema: ComponentSchema): void {
   const layout = _schemaLayout(schema);
-  const existing = _typeIdsByName.get(name);
+  const existing = _definedLayouts.get(name);
   if (existing !== undefined) {
-    if (existing.layout !== layout) {
+    if (existing !== layout) {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
         `[GWEN] defineComponent('${name}'): this name is already defined with schema ` +
-          `{ ${existing.layout} }, not { ${layout} }. One name has one WASM type id. ` +
+          `{ ${existing} }, not { ${layout} }. One name has one layout. ` +
           `Use another name or the same schema.`,
       );
     }
-    return existing.id;
+    return;
   }
-  if (_typeIdsByName.size >= MAX_USER_COMPONENT_TYPES) {
+  if (_definedLayouts.size >= MAX_USER_COMPONENT_TYPES) {
     throw new GwenError(
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
       `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit ` +
         `(${MAX_COMPONENT_TYPES} type bits, ${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
     );
   }
-  const id = _nextTypeId;
-  _nextTypeId += 1;
-  _typeIdsByName.set(name, { id, layout });
-  return id;
+  _definedLayouts.set(name, layout);
 }
 
 /**
@@ -512,12 +524,11 @@ export interface ComponentDefinition<S extends ComponentSchema> {
    */
   readonly defaults?: Partial<{ [K in keyof S]: InferSchemaType<S[K]> }>;
   /**
-   * Numeric ID of the component name, used as the WASM `component_type_id`.
-   * One id per name: defining the same name again with the same layout
-   * returns the same id, with another layout it throws.
-   * Matches the ID used in `register_component_type` on the Rust side.
+   * Not a WASM type id. Runtime ids come from the current engine's
+   * `getOrRegisterComponent(name)`. Kept so existing definition objects still
+   * have the field; the value is always `0`.
    *
-   * @internal Used by the gwen:optimizer Vite plugin — do not rely on the specific value.
+   * @internal
    */
   readonly _typeId: number;
   /**
@@ -580,8 +591,9 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
  *   would define a new name past the user budget. The Rust cap is 128 types.
  *   One type is reserved for the transform column, so 127 distinct user names
- *   fit. Defining the same name again reuses its id. The check runs here,
- *   before any WASM call.
+ *   fit. Defining the same name again is accepted and counts once toward the
+ *   127-name budget, which counts names in the whole process. The check runs
+ *   here, before any WASM call.
  * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when the name is
  *   already defined with other fields, field order or field types. Defaults
  *   may differ.
@@ -619,7 +631,8 @@ export function defineComponent<S extends ComponentSchema>(
 
   _validateComponentSchema(config.name, config.schema);
 
-  const _typeId = _claimTypeId(config.name, config.schema);
+  _checkDefinition(config.name, config.schema);
+  const _typeId = 0;
 
   let byteOffset = 0;
   const _fields = Object.entries(config.schema).map(([fieldName, schemaType]) => {

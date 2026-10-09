@@ -12,6 +12,7 @@ import type { IGwenLogger } from "@gwenjs/schema";
 import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
+import type { ComponentType } from "../types";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
 import type {
   GwenPlugin,
@@ -587,6 +588,13 @@ export interface GwenEngine extends GwenEngineBase {
   destroyEntity(id: EntityId): boolean;
   isAlive(id: EntityId): boolean;
   canSpawn(count: number): boolean;
+  /**
+   * Rust type id for a component name, owned by this engine.
+   * Registering the same name again returns the same id.
+   */
+  getOrRegisterComponent(type: ComponentType): number;
+  /** Component names registered on this engine, and their type ids. */
+  registeredComponentTypes(): ReadonlyMap<ComponentType, number>;
   addComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
