@@ -1,8 +1,8 @@
 /**
- * @file Performance tests for composables.
+ * @file Bulk-operation behaviour for composables.
+ * Wall-clock budgets for the same operations live in `bench/timing-gate.test.ts`.
  */
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { ciThreshold } from "../helpers/perf";
 
 let _bodyIdCounter = 0;
 
@@ -37,30 +37,26 @@ vi.mock("../../src/shape-component.js", () => ({
 
 import { useStaticBody } from "../../src/composables/use-static-body.js";
 
-describe("Performance", () => {
+describe("Bulk operations", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     _bodyIdCounter = 0;
     mockPhysics.addRigidBody.mockImplementation(() => ++_bodyIdCounter);
   });
 
-  it("creates 1000 static bodies in under 100ms", () => {
-    const start = performance.now();
+  it("creates 1000 static bodies, one rigid body each", () => {
     for (let i = 0; i < 1_000; i++) {
       useStaticBody();
     }
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(100));
+    expect(mockPhysics.addRigidBody).toHaveBeenCalledTimes(1_000);
   });
 
-  it("applies 1000 impulses in under 5ms", async () => {
+  it("forwards 1000 impulses to the physics service", async () => {
     const { useDynamicBody } = await import("../../src/composables/use-dynamic-body.js");
     const body = useDynamicBody();
-    const start = performance.now();
     for (let i = 0; i < 1_000; i++) {
       body.applyImpulse(1, 0);
     }
-    const elapsed = performance.now() - start;
-    expect(elapsed).toBeLessThan(ciThreshold(5));
+    expect(mockPhysics.applyImpulse).toHaveBeenCalledTimes(1_000);
   });
 });

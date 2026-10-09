@@ -74,7 +74,7 @@
     "test:bench:tree-shaking": "BENCH_SLOW=1 vitest run bench/bundle-size.test.ts",
     "test:bench:score": "vitest run bench/perf-gate.test.ts",
     "bench:fast": "vitest bench --run bench/tilemap.bench.ts bench/helpers.bench.ts bench/integration.bench.ts",
-    "bench:ci": "BENCH_SLOW=1 vitest bench --run && BENCH_SLOW=1 vitest run bench/solver.test.ts bench/bundle-size.test.ts bench/perf-gate.test.ts"
+    "bench:ci": "BENCH_SLOW=1 vitest bench --run && BENCH_SLOW=1 vitest run bench/solver.test.ts bench/bundle-size.test.ts bench/perf-gate.test.ts && BENCH_SLOW=1 vitest run --reporter=verbose bench/timing-gate.test.ts"
   },
   "dependencies": {
     "@gwenjs/core": "workspace:^",

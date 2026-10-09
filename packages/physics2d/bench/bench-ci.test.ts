@@ -34,6 +34,7 @@ const EXPECTED_TEST_FILES = [
   "solver.test.ts",
   "bundle-size.test.ts",
   "bench-ci.test.ts",
+  "timing-gate.test.ts",
 ] as const;
 
 describe("bench infrastructure", () => {
@@ -47,6 +48,25 @@ describe("bench infrastructure", () => {
     for (const file of EXPECTED_TEST_FILES) {
       expect(fs.existsSync(path.join(benchDir, file)), `missing: ${file}`).toBe(true);
     }
+  });
+
+  it("bench:ci runs bench/timing-gate.test.ts with BENCH_SLOW set", () => {
+    const pkg: unknown = JSON.parse(
+      fs.readFileSync(path.join(benchDir, "..", "package.json"), "utf8"),
+    );
+    const scripts =
+      typeof pkg === "object" && pkg !== null && "scripts" in pkg ? pkg.scripts : undefined;
+    const benchCi =
+      typeof scripts === "object" && scripts !== null && "bench:ci" in scripts
+        ? scripts["bench:ci"]
+        : undefined;
+    expect(typeof benchCi).toBe("string");
+    const gate = String(benchCi)
+      .split("&&")
+      .map((step) => step.trim())
+      .find((step) => step.includes("bench/timing-gate.test.ts"));
+    expect(gate, "bench:ci has no step for bench/timing-gate.test.ts").toBeDefined();
+    expect(gate).toMatch(/^BENCH_SLOW=1 vitest run /);
   });
 
   it("physics-perf-thresholds.json has all required metric keys", () => {

@@ -139,6 +139,8 @@ jobs:
         run: pnpm bench:core:ci
       - name: Physics2D benchmarks
         run: pnpm bench:physics:ci
+      - name: Physics3D timing gates
+        run: pnpm bench:physics3d:ci
 
   api-surface:
     name: API surface

@@ -8,7 +8,6 @@
  * 5. Local-mode 3D A* pathfinding via initNavGrid3D + findPath3D
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ciThreshold } from "./helpers/perf";
 
 // ─── WASM mock setup ─────────────────────────────────────────────────────────
 
@@ -647,7 +646,7 @@ describe("Gap 5: local-mode 3D A* pathfinding", () => {
     expect(last.x).toBeCloseTo(14);
   });
 
-  it("finds path in large grid within 50ms", () => {
+  it("finds a path across a 30x1x30 open grid", () => {
     const { service } = setupLocal();
     // 30×1×30 open corridor = 900 cells
     const W = 30,
@@ -656,12 +655,10 @@ describe("Gap 5: local-mode 3D A* pathfinding", () => {
     const grid = new Uint8Array(W * H * D); // all zeros = walkable
     service.initNavGrid3D({ grid, width: W, height: H, depth: D, cellSize: 1 });
 
-    const t0 = performance.now();
     const path = service.findPath3D({ x: 0, y: 0, z: 0 }, { x: 28, y: 0, z: 28 });
-    const elapsed = performance.now() - t0;
 
     expect(path.length).toBeGreaterThan(1);
-    expect(elapsed).toBeLessThan(ciThreshold(50));
+    expect(path[path.length - 1]).toEqual({ x: 28, y: 0, z: 28 });
   });
 });
 
