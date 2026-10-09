@@ -460,6 +460,10 @@ test("verify-red does not copy a later test file onto the base with the fixtures
       "",
     ].join("\n"),
   });
+  // a.test.mjs is judged on the base with the fixture, b.test.mjs stays new.
+  assert.match(output, /copied test-support file tests\/fixtures\/helper\.mjs onto the base/);
+  assert.doesNotMatch(output, /copied test-support file tests\/[ab]\.test\.mjs/);
+  assert.doesNotMatch(output, /base load error/);
   assert.match(output, /verify-red: RED tests\/a\.test\.mjs/);
   assert.match(output, /NOT RED tests\/b\.test\.mjs :: passes on the base/);
   assert.notEqual(status, 0, output);
@@ -480,6 +484,10 @@ test("verify-red does not copy a production module the PR adds onto the base", (
       "",
     ].join("\n"),
   });
+  // The fixture is copied, the src/ module it re-exports is not: the file
+  // still does not load on the base and is run on the head.
+  assert.match(output, /copied test-support file packages\/demo\/tests\/fixtures\/helper\.mjs onto the base/);
+  assert.doesNotMatch(output, /copied test-support file packages\/demo\/src\//);
   assert.match(output, /FAIL answers 42 \(base load error/);
   assert.match(output, /verify-red: RED packages\/demo\/tests\/answer\.test\.mjs/);
   assert.equal(status, 0, output);
