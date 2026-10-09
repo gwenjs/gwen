@@ -7,6 +7,7 @@ import {
   type GwenEngine,
 } from "../../src/index.js";
 import { engineContext } from "../../src/engine/context.js";
+import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 import { defineActor } from "../../src/actor/runtime/define-actor.js";
 import { actorTablesFor } from "../../src/actor/runtime/define-actor.js";
 import { useActor } from "../../src/actor/runtime/use-actor.js";
@@ -181,6 +182,33 @@ describe("two engines", () => {
       engineContext.unset();
       expect(() => Actor._instances.size).toThrow(GwenContextError);
       expect(() => [...Actor._instances.values()]).toThrow(GwenContextError);
+    } finally {
+      await a.stop();
+      await b.stop();
+    }
+  });
+
+  it("throws GwenContextError from handle count() and getAll() with two engines and none current", async () => {
+    const [a, b] = await twoEngines();
+    const Actor = defineActor(Prefab, () => ({}));
+    try {
+      await a.use(Actor._plugin);
+      await b.use(Actor._plugin);
+      const handle = a.run(() => useActor(Actor));
+      a.run(() => handle.spawn());
+      engineContext.unset();
+      for (const read of [() => handle.count(), () => handle.getAll()]) {
+        let caught: unknown;
+        try {
+          read();
+        } catch (error) {
+          caught = error;
+        }
+        expect(caught).toBeInstanceOf(GwenContextError);
+        expect((caught as GwenContextError).code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+        expect((caught as GwenContextError).message).toContain("count() and getAll()");
+      }
+      expect(a.run(() => handle.count())).toBe(1);
     } finally {
       await a.stop();
       await b.stop();
