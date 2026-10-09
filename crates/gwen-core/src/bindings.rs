@@ -16,7 +16,6 @@ use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
-use crate::gameloop::GameLoop;
 use crate::transform::{Transform, TransformSystem, TRANSFORM_SAB_TYPE_ID};
 use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
@@ -86,7 +85,6 @@ pub struct Engine {
     /// Entity ids from the last successful `query_entities_to_buffer` call.
     /// Length is `max_entities` from construction and is never reallocated.
     query_result_buffer: Vec<u32>,
-    gameloop: GameLoop,
     /// Monotonically increasing counter used by `register_component_type`.
     /// Each call returns a fresh ID regardless of the underlying Rust type,
     /// because JS does not have Rust's `TypeId` concept.
@@ -131,7 +129,6 @@ impl Engine {
             storage: ArchetypeStorage::new(),
             query_system: QuerySystem::new(),
             query_result_buffer: vec![0u32; max_entities as usize],
-            gameloop: GameLoop::new(60),
             next_js_type_id: 0,
             dirty_transforms: DirtySet::new(max_entities),
             transform_system: TransformSystem::new(),
@@ -664,45 +661,6 @@ impl Engine {
     /// and it is not inferred from the configured `maxEntities` on the JS side.
     pub fn get_query_result_capacity(&self) -> u32 {
         self.query_result_buffer.len() as u32
-    }
-
-    // ─── Game loop ────────────────────────────────────────────────────────────
-
-    /// Update game loop (call every frame with delta in milliseconds)
-    pub fn tick(&mut self, delta_ms: f32) {
-        let delta_seconds = delta_ms / 1000.0;
-        self.gameloop.tick(delta_seconds);
-        self.transform_system.update();
-    }
-
-    /// Get current frame number
-    pub fn frame_count(&self) -> u64 {
-        self.gameloop.frame_count()
-    }
-
-    /// Get delta time for current frame (in seconds)
-    pub fn delta_time(&self) -> f32 {
-        self.gameloop.delta_time()
-    }
-
-    /// Get total elapsed time (in seconds)
-    pub fn total_time(&self) -> f32 {
-        self.gameloop.total_time()
-    }
-
-    /// Check if should sleep for FPS capping
-    pub fn should_sleep(&self) -> bool {
-        self.gameloop.should_cap_frame()
-    }
-
-    /// Get sleep time in milliseconds
-    pub fn sleep_time_ms(&self) -> f32 {
-        self.gameloop.sleep_time_ms()
-    }
-
-    /// Reset frame timing
-    pub fn reset_frame(&mut self) {
-        self.gameloop.reset_frame();
     }
 
     // ─── Transforms ───────────────────────────────────────────────────────────
@@ -1476,7 +1434,7 @@ impl Engine {
 
     #[cfg(feature = "physics2d")]
     pub fn physics_consume_event_metrics(&mut self) -> Vec<u32> {
-        vec![self.gameloop.frame_count() as u32, 0, 0, 0]
+        vec![0, 0, 0, 0]
     }
 
     #[cfg(feature = "physics2d")]
@@ -3241,14 +3199,9 @@ impl Engine {
 
     // ─── Engine stats ─────────────────────────────────────────────────────────
 
-    /// Get engine statistics as JSON string
+    /// Alive entity count as JSON: `{"entities":N}`.
     pub fn stats(&self) -> String {
-        format!(
-            r#"{{"entities":{}, "frame":{}, "elapsed":{:.3}}}"#,
-            self.entity_manager.count_entities(),
-            self.gameloop.frame_count(),
-            self.gameloop.total_time()
-        )
+        format!(r#"{{"entities":{}}}"#, self.entity_manager.count_entities())
     }
 
     // ─── Bulk query-read API (Tier 1) ─────────────────────────────────────────

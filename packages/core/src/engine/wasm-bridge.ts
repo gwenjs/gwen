@@ -863,12 +863,6 @@ export class WasmBridgeImpl implements WasmBridge {
     return this._requireWasm().get_entity_generation(index);
   }
 
-  // ── Game loop ────────────────────────────────────────────────────────────
-
-  tick(deltaMs: number): void {
-    this._requireWasm().tick(deltaMs);
-  }
-
   // ── Shared memory ────────────────────────────────────────────────────────
 
   allocSharedBuffer(byteLength: number): number {

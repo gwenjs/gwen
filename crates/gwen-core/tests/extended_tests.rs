@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests {
     use gwen_core::*;
-    use gwen_core::allocator::LinearAllocator;
 
     // === Edge Cases ===
 
@@ -70,19 +69,6 @@ mod tests {
     }
 
     #[test]
-    fn test_allocator_fragmentation_prevention() {
-        let mut alloc = LinearAllocator::new(1000);
-
-        // Allocate, deallocate, allocate - should reuse same space
-        alloc.allocate(100, 1);
-        alloc.reset();
-        alloc.allocate(100, 1);
-
-        // Should use exact same memory
-        assert_eq!(alloc.used(), 100);
-    }
-
-    #[test]
     fn test_query_no_entities() {
         let mut storage = ArchetypeStorage::new();
         let mut qs = QuerySystem::new();
@@ -127,19 +113,6 @@ mod tests {
         assert_eq!(result.len(), 2);
     }
 
-    #[test]
-    fn test_gameloop_extreme_delta() {
-        let mut loop_obj = GameLoop::new(60);
-
-        // Very large delta
-        loop_obj.tick(10.0);
-        assert_eq!(loop_obj.delta_time(), 0.1); // Clamped to 100ms
-
-        // Negative delta
-        loop_obj.tick(-5.0);
-        assert_eq!(loop_obj.delta_time(), 0.0); // Clamped to 0
-    }
-
     // === Integration Tests ===
 
     #[test]
@@ -171,30 +144,10 @@ mod tests {
     }
 
     #[test]
-    fn test_multiple_systems_lifecycle() {
-        let mut em = EntityManager::new(100);
-        let _storage = ArchetypeStorage::new();
-        let _qs = QuerySystem::new();
-        let mut loop_obj = GameLoop::new(60);
-
-        // Create entity
-        let _e = em.create_entity().expect("entity limit");
-
-        // Update game loop
-        loop_obj.tick(0.016);
-
-        // Verify frame updated
-        assert_eq!(loop_obj.frame_count(), 1);
-        assert!(loop_obj.delta_time() > 0.0);
-    }
-
-    #[test]
     fn test_entity_reuse_across_frames() {
         let mut em = EntityManager::new(100);
-        let mut loop_obj = GameLoop::new(60);
 
         let e1 = em.create_entity().expect("entity limit");
-        loop_obj.tick(0.016);
 
         em.delete_entity(e1);
         let e2 = em.create_entity().expect("entity limit");
@@ -241,17 +194,6 @@ mod tests {
         }
 
         assert_eq!(em.count_entities(), 0);
-    }
-
-    #[test]
-    fn test_allocator_many_small_allocations() {
-        let mut alloc = LinearAllocator::new(1024 * 1024);
-
-        for _ in 0..10000 {
-            let _ = alloc.allocate(8, 1);
-        }
-
-        assert!(alloc.used() > 0);
     }
 
     #[test]
@@ -305,33 +247,4 @@ mod tests {
         assert!(elapsed.as_millis() < 200);
     }
 
-    #[test]
-    fn test_gameloop_frame_accumulation() {
-        let mut loop_obj = GameLoop::new(60);
-
-        // Accumulate frames
-        for _ in 0..100 {
-            loop_obj.tick(0.016);
-        }
-
-        assert_eq!(loop_obj.frame_count(), 100);
-        assert!(loop_obj.total_time() > 1.5);
-    }
-
-    #[test]
-    #[allow(clippy::disallowed_methods, reason = "wall-clock measurement in a test")]
-    fn test_allocator_reset_performance() {
-        let mut alloc = LinearAllocator::new(10000);
-
-        let start = std::time::Instant::now();
-        for _ in 0..1000 {
-            for _ in 0..10 {
-                alloc.allocate(8, 1);
-            }
-            alloc.reset();
-        }
-        let elapsed = start.elapsed();
-
-        assert!(elapsed.as_millis() < 500);
-    }
 }

@@ -224,47 +224,17 @@ fn wasm_query_empty_when_no_entities() {
     assert!(results.is_empty());
 }
 
-// ─── Game loop API ────────────────────────────────────────────────────────────
-
-#[wasm_bindgen_test]
-fn wasm_tick_increments_frame_count() {
-    let mut engine = make_engine();
-    assert_eq!(engine.frame_count(), 0);
-    engine.tick(16.0); // 16ms
-    assert_eq!(engine.frame_count(), 1);
-    engine.tick(16.0);
-    assert_eq!(engine.frame_count(), 2);
-}
-
-#[wasm_bindgen_test]
-fn wasm_delta_time_is_in_seconds() {
-    let mut engine = make_engine();
-    engine.tick(16.0); // 16ms → 0.016s
-    assert!((engine.delta_time() - 0.016).abs() < 0.001);
-}
-
-#[wasm_bindgen_test]
-fn wasm_total_time_accumulates() {
-    let mut engine = make_engine();
-    // Use 100ms steps (the max clamp value) × 10 = 1.0s total
-    for _ in 0..10 {
-        engine.tick(100.0);
-    }
-    assert!((engine.total_time() - 1.0).abs() < 0.01);
-}
-
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 #[wasm_bindgen_test]
 fn wasm_stats_is_valid_json_string() {
     let mut engine = make_engine();
     engine.create_entity().expect("entity limit");
-    engine.tick(16.0);
     let stats = engine.stats();
     // Should contain known fields
-    assert!(stats.contains("entities"));
-    assert!(stats.contains("frame"));
-    assert!(stats.contains("elapsed"));
+    assert_eq!(stats.contains("entities"), true);
+    assert_eq!(stats.contains("frame"), false);
+    assert_eq!(stats.contains("elapsed"), false);
 }
 
 fn must_err<T, E>(result: Result<T, E>) -> E {

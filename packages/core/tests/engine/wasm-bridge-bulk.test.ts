@@ -29,7 +29,6 @@ function makeMockBridge(overrides: Partial<WasmBridge> = {}): WasmBridge {
     queryEntitiesRaw: vi.fn(),
     forEachQueryResultRaw: vi.fn(),
     getEntityGeneration: vi.fn(),
-    tick: vi.fn(),
     allocSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
     syncTransformsToBufferSparse: vi.fn(),

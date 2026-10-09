@@ -1,7 +1,6 @@
 /// Integration tests – full multi-system scenarios
 ///
-/// These tests exercise Entity + Component + Query + GameLoop working
-/// together as they would in a real game frame.
+/// These tests exercise Entity + Component + Query working together.
 #[cfg(test)]
 mod tests {
     use bytemuck::{Pod, Zeroable};
@@ -44,7 +43,6 @@ mod tests {
         let mut em = EntityManager::new(100);
         let mut storage = ArchetypeStorage::new();
         let mut qs = QuerySystem::new();
-        let mut gameloop = GameLoop::new(60);
 
         let pos_handle = ComponentHandle::<Position>::new(&mut storage);
         let vel_handle = ComponentHandle::<Velocity>::new(&mut storage);
@@ -70,8 +68,7 @@ mod tests {
         assert_eq!(result.len(), 3);
 
         // Simulate one frame: apply velocity to position
-        gameloop.tick(0.016);
-        let dt = gameloop.delta_time();
+        let dt = 0.016;
         for entity_id in result.iter() {
             if let (Some(pos_bytes), Some(vel_bytes)) = (
                 storage.get_component(entity_id, pos_handle.type_id()),
@@ -90,7 +87,6 @@ mod tests {
             }
         }
 
-        assert_eq!(gameloop.frame_count(), 1);
         // All entities should have moved
         for &e in &entities {
             let pos: Position = read_as(
@@ -236,55 +232,7 @@ mod tests {
         );
     }
 
-    // ── Scenario 6: gameloop accumulation across many frames ─────────────
-
-    #[test]
-    fn test_gameloop_frame_accumulation_with_ecs() {
-        let mut em = EntityManager::new(100);
-        let mut storage = ArchetypeStorage::new();
-        let mut gameloop = GameLoop::new(60);
-
-        let pos_handle = ComponentHandle::<Position>::new(&mut storage);
-        let vel_handle = ComponentHandle::<Velocity>::new(&mut storage);
-
-        let e = em.create_entity().expect("entity limit");
-        pos_handle.add(&mut storage, e.index(), Position { x: 0.0, y: 0.0 });
-        vel_handle.add(&mut storage, e.index(), Velocity { dx: 1.0, dy: 0.0 });
-
-        for _ in 0..60 {
-            gameloop.tick(1.0 / 60.0);
-            let dt = gameloop.delta_time();
-            let pos: Position = read_as(
-                storage
-                    .get_component(e.index(), pos_handle.type_id())
-                    .unwrap(),
-            );
-            let vel: Velocity = read_as(
-                storage
-                    .get_component(e.index(), vel_handle.type_id())
-                    .unwrap(),
-            );
-            let new_pos = Position {
-                x: pos.x + vel.dx * dt,
-                y: pos.y + vel.dy * dt,
-            };
-            storage
-                .get_component_mut(e.index(), pos_handle.type_id())
-                .unwrap()
-                .copy_from_slice(as_bytes(&new_pos));
-        }
-
-        assert_eq!(gameloop.frame_count(), 60);
-        let final_pos: Position = read_as(
-            storage
-                .get_component(e.index(), pos_handle.type_id())
-                .unwrap(),
-        );
-        // After 60 frames at dt≈1/60 with dx=1.0, x should be ≈ 1.0
-        assert!((final_pos.x - 1.0).abs() < 0.01, "x = {}", final_pos.x);
-    }
-
-    // ── Scenario 7: query cache partial invalidation ──────────────────────
+    // ── Scenario 6: query cache partial invalidation ──────────────────────
 
     #[test]
     fn test_query_cache_partial_invalidation() {

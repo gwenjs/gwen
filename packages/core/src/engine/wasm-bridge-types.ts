@@ -284,20 +284,6 @@ export interface WasmEngineBase {
    */
   bulk_spawn_with_transforms(positions: Float32Array, rotations: Float32Array): Uint32Array;
 
-  // ── Game loop ────────────────────────────────────────────────────────────
-
-  /**
-   * Advance the Rust simulation by one frame.
-   * @param deltaMs Frame delta time in **milliseconds** (Rust side convention).
-   */
-  tick(deltaMs: number): void;
-  /** Return the total number of frames simulated since engine creation. */
-  frame_count(): bigint;
-  /** Return the delta time of the last `tick()` call, in seconds. */
-  delta_time(): number;
-  /** Return the total elapsed time since engine creation, in seconds. */
-  total_time(): number;
-
   // ── Shared memory (WASM plugin bridge) ───────────────────────────────────
 
   /**
@@ -879,10 +865,6 @@ export interface WasmBridge {
   queryEntitiesRaw(typeIds: number[]): number;
   forEachQueryResultRaw(typeIds: number[], callback: (entityIndex: number) => void): void;
   getEntityGeneration(index: number): number;
-
-  // ── Game loop ────────────────────────────────────────────────────────────
-
-  tick(deltaMs: number): void;
 
   // ── Shared memory (WASM plugin bridge) ───────────────────────────────────
 
