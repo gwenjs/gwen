@@ -1647,11 +1647,14 @@ class GwenEngineImpl implements GwenEngine {
 
   private _noteIsolation(event: BusErrorPayload): void {
     if (event.level !== "error" || !event.target || event.context?.phase === "setup") return;
-    if (!isolateTarget(this, event.target) || !this.debug) return;
-    const hook = typeof event.context?.hook === "string" ? event.context.hook : "unknown";
-    this.logger.warn(
-      `[GWEN] ${event.target.kind} "${event.target.name}" isolated after ${event.code} in ${hook}; skipped until engine.reenable("${event.target.id}").`,
-    );
+    if (!isolateTarget(this, event.target)) return;
+    // DEV+DEBUG advice. Production builds omit it even when debug is true.
+    if (__GWEN_DEV__ && this.debug) {
+      const hook = typeof event.context?.hook === "string" ? event.context.hook : "unknown";
+      this.logger.warn(
+        `[GWEN] ${event.target.kind} "${event.target.name}" isolated after ${event.code} in ${hook}; skipped until engine.reenable("${event.target.id}").`,
+      );
+    }
   }
 
   private _attachErrorPolicy(): void {

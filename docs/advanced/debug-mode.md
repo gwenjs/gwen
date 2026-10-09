@@ -11,10 +11,10 @@ Debug mode enables visual and console diagnostics to understand what's happening
 
 ### Global Engine Debug
 
-Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. This enables:
-- Verbose logging for plugin registration and lifecycle events
+Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. Logger `debug` and `info` follow this flag in every build. These run only when `__GWEN_DEV__` is also true:
 - Per-frame sentinel checks
-- Phase timing warnings when frame budget is exceeded
+- Phase timing warnings when the frame budget is exceeded
+- The isolation warning (`isolated after …`)
 
 ```typescript
 // gwen.config.ts
@@ -56,7 +56,7 @@ When `debug: true`:
 - Physics colliders render as colored wireframes
 - System timing appears on screen
 - Verbose logging is active
-- Sentinel checks validate data integrity
+- The WASM memory sentinel is checked only when `__GWEN_DEV__` is also true. Component arrays are not bounds-checked, and entity IDs are not verified.
 
 ## Visual Debugging
 
@@ -205,7 +205,7 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 `engine.debug` defaults to `false`. A development server does not turn it on.
 
-`__GWEN_DEV__` is the build-time flag. It follows Vite's `import.meta.env.DEV`, which follows `NODE_ENV`, not the mode name. `vite` sets it to `true`. `vite build` sets `NODE_ENV` to `production`, so the flag is `false`, including `vite build --mode development`. Per-frame timing and the WASM memory sentinel run only when both `__GWEN_DEV__` and `debug` are true.
+`__GWEN_DEV__` is the build-time flag. On a build it follows the Vite mode, not `NODE_ENV`. `vite build` (mode `production`) sets it to `false`. `vite build --mode development` sets it to `true`, so a development build keeps every check. On `vite` / `vite dev` it follows Vite's `import.meta.env.DEV`, which is `true`. Vite's own `import.meta.env.DEV` follows `NODE_ENV`, and `vite build` defaults `NODE_ENV` to `production` when it is unset, so it stays `false` on `vite build --mode development` ([Vite: NODE_ENV and Modes](https://vite.dev/guide/env-and-mode#node-env-and-modes)). Migration: `NODE_ENV=development vite build` (or `NODE_ENV=development` in `.env`) now gives `false`; pass `--mode development` instead. A mode other than `development` (for example `staging`) gives `false`. `GWEN_DEV` from `virtual:gwen/env` has the same value as `__GWEN_DEV__`. Per-frame timing and the WASM memory sentinel run only when both `__GWEN_DEV__` and `debug` are true.
 
 ### Conditional System Registration
 

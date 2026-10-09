@@ -69,8 +69,15 @@ describe("error policy table", () => {
       target: { kind: "system", id: "system#policy", name: "Policy" },
     });
 
-    expect(logs.at(-2)?.level).toBe("error");
-    expect(logs.at(-1)?.message).toContain('reenable("system#policy")');
+    const isolation = logs.filter((entry) => entry.message.includes("isolated after"));
+    if (__GWEN_DEV__) {
+      expect(logs.at(-2)?.level).toBe("error");
+      expect(isolation).toHaveLength(1);
+      expect(isolation[0]?.message).toContain('reenable("system#policy")');
+    } else {
+      expect(isolation).toEqual([]);
+      expect(logs.at(-1)?.level).toBe("error");
+    }
     expect(hookLevels).toEqual(["error"]);
     expect(order.slice(-2)).toEqual(["on", "hook"]);
     expect(engine.isolated().map((target) => target.id)).toEqual(["system#policy"]);
@@ -120,6 +127,26 @@ describe("error policy table", () => {
 });
 
 describe("frame isolation", () => {
+  it.runIf(!__GWEN_DEV__)("prod + debug: true does not log the isolation warning", async () => {
+    const engine = await createEngine({ debug: true });
+    try {
+      const warns: string[] = [];
+      engine.logger.setSink((entry) => {
+        if (entry.level === "warn") warns.push(entry.message);
+      });
+      engine.errors.emit({
+        level: "error",
+        code: "TEST:ERROR",
+        message: "error",
+        target: { kind: "system", id: "system#prod", name: "Prod" },
+      });
+      expect(engine.isolated().map((target) => target.id)).toEqual(["system#prod"]);
+      expect(warns.filter((message) => message.includes("isolated after"))).toEqual([]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
   it("isolates a throwing system, keeps the sibling and the frame, then re-isolates after reenable", async () => {
     const engine = await createEngine({ debug: true });
     const warns: string[] = [];
@@ -170,9 +197,13 @@ describe("frame isolation", () => {
     expect(isolated.map((target) => target.kind)).toEqual(["system"]);
     const id = isolated[0]!.id;
     const isolationWarns = warns.filter((message) => message.includes("isolated after"));
-    expect(isolationWarns).toHaveLength(1);
-    expect(isolationWarns[0]).toContain("CORE:PLUGIN_RUNTIME_ERROR");
-    expect(isolationWarns[0]).toContain(`reenable("${id}")`);
+    if (__GWEN_DEV__) {
+      expect(isolationWarns).toHaveLength(1);
+      expect(isolationWarns[0]).toContain("CORE:PLUGIN_RUNTIME_ERROR");
+      expect(isolationWarns[0]).toContain(`reenable("${id}")`);
+    } else {
+      expect(isolationWarns).toEqual([]);
+    }
 
     const snapshot = engine.isolated();
     expect(engine.reenable("missing")).toBe(false);
@@ -186,7 +217,9 @@ describe("frame isolation", () => {
     expect(engine.frameCount).toBe(3);
     expect(runtime).toHaveLength(2);
     expect(engine.isolated().map((target) => target.id)).toEqual([id]);
-    expect(warns.filter((message) => message.includes("isolated after"))).toHaveLength(2);
+    expect(warns.filter((message) => message.includes("isolated after"))).toHaveLength(
+      __GWEN_DEV__ ? 2 : 0,
+    );
   });
 
   it("does not clear system isolation on SystemHandle.resume()", async () => {

@@ -11,10 +11,10 @@ Le mode debug active les diagnostics visuels et console pour comprendre ce qui s
 
 ### Debug global du moteur
 
-Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Cela active :
-- Journalisation détaillée de l'enregistrement des plugins et des événements de cycle de vie
+Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Les logs `debug` et `info` suivent ce drapeau dans chaque build. Ceci ne tourne que si `__GWEN_DEV__` est aussi vrai :
 - Vérifications sentinelles par frame
 - Avertissements de timing de phase en cas de dépassement du budget de frame
+- L'avertissement d'isolation (`isolated after …`)
 
 ```typescript
 // gwen.config.ts
@@ -56,7 +56,7 @@ Quand `debug: true` :
 - Les colliseurs de physique s'affichent comme des wireframes colorés
 - Le minutage du système apparaît à l'écran
 - La journalisation détaillée est active
-- Les vérifications de sentinelle valident l'intégrité des données
+- La sentinelle de mémoire WASM n'est vérifiée que si `__GWEN_DEV__` est aussi vrai. Les tableaux de composants ne sont pas vérifiés aux bornes, et les ID d'entités ne sont pas vérifiés.
 
 ## Débogage visuel
 
@@ -207,7 +207,7 @@ log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
 
 `engine.debug` vaut `false` par défaut. Le serveur de développement ne l'active pas.
 
-`__GWEN_DEV__` est le drapeau de build. Il suit `import.meta.env.DEV` de Vite, donc `NODE_ENV`, pas le nom du mode. `vite` le met à `true`. `vite build` met `NODE_ENV` à `production`, donc le drapeau vaut `false`, y compris pour `vite build --mode development`. Le minutage par frame et la sentinelle mémoire WASM ne tournent que si `__GWEN_DEV__` et `debug` sont vrais.
+`__GWEN_DEV__` est le drapeau de build. Sur un build, il suit le mode Vite, pas `NODE_ENV`. `vite build` (mode `production`) le met à `false`. `vite build --mode development` le met à `true` : un build de développement garde toutes les vérifications. Avec `vite` / `vite dev`, il suit `import.meta.env.DEV` de Vite, qui vaut `true`. `import.meta.env.DEV` de Vite suit `NODE_ENV`, et `vite build` met `NODE_ENV` à `production` par défaut quand il n'est pas défini : il reste `false` sur `vite build --mode development` ([Vite : NODE_ENV and Modes](https://vite.dev/guide/env-and-mode#node-env-and-modes)). Migration : `NODE_ENV=development vite build` (ou `NODE_ENV=development` dans `.env`) donne maintenant `false` ; passez `--mode development` à la place. Un mode autre que `development` (par exemple `staging`) donne `false`. `GWEN_DEV` de `virtual:gwen/env` a la même valeur que `__GWEN_DEV__`. Le minutage par frame et la sentinelle mémoire WASM ne tournent que si `__GWEN_DEV__` et `debug` sont vrais.
 
 ### Enregistrement de système conditionnel
 

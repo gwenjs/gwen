@@ -29,7 +29,7 @@ declare module "virtual:gwen/env" {
    */
   export const GWEN_WASM_VARIANT: "debug" | "release";
 
-  /** Same value as `__GWEN_DEV__` for this build. Matches Vite's `import.meta.env.DEV`. */
+  /** Same value as `__GWEN_DEV__` for this build. Build: `true` only in mode `development`. Serve: Vite's `import.meta.env.DEV`. */
   export const GWEN_DEV: boolean;
 }
 

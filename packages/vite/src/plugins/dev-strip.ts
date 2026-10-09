@@ -303,7 +303,7 @@ function isInstalledGwenModule(id: string): boolean {
 }
 
 /**
- * Defines `__GWEN_DEV__` from Vite's `import.meta.env.DEV`, folds the lib-build
+ * Defines `__GWEN_DEV__` from `devFromResolvedConfig` (build: the Vite mode; serve: `import.meta.env.DEV`), folds the lib-build
  * guard to that literal, and prints the strip report for production app builds.
  */
 export function gwenDevStripPlugin(): Plugin {

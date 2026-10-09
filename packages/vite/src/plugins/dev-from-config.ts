@@ -1,6 +1,18 @@
 import type { ResolvedConfig } from "vite";
 
-/** Vite's `import.meta.env.DEV`. A resolved config always sets this boolean. */
-export function devFromResolvedConfig(config: Pick<ResolvedConfig, "env">): boolean {
+/**
+ * The GWEN dev flag for this Vite run.
+ *
+ * - Build: follows the Vite mode. `vite build` (mode `production`) gives `false`;
+ *   `vite build --mode development` gives `true`. NODE_ENV is not read: Vite
+ *   defaults `NODE_ENV` to `production` on build when it is unset, so
+ *   `import.meta.env.DEV` stays `false` for `--mode development`
+ *   (vite.dev/guide/env-and-mode, "NODE_ENV and Modes").
+ * - Serve and preview: Vite's `import.meta.env.DEV` (`vite` / `vite dev` give `true`).
+ */
+export function devFromResolvedConfig(
+  config: Pick<ResolvedConfig, "env" | "command" | "mode">,
+): boolean {
+  if (config.command === "build") return config.mode === "development";
   return config.env.DEV;
 }

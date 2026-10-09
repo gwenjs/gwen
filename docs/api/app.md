@@ -55,7 +55,7 @@ export default defineConfig({
 | `engine.maxDeltaSeconds` | `number` | `0.1` | Maximum delta time clamp per frame (seconds). |
 | `engine.physicsHz` | `number` | `0` | Fixed simulation rate in Hz. When non-zero, `start()` uses a fixed-step accumulator loop. |
 | `engine.maxCatchupSteps` | `number` | `2` | Maximum fixed steps dispatched per real frame (spiral-of-death prevention). |
-| `engine.debug` | `boolean` | `false` | Enables verbose logging, per-frame sentinel checks, phase timing warnings, and plugin setup logs. |
+| `engine.debug` | `boolean` | `false` | Logger `debug` and `info`, and plugin setup logs, follow this flag in every build. Per-frame sentinel checks, phase timing, and the isolation warning run only when `__GWEN_DEV__` is also true (`true` with `vite` and `vite build --mode development`, `false` with `vite build`). |
 | `globalCss` | `string[]` | `[]` | CSS files injected into every page, relative to project root (e.g. `'./src/styles/global.css'`). |
 | `viewports` | `Record<string, ViewportRegion>` | — | Static viewport declarations (normalized 0–1 screen regions). If absent, a fullscreen `'main'` viewport is created automatically. |
 | `screen.sizeProvider` | `ScreenSizeProvider` | auto | Custom size provider for `ScreenPlugin`. Auto-detected in browser (ResizeObserver). Required for Node.js or non-browser environments. |
