@@ -220,7 +220,7 @@ engine.errors.on((event) => {
 - **`info`** — Informational events (e.g., "Physics initialized with 42 bodies")
 - **`warning`** — Something unexpected but recoverable
 - **`error`** — A problem that needs attention
-- **`fatal`** — The engine cannot continue; recovery required
+- **`fatal`** — The engine enters `faulted` and the loop stops. `stop()` is not called. Create a new engine.
 
 ### Fatal Error Handler
 
@@ -236,7 +236,7 @@ engine.errors.onFatal(() => {
 
 `emit` runs every `on` handler first, then every `onFatal` callback. Both run synchronously inside `emit`. A handler that throws is caught. The other handlers still run, and the frame loop keeps going.
 
-A custom bus passed as `errorBus` must implement `on()`. The engine calls it to apply its policy. `onFatal` alone is not enough. `stop()` unsubscribes. `start()` and `startExternal()` subscribe again. `stop()` also restores `emit` when the engine wrapped it so `engine:error` runs after the `on` handlers.
+A custom bus passed as `errorBus` must implement `on()` and `onFatal()`. The engine calls `on()` to log and isolate. `onFatal()` moves a non-terminal engine to `faulted` and does not call `stop()`. The engine subscribes in the constructor. `stop()` unsubscribes. `start()` after `stop()` rejects, so create a new engine. `stop()` also restores `emit` when the engine wrapped it so `engine:error` runs after the `on` handlers.
 
 ### Installation
 

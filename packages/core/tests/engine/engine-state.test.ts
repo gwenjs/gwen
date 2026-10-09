@@ -1,0 +1,757 @@
+import { describe, expect, it } from "vitest";
+
+import { createDisposable } from "../../src/disposable";
+import {
+  CoreErrorCodes,
+  GwenEngineStateError,
+  createEngine,
+  type GwenEngine,
+} from "../../src/index";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
+import type { GwenLogger, IGwenLogger } from "@gwenjs/schema";
+
+type Change = { from: string; to: string; reason: string };
+
+function watch(engine: GwenEngine): Change[] {
+  const seen: Change[] = [];
+  engine.hooks.hook("engine:state-change", (payload) => {
+    seen.push({ from: payload.from, to: payload.to, reason: payload.reason });
+  });
+  return seen;
+}
+
+/** True when the logger exposes the `setSink()` of the core console logger. */
+function hasSink(logger: IGwenLogger): logger is IGwenLogger & Pick<GwenLogger, "setSink"> {
+  return "setSink" in logger && typeof logger.setSink === "function";
+}
+
+/**
+ * Resolve `true` when `promise` settles within `turns` macrotask turns, `false` otherwise.
+ * A bounded wait: a hang shows up as `false` instead of a test timeout.
+ */
+async function settles(promise: Promise<unknown>, turns = 50): Promise<boolean> {
+  let done = false;
+  void promise.then(
+    () => {
+      done = true;
+    },
+    () => {
+      done = true;
+    },
+  );
+  for (let turn = 0; turn < turns && !done; turn += 1) {
+    await new Promise<void>((resolve) => {
+      setImmediate(resolve);
+    });
+  }
+  return done;
+}
+
+/**
+ * Cleanup for `finally`: never throws and never hangs. Calls nothing while `starting`
+ * (`stop()` would throw and hide the failure); otherwise a bounded `stop()`.
+ */
+async function shutdown(engine: GwenEngine): Promise<void> {
+  if (engine.state === "starting") return;
+  await settles(engine.stop());
+}
+
+describe("engine state machine", () => {
+  it("orders start and stop hooks around the lifecycle transitions", async () => {
+    const engine = await createEngine();
+    try {
+      const order: string[] = [];
+      engine.hooks.hook("engine:state-change", (payload) => {
+        order.push(`${payload.from}->${payload.to}:${payload.reason}`);
+      });
+      engine.hooks.hook("engine:init", () => {
+        order.push("init");
+      });
+      engine.hooks.hook("engine:start", () => {
+        order.push("start");
+      });
+      engine.hooks.hook("engine:stop", () => {
+        order.push("stop");
+      });
+
+      await engine.startExternal();
+      await engine.stop();
+
+      expect(order).toEqual([
+        "idle->starting:USER",
+        "init",
+        "start",
+        "starting->running:USER",
+        "running->stopping:USER",
+        "stop",
+        "stopping->stopped:USER",
+      ]);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("start() follows the same order when WASM is active", async () => {
+    const engine = await createEngine();
+    try {
+      const order: string[] = [];
+      engine.hooks.hook("engine:state-change", (payload) => {
+        order.push(`${payload.from}->${payload.to}`);
+      });
+      engine.hooks.hook("engine:init", () => {
+        order.push("init");
+      });
+      engine.hooks.hook("engine:start", () => {
+        order.push("start");
+      });
+      activateTestWasm(engine);
+      await engine.start();
+      expect(order).toEqual(["idle->starting", "init", "start", "starting->running"]);
+      expect(engine.state).toBe("running");
+      await engine.stop();
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() from idle ends stopped", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      await engine.stop();
+      expect(engine.state).toBe("stopped");
+      expect(seen).toEqual([
+        { from: "idle", to: "stopping", reason: "USER" },
+        { from: "stopping", to: "stopped", reason: "USER" },
+      ]);
+      await engine.stop();
+      expect(seen).toHaveLength(2);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("rejects start, advance, and stop while starting", async () => {
+    const engine = await createEngine();
+    try {
+      const rejected: GwenEngineStateError[] = [];
+      engine.hooks.hook("engine:state-change", async () => {
+        if (engine.state !== "starting") return;
+        const calls = [
+          engine.start(),
+          engine.startExternal(),
+          engine.advance(1 / 60),
+          engine.stop(),
+        ];
+        for (const call of calls) {
+          const error = await call.then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+          if (error instanceof GwenEngineStateError) rejected.push(error);
+        }
+      });
+      await engine.startExternal();
+      expect(rejected.map((error) => error.method)).toEqual([
+        "start",
+        "startExternal",
+        "advance",
+        "stop",
+      ]);
+      for (const error of rejected) {
+        expect(error.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
+        expect(error.from).toBe("starting");
+      }
+      expect(engine.state).toBe("running");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("rejects a second start while running and still advances", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      await engine.startExternal();
+      const busBefore = engine.frameCount;
+      await expect(engine.start()).rejects.toMatchObject({
+        name: "GwenEngineStateError",
+        code: CoreErrorCodes.INVALID_STATE_TRANSITION,
+        from: "running",
+        method: "start",
+      });
+      await expect(engine.startExternal()).rejects.toMatchObject({
+        from: "running",
+        method: "startExternal",
+      });
+      await engine.advance(1 / 60);
+      expect(engine.frameCount).toBe(busBefore + 1);
+      expect(engine.state).toBe("running");
+      expect(seen).toEqual([
+        { from: "idle", to: "starting", reason: "USER" },
+        { from: "starting", to: "running", reason: "USER" },
+      ]);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("rejects start and advance while stopping, and a nested stop is a no-op that resolves", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      let nested = 0;
+      let stops = 0;
+      const rejected: string[] = [];
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+      });
+      engine.hooks.hook("engine:state-change", async () => {
+        if (engine.state !== "stopping") return;
+        await engine.stop();
+        nested += 1;
+        const startError = await engine.start().then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        const advanceError = await engine.advance(1 / 60).then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        if (startError instanceof GwenEngineStateError) rejected.push(startError.method);
+        if (advanceError instanceof GwenEngineStateError) rejected.push(advanceError.method);
+      });
+      await engine.startExternal();
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nested).toBe(1);
+      expect(stops).toBe(1);
+      expect(rejected).toEqual(["start", "advance"]);
+      expect(engine.state).toBe("stopped");
+      expect(seen.filter((event) => event.to === "stopping")).toHaveLength(1);
+      expect(seen.filter((event) => event.to === "stopped")).toHaveLength(1);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("rejects start and advance after stop and ignores a fatal", async () => {
+    const engine = await createEngine();
+    try {
+      activateTestWasm(engine);
+      const seen = watch(engine);
+      let inits = 0;
+      let starts = 0;
+      engine.hooks.hook("engine:init", () => {
+        inits += 1;
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await engine.startExternal();
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+      await engine.stop();
+      const afterStop = seen.length;
+      let startError: unknown;
+      try {
+        await engine.start();
+      } catch (error) {
+        startError = error;
+      }
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+      expect(startError).toMatchObject({ from: "stopped", method: "start" });
+      await expect(engine.startExternal()).rejects.toMatchObject({
+        from: "stopped",
+        method: "startExternal",
+      });
+      await expect(engine.advance(1 / 60)).rejects.toMatchObject({
+        from: "stopped",
+        method: "advance",
+      });
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "late" });
+      expect(engine.state).toBe("stopped");
+      expect(seen).toHaveLength(afterStop);
+      expect(inits).toBe(1);
+      expect(starts).toBe(1);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a third-party fatal faults without engine:stop", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      let stopped = 0;
+      let errors = 0;
+      engine.hooks.hook("engine:stop", () => {
+        stopped += 1;
+      });
+      engine.hooks.hook("engine:error", () => {
+        errors += 1;
+      });
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+      expect(engine.state).toBe("faulted");
+      expect(stopped).toBe(0);
+      expect(errors).toBe(1);
+      expect(seen).toEqual([{ from: "idle", to: "faulted", reason: "FATAL_ERROR" }]);
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "again" });
+      expect(seen).toHaveLength(1);
+      expect(errors).toBe(2);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a fatal during stopping still finishes teardown and stays faulted", async () => {
+    const engine = await createEngine();
+    try {
+      let disposed = 0;
+      engine.disposables.add(
+        "probe",
+        createDisposable(() => {
+          disposed += 1;
+        }),
+      );
+      engine.hooks.hook("engine:stop", () => {
+        engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "during stop" });
+      });
+      await engine.startExternal();
+      await engine.stop();
+      expect(engine.state).toBe("faulted");
+      expect(disposed).toBe(1);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() on a faulted engine tears down once and stays faulted", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let disposed = 0;
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+      });
+      engine.disposables.add(
+        "probe",
+        createDisposable(() => {
+          disposed += 1;
+        }),
+      );
+      await engine.startExternal();
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+      expect(engine.state).toBe("faulted");
+      await engine.stop();
+      expect(stops).toBe(1);
+      expect(disposed).toBe(1);
+      expect(engine.state).toBe("faulted");
+      await engine.stop();
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() awaited inside an engine:stop hook after a fatal resolves, and teardown runs once", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let disposed = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", async () => {
+        stops += 1;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      engine.disposables.add(
+        "probe",
+        createDisposable(() => {
+          disposed += 1;
+        }),
+      );
+      await engine.startExternal();
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+      expect(engine.state).toBe("faulted");
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(disposed).toBe(1);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("an overlapping stop() while faulted does not run engine:stop again", async () => {
+    const engine = await createEngine();
+    let release: () => void = () => undefined;
+    try {
+      let stops = 0;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+        if (stops === 1) void engine.stop();
+        return gate;
+      });
+      await engine.startExternal();
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "boom" });
+      expect(engine.state).toBe("faulted");
+      const pending = engine.stop();
+      expect(stops).toBe(1);
+      release();
+      await pending;
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      release();
+      await shutdown(engine);
+    }
+  });
+
+  it("a second stop() during teardown resolves immediately, and a later stop() is a no-op", async () => {
+    const engine = await createEngine();
+    let open: () => void = () => undefined;
+    try {
+      let stops = 0;
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+        return gate;
+      });
+      await engine.startExternal();
+      const first = engine.stop();
+      await new Promise<void>((resolve) => {
+        setImmediate(resolve);
+      });
+      // engine:stop is running and blocked on the gate.
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopping");
+      expect(await settles(engine.stop())).toBe(true);
+      expect(engine.state).toBe("stopping");
+      open();
+      expect(await settles(first)).toBe(true);
+      expect(engine.state).toBe("stopped");
+      expect(stops).toBe(1);
+
+      await engine.stop();
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      open();
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() awaited inside an engine:stop hook resolves, and the first stop() completes", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", async () => {
+        stops += 1;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      await engine.startExternal();
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("stop() awaited inside an engine:state-change handler for stopping resolves, and engine:stop fires once", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      let nestedResolved = false;
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+      });
+      engine.hooks.hook("engine:state-change", async (payload) => {
+        if (payload.to !== "stopping") return;
+        await engine.stop();
+        nestedResolved = true;
+      });
+      await engine.startExternal();
+      expect(await settles(engine.stop())).toBe(true);
+      expect(nestedResolved).toBe(true);
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a fatal while stopping lets one nested stop() finish teardown once", async () => {
+    const engine = await createEngine();
+    try {
+      let stops = 0;
+      engine.hooks.hook("engine:stop", () => {
+        stops += 1;
+      });
+      engine.hooks.hook("engine:state-change", (payload) => {
+        if (payload.to === "stopping") {
+          engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "during stopping" });
+        }
+        if (payload.to === "faulted") void engine.stop();
+      });
+      await engine.startExternal();
+      await engine.stop();
+      expect(stops).toBe(1);
+      expect(engine.state).toBe("faulted");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a throwing state-change handler does not undo the transition", async () => {
+    const engine = await createEngine();
+    try {
+      const logs: string[] = [];
+      const logger = engine.logger;
+      if (!hasSink(logger)) throw new Error("the engine logger has no setSink()");
+      logger.setSink((entry) => {
+        if (entry.level === "error") logs.push(entry.message);
+      });
+      engine.hooks.hook("engine:state-change", () => {
+        throw new Error("handler blew up");
+      });
+      await engine.startExternal();
+      expect(engine.state).toBe("running");
+      expect(logs.some((message) => message.includes("handler blew up"))).toBe(true);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a second concurrent startExternal rejects and leaves the first running", async () => {
+    const engine = await createEngine();
+    try {
+      const first = engine.startExternal();
+      const second = engine.startExternal();
+      await expect(second).rejects.toMatchObject({
+        from: "starting",
+        method: "startExternal",
+        code: CoreErrorCodes.INVALID_STATE_TRANSITION,
+      });
+      await first;
+      expect(engine.state).toBe("running");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("an engine:init throw faults, emits one engine:error, and rejects", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      const bus: Array<{ context?: Record<string, unknown> }> = [];
+      let errors = 0;
+      let starts = 0;
+      engine.errors.on((event) => {
+        bus.push(event);
+      });
+      engine.hooks.hook("engine:error", () => {
+        errors += 1;
+      });
+      engine.hooks.hook("engine:init", () => {
+        throw new Error("init failed");
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await expect(engine.startExternal()).rejects.toThrow("init failed");
+      expect(engine.state).toBe("faulted");
+      expect(errors).toBe(1);
+      expect(starts).toBe(0);
+      expect(bus[0]).toMatchObject({ context: { hook: "engine:init" } });
+      expect(seen).toEqual([
+        { from: "idle", to: "starting", reason: "USER" },
+        { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
+      ]);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a fatal on the bus during engine:init does not run engine:start", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      let starts = 0;
+      engine.hooks.hook("engine:init", () => {
+        engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "during init" });
+      });
+      engine.hooks.hook("engine:start", () => {
+        starts += 1;
+      });
+      await engine.startExternal();
+      expect(starts).toBe(0);
+      expect(engine.state).toBe("faulted");
+      expect(seen).toEqual([
+        { from: "idle", to: "starting", reason: "USER" },
+        { from: "starting", to: "faulted", reason: "FATAL_ERROR" },
+      ]);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("a trap in plugin setup rejects use, stays idle, and publishes error", async () => {
+    const engine = await createEngine();
+    try {
+      const seen = watch(engine);
+      const levels: string[] = [];
+      engine.errors.on((event) => {
+        levels.push(event.level);
+      });
+      await expect(
+        engine.use({
+          name: "trap",
+          setup() {
+            throw new WebAssembly.RuntimeError("setup trap");
+          },
+        }),
+      ).rejects.toThrow(/setup trap/);
+      expect(engine.state).toBe("idle");
+      expect(seen).toEqual([]);
+      expect(levels).toEqual(["error"]);
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("use and unuse reject while starting, stopping and faulted", async () => {
+    const engine = await createEngine();
+    const faulted = await createEngine();
+    try {
+      let setups = 0;
+      const methods: string[] = [];
+      engine.hooks.hook("engine:state-change", async () => {
+        if (engine.state !== "starting" && engine.state !== "stopping") return;
+        const error = await engine
+          .use({
+            name: `late-${engine.state}`,
+            setup() {
+              setups += 1;
+            },
+          })
+          .then(
+            () => undefined,
+            (caught: unknown) => caught,
+          );
+        if (error instanceof GwenEngineStateError) methods.push(`${engine.state}:${error.method}`);
+        const unuseError = await engine.unuse("ok").then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+        if (unuseError instanceof GwenEngineStateError) {
+          methods.push(`${engine.state}:${unuseError.method}`);
+        }
+      });
+      await engine.startExternal();
+      expect(setups).toBe(0);
+      await engine.use({ name: "ok", setup() {} });
+      await engine.unuse("ok");
+      await engine.stop();
+      expect(engine.state).toBe("stopped");
+      expect(setups).toBe(0);
+      engine.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "nope" });
+      expect(engine.state).toBe("stopped");
+      let faultedSetups = 0;
+      await faulted.startExternal();
+      faulted.errors.emit({ level: "fatal", code: "TEST:FATAL", message: "down" });
+      await expect(
+        faulted.use({
+          name: "no",
+          setup() {
+            faultedSetups += 1;
+          },
+        }),
+      ).rejects.toMatchObject({
+        from: "faulted",
+        method: "use",
+      });
+      await expect(faulted.unuse("missing")).rejects.toMatchObject({
+        from: "faulted",
+        method: "unuse",
+      });
+      expect(faultedSetups).toBe(0);
+      expect(methods).toEqual(["starting:use", "starting:unuse", "stopping:use", "stopping:unuse"]);
+    } finally {
+      await shutdown(engine);
+      await shutdown(faulted);
+    }
+  });
+
+  it("use and unuse reject after stop and register nothing", async () => {
+    const engine = await createEngine();
+    try {
+      let setups = 0;
+      let teardowns = 0;
+      const registered: string[] = [];
+      engine.hooks.hook("plugin:registered", (name) => {
+        registered.push(name);
+      });
+      await engine.stop();
+      expect(engine.state).toBe("stopped");
+      const useError = await engine
+        .use({
+          name: "late",
+          setup() {
+            setups += 1;
+          },
+          teardown() {
+            teardowns += 1;
+          },
+        })
+        .then(
+          () => undefined,
+          (caught: unknown) => caught,
+        );
+      expect(useError).toBeInstanceOf(GwenEngineStateError);
+      expect(useError).toMatchObject({ from: "stopped", method: "use" });
+      const unuseError = await engine.unuse("late").then(
+        () => undefined,
+        (caught: unknown) => caught,
+      );
+      expect(unuseError).toBeInstanceOf(GwenEngineStateError);
+      expect(unuseError).toMatchObject({ from: "stopped", method: "unuse" });
+      expect(setups).toBe(0);
+      expect(teardowns).toBe(0);
+      expect(registered).toEqual([]);
+      expect(engine.state).toBe("stopped");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+
+  it("an invalid call does not emit on the error bus", async () => {
+    const engine = await createEngine();
+    try {
+      const codes: string[] = [];
+      engine.errors.on((event) => {
+        codes.push(event.code);
+      });
+      await engine.startExternal();
+      await expect(engine.start()).rejects.toBeInstanceOf(GwenEngineStateError);
+      expect(codes).toEqual([]);
+      expect(engine.state).toBe("running");
+    } finally {
+      await shutdown(engine);
+    }
+  });
+});

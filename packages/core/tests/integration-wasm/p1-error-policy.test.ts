@@ -57,7 +57,7 @@ describe("P1 error policy (real WASM)", () => {
       expect(engine.state).toBe("faulted");
       await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
     });
-    expect(handle.engine.state).toBe("stopped");
+    expect(handle.engine.state).toBe("faulted");
   });
 
   it("isolates a community module trap and keeps other systems running", async () => {

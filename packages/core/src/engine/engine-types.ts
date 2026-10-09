@@ -309,8 +309,10 @@ export interface GwenEngineOptions {
    * Error bus for structured engine errors.
    * When omitted, `createEngine()` creates one with `createErrorBus()`.
    * Pass an instance to share a bus or register handlers before startup.
-   * The engine calls `on` to log, isolate, and fault. `stop()` unsubscribes.
-   * `start()` and `startExternal()` subscribe again.
+   * The engine calls `on` to log and isolate.
+   * `onFatal` moves a non-terminal engine to `faulted`. `stop()` is not called.
+   * The engine subscribes in the constructor. `stop()` unsubscribes.
+   * `start()` after `stop()` rejects. Create a new engine.
    * `createErrorBus()` is exported from `@gwenjs/core` and `@gwenjs/kit`.
    */
   errorBus?: EngineErrorBus;
@@ -462,18 +464,36 @@ export interface EngineStats {
   overBudget?: boolean;
 }
 
-/** Lifecycle state of a {@link GwenEngine}. */
-export type EngineState = "idle" | "running" | "paused" | "faulted" | "stopped";
+/**
+ * Lifecycle state of a {@link GwenEngine}.
+ * There is no `paused` state. `timeScale = 0` pauses simulation time.
+ */
+export type GwenEngineState = "idle" | "starting" | "running" | "stopping" | "stopped" | "faulted";
+
+/** Why {@link GwenEngine} moved from one {@link GwenEngineState} to another. */
+export type GwenEngineStateChangeReason = "USER" | "WASM_PANIC" | "FATAL_ERROR";
 
 /**
  * Payload of the `engine:state-change` hook.
- * `from` and `to` are the states around one transition.
+ * Emitted once per real transition. A no-op does not emit.
  */
-export interface EngineStateChange {
-  readonly from: EngineState;
-  readonly to: EngineState;
-  readonly reason: string;
+export interface EngineStateChangePayload {
+  readonly from: GwenEngineState;
+  readonly to: GwenEngineState;
+  readonly reason: GwenEngineStateChangeReason;
 }
+
+/**
+ * @deprecated Use {@link GwenEngineState}. `paused` is removed.
+ * `starting` and `stopping` are part of the lifecycle.
+ */
+export type EngineState = GwenEngineState;
+
+/**
+ * @deprecated Use {@link EngineStateChangePayload}.
+ * `reason` is {@link GwenEngineStateChangeReason}, not an open string.
+ */
+export type EngineStateChange = EngineStateChangePayload;
 
 /**
  * The GWEN engine instance returned by {@link createEngine}.
@@ -487,12 +507,20 @@ export interface EngineStateChange {
  * ```
  */
 export interface GwenEngine extends GwenEngineBase {
-  /** Current lifecycle state. Starts at `idle`. */
-  readonly state: EngineState;
+  /** Current lifecycle state. Starts at `idle`. Getter only. */
+  readonly state: GwenEngineState;
   // ─── Plugin runner ──────────────────────────────────────────────────────
-  /** Register and initialise a plugin. Deduplicates by `plugin.name`. */
+  /**
+   * Register and initialise a plugin. Deduplicates by `plugin.name`.
+   * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
+   * `starting`, `stopping`, `stopped` and `faulted`.
+   */
   use(plugin: GwenPlugin): Promise<void>;
-  /** Tear down and unregister a plugin by name. Safe to call with unknown names. */
+  /**
+   * Tear down and unregister a plugin by name. Safe to call with unknown names.
+   * Allowed in `idle` and `running` only; rejects with `GwenEngineStateError` in
+   * `starting`, `stopping`, `stopped` and `faulted`.
+   */
   unuse(name: string): Promise<void>;
 
   // ─── Typed provide/inject (narrows GwenEngineBase to typed keys) ────────

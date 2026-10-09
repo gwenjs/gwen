@@ -93,11 +93,25 @@ describe("plugin error isolation", () => {
         throw new WebAssembly.RuntimeError("unreachable executed");
       };
 
+      let afterTick = 0;
+      const changes: Array<{ from: string; to: string; reason: string }> = [];
+      engine.hooks.hook("engine:afterTick", () => {
+        afterTick += 1;
+      });
+      engine.hooks.hook("engine:state-change", (payload) => {
+        changes.push(payload);
+      });
+      const framesBefore = engine.frameCount;
+
       await engine.advance(0.016);
 
       const wasmPanics = bus.emitted.filter((e) => e.code === CoreErrorCodes.WASM_PANIC);
       expect(wasmPanics).toHaveLength(1);
       expect(wasmPanics[0]!.source).toBe("gwen_core.wasm");
+      expect(engine.state).toBe("faulted");
+      expect(afterTick).toBe(0);
+      expect(engine.frameCount).toBe(framesBefore);
+      expect(changes).toEqual([{ from: "idle", to: "faulted", reason: "WASM_PANIC" }]);
     });
 
     it("emits FRAME_LOOP_ERROR when physics step throws a non-WASM error", async () => {
@@ -109,6 +123,11 @@ describe("plugin error isolation", () => {
         throw new TypeError("not a wasm error");
       };
 
+      const changes: Array<{ from: string; to: string; reason: string }> = [];
+      engine.hooks.hook("engine:state-change", (payload) => {
+        changes.push(payload);
+      });
+
       await engine.advance(0.016);
 
       const frameErrors = bus.emitted.filter(
@@ -116,6 +135,8 @@ describe("plugin error isolation", () => {
       );
       expect(frameErrors).toHaveLength(1);
       expect(frameErrors[0]!.level).toBe("fatal");
+      expect(engine.state).toBe("faulted");
+      expect(changes).toEqual([{ from: "idle", to: "faulted", reason: "FATAL_ERROR" }]);
     });
 
     it("keeps a community WASM trap at error level and does not poison the core bridge", async () => {

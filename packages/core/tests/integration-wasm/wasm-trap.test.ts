@@ -4,22 +4,27 @@ import { CoreErrorCodes, GwenWasmPanicError } from "../../src/engine/engine-erro
 import { GwenWasmError } from "../../src/index.js";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
+/** `teardowns` counts `engine:stop`, so a test can prove `dispose()` tore the engine down. */
 async function useLight(
   maxEntities: number,
   body: (handle: RealEngineHandle) => Promise<void>,
-): Promise<RealEngineHandle> {
+): Promise<{ handle: RealEngineHandle; teardowns: number }> {
   const handle = await createRealEngine({ variant: "light", maxEntities });
+  let teardowns = 0;
+  handle.engine.hooks.hook("engine:stop", () => {
+    teardowns += 1;
+  });
   try {
     await body(handle);
   } finally {
     await handle.dispose();
   }
-  return handle;
+  return { handle, teardowns };
 }
 
 describe("WASM trap", () => {
   it("an out-of-bounds pointer panics once, then every later call stays poisoned", async () => {
-    const handle = await useLight(8, async ({ engine, bridge }) => {
+    const { handle, teardowns } = await useLight(8, async ({ engine, bridge }) => {
       const seen: Array<{ level: string; code: string; source?: string; error?: unknown }> = [];
       engine.errors.on((event) => {
         seen.push(event);
@@ -62,11 +67,12 @@ describe("WASM trap", () => {
       expect((next as GwenWasmPanicError).exportName).toBeUndefined();
       expect(seen.filter((event) => event.code === CoreErrorCodes.WASM_PANIC)).toHaveLength(1);
     });
-    expect(handle.engine.state).toBe("stopped");
+    expect(handle.engine.state).toBe("faulted");
+    expect(teardowns).toBe(1);
   });
 
   it("an infallible export trap poisons the bridge from the frame loop", async () => {
-    const handle = await useLight(4, async ({ engine, bridge }) => {
+    const { handle, teardowns } = await useLight(4, async ({ engine, bridge }) => {
       const id = bridge.createEntity();
       expect(bridge.addComponent(id.index, id.generation, 0xffffffff - 1, new Uint8Array(20))).toBe(
         true,
@@ -88,6 +94,7 @@ describe("WASM trap", () => {
       expect(next).toBeInstanceOf(GwenWasmPanicError);
       expect(next).not.toBeInstanceOf(GwenWasmError);
     });
-    expect(handle.engine.state).toBe("stopped");
+    expect(handle.engine.state).toBe("faulted");
+    expect(teardowns).toBe(1);
   });
 });

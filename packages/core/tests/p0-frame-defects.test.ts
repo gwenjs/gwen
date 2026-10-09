@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { CoreErrorCodes, GwenWasmPanicError, createEngine } from "../src/index.js";
+import type { EngineStateChangePayload } from "../src/index.js";
 import { activateTestWasm } from "./helpers/activate-test-wasm";
 
 describe("P0 frame defects", () => {
@@ -27,7 +28,11 @@ describe("P0 frame defects", () => {
     });
     vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => undefined);
 
+    const faulted: EngineStateChangePayload[] = [];
     try {
+      engine.hooks.hook("engine:state-change", (payload) => {
+        if (payload.to === "faulted") faulted.push(payload);
+      });
       engine.hooks.hook("engine:before-update", () => {
         throw new WebAssembly.RuntimeError("unreachable");
       });
@@ -44,6 +49,8 @@ describe("P0 frame defects", () => {
         await result;
       }
       expect(queued).toHaveLength(0);
+      expect(engine.state).toBe("faulted");
+      expect(faulted).toEqual([{ from: "running", to: "faulted", reason: "WASM_PANIC" }]);
     } finally {
       vi.restoreAllMocks();
       await engine.stop();

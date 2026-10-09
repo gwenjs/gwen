@@ -4,6 +4,7 @@ import {
   createEngine,
   createErrorBus,
   CoreErrorCodes,
+  GwenEngineStateError,
   type EngineErrorBus,
   type EngineErrorPayload,
 } from "../../index.js";
@@ -201,11 +202,18 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
       expect(engine.inject("errors")).toBe(engine.errors);
     });
 
-    it("subscribes with on and does not register a teardown onFatal", async () => {
+    it("subscribes with on and onFatal, and fatal does not tear down", async () => {
       const bus = makeMockBus();
-      await createEngine({ errorBus: bus });
+      const engine = await createEngine({ errorBus: bus });
+      let stopped = false;
+      engine.hooks.hook("engine:stop", () => {
+        stopped = true;
+      });
       expect(bus._onCount).toBe(1);
-      expect(bus._fatalCb).toBeNull();
+      expect(typeof bus._fatalCb).toBe("function");
+      bus.emit({ level: "fatal", code: "TEST:FATAL", message: "fatal" });
+      expect(engine.state).toBe("faulted");
+      expect(stopped).toBe(false);
     });
 
     it("stop removes window handlers installed by createEngine", async () => {
@@ -279,7 +287,7 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
   });
 
   describe("Error bus fatal callback", () => {
-    it("a fatal event faults the engine and does not call stop()", async () => {
+    it("a fatal event faults the engine, skips stop, and advance rejects", async () => {
       const bus = makeMockBus();
       const engine = await createEngine({ errorBus: bus });
       const stopHookCalls: string[] = [];
@@ -290,7 +298,12 @@ describe("GwenEngine + EngineErrorBus (Task 5)", () => {
 
       expect(stopHookCalls).toEqual([]);
       expect(engine.state).toBe("faulted");
-      expect(bus._fatalCb).toBeNull();
+      await expect(engine.advance(1 / 60)).rejects.toBeInstanceOf(GwenEngineStateError);
+      await expect(engine.advance(1 / 60)).rejects.toMatchObject({
+        code: CoreErrorCodes.INVALID_STATE_TRANSITION,
+        from: "faulted",
+        method: "advance",
+      });
     });
   });
 

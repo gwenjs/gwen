@@ -113,6 +113,7 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `engine:init` | — | Once, after all plugins set up |
 | `engine:start` | — | Once, when frame loop begins |
 | `engine:stop` | — | Once, on engine teardown |
+| `engine:state-change` | `{ from, to, reason }` | Once per real lifecycle transition |
 | `engine:tick` | `dt: number` | Every frame start |
 | `engine:afterTick` | `dt: number` | Every frame end |
 | `engine:before-update` | `dt: number` | Before physics |
