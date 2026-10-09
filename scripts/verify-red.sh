@@ -13,9 +13,14 @@
 # too (an old test a helper registers): then it warns. Those are the limits of
 # this check.
 #
-# A file that does not load on the base (it imports a module the PR adds) is
-# run on this checkout too: when it loads here, its new names count red; when
-# it fails here as well, it exits 2 (not verifiable).
+# A file that does not load on the base is run on the base again with the
+# test-support files the PR adds (added files under a tests/, test/,
+# __tests__/, fixtures/, __fixtures__/, helpers/ or __mocks__/ directory,
+# under no src/ directory, and not a test file): a missing fixture or helper
+# is not proof of behaviour. Production code (any src/ path) is never copied. When the file
+# still does not load (it imports a module the PR adds), it is run on this
+# checkout: when it loads here, its new names count red; when it fails here
+# as well, it exits 2 (not verifiable).
 #
 # tests/integration-wasm runs with vitest.wasm.config.ts when that config and
 # a packages/core/wasm/**/gwen_core_bg.wasm artifact are present. The untracked
@@ -138,6 +143,43 @@ head_installed=0
 not_red=0
 skipped=0
 keep_only=0
+
+# Test-support files the PR adds: under a test or fixture directory, never
+# under src/ (production code stays the base's). A test file is not support:
+# copied early, it would become the base copy of a later group.
+is_test_support() {
+  is_cargo_test "$1" && return 1
+  case "/$1" in
+    */src/*) return 1 ;;
+    *.test.* | *.spec.*) return 1 ;;
+    */tests/* | */test/* | */__tests__/* | */fixtures/* | */__fixtures__/* | */helpers/* | */__mocks__/*) return 0 ;;
+  esac
+  return 1
+}
+
+support_copied=0
+# copy_test_support: copy the test-support files the PR adds onto the base
+# worktree. Runs once: a later group already ran with them. Returns 1 when
+# nothing was copied by this call.
+copy_test_support() {
+  local added f copied=0
+  [ "$support_copied" -eq 0 ] || return 1
+  support_copied=1
+  added=$(git diff --name-only --diff-filter=A "$BASE...HEAD") || return 1
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    is_test_support "$f" || continue
+    [ -f "$ROOT/$f" ] || continue
+    [ -e "$WT/$f" ] && continue
+    mkdir -p "$WT/$(dirname "$f")"
+    cp "$ROOT/$f" "$WT/$f"
+    echo "verify-red: copied test-support file $f onto the base"
+    copied=1
+  done <<ADDED
+$added
+ADDED
+  [ "$copied" -eq 1 ]
+}
 
 package_dir() {
   local rel="$1"
@@ -415,6 +457,14 @@ for f in "${files[@]}"; do
   run_tests "$WT" "$f" "$report" "$log"
   cat "$log"
   judge_file "$f" "$report" "$base_snapshot"
+  if { [ "$judge_code" -eq 3 ] || [ "$judge_code" -eq 4 ]; } && copy_test_support; then
+    # The file may only miss a fixture or helper the PR adds: judge it on the
+    # base again, with those files and the base's production code.
+    echo "verify-red: $f does not load or runs no test on the base; running it on the base with the PR's test-support files"
+    run_tests "$WT" "$f" "$report" "$log"
+    cat "$log"
+    judge_file "$f" "$report" "$base_snapshot"
+  fi
   if [ "$judge_code" -eq 3 ] || [ "$judge_code" -eq 4 ]; then
     # The file does not load on the base (for example it imports a module
     # this PR adds). Run it on this checkout: when it loads here, every new
