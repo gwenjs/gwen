@@ -1,3 +1,16 @@
+#![allow(
+    dead_code,
+    reason = "bench model methods stay for the storage comparison"
+)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Bench-only storage models for ADR-0001.
 //! Not part of the crate. Do not move this under `src/`.
 //!
@@ -136,10 +149,10 @@ pub struct ModelAProd {
 impl ModelAProd {
     pub fn build(entity_count: usize) -> Self {
         let mut storage = ArchetypeStorage::new();
-        storage.register_raw(pos_id(), 8);
-        storage.register_raw(vel_id(), 8);
-        storage.register_raw(health_id(), 8);
-        storage.register_raw(enemy_id(), 0);
+        let _ = storage.register_raw(pos_id(), 8);
+        let _ = storage.register_raw(vel_id(), 8);
+        let _ = storage.register_raw(health_id(), 8);
+        let _ = storage.register_raw(enemy_id(), 0);
         for entity in 0..entity_count as u32 {
             let pos = write_pair(initial_position(entity));
             let vel = write_pair(initial_velocity(entity));

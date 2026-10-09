@@ -38,6 +38,10 @@ use rapier3d::{geometry::TriMesh, na::Point3};
 ///
 /// # Panics
 /// Panics if `vertices_flat.len() % 3 != 0` or `indices_flat.len() % 3 != 0`.
+#[allow(
+    clippy::expect_used,
+    reason = "a TriMesh built from these slices always encodes; removal is #80"
+)]
 pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
     assert_eq!(
         vertices_flat.len() % 3,
@@ -51,11 +55,15 @@ pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> 
     );
 
     let verts: Vec<Point3<f32>> = vertices_flat
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|c| Point3::new(c[0], c[1], c[2]))
         .collect();
     let idxs: Vec<[u32; 3]> = indices_flat
-        .chunks_exact(3)
+        .as_chunks::<3>()
+        .0
+        .iter()
         .map(|c| [c[0], c[1], c[2]])
         .collect();
 
@@ -95,8 +103,9 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<&str>) -> Result<V
             let name = mesh.name().unwrap_or("");
             let name_lower = name.to_lowercase();
             // Accept an exact match or a collision-proxy suffix convention.
-            let is_suffix =
-                name_lower.ends_with("_col") || name_lower.ends_with("_collision") || name_lower.ends_with("_phys");
+            let is_suffix = name_lower.ends_with("_col")
+                || name_lower.ends_with("_collision")
+                || name_lower.ends_with("_phys");
             if name != target && !is_suffix {
                 continue;
             }
@@ -108,14 +117,17 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<&str>) -> Result<V
             }
             let reader = prim.reader(|buf| {
                 // Buffer 0 is always the embedded GLB blob.
-                if buf.index() == 0 { Some(blob) } else { None }
+                if buf.index() == 0 {
+                    Some(blob)
+                } else {
+                    None
+                }
             });
 
             let Some(positions) = reader.read_positions() else {
                 continue;
             };
-            let vertices_flat: Vec<f32> =
-                positions.flatten().collect();
+            let vertices_flat: Vec<f32> = positions.flatten().collect();
             if vertices_flat.is_empty() {
                 continue;
             }

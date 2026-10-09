@@ -1,7 +1,19 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Tests for the `gwen_channel!()` macro.
 
 #[cfg(test)]
-#[allow(static_mut_refs)]
+#[allow(
+    static_mut_refs,
+    reason = "the test reads the generated static mut channel"
+)]
 mod tests {
     use crate::gwen_channel;
 
@@ -12,8 +24,12 @@ mod tests {
         use crate::ring::HEADER_BYTES;
         gwen_channel!(ping, 4, 8);
         let expected = HEADER_BYTES + 4 * 8;
+        // SAFETY: the macro just created this static. `len` only reads its size.
         let actual = unsafe { GWEN_CHANNEL_PING.len() };
-        assert_eq!(actual, expected, "buffer must be HEADER_BYTES + capacity * item_size");
+        assert_eq!(
+            actual, expected,
+            "buffer must be HEADER_BYTES + capacity * item_size"
+        );
     }
 
     /// Verify the ptr export returns a non-zero address
@@ -22,22 +38,37 @@ mod tests {
     fn ring_ptr_is_nonzero() {
         gwen_channel!(events, 16, 12);
         let ptr = gwen_events_ring_ptr();
-        assert_ne!(ptr, 0, "ptr must point into the data segment, never address 0");
+        assert_ne!(
+            ptr, 0,
+            "ptr must point into the data segment, never address 0"
+        );
     }
 
     /// Verify cap and item_size exports match the macro arguments.
     #[test]
     fn ring_cap_and_item_size_match_macro_args() {
         gwen_channel!(cmds, 32, 20);
-        assert_eq!(gwen_cmds_ring_cap(), 32, "ring_cap must match macro capacity arg");
-        assert_eq!(gwen_cmds_ring_item_size(), 20, "ring_item_size must match macro item_size arg");
+        assert_eq!(
+            gwen_cmds_ring_cap(),
+            32,
+            "ring_cap must match macro capacity arg"
+        );
+        assert_eq!(
+            gwen_cmds_ring_item_size(),
+            20,
+            "ring_item_size must match macro item_size arg"
+        );
     }
 
     /// Verify that `version = N` generates `gwen_plugin_api_version()`.
     #[test]
     fn version_export_is_generated_when_requested() {
         gwen_channel!(versioned, 8, 4, version = 1_000_002);
-        assert_eq!(gwen_plugin_api_version(), 1_000_002, "version must be encoded as major * 1_000_000 + minor * 1_000 + patch");
+        assert_eq!(
+            gwen_plugin_api_version(),
+            1_000_002,
+            "version must be encoded as major * 1_000_000 + minor * 1_000 + patch"
+        );
     }
 
     /// Verify that two channels have distinct addresses.

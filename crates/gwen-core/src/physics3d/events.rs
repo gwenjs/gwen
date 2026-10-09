@@ -38,6 +38,12 @@ pub struct CollisionEventBuffer3D {
     count: usize,
 }
 
+impl Default for CollisionEventBuffer3D {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CollisionEventBuffer3D {
     pub fn new() -> Self {
         Self {
@@ -67,6 +73,10 @@ impl CollisionEventBuffer3D {
 
     pub fn len(&self) -> usize {
         self.count
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.count == 0
     }
 }
 

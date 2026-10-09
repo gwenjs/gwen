@@ -34,7 +34,10 @@ pub struct PhysicsMaterial3D {
 
 impl Default for PhysicsMaterial3D {
     fn default() -> Self {
-        PhysicsMaterial3D { restitution: 0.0, friction: 0.5 }
+        PhysicsMaterial3D {
+            restitution: 0.0,
+            friction: 0.5,
+        }
     }
 }
 
@@ -48,12 +51,17 @@ pub struct CollisionGroups3D {
 }
 
 impl Default for CollisionGroups3D {
-    fn default() -> Self { CollisionGroups3D::ALL }
+    fn default() -> Self {
+        CollisionGroups3D::ALL
+    }
 }
 
 impl CollisionGroups3D {
     /// Collides with everything (default).
-    pub const ALL: Self = CollisionGroups3D { membership: u32::MAX, filter: u32::MAX };
+    pub const ALL: Self = CollisionGroups3D {
+        membership: u32::MAX,
+        filter: u32::MAX,
+    };
 }
 
 /// Quality preset controlling solver iteration counts and CCD substeps.
@@ -90,10 +98,26 @@ pub(crate) struct QualitySolverConfig3D {
 
 pub(crate) fn quality_solver_config_3d(preset: PhysicsQualityPreset3D) -> QualitySolverConfig3D {
     match preset {
-        PhysicsQualityPreset3D::Low => QualitySolverConfig3D { num_solver_iterations: 2, num_internal_stabilization_iterations: 1, max_ccd_substeps: 1 },
-        PhysicsQualityPreset3D::Medium => QualitySolverConfig3D { num_solver_iterations: 4, num_internal_stabilization_iterations: 2, max_ccd_substeps: 1 },
-        PhysicsQualityPreset3D::High => QualitySolverConfig3D { num_solver_iterations: 8, num_internal_stabilization_iterations: 3, max_ccd_substeps: 2 },
-        PhysicsQualityPreset3D::Esport => QualitySolverConfig3D { num_solver_iterations: 10, num_internal_stabilization_iterations: 4, max_ccd_substeps: 4 },
+        PhysicsQualityPreset3D::Low => QualitySolverConfig3D {
+            num_solver_iterations: 2,
+            num_internal_stabilization_iterations: 1,
+            max_ccd_substeps: 1,
+        },
+        PhysicsQualityPreset3D::Medium => QualitySolverConfig3D {
+            num_solver_iterations: 4,
+            num_internal_stabilization_iterations: 2,
+            max_ccd_substeps: 1,
+        },
+        PhysicsQualityPreset3D::High => QualitySolverConfig3D {
+            num_solver_iterations: 8,
+            num_internal_stabilization_iterations: 3,
+            max_ccd_substeps: 2,
+        },
+        PhysicsQualityPreset3D::Esport => QualitySolverConfig3D {
+            num_solver_iterations: 10,
+            num_internal_stabilization_iterations: 4,
+            max_ccd_substeps: 4,
+        },
     }
 }
 

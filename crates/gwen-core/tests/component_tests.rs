@@ -1,7 +1,16 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 #[cfg(test)]
 mod tests {
     use bytemuck::{Pod, Zeroable};
-    use gwen_core::{ComponentHandle, ArchetypeStorage};
+    use gwen_core::{ArchetypeStorage, ComponentHandle};
 
     #[derive(Clone, Copy, Debug, PartialEq, Pod, Zeroable)]
     #[repr(C)]
@@ -191,19 +200,19 @@ mod upsert_js_tests {
         let type_id = ComponentTypeId::from_raw(99);
 
         // Insert
-        storage.upsert_js(0, type_id, b"hello");
+        let _ = storage.upsert_js(0, type_id, b"hello");
         assert_eq!(storage.get_component(0, type_id).unwrap(), b"hello");
 
         // Update same size
-        storage.upsert_js(0, type_id, b"world");
+        let _ = storage.upsert_js(0, type_id, b"world");
         assert_eq!(storage.get_component(0, type_id).unwrap(), b"world");
 
         // Update different size (grow)
-        storage.upsert_js(0, type_id, b"hello world");
+        let _ = storage.upsert_js(0, type_id, b"hello world");
         assert_eq!(storage.get_component(0, type_id).unwrap(), b"hello world");
 
         // Update different size (shrink)
-        storage.upsert_js(0, type_id, b"hi");
+        let _ = storage.upsert_js(0, type_id, b"hi");
         assert_eq!(storage.get_component(0, type_id).unwrap(), b"hi");
     }
 }

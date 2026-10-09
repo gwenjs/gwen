@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 /// Extended integration tests for the 3D physics WASM bindings.
 ///
 /// These tests exercise the collider management, sensor state, quality presets,
@@ -5,7 +14,6 @@
 /// `physics3d/world.rs`.  Each test runs against the public `Engine` struct
 /// (the same surface that JavaScript calls), exercising the full call path
 /// including the `Option<PhysicsWorld3D>` guard in every binding.
-
 #[cfg(feature = "physics3d")]
 mod physics3d_extended {
     use gwen_core::bindings::Engine;
@@ -27,13 +35,19 @@ mod physics3d_extended {
     fn test_physics3d_add_box_collider_returns_true() {
         let mut engine = engine_with_one_body();
         assert!(engine.physics3d_add_box_collider(
-            0,    // entity_index
-            0.5, 0.5, 0.5, // half-extents
-            0.0, 0.0, 0.0, // offset
+            0, // entity_index
+            0.5,
+            0.5,
+            0.5, // half-extents
+            0.0,
+            0.0,
+            0.0,   // offset
             false, // is_sensor
-            0.5, 0.0, // friction, restitution
-            0xFFFF_FFFF, 0xFFFF_FFFF, // layer_bits, mask_bits
-            1,    // collider_id
+            0.5,
+            0.0, // friction, restitution
+            0xFFFF_FFFF,
+            0xFFFF_FFFF, // layer_bits, mask_bits
+            1,           // collider_id
         ));
     }
 
@@ -43,8 +57,19 @@ mod physics3d_extended {
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Entity 99 has no body registered.
         assert!(!engine.physics3d_add_box_collider(
-            99, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            99,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         ));
     }
 
@@ -53,8 +78,19 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         // No physics3d_init call.
         assert!(!engine.physics3d_add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         ));
     }
 
@@ -62,12 +98,17 @@ mod physics3d_extended {
     fn test_physics3d_add_sphere_collider_returns_true() {
         let mut engine = engine_with_one_body();
         assert!(engine.physics3d_add_sphere_collider(
-            0,    // entity_index
-            0.4,  // radius
-            0.0, 0.0, 0.0, // offset
-            false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF,
-            2,    // collider_id
+            0,   // entity_index
+            0.4, // radius
+            0.0,
+            0.0,
+            0.0, // offset
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2, // collider_id
         ));
     }
 
@@ -76,8 +117,17 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_add_sphere_collider(
-            5, 0.4, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 2,
+            5,
+            0.4,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2,
         ));
     }
 
@@ -85,13 +135,18 @@ mod physics3d_extended {
     fn test_physics3d_add_capsule_collider_returns_true() {
         let mut engine = engine_with_one_body();
         assert!(engine.physics3d_add_capsule_collider(
-            0,    // entity_index
-            0.3,  // radius
-            0.5,  // half_height
-            0.0, 0.0, 0.0, // offset
-            false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF,
-            3,    // collider_id
+            0,   // entity_index
+            0.3, // radius
+            0.5, // half_height
+            0.0,
+            0.0,
+            0.0, // offset
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            3, // collider_id
         ));
     }
 
@@ -100,8 +155,18 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert!(!engine.physics3d_add_capsule_collider(
-            7, 0.3, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 3,
+            7,
+            0.3,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            3,
         ));
     }
 
@@ -109,8 +174,19 @@ mod physics3d_extended {
     fn test_physics3d_remove_collider_happy_path() {
         let mut engine = engine_with_one_body();
         assert!(engine.physics3d_add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 10,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            10,
         ));
         // First remove succeeds.
         assert!(engine.physics3d_remove_collider(0, 10));
@@ -135,16 +211,46 @@ mod physics3d_extended {
         let mut engine = engine_with_one_body();
         // Three distinct collider IDs can coexist on the same body.
         assert!(engine.physics3d_add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         ));
         assert!(engine.physics3d_add_sphere_collider(
-            0, 0.4, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 2,
+            0,
+            0.4,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2,
         ));
         assert!(engine.physics3d_add_capsule_collider(
-            0, 0.3, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 3,
+            0,
+            0.3,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            3,
         ));
         // Remove all three.
         assert!(engine.physics3d_remove_collider(0, 1));
@@ -247,7 +353,11 @@ mod physics3d_extended {
         engine.physics3d_set_quality(2);
         engine.physics3d_step(0.016);
         let state = engine.physics3d_get_body_state(0);
-        assert_eq!(state.len(), 13, "body state must remain 13 elements after quality change");
+        assert_eq!(
+            state.len(),
+            13,
+            "body state must remain 13 elements after quality change"
+        );
     }
 
     // ── Event coalescing ──────────────────────────────────────────────────────
@@ -312,25 +422,47 @@ mod physics3d_extended {
         // Rapier fires a collision-started event on the first step.
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, 0.0, 0.0, 32); // zero gravity to keep bodies still
-        // Both bodies at the same position so their colliders immediately overlap.
+                                                  // Both bodies at the same position so their colliders immediately overlap.
         assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0));
         assert!(engine.physics3d_add_body(1, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0));
 
         // Large box sensors so they definitely overlap at origin.
         assert!(engine.physics3d_add_box_collider(
-            0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, true, 0.0, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            0,
+            1.0,
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            true,
+            0.0,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         ));
         assert!(engine.physics3d_add_box_collider(
-            1, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, true, 0.0, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF, 2,
+            1,
+            1.0,
+            1.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            true,
+            0.0,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2,
         ));
 
         // Step: Rapier will generate the overlap event and write it into the buffer.
         engine.physics3d_step(0.016);
 
         let count = engine.physics3d_get_collision_event_count();
-        let ptr   = engine.physics3d_get_collision_events_ptr();
+        let ptr = engine.physics3d_get_collision_events_ptr();
 
         // If Rapier fired the event the count is 1; it may be 0 if broad-phase
         // deferred the pair to the next step — both are valid, so we assert
@@ -356,26 +488,20 @@ mod physics3d_extended {
         // Kind 2 = KinematicPositionBased
         assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
         // Identity quaternion (0, 0, 0, 1)
-        assert!(engine.physics3d_set_kinematic_position(
-            0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0
-        ));
+        assert!(engine.physics3d_set_kinematic_position(0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0));
     }
 
     #[test]
     fn test_physics3d_set_kinematic_position_no_body_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(!engine.physics3d_set_kinematic_position(
-            99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0
-        ));
+        assert!(!engine.physics3d_set_kinematic_position(99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0));
     }
 
     #[test]
     fn test_physics3d_set_kinematic_position_world_uninitialised_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
-        assert!(!engine.physics3d_set_kinematic_position(
-            0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0
-        ));
+        assert!(!engine.physics3d_set_kinematic_position(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0));
     }
 
     // ── Angular impulse ───────────────────────────────────────────────────────

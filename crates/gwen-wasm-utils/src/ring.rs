@@ -42,7 +42,7 @@ pub(crate) mod raw {
     ///
     /// # Returns
     /// `Some(offset)` with the byte offset to write the next event, or `None` if full or invalid.
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "ring index helpers kept for the channel macro")]
     pub fn next_write_offset(buf: &[u8], stride: usize) -> Option<usize> {
         if stride == 0 {
             return None;
@@ -68,7 +68,7 @@ pub(crate) mod raw {
     /// # Arguments
     /// - `buf`: Mutable byte slice containing the ring buffer.
     /// - `stride`: Byte width of each event slot.
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "ring index helpers kept for the channel macro")]
     pub fn advance(buf: &mut [u8], stride: usize) {
         if stride == 0 {
             return;
@@ -88,7 +88,7 @@ pub(crate) mod raw {
     ///
     /// # Returns
     /// The write head index value.
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "ring index helpers kept for the channel macro")]
     pub fn write_head(buf: &[u8]) -> usize {
         read_u32_raw(buf, 0) as usize
     }
@@ -100,7 +100,7 @@ pub(crate) mod raw {
     ///
     /// # Returns
     /// The read head index value.
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "ring index helpers kept for the channel macro")]
     pub fn read_head(buf: &[u8]) -> usize {
         read_u32_raw(buf, 4) as usize
     }

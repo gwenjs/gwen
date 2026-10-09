@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Deterministic unit tests for the Voronoi fracture algorithm.
 //!
 //! These tests run natively with `cargo test` and do not require a browser environment.
@@ -6,21 +15,30 @@
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use crate::voronoi_fracture_core;
 
     /// Returns a simple tetrahedron mesh: 4 vertices, 4 triangles.
     fn tetrahedron() -> (Vec<f32>, Vec<u32>) {
         let v = vec![
-            0.0, 1.0, 0.0,      // vertex 0: top
-            -1.0, -1.0, 1.0,    // vertex 1: front-left
-            1.0, -1.0, 1.0,     // vertex 2: front-right
-            0.0, -1.0, -1.0,    // vertex 3: back
+            0.0, 1.0, 0.0, // vertex 0: top
+            -1.0, -1.0, 1.0, // vertex 1: front-left
+            1.0, -1.0, 1.0, // vertex 2: front-right
+            0.0, -1.0, -1.0, // vertex 3: back
         ];
         let i = vec![
-            0, 1, 2,  // front face
-            0, 2, 3,  // right face
-            0, 3, 1,  // left face
-            1, 3, 2,  // bottom face
+            0, 1, 2, // front face
+            0, 2, 3, // right face
+            0, 3, 1, // left face
+            1, 3, 2, // bottom face
         ];
         (v, i)
     }
@@ -30,27 +48,22 @@ mod tests {
         let v = vec![
             // Front face
             -1.0, -1.0, -1.0, // 0
-            1.0, -1.0, -1.0,  // 1
-            1.0, 1.0, -1.0,   // 2
-            -1.0, 1.0, -1.0,  // 3
+            1.0, -1.0, -1.0, // 1
+            1.0, 1.0, -1.0, // 2
+            -1.0, 1.0, -1.0, // 3
             // Back face
-            -1.0, -1.0, 1.0,  // 4
-            1.0, -1.0, 1.0,   // 5
-            1.0, 1.0, 1.0,    // 6
-            -1.0, 1.0, 1.0,   // 7
+            -1.0, -1.0, 1.0, // 4
+            1.0, -1.0, 1.0, // 5
+            1.0, 1.0, 1.0, // 6
+            -1.0, 1.0, 1.0, // 7
         ];
         let i = vec![
             // Front face
-            0, 1, 2, 0, 2, 3,
-            // Back face
-            4, 5, 6, 4, 6, 7,
-            // Left face
-            0, 3, 7, 0, 7, 4,
-            // Right face
-            1, 2, 6, 1, 6, 5,
-            // Top face
-            3, 2, 6, 3, 6, 7,
-            // Bottom face
+            0, 1, 2, 0, 2, 3, // Back face
+            4, 5, 6, 4, 6, 7, // Left face
+            0, 3, 7, 0, 7, 4, // Right face
+            1, 2, 6, 1, 6, 5, // Top face
+            3, 2, 6, 3, 6, 7, // Bottom face
             0, 4, 5, 0, 5, 1,
         ];
         (v, i)
@@ -110,7 +123,10 @@ mod tests {
     #[test]
     fn test_empty_vertices_returns_empty() {
         let result = voronoi_fracture_core(&[], &[0, 1, 2], 0.0, 0.0, 0.0, 4, 42);
-        assert!(result.is_empty(), "empty vertices should produce empty output");
+        assert!(
+            result.is_empty(),
+            "empty vertices should produce empty output"
+        );
     }
 
     /// Empty index buffer should return an empty result.
@@ -118,7 +134,10 @@ mod tests {
     fn test_empty_indices_returns_empty() {
         let (v, _) = tetrahedron();
         let result = voronoi_fracture_core(&v, &[], 0.0, 0.0, 0.0, 4, 42);
-        assert!(result.is_empty(), "empty indices should produce empty output");
+        assert!(
+            result.is_empty(),
+            "empty indices should produce empty output"
+        );
     }
 
     /// Both buffers empty should return empty result.
@@ -157,10 +176,17 @@ mod tests {
         assert!(!result.is_empty(), "cube fracture should not be empty");
 
         let shards = parse_output(&result);
-        assert_eq!(shards.len(), 1, "cube with 1 shard should produce 1 output shard");
+        assert_eq!(
+            shards.len(),
+            1,
+            "cube with 1 shard should produce 1 output shard"
+        );
 
         let (_, tc, _, _) = &shards[0];
-        assert_eq!(*tc, 12, "single shard must contain all 12 triangles from cube");
+        assert_eq!(
+            *tc, 12,
+            "single shard must contain all 12 triangles from cube"
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -191,7 +217,7 @@ mod tests {
 
         let shards = parse_output(&result);
         assert!(
-            shards.len() >= 1 && shards.len() <= 2,
+            !shards.is_empty() && shards.len() <= 2,
             "expected 1-2 shards, got {}",
             shards.len()
         );
@@ -206,7 +232,7 @@ mod tests {
 
         let shards = parse_output(&result);
         assert!(
-            shards.len() >= 1 && shards.len() <= 4,
+            !shards.is_empty() && shards.len() <= 4,
             "expected 1-4 shards, got {}",
             shards.len()
         );
@@ -250,7 +276,7 @@ mod tests {
 
         let non_empty_count = result[0] as usize;
         assert!(
-            non_empty_count >= 1 && non_empty_count <= 3,
+            (1..=3).contains(&non_empty_count),
             "shard count {} must be in range [1, 3]",
             non_empty_count
         );
@@ -444,7 +470,7 @@ mod tests {
         assert!(!result.is_empty());
 
         let shards = parse_output(&result);
-        assert!(shards.len() >= 1 && shards.len() <= 4);
+        assert!(!shards.is_empty() && shards.len() <= 4);
     }
 
     /// Impact point far outside mesh should still fracture (uses bounding box).
@@ -455,7 +481,10 @@ mod tests {
         assert!(!result.is_empty());
 
         let shards = parse_output(&result);
-        assert_eq!(shards.iter().map(|(_, tc, _, _)| tc).sum::<usize>(), i.len() / 3);
+        assert_eq!(
+            shards.iter().map(|(_, tc, _, _)| tc).sum::<usize>(),
+            i.len() / 3
+        );
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -471,17 +500,14 @@ mod tests {
 
         // With 2 sites and 4 triangles, we expect 1-2 non-empty shards.
         assert!(
-            shards.len() >= 1 && shards.len() <= 2,
+            !shards.is_empty() && shards.len() <= 2,
             "golden: expected 1-2 non-empty shards (seed=42, 2 sites), got {}",
             shards.len()
         );
 
         // All triangles should be preserved.
         let total_tris: usize = shards.iter().map(|(_, tc, _, _)| tc).sum();
-        assert_eq!(
-            total_tris, 4,
-            "golden: all 4 triangles must be preserved"
-        );
+        assert_eq!(total_tris, 4, "golden: all 4 triangles must be preserved");
     }
 
     /// Golden test: cube with 4 shards, impact at center, seed 12345.
@@ -493,17 +519,14 @@ mod tests {
 
         // With 4 sites and 12 triangles, we expect multiple non-empty shards.
         assert!(
-            shards.len() >= 1 && shards.len() <= 4,
+            !shards.is_empty() && shards.len() <= 4,
             "golden: expected 1-4 non-empty shards, got {}",
             shards.len()
         );
 
         // All 12 triangles should be preserved.
         let total_tris: usize = shards.iter().map(|(_, tc, _, _)| tc).sum();
-        assert_eq!(
-            total_tris, 12,
-            "golden: all 12 triangles must be preserved"
-        );
+        assert_eq!(total_tris, 12, "golden: all 12 triangles must be preserved");
     }
 
     /// Golden test: cube with 8 shards, offset impact, seed 99999.
@@ -515,7 +538,7 @@ mod tests {
 
         // With 8 sites, expect good distribution.
         assert!(
-            shards.len() >= 1 && shards.len() <= 8,
+            !shards.is_empty() && shards.len() <= 8,
             "golden: expected 1-8 non-empty shards, got {}",
             shards.len()
         );

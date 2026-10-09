@@ -23,5 +23,5 @@ pub use components::{
 pub use events::{
     get_collision_event_count_3d, get_collision_events_ptr_3d, PhysicsCollisionEvent3D,
 };
-pub use world::PhysicsWorld3D;
 pub use pathfinding::{find_path_3d, get_path_buffer_ptr_3d, init_navgrid_3d, MAX_PATH_NODES_3D};
+pub use world::PhysicsWorld3D;

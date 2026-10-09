@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Native checks for [`gwen_core::CoreError`].
 //!
 //! Each variant is produced by the export that owns it. An `Err` leaves the
@@ -108,9 +117,8 @@ fn query_over_capacity_leaves_the_buffer_unchanged() {
             .expect("component");
     }
     engine.testing_shrink_query_buffer(2);
-    let before = unsafe {
-        std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec()
-    };
+    // SAFETY: the pointer is this engine's query buffer, shrunk to 2 ids just above.
+    let before = unsafe { std::slice::from_raw_parts(engine.get_query_result_ptr(), 2).to_vec() };
     let err = engine
         .query_entities_to_buffer(&[type_id])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -122,6 +130,7 @@ fn query_over_capacity_leaves_the_buffer_unchanged() {
         }
     ));
     assert_known_code(&err);
+    // SAFETY: the pointer is this engine's query buffer, shrunk to 2 ids just above.
     let after = unsafe { std::slice::from_raw_parts(engine.get_query_result_ptr(), 2) };
     assert_eq!(after, before);
     assert_eq!(engine.count_entities(), 4);
@@ -136,8 +145,7 @@ fn component_type_limit_is_raised_before_any_write() {
             .add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4])
             .expect("component");
     }
-    assert!(engine
-        .has_component(id.index(), id.generation(), 127));
+    assert!(engine.has_component(id.index(), id.generation(), 127));
     let err = engine
         .add_component(id.index(), id.generation(), 128, &[9, 9, 9, 9])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -184,6 +192,10 @@ fn transform_fits_beside_127_user_types() {
 
 /// Without the reserve, a 128th user type leaves no bit for the transform.
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn transform_is_refused_after_128_user_types() {
     let mut engine = engine(2);
     assert_eq!(
@@ -203,6 +215,10 @@ fn transform_is_refused_after_128_user_types() {
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn invalid_parent_leaves_the_hierarchy_unchanged() {
     let mut engine = engine(8);
     for i in 0..4 {
@@ -237,7 +253,9 @@ fn invalid_parent_leaves_the_hierarchy_unchanged() {
     assert_known_code(&cycle);
     assert!(!engine.has_entity_parent(0));
 
-    engine.set_entity_parent(2, u32::MAX, false).expect("detach");
+    engine
+        .set_entity_parent(2, u32::MAX, false)
+        .expect("detach");
     assert!(!engine.has_entity_parent(2));
     assert!(engine.has_entity_parent(1));
     assert!(engine.has_entity_parent(3));

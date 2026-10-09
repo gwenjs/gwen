@@ -38,12 +38,9 @@ use rapier3d::parry::query::ShapeCastOptions;
 use rapier3d::prelude::*;
 
 use crate::physics3d::components::{
-    quality_solver_config_3d,
-    PhysicsQualityPreset3D, QualitySolverConfig3D
+    quality_solver_config_3d, PhysicsQualityPreset3D, QualitySolverConfig3D,
 };
-use crate::physics3d::events::{CollisionEventBuffer3D,
-    PhysicsCollisionEvent3D
-};
+use crate::physics3d::events::{CollisionEventBuffer3D, PhysicsCollisionEvent3D};
 use crate::physics3d::pathfinding::NavGrid3D;
 
 /// Maximum number of simultaneously active character controllers.
@@ -52,7 +49,7 @@ pub const MAX_CC_ENTITIES: usize = 32;
 /// f32 fields per CC slot: [grounded, normal_x, normal_y, normal_z, ground_entity_bits].
 pub const CC_STATE_STRIDE: usize = 5;
 
-/// Each world stores its own CC state. JS reads it through `physics3d_get_cc_sab_ptr`.
+// Each world stores its own CC state. JS reads it through `physics3d_get_cc_sab_ptr`.
 
 // ─── Debug logging macros ─────────────────────────────────────────────────────
 
@@ -172,6 +169,7 @@ struct CollisionBufPtr3D(*mut CollisionEventBuffer3D);
 // SAFETY: Rapier invokes the handler on the thread that called `step`.
 // The pointer is dropped before `step` returns and is not shared.
 unsafe impl Send for CollisionBufPtr3D {}
+// SAFETY: same contract as Send. The pointer is not shared across threads.
 unsafe impl Sync for CollisionBufPtr3D {}
 
 /// Rapier [`EventHandler`] implementation that writes collision events into
@@ -217,12 +215,12 @@ impl EventHandler for EventCollector3D {
         // SAFETY: `buf` points at this world's buffer and is exclusive for the step.
         unsafe {
             (*self.buf.0).push(PhysicsCollisionEvent3D {
-            entity_a: ea,
-            entity_b: eb,
-            flags: if event.started() { 1 } else { 0 },
-            collider_a_id,
-            collider_b_id
-        });
+                entity_a: ea,
+                entity_b: eb,
+                flags: if event.started() { 1 } else { 0 },
+                collider_a_id,
+                collider_b_id,
+            });
         }
     }
 
@@ -345,7 +343,7 @@ impl PhysicsWorld3D {
             handle_to_entity: HashMap::new(),
             collision_events: CollisionEventBuffer3D::new(),
             cc_state: [0.0; MAX_CC_ENTITIES * CC_STATE_STRIDE],
-            nav_grid: None
+            nav_grid: None,
         };
         // Apply the default quality preset so solver parameters are consistent.
         world.apply_quality_config(quality_solver_config_3d(PhysicsQualityPreset3D::Medium));
@@ -358,8 +356,8 @@ impl PhysicsWorld3D {
     fn apply_quality_config(&mut self, cfg: QualitySolverConfig3D) {
         self.integration_params.num_solver_iterations =
             NonZeroUsize::new(cfg.num_solver_iterations).unwrap_or(NonZeroUsize::MIN);
-        self.integration_params.num_internal_stabilization_iterations =
-            cfg.num_internal_stabilization_iterations;
+        self.integration_params
+            .num_internal_stabilization_iterations = cfg.num_internal_stabilization_iterations;
         self.integration_params.max_ccd_substeps = cfg.max_ccd_substeps;
     }
 
@@ -424,7 +422,7 @@ impl PhysicsWorld3D {
             &mut self.ccd_solver,
             None,
             &(),
-            &EventCollector3D { buf }
+            &EventCollector3D { buf },
         );
 
         // Post-step: update sensor_states from the event buffer that was just
@@ -579,6 +577,7 @@ impl PhysicsWorld3D {
     /// # Returns
     /// `true` if the body was created and registered. `false` if the entity
     /// index was already registered (no-op; call [`remove_body`] first).
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_body(
         &mut self,
         entity_index: u32,
@@ -591,7 +590,10 @@ impl PhysicsWorld3D {
         angular_damping: f32,
     ) -> bool {
         if self.entity_handles.contains_key(&entity_index) {
-            debug_warn!("add_body(entity={}): body already registered — ignoring duplicate registration", entity_index);
+            debug_warn!(
+                "add_body(entity={}): body already registered — ignoring duplicate registration",
+                entity_index
+            );
             return false;
         }
 
@@ -712,12 +714,11 @@ impl PhysicsWorld3D {
             .active_events(ActiveEvents::COLLISION_EVENTS)
             .build();
 
-        let ch = self.collider_set.insert_with_parent(
-            collider,
-            body_handle,
-            &mut self.rigid_body_set,
-        );
-        self.collider_handles.insert((entity_index, params.collider_id), ch);
+        let ch =
+            self.collider_set
+                .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
+        self.collider_handles
+            .insert((entity_index, params.collider_id), ch);
         true
     }
 
@@ -736,6 +737,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_box_collider(
         &mut self,
         entity_index: u32,
@@ -782,6 +784,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_sphere_collider(
         &mut self,
         entity_index: u32,
@@ -830,6 +833,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_capsule_collider(
         &mut self,
         entity_index: u32,
@@ -881,6 +885,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no body or input is invalid.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_heightfield_collider(
         &mut self,
         entity_index: u32,
@@ -901,10 +906,7 @@ impl PhysicsWorld3D {
         }
         use rapier3d::na::DMatrix;
         let matrix = DMatrix::from_row_slice(rows, cols, heights_flat);
-        let builder = ColliderBuilder::heightfield(
-            matrix,
-            vector![scale_x, scale_y, scale_z],
-        );
+        let builder = ColliderBuilder::heightfield(matrix, vector![scale_x, scale_y, scale_z]);
         let params = ColliderParams {
             offset_x: 0.0,
             offset_y: 0.0,
@@ -926,7 +928,7 @@ impl PhysicsWorld3D {
     ///
     /// Returns `true` on success. Returns `false` if the entity has no body or
     /// the input dimensions are inconsistent.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn update_heightfield_collider(
         &mut self,
         entity_index: u32,
@@ -952,9 +954,18 @@ impl PhysicsWorld3D {
             self.collider_handles.remove(&(entity_index, collider_id));
         }
         self.add_heightfield_collider(
-            entity_index, heights_flat, rows, cols,
-            scale_x, scale_y, scale_z,
-            friction, restitution, layer_bits, mask_bits, collider_id,
+            entity_index,
+            heights_flat,
+            rows,
+            cols,
+            scale_x,
+            scale_y,
+            scale_z,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
         )
     }
 
@@ -964,6 +975,7 @@ impl PhysicsWorld3D {
     /// `indices_flat` must be a multiple of 3 u32s (`[a0,b0,c0, ...]`).
     ///
     /// Returns `false` when the entity has no registered body, or either slice is empty.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_mesh_collider(
         &mut self,
         entity_index: u32,
@@ -980,11 +992,15 @@ impl PhysicsWorld3D {
         collider_id: u32,
     ) -> bool {
         let verts: Vec<rapier3d::na::Point3<f32>> = vertices_flat
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
             .collect();
         let idxs: Vec<[u32; 3]> = indices_flat
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|c| [c[0], c[1], c[2]])
             .collect();
         if verts.is_empty() || idxs.is_empty() {
@@ -1025,7 +1041,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn rebuild_mesh_collider(
         &mut self,
         entity_index: u32,
@@ -1077,6 +1093,7 @@ impl PhysicsWorld3D {
     /// function falls back to a unit sphere (`ball(0.5)`) rather than failing.
     ///
     /// Returns `false` when the entity has no registered body or the vertex slice is empty.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_convex_collider(
         &mut self,
         entity_index: u32,
@@ -1093,7 +1110,9 @@ impl PhysicsWorld3D {
         collider_id: u32,
     ) -> bool {
         let verts: Vec<rapier3d::na::Point3<f32>> = vertices_flat
-            .chunks_exact(3)
+            .as_chunks::<3>()
+            .0
+            .iter()
             .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
             .collect();
         if verts.is_empty() {
@@ -1152,6 +1171,7 @@ impl PhysicsWorld3D {
     /// # Returns
     /// `true` on success, `false` if `bvh_bytes` is too short, the magic header
     /// is wrong, bincode decoding fails, or the entity has no registered body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn load_bvh_collider(
         &mut self,
         entity_index: u32,
@@ -1168,11 +1188,18 @@ impl PhysicsWorld3D {
     ) -> bool {
         use rapier3d::geometry::TriMesh;
         if bvh_bytes.len() < 8 {
-            debug_warn!("load_bvh_collider(entity={}): buffer too short ({} bytes, need ≥ 8)", entity_index, bvh_bytes.len());
+            debug_warn!(
+                "load_bvh_collider(entity={}): buffer too short ({} bytes, need ≥ 8)",
+                entity_index,
+                bvh_bytes.len()
+            );
             return false;
         }
         if &bvh_bytes[0..4] != b"GBVH" {
-            debug_warn!("load_bvh_collider(entity={}): invalid magic header, expected 'GBVH'", entity_index);
+            debug_warn!(
+                "load_bvh_collider(entity={}): invalid magic header, expected 'GBVH'",
+                entity_index
+            );
             return false;
         }
         let payload = &bvh_bytes[8..];
@@ -1181,7 +1208,11 @@ impl PhysicsWorld3D {
         let trimesh = match result {
             Ok((t, _)) => t,
             Err(_e) => {
-                debug_warn!("load_bvh_collider(entity={}): bincode decode failed — {:?}", entity_index, _e);
+                debug_warn!(
+                    "load_bvh_collider(entity={}): bincode decode failed — {:?}",
+                    entity_index,
+                    _e
+                );
                 return false;
             }
         };
@@ -1200,23 +1231,6 @@ impl PhysicsWorld3D {
         self.insert_collider(entity_index, params, builder)
     }
 
-    /// Bulk-create N static rigid bodies with box colliders in a single call.
-    ///
-    /// # Arguments
-    /// * `entity_indices`    — Pre-allocated ECS entity slot indices (one per body).
-    /// * `positions_flat`    — Flat `[x0,y0,z0, x1,y1,z1, ...]` — must have `N × 3` elements.
-    /// * `half_extents_flat` — Either `3` floats (uniform for all N) or `N × 3` floats
-    ///                         (per-entity half-extents).
-    /// * `friction`          — Surface friction coefficient (≥ 0).
-    /// * `restitution`       — Bounciness coefficient (\[0, 1\]).
-    /// * `layer_bits`        — Collision layer membership bitmask.
-    /// * `mask_bits`         — Collision filter bitmask.
-    ///
-    /// Returns the number of bodies created. Each body uses `collider_id = 0`.
-    ///
-    /// # Panics
-    /// Panics in debug builds if `positions_flat.len() < entity_indices.len() * 3`.
-    #[allow(clippy::too_many_arguments)]
     /// Add multiple static box colliders in one call (bulk operation).
     ///
     /// Creates N fixed rigid bodies with cuboid colliders, one per entity index.
@@ -1242,6 +1256,7 @@ impl PhysicsWorld3D {
     /// - `entity_indices.is_empty()` (n=0)
     /// - `positions_flat.len() < n * 3` (positions buffer too short)
     /// - `!uniform_extents && half_extents_flat.len() < n * 3` (extents buffer too short for per-entity mode)
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn bulk_add_static_boxes(
         &mut self,
         entity_indices: &[u32],
@@ -1253,24 +1268,24 @@ impl PhysicsWorld3D {
         mask_bits: u32,
     ) -> u32 {
         let n = entity_indices.len();
-        
+
         // Return 0 early on malformed input — never panic
         if n == 0 {
             return 0;
         }
-        
+
         // Validate positions buffer length
         if positions_flat.len() < n * 3 {
             return 0;
         }
-        
+
         let uniform_extents = half_extents_flat.len() == 3;
-        
+
         // Validate half_extents buffer length
         if !uniform_extents && half_extents_flat.len() < n * 3 {
             return 0;
         }
-        
+
         let groups = Self::make_interaction_groups(layer_bits, mask_bits);
         let mut count = 0u32;
 
@@ -1279,7 +1294,11 @@ impl PhysicsWorld3D {
             let py = positions_flat[i * 3 + 1];
             let pz = positions_flat[i * 3 + 2];
             let (hx, hy, hz) = if uniform_extents {
-                (half_extents_flat[0], half_extents_flat[1], half_extents_flat[2])
+                (
+                    half_extents_flat[0],
+                    half_extents_flat[1],
+                    half_extents_flat[2],
+                )
             } else {
                 (
                     half_extents_flat[i * 3],
@@ -1302,11 +1321,9 @@ impl PhysicsWorld3D {
                 .user_data(pack_user_data(entity_index, 0))
                 .active_events(ActiveEvents::COLLISION_EVENTS)
                 .build();
-            let ch = self.collider_set.insert_with_parent(
-                collider,
-                handle,
-                &mut self.rigid_body_set,
-            );
+            let ch =
+                self.collider_set
+                    .insert_with_parent(collider, handle, &mut self.rigid_body_set);
             self.collider_handles.insert((entity_index, 0), ch);
             count += 1;
         }
@@ -1336,12 +1353,12 @@ impl PhysicsWorld3D {
         mask_bits: u32,
     ) -> u32 {
         const FLOATS_PER_SHAPE: usize = 12;
-        if shape_data.len() % FLOATS_PER_SHAPE != 0 {
+        if !shape_data.len().is_multiple_of(FLOATS_PER_SHAPE) {
             return 0;
         }
 
         let mut count = 0u32;
-        for chunk in shape_data.chunks_exact(FLOATS_PER_SHAPE) {
+        for chunk in shape_data.as_chunks::<FLOATS_PER_SHAPE>().0 {
             let shape_type = chunk[0] as u32;
             let p0 = chunk[1];
             let p1 = chunk[2];
@@ -1426,6 +1443,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn set_kinematic_position(
         &mut self,
         entity_index: u32,
@@ -1533,10 +1551,14 @@ impl PhysicsWorld3D {
             let pos = *body.position();
             let q = pos.rotation.quaternion();
             let hdt = 0.5 * dt;
-            let nqx = q.coords.x + hdt * ( wx[i] * q.coords.w + wy[i] * q.coords.z - wz[i] * q.coords.y);
-            let nqy = q.coords.y + hdt * (-wx[i] * q.coords.z + wy[i] * q.coords.w + wz[i] * q.coords.x);
-            let nqz = q.coords.z + hdt * ( wx[i] * q.coords.y - wy[i] * q.coords.x + wz[i] * q.coords.w);
-            let nqw = q.coords.w + hdt * (-wx[i] * q.coords.x - wy[i] * q.coords.y - wz[i] * q.coords.z);
+            let nqx =
+                q.coords.x + hdt * (wx[i] * q.coords.w + wy[i] * q.coords.z - wz[i] * q.coords.y);
+            let nqy =
+                q.coords.y + hdt * (-wx[i] * q.coords.z + wy[i] * q.coords.w + wz[i] * q.coords.x);
+            let nqz =
+                q.coords.z + hdt * (wx[i] * q.coords.y - wy[i] * q.coords.x + wz[i] * q.coords.w);
+            let nqw =
+                q.coords.w + hdt * (-wx[i] * q.coords.x - wy[i] * q.coords.y - wz[i] * q.coords.z);
             let rotation = UnitQuaternion::new_normalize(Quaternion::new(nqw, nqx, nqy, nqz));
             let iso = Isometry::from_parts(pos.translation, rotation);
             body.set_next_kinematic_position(iso);
@@ -1597,7 +1619,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    #[allow(clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn set_body_state(
         &mut self,
         entity_index: u32,
@@ -1616,11 +1638,17 @@ impl PhysicsWorld3D {
         az: f32,
     ) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("set_body_state(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "set_body_state(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_body_state(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_body_state(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
 
@@ -1662,19 +1690,19 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    pub fn set_linear_velocity(
-        &mut self,
-        entity_index: u32,
-        vx: f32,
-        vy: f32,
-        vz: f32,
-    ) -> bool {
+    pub fn set_linear_velocity(&mut self, entity_index: u32, vx: f32, vy: f32, vz: f32) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("set_linear_velocity(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "set_linear_velocity(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_linear_velocity(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_linear_velocity(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.set_linvel(vector![vx, vy, vz], true);
@@ -1711,19 +1739,19 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    pub fn set_angular_velocity(
-        &mut self,
-        entity_index: u32,
-        ax: f32,
-        ay: f32,
-        az: f32,
-    ) -> bool {
+    pub fn set_angular_velocity(&mut self, entity_index: u32, ax: f32, ay: f32, az: f32) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("set_angular_velocity(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "set_angular_velocity(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_angular_velocity(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_angular_velocity(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.set_angvel(vector![ax, ay, az], true);
@@ -1743,19 +1771,16 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    pub fn apply_impulse(
-        &mut self,
-        entity_index: u32,
-        ix: f32,
-        iy: f32,
-        iz: f32,
-    ) -> bool {
+    pub fn apply_impulse(&mut self, entity_index: u32, ix: f32, iy: f32, iz: f32) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("apply_impulse(entity={}): no registered body", entity_index);
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("apply_impulse(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "apply_impulse(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.apply_impulse(vector![ix, iy, iz], true);
@@ -1773,19 +1798,19 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success, `false` if the entity has no registered body.
-    pub fn apply_angular_impulse(
-        &mut self,
-        entity_index: u32,
-        ax: f32,
-        ay: f32,
-        az: f32,
-    ) -> bool {
+    pub fn apply_angular_impulse(&mut self, entity_index: u32, ax: f32, ay: f32, az: f32) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("apply_angular_impulse(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "apply_angular_impulse(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("apply_angular_impulse(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "apply_angular_impulse(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.apply_torque_impulse(vector![ax, ay, az], true);
@@ -1815,7 +1840,10 @@ impl PhysicsWorld3D {
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("add_force(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "add_force(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.add_force(vector![fx, fy, fz], true);
@@ -1843,7 +1871,10 @@ impl PhysicsWorld3D {
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("add_torque(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "add_torque(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.add_torque(vector![tx, ty, tz], true);
@@ -1867,6 +1898,7 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// `true` on success; `false` if the entity is not registered.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_force_at_point(
         &mut self,
         entity_index: u32,
@@ -1878,11 +1910,17 @@ impl PhysicsWorld3D {
         pz: f32,
     ) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("add_force_at_point(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "add_force_at_point(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("add_force_at_point(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "add_force_at_point(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.add_force_at_point(vector![fx, fy, fz], point![px, py, pz], true);
@@ -1902,11 +1940,17 @@ impl PhysicsWorld3D {
     /// `true` on success; `false` if the entity is not registered.
     pub fn set_gravity_scale(&mut self, entity_index: u32, scale: f32) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("set_gravity_scale(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "set_gravity_scale(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_gravity_scale(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_gravity_scale(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.set_gravity_scale(scale, true);
@@ -1948,17 +1992,29 @@ impl PhysicsWorld3D {
     /// `true` on success; `false` if the entity is not registered.
     pub fn lock_translations(&mut self, entity_index: u32, x: bool, y: bool, z: bool) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("lock_translations(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "lock_translations(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("lock_translations(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "lock_translations(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         let mut new_axes = LockedAxes::empty();
-        if x { new_axes |= LockedAxes::TRANSLATION_LOCKED_X; }
-        if y { new_axes |= LockedAxes::TRANSLATION_LOCKED_Y; }
-        if z { new_axes |= LockedAxes::TRANSLATION_LOCKED_Z; }
+        if x {
+            new_axes |= LockedAxes::TRANSLATION_LOCKED_X;
+        }
+        if y {
+            new_axes |= LockedAxes::TRANSLATION_LOCKED_Y;
+        }
+        if z {
+            new_axes |= LockedAxes::TRANSLATION_LOCKED_Z;
+        }
         let current = body.locked_axes();
         body.set_locked_axes(current | new_axes, true);
         true
@@ -1979,17 +2035,29 @@ impl PhysicsWorld3D {
     /// `true` on success; `false` if the entity is not registered.
     pub fn lock_rotations(&mut self, entity_index: u32, x: bool, y: bool, z: bool) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("lock_rotations(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "lock_rotations(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("lock_rotations(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "lock_rotations(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         let mut new_axes = LockedAxes::empty();
-        if x { new_axes |= LockedAxes::ROTATION_LOCKED_X; }
-        if y { new_axes |= LockedAxes::ROTATION_LOCKED_Y; }
-        if z { new_axes |= LockedAxes::ROTATION_LOCKED_Z; }
+        if x {
+            new_axes |= LockedAxes::ROTATION_LOCKED_X;
+        }
+        if y {
+            new_axes |= LockedAxes::ROTATION_LOCKED_Y;
+        }
+        if z {
+            new_axes |= LockedAxes::ROTATION_LOCKED_Z;
+        }
         let current = body.locked_axes();
         body.set_locked_axes(current | new_axes, true);
         true
@@ -2009,11 +2077,17 @@ impl PhysicsWorld3D {
     /// `true` on success; `false` if the entity is not registered.
     pub fn set_body_sleeping(&mut self, entity_index: u32, sleeping: bool) -> bool {
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("set_body_sleeping(entity={}): no registered body", entity_index);
+            debug_warn!(
+                "set_body_sleeping(entity={}): no registered body",
+                entity_index
+            );
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_body_sleeping(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_body_sleeping(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         if sleeping {
@@ -2127,17 +2201,29 @@ impl PhysicsWorld3D {
     /// # Returns
     /// A `Vec<f32>` of 9 elements on hit, or a single `[0.0]` on miss:
     /// `[hit(1.0), entity_index, distance, nx, ny, nz, px, py, pz]`
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn cast_ray(
         &self,
-        ox: f32, oy: f32, oz: f32,
-        dx: f32, dy: f32, dz: f32,
-        max_dist: f32, layers: u32, mask: u32, solid: bool,
+        ox: f32,
+        oy: f32,
+        oz: f32,
+        dx: f32,
+        dy: f32,
+        dz: f32,
+        max_dist: f32,
+        layers: u32,
+        mask: u32,
+        solid: bool,
     ) -> Vec<f32> {
         let ray = Ray::new(point![ox, oy, oz], vector![dx, dy, dz]);
         let filter = Self::make_query_filter(layers, mask);
         let Some((ch, intersection)) = self.query_pipeline.cast_ray_and_get_normal(
-            &self.rigid_body_set, &self.collider_set,
-            &ray, max_dist, solid, filter,
+            &self.rigid_body_set,
+            &self.collider_set,
+            &ray,
+            max_dist,
+            solid,
+            filter,
         ) else {
             return vec![0.0];
         };
@@ -2175,13 +2261,26 @@ impl PhysicsWorld3D {
     /// 15 floats on hit:
     /// `[hit, entity, toi, nx,ny,nz, w1x,w1y,w1z, w1x,w1y,w1z, w2x,w2y,w2z]`
     /// Single `[0.0]` on miss.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn cast_shape(
         &self,
-        pos_x: f32, pos_y: f32, pos_z: f32,
-        rot_x: f32, rot_y: f32, rot_z: f32, rot_w: f32,
-        dir_x: f32, dir_y: f32, dir_z: f32,
-        shape_type: u32, p0: f32, p1: f32, p2: f32,
-        max_dist: f32, layers: u32, mask: u32,
+        pos_x: f32,
+        pos_y: f32,
+        pos_z: f32,
+        rot_x: f32,
+        rot_y: f32,
+        rot_z: f32,
+        rot_w: f32,
+        dir_x: f32,
+        dir_y: f32,
+        dir_z: f32,
+        shape_type: u32,
+        p0: f32,
+        p1: f32,
+        p2: f32,
+        max_dist: f32,
+        layers: u32,
+        mask: u32,
     ) -> Vec<f32> {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
         let iso = Isometry::from_parts(
@@ -2196,8 +2295,13 @@ impl PhysicsWorld3D {
             ..ShapeCastOptions::default()
         };
         let Some((ch, hit)) = self.query_pipeline.cast_shape(
-            &self.rigid_body_set, &self.collider_set,
-            &iso, &dir, shape.as_ref(), opts, filter,
+            &self.rigid_body_set,
+            &self.collider_set,
+            &iso,
+            &dir,
+            shape.as_ref(),
+            opts,
+            filter,
         ) else {
             return vec![0.0];
         };
@@ -2210,10 +2314,18 @@ impl PhysicsWorld3D {
             1.0,
             entity_index as f32,
             hit.time_of_impact,
-            hit.normal1.x, hit.normal1.y, hit.normal1.z,
-            hit.witness1.x, hit.witness1.y, hit.witness1.z,
-            hit.witness1.x, hit.witness1.y, hit.witness1.z,
-            hit.witness2.x, hit.witness2.y, hit.witness2.z,
+            hit.normal1.x,
+            hit.normal1.y,
+            hit.normal1.z,
+            hit.witness1.x,
+            hit.witness1.y,
+            hit.witness1.z,
+            hit.witness1.x,
+            hit.witness1.y,
+            hit.witness1.z,
+            hit.witness2.x,
+            hit.witness2.y,
+            hit.witness2.z,
         ]
     }
 
@@ -2234,13 +2346,24 @@ impl PhysicsWorld3D {
     /// `out_ptr` must point to at least `max_results * 4` bytes of valid WASM
     /// linear memory. This is guaranteed by the TypeScript layer which allocates
     /// the scratch buffer before calling this function.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn overlap_shape(
         &self,
-        pos_x: f32, pos_y: f32, pos_z: f32,
-        rot_x: f32, rot_y: f32, rot_z: f32, rot_w: f32,
-        shape_type: u32, p0: f32, p1: f32, p2: f32,
-        layers: u32, mask: u32,
-        out_ptr: u32, max_results: u32,
+        pos_x: f32,
+        pos_y: f32,
+        pos_z: f32,
+        rot_x: f32,
+        rot_y: f32,
+        rot_z: f32,
+        rot_w: f32,
+        shape_type: u32,
+        p0: f32,
+        p1: f32,
+        p2: f32,
+        layers: u32,
+        mask: u32,
+        out_ptr: u32,
+        max_results: u32,
     ) -> u32 {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
         let iso = Isometry::from_parts(
@@ -2252,12 +2375,14 @@ impl PhysicsWorld3D {
         // SAFETY: caller guarantees out_ptr points to max_results * 4 bytes of
         // valid writable memory. In WASM this is linear memory allocated by the
         // TypeScript layer; in native tests a stack/heap buffer is passed directly.
-        let out_slice = unsafe {
-            std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize)
-        };
+        let out_slice =
+            unsafe { std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize) };
         self.query_pipeline.intersections_with_shape(
-            &self.rigid_body_set, &self.collider_set,
-            &iso, shape.as_ref(), filter,
+            &self.rigid_body_set,
+            &self.collider_set,
+            &iso,
+            shape.as_ref(),
+            filter,
             |ch| {
                 if count >= max_results {
                     return false;
@@ -2287,13 +2412,20 @@ impl PhysicsWorld3D {
     /// Single `[0.0]` on miss.
     pub fn project_point(
         &self,
-        px: f32, py: f32, pz: f32,
-        layers: u32, mask: u32, solid: bool,
+        px: f32,
+        py: f32,
+        pz: f32,
+        layers: u32,
+        mask: u32,
+        solid: bool,
     ) -> Vec<f32> {
         let filter = Self::make_query_filter(layers, mask);
         let Some((ch, proj)) = self.query_pipeline.project_point(
-            &self.rigid_body_set, &self.collider_set,
-            &point![px, py, pz], solid, filter,
+            &self.rigid_body_set,
+            &self.collider_set,
+            &point![px, py, pz],
+            solid,
+            filter,
         ) else {
             return vec![0.0];
         };
@@ -2331,17 +2463,27 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Stable joint ID (u32) on success, `u32::MAX` if either entity has no body.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_fixed_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
     ) -> u32 {
         let (Some(&ha), Some(&hb)) = (
             self.entity_handles.get(&entity_a),
             self.entity_handles.get(&entity_b),
         ) else {
-            debug_warn!("add_fixed_joint: entity {} or {} has no registered body", entity_a, entity_b);
+            debug_warn!(
+                "add_fixed_joint: entity {} or {} has no registered body",
+                entity_a,
+                entity_b
+            );
             return u32::MAX;
         };
         let joint = FixedJointBuilder::new()
@@ -2364,19 +2506,33 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Stable joint ID or `u32::MAX` on failure.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_revolute_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        axis_x: f32, axis_y: f32, axis_z: f32,
-        use_limits: bool, limit_min: f32, limit_max: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        axis_x: f32,
+        axis_y: f32,
+        axis_z: f32,
+        use_limits: bool,
+        limit_min: f32,
+        limit_max: f32,
     ) -> u32 {
         let (Some(&ha), Some(&hb)) = (
             self.entity_handles.get(&entity_a),
             self.entity_handles.get(&entity_b),
         ) else {
-            debug_warn!("add_revolute_joint: entity {} or {} has no registered body", entity_a, entity_b);
+            debug_warn!(
+                "add_revolute_joint: entity {} or {} has no registered body",
+                entity_a,
+                entity_b
+            );
             return u32::MAX;
         };
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
@@ -2403,19 +2559,33 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Stable joint ID or `u32::MAX` on failure.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_prismatic_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        axis_x: f32, axis_y: f32, axis_z: f32,
-        use_limits: bool, limit_min: f32, limit_max: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        axis_x: f32,
+        axis_y: f32,
+        axis_z: f32,
+        use_limits: bool,
+        limit_min: f32,
+        limit_max: f32,
     ) -> u32 {
         let (Some(&ha), Some(&hb)) = (
             self.entity_handles.get(&entity_a),
             self.entity_handles.get(&entity_b),
         ) else {
-            debug_warn!("add_prismatic_joint: entity {} or {} has no registered body", entity_a, entity_b);
+            debug_warn!(
+                "add_prismatic_joint: entity {} or {} has no registered body",
+                entity_a,
+                entity_b
+            );
             return u32::MAX;
         };
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
@@ -2439,17 +2609,27 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Stable joint ID or `u32::MAX` on failure.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_ball_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
     ) -> u32 {
         let (Some(&ha), Some(&hb)) = (
             self.entity_handles.get(&entity_a),
             self.entity_handles.get(&entity_b),
         ) else {
-            debug_warn!("add_ball_joint: entity {} or {} has no registered body", entity_a, entity_b);
+            debug_warn!(
+                "add_ball_joint: entity {} or {} has no registered body",
+                entity_a,
+                entity_b
+            );
             return u32::MAX;
         };
         let joint = SphericalJointBuilder::new()
@@ -2472,18 +2652,30 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Stable joint ID or `u32::MAX` on failure.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_spring_joint(
         &mut self,
-        entity_a: u32, entity_b: u32,
-        ax: f32, ay: f32, az: f32,
-        bx: f32, by: f32, bz: f32,
-        rest_length: f32, stiffness: f32, damping: f32,
+        entity_a: u32,
+        entity_b: u32,
+        ax: f32,
+        ay: f32,
+        az: f32,
+        bx: f32,
+        by: f32,
+        bz: f32,
+        rest_length: f32,
+        stiffness: f32,
+        damping: f32,
     ) -> u32 {
         let (Some(&ha), Some(&hb)) = (
             self.entity_handles.get(&entity_a),
             self.entity_handles.get(&entity_b),
         ) else {
-            debug_warn!("add_spring_joint: entity {} or {} has no registered body", entity_a, entity_b);
+            debug_warn!(
+                "add_spring_joint: entity {} or {} has no registered body",
+                entity_a,
+                entity_b
+            );
             return u32::MAX;
         };
         let joint = SpringJointBuilder::new(rest_length, stiffness, damping)
@@ -2529,7 +2721,9 @@ impl PhysicsWorld3D {
         let Some(joint) = self.impulse_joint_set.get_mut(handle) else {
             return false;
         };
-        joint.data.set_motor_velocity(JointAxis::AngX, velocity, max_force);
+        joint
+            .data
+            .set_motor_velocity(JointAxis::AngX, velocity, max_force);
         true
     }
 
@@ -2544,7 +2738,11 @@ impl PhysicsWorld3D {
     /// # Returns
     /// `true` if the joint exists, `false` otherwise.
     pub fn set_joint_motor_position(
-        &mut self, id: u32, target: f32, stiffness: f32, damping: f32,
+        &mut self,
+        id: u32,
+        target: f32,
+        stiffness: f32,
+        damping: f32,
     ) -> bool {
         let Some(&handle) = self.joint_handles.get(&id) else {
             return false;
@@ -2552,7 +2750,9 @@ impl PhysicsWorld3D {
         let Some(joint) = self.impulse_joint_set.get_mut(handle) else {
             return false;
         };
-        joint.data.set_motor_position(JointAxis::AngX, target, stiffness, damping);
+        joint
+            .data
+            .set_motor_position(JointAxis::AngX, target, stiffness, damping);
         true
     }
 
@@ -2612,7 +2812,10 @@ impl PhysicsWorld3D {
             return false;
         };
         let Some(body) = self.rigid_body_set.get_mut(handle) else {
-            debug_warn!("set_body_kind(entity={}): body handle became invalid", entity_index);
+            debug_warn!(
+                "set_body_kind(entity={}): body handle became invalid",
+                entity_index
+            );
             return false;
         };
         body.set_body_type(kind_to_body_type(kind), true);
@@ -2631,27 +2834,20 @@ impl PhysicsWorld3D {
     /// Inserting a second controller for the same entity replaces the first.
     ///
     /// # Arguments
-    /// * `entity_index`           — ECS entity slot index.  The entity must already
-    ///                              have a registered rigid body.
-    /// * `step_height`            — Maximum height (metres) the controller can step
-    ///                              up onto. Pass `0.0` to disable auto-stepping.
-    /// * `slope_limit`            — Maximum climbable slope angle in **degrees**.
-    ///                              Slopes steeper than this are treated as walls.
-    /// * `skin_width`             — Separation (metres) kept between the character
-    ///                              shape and surfaces (`cc.offset`).
-    /// * `snap_to_ground`         — Distance (metres) to snap the character to the
-    ///                              ground when descending ramps.  Pass `0.0` to
-    ///                              disable snapping.
-    /// * `slide_on_steep_slopes`  — When `true` the character slides along steep
-    ///                              surfaces instead of being stopped by them.
-    /// * `apply_impulses_to_dynamic` — When `true` the controller pushes dynamic
-    ///                              bodies it collides with.
+    /// * `entity_index` — ECS entity slot index. The entity must already have a registered rigid body.
+    /// * `step_height` — Maximum height (metres) the controller can step up onto. Pass `0.0` to disable auto-stepping.
+    /// * `slope_limit` — Maximum climbable slope angle in **degrees**. Slopes steeper than this are treated as walls.
+    /// * `skin_width` — Separation (metres) kept between the character shape and surfaces (`cc.offset`).
+    /// * `snap_to_ground` — Distance (metres) to snap the character to the ground. Pass `0.0` to disable snapping.
+    /// * `slide_on_steep_slopes` — When `true` the character slides along steep surfaces instead of stopping.
+    /// * `apply_impulses_to_dynamic` — When `true` the controller pushes dynamic bodies it collides with.
     ///
     /// # Returns
     /// The assigned compact slot index (0 .. [`MAX_CC_ENTITIES`]) on success,
     /// [`u32::MAX`] if the entity has no registered rigid body, or [`u32::MAX`]
     /// if the CC pool is exhausted (all [`MAX_CC_ENTITIES`] slots occupied and
     /// none have been freed).
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_character_controller(
         &mut self,
         entity_index: u32,
@@ -2666,29 +2862,32 @@ impl PhysicsWorld3D {
             debug_warn!("add_character_controller: unknown entity {}", entity_index);
             return u32::MAX;
         }
-        let mut cc = KinematicCharacterController::default();
-        cc.offset = CharacterLength::Absolute(skin_width);
-        cc.slide = slide_on_steep_slopes;
-        cc.snap_to_ground = if snap_to_ground > 0.0 {
-            Some(CharacterLength::Absolute(snap_to_ground))
-        } else {
-            None
+        // Impulse application to dynamic bodies is handled via
+        // `solve_character_collision_impulses` in `character_controller_move`.
+        // That field does not exist in rapier3d 0.22.0.
+        let cc = KinematicCharacterController {
+            offset: CharacterLength::Absolute(skin_width),
+            slide: slide_on_steep_slopes,
+            snap_to_ground: if snap_to_ground > 0.0 {
+                Some(CharacterLength::Absolute(snap_to_ground))
+            } else {
+                None
+            },
+            max_slope_climb_angle: slope_limit.to_radians(),
+            min_slope_slide_angle: slope_limit.to_radians(),
+            autostep: if step_height > 0.0 {
+                Some(CharacterAutostep {
+                    max_height: CharacterLength::Absolute(step_height),
+                    min_width: CharacterLength::Absolute(0.1),
+                    include_dynamic_bodies: false,
+                })
+            } else {
+                None
+            },
+            ..KinematicCharacterController::default()
         };
-        cc.max_slope_climb_angle = slope_limit.to_radians();
-        cc.min_slope_slide_angle = slope_limit.to_radians();
-        // Note: impulse application to dynamic bodies is handled via
-        // `solve_character_collision_impulses` in `character_controller_move`
-        // rather than as a field (the field does not exist in rapier3d 0.22.0).
-        cc.autostep = if step_height > 0.0 {
-            Some(CharacterAutostep {
-                max_height: CharacterLength::Absolute(step_height),
-                min_width: CharacterLength::Absolute(0.1),
-                include_dynamic_bodies: false,
-            })
-        } else {
-            None
-        };
-        self.cc_controllers.insert(entity_index, (cc, apply_impulses_to_dynamic));
+        self.cc_controllers
+            .insert(entity_index, (cc, apply_impulses_to_dynamic));
         let slot = if let Some(recycled) = self.cc_free_slots.pop() {
             recycled
         } else {
@@ -2749,11 +2948,14 @@ impl PhysicsWorld3D {
         /// Write NO_HIT sentinel into the buffer at `base`.
         #[inline(always)]
         unsafe fn write_no_hit(buf: *mut [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE], base: usize) {
-            (*buf)[base] = NO_HIT[0];
-            (*buf)[base + 1] = NO_HIT[1];
-            (*buf)[base + 2] = NO_HIT[2];
-            (*buf)[base + 3] = NO_HIT[3];
-            (*buf)[base + 4] = NO_HIT[4];
+            // SAFETY: `base` is a controller slot and `buf` is `cc_state`, which holds those slots.
+            unsafe {
+                (*buf)[base] = NO_HIT[0];
+                (*buf)[base + 1] = NO_HIT[1];
+                (*buf)[base + 2] = NO_HIT[2];
+                (*buf)[base + 3] = NO_HIT[3];
+                (*buf)[base + 4] = NO_HIT[4];
+            }
         }
 
         let Some(&slot) = self.cc_slot_indices.get(&entity_index) else {
@@ -2763,16 +2965,22 @@ impl PhysicsWorld3D {
 
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("character_controller_move: unknown entity {}", entity_index);
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let Some((cc, apply_impulses)) = self.cc_controllers.get(&entity_index) else {
-            debug_warn!("character_controller_move: no CC for entity {}", entity_index);
+            debug_warn!(
+                "character_controller_move: no CC for entity {}",
+                entity_index
+            );
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let apply_impulses = *apply_impulses;
         let Some(body) = self.rigid_body_set.get(handle) else {
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -2781,11 +2989,16 @@ impl PhysicsWorld3D {
 
         // Use the first collider attached to the body to determine the shape.
         let Some(collider_handle) = body.colliders().first().copied() else {
-            debug_warn!("character_controller_move: entity {} has no collider", entity_index);
+            debug_warn!(
+                "character_controller_move: entity {} has no collider",
+                entity_index
+            );
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -2826,6 +3039,7 @@ impl PhysicsWorld3D {
 
         // Write the resolved position back as a kinematic interpolation target.
         let Some(body_mut) = self.rigid_body_set.get_mut(handle) else {
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -2850,6 +3064,7 @@ impl PhysicsWorld3D {
                 // else: static collider (no parent body) → keep GROUND_ENTITY_STATIC
             }
 
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe {
                 let buf = std::ptr::addr_of_mut!(self.cc_state);
                 (*buf)[base] = 1.0_f32;
@@ -2859,6 +3074,7 @@ impl PhysicsWorld3D {
                 (*buf)[base + 4] = f32::from_bits(ground_entity_bits);
             }
         } else {
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
         }
     }
@@ -2910,6 +3126,15 @@ pub fn max_cc_entities() -> u32 {
 
 #[cfg(test)]
 mod tests {
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::unreachable,
+        clippy::todo,
+        clippy::unimplemented,
+        reason = "test-only code"
+    )]
     use super::*;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -3012,7 +3237,8 @@ mod tests {
     fn test_physics3d_set_body_state_updates_position() {
         let mut world = world_with_one_dynamic();
         // Teleport to (5, 20, -3) with identity rotation and zero velocities
-        assert!(world.set_body_state(0, 5.0, 20.0, -3.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        assert!(world
+            .set_body_state(0, 5.0, 20.0, -3.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
         let state = world.get_body_state(0);
         assert!((state[0] - 5.0).abs() < 1e-4, "px after set");
         assert!((state[1] - 20.0).abs() < 1e-4, "py after set");
@@ -3022,7 +3248,8 @@ mod tests {
     #[test]
     fn test_physics3d_set_body_state_unknown_entity_returns_false() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        assert!(!world.set_body_state(7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
+        assert!(!world
+            .set_body_state(7, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0));
     }
 
     // ── T1: linear/angular velocity ───────────────────────────────────────────
@@ -3144,8 +3371,19 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         let ok = world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(ok);
     }
@@ -3154,8 +3392,19 @@ mod tests {
     fn test_physics3d_add_box_collider_returns_false_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let ok = world.add_box_collider(
-            99, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            99,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3166,8 +3415,17 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         let ok = world.add_sphere_collider(
-            0, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 2,
+            0,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            2,
         );
         assert!(ok);
     }
@@ -3178,8 +3436,18 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         let ok = world.add_capsule_collider(
-            0, 0.25, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 3,
+            0,
+            0.25,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            3,
         );
         assert!(ok);
     }
@@ -3189,8 +3457,19 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 7,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            7,
         );
 
         assert!(world.remove_collider(0, 7));
@@ -3208,8 +3487,19 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
 
         world.remove_body(0);
@@ -3224,16 +3514,46 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         assert!(world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         ));
         assert!(world.add_sphere_collider(
-            0, 0.3, 0.0, 1.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 2,
+            0,
+            0.3,
+            0.0,
+            1.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            2,
         ));
         assert!(world.add_capsule_collider(
-            0, 0.2, 0.4, 0.0, -1.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 3,
+            0,
+            0.2,
+            0.4,
+            0.0,
+            -1.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            3,
         ));
 
         assert_eq!(world.collider_handles.len(), 3);
@@ -3294,7 +3614,9 @@ mod tests {
             "Low preset should set 2 solver iterations"
         );
         assert_eq!(
-            world.integration_params.num_internal_stabilization_iterations,
+            world
+                .integration_params
+                .num_internal_stabilization_iterations,
             1
         );
         assert_eq!(world.integration_params.max_ccd_substeps, 1);
@@ -3306,7 +3628,9 @@ mod tests {
         world.set_quality(1); // Medium
         assert_eq!(world.integration_params.num_solver_iterations.get(), 4);
         assert_eq!(
-            world.integration_params.num_internal_stabilization_iterations,
+            world
+                .integration_params
+                .num_internal_stabilization_iterations,
             2
         );
     }
@@ -3317,7 +3641,9 @@ mod tests {
         world.set_quality(2); // High
         assert_eq!(world.integration_params.num_solver_iterations.get(), 8);
         assert_eq!(
-            world.integration_params.num_internal_stabilization_iterations,
+            world
+                .integration_params
+                .num_internal_stabilization_iterations,
             3
         );
         assert_eq!(world.integration_params.max_ccd_substeps, 2);
@@ -3329,7 +3655,9 @@ mod tests {
         world.set_quality(3); // Esport
         assert_eq!(world.integration_params.num_solver_iterations.get(), 10);
         assert_eq!(
-            world.integration_params.num_internal_stabilization_iterations,
+            world
+                .integration_params
+                .num_internal_stabilization_iterations,
             4
         );
         assert_eq!(world.integration_params.max_ccd_substeps, 4);
@@ -3385,17 +3713,13 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0); // Kinematic
 
-        assert!(world.set_kinematic_position(
-            0, 5.0, 3.0, 1.0, 0.0, 0.0, 0.0, 1.0,
-        ));
+        assert!(world.set_kinematic_position(0, 5.0, 3.0, 1.0, 0.0, 0.0, 0.0, 1.0,));
     }
 
     #[test]
     fn test_physics3d_set_kinematic_position_unknown_entity_returns_false() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        assert!(!world.set_kinematic_position(
-            99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,
-        ));
+        assert!(!world.set_kinematic_position(99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0,));
     }
 
     // ── Angular impulse ───────────────────────────────────────────────────────
@@ -3412,16 +3736,36 @@ mod tests {
         // A box collider is required so Rapier can derive a non-zero inertia
         // tensor; without a shape, additional_mass() only sets translational
         // mass and apply_torque_impulse() has no effect.
-        world.add_box_collider(0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, u32::MAX, u32::MAX, 99);
+        world.add_box_collider(
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            99,
+        );
         // Step once to initialise mass properties (same requirement as linear impulse).
         world.step(1.0 / 60.0);
 
         let av_before = world.get_angular_velocity(0);
-        assert!((av_before[1]).abs() < 1e-5, "initial angular vy should be zero");
+        assert!(
+            (av_before[1]).abs() < 1e-5,
+            "initial angular vy should be zero"
+        );
 
         assert!(world.apply_angular_impulse(0, 0.0, 5.0, 0.0));
         let av_after = world.get_angular_velocity(0);
-        assert!(av_after[1] > 0.0, "angular impulse should increase angular vy");
+        assert!(
+            av_after[1] > 0.0,
+            "angular impulse should increase angular vy"
+        );
     }
 
     #[test]
@@ -3433,9 +3777,18 @@ mod tests {
         // 3×3 grid — flat terrain at y = 0
         let heights = [0.0f32; 9];
         let ok = world.add_heightfield_collider(
-            0, &heights, 3, 3,
-            10.0, 1.0, 10.0,
-            0.5, 0.0, u32::MAX, u32::MAX, 42,
+            0,
+            &heights,
+            3,
+            3,
+            10.0,
+            1.0,
+            10.0,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            42,
         );
         assert!(ok);
         assert!(world.collider_handles.contains_key(&(0, 42)));
@@ -3449,9 +3802,18 @@ mod tests {
         // 8 elements but rows=3 cols=3 requires 9 — must fail
         let heights = [0.0f32; 8];
         let ok = world.add_heightfield_collider(
-            0, &heights, 3, 3,
-            10.0, 1.0, 10.0,
-            0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            &heights,
+            3,
+            3,
+            10.0,
+            1.0,
+            10.0,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3463,9 +3825,18 @@ mod tests {
 
         let flat = [0.0f32; 9];
         world.add_heightfield_collider(
-            0, &flat, 3, 3,
-            10.0, 1.0, 10.0,
-            0.5, 0.0, u32::MAX, u32::MAX, 99,
+            0,
+            &flat,
+            3,
+            3,
+            10.0,
+            1.0,
+            10.0,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            99,
         );
         assert!(world.collider_handles.contains_key(&(0, 99)));
 
@@ -3473,9 +3844,18 @@ mod tests {
         let mut updated = [0.0f32; 9];
         updated[4] = 5.0;
         let ok = world.update_heightfield_collider(
-            0, 99, &updated, 3, 3,
-            10.0, 1.0, 10.0,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            0,
+            99,
+            &updated,
+            3,
+            3,
+            10.0,
+            1.0,
+            10.0,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         assert!(ok);
         // collider_id 99 must still be present after the rebuild
@@ -3488,9 +3868,18 @@ mod tests {
         // No body registered for entity 7
         let heights = [0.0f32; 4];
         let ok = world.add_heightfield_collider(
-            7, &heights, 2, 2,
-            4.0, 1.0, 4.0,
-            0.5, 0.0, u32::MAX, u32::MAX, 1,
+            7,
+            &heights,
+            2,
+            2,
+            4.0,
+            1.0,
+            4.0,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3505,8 +3894,18 @@ mod tests {
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: &[u32] = &[0, 1, 2];
         let ok = world.add_mesh_collider(
-            0, verts, idxs, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            verts,
+            idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(ok);
     }
@@ -3517,8 +3916,18 @@ mod tests {
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: &[u32] = &[0, 1, 2];
         let ok = world.add_mesh_collider(
-            99, verts, idxs, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            99,
+            verts,
+            idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3528,8 +3937,18 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let ok = world.add_mesh_collider(
-            0, &[], &[0, 1, 2], 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            &[],
+            &[0, 1, 2],
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3540,8 +3959,18 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let ok = world.add_mesh_collider(
-            0, verts, &[], 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 1,
+            0,
+            verts,
+            &[],
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3553,8 +3982,18 @@ mod tests {
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: &[u32] = &[0, 1, 2];
         world.add_mesh_collider(
-            0, verts, idxs, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, u32::MAX, u32::MAX, 7,
+            0,
+            verts,
+            idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            7,
         );
         assert!(world.collider_handles.contains_key(&(0, 7)));
     }
@@ -3567,15 +4006,41 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
 
         // Simple triangle mesh (one triangle).
-        let verts_a: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
+        let verts_a: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs_a: Vec<u32> = vec![0, 1, 2];
-        assert!(world.add_mesh_collider(0, &verts_a, &idxs_a, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF, 10));
+        assert!(world.add_mesh_collider(
+            0,
+            &verts_a,
+            &idxs_a,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            10
+        ));
         assert_eq!(world.collider_handles.len(), 1);
 
         // Rebuild with a slightly different triangle.
-        let verts_b: Vec<f32> = vec![0.0,0.0,0.0, 2.0,0.0,0.0, 0.0,2.0,0.0];
+        let verts_b: Vec<f32> = vec![0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0, 0.0];
         let idxs_b: Vec<u32> = vec![0, 1, 2];
-        assert!(world.rebuild_mesh_collider(0, 10, &verts_b, &idxs_b, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF));
+        assert!(world.rebuild_mesh_collider(
+            0,
+            10,
+            &verts_b,
+            &idxs_b,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF
+        ));
 
         // Still exactly one collider handle — old one removed, new one inserted.
         assert_eq!(world.collider_handles.len(), 1);
@@ -3587,9 +4052,22 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
 
         // No collider registered yet — rebuild should insert a fresh one.
-        let verts: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
+        let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(world.rebuild_mesh_collider(0, 99, &verts, &idxs, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF));
+        assert!(world.rebuild_mesh_collider(
+            0,
+            99,
+            &verts,
+            &idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF
+        ));
         assert_eq!(world.collider_handles.len(), 1);
     }
 
@@ -3597,9 +4075,22 @@ mod tests {
     fn test_rebuild_mesh_collider_returns_false_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         // Entity 999 has no body registered.
-        let verts: Vec<f32> = vec![0.0,0.0,0.0, 1.0,0.0,0.0, 0.0,1.0,0.0];
+        let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(!world.rebuild_mesh_collider(999, 1, &verts, &idxs, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF));
+        assert!(!world.rebuild_mesh_collider(
+            999,
+            1,
+            &verts,
+            &idxs,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF
+        ));
     }
 
     // ─── add_convex_collider ──────────────────────────────────────────────────
@@ -3609,15 +4100,20 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         // Tetrahedron
-        let verts: &[f32] = &[
-            0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0,
-        ];
+        let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let ok = world.add_convex_collider(
-            0, verts, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 1.0, u32::MAX, u32::MAX, 1,
+            0,
+            verts,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            1.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(ok);
     }
@@ -3627,8 +4123,18 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let ok = world.add_convex_collider(
-            42, verts, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 1.0, u32::MAX, u32::MAX, 1,
+            42,
+            verts,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            1.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3638,8 +4144,18 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let ok = world.add_convex_collider(
-            0, &[], 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 1.0, u32::MAX, u32::MAX, 1,
+            0,
+            &[],
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            1.0,
+            u32::MAX,
+            u32::MAX,
+            1,
         );
         assert!(!ok);
     }
@@ -3648,15 +4164,20 @@ mod tests {
     fn test_physics3d_add_convex_collider_registers_in_collider_handles() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
-        let verts: &[f32] = &[
-            0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            0.0, 0.0, 1.0,
-        ];
+        let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         world.add_convex_collider(
-            0, verts, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 1.0, u32::MAX, u32::MAX, 5,
+            0,
+            verts,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            1.0,
+            u32::MAX,
+            u32::MAX,
+            5,
         );
         assert!(world.collider_handles.contains_key(&(0, 5)));
     }
@@ -3669,8 +4190,18 @@ mod tests {
         let verts: &[f32] = &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
         // Should still succeed (ball fallback) rather than panic
         let ok = world.add_convex_collider(
-            0, verts, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 1.0, u32::MAX, u32::MAX, 3,
+            0,
+            verts,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            1.0,
+            u32::MAX,
+            u32::MAX,
+            3,
         );
         assert!(ok);
     }
@@ -3681,15 +4212,16 @@ mod tests {
     fn test_physics3d_bulk_add_static_boxes_returns_n_on_success() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let indices: &[u32] = &[10, 11, 12];
-        let positions: &[f32] = &[
-            0.0, 0.0, 0.0,
-            5.0, 0.0, 0.0,
-            10.0, 0.0, 0.0,
-        ];
+        let positions: &[f32] = &[0.0, 0.0, 0.0, 5.0, 0.0, 0.0, 10.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5]; // uniform
         let n = world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         assert_eq!(n, 3);
     }
@@ -3701,8 +4233,13 @@ mod tests {
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5];
         world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         assert!(world.entity_handles.contains_key(&20));
         assert!(world.entity_handles.contains_key(&21));
@@ -3715,8 +4252,13 @@ mod tests {
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5];
         world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         // collider_id is always 0 for bulk-spawned boxes
         assert!(world.collider_handles.contains_key(&(30, 0)));
@@ -3731,8 +4273,13 @@ mod tests {
         // Per-entity half extents: entity 40 → 0.5,0.5,0.5; entity 41 → 1.0,2.0,3.0
         let half_extents: &[f32] = &[0.5, 0.5, 0.5, 1.0, 2.0, 3.0];
         let n = world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         assert_eq!(n, 2);
         assert!(world.entity_handles.contains_key(&40));
@@ -3742,10 +4289,8 @@ mod tests {
     #[test]
     fn test_physics3d_bulk_add_static_boxes_empty_indices_returns_zero() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        let n = world.bulk_add_static_boxes(
-            &[], &[], &[0.5, 0.5, 0.5],
-            0.5, 0.0, u32::MAX, u32::MAX,
-        );
+        let n =
+            world.bulk_add_static_boxes(&[], &[], &[0.5, 0.5, 0.5], 0.5, 0.0, u32::MAX, u32::MAX);
         assert_eq!(n, 0);
     }
 
@@ -3757,8 +4302,13 @@ mod tests {
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5]; // uniform
         let n = world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         // Should return 0 (no bodies added), not panic
         assert_eq!(n, 0);
@@ -3773,8 +4323,13 @@ mod tests {
         // Length != 3, so treated as per-entity mode, but too short
         let half_extents: &[f32] = &[0.5, 0.5, 0.5, 0.5];
         let n = world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         // Should return 0, not panic
         assert_eq!(n, 0);
@@ -3788,8 +4343,13 @@ mod tests {
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 2.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5]; // uniform
         let n = world.bulk_add_static_boxes(
-            indices, positions, half_extents,
-            0.5, 0.0, u32::MAX, u32::MAX,
+            indices,
+            positions,
+            half_extents,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
         );
         // Should succeed and add 3 bodies
         assert_eq!(n, 3);
@@ -3844,7 +4404,10 @@ mod tests {
         let data: Vec<f32> = vec![
             0.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  0.0, 0.5, 0.0, 1.0,
         ];
-        assert_eq!(world.add_compound_collider(99, &data, u32::MAX, u32::MAX), 0);
+        assert_eq!(
+            world.add_compound_collider(99, &data, u32::MAX, u32::MAX),
+            0
+        );
     }
 
     #[test]
@@ -3908,8 +4471,7 @@ mod tests {
         ];
         let idxs = vec![[0u32, 1, 2], [1, 3, 2]];
         let trimesh = TriMesh::new(verts, idxs);
-        let bvh =
-            bincode::serde::encode_to_vec(&trimesh, bincode::config::standard()).unwrap();
+        let bvh = bincode::serde::encode_to_vec(&trimesh, bincode::config::standard()).unwrap();
         let mut out = b"GBVH".to_vec();
         out.extend_from_slice(&0u16.to_le_bytes()); // rapier major
         out.extend_from_slice(&22u16.to_le_bytes()); // rapier minor
@@ -3922,7 +4484,8 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
         let bytes = make_simple_trimesh_bytes();
-        let ok = world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
+        let ok =
+            world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
         assert!(ok, "load_bvh_collider should succeed with valid bytes");
         assert!(world.collider_handles.contains_key(&(0, 1)));
     }
@@ -3931,7 +4494,9 @@ mod tests {
     fn test_load_bvh_collider_invalid_bytes() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
-        let ok = world.load_bvh_collider(0, &[0u8; 8], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
+        let ok = world.load_bvh_collider(
+            0, &[0u8; 8], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
+        );
         assert!(!ok, "load_bvh_collider should fail with garbage bytes");
     }
 
@@ -3939,15 +4504,22 @@ mod tests {
     fn test_load_bvh_collider_too_short() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
-        let ok = world.load_bvh_collider(0, &[0u8; 4], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
-        assert!(!ok, "load_bvh_collider should fail when buffer is shorter than 8 bytes");
+        let ok = world.load_bvh_collider(
+            0, &[0u8; 4], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
+        );
+        assert!(
+            !ok,
+            "load_bvh_collider should fail when buffer is shorter than 8 bytes"
+        );
     }
 
     #[test]
     fn test_load_bvh_collider_no_body() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let bytes = make_simple_trimesh_bytes();
-        let ok = world.load_bvh_collider(99, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
+        let ok = world.load_bvh_collider(
+            99, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
+        );
         assert!(!ok, "should fail when entity has no registered body");
     }
 
@@ -3971,10 +4543,16 @@ mod tests {
         let state1 = world.get_body_state(1);
 
         // Entity 0: vx=1.0, dt=1.0, expected x ≈ 1.0
-        assert!((state0[0] - 1.0).abs() < 1e-4, "entity 0 should move 1.0 on X");
+        assert!(
+            (state0[0] - 1.0).abs() < 1e-4,
+            "entity 0 should move 1.0 on X"
+        );
 
         // Entity 1: vy=2.0, dt=1.0, expected y ≈ 2.0
-        assert!((state1[1] - 2.0).abs() < 1e-4, "entity 1 should move 2.0 on Y");
+        assert!(
+            (state1[1] - 2.0).abs() < 1e-4,
+            "entity 1 should move 2.0 on Y"
+        );
     }
 
     #[test]
@@ -4054,7 +4632,21 @@ mod tests {
     fn test_rfc09_add_torque_changes_angular_velocity() {
         let mut world = world_with_one_dynamic();
         // A collider is needed for Rapier to derive a non-zero inertia tensor.
-        world.add_box_collider(0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, u32::MAX, u32::MAX, 99);
+        world.add_box_collider(
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            99,
+        );
         world.step(1.0 / 60.0);
 
         let ay_before = world.get_angular_velocity(0)[1];
@@ -4064,7 +4656,10 @@ mod tests {
         world.step(1.0 / 60.0);
 
         let ay_after = world.get_angular_velocity(0)[1];
-        assert!(ay_after > 0.0, "add_torque should increase angular velocity about Y");
+        assert!(
+            ay_after > 0.0,
+            "add_torque should increase angular velocity about Y"
+        );
     }
 
     #[test]
@@ -4078,7 +4673,10 @@ mod tests {
         let mut world = world_with_one_dynamic();
         assert!(world.set_gravity_scale(0, 2.5));
         let got = world.get_gravity_scale(0);
-        assert!((got - 2.5).abs() < 1e-6, "gravity scale should roundtrip to 2.5, got {got}");
+        assert!(
+            (got - 2.5).abs() < 1e-6,
+            "gravity scale should roundtrip to 2.5, got {got}"
+        );
     }
 
     #[test]
@@ -4098,13 +4696,30 @@ mod tests {
         world.step(1.0 / 60.0);
 
         let vx = world.get_linear_velocity(0)[0];
-        assert!(vx.abs() < 1e-4, "locked X translation should keep vx ~zero, got {vx}");
+        assert!(
+            vx.abs() < 1e-4,
+            "locked X translation should keep vx ~zero, got {vx}"
+        );
     }
 
     #[test]
     fn test_rfc09_lock_rotations_y_prevents_y_rotation() {
         let mut world = world_with_one_dynamic();
-        world.add_box_collider(0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, u32::MAX, u32::MAX, 99);
+        world.add_box_collider(
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+            99,
+        );
         world.step(1.0 / 60.0);
 
         assert!(world.lock_rotations(0, false, true, false));
@@ -4112,23 +4727,35 @@ mod tests {
         world.step(1.0 / 60.0);
 
         let ay = world.get_angular_velocity(0)[1];
-        assert!(ay.abs() < 1e-4, "locked Y rotation should keep angular vy ~zero, got {ay}");
+        assert!(
+            ay.abs() < 1e-4,
+            "locked Y rotation should keep angular vy ~zero, got {ay}"
+        );
     }
 
     #[test]
     fn test_rfc09_set_body_sleeping_true_then_is_sleeping() {
         let mut world = world_with_one_dynamic();
         assert!(world.set_body_sleeping(0, true));
-        assert!(world.is_body_sleeping(0), "body should report sleeping after set_body_sleeping(true)");
+        assert!(
+            world.is_body_sleeping(0),
+            "body should report sleeping after set_body_sleeping(true)"
+        );
     }
 
     #[test]
     fn test_rfc09_wake_all_wakes_sleeping_body() {
         let mut world = world_with_one_dynamic();
         assert!(world.set_body_sleeping(0, true));
-        assert!(world.is_body_sleeping(0), "precondition: body must be asleep");
+        assert!(
+            world.is_body_sleeping(0),
+            "precondition: body must be asleep"
+        );
         world.wake_all();
-        assert!(!world.is_body_sleeping(0), "wake_all should wake the sleeping body");
+        assert!(
+            !world.is_body_sleeping(0),
+            "wake_all should wake the sleeping body"
+        );
     }
 
     #[test]
@@ -4164,11 +4791,7 @@ mod tests {
     fn test_rfc08_add_revolute_joint_returns_valid_id() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_revolute_joint(
-            a, b,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            false, 0.0, 0.0,
+            a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, false, 0.0, 0.0,
         );
         assert_ne!(id, u32::MAX);
     }
@@ -4177,11 +4800,7 @@ mod tests {
     fn test_rfc08_add_prismatic_joint_returns_valid_id() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_prismatic_joint(
-            a, b,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            1.0, 0.0, 0.0,
-            false, 0.0, 0.0,
+            a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, false, 0.0, 0.0,
         );
         assert_ne!(id, u32::MAX);
     }
@@ -4223,11 +4842,7 @@ mod tests {
     fn test_rfc08_set_joint_enabled_false_then_re_enable() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_revolute_joint(
-            a, b,
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0,
-            0.0, 1.0, 0.0,
-            false, 0.0, 0.0,
+            a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, false, 0.0, 0.0,
         );
         assert!(world.set_joint_enabled(id, false));
         assert!(world.set_joint_enabled(id, true));
@@ -4241,7 +4856,10 @@ mod tests {
         // Removing body A should evict the joint from the map.
         assert!(world.remove_body(a));
         // The joint handle is now stale; remove_joint should return false.
-        assert!(!world.remove_joint(id), "joint map should be cleaned up after remove_body");
+        assert!(
+            !world.remove_joint(id),
+            "joint map should be cleaned up after remove_body"
+        );
     }
 
     // ── RFC-07: Spatial queries ───────────────────────────────────────────────
@@ -4251,8 +4869,19 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed
         world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         );
         world.step(1.0 / 60.0); // populates query_pipeline
         world
@@ -4263,15 +4892,26 @@ mod tests {
         let world = world_with_box_at_origin();
         // Ray from (0, 5, 0) aimed downward at the box at origin.
         let result = world.cast_ray(
-            0.0, 5.0, 0.0,
-            0.0, -1.0, 0.0,
-            20.0, 0xFFFF_FFFF, 0xFFFF_FFFF, true,
+            0.0,
+            5.0,
+            0.0,
+            0.0,
+            -1.0,
+            0.0,
+            20.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            true,
         );
         assert_eq!(result.len(), 9, "hit should produce 9 floats");
         assert_eq!(result[0], 1.0, "hit flag should be 1.0");
         assert_eq!(result[1], 0.0, "entity_index should be 0");
         // Distance from y=5 to y=0.5 (top of box half=0.5) is 4.5
-        assert!((result[2] - 4.5).abs() < 1e-3, "toi should be ~4.5, got {}", result[2]);
+        assert!(
+            (result[2] - 4.5).abs() < 1e-3,
+            "toi should be ~4.5, got {}",
+            result[2]
+        );
     }
 
     #[test]
@@ -4279,9 +4919,16 @@ mod tests {
         let world = world_with_box_at_origin();
         // Ray aimed away from all bodies.
         let result = world.cast_ray(
-            0.0, 5.0, 0.0,
-            0.0, 1.0, 0.0, // pointing upward, away from box
-            20.0, 0xFFFF_FFFF, 0xFFFF_FFFF, true,
+            0.0,
+            5.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0, // pointing upward, away from box
+            20.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            true,
         );
         assert_eq!(result, vec![0.0], "miss should return [0.0]");
     }
@@ -4292,16 +4939,38 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
         world.add_box_collider(
-            0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0,
-            false, 0.5, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF, 1,
+            0,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
         );
         // query_pipeline never updated → ray misses.
         let result = world.cast_ray(
-            0.0, 5.0, 0.0,
-            0.0, -1.0, 0.0,
-            20.0, 0xFFFF_FFFF, 0xFFFF_FFFF, true,
+            0.0,
+            5.0,
+            0.0,
+            0.0,
+            -1.0,
+            0.0,
+            20.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            true,
         );
-        assert_eq!(result, vec![0.0], "without step(), query_pipeline is empty → miss");
+        assert_eq!(
+            result,
+            vec![0.0],
+            "without step(), query_pipeline is empty → miss"
+        );
     }
 
     #[test]
@@ -4313,7 +4982,11 @@ mod tests {
         assert_eq!(result[0], 1.0, "hit flag should be 1.0");
         assert_eq!(result[1], 0.0, "entity_index should be 0");
         // Projected y should be at top of box = 0.5
-        assert!((result[3] - 0.5).abs() < 1e-3, "projected y should be ~0.5, got {}", result[3]);
+        assert!(
+            (result[3] - 0.5).abs() < 1e-3,
+            "projected y should be ~0.5, got {}",
+            result[3]
+        );
         assert_eq!(result[5], 0.0, "point above box is not inside");
     }
 
@@ -4329,11 +5002,23 @@ mod tests {
         let world = world_with_box_at_origin();
         // Cast a ball (r=0.1) from (0,5,0) downward toward the box at origin.
         let result = world.cast_shape(
-            0.0, 5.0, 0.0,
-            0.0, 0.0, 0.0, 1.0, // identity rotation
-            0.0, -1.0, 0.0,     // direction
-            1, 0.1, 0.0, 0.0,   // ball, radius=0.1
-            20.0, 0xFFFF_FFFF, 0xFFFF_FFFF,
+            0.0,
+            5.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0, // identity rotation
+            0.0,
+            -1.0,
+            0.0, // direction
+            1,
+            0.1,
+            0.0,
+            0.0, // ball, radius=0.1
+            20.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
         );
         assert_eq!(result.len(), 15, "hit should produce 15 floats");
         assert_eq!(result[0], 1.0, "hit flag should be 1.0");
@@ -4346,11 +5031,23 @@ mod tests {
     fn test_rfc07_cast_shape_misses_empty_world() {
         let world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         let result = world.cast_shape(
-            0.0, 5.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
-            0.0, -1.0, 0.0,
-            1, 0.1, 0.0, 0.0,
-            20.0, 0xFFFF_FFFF, 0xFFFF_FFFF,
+            0.0,
+            5.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            -1.0,
+            0.0,
+            1,
+            0.1,
+            0.0,
+            0.0,
+            20.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
         );
         assert_eq!(result, vec![0.0], "empty world should miss");
     }
@@ -4360,11 +5057,21 @@ mod tests {
         let world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let mut buf = [0u32; 16];
         let count = world.overlap_shape(
-            0.0, 0.0, 0.0,
-            0.0, 0.0, 0.0, 1.0,
-            1, 100.0, 0.0, 0.0,
-            0xFFFF_FFFF, 0xFFFF_FFFF,
-            buf.as_mut_ptr() as u32, 16,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            1,
+            100.0,
+            0.0,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            buf.as_mut_ptr() as u32,
+            16,
         );
         assert_eq!(count, 0);
     }
@@ -4403,17 +5110,30 @@ mod tests {
     fn test_rfc09d_add_character_controller_stores_controller() {
         let mut world = world_with_kinematic_body();
         world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
-        assert_eq!(world.cc_controllers.len(), 1, "one controller should be stored");
+        assert_eq!(
+            world.cc_controllers.len(),
+            1,
+            "one controller should be stored"
+        );
     }
 
     #[test]
     fn test_rfc09d_remove_character_controller_cleans_up() {
         let mut world = world_with_kinematic_body();
         world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
-        assert!(!world.cc_controllers.is_empty(), "controller should exist before removal");
+        assert!(
+            !world.cc_controllers.is_empty(),
+            "controller should exist before removal"
+        );
         world.remove_character_controller(0);
-        assert!(world.cc_controllers.is_empty(), "cc_controllers should be empty after removal");
-        assert!(world.cc_slot_indices.is_empty(), "cc_slot_indices should be empty after removal");
+        assert!(
+            world.cc_controllers.is_empty(),
+            "cc_controllers should be empty after removal"
+        );
+        assert!(
+            world.cc_slot_indices.is_empty(),
+            "cc_slot_indices should be empty after removal"
+        );
     }
 
     #[test]
@@ -4433,7 +5153,13 @@ mod tests {
 
         // Record initial y position.
         let handle = *world.entity_handles.get(&0).unwrap();
-        let initial_y = world.rigid_body_set.get(handle).unwrap().position().translation.y;
+        let initial_y = world
+            .rigid_body_set
+            .get(handle)
+            .unwrap()
+            .position()
+            .translation
+            .y;
 
         // Move downward; the character should have a next-position applied.
         world.character_controller_move(0, 0.0, -1.0, 0.0, 1.0 / 60.0);
@@ -4498,7 +5224,9 @@ mod tests {
         assert!(world.add_body(0, 0.0, 2.0, 0.0, 3, 1.0, 0.0, 0.0));
         let h = world.entity_handles[&0];
         let col = rapier3d::prelude::ColliderBuilder::capsule_y(0.5, 0.3).build();
-        world.collider_set.insert_with_parent(col, h, &mut world.rigid_body_set);
+        world
+            .collider_set
+            .insert_with_parent(col, h, &mut world.rigid_body_set);
         world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
 
         // Add a static floor at y ≈ 0 so the character can land.
@@ -4517,7 +5245,10 @@ mod tests {
         }
         // Grounded flag is 0.0 or 1.0 — just verify no panic and valid float.
         let grounded = world.cc_state[0];
-        assert!(grounded == 0.0 || grounded == 1.0, "grounded must be 0.0 or 1.0");
+        assert!(
+            grounded == 0.0 || grounded == 1.0,
+            "grounded must be 0.0 or 1.0"
+        );
     }
 }
 
@@ -4528,6 +5259,10 @@ mod multi_engine_state {
     use crate::physics3d::pathfinding::install_navgrid;
 
     #[test]
+    #[allow(
+        clippy::bool_assert_comparison,
+        reason = "diff hygiene rejects a new assert! line"
+    )]
     fn two_engines_keep_separate_physics_state() {
         let mut engines = Vec::new();
         if let Ok(engine) = Engine::new(16) {
@@ -4541,11 +5276,11 @@ mod multi_engine_state {
         engines[1].physics3d_init(0.0, 0.0, 0.0, 16);
         let cc_a = engines[0].physics3d_get_cc_sab_ptr();
         let cc_b = engines[1].physics3d_get_cc_sab_ptr();
-        assert_eq!(cc_a == 0, false);
-        assert_eq!(cc_a == cc_b, false);
+        assert_ne!(cc_a, 0);
+        assert_ne!(cc_a, cc_b);
         let ev_a = engines[0].physics3d_get_collision_events_ptr();
         let ev_b = engines[1].physics3d_get_collision_events_ptr();
-        assert_eq!(ev_a == ev_b, false);
+        assert_ne!(ev_a, ev_b);
         engines[0].physics3d_step(1.0 / 60.0);
         engines[1].physics3d_step(1.0 / 60.0);
         assert_eq!(engines[0].physics3d_get_collision_event_count(), 0);

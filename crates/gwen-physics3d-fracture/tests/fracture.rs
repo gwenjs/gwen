@@ -1,3 +1,12 @@
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable,
+    clippy::todo,
+    clippy::unimplemented,
+    reason = "test-only code"
+)]
 //! Integration tests for voronoi_fracture().
 //!
 //! Uses a minimal 4-vertex, 2-triangle quad mesh so results are deterministic
@@ -5,9 +14,11 @@
 
 use gwen_physics3d_fracture::voronoi_fracture;
 
-/// Helper: parse the output buffer into `(shard_count, shards)` where each
-/// shard is `(vertex_count, tri_count, vertices, indices)`.
-fn parse_output(buf: &[f32]) -> (usize, Vec<(usize, usize, Vec<f32>, Vec<u32>)>) {
+/// One parsed shard: vertex count, triangle count, vertices, indices.
+type Shard = (usize, usize, Vec<f32>, Vec<u32>);
+
+/// Helper: parse the output buffer into `(shard_count, shards)`.
+fn parse_output(buf: &[f32]) -> (usize, Vec<Shard>) {
     let mut offset = 0;
     let shard_count = buf[offset] as usize;
     offset += 1;
@@ -19,7 +30,10 @@ fn parse_output(buf: &[f32]) -> (usize, Vec<(usize, usize, Vec<f32>, Vec<u32>)>)
         offset += 1;
         let verts: Vec<f32> = buf[offset..offset + vert_count * 3].to_vec();
         offset += vert_count * 3;
-        let idxs: Vec<u32> = buf[offset..offset + tri_count * 3].iter().map(|&f| f as u32).collect();
+        let idxs: Vec<u32> = buf[offset..offset + tri_count * 3]
+            .iter()
+            .map(|&f| f as u32)
+            .collect();
         offset += tri_count * 3;
         shards.push((vert_count, tri_count, verts, idxs));
     }
@@ -30,12 +44,7 @@ fn parse_output(buf: &[f32]) -> (usize, Vec<(usize, usize, Vec<f32>, Vec<u32>)>)
 ///   v0(0,0,0)  v1(1,0,0)
 ///   v2(0,1,0)  v3(1,1,0)
 fn quad_mesh() -> (Vec<f32>, Vec<u32>) {
-    let verts: Vec<f32> = vec![
-        0.0, 0.0, 0.0,
-        1.0, 0.0, 0.0,
-        0.0, 1.0, 0.0,
-        1.0, 1.0, 0.0,
-    ];
+    let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 1.0, 0.0];
     // Two triangles: lower-left and upper-right.
     let idxs: Vec<u32> = vec![0, 1, 2, 1, 3, 2];
     (verts, idxs)
@@ -66,10 +75,16 @@ fn test_voronoi_fracture_2_shards_split_quad() {
     let result = voronoi_fracture(&verts, &idxs, 0.0, 0.0, 0.0, 2, 0);
     let (shard_count, shards) = parse_output(&result);
 
-    assert_eq!(shard_count, 2, "both shards must be non-empty for this input");
+    assert_eq!(
+        shard_count, 2,
+        "both shards must be non-empty for this input"
+    );
 
     let total_tris: usize = shards.iter().map(|(_, tc, _, _)| tc).sum();
-    assert_eq!(total_tris, 2, "total triangle count across shards must equal original");
+    assert_eq!(
+        total_tris, 2,
+        "total triangle count across shards must equal original"
+    );
 }
 
 #[test]

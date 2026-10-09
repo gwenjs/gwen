@@ -48,12 +48,7 @@ pub fn get_path_buffer_ptr() -> *const PathNode {
 /// # Returns
 /// The number of nodes in the found path (up to `MAX_PATH_NODES`).
 #[wasm_bindgen]
-pub fn find_path_2d(
-    start_x: f32,
-    start_y: f32,
-    end_x: f32,
-    end_y: f32,
-) -> usize {
+pub fn find_path_2d(start_x: f32, start_y: f32, end_x: f32, end_y: f32) -> usize {
     let start = (start_x.round() as i32, start_y.round() as i32);
     let goal = (end_x.round() as i32, end_y.round() as i32);
 
@@ -69,6 +64,7 @@ pub fn find_path_2d(
         .unwrap_or_else(|| vec![start, goal]);
 
         let count = path.len().min(MAX_PATH_NODES);
+        // SAFETY: `count` is at most `MAX_PATH_NODES`. This function is the only writer.
         unsafe {
             for (i, (x, y)) in path.into_iter().take(count).enumerate() {
                 PATH_BUFFER[i] = PathNode {
@@ -77,11 +73,16 @@ pub fn find_path_2d(
                 };
             }
             PATH_NODE_COUNT = count;
+            #[allow(
+                clippy::needless_return,
+                reason = "this cfg branch is not the function tail"
+            )]
             return PATH_NODE_COUNT;
         }
     }
 
     #[cfg(not(feature = "pathfinding-2d"))]
+    // SAFETY: two nodes fit in `PATH_BUFFER`. This function is the only writer.
     unsafe {
         PATH_BUFFER[0] = PathNode {
             x: start.0 as f32,
