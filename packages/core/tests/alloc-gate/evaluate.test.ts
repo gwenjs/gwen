@@ -4,11 +4,13 @@ import {
   formatAllocFailure,
   evaluateAllocGate,
   parseAllocThresholds,
+  type AllocGateReport,
   type AllocMeasurement,
   type AllocPathName,
   type AllocPathThreshold,
   type AllocThresholds,
 } from "../../bench/alloc/evaluate-alloc-gate";
+import recordedFile from "../../bench/alloc-thresholds.json" with { type: "json" };
 
 const PATHS: AllocPathName[] = [
   "frame.empty",
@@ -169,5 +171,93 @@ describe("evaluateAllocGate", () => {
       "[ALLOC GATE] update.actor bytesPerFrame: recorded 100 → measured 2000 (limit 1124, E=1000→2000, 4 frames, Node 22)",
     );
     expect(report.messages).toContain(line);
+  });
+});
+
+// Highest bytes per frame measured on Node 22.23.2: five local runs of
+// `vitest run --config vitest.alloc.config.ts` and the Allocation gate job of
+// CI runs 37938890004, 37937232831 and 37935215155.
+const MEASURED_BYTES_PER_FRAME = {
+  "frame.empty": 4055.333,
+  "query.raw": 4069.333,
+  "query.entities": 165828.667,
+  "bulk.query": 6013.333,
+  "bulk.components": 133220,
+} as const;
+
+type MeasuredPath = keyof typeof MEASURED_BYTES_PER_FRAME;
+
+function isMeasuredPath(name: AllocPathName): name is MeasuredPath {
+  return Object.prototype.hasOwnProperty.call(MEASURED_BYTES_PER_FRAME, name);
+}
+
+/** Every path at its recorded value, except `path` at `bytesPerFrame`. */
+function recordedRunWith(
+  recorded: AllocThresholds,
+  path: MeasuredPath,
+  bytesPerFrame: number,
+): AllocMeasurement[] {
+  return PATHS.map((name) => ({
+    path: name,
+    bytesPerFrame: name === path ? bytesPerFrame : recorded.paths[name].bytesPerFrame,
+    bytesPerEntityFrame: recorded.paths[name].bytesPerEntityFrame,
+  }));
+}
+
+/** The gate result of the real thresholds file for a run 1025 B/frame above today's value. */
+function overBudget(path: MeasuredPath): AllocGateReport {
+  const recorded = parseAllocThresholds(recordedFile);
+  const bytes = MEASURED_BYTES_PER_FRAME[path] + 1025;
+  return evaluateAllocGate(recordedRunWith(recorded, path, bytes), recorded, 22);
+}
+
+describe("recorded alloc thresholds", () => {
+  it("frame.empty fails 1025 B/frame above its measured value", () => {
+    const report = overBudget("frame.empty");
+    expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
+      "frame.empty bytesPerFrame",
+    ]);
+  });
+
+  it("query.raw fails 1025 B/frame above its measured value", () => {
+    const report = overBudget("query.raw");
+    expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
+      "query.raw bytesPerFrame",
+    ]);
+  });
+
+  it("query.entities fails 1025 B/frame above its measured value", () => {
+    const report = overBudget("query.entities");
+    expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
+      "query.entities bytesPerFrame",
+    ]);
+  });
+
+  it("bulk.query fails 1025 B/frame above its measured value", () => {
+    const report = overBudget("bulk.query");
+    expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
+      "bulk.query bytesPerFrame",
+    ]);
+  });
+
+  it("bulk.components fails 1025 B/frame above its measured value", () => {
+    const report = overBudget("bulk.components");
+    expect(report.failures.map((f) => `${f.path} ${f.metric}`)).toEqual([
+      "bulk.components bytesPerFrame",
+    ]);
+  });
+
+  it("the measured values pass and none of them can be lowered", () => {
+    const recorded = parseAllocThresholds(recordedFile);
+    const run = PATHS.map((name) => ({
+      path: name,
+      bytesPerFrame: isMeasuredPath(name)
+        ? MEASURED_BYTES_PER_FRAME[name]
+        : recorded.paths[name].bytesPerFrame,
+      bytesPerEntityFrame: recorded.paths[name].bytesPerEntityFrame,
+    }));
+    const report = evaluateAllocGate(run, recorded, 22);
+    expect(report.failures).toEqual([]);
+    expect(report.lowerable).toEqual([]);
   });
 });
