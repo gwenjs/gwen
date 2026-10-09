@@ -421,8 +421,6 @@ export interface EngineFramePhaseMs {
   tick: number;
   /** `engine:before-update`, including the physics step and kinematic sync. */
   plugins: number;
-  /** Built-in bridge stub step only. About 0 until that stub is removed. */
-  physics: number;
   /** Community WASM module steps. */
   wasm: number;
   /** `update_transforms` and the `engine:update` hook. */
@@ -563,21 +561,7 @@ export interface GwenEngine extends GwenEngineBase {
   startExternal(): Promise<void>;
   advance(dt: number): Promise<void>;
 
-  // ─── WASM bridge ─────────────────────────────────────────────────────────
-  readonly wasmBridge: {
-    physics2d: {
-      enabled: boolean;
-      enable(opts: unknown): void;
-      disable(): void;
-      step(dt: number): void;
-    };
-    physics3d: {
-      enabled: boolean;
-      enable(opts: unknown): void;
-      disable(): void;
-      step(dt: number): void;
-    };
-  };
+  // ─── WASM modules ────────────────────────────────────────────────────────
   loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>>;

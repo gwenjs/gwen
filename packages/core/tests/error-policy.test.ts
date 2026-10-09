@@ -682,10 +682,9 @@ describe("frame isolation", () => {
     ).toHaveLength(1);
 
     await engine.startExternal();
-    engine.wasmBridge.physics2d.enable({});
-    engine.wasmBridge.physics2d.step = () => {
+    engine.hooks.hook("engine:update", () => {
       throw new WebAssembly.RuntimeError("unreachable");
-    };
+    });
     await engine.advance(0.016);
     expect(engine.state).toBe("faulted");
   });

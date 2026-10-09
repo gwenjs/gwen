@@ -112,7 +112,6 @@ const p = stats.phaseMs
 if (p) {
   console.log(p.tick)       // engine:tick
   console.log(p.plugins)    // engine:before-update, including the physics step and kinematic sync
-  console.log(p.physics)    // built-in bridge stub only (about 0)
   console.log(p.wasm)       // community WASM module steps
   console.log(p.update)     // update_transforms and engine:update
   console.log(p.render)     // engine:after-update and engine:render

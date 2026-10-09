@@ -457,38 +457,6 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Hooks ───────────────────────────────────────────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
 
-  // ─── WASM bridge stub ─────────────────────────────────────────────────────
-  readonly wasmBridge = {
-    physics2d: {
-      enabled: false,
-      enable: (_opts: unknown): void => {
-        this._assertNotFaulted("wasmBridge.physics2d.enable");
-        this.wasmBridge.physics2d.enabled = true;
-      },
-      disable: (): void => {
-        this._assertNotFaulted("wasmBridge.physics2d.disable");
-        this.wasmBridge.physics2d.enabled = false;
-      },
-      step: (_dt: number): void => {
-        this._assertNotFaulted("wasmBridge.physics2d.step");
-      },
-    },
-    physics3d: {
-      enabled: false,
-      enable: (_opts: unknown): void => {
-        this._assertNotFaulted("wasmBridge.physics3d.enable");
-        this.wasmBridge.physics3d.enabled = true;
-      },
-      disable: (): void => {
-        this._assertNotFaulted("wasmBridge.physics3d.disable");
-        this.wasmBridge.physics3d.enabled = false;
-      },
-      step: (_dt: number): void => {
-        this._assertNotFaulted("wasmBridge.physics3d.step");
-      },
-    },
-  };
-
   /** @internal */ readonly _bridge: WasmBridgeImpl;
 
   private readonly _entityManager: EntityManager;
@@ -1405,7 +1373,6 @@ class GwenEngineImpl implements GwenEngine {
     const slot: EngineFramePhaseMs = {
       tick: 0,
       plugins: 0,
-      physics: 0,
       wasm: 0,
       update: 0,
       render: 0,
@@ -2080,7 +2047,6 @@ class GwenEngineImpl implements GwenEngine {
     let t1 = 0;
     let t2 = 0;
     let t3 = 0;
-    let t4 = 0;
     let t5 = 0;
     let t6 = 0;
     let t7 = 0;
@@ -2109,29 +2075,6 @@ class GwenEngineImpl implements GwenEngine {
       const beforeDone = this._guardHook1("engine:before-update", dt);
       if (isThenable(beforeDone)) await beforeDone;
       if (instrument) t3 = performance.now();
-
-      // Phase 3 — built-in physics step (Cas A: wasmBridge physics)
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      try {
-        if (this.wasmBridge.physics2d.enabled) this.wasmBridge.physics2d.step(dt);
-        if (this.wasmBridge.physics3d.enabled) this.wasmBridge.physics3d.step(dt);
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        const isWasmPanic =
-          err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
-        this._reportCaught(err, "physics", {
-          level: "fatal",
-          source: "gwen_core.wasm",
-          message: `WASM step failed: ${detail}`,
-          code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
-        });
-      }
-      if (instrument) t4 = performance.now();
 
       // Phase 4 — community WASM modules step (Cas B: user WASM, registration order)
       if (this._frameFaulted()) return;
@@ -2216,8 +2159,7 @@ class GwenEngineImpl implements GwenEngine {
       if (instrument) {
         const tick = t2 - t1;
         const plugins = t3 - t2;
-        const physics = t4 - t3;
-        const wasm = t5 - t4;
+        const wasm = t5 - t3;
         const update = t6 - t5;
         const render = t7 - t6;
         const afterTick = t8 - t7;
@@ -2225,7 +2167,6 @@ class GwenEngineImpl implements GwenEngine {
         if (this._sumPhases && this._displayTimed) {
           slot.tick += tick;
           slot.plugins += plugins;
-          slot.physics += physics;
           slot.wasm += wasm;
           slot.update += update;
           slot.render += render;
@@ -2234,7 +2175,6 @@ class GwenEngineImpl implements GwenEngine {
         } else {
           slot.tick = tick;
           slot.plugins = plugins;
-          slot.physics = physics;
           slot.wasm = wasm;
           slot.update = update;
           slot.render = render;
@@ -2258,14 +2198,6 @@ class GwenEngineImpl implements GwenEngine {
           this.logger.warn(`phase "plugins" exceeded 50% of frame budget`, {
             phase: "plugins",
             ms: plugins.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
-          });
-        }
-        if (physics > budget * 0.5) {
-          this.logger.warn(`phase "physics" exceeded 50% of frame budget`, {
-            phase: "physics",
-            ms: physics.toFixed(2),
             budgetMs: budget.toFixed(2),
             frame: this._frameCountOwn,
           });
