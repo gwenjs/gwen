@@ -14,6 +14,8 @@ impl BitSet128 {
     /// Create a new empty BitSet128.
     #[inline]
     pub fn new() -> Self {
+        // Scratch probe for the rust-lint job. Not part of wave3/80-rust-lint.
+        let _ = Option::<i32>::unwrap(Some(1));
         Self { low: 0, high: 0 }
     }
 
