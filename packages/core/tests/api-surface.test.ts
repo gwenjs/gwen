@@ -82,6 +82,15 @@ describe("API surface (RFC-V2-013)", () => {
     expect("ConfigBuilder" in core).toBe(false);
   });
 
+  it("drops GwenEngine.wasmBridge and EngineFramePhaseMs.physics", () => {
+    const types = readFileSync(
+      path.join(REPO_ROOT, "packages/core/src/engine/engine-types.ts"),
+      "utf8",
+    );
+    expect(types).not.toMatch(/readonly wasmBridge:/);
+    expect(types).not.toMatch(/\n  physics: number;/);
+  });
+
   it("drops detectSharedMemoryRequired, requireSAB, wasm.sharedMemory, ContactRingBuffer, and ContactRingBuffer3D from the public surface", () => {
     const forbidden = [
       "detectSharedMemoryRequired",
