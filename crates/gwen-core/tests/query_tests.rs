@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use gwen_core::{ArchetypeStorage, ComponentTypeId, QueryId, QuerySystem};
+    use gwen_core::{ArchetypeStorage, ColumnMove, ComponentTypeId, QueryId, QuerySystem};
 
     #[test]
     fn test_query_matches_archetype() {
@@ -90,7 +90,7 @@ mod tests {
         assert_eq!(qs.cache_size(), 1);
 
         // Add entity
-        if let Some(_migration) = storage.add_component(0, c1, &[0; 4]) {
+        if let ColumnMove::Migrated(_migration) = storage.add_component(0, c1, &[0; 4]) {
             // In a real system, the QuerySystem would be notified of the new archetype
             // or we would invalidate the cache. For this test, we'll manually clear it.
             qs = QuerySystem::new(); 

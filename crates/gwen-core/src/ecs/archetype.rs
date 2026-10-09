@@ -2,7 +2,7 @@
 //!
 //! Stores entities with the same set of components in contiguous memory.
 
-use crate::ecs::{ComponentTypeId, BitSet128};
+use crate::ecs::{BitSet128, ComponentTypeId};
 use std::collections::HashMap;
 
 /// Unique identifier for an archetype in the graph.
@@ -38,6 +38,27 @@ impl ArchetypeColumn {
         }
     }
 
+    /// Append one row by copying `src_row` from `src`. No intermediate buffer.
+    pub fn push_copied(&mut self, src: &ArchetypeColumn, src_row: usize) -> bool {
+        if !src.row_ok(src_row) {
+            return false;
+        }
+        if self.element_size == 0 {
+            if src.element_size != 0 {
+                return false;
+            }
+            let (start, len) = src.offsets[src_row];
+            self.push(&src.data[start..start + len]);
+            return true;
+        }
+        if src.element_size != self.element_size {
+            return false;
+        }
+        let start = src_row * src.element_size;
+        self.push(&src.data[start..start + self.element_size]);
+        true
+    }
+
     /// Add component data for a new entity row.
     pub fn push(&mut self, data: &[u8]) {
         if self.element_size == 0 {
@@ -62,11 +83,16 @@ impl ArchetypeColumn {
             } else {
                 self.data.splice(start..old_end, data.iter().copied());
                 self.offsets[row] = (start, new_len);
-                // Shift subsequent offsets
-                for offset in &mut self.offsets[(row + 1)..] {
+                // swap_remove copies the last offset into the hole, so later
+                // rows are not later in the byte buffer. Shift every other
+                // blob that starts at or after the edited end.
+                for (index, offset) in self.offsets.iter_mut().enumerate() {
+                    if index == row || offset.0 < old_end {
+                        continue;
+                    }
                     if new_len > old_len {
                         offset.0 += new_len - old_len;
-                    } else {
+                    } else if offset.0 >= old_len - new_len {
                         offset.0 -= old_len - new_len;
                     }
                 }
@@ -100,54 +126,59 @@ impl ArchetypeColumn {
         }
     }
 
-    /// Remove a row using swap-remove.
-    pub fn swap_remove(&mut self, row: usize) {
-        let last_row = if self.element_size == 0 {
-            self.offsets.len() - 1
-        } else {
-            (self.data.len() / self.element_size) - 1
-        };
-
+    /// True when `row` addresses a stored element.
+    pub fn row_ok(&self, row: usize) -> bool {
         if self.element_size == 0 {
-            if row == last_row {
-                let (start, _len) = self.offsets.pop().unwrap();
-                self.data.truncate(start);
-            } else {
-                let (rm_start, rm_len) = self.offsets[row];
-                let (last_start, last_len) = self.offsets[last_row];
-
-                // Replace data at `row` with data from `last_row`
-                let last_data = self.data[last_start..last_start + last_len].to_vec();
-                
-                // This is slightly inefficient but safe for variable size swap-remove
-                self.data.splice(rm_start..rm_start + rm_len, last_data);
-                
-                self.offsets[row] = (rm_start, last_len);
-                self.offsets.pop();
-
-                // Shift offsets between row and last_row
-                let diff = last_len as i32 - rm_len as i32;
-                if diff != 0 {
-                    for offset in &mut self.offsets[(row + 1)..] {
-                        if diff > 0 {
-                            offset.0 += diff as usize;
-                        } else {
-                            offset.0 -= (-diff) as usize;
-                        }
-                    }
-                }
-                self.data.truncate(self.data.len() - rm_len);
+            if row >= self.offsets.len() {
+                return false;
             }
-        } else if row == last_row {
-            self.data.truncate(row * self.element_size);
+            let (start, len) = self.offsets[row];
+            start.saturating_add(len) <= self.data.len()
         } else {
+            let end = row
+                .saturating_mul(self.element_size)
+                .saturating_add(self.element_size);
+            end <= self.data.len()
+        }
+    }
+
+    /// Remove a row using swap-remove. Returns false before any mutation when `row` is invalid.
+    /// Variable-size rows close the hole with `copy_within`: every byte after the hole
+    /// shifts down by the removed length. No intermediate buffer is allocated.
+    pub fn swap_remove(&mut self, row: usize) -> bool {
+        if self.element_size == 0 {
+            if !self.row_ok(row) {
+                return false;
+            }
+            let last_row = self.offsets.len() - 1;
+            let (rm_start, rm_len) = self.offsets[row];
+            let rm_end = rm_start + rm_len;
+            self.data.copy_within(rm_end.., rm_start);
+            self.data.truncate(self.data.len() - rm_len);
+            for offset in &mut self.offsets {
+                if offset.0 >= rm_end {
+                    offset.0 -= rm_len;
+                }
+            }
+            if row != last_row {
+                self.offsets[row] = self.offsets[last_row];
+            }
+            self.offsets.pop();
+            return true;
+        }
+
+        if !self.row_ok(row) {
+            return false;
+        }
+        let count = self.data.len() / self.element_size;
+        let last_row = count - 1;
+        if row != last_row {
             let src = last_row * self.element_size;
             let dst = row * self.element_size;
-            for i in 0..self.element_size {
-                self.data[dst + i] = self.data[src + i];
-            }
-            self.data.truncate(last_row * self.element_size);
+            self.data.copy_within(src..src + self.element_size, dst);
         }
+        self.data.truncate(last_row * self.element_size);
+        true
     }
 }
 
@@ -202,24 +233,57 @@ impl Archetype {
 
     /// Add an entity to this archetype.
     /// Caller must provide data for ALL components in the archetype.
-    /// `data` map must contain all `self.component_types`.
-    pub fn add_entity(&mut self, entity_id: u32, mut component_data: HashMap<ComponentTypeId, Vec<u8>>) -> usize {
+    /// Returns `None` before any mutation when a column is missing.
+    pub fn add_entity(
+        &mut self,
+        entity_id: u32,
+        component_data: &HashMap<ComponentTypeId, Vec<u8>>,
+    ) -> Option<usize> {
+        if self.entity_row.contains_key(&entity_id) {
+            return None;
+        }
+        if self.columns.len() != self.component_types.len() {
+            return None;
+        }
+        for type_id in &self.component_types {
+            if !component_data.contains_key(type_id) {
+                return None;
+            }
+        }
+
         let row = self.entities.len();
         self.entities.push(entity_id);
         self.entity_row.insert(entity_id, row);
 
         for (i, type_id) in self.component_types.iter().enumerate() {
-            let data = component_data.remove(type_id).expect("Missing component data for archetype");
-            self.columns[i].push(&data);
+            if let Some(data) = component_data.get(type_id) {
+                self.columns[i].push(data);
+            }
         }
-        row
+        Some(row)
+    }
+
+    /// True when `entity_id` can be removed without reading past a column.
+    pub fn can_remove(&self, entity_id: u32) -> bool {
+        let Some(&row) = self.entity_row.get(&entity_id) else {
+            return false;
+        };
+        if row >= self.entities.len() || self.entities.is_empty() {
+            return false;
+        }
+        self.columns.iter().all(|column| column.row_ok(row))
     }
 
     /// Remove an entity from this archetype using swap-remove.
     /// Returns the swapped entity ID if any (the one that moved into the removed entity's row).
-    pub fn remove_entity(&mut self, entity_id: u32) -> Option<u32> {
-        let row = self.entity_row.remove(&entity_id)?;
+    /// Returns `None` before any mutation when the entity is absent or a column is short.
+    pub fn remove_entity(&mut self, entity_id: u32) -> Option<Option<u32>> {
+        if !self.can_remove(entity_id) {
+            return None;
+        }
+        let row = *self.entity_row.get(&entity_id)?;
         let last_row = self.entities.len() - 1;
+        self.entity_row.remove(&entity_id);
 
         for column in &mut self.columns {
             column.swap_remove(row);
@@ -227,12 +291,12 @@ impl Archetype {
 
         if row == last_row {
             self.entities.pop();
-            None
+            Some(None)
         } else {
-            let last_entity = self.entities.pop().unwrap();
+            let last_entity = self.entities.pop()?;
             self.entities[row] = last_entity;
             self.entity_row.insert(last_entity, row);
-            Some(last_entity)
+            Some(Some(last_entity))
         }
     }
 
@@ -271,5 +335,26 @@ impl Archetype {
     /// Check if archetype is empty.
     pub fn is_empty(&self) -> bool {
         self.entities.is_empty()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ArchetypeColumn;
+
+    #[test]
+    fn set_after_swap_remove_keeps_the_other_row() {
+        let mut column = ArchetypeColumn::new(0);
+        column.push(b"aaaa");
+        column.push(b"bb");
+        column.push(b"cccc");
+        let removed = if column.swap_remove(0) { 1 } else { 0 };
+        assert_eq!(removed, 1);
+        column.set(0, b"CCCCCC");
+        assert_eq!(column.get(1), b"bb");
+        assert_eq!(column.get(0), b"CCCCCC");
+        column.set(1, b"b");
+        assert_eq!(column.get(0), b"CCCCCC");
+        assert_eq!(column.get(1), b"b");
     }
 }

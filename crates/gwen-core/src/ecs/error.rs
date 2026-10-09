@@ -71,6 +71,16 @@ pub enum CoreError {
         /// Byte length of the live allocation, or 0 when `ptr` is not live.
         len: usize,
     },
+    /// Storage refused a component write: the bytes do not fit the column, or
+    /// the entity row is inconsistent. Nothing was written.
+    ComponentWriteRejected {
+        /// Entity slot index.
+        entity: u32,
+        /// Component type id passed to the export.
+        component_type: u32,
+        /// Bytes passed for this entity.
+        bytes: u32,
+    },
 }
 
 impl CoreError {
@@ -84,6 +94,7 @@ impl CoreError {
             Self::InvalidMaxEntities { .. } => "CORE:INVALID_MAX_ENTITIES",
             Self::BufferLengthMismatch { .. } => "CORE:BUFFER_LENGTH_MISMATCH",
             Self::InvalidSharedBuffer { .. } => "CORE:INVALID_SHARED_BUFFER",
+            Self::ComponentWriteRejected { .. } => "CORE:COMPONENT_WRITE_REJECTED",
         }
     }
 }
@@ -137,6 +148,14 @@ impl fmt::Display for CoreError {
             Self::InvalidSharedBuffer { ptr, len } => {
                 write!(f, "invalid shared buffer: ptr {ptr}, len {len}")
             }
+            Self::ComponentWriteRejected {
+                entity,
+                component_type,
+                bytes,
+            } => write!(
+                f,
+                "Component write rejected: entity {entity} component type {component_type} ({bytes} bytes)"
+            ),
         }
     }
 }

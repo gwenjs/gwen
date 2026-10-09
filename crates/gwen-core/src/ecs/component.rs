@@ -138,7 +138,7 @@ impl Default for ComponentRegistry {
     }
 }
 
-use crate::ecs::storage::ArchetypeStorage;
+use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
 
 /// Type-safe component handle
 pub struct ComponentHandle<T> {
@@ -164,7 +164,10 @@ impl<T: Pod + Zeroable + Copy + 'static> ComponentHandle<T> {
     /// Add component to entity
     pub fn add(&self, storage: &mut ArchetypeStorage, entity_id: u32, component: T) -> bool {
         let bytes = bytemuck::bytes_of(&component);
-        storage.add_component(entity_id, self.type_id, bytes).is_some()
+        matches!(
+            storage.add_component(entity_id, self.type_id, bytes),
+            ColumnMove::Migrated(_)
+        )
     }
 
     /// Get component from entity

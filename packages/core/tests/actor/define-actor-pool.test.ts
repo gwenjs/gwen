@@ -1,18 +1,23 @@
 import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab, defineActor } from "../../src/actor/index";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine, readLiveQueryIds } from "../../src/engine/gwen-engine";
 import {
+  defineSystem,
   onUpdate,
   onBeforeUpdate,
   onAfterUpdate,
   onRender,
+  useQuery,
 } from "../../src/system/runtime/define-system";
+import { defineComponent, Types } from "../../src/schema";
 import { onDestroy } from "../../src/actor/runtime/define-actor";
 import { useHook } from "../../src/hooks/use-hook";
-import { onRelease, onReset } from "../../src/actor/runtime/define-actor";
+import { onDisable, onRelease, onReset, useEntityId } from "../../src/actor/runtime/define-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { PoolExhaustedError } from "../../src/actor/runtime/pool/errors";
+import { entityIndex } from "../../src/types/entity";
+import type { ActorPool } from "../../src/actor/runtime/pool/types";
 import { useActorPool } from "../../src/actor/runtime/pool/use-actor-pool";
 import { defineScene } from "../../src/scene/index";
 import { defineSceneRouter } from "../../src/router/defines/define-scene-router";
@@ -271,7 +276,7 @@ async function makePool(size: number, opts?: Partial<Parameters<typeof defineAct
   const Actor = defineActor(TestPrefab, () => {});
   await engine.use(Actor._plugin);
   const pool = defineActorPool(Actor, { size, ...opts });
-  await engine.use(pool._plugin);
+  await engine.use(pool.plugin);
   return { engine, Actor, pool };
 }
 
@@ -320,7 +325,7 @@ describe("defineActorPool — acquire", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     pool.acquire();
     expect(resetSpy).not.toHaveBeenCalled();
@@ -334,7 +339,7 @@ describe("defineActorPool — acquire", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const id = pool.acquire({ value: 0 });
     pool.release(id);
@@ -344,26 +349,73 @@ describe("defineActorPool — acquire", () => {
     expect(resetSpy).toHaveBeenCalledWith({ value: 77 });
   });
 
-  it("resets prefab defaults on slot reuse", async () => {
+  it("writes prefab defaults back into the same component object on slot reuse", async () => {
+    const { engine, pool } = await makePool(5);
+    try {
+      const id = pool.acquire();
+      const hp = engine.getComponent(id, Hp);
+      expect(hp).toEqual({ value: 100 });
+      if (!hp) return;
+      hp.value = 3;
+      pool.release(id);
+      await flush(engine);
+      // Dormant: the previous life's value stays until the slot is reused.
+      expect(hp.value).toBe(3);
+      const cached = readLiveQueryIds(engine, [Hp]);
+
+      expect(pool.acquire()).toBe(id);
+      expect(engine.getComponent(id, Hp)).toBe(hp);
+      expect(hp.value).toBe(100);
+      // In place: the cached query id list is not invalidated.
+      expect(readLiveQueryIds(engine, [Hp])).toBe(cached);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("reused equals fresh: a field set only by the component defaults is reset on reuse", async () => {
+    const Pair = defineComponent({
+      name: "PoolPairDefaults56",
+      schema: { a: Types.i32, b: Types.i32 },
+      defaults: { a: 1, b: 2 },
+    });
     const engine = await createEngine();
-    const Actor = defineActor(TestPrefab, () => {});
-    await engine.use(Actor._plugin);
-    const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    try {
+      const Actor = defineActor(definePrefab([{ def: Pair, defaults: { a: 7 } }]), () => {});
+      await engine.use(Actor._plugin);
+      const pool = defineActorPool(Actor, { size: 2 });
+      await engine.use(pool.plugin);
 
-    const id = pool.acquire();
-    // Mutate the component value
-    (Hp as unknown as Record<string, unknown[]>).value =
-      (Hp as unknown as Record<string, unknown[]>).value ?? [];
-    // Simulate mutation (engine.addComponent re-applies defaults on reuse)
-    pool.release(id);
-    await flush(engine);
+      const id = pool.acquire();
+      const pair = engine.getComponent(id, Pair);
+      if (!pair) throw new Error("the pooled actor has no Pair component");
+      pair.b = 99;
+      pool.release(id);
+      await flush(engine);
 
-    // After reacquire, hasComponent returns true (defaults were re-applied)
-    pool.acquire();
-    expect(
-      engine.hasComponent(id, Hp as unknown as Parameters<typeof engine.hasComponent>[1]),
-    ).toBe(true);
+      expect(pool.acquire()).toBe(id);
+      const fresh = pool.acquire();
+      expect(fresh).not.toBe(id);
+      expect(engine.getComponent(fresh, Pair)).toEqual({ a: 7, b: 2 });
+      expect(engine.getComponent(id, Pair)).toEqual(engine.getComponent(fresh, Pair));
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("does not re-add a prefab component removed during the previous life", async () => {
+    const { engine, pool } = await makePool(5);
+    try {
+      const id = pool.acquire();
+      expect(engine.removeComponent(id, Hp)).toBe(true);
+      pool.release(id);
+      await flush(engine);
+
+      expect(pool.acquire()).toBe(id);
+      expect(engine.hasComponent(id, Hp)).toBe(false);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("throws PoolExhaustedError when all slots are active", async () => {
@@ -378,7 +430,7 @@ describe("defineActorPool — acquire", () => {
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    // NOT calling engine.use(pool._plugin)
+    // NOT calling engine.use(pool.plugin)
 
     expect(() => pool.acquire()).toThrow("[GWEN]");
   });
@@ -409,7 +461,7 @@ describe("defineActorPool — release", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const id = pool.acquire();
     pool.release(id);
@@ -471,7 +523,7 @@ describe("defineActorPool — destroyAll", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     pool.acquire();
     pool.acquire();
@@ -644,7 +696,7 @@ describe("defineActorPool — scope", () => {
       size: 5,
       scope: { onMount: mountSpy, onUnmount: vi.fn() },
     });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     expect(mountSpy).toHaveBeenCalledOnce();
   });
@@ -659,7 +711,7 @@ describe("defineActorPool — scope", () => {
       size: 5,
       scope: { onMount: vi.fn(), onUnmount: unmountSpy },
     });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     activateTestWasm(engine);
     await engine.start();
@@ -678,9 +730,9 @@ describe("useActorPool — scene integration", () => {
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
-    let handle: typeof pool | undefined;
+    let handle: ActorPool<void, void> | undefined;
     engine.run(() => {
       defineScene("test-di-return", () => {
         handle = useActorPool(pool);
@@ -695,7 +747,7 @@ describe("useActorPool — scene integration", () => {
     const Actor = defineActor(TestPrefab, () => {});
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 5 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const destroySpy = vi.spyOn(pool, "destroyAll");
 
@@ -765,8 +817,8 @@ describe("useActorPool — scene integration", () => {
     });
 
     const sceneDef = engine.run(() => Scene({ register: () => {} }));
-    const actorIdx = sceneDef.systems.indexOf(pool._actorPlugin);
-    const poolIdx = sceneDef.systems.indexOf(pool._plugin);
+    const actorIdx = sceneDef.systems.indexOf(Actor._plugin);
+    const poolIdx = sceneDef.systems.indexOf(pool.plugin);
 
     expect(actorIdx).toBeGreaterThanOrEqual(0);
     expect(poolIdx).toBeGreaterThanOrEqual(0);
@@ -782,7 +834,7 @@ describe("DeferredReleaseQueue — double-release guard", () => {
     const Actor = defineActor(prefab, () => {});
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 2 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const id = pool.acquire();
     pool.release(id);
@@ -797,11 +849,11 @@ describe("DeferredReleaseQueue — double-release guard", () => {
 // ─── teardown ────────────────────────────────────────────────────────────────
 
 describe("defineActorPool — teardown", () => {
-  it("acquire() throws after engine.unuse(pool._plugin.name)", async () => {
+  it("acquire() throws after engine.unuse(pool.plugin.name)", async () => {
     const { engine, pool } = await makePool(5);
     pool.acquire(); // ensure at least one slot is active
 
-    await engine.unuse(pool._plugin.name);
+    await engine.unuse(pool.plugin.name);
 
     expect(() => pool.acquire()).toThrow("[GWEN]");
   });
@@ -811,7 +863,7 @@ describe("defineActorPool — teardown", () => {
     pool.acquire();
     pool.acquire();
 
-    await engine.unuse(pool._plugin.name);
+    await engine.unuse(pool.plugin.name);
 
     const s = pool.stats();
     expect(s.active).toBe(0);
@@ -824,10 +876,10 @@ describe("defineActorPool — teardown", () => {
     const { engine, pool } = await makePool(5);
     pool.acquire();
 
-    await engine.unuse(pool._plugin.name);
+    await engine.unuse(pool.plugin.name);
 
     // Re-register — must succeed and produce a working pool
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
     const id = pool.acquire();
     expect(typeof id).toBe("bigint");
     expect(pool.stats().active).toBe(1);
@@ -898,5 +950,330 @@ describe("DeferredReleaseQueue — integration test", () => {
     expect(statsAfterFrame.available).toBeGreaterThanOrEqual(2);
 
     await engine.stop();
+  });
+});
+
+describe("defineActorPool — dormancy (#56)", () => {
+  const Mark = defineComponent({
+    name: "PoolMark56",
+    schema: { value: Types.u32 },
+  });
+
+  async function markedPool(size: number) {
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Mark, defaults: { value: 7 } }]);
+    const Actor = defineActor(prefab, () => {});
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size });
+    await engine.use(pool.plugin);
+    const seen: bigint[] = [];
+    await engine.use(
+      defineSystem("pool-mark-56", () => {
+        const query = useQuery([Mark]);
+        onUpdate(() => {
+          seen.length = 0;
+          for (const entity of query) seen.push(entity.id);
+        });
+      })(),
+    );
+    return { engine, pool, seen };
+  }
+
+  it("calls the next acquire listener after clearHook and the old unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      const seen: string[] = [];
+      const off = pool.hooks.hook("pool:acquire", () => {
+        seen.push("A");
+      });
+      pool.hooks.clearHook("pool:acquire");
+      off();
+      pool.hooks.hook("pool:acquire", () => {
+        seen.push("B");
+      });
+      pool.acquire();
+      expect(seen).toEqual(["B"]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("calls the next acquire listener after removeAllHooks and the old unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      const seen: string[] = [];
+      const off = pool.hooks.hook("pool:acquire", () => {
+        seen.push("A");
+      });
+      pool.hooks.removeAllHooks();
+      off();
+      pool.hooks.hook("pool:acquire", () => {
+        seen.push("B");
+      });
+      pool.acquire();
+      expect(seen).toEqual(["B"]);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps calling a listener registered twice after one unsubscribe", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      const off = pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      off();
+      off();
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps calling a listener registered twice after one removeHook", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.removeHook("pool:acquire", listener);
+      pool.acquire();
+      expect(calls).toBe(1);
+      pool.hooks.removeHook("pool:acquire", listener);
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps calling a listener registered twice after one removeHooks", async () => {
+    const { engine, pool } = await makePool(2);
+    try {
+      let calls = 0;
+      const listener = () => {
+        calls += 1;
+      };
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.hook("pool:acquire", listener);
+      pool.hooks.removeHooks({ "pool:acquire": listener });
+      pool.acquire();
+      expect(calls).toBe(1);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("does not add or remove a component on acquire or release", async () => {
+    const { engine, pool } = await markedPool(4);
+    try {
+      const id = pool.acquire();
+      const mark = engine.getComponent(id, Mark);
+      expect(mark).toEqual({ value: 7 });
+      // Any add or remove on any entity replaces the cached id list.
+      const cached = readLiveQueryIds(engine, [Mark]);
+      const setOf = () => [engine.hasComponent(id, Mark), engine.hasComponent(id, Hp)];
+      const before = setOf();
+      expect(before).toEqual([true, false]);
+
+      pool.release(id);
+      await flush(engine);
+      expect(setOf()).toEqual(before);
+      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
+
+      expect(pool.acquire()).toBe(id);
+      expect(setOf()).toEqual(before);
+      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it("keeps the component set and isAlive across release and acquire", async () => {
+    const { engine, pool } = await markedPool(4);
+    const id = pool.acquire();
+    const before = engine.getComponent(id, Mark);
+    expect(engine.hasComponent(id, Mark)).toBe(true);
+    expect(before).toEqual({ value: 7 });
+
+    pool.release(id);
+    await flush(engine);
+
+    expect(engine.isAlive(id)).toBe(true);
+    expect(engine.hasComponent(id, Mark)).toBe(true);
+    expect(engine.getComponent(id, Mark)).toEqual(before);
+
+    expect(pool.acquire()).toBe(id);
+    expect(engine.hasComponent(id, Mark)).toBe(true);
+    expect(engine.getComponent(id, Mark)).toEqual({ value: 7 });
+  });
+
+  it("useQuery skips a released entity after the flush and includes it after acquire", async () => {
+    const { engine, pool, seen } = await markedPool(4);
+    const id = pool.acquire();
+    await flush(engine);
+    expect(seen).toContain(id);
+
+    pool.release(id);
+    await flush(engine);
+    expect(engine.isAlive(id)).toBe(true);
+    const afterFlush: bigint[] = [];
+    for (const entity of engine.createLiveQuery([Mark])) afterFlush.push(entity.id);
+    expect(afterFlush).not.toContain(id);
+    // onUpdate runs before engine:afterTick, so the system sees the skip next frame.
+    await flush(engine);
+    expect(seen).not.toContain(id);
+
+    expect(pool.acquire()).toBe(id);
+    await flush(engine);
+    expect(seen).toContain(id);
+  });
+
+  it("a release inside onRelease is processed at the next flush", async () => {
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Mark, defaults: { value: 1 } }]);
+    let releaseHeld: () => void = () => {};
+    let nested = false;
+    const Actor = defineActor(prefab, () => {
+      onRelease(() => {
+        if (nested) return;
+        nested = true;
+        releaseHeld();
+      });
+    });
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 4 });
+    await engine.use(pool.plugin);
+
+    const first = pool.acquire();
+    releaseHeld = () => pool.release(first);
+    const second = pool.acquire();
+    pool.release(second);
+    await flush(engine);
+
+    expect(pool.stats().available).toBe(1);
+    expect(pool.stats().active).toBe(1);
+
+    await flush(engine);
+    expect(pool.stats().available).toBe(2);
+    expect(pool.stats().active).toBe(0);
+  });
+
+  it("keeps pool hook payloads", async () => {
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Mark, defaults: { value: 1 } }]);
+    const Actor = defineActor(prefab, (_props: { value: number }) => {});
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 2 });
+    await engine.use(pool.plugin);
+    const acquired: { id: bigint; props: unknown }[] = [];
+    const released: { id: bigint }[] = [];
+    pool.hooks.hook("pool:acquire", (payload) => {
+      acquired.push(payload);
+    });
+    pool.hooks.hook("pool:release", (payload) => {
+      released.push(payload);
+    });
+
+    const id = pool.acquire({ value: 3 });
+    expect(acquired).toEqual([{ id, props: { value: 3 } }]);
+    pool.release(id);
+    await flush(engine);
+    expect(released).toEqual([{ id }]);
+  });
+
+  it("never re-acquires a slot destroyed by the engine", async () => {
+    const { engine, pool } = await markedPool(2);
+    const id = pool.acquire();
+    expect(engine.destroyEntity(id)).toBe(true);
+    pool.release(id);
+    await flush(engine);
+    const next = pool.acquire();
+    expect(next).not.toBe(id);
+    expect(engine.isAlive(next)).toBe(true);
+  });
+
+  it("tracks the new entity id when a released index is destroyed and acquired again", async () => {
+    const engine = await createEngine();
+    const prefab = definePrefab([{ def: Mark, defaults: { value: 7 } }]);
+    const disabled: bigint[] = [];
+    const released: bigint[] = [];
+    const Actor = defineActor(prefab, () => {
+      const id = useEntityId();
+      onDisable(() => {
+        disabled.push(id);
+      });
+      onRelease(() => {
+        released.push(id);
+      });
+    });
+    await engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 2 });
+    await engine.use(pool.plugin);
+
+    const oldId = pool.acquire();
+    pool.release(oldId);
+    expect(engine.destroyEntity(oldId)).toBe(true);
+
+    const next = pool.acquire();
+    expect(next).not.toBe(oldId);
+    expect(entityIndex(next)).toBe(entityIndex(oldId));
+    expect(released).toEqual([oldId]);
+    expect(disabled).toEqual([oldId]);
+
+    await flush(engine);
+    expect(pool.stats().active).toBe(1);
+    expect(engine.isAlive(next)).toBe(true);
+    expect(engine.isAlive(oldId)).toBe(false);
+    expect(released).toEqual([oldId]);
+    expect(disabled).toEqual([oldId]);
+
+    pool.release(next);
+    expect(engine.destroyEntity(next)).toBe(true);
+    const recycled = pool.acquire();
+    expect(recycled).not.toBe(next);
+    expect(entityIndex(recycled)).toBe(entityIndex(next));
+    pool.release(recycled);
+    await flush(engine);
+    expect(pool.stats().active).toBe(0);
+    expect(pool.stats().available).toBe(1);
+    expect(pool.acquire()).toBe(recycled);
+  });
+
+  it("keeps the cached query id list across an in-place component write", async () => {
+    const engine = await createEngine();
+    const id = engine.createEntity();
+    engine.addComponent(id, Mark, { value: 1 });
+    const first = readLiveQueryIds(engine, [Mark]);
+    engine.addComponent(id, Mark, { value: 4 });
+    expect(readLiveQueryIds(engine, [Mark])).toBe(first);
+    expect(engine.getComponent(id, Mark)).toEqual({ value: 4 });
+    const other = engine.createEntity();
+    engine.addComponent(other, Mark, { value: 2 });
+    expect(readLiveQueryIds(engine, [Mark])).not.toBe(first);
+  });
+
+  it("does not leave a recycled slot dormant after destroyAll", async () => {
+    const { engine, pool, seen } = await markedPool(2);
+    const id = pool.acquire();
+    pool.release(id);
+    await flush(engine);
+    pool.destroyAll();
+
+    const fresh = engine.createEntity();
+    engine.addComponent(fresh, Mark, { value: 1 });
+    await flush(engine);
+    expect(engine.isAlive(fresh)).toBe(true);
+    expect(seen).toContain(fresh);
   });
 });

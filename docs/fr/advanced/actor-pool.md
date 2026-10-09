@@ -33,7 +33,8 @@ onUpdate(() => {
 
 Un pool maintient un nombre fixe d'entités en vie. Quand on en "despawn" une, elle devient
 **dormante** au lieu d'être détruite. Le prochain appel à `acquire()` réutilise un slot dormant.
-Cette réutilisation alloue encore (gate d'allocation `pool.cycle`, #56).
+Après préchauffage, cette réutilisation garde l'entité. Elle alloue encore.
+`useQuery` ignore les entités dormantes du pool.
 
 ```ts
 // pools/BulletPool.ts
@@ -169,8 +170,9 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
   })
 
   onReset((newProps: BulletProps) => {
-    // Appelé à chaque réutilisation — reset avec les nouvelles props
-    // (les defaults du prefab sont déjà réappliqués automatiquement)
+    // Appelé à chaque réutilisation — reset avec les nouvelles props.
+    // Les defaults du composant, puis ceux du prefab, sont déjà réécrits dans les composants existants.
+    // Un composant du prefab retiré pendant la vie précédente n'est pas rajouté.
     Position.x[id] = newProps.x
     Velocity.vx[id] = newProps.speed * Math.cos(newProps.direction)
     physics.addBody(id, { ... })
@@ -352,9 +354,9 @@ onEnter(async () => {
 | `useActorPool(pool)` → `ActorPool` | `@gwenjs/core/actor` |
 | `onRelease(fn)` | `@gwenjs/core/actor` |
 | `onReset(fn)` | `@gwenjs/core/actor` |
-| `DormantTag` | `@gwenjs/core/actor` |
 | `PoolExhaustedError` | `@gwenjs/core/actor` |
 | `ActorPool<Props, PublicAPI>` | `@gwenjs/core/actor` |
+| `ActorPoolDefinition<Props, PublicAPI>` | `@gwenjs/core/actor` |
 | `PoolOptions` | `@gwenjs/core/actor` |
 | `PoolStats` | `@gwenjs/core/actor` |
 | `PoolHooks` | `@gwenjs/core/actor` |
@@ -373,7 +375,7 @@ standard), enregistrez le plugin du pool manuellement **après** le plugin de l'
 ```ts
 // main.ts — seulement nécessaire hors d'un projet Gwen standard
 await engine.use(BulletActor._plugin)  // l'acteur en premier
-await engine.use(BulletPool._plugin)   // puis le pool
+await engine.use(BulletPool.plugin)    // puis le pool
 ```
 
 ## Prochaines étapes

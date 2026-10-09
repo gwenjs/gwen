@@ -216,6 +216,8 @@ function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQ
 
 **Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.
 
+L'itération saute les entités dormantes d'un pool d'acteurs (relâchées et pas encore réacquises). Leurs composants restent attachés.
+
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|

@@ -1,64 +1,142 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
-import type { GwenEngine, GwenPlugin } from "../../../engine/gwen-engine";
+import { setEntityDormant, type GwenEngine, type GwenPlugin } from "../../../engine/gwen-engine";
 import type { GwenEngineBase } from "@gwenjs/schema";
+import { entityIndex } from "../../../types/entity";
 import type { ActorDefinition } from "../types";
-import { DormantTag } from "./dormant-tag";
 import { PoolExhaustedError } from "./errors";
-import type { ActorPool, PoolHooks, PoolOptions, PoolStats } from "./types";
+import type { ActorPool, ActorPoolDefinition, PoolHooks, PoolOptions, PoolStats } from "./types";
 import { useHook } from "../../../hooks/use-hook";
 import { _actorRegistry, _poolReleaseRegistry } from "../define-actor";
 import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
 
 /**
- * Manages the queue of actor pool slots scheduled for deferred release.
- *
- * Slots added via {@link enqueue} are held until {@link flush} is called
- * (typically at `engine:afterTick`). Using a `Set` for the pending queue
- * guarantees O(1) duplicate detection — an important property since
- * `release()` can be called multiple times per frame for the same entity.
+ * Deferred releases. Two id buffers swap on flush so a release() inside a
+ * callback lands in the other buffer and waits for the next flush.
+ * Dedup is a per-slot byte and a queue position, allocated once `maxEntities`
+ * is known. A recycled generation replaces the queued id in that slot.
+ * `onRelease` also runs inside `acquire()` when that replacement happens,
+ * not only when `release()` is flushed.
  *
  * @internal
  */
 class DeferredReleaseQueue {
-  private readonly _pending = new Set<EntityId>();
+  private readonly _bufA: EntityId[];
+  private readonly _bufB: EntityId[];
+  private _fill: EntityId[];
+  private _drain: EntityId[];
+  private _fillCount = 0;
+  private _flags: Uint8Array | null = null;
+  private _pos: Int32Array | null = null;
 
-  /**
-   * Schedule `id` for release at the end of the current frame.
-   * Calling this multiple times with the same `id` in the same frame is safe —
-   * the second call is a no-op.
-   *
-   * @param id - The entity to release.
-   * @returns `true` if the id was newly enqueued, `false` if already pending.
-   */
+  constructor(capacity: number) {
+    this._bufA = new Array(capacity);
+    this._bufB = new Array(capacity);
+    this._fill = this._bufA;
+    this._drain = this._bufB;
+  }
+
+  bind(maxEntities: number): void {
+    this._flags = new Uint8Array(maxEntities);
+    this._pos = new Int32Array(maxEntities);
+    this._pos.fill(-1);
+  }
+
   enqueue(id: EntityId): boolean {
-    if (this._pending.has(id)) return false;
-    this._pending.add(id);
+    const flags = this._flags;
+    const pos = this._pos;
+    if (!flags || !pos) return false;
+    const index = entityIndex(id);
+    if (index >= flags.length) return false;
+    if (flags[index] === 1) {
+      const at = pos[index] ?? -1;
+      if (at < 0 || at >= this._fillCount) return false;
+      const queued = this._fill[at];
+      if (queued === id) return false;
+      if (queued !== undefined && entityIndex(queued) === index) {
+        this._fill[at] = id;
+        return true;
+      }
+      return false;
+    }
+    flags[index] = 1;
+    pos[index] = this._fillCount;
+    this._fill[this._fillCount] = id;
+    this._fillCount += 1;
     return true;
   }
 
-  /** Returns `true` if `id` is already waiting for release. */
-  has(id: EntityId): boolean {
-    return this._pending.has(id);
-  }
-
   /**
-   * Drain the queue, calling `releaseFn` for each pending id in insertion order.
-   * The queue is cleared atomically before any callback fires — re-entrant
-   * `enqueue` calls inside `releaseFn` will be processed on the next flush.
+   * Swap buffers, clear dedup flags, then call `releaseFn`.
+   * A release() from inside `releaseFn` is processed on the next flush.
    */
   flush(releaseFn: (id: EntityId) => void): void {
-    const snapshot = Array.from(this._pending);
-    this._pending.clear();
-    for (const id of snapshot) {
-      releaseFn(id);
+    if (this._fillCount === 0) return;
+    const flags = this._flags;
+    const draining = this._fill;
+    const count = this._fillCount;
+    this._fill = this._drain;
+    this._drain = draining;
+    this._fillCount = 0;
+    if (flags) {
+      const pos = this._pos;
+      for (let i = 0; i < count; i += 1) {
+        const index = entityIndex(draining[i]!);
+        flags[index] = 0;
+        if (pos) pos[index] = -1;
+      }
     }
+    for (let i = 0; i < count; i += 1) releaseFn(draining[i]!);
   }
 
-  /** Number of ids currently waiting for release. */
-  get size(): number {
-    return this._pending.size;
+  reset(): void {
+    this._fillCount = 0;
+    this._flags?.fill(0);
+    this._pos?.fill(-1);
+  }
+}
+
+const actorPlugins = new WeakMap<object, GwenPlugin>();
+
+/** Actor plugin stored for `useActorPool()`. Not part of the public pool handle. */
+export function actorPluginOf(pool: object): GwenPlugin {
+  const plugin = actorPlugins.get(pool);
+  if (!plugin) {
+    throw new GwenActorError(
+      ActorErrorCodes.PLUGIN_NOT_READY,
+      "[GWEN] useActorPool() received a pool that has no actor plugin.",
+    );
+  }
+  return plugin;
+}
+
+type PoolListener = PoolHooks[keyof PoolHooks];
+
+/**
+ * Mirror of the listener list hookable keeps per pool hook, in the same order.
+ * The hot path reads `.length` instead of hookable's private `_hooks`.
+ */
+interface ListenerLists {
+  acquire: PoolListener[];
+  release: PoolListener[];
+  warn: PoolListener[];
+  critical: PoolListener[];
+  exhausted: PoolListener[];
+}
+
+function listOf(lists: ListenerLists, name: keyof PoolHooks): PoolListener[] {
+  switch (name) {
+    case "pool:acquire":
+      return lists.acquire;
+    case "pool:release":
+      return lists.release;
+    case "pool:warn":
+      return lists.warn;
+    case "pool:critical":
+      return lists.critical;
+    case "pool:exhausted":
+      return lists.exhausted;
   }
 }
 
@@ -67,141 +145,234 @@ class DeferredReleaseQueue {
  * recreating them on each spawn cycle.
  *
  * Entities are allocated lazily on demand up to `options.size`. Once released,
- * a slot becomes dormant and is reused by the next `acquire()` call at zero
- * allocation cost. Releases are deferred to the end of the current frame to
- * prevent mid-frame mutations from corrupting frame iteration.
+ * a slot becomes dormant and is reused by the next `acquire()` call. After
+ * warm-up, that reuse keeps the entity and does not change the component set.
+ * It still allocates.
+ * Releases are deferred to the end of the current frame.
  *
- * The pool plugin must be installed before calling `acquire()` or `release()`:
+ * Install the actor plugin, then the pool plugin:
  * ```ts
- * await engine.use(Actor._plugin)      // actor first
- * await engine.use(EnemyPool._plugin)  // then the pool
+ * await engine.use(Actor._plugin)
+ * await engine.use(EnemyPool.plugin)
  * ```
  *
  * @param actor - The actor definition to pool (result of `defineActor()`).
  * @param options - Pool configuration.
- * @returns A pool object with `acquire`, `release`, `destroyAll`, `stats`, and `hooks`.
- * * ### Dormancy behaviour
+ * @returns A pool definition. `useActorPool()` returns the public handle.
  *
- * A released actor is marked **dormant** until re-acquired. While dormant:
+ * ### Dormancy behaviour
  *
- * - {@link useHook} handlers are **silently skipped** — the event fires but the
- *   handler is never invoked while the actor is dormant. This is intentional:
- *   dormant actors should not react to game events.
- * - ECS queries exclude dormant entities (a `DormantTag` component is added at
- *   release time and removed at re-acquire time).
- * - `onRelease` callbacks fire immediately when `release()` is flushed.
+ * A released actor is marked **dormant** until re-acquired. Dormancy is a slot
+ * flag, not a component. While dormant:
+ *
+ * - {@link useHook} handlers are **silently skipped**.
+ * - ECS queries skip the entity. The component set is unchanged.
+ * - `onRelease` callbacks fire when `release()` is flushed, and inside
+ *   `acquire()` when a new id replaces the id stored in that slot.
  * - `onReset` callbacks fire when the slot is re-acquired with `acquire()`.
  */
 export function defineActorPool<Props, PublicAPI>(
   actor: ActorDefinition<Props, PublicAPI>,
   options: PoolOptions,
-): ActorPool<Props, PublicAPI> {
+): ActorPoolDefinition<Props, PublicAPI> {
   const { size, warnThreshold = 0.8, criticalThreshold = 0.95 } = options;
+  // Integer cuts. The hot path must not divide into a fresh float.
+  const warnAt = Math.ceil(warnThreshold * size);
+  const criticalAt = Math.ceil(criticalThreshold * size);
   const actorName = actor.__actorName__;
   const hookSource = `pool:${actorName}`;
 
-  // The engine reference is set in setup() and is guaranteed to be non-null
-  // for any call that reaches acquire() or release() after plugin installation.
   let _engine: GwenEngine | null = null;
+  // CustomScope takes ActorPool<unknown, unknown>. A generic definition is not
+  // assignable to that, so mount receives the base handle type.
+  const asHandle = (value: ActorPoolDefinition<Props, PublicAPI>): ActorPool<Props, PublicAPI> =>
+    value;
 
-  const _available: EntityId[] = [];
-  const _active = new Set<EntityId>();
-  const _pendingRelease = new DeferredReleaseQueue();
+  const available: EntityId[] = new Array(size);
+  let availableCount = 0;
+  const activeIds: EntityId[] = new Array(size);
+  let activeCount = 0;
+  let activeFlag: Uint8Array | null = null;
+  let activeSlot: Int32Array | null = null;
+  const pendingRelease = new DeferredReleaseQueue(size);
 
-  let _peakActive = 0;
-  let _acquireCount = 0;
+  let peakActive = 0;
+  let acquireCount = 0;
 
-  const _hooks = createHooks<PoolHooks>();
-  const hookCount: Record<keyof PoolHooks, number> = {
-    "pool:acquire": 0,
-    "pool:release": 0,
-    "pool:warn": 0,
-    "pool:critical": 0,
-    "pool:exhausted": 0,
+  const hooks = createHooks<PoolHooks>();
+  const listeners: ListenerLists = {
+    acquire: [],
+    release: [],
+    warn: [],
+    critical: [],
+    exhausted: [],
   };
-  const rawHook = _hooks.hook.bind(_hooks);
-  const rawBeforeEach = _hooks.beforeEach.bind(_hooks);
-  const rawAfterEach = _hooks.afterEach.bind(_hooks);
+  // hookable's own unsubscribe, removeHooks and hookOnce all go through
+  // `this.removeHook`, so this override sees every single removal once.
+  // Like hookable, one removal drops the first matching registration.
+  const rawHook = hooks.hook.bind(hooks);
+  const rawBeforeEach = hooks.beforeEach.bind(hooks);
+  const rawAfterEach = hooks.afterEach.bind(hooks);
   let spyCount = 0;
-  _hooks.hook = (name, fn, options) => {
-    if (typeof fn !== "function") return rawHook(name, fn, options);
-    hookCount[name] += 1;
-    const off = rawHook(name, fn, options);
-    let live = true;
-    return () => {
-      if (!live) return;
-      live = false;
-      hookCount[name] -= 1;
-      off();
-    };
+  hooks.hook = (name, fn, hookOptions) => {
+    const off = rawHook(name, fn, hookOptions);
+    if (typeof fn === "function") listOf(listeners, name).push(fn);
+    return off;
   };
-  _hooks.beforeEach = (fn) => {
+  const rawRemoveHook = hooks.removeHook.bind(hooks);
+  hooks.removeHook = (name, fn) => {
+    const list = listOf(listeners, name);
+    const at = list.indexOf(fn);
+    if (at >= 0) list.splice(at, 1);
+    rawRemoveHook(name, fn);
+  };
+  hooks.beforeEach = (fn) => {
     spyCount += 1;
     const off = rawBeforeEach(fn);
-    let live = true;
+    let open = true;
     return () => {
-      if (!live) return;
-      live = false;
+      if (!open) return;
+      open = false;
       spyCount -= 1;
       off();
     };
   };
-  _hooks.afterEach = (fn) => {
+  hooks.afterEach = (fn) => {
     spyCount += 1;
     const off = rawAfterEach(fn);
-    let live = true;
+    let open = true;
     return () => {
-      if (!live) return;
-      live = false;
+      if (!open) return;
+      open = false;
       spyCount -= 1;
       off();
     };
+  };
+  const rawClear = hooks.clearHook.bind(hooks);
+  hooks.clearHook = (name) => {
+    listOf(listeners, name).length = 0;
+    rawClear(name);
+  };
+  const rawRemoveAll = hooks.removeAllHooks.bind(hooks);
+  hooks.removeAllHooks = () => {
+    listeners.acquire.length = 0;
+    listeners.release.length = 0;
+    listeners.warn.length = 0;
+    listeners.critical.length = 0;
+    listeners.exhausted.length = 0;
+    rawRemoveAll();
   };
 
   // No listener and no before/after spy: callHook would only allocate.
   function callAcquire(id: EntityId, props: unknown): void {
-    if (hookCount["pool:acquire"] === 0 && spyCount === 0) return;
+    if (listeners.acquire.length === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
       "pool:acquire",
-      _hooks.callHook("pool:acquire", { id, props }),
+      hooks.callHook("pool:acquire", { id, props }),
     );
   }
 
   function callRelease(id: EntityId): void {
-    if (hookCount["pool:release"] === 0 && spyCount === 0) return;
-    reportRejectedHook(
-      _engine,
-      hookSource,
-      "pool:release",
-      _hooks.callHook("pool:release", { id }),
-    );
+    if (listeners.release.length === 0 && spyCount === 0) return;
+    reportRejectedHook(_engine, hookSource, "pool:release", hooks.callHook("pool:release", { id }));
   }
 
   function callPressure(name: "pool:warn" | "pool:critical", active: number, ratio: number): void {
-    if (hookCount[name] === 0 && spyCount === 0) return;
-    reportRejectedHook(_engine, hookSource, name, _hooks.callHook(name, { active, size, ratio }));
+    if (listOf(listeners, name).length === 0 && spyCount === 0) return;
+    reportRejectedHook(_engine, hookSource, name, hooks.callHook(name, { active, size, ratio }));
   }
 
   function callExhausted(): void {
-    if (hookCount["pool:exhausted"] === 0 && spyCount === 0) return;
+    if (listeners.exhausted.length === 0 && spyCount === 0) return;
     reportRejectedHook(
       _engine,
       hookSource,
       "pool:exhausted",
-      _hooks.callHook("pool:exhausted", { size }),
+      hooks.callHook("pool:exhausted", { size }),
     );
   }
 
-  // ─── internal helpers ──────────────────────────────────────────────────────
+  function isActive(id: EntityId): boolean {
+    const flags = activeFlag;
+    const slots = activeSlot;
+    if (!flags || !slots) return false;
+    const index = entityIndex(id);
+    if (index >= flags.length || flags[index] !== 1) return false;
+    const slot = slots[index] ?? -1;
+    return slot >= 0 && slot < activeCount && activeIds[slot] === id;
+  }
+
+  function releaseSuperseded(id: EntityId): void {
+    const inst = actor._instances.get(id);
+    if (!inst) return;
+
+    for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
+
+    if (inst._children && inst._children.size > 0) {
+      const childIds = [...inst._children];
+      inst._children.clear();
+      for (const childId of childIds) {
+        const childRelease = _poolReleaseRegistry.get(childId);
+        if (childRelease) childRelease(childId);
+        else _actorRegistry.get(childId)?.despawn(childId);
+      }
+    }
+
+    inst._scope.forgetIsolation();
+    inst._scope.pause();
+    callRelease(id);
+  }
+
+  function activate(id: EntityId): void {
+    const flags = activeFlag;
+    const slots = activeSlot;
+    if (!flags || !slots) return;
+    const index = entityIndex(id);
+    if (index < flags.length && flags[index] === 1) {
+      const slot = slots[index] ?? -1;
+      if (slot >= 0 && slot < activeCount) {
+        const previous = activeIds[slot];
+        if (previous !== undefined && previous !== id) {
+          activeIds[slot] = id;
+          releaseSuperseded(previous);
+        }
+      }
+      return;
+    }
+    flags[index] = 1;
+    slots[index] = activeCount;
+    activeIds[activeCount] = id;
+    activeCount += 1;
+  }
+
+  function deactivate(id: EntityId): void {
+    const flags = activeFlag;
+    const slots = activeSlot;
+    if (!flags || !slots) return;
+    const index = entityIndex(id);
+    if (index >= flags.length || flags[index] !== 1) return;
+    const slot = slots[index] ?? -1;
+    if (slot < 0 || slot >= activeCount || activeIds[slot] !== id) return;
+    const last = activeCount - 1;
+    const moved = activeIds[last];
+    if (moved !== undefined && last !== slot) {
+      activeIds[slot] = moved;
+      slots[entityIndex(moved)] = slot;
+    }
+    activeCount = last;
+    flags[index] = 0;
+    slots[index] = -1;
+  }
 
   function _getEngine(): GwenEngine {
     if (!_engine) {
       throw new GwenActorError(
         ActorErrorCodes.PLUGIN_NOT_READY,
         `[GWEN] pool(${actorName}).acquire() or release() was called before the pool plugin was installed.\n` +
-          `  Fix: await engine.use(pool._plugin) before calling pool methods.\n` +
+          `  Fix: await engine.use(pool.plugin) before calling pool methods.\n` +
           `  Make sure engine.use(Actor._plugin) is called first.`,
       );
     }
@@ -209,223 +380,194 @@ export function defineActorPool<Props, PublicAPI>(
   }
 
   function _checkThresholds(engine: GwenEngine): void {
-    const ratio = _active.size / size;
+    if (activeCount < warnAt) return;
+    const ratio = activeCount / size;
     const log = engine.logger.child(`pool:${actorName}`);
-
-    if (ratio >= criticalThreshold) {
-      log.error(`pool at ${Math.round(ratio * 100)}% capacity (${_active.size}/${size})`, {
-        active: _active.size,
+    if (activeCount >= criticalAt) {
+      log.error(`pool at ${Math.round(ratio * 100)}% capacity (${activeCount}/${size})`, {
+        active: activeCount,
         size,
         ratio,
       });
-      callPressure("pool:critical", _active.size, ratio);
-    } else if (ratio >= warnThreshold) {
-      log.warn(`pool at ${Math.round(ratio * 100)}% capacity (${_active.size}/${size})`, {
-        active: _active.size,
+      callPressure("pool:critical", activeCount, ratio);
+    } else {
+      log.warn(`pool at ${Math.round(ratio * 100)}% capacity (${activeCount}/${size})`, {
+        active: activeCount,
         size,
         ratio,
       });
-      callPressure("pool:warn", _active.size, ratio);
+      callPressure("pool:warn", activeCount, ratio);
     }
   }
 
-  // ─── acquire ───────────────────────────────────────────────────────────────
-
-  function acquire(...args: Props extends void ? [] : [props: Props]): EntityId {
-    const props = args[0];
+  // A rest parameter allocates an array on every call, including acquire().
+  function acquire(props?: Props): EntityId {
     const engine = _getEngine();
+    let id: EntityId | undefined;
 
-    let id: EntityId;
-
-    if (_available.length > 0) {
-      id = _available.pop()!;
-      const inst = actor._instances.get(id)!;
-
-      // 1. Re-apply prefab defaults.
-      for (let i = 0; i < actor._prefab.components.length; i++) {
-        const entry = actor._prefab.components[i]!;
-        engine.addComponent(id, entry.def, entry.defaults);
+    while (availableCount > 0) {
+      availableCount -= 1;
+      const candidate = available[availableCount]!;
+      // A dead id fails this write and is dropped. The slot stays dormant
+      // while component defaults, then prefab defaults, are written into the
+      // existing component objects.
+      // Reuse does not add or remove a component and does not invalidate queries:
+      // a prefab component removed during the previous life stays removed.
+      if (!setEntityDormant(engine, candidate, true)) continue;
+      const inst = actor._instances.get(candidate);
+      if (!inst) continue;
+      const entries = actor._prefab.components;
+      for (let i = 0; i < entries.length; i += 1) {
+        const entry = entries[i]!;
+        const existing = engine.getComponent(candidate, entry.def);
+        if (existing === undefined) continue;
+        // Same order as a fresh spawn: component defaults, then the prefab entry.
+        if (entry.def.defaults) Object.assign(existing, entry.def.defaults);
+        Object.assign(existing, entry.defaults);
       }
-
-      // 2. Remove DormantTag so ECS queries include this entity again.
-      engine.removeComponent(id, DormantTag);
-
-      // 3. Resume the scope — frame handlers become active again.
+      if (!setEntityDormant(engine, candidate, false)) continue;
       inst._scope.resume();
-
-      // 4. Fire onReset callbacks with new props.
-      for (let i = 0; i < inst._reset.length; i++) {
-        inst._reset[i]!(props);
-      }
-
-      // 5. Fire onEnable callbacks.
-      for (let i = 0; i < inst._enable.length; i++) {
-        inst._enable[i]!();
-      }
-    } else if (_active.size < size) {
-      // `ActorPlugin.spawn` uses a rest-tuple overload (`?[] | [Props]`) to enforce
-      // required props at the call site. TypeScript cannot collapse that into an
-      // optional-argument signature without a cast, so we use one here. The assertion
-      // is safe: the pool receives the same `Props` type that the actor was defined with.
-      id = actor._plugin.spawn(...args);
-      // Store immediate release (bypasses deferred queue) so cascade in a parent's _doRelease
-      // completes synchronously within the same afterTick handler.
-      _poolReleaseRegistry.set(id, (childId: EntityId) => {
-        if (_active.has(childId)) _doRelease(childId);
-      });
-    } else {
-      // All slots are active: pool is exhausted.
-      const log = engine.logger.child(`pool:${actorName}`);
-      log.error(`pool exhausted — all ${size} slots are active`, { actorName, size });
-      callExhausted();
-      throw new PoolExhaustedError(actorName, size);
+      for (let i = 0; i < inst._reset.length; i += 1) inst._reset[i]!(props);
+      for (let i = 0; i < inst._enable.length; i += 1) inst._enable[i]!();
+      id = candidate;
+      break;
     }
 
-    _active.add(id);
-    _acquireCount++;
-    if (_active.size > _peakActive) _peakActive = _active.size;
+    if (id === undefined) {
+      if (activeCount < size) {
+        const spawnActor = actor._plugin.spawn as (next?: Props) => EntityId;
+        id = spawnActor(props);
+        const spawned = id;
+        _poolReleaseRegistry.set(spawned, (childId: EntityId) => {
+          if (isActive(childId)) _doRelease(childId);
+        });
+      } else {
+        const log = engine.logger.child(`pool:${actorName}`);
+        log.error(`pool exhausted — all ${size} slots are active`, { actorName, size });
+        callExhausted();
+        throw new PoolExhaustedError(actorName, size);
+      }
+    }
 
+    activate(id);
+    acquireCount += 1;
+    if (activeCount > peakActive) peakActive = activeCount;
     _checkThresholds(engine);
     callAcquire(id, props);
     return id;
   }
 
-  // ─── release (deferred to end of frame) ────────────────────────────────────
-
   function release(id: EntityId): void {
-    if (!_active.has(id)) return;
-    _pendingRelease.enqueue(id); // enqueue is idempotent
+    if (!isActive(id)) return;
+    pendingRelease.enqueue(id);
   }
 
   function _doRelease(id: EntityId): void {
-    if (!_engine) return;
+    if (!isActive(id)) return;
     const inst = actor._instances.get(id);
-    if (!inst) return;
-
-    // 1. Fire onDisable callbacks — before scope is paused.
-    for (let i = 0; i < inst._disable.length; i++) {
-      inst._disable[i]!();
+    if (!inst || !_engine) {
+      deactivate(id);
+      return;
     }
 
-    // 2. Fire onRelease callbacks.
-    for (let i = 0; i < inst._release.length; i++) {
-      inst._release[i]!();
-    }
+    for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
 
-    // 3. Cascade to owned children: pooled children are released, others are despawned.
     if (inst._children && inst._children.size > 0) {
       const childIds = [...inst._children];
       inst._children.clear();
       for (const childId of childIds) {
         const childRelease = _poolReleaseRegistry.get(childId);
-        if (childRelease) {
-          childRelease(childId);
-        } else {
-          _actorRegistry.get(childId)?.despawn(childId);
-        }
+        if (childRelease) childRelease(childId);
+        else _actorRegistry.get(childId)?.despawn(childId);
       }
     }
 
-    // 5. Pause the scope — silences all frame handlers.
-    // release() ends this instance's life, so its isolation entry is dropped.
-    // acquire() does not clear isolation of a live instance.
     inst._scope.forgetIsolation();
     inst._scope.pause();
 
-    // 6. Add DormantTag so ECS queries exclude this entity.
-    _engine.addComponent(id, DormantTag, {});
-
-    // 7. Move from active to available.
-    _active.delete(id);
-    _available.push(id);
-
+    const stillAlive = setEntityDormant(_engine, id, true);
+    deactivate(id);
+    if (stillAlive) {
+      available[availableCount] = id;
+      availableCount += 1;
+    }
     callRelease(id);
   }
 
-  // ─── destroyAll ─────────────────────────────────────────────────────────────
-
   function destroyAll(): void {
-    // Flush any pending deferred releases first.
-    _pendingRelease.flush(_doRelease);
-
-    // Destroy all dormant slots.
-    for (let i = 0; i < _available.length; i++) {
-      const id = _available[i]!;
+    pendingRelease.flush(_doRelease);
+    for (let i = 0; i < availableCount; i += 1) {
+      const id = available[i]!;
       const inst = actor._instances.get(id);
-      // Resume the scope so onDestroy can fire normally during despawn.
       if (inst) inst._scope.resume();
       actor._plugin.despawn!(id);
     }
-    _available.length = 0;
-
-    // Destroy all active slots.
-    for (const id of _active) {
-      actor._plugin.despawn!(id);
-    }
-    _active.clear();
+    availableCount = 0;
+    for (let i = 0; i < activeCount; i += 1) actor._plugin.despawn!(activeIds[i]!);
+    activeCount = 0;
+    activeFlag?.fill(0);
+    activeSlot?.fill(-1);
+    pendingRelease.reset();
   }
-
-  // ─── stats ──────────────────────────────────────────────────────────────────
 
   function stats(): PoolStats {
     return {
       size,
-      active: _active.size,
-      available: _available.length,
-      peakActive: _peakActive,
-      acquireCount: _acquireCount,
+      active: activeCount,
+      available: availableCount,
+      peakActive,
+      acquireCount,
     };
   }
 
-  // ─── plugin ─────────────────────────────────────────────────────────────────
-
-  const _plugin: GwenPlugin = {
+  const plugin: GwenPlugin = {
     name: hookSource,
     teardown(): void {
-      // Reset all mutable state so the pool closure is ready for re-registration.
-      // Entities were already destroyed by the engine:stop hook (scope: "global") or
-      // by an explicit destroyAll() call before unuse(). We only need to clear
-      // the internal bookkeeping here.
       _engine = null;
-      _available.length = 0;
-      _active.clear();
-      _peakActive = 0;
-      _acquireCount = 0;
+      availableCount = 0;
+      activeCount = 0;
+      peakActive = 0;
+      acquireCount = 0;
+      activeFlag?.fill(0);
+      activeSlot?.fill(-1);
+      pendingRelease.reset();
     },
     setup(engine: GwenEngineBase): void {
       _engine = engine as GwenEngine;
+      const maxEntities = _engine.maxEntities;
+      activeFlag = new Uint8Array(maxEntities);
+      activeSlot = new Int32Array(maxEntities);
+      activeSlot.fill(-1);
+      pendingRelease.bind(maxEntities);
 
-      // Flush deferred releases at the end of each frame (mid-frame safety).
       useHook("engine:afterTick", () => {
-        _pendingRelease.flush(_doRelease);
+        pendingRelease.flush(_doRelease);
       });
 
-      // Global scope: auto-cleanup when the engine stops.
       if (options.scope === "global") {
         useHook("engine:stop", () => destroyAll());
       }
 
-      // Custom scope: delegate mount/unmount to the caller.
       if (options.scope && typeof options.scope === "object") {
         const scope = options.scope;
-        scope.onMount(pool);
+        scope.onMount(asHandle(pool));
         useHook("engine:stop", () => {
-          scope.onUnmount(pool);
+          scope.onUnmount(asHandle(pool));
         });
       }
     },
   };
 
-  const pool: ActorPool<Props, PublicAPI> = {
-    _plugin,
-    _actorPlugin: actor._plugin,
+  const pool: ActorPoolDefinition<Props, PublicAPI> = {
+    plugin,
     actorName,
     acquire,
     release,
     destroyAll,
     stats,
-    hooks: _hooks,
+    hooks,
   };
-
+  actorPlugins.set(pool, actor._plugin);
   return pool;
 }

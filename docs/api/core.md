@@ -190,6 +190,8 @@ function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQ
 
 **Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
 
+Iteration skips dormant pooled entities (released by an actor pool and not yet acquired again). Their components stay attached.
+
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|

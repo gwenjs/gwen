@@ -27,7 +27,7 @@ describe("rejected hook calls", () => {
       );
       const pool = defineActorPool(actor, { size: 2 });
       await engine.use(actor._plugin);
-      await engine.use(pool._plugin);
+      await engine.use(pool.plugin);
       pool.hooks.hook("pool:acquire", () => Promise.reject(new Error("pool hook failed")));
 
       pool.acquire();

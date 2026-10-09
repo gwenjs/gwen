@@ -401,3 +401,45 @@ describe("QueryEngine", () => {
     expect(resultsWithKey).toContain(e);
   });
 });
+
+describe("dormant slot byte (#56)", () => {
+  it("sets and clears the dormant byte", () => {
+    const em = new EntityManager(8);
+    const id = em.create();
+    expect(em.isDormant(id)).toBe(false);
+    expect(em.setDormant(id, true)).toBe(true);
+    expect(em.isDormant(id)).toBe(true);
+    expect(em.isAlive(id)).toBe(true);
+    expect(em.setDormant(id, false)).toBe(true);
+    expect(em.isDormant(id)).toBe(false);
+  });
+
+  it("resets the dormant byte on destroy and on the recycled create", () => {
+    const em = new EntityManager(4);
+    const id = em.create();
+    expect(em.setDormant(id, true)).toBe(true);
+    expect(em.destroy(id)).toBe(true);
+    expect(em.isDormant(id)).toBe(false);
+    expect(em.setDormant(id, true)).toBe(false);
+    const recycled = em.create();
+    expect(em.isDormant(recycled)).toBe(false);
+  });
+
+  it("keeps the cached query array across a dormancy toggle and an in-place write", () => {
+    const em = new EntityManager(4);
+    const reg = new ComponentRegistry();
+    const qe = new QueryEngine();
+    const id = em.create();
+    const stored = { value: 1 };
+    reg.add(id, "Hp", stored);
+    const first = qe.query(["Hp"], em, reg);
+
+    expect(em.setDormant(id, true)).toBe(true);
+    expect(qe.query(["Hp"], em, reg)).toBe(first);
+    expect(em.setDormant(id, false)).toBe(true);
+
+    stored.value = 4;
+    expect(qe.query(["Hp"], em, reg)).toBe(first);
+    expect(reg.get(id, "Hp")).toEqual({ value: 4 });
+  });
+});

@@ -398,6 +398,7 @@ class GwenEngineImpl implements GwenEngine {
       }),
     );
     this._attachErrorPolicy();
+    this._rememberInternals(this);
   }
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
@@ -985,6 +986,15 @@ class GwenEngineImpl implements GwenEngine {
     return this._entityManager.isAlive(id);
   }
 
+  /**
+   * Slot flag used by actor pools. Not a component and not on {@link GwenEngine}.
+   * Returns false when `id` is not alive, without changing state.
+   * @internal
+   */
+  _setEntityDormant(id: EntityId, dormant: boolean): boolean {
+    return this._entityManager.setDormant(id, dormant);
+  }
+
   // ─── ECS component management ─────────────────────────────────────────────
 
   /**
@@ -1003,17 +1013,13 @@ class GwenEngineImpl implements GwenEngine {
     this._assertNotFaulted("addComponent");
     const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
     if (existing !== undefined) {
-      // Hot path — the component already exists: update its fields in place.
-      // The registry holds a direct reference to this object, so mutations are
-      // immediately visible to getComponent() callers. Not allocation-free:
-      // invalidate() dirties queries, and a missing component (pool DormantTag)
-      // takes the cold Object.assign path. See alloc gate pool.cycle (#56).
+      // Membership is unchanged, so the query cache stays as it is.
       Object.assign(existing, data);
-    } else {
-      // Cold path — first add for this entity/component pair: allocate once.
-      const merged = Object.assign({}, def.defaults, data) as InferComponent<D>;
-      this._componentRegistry.add(id, def, merged);
+      return;
     }
+    // Cold path — first add for this entity/component pair: allocate once.
+    const merged = Object.assign({}, def.defaults, data) as InferComponent<D>;
+    this._componentRegistry.add(id, def, merged);
     this._queryEngine.invalidate();
   }
 
@@ -1090,20 +1096,22 @@ class GwenEngineImpl implements GwenEngine {
         let i = 0;
         return {
           next(): IteratorResult<EntityAccessor<C>, undefined> {
-            if (i >= results.length) {
-              return { done: true, value: undefined };
-            }
-            const id = readResolvedEntityId(results, i);
-            i += 1;
-            return {
-              done: false,
-              value: {
-                id,
-                get<D extends C[number]>(def: D): InferComponent<D> {
-                  return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>; // boundary: queried component is present #77
+            while (i < results.length) {
+              const id = readResolvedEntityId(results, i);
+              i += 1;
+              // Dormant slots stay in the cached id list. Iteration skips them.
+              if (entityManager.isDormant(id)) continue;
+              return {
+                done: false,
+                value: {
+                  id,
+                  get<D extends C[number]>(def: D): InferComponent<D> {
+                    return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>; // boundary: queried component is present #77
+                  },
                 },
-              },
-            };
+              };
+            }
+            return { done: true, value: undefined };
           },
         };
       },
@@ -2130,16 +2138,59 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   private _withScopedHooks(scopedHooks: Hookable<GwenRuntimeHooks>): GwenEngine {
-    return new Proxy(this, {
+    const proxy = new Proxy(this, {
       get(target, prop) {
         if (prop === "hooks") return scopedHooks;
         return Reflect.get(target, prop);
       },
     });
+    // setup() receives this proxy. Pool dormancy looks the proxy up, not the class.
+    this._rememberInternals(proxy);
+    return proxy;
+  }
+
+  private _rememberInternals(key: object): void {
+    engineInternals.set(key, {
+      setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
+      queryIds: (components) =>
+        this._queryEngine.resolve(components, this._entityManager, this._componentRegistry),
+    });
   }
 }
 
 // #endregion
+
+const engineInternals = new WeakMap<
+  object,
+  {
+    setDormant(id: EntityId, dormant: boolean): boolean;
+    queryIds(components: readonly ComponentDef[]): readonly EntityId[];
+  }
+>();
+
+/**
+ * Pool dormancy flag. Not part of {@link GwenEngine}.
+ * False when `engine` is not a GWEN engine or `id` is not alive.
+ * @internal
+ */
+export function setEntityDormant(engine: GwenEngine, id: EntityId, dormant: boolean): boolean {
+  const ops = engineInternals.get(engine);
+  if (!ops) return false;
+  return ops.setDormant(id, dormant);
+}
+
+/**
+ * Cached id list for one query. The same array until a real membership change.
+ * @internal
+ */
+export function readLiveQueryIds(
+  engine: GwenEngine,
+  components: readonly ComponentDef[],
+): readonly EntityId[] {
+  const ops = engineInternals.get(engine);
+  if (!ops) return [];
+  return ops.queryIds(components);
+}
 
 // #region Factory ─────────────────────────────────────────────────────────────
 

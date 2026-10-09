@@ -40,6 +40,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::InvalidSharedBuffer { .. } => {
             assert_eq!(err.code(), "CORE:INVALID_SHARED_BUFFER");
         }
+        CoreError::ComponentWriteRejected { .. } => {
+            assert_eq!(err.code(), "CORE:COMPONENT_WRITE_REJECTED");
+        }
     }
 }
 

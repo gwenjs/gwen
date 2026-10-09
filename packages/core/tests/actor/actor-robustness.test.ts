@@ -263,7 +263,7 @@ describe("useHook — ScopedHookable silences dormant actors", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 1 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const id = pool.acquire();
     pool.release(id);
@@ -285,7 +285,7 @@ describe("useHook — ScopedHookable silences dormant actors", () => {
     });
     await engine.use(Actor._plugin);
     const pool = defineActorPool(Actor, { size: 1 });
-    await engine.use(pool._plugin);
+    await engine.use(pool.plugin);
 
     const id = pool.acquire();
     pool.release(id);

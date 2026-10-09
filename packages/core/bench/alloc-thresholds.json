@@ -13,13 +13,13 @@
   },
   "paths": {
     "frame.empty": { "bytesPerFrame": 5313, "bytesPerEntityFrame": -0.2 },
-    "update.system": { "bytesPerFrame": 311150, "bytesPerEntityFrame": 304 },
+    "update.system": { "bytesPerFrame": 181536, "bytesPerEntityFrame": 176.1 },
     "update.actor": { "bytesPerFrame": 108666, "bytesPerEntityFrame": 103.9 },
     "query.raw": { "bytesPerFrame": 4678, "bytesPerEntityFrame": 0 },
     "query.entities": { "bytesPerFrame": 166295, "bytesPerEntityFrame": 146.1 },
     "bulk.query": { "bytesPerFrame": 6622, "bytesPerEntityFrame": 0 },
     "bulk.components": { "bytesPerFrame": 133828, "bytesPerEntityFrame": 128.1 },
-    "pool.cycle": { "bytesPerFrame": 1414406, "bytesPerEntityFrame": 1363.2, "frames": 4 },
+    "pool.cycle": { "bytesPerFrame": 4148, "bytesPerEntityFrame": 0, "frames": 4 },
     "tween.tick": { "bytesPerFrame": 4731, "bytesPerEntityFrame": 0 },
     "entity.index": { "bytesPerFrame": 3342, "bytesPerEntityFrame": 0 }
   }
