@@ -1151,6 +1151,11 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   const status = jobBlock(yaml, "ci-status");
   assert.match(status, /(?:needs:\s*\[[^\]]*rust-lint|^\s+- rust-lint$)/m);
   assert.match(status, /needs\['rust-lint'\]\.result/);
+  // The pinned dtolnay action rejects an empty toolchain input. It does not
+  // read rust-toolchain.toml unless that input is set to the same channel.
+  for (const id of ["rust", "rust-lint", "storage-bench", "verify-red"]) {
+    assert.match(jobBlock(yaml, id), /toolchain:\s*"1\.99\.0"/, id);
+  }
   const cargo = readFileSync(join(root, "Cargo.toml"), "utf8");
   for (const lint of RUST_LINT_DENY) {
     assert.match(cargo, new RegExp(`^${lint}\\s*=\\s*"deny"`, "m"), lint);
