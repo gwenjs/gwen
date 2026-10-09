@@ -81,6 +81,22 @@ test('rejects unwrap, expect, panic!, and assert! on added Rust lines', () => {
   }
 });
 
+test('a rustfmt reflow of an existing expect is not a new call', () => {
+  const file = 'crates/gwen-core/src/bindings.rs';
+  const oldLine = `engine.add_component(id, gen, ty, data)${expectCall}"component");`;
+  const text = [
+    `diff --git a/${file} b/${file}`,
+    `--- a/${file}`,
+    `+++ b/${file}`,
+    '@@ -10,1 +10,3 @@',
+    `-${oldLine}`,
+    '+engine',
+    '+    .add_component(id, gen, ty, data)',
+    `+    ${expectCall}"component");`,
+  ].join('\n');
+  assert.deepEqual(findDiffViolations(text), []);
+});
+
 test('does not flag vitest expect or the word any in TypeScript', () => {
   const hits = findDiffViolations(
     diff('src/a.test.ts', ['expect(1).toBe(1);', 'const many = 1;', '// read any file the user passed']),
