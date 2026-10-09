@@ -4,7 +4,7 @@ import { CoreErrorCodes, type EngineErrorPayload } from "../../src/index.js";
 import { defineSystem, onUpdate } from "../../src/system/index.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
-import { createRealEngine } from "./harness.js";
+import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 // (func (export "trap") unreachable)
 function trapModuleBytes(): Uint8Array<ArrayBuffer> {
@@ -15,10 +15,23 @@ function trapModuleBytes(): Uint8Array<ArrayBuffer> {
   ]);
 }
 
+async function useReal(
+  variant: "light" | "physics2d",
+  maxEntities: number,
+  body: (handle: RealEngineHandle) => Promise<void>,
+): Promise<RealEngineHandle> {
+  const handle = await createRealEngine({ variant, maxEntities });
+  try {
+    await body(handle);
+  } finally {
+    await handle.dispose();
+  }
+  return handle;
+}
+
 describe("P1 error policy (real WASM)", () => {
   it("faults when a system calls an inline trap export", async () => {
-    const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
-    try {
+    const handle = await useReal("light", 64, async ({ engine }) => {
       const { instance } = await WebAssembly.instantiate(trapModuleBytes());
       const trap = instance.exports["trap"];
       if (typeof trap !== "function") throw new Error("expected trap export");
@@ -43,14 +56,12 @@ describe("P1 error policy (real WASM)", () => {
       expect(errors[0]?.target?.kind).toBe("system");
       expect(engine.state).toBe("faulted");
       await expect(engine.advance(1 / 60)).rejects.toThrow(/faulted/);
-    } finally {
-      await engine.stop();
-    }
+    });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("isolates a community module trap and keeps other systems running", async () => {
-    const { engine } = await createRealEngine({ variant: "light", maxEntities: 64 });
-    try {
+    const handle = await useReal("light", 64, async ({ engine }) => {
       let ticks = 0;
       await engine.use(
         defineSystem("Keeper", () => {
@@ -85,17 +96,12 @@ describe("P1 error policy (real WASM)", () => {
       expect(engine.isolated().some((target) => target.id === "wasm:trap-mod")).toBe(true);
       expect(ticks).toBe(2);
       expect(engine.state).toBe("running");
-    } finally {
-      await engine.stop();
-    }
+    });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("keeps a physics2d body falling while a sibling system throws", async () => {
-    const { engine, advance } = await createRealEngine({
-      variant: "physics2d",
-      maxEntities: 64,
-    });
-    try {
+    const handle = await useReal("physics2d", 64, async ({ engine, advance }) => {
       await engine.use(Physics2DPlugin({ gravity: -10 }));
       let ticks = 0;
       await engine.use(
@@ -128,9 +134,8 @@ describe("P1 error policy (real WASM)", () => {
         engine.isolated().some((target) => target.kind === "system" && target.name === "BadSys"),
       ).toBe(true);
       expect(engine.state).toBe("running");
-    } finally {
-      await engine.stop();
-    }
+    });
+    expect(handle.engine.state).toBe("stopped");
   });
 
   it("reports a rejected physics:collision hook on the error bus", async () => {
@@ -139,10 +144,11 @@ describe("P1 error policy (real WASM)", () => {
       unhandled.push(reason);
     };
     process.on("unhandledRejection", onUnhandled);
-    const { engine, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "physics2d",
       maxEntities: 64,
     });
+    const { engine, advance } = handle;
     try {
       await engine.use(Physics2DPlugin({ gravity: 0 }));
       const events: EngineErrorPayload[] = [];
@@ -179,7 +185,7 @@ describe("P1 error policy (real WASM)", () => {
       expect(engine.isolated()).toEqual([]);
     } finally {
       process.off("unhandledRejection", onUnhandled);
-      await engine.stop();
+      await handle.dispose();
     }
   });
 });

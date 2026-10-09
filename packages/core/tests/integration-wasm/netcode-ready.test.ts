@@ -47,11 +47,14 @@ describe("netcode-ready fixed tick", () => {
       maxEntities: 32,
       physicsHz: 60,
     });
-    const second = await createRealEngine({
-      variant: "physics2d",
-      maxEntities: 32,
-      physicsHz: 60,
-    });
+    let second: Handle | undefined;
+    const unsubscribers: Array<() => void> = [];
+    const unsubscribed = new Set<() => void>();
+    const unsubscribeOnce = (unsubscribe: () => void): void => {
+      if (unsubscribed.has(unsubscribe)) return;
+      unsubscribe();
+      unsubscribed.add(unsubscribe);
+    };
 
     const boot = (handle: Handle): { ids: EntityId[]; unsubscribe: () => void } => {
       const wasm = handle.bridge.engine();
@@ -67,31 +70,19 @@ describe("netcode-ready fixed tick", () => {
           wasm.set_entity_local_position(entityIndex(id), sample, entityIndex(id));
         }
       });
+      unsubscribers.push(unsubscribe);
       return { ids, unsubscribe };
     };
 
-    const roomA = boot(first);
-    const roomB = boot(second);
-    const stopped = new Set<Handle>();
-    const unsubscribed = new Set<() => void>();
-    const unsubscribeOnce = (unsubscribe: () => void): void => {
-      if (unsubscribed.has(unsubscribe)) return;
-      unsubscribe();
-      unsubscribed.add(unsubscribe);
-    };
-    const stopOnce = async (handle: Handle): Promise<void> => {
-      if (stopped.has(handle)) return;
-      await handle.engine.stop();
-      stopped.add(handle);
-    };
-    const dispose = async (): Promise<void> => {
-      unsubscribeOnce(roomA.unsubscribe);
-      unsubscribeOnce(roomB.unsubscribe);
-      await stopOnce(first);
-      await stopOnce(second);
-    };
-
     try {
+      second = await createRealEngine({
+        variant: "physics2d",
+        maxEntities: 32,
+        physicsHz: 60,
+      });
+      const roomA = boot(first);
+      const roomB = boot(second);
+
       await first.advance(STEPS, DT);
       await second.advance(STEPS, DT);
 
@@ -102,12 +93,14 @@ describe("netcode-ready fixed tick", () => {
         transformBytes(second.engine, second.bridge, roomB.ids),
       );
 
-      await stopOnce(first);
+      await first.dispose();
       unsubscribeOnce(roomA.unsubscribe);
       await second.advance(1, DT);
       expect(second.engine.frameCount).toBe(STEPS + 1);
     } finally {
-      await dispose();
+      for (const unsubscribe of unsubscribers) unsubscribeOnce(unsubscribe);
+      await first.dispose();
+      await second?.dispose();
     }
   }, 60_000);
 });

@@ -134,16 +134,13 @@ function firstDifferingOffset(left: Uint8Array, right: Uint8Array): number {
 }
 
 async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promise<Uint8Array> {
-  const { engine, bridge, advance } = await createRealEngine({
+  const handle = await createRealEngine({
     variant,
     maxEntities: MAX_ENTITIES,
     physicsHz: 60,
   });
+  const { engine, bridge, advance } = handle;
   let unsubscribe = (): void => {};
-  const dispose = async (): Promise<void> => {
-    unsubscribe();
-    await engine.stop();
-  };
   try {
     let physics: ((id: EntityId) => readonly number[]) | null = null;
     if (variant === "physics2d") {
@@ -225,7 +222,8 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
     }
     return captureWorldBytes(engine, bridge, ids, physics);
   } finally {
-    await dispose();
+    unsubscribe();
+    await handle.dispose();
   }
 }
 

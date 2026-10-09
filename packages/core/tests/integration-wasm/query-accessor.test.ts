@@ -60,7 +60,7 @@ describe("real WASM query accessor", () => {
       }
       expect(count).toBe(7);
     } finally {
-      await handle.engine.stop();
+      await handle.dispose();
     }
   });
 });

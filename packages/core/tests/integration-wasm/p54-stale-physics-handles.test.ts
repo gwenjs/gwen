@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { defineActor, defineActorPool, definePrefab } from "../../src/actor/index.js";
 import { type EntityId } from "../../src/index.js";
@@ -25,23 +25,6 @@ function eventCount(handle: RealEngineHandle, variant: Variant): number {
   };
   if (variant === "physics2d") return bridge.physics_get_collision_event_count?.() ?? 0;
   return bridge.physics3d_get_collision_event_count?.() ?? 0;
-}
-
-async function withBoot(
-  variant: Variant,
-  run: (handle: RealEngineHandle) => Promise<void>,
-): Promise<void> {
-  const handle = await createRealEngine({ variant, maxEntities: 32 });
-  try {
-    if (variant === "physics2d") {
-      await handle.engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
-    } else {
-      await handle.engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
-    }
-    await run(handle);
-  } finally {
-    await handle.dispose();
-  }
 }
 
 function physicsOf(handle: RealEngineHandle, variant: "physics2d"): Physics2DAPI;
@@ -104,193 +87,210 @@ function staleError(
 }
 
 describe.each(["physics2d", "physics3d"] as const)("p54 stale physics handles (%s)", (variant) => {
+  // Each test opens one engine through boot(). afterEach releases it.
+  let opened: RealEngineHandle | undefined;
+
+  afterEach(async () => {
+    const handle = opened;
+    opened = undefined;
+    // A boot that threw already failed the test. Nothing is open to release.
+    if (handle === undefined) return;
+    await handle.dispose();
+    expect(handle.engine.state).toBe("stopped");
+  });
+
+  async function boot(variant: Variant): Promise<RealEngineHandle> {
+    const handle = await createRealEngine({ variant, maxEntities: 32 });
+    opened = handle;
+    if (variant === "physics2d") {
+      await handle.engine.use(Physics2DPlugin({ gravity: 0, gravityX: 0 }));
+    } else {
+      await handle.engine.use(Physics3DPlugin({ gravity: { x: 0, y: 0, z: 0 } }));
+    }
+    return handle;
+  }
+
   it("(a) a recycled slot does not keep the destroyed body", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const first = handle.engine.createEntity();
-      addBody(variant, physics, first, 0, 0, false);
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const first = handle.engine.createEntity();
+    addBody(variant, physics, first, 0, 0, false);
 
-      expect(handle.engine.destroyEntity(first)).toBe(true);
-      const second = handle.engine.createEntity();
-      expect(entityIndex(second)).toBe(entityIndex(first));
+    expect(handle.engine.destroyEntity(first)).toBe(true);
+    const second = handle.engine.createEntity();
+    expect(entityIndex(second)).toBe(entityIndex(first));
 
-      if (variant === "physics2d") {
-        expect((physics as Physics2DAPI).getPosition(second)).toBeNull();
-        expect(() => (physics as Physics2DAPI).applyImpulse(first, 10, 0)).toThrow(
-          staleError(variant),
-        );
-      } else {
-        expect((physics as Physics3DAPI).hasBody(second)).toBe(false);
-        expect(() => (physics as Physics3DAPI).applyImpulse(first, { x: 10 })).toThrow(
-          staleError(variant),
-        );
-      }
-    });
+    if (variant === "physics2d") {
+      expect((physics as Physics2DAPI).getPosition(second)).toBeNull();
+      expect(() => (physics as Physics2DAPI).applyImpulse(first, 10, 0)).toThrow(
+        staleError(variant),
+      );
+    } else {
+      expect((physics as Physics3DAPI).hasBody(second)).toBe(false);
+      expect(() => (physics as Physics3DAPI).applyImpulse(first, { x: 10 })).toThrow(
+        staleError(variant),
+      );
+    }
   });
 
   it("(b) calls with the destroyed id do not change the new owner's velocity", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const first = handle.engine.createEntity();
-      addBody(variant, physics, first, 0, 0, false);
-      handle.engine.destroyEntity(first);
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const first = handle.engine.createEntity();
+    addBody(variant, physics, first, 0, 0, false);
+    handle.engine.destroyEntity(first);
 
-      const second = handle.engine.createEntity();
-      expect(entityIndex(second)).toBe(entityIndex(first));
-      addBody(variant, physics, second, 0, 3, false);
+    const second = handle.engine.createEntity();
+    expect(entityIndex(second)).toBe(entityIndex(first));
+    addBody(variant, physics, second, 0, 3, false);
 
-      if (variant === "physics2d") {
-        const api = physics as Physics2DAPI;
-        expect(() => api.setLinearVelocity(first, 0, 0)).toThrow(Physics2DStaleEntityError);
-        expect(() => api.applyImpulse(first, 50, 0)).toThrow(Physics2DStaleEntityError);
-        api.removeBody(first);
-      } else {
-        const api = physics as Physics3DAPI;
-        expect(() => api.setLinearVelocity(first, { x: 0 })).toThrow(Physics3DStaleEntityError);
-        expect(() => api.applyImpulse(first, { x: 50 })).toThrow(Physics3DStaleEntityError);
-        expect(api.removeBody(first)).toBe(false);
-      }
+    if (variant === "physics2d") {
+      const api = physics as Physics2DAPI;
+      expect(() => api.setLinearVelocity(first, 0, 0)).toThrow(Physics2DStaleEntityError);
+      expect(() => api.applyImpulse(first, 50, 0)).toThrow(Physics2DStaleEntityError);
+      api.removeBody(first);
+    } else {
+      const api = physics as Physics3DAPI;
+      expect(() => api.setLinearVelocity(first, { x: 0 })).toThrow(Physics3DStaleEntityError);
+      expect(() => api.applyImpulse(first, { x: 50 })).toThrow(Physics3DStaleEntityError);
+      expect(api.removeBody(first)).toBe(false);
+    }
 
-      await handle.advance(3, 1 / 60);
-      expect(readVelocity(variant, physics, second)).toBeCloseTo(3, 2);
-    });
+    await handle.advance(3, 1 / 60);
+    expect(readVelocity(variant, physics, second)).toBeCloseTo(3, 2);
   });
 
   it("(c) contact ids are the ids returned by createEntity", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const left = handle.engine.createEntity();
-      const right = handle.engine.createEntity();
-      addBody(variant, physics, left, 0, 0, true);
-      addBody(variant, physics, right, 0.2, 0, true);
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const left = handle.engine.createEntity();
+    const right = handle.engine.createEntity();
+    addBody(variant, physics, left, 0, 0, true);
+    addBody(variant, physics, right, 0.2, 0, true);
 
-      const seen: Contact[] = [];
-      const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
-      handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
-        seen.push(...contacts);
-      });
-
-      await handle.advance(8, 1 / 60);
-
-      expect(
-        seen.some(
-          (contact) =>
-            (contact.entityA === left && contact.entityB === right) ||
-            (contact.entityA === right && contact.entityB === left),
-        ),
-      ).toBe(true);
+    const seen: Contact[] = [];
+    const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
+    handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
+      seen.push(...contacts);
     });
+
+    await handle.advance(8, 1 / 60);
+
+    expect(
+      seen.some(
+        (contact) =>
+          (contact.entityA === left && contact.entityB === right) ||
+          (contact.entityA === right && contact.entityB === left),
+      ),
+    ).toBe(true);
   });
 
   it("(d) a slot reused between step and contact dispatch is not named", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const first = handle.engine.createEntity();
-      const other = handle.engine.createEntity();
-      addBody(variant, physics, first, 0, 0, true);
-      addBody(variant, physics, other, 0.2, 0, true);
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const first = handle.engine.createEntity();
+    const other = handle.engine.createEntity();
+    addBody(variant, physics, first, 0, 0, true);
+    addBody(variant, physics, other, 0.2, 0, true);
 
-      const seen: Contact[] = [];
-      const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
-      handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
-        seen.push(...contacts);
-      });
-
-      let swapped = false;
-      let spawned: EntityId | null = null;
-      handle.engine.hooks.hook("engine:before-update", () => {
-        seen.length = 0;
-        if (swapped) return;
-        if (eventCount(handle, variant) <= 0) return;
-        swapped = true;
-        handle.engine.destroyEntity(first);
-        spawned = handle.engine.createEntity();
-        addBody(variant, physics, spawned, 0, 0, true);
-      });
-
-      for (let frame = 0; frame < 10 && !swapped; frame += 1) {
-        await handle.advance(1, 1 / 60);
-      }
-
-      expect(swapped).toBe(true);
-      expect(spawned).not.toBeNull();
-      expect(entityIndex(spawned!)).toBe(entityIndex(first));
-      expect(
-        seen.some((contact) => contact.entityA === spawned || contact.entityB === spawned),
-      ).toBe(false);
+    const seen: Contact[] = [];
+    const hook = variant === "physics2d" ? "physics:collision" : "physics3d:collision";
+    handle.engine.hooks.hook(hook, (contacts: readonly Contact[]) => {
+      seen.push(...contacts);
     });
+
+    let swapped = false;
+    let spawned: EntityId | null = null;
+    handle.engine.hooks.hook("engine:before-update", () => {
+      seen.length = 0;
+      if (swapped) return;
+      if (eventCount(handle, variant) <= 0) return;
+      swapped = true;
+      handle.engine.destroyEntity(first);
+      spawned = handle.engine.createEntity();
+      addBody(variant, physics, spawned, 0, 0, true);
+    });
+
+    for (let frame = 0; frame < 10 && !swapped; frame += 1) {
+      await handle.advance(1, 1 / 60);
+    }
+
+    expect(swapped).toBe(true);
+    expect(spawned).not.toBeNull();
+    expect(entityIndex(spawned!)).toBe(entityIndex(first));
+    expect(seen.some((contact) => contact.entityA === spawned || contact.entityB === spawned)).toBe(
+      false,
+    );
   });
 
   it("(e) pool release then acquire keeps the same id and the body", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const Actor = defineActor(definePrefab([]), () => {});
-      await handle.engine.use(Actor._plugin);
-      const pool = defineActorPool(Actor, { size: 2 });
-      await handle.engine.use(pool._plugin);
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const Actor = defineActor(definePrefab([]), () => {});
+    await handle.engine.use(Actor._plugin);
+    const pool = defineActorPool(Actor, { size: 2 });
+    await handle.engine.use(pool._plugin);
 
-      const id = pool.acquire();
-      addBody(variant, physics, id, 0, 1, false);
-      pool.release(id);
-      await handle.advance(1, 1 / 60);
-      const again = pool.acquire();
+    const id = pool.acquire();
+    addBody(variant, physics, id, 0, 1, false);
+    pool.release(id);
+    await handle.advance(1, 1 / 60);
+    const again = pool.acquire();
 
-      expect(again).toBe(id);
-      if (variant === "physics2d") {
-        expect(() => (physics as Physics2DAPI).applyImpulse(again, 0, 0)).not.toThrow();
-        expect((physics as Physics2DAPI).getPosition(again)).not.toBeNull();
-      } else {
-        expect(() => (physics as Physics3DAPI).applyImpulse(again, { x: 0 })).not.toThrow();
-        expect((physics as Physics3DAPI).hasBody(again)).toBe(true);
-      }
-    });
+    expect(again).toBe(id);
+    if (variant === "physics2d") {
+      expect(() => (physics as Physics2DAPI).applyImpulse(again, 0, 0)).not.toThrow();
+      expect((physics as Physics2DAPI).getPosition(again)).not.toBeNull();
+    } else {
+      expect(() => (physics as Physics3DAPI).applyImpulse(again, { x: 0 })).not.toThrow();
+      expect((physics as Physics3DAPI).hasBody(again)).toBe(true);
+    }
   });
 
   it("(f) a destroyed prefab onCollision never fires for the reused slot", async () => {
-    await withBoot(variant, async (handle) => {
-      const physics = physicsOf(handle, variant);
-      const first = handle.engine.createEntity();
-      const calls: EntityId[] = [];
-      const onCollision = (self: EntityId) => {
-        calls.push(self);
-      };
+    const handle = await boot(variant);
+    const physics = physicsOf(handle, variant);
+    const first = handle.engine.createEntity();
+    const calls: EntityId[] = [];
+    const onCollision = (self: EntityId) => {
+      calls.push(self);
+    };
 
-      if (variant === "physics2d") {
-        await handle.engine.hooks.callHook("prefab:instantiate", first, {
-          physics: {
-            bodyType: "dynamic",
+    if (variant === "physics2d") {
+      await handle.engine.hooks.callHook("prefab:instantiate", first, {
+        physics: {
+          bodyType: "dynamic",
+          gravityScale: 0,
+          linearDamping: 0,
+          colliders: [{ shape: "box", hw: 16, hh: 16, isSensor: true, colliderId: 0 }],
+          onCollision,
+        },
+      });
+      (physics as Physics2DAPI).removeBody(first);
+    } else {
+      await handle.engine.hooks.callHook("prefab:instantiate", first, {
+        physics3d: {
+          body: {
+            kind: "dynamic",
             gravityScale: 0,
             linearDamping: 0,
-            colliders: [{ shape: "box", hw: 16, hh: 16, isSensor: true, colliderId: 0 }],
-            onCollision,
+            initialPosition: { x: 0, y: 0, z: 0 },
+            colliders: [{ shape: BOX, isSensor: true, colliderId: 0 }],
           },
-        });
-        (physics as Physics2DAPI).removeBody(first);
-      } else {
-        await handle.engine.hooks.callHook("prefab:instantiate", first, {
-          physics3d: {
-            body: {
-              kind: "dynamic",
-              gravityScale: 0,
-              linearDamping: 0,
-              initialPosition: { x: 0, y: 0, z: 0 },
-              colliders: [{ shape: BOX, isSensor: true, colliderId: 0 }],
-            },
-            onCollision,
-          },
-        });
-        expect((physics as Physics3DAPI).removeBody(first)).toBe(true);
-      }
+          onCollision,
+        },
+      });
+      expect((physics as Physics3DAPI).removeBody(first)).toBe(true);
+    }
 
-      expect(handle.engine.destroyEntity(first)).toBe(true);
-      const second = handle.engine.createEntity();
-      const other = handle.engine.createEntity();
-      expect(entityIndex(second)).toBe(entityIndex(first));
-      addBody(variant, physics, second, 0, 0, true);
-      addBody(variant, physics, other, 0.2, 0, true);
+    expect(handle.engine.destroyEntity(first)).toBe(true);
+    const second = handle.engine.createEntity();
+    const other = handle.engine.createEntity();
+    expect(entityIndex(second)).toBe(entityIndex(first));
+    addBody(variant, physics, second, 0, 0, true);
+    addBody(variant, physics, other, 0.2, 0, true);
 
-      await handle.advance(8, 1 / 60);
-      expect(calls).toEqual([]);
-    });
+    await handle.advance(8, 1 / 60);
+    expect(calls).toEqual([]);
   });
 });

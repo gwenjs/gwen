@@ -6,7 +6,8 @@ import { createRealEngine } from "./harness.js";
 
 describe("memory growth", () => {
   it("keeps a query view and a shared region live after grow", async () => {
-    const { engine, bridge } = await createRealEngine({ variant: "light", maxEntities: 32 });
+    const handle = await createRealEngine({ variant: "light", maxEntities: 32 });
+    const { engine, bridge } = handle;
     try {
       const typeId = bridge.engine().register_component_type();
       const id = bridge.createEntity();
@@ -42,15 +43,16 @@ describe("memory growth", () => {
       expect(regionView.array[0]).toBe(42);
       shared.dispose(bridge);
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 
   it("fires engine:memory-grow before engine:after-update in the same frame", async () => {
-    const { engine, bridge, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "light",
       maxEntities: 16,
     });
+    const { engine, bridge, advance } = handle;
     try {
       const order: string[] = [];
       engine.hooks.hook("engine:update", () => {
@@ -73,16 +75,17 @@ describe("memory growth", () => {
       expect(growAt).toBeLessThan(order.indexOf("after"));
       expect(engine.memory.epoch).toBe(1);
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 
   it("bumps the epoch when Rust grows memory and warns in dev", async () => {
     const seen: Array<{ code: string; context?: { view?: string } }> = [];
-    const { engine, bridge, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "light",
       maxEntities: 256,
     });
+    const { engine, bridge, advance } = handle;
     try {
       engine.errors.on((event) => {
         seen.push(event);
@@ -121,15 +124,16 @@ describe("memory growth", () => {
       }
       shared.dispose(bridge);
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 
   it("a plugin memory-grow handler that throws reports PLUGIN_RUNTIME_ERROR and after-update still runs", async () => {
-    const { engine, bridge, advance } = await createRealEngine({
+    const handle = await createRealEngine({
       variant: "light",
       maxEntities: 16,
     });
+    const { engine, bridge, advance } = handle;
     try {
       const seen: Array<{ code: string; source?: string }> = [];
       engine.errors.on((event) => {
@@ -160,7 +164,7 @@ describe("memory growth", () => {
       expect(after).toBe(1);
       expect(engine.state).not.toBe("faulted");
     } finally {
-      await engine.stop();
+      await handle.dispose();
     }
   });
 });
