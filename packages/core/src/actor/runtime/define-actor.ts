@@ -125,7 +125,8 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
     if (this.engines.size > 1) {
       throw new GwenContextError(
         "[GWEN] An actor installed on several engines was read with no engine current.\n" +
-          "  Fix: read it inside engine.run(), or through a useActor() handle.",
+          "  Fix: read it inside engine.run(), or through a useActor() handle.\n" +
+          "  A useActor() handle's count() and getAll() follow this rule too: call them inside engine.run().",
       );
     }
     for (const engine of this.engines) return this.buckets.get(engine);

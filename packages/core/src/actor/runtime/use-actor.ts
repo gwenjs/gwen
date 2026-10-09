@@ -22,7 +22,7 @@
  * ```
  */
 
-import { useEngine } from "../../engine/context";
+import { engineContext, useEngine } from "../../engine/context";
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
@@ -71,6 +71,9 @@ export interface ActorHandle<Props, PublicAPI> {
    * Returns the number of currently live instances.
    *
    * @returns Count of live actor instances.
+   * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is
+   *   current and the actor is installed on two or more engines (same rule as
+   *   `ActorDefinition._instances`).
    */
   count(): number;
 
@@ -86,6 +89,9 @@ export interface ActorHandle<Props, PublicAPI> {
    * Returns the public APIs of **all** live instances.
    *
    * @returns Array of public API objects (empty if no instances exist).
+   * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is
+   *   current and the actor is installed on two or more engines (same rule as
+   *   `ActorDefinition._instances`).
    */
   getAll(): PublicAPI[];
 
@@ -177,7 +183,9 @@ const _HANDLE_OWN_KEYS = new Set<string>([
  * `setup()` callback, or a `defineSystem()` factory).
  *
  * The handle keeps that engine. Every handle method runs on it, even when
- * another engine is current or none is.
+ * another engine is current or none is. Exception: `count()` and `getAll()`
+ * with no engine current follow the rule of `ActorDefinition._instances`: they
+ * throw `GwenContextError` when the actor is installed on two or more engines.
  *
  * @param actorDef - The actor definition produced by `defineActor()`.
  * @returns A Proxy implementing both `ActorHandle<Props, PublicAPI>` and `PublicAPI`.
@@ -220,6 +228,14 @@ export function useActor<Props, PublicAPI>(
 
   /** Every handle call runs on the engine the handle was created on. */
   const onOwnEngine = <T>(fn: () => T): T => engine.run(fn);
+  /**
+   * `count()` / `getAll()`: with no engine current, read `_instances` first so
+   * the same rule applies (throws with two or more installed engines).
+   */
+  const countOnOwnEngine = <T>(fn: () => T): T => {
+    if (!engineContext.tryUse()) void actorDef._instances.size;
+    return onOwnEngine(fn);
+  };
 
   const baseHandle: ActorHandle<Props, PublicAPI> = {
     spawn(props?: Props): EntityId {
@@ -245,7 +261,7 @@ export function useActor<Props, PublicAPI>(
     },
 
     count(): number {
-      return onOwnEngine(() => actorDef._instances.size);
+      return countOnOwnEngine(() => actorDef._instances.size);
     },
 
     get(): PublicAPI | undefined {
@@ -253,7 +269,7 @@ export function useActor<Props, PublicAPI>(
     },
 
     getAll(): PublicAPI[] {
-      return onOwnEngine(() => {
+      return countOnOwnEngine(() => {
         const result: PublicAPI[] = [];
         for (const instance of actorDef._instances.values()) {
           result.push(instance.api!);
