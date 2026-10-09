@@ -442,10 +442,34 @@ test("verify-red counts red a test that fails on the base with the fixture the P
   assert.equal(status, 0, output);
 });
 
+test("verify-red does not copy a later test file onto the base with the fixtures", () => {
+  const { status, output } = runVerifyRedWithAdded({
+    "tests/fixtures/helper.mjs": "export const value = 1;\n",
+    "tests/a.test.mjs": [
+      "import assert from 'node:assert/strict';",
+      "import test from 'node:test';",
+      "import { value } from './fixtures/helper.mjs';",
+      "test('fails on the base', () => {",
+      "  assert.equal(value, 2);",
+      "});",
+      "",
+    ].join("\n"),
+    "tests/b.test.mjs": [
+      "import test from 'node:test';",
+      "test('passes on the base', () => {});",
+      "",
+    ].join("\n"),
+  });
+  assert.match(output, /verify-red: RED tests\/a\.test\.mjs/);
+  assert.match(output, /NOT RED tests\/b\.test\.mjs :: passes on the base/);
+  assert.notEqual(status, 0, output);
+});
+
 test("verify-red does not copy a production module the PR adds onto the base", () => {
   const { status, output } = runVerifyRedWithAdded({
-    "packages/demo/src/answer.mjs": "export const answer = 42;\n",
-    "packages/demo/tests/fixtures/helper.mjs": "export { answer } from '../../src/answer.mjs';\n",
+    "packages/demo/src/helpers/answer.mjs": "export const answer = 42;\n",
+    "packages/demo/tests/fixtures/helper.mjs":
+      "export { answer } from '../../src/helpers/answer.mjs';\n",
     "packages/demo/tests/answer.test.mjs": [
       "import assert from 'node:assert/strict';",
       "import test from 'node:test';",
@@ -602,11 +626,12 @@ test("verify-red runs a real Vitest file without WASM or a build", () => {
 });
 
 test("verify-red counts a real Vitest file red when it imports a module the PR adds", () => {
+  // A production module (under src/): never copied onto the base.
   const { status, output } = runVerifyRedOnRepo({
-    "packages/core/tests/verify-red-fixture-lib.ts": "export const answer = 42;\n",
+    "packages/core/src/verify-red-fixture-lib.ts": "export const answer = 42;\n",
     "packages/core/tests/verify-red-fixture.test.ts": [
       "import { expect, it } from 'vitest';",
-      "import { answer } from './verify-red-fixture-lib';",
+      "import { answer } from '../src/verify-red-fixture-lib';",
       "",
       "it('answers 42', () => {",
       "  expect(answer).toBe(42);",
@@ -617,6 +642,23 @@ test("verify-red counts a real Vitest file red when it imports a module the PR a
   assert.equal(status, 0, output);
   assert.match(output, /FAIL answers 42 \(base load error/);
   assert.match(output, /verify-red: RED packages\/core\/tests\/verify-red-fixture\.test\.ts/);
+});
+
+test("verify-red runs a real Vitest file on the base with the fixture the PR adds", () => {
+  const { status, output } = runVerifyRedOnRepo({
+    "packages/core/tests/fixtures/verify-red-fixture-lib.ts": "export const answer = 42;\n",
+    "packages/core/tests/verify-red-fixture.test.ts": [
+      "import { expect, it } from 'vitest';",
+      "import { answer } from './fixtures/verify-red-fixture-lib.js';",
+      "",
+      "it('answers 42', () => {",
+      "  expect(answer).toBe(42);",
+      "});",
+      "",
+    ].join("\n"),
+  });
+  assert.match(output, /NOT RED packages\/core\/tests\/verify-red-fixture\.test\.ts :: answers 42/);
+  assert.notEqual(status, 0, output);
 });
 
 test("verify-red reports not verifiable when a test needs a WASM build", () => {
