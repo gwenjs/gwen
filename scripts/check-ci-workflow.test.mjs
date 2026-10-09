@@ -1116,3 +1116,43 @@ test("the verify-red job gets CARGO_TERM_COLOR from its toolchain step and the s
   assert.ok(cargoRuns.length > 0);
   for (const line of cargoRuns) assert.match(line, /CARGO_TERM_COLOR=never/, line);
 });
+
+/** Deny set from issue #80. `-D warnings` makes each deny fail the job. */
+const RUST_LINT_DENY = [
+  "unsafe_op_in_unsafe_fn",
+  "unwrap_used",
+  "expect_used",
+  "panic",
+  "todo",
+  "unimplemented",
+  "unreachable",
+  "undocumented_unsafe_blocks",
+  "missing_safety_doc",
+  "allow_attributes_without_reason",
+];
+
+test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", () => {
+  const yaml = readCi();
+  const job = jobBlock(yaml, "rust-lint");
+  assert.match(job, /cargo fmt --all --check/);
+  assert.match(job, /cargo clippy --workspace --all-targets -- -D warnings/);
+  assert.match(job, /cargo clippy -p gwen-core --all-targets --features physics2d -- -D warnings/);
+  assert.match(job, /cargo clippy -p gwen-core --all-targets --features physics3d -- -D warnings/);
+  assert.match(job, /cargo clippy -p gwen-core --all-targets --features build-tools -- -D warnings/);
+  assert.match(job, /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown -- -D warnings/);
+  assert.match(
+    job,
+    /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics2d -- -D warnings/,
+  );
+  assert.match(
+    job,
+    /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics3d -- -D warnings/,
+  );
+  const status = jobBlock(yaml, "ci-status");
+  assert.match(status, /(?:needs:\s*\[[^\]]*rust-lint|^\s+- rust-lint$)/m);
+  assert.match(status, /needs\['rust-lint'\]\.result/);
+  const cargo = readFileSync(join(root, "Cargo.toml"), "utf8");
+  for (const lint of RUST_LINT_DENY) {
+    assert.match(cargo, new RegExp(`^${lint}\\s*=\\s*"deny"`, "m"), lint);
+  }
+});
