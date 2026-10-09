@@ -26,10 +26,6 @@ function mockEngine(): GwenEngine {
     use: vi.fn(),
     unuse: vi.fn(),
     hooks: { hook: vi.fn(), callHook: vi.fn() },
-    wasmBridge: {
-      physics2d: { enabled: false, enable: vi.fn(), disable: vi.fn(), step: vi.fn() },
-      physics3d: { enabled: false, enable: vi.fn(), disable: vi.fn(), step: vi.fn() },
-    },
   } as unknown as GwenEngine;
 }
 

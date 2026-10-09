@@ -63,9 +63,6 @@ describe("engine state", () => {
     expect(() => engine.activate()).toThrow(/faulted/);
     expect(() => engine.deactivate()).toThrow(/faulted/);
     expect(() => engine.run(() => 1)).toThrow(/faulted/);
-    expect(() => engine.wasmBridge.physics2d.enable({})).toThrow(/faulted/);
-    expect(() => engine.wasmBridge.physics2d.step(1 / 60)).toThrow(/faulted/);
-    expect(() => engine.wasmBridge.physics3d.disable()).toThrow(/faulted/);
     await expect(
       engine.loadWasmModule({ name: "late", url: "https://example.invalid/late.wasm" }),
     ).rejects.toThrow(/faulted/);

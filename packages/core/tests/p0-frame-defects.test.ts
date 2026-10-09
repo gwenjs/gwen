@@ -127,7 +127,7 @@ describe("P0 frame defects", () => {
     }
   });
 
-  it.runIf(__GWEN_DEV__)("dev + debug: true reports the 8 phase fields", async () => {
+  it.runIf(__GWEN_DEV__)("dev + debug: true reports the phase fields", async () => {
     const engine = await createEngine({ debug: true });
     await engine.startExternal();
     try {
@@ -135,7 +135,6 @@ describe("P0 frame defects", () => {
       const stats = engine.getStats();
       expect(Object.keys(stats.phaseMs ?? {}).sort()).toEqual([
         "afterTick",
-        "physics",
         "plugins",
         "render",
         "tick",

@@ -204,7 +204,6 @@ async function samplePhases(handle: RealEngineHandle): Promise<EngineFramePhaseM
   const phases: EngineFramePhaseMs = {
     tick: 0,
     plugins: 0,
-    physics: 0,
     wasm: 0,
     update: 0,
     render: 0,

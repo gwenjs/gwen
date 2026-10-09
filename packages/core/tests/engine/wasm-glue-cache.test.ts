@@ -5,9 +5,18 @@
  * keys in place for any other engine on the same variant.
  */
 
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { WasmBridgeImpl } from "../../src/internal";
 import { createEngine } from "../../src/engine/gwen-engine";
+import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
+
+declare module "../../src/engine/engine-types.js" {
+  interface GwenWasmModules {
+    test_module: WebAssembly.Exports;
+  }
+}
+
+const MINIMAL_WASM = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
 
 describe("WasmBridgeImpl._reset keeps the shared glue cache", () => {
   afterEach(() => {
@@ -39,51 +48,67 @@ describe("WasmBridgeImpl._reset keeps the shared glue cache", () => {
 
 describe("engine.stop() — WASM module and glue cache cleanup", () => {
   afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     const ctx = globalThis as Record<string, unknown>;
     for (const key of Object.keys(ctx)) {
       if (key.startsWith("__gwenGlue_")) delete ctx[key];
     }
   });
 
+  function engineWithWasmFetch(): Promise<Awaited<ReturnType<typeof createEngine>>> {
+    vi.stubGlobal("fetch", () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        arrayBuffer: () =>
+          Promise.resolve(
+            MINIMAL_WASM.buffer.slice(
+              MINIMAL_WASM.byteOffset,
+              MINIMAL_WASM.byteOffset + MINIMAL_WASM.byteLength,
+            ),
+          ),
+      }),
+    );
+    const bridge = new WasmBridgeImpl();
+    vi.spyOn(bridge, "isActive").mockReturnValue(true);
+    return createEngine({ _bridge: bridge });
+  }
+
   it("clears _wasmModules map on stop()", async () => {
-    const engine = await createEngine();
+    const engine = await engineWithWasmFetch();
+    await engine.loadWasmModule({ name: "test_module", url: "http://x/test_module.wasm" });
+    expect(engine.getWasmModule("test_module").name).toBe("test_module");
 
-    // Access private _wasmModules via type assertion for testing
-    const wasmModules = (engine as any)._wasmModules as Map<string, unknown>;
-
-    // Add a mock entry to the map (simulating a loaded WASM module)
-    wasmModules.set("test_module", {
-      handle: { name: "test_module", exports: {}, memory: undefined },
-      step: undefined,
-    });
-
-    expect(wasmModules.size).toBe(1);
-
-    // Stop the engine
     await engine.stop();
 
-    // Verify _wasmModules was cleared
-    expect(wasmModules.size).toBe(0);
+    let caught: unknown;
+    expect(() => {
+      try {
+        engine.getWasmModule("test_module");
+      } catch (error) {
+        caught = error;
+        throw error;
+      }
+    }).toThrow(/test_module/);
+    expect(caught).toMatchObject({ code: CoreErrorCodes.WASM_MODULE_NOT_FOUND });
   });
 
   it("keeps globalThis glue cache keys on stop()", async () => {
-    const engine = await createEngine();
-    const wasmModules = (engine as any)._wasmModules as Map<string, unknown>;
-    const ctx = globalThis as Record<string, unknown>;
+    const engine = await engineWithWasmFetch();
+    const name = "test_module";
+    try {
+      await engine.loadWasmModule({ name, url: "http://x/test_module.wasm" });
+      const ctx = globalThis as Record<string, unknown>;
+      const glueKey = `__gwenGlue_${name}_`;
+      ctx[glueKey] = { mock: true };
 
-    // Add mock entries with a glue key
-    const glueKey = "__gwenGlue_test_module_";
-    ctx[glueKey] = { mock: true };
-    wasmModules.set("test_module", {
-      handle: { name: "test_module", exports: {}, memory: undefined },
-      step: undefined,
-    });
+      await engine.stop();
 
-    expect(ctx[glueKey]).toBeDefined();
-
-    // Stop the engine
-    await engine.stop();
-
-    expect(ctx[glueKey]).toEqual({ mock: true });
+      expect(ctx[glueKey]).toEqual({ mock: true });
+    } finally {
+      await engine.stop();
+    }
   });
 });

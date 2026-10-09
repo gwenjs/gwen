@@ -380,7 +380,6 @@ describe("P0 physics loop", () => {
       if (__GWEN_DEV__) {
         expect(Object.keys(stats.phaseMs ?? {}).sort()).toEqual([
           "afterTick",
-          "physics",
           "plugins",
           "render",
           "tick",

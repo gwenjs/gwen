@@ -83,62 +83,6 @@ describe("plugin error isolation", () => {
   });
 
   describe("WASM error codes", () => {
-    it("emits WASM_PANIC when physics step throws WebAssembly.RuntimeError", async () => {
-      const bus = createMockErrorBus();
-      const engine = await createEngine({ errorBus: bus });
-
-      // Enable physics2d and override the step to throw a WASM RuntimeError
-      engine.wasmBridge.physics2d.enable({});
-      engine.wasmBridge.physics2d.step = () => {
-        throw new WebAssembly.RuntimeError("unreachable executed");
-      };
-
-      let afterTick = 0;
-      const changes: Array<{ from: string; to: string; reason: string }> = [];
-      engine.hooks.hook("engine:afterTick", () => {
-        afterTick += 1;
-      });
-      engine.hooks.hook("engine:state-change", (payload) => {
-        changes.push(payload);
-      });
-      const framesBefore = engine.frameCount;
-
-      await engine.advance(0.016);
-
-      const wasmPanics = bus.emitted.filter((e) => e.code === CoreErrorCodes.WASM_PANIC);
-      expect(wasmPanics).toHaveLength(1);
-      expect(wasmPanics[0]!.source).toBe("gwen_core.wasm");
-      expect(engine.state).toBe("faulted");
-      expect(afterTick).toBe(0);
-      expect(engine.frameCount).toBe(framesBefore);
-      expect(changes).toEqual([{ from: "idle", to: "faulted", reason: "WASM_PANIC" }]);
-    });
-
-    it("emits FRAME_LOOP_ERROR when physics step throws a non-WASM error", async () => {
-      const bus = createMockErrorBus();
-      const engine = await createEngine({ errorBus: bus });
-
-      engine.wasmBridge.physics2d.enable({});
-      engine.wasmBridge.physics2d.step = () => {
-        throw new TypeError("not a wasm error");
-      };
-
-      const changes: Array<{ from: string; to: string; reason: string }> = [];
-      engine.hooks.hook("engine:state-change", (payload) => {
-        changes.push(payload);
-      });
-
-      await engine.advance(0.016);
-
-      const frameErrors = bus.emitted.filter(
-        (e) => e.code === CoreErrorCodes.FRAME_LOOP_ERROR && e.source === "gwen_core.wasm",
-      );
-      expect(frameErrors).toHaveLength(1);
-      expect(frameErrors[0]!.level).toBe("fatal");
-      expect(engine.state).toBe("faulted");
-      expect(changes).toEqual([{ from: "idle", to: "faulted", reason: "FATAL_ERROR" }]);
-    });
-
     it("keeps a community WASM trap at error level and does not poison the core bridge", async () => {
       const bus = createMockErrorBus();
       const engine = await createEngine({ errorBus: bus });
@@ -170,33 +114,26 @@ describe("plugin error isolation", () => {
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {
       const bus = createMockErrorBus();
       const engine = await createEngine({ errorBus: bus });
-
-      // Inject a fake entry into the private _wasmModules map to avoid needing a real .wasm file
-      const fakeHandle = {
+      const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+      await engine.loadWasmModule({
         name: "my-audio-mod",
-        exports: {},
-        memory: undefined,
-        region: () => {
-          throw new Error("no regions");
-        },
-        channel: () => {
-          throw new Error("no channels");
-        },
-      };
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (engine as any)._wasmModules.set("my-audio-mod", {
-        handle: fakeHandle,
-        step: () => {
+        url: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
+        versionPolicy: "ignore",
+        step() {
           throw new TypeError("audio step failed");
         },
       });
 
-      await engine.advance(0.016);
+      try {
+        await engine.advance(0.016);
 
-      const wasmErrors = bus.emitted.filter((e) => e.source === "wasm:my-audio-mod");
-      expect(wasmErrors).toHaveLength(1);
-      expect(wasmErrors[0]!.code).toBe(CoreErrorCodes.FRAME_LOOP_ERROR);
-      expect(wasmErrors[0]!.message).toContain("audio step failed");
+        const wasmErrors = bus.emitted.filter((e) => e.source === "wasm:my-audio-mod");
+        expect(wasmErrors).toHaveLength(1);
+        expect(wasmErrors[0]!.code).toBe(CoreErrorCodes.FRAME_LOOP_ERROR);
+        expect(wasmErrors[0]!.message).toContain("audio step failed");
+      } finally {
+        await engine.stop();
+      }
     });
   });
 

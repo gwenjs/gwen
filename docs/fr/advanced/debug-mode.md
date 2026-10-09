@@ -112,7 +112,6 @@ const p = stats.phaseMs
 if (p) {
   console.log(p.tick)       // engine:tick
   console.log(p.plugins)    // engine:before-update, y compris le pas physique et la synchro cinématique
-  console.log(p.physics)    // uniquement le stub du bridge intégré (environ 0)
   console.log(p.wasm)       // pas des modules WASM communautaires
   console.log(p.update)     // update_transforms et engine:update
   console.log(p.render)     // engine:after-update et engine:render

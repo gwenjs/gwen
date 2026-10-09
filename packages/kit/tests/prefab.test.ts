@@ -41,10 +41,6 @@ function mockEngine(): GwenEngine {
     }),
     getComponent: vi.fn((id: number, name: string) => components.get(`${id}:${name}`)),
     createEntity: vi.fn(() => 1),
-    wasmBridge: {
-      physics2d: { enabled: false, enable: vi.fn(), disable: vi.fn(), step: vi.fn() },
-      physics3d: { enabled: false, enable: vi.fn(), disable: vi.fn(), step: vi.fn() },
-    },
   } as unknown as GwenEngine;
 }
 

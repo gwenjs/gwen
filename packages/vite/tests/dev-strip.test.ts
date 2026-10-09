@@ -345,7 +345,6 @@ describe("dev strip", () => {
     expect(devStats.over).toBe(true);
     expect(devStats.keys).toEqual([
       "afterTick",
-      "physics",
       "plugins",
       "render",
       "tick",
