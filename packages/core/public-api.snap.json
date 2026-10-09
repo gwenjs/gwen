@@ -248,7 +248,7 @@
     "values": [
       "EASING_MAP",
       "FLAGS_OFFSET",
-      "FLAG_PHYSICS_ACTIVE",
+      "FLAG_HAS_TRANSFORM",
       "GlobalStringPoolManager",
       "GwenScope",
       "MAX_SAB_BYTES",

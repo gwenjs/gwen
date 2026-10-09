@@ -8,6 +8,8 @@
 //! `create_entity` returns a `JsEntityId` struct exposing both fields,
 //! or an error when the entity limit is reached.
 
+use std::collections::HashMap;
+
 use crate::ecs::component::ComponentTypeId;
 use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
@@ -29,6 +31,10 @@ const PHYS_FLAG: u32 = 0b01; // bit 0 — physics active
 use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
+
+fn write_f32(slot: &mut [u8; STRIDE], offset: usize, value: f32) {
+    slot[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+}
 
 /// Message when a query has more matches than this engine's result buffer.
 const QUERY_EXCEEDED_BUFFER_CAPACITY: &str = "query exceeded the buffer capacity";
@@ -89,6 +95,8 @@ pub struct Engine {
     dirty_transforms: DirtySet,
     /// Hierarchical transform system for managing entity transforms
     transform_system: TransformSystem,
+    /// Live `alloc_shared_buffer` allocations: pointer → byte length.
+    shared_buffers: HashMap<usize, usize>,
     #[cfg(feature = "physics2d")]
     physics_world: Option<PhysicsWorld>,
     #[cfg(feature = "physics3d")]
@@ -127,6 +135,7 @@ impl Engine {
             next_js_type_id: 0,
             dirty_transforms: DirtySet::new(max_entities),
             transform_system: TransformSystem::new(),
+            shared_buffers: HashMap::new(),
             #[cfg(feature = "physics2d")]
             physics_world: None,
             #[cfg(feature = "physics3d")]
@@ -874,8 +883,9 @@ impl Engine {
     /// Allocates `byte_length` bytes in the WASM linear memory and returns
     /// the raw pointer (as usize) to that region.
     ///
-    /// Called once by `SharedMemoryManager.create()` in TypeScript to carve
-    /// out a shared buffer that plugin WASM modules can read/write directly.
+    /// Called once by `SharedMemoryManager.create()` in TypeScript.
+    /// The host fills this buffer and copies it into community module regions.
+    /// Those modules do not receive this address.
     ///
     /// Layout contract (stride = 32 bytes per entity slot):
     ///   offset +  0 : pos_x    (f32)
@@ -883,7 +893,7 @@ impl Engine {
     ///   offset +  8 : rotation (f32)
     ///   offset + 12 : scale_x  (f32)
     ///   offset + 16 : scale_y  (f32)
-    ///   offset + 20 : flags    (u32)  — bit 0: physics active, bit 1: dirty
+    ///   offset + 20 : flags    (u32)  — bit 0: slot has a transform; every other bit is 0
     ///   offset + 24 : reserved (8 bytes)
     ///
     /// # Safety
@@ -915,7 +925,9 @@ impl Engine {
         if ptr.is_null() {
             return 0; // OOM — caller must handle gracefully
         }
-        ptr as usize
+        let addr = ptr as usize;
+        self.shared_buffers.insert(addr, byte_length);
+        addr
     }
 
     /// Release a buffer previously allocated by `alloc_shared_buffer`.
@@ -941,21 +953,23 @@ impl Engine {
         let Ok(layout) = std::alloc::Layout::from_size_align(byte_length, 8) else {
             return; // layout construction failed — do nothing rather than panic
         };
+        self.shared_buffers.remove(&ptr);
         unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
     }
 
-    /// Copies Transform data from the ECS `ComponentStorage` into the shared
-    /// buffer so plugin WASM modules (physics, AI…) can read up-to-date positions.
+    /// Copies world transforms from the hierarchy into a live shared buffer.
     ///
-    /// `ptr`         — pointer returned by `alloc_shared_buffer`
-    /// `max_entities`— number of entity slots to iterate (must be ≤ original allocation)
+    /// `ptr` must be the start of a live [`Self::alloc_shared_buffer`] allocation
+    /// whose length is at least `max_entities * 32`. Dirty transforms are
+    /// propagated first. Each slot is 32 bytes: world x, y, rotation, scale x,
+    /// scale y, then flags (bit 0 = the slot has a transform, every other bit 0)
+    /// and 8 reserved zero bytes. A slot with no transform is 32 zero bytes.
     ///
-    /// Only entities that have a `Transform` component are written.
-    /// Stride is 32 bytes per slot (see `alloc_shared_buffer` layout).
     /// # Errors
     ///
     /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is above
-    /// this engine's capacity. No slot is written in that case.
+    /// this engine's capacity, or [`CoreError::InvalidSharedBuffer`] when `ptr`
+    /// is unknown or the allocation is too short. Neither case writes a slot.
     pub fn sync_transforms_to_buffer(
         &mut self,
         ptr: usize,
@@ -968,28 +982,32 @@ impl Engine {
                 max: cap,
             });
         }
-        for idx in 0..max_entities as usize {
-            let offset = idx * STRIDE;
-            // SAFETY: ptr was allocated by alloc_shared_buffer with size ≥ max_entities*32
+        let Some(len) = self.shared_buffers.get(&ptr).copied() else {
+            return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
+        };
+        let needed = (max_entities as usize).saturating_mul(STRIDE);
+        if len < needed {
+            return Err(CoreError::InvalidSharedBuffer { ptr, len });
+        }
+        self.transform_system.update();
+        for idx in 0..max_entities {
+            let offset = idx as usize * STRIDE;
+            let mut slot = [0u8; STRIDE];
+            let entity = EntityId::from_parts(idx, self.get_entity_generation(idx));
+            if let Some(node) = self.transform_system.get_transform(entity) {
+                let position = node.world_position();
+                let scale = node.world_scale();
+                write_f32(&mut slot, 0, position.x);
+                write_f32(&mut slot, 4, position.y);
+                write_f32(&mut slot, 8, node.world_rotation());
+                write_f32(&mut slot, 12, scale.x);
+                write_f32(&mut slot, 16, scale.y);
+                slot[20..24].copy_from_slice(&1u32.to_le_bytes());
+            }
+            // SAFETY: `ptr` starts a live allocation of `len` bytes and
+            // `offset + STRIDE <= needed <= len`, so `slot` fits in that allocation.
             unsafe {
-                let base = (ptr + offset) as *mut f32;
-
-                // Read Transform from storage
-                if let Some(raw) = self.storage.get_transform_raw(idx as u32) {
-                    // raw is a packed [x: f32, y: f32, rot: f32, sx: f32, sy: f32]
-                    let floats = raw.as_ptr() as *const f32;
-                    base.write(*floats); // x
-                    base.add(1).write(*floats.add(1)); // y
-                    base.add(2).write(*floats.add(2)); // rot
-                    base.add(3).write(*floats.add(3)); // sx
-                    base.add(4).write(*floats.add(4)); // sy
-                                                       // flags: mark slot as active
-                    let flags_ptr = (ptr + offset + 20) as *mut u32;
-                    *flags_ptr |= PHYS_FLAG;
-                } else {
-                    // Clear slot
-                    std::ptr::write_bytes(base as *mut u8, 0, STRIDE);
-                }
+                std::ptr::copy_nonoverlapping(slot.as_ptr(), (ptr + offset) as *mut u8, STRIDE);
             }
         }
         self.dirty_transforms.clear();
@@ -1003,7 +1021,7 @@ impl Engine {
     /// `ptr`         — pointer returned by `alloc_shared_buffer`
     /// `max_entities`— number of entity slots to iterate
     ///
-    /// Only slots with the physics-active flag (bit 0) are written back.
+    /// Only slots with bit 0 set are written back.
     /// Stride is 32 bytes per slot (see `alloc_shared_buffer` layout).
     /// # Errors
     ///

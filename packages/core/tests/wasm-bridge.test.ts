@@ -120,6 +120,7 @@ describe("WasmBridge — with injected mock", () => {
       CoreErrorCodes.INVALID_PARENT,
       CoreErrorCodes.INVALID_MAX_ENTITIES,
       CoreErrorCodes.BUFFER_LENGTH_MISMATCH,
+      CoreErrorCodes.INVALID_SHARED_BUFFER,
     ] as const;
     for (const code of codes) {
       const cause = new Error(code);

@@ -328,6 +328,26 @@ fn wasm_err_is_a_js_error_with_a_core_code() {
     assert_eq!(js_error_code(err), "CORE:INVALID_PARENT");
 }
 
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen_test]
+fn wasm_invalid_shared_buffer_has_core_code() {
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(err) => {
+            assert_eq!(js_error_code(err), "created");
+            return;
+        }
+    };
+    let err = match engine.sync_transforms_to_buffer(8, 1) {
+        Ok(()) => {
+            assert_eq!("ok", "CORE:INVALID_SHARED_BUFFER");
+            return;
+        }
+        Err(err) => err,
+    };
+    assert_eq!(js_error_code(err), "CORE:INVALID_SHARED_BUFFER");
+}
+
 #[wasm_bindgen_test]
 fn wasm_deep_chain_and_cycle_do_not_trap() {
     const N: u32 = 8_000;

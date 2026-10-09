@@ -158,7 +158,7 @@ import { TRANSFORM_STRIDE } from "@gwenjs/core";
 import { TRANSFORM3D_STRIDE } from "@gwenjs/core";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/core
-import { FLAG_PHYSICS_ACTIVE } from "@gwenjs/core";
+import { FLAG_HAS_TRANSFORM } from "@gwenjs/core";
 
 // @ts-expect-error TS2305 — removed from @gwenjs/core
 import { FLAGS_OFFSET } from "@gwenjs/core";

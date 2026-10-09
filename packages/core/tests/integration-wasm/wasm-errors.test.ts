@@ -19,7 +19,7 @@ import {
 import { createEngine, type GwenEngine } from "../../src/engine/gwen-engine.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import {
-  FLAG_PHYSICS_ACTIVE,
+  FLAG_HAS_TRANSFORM,
   FLAGS_OFFSET,
   TRANSFORM_STRIDE,
 } from "../../src/hooks/wasm/shared-memory.js";
@@ -343,7 +343,7 @@ describe("WASM coded errors", () => {
       if (memory === null) {
         throw new Error("light wasm did not export memory");
       }
-      new DataView(memory.buffer).setUint32(ptr + FLAGS_OFFSET, FLAG_PHYSICS_ACTIVE, true);
+      new DataView(memory.buffer).setUint32(ptr + FLAGS_OFFSET, FLAG_HAS_TRANSFORM, true);
 
       let caught: unknown;
       try {

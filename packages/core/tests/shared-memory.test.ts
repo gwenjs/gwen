@@ -21,7 +21,7 @@ import {
   SharedMemoryManager,
   TRANSFORM_STRIDE,
   SENTINEL,
-  FLAG_PHYSICS_ACTIVE,
+  FLAG_HAS_TRANSFORM,
   FLAGS_OFFSET,
 } from "@gwenjs/core/internal";
 import type { WasmBridge } from "../src/engine/wasm-bridge";
@@ -401,9 +401,9 @@ describe("TRANSFORM_STRIDE constant", () => {
   });
 });
 
-describe("FLAG_PHYSICS_ACTIVE constant", () => {
+describe("FLAG_HAS_TRANSFORM constant", () => {
   it("equals bit 0 (0b01)", () => {
-    expect(FLAG_PHYSICS_ACTIVE).toBe(0b01);
+    expect(FLAG_HAS_TRANSFORM).toBe(0b01);
   });
 });
 
