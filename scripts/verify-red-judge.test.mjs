@@ -151,6 +151,56 @@ test("judge tells the same title apart in two describe blocks", () => {
   assert.match(green.output, /PASS prod > light rejects/);
 });
 
+/**
+ * A Vitest JSON report of one file run by two projects (`dev`, `prod`): Vitest
+ * lists the file once per project with the same titles.
+ *
+ * @param {string} dev status of the test in the dev project
+ * @param {string} prod status of the test in the prod project
+ * @returns {string}
+ */
+function twoProjectReport(dev, prod) {
+  const file = (status) => ({
+    name: "/repo/x.test.ts",
+    status: "failed",
+    message: "",
+    assertionResults: [
+      { ancestorTitles: ["S"], title: "dev only", fullName: "S dev only", status },
+    ],
+  });
+  return JSON.stringify({ testResults: [file(dev), file(prod)] });
+}
+
+const devOnlySource = [
+  "import { describe, it } from 'vitest';",
+  "describe('S', () => { it.runIf(__GWEN_DEV__)('dev only', () => {}); });",
+  "",
+].join("\n");
+const devOnlyBase = "import { describe, it } from 'vitest';\n";
+
+test("judge counts a new name red when one project fails and no project passes", () => {
+  /** @type {[string, string, number, RegExp][]} */
+  const cases = [
+    // dev-only contract: fails in dev, skipped in prod -> red
+    ["failed", "skipped", 0, /FAIL S > dev only/],
+    // a pass in any project still blocks
+    ["failed", "passed", 1, /PASS S > dev only/],
+    ["passed", "skipped", 1, /PASS S > dev only/],
+    // skipped everywhere still blocks
+    ["skipped", "skipped", 1, /PASS S > dev only/],
+  ];
+  for (const [dev, prod, status, line] of cases) {
+    const result = judge({
+      source: devOnlySource,
+      base: devOnlyBase,
+      format: "vitest",
+      report: twoProjectReport(dev, prod),
+    });
+    assert.match(result.output, line, `dev ${dev}, prod ${prod}: ${result.output.trim()}`);
+    assert.equal(result.status, status, result.output);
+  }
+});
+
 test("judge matches it.each titles and judges them", () => {
   const source = [
     "import { it, expect } from 'vitest';",

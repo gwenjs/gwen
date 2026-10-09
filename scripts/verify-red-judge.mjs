@@ -21,6 +21,8 @@
  *   run is given. With --head-report, every name the head run reports counts
  *   as failed on the base; a file that does not load on the head either exits 2.
  *   Exit 1 when such a name passed, was skipped, or is absent from the report.
+ *   A name the report lists more than once (one Vitest project each) is red
+ *   when one run failed and no run passed: a skipped run does not count.
  *   Exit 2 when the report has no tests. A Cargo run that reports
  *   `running 0 tests` exits 4 without a head run, 5 when the head run has 0
  *   tests too (not verifiable natively).
@@ -861,7 +863,9 @@ let blocking = false;
 for (const entry of sourceTests) {
   const isNew = !baseNames.has(entry.name);
   const list = statuses.get(entry) ?? [];
-  const allFailed = list.length > 0 && list.every((status) => status === 'fail');
+  // A run that skips the name (`it.runIf(__GWEN_DEV__)` in the prod project)
+  // does not cancel a failure in another run.
+  const allFailed = list.includes('fail') && list.every((status) => status !== 'pass');
   if (list.length === 0) {
     if (!isNew) console.log(`KEEP ${entry.name} (not run)`);
     else if (entry.wasm) console.log(`KEEP ${entry.name} (wasm-only, not run natively)`);
