@@ -56,7 +56,6 @@ function makePlacementMock() {
     query_entities_to_buffer: () => 0,
     get_query_result_ptr: () => 0,
     get_entity_generation: () => 0,
-    tick: () => {},
     alloc_shared_buffer: () => 0,
     free_shared_buffer: () => {},
     query_read_bulk: () => {},

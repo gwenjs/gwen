@@ -28,12 +28,10 @@
 //! - **Physics 3D** (`physics3d/`): Rapier3D integration (enabled via `physics3d` feature).
 //! - **Bindings** (`bindings.rs`): all `#[wasm_bindgen]` exports — the public WASM API.
 
-pub mod allocator;
 pub mod bindings;
 pub mod bulk_ops;
 pub mod ecs;
 pub mod events;
-pub mod gameloop;
 pub mod transform;
 pub mod transform_math;
 
@@ -66,6 +64,5 @@ pub mod shared_memory {
 
 pub use ecs::*;
 pub use events::*;
-pub use gameloop::*;
 pub use transform::*;
 pub use transform_math::*;
