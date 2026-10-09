@@ -99,10 +99,15 @@ export const DebugSystem = defineSystem(() => {
 
 | Field | Type | Description |
 |---|---|---|
-| `fps` | `number` | Frames per second |
-| `frameCount` | `number` | Total frames since start |
-| `deltaTime` | `number` | Last frame delta in seconds |
-| `overBudget` | `boolean` | Present only when `__GWEN_DEV__` and `debug` are both true. `true` if that frame exceeded the FPS budget |
+| `fps` | `number` | Smoothed frames per second from the raw frame duration |
+| `rawFrameTime` | `number` | Uncapped, unscaled frame duration in seconds |
+| `frameCount` | `number` | Completed frames. In fixed mode, one per simulation step |
+| `deltaTime` | `number` | Last step in seconds, after the cap and `timeScale` |
+| `entityCount` | `number` | Alive entities at the time of the call |
+| `budgetMs` | `number` | Frame budget in ms (`1000 / targetFPS`) |
+| `wasmMemoryBytes` | `number` | WASM linear memory in bytes. Omitted when the bridge has no memory |
+| `phaseMs` | `object` | Per-phase timings in ms. Present only when `__GWEN_DEV__` and `debug` are both true |
+| `overBudget` | `boolean` | Present only with `phaseMs`. `true` when `phaseMs.total` exceeds `budgetMs` |
 
 For external loop mode (`engine.loop: 'external'`), advance frames manually with `engine.advance(delta)`:
 

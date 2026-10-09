@@ -47,7 +47,7 @@ export interface Physics3DPrefabExtension {
   body?: Physics3DBodyOptions;
   /**
    * Optional per-entity collision callback.
-   * Called during `onUpdate` for every contact event involving this entity.
+   * Called during `engine:update` for every contact event involving this entity.
    */
   onCollision?: (entityA: EntityId, entityB: EntityId, contact: Physics3DCollisionContact) => void;
 }
@@ -61,7 +61,7 @@ export interface Physics3DPrefabExtension {
  */
 export interface Physics3DPluginHooks {
   /**
-   * Fired once per frame during `onUpdate` with all resolved collision contacts.
+   * Fired once per frame during `engine:update` with all resolved collision contacts.
    * The array is read-only and ephemeral — do not retain across frames.
    */
   "physics3d:collision": (contacts: ReadonlyArray<Physics3DCollisionContact>) => void;

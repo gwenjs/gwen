@@ -304,10 +304,15 @@ class GwenEngineImpl implements GwenEngine {
   /** Uncapped, unscaled wall-frame duration in seconds. @internal */
   private _rawFrameTime = 0;
   /**
-   * Per-phase timing for the most recently completed frame.
-   * Allocated only inside the dev+debug instrument gate. @internal
+   * Reused phase slot. Allocated once, inside the dev+debug instrument gate. @internal
    */
   private _lastPhaseMs?: EngineFramePhaseMs;
+  /** Add phase samples across the steps of one fixed-mode display frame. @internal */
+  private _sumPhases = false;
+  /** True after the first instrumented step of the current display frame. @internal */
+  private _displayTimed = false;
+  /** `performance.now()` at the start of that first step. @internal */
+  private _displayT0 = 0;
 
   // ─── Hooks ───────────────────────────────────────────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
@@ -560,21 +565,28 @@ class GwenEngineImpl implements GwenEngine {
           accumulator += Math.min(rawSeconds, this.maxDeltaSeconds);
 
           let steps = 0;
-          while (
-            accumulator >= fixedDt &&
-            steps < this.maxCatchupSteps &&
-            this._state === "running"
-          ) {
-            const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
-            this._deltaTime = scaledDt;
-            try {
-              await this._runFrame(scaledDt);
-            } catch (err) {
-              this._handleFrameLoopError(err);
+          this._sumPhases = true;
+          this._displayTimed = false;
+          try {
+            while (
+              accumulator >= fixedDt &&
+              steps < this.maxCatchupSteps &&
+              this._state === "running"
+            ) {
+              const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
+              this._deltaTime = scaledDt;
+              try {
+                await this._runFrame(scaledDt);
+              } catch (err) {
+                this._handleFrameLoopError(err);
+              }
+              if (this._state !== "running") break;
+              accumulator -= fixedDt;
+              steps++;
             }
-            if (this._state !== "running") break;
-            accumulator -= fixedDt;
-            steps++;
+          } finally {
+            this._sumPhases = false;
+            this._displayTimed = false;
           }
         } finally {
           if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
@@ -1073,18 +1085,50 @@ class GwenEngineImpl implements GwenEngine {
   }
   getStats(): EngineStats {
     const budgetMs = 1000 / this.targetFPS;
+    const wasmMemoryBytes = this._wasmByteLength();
     const stats: EngineStats = {
       fps: this._fps,
+      rawFrameTime: this._rawFrameTime,
       deltaTime: this._deltaTime,
       frameCount: this._frameCountOwn,
+      entityCount: this._entityManager.count(),
       budgetMs,
     };
+    if (wasmMemoryBytes !== undefined) stats.wasmMemoryBytes = wasmMemoryBytes;
+    const showPhases = __GWEN_DEV__ && this.debug;
     const phaseMs = this._lastPhaseMs;
-    if (phaseMs) {
+    if (showPhases && phaseMs !== undefined) {
       stats.phaseMs = { ...phaseMs };
       stats.overBudget = phaseMs.total > budgetMs;
     }
     return stats;
+  }
+
+  /** Linear-memory size, read only when stats are requested. Omitted when absent. */
+  private _wasmByteLength(): number | undefined {
+    const readMemory = this._bridge.getLinearMemory;
+    if (typeof readMemory !== "function") return undefined;
+    const memory = readMemory.call(this._bridge);
+    if (memory === null) return undefined;
+    return memory.buffer.byteLength;
+  }
+
+  /** One phase object for the life of the engine. Created on the first timed frame. */
+  private _phaseSlot(): EngineFramePhaseMs {
+    const existing = this._lastPhaseMs;
+    if (existing !== undefined) return existing;
+    const slot: EngineFramePhaseMs = {
+      tick: 0,
+      plugins: 0,
+      physics: 0,
+      wasm: 0,
+      update: 0,
+      render: 0,
+      afterTick: 0,
+      total: 0,
+    };
+    this._lastPhaseMs = slot;
+    return slot;
   }
 
   // ─── Shared memory transform pointer accessor ────────────────────────────
@@ -1721,38 +1765,93 @@ class GwenEngineImpl implements GwenEngine {
       if (instrument) t8 = performance.now();
 
       if (instrument) {
-        const phaseMs: EngineFramePhaseMs = {
-          tick: t2 - t1,
-          plugins: t3 - t2,
-          physics: t4 - t3,
-          wasm: t5 - t4,
-          update: t6 - t5,
-          render: t7 - t6,
-          afterTick: t8 - t7,
-          total: t8 - t0,
-        };
-        this._lastPhaseMs = phaseMs;
-
-        const budget = 1000 / this.targetFPS;
-        const phaseNames = [
-          "tick",
-          "plugins",
-          "physics",
-          "wasm",
-          "update",
-          "render",
-          "afterTick",
-        ] as const;
-        for (const phase of phaseNames) {
-          const ms = phaseMs[phase];
-          if (ms > budget * 0.5) {
-            this.logger.warn(`phase "${phase}" exceeded 50% of frame budget`, {
-              phase,
-              ms: ms.toFixed(2),
-              budgetMs: budget.toFixed(2),
-              frame: this._frameCountOwn,
-            });
+        const tick = t2 - t1;
+        const plugins = t3 - t2;
+        const physics = t4 - t3;
+        const wasm = t5 - t4;
+        const update = t6 - t5;
+        const render = t7 - t6;
+        const afterTick = t8 - t7;
+        const slot = this._phaseSlot();
+        if (this._sumPhases && this._displayTimed) {
+          slot.tick += tick;
+          slot.plugins += plugins;
+          slot.physics += physics;
+          slot.wasm += wasm;
+          slot.update += update;
+          slot.render += render;
+          slot.afterTick += afterTick;
+          slot.total = t8 - this._displayT0;
+        } else {
+          slot.tick = tick;
+          slot.plugins = plugins;
+          slot.physics = physics;
+          slot.wasm = wasm;
+          slot.update = update;
+          slot.render = render;
+          slot.afterTick = afterTick;
+          slot.total = t8 - t0;
+          if (this._sumPhases) {
+            this._displayTimed = true;
+            this._displayT0 = t0;
           }
+        }
+        const budget = 1000 / this.targetFPS;
+        if (tick > budget * 0.5) {
+          this.logger.warn(`phase "tick" exceeded 50% of frame budget`, {
+            phase: "tick",
+            ms: tick.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (plugins > budget * 0.5) {
+          this.logger.warn(`phase "plugins" exceeded 50% of frame budget`, {
+            phase: "plugins",
+            ms: plugins.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (physics > budget * 0.5) {
+          this.logger.warn(`phase "physics" exceeded 50% of frame budget`, {
+            phase: "physics",
+            ms: physics.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (wasm > budget * 0.5) {
+          this.logger.warn(`phase "wasm" exceeded 50% of frame budget`, {
+            phase: "wasm",
+            ms: wasm.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (update > budget * 0.5) {
+          this.logger.warn(`phase "update" exceeded 50% of frame budget`, {
+            phase: "update",
+            ms: update.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (render > budget * 0.5) {
+          this.logger.warn(`phase "render" exceeded 50% of frame budget`, {
+            phase: "render",
+            ms: render.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
+        }
+        if (afterTick > budget * 0.5) {
+          this.logger.warn(`phase "afterTick" exceeded 50% of frame budget`, {
+            phase: "afterTick",
+            ms: afterTick.toFixed(2),
+            budgetMs: budget.toFixed(2),
+            frame: this._frameCountOwn,
+          });
         }
       }
     } finally {

@@ -141,4 +141,73 @@ describe("P0 frame defects", () => {
       await engine.stop();
     }
   });
+
+  it("getStats reports live entities and the raw frame time", async () => {
+    const engine = await createEngine();
+    engine.createEntity();
+    engine.createEntity();
+    const before = engine.getStats();
+    expect(before.entityCount).toBe(2);
+    expect(before.rawFrameTime).toBe(0);
+    expect("wasmMemoryBytes" in before).toBe(false);
+
+    await engine.startExternal();
+    try {
+      await engine.advance(1 / 60);
+      const after = engine.getStats();
+      expect(after.entityCount).toBe(2);
+      expect(after.rawFrameTime).toBeCloseTo(1 / 60, 5);
+      expect(after.fps).toBeCloseTo(60, 5);
+      expect("phaseMs" in after).toBe(false);
+      expect("overBudget" in after).toBe(false);
+    } finally {
+      await engine.stop();
+    }
+  });
+
+  it.runIf(__GWEN_DEV__)("fixed mode sums phaseMs over the display frame steps", async () => {
+    const queued: Array<() => unknown> = [];
+    const originalSetTimeout = globalThis.setTimeout.bind(globalThis);
+    const originalClearTimeout = globalThis.clearTimeout.bind(globalThis);
+    let clock = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => clock);
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((handler, timeout, ...args) => {
+      if (typeof handler !== "function") {
+        return originalSetTimeout(handler, timeout, ...args);
+      }
+      queued.push(() => handler(...args));
+      const parked = originalSetTimeout(() => undefined, 86_400_000);
+      originalClearTimeout(parked);
+      return parked;
+    });
+    vi.spyOn(globalThis, "clearTimeout").mockImplementation(() => undefined);
+
+    const engine = await createEngine({
+      physicsHz: 60,
+      maxCatchupSteps: 10,
+      debug: true,
+      // start() refuses an inactive bridge, so the stub reports itself active.
+      _bridge: { engine: () => ({}), checkMemoryGrow: () => false, isActive: () => true } as never,
+    });
+    engine.hooks.hook("engine:before-update", () => {
+      clock += 5;
+    });
+
+    try {
+      await engine.start();
+      const runFrame = queued.shift();
+      if (runFrame === undefined) throw new Error("start() did not queue a frame");
+      clock = 2000 / 60;
+      const result: unknown = runFrame();
+      if (result instanceof Promise) await result;
+      const phaseMs = engine.getStats().phaseMs;
+      if (phaseMs === undefined) throw new Error("expected phaseMs");
+      expect(phaseMs.plugins).toBe(10);
+      expect(engine.frameCount).toBe(2);
+      expect(phaseMs.total).toBeGreaterThanOrEqual(10);
+    } finally {
+      vi.restoreAllMocks();
+      await engine.stop();
+    }
+  });
 });

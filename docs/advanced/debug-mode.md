@@ -98,25 +98,30 @@ Access per-frame performance data via `engine.getStats()`:
 ```typescript
 const stats = engine.getStats()
 
-console.log(stats.fps)           // current FPS
-console.log(stats.deltaTime)     // last frame delta in ms
-console.log(stats.frameCount)    // total frames since start
-console.log(stats.budgetMs)      // frame budget (1000 / targetFPS)
-console.log(stats.overBudget)    // set only when __GWEN_DEV__ && debug
+console.log(stats.fps)              // smoothed FPS from the raw frame
+console.log(stats.rawFrameTime)     // uncapped, unscaled frame duration in seconds
+console.log(stats.deltaTime)        // last step in seconds, after the cap and timeScale
+console.log(stats.frameCount)       // completed frames
+console.log(stats.entityCount)      // alive entities at this call
+console.log(stats.budgetMs)         // frame budget (1000 / targetFPS)
+console.log(stats.wasmMemoryBytes)  // linear memory bytes, or undefined
+console.log(stats.overBudget)       // set only when __GWEN_DEV__ && debug
 
-// Per-phase breakdown (all in ms). Absent in production builds.
+// Per-phase breakdown (all in ms). Present only when __GWEN_DEV__ and debug are both true.
 const p = stats.phaseMs
 if (p) {
-  console.log(p.tick)       // engine:tick hook
-  console.log(p.plugins)    // onBeforeUpdate() calls
-  console.log(p.physics)    // physics2d/3d step
-  console.log(p.wasm)       // WASM module steps
-  console.log(p.update)     // onUpdate() calls
-  console.log(p.render)     // onAfterUpdate() + onRender() calls
-  console.log(p.afterTick)  // engine:afterTick hook
-  console.log(p.total)      // full frame wall-clock time
+  console.log(p.tick)       // engine:tick
+  console.log(p.plugins)    // engine:before-update, including the physics step and kinematic sync
+  console.log(p.physics)    // built-in bridge stub only (about 0)
+  console.log(p.wasm)       // community WASM module steps
+  console.log(p.update)     // update_transforms and engine:update
+  console.log(p.render)     // engine:after-update and engine:render
+  console.log(p.afterTick)  // engine:afterTick
+  console.log(p.total)      // whole _runFrame
 }
 ```
+
+With `physicsHz > 0`, one display frame can run several simulation steps. `getStats()` adds those steps into each `phaseMs` field. `total` covers those steps. `frameCount` counts the steps. `engine:render` still runs once per step, so `phaseMs.render` is the sum of those passes.
 
 > **Note:** Use `engine.getStats()` — not `engine.stats`. It is a method call.
 
