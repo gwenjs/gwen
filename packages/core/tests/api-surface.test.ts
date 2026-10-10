@@ -80,6 +80,8 @@ describe("API surface (RFC-V2-013)", () => {
     expect("PluginDataBus" in core).toBe(false);
     expect("isWasmPlugin" in core).toBe(false);
     expect("ConfigBuilder" in core).toBe(false);
+    expect("PluginRegistry" in core).toBe(false);
+    expect("ScopedHooksTracker" in core).toBe(false);
   });
 
   it("drops GwenEngine.wasmBridge and EngineFramePhaseMs.physics", () => {

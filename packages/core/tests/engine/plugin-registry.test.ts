@@ -3,7 +3,7 @@
  * Setup, teardown, and hooks run on the objects this file builds.
  */
 
-import { createHooks, type Hookable } from "hookable";
+import { createHooks } from "hookable";
 import { afterEach, describe, expect, it } from "vitest";
 import type { IGwenLogger } from "@gwenjs/schema";
 import type { GwenPlugin } from "../../src/engine/engine-types";
