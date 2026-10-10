@@ -8,6 +8,7 @@
  *   plugin-registry.ts                          — PluginRegistry
  *   service-container.ts                        — ServiceContainer
  *   engine-entities.ts                          — EngineEntities
+ *   engine-stats.ts                             — EngineStatsRecorder
  *   wasm-module-runner.ts                       — WasmModuleRunner
  *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
@@ -99,6 +100,7 @@ import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { EngineEntities } from "./engine-entities.js";
+import { EngineStatsRecorder } from "./engine-stats.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -201,7 +203,6 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _pluginRegistry: PluginRegistry;
   private readonly _serviceContainer: ServiceContainer;
   private _advancing = false;
-  private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
   /**
    * The one teardown claim allowed by the #107 amendment. Set when the first `stop()`
@@ -338,17 +339,7 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   // ─── Frame stats ─────────────────────────────────────────────────────────
-  /**
-   * Frame counter driven exclusively by `_runFrame` calls.
-   * @internal
-   */
-  private _frameCountOwn = 0;
-  /** Smoothed FPS. First positive raw sample is exact; later samples use a 0.5s EMA. @internal */
-  private _fps = 0;
-  /** True after the first positive raw frame sample. @internal */
-  private _hasFpsSample = false;
-  /** Uncapped, unscaled wall-frame duration in seconds. @internal */
-  private _rawFrameTime = 0;
+  private readonly _stats: EngineStatsRecorder;
   /**
    * Reused phase slot. Allocated once, inside the dev+debug instrument gate. @internal
    */
@@ -380,7 +371,18 @@ class GwenEngineImpl implements GwenEngine {
     this.debug = opts.debug ?? false;
     this.physicsHz = opts.physicsHz ?? 0;
     this.maxCatchupSteps = opts.maxCatchupSteps ?? 2;
-    this.logger = createLogger("gwen:core", this.debug, () => this._frameCountOwn);
+    this._stats = new EngineStatsRecorder({
+      targetFPS: this.targetFPS,
+      debug: this.debug,
+      entityCount: () => this._entities.count(),
+      linearMemory: () => {
+        const readMemory = this._bridge.getLinearMemory;
+        if (typeof readMemory !== "function") return null;
+        return readMemory.call(this._bridge);
+      },
+      phaseMs: () => this._lastPhaseMs,
+    });
+    this.logger = createLogger("gwen:core", this.debug, () => this._stats.frameCount);
     this.provide("logger", this.logger);
     this._entities = new EngineEntities({
       maxEntities: this.maxEntities,
@@ -401,7 +403,7 @@ class GwenEngineImpl implements GwenEngine {
       logger: this.logger,
       debug: this.debug,
       remember: (proxy) => this._rememberInternals(proxy),
-      frame: () => this._frameCountOwn,
+      frame: () => this._stats.frameCount,
       reportSetup: (plugin, error) => this._reportSetupError(plugin, error),
       reportTeardown: (plugin, error) => this._reportTeardown(plugin, error),
       dropIsolation: (name) => this._dropPluginIsolation(name),
@@ -419,7 +421,7 @@ class GwenEngineImpl implements GwenEngine {
       assertState: (method) => this._assertNotFaulted(method),
       isFaulted: () => this._state === "faulted",
       isIsolated: (id) => isIsolated(this, id),
-      frame: () => this._frameCountOwn,
+      frame: () => this._stats.frameCount,
       reportCaught: (err, hook, forced) => this._reportCaught(err, hook, forced),
       publish: (event) => this._publish(event),
     });
@@ -573,7 +575,7 @@ class GwenEngineImpl implements GwenEngine {
         try {
           const rawSeconds = (now - this._lastFrameTime) / 1000;
           this._lastFrameTime = now;
-          this._recordRawFrameTime(rawSeconds);
+          this._stats.recordRawFrameTime(rawSeconds);
           accumulator += Math.min(rawSeconds, this.maxDeltaSeconds);
 
           let steps = 0;
@@ -586,7 +588,7 @@ class GwenEngineImpl implements GwenEngine {
               this._state === "running"
             ) {
               const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
-              this._deltaTime = scaledDt;
+              this._stats.setDeltaTime(scaledDt);
               try {
                 await this._runFrame(scaledDt);
               } catch (err) {
@@ -619,10 +621,10 @@ class GwenEngineImpl implements GwenEngine {
         }
 
         const rawSeconds = (now - this._lastFrameTime) / 1000;
-        this._recordRawFrameTime(rawSeconds);
+        this._stats.recordRawFrameTime(rawSeconds);
         const dt = Math.min(rawSeconds, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
         this._lastFrameTime = now;
-        this._deltaTime = dt;
+        this._stats.setDeltaTime(dt);
         try {
           await this._runFrame(dt);
         } catch (err) {
@@ -692,7 +694,7 @@ class GwenEngineImpl implements GwenEngine {
         message,
         source: "@gwenjs/core",
         error: err,
-        context: { frame: this._frameCountOwn, hook },
+        context: { frame: this._stats.frameCount, hook },
       });
       throw err;
     }
@@ -731,10 +733,10 @@ class GwenEngineImpl implements GwenEngine {
       );
     }
     this._advancing = true;
-    this._recordRawFrameTime(dt);
+    this._stats.recordRawFrameTime(dt);
     // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
     const cappedDt = Math.min(dt, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
-    this._deltaTime = cappedDt;
+    this._stats.setDeltaTime(cappedDt);
     try {
       await this._runFrame(cappedDt);
     } catch (err) {
@@ -967,48 +969,22 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Stats ────────────────────────────────────────────────────────────────
 
   get deltaTime(): number {
-    return this._deltaTime;
+    return this._stats.deltaTime;
   }
   /** Uncapped, unscaled wall-frame duration in seconds. */
   get rawFrameTime(): number {
-    return this._rawFrameTime;
+    return this._stats.rawFrameTime;
   }
   /** Frame counter — increments by 1 for each completed `_runFrame` call. */
   get frameCount(): number {
-    return this._frameCountOwn;
+    return this._stats.frameCount;
   }
   /** Smoothed frames per second from the raw wall-frame duration, not the scaled simulation dt. */
   getFPS(): number {
-    return this._fps;
+    return this._stats.fps;
   }
   getStats(): EngineStats {
-    const budgetMs = 1000 / this.targetFPS;
-    const wasmMemoryBytes = this._wasmByteLength();
-    const stats: EngineStats = {
-      fps: this._fps,
-      rawFrameTime: this._rawFrameTime,
-      deltaTime: this._deltaTime,
-      frameCount: this._frameCountOwn,
-      entityCount: this._entities.count(),
-      budgetMs,
-    };
-    if (wasmMemoryBytes !== undefined) stats.wasmMemoryBytes = wasmMemoryBytes;
-    const showPhases = __GWEN_DEV__ && this.debug;
-    const phaseMs = this._lastPhaseMs;
-    if (showPhases && phaseMs !== undefined) {
-      stats.phaseMs = { ...phaseMs };
-      stats.overBudget = phaseMs.total > budgetMs;
-    }
-    return stats;
-  }
-
-  /** Linear-memory size, read only when stats are requested. Omitted when absent. */
-  private _wasmByteLength(): number | undefined {
-    const readMemory = this._bridge.getLinearMemory;
-    if (typeof readMemory !== "function") return undefined;
-    const memory = readMemory.call(this._bridge);
-    if (memory === null) return undefined;
-    return memory.buffer.byteLength;
+    return this._stats.snapshot();
   }
 
   /** One phase object for the life of the engine. Created on the first timed frame. */
@@ -1191,7 +1167,7 @@ class GwenEngineImpl implements GwenEngine {
   private _fireEngineErrorHook(event: BusErrorPayload): void {
     if (event.level !== "error" && event.level !== "fatal") return;
     const frame =
-      typeof event.context?.frame === "number" ? event.context.frame : this._frameCountOwn;
+      typeof event.context?.frame === "number" ? event.context.frame : this._stats.frameCount;
     const payload: EngineErrorPayload = {
       level: event.level,
       code: event.code,
@@ -1220,7 +1196,7 @@ class GwenEngineImpl implements GwenEngine {
         pluginName,
         phase,
         error,
-        frame: this._frameCountOwn,
+        frame: this._stats.frameCount,
         ...(hook !== undefined ? { hook } : {}),
       });
       this._catchAsync(result);
@@ -1251,7 +1227,7 @@ class GwenEngineImpl implements GwenEngine {
       plugin.onError(err, {
         phase,
         ...(hook !== undefined ? { hook } : {}),
-        frame: this._frameCountOwn,
+        frame: this._stats.frameCount,
         recover() {
           recovered = true;
         },
@@ -1280,7 +1256,7 @@ class GwenEngineImpl implements GwenEngine {
       source: plugin.name,
       error: err,
       target: { kind: "plugin", id: plugin.name, name: plugin.name },
-      context: { frame: this._frameCountOwn, phase: "setup", hook: "setup" },
+      context: { frame: this._stats.frameCount, phase: "setup", hook: "setup" },
     });
   }
 
@@ -1296,7 +1272,7 @@ class GwenEngineImpl implements GwenEngine {
       source: plugin.name,
       error: err,
       target,
-      context: { frame: this._frameCountOwn, phase: "teardown", hook: "teardown" },
+      context: { frame: this._stats.frameCount, phase: "teardown", hook: "teardown" },
     });
     if (!isTrap) this._firePluginError(plugin.name, "teardown", err, "teardown");
   }
@@ -1325,7 +1301,7 @@ class GwenEngineImpl implements GwenEngine {
     const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
     const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
     const target = forced?.target;
-    const frame = this._frameCountOwn;
+    const frame = this._stats.frameCount;
 
     if (forced?.target?.kind === "wasm-module") {
       this._publish({
@@ -1425,19 +1401,6 @@ class GwenEngineImpl implements GwenEngine {
     return this._settleHook(hook, result);
   }
 
-  private _recordRawFrameTime(rawSeconds: number): void {
-    this._rawFrameTime = rawSeconds;
-    if (!(rawSeconds > 0)) return;
-    const sample = 1 / rawSeconds;
-    if (!this._hasFpsSample) {
-      this._fps = sample;
-      this._hasFpsSample = true;
-      return;
-    }
-    const alpha = 1 - Math.exp(-rawSeconds / 0.5);
-    this._fps = alpha * sample + (1 - alpha) * this._fps;
-  }
-
   /**
    * One identity check before a frame phase.
    * Returns a promise only when memory grew, so a quiet frame stays synchronous.
@@ -1447,7 +1410,7 @@ class GwenEngineImpl implements GwenEngine {
     if (!this._bridge.checkMemoryGrow()) return;
     const memory = this._bridge.getLinearMemory();
     const byteLength = memory === null ? 0 : memory.buffer.byteLength;
-    const frame = this._frameCountOwn;
+    const frame = this._stats.frameCount;
     this._memory.noteGrowth(frame);
     let pending: Promise<unknown> | void;
     try {
@@ -1588,7 +1551,7 @@ class GwenEngineImpl implements GwenEngine {
         if (memoryGrow !== undefined) await memoryGrow;
       }
       if (this._frameFaulted()) return;
-      this._frameCountOwn++;
+      this._stats.frameCompleted();
       const afterTickDone = this._guardHook1("engine:afterTick", dt);
       if (isThenable(afterTickDone)) await afterTickDone;
       if (instrument) t8 = performance.now();
@@ -1628,7 +1591,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "tick",
             ms: tick.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
         if (plugins > budget * 0.5) {
@@ -1636,7 +1599,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "plugins",
             ms: plugins.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
         if (wasm > budget * 0.5) {
@@ -1644,7 +1607,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "wasm",
             ms: wasm.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
         if (update > budget * 0.5) {
@@ -1652,7 +1615,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "update",
             ms: update.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
         if (render > budget * 0.5) {
@@ -1660,7 +1623,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "render",
             ms: render.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
         if (afterTick > budget * 0.5) {
@@ -1668,7 +1631,7 @@ class GwenEngineImpl implements GwenEngine {
             phase: "afterTick",
             ms: afterTick.toFixed(2),
             budgetMs: budget.toFixed(2),
-            frame: this._frameCountOwn,
+            frame: this._stats.frameCount,
           });
         }
       }
