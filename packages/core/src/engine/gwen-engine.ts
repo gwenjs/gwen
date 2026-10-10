@@ -9,6 +9,7 @@
  *   service-container.ts                        — ServiceContainer
  *   engine-entities.ts                          — EngineEntities
  *   engine-stats.ts                             — EngineStatsRecorder
+ *   engine-state.ts                             — EngineStateMachine
  *   wasm-module-runner.ts                       — WasmModuleRunner
  *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
@@ -101,6 +102,7 @@ import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { EngineEntities } from "./engine-entities.js";
 import { EngineStatsRecorder } from "./engine-stats.js";
+import { EngineStateMachine } from "./engine-state.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -203,7 +205,7 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _pluginRegistry: PluginRegistry;
   private readonly _serviceContainer: ServiceContainer;
   private _advancing = false;
-  private _state: GwenEngineState = "idle";
+  private readonly _stateMachine: EngineStateMachine;
   /**
    * The one teardown claim allowed by the #107 amendment. Set when the first `stop()`
    * starts teardown. While it is set, every `stop()` returns at once. Only `stop()`
@@ -242,7 +244,7 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   get state(): GwenEngineState {
-    return this._state;
+    return this._stateMachine.state;
   }
 
   /** Drops a scheduled rAF or timeout. A zero handle means nothing is queued. */
@@ -252,65 +254,28 @@ class GwenEngineImpl implements GwenEngine {
     this._rafHandle = 0;
   }
 
-  /**
-   * The only writer of `_state`.
-   * Sets the state before the hook runs. A throwing handler is logged.
-   * It does not undo the transition or escape to the caller.
-   * Returns a promise only when the hook itself returns one.
-   */
   private _transition(
     to: GwenEngineState,
     reason: GwenEngineStateChangeReason,
   ): Promise<void> | void {
-    const from = this._state;
-    if (from === to) return;
-    this._state = to;
-    let result: unknown;
-    try {
-      result = this.hooks.callHook("engine:state-change", { from, to, reason });
-    } catch (error: unknown) {
-      this._logHandlerFailed(error);
-      return;
-    }
-    if (!isThenable(result)) return;
-    return Promise.resolve(result).then(
-      () => undefined,
-      (error: unknown) => {
-        this._logHandlerFailed(error);
-      },
-    );
+    return this._stateMachine.transition(to, reason);
   }
 
-  /** Plain read so a frame check does not narrow `_state` for the rest of the method. */
+  /** Plain read so a frame check does not narrow `state` for the rest of the method. */
   private _frameFaulted(): boolean {
-    return this._state === "faulted";
+    return this._stateMachine.isFaulted();
   }
 
   private _enterFaulted(reason: GwenEngineStateChangeReason): void {
-    if (this._state === "faulted" || this._state === "stopped") return;
-    this._cancelScheduledFrame();
-    const pending = this._transition("faulted", reason);
-    if (pending !== undefined) this._catchAsync(pending);
+    this._stateMachine.enterFaulted(reason);
   }
 
   private _assertNotFaulted(method: string): void {
-    if (this._state !== "faulted") return;
-    throw new GwenError(
-      CoreErrorCodes.INVALID_STATE_TRANSITION,
-      `[GwenEngine] ${method}() is not allowed while the engine is faulted.`,
-    );
+    this._stateMachine.assert(method);
   }
 
-  /**
-   * `use` / `unuse` are legal in `idle` and `running` only. `stopped` is terminal (#107):
-   * a plugin installed after `stop()` would never be torn down.
-   */
   private _assertPluginCall(method: "use" | "unuse"): void {
-    const state = this._state;
-    if (state === "idle" || state === "running") {
-      return;
-    }
-    throw new GwenEngineStateError(state, method);
+    this._stateMachine.assertPlugin(method);
   }
 
   private readonly _wasmRunner: WasmModuleRunner;
@@ -359,11 +324,7 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _entities: EngineEntities;
 
   constructor(opts: GwenEngineOptions) {
-    this._serviceContainer = new ServiceContainer({
-      assertState: (method) => this._assertNotFaulted(method),
-    });
     this._bridge = opts._bridge ?? new WasmBridgeImpl();
-    this.provide("wasm:bridge", this._bridge);
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
     this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
@@ -383,6 +344,16 @@ class GwenEngineImpl implements GwenEngine {
       phaseMs: () => this._lastPhaseMs,
     });
     this.logger = createLogger("gwen:core", this.debug, () => this._stats.frameCount);
+    // `provide` calls `assert` immediately. The machine exists before the first one.
+    this._stateMachine = new EngineStateMachine({
+      hooks: this.hooks,
+      logger: this.logger,
+      cancelFrame: () => this._cancelScheduledFrame(),
+    });
+    this._serviceContainer = new ServiceContainer({
+      assertState: (method) => this._assertNotFaulted(method),
+    });
+    this.provide("wasm:bridge", this._bridge);
     this.provide("logger", this.logger);
     this._entities = new EngineEntities({
       maxEntities: this.maxEntities,
@@ -419,7 +390,7 @@ class GwenEngineImpl implements GwenEngine {
       disposables: this.disposables,
       memory: this._memory,
       assertState: (method) => this._assertNotFaulted(method),
-      isFaulted: () => this._state === "faulted",
+      isFaulted: () => this._stateMachine.isFaulted(),
       isIsolated: (id) => isIsolated(this, id),
       frame: () => this._stats.frameCount,
       reportCaught: (err, hook, forced) => this._reportCaught(err, hook, forced),
@@ -550,7 +521,7 @@ class GwenEngineImpl implements GwenEngine {
    * A later `start()` throws again until `bridge.init()` or `setupGwen()` has run.
    */
   async start(): Promise<void> {
-    const state = this._state;
+    const state = this._stateMachine.state;
     if (state !== "idle") throw new GwenEngineStateError(state, "start");
     if (!this._bridge.isActive()) {
       throw new GwenError(
@@ -562,7 +533,7 @@ class GwenEngineImpl implements GwenEngine {
     this._attachErrorPolicy();
     this._lastFrameTime = performance.now();
     await this._beginStart();
-    if (this._state !== "running") return;
+    if (this._stateMachine.state !== "running") return;
 
     if (this.physicsHz) {
       // Fixed timestep loop — accumulator pattern
@@ -570,7 +541,7 @@ class GwenEngineImpl implements GwenEngine {
       let accumulator = 0;
 
       const loop = async (now: number) => {
-        if (this._state !== "running") return;
+        if (this._stateMachine.state !== "running") return;
 
         try {
           const rawSeconds = (now - this._lastFrameTime) / 1000;
@@ -585,7 +556,7 @@ class GwenEngineImpl implements GwenEngine {
             while (
               accumulator >= fixedDt &&
               steps < this.maxCatchupSteps &&
-              this._state === "running"
+              this._stateMachine.state === "running"
             ) {
               const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
               this._stats.setDeltaTime(scaledDt);
@@ -594,7 +565,7 @@ class GwenEngineImpl implements GwenEngine {
               } catch (err) {
                 this._handleFrameLoopError(err);
               }
-              if (this._state !== "running") break;
+              if (this._stateMachine.state !== "running") break;
               accumulator -= fixedDt;
               steps++;
             }
@@ -603,20 +574,20 @@ class GwenEngineImpl implements GwenEngine {
             this._displayTimed = false;
           }
         } finally {
-          if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
         }
       };
       this._rafHandle = this._scheduleFrame(loop);
     } else {
       // Variable dt loop — original behaviour
       const loop = async (now: number) => {
-        if (this._state !== "running") return;
+        if (this._stateMachine.state !== "running") return;
 
         // Throttle to targetFPS: skip frame if minimum interval hasn't elapsed.
         // Use a 0.5ms tolerance to account for RAF timing jitter.
         const frameBudgetMs = 1000 / this.targetFPS;
         if (now - this._lastFrameTime < frameBudgetMs - 0.5) {
-          if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
           return;
         }
 
@@ -630,7 +601,7 @@ class GwenEngineImpl implements GwenEngine {
         } catch (err) {
           this._handleFrameLoopError(err);
         } finally {
-          if (this._state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
         }
       };
       this._rafHandle = this._scheduleFrame(loop);
@@ -645,14 +616,14 @@ class GwenEngineImpl implements GwenEngine {
    */
   async stop(): Promise<void> {
     if (this._teardownOnce !== null) return;
-    const from = this._state;
+    const from = this._stateMachine.state;
     if (from === "stopped" || from === "stopping") return;
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
     // Claim before the first hook runs: a stop() from inside teardown must see it.
     this._teardownOnce = true;
     if (from !== "faulted") await this._transition("stopping", "USER");
     await this._teardown();
-    if (this._state === "stopping") await this._transition("stopped", "USER");
+    if (this._stateMachine.state === "stopping") await this._transition("stopped", "USER");
   }
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
@@ -682,7 +653,7 @@ class GwenEngineImpl implements GwenEngine {
     let hook: "engine:init" | "engine:start" = "engine:init";
     try {
       await this.hooks.callHook("engine:init");
-      if (this._state !== "starting") return;
+      if (this._stateMachine.state !== "starting") return;
       hook = "engine:start";
       await this.hooks.callHook("engine:start");
     } catch (err) {
@@ -698,7 +669,7 @@ class GwenEngineImpl implements GwenEngine {
       });
       throw err;
     }
-    if (this._state !== "starting") return;
+    if (this._stateMachine.state !== "starting") return;
     await this._transition("running", "USER");
   }
 
@@ -715,7 +686,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   async startExternal(): Promise<void> {
-    const state = this._state;
+    const state = this._stateMachine.state;
     if (state !== "idle") throw new GwenEngineStateError(state, "startExternal");
     this._attachErrorPolicy();
     await this._beginStart();
@@ -723,8 +694,8 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   async advance(dt: number): Promise<void> {
-    if (this._state !== "idle" && this._state !== "running") {
-      throw new GwenEngineStateError(this._state, "advance");
+    if (this._stateMachine.state !== "idle" && this._stateMachine.state !== "running") {
+      throw new GwenEngineStateError(this._stateMachine.state, "advance");
     }
     if (this._advancing) {
       throw new GwenError(
