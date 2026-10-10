@@ -1,13 +1,19 @@
+import { createHooks } from "hookable";
 import { describe, expect, it } from "vitest";
 
 import { createDisposable } from "../../src/disposable";
+import { EngineStateMachine } from "../../src/engine/engine-state";
+import type { EngineStateChangePayload, GwenEngineState } from "../../src/engine/engine-types";
+import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks";
 import {
   CoreErrorCodes,
   GwenEngineStateError,
   createEngine,
   type GwenEngine,
 } from "../../src/index";
+import { GwenLogger as CoreGwenLogger } from "../../src/logger/gwen-logger";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
+import { GwenError } from "@gwenjs/schema";
 import type { GwenLogger, IGwenLogger } from "@gwenjs/schema";
 
 type Change = { from: string; to: string; reason: string };
@@ -753,5 +759,271 @@ describe("engine state machine", () => {
     } finally {
       await shutdown(engine);
     }
+  });
+});
+
+const HANDLER_FAILED = `[${CoreErrorCodes.ERROR_HANDLER_FAILED}]`;
+
+function machinePair() {
+  const hooks = createHooks<GwenRuntimeHooks>();
+  const entries: { message: string; payload?: Record<string, unknown> }[] = [];
+  const logger = new CoreGwenLogger(
+    [
+      {
+        handle: (entry) => {
+          entries.push(
+            entry.payload === undefined
+              ? { message: entry.message }
+              : { message: entry.message, payload: entry.payload },
+          );
+        },
+      },
+    ],
+    "error",
+  );
+  let cancelCount = 0;
+  const machine = new EngineStateMachine({
+    hooks,
+    logger,
+    cancelFrame: () => {
+      cancelCount += 1;
+    },
+  });
+  return {
+    hooks,
+    entries,
+    machine,
+    cancels: () => cancelCount,
+  };
+}
+
+function seenPayloads(hooks: ReturnType<typeof machinePair>["hooks"]): EngineStateChangePayload[] {
+  const seen: EngineStateChangePayload[] = [];
+  hooks.hook("engine:state-change", (payload) => {
+    seen.push({ from: payload.from, to: payload.to, reason: payload.reason });
+  });
+  return seen;
+}
+
+async function flushMicrotasks(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+  await Promise.resolve();
+}
+
+describe("EngineStateMachine", () => {
+  it("constructs without createEngine and a transition emits the payload while a second machine stays idle", () => {
+    const first = machinePair();
+    const second = machinePair();
+    const seen = seenPayloads(first.hooks);
+
+    expect(first.machine.state).toBe("idle");
+    expect(second.machine.state).toBe("idle");
+
+    const pending = first.machine.transition("starting", "USER");
+
+    expect(pending).toBeUndefined();
+    expect(first.machine.state).toBe("starting");
+    expect(seen).toEqual([{ from: "idle", to: "starting", reason: "USER" }]);
+    expect(second.machine.state).toBe("idle");
+    expect(second.entries).toEqual([]);
+
+    const other = second.machine.transition("running", "USER");
+    expect(other).toBeUndefined();
+    expect(second.machine.state).toBe("running");
+    expect(first.machine.state).toBe("starting");
+  });
+
+  it("constructs without createEngine and state is written before the hook runs", () => {
+    const { hooks, machine } = machinePair();
+    const other = machinePair();
+    let during: GwenEngineState | undefined;
+    hooks.hook("engine:state-change", (payload) => {
+      during = machine.state;
+      expect(machine.state).toBe(payload.to);
+    });
+
+    machine.transition("starting", "USER");
+
+    expect(during).toBe("starting");
+    expect(other.machine.state).toBe("idle");
+  });
+
+  it("constructs without createEngine and a second transition to the same state does not emit", () => {
+    const { hooks, machine } = machinePair();
+    const seen = seenPayloads(hooks);
+    machine.transition("starting", "USER");
+    seen.length = 0;
+
+    const pending = machine.transition("starting", "FATAL_ERROR");
+
+    expect(pending).toBeUndefined();
+    expect(machine.state).toBe("starting");
+    expect(seen).toEqual([]);
+  });
+
+  it("constructs without createEngine and a throwing state-change handler keeps the new state and logs once", async () => {
+    const first = machinePair();
+    const second = machinePair();
+    first.hooks.hook("engine:state-change", () => {
+      throw new Error("boom");
+    });
+    second.hooks.hook("engine:state-change", () => {
+      throw "plain";
+    });
+
+    const pending = first.machine.transition("stopping", "USER");
+    expect(first.machine.state).toBe("stopping");
+    await pending;
+    expect(first.machine.state).toBe("stopping");
+    expect(first.entries).toEqual([
+      { message: `${HANDLER_FAILED} boom`, payload: { code: CoreErrorCodes.ERROR_HANDLER_FAILED } },
+    ]);
+
+    const other = second.machine.transition("running", "USER");
+    expect(second.machine.state).toBe("running");
+    await other;
+    expect(second.entries).toEqual([
+      {
+        message: `${HANDLER_FAILED} plain`,
+        payload: { code: CoreErrorCodes.ERROR_HANDLER_FAILED },
+      },
+    ]);
+    expect(first.machine.state).toBe("stopping");
+  });
+
+  it("constructs without createEngine and a rejected state-change hook resolves after the state is set", async () => {
+    const { hooks, entries, machine } = machinePair();
+    hooks.hook("engine:state-change", () => Promise.reject(new Error("later")));
+
+    const pending = machine.transition("running", "USER");
+
+    expect(machine.state).toBe("running");
+    expect(entries).toEqual([]);
+    if (pending === undefined) throw new Error("expected a promise");
+    await expect(pending).resolves.toBeUndefined();
+    expect(machine.state).toBe("running");
+    expect(entries).toEqual([
+      {
+        message: `${HANDLER_FAILED} later`,
+        payload: { code: CoreErrorCodes.ERROR_HANDLER_FAILED },
+      },
+    ]);
+  });
+
+  it("constructs without createEngine and assert throws GwenError only while faulted", () => {
+    const first = machinePair();
+    const second = machinePair();
+
+    first.machine.assert("createEntity");
+    expect(first.machine.state).toBe("idle");
+    second.machine.assert("run");
+    expect(second.machine.state).toBe("idle");
+
+    first.machine.transition("faulted", "WASM_PANIC");
+    let caught: unknown;
+    try {
+      first.machine.assert("createEntity");
+    } catch (error) {
+      caught = error;
+    }
+    if (!(caught instanceof GwenError)) throw caught ?? new Error("expected GwenError");
+    expect(caught instanceof GwenEngineStateError).toBe(false);
+    expect(caught.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
+    expect(caught.message).toBe(
+      "[GwenEngine] createEntity() is not allowed while the engine is faulted.",
+    );
+    expect(first.machine.state).toBe("faulted");
+
+    second.machine.assert("createEntity");
+    expect(second.machine.state).toBe("idle");
+  });
+
+  it("constructs without createEngine and use is legal only in idle and running", () => {
+    const legal = machinePair();
+    legal.machine.assertPlugin("use");
+    expect(legal.machine.state).toBe("idle");
+    legal.machine.transition("running", "USER");
+    legal.machine.assertPlugin("unuse");
+    expect(legal.machine.state).toBe("running");
+
+    const illegal: GwenEngineState[] = ["starting", "stopping", "stopped", "faulted"];
+    for (const from of illegal) {
+      const { machine } = machinePair();
+      machine.transition(from, "USER");
+      let caught: unknown;
+      try {
+        machine.assertPlugin("use");
+      } catch (error) {
+        caught = error;
+      }
+      if (!(caught instanceof GwenEngineStateError)) {
+        throw caught ?? new Error("expected state error");
+      }
+      expect(caught.from).toBe(from);
+      expect(caught.method).toBe("use");
+      expect(caught.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
+      expect(caught.message).toBe(`[GwenEngine] use() is not allowed while the engine is ${from}.`);
+      expect(machine.state).toBe(from);
+    }
+
+    legal.machine.assertPlugin("use");
+    expect(legal.machine.state).toBe("running");
+  });
+
+  it("constructs without createEngine and enterFaulted cancels once then stays faulted", async () => {
+    const running = machinePair();
+    const seen = seenPayloads(running.hooks);
+    expect(running.machine.isFaulted()).toBe(false);
+
+    running.machine.transition("running", "USER");
+    seen.length = 0;
+    running.machine.enterFaulted("WASM_PANIC");
+
+    expect(running.cancels()).toBe(1);
+    expect(running.machine.state).toBe("faulted");
+    expect(running.machine.isFaulted()).toBe(true);
+    expect(seen).toEqual([{ from: "running", to: "faulted", reason: "WASM_PANIC" }]);
+
+    running.machine.enterFaulted("FATAL_ERROR");
+    expect(running.cancels()).toBe(1);
+    expect(seen).toEqual([{ from: "running", to: "faulted", reason: "WASM_PANIC" }]);
+    expect(running.machine.state).toBe("faulted");
+
+    const stopped = machinePair();
+    stopped.machine.transition("stopped", "USER");
+    stopped.machine.enterFaulted("WASM_PANIC");
+    expect(stopped.cancels()).toBe(0);
+    expect(stopped.machine.state).toBe("stopped");
+    expect(stopped.machine.isFaulted()).toBe(false);
+
+    const idle = machinePair();
+    idle.machine.enterFaulted("FATAL_ERROR");
+    expect(idle.cancels()).toBe(1);
+    expect(idle.machine.state).toBe("faulted");
+    expect(idle.machine.isFaulted()).toBe(true);
+
+    const noisy = machinePair();
+    noisy.hooks.hook("engine:state-change", (payload) => {
+      if (payload.to === "faulted") return Promise.reject(new Error("panic-log"));
+    });
+    noisy.machine.transition("running", "USER");
+    expect(noisy.entries).toEqual([]);
+    noisy.machine.enterFaulted("WASM_PANIC");
+    expect(noisy.machine.state).toBe("faulted");
+    expect(noisy.cancels()).toBe(1);
+    await flushMicrotasks();
+    expect(noisy.entries).toEqual([
+      {
+        message: `${HANDLER_FAILED} panic-log`,
+        payload: { code: CoreErrorCodes.ERROR_HANDLER_FAILED },
+      },
+    ]);
+    noisy.machine.enterFaulted("FATAL_ERROR");
+    await flushMicrotasks();
+    expect(noisy.cancels()).toBe(1);
+    expect(noisy.entries).toHaveLength(1);
+    expect(noisy.machine.state).toBe("faulted");
   });
 });
