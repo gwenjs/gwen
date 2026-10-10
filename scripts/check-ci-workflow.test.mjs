@@ -1155,8 +1155,13 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   // read rust-toolchain.toml unless that input is set to the same channel.
   // The bench job runs cargo for the solver presets. Without this pin, rustup
   // blocks inside execFileSync and the job hits the six-hour cancel.
+  // rust-toolchain.toml also asks for rustfmt and clippy. Two parallel cargo
+  // processes download those components and the rename races. The action
+  // installs them once when `components` is set.
   for (const id of ["rust", "rust-lint", "storage-bench", "verify-red", "bench"]) {
-    assert.match(jobBlock(yaml, id), /toolchain:\s*"1\.99\.0"/, id);
+    const block = jobBlock(yaml, id);
+    assert.match(block, /toolchain:\s*"1\.99\.0"/, id);
+    assert.match(block, /components:\s*rustfmt,\s*clippy/, id);
   }
   const cargo = readFileSync(join(root, "Cargo.toml"), "utf8");
   for (const lint of RUST_LINT_DENY) {
