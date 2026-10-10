@@ -1153,7 +1153,9 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   assert.match(status, /needs\['rust-lint'\]\.result/);
   // The pinned dtolnay action rejects an empty toolchain input. It does not
   // read rust-toolchain.toml unless that input is set to the same channel.
-  for (const id of ["rust", "rust-lint", "storage-bench", "verify-red"]) {
+  // The bench job runs cargo for the solver presets. Without this pin, rustup
+  // blocks inside execFileSync and the job hits the six-hour cancel.
+  for (const id of ["rust", "rust-lint", "storage-bench", "verify-red", "bench"]) {
     assert.match(jobBlock(yaml, id), /toolchain:\s*"1\.99\.0"/, id);
   }
   const cargo = readFileSync(join(root, "Cargo.toml"), "utf8");
