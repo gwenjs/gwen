@@ -178,12 +178,9 @@ export class PluginRegistry {
                   ? guardHandler(fn, setup, event, receiver)
                   : fn;
             tracker.track(pluginName, event, registered);
-            return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
-              ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(
-                  event as keyof GwenRuntimeHooks,
-                  registered as never,
-                )
-              : undefined;
+            const register = Reflect.get(target, "hook");
+            if (typeof register !== "function") return undefined;
+            return Reflect.apply(register, target, [event, registered]);
           };
         }
         return Reflect.get(target, prop);
