@@ -744,6 +744,178 @@ function readWasmContents(diffText) {
 }
 
 /**
+ * A comma that rustfmt inserts before `)`, `]` or `}` is formatting.
+ * A comma between arguments stays.
+ * @param {string} text
+ * @returns {string}
+ */
+function stripFormatCommas(text) {
+  let prev = '';
+  let next = text;
+  while (next !== prev) {
+    prev = next;
+    next = next.replace(/,(?=[)\]}])/g, '');
+  }
+  return next;
+}
+
+/**
+ * Drops line comments, block comments, and whitespace outside strings.
+ * A line whose first non-whitespace character is `*` is a block-comment
+ * continuation, so the whole line is dropped. Comment text must not match code.
+ * @param {string} line
+ * @returns {string}
+ */
+function normalizeRustLine(line) {
+  if (/^\s*\*/.test(line)) return '';
+  let out = '';
+  let quote = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const c = line[i] ?? '';
+    const next = line[i + 1] ?? '';
+    if (quote) {
+      out += c;
+      if (c === '\\' && i + 1 < line.length) {
+        out += next;
+        i += 1;
+        continue;
+      }
+      if (c === '"') quote = false;
+      continue;
+    }
+    if (c === '"') {
+      quote = true;
+      out += c;
+      continue;
+    }
+    if (c === '/' && next === '/') break;
+    if (c === '/' && next === '*') {
+      const end = line.indexOf('*/', i + 2);
+      if (end === -1) break;
+      i = end + 1;
+      continue;
+    }
+    if (c === ' ' || c === '\t' || c === '\r') continue;
+    out += c;
+  }
+  return out;
+}
+
+/**
+ * @param {string[]} lines normalized lines
+ * @param {number[]} indexes positions in `lines`; a span must be contiguous
+ * @param {number} start first position in `indexes` to try
+ * @param {string} target normalized text the span must equal
+ * @returns {number} index in `indexes` just past the match, or `start` when no span matches
+ */
+function concatSpan(lines, indexes, start, target) {
+  const goal = stripFormatCommas(target);
+  let acc = '';
+  for (let cursor = start; cursor < indexes.length; cursor += 1) {
+    if (cursor > start && indexes[cursor] !== indexes[cursor - 1] + 1) return start;
+    acc += lines[indexes[cursor]] ?? '';
+    const folded = stripFormatCommas(acc);
+    if (folded === goal) return cursor + 1;
+    if (folded.length > goal.length && !folded.startsWith(goal)) return start;
+  }
+  return start;
+}
+
+/**
+ * Added-line indexes that repeat removed Rust text in one contiguous block.
+ * Comments and whitespace outside strings are ignored. One removed line
+ * exempts one identical added line. A call split or joined across lines
+ * matches when the normalized text concatenates.
+ * @param {string[]} removed
+ * @param {string[]} added
+ * @returns {Set<number>}
+ */
+function rustfmtReflowAdded(removed, added) {
+  /** @type {Set<number>} */
+  const exempt = new Set();
+  if (removed.length === 0 || added.length === 0) return exempt;
+  const removedNorm = removed.map(normalizeRustLine);
+  const addedNorm = added.map(normalizeRustLine);
+  const flatRemoved = stripFormatCommas(removedNorm.join(''));
+  const flatAdded = stripFormatCommas(addedNorm.join(''));
+  if (flatRemoved !== '' && flatRemoved === flatAdded) {
+    for (let index = 0; index < added.length; index += 1) exempt.add(index);
+    return exempt;
+  }
+  /** @type {Set<number>} */
+  const usedRemoved = new Set();
+  for (let addedIndex = 0; addedIndex < addedNorm.length; addedIndex += 1) {
+    const line = stripFormatCommas(addedNorm[addedIndex] ?? '');
+    if (line === '') continue;
+    for (let removedIndex = 0; removedIndex < removedNorm.length; removedIndex += 1) {
+      if (usedRemoved.has(removedIndex)) continue;
+      if (stripFormatCommas(removedNorm[removedIndex] ?? '') === line) {
+        usedRemoved.add(removedIndex);
+        exempt.add(addedIndex);
+        break;
+      }
+    }
+  }
+  /** @type {number[]} */
+  const removedLeft = [];
+  for (let index = 0; index < removedNorm.length; index += 1) {
+    if (!usedRemoved.has(index) && stripFormatCommas(removedNorm[index] ?? '') !== '') removedLeft.push(index);
+  }
+  /** @type {number[]} */
+  const addedLeft = [];
+  for (let index = 0; index < addedNorm.length; index += 1) {
+    if (!exempt.has(index) && stripFormatCommas(addedNorm[index] ?? '') !== '') addedLeft.push(index);
+  }
+  let removedCursor = 0;
+  let addedCursor = 0;
+  while (removedCursor < removedLeft.length && addedCursor < addedLeft.length) {
+    const removedIndex = removedLeft[removedCursor] ?? 0;
+    const addedIndex = addedLeft[addedCursor] ?? 0;
+    const split = concatSpan(addedNorm, addedLeft, addedCursor, removedNorm[removedIndex] ?? '');
+    if (split > addedCursor) {
+      for (let cursor = addedCursor; cursor < split; cursor += 1) exempt.add(addedLeft[cursor] ?? -1);
+      removedCursor += 1;
+      addedCursor = split;
+      continue;
+    }
+    const joined = concatSpan(removedNorm, removedLeft, removedCursor, addedNorm[addedIndex] ?? '');
+    if (joined > removedCursor) {
+      exempt.add(addedIndex);
+      removedCursor = joined;
+      addedCursor += 1;
+      continue;
+    }
+    removedCursor += 1;
+  }
+  return exempt;
+}
+
+/**
+ * Records hits for one contiguous change block. A context line is not part
+ * of the block. concatSpan returns `start` when the block holds no reflow span.
+ * @param {string} file
+ * @param {string[]} removed
+ * @param {string[]} added
+ * @param {AllowEntry[]} entries
+ * @param {Hit[]} hits
+ */
+function recordHunk(file, removed, added, entries, hits) {
+  const reflow = file.endsWith('.rs') ? rustfmtReflowAdded(removed, added) : new Set();
+  for (let index = 0; index < added.length; index += 1) {
+    const text = added[index] ?? '';
+    if (!reflow.has(index)) {
+      for (const rule of matchAddedLine(text, file)) {
+        if (isAllowlisted(entries, file, rule)) continue;
+        hits.push({ file, rule, text });
+      }
+    }
+    if (ALLOWLIST_COMMENT.test(text)) {
+      hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
+    }
+  }
+}
+
+/**
  * @param {string} diffText
  * @param {AllowEntry[]} [entries]
  * @param {Record<string, string> | null} [contents]
@@ -754,14 +926,25 @@ export function findDiffViolations(diffText, entries = [], contents = null) {
   const hits = [];
   let file = '';
   let binary = false;
+  /** @type {string[]} */
+  let removed = [];
+  /** @type {string[]} */
+  let added = [];
+  const flush = () => {
+    if (!binary) recordHunk(file, removed, added, entries, hits);
+    removed = [];
+    added = [];
+  };
   for (const line of diffText.split('\n')) {
     if (line.startsWith('diff --git ')) {
+      flush();
       binary = false;
       const match = line.match(/^diff --git a\/(.+) b\/(.+)$/);
       file = match ? match[2] : '';
       continue;
     }
     if (line.startsWith('Binary files ') || line.startsWith('GIT binary patch')) {
+      flush();
       binary = true;
       continue;
     }
@@ -770,16 +953,25 @@ export function findDiffViolations(diffText, entries = [], contents = null) {
       if (next !== '/dev/null') file = next.replace(/^b\//, '');
       continue;
     }
-    if (binary || !line.startsWith('+') || line.startsWith('+++')) continue;
-    const text = line.slice(1);
-    for (const rule of matchAddedLine(text, file)) {
-      if (isAllowlisted(entries, file, rule)) continue;
-      hits.push({ file, rule, text });
+    if (line.startsWith('@@')) {
+      flush();
+      continue;
     }
-    if (ALLOWLIST_COMMENT.test(text)) {
-      hits.push({ file, rule: 'allowlist-comment', text: INVALID_ALLOWLIST });
+    if (binary) continue;
+    if (line.startsWith('+')) {
+      added.push(line.slice(1));
+      continue;
     }
+    if (line.startsWith('-') && !line.startsWith('---')) {
+      removed.push(line.slice(1));
+      continue;
+    }
+    // A context line splits the change. Removed text on one side of it must
+    // not exempt added text on the other side. A file line that starts with
+    // `++` is an added line (`+++text`), not the `+++ ` header, so it is scanned.
+    if (line.startsWith(' ')) flush();
   }
+  flush();
   hits.push(...wasmTeardownHits(diffText, entries, contents));
   return hits;
 }
