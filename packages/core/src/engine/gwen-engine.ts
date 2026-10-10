@@ -4,8 +4,9 @@
  * NAVIGATION (use IDE region folding — Ctrl+Shift+[ / Cmd+Shift+[):
  *   engine-errors.ts                            — error classes & codes
  *   engine-types.ts                             — all public type contracts
- *   #region Internal helpers                    — ScopedHooksTracker
- *   #region Engine implementation               — GwenEngineImpl (frame loop, plugins, DI)
+ *   hook-tracker.ts                             — ScopedHooksTracker
+ *   plugin-registry.ts                          — PluginRegistry
+ *   #region Engine implementation               — GwenEngineImpl (frame loop, DI)
  *   #region Factory                             — createEngine()
  */
 
@@ -21,7 +22,6 @@ import { engineContext } from "./context";
 import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
 import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
 import { stringPoolFor } from "../utils/string-pool";
-import { withCleanup } from "../cleanup-context";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
 import { WasmRegionView, WasmRingBuffer, type WasmMemoryRegion } from "./wasm-module-handle";
@@ -94,19 +94,17 @@ import {
 import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
 import {
-  beginPluginSetup,
   bindFailureReporter,
   clearIsolated,
-  currentPluginSetupTarget,
-  endPluginSetup,
   forgetTarget,
-  guardHandler,
   isIsolated,
   isThenable,
   isolateTarget,
   listIsolated,
   phaseForHook,
 } from "./error-isolation.js";
+import { ScopedHooksTracker } from "./hook-tracker.js";
+import { PluginRegistry } from "./plugin-registry.js";
 
 import type {
   WasmModuleOptions,
@@ -179,39 +177,6 @@ function callHooksWithEngineParallel(
   );
 }
 
-// #region Internal helpers
-
-/**
- * Scoped hooks tracker — records (event, fn) pairs per plugin so they can be
- * bulk-removed when a plugin is unregistered.
- * @internal
- */
-class ScopedHooksTracker {
-  private _map = new Map<string, Array<{ event: string; fn: (...args: unknown[]) => unknown }>>();
-
-  track(pluginName: string, event: string, fn: (...args: unknown[]) => unknown): void {
-    if (!this._map.has(pluginName)) this._map.set(pluginName, []);
-    this._map.get(pluginName)!.push({ event, fn });
-  }
-
-  removeAll(pluginName: string, hooks: Hookable<GwenRuntimeHooks>): void {
-    const entries = this._map.get(pluginName);
-    if (!entries) return;
-    for (const { event, fn } of entries) {
-      hooks.removeHook(event as keyof GwenRuntimeHooks, fn as never);
-    }
-    this._map.delete(pluginName);
-  }
-
-  clearAll(hooks: Hookable<GwenRuntimeHooks>): void {
-    for (const pluginName of this._map.keys()) {
-      this.removeAll(pluginName, hooks);
-    }
-  }
-}
-
-// #endregion
-
 // #region Engine implementation
 
 function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
@@ -261,12 +226,8 @@ class GwenEngineImpl implements GwenEngine {
   readonly disposables = new DisposableRegistry();
 
   // ─── Internal state ───────────────────────────────────────────────────────
-  private readonly _plugins: GwenPlugin[] = [];
-  private readonly _pluginNames = new Set<string>();
-  /** Dispose functions collected by withCleanup() during plugin setup — keyed by plugin name. */
-  private readonly _pluginCleanups = new Map<string, () => void>();
+  private readonly _pluginRegistry: PluginRegistry;
   private readonly _services = new Map<keyof GwenProvides, GwenProvides[keyof GwenProvides]>();
-  private readonly _tracker = new ScopedHooksTracker();
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
@@ -470,6 +431,19 @@ class GwenEngineImpl implements GwenEngine {
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
     this._errorBus = errorBus;
     this.provide("errors", errorBus);
+    this._pluginRegistry = new PluginRegistry({
+      hooks: this.hooks,
+      tracker: new ScopedHooksTracker(),
+      errors: errorBus,
+      assertState: (method) => this._assertPluginCall(method),
+      logger: this.logger,
+      debug: this.debug,
+      remember: (proxy) => this._rememberInternals(proxy),
+      frame: () => this._frameCountOwn,
+      reportSetup: (plugin, error) => this._reportSetupError(plugin, error),
+      reportTeardown: (plugin, error) => this._reportTeardown(plugin, error),
+      dropIsolation: (name) => this._dropPluginIsolation(name),
+    });
     bindFailureReporter(this, (error, target, hook) => {
       this._reportCaught(error, hook, { target });
     });
@@ -502,72 +476,12 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
 
-  async use(plugin: GwenPlugin): Promise<void> {
-    this._assertPluginCall("use");
-    if (this._pluginNames.has(plugin.name)) return;
-
-    const scopedHooks = this._createScopedHooks(plugin.name);
-    const engineWithScopedHooks = this._withScopedHooks(scopedHooks);
-
-    try {
-      // Run the synchronous part of setup with this engine current, then restore
-      // whoever was current. Nesting another engine is allowed (no "Context conflict").
-      // Attribution covers only the synchronous part of setup.
-      let setupResult: void | Promise<void> | undefined;
-      const previousSetup = beginPluginSetup(plugin);
-      const previousEngine = pushEngine(this);
-      try {
-        try {
-          const [, dispose] = withCleanup(() => {
-            setupResult = plugin.setup(engineWithScopedHooks);
-          });
-          this._pluginCleanups.set(plugin.name, dispose);
-        } finally {
-          popEngine(this, previousEngine);
-        }
-      } finally {
-        endPluginSetup(previousSetup);
-      }
-      if (setupResult instanceof Promise) await setupResult;
-    } catch (err) {
-      // Roll back any onCleanup() callbacks and scoped hooks registered during
-      // the synchronous phase of setup — they must not leak on rejection.
-      this._pluginCleanups.get(plugin.name)?.();
-      this._pluginCleanups.delete(plugin.name);
-      this._tracker.removeAll(plugin.name, this.hooks);
-      this._reportSetupError(plugin, err);
-      throw err;
-    }
-
-    this._plugins.push(plugin);
-    this._pluginNames.add(plugin.name);
-    await this.hooks.callHook("plugin:registered", plugin.name);
-    if (this.debug) {
-      this.logger.debug(`plugin registered: ${plugin.name}`);
-    }
+  use(plugin: GwenPlugin): Promise<void> {
+    return this._pluginRegistry.use(plugin, this);
   }
 
-  async unuse(name: string): Promise<void> {
-    this._assertPluginCall("unuse");
-    const idx = this._plugins.findIndex((p) => p.name === name);
-    if (idx === -1) return;
-
-    const plugin = this._plugins[idx]!;
-    this._pluginCleanups.get(name)?.();
-    this._pluginCleanups.delete(name);
-    const previousEngine = pushEngine(this);
-    try {
-      const pending = plugin.teardown?.();
-      if (pending instanceof Promise) await pending;
-    } catch (err) {
-      this._reportTeardown(plugin, err);
-    } finally {
-      popEngine(this, previousEngine);
-    }
-    this._plugins.splice(idx, 1);
-    this._pluginNames.delete(name);
-    this._tracker.removeAll(name, this.hooks);
-    this._dropPluginIsolation(name);
+  unuse(name: string): Promise<void> {
+    return this._pluginRegistry.unuse(name, this);
   }
 
   // ─── Typed provide/inject ─────────────────────────────────────────────────
@@ -782,7 +696,7 @@ class GwenEngineImpl implements GwenEngine {
     } catch (err) {
       this._handleFrameLoopError(err);
     }
-    this._tracker.clearAll(this.hooks);
+    this._pluginRegistry.clearHooks();
     clearIsolated(this);
 
     // Per-engine module handles only. The glue cache is shared by variant:
@@ -1772,10 +1686,10 @@ class GwenEngineImpl implements GwenEngine {
 
   private _pluginForTarget(target: GwenErrorTarget): GwenPlugin | undefined {
     if (target.kind === "plugin") {
-      return this._plugins.find((plugin) => plugin.name === target.id);
+      return this._pluginRegistry.pluginNamed(target.id);
     }
     if (target.kind === "system") {
-      return this._plugins.find((plugin) => plugin.name === target.name);
+      return this._pluginRegistry.pluginNamed(target.name);
     }
     return undefined;
   }
@@ -2226,80 +2140,6 @@ class GwenEngineImpl implements GwenEngine {
     } finally {
       popEngine(this, previousEngine);
     }
-  }
-
-  // ─── Scoped hooks proxy ───────────────────────────────────────────────────
-  //
-  // RFC-001 (Plugin Lifecycle):
-  // We provide `engineWithScopedHooks` (a Proxy of the engine) to `plugin.setup()`.
-  // This proxy captures the plugin's name. Any hook registered via `engine.hooks.hook()`
-  // by this plugin is trapped and tracked by `ScopedHooksTracker` using this captured name.
-  //
-  // CRITICAL async factory lifetime warning:
-  // If `plugin.setup()` is async, or returning an async factory, the Proxy
-  // instance (`engineWithScopedHooks`) is bound to the closure at invocation time.
-  // Avoid leaking this proxy outside setup; subsequent system/feature
-  // declarations should ideally use the actual resolved engine from context.
-  //
-
-  private _createScopedHooks(pluginName: string): Hookable<GwenRuntimeHooks> {
-    const tracker = this._tracker;
-    const realHooks = this.hooks;
-    const engine = this;
-    // A memory-grow failure keeps the plugin name and does not isolate it.
-    // Later hooks in the same frame, including this plugin, still run.
-    const emitGrowError = (error: unknown): void => {
-      const message = error instanceof Error ? error.message : String(error);
-      this._errorBus.emit({
-        level: "error",
-        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-        message: `[${pluginName}] engine:memory-grow threw: ${message}`,
-        source: pluginName,
-        error,
-        context: { frame: this._frameCountOwn },
-      });
-    };
-    return new Proxy(realHooks, {
-      get(target, prop) {
-        if (prop === "hook") {
-          return (event: string, fn: (...args: unknown[]) => unknown) => {
-            const setup = currentPluginSetupTarget();
-            const registered =
-              event === "engine:memory-grow"
-                ? async (info: unknown) => {
-                    try {
-                      await fn(info);
-                    } catch (error: unknown) {
-                      emitGrowError(error);
-                    }
-                  }
-                : setup && setup.id === pluginName
-                  ? guardHandler(fn, setup, event, engine)
-                  : fn;
-            tracker.track(pluginName, event, registered);
-            return (target as unknown as Record<string, unknown>)["hook"] instanceof Function
-              ? (target.hook as (e: string, f: (...args: unknown[]) => unknown) => void)(
-                  event as keyof GwenRuntimeHooks,
-                  registered as never,
-                )
-              : undefined;
-          };
-        }
-        return Reflect.get(target, prop);
-      },
-    });
-  }
-
-  private _withScopedHooks(scopedHooks: Hookable<GwenRuntimeHooks>): GwenEngine {
-    const proxy = new Proxy(this, {
-      get(target, prop) {
-        if (prop === "hooks") return scopedHooks;
-        return Reflect.get(target, prop);
-      },
-    });
-    // setup() receives this proxy. Pool dormancy looks the proxy up, not the class.
-    this._rememberInternals(proxy);
-    return proxy;
   }
 
   private _rememberInternals(key: object): void {
