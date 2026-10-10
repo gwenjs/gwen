@@ -7,6 +7,7 @@
  *   hook-tracker.ts                             — ScopedHooksTracker
  *   plugin-registry.ts                          — PluginRegistry
  *   service-container.ts                        — ServiceContainer
+ *   engine-entities.ts                          — EngineEntities
  *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
  */
@@ -26,7 +27,6 @@ import { stringPoolFor } from "../utils/string-pool";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
 import { WasmRegionView, WasmRingBuffer, type WasmMemoryRegion } from "./wasm-module-handle";
-import { EntityManager, ComponentRegistry, QueryEngine } from "../core/ecs";
 import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
 import { EngineMemory, type MemoryView } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
@@ -106,6 +106,7 @@ import {
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
+import { EngineEntities } from "./engine-entities.js";
 
 import type {
   WasmModuleOptions,
@@ -179,10 +180,6 @@ function callHooksWithEngineParallel(
 }
 
 // #region Engine implementation
-
-function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
-  return results[index] as EntityId; // boundary: dense query id list, index checked #77
-}
 
 interface WasmModuleTransformCopy {
   offset: number;
@@ -401,9 +398,7 @@ class GwenEngineImpl implements GwenEngine {
 
   /** @internal */ readonly _bridge: WasmBridgeImpl;
 
-  private readonly _entityManager: EntityManager;
-  private readonly _componentRegistry: ComponentRegistry;
-  private readonly _queryEngine: QueryEngine;
+  private readonly _entities: EngineEntities;
 
   constructor(opts: GwenEngineOptions) {
     this._serviceContainer = new ServiceContainer({
@@ -420,9 +415,13 @@ class GwenEngineImpl implements GwenEngine {
     this.maxCatchupSteps = opts.maxCatchupSteps ?? 2;
     this.logger = createLogger("gwen:core", this.debug, () => this._frameCountOwn);
     this.provide("logger", this.logger);
-    this._entityManager = new EntityManager(this.maxEntities);
-    this._componentRegistry = new ComponentRegistry();
-    this._queryEngine = new QueryEngine(opts.queryCacheSize ?? 256);
+    this._entities = new EngineEntities({
+      maxEntities: this.maxEntities,
+      queryCacheSize: opts.queryCacheSize ?? 256,
+      assertState: (method) => this._assertNotFaulted(method),
+      registerComponent: (type) => this.getOrRegisterComponent(type),
+      emitDestroy: (id) => this._emitEntityDestroy(id),
+    });
 
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
     this._errorBus = errorBus;
@@ -974,12 +973,11 @@ class GwenEngineImpl implements GwenEngine {
    * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when the entity capacity is exceeded.
    */
   createEntity(): EntityId {
-    this._assertNotFaulted("createEntity");
-    return this._entityManager.create();
+    return this._entities.createEntity();
   }
 
   canSpawn(count: number): boolean {
-    return this._entityManager.canSpawn(count);
+    return this._entities.canSpawn(count);
   }
 
   /**
@@ -989,13 +987,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if it was alive and is now destroyed
    */
   destroyEntity(id: EntityId): boolean {
-    this._assertNotFaulted("destroyEntity");
-    if (!this._entityManager.destroy(id)) return false;
-    this._componentRegistry.removeAll(id);
-    this._queryEngine.invalidate();
-    // Synchronous and isolated. callHook stops after a throw, so the caller catches each handler.
-    this._emitEntityDestroy(id);
-    return true;
+    return this._entities.destroyEntity(id);
   }
 
   private _emitEntityDestroy(id: EntityId): void {
@@ -1041,7 +1033,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if alive
    */
   isAlive(id: EntityId): boolean {
-    return this._entityManager.isAlive(id);
+    return this._entities.isAlive(id);
   }
 
   /**
@@ -1050,7 +1042,7 @@ class GwenEngineImpl implements GwenEngine {
    * @internal
    */
   _setEntityDormant(id: EntityId, dormant: boolean): boolean {
-    return this._entityManager.setDormant(id, dormant);
+    return this._entities.setDormant(id, dormant);
   }
 
   // ─── ECS component management ─────────────────────────────────────────────
@@ -1083,19 +1075,7 @@ class GwenEngineImpl implements GwenEngine {
     def: D,
     data: Partial<InferComponent<D>>,
   ): void {
-    this._assertNotFaulted("addComponent");
-    const existing = this._componentRegistry.get<InferComponent<D>>(id, def);
-    if (existing !== undefined) {
-      // Membership is unchanged, so the query cache stays as it is.
-      // The type id was registered on the first add.
-      Object.assign(existing, data);
-      return;
-    }
-    // Cold path — first add for this entity/component pair: allocate once.
-    this.getOrRegisterComponent(def.name);
-    const merged = Object.assign({}, def.defaults, data) as InferComponent<D>;
-    this._componentRegistry.add(id, def, merged);
-    this._queryEngine.invalidate();
+    this._entities.addComponent(id, def, data);
   }
 
   /**
@@ -1109,7 +1089,7 @@ class GwenEngineImpl implements GwenEngine {
     id: EntityId,
     def: D,
   ): InferComponent<D> | undefined {
-    return this._componentRegistry.get<InferComponent<D>>(id, def);
+    return this._entities.getComponent(id, def);
   }
 
   /**
@@ -1120,7 +1100,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if the component is present
    */
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean {
-    return this._componentRegistry.has(id, def);
+    return this._entities.hasComponent(id, def);
   }
 
   /**
@@ -1131,10 +1111,7 @@ class GwenEngineImpl implements GwenEngine {
    * @returns `true` if the component existed and was removed
    */
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean {
-    this._assertNotFaulted("removeComponent");
-    const removed = this._componentRegistry.remove(id, def);
-    if (removed) this._queryEngine.invalidate();
-    return removed;
+    return this._entities.removeComponent(id, def);
   }
 
   // ─── ECS live query ───────────────────────────────────────────────────────
@@ -1155,42 +1132,7 @@ class GwenEngineImpl implements GwenEngine {
     components: C,
     _precomputedKey?: string,
   ): LiveQuery<EntityAccessor<C>> {
-    // Capture specific members once — avoids both closure allocation on every
-    // iteration start and the no-this-alias lint rule.
-    const queryEngine = this._queryEngine;
-    const entityManager = this._entityManager;
-    const componentRegistry = this._componentRegistry;
-    return {
-      [Symbol.iterator](): Iterator<EntityAccessor<C>, undefined> {
-        const results = queryEngine.resolve(
-          components,
-          entityManager,
-          componentRegistry,
-          _precomputedKey,
-        );
-        let i = 0;
-        return {
-          next(): IteratorResult<EntityAccessor<C>, undefined> {
-            while (i < results.length) {
-              const id = readResolvedEntityId(results, i);
-              i += 1;
-              // Dormant slots stay in the cached id list. Iteration skips them.
-              if (entityManager.isDormant(id)) continue;
-              return {
-                done: false,
-                value: {
-                  id,
-                  get<D extends C[number]>(def: D): InferComponent<D> {
-                    return componentRegistry.get<InferComponent<D>>(id, def) as InferComponent<D>; // boundary: queried component is present #77
-                  },
-                },
-              };
-            }
-            return { done: true, value: undefined };
-          },
-        };
-      },
-    };
+    return this._entities.createLiveQuery(components, _precomputedKey);
   }
 
   // ─── Internal WASM bridge accessors ───────────────────────────────────────
@@ -1233,7 +1175,7 @@ class GwenEngineImpl implements GwenEngine {
       rawFrameTime: this._rawFrameTime,
       deltaTime: this._deltaTime,
       frameCount: this._frameCountOwn,
-      entityCount: this._entityManager.count(),
+      entityCount: this._entities.count(),
       budgetMs,
     };
     if (wasmMemoryBytes !== undefined) stats.wasmMemoryBytes = wasmMemoryBytes;
@@ -2132,8 +2074,7 @@ class GwenEngineImpl implements GwenEngine {
   private _rememberInternals(key: object): void {
     engineInternals.set(key, {
       setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
-      queryIds: (components) =>
-        this._queryEngine.resolve(components, this._entityManager, this._componentRegistry),
+      queryIds: (components) => this._entities.resolveIds(components),
     });
   }
 }

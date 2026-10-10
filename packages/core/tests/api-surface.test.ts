@@ -83,6 +83,7 @@ describe("API surface (RFC-V2-013)", () => {
     expect("PluginRegistry" in core).toBe(false);
     expect("ScopedHooksTracker" in core).toBe(false);
     expect("ServiceContainer" in core).toBe(false);
+    expect("EngineEntities" in core).toBe(false);
   });
 
   it("drops GwenEngine.wasmBridge and EngineFramePhaseMs.physics", () => {
