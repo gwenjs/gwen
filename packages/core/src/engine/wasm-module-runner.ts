@@ -13,7 +13,7 @@ import { WasmRegionView, WasmRingBuffer, type WasmMemoryRegion } from "./wasm-mo
  * `load` calls `assertState` before it fetches. The facade passes `_assertNotFaulted`.
  * `isIsolated` is keyed by the engine, not by this runner.
  * `reportCaught` and `publish` are the facade's error policy.
- * `frame` reads `_frameCountOwn` when a fill or a step fails.
+ * `frame` is the completed-frame count, read when a fill or a step fails.
  */
 export interface WasmModuleRunnerDeps {
   bridge: WasmBridgeImpl;
