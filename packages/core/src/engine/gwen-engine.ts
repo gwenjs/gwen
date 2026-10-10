@@ -6,7 +6,8 @@
  *   engine-types.ts                             — all public type contracts
  *   hook-tracker.ts                             — ScopedHooksTracker
  *   plugin-registry.ts                          — PluginRegistry
- *   #region Engine implementation               — GwenEngineImpl (frame loop, DI)
+ *   service-container.ts                        — ServiceContainer
+ *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
  */
 
@@ -84,7 +85,6 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
 import {
-  GwenPluginNotFoundError,
   CoreErrorCodes,
   GwenWasmError,
   GwenWasmPanicError,
@@ -105,6 +105,7 @@ import {
 } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
+import { ServiceContainer } from "./service-container.js";
 
 import type {
   WasmModuleOptions,
@@ -183,14 +184,6 @@ function readResolvedEntityId(results: readonly EntityId[], index: number): Enti
   return results[index] as EntityId; // boundary: dense query id list, index checked #77
 }
 
-// boundary: one map holds every GwenProvides value; the key selects its member.
-function readProvidedService<K extends keyof GwenProvides>(
-  services: ReadonlyMap<keyof GwenProvides, GwenProvides[keyof GwenProvides]>,
-  key: K,
-): GwenProvides[K] {
-  return services.get(key) as GwenProvides[K];
-}
-
 interface WasmModuleTransformCopy {
   offset: number;
   bytes: Uint8Array | null;
@@ -227,7 +220,7 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── Internal state ───────────────────────────────────────────────────────
   private readonly _pluginRegistry: PluginRegistry;
-  private readonly _services = new Map<keyof GwenProvides, GwenProvides[keyof GwenProvides]>();
+  private readonly _serviceContainer: ServiceContainer;
   private _advancing = false;
   private _deltaTime = 0;
   private _state: GwenEngineState = "idle";
@@ -413,6 +406,9 @@ class GwenEngineImpl implements GwenEngine {
   private readonly _queryEngine: QueryEngine;
 
   constructor(opts: GwenEngineOptions) {
+    this._serviceContainer = new ServiceContainer({
+      assertState: (method) => this._assertNotFaulted(method),
+    });
     this._bridge = opts._bridge ?? new WasmBridgeImpl();
     this.provide("wasm:bridge", this._bridge);
     this.maxEntities = opts.maxEntities ?? 10_000;
@@ -487,24 +483,15 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Typed provide/inject ─────────────────────────────────────────────────
 
   provide<K extends keyof GwenProvides>(key: K, value: GwenProvides[K]): void {
-    this._assertNotFaulted("provide");
-    this._services.set(key, value);
+    this._serviceContainer.provide(key, value);
   }
 
   inject<K extends keyof GwenProvides>(key: K): GwenProvides[K] {
-    if (!this._services.has(key)) {
-      throw new GwenPluginNotFoundError({
-        pluginName: String(key),
-        hint: `Call engine.use(${String(key)}Plugin()) before using this service.`,
-        docsUrl: "https://gwenengine.dev/docs/plugins",
-      });
-    }
-    return readProvidedService(this._services, key);
+    return this._serviceContainer.inject(key);
   }
 
   tryInject<K extends keyof GwenProvides>(key: K): GwenProvides[K] | undefined {
-    if (!this._services.has(key)) return undefined;
-    return readProvidedService(this._services, key);
+    return this._serviceContainer.tryInject(key);
   }
 
   // ─── Context (RFC-005) ────────────────────────────────────────────────────
