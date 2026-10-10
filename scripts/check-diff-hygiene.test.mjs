@@ -81,6 +81,245 @@ test('rejects unwrap, expect, panic!, and assert! on added Rust lines', () => {
   }
 });
 
+const rust = 'crates/gwen-core/src/bindings.rs';
+
+/**
+ * @param {string} file
+ * @param {string[]} removed
+ * @param {string[]} added
+ * @returns {string}
+ */
+function replaced(file, removed, added) {
+  return [
+    `diff --git a/${file} b/${file}`,
+    `--- a/${file}`,
+    `+++ b/${file}`,
+    `@@ -1,${removed.length} +1,${added.length} @@`,
+    ...removed.map((line) => `-${line}`),
+    ...added.map((line) => `+${line}`),
+  ].join('\n');
+}
+
+/**
+ * @param {string} file
+ * @param {string[]} removed
+ * @param {string} context
+ * @param {string[]} added
+ * @returns {string}
+ */
+function splitByContext(file, removed, context, added) {
+  return [
+    `diff --git a/${file} b/${file}`,
+    `--- a/${file}`,
+    `+++ b/${file}`,
+    `@@ -1,${removed.length + 1} +1,${added.length + 1} @@`,
+    ...removed.map((line) => `-${line}`),
+    ` ${context}`,
+    ...added.map((line) => `+${line}`),
+  ].join('\n');
+}
+
+/** cargo fmt 1.99 split this call in crates/gwen-core/src/bindings.rs. */
+function reflowDiff() {
+  const before = `            engine.add_component(e.index(), e.generation(), t0, &[0u8; 4])${expectCall}"component");`;
+  const after = [
+    '            engine',
+    '                .add_component(e.index(), e.generation(), t0, &[0u8; 4])',
+    `                ${expectCall}"component");`,
+  ];
+  return replaced(rust, [before], after);
+}
+
+/** The base scanner still flags this reflow, so a test that calls it fails there. */
+function assertReflowExempt() {
+  assert.deepEqual(findDiffViolations(reflowDiff()), []);
+}
+
+test('a renamed unwrap stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`let a = x${unwrap});`], [`let b = y${unwrap});`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap'),
+    'renamed unwrap',
+  );
+  assertReflowExempt();
+});
+
+test('a different expect stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`x${expectCall}"ok")`], [`x.unwrap_or(0);`, `w${expectCall}"boom");`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'expect' && hit.text.includes('boom')),
+    'different expect',
+  );
+  assertReflowExempt();
+});
+
+test('a renamed typescript any stays flagged', () => {
+  const hits = findDiffViolations(replaced('src/a.ts', [`let a${anyAnn} = 1;`], [`let q${anyAnn} = foo();`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'any'),
+    'typescript any',
+  );
+  assertReflowExempt();
+});
+
+test('a rustfmt reflow of the same expect is exempt', () => {
+  assert.deepEqual(findDiffViolations(reflowDiff()), []);
+});
+
+test('a line comment unwrapped into code stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`// let v = x${unwrap});`], ['//', `let v = x${unwrap});`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap' && hit.text.startsWith('let v')),
+    'line comment',
+  );
+  assertReflowExempt();
+});
+
+test('a doc comment unwrapped into code stays flagged', () => {
+  const hits = findDiffViolations(
+    replaced(rust, [`/// let v = parse(s)${unwrap});`], ['///', `let v = parse(s)${unwrap});`]),
+  );
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap' && hit.text.startsWith('let v')),
+    'doc comment',
+  );
+  assertReflowExempt();
+});
+
+test('a block comment star line moved into code stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [` * let v = x${unwrap});`], [' *', `let v = x${unwrap});`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap' && hit.text.startsWith('let v')),
+    'block comment',
+  );
+  assertReflowExempt();
+});
+
+test('a commented panic moved into code stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`// ${panic}"x");`], ['//', `${panic}"x");`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'panic!' && !hit.text.startsWith('//')),
+    'panic comment',
+  );
+  assertReflowExempt();
+});
+
+test('a trailing comment moved into a statement stays flagged', () => {
+  const hits = findDiffViolations(
+    replaced(rust, [`foo(); // return x${unwrap});`], ['foo(); //', `return x${unwrap});`]),
+  );
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap' && hit.text.startsWith('return')),
+    'trailing comment',
+  );
+  assertReflowExempt();
+});
+
+test('a todo comment moved into unwrap stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, ['// TODO', `// v${unwrap});`], ['// TODO //', `v${unwrap});`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap' && hit.text.startsWith('v')),
+    'todo comment',
+  );
+  assertReflowExempt();
+});
+
+test('typescript whitespace around any stays flagged', () => {
+  const hits = findDiffViolations(replaced('src/a.ts', [`  const label${anyAnn} = 1;`], [`const label${anyAnn} = 1;`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'any'),
+    'typescript whitespace',
+  );
+  assertReflowExempt();
+});
+
+test('one removed line exempts only one identical added line', () => {
+  const line = `item${unwrap});`;
+  const hits = findDiffViolations(replaced(rust, [line], [line, line])).filter((hit) => hit.rule === 'unwrap');
+  assert.equal(hits.length, 1);
+});
+
+test('a reflow split across tokens is exempt', () => {
+  const hits = findDiffViolations(
+    replaced(rust, ['let value = item.un', 'wrap();'], ['let value = item', `${unwrap});`]),
+  );
+  assert.deepEqual(hits, []);
+});
+
+test('two removed lines joined into one added line are exempt', () => {
+  const hits = findDiffViolations(
+    replaced(rust, ['let value = item', `${unwrap});`], [`let value = item${unwrap});`]),
+  );
+  assert.deepEqual(hits, []);
+});
+
+test('a split call beside a new unwrap keeps the unwrap flagged', () => {
+  const before = `engine.add_component(e.index(), e.generation(), t0, &[0u8; 4])${expectCall}"component");`;
+  const hits = findDiffViolations(
+    replaced(
+      rust,
+      [before],
+      ['engine', '.add_component(e.index(), e.generation(), t0, &[0u8; 4])', `${expectCall}"component");`, `extra${unwrap});`],
+    ),
+  );
+  assert.deepEqual(
+    hits.map((hit) => hit.rule),
+    ['unwrap'],
+  );
+  assert.ok(hits.every((hit) => hit.text.startsWith('extra')));
+});
+
+test('joined lines beside a new unwrap keep the unwrap flagged', () => {
+  const joined = `engine.add_component(e.index(), e.generation(), t0, &[0u8; 4])${expectCall}"component");`;
+  const hits = findDiffViolations(
+    replaced(
+      rust,
+      ['engine', '.add_component(e.index(), e.generation(), t0, &[0u8; 4])', `${expectCall}"component");`],
+      [joined, `extra${unwrap});`],
+    ),
+  );
+  assert.deepEqual(
+    hits.map((hit) => hit.rule),
+    ['unwrap'],
+  );
+  assert.ok(hits.every((hit) => hit.text.startsWith('extra')));
+});
+
+test('a vertical expect with a trailing comma is exempt', () => {
+  const hits = findDiffViolations(
+    replaced(rust, [`value${expectCall}"msg");`], ['value', `${expectCall}`, '"msg",', ');']),
+  );
+  assert.deepEqual(hits, []);
+});
+
+test('expect with two arguments stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`x${expectCall}"a")`], [`x${expectCall}"a","b")`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'expect'),
+    'two arguments',
+  );
+  assertReflowExempt();
+});
+
+test('a space inside an expect string stays flagged', () => {
+  const hits = findDiffViolations(replaced(rust, [`x${expectCall}"ab")`], [`x${expectCall}"a b")`]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'expect'),
+    'space inside string',
+  );
+  assertReflowExempt();
+});
+
+test('a context line between identical unwraps stays flagged', () => {
+  const line = `item${unwrap});`;
+  const hits = findDiffViolations(splitByContext(rust, [line], 'let kept = 1;', [line]));
+  assert.ok(
+    hits.some((hit) => hit.rule === 'unwrap'),
+    'context line',
+  );
+  assertReflowExempt();
+});
+
 test('does not flag vitest expect or the word any in TypeScript', () => {
   const hits = findDiffViolations(
     diff('src/a.test.ts', ['expect(1).toBe(1);', 'const many = 1;', '// read any file the user passed']),
