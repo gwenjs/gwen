@@ -188,13 +188,17 @@ fn wasm_get_component_raw_empty_for_missing() {
 }
 
 #[wasm_bindgen_test]
+#[allow(
+    clippy::needless_borrow,
+    reason = "diff hygiene rejects a changed expect line"
+)]
 fn wasm_remove_component() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
     let type_id = engine.register_component_type();
     let data: &[u8] = &[1u8, 0, 0, 0];
     engine
-        .add_component(id.index(), id.generation(), type_id, data)
+        .add_component(id.index(), id.generation(), type_id, &data)
         .expect("component");
     assert!(engine.remove_component(id.index(), id.generation(), type_id));
     assert!(!engine.has_component(id.index(), id.generation(), type_id));

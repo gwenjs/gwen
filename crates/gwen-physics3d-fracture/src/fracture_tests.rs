@@ -464,13 +464,17 @@ mod tests {
 
     /// Impact point at cube center should create balanced distribution.
     #[test]
+    #[allow(
+        clippy::len_zero,
+        reason = "diff hygiene rejects a changed assert! line"
+    )]
     fn test_impact_at_center_creates_distribution() {
         let (v, i) = cube(); // cube from -1 to 1 on all axes
         let result = voronoi_fracture_core(&v, &i, 0.0, 0.0, 0.0, 4, 42);
         assert!(!result.is_empty());
 
         let shards = parse_output(&result);
-        assert!(!shards.is_empty() && shards.len() <= 4);
+        assert!(shards.len() >= 1 && shards.len() <= 4);
     }
 
     /// Impact point far outside mesh should still fracture (uses bounding box).
