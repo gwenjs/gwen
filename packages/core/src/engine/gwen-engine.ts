@@ -8,6 +8,7 @@
  *   plugin-registry.ts                          — PluginRegistry
  *   service-container.ts                        — ServiceContainer
  *   engine-entities.ts                          — EngineEntities
+ *   wasm-module-runner.ts                       — WasmModuleRunner
  *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
  */
@@ -26,14 +27,11 @@ import { componentRegistryFor, componentTypeIds } from "./engine-component-regis
 import { stringPoolFor } from "../utils/string-pool";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
-import { WasmRegionView, WasmRingBuffer, type WasmMemoryRegion } from "./wasm-module-handle";
 import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
-import { EngineMemory, type MemoryView } from "./engine-memory.js";
+import { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
-import { buildTransformImports } from "../hooks/wasm/transform-imports";
-import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory";
 import { validateEngineConfig } from "./engine-config-validator";
 
 // ─── Re-exports from extracted type modules ─────────────────────────────────
@@ -84,14 +82,8 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import {
-  CoreErrorCodes,
-  GwenWasmError,
-  GwenWasmPanicError,
-  GwenEngineStateError,
-} from "./engine-errors.js";
+import { CoreErrorCodes, GwenWasmPanicError, GwenEngineStateError } from "./engine-errors.js";
 
-import { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
 import { createErrorBus } from "./error-bus.js";
 import {
   bindFailureReporter,
@@ -107,6 +99,7 @@ import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { EngineEntities } from "./engine-entities.js";
+import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
   WasmModuleOptions,
@@ -180,17 +173,6 @@ function callHooksWithEngineParallel(
 }
 
 // #region Engine implementation
-
-interface WasmModuleTransformCopy {
-  offset: number;
-  bytes: Uint8Array | null;
-}
-
-interface WasmModuleEntry {
-  handle: WasmModuleHandle<WebAssembly.Exports>;
-  step?: (handle: WasmModuleHandle<WebAssembly.Exports>, dt: number) => void;
-  transformCopy: WasmModuleTransformCopy | null;
-}
 
 class GwenEngineImpl implements GwenEngine {
   /** Real engine behind a hooks proxy. */
@@ -330,22 +312,7 @@ class GwenEngineImpl implements GwenEngine {
     throw new GwenEngineStateError(state, method);
   }
 
-  // ─── WASM module registry (RFC-008) ───────────────────────────────────────
-  /**
-   * Map of loaded WASM module entries keyed by name.
-   * Each entry holds the public handle and the optional per-frame step function.
-   * @internal
-   */
-  private readonly _wasmModules = new Map<string, WasmModuleEntry>();
-
-  /**
-   * Lazily-created shared memory manager for community WASM plugin transform access.
-   * Created on first `loadWasmModule()` call. Null until then.
-   * @internal
-   */
-  private _sharedMemory: SharedMemoryManager | null = null;
-  /** Core-memory view of the fill buffer. Disposed before that buffer is freed. */
-  private _transformView: MemoryView<"u8"> | null = null;
+  private readonly _wasmRunner: WasmModuleRunner;
 
   // ─── Frame scheduler ─────────────────────────────────────────────────────
   /**
@@ -444,6 +411,18 @@ class GwenEngineImpl implements GwenEngine {
     });
     this._memory = new EngineMemory(this._bridge, errorBus);
     this.provide("memory", this._memory);
+    this._wasmRunner = new WasmModuleRunner({
+      bridge: this._bridge,
+      maxEntities: this.maxEntities,
+      disposables: this.disposables,
+      memory: this._memory,
+      assertState: (method) => this._assertNotFaulted(method),
+      isFaulted: () => this._state === "faulted",
+      isIsolated: (id) => isIsolated(this, id),
+      frame: () => this._frameCountOwn,
+      reportCaught: (err, hook, forced) => this._reportCaught(err, hook, forced),
+      publish: (event) => this._publish(event),
+    });
     this.disposables.add(
       "engine:memory",
       createDisposable(() => {
@@ -687,7 +666,7 @@ class GwenEngineImpl implements GwenEngine {
 
     // Per-engine module handles only. The glue cache is shared by variant:
     // another live engine may still need those keys.
-    this._wasmModules.clear();
+    this._wasmRunner.clear();
 
     this.disposables.disposeAll(); // LIFO — last registered, first disposed
   }
@@ -783,167 +762,10 @@ class GwenEngineImpl implements GwenEngine {
    * @throws {GwenError} `CORE:WASM_API_VERSION_MISMATCH` when `versionPolicy`
    *   is `throw` and `gwen_plugin_api_version` does not match.
    */
-  async loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
+  loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,
   ): Promise<WasmModuleHandle<Exports>> {
-    this._assertNotFaulted("loadWasmModule");
-    // Deduplication — same name returns existing handle without re-fetching.
-    const existing = this._wasmModules.get(options.name);
-    if (existing) {
-      return existing.handle as WasmModuleHandle<Exports>;
-    }
-
-    const declared = this._declaredTransformRegion(options);
-    let modulePtr = declared !== null && declared.byteOffset !== 0 ? declared.byteOffset : 0;
-    const builtImports = buildTransformImports(
-      modulePtr,
-      /* stride */ TRANSFORM_STRIDE,
-      /* maxEntities */ this.maxEntities,
-    );
-    const gwenImports = {
-      transform_buffer_ptr: () => modulePtr,
-      transform_stride: builtImports.transform_stride,
-      max_entities: builtImports.max_entities,
-    };
-
-    let wasmModule: WebAssembly.Module;
-    let probeOffset: number | undefined;
-    try {
-      const response = await fetch(
-        options.url instanceof URL ? options.url.toString() : options.url,
-      );
-      if (!response.ok) {
-        throw new GwenError(
-          CoreErrorCodes.WASM_LOAD_ERROR,
-          `[GWEN] loadWasmModule("${options.name}"): fetch failed with status ${response.status} ${response.statusText}.`,
-        );
-      }
-      const buffer = await response.arrayBuffer();
-      wasmModule = await WebAssembly.compile(buffer);
-      if (declared) {
-        const exportName = `gwen_${declared.name}_ptr`;
-        const hasPtrExport = WebAssembly.Module.exports(wasmModule).some(
-          (item) => item.name === exportName && item.kind === "function",
-        );
-        if (hasPtrExport) {
-          const probe = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
-          probeOffset = this._resolveTransformOffset(probe.exports, declared);
-          // The real start() reads modulePtr, so publish the probe offset first.
-          modulePtr = probeOffset;
-        }
-      }
-    } catch (err) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_LOAD_ERROR,
-        `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
-          `Cause: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    let instance: WebAssembly.Instance;
-    try {
-      instance = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
-    } catch (err) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_LOAD_ERROR,
-        `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
-          `Cause: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    // Plugin API version (#92) before any resolved-region check.
-    void checkPluginApiVersion(
-      instance.exports,
-      options.name,
-      options.expectedVersion,
-      options.versionPolicy,
-    );
-
-    const memory =
-      instance.exports["memory"] instanceof WebAssembly.Memory
-        ? instance.exports["memory"]
-        : undefined;
-
-    let transformCopy: WasmModuleTransformCopy | null = null;
-    if (declared) {
-      const resolved = this._resolveTransformOffset(instance.exports, declared);
-      if (probeOffset !== undefined && resolved !== probeOffset) {
-        throw this._regionInvalid(
-          options.name,
-          declared.name,
-          `probe offset ${probeOffset} differs from the instance offset ${resolved}`,
-        );
-      }
-      modulePtr = resolved;
-      this._validateResolvedRegion(options.name, declared, modulePtr, memory);
-      transformCopy = { offset: modulePtr, bytes: null };
-      this._getOrCreateTransformPtr();
-    }
-
-    // Build region and channel maps from options.
-    const regionMap = new Map((options.memory?.regions ?? []).map((r) => [r.name, r]));
-    const channelMap = new Map(
-      (options.channels ?? []).map((c) => {
-        if (!memory) {
-          throw new GwenError(
-            CoreErrorCodes.WASM_MODULE_NO_MEMORY,
-            `[GWEN] loadWasmModule("${options.name}"): channel '${c.name}' declared but ` +
-              `the WASM binary does not export "memory". ` +
-              `Add "(export \\"memory\\" (memory ...))" to your WASM module.`,
-          );
-        }
-        return [c.name, new WasmRingBuffer(memory, c, instance.exports)];
-      }),
-    );
-
-    const handle: WasmModuleHandle<Exports> = {
-      name: options.name,
-      exports: instance.exports as Exports,
-      memory,
-      region(regionName: string): WasmRegionView {
-        const def = regionMap.get(regionName);
-        if (!def) {
-          throw new GwenError(
-            CoreErrorCodes.WASM_REGION_NOT_FOUND,
-            `[GWEN] WASM region '${regionName}' not found in module '${options.name}'. ` +
-              `Declare it in WasmModuleOptions.memory.regions.`,
-          );
-        }
-        if (!memory) {
-          throw new GwenError(
-            CoreErrorCodes.WASM_MODULE_NO_MEMORY,
-            `[GWEN] WASM module '${options.name}' does not export memory — cannot create region view.`,
-          );
-        }
-        return new WasmRegionView(memory, def);
-      },
-      channel(channelName: string): WasmRingBuffer {
-        const ch = channelMap.get(channelName);
-        if (!ch) {
-          throw new GwenError(
-            CoreErrorCodes.WASM_CHANNEL_NOT_FOUND,
-            `[GWEN] WASM channel '${channelName}' not found in module '${options.name}'. ` +
-              `Declare it in WasmModuleOptions.channels.`,
-          );
-        }
-        return ch;
-      },
-    };
-
-    const stored: WasmModuleEntry = {
-      handle: handle as WasmModuleHandle<WebAssembly.Exports>,
-      transformCopy,
-    };
-    if (options.step !== undefined) {
-      // Cast through unknown to satisfy the Map's invariant generic type.
-      stored.step = options.step as (
-        handle: WasmModuleHandle<WebAssembly.Exports>,
-        dt: number,
-      ) => void;
-    }
-    this._wasmModules.set(options.name, stored);
-
-    return handle;
+    return this._wasmRunner.load(options);
   }
 
   /**
@@ -954,15 +776,7 @@ class GwenEngineImpl implements GwenEngine {
    * @throws {GwenError} If no module has been loaded under `name`.
    */
   getWasmModule<K extends keyof GwenWasmModules>(name: K): WasmModuleHandle<GwenWasmModules[K]> {
-    const entry = this._wasmModules.get(name);
-    if (!entry) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_MODULE_NOT_FOUND,
-        `[GWEN] getWasmModule("${String(name)}"): no WASM module loaded under that name. ` +
-          `Call engine.loadWasmModule({ name: "${String(name)}", url: ... }) first.`,
-      );
-    }
-    return entry.handle as WasmModuleHandle<GwenWasmModules[K]>;
+    return this._wasmRunner.get(name);
   }
 
   // ─── ECS entity management ────────────────────────────────────────────────
@@ -1212,204 +1026,6 @@ class GwenEngineImpl implements GwenEngine {
     };
     this._lastPhaseMs = slot;
     return slot;
-  }
-
-  // ─── Shared memory transform pointer accessor ────────────────────────────
-
-  private _declaredTransformRegion(options: {
-    name: string;
-    transformRegion?: string;
-    memory?: { regions: readonly WasmMemoryRegion[] };
-  }): WasmMemoryRegion | null {
-    const regionName = options.transformRegion;
-    if (regionName === undefined) return null;
-    const found = options.memory?.regions.find((region) => region.name === regionName);
-    if (!found) {
-      throw this._regionInvalid(options.name, regionName, "unknown region name");
-    }
-    const required = this.maxEntities * TRANSFORM_STRIDE;
-    if (found.byteLength < required) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_MODULE_REGION_TOO_SMALL,
-        `[GWEN] loadWasmModule("${options.name}"): transform region "${regionName}" is ${found.byteLength} bytes; ${required} bytes are required.`,
-      );
-    }
-    if (found.byteOffset !== 0 && (found.byteOffset % 4 !== 0 || found.byteOffset < 0)) {
-      throw this._regionInvalid(
-        options.name,
-        regionName,
-        `offset ${found.byteOffset} is not a positive multiple of 4`,
-      );
-    }
-    return found;
-  }
-
-  private _regionInvalid(moduleName: string, regionName: string, reason: string): GwenError {
-    return new GwenError(
-      CoreErrorCodes.WASM_MODULE_REGION_INVALID,
-      `[GWEN] loadWasmModule("${moduleName}"): transform region "${regionName}" is invalid: ${reason}.`,
-    );
-  }
-
-  private _resolveTransformOffset(exports: WebAssembly.Exports, region: WasmMemoryRegion): number {
-    const exported = exports[`gwen_${region.name}_ptr`];
-    if (typeof exported === "function") {
-      const value: unknown = (exported as () => unknown)();
-      if (typeof value === "number" && Number.isFinite(value)) return value;
-      return 0;
-    }
-    return region.byteOffset;
-  }
-
-  private _validateResolvedRegion(
-    moduleName: string,
-    region: WasmMemoryRegion,
-    offset: number,
-    memory: WebAssembly.Memory | undefined,
-  ): void {
-    if (!(offset > 0) || offset % 4 !== 0) {
-      throw this._regionInvalid(
-        moduleName,
-        region.name,
-        `offset ${offset} must be a positive multiple of 4`,
-      );
-    }
-    if (!(memory instanceof WebAssembly.Memory)) {
-      throw this._regionInvalid(moduleName, region.name, "the module does not export memory");
-    }
-    const end = offset + region.byteLength;
-    if (end > memory.buffer.byteLength) {
-      throw this._regionInvalid(
-        moduleName,
-        region.name,
-        `region ends at ${end}, past memory of ${memory.buffer.byteLength} bytes`,
-      );
-    }
-  }
-
-  /** @returns true when the fill trapped. Copies are skipped either way. */
-  private _reportTransformFill(err: unknown): boolean {
-    const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
-    if (isTrap) {
-      const message = err instanceof Error ? err.message : String(err);
-      this._reportCaught(err, "sync_transforms_to_buffer", {
-        level: "fatal",
-        source: "gwen_core.wasm",
-        code: CoreErrorCodes.WASM_PANIC,
-        message,
-      });
-      return true;
-    }
-    const code = err instanceof GwenWasmError ? err.code : CoreErrorCodes.FRAME_LOOP_ERROR;
-    const message = err instanceof Error ? err.message : String(err);
-    this._publish({
-      level: "error",
-      code,
-      message,
-      source: "gwen_core.wasm",
-      error: err,
-      context: { frame: this._frameCountOwn, hook: "sync_transforms_to_buffer" },
-    });
-    return false;
-  }
-
-  private _copyTransformRegion(entry: WasmModuleEntry): void {
-    const copy = entry.transformCopy;
-    const memory = entry.handle.memory;
-    const view = this._transformView;
-    if (!copy || !memory || !view) return;
-    const length = this.maxEntities * TRANSFORM_STRIDE;
-    let dest = copy.bytes;
-    if (!dest || dest.byteLength === 0) {
-      dest = new Uint8Array(memory.buffer, copy.offset, length);
-      copy.bytes = dest;
-    }
-    dest.set(view.array);
-  }
-
-  private _runWasmModules(dt: number): void {
-    let needsFill = false;
-    for (const [name, entry] of this._wasmModules) {
-      if (entry.transformCopy && !isIsolated(this, `wasm:${name}`)) {
-        needsFill = true;
-        break;
-      }
-    }
-    let skipCopies = false;
-    let fillTrapped = false;
-    if (needsFill) {
-      try {
-        const ptr = this._getOrCreateTransformPtr();
-        this._bridge.syncTransformsToBuffer(ptr, this.maxEntities);
-      } catch (err: unknown) {
-        fillTrapped = this._reportTransformFill(err);
-        skipCopies = true;
-      }
-    }
-    if (fillTrapped || this._state === "faulted") return;
-    for (const [name, entry] of this._wasmModules) {
-      if (isIsolated(this, `wasm:${name}`)) continue;
-      try {
-        if (entry.transformCopy && !skipCopies) this._copyTransformRegion(entry);
-        entry.step?.(entry.handle, dt);
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        const isWasmPanic =
-          err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
-        this._reportCaught(err, "wasm", {
-          source: `wasm:${name}`,
-          message: `WASM module "${name}" step failed: ${detail}`,
-          target: { kind: "wasm-module", id: `wasm:${name}`, name },
-          code: isWasmPanic ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.FRAME_LOOP_ERROR,
-        });
-      }
-    }
-  }
-
-  /**
-   * Core buffer filled once per frame before the host copies it into module regions.
-   * The address stays in this engine. Community modules never receive it.
-   *
-   * @throws {GwenError} `CORE:WASM_NOT_INITIALIZED` when the WASM bridge is not active.
-   * @internal
-   */
-  private _getOrCreateTransformPtr(): number {
-    const bridge = this._bridge;
-    if (!bridge.isActive()) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_NOT_INITIALIZED,
-        "[GWEN] loadWasmModule() was called before WASM bridge initialisation. " +
-          "Await bridge.init() (or setupGwen()) before loading community WASM modules.",
-      );
-    }
-    if (!this._sharedMemory) {
-      this._sharedMemory = SharedMemoryManager.create(bridge, this.maxEntities);
-      this.disposables.add(
-        "wasm:shared-memory",
-        createDisposable(() => {
-          this._sharedMemory?.dispose(this._bridge);
-          this._sharedMemory = null;
-        }),
-      );
-    }
-    if (!this._transformView && this._sharedMemory) {
-      const byteLength = this.maxEntities * TRANSFORM_STRIDE;
-      const ptr = this._sharedMemory.transformBufferPtr;
-      this._transformView = this._memory.view({
-        name: "core:module-transforms",
-        type: "u8",
-        ptr: () => ptr,
-        length: () => byteLength,
-      });
-      this.disposables.add(
-        "wasm:module-transforms",
-        createDisposable(() => {
-          this._transformView?.dispose();
-          this._transformView = null;
-        }),
-      );
-    }
-    return this._sharedMemory.transformBufferPtr;
   }
 
   // ─── 8-phase frame runner ─────────────────────────────────────────────────
@@ -1914,21 +1530,11 @@ class GwenEngineImpl implements GwenEngine {
         if (memoryGrow !== undefined) await memoryGrow;
       }
       if (this._frameFaulted()) return;
-      this._runWasmModules(dt);
+      this._wasmRunner.stepAll(dt);
       if (instrument) t5 = performance.now();
 
-      // Memory sentinel — dev+debug only, and only when a SharedMemoryManager is active.
-      if (instrument && this._sharedMemory) {
-        try {
-          this._sharedMemory.checkSentinels(this._bridge);
-        } catch (err) {
-          const detail = err instanceof Error ? err.message : String(err);
-          this._reportCaught(err, "sentinel", {
-            code: CoreErrorCodes.FRAME_LOOP_ERROR,
-            message: `WASM memory sentinel violation: ${detail}`,
-          });
-        }
-      }
+      // Memory sentinel — dev+debug only, and only when shared memory is active.
+      if (instrument) this._wasmRunner.checkSentinels();
 
       // Phase 4 — ECS query flush + transform propagation
       if (this._frameFaulted()) return;
