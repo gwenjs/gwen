@@ -142,7 +142,7 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
 }
 
 describe("EngineLoop", () => {
-  it("constructs without createEngine and phase order is tick then modules then transforms then update then afterTick", async () => {
+  it("phase order is tick then modules then transforms then update then afterTick", async () => {
     const rig = await harness();
     try {
       await rig.loop.advance(1 / 60);
@@ -161,7 +161,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and a re-entrant advance throws CORE:ADVANCE_REENTRANT", async () => {
+  it("a re-entrant advance throws CORE:ADVANCE_REENTRANT", async () => {
     const rig = await harness();
     let caught: unknown;
     let entered = false;
@@ -187,7 +187,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and advance(1) with maxDeltaSeconds 0.1 and timeScale 2 sets deltaTime 0.2", async () => {
+  it("advance(1) with maxDeltaSeconds 0.1 and timeScale 2 sets deltaTime 0.2", async () => {
     const rig = await harness({ timeScale: 2, maxDeltaSeconds: 0.1 });
     try {
       await rig.loop.advance(1);
@@ -198,7 +198,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and a timeScale change after construction changes the next advance", async () => {
+  it("a timeScale change after construction changes the next advance", async () => {
     const rig = await harness({ timeScale: 1, maxDeltaSeconds: 0.1 });
     try {
       rig.config.timeScale = 0;
@@ -210,7 +210,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and two loops do not share deltaTime", async () => {
+  it("two loops do not share deltaTime", async () => {
     const first = await harness({ timeScale: 2, maxDeltaSeconds: 0.1 });
     const second = await harness({ timeScale: 1, maxDeltaSeconds: 0.1 });
     try {
@@ -223,7 +223,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and fixed mode runs at most maxCatchupSteps steps", async () => {
+  it("fixed mode runs at most maxCatchupSteps steps", async () => {
     const rig = await harness({ physicsHz: 60, maxCatchupSteps: 2, maxDeltaSeconds: 1 });
     const previousRaf = globalThis.requestAnimationFrame;
     const previousCancel = globalThis.cancelAnimationFrame;
@@ -256,7 +256,7 @@ describe("EngineLoop", () => {
     }
   });
 
-  it("constructs without createEngine and cancel drops the scheduled frame", async () => {
+  it("cancel drops the scheduled frame", async () => {
     const rig = await harness({ physicsHz: 0, targetFPS: 60 });
     const previousRaf = globalThis.requestAnimationFrame;
     const previousCancel = globalThis.cancelAnimationFrame;
