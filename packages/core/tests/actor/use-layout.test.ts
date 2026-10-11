@@ -1,6 +1,6 @@
 import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, beforeEach } from "vitest";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { defineLayout } from "../../src/actor/runtime/define-layout";
 import { useLayout } from "../../src/actor/runtime/use-layout";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";

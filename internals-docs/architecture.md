@@ -70,8 +70,25 @@ gwen-wasm-utils — Utilities for WASM/TS bridge, shared memory,
 
 The simulation runs on the main thread. See [ADR 0002](./adr/0002-threading-model.md).
 
-### Large File Pattern
-`gwen-engine.ts` is intentionally large (~2000+ lines) — V8 inlines function calls within the same compilation unit. Splitting into smaller files caused measurable performance regression on the hot path (significant slowdown when updating ~1000 entities/frame). This is a conscious performance trade-off.
+### Engine facade
+`GwenEngineImpl` in `packages/core/src/engine/gwen-engine.ts` is the public engine object. It delegates to collaborators in the same folder:
+
+- `engine-state.ts` — `EngineStateMachine`
+- `engine-error-policy.ts` — `EngineErrorPolicy`
+- `engine-loop.ts` — `EngineLoop`
+- `frame-scheduler.ts` — schedules the next animation frame
+- `engine-entities.ts` — `EngineEntities`
+- `engine-stats.ts` — `EngineStatsRecorder`
+- `engine-memory.ts` — `EngineMemory`
+- `wasm-module-runner.ts` — `WasmModuleRunner`
+- `hook-dispatch.ts` — runs engine hooks
+- `hook-tracker.ts` — `ScopedHooksTracker`
+- `plugin-registry.ts` — `PluginRegistry`
+- `service-container.ts` — `ServiceContainer`
+- `engine-internals.ts` — pool dormancy and live query ids
+- `engine-factory.ts` — `createEngine` and `setupGwen`
+
+`oxlint` `max-lines` 400, skipping blank lines and comments, covers `gwen-engine.ts` and `engine-loop.ts` only.
 
 ### ECS Memory Layout
 - **Decision:** archetype tables with one array per field per chunk (model C). Status: to be implemented by #113/#65. See [ADR-0001](./adr/0001-component-storage.md).

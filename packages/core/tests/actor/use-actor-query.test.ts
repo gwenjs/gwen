@@ -4,7 +4,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { useActorQuery } from "../../src/actor/runtime/use-actor-query";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { createEntityId } from "../../src/types/entity";
 import type { EntityId } from "../../src/engine/engine-api";
 

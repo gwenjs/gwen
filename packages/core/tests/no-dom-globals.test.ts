@@ -14,10 +14,6 @@ const ALLOWED_LINE_CEILING: Record<string, Record<string, number>> = {
   "gwen-engine.ts": {
     'if (typeof globalThis.window !== "undefined") {': 1,
   },
-  "engine-loop.ts": {
-    'if (typeof requestAnimationFrame !== "undefined") {': 1,
-    "return requestAnimationFrame(cb);": 1,
-  },
   "frame-scheduler.ts": {
     'if (typeof requestAnimationFrame !== "undefined") {': 1,
     "return requestAnimationFrame(cb);": 1,
@@ -90,8 +86,8 @@ describe("engine DOM global scan", () => {
     expect(hitsIn('if (typeof globalThis.window !== "undefined") {', "gwen-engine.ts")).toEqual([]);
     expect(hitsIn("/* window */\nconst n = 1;", "gwen-engine.ts")).toEqual([]);
     const allowed = "return requestAnimationFrame(cb);";
-    expect(hitsIn(`${allowed}\n${allowed}`, "engine-loop.ts")).toEqual([
-      `engine-loop.ts:2 ${allowed}`,
+    expect(hitsIn(`${allowed}\n${allowed}`, "frame-scheduler.ts")).toEqual([
+      `frame-scheduler.ts:2 ${allowed}`,
     ]);
     expect(hitsIn(allowed, "gwen-engine.ts")).toEqual([`gwen-engine.ts:1 ${allowed}`]);
     expect(hitsIn("", "gwen-engine.ts")).toEqual([]);

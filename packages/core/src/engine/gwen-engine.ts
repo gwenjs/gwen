@@ -50,7 +50,6 @@ import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { EngineLoop } from "./engine-loop.js";
 import { bindEngineOnHooks, emitEntityDestroy } from "./hook-dispatch.js";
 import { rememberEngineInternals } from "./engine-internals.js";
-export { readLiveQueryIds, setEntityDormant } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -112,15 +111,19 @@ export class GwenEngineImpl implements GwenEngine {
   get errors(): EngineErrorBus {
     return this._policy.bus;
   }
+
   isolated(): readonly GwenErrorTarget[] {
     return this._policy.isolated();
   }
+
   reenable(id: string): boolean {
     return this._policy.reenable(id);
   }
+
   get memory(): EngineMemory {
     return this._memory;
   }
+
   get state(): GwenEngineState {
     return this._stateMachine.state;
   }
@@ -254,6 +257,7 @@ export class GwenEngineImpl implements GwenEngine {
   use(plugin: GwenPlugin): Promise<void> {
     return this._pluginRegistry.use(plugin, this);
   }
+
   unuse(name: string): Promise<void> {
     return this._pluginRegistry.unuse(name, this);
   }
@@ -658,5 +662,3 @@ export class GwenEngineImpl implements GwenEngine {
 }
 
 // #endregion
-
-export { createEngine, setupGwen } from "./engine-factory.js";

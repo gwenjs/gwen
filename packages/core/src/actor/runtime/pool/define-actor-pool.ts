@@ -1,6 +1,6 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
-import { setEntityDormant } from "../../../engine/gwen-engine";
+import { setEntityDormant } from "../../../engine/engine-internals";
 import type { GwenEngine, GwenPlugin } from "../../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import { entityIndex } from "../../../types/entity";

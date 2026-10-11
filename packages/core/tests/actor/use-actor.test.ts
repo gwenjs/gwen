@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor, usePrefab } from "../../src/actor/runtime/use-actor";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { GwenScope } from "../../src/context/scope";
 import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
 import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";

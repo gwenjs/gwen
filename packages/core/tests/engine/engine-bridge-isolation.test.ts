@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import type { WasmEngine, WasmEntityId } from "../../src/engine/wasm-bridge";
 import { vi } from "vitest";

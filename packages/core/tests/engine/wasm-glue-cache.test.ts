@@ -7,7 +7,7 @@
 
 import { describe, it, expect, afterEach, vi } from "vitest";
 import { WasmBridgeImpl } from "../../src/internal";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
 
 declare module "../../src/engine/engine-types.js" {

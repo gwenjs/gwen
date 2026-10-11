@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { watchActorLeaks } from "../../src/actor/runtime/watch-actor-leaks";
 import type { ActorDefinition } from "../../src/actor/runtime/types";
 import type { EntityId } from "../../src/engine/engine-api";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 

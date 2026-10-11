@@ -1,7 +1,7 @@
 import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { EntityId } from "../../src/engine/engine-api";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useTransform } from "../../src/actor/runtime/use-transform";

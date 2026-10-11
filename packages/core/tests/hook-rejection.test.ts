@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineActor, definePrefab } from "../src/actor/index.js";
 import { defineActorPool } from "../src/actor/runtime/pool/define-actor-pool.js";
-import { createEngine } from "../src/engine/gwen-engine.js";
+import { createEngine } from "../src/engine/engine-factory.js";
 import { CoreErrorCodes } from "../src/index.js";
 import type { GwenErrorPayload } from "@gwenjs/schema";
 import { stubValue } from "./helpers/stub-component.js";
