@@ -18,7 +18,7 @@ import {
 } from "../../src/engine/engine-errors.js";
 import { createEngine } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
-import { mapBulkReadWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
+import { toGwenWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import {
   FLAG_HAS_TRANSFORM,
   FLAGS_OFFSET,
@@ -438,18 +438,29 @@ describe("WASM coded errors", () => {
             out,
           );
       } catch (error: unknown) {
-        caught = mapBulkReadWasmError(error, "get_components_bulk", () => {});
+        caught = toGwenWasmError(error, "get_components_bulk", () => {});
       }
 
       expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "get_components_bulk");
-      expect((caught as GwenWasmError).message).toContain("gens");
-      expect((caught as GwenWasmError).message).toContain("expected 2");
-      expect((caught as GwenWasmError).message).toContain("actual 1");
+      if (!(caught instanceof GwenWasmError)) {
+        throw new Error("expected GwenWasmError");
+      }
+      expect(caught.message).toBe("buffer gens length mismatch: expected 2, actual 1");
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
       expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
         1, 2, 3, 4,
       ]);
       expect(bridge.countEntities()).toBe(1);
+      const readOut = new Uint8Array(4);
+      bridge
+        .engine()
+        .get_components_bulk(
+          new Uint32Array([entity.index]),
+          new Uint32Array([entity.generation]),
+          typeId,
+          readOut,
+        );
+      expect(Array.from(readOut)).toEqual([1, 2, 3, 4]);
       expect(other.bridge.createEntity().index).toBe(0);
       await expectNextFrame(engine);
       await expectNextFrame(other.engine);
@@ -475,13 +486,14 @@ describe("WASM coded errors", () => {
       try {
         bridge.engine().query_read_bulk(new Uint32Array([typeId]), typeId, outSlots, outGens, out);
       } catch (error: unknown) {
-        caught = mapBulkReadWasmError(error, "query_read_bulk", () => {});
+        caught = toGwenWasmError(error, "query_read_bulk", () => {});
       }
 
       expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "query_read_bulk");
-      expect((caught as GwenWasmError).message).toContain("gens");
-      expect((caught as GwenWasmError).message).toContain("expected 2");
-      expect((caught as GwenWasmError).message).toContain("actual 1");
+      if (!(caught instanceof GwenWasmError)) {
+        throw new Error("expected GwenWasmError");
+      }
+      expect(caught.message).toBe("buffer gens length mismatch: expected 2, actual 1");
       expect(Array.from(outSlots)).toEqual([7, 7]);
       expect(Array.from(outGens)).toEqual([7]);
       expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
@@ -489,6 +501,113 @@ describe("WASM coded errors", () => {
         1, 2, 3, 4,
       ]);
       expect(bridge.countEntities()).toBe(1);
+      const readSlots = new Uint32Array(1);
+      const readGens = new Uint32Array(1);
+      const readOut = new Uint8Array(8);
+      const read = bridge
+        .engine()
+        .query_read_bulk(new Uint32Array([typeId]), typeId, readSlots, readGens, readOut);
+      expect(Array.from(read)).toEqual([1, 4]);
+      expect(Array.from(readOut.subarray(0, 4))).toEqual([1, 2, 3, 4]);
+      await expectNextFrame(engine);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("get_components_bulk rejects a longer generation list and the next frame runs", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const other = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const { engine, bridge } = handle;
+    try {
+      const entity = bridge.createEntity();
+      const typeId = 7;
+      const original = new Uint8Array([1, 2, 3, 4]);
+      expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
+      const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
+
+      let caught: unknown;
+      try {
+        bridge
+          .engine()
+          .get_components_bulk(
+            new Uint32Array([entity.index]),
+            new Uint32Array([entity.generation, entity.generation]),
+            typeId,
+            out,
+          );
+      } catch (error: unknown) {
+        caught = toGwenWasmError(error, "get_components_bulk", () => {});
+      }
+
+      expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "get_components_bulk");
+      if (!(caught instanceof GwenWasmError)) {
+        throw new Error("expected GwenWasmError");
+      }
+      expect(caught.message).toBe("buffer gens length mismatch: expected 1, actual 2");
+      expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
+      expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
+        1, 2, 3, 4,
+      ]);
+      expect(bridge.countEntities()).toBe(1);
+      const readOut = new Uint8Array(4);
+      bridge
+        .engine()
+        .get_components_bulk(
+          new Uint32Array([entity.index]),
+          new Uint32Array([entity.generation]),
+          typeId,
+          readOut,
+        );
+      expect(Array.from(readOut)).toEqual([1, 2, 3, 4]);
+      expect(other.bridge.createEntity().index).toBe(0);
+      await expectNextFrame(engine);
+      await expectNextFrame(other.engine);
+    } finally {
+      await handle.dispose();
+      await other.dispose();
+    }
+  });
+
+  it("query_read_bulk rejects a longer generation list and the next frame runs", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const { engine, bridge } = handle;
+    try {
+      const entity = bridge.createEntity();
+      const typeId = 7;
+      const original = new Uint8Array([1, 2, 3, 4]);
+      expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
+      const outSlots = new Uint32Array([7]);
+      const outGens = new Uint32Array([7, 7]);
+      const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
+
+      let caught: unknown;
+      try {
+        bridge.engine().query_read_bulk(new Uint32Array([typeId]), typeId, outSlots, outGens, out);
+      } catch (error: unknown) {
+        caught = toGwenWasmError(error, "query_read_bulk", () => {});
+      }
+
+      expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "query_read_bulk");
+      if (!(caught instanceof GwenWasmError)) {
+        throw new Error("expected GwenWasmError");
+      }
+      expect(caught.message).toBe("buffer gens length mismatch: expected 1, actual 2");
+      expect(Array.from(outSlots)).toEqual([7]);
+      expect(Array.from(outGens)).toEqual([7, 7]);
+      expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
+      expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
+        1, 2, 3, 4,
+      ]);
+      expect(bridge.countEntities()).toBe(1);
+      const readSlots = new Uint32Array(1);
+      const readGens = new Uint32Array(1);
+      const readOut = new Uint8Array(8);
+      const read = bridge
+        .engine()
+        .query_read_bulk(new Uint32Array([typeId]), typeId, readSlots, readGens, readOut);
+      expect(Array.from(read)).toEqual([1, 4]);
+      expect(Array.from(readOut.subarray(0, 4))).toEqual([1, 2, 3, 4]);
       await expectNextFrame(engine);
     } finally {
       await handle.dispose();

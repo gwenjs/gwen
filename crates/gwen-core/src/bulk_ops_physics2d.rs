@@ -170,4 +170,67 @@ mod tests {
         let x = f32::from_le_bytes(out_buf[0..4].try_into().unwrap());
         assert!((x - 1.0).abs() < f32::EPSILON);
     }
+
+    #[test]
+    fn physics2d_bulk_sync_from_rapier_reports_no_rows_on_a_longer_generation_list() {
+        let mut engine = make_engine();
+        let type_id = engine.register_component_type();
+        assert_eq!(
+            engine
+                .create_entity()
+                .map(|id| (id.index(), id.generation())),
+            Ok((0, 0))
+        );
+        assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+
+        let mut other = make_engine();
+        let other_type_id = other.register_component_type();
+        assert_eq!(
+            other
+                .create_entity()
+                .map(|id| (id.index(), id.generation())),
+            Ok((0, 0))
+        );
+        assert_eq!(
+            other.add_component(0, 0, other_type_id, &[5, 6, 7, 8]),
+            Ok(true)
+        );
+        assert_eq!(other.count_entities(), 1);
+        let before = engine.get_component_raw(0, 0, type_id);
+        let other_before = other.get_component_raw(0, 0, other_type_id);
+        let mut out_slots = [7u32];
+        let mut out_gens = [7u32, 9];
+        let mut out_buf = [9u8; 8];
+
+        let (count, bytes) = physics2d_bulk_sync_from_rapier(
+            &mut engine,
+            type_id,
+            &mut out_slots,
+            &mut out_gens,
+            &mut out_buf,
+        );
+
+        assert_eq!((count, bytes), (0, 0));
+        assert_eq!(out_slots, [7]);
+        assert_eq!(out_gens, [7, 9]);
+        assert_eq!(out_buf, [9u8; 8]);
+        assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+        assert_eq!(other.get_component_raw(0, 0, other_type_id), other_before);
+        assert_eq!(engine.count_entities(), 1);
+        assert_eq!(other.count_entities(), 1);
+
+        let mut read_slots = [7u32];
+        let mut read_gens = [7u32];
+        let mut read_buf = [9u8; 8];
+        let (count, bytes) = physics2d_bulk_sync_from_rapier(
+            &mut engine,
+            type_id,
+            &mut read_slots,
+            &mut read_gens,
+            &mut read_buf,
+        );
+
+        assert_eq!((count, bytes), (1, 4));
+        assert_eq!(&read_buf[..4], &[1, 2, 3, 4]);
+    }
 }
