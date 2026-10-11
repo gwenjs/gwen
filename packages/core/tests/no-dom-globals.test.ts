@@ -18,6 +18,10 @@ const ALLOWED_LINE_CEILING: Record<string, Record<string, number>> = {
     'if (typeof requestAnimationFrame !== "undefined") {': 1,
     "return requestAnimationFrame(cb);": 1,
   },
+  "frame-scheduler.ts": {
+    'if (typeof requestAnimationFrame !== "undefined") {': 1,
+    "return requestAnimationFrame(cb);": 1,
+  },
   "error-bus.ts": {
     'if (typeof window === "undefined") {': 1,
     "const previous = window.onerror;": 1,

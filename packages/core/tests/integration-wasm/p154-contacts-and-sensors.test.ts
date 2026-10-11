@@ -21,7 +21,7 @@ import {
 } from "../../../physics3d/src/composables/on-sensor.js";
 import type { Physics3DAPI } from "../../../physics3d/src/types";
 
-declare module "../../src/engine/gwen-engine.js" {
+declare module "../../src/engine/engine-types.js" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
     physics3d: Physics3DAPI;

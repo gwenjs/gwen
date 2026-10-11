@@ -12,6 +12,7 @@ import type { EngineErrorPolicy } from "./engine-error-policy.js";
 import type { EngineMemory } from "./engine-memory.js";
 import type { EngineStateMachine } from "./engine-state.js";
 import type { EngineStatsRecorder } from "./engine-stats.js";
+import { cancelScheduledFrame, scheduleFrame } from "./frame-scheduler.js";
 
 /**
  * Mutable engine knobs. Read on each frame. Never copied into the loop.
@@ -78,31 +79,8 @@ export class EngineLoop {
 
   cancel(): void {
     if (!this._rafHandle) return;
-    this._cancelFrame(this._rafHandle);
+    cancelScheduledFrame(this._rafHandle);
     this._rafHandle = 0;
-  }
-
-  // ─── Frame scheduler ─────────────────────────────────────────────────────
-  /**
-   * Schedule the next animation frame.
-   * Uses `requestAnimationFrame` on the main thread; falls back to `setTimeout`
-   * in Web Worker contexts where RAF is unavailable.
-   */
-  private _scheduleFrame(cb: (time: number) => void): number | ReturnType<typeof setTimeout> {
-    if (typeof requestAnimationFrame !== "undefined") {
-      return requestAnimationFrame(cb);
-    }
-    // Worker fallback: no visual sync, but keeps the loop running.
-    return setTimeout(() => cb(performance.now()), 0);
-  }
-
-  /** Cancel a previously scheduled frame (RAF or setTimeout handle). */
-  private _cancelFrame(handle: number | ReturnType<typeof setTimeout>): void {
-    if (typeof cancelAnimationFrame !== "undefined") {
-      if (typeof handle === "number") cancelAnimationFrame(handle);
-      return;
-    }
-    clearTimeout(handle);
   }
 
   startScheduled(): void {
@@ -145,10 +123,10 @@ export class EngineLoop {
             this._displayTimed = false;
           }
         } finally {
-          if (this.deps.state.state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this.deps.state.state === "running") this._rafHandle = scheduleFrame(loop);
         }
       };
-      this._rafHandle = this._scheduleFrame(loop);
+      this._rafHandle = scheduleFrame(loop);
     } else {
       const loop = async (now: number) => {
         if (this.deps.state.state !== "running") return;
@@ -157,7 +135,7 @@ export class EngineLoop {
         // Use a 0.5ms tolerance to account for RAF timing jitter.
         const frameBudgetMs = 1000 / this.deps.config.targetFPS;
         if (now - this._lastFrameTime < frameBudgetMs - 0.5) {
-          if (this.deps.state.state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this.deps.state.state === "running") this._rafHandle = scheduleFrame(loop);
           return;
         }
 
@@ -173,10 +151,10 @@ export class EngineLoop {
         } catch (err) {
           this.deps.policy.handleFrameLoopError(err);
         } finally {
-          if (this.deps.state.state === "running") this._rafHandle = this._scheduleFrame(loop);
+          if (this.deps.state.state === "running") this._rafHandle = scheduleFrame(loop);
         }
       };
-      this._rafHandle = this._scheduleFrame(loop);
+      this._rafHandle = scheduleFrame(loop);
     }
   }
 

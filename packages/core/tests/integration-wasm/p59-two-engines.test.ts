@@ -12,7 +12,7 @@ import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { onContact as onContact2d } from "../../../physics2d/src/composables/on-contact.js";
 import { useEngine } from "../../src/index.js";
 
-declare module "../../src/engine/gwen-engine.js" {
+declare module "../../src/engine/engine-types.js" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
     physics3d: Physics3DAPI;

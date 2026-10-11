@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine/gwen-engine";
+import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine/engine-types";
 
 describe("checkPluginApiVersion", () => {
   afterEach(() => {

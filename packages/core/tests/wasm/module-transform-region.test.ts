@@ -4,7 +4,8 @@ import { GwenError, type GwenErrorPayload } from "@gwenjs/schema";
 
 import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "../../src/engine/engine-errors.js";
 import type { WasmModuleOptions } from "../../src/engine/engine-types.js";
-import { createEngine, type GwenEngine } from "../../src/engine/gwen-engine.js";
+import { createEngine } from "../../src/engine/gwen-engine.js";
+import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 
 const MAX_ENTITIES = 4;

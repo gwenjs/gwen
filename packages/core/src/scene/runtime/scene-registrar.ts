@@ -10,7 +10,7 @@
  * @module
  */
 
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/engine-types";
 
 /**
  * Service key used with `engine.provide()` and `engine.inject()`.

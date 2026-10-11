@@ -1,6 +1,6 @@
 import { expectTypeOf } from "vitest";
 
-import type { GwenEngine } from "../../src/engine/gwen-engine";
+import type { GwenEngine } from "../../src/engine/engine-types";
 import { useWasmModule } from "../../src/system/runtime/define-system";
 
 declare module "../../src/engine/engine-types.js" {

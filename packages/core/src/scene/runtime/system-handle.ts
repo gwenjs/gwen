@@ -30,7 +30,7 @@
  * ```
  */
 
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/engine-types";
 import type { DiscoverablePlugin } from "../../system/runtime/define-system";
 
 /** Duck-typed check — true when the plugin exposes ScopedHookable-level pause/resume. */

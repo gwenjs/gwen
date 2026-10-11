@@ -8,7 +8,7 @@
 
 import { createContext } from "unctx";
 import { GwenError } from "@gwenjs/schema";
-import type { GwenEngine } from "./gwen-engine";
+import type { GwenEngine } from "./engine-types";
 import { GwenScope } from "../context/scope.js";
 import { CoreErrorCodes } from "./engine-errors.js";
 

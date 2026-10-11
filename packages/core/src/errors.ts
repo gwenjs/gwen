@@ -6,7 +6,7 @@
  */
 
 export { GwenContextError } from "./engine/context";
-export { GwenPluginNotFoundError } from "./engine/gwen-engine.js";
+export { GwenPluginNotFoundError } from "./engine/engine-errors.js";
 export { GwenConfigError } from "./engine/config-error.js";
 export {
   GwenActorError,

@@ -7,7 +7,7 @@ import { createEngine } from "../../src/engine/gwen-engine";
 import { GwenScope } from "../../src/context/scope";
 import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
 import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
-import type { GwenPlugin } from "../../src/engine/gwen-engine";
+import type { GwenPlugin } from "../../src/engine/engine-types";
 
 const Position = stubComponent("Position");
 

@@ -1,4 +1,4 @@
-import type { GwenEngine } from "../../src/engine/gwen-engine";
+import type { GwenEngine } from "../../src/engine/engine-types";
 import type { WasmEngine } from "../../src/engine/wasm-bridge-types";
 
 /** Marks the per-engine bridge active so `start()` can schedule frames. */

@@ -15,7 +15,7 @@ import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { createPhysicsKinematicSyncSystem as createKinematicSync2D } from "../../../physics2d/src/systems";
 
-declare module "../../src/engine/gwen-engine.js" {
+declare module "../../src/engine/engine-types.js" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
     physics3d: Physics3DAPI;

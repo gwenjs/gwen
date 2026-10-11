@@ -1,4 +1,4 @@
-import type { GwenEngine } from "../engine/gwen-engine";
+import type { GwenEngine } from "../engine/engine-types";
 import { createEngineLocal } from "../engine/engine-local";
 
 /**

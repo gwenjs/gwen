@@ -5,7 +5,7 @@
  * The first `get` registers exactly one disposable, released by `stop()`.
  */
 
-import type { GwenEngine } from "./gwen-engine";
+import type { GwenEngine } from "./engine-types";
 import { engineContext, useEngine } from "./context";
 import { createDisposable } from "../disposable";
 

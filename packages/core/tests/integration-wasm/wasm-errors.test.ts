@@ -16,7 +16,8 @@ import {
   GwenWasmPanicError,
   type CoreWasmErrorCode,
 } from "../../src/engine/engine-errors.js";
-import { createEngine, type GwenEngine } from "../../src/engine/gwen-engine.js";
+import { createEngine } from "../../src/engine/gwen-engine.js";
+import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import {
   FLAG_HAS_TRANSFORM,

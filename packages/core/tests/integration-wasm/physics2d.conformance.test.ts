@@ -1,5 +1,5 @@
 import { defineComponent, Types, type EntityId } from "../../src/index.js";
-import type { GwenEngine } from "../../src/engine/gwen-engine.js";
+import type { GwenEngine } from "../../src/engine/engine-types.js";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { createPhysicsKinematicSyncSystem } from "../../../physics2d/src/systems";

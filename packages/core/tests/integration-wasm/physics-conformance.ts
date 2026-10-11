@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { EntityId } from "../../src/index.js";
-import type { GwenEngine } from "../../src/engine/gwen-engine.js";
+import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { createRealEngine } from "./harness.js";
 
 export interface Vec {
