@@ -23,5 +23,16 @@
     "**/*.d.ts",
     "crate/**",
     "**/wasm/**"
+  ],
+  "overrides": [
+    {
+      "files": [
+        "packages/core/src/engine/gwen-engine.ts",
+        "packages/core/src/engine/engine-loop.ts"
+      ],
+      "rules": {
+        "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }]
+      }
+    }
   ]
 }
