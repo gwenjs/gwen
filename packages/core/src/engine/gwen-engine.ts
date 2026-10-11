@@ -10,6 +10,7 @@
  *   engine-entities.ts                          — EngineEntities
  *   engine-stats.ts                             — EngineStatsRecorder
  *   engine-state.ts                             — EngineStateMachine
+ *   engine-error-policy.ts                      — EngineErrorPolicy
  *   wasm-module-runner.ts                       — WasmModuleRunner
  *   #region Engine implementation               — GwenEngineImpl (frame loop)
  *   #region Factory                             — createEngine()
@@ -20,16 +21,15 @@ import {
   GwenError,
   type GwenErrorPayload as BusErrorPayload,
   type GwenErrorTarget,
-  type PluginErrorContext,
 } from "@gwenjs/schema";
-import type { GwenRuntimeHooks, EngineErrorPayload } from "./runtime-hooks";
+import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { engineContext } from "./context";
 import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
 import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
 import { stringPoolFor } from "../utils/string-pool";
 import { createLogger } from "../logger/index";
 import type { IGwenLogger } from "@gwenjs/schema";
-import { poisonWasmBridge, WasmBridgeImpl } from "./wasm-bridge";
+import { WasmBridgeImpl } from "./wasm-bridge";
 import { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
@@ -84,25 +84,17 @@ export type { EngineErrorPayload } from "./runtime-hooks.js";
 
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
-import { CoreErrorCodes, GwenWasmPanicError, GwenEngineStateError } from "./engine-errors.js";
+import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 
 import { createErrorBus } from "./error-bus.js";
-import {
-  bindFailureReporter,
-  clearIsolated,
-  forgetTarget,
-  isIsolated,
-  isThenable,
-  isolateTarget,
-  listIsolated,
-  phaseForHook,
-} from "./error-isolation.js";
+import { bindFailureReporter, isIsolated, isThenable } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
 import { EngineEntities } from "./engine-entities.js";
 import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
+import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -215,28 +207,20 @@ class GwenEngineImpl implements GwenEngine {
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
-  private readonly _errorBus: EngineErrorBus;
-  private _errorOnAttached = false;
-  private _errorFatalAttached = false;
-  private _errorInstallAttached = false;
-  private _emitBridgeActive = false;
-  /** Set when `emit` cannot be wrapped. `engine:error` then fires from `on`. */
-  private _engineErrorFromOn = false;
-  /** One core trap is published. A later poisoned-bridge rethrow is not a second panic. */
-  private _wasmPanicPublished = false;
+  private readonly _policy: EngineErrorPolicy;
 
   private readonly _memory: EngineMemory;
 
   get errors(): EngineErrorBus {
-    return this._errorBus;
+    return this._policy.bus;
   }
 
   isolated(): readonly GwenErrorTarget[] {
-    return listIsolated(this);
+    return this._policy.isolated();
   }
 
   reenable(id: string): boolean {
-    return forgetTarget(this, id);
+    return this._policy.reenable(id);
   }
 
   get memory(): EngineMemory {
@@ -364,7 +348,18 @@ class GwenEngineImpl implements GwenEngine {
     });
 
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
-    this._errorBus = errorBus;
+    this._policy = new EngineErrorPolicy({
+      bus: errorBus,
+      hooks: this.hooks,
+      logger: this.logger,
+      state: this._stateMachine,
+      frame: () => this._stats.frameCount,
+      debug: this.debug,
+      owner: this,
+      disposables: this.disposables,
+      pluginNamed: (name) => this._pluginRegistry.pluginNamed(name),
+      bridge: this._bridge,
+    });
     this.provide("errors", errorBus);
     this._pluginRegistry = new PluginRegistry({
       hooks: this.hooks,
@@ -502,14 +497,7 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Lifecycle ────────────────────────────────────────────────────────────
 
   private _handleFrameLoopError(err: unknown): void {
-    if (err instanceof WebAssembly.RuntimeError) {
-      poisonWasmBridge(this._bridge, err);
-    }
-    try {
-      this._reportCaught(err, "frame");
-    } catch (handlerError) {
-      this._logHandlerFailed(handlerError);
-    }
+    this._policy.handleFrameLoopError(err);
   }
 
   /**
@@ -635,13 +623,14 @@ class GwenEngineImpl implements GwenEngine {
       this._handleFrameLoopError(err);
     }
     this._pluginRegistry.clearHooks();
-    clearIsolated(this);
+    this._policy.clearIsolated();
 
     // Per-engine module handles only. The glue cache is shared by variant:
     // another live engine may still need those keys.
     this._wasmRunner.clear();
 
     this.disposables.disposeAll(); // LIFO — last registered, first disposed
+    this._policy.dispose();
   }
 
   /**
@@ -802,15 +791,7 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   private _reportEntityDestroyFailure(id: EntityId, error: unknown): void {
-    const message = error instanceof Error ? error.message : String(error);
-    this.errors.emit({
-      level: "error",
-      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message,
-      source: "entity:destroy",
-      error,
-      context: { entityId: id },
-    });
+    this._policy.reportEntityDestroyFailure(id, error);
   }
 
   /**
@@ -977,275 +958,28 @@ class GwenEngineImpl implements GwenEngine {
 
   // ─── 8-phase frame runner ─────────────────────────────────────────────────
 
-  private _logHandlerFailed(error: unknown): void {
-    const detail = error instanceof Error ? error.message : String(error);
-    this.logger.error(`[${CoreErrorCodes.ERROR_HANDLER_FAILED}] ${detail}`, {
-      code: CoreErrorCodes.ERROR_HANDLER_FAILED,
-    });
-  }
-
-  private _catchAsync(result: unknown): void {
-    if (!isThenable(result)) return;
-    void Promise.resolve(result).catch((error: unknown) => this._logHandlerFailed(error));
-  }
-
   private _emit(event: BusErrorPayload): void {
-    try {
-      this._errorBus.emit(event);
-    } catch (error) {
-      this._logHandlerFailed(error);
-    }
+    this._policy.emit(event);
   }
 
-  /** Isolation and the fatal transition. Runs even when a custom bus does not call `on`. */
   private _publish(event: BusErrorPayload): void {
-    this._noteIsolation(event);
-    if (event.level === "fatal") {
-      this._enterFaulted(event.code === CoreErrorCodes.WASM_PANIC ? "WASM_PANIC" : "FATAL_ERROR");
-    }
-    this._emit(event);
-  }
-
-  private _noteIsolation(event: BusErrorPayload): void {
-    if (event.level !== "error" || !event.target || event.context?.phase === "setup") return;
-    if (!isolateTarget(this, event.target)) return;
-    // DEV+DEBUG advice. Production builds omit it even when debug is true.
-    if (__GWEN_DEV__ && this.debug) {
-      const hook = typeof event.context?.hook === "string" ? event.context.hook : "unknown";
-      this.logger.warn(
-        `[GWEN] ${event.target.kind} "${event.target.name}" isolated after ${event.code} in ${hook}; skipped until engine.reenable("${event.target.id}").`,
-      );
-    }
+    this._policy.publish(event);
   }
 
   private _attachErrorPolicy(): void {
-    const bus = this._errorBus;
-    if (!this._errorOnAttached) {
-      const unsubscribe = bus.on((event) => {
-        this._applyBusEvent(event);
-      });
-      this._errorOnAttached = true;
-      if (typeof unsubscribe === "function") {
-        this.disposables.add(
-          "errors:on",
-          createDisposable(() => {
-            this._errorOnAttached = false;
-            unsubscribe();
-          }),
-        );
-      }
-    }
-    if (!this._errorFatalAttached) {
-      const unsubscribeFatal = bus.onFatal(() => {
-        this._enterFaulted("FATAL_ERROR");
-      });
-      this._errorFatalAttached = true;
-      if (typeof unsubscribeFatal === "function") {
-        this.disposables.add(
-          "errors:onFatal",
-          createDisposable(() => {
-            this._errorFatalAttached = false;
-            unsubscribeFatal();
-          }),
-        );
-      }
-    }
-    if (!this._errorInstallAttached) {
-      const uninstall = bus.install?.();
-      if (typeof uninstall === "function") {
-        this._errorInstallAttached = true;
-        this.disposables.add(
-          "errors:install",
-          createDisposable(() => {
-            this._errorInstallAttached = false;
-            uninstall();
-          }),
-        );
-      }
-    }
-    this._bridgeErrorEmit();
-  }
-
-  /**
-   * `engine:error` runs after every `on` handler.
-   * `stop()` drops the wrapper when this engine still owns `emit`.
-   * A bus whose `emit` cannot be replaced fires the hook from `on` instead.
-   */
-  private _bridgeErrorEmit(): void {
-    if (this._emitBridgeActive || this._engineErrorFromOn) return;
-    const errorBus = this._errorBus;
-    const previous = errorBus.emit;
-    let active = true;
-    const wrapped = (event: BusErrorPayload): void => {
-      if (!active) {
-        if (errorBus.emit === wrapped) errorBus.emit = previous;
-        previous.call(errorBus, event);
-        return;
-      }
-      try {
-        previous.call(errorBus, event);
-      } catch (error) {
-        this._logHandlerFailed(error);
-        return;
-      }
-      if (event.level === "error" || event.level === "fatal") {
-        this._fireEngineErrorHook(event);
-      }
-    };
-    try {
-      errorBus.emit = wrapped;
-    } catch {
-      this._engineErrorFromOn = true;
-      return;
-    }
-    if (errorBus.emit !== wrapped) {
-      this._engineErrorFromOn = true;
-      return;
-    }
-    this._emitBridgeActive = true;
-    this.disposables.add(
-      "errors:emit",
-      createDisposable(() => {
-        this._emitBridgeActive = false;
-        active = false;
-        if (errorBus.emit === wrapped) errorBus.emit = previous;
-      }),
-    );
-  }
-
-  private _applyBusEvent(event: BusErrorPayload): void {
-    switch (event.level) {
-      case "verbose":
-        this.logger.debug(event.message, { code: event.code });
-        break;
-      case "info":
-        this.logger.info(event.message, { code: event.code });
-        break;
-      case "warning":
-        this.logger.warn(event.message, { code: event.code });
-        break;
-      case "error":
-      case "fatal":
-        this.logger.error(event.message, { code: event.code });
-        break;
-      default:
-        break;
-    }
-    this._noteIsolation(event);
-    if (this._engineErrorFromOn) this._fireEngineErrorHook(event);
-  }
-
-  private _fireEngineErrorHook(event: BusErrorPayload): void {
-    if (event.level !== "error" && event.level !== "fatal") return;
-    const frame =
-      typeof event.context?.frame === "number" ? event.context.frame : this._stats.frameCount;
-    const payload: EngineErrorPayload = {
-      level: event.level,
-      code: event.code,
-      message: event.message,
-      cause: event.error,
-      frame,
-      ...(event.source !== undefined ? { source: event.source } : {}),
-      ...(event.target !== undefined ? { target: event.target } : {}),
-    };
-    try {
-      const result: unknown = this.hooks.callHook("engine:error", payload);
-      this._catchAsync(result);
-    } catch (error) {
-      this._logHandlerFailed(error);
-    }
-  }
-
-  private _firePluginError(
-    pluginName: string,
-    phase: PluginErrorContext["phase"],
-    error: unknown,
-    hook?: string,
-  ): void {
-    try {
-      const result: unknown = this.hooks.callHook("plugin:error", {
-        pluginName,
-        phase,
-        error,
-        frame: this._stats.frameCount,
-        ...(hook !== undefined ? { hook } : {}),
-      });
-      this._catchAsync(result);
-    } catch (handlerError) {
-      this._logHandlerFailed(handlerError);
-    }
-  }
-
-  private _pluginForTarget(target: GwenErrorTarget): GwenPlugin | undefined {
-    if (target.kind === "plugin") {
-      return this._pluginRegistry.pluginNamed(target.id);
-    }
-    if (target.kind === "system") {
-      return this._pluginRegistry.pluginNamed(target.name);
-    }
-    return undefined;
-  }
-
-  private _consultRecover(
-    plugin: GwenPlugin,
-    err: unknown,
-    phase: PluginErrorContext["phase"],
-    hook?: string,
-  ): boolean {
-    if (!plugin.onError) return false;
-    let recovered = false;
-    try {
-      plugin.onError(err, {
-        phase,
-        ...(hook !== undefined ? { hook } : {}),
-        frame: this._stats.frameCount,
-        recover() {
-          recovered = true;
-        },
-      });
-    } catch (handlerError) {
-      this._logHandlerFailed(handlerError);
-    }
-    return recovered;
+    this._policy.attach();
   }
 
   private _dropPluginIsolation(name: string): void {
-    forgetTarget(this, name);
-    for (const target of listIsolated(this)) {
-      if (target.id === name || target.name === name) forgetTarget(this, target.id);
-    }
+    this._policy.dropIsolation(name);
   }
 
   private _reportSetupError(plugin: GwenPlugin, err: unknown): void {
-    const message = err instanceof Error ? err.message : String(err);
-    const isTrap = err instanceof WebAssembly.RuntimeError;
-    if (!isTrap && this._consultRecover(plugin, err, "setup")) return;
-    this._publish({
-      level: "error",
-      code: isTrap ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.PLUGIN_SETUP_ERROR,
-      message: `[${plugin.name}] setup failed: ${message}`,
-      source: plugin.name,
-      error: err,
-      target: { kind: "plugin", id: plugin.name, name: plugin.name },
-      context: { frame: this._stats.frameCount, phase: "setup", hook: "setup" },
-    });
+    this._policy.reportSetupError(plugin, err);
   }
 
   private _reportTeardown(plugin: GwenPlugin, err: unknown): void {
-    const message = err instanceof Error ? err.message : String(err);
-    const isTrap = err instanceof WebAssembly.RuntimeError;
-    if (!isTrap && this._consultRecover(plugin, err, "teardown")) return;
-    const target: GwenErrorTarget = { kind: "plugin", id: plugin.name, name: plugin.name };
-    this._publish({
-      level: isTrap ? "fatal" : "error",
-      code: isTrap ? CoreErrorCodes.WASM_PANIC : CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message: `[${plugin.name}] teardown threw: ${message}`,
-      source: plugin.name,
-      error: err,
-      target,
-      context: { frame: this._stats.frameCount, phase: "teardown", hook: "teardown" },
-    });
-    if (!isTrap) this._firePluginError(plugin.name, "teardown", err, "teardown");
+    this._policy.reportTeardown(plugin, err);
   }
 
   private _reportCaught(
@@ -1259,80 +993,7 @@ class GwenEngineImpl implements GwenEngine {
       target?: GwenErrorTarget;
     },
   ): void {
-    if (forced === undefined && err instanceof WebAssembly.RuntimeError) {
-      poisonWasmBridge(this._bridge, err);
-    }
-    if (
-      err instanceof GwenWasmPanicError &&
-      err.exportName === undefined &&
-      this._wasmPanicPublished
-    ) {
-      return;
-    }
-    const message = forced?.message ?? (err instanceof Error ? err.message : String(err));
-    const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
-    const target = forced?.target;
-    const frame = this._stats.frameCount;
-
-    if (forced?.target?.kind === "wasm-module") {
-      this._publish({
-        level: "error",
-        code: isTrap ? CoreErrorCodes.WASM_PANIC : (forced.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
-        message,
-        ...(forced.source !== undefined ? { source: forced.source } : {}),
-        error: err,
-        target: forced.target,
-        context: { frame, hook },
-      });
-      return;
-    }
-
-    if (isTrap || forced?.level === "fatal") {
-      if (isTrap) this._wasmPanicPublished = true;
-      this._publish({
-        level: "fatal",
-        code: isTrap
-          ? CoreErrorCodes.WASM_PANIC
-          : (forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR),
-        message,
-        source:
-          forced?.source ?? (err instanceof GwenWasmPanicError ? "gwen_core.wasm" : "@gwenjs/core"),
-        error: err,
-        ...(target !== undefined ? { target } : {}),
-        context: { frame, hook },
-      });
-      return;
-    }
-
-    if (target) {
-      const phase = phaseForHook(hook);
-      const plugin = this._pluginForTarget(target);
-      if (plugin && this._consultRecover(plugin, err, phase, hook)) return;
-      const source = target.name;
-      this._publish({
-        level: "error",
-        code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-        message: `[${source}] ${phase} threw: ${message}`,
-        source,
-        error: err,
-        target,
-        context: { frame, hook, phase },
-      });
-      if (target.kind === "plugin" || target.kind === "system") {
-        const pluginName = target.kind === "plugin" ? target.id : target.name;
-        this._firePluginError(pluginName, phase, err, hook);
-      }
-      return;
-    }
-
-    this._publish({
-      level: "error",
-      code: forced?.code ?? CoreErrorCodes.FRAME_LOOP_ERROR,
-      message,
-      source: forced?.source ?? "@gwenjs/core",
-      error: err,
-      context: { frame, hook },
-    });
+    this._policy.reportCaught(err, hook, forced);
   }
 
   private _settleHook(hook: string, result: unknown): unknown {
@@ -1404,15 +1065,7 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   private _reportMemoryGrow(error: unknown, frame: number): void {
-    const message = error instanceof Error ? error.message : String(error);
-    this._errorBus.emit({
-      level: "error",
-      code: CoreErrorCodes.PLUGIN_RUNTIME_ERROR,
-      message: `[engine:memory-grow] ${message}`,
-      source: "engine:memory-grow",
-      error,
-      context: { frame },
-    });
+    this._policy.reportMemoryGrow(error, frame);
   }
 
   private async _runFrame(dt: number): Promise<void> {
