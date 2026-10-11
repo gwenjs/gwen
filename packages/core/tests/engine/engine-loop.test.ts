@@ -43,18 +43,18 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
   };
   const order: string[] = [];
   const ticks: number[] = [];
-  let loop: EngineLoop | undefined;
+  const loopBox: { loop?: EngineLoop } = {};
   const stats = new EngineStatsRecorder({
     targetFPS: config.targetFPS,
     debug: config.debug,
     entityCount: () => 0,
     linearMemory: () => null,
-    phaseMs: () => loop?.lastPhaseMs,
+    phaseMs: () => loopBox.loop?.lastPhaseMs,
   });
   const state = new EngineStateMachine({
     hooks,
     logger,
-    cancelFrame: () => loop?.cancel(),
+    cancelFrame: () => loopBox.loop?.cancel(),
   });
   const bus = createErrorBus({ logger });
   const disposables = new DisposableRegistry();
@@ -94,7 +94,7 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
       order.push("sentinels");
     },
   };
-  loop = new EngineLoop({
+  const loop = new EngineLoop({
     owner,
     config,
     hooks,
@@ -106,6 +106,7 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
     state,
     logger,
   });
+  loopBox.loop = loop;
   hooks.hook("engine:tick", (dt: number) => {
     order.push("tick");
     ticks.push(dt);
@@ -167,15 +168,18 @@ describe("EngineLoop", () => {
     rig.hooks.hook("engine:before-update", () => {
       if (entered) return;
       entered = true;
-      try {
-        void rig.loop.advance(0);
-      } catch (error) {
-        caught = error;
-      }
+      return rig.loop.advance(0).then(
+        () => undefined,
+        (error: unknown) => {
+          caught = error;
+        },
+      );
     });
     try {
       await rig.loop.advance(1 / 60);
-      if (!(caught instanceof GwenError)) throw caught;
+      if (!(caught instanceof GwenError)) {
+        throw new Error("expected GwenError");
+      }
       expect(caught.code).toBe(CoreErrorCodes.ADVANCE_REENTRANT);
       expect(caught.message).toBe(REENTRANT);
     } finally {
@@ -224,24 +228,22 @@ describe("EngineLoop", () => {
     const previousRaf = globalThis.requestAnimationFrame;
     const previousCancel = globalThis.cancelAnimationFrame;
     const previousNow = performance.now;
-    let queued: ((now: number) => void) | null = null;
+    const slot: { current: ((now: number) => void) | null } = { current: null };
     let clock = 1_000;
     globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
-      queued = (now: number) => {
-        void cb(now);
-      };
+      slot.current = (now: number) => cb(now);
       return 7;
     };
     globalThis.cancelAnimationFrame = () => {
-      queued = null;
+      slot.current = null;
     };
     performance.now = () => clock;
     try {
       rig.state.transition("running", "USER");
       rig.loop.markStart();
       rig.loop.startScheduled();
-      const frame = queued;
-      queued = null;
+      const frame = slot.current;
+      slot.current = null;
       if (frame === null) throw new Error("no frame scheduled");
       clock = 6_000;
       await frame(clock);
