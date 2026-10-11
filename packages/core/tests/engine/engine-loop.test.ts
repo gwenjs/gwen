@@ -1,0 +1,304 @@
+import { createHooks } from "hookable";
+import { GwenError } from "@gwenjs/schema";
+import { describe, expect, it } from "vitest";
+
+import { DisposableRegistry } from "../../src/disposable.js";
+import { createErrorBus } from "../../src/engine/error-bus.js";
+import { EngineErrorPolicy } from "../../src/engine/engine-error-policy.js";
+import { CoreErrorCodes } from "../../src/engine/engine-errors.js";
+import { EngineLoop, type EngineLoopConfig } from "../../src/engine/engine-loop.js";
+import { EngineMemory } from "../../src/engine/engine-memory.js";
+import { EngineStateMachine } from "../../src/engine/engine-state.js";
+import { EngineStatsRecorder } from "../../src/engine/engine-stats.js";
+import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks.js";
+import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
+import { createEngine, useEngine } from "../../src/index.js";
+import { GwenLogger } from "../../src/logger/gwen-logger.js";
+
+const REENTRANT = "[GwenEngine] advance() called re-entrantly — only one advance per frame.";
+
+interface Harness {
+  config: EngineLoopConfig;
+  order: string[];
+  ticks: number[];
+  loop: EngineLoop;
+  stats: EngineStatsRecorder;
+  state: EngineStateMachine;
+  hooks: ReturnType<typeof createHooks<GwenRuntimeHooks>>;
+  stop(): Promise<void>;
+}
+
+async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harness> {
+  const owner = await createEngine();
+  const hooks = createHooks<GwenRuntimeHooks>();
+  const logger = new GwenLogger([{ handle() {} }], "error");
+  const config: EngineLoopConfig = {
+    timeScale: 1,
+    physicsHz: 0,
+    maxCatchupSteps: 2,
+    targetFPS: 60,
+    maxDeltaSeconds: 0.1,
+    debug: false,
+    ...overrides,
+  };
+  const order: string[] = [];
+  const ticks: number[] = [];
+  let loop: EngineLoop | undefined;
+  const stats = new EngineStatsRecorder({
+    targetFPS: config.targetFPS,
+    debug: config.debug,
+    entityCount: () => 0,
+    linearMemory: () => null,
+    phaseMs: () => loop?.lastPhaseMs,
+  });
+  const state = new EngineStateMachine({
+    hooks,
+    logger,
+    cancelFrame: () => loop?.cancel(),
+  });
+  const bus = createErrorBus({ logger });
+  const disposables = new DisposableRegistry();
+  const policy = new EngineErrorPolicy({
+    bus,
+    hooks,
+    logger,
+    state,
+    frame: () => stats.frameCount,
+    debug: config.debug,
+    owner,
+    disposables,
+    pluginNamed: () => undefined,
+    bridge: {},
+  });
+  const memory = new EngineMemory(new WasmBridgeImpl(), bus);
+  const bridge = {
+    checkMemoryGrow(): boolean {
+      return false;
+    },
+    getLinearMemory(): WebAssembly.Memory | null {
+      return null;
+    },
+    engine() {
+      return {
+        update_transforms() {
+          order.push("transforms");
+        },
+      };
+    },
+  };
+  const modules = {
+    stepAll() {
+      order.push("modules");
+    },
+    checkSentinels() {
+      order.push("sentinels");
+    },
+  };
+  loop = new EngineLoop({
+    owner,
+    config,
+    hooks,
+    stats,
+    modules,
+    bridge,
+    memory,
+    policy,
+    state,
+    logger,
+  });
+  hooks.hook("engine:tick", (dt: number) => {
+    order.push("tick");
+    ticks.push(dt);
+  });
+  hooks.hook("engine:before-update", () => {
+    order.push("before-update");
+  });
+  hooks.hook("engine:update", () => {
+    order.push(`update:${stats.frameCount}`);
+  });
+  hooks.hook("engine:after-update", () => {
+    order.push("after-update");
+  });
+  hooks.hook("engine:render", () => {
+    order.push("render");
+  });
+  hooks.hook("engine:afterTick", () => {
+    order.push(`afterTick:${stats.frameCount}`);
+  });
+  return {
+    config,
+    order,
+    ticks,
+    loop,
+    stats,
+    state,
+    hooks,
+    async stop() {
+      disposables.disposeAll();
+      if (owner.state !== "stopped") await owner.stop();
+    },
+  };
+}
+
+describe("EngineLoop", () => {
+  it("constructs without createEngine and phase order is tick then modules then transforms then update then afterTick", async () => {
+    const rig = await harness();
+    try {
+      await rig.loop.advance(1 / 60);
+      expect(rig.order).toEqual([
+        "tick",
+        "before-update",
+        "modules",
+        "transforms",
+        "update:0",
+        "after-update",
+        "render",
+        "afterTick:1",
+      ]);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("constructs without createEngine and a re-entrant advance throws CORE:ADVANCE_REENTRANT", async () => {
+    const rig = await harness();
+    let caught: unknown;
+    let entered = false;
+    rig.hooks.hook("engine:before-update", () => {
+      if (entered) return;
+      entered = true;
+      try {
+        void rig.loop.advance(0);
+      } catch (error) {
+        caught = error;
+      }
+    });
+    try {
+      await rig.loop.advance(1 / 60);
+      if (!(caught instanceof GwenError)) throw caught;
+      expect(caught.code).toBe(CoreErrorCodes.ADVANCE_REENTRANT);
+      expect(caught.message).toBe(REENTRANT);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("constructs without createEngine and advance(1) with maxDeltaSeconds 0.1 and timeScale 2 sets deltaTime 0.2", async () => {
+    const rig = await harness({ timeScale: 2, maxDeltaSeconds: 0.1 });
+    try {
+      await rig.loop.advance(1);
+      expect(rig.ticks).toEqual([0.2]);
+      expect(rig.stats.deltaTime).toBe(0.2);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("constructs without createEngine and a timeScale change after construction changes the next advance", async () => {
+    const rig = await harness({ timeScale: 1, maxDeltaSeconds: 0.1 });
+    try {
+      rig.config.timeScale = 0;
+      await rig.loop.advance(1);
+      expect(rig.ticks).toEqual([0]);
+      expect(rig.stats.deltaTime).toBe(0);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("constructs without createEngine and two loops do not share deltaTime", async () => {
+    const first = await harness({ timeScale: 2, maxDeltaSeconds: 0.1 });
+    const second = await harness({ timeScale: 1, maxDeltaSeconds: 0.1 });
+    try {
+      await first.loop.advance(1);
+      expect(first.stats.deltaTime).toBe(0.2);
+      expect(second.stats.deltaTime).toBe(0);
+    } finally {
+      await second.stop();
+      await first.stop();
+    }
+  });
+
+  it("constructs without createEngine and fixed mode runs at most maxCatchupSteps steps", async () => {
+    const rig = await harness({ physicsHz: 60, maxCatchupSteps: 2, maxDeltaSeconds: 1 });
+    const previousRaf = globalThis.requestAnimationFrame;
+    const previousCancel = globalThis.cancelAnimationFrame;
+    const previousNow = performance.now;
+    let queued: ((now: number) => void) | null = null;
+    let clock = 1_000;
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+      queued = (now: number) => {
+        void cb(now);
+      };
+      return 7;
+    };
+    globalThis.cancelAnimationFrame = () => {
+      queued = null;
+    };
+    performance.now = () => clock;
+    try {
+      rig.state.transition("running", "USER");
+      rig.loop.markStart();
+      rig.loop.startScheduled();
+      const frame = queued;
+      queued = null;
+      if (frame === null) throw new Error("no frame scheduled");
+      clock = 6_000;
+      await frame(clock);
+      expect(rig.ticks).toHaveLength(2);
+    } finally {
+      globalThis.requestAnimationFrame = previousRaf;
+      globalThis.cancelAnimationFrame = previousCancel;
+      performance.now = previousNow;
+      await rig.stop();
+    }
+  });
+
+  it("constructs without createEngine and cancel drops the scheduled frame", async () => {
+    const rig = await harness({ physicsHz: 0, targetFPS: 60 });
+    const previousRaf = globalThis.requestAnimationFrame;
+    const previousCancel = globalThis.cancelAnimationFrame;
+    let queued: ((now: number) => void) | null = null;
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+      queued = (now: number) => {
+        void cb(now);
+      };
+      return 4;
+    };
+    globalThis.cancelAnimationFrame = () => {
+      queued = null;
+    };
+    try {
+      rig.state.transition("running", "USER");
+      rig.loop.markStart();
+      rig.loop.startScheduled();
+      expect(queued).not.toBeNull();
+      rig.loop.cancel();
+      expect(queued).toBeNull();
+      expect(rig.ticks).toEqual([]);
+    } finally {
+      globalThis.requestAnimationFrame = previousRaf;
+      globalThis.cancelAnimationFrame = previousCancel;
+      await rig.stop();
+    }
+  });
+
+  it("createEngine advance restores the engine that was current, including after an awaited hook", async () => {
+    const first = await createEngine();
+    const second = await createEngine();
+    try {
+      first.activate();
+      await second.advance(1 / 60);
+      expect(useEngine()).toBe(first);
+      second.hooks.hook("engine:update", async () => {
+        await Promise.resolve();
+      });
+      await second.advance(1 / 60);
+      expect(useEngine()).toBe(first);
+      first.deactivate();
+    } finally {
+      if (second.state !== "stopped") await second.stop();
+      if (first.state !== "stopped") await first.stop();
+    }
+  });
+});
