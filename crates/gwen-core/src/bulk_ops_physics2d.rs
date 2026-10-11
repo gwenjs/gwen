@@ -22,12 +22,12 @@ use crate::bindings::Engine;
 /// # Arguments
 /// * `engine`            — mutable engine reference (needed for archetype query cache)
 /// * `transform_type_id` — ComponentTypeId of the Transform component (3×f32 = 12 bytes)
-/// * `out_slots`         — pre-allocated slot buffer (its length caps the result)
-/// * `out_gens`          — pre-allocated gen buffer (its length caps the result)
+/// * `out_slots`         — slot buffer. Same length as `out_gens`. That length caps the result.
+/// * `out_gens`          — pre-allocated gen buffer (same length as `out_slots`)
 /// * `out_buf`           — byte buffer for packed transform data (len ≥ count × 12)
 ///
 /// # Returns
-/// `(entity_count, bytes_written)`
+/// `(entity_count, bytes_written)`. A length mismatch reports no rows: `(0, 0)`.
 ///
 /// # Phase 0 note
 /// Delegates to the archetype-cached [`Engine::query_read_bulk`]. Future versions
@@ -39,14 +39,17 @@ pub fn physics2d_bulk_sync_from_rapier(
     out_gens: &mut [u32],
     out_buf: &mut [u8],
 ) -> (u32, u32) {
-    let result = engine.query_read_bulk(
+    // A length mismatch reports no rows.
+    match engine.query_read_bulk(
         &[transform_type_id],
         transform_type_id,
         out_slots,
         out_gens,
         out_buf,
-    );
-    (result[0], result[1])
+    ) {
+        Ok(result) if result.len() >= 2 => (result[0], result[1]),
+        _ => (0, 0),
+    }
 }
 
 /// Bulk-sync ECS Transform components → Rapier rigid-body positions.

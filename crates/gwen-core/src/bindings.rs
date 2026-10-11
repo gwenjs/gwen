@@ -104,7 +104,7 @@ pub struct Engine {
     physics3d_world: Option<PhysicsWorld3D>,
 }
 
-fn bulk_len_u32(len: usize) -> u32 {
+pub(crate) fn bulk_len_u32(len: usize) -> u32 {
     u32::try_from(len).unwrap_or(u32::MAX)
 }
 
@@ -320,25 +320,43 @@ impl Engine {
     /// * `gens`  – Per-slot generation counters for stale-reference detection.
     /// * `component_type_id` – Numeric component type ID returned by
     ///   [`register_component_type`].
-    /// * `out_buf` – Caller-allocated output buffer.  Must be at least
-    ///   `slots.len() × component_size_bytes` bytes.
+    /// * `out_buf` – Caller-allocated output buffer. A shorter buffer stops
+    ///   the copy at the last component that fits.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::BufferLengthMismatch`] before any read or write
+    /// when `gens` differs in length from `slots`. The buffer name is
+    /// `"gens"`, `expected` is the `slots` length, and `actual` is the `gens`
+    /// length.
     ///
     /// # Returns
-    /// Total bytes written (always `≤ out_buf.len()`).  Returns `0` if `slots`
-    /// is empty or if no component data was found.
+    /// `Ok(bytes)` written (always `≤ out_buf.len()`). Returns `Ok(0)` when
+    /// `slots` is empty or `out_buf` is empty. The length check runs before
+    /// that early return.
     ///
-    /// # Panics
-    /// Does not panic; silently skips dead or missing-component entities.
+    /// Equal-length slices with an `out_buf` shorter than
+    /// `slots.len() × component_size_bytes` stop the copy once the next
+    /// component would pass the end of `out_buf`. That stop is output
+    /// capacity, not [`CoreError::BufferLengthMismatch`].
     pub fn get_components_bulk(
         &self,
         slots: &[u32],
         gens: &[u32],
         component_type_id: u32,
         out_buf: &mut [u8],
-    ) -> u32 {
-        let n = slots.len().min(gens.len());
+    ) -> Result<u32, CoreError> {
+        if slots.len() != gens.len() {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "gens",
+                expected: bulk_len_u32(slots.len()),
+                actual: bulk_len_u32(gens.len()),
+            });
+        }
+
+        let n = slots.len();
         if n == 0 || out_buf.is_empty() {
-            return 0;
+            return Ok(0);
         }
 
         let type_id = ComponentTypeId::from_raw(component_type_id);
@@ -390,7 +408,7 @@ impl Engine {
             }
         }
 
-        bytes_written as u32
+        Ok(bytes_written as u32)
     }
 
     /// Writes component data for multiple entities in a single JS→WASM call.
@@ -3360,21 +3378,33 @@ impl Engine {
     ///
     /// # Arguments
     /// * `component_type_ids` – Entity must possess ALL of these component type IDs.
-    ///   Passing an empty slice returns `[0, 0]` immediately.
+    ///   An empty slice returns `Ok(vec![0, 0])` when `out_slots` and `out_gens`
+    ///   have the same length, and writes nothing. A length mismatch is an
+    ///   error even when the type list is empty.
     /// * `read_type_id`       – The component type whose bytes are packed into `out_buf`.
-    /// * `out_slots`          – Caller-provided `Uint32Array` (len ≥ expected entity count).
+    /// * `out_slots`          – Caller-provided buffer. Same length as `out_gens`.
     ///   Filled with matching entity slot indices on return.
-    /// * `out_gens`           – Caller-provided `Uint32Array` (same length as `out_slots`).
+    /// * `out_gens`           – Caller-provided buffer (same length as `out_slots`).
     ///   Filled with matching entity generation counters on return.
     /// * `out_buf`            – Caller-provided `Uint8Array` for packed component data.
     ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::BufferLengthMismatch`] before the empty-type
+    /// shortcut and before the query runs when `out_gens` differs in length
+    /// from `out_slots`. Nothing is written and the query cache is unchanged.
+    /// The buffer name is `"gens"`, `expected` is the `out_slots` length, and
+    /// `actual` is the `out_gens` length.
+    ///
     /// # Returns
-    /// A two-element `Vec<u32>` `[entity_count, bytes_written]`.  After the call,
+    /// `Ok` of a two-element `Vec<u32>` `[entity_count, bytes_written]`.  After the call,
     /// `out_slots[0..entity_count]` and `out_gens[0..entity_count]` identify the matched
     /// entities, and `out_buf[0..bytes_written]` contains their packed component data.
     ///
-    /// `entity_count` is `min(matches, out_slots.len(), out_gens.len())`. A shorter
-    /// caller buffer truncates the result to that length. There is no fixed 10_000 cap.
+    /// When the two output slices have the same length, `entity_count` is
+    /// `min(matches, out_slots.len())`. A shorter equal-length pair truncates
+    /// the result. A shorter `out_buf` stops the component copy. There is no
+    /// fixed 10_000 cap.
     ///
     /// # Performance
     /// One WASM boundary crossing regardless of entity count.
@@ -3386,9 +3416,17 @@ impl Engine {
         out_slots: &mut [u32],
         out_gens: &mut [u32],
         out_buf: &mut [u8],
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, CoreError> {
+        if out_slots.len() != out_gens.len() {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "gens",
+                expected: bulk_len_u32(out_slots.len()),
+                actual: bulk_len_u32(out_gens.len()),
+            });
+        }
+
         if component_type_ids.is_empty() {
-            return vec![0, 0];
+            return Ok(vec![0, 0]);
         }
 
         // Step 1: archetype-based query (cached, same path as query_entities_to_buffer)
@@ -3410,8 +3448,8 @@ impl Engine {
             out_slots,
             out_gens,
             out_buf,
-        );
-        vec![count, bytes]
+        )?;
+        Ok(vec![count, bytes])
     }
 
     /// Write back component data for a previously-queried entity set in one WASM call.
