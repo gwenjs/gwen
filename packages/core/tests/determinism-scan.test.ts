@@ -8,7 +8,7 @@ const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 /** `performance.now()` sites the 1.0 statement allows. Paths are repo-relative. */
 const PERFORMANCE_NOW_ALLOWLIST = new Set([
-  "packages/core/src/engine/gwen-engine.ts",
+  "packages/core/src/engine/engine-loop.ts",
   "packages/core/src/logger/gwen-logger.ts",
   "packages/core/src/logger/console-logger.ts",
   "packages/kit/src/observability.ts",
@@ -98,8 +98,11 @@ describe("determinism call scan", () => {
       "packages/core/src/x.ts:1 crypto.getRandomValues",
     ]);
     expect(
-      forbiddenCallsIn("const t = performance.now();", "packages/core/src/engine/gwen-engine.ts"),
+      forbiddenCallsIn("const t = performance.now();", "packages/core/src/engine/engine-loop.ts"),
     ).toEqual([]);
+    expect(
+      forbiddenCallsIn("const t = performance.now();", "packages/core/src/engine/gwen-engine.ts"),
+    ).toEqual(["packages/core/src/engine/gwen-engine.ts:1 performance.now"]);
     expect(forbiddenCallsIn("const t = performance.now();", "packages/core/src/schema.ts")).toEqual(
       ["packages/core/src/schema.ts:1 performance.now"],
     );

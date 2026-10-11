@@ -7,7 +7,7 @@ import { isThenable } from "./error-isolation.js";
 
 /**
  * `hooks` and `logger` are the engine's own instances.
- * `cancelFrame` drops the facade's scheduled rAF or timeout. The facade owns the handle.
+ * `cancelFrame` drops the scheduled rAF or timeout. The loop owns the handle.
  */
 export interface EngineStateMachineDeps {
   hooks: Hookable<GwenRuntimeHooks>;

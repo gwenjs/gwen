@@ -11,8 +11,9 @@
  *   engine-stats.ts                             — EngineStatsRecorder
  *   engine-state.ts                             — EngineStateMachine
  *   engine-error-policy.ts                      — EngineErrorPolicy
+ *   engine-loop.ts                              — EngineLoop
  *   wasm-module-runner.ts                       — WasmModuleRunner
- *   #region Engine implementation               — GwenEngineImpl (frame loop)
+ *   #region Engine implementation               — GwenEngineImpl
  *   #region Factory                             — createEngine()
  */
 
@@ -95,6 +96,7 @@ import { EngineEntities } from "./engine-entities.js";
 import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
 import { EngineErrorPolicy } from "./engine-error-policy.js";
+import { EngineLoop } from "./engine-loop.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -106,14 +108,12 @@ import type {
   GwenProvides,
   GwenWasmModules,
   GwenPlugin,
-  EngineFramePhaseMs,
   EngineStats,
   GwenEngineState,
   GwenEngineStateChangeReason,
   GwenEngine,
 } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
-import { clamp } from "@gwenjs/math";
 import type { ComponentType } from "../types";
 
 type EngineHookFn = (...args: unknown[]) => unknown;
@@ -196,7 +196,6 @@ class GwenEngineImpl implements GwenEngine {
   // ─── Internal state ───────────────────────────────────────────────────────
   private readonly _pluginRegistry: PluginRegistry;
   private readonly _serviceContainer: ServiceContainer;
-  private _advancing = false;
   private readonly _stateMachine: EngineStateMachine;
   /**
    * The one teardown claim allowed by the #107 amendment. Set when the first `stop()`
@@ -204,8 +203,6 @@ class GwenEngineImpl implements GwenEngine {
    * reads it; every other check reads `state`.
    */
   private _teardownOnce: true | null = null;
-  private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
-  private _lastFrameTime = 0;
   /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
   private readonly _policy: EngineErrorPolicy;
 
@@ -231,23 +228,11 @@ class GwenEngineImpl implements GwenEngine {
     return this._stateMachine.state;
   }
 
-  /** Drops a scheduled rAF or timeout. A zero handle means nothing is queued. */
-  private _cancelScheduledFrame(): void {
-    if (!this._rafHandle) return;
-    this._cancelFrame(this._rafHandle);
-    this._rafHandle = 0;
-  }
-
   private _transition(
     to: GwenEngineState,
     reason: GwenEngineStateChangeReason,
   ): Promise<void> | void {
     return this._stateMachine.transition(to, reason);
-  }
-
-  /** Plain read so a frame check does not narrow `state` for the rest of the method. */
-  private _frameFaulted(): boolean {
-    return this._stateMachine.isFaulted();
   }
 
   private _enterFaulted(reason: GwenEngineStateChangeReason): void {
@@ -264,41 +249,9 @@ class GwenEngineImpl implements GwenEngine {
 
   private readonly _wasmRunner: WasmModuleRunner;
 
-  // ─── Frame scheduler ─────────────────────────────────────────────────────
-  /**
-   * Schedule the next animation frame.
-   * Uses `requestAnimationFrame` on the main thread; falls back to `setTimeout`
-   * in Web Worker contexts where RAF is unavailable.
-   */
-  private _scheduleFrame(cb: (time: number) => void): number | ReturnType<typeof setTimeout> {
-    if (typeof requestAnimationFrame !== "undefined") {
-      return requestAnimationFrame(cb);
-    }
-    // Worker fallback: no visual sync, but keeps the loop running.
-    return setTimeout(() => cb(performance.now()), 0);
-  }
-
-  /** Cancel a previously scheduled frame (RAF or setTimeout handle). */
-  private _cancelFrame(handle: number | ReturnType<typeof setTimeout>): void {
-    if (typeof cancelAnimationFrame !== "undefined") {
-      if (typeof handle === "number") cancelAnimationFrame(handle);
-      return;
-    }
-    clearTimeout(handle);
-  }
-
   // ─── Frame stats ─────────────────────────────────────────────────────────
   private readonly _stats: EngineStatsRecorder;
-  /**
-   * Reused phase slot. Allocated once, inside the dev+debug instrument gate. @internal
-   */
-  private _lastPhaseMs?: EngineFramePhaseMs;
-  /** Add phase samples across the steps of one fixed-mode display frame. @internal */
-  private _sumPhases = false;
-  /** True after the first instrumented step of the current display frame. @internal */
-  private _displayTimed = false;
-  /** `performance.now()` at the start of that first step. @internal */
-  private _displayT0 = 0;
+  private readonly _loop: EngineLoop;
 
   // ─── Hooks ───────────────────────────────────────────────────────────────
   readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
@@ -325,14 +278,14 @@ class GwenEngineImpl implements GwenEngine {
         if (typeof readMemory !== "function") return null;
         return readMemory.call(this._bridge);
       },
-      phaseMs: () => this._lastPhaseMs,
+      phaseMs: () => this._loop.lastPhaseMs,
     });
     this.logger = createLogger("gwen:core", this.debug, () => this._stats.frameCount);
     // `provide` calls `assert` immediately. The machine exists before the first one.
     this._stateMachine = new EngineStateMachine({
       hooks: this.hooks,
       logger: this.logger,
-      cancelFrame: () => this._cancelScheduledFrame(),
+      cancelFrame: () => this._loop.cancel(),
     });
     this._serviceContainer = new ServiceContainer({
       assertState: (method) => this._assertNotFaulted(method),
@@ -397,6 +350,18 @@ class GwenEngineImpl implements GwenEngine {
         this._memory.disposeAll();
       }),
     );
+    this._loop = new EngineLoop({
+      owner: this,
+      config: this,
+      hooks: this.hooks,
+      stats: this._stats,
+      modules: this._wasmRunner,
+      bridge: this._bridge,
+      memory: this._memory,
+      policy: this._policy,
+      state: this._stateMachine,
+      logger: this.logger,
+    });
     this._attachErrorPolicy();
     this._rememberInternals(this);
     this._bindEngineOnHooks();
@@ -519,81 +484,10 @@ class GwenEngineImpl implements GwenEngine {
       );
     }
     this._attachErrorPolicy();
-    this._lastFrameTime = performance.now();
+    this._loop.markStart();
     await this._beginStart();
     if (this._stateMachine.state !== "running") return;
-
-    if (this.physicsHz) {
-      // Fixed timestep loop — accumulator pattern
-      const fixedDt = 1 / this.physicsHz;
-      let accumulator = 0;
-
-      const loop = async (now: number) => {
-        if (this._stateMachine.state !== "running") return;
-
-        try {
-          const rawSeconds = (now - this._lastFrameTime) / 1000;
-          this._lastFrameTime = now;
-          this._stats.recordRawFrameTime(rawSeconds);
-          accumulator += Math.min(rawSeconds, this.maxDeltaSeconds);
-
-          let steps = 0;
-          this._sumPhases = true;
-          this._displayTimed = false;
-          try {
-            while (
-              accumulator >= fixedDt &&
-              steps < this.maxCatchupSteps &&
-              this._stateMachine.state === "running"
-            ) {
-              const scaledDt = fixedDt * clamp(this.timeScale, 0, 100);
-              this._stats.setDeltaTime(scaledDt);
-              try {
-                await this._runFrame(scaledDt);
-              } catch (err) {
-                this._handleFrameLoopError(err);
-              }
-              if (this._stateMachine.state !== "running") break;
-              accumulator -= fixedDt;
-              steps++;
-            }
-          } finally {
-            this._sumPhases = false;
-            this._displayTimed = false;
-          }
-        } finally {
-          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
-        }
-      };
-      this._rafHandle = this._scheduleFrame(loop);
-    } else {
-      // Variable dt loop — original behaviour
-      const loop = async (now: number) => {
-        if (this._stateMachine.state !== "running") return;
-
-        // Throttle to targetFPS: skip frame if minimum interval hasn't elapsed.
-        // Use a 0.5ms tolerance to account for RAF timing jitter.
-        const frameBudgetMs = 1000 / this.targetFPS;
-        if (now - this._lastFrameTime < frameBudgetMs - 0.5) {
-          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
-          return;
-        }
-
-        const rawSeconds = (now - this._lastFrameTime) / 1000;
-        this._stats.recordRawFrameTime(rawSeconds);
-        const dt = Math.min(rawSeconds, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
-        this._lastFrameTime = now;
-        this._stats.setDeltaTime(dt);
-        try {
-          await this._runFrame(dt);
-        } catch (err) {
-          this._handleFrameLoopError(err);
-        } finally {
-          if (this._stateMachine.state === "running") this._rafHandle = this._scheduleFrame(loop);
-        }
-      };
-      this._rafHandle = this._scheduleFrame(loop);
-    }
+    this._loop.startScheduled();
   }
 
   /**
@@ -616,7 +510,7 @@ class GwenEngineImpl implements GwenEngine {
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
   private async _teardown(): Promise<void> {
-    this._cancelScheduledFrame();
+    this._loop.cancel();
     try {
       await this.hooks.callHook("engine:stop");
     } catch (err) {
@@ -682,28 +576,8 @@ class GwenEngineImpl implements GwenEngine {
     // Intentionally skip RAF — the caller drives the loop via advance().
   }
 
-  async advance(dt: number): Promise<void> {
-    if (this._stateMachine.state !== "idle" && this._stateMachine.state !== "running") {
-      throw new GwenEngineStateError(this._stateMachine.state, "advance");
-    }
-    if (this._advancing) {
-      throw new GwenError(
-        CoreErrorCodes.ADVANCE_REENTRANT,
-        "[GwenEngine] advance() called re-entrantly — only one advance per frame.",
-      );
-    }
-    this._advancing = true;
-    this._stats.recordRawFrameTime(dt);
-    // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
-    const cappedDt = Math.min(dt, this.maxDeltaSeconds) * clamp(this.timeScale, 0, 100);
-    this._stats.setDeltaTime(cappedDt);
-    try {
-      await this._runFrame(cappedDt);
-    } catch (err) {
-      this._handleFrameLoopError(err);
-    } finally {
-      this._advancing = false;
-    }
+  advance(dt: number): Promise<void> {
+    return this._loop.advance(dt);
   }
 
   // ─── WASM modules (RFC-008) ────────────────────────────────────────────────
@@ -939,25 +813,6 @@ class GwenEngineImpl implements GwenEngine {
     return this._stats.snapshot();
   }
 
-  /** One phase object for the life of the engine. Created on the first timed frame. */
-  private _phaseSlot(): EngineFramePhaseMs {
-    const existing = this._lastPhaseMs;
-    if (existing !== undefined) return existing;
-    const slot: EngineFramePhaseMs = {
-      tick: 0,
-      plugins: 0,
-      wasm: 0,
-      update: 0,
-      render: 0,
-      afterTick: 0,
-      total: 0,
-    };
-    this._lastPhaseMs = slot;
-    return slot;
-  }
-
-  // ─── 8-phase frame runner ─────────────────────────────────────────────────
-
   private _emit(event: BusErrorPayload): void {
     this._policy.emit(event);
   }
@@ -994,274 +849,6 @@ class GwenEngineImpl implements GwenEngine {
     },
   ): void {
     this._policy.reportCaught(err, hook, forced);
-  }
-
-  private _settleHook(hook: string, result: unknown): unknown {
-    if (!isThenable(result)) return undefined;
-    return result.then(undefined, (error: unknown) => {
-      this._reportCaught(error, hook);
-    });
-  }
-
-  private _guardHook0(hook: "engine:render"): unknown {
-    let result: unknown;
-    try {
-      result = this.hooks.callHook(hook);
-    } catch (error) {
-      this._reportCaught(error, hook);
-      return undefined;
-    }
-    return this._settleHook(hook, result);
-  }
-
-  private _guardHook1(
-    hook:
-      | "engine:tick"
-      | "engine:before-update"
-      | "engine:update"
-      | "engine:after-update"
-      | "engine:afterTick",
-    arg: number,
-  ): unknown {
-    let result: unknown;
-    try {
-      result = this.hooks.callHook(hook, arg);
-    } catch (error) {
-      this._reportCaught(error, hook);
-      return undefined;
-    }
-    return this._settleHook(hook, result);
-  }
-
-  /**
-   * One identity check before a frame phase.
-   * Returns a promise only when memory grew, so a quiet frame stays synchronous.
-   * A handler that throws is an error on the bus. The frame continues.
-   */
-  private _onPhaseBoundary(): Promise<void> | void {
-    if (!this._bridge.checkMemoryGrow()) return;
-    const memory = this._bridge.getLinearMemory();
-    const byteLength = memory === null ? 0 : memory.buffer.byteLength;
-    const frame = this._stats.frameCount;
-    this._memory.noteGrowth(frame);
-    let pending: Promise<unknown> | void;
-    try {
-      pending = this.hooks.callHook("engine:memory-grow", {
-        epoch: this._memory.epoch,
-        byteLength,
-        frame,
-      }) as Promise<unknown> | void;
-    } catch (error: unknown) {
-      this._reportMemoryGrow(error, frame);
-      return;
-    }
-    if (pending === undefined || pending === null || typeof pending.then !== "function") return;
-    return pending.then(
-      () => undefined,
-      (error: unknown) => {
-        this._reportMemoryGrow(error, frame);
-      },
-    );
-  }
-
-  private _reportMemoryGrow(error: unknown, frame: number): void {
-    this._policy.reportMemoryGrow(error, frame);
-  }
-
-  private async _runFrame(dt: number): Promise<void> {
-    // Phases start with this engine current. Each hook handler re-asserts it
-    // before it runs. After an await, the continuation keeps this engine only
-    // when no other engine has run. `finally` restores the engine found on
-    // entry when this engine is still current, and never clears another engine.
-    const previousEngine = engineContext.tryUse() ?? undefined;
-    engineContext.set(this, true);
-    // Single per-frame debug read. Timers, sentinels, and the budget scan sit under it.
-    const instrument = __GWEN_DEV__ && this.debug;
-    let t0 = 0;
-    let t1 = 0;
-    let t2 = 0;
-    let t3 = 0;
-    let t5 = 0;
-    let t6 = 0;
-    let t7 = 0;
-    let t8 = 0;
-    if (instrument) t0 = performance.now();
-    try {
-      // Phase 1 — engine:tick hook (fires before any plugin work)
-      if (instrument) t1 = performance.now();
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      const tickDone = this._guardHook1("engine:tick", dt);
-      if (isThenable(tickDone)) await tickDone;
-      if (instrument) t2 = performance.now();
-
-      // Phase 2 — emit before-update hook (physics plugins step here)
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      const beforeDone = this._guardHook1("engine:before-update", dt);
-      if (isThenable(beforeDone)) await beforeDone;
-      if (instrument) t3 = performance.now();
-
-      // Phase 3 — community WASM modules step (Cas B: user WASM, registration order)
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      this._wasmRunner.stepAll(dt);
-      if (instrument) t5 = performance.now();
-
-      // Memory sentinel — dev+debug only, and only when shared memory is active.
-      if (instrument) this._wasmRunner.checkSentinels();
-
-      // Phase 4 — ECS query flush + transform propagation
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      // update_transforms() propagates local→world transforms so that
-      // get_entity_world_x/y/rotation return up-to-date values in onUpdate.
-      try {
-        this._bridge.engine().update_transforms?.();
-      } catch (err) {
-        const detail = err instanceof Error ? err.message : String(err);
-        this._reportCaught(err, "update_transforms", {
-          message: `update_transforms failed: ${detail}`,
-        });
-      }
-
-      // Phase 5 — emit update hook
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      const updateDone = this._guardHook1("engine:update", dt);
-      if (isThenable(updateDone)) await updateDone;
-      if (instrument) t6 = performance.now();
-
-      // Phase 6a — emit after-update hook
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      const afterDone = this._guardHook1("engine:after-update", dt);
-      if (isThenable(afterDone)) await afterDone;
-      if (this._frameFaulted()) return;
-
-      // Phase 6b — emit render hook
-      const renderDone = this._guardHook0("engine:render");
-      if (isThenable(renderDone)) await renderDone;
-      if (instrument) t7 = performance.now();
-
-      // Phase 7 — update stats, then fire engine:afterTick hook
-      if (this._frameFaulted()) return;
-      {
-        const memoryGrow = this._onPhaseBoundary();
-        if (memoryGrow !== undefined) await memoryGrow;
-      }
-      if (this._frameFaulted()) return;
-      this._stats.frameCompleted();
-      const afterTickDone = this._guardHook1("engine:afterTick", dt);
-      if (isThenable(afterTickDone)) await afterTickDone;
-      if (instrument) t8 = performance.now();
-
-      if (instrument) {
-        const tick = t2 - t1;
-        const plugins = t3 - t2;
-        const wasm = t5 - t3;
-        const update = t6 - t5;
-        const render = t7 - t6;
-        const afterTick = t8 - t7;
-        const slot = this._phaseSlot();
-        if (this._sumPhases && this._displayTimed) {
-          slot.tick += tick;
-          slot.plugins += plugins;
-          slot.wasm += wasm;
-          slot.update += update;
-          slot.render += render;
-          slot.afterTick += afterTick;
-          slot.total = t8 - this._displayT0;
-        } else {
-          slot.tick = tick;
-          slot.plugins = plugins;
-          slot.wasm = wasm;
-          slot.update = update;
-          slot.render = render;
-          slot.afterTick = afterTick;
-          slot.total = t8 - t0;
-          if (this._sumPhases) {
-            this._displayTimed = true;
-            this._displayT0 = t0;
-          }
-        }
-        const budget = 1000 / this.targetFPS;
-        if (tick > budget * 0.5) {
-          this.logger.warn(`phase "tick" exceeded 50% of frame budget`, {
-            phase: "tick",
-            ms: tick.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-        if (plugins > budget * 0.5) {
-          this.logger.warn(`phase "plugins" exceeded 50% of frame budget`, {
-            phase: "plugins",
-            ms: plugins.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-        if (wasm > budget * 0.5) {
-          this.logger.warn(`phase "wasm" exceeded 50% of frame budget`, {
-            phase: "wasm",
-            ms: wasm.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-        if (update > budget * 0.5) {
-          this.logger.warn(`phase "update" exceeded 50% of frame budget`, {
-            phase: "update",
-            ms: update.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-        if (render > budget * 0.5) {
-          this.logger.warn(`phase "render" exceeded 50% of frame budget`, {
-            phase: "render",
-            ms: render.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-        if (afterTick > budget * 0.5) {
-          this.logger.warn(`phase "afterTick" exceeded 50% of frame budget`, {
-            phase: "afterTick",
-            ms: afterTick.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this._stats.frameCount,
-          });
-        }
-      }
-    } finally {
-      popEngine(this, previousEngine);
-    }
   }
 
   private _rememberInternals(key: object): void {
