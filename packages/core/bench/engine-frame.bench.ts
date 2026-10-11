@@ -2,8 +2,9 @@
  * One public-API frame sample: 1000x advance(1/60), one handler on every phase,
  * and a live query over 1000 entities.
  *
- * Run:
- *   pnpm --filter @gwenjs/core exec vitest bench --run bench/engine-frame.bench.ts
+ * Run (prod). Each sample is one stdout line `ENGINE_FRAME_MS <milliseconds>`.
+ * That line is the return of measureEngineFrame(), not the Vitest hz column.
+ *   pnpm --filter @gwenjs/core exec vitest bench --run --project prod bench/engine-frame.bench.ts
  */
 import { bench } from "vitest";
 
@@ -69,6 +70,7 @@ bench(
   "advance(1/60) x1000, one handler per phase, live query of 1000",
   async () => {
     const elapsed = await measureEngineFrame();
+    process.stdout.write(`ENGINE_FRAME_MS ${elapsed}\n`);
     if (elapsed < 0 || sink < 0) throw new Error("unreachable");
   },
   { iterations: 1, warmupIterations: 0, warmupTime: 0, time: 0 },
