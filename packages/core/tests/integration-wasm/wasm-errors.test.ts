@@ -18,7 +18,7 @@ import {
 } from "../../src/engine/engine-errors.js";
 import { createEngine } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
-import { toGwenWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
+import { mapBulkReadWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import {
   FLAG_HAS_TRANSFORM,
   FLAGS_OFFSET,
@@ -438,7 +438,7 @@ describe("WASM coded errors", () => {
             out,
           );
       } catch (error: unknown) {
-        caught = toGwenWasmError(error, "get_components_bulk", () => {});
+        caught = mapBulkReadWasmError(error, "get_components_bulk", () => {});
       }
 
       expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "get_components_bulk");
@@ -475,7 +475,7 @@ describe("WASM coded errors", () => {
       try {
         bridge.engine().query_read_bulk(new Uint32Array([typeId]), typeId, outSlots, outGens, out);
       } catch (error: unknown) {
-        caught = toGwenWasmError(error, "query_read_bulk", () => {});
+        caught = mapBulkReadWasmError(error, "query_read_bulk", () => {});
       }
 
       expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "query_read_bulk");
