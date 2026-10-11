@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from "vitest";
 import { defineScene } from "../../src/scene/runtime/define-scene";
 import { useSystem } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
-import { createEngine } from "../../src/engine/gwen-engine.js";
+import { createEngine } from "../../src/engine/engine-factory.js";
 import { defineSystem, onUpdate, onRender } from "../../src/system/runtime/define-system";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";

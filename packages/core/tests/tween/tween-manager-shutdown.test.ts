@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { getTweenManager } from "../../src/tween/runtime/tween-manager";
 import { TweenPlugin } from "../../src/tween/engine-plugin";
 import type { GwenEngine } from "../../src/engine/engine-types";

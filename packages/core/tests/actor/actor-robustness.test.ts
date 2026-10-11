@@ -21,7 +21,7 @@ import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { useComponent } from "../../src/actor/runtime/use-actor";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import type { ActorDefinition } from "../../src/actor/runtime/types";
 
 // ─── Shared fixtures ──────────────────────────────────────────────────────────

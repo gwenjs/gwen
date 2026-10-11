@@ -9,7 +9,7 @@ import {
   onTransitionEnter,
 } from "../../src/scene/runtime/scene-context";
 import { GwenContextError } from "../../src/engine/context";
-import { createEngine } from "../../src/engine/gwen-engine.js";
+import { createEngine } from "../../src/engine/engine-factory.js";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";

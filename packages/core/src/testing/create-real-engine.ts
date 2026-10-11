@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { createEngine } from "../engine/gwen-engine.js";
+import { createEngine } from "../engine/engine-factory.js";
 import type { GwenEngine } from "../engine/engine-types.js";
 import { WasmBridgeImpl } from "../engine/wasm-bridge.js";
 import type { CoreVariant } from "../engine/wasm-bridge-types.js";

@@ -4,7 +4,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/runtime/define-actor";
 import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 

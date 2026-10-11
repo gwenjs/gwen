@@ -33,7 +33,7 @@ export type { GwenHooks, GwenHookable, HookHandlerMap, InferHooks } from "./hook
 
 export { emit } from "./hooks";
 
-export { createEngine, setupGwen } from "./engine/gwen-engine";
+export { createEngine, setupGwen } from "./engine/engine-factory";
 export {
   GwenPluginNotFoundError,
   CoreErrorCodes,

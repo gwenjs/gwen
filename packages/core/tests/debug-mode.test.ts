@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { createEngine } from "../src/engine/gwen-engine";
+import { createEngine } from "../src/engine/engine-factory";
 import type { GwenLogger } from "@gwenjs/schema";
 
 afterEach(() => {

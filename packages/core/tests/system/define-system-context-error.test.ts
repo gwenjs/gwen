@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import {
   onUpdate,
   onBeforeUpdate,

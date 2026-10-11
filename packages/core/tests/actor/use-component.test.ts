@@ -4,7 +4,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useComponent } from "../../src/actor/runtime/use-actor";
 import { onUpdate } from "../../src/system/runtime/define-system";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 
 const Position = stubComponent("Position");
 

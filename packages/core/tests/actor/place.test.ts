@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
-import { createEngine } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import type { WasmEngine } from "../../src/engine/wasm-bridge";
 import {

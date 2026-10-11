@@ -1,7 +1,8 @@
 import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab, defineActor } from "../../src/actor/index";
-import { createEngine, readLiveQueryIds } from "../../src/engine/gwen-engine";
+import { createEngine } from "../../src/engine/engine-factory";
+import { readLiveQueryIds } from "../../src/engine/engine-internals";
 import {
   defineSystem,
   onUpdate,
