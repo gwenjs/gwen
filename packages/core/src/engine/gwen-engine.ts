@@ -12,17 +12,16 @@
  *   engine-state.ts                             — EngineStateMachine
  *   engine-error-policy.ts                      — EngineErrorPolicy
  *   engine-loop.ts                              — EngineLoop
+ *   hook-dispatch.ts                            — hook runners
+ *   engine-internals.ts                         — pool dormancy and live query ids
+ *   frame-scheduler.ts                          — rAF and worker fallback
  *   wasm-module-runner.ts                       — WasmModuleRunner
  *   #region Engine implementation               — GwenEngineImpl
- *   #region Factory                             — createEngine()
+ *   engine-factory.ts                           — createEngine and setupGwen
  */
 
 import { createHooks, type Hookable } from "hookable";
-import {
-  GwenError,
-  type GwenErrorPayload as BusErrorPayload,
-  type GwenErrorTarget,
-} from "@gwenjs/schema";
+import { GwenError, type GwenErrorTarget } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { engineContext } from "./context";
 import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
@@ -35,60 +34,12 @@ import { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
-import { validateEngineConfig } from "./engine-config-validator";
-
-// ─── Re-exports from extracted type modules ─────────────────────────────────
-// Public types live in ./engine-types.ts and ./engine-errors.ts. Re-export them so
-// existing `import { ... } from './gwen-engine.js'` statements keep working.
-
-export {
-  GwenPluginNotFoundError,
-  CoreErrorCodes,
-  GwenWasmError,
-  GwenWasmPanicError,
-  GwenEngineStateError,
-} from "./engine-errors.js";
-export type {
-  GwenPluginNotFoundErrorOptions,
-  CoreWasmErrorCode,
-  GwenEngineStateMethod,
-} from "./engine-errors.js";
-export type { PluginErrorContext } from "./engine-types.js";
-
-export { GWEN_PLUGIN_API_VERSION, checkPluginApiVersion } from "./engine-types.js";
-export type {
-  WasmModuleOptions,
-  WasmModuleHandle,
-  PlacementBridge,
-  EngineErrorBus,
-  GwenEngineOptions,
-  GwenProvides,
-  GwenWasmModules,
-  GwenPlugin,
-  EngineFramePhaseMs,
-  EngineStats,
-  EngineState,
-  EngineStateChange,
-  EngineStateChangePayload,
-  GwenEngineState,
-  GwenEngineStateChangeReason,
-  GwenEngine,
-} from "./engine-types.js";
-
-export type {
-  WasmMemoryRegion,
-  WasmMemoryOptions,
-  WasmChannelOptions,
-} from "./wasm-module-handle.js";
-export { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle.js";
-export type { EngineErrorPayload } from "./runtime-hooks.js";
-
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 
 import { createErrorBus } from "./error-bus.js";
-import { bindFailureReporter, isIsolated, isThenable } from "./error-isolation.js";
+import { bindFailureReporter, isIsolated } from "./error-isolation.js";
 import { ScopedHooksTracker } from "./hook-tracker.js";
 import { PluginRegistry } from "./plugin-registry.js";
 import { ServiceContainer } from "./service-container.js";
@@ -97,6 +48,9 @@ import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
 import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { EngineLoop } from "./engine-loop.js";
+import { bindEngineOnHooks, emitEntityDestroy } from "./hook-dispatch.js";
+import { rememberEngineInternals } from "./engine-internals.js";
+export { readLiveQueryIds, setEntityDormant } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 
 import type {
@@ -110,67 +64,14 @@ import type {
   GwenPlugin,
   EngineStats,
   GwenEngineState,
-  GwenEngineStateChangeReason,
   GwenEngine,
 } from "./engine-types.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
 import type { ComponentType } from "../types";
 
-type EngineHookFn = (...args: unknown[]) => unknown;
-
-function callHooksWithEngine(
-  engine: GwenEngine,
-  hooks: readonly EngineHookFn[],
-  args: readonly unknown[],
-  start: number,
-): unknown {
-  for (let i = start; i < hooks.length; i++) {
-    const hook = hooks[i];
-    if (hook === undefined) continue;
-    const previous = pushEngine(engine);
-    try {
-      const result = hook(...args);
-      if (isThenable(result)) {
-        return Promise.resolve(result)
-          .then(() => callHooksWithEngine(engine, hooks, args, i + 1))
-          .finally(() => popEngine(engine, previous));
-      }
-    } catch (error) {
-      popEngine(engine, previous);
-      return Promise.reject(error);
-    }
-    popEngine(engine, previous);
-  }
-  return undefined;
-}
-
-function callHooksWithEngineParallel(
-  engine: GwenEngine,
-  hooks: readonly EngineHookFn[],
-  args: readonly unknown[],
-): unknown {
-  if (hooks.length === 0) return undefined;
-  return Promise.all(
-    hooks.map((hook) => {
-      const previous = pushEngine(engine);
-      try {
-        const result = hook(...args);
-        if (isThenable(result)) {
-          return Promise.resolve(result).finally(() => popEngine(engine, previous));
-        }
-        popEngine(engine, previous);
-        return result;
-      } catch (error) {
-        popEngine(engine, previous);
-        return Promise.reject(error);
-      }
-    }),
-  );
-}
-
 // #region Engine implementation
 
-class GwenEngineImpl implements GwenEngine {
+export class GwenEngineImpl implements GwenEngine {
   /** Real engine behind a hooks proxy. */
   get [gwenEngineSelf](): this {
     return this;
@@ -211,40 +112,17 @@ class GwenEngineImpl implements GwenEngine {
   get errors(): EngineErrorBus {
     return this._policy.bus;
   }
-
   isolated(): readonly GwenErrorTarget[] {
     return this._policy.isolated();
   }
-
   reenable(id: string): boolean {
     return this._policy.reenable(id);
   }
-
   get memory(): EngineMemory {
     return this._memory;
   }
-
   get state(): GwenEngineState {
     return this._stateMachine.state;
-  }
-
-  private _transition(
-    to: GwenEngineState,
-    reason: GwenEngineStateChangeReason,
-  ): Promise<void> | void {
-    return this._stateMachine.transition(to, reason);
-  }
-
-  private _enterFaulted(reason: GwenEngineStateChangeReason): void {
-    this._stateMachine.enterFaulted(reason);
-  }
-
-  private _assertNotFaulted(method: string): void {
-    this._stateMachine.assert(method);
-  }
-
-  private _assertPluginCall(method: "use" | "unuse"): void {
-    this._stateMachine.assertPlugin(method);
   }
 
   private readonly _wasmRunner: WasmModuleRunner;
@@ -288,16 +166,19 @@ class GwenEngineImpl implements GwenEngine {
       cancelFrame: () => this._loop.cancel(),
     });
     this._serviceContainer = new ServiceContainer({
-      assertState: (method) => this._assertNotFaulted(method),
+      assertState: (method) => this._stateMachine.assert(method),
     });
     this.provide("wasm:bridge", this._bridge);
     this.provide("logger", this.logger);
+    const reportDestroyFailure = (id: EntityId, error: unknown): void => {
+      this._policy.reportEntityDestroyFailure(id, error);
+    };
     this._entities = new EngineEntities({
       maxEntities: this.maxEntities,
       queryCacheSize: opts.queryCacheSize ?? 256,
-      assertState: (method) => this._assertNotFaulted(method),
+      assertState: (method) => this._stateMachine.assert(method),
       registerComponent: (type) => this.getOrRegisterComponent(type),
-      emitDestroy: (id) => this._emitEntityDestroy(id),
+      emitDestroy: (id) => emitEntityDestroy(this, this.hooks, reportDestroyFailure, id),
     });
 
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
@@ -318,17 +199,17 @@ class GwenEngineImpl implements GwenEngine {
       hooks: this.hooks,
       tracker: new ScopedHooksTracker(),
       errors: errorBus,
-      assertState: (method) => this._assertPluginCall(method),
+      assertState: (method) => this._stateMachine.assertPlugin(method),
       logger: this.logger,
       debug: this.debug,
       remember: (proxy) => this._rememberInternals(proxy),
       frame: () => this._stats.frameCount,
-      reportSetup: (plugin, error) => this._reportSetupError(plugin, error),
-      reportTeardown: (plugin, error) => this._reportTeardown(plugin, error),
-      dropIsolation: (name) => this._dropPluginIsolation(name),
+      reportSetup: (plugin, error) => this._policy.reportSetupError(plugin, error),
+      reportTeardown: (plugin, error) => this._policy.reportTeardown(plugin, error),
+      dropIsolation: (name) => this._policy.dropIsolation(name),
     });
     bindFailureReporter(this, (error, target, hook) => {
-      this._reportCaught(error, hook, { target });
+      this._policy.reportCaught(error, hook, { target });
     });
     this._memory = new EngineMemory(this._bridge, errorBus);
     this.provide("memory", this._memory);
@@ -337,12 +218,12 @@ class GwenEngineImpl implements GwenEngine {
       maxEntities: this.maxEntities,
       disposables: this.disposables,
       memory: this._memory,
-      assertState: (method) => this._assertNotFaulted(method),
+      assertState: (method) => this._stateMachine.assert(method),
       isFaulted: () => this._stateMachine.isFaulted(),
       isIsolated: (id) => isIsolated(this, id),
       frame: () => this._stats.frameCount,
-      reportCaught: (err, hook, forced) => this._reportCaught(err, hook, forced),
-      publish: (event) => this._publish(event),
+      reportCaught: (err, hook, forced) => this._policy.reportCaught(err, hook, forced),
+      publish: (event) => this._policy.publish(event),
     });
     this.disposables.add(
       "engine:memory",
@@ -362,23 +243,10 @@ class GwenEngineImpl implements GwenEngine {
       state: this._stateMachine,
       logger: this.logger,
     });
-    this._attachErrorPolicy();
+    this._policy.attach();
     this._rememberInternals(this);
-    this._bindEngineOnHooks();
+    bindEngineOnHooks(this, this.hooks);
     stringPoolFor(this);
-  }
-
-  private _bindEngineOnHooks(): void {
-    const hooks = this.hooks;
-    const engine = this;
-    const callWith = hooks.callHookWith.bind(hooks);
-    const runSerial = (list: readonly EngineHookFn[], hookArgs: readonly unknown[]): unknown =>
-      callHooksWithEngine(engine, list, hookArgs, 0);
-    const runParallel = (list: readonly EngineHookFn[], hookArgs: readonly unknown[]): unknown =>
-      callHooksWithEngineParallel(engine, list, hookArgs);
-    hooks.callHook = ((name, ...args) => callWith(runSerial, name, args)) as typeof hooks.callHook;
-    hooks.callHookParallel = ((name, ...args) =>
-      callWith(runParallel, name, args)) as typeof hooks.callHookParallel;
   }
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
@@ -386,7 +254,6 @@ class GwenEngineImpl implements GwenEngine {
   use(plugin: GwenPlugin): Promise<void> {
     return this._pluginRegistry.use(plugin, this);
   }
-
   unuse(name: string): Promise<void> {
     return this._pluginRegistry.unuse(name, this);
   }
@@ -421,7 +288,7 @@ class GwenEngineImpl implements GwenEngine {
    * ```
    */
   run<T>(fn: () => T): T {
-    this._assertNotFaulted("run");
+    this._stateMachine.assert("run");
     const previous = pushEngine(this);
     try {
       return fn();
@@ -437,7 +304,7 @@ class GwenEngineImpl implements GwenEngine {
    * (e.g., a custom game loop outside `advance()`).
    */
   activate(): void {
-    this._assertNotFaulted("activate");
+    this._stateMachine.assert("activate");
     if (!this._activateCaptured) {
       this._engineBeforeActivate = engineContext.tryUse() ?? undefined;
       this._activateCaptured = true;
@@ -450,7 +317,7 @@ class GwenEngineImpl implements GwenEngine {
    * A no-op when another engine has replaced the context.
    */
   deactivate(): void {
-    this._assertNotFaulted("deactivate");
+    this._stateMachine.assert("deactivate");
     if (engineContext.tryUse() !== this) return;
     const previous = this._engineBeforeActivate;
     this._engineBeforeActivate = undefined;
@@ -460,10 +327,6 @@ class GwenEngineImpl implements GwenEngine {
   }
 
   // ─── Lifecycle ────────────────────────────────────────────────────────────
-
-  private _handleFrameLoopError(err: unknown): void {
-    this._policy.handleFrameLoopError(err);
-  }
 
   /**
    * Start the RAF or fixed-step loop.
@@ -483,7 +346,7 @@ class GwenEngineImpl implements GwenEngine {
           "Call `await bridge.init()` or `setupGwen()` before starting the Engine.",
       );
     }
-    this._attachErrorPolicy();
+    this._policy.attach();
     this._loop.markStart();
     await this._beginStart();
     if (this._stateMachine.state !== "running") return;
@@ -503,9 +366,10 @@ class GwenEngineImpl implements GwenEngine {
     if (from === "starting") throw new GwenEngineStateError(from, "stop");
     // Claim before the first hook runs: a stop() from inside teardown must see it.
     this._teardownOnce = true;
-    if (from !== "faulted") await this._transition("stopping", "USER");
+    if (from !== "faulted") await this._stateMachine.transition("stopping", "USER");
     await this._teardown();
-    if (this._stateMachine.state === "stopping") await this._transition("stopped", "USER");
+    if (this._stateMachine.state === "stopping")
+      await this._stateMachine.transition("stopped", "USER");
   }
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
@@ -514,7 +378,7 @@ class GwenEngineImpl implements GwenEngine {
     try {
       await this.hooks.callHook("engine:stop");
     } catch (err) {
-      this._handleFrameLoopError(err);
+      this._policy.handleFrameLoopError(err);
     }
     this._pluginRegistry.clearHooks();
     this._policy.clearIsolated();
@@ -532,7 +396,7 @@ class GwenEngineImpl implements GwenEngine {
    * A throw from either hook moves `starting` to `faulted` and rejects the caller.
    */
   private async _beginStart(): Promise<void> {
-    await this._transition("starting", "USER");
+    await this._stateMachine.transition("starting", "USER");
     let hook: "engine:init" | "engine:start" = "engine:init";
     try {
       await this.hooks.callHook("engine:init");
@@ -540,9 +404,9 @@ class GwenEngineImpl implements GwenEngine {
       hook = "engine:start";
       await this.hooks.callHook("engine:start");
     } catch (err) {
-      this._enterFaulted("FATAL_ERROR");
+      this._stateMachine.enterFaulted("FATAL_ERROR");
       const message = err instanceof Error ? err.message : String(err);
-      this._emit({
+      this._policy.emit({
         level: "fatal",
         code: CoreErrorCodes.FRAME_LOOP_ERROR,
         message,
@@ -553,7 +417,7 @@ class GwenEngineImpl implements GwenEngine {
       throw err;
     }
     if (this._stateMachine.state !== "starting") return;
-    await this._transition("running", "USER");
+    await this._stateMachine.transition("running", "USER");
   }
 
   /**
@@ -571,7 +435,7 @@ class GwenEngineImpl implements GwenEngine {
   async startExternal(): Promise<void> {
     const state = this._stateMachine.state;
     if (state !== "idle") throw new GwenEngineStateError(state, "startExternal");
-    this._attachErrorPolicy();
+    this._policy.attach();
     await this._beginStart();
     // Intentionally skip RAF — the caller drives the loop via advance().
   }
@@ -640,34 +504,6 @@ class GwenEngineImpl implements GwenEngine {
     return this._entities.destroyEntity(id);
   }
 
-  private _emitEntityDestroy(id: EntityId): void {
-    this.hooks.callHookWith(
-      (hooks, args) => {
-        for (const handler of hooks) {
-          const previous = pushEngine(this);
-          try {
-            const result = handler(...args);
-            if (result instanceof Promise) {
-              void result.catch((error: unknown) => {
-                this._reportEntityDestroyFailure(id, error);
-              });
-            }
-          } catch (error) {
-            this._reportEntityDestroyFailure(id, error);
-          } finally {
-            popEngine(this, previous);
-          }
-        }
-      },
-      "entity:destroy",
-      [id],
-    );
-  }
-
-  private _reportEntityDestroyFailure(id: EntityId, error: unknown): void {
-    this._policy.reportEntityDestroyFailure(id, error);
-  }
-
   /**
    * Check whether an entity is currently alive.
    *
@@ -703,7 +539,7 @@ class GwenEngineImpl implements GwenEngine {
    * Numeric ids are not baked by the Vite optimizer; cached lookup is #66.
    */
   getOrRegisterComponent(type: ComponentType): number {
-    this._assertNotFaulted("getOrRegisterComponent");
+    this._stateMachine.assert("getOrRegisterComponent");
     return componentRegistryFor(this).getOrRegister(type);
   }
 
@@ -813,46 +649,8 @@ class GwenEngineImpl implements GwenEngine {
     return this._stats.snapshot();
   }
 
-  private _emit(event: BusErrorPayload): void {
-    this._policy.emit(event);
-  }
-
-  private _publish(event: BusErrorPayload): void {
-    this._policy.publish(event);
-  }
-
-  private _attachErrorPolicy(): void {
-    this._policy.attach();
-  }
-
-  private _dropPluginIsolation(name: string): void {
-    this._policy.dropIsolation(name);
-  }
-
-  private _reportSetupError(plugin: GwenPlugin, err: unknown): void {
-    this._policy.reportSetupError(plugin, err);
-  }
-
-  private _reportTeardown(plugin: GwenPlugin, err: unknown): void {
-    this._policy.reportTeardown(plugin, err);
-  }
-
-  private _reportCaught(
-    err: unknown,
-    hook: string,
-    forced?: {
-      level?: "error" | "fatal";
-      code?: string;
-      source?: string;
-      message?: string;
-      target?: GwenErrorTarget;
-    },
-  ): void {
-    this._policy.reportCaught(err, hook, forced);
-  }
-
   private _rememberInternals(key: object): void {
-    engineInternals.set(key, {
+    rememberEngineInternals(key, {
       setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
       queryIds: (components) => this._entities.resolveIds(components),
     });
@@ -861,86 +659,4 @@ class GwenEngineImpl implements GwenEngine {
 
 // #endregion
 
-const engineInternals = new WeakMap<
-  object,
-  {
-    setDormant(id: EntityId, dormant: boolean): boolean;
-    queryIds(components: readonly ComponentDef[]): readonly EntityId[];
-  }
->();
-
-/**
- * Pool dormancy flag. Not part of {@link GwenEngine}.
- * False when `engine` is not a GWEN engine or `id` is not alive.
- * @internal
- */
-export function setEntityDormant(engine: GwenEngine, id: EntityId, dormant: boolean): boolean {
-  const ops = engineInternals.get(engine);
-  if (!ops) return false;
-  return ops.setDormant(id, dormant);
-}
-
-/**
- * Cached id list for one query. The same array until a real membership change.
- * @internal
- */
-export function readLiveQueryIds(
-  engine: GwenEngine,
-  components: readonly ComponentDef[],
-): readonly EntityId[] {
-  const ops = engineInternals.get(engine);
-  if (!ops) return [];
-  return ops.queryIds(components);
-}
-
-// #region Factory ─────────────────────────────────────────────────────────────
-
-/**
- * Create a GWEN engine instance.
- *
- * @param options - Engine configuration. All fields optional.
- * @returns The engine. WASM is not loaded. Use {@link setupGwen} to load it.
- *
- * @example
- * ```typescript
- * import { createEngine } from '@gwenjs/core'
- * const engine = await createEngine({ maxEntities: 5_000, variant: 'physics2d' })
- * await engine.use(myPlugin())
- * // start() throws CORE:WASM_NOT_INITIALIZED until setupGwen() or bridge.init().
- * ```
- */
-export async function createEngine(options?: GwenEngineOptions): Promise<GwenEngine> {
-  validateEngineConfig(options ?? {});
-  return new GwenEngineImpl(options ?? {});
-}
-
-/**
- * Initialises the WASM core and creates a new engine in a single call.
- *
- * Equivalent to:
- * ```ts
- * const bridge = new WasmBridgeImpl();
- * await bridge.init(options?.variant ?? 'light', options);
- * const engine = await createEngine({ ...options, _bridge: bridge });
- * ```
- *
- * Use this in application entry points. In tests or environments where WASM
- * must be mocked, call {@link createEngine} directly and pass a pre-configured
- * `WasmBridgeImpl` via the `_bridge` option (e.g. `createEngine({ _bridge: myBridge })`).
- *
- * @param options - Engine configuration. `variant` is forwarded to `bridge.init`.
- * @returns A fully initialised {@link GwenEngine} with WASM ready.
- *
- * @example
- * ```ts
- * import { setupGwen } from '@gwenjs/core'
- *
- * const engine = await setupGwen({ variant: 'physics2d', maxEntities: 5_000 })
- * await engine.start()
- * ```
- */
-export async function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine> {
-  const bridge = new WasmBridgeImpl();
-  await bridge.init(options?.variant ?? "light", options);
-  return createEngine({ ...options, _bridge: bridge });
-}
+export { createEngine, setupGwen } from "./engine-factory.js";

@@ -3,7 +3,7 @@ import { createDisposable } from "../disposable.js";
 import { TweenManager } from "./runtime/tween-manager.js";
 import type { TweenPoolPolicy } from "./runtime/tween-pool.js";
 import type { GwenPlugin, GwenEngineBase } from "@gwenjs/schema";
-import type { GwenEngine } from "../engine/gwen-engine.js";
+import type { GwenEngine } from "../engine/engine-types.js";
 
 // ── Options ───────────────────────────────────────────────────────────────────
 

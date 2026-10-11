@@ -27,7 +27,7 @@
  */
 
 import { _withSceneContext } from "./scene-context";
-import type { GwenPlugin, GwenEngine } from "../../engine/gwen-engine";
+import type { GwenPlugin, GwenEngine } from "../../engine/engine-types";
 import { engineContext } from "../../engine/context";
 import { popEngine, pushEngine } from "../../engine/engine-local";
 import type { SystemHandle } from "./system-handle";

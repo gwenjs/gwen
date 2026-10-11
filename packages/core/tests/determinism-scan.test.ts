@@ -9,6 +9,7 @@ const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 /** `performance.now()` sites the 1.0 statement allows. Paths are repo-relative. */
 const PERFORMANCE_NOW_ALLOWLIST = new Set([
   "packages/core/src/engine/engine-loop.ts",
+  "packages/core/src/engine/frame-scheduler.ts",
   "packages/core/src/logger/gwen-logger.ts",
   "packages/core/src/logger/console-logger.ts",
   "packages/kit/src/observability.ts",

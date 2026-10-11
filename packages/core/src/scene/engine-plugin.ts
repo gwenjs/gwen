@@ -29,7 +29,7 @@ export class SceneHookRegistry {
    * Registers the lifecycle hooks of a `SceneDefinition` on the engine.
    * Stores handler references for automatic deregistration on cleanup.
    */
-  hookScene(engine: import("../engine/gwen-engine.js").GwenEngine, def: SceneDefinition): void {
+  hookScene(engine: import("../engine/engine-types.js").GwenEngine, def: SceneDefinition): void {
     const { name } = def;
 
     if (def.onEnter) {

@@ -3,7 +3,7 @@
  * Validates `GwenEngineOptions` and throws `GwenConfigError` on invalid values.
  */
 
-import type { GwenEngineOptions } from "./gwen-engine.js";
+import type { GwenEngineOptions } from "./engine-types.js";
 import { GwenConfigError } from "./config-error.js";
 
 /**

@@ -33,16 +33,15 @@ export type { GwenHooks, GwenHookable, HookHandlerMap, InferHooks } from "./hook
 
 export { emit } from "./hooks";
 
+export { createEngine, setupGwen } from "./engine/gwen-engine";
 export {
-  createEngine,
-  setupGwen,
   GwenPluginNotFoundError,
   CoreErrorCodes,
   GwenWasmError,
   GwenWasmPanicError,
   GwenEngineStateError,
-} from "./engine/gwen-engine";
-export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/gwen-engine";
+} from "./engine/engine-errors";
+export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/engine-errors";
 export { EngineMemory } from "./engine/engine-memory";
 export type {
   MemoryView,
@@ -66,7 +65,6 @@ export type {
   GwenProvides,
   GwenWasmModules,
   GwenEngineOptions,
-  GwenPluginNotFoundErrorOptions,
   EngineStats,
   EngineFramePhaseMs,
   WasmModuleHandle,
@@ -74,8 +72,13 @@ export type {
   EngineErrorBus,
   PlacementBridge,
   PluginErrorContext,
-} from "./engine/gwen-engine";
-export type { WasmMemoryRegion, WasmMemoryOptions, WasmChannelOptions } from "./engine/gwen-engine";
+} from "./engine/engine-types";
+export type { GwenPluginNotFoundErrorOptions } from "./engine/engine-errors";
+export type {
+  WasmMemoryRegion,
+  WasmMemoryOptions,
+  WasmChannelOptions,
+} from "./engine/wasm-module-handle";
 export type { WasmRegionView, WasmRingBuffer } from "./engine/wasm-module-handle";
 
 export { createLogger, GwenLogger, consoleLogProvider } from "./logger/index";

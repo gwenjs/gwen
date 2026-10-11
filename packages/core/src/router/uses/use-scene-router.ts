@@ -20,7 +20,7 @@
  */
 
 import { useEngine } from "../../engine/context";
-import type { GwenEngine } from "../../engine/gwen-engine";
+import type { GwenEngine } from "../../engine/engine-types";
 import type {
   RouteConfig,
   SceneRouterDefinition,

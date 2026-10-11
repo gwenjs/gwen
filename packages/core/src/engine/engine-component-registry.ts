@@ -16,7 +16,7 @@ import { GwenError } from "@gwenjs/schema";
 
 import type { ComponentType } from "../types";
 import { unpackEntityId, type EntityId } from "./engine-api";
-import type { GwenEngine } from "./gwen-engine";
+import type { GwenEngine } from "./engine-types";
 import { createEngineLocal } from "./engine-local";
 import { CoreErrorCodes } from "./engine-errors";
 import type { WasmBridge } from "./wasm-bridge";

@@ -11,7 +11,7 @@
  */
 
 import { GwenContextError, engineContext } from "../../engine/context";
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { createSystemHandle } from "./system-handle";
 import type { SystemHandle } from "./system-handle";

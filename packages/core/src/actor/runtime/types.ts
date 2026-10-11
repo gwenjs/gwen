@@ -7,7 +7,7 @@
  */
 
 // packages/core/src/scene/types.ts
-import type { GwenPlugin } from "../../engine/gwen-engine";
+import type { GwenPlugin } from "../../engine/engine-types";
 import type { PrefabDefinition } from "./define-prefab";
 import type { EntityId } from "../../engine/engine-api";
 import type { ScopedHookable } from "../../hooks/scoped-hookable";

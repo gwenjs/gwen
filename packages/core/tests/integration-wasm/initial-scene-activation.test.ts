@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { defineActor, definePrefab, useActor } from "../../src/actor/index.js";
-import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
+import type { GwenPlugin } from "../../src/engine/engine-types.js";
 import { defineSceneRouter, useSceneRouter } from "../../src/router/index.js";
 import { SceneEnginePlugin } from "../../src/scene/engine-plugin.js";
 import { defineScene } from "../../src/scene/runtime/define-scene.js";

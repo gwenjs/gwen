@@ -30,7 +30,7 @@ import type {
   GwenProvides,
   GwenWasmModules,
   WasmModuleHandle,
-} from "../../engine/gwen-engine";
+} from "../../engine/engine-types";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../../schema";
 import { ScopedHookable } from "../../hooks/scoped-hookable.js";

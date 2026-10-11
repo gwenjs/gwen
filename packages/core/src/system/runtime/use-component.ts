@@ -1,5 +1,5 @@
 import { useEngine } from "../../engine/context";
-import type { GwenEngine } from "../../engine/gwen-engine";
+import type { GwenEngine } from "../../engine/engine-types";
 import type { EntityId } from "../../engine/engine-api";
 import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "./define-system";

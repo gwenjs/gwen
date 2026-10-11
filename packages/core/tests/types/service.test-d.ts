@@ -1,6 +1,6 @@
 import { expectTypeOf } from "vitest";
 
-import type { GwenEngine } from "../../src/engine/gwen-engine";
+import type { GwenEngine } from "../../src/engine/engine-types";
 import { useService } from "../../src/system/runtime/define-system";
 import { SCENE_REGISTRAR_KEY, type SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
 import { SceneHookRegistry } from "../../src/scene/engine-plugin";

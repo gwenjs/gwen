@@ -9,7 +9,7 @@ import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import type { SystemHandle } from "../../src/scene/runtime/system-handle";
-import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
+import type { GwenPlugin } from "../../src/engine/engine-types.js";
 
 const Position = stubComponent("Position");
 const SimplePrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);

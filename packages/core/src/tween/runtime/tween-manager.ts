@@ -3,7 +3,7 @@
  * Lifecycle managed by TweenPlugin — do not instantiate directly.
  */
 import { useEngine } from "../../engine/context.js";
-import type { GwenEngine } from "../../engine/gwen-engine.js";
+import type { GwenEngine } from "../../engine/engine-types.js";
 import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types.js";
 import { TweenPool, type TweenPoolPolicy } from "./tween-pool.js";
 import type { IGwenLogger } from "@gwenjs/schema";

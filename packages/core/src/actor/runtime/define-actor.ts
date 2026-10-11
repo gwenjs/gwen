@@ -33,7 +33,7 @@
 import { engineContext, GwenContextError, useEngine } from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
 import { createDisposable } from "../../disposable.js";
-import type { GwenEngine } from "../../engine/gwen-engine";
+import type { GwenEngine } from "../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
 import type { EntityId } from "../../engine/engine-api";
 import type { ComponentDef } from "../../system/runtime/define-system";

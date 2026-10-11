@@ -27,7 +27,7 @@
  */
 
 import type { ActorDefinition } from "./types";
-import type { GwenEngine } from "../../engine/gwen-engine";
+import type { GwenEngine } from "../../engine/engine-types";
 import { engineContext, GwenContextError } from "../../engine/context.js";
 
 // ─── Types ────────────────────────────────────────────────────────────────────

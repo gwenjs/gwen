@@ -14,7 +14,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useActor } from "../../src/actor/runtime/use-actor";
 import { SCENE_REGISTRAR_KEY } from "../../src/scene/runtime/scene-registrar";
-import type { GwenPlugin } from "../../src/engine/gwen-engine.js";
+import type { GwenPlugin } from "../../src/engine/engine-types.js";
 import type { SceneRegistrar } from "../../src/scene/runtime/scene-registrar";
 
 const dummyPlugin = (name: string) =>
