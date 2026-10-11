@@ -32,6 +32,21 @@ function regionModule(name: string, step?: (dt: number) => void): WasmModuleOpti
   return { ...options, step: (_handle, dt) => step(dt) };
 }
 
+/** A declared memory region is not a transform region unless `transformRegion` names it. */
+function moduleWithoutTransformRegion(name: string, step?: (dt: number) => void): WasmModuleOptions {
+  const options: WasmModuleOptions = {
+    name,
+    url: "http://x/mod.wasm",
+    memory: {
+      regions: [
+        { name: "transforms", byteOffset: REGION_OFFSET, byteLength: COPY_BYTES, type: "f32" as const },
+      ],
+    },
+  };
+  if (step === undefined) return options;
+  return { ...options, step: (_handle, dt) => step(dt) };
+}
+
 describe("transform region before the bridge is active", () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -97,6 +112,26 @@ describe("transform region copy counts", () => {
     const engine = await createEngine({ maxEntities: MAX_ENTITIES, _bridge: bridge });
     return { engine, fill, copies };
   }
+
+  it("does not fill when no module declares a region", async () => {
+    const { engine, fill, copies } = await boot();
+    let stepped = false;
+    try {
+      await engine.advance(0.016);
+      await engine.loadWasmModule(
+        moduleWithoutTransformRegion("plain", () => {
+          stepped = true;
+        }),
+      );
+      await engine.advance(0.016);
+      await engine.advance(0.016);
+      expect(fill).toHaveBeenCalledTimes(0);
+      expect(copies).toEqual([]);
+      expect(stepped).toBe(true);
+    } finally {
+      await engine.stop();
+    }
+  });
 
   it("fills once per frame and copies once per region module", async () => {
     const { engine, fill, copies } = await boot();
