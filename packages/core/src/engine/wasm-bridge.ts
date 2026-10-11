@@ -225,6 +225,20 @@ export function toGwenWasmError(
   return err;
 }
 
+/**
+ * Map a `get_components_bulk` or `query_read_bulk` failure.
+ * Internal: not on {@link WasmBridge} and not a package export.
+ * A slot/generation length mismatch throws `CORE:BUFFER_LENGTH_MISMATCH`
+ * before any write. `poison` marks the calling bridge after a core trap.
+ */
+export function mapBulkReadWasmError(
+  err: unknown,
+  exportName: "get_components_bulk" | "query_read_bulk",
+  poison: (cause: WebAssembly.RuntimeError) => void,
+): unknown {
+  return toGwenWasmError(err, exportName, poison);
+}
+
 const bridgePoisoners = new WeakMap<object, (cause: WebAssembly.RuntimeError) => void>();
 
 /**
@@ -634,7 +648,9 @@ export class WasmBridgeImpl implements WasmBridge {
     try {
       wasm.get_components_bulk(slots, gens, componentTypeId, outBuf);
     } catch (error: unknown) {
-      throw this._mapWasmError(error, "get_components_bulk");
+      throw mapBulkReadWasmError(error, "get_components_bulk", (cause) => {
+        this._poison(cause);
+      });
     }
 
     // Return a Float32Array view over the same buffer — no copy.
@@ -728,7 +744,9 @@ export class WasmBridgeImpl implements WasmBridge {
     try {
       result = wasm.query_read_bulk(typeIds, readTypeId, slotsBuf, gensBuf, dataBuf);
     } catch (error: unknown) {
-      throw this._mapWasmError(error, "query_read_bulk");
+      throw mapBulkReadWasmError(error, "query_read_bulk", (cause) => {
+        this._poison(cause);
+      });
     }
 
     // result is a Uint32Array [entityCount, bytesWritten]
