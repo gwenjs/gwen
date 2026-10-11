@@ -17,21 +17,43 @@ import { GwenLogger } from "../../src/logger/gwen-logger.js";
 
 const REENTRANT = "[GwenEngine] advance() called re-entrantly — only one advance per frame.";
 
+interface HarnessOptions {
+  grow?: boolean;
+  warns?: string[];
+}
+
 interface Harness {
   config: EngineLoopConfig;
   order: string[];
   ticks: number[];
   loop: EngineLoop;
+  modules: {
+    stepAll(dt: number): void;
+    checkSentinels(): void;
+  };
   stats: EngineStatsRecorder;
   state: EngineStateMachine;
   hooks: ReturnType<typeof createHooks<GwenRuntimeHooks>>;
   stop(): Promise<void>;
 }
 
-async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harness> {
+async function harness(
+  overrides: Partial<EngineLoopConfig> = {},
+  options: HarnessOptions = {},
+): Promise<Harness> {
   const owner = await createEngine();
   const hooks = createHooks<GwenRuntimeHooks>();
-  const logger = new GwenLogger([{ handle() {} }], "error");
+  const warns = options.warns;
+  const logger = new GwenLogger(
+    [
+      {
+        handle(entry) {
+          if (warns !== undefined && entry.level === "warn") warns.push(entry.message);
+        },
+      },
+    ],
+    warns === undefined ? "error" : "debug",
+  );
   const config: EngineLoopConfig = {
     timeScale: 1,
     physicsHz: 0,
@@ -73,7 +95,7 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
   const memory = new EngineMemory(new WasmBridgeImpl(), bus);
   const bridge = {
     checkMemoryGrow(): boolean {
-      return false;
+      return options.grow === true;
     },
     getLinearMemory(): WebAssembly.Memory | null {
       return null;
@@ -131,6 +153,7 @@ async function harness(overrides: Partial<EngineLoopConfig> = {}): Promise<Harne
     order,
     ticks,
     loop,
+    modules,
     stats,
     state,
     hooks,
@@ -215,8 +238,11 @@ describe("EngineLoop", () => {
     const second = await harness({ timeScale: 1, maxDeltaSeconds: 0.1 });
     try {
       await first.loop.advance(1);
+      await second.loop.advance(1);
+      expect(first.ticks).toEqual([0.2]);
+      expect(second.ticks).toEqual([0.1]);
       expect(first.stats.deltaTime).toBe(0.2);
-      expect(second.stats.deltaTime).toBe(0);
+      expect(second.stats.deltaTime).toBe(0.1);
     } finally {
       await second.stop();
       await first.stop();
@@ -285,6 +311,105 @@ describe("EngineLoop", () => {
     }
   });
 
+  it("memory-grow runs before each phase when checkMemoryGrow is true", async () => {
+    const rig = await harness({}, { grow: true });
+    rig.hooks.hook("engine:memory-grow", () => {
+      rig.order.push("grow");
+    });
+    try {
+      await rig.loop.advance(1 / 60);
+      expect(rig.order).toEqual([
+        "grow",
+        "tick",
+        "grow",
+        "before-update",
+        "grow",
+        "modules",
+        "grow",
+        "transforms",
+        "grow",
+        "update:0",
+        "grow",
+        "after-update",
+        "render",
+        "grow",
+        "afterTick:1",
+      ]);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("a microtask queued in stepAll runs after the update hook", async () => {
+    const rig = await harness();
+    rig.modules.stepAll = () => {
+      rig.order.push("stepAll");
+      queueMicrotask(() => {
+        rig.order.push("micro");
+      });
+    };
+    try {
+      await rig.loop.advance(1 / 60);
+      expect(rig.order).toEqual([
+        "tick",
+        "before-update",
+        "stepAll",
+        "transforms",
+        "update:0",
+        "after-update",
+        "render",
+        "afterTick:1",
+        "micro",
+      ]);
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("a fatal during after-update skips engine:render", async () => {
+    const rig = await harness();
+    rig.hooks.hook("engine:after-update", () => {
+      throw new WebAssembly.RuntimeError("trap");
+    });
+    try {
+      await rig.loop.advance(1 / 60);
+      expect(rig.state.state).toBe("faulted");
+      expect(rig.order).toContain("after-update");
+      expect(rig.order).not.toContain("render");
+    } finally {
+      await rig.stop();
+    }
+  });
+
+  it("debug warns when each phase exceeds half the budget, in phase order", async () => {
+    const warns: string[] = [];
+    const rig = await harness({ debug: true, targetFPS: 60 }, { warns });
+    const previousNow = performance.now;
+    let clock = 0;
+    performance.now = () => {
+      clock += 20;
+      return clock;
+    };
+    try {
+      await rig.loop.advance(1 / 60);
+      if (__GWEN_DEV__) {
+        expect(warns).toEqual([
+          'phase "tick" exceeded 50% of frame budget',
+          'phase "plugins" exceeded 50% of frame budget',
+          'phase "wasm" exceeded 50% of frame budget',
+          'phase "update" exceeded 50% of frame budget',
+          'phase "render" exceeded 50% of frame budget',
+          'phase "afterTick" exceeded 50% of frame budget',
+        ]);
+      } else {
+        expect(warns).toEqual([]);
+      }
+    } finally {
+      performance.now = previousNow;
+      await rig.stop();
+    }
+  });
+
   it("createEngine advance restores the engine that was current, including after an awaited hook", async () => {
     const first = await createEngine();
     const second = await createEngine();
@@ -297,8 +422,8 @@ describe("EngineLoop", () => {
       });
       await second.advance(1 / 60);
       expect(useEngine()).toBe(first);
-      first.deactivate();
     } finally {
+      first.deactivate();
       if (second.state !== "stopped") await second.stop();
       if (first.state !== "stopped") await first.stop();
     }
