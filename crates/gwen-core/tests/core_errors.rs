@@ -421,7 +421,7 @@ fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
 
 #[test]
 fn get_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
-    let mut other = Engine::new(4).expect("max entities");
+    let other = engine(4);
     let mut engine = engine(4);
     let type_id = 7u32;
     assert_eq!(
@@ -434,16 +434,23 @@ fn get_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
     let before = engine.get_component_raw(0, 0, type_id);
     let mut out = [9u8; 8];
 
-    let written = engine.get_components_bulk(&[0, 0], &[0], type_id, &mut out);
-
+    let err = engine.get_components_bulk(&[0, 0], &[0], type_id, &mut out);
     assert_eq!(
-        written, 0,
-        "a shorter gens slice must not return a partial read"
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 2,
+            actual: 1
+        })
     );
-    assert_eq!(
-        out, [9u8; 8],
-        "a shorter gens slice must not write the output"
-    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 2, actual 1"
+        );
+    }
+    assert_eq!(out, [9u8; 8]);
     assert_eq!(engine.get_component_raw(0, 0, type_id), before);
     assert_eq!(engine.count_entities(), 1);
     assert_eq!(other.count_entities(), 0);
@@ -463,23 +470,30 @@ fn get_components_bulk_rejects_a_longer_generation_list() {
     let before = engine.get_component_raw(0, 0, type_id);
     let mut out = [9u8; 4];
 
-    let written = engine.get_components_bulk(&[0], &[0, 9], type_id, &mut out);
-
+    let err = engine.get_components_bulk(&[0], &[0, 9], type_id, &mut out);
     assert_eq!(
-        written, 0,
-        "a longer gens slice must not return a partial read"
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 1,
+            actual: 2
+        })
     );
-    assert_eq!(
-        out, [9u8; 4],
-        "a longer gens slice must not write the output"
-    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 1, actual 2"
+        );
+    }
+    assert_eq!(out, [9u8; 4]);
     assert_eq!(engine.get_component_raw(0, 0, type_id), before);
     assert_eq!(engine.count_entities(), 1);
 }
 
 #[test]
 fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
-    let mut other = Engine::new(4).expect("max entities");
+    let mut other = engine(4);
     let mut engine = engine(4);
     let type_id = 7u32;
     assert_eq!(
@@ -502,6 +516,96 @@ fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
     let mut out_gens = [7u32];
     let mut out_buf = [9u8; 8];
 
+    let err = engine.query_read_bulk(
+        &[type_id],
+        type_id,
+        &mut out_slots,
+        &mut out_gens,
+        &mut out_buf,
+    );
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 2,
+            actual: 1
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 2, actual 1"
+        );
+    }
+    assert_eq!(out_slots, [7, 7]);
+    assert_eq!(out_gens, [7]);
+    assert_eq!(out_buf, [9u8; 8]);
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+    assert_eq!(other.get_component_raw(0, 0, type_id), other_before);
+    assert_eq!(other.count_entities(), 1);
+}
+
+#[test]
+fn get_components_bulk_returns_zero_for_two_empty_slices() {
+    let engine = engine(4);
+    let mut out = [9u8; 4];
+
+    let written = engine.get_components_bulk(&[], &[], 7, &mut out);
+
+    assert_eq!(written, Ok(0));
+    assert_eq!(out, [9u8; 4]);
+}
+
+#[test]
+fn get_components_bulk_stops_when_the_output_buffer_is_full() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((1, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    assert_eq!(engine.add_component(1, 0, type_id, &[5, 6, 7, 8]), Ok(true));
+    let mut out = [9u8; 4];
+
+    let written = engine.get_components_bulk(&[0, 1], &[0, 0], type_id, &mut out);
+
+    assert_eq!(written, Ok(4));
+    assert_eq!(out, [1, 2, 3, 4]);
+}
+
+#[test]
+fn query_read_bulk_truncates_to_the_shared_output_length() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((1, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    assert_eq!(engine.add_component(1, 0, type_id, &[5, 6, 7, 8]), Ok(true));
+    let mut out_slots = [7u32];
+    let mut out_gens = [7u32];
+    let mut out_buf = [9u8; 8];
+
     let result = engine.query_read_bulk(
         &[type_id],
         type_id,
@@ -510,16 +614,70 @@ fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
         &mut out_buf,
     );
 
+    assert_eq!(result, Ok(vec![1, 4]));
+    let filled = engine.get_component_raw(out_slots[0], out_gens[0], type_id);
+    assert_eq!(&out_buf[..filled.len()], filled.as_slice());
+    assert_eq!(&out_buf[4..], &[9, 9, 9, 9]);
+}
+
+#[test]
+fn query_read_bulk_returns_zero_when_the_type_list_is_empty() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
     assert_eq!(
-        result,
-        vec![0, 0],
-        "mismatched out buffers must not report a partial read"
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
     );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let mut out_slots = [7u32, 7];
+    let mut out_gens = [7u32, 7];
+    let mut out_buf = [9u8; 8];
+
+    let result = engine.query_read_bulk(&[], type_id, &mut out_slots, &mut out_gens, &mut out_buf);
+
+    assert_eq!(result, Ok(vec![0, 0]));
+    assert_eq!(out_slots, [7, 7]);
+    assert_eq!(out_gens, [7, 7]);
+    assert_eq!(out_buf, [9u8; 8]);
+}
+
+#[test]
+fn query_read_bulk_rejects_a_length_mismatch_before_an_empty_type_list() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+    let mut out_slots = [7u32, 7];
+    let mut out_gens = [7u32];
+    let mut out_buf = [9u8; 8];
+
+    let err = engine.query_read_bulk(&[], type_id, &mut out_slots, &mut out_gens, &mut out_buf);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "gens",
+            expected: 2,
+            actual: 1
+        })
+    );
+    if let Err(ref err) = err {
+        assert_known_code(err);
+        assert_eq!(
+            err.to_string(),
+            "buffer gens length mismatch: expected 2, actual 1"
+        );
+    }
     assert_eq!(out_slots, [7, 7]);
     assert_eq!(out_gens, [7]);
     assert_eq!(out_buf, [9u8; 8]);
     assert_eq!(engine.get_component_raw(0, 0, type_id), before);
     assert_eq!(engine.count_entities(), 1);
-    assert_eq!(other.get_component_raw(0, 0, type_id), other_before);
-    assert_eq!(other.count_entities(), 1);
 }

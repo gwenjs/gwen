@@ -606,6 +606,11 @@ export class WasmBridgeImpl implements WasmBridge {
     return this._requireWasm().get_component_raw(index, generation, typeId);
   }
 
+  /**
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
+   */
   readComponentsBulk(
     entities: EntityId[],
     componentTypeId: number,
@@ -625,7 +630,12 @@ export class WasmBridgeImpl implements WasmBridge {
 
     // Pre-allocate the output buffer (pre-zeroed by the JS runtime).
     const outBuf = new Uint8Array(n * componentSize);
-    this._requireWasm().get_components_bulk(slots, gens, componentTypeId, outBuf);
+    const wasm = this._requireWasm();
+    try {
+      wasm.get_components_bulk(slots, gens, componentTypeId, outBuf);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "get_components_bulk");
+    }
 
     // Return a Float32Array view over the same buffer — no copy.
     return new Float32Array(outBuf.buffer, outBuf.byteOffset, outBuf.byteLength / 4);
@@ -680,6 +690,9 @@ export class WasmBridgeImpl implements WasmBridge {
    * @throws If `initWasm()` has not been called.
    * @throws {GwenError} `CORE:QUERY_CAPACITY_EXCEEDED` when more entities match
    *   than the slots buffer can hold.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
    */
   queryReadBulk(
     componentTypeIds: number[],
@@ -710,13 +723,13 @@ export class WasmBridgeImpl implements WasmBridge {
     }
 
     const typeIds = new Uint32Array(componentTypeIds);
-    const result = this._requireWasm().query_read_bulk(
-      typeIds,
-      readTypeId,
-      slotsBuf,
-      gensBuf,
-      dataBuf,
-    );
+    const wasm = this._requireWasm();
+    let result: Uint32Array;
+    try {
+      result = wasm.query_read_bulk(typeIds, readTypeId, slotsBuf, gensBuf, dataBuf);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "query_read_bulk");
+    }
 
     // result is a Uint32Array [entityCount, bytesWritten]
     const entityCount = result[0] ?? 0;

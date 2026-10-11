@@ -114,6 +114,9 @@ export interface WasmEngineBase {
    * @param typeId Component type ID returned by `register_component_type`.
    * @param outBuf Caller-allocated output buffer; must be `n * componentSize` bytes.
    * @returns Total bytes written into `outBuf`.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
    */
   get_components_bulk(
     slots: Uint32Array,
@@ -147,6 +150,9 @@ export interface WasmEngineBase {
    * @returns `[entityCount, bytesWritten]` (Uint32Array of length 2)
    *
    * @performance One WASM boundary crossing regardless of entity count.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
    */
   query_read_bulk(
     componentTypeIds: Uint32Array,
@@ -797,6 +803,9 @@ export interface WasmBridge {
    * @param componentTypeId Component type ID from `registerComponentType()`.
    * @param componentSize  Byte size of one component instance.
    * @returns `Float32Array` of length `entities.length * (componentSize / 4)`.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
    */
   readComponentsBulk(
     entities: EntityId[],
@@ -833,6 +842,9 @@ export interface WasmBridge {
    *   passing back to `queryWriteBulk`.
    * @throws `CORE:QUERY_CAPACITY_EXCEEDED` when the match count is longer
    *   than the slots buffer.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
+   *   and generation buffers differ in length. The message names `gens`, the
+   *   expected length, and the actual length. Nothing is written.
    */
   queryReadBulk(
     componentTypeIds: number[],

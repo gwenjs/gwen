@@ -182,7 +182,7 @@ export const LIGHT_WASM = [
   "engine_dirty_transform_count (i32)->(i32)",
   "engine_free_shared_buffer (i32,i32,i32)->()",
   "engine_get_component_raw (i32,i32,i32,i32,i32)->()",
-  "engine_get_components_bulk (i32,i32,i32,i32,i32,i32,i32,i32,i32)->(i32)",
+  "engine_get_components_bulk (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32)->()",
   "engine_get_entity_generation (i32,i32)->(i32)",
   "engine_get_entity_local_rotation (i32,i32)->(f32)",
   "engine_get_entity_local_x (i32,i32)->(f32)",
