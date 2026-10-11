@@ -150,7 +150,6 @@ export class EngineLoop {
       };
       this._rafHandle = this._scheduleFrame(loop);
     } else {
-      // Variable dt loop — original behaviour
       const loop = async (now: number) => {
         if (this.deps.state.state !== "running") return;
 
