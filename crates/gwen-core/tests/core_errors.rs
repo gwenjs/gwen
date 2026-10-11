@@ -418,3 +418,108 @@ fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
     }
     assert_eq!(engine.get_component_raw(0, 0, type_id), before);
 }
+
+#[test]
+fn get_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
+    let mut other = Engine::new(4).expect("max entities");
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+    let mut out = [9u8; 8];
+
+    let written = engine.get_components_bulk(&[0, 0], &[0], type_id, &mut out);
+
+    assert_eq!(
+        written, 0,
+        "a shorter gens slice must not return a partial read"
+    );
+    assert_eq!(
+        out, [9u8; 8],
+        "a shorter gens slice must not write the output"
+    );
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+    assert_eq!(other.count_entities(), 0);
+}
+
+#[test]
+fn get_components_bulk_rejects_a_longer_generation_list() {
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+    let mut out = [9u8; 4];
+
+    let written = engine.get_components_bulk(&[0], &[0, 9], type_id, &mut out);
+
+    assert_eq!(
+        written, 0,
+        "a longer gens slice must not return a partial read"
+    );
+    assert_eq!(
+        out, [9u8; 4],
+        "a longer gens slice must not write the output"
+    );
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+}
+
+#[test]
+fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
+    let mut other = Engine::new(4).expect("max entities");
+    let mut engine = engine(4);
+    let type_id = 7u32;
+    assert_eq!(
+        engine
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
+    assert_eq!(
+        other
+            .create_entity()
+            .map(|id| (id.index(), id.generation())),
+        Ok((0, 0))
+    );
+    assert_eq!(other.add_component(0, 0, type_id, &[5, 6, 7, 8]), Ok(true));
+    let before = engine.get_component_raw(0, 0, type_id);
+    let other_before = other.get_component_raw(0, 0, type_id);
+    let mut out_slots = [7u32, 7];
+    let mut out_gens = [7u32];
+    let mut out_buf = [9u8; 8];
+
+    let result = engine.query_read_bulk(
+        &[type_id],
+        type_id,
+        &mut out_slots,
+        &mut out_gens,
+        &mut out_buf,
+    );
+
+    assert_eq!(
+        result,
+        vec![0, 0],
+        "mismatched out buffers must not report a partial read"
+    );
+    assert_eq!(out_slots, [7, 7]);
+    assert_eq!(out_gens, [7]);
+    assert_eq!(out_buf, [9u8; 8]);
+    assert_eq!(engine.get_component_raw(0, 0, type_id), before);
+    assert_eq!(engine.count_entities(), 1);
+    assert_eq!(other.get_component_raw(0, 0, type_id), other_before);
+    assert_eq!(other.count_entities(), 1);
+}

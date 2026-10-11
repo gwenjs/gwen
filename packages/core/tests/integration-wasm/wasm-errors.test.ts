@@ -18,7 +18,7 @@ import {
 } from "../../src/engine/engine-errors.js";
 import { createEngine } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
-import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
+import { toGwenWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import {
   FLAG_HAS_TRANSFORM,
   FLAGS_OFFSET,
@@ -406,6 +406,85 @@ describe("WASM coded errors", () => {
       expect(caught.message).toContain("actual");
       expect(caught.message).toContain("4");
       expect(caught.message).toContain("8");
+      expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
+        1, 2, 3, 4,
+      ]);
+      expect(bridge.countEntities()).toBe(1);
+      await expectNextFrame(engine);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("get_components_bulk rejects a shorter generation list and the next frame runs", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const other = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const { engine, bridge } = handle;
+    try {
+      const entity = bridge.createEntity();
+      const typeId = 7;
+      const original = new Uint8Array([1, 2, 3, 4]);
+      expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
+      const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
+
+      let caught: unknown;
+      try {
+        bridge
+          .engine()
+          .get_components_bulk(
+            new Uint32Array([entity.index, entity.index]),
+            new Uint32Array([entity.generation]),
+            typeId,
+            out,
+          );
+      } catch (error: unknown) {
+        caught = toGwenWasmError(error, "get_components_bulk", () => {});
+      }
+
+      expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "get_components_bulk");
+      expect((caught as GwenWasmError).message).toContain("gens");
+      expect((caught as GwenWasmError).message).toContain("expected 2");
+      expect((caught as GwenWasmError).message).toContain("actual 1");
+      expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
+      expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
+        1, 2, 3, 4,
+      ]);
+      expect(bridge.countEntities()).toBe(1);
+      expect(other.bridge.createEntity().index).toBe(0);
+      await expectNextFrame(engine);
+      await expectNextFrame(other.engine);
+    } finally {
+      await handle.dispose();
+      await other.dispose();
+    }
+  });
+
+  it("query_read_bulk rejects mismatched output buffers and the next frame runs", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const { engine, bridge } = handle;
+    try {
+      const entity = bridge.createEntity();
+      const typeId = 7;
+      const original = new Uint8Array([1, 2, 3, 4]);
+      expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
+      const outSlots = new Uint32Array([7, 7]);
+      const outGens = new Uint32Array([7]);
+      const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
+
+      let caught: unknown;
+      try {
+        bridge.engine().query_read_bulk(new Uint32Array([typeId]), typeId, outSlots, outGens, out);
+      } catch (error: unknown) {
+        caught = toGwenWasmError(error, "query_read_bulk", () => {});
+      }
+
+      expectWasmError(caught, CoreErrorCodes.BUFFER_LENGTH_MISMATCH, "query_read_bulk");
+      expect((caught as GwenWasmError).message).toContain("gens");
+      expect((caught as GwenWasmError).message).toContain("expected 2");
+      expect((caught as GwenWasmError).message).toContain("actual 1");
+      expect(Array.from(outSlots)).toEqual([7, 7]);
+      expect(Array.from(outGens)).toEqual([7]);
+      expect(Array.from(out)).toEqual([9, 9, 9, 9, 9, 9, 9, 9]);
       expect(Array.from(bridge.getComponentRaw(entity.index, entity.generation, typeId))).toEqual([
         1, 2, 3, 4,
       ]);
