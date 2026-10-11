@@ -114,9 +114,10 @@ export interface WasmEngineBase {
    * @param typeId Component type ID returned by `register_component_type`.
    * @param outBuf Caller-allocated output buffer; must be `n * componentSize` bytes.
    * @returns Total bytes written into `outBuf`.
-   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
-   *   and generation buffers differ in length. The message names `gens`, the
-   *   expected length, and the actual length. Nothing is written.
+   * The wasm export throws an `Error` whose `code` is
+   * `CORE:BUFFER_LENGTH_MISMATCH` when the slot and generation buffers
+   * differ in length. The message names `gens`, the expected length, and
+   * the actual length. Nothing is written.
    */
   get_components_bulk(
     slots: Uint32Array,
@@ -150,9 +151,10 @@ export interface WasmEngineBase {
    * @returns `[entityCount, bytesWritten]` (Uint32Array of length 2)
    *
    * @performance One WASM boundary crossing regardless of entity count.
-   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
-   *   and generation buffers differ in length. The message names `gens`, the
-   *   expected length, and the actual length. Nothing is written.
+   * The wasm export throws an `Error` whose `code` is
+   * `CORE:BUFFER_LENGTH_MISMATCH` when the slot and generation buffers
+   * differ in length. The message names `gens`, the expected length, and
+   * the actual length. Nothing is written.
    */
   query_read_bulk(
     componentTypeIds: Uint32Array,
