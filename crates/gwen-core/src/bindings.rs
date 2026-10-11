@@ -3391,8 +3391,8 @@ impl Engine {
     /// # Errors
     ///
     /// Returns [`CoreError::BufferLengthMismatch`] before the empty-type
-    /// shortcut and before the query runs when `out_gens` differs in length
-    /// from `out_slots`. Nothing is written and the query cache is unchanged.
+    /// shortcut when `out_gens` differs in length from `out_slots`.
+    /// Nothing is written.
     /// The buffer name is `"gens"`, `expected` is the `out_slots` length, and
     /// `actual` is the `out_gens` length.
     ///

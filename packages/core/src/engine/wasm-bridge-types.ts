@@ -803,9 +803,6 @@ export interface WasmBridge {
    * @param componentTypeId Component type ID from `registerComponentType()`.
    * @param componentSize  Byte size of one component instance.
    * @returns `Float32Array` of length `entities.length * (componentSize / 4)`.
-   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
-   *   and generation buffers differ in length. The message names `gens`, the
-   *   expected length, and the actual length. Nothing is written.
    */
   readComponentsBulk(
     entities: EntityId[],
@@ -842,9 +839,6 @@ export interface WasmBridge {
    *   passing back to `queryWriteBulk`.
    * @throws `CORE:QUERY_CAPACITY_EXCEEDED` when the match count is longer
    *   than the slots buffer.
-   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when the slot
-   *   and generation buffers differ in length. The message names `gens`, the
-   *   expected length, and the actual length. Nothing is written.
    */
   queryReadBulk(
     componentTypeIds: number[],
