@@ -138,6 +138,11 @@ impl EntityAllocator {
 
     /// Configured maximum number of entities.
     pub fn max_entities(&self) -> u32 {
+        #[allow(unused_unsafe, reason = "throwaway block for check:unsafe (#80)")]
+        {
+            // SAFETY: this empty block is a throwaway and is reverted after the lint run.
+            unsafe {}
+        }
         self.max_entities
     }
 
