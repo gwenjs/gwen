@@ -204,6 +204,8 @@ test('gzip level 9 and brotli quality 11 are the measured bytes', () => {
   });
   assert.equal(result.ok, true);
   assert.match(result.table, new RegExp(`light \\| ${bytes.length} \\|`));
+  assert.match(result.table, new RegExp(`\\+0\\.0% \\(${gzip}\\)`));
+  assert.match(result.table, new RegExp(`\\+0\\.0% \\(${brotli}\\)`));
 });
 
 test('baseline 0 over the minimum budget fails with +n/a%', () => {
