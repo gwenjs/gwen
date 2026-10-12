@@ -36,8 +36,7 @@ mod tests {
     fn unsafe_site_u027_ring_ptr_matches_the_static() {
         gwen_channel!(audit, 4, 8);
         let exported = gwen_audit_ring_ptr();
-        // SAFETY: the macro just created this static. `as_ptr` only takes its address.
-        let address = unsafe { GWEN_CHANNEL_AUDIT.as_ptr() as i32 };
+        let address = &raw const GWEN_CHANNEL_AUDIT as *const u8 as i32;
         assert_eq!(exported, address);
     }
 
