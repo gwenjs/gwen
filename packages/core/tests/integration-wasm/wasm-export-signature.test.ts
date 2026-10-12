@@ -52,7 +52,6 @@ const FREE_FUNCTIONS = new Set([
   "get_path_buffer_ptr",
   "find_path_3d",
   "get_path_buffer_ptr_3d",
-  "init_navgrid_3d",
 ]);
 
 // Glue module exports that are not compiled Rust functions.

@@ -53,9 +53,7 @@ export const LIGHT_JS = [
   "set_entity_local_scale(index, scale_x, scale_y)",
   "set_entity_parent(child_index, parent_index, keep_world_pos)",
   "stats()",
-  "sync_transforms_from_buffer(ptr, max_entities)",
   "sync_transforms_to_buffer(ptr, max_entities)",
-  "sync_transforms_to_buffer_sparse(ptr)",
   "translate_entity(index, dx, dy)",
   "update_entity_archetype(_index, _component_type_ids)",
   "update_transforms()",
@@ -180,7 +178,7 @@ export const LIGHT_WASM = [
   "engine_create_entity (i32,i32)->()",
   "engine_delete_entity (i32,i32,i32)->(i32)",
   "engine_dirty_transform_count (i32)->(i32)",
-  "engine_free_shared_buffer (i32,i32,i32)->()",
+  "engine_free_shared_buffer (i32,i32,i32,i32)->()",
   "engine_get_component_raw (i32,i32,i32,i32,i32)->()",
   "engine_get_components_bulk (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32)->()",
   "engine_get_entity_generation (i32,i32)->(i32)",
@@ -209,9 +207,7 @@ export const LIGHT_WASM = [
   "engine_set_entity_local_scale (i32,i32,f32,f32)->()",
   "engine_set_entity_parent (i32,i32,i32,i32,i32)->()",
   "engine_stats (i32,i32)->()",
-  "engine_sync_transforms_from_buffer (i32,i32,i32,i32)->()",
   "engine_sync_transforms_to_buffer (i32,i32,i32,i32)->()",
-  "engine_sync_transforms_to_buffer_sparse (i32,i32)->(i32)",
   "engine_translate_entity (i32,i32,f32,f32)->()",
   "engine_update_entity_archetype (i32,i32,i32,i32)->()",
   "engine_update_transforms (i32)->()",
@@ -346,13 +342,11 @@ export const PHYSICS2D_FREE_WASM = [
 export const PHYSICS3D_FREE_JS = [
   "find_path_3d(from_x, from_y, from_z, to_x, to_y, to_z)",
   "get_path_buffer_ptr_3d()",
-  "init_navgrid_3d(ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z)",
 ];
 
 export const PHYSICS3D_FREE_WASM = [
   "find_path_3d (f32,f32,f32,f32,f32,f32)->(i32)",
   "get_path_buffer_ptr_3d ()->(i32)",
-  "init_navgrid_3d (i32,i32,i32,i32,f32,f32,f32,f32)->()",
 ];
 
 // Glue .d.ts signatures (comments stripped, one line per member, `Class.` prefix).
@@ -400,9 +394,7 @@ export const LIGHT_DTS = [
   "Engine.set_entity_local_scale(index: number, scale_x: number, scale_y: number): void;",
   "Engine.set_entity_parent(child_index: number, parent_index: number, keep_world_pos: boolean): void;",
   "Engine.stats(): string;",
-  "Engine.sync_transforms_from_buffer(ptr: number, max_entities: number): void;",
   "Engine.sync_transforms_to_buffer(ptr: number, max_entities: number): void;",
-  "Engine.sync_transforms_to_buffer_sparse(ptr: number): number;",
   "Engine.translate_entity(index: number, dx: number, dy: number): void;",
   "Engine.update_entity_archetype(_index: number, _component_type_ids: Uint32Array): void;",
   "Engine.update_transforms(): void;",
@@ -526,5 +518,4 @@ export const PHYSICS3D_DTS_EXTRA = [
   "Engine.physics3d_wake_all(): void;",
   "find_path_3d(from_x: number, from_y: number, from_z: number, to_x: number, to_y: number, to_z: number): number;",
   "get_path_buffer_ptr_3d(): number;",
-  "init_navgrid_3d(ptr: number, width: number, height: number, depth: number, cell_size: number, origin_x: number, origin_y: number, origin_z: number): void;",
 ];
