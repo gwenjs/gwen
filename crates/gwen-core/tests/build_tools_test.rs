@@ -93,15 +93,33 @@ mod build_tools_tests {
     #[test]
     fn test_build_bvh_buffer_bad_vertex_length_returns_err() {
         let text = bvh_failure_text(&[1.0], &[0, 1, 2]);
-        let parts = text.split("multiple of 3").count();
-        assert_eq!(parts, parts.max(2), "expected Err, got {text}");
+        assert_eq!(text, "vertices_flat length must be a multiple of 3");
     }
 
     #[test]
     fn test_build_bvh_buffer_bad_index_length_returns_err() {
         let text = bvh_failure_text(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &[0]);
-        let parts = text.split("multiple of 3").count();
-        assert_eq!(parts, parts.max(2), "expected Err, got {text}");
+        assert_eq!(text, "indices_flat length must be a multiple of 3");
+    }
+
+    #[test]
+    fn test_build_bvh_buffer_empty_inputs_returns_err() {
+        let text = bvh_failure_text(&[], &[]);
+        assert_eq!(text, "indices_flat must contain at least one triangle");
+    }
+
+    #[test]
+    fn test_build_bvh_buffer_empty_indices_returns_err() {
+        let vertices = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+        let text = bvh_failure_text(&vertices, &[]);
+        assert_eq!(text, "indices_flat must contain at least one triangle");
+    }
+
+    #[test]
+    fn test_build_bvh_buffer_index_past_vertex_count_returns_err() {
+        let vertices = [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
+        let text = bvh_failure_text(&vertices, &[0, 1, 7]);
+        assert_eq!(text, "index 7 is outside the vertex count 3");
     }
 
     #[test]
