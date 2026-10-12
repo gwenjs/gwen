@@ -95,8 +95,8 @@ pub struct Engine {
     dirty_transforms: DirtySet,
     /// Hierarchical transform system for managing entity transforms
     transform_system: TransformSystem,
-    /// Live `alloc_shared_buffer` allocations: pointer → byte length.
-    shared_buffers: HashMap<usize, usize>,
+    /// Live `alloc_shared_buffer` allocations: pointer → (byte length, alignment).
+    shared_buffers: HashMap<usize, (usize, usize)>,
     #[cfg(feature = "physics2d")]
     physics_world: Option<PhysicsWorld>,
     #[cfg(feature = "physics3d")]
@@ -938,7 +938,7 @@ impl Engine {
             return 0; // OOM — caller must handle gracefully
         }
         let addr = ptr as usize;
-        self.shared_buffers.insert(addr, byte_length);
+        self.shared_buffers.insert(addr, (byte_length, 1));
         addr
     }
 
@@ -956,7 +956,7 @@ impl Engine {
         if ptr == 0 || byte_length == 0 {
             return Ok(());
         }
-        let Some(recorded) = self.shared_buffers.get(&ptr).copied() else {
+        let Some((recorded, _align)) = self.shared_buffers.get(&ptr).copied() else {
             return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
         };
         if recorded != byte_length {
@@ -997,7 +997,7 @@ impl Engine {
                 max: cap,
             });
         }
-        let Some(len) = self.shared_buffers.get(&ptr).copied() else {
+        let Some((len, _)) = self.shared_buffers.get(&ptr).copied() else {
             return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
         };
         let needed = (max_entities as usize).saturating_mul(STRIDE);
@@ -4069,5 +4069,33 @@ mod tests {
             0xFFFF_FFFF,
             0xFFFF_FFFF
         ));
+    }
+
+    /// The registry stores alignment 8 for every live shared buffer.
+    #[test]
+    fn unsafe_site_u001_records_align_8() {
+        let mut engine = match Engine::new(1) {
+            Ok(engine) => engine,
+            Err(_) => {
+                assert_eq!(0, 1);
+                return;
+            }
+        };
+        let lengths = [1usize, 3, 9, 8];
+        let mut ptrs = [0usize; 4];
+        for (index, length) in lengths.iter().copied().enumerate() {
+            let ptr = engine.alloc_shared_buffer(length);
+            assert_ne!(ptr, 0);
+            assert_eq!(ptr % 8, 0);
+            let Some((_, align)) = engine.shared_buffers.get(&ptr).copied() else {
+                assert_eq!(0, 1);
+                return;
+            };
+            assert_eq!(align, 8);
+            ptrs[index] = ptr;
+        }
+        for (index, length) in lengths.iter().copied().enumerate() {
+            assert_eq!(engine.free_shared_buffer(ptrs[index], length), Ok(()));
+        }
     }
 }
