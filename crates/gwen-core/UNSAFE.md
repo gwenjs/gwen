@@ -4,7 +4,7 @@ Each non-test `unsafe` site in this crate has one id. `pnpm check:unsafe` checks
 
 | id | file::fn | kind | invariant | upheld by | test |
 | --- | --- | --- | --- | --- | --- |
-| U-001 | src/bindings.rs::alloc_shared_buffer | raw-alloc | The layout size is non-zero and the alignment is 8. | `Layout::from_size_align` before the call | unsafe_site_u001_alloc_is_8_byte_aligned |
+| U-001 | src/bindings.rs::alloc_shared_buffer | raw-alloc | The layout size is non-zero and the alignment is 8. | `Layout::from_size_align` before the call, and the registry stores that alignment | unsafe_site_u001_records_align_8 |
 | U-002 | src/bindings.rs::free_shared_buffer | raw-alloc | `ptr` is the address recorded for that byte length, and the layout matches the allocation. | The registry rejects an unknown pointer, a second free, and a wrong length before `dealloc` | unsafe_site_u002_second_free_is_invalid |
 | U-003 | src/bindings.rs::sync_transforms_to_buffer | ptr-arith | `offset + 32` stays inside the recorded allocation. | The length check returns `InvalidSharedBuffer` before the copy | unsafe_site_u003_short_sync_is_invalid |
 | U-004 | src/bindings.rs::physics3d_init_navgrid_3d | ffi-ptr | A null or empty grid is not read. Any other call reads `width * height * depth` bytes and does not check that length. | Not checked. The missing check is the physics child of #52 | removed |
