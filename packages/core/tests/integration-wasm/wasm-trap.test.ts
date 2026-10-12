@@ -23,7 +23,7 @@ async function useLight(
 }
 
 describe("WASM trap", () => {
-  it("an out-of-bounds pointer panics once, then every later call stays poisoned", async () => {
+  it("a RuntimeError from engine:before-update is published once and the next bridge call stays poisoned", async () => {
     const { handle, teardowns } = await useLight(8, async ({ engine, bridge }) => {
       const seen: Array<{ level: string; code: string; source?: string; error?: unknown }> = [];
       engine.errors.on((event) => {
@@ -63,7 +63,7 @@ describe("WASM trap", () => {
     expect(teardowns).toBe(1);
   });
 
-  it("an infallible export trap poisons the bridge from the frame loop", async () => {
+  it("a RuntimeError from the external frame loop faults the engine and poisons the bridge", async () => {
     const { handle, teardowns } = await useLight(4, async ({ engine, bridge }) => {
       engine.hooks.hook("engine:before-update", () => {
         throw new WebAssembly.RuntimeError("unreachable");
