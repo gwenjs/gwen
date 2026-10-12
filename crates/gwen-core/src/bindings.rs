@@ -938,7 +938,7 @@ impl Engine {
             return 0; // OOM — caller must handle gracefully
         }
         let addr = ptr as usize;
-        self.shared_buffers.insert(addr, (byte_length, 1));
+        self.shared_buffers.insert(addr, (byte_length, layout.align()));
         addr
     }
 
@@ -956,18 +956,18 @@ impl Engine {
         if ptr == 0 || byte_length == 0 {
             return Ok(());
         }
-        let Some((recorded, _align)) = self.shared_buffers.get(&ptr).copied() else {
+        let Some((recorded, align)) = self.shared_buffers.get(&ptr).copied() else {
             return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
         };
         if recorded != byte_length {
             return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
         }
-        let Ok(layout) = std::alloc::Layout::from_size_align(recorded, 8) else {
+        let Ok(layout) = std::alloc::Layout::from_size_align(recorded, align) else {
             return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
         };
         self.shared_buffers.remove(&ptr);
         // SAFETY: `ptr` is the address recorded for `recorded` bytes, and
-        // `layout` matches `alloc_shared_buffer` (align 8, same byte length). [U-002]
+        // `layout` uses that length and the alignment stored at allocation. [U-002]
         unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
         Ok(())
     }
