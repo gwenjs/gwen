@@ -167,9 +167,9 @@ fn body_type_to_kind(bt: RigidBodyType) -> u8 {
 struct CollisionBufPtr3D(*mut CollisionEventBuffer3D);
 
 // SAFETY: Rapier invokes the handler on the thread that called `step`.
-// The pointer is dropped before `step` returns and is not shared.
+// The pointer is dropped before `step` returns and is not shared. [U-010]
 unsafe impl Send for CollisionBufPtr3D {}
-// SAFETY: same contract as Send. The pointer is not shared across threads.
+// SAFETY: same contract as Send. The pointer is not shared across threads. [U-011]
 unsafe impl Sync for CollisionBufPtr3D {}
 
 /// Rapier [`EventHandler`] implementation that writes collision events into
@@ -212,7 +212,7 @@ impl EventHandler for EventCollector3D {
             Some(id) => id as u16,
             None => u16::MAX,
         };
-        // SAFETY: `buf` points at this world's buffer and is exclusive for the step.
+        // SAFETY: `buf` points at this world's buffer and is exclusive for the step. [U-012]
         unsafe {
             (*self.buf.0).push(PhysicsCollisionEvent3D {
                 entity_a: ea,
@@ -2372,10 +2372,8 @@ impl PhysicsWorld3D {
         );
         let filter = Self::make_query_filter(layers, mask);
         let mut count: u32 = 0;
-        // SAFETY: caller guarantees out_ptr points to max_results * 4 bytes of
-        // valid writable memory. In WASM this is linear memory allocated by the
-        // TypeScript layer; in native tests a stack/heap buffer is passed directly.
         let out_slice =
+            // SAFETY: `out_ptr` is used as `max_results` u32 slots and this export does not check that length. The composable caps the count at the scratch view in spatial-queries.ts. A raw call is the physics child of #52. [U-013]
             unsafe { std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize) };
         self.query_pipeline.intersections_with_shape(
             &self.rigid_body_set,
@@ -2947,8 +2945,12 @@ impl PhysicsWorld3D {
 
         /// Write NO_HIT sentinel into the buffer at `base`.
         #[inline(always)]
+        /// # Safety
+        ///
+        /// `buf` is `cc_state` and `base` is one controller slot inside it.
+        // SAFETY: `buf` is `cc_state` and `base` is one controller slot inside it. [U-014]
         unsafe fn write_no_hit(buf: *mut [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE], base: usize) {
-            // SAFETY: `base` is a controller slot and `buf` is `cc_state`, which holds those slots.
+            // SAFETY: `base` is a controller slot and `buf` is `cc_state`, which holds those slots. [U-015]
             unsafe {
                 (*buf)[base] = NO_HIT[0];
                 (*buf)[base + 1] = NO_HIT[1];
@@ -2965,7 +2967,7 @@ impl PhysicsWorld3D {
 
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("character_controller_move: unknown entity {}", entity_index);
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-016]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -2974,13 +2976,13 @@ impl PhysicsWorld3D {
                 "character_controller_move: no CC for entity {}",
                 entity_index
             );
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-017]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let apply_impulses = *apply_impulses;
         let Some(body) = self.rigid_body_set.get(handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-018]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -2993,12 +2995,12 @@ impl PhysicsWorld3D {
                 "character_controller_move: entity {} has no collider",
                 entity_index
             );
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-019]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-020]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -3039,7 +3041,7 @@ impl PhysicsWorld3D {
 
         // Write the resolved position back as a kinematic interpolation target.
         let Some(body_mut) = self.rigid_body_set.get_mut(handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-021]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -3064,7 +3066,7 @@ impl PhysicsWorld3D {
                 // else: static collider (no parent body) → keep GROUND_ENTITY_STATIC
             }
 
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-022]
             unsafe {
                 let buf = std::ptr::addr_of_mut!(self.cc_state);
                 (*buf)[base] = 1.0_f32;
@@ -3074,7 +3076,7 @@ impl PhysicsWorld3D {
                 (*buf)[base + 4] = f32::from_bits(ground_entity_bits);
             }
         } else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot.
+            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-023]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
         }
     }

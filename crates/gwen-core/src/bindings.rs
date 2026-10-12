@@ -932,7 +932,7 @@ impl Engine {
         let Ok(layout) = std::alloc::Layout::from_size_align(byte_length, 8) else {
             return 0;
         };
-        // SAFETY: layout has non-zero size and valid alignment.
+        // SAFETY: layout has non-zero size and valid alignment. [U-001]
         let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
         if ptr.is_null() {
             return 0; // OOM — caller must handle gracefully
@@ -967,7 +967,7 @@ impl Engine {
         };
         self.shared_buffers.remove(&ptr);
         // SAFETY: `ptr` is the address recorded for `recorded` bytes, and
-        // `layout` matches `alloc_shared_buffer` (align 8, same byte length).
+        // `layout` matches `alloc_shared_buffer` (align 8, same byte length). [U-002]
         unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
         Ok(())
     }
@@ -1020,7 +1020,7 @@ impl Engine {
                 slot[20..24].copy_from_slice(&1u32.to_le_bytes());
             }
             // SAFETY: `ptr` starts a live allocation of `len` bytes and
-            // `offset + STRIDE <= needed <= len`, so `slot` fits in that allocation.
+            // `offset + STRIDE <= needed <= len`, so `slot` fits in that allocation. [U-003]
             unsafe {
                 std::ptr::copy_nonoverlapping(slot.as_ptr(), (ptr + offset) as *mut u8, STRIDE);
             }
@@ -1452,7 +1452,7 @@ impl Engine {
             // SAFETY: a null pointer or a zero cell count stores no grid and does
             // not read. Otherwise this reads `width * height * depth` bytes and
             // does not check that the buffer is that long. The missing check is
-            // the physics child of #52.
+            // the physics child of #52. [U-004]
             unsafe {
                 crate::physics3d::pathfinding::init_navgrid_3d(
                     world.nav_grid_mut(),

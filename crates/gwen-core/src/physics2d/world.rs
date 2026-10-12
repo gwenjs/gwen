@@ -91,9 +91,9 @@ fn unpack_collider_user_data(user_data: u128) -> (u32, Option<u32>) {
 struct CollisionBufPtr(*mut CollisionEventBuffer);
 
 // SAFETY: Rapier invokes the handler on the thread that called `step`.
-// The pointer is dropped before `step` returns and is not shared.
+// The pointer is dropped before `step` returns and is not shared. [U-005]
 unsafe impl Send for CollisionBufPtr {}
-// SAFETY: same contract as Send. The pointer is not shared across threads.
+// SAFETY: same contract as Send. The pointer is not shared across threads. [U-006]
 unsafe impl Sync for CollisionBufPtr {}
 
 struct EventCollector {
@@ -123,7 +123,7 @@ impl EventHandler for EventCollector {
 
         let collider_a_id = ca.unwrap_or(u32::MAX);
         let collider_b_id = cb.unwrap_or(u32::MAX);
-        // SAFETY: `buf` points at this world's buffer and is exclusive for the step.
+        // SAFETY: `buf` points at this world's buffer and is exclusive for the step. [U-007]
         unsafe {
             (*self.buf.0).push(StaticCollisionEvent {
                 entity_a: ea,

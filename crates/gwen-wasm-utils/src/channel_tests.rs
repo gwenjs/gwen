@@ -32,6 +32,15 @@ mod tests {
         );
     }
 
+    #[test]
+    fn unsafe_site_u027_ring_ptr_matches_the_static() {
+        gwen_channel!(audit, 4, 8);
+        let exported = gwen_audit_ring_ptr();
+        // SAFETY: the macro just created this static. `as_ptr` only takes its address.
+        let address = unsafe { GWEN_CHANNEL_AUDIT.as_ptr() as i32 };
+        assert_eq!(exported, address);
+    }
+
     /// Verify the ptr export returns a non-zero address
     /// (not address 0 which is the WASM shadow stack).
     #[test]

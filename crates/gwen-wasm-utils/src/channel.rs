@@ -68,7 +68,7 @@ macro_rules! __gwen_channel_inner {
             pub extern "C" fn [<gwen_ $name _ring_ptr>]() -> i32 {
                 // SAFETY: We only take the address — we never dereference it here.
                 // The static is zero-initialised and written exclusively through
-                // `RingWriter`, which bounds-checks every write.
+                // `RingWriter`, which bounds-checks every write. [U-027]
                 unsafe { [<GWEN_CHANNEL_ $name:upper>].as_ptr() as i32 }
             }
 

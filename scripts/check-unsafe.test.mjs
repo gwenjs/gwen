@@ -51,7 +51,10 @@ test('an id that is missing from UNSAFE.md fails', () => {
 
 test('an UNSAFE.md id that is not in the code fails', () => {
   const errors = evaluateUnsafe([], [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }]);
-  assert.deepEqual(errors, ['UNSAFE.md id U-001 is not in the code']);
+  assert.deepEqual(errors, [
+    'UNSAFE.md id U-001 is not in the code',
+    'test unsafe_site_u001 was not found',
+  ]);
 });
 
 test('a duplicate id fails', () => {
