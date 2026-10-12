@@ -165,10 +165,11 @@ fn unsafe_site_u007_event_buffer_fills_then_clears() {
     }
     world.step(1.0 / 60.0);
     assert_eq!(world.collision_event_count(), MAX_COLLISION_EVENTS as u32);
-
-    let mut quiet = separated_pair();
-    quiet.step(1.0 / 60.0);
-    assert_eq!(quiet.collision_event_count(), 0);
+    for entity in 0..46 {
+        world.remove_rigid_body(entity);
+    }
+    world.step(1.0 / 60.0);
+    assert_eq!(world.collision_event_count(), 0);
 }
 
 #[cfg(feature = "physics2d")]
@@ -289,10 +290,11 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
         world.get_collision_event_count(),
         MAX_COLLISION_EVENTS_3D as u32
     );
-
-    let mut quiet = separated_pair_3d();
-    quiet.step(1.0 / 60.0);
-    assert_eq!(quiet.get_collision_event_count(), 0);
+    for entity in 0..46 {
+        assert_eq!(u8::from(world.remove_body(entity)), 1);
+    }
+    world.step(1.0 / 60.0);
+    assert_eq!(world.get_collision_event_count(), 0);
 }
 
 #[cfg(feature = "physics3d")]
