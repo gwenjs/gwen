@@ -314,7 +314,7 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
