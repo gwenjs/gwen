@@ -371,9 +371,13 @@ export class GwenEngineImpl implements GwenEngine {
     // Claim before the first hook runs: a stop() from inside teardown must see it.
     this._teardownOnce = true;
     if (from !== "faulted") await this._stateMachine.transition("stopping", "USER");
-    await this._teardown();
-    if (this._stateMachine.state === "stopping")
-      await this._stateMachine.transition("stopped", "USER");
+    try {
+      await this._teardown();
+    } finally {
+      if (this._stateMachine.state === "stopping") {
+        await this._stateMachine.transition("stopped", "USER");
+      }
+    }
   }
 
   /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
