@@ -314,7 +314,7 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
-    timeout-minutes: 4
+    timeout-minutes: 20
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
@@ -325,13 +325,14 @@ jobs:
           components: miri, rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
+          prefix-key: v1-miri-cold-2026-10-12
           workspaces: '. -> target'
           cache-on-failure: true
       - name: Miri gwen-core unsafe sites and shared buffer
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --test unsafe_sites --test shared_buffer
       # Tests that call PhysicsPipeline::step are ignored under Miri.
-      # x86_64 Miri cannot execute Rapier's stmxcsr. Tree Borrows gets past
-      # index_mut2 and then stops on that intrinsic. It is not a program bug.
+      # x86_64 Miri cannot execute Rapier's stmxcsr. aarch64 Stacked Borrows
+      # reports a retag at rapier2d-0.22.0/src/utils.rs:632. Issue #184.
       - name: Miri gwen-core physics2d unsafe sites
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --test unsafe_sites
       - name: Miri gwen-core physics3d unsafe sites
