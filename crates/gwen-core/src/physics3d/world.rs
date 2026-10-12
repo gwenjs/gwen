@@ -2903,6 +2903,16 @@ impl PhysicsWorld3D {
         slot
     }
 
+    /// Writes the not-grounded sentinel into one controller slot.
+    /// `base` is `slot * CC_STATE_STRIDE`. The index is bounds-checked.
+    fn write_cc_no_hit(&mut self, base: usize) {
+        self.cc_state[base] = 0.0;
+        self.cc_state[base + 1] = 0.0;
+        self.cc_state[base + 2] = 1.0;
+        self.cc_state[base + 3] = 0.0;
+        self.cc_state[base + 4] = f32::from_bits(u32::MAX);
+    }
+
     /// Moves the character controller for `entity_index` by `(vx, vy, vz) * dt`,
     /// resolving collisions against the scene.
     ///
@@ -2976,14 +2986,12 @@ impl PhysicsWorld3D {
                 "character_controller_move: no CC for entity {}",
                 entity_index
             );
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-017]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let apply_impulses = *apply_impulses;
         let Some(body) = self.rigid_body_set.get(handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-018]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let position = *body.position();
@@ -3000,8 +3008,7 @@ impl PhysicsWorld3D {
             return;
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-020]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let shape = collider.shape();
@@ -3041,8 +3048,7 @@ impl PhysicsWorld3D {
 
         // Write the resolved position back as a kinematic interpolation target.
         let Some(body_mut) = self.rigid_body_set.get_mut(handle) else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-021]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let mut new_pos = *body_mut.position();
