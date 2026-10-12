@@ -795,6 +795,52 @@ describe("plugin lifecycle errors", () => {
     expect(engine.state).toBe("stopped");
   });
 
+  it("a throwing disposable does not stop the others or the error policy, and stop() still rejects with that error", async () => {
+    const engine = await createEngine();
+    const order: string[] = [];
+    let errorHooks = 0;
+    try {
+      engine.hooks.hook("engine:error", () => {
+        errorHooks += 1;
+      });
+      engine.disposables.add(
+        "later",
+        createDisposable(() => {
+          order.push("later");
+        }),
+      );
+      engine.disposables.add(
+        "boom",
+        createDisposable(() => {
+          order.push("boom");
+          throw new Error("boom");
+        }),
+      );
+
+      engine.errors.emit({ level: "error", code: "TEST:ERROR", message: "before" });
+      expect(errorHooks).toBe(1);
+
+      let caught: unknown;
+      try {
+        await engine.stop();
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      if (!(caught instanceof Error)) throw new Error("expected Error");
+      expect(caught.message).toBe("boom");
+      expect(order).toEqual(["boom", "later"]);
+      engine.errors.emit({ level: "error", code: "TEST:ERROR", message: "after" });
+      expect(errorHooks).toBe(1);
+    } finally {
+      try {
+        await engine.stop();
+      } catch {
+        /* already torn down */
+      }
+    }
+  });
+
   it("uninstalls window handlers on stop()", async () => {
     const listeners = new Map<string, Set<EventListener>>();
     const fake = {
