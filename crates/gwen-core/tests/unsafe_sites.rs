@@ -151,6 +151,10 @@ fn unsafe_site_u006_two_worlds_do_not_share_events() {
 }
 
 #[cfg(feature = "physics2d")]
+#[cfg_attr(
+    miri,
+    ignore = "46 stacked bodies: one Rapier step exceeds the Miri job budget"
+)]
 #[test]
 fn unsafe_site_u007_event_buffer_fills_then_clears() {
     use gwen_core::physics2d::{
@@ -273,6 +277,10 @@ fn unsafe_site_u011_two_worlds_do_not_share_events() {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "46 stacked bodies: one Rapier step exceeds the Miri job budget"
+)]
 #[test]
 fn unsafe_site_u012_event_buffer_fills_then_clears() {
     use gwen_core::physics3d::events::MAX_COLLISION_EVENTS_3D;
