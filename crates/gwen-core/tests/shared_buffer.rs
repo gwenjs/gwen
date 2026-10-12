@@ -218,10 +218,16 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
         return;
     };
     let ptr = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    let _ = engine
-        .free_shared_buffer(0, TRANSFORM_STRIDE)
-        .shared_buffer_error();
-    let _ = engine.free_shared_buffer(ptr, 0).shared_buffer_error();
+    assert_eq!(
+        engine
+            .free_shared_buffer(0, TRANSFORM_STRIDE)
+            .shared_buffer_error(),
+        None
+    );
+    assert_eq!(
+        engine.free_shared_buffer(ptr, 0).shared_buffer_error(),
+        None
+    );
     assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
     let err = engine.free_shared_buffer(ptr, 16).shared_buffer_error();
     assert_eq!(
@@ -232,4 +238,48 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
         })
     );
     assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
+}
+
+#[test]
+fn free_unknown_pointer_is_invalid_shared_buffer_and_keeps_the_registry() {
+    let Some(mut engine) = engine_or_skip() else {
+        return;
+    };
+    let live = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let err = engine
+        .free_shared_buffer(0x1000, TRANSFORM_STRIDE)
+        .shared_buffer_error();
+    assert_eq!(
+        err,
+        Some(CoreError::InvalidSharedBuffer {
+            ptr: 0x1000,
+            len: 0
+        })
+    );
+    assert_eq!(engine.sync_transforms_to_buffer(live, 1), Ok(()));
+}
+
+#[test]
+fn free_twice_is_invalid_shared_buffer_and_keeps_the_registry() {
+    let Some(mut engine) = engine_or_skip() else {
+        return;
+    };
+    let live = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let other = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let first = engine
+        .free_shared_buffer(live, TRANSFORM_STRIDE)
+        .shared_buffer_error();
+    assert_eq!(first, None);
+    let second = engine
+        .free_shared_buffer(live, TRANSFORM_STRIDE)
+        .shared_buffer_error();
+    assert_eq!(
+        second,
+        Some(CoreError::InvalidSharedBuffer { ptr: live, len: 0 })
+    );
+    assert_eq!(engine.sync_transforms_to_buffer(other, 1), Ok(()));
+    assert_eq!(
+        engine.sync_transforms_to_buffer(live, 1),
+        Err(CoreError::InvalidSharedBuffer { ptr: live, len: 0 })
+    );
 }

@@ -412,6 +412,12 @@ fn wasm_free_twice_shared_buffer_has_core_code() {
     assert_eq!(js_error_code(err), "CORE:INVALID_SHARED_BUFFER");
     let later = engine.alloc_shared_buffer(32);
     assert_ne!(later, 0);
+    assert_eq!(
+        engine
+            .sync_transforms_to_buffer(later, 1)
+            .map_err(js_error_code),
+        Ok(())
+    );
 }
 
 #[wasm_bindgen_test]
