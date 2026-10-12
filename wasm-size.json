@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "toolchain": {
+    "rust": "1.99.0",
+    "wasmPack": "0.13.1",
+    "wasmOpt": "133"
+  },
+  "tolerance": 0.05,
+  "toleranceMinBytes": 2048,
+  "variants": {
+    "light": {
+      "path": "packages/core/wasm/light/gwen_core_bg.wasm",
+      "raw": 0,
+      "gzip": { "baseline": 0, "budget": 2048 },
+      "brotli": { "baseline": 0, "budget": 2048 }
+    },
+    "physics2d": {
+      "path": "packages/core/wasm/physics2d/gwen_core_bg.wasm",
+      "raw": 0,
+      "gzip": { "baseline": 0, "budget": 2048 },
+      "brotli": { "baseline": 0, "budget": 2048 }
+    },
+    "physics3d": {
+      "path": "packages/core/wasm/physics3d/gwen_core_bg.wasm",
+      "raw": 0,
+      "gzip": { "baseline": 0, "budget": 2048 },
+      "brotli": { "baseline": 0, "budget": 2048 }
+    },
+    "physics3d-bvh": {
+      "path": "packages/physics3d/wasm/bvh/gwen_core_bg.wasm",
+      "raw": 0,
+      "gzip": { "baseline": 0, "budget": 2048 },
+      "brotli": { "baseline": 0, "budget": 2048 }
+    },
+    "physics3d-fracture": {
+      "path": "packages/physics3d-fracture/wasm/gwen_physics3d_fracture_bg.wasm",
+      "raw": 0,
+      "gzip": { "baseline": 0, "budget": 2048 },
+      "brotli": { "baseline": 0, "budget": 2048 }
+    }
+  },
+  "reportOnly": {
+    "build-tools": {
+      "path": "packages/physics3d/build-tools/gwen_core_bg.wasm"
+    }
+  }
+}

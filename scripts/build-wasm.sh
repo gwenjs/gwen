@@ -1,11 +1,10 @@
 #!/bin/bash
 # build-wasm.sh — Build multi-variant WASM artifacts (RFC-V2-006)
 #
-# This script:
-# 1. Builds gwen-core with different Cargo features (light, physics2d, physics3d)
-# 2. Places each variant in its own subdirectory in @gwenjs/core/wasm/
-# 3. Optimizes the output with wasm-opt if available
-# 4. Cleans up unnecessary wasm-pack artifacts
+# Builds the browser variants, the Node build-tools binary, the BVH worker,
+# and the fracture module. Every browser binary is optimised with the wasm-opt
+# version pinned in wasm-size.json.
+# GWEN_SKIP_WASM_OPT=1 skips that pass for local dev and is refused when CI=true.
 
 set -euo pipefail
 
@@ -20,6 +19,19 @@ NC='\033[0m'
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CRATE_DIR="$PROJECT_ROOT/crates/gwen-core"
 ENGINE_CORE_WASM="$PROJECT_ROOT/packages/core/wasm"
+
+# rustc 1.99.0 target features for wasm32-unknown-unknown (`rustc --print cfg`).
+# simd is not in that set.
+WASM_OPT_FEATURES=(
+  --enable-bulk-memory
+  --enable-multivalue
+  --enable-mutable-globals
+  --enable-nontrapping-float-to-int
+  --enable-reference-types
+  --enable-sign-ext
+)
+
+SKIP_WASM_OPT=0
 
 # Functions
 log_info() {
@@ -38,17 +50,87 @@ log_error() {
   echo -e "${RED}✗${NC} $*"
 }
 
+read_pin() {
+  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["toolchain"][sys.argv[2]])' \
+    "$PROJECT_ROOT/wasm-size.json" "$1"
+}
+
 # Check prerequisites
 check_prerequisites() {
-  if ! command -v wasm-pack &> /dev/null; then
-    log_error "wasm-pack is not installed. Install with: cargo install wasm-pack"
+  if ! command -v wasm-pack >/dev/null 2>&1; then
+    log_error "wasm-pack is not installed. Install with: cargo install wasm-pack --version $(read_pin wasmPack) --locked"
     exit 1
   fi
 
-  if ! command -v wasm-opt &> /dev/null; then
-    log_warn "wasm-opt not found. Skipping additional post-build optimization."
+  local rust_pin pack_pin opt_pin rust_got pack_got
+  rust_pin="$(read_pin rust)"
+  pack_pin="$(read_pin wasmPack)"
+  opt_pin="$(read_pin wasmOpt)"
+  rust_got="$(rustc --version | awk '{print $2}')"
+  pack_got="$(wasm-pack --version | awk '{print $2}')"
+  if [ "$rust_got" != "$rust_pin" ]; then
+    log_error "rustc ${rust_got} != wasm-size.json toolchain.rust ${rust_pin}"
+    exit 1
+  fi
+  if [ "$pack_got" != "$pack_pin" ]; then
+    log_error "wasm-pack ${pack_got} != wasm-size.json toolchain.wasmPack ${pack_pin}"
+    exit 1
+  fi
+
+  if [ "${GWEN_SKIP_WASM_OPT:-}" = "1" ]; then
+    if [ "${CI:-}" = "true" ]; then
+      log_error "GWEN_SKIP_WASM_OPT is refused when CI=true"
+      exit 1
+    fi
+    echo "wasm-opt skipped (GWEN_SKIP_WASM_OPT=1)"
+    SKIP_WASM_OPT=1
+    return
+  fi
+
+  if ! command -v wasm-opt >/dev/null 2>&1; then
+    log_error "wasm-opt is not installed (pinned version ${opt_pin})"
+    exit 1
+  fi
+  local opt_got expected
+  opt_got="$(wasm-opt --version)"
+  expected="wasm-opt version ${opt_pin} (version_${opt_pin})"
+  if [ "$opt_got" != "$expected" ]; then
+    log_error "wasm-opt --version '${opt_got}' != '${expected}'"
+    exit 1
+  fi
+  log_success "wasm-opt ${opt_pin} matches wasm-size.json"
+}
+
+optimize_wasm() {
+  local wasm_file="$1"
+  local label="$2"
+  if [ "$SKIP_WASM_OPT" = "1" ]; then
+    return
+  fi
+  log_info "  Running wasm-opt -Oz on ${label}"
+  wasm-opt -Oz "${WASM_OPT_FEATURES[@]}" "$wasm_file" -o "$wasm_file.opt"
+  mv "$wasm_file.opt" "$wasm_file"
+}
+
+write_toolchain_stamp() {
+  local rust_got pack_got opt_value
+  rust_got="$(rustc --version | awk '{print $2}')"
+  pack_got="$(wasm-pack --version | awk '{print $2}')"
+  if [ "$SKIP_WASM_OPT" = "1" ]; then
+    opt_value="skipped"
   else
-    log_success "wasm-opt found for post-processing."
+    opt_value="$(read_pin wasmOpt)"
+  fi
+  mkdir -p "$ENGINE_CORE_WASM"
+  python3 - "$ENGINE_CORE_WASM/toolchain.json" "$rust_got" "$pack_got" "$opt_value" <<'PY'
+import json, sys
+path, rust, pack, opt = sys.argv[1:]
+with open(path, "w", encoding="utf-8") as handle:
+    json.dump({"rust": rust, "wasmPack": pack, "wasmOpt": opt}, handle, indent=2)
+    handle.write("\n")
+PY
+  if command -v node >/dev/null 2>&1; then
+    node "$PROJECT_ROOT/scripts/check-wasm-size.mjs" --write-report-only
   fi
 }
 
@@ -64,7 +146,7 @@ build_variant() {
   rm -rf "$out_dir"
   mkdir -p "$out_dir"
 
-  # Build with wasm-pack
+  # Build with wasm-pack. --no-opt keeps wasm-pack's own wasm-opt off.
   local feature_args=""
   if [ -n "$features" ]; then
     feature_args="-- --features $features"
@@ -75,6 +157,7 @@ build_variant() {
   wasm-pack build "$CRATE_DIR" \
     --target web \
     --release \
+    --no-opt \
     --out-dir "$out_dir" \
     --out-name gwen_core \
     $feature_args
@@ -82,13 +165,7 @@ build_variant() {
   # Cleanup wasm-pack noise
   rm -f "$out_dir/.gitignore" "$out_dir/package.json" "$out_dir/README.md"
 
-  # Post-process with wasm-opt if available
-  if command -v wasm-opt &> /dev/null; then
-    local wasm_file="$out_dir/gwen_core_bg.wasm"
-    log_info "  Running wasm-opt -Oz on $variant..."
-    wasm-opt -Oz "$wasm_file" -o "$wasm_file.opt"
-    mv "$wasm_file.opt" "$wasm_file"
-  fi
+  optimize_wasm "$out_dir/gwen_core_bg.wasm" "$variant"
 
   log_success "Built $variant variant"
   ls -lh "$out_dir" | awk '{print "    - " $9 " (" $5 ")"}'
@@ -114,12 +191,14 @@ main() {
   build_variant "physics3d" "physics3d"
   echo ""
 
-  # Build Node.js target for Vite plugin build-tools
+  # Build Node.js target for Vite plugin build-tools. Not a browser binary.
   log_info "Building gwen-core build-tools (Node.js target)..."
   wasm-pack build "$CRATE_DIR" \
     --target nodejs \
     --release \
+    --no-opt \
     --out-dir "$PROJECT_ROOT/packages/physics3d/build-tools" \
+    --out-name gwen_core \
     -- --features "build-tools" --no-default-features 2>&1
 
   # Clean up wasm-pack Node.js artifacts we don't need
@@ -136,17 +215,14 @@ main() {
   wasm-pack build "$CRATE_DIR" \
     --target web \
     --release \
+    --no-opt \
     --out-dir "$bvh_out_dir" \
+    --out-name gwen_core \
     -- --features "build-tools" --no-default-features 2>&1
 
   rm -f "$bvh_out_dir/.gitignore" "$bvh_out_dir/package.json" "$bvh_out_dir/README.md"
 
-  if command -v wasm-opt &> /dev/null; then
-    local bvh_wasm="$bvh_out_dir/gwen_core_bg.wasm"
-    log_info "  Running wasm-opt -Oz on bvh worker..."
-    wasm-opt -Oz "$bvh_wasm" -o "$bvh_wasm.opt"
-    mv "$bvh_wasm.opt" "$bvh_wasm"
-  fi
+  optimize_wasm "$bvh_out_dir/gwen_core_bg.wasm" "bvh"
 
   log_info "BVH worker WASM built successfully"
   echo ""
@@ -164,23 +240,21 @@ main() {
     wasm-pack build "$crate_dir" \
       --target web \
       --release \
+      --no-opt \
       --out-dir "$out_dir" \
       --out-name gwen_physics3d_fracture
 
     rm -f "$out_dir/.gitignore" "$out_dir/package.json" "$out_dir/README.md"
 
-    if command -v wasm-opt &> /dev/null; then
-      local wasm_file="$out_dir/gwen_physics3d_fracture_bg.wasm"
-      log_info "  Running wasm-opt -Oz on fracture..."
-      wasm-opt -Oz "$wasm_file" -o "$wasm_file.opt"
-      mv "$wasm_file.opt" "$wasm_file"
-    fi
+    optimize_wasm "$out_dir/gwen_physics3d_fracture_bg.wasm" "fracture"
 
     log_success "Built fracture variant"
     ls -lh "$out_dir" | awk '{print "    - " $9 " (" $5 ")"}'
   }
   build_fracture
   echo ""
+
+  write_toolchain_stamp
 
   log_success "🎉 All WASM variants built successfully!"
 }
