@@ -36,23 +36,17 @@ use rapier3d::{geometry::TriMesh, na::Point3};
 /// * `indices_flat`  — Flat triangle indices `[i0,i1,i2, ...]`.
 ///   Length must be a multiple of 3.
 ///
-/// # Panics
-/// Panics if `vertices_flat.len() % 3 != 0` or `indices_flat.len() % 3 != 0`.
-#[allow(
-    clippy::expect_used,
-    reason = "a TriMesh built from these slices always encodes; removal is #80"
-)]
-pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
-    assert_eq!(
-        vertices_flat.len() % 3,
-        0,
-        "vertices_flat length must be a multiple of 3"
-    );
-    assert_eq!(
-        indices_flat.len() % 3,
-        0,
-        "indices_flat length must be a multiple of 3"
-    );
+/// # Errors
+///
+/// Returns an error when a length is not a multiple of 3, or when the mesh
+/// bytes do not encode.
+pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Result<Vec<u8>, String> {
+    if !vertices_flat.len().is_multiple_of(3) {
+        return Err("vertices_flat length must be a multiple of 3".to_string());
+    }
+    if !indices_flat.len().is_multiple_of(3) {
+        return Err("indices_flat length must be a multiple of 3".to_string());
+    }
 
     let verts: Vec<Point3<f32>> = vertices_flat
         .as_chunks::<3>()
@@ -69,9 +63,9 @@ pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> 
 
     let trimesh = TriMesh::new(verts, idxs);
     let bvh_bytes = bincode::serde::encode_to_vec(&trimesh, bincode::config::standard())
-        .expect("TriMesh serialisation failed");
+        .map_err(|err| format!("TriMesh serialisation failed: {err}"))?;
 
-    write_gbvh_header(bvh_bytes)
+    Ok(write_gbvh_header(bvh_bytes))
 }
 
 /// Extract the first matching triangle mesh from a GLB binary and build its BVH.
@@ -138,7 +132,7 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<&str>) -> Result<V
                 None => (0..vertices_flat.len() as u32 / 3).collect(),
             };
 
-            return Ok(build_bvh_buffer(&vertices_flat, &indices_flat));
+            return build_bvh_buffer(&vertices_flat, &indices_flat);
         }
     }
 

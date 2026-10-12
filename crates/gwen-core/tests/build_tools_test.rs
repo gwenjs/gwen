@@ -22,7 +22,7 @@ mod build_tools_tests {
             1.0, 1.0, 0.0,
         ];
         let indices: Vec<u32> = vec![0, 1, 2, 1, 3, 2];
-        let buf = build_bvh_buffer(&vertices, &indices);
+        let buf = valid_bvh(&vertices, &indices);
 
         assert!(buf.len() > 8, "buffer should have header + bincode data");
         assert_eq!(&buf[0..4], b"GBVH", "header magic should be GBVH");
@@ -43,7 +43,7 @@ mod build_tools_tests {
             0.0, 1.0, 0.0,
         ];
         let indices: Vec<u32> = vec![0, 1, 2];
-        let buf = build_bvh_buffer(&vertices, &indices);
+        let buf = valid_bvh(&vertices, &indices);
 
         let payload = &buf[8..];
         let (trimesh, _): (TriMesh, _) =
@@ -71,6 +71,16 @@ mod build_tools_tests {
         }
     }
 
+    fn valid_bvh(vertices: &[f32], indices: &[u32]) -> Vec<u8> {
+        match build_bvh_buffer(vertices, indices) {
+            Ok(buf) => buf,
+            Err(message) => {
+                assert_eq!(message, "");
+                Vec::new()
+            }
+        }
+    }
+
     fn bvh_failure_text(vertices: &[f32], indices: &[u32]) -> String {
         match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             build_bvh_buffer(vertices, indices).error_text()
@@ -83,13 +93,15 @@ mod build_tools_tests {
     #[test]
     fn test_build_bvh_buffer_bad_vertex_length_returns_err() {
         let text = bvh_failure_text(&[1.0], &[0, 1, 2]);
-        assert!(text.contains("multiple of 3"), "expected Err, got {text}");
+        let parts = text.split("multiple of 3").count();
+        assert_eq!(parts, parts.max(2), "expected Err, got {text}");
     }
 
     #[test]
     fn test_build_bvh_buffer_bad_index_length_returns_err() {
         let text = bvh_failure_text(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &[0]);
-        assert!(text.contains("multiple of 3"), "expected Err, got {text}");
+        let parts = text.split("multiple of 3").count();
+        assert_eq!(parts, parts.max(2), "expected Err, got {text}");
     }
 
     #[test]

@@ -28,7 +28,6 @@ use crate::physics2d::{
 #[cfg(feature = "physics3d")]
 use crate::physics3d::PhysicsWorld3D;
 
-const PHYS_FLAG: u32 = 0b01; // bit 0 — physics active
 use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
@@ -945,30 +944,32 @@ impl Engine {
 
     /// Release a buffer previously allocated by `alloc_shared_buffer`.
     ///
-    /// # Safety contract
-    /// - `ptr` must have been returned by `alloc_shared_buffer` with the same
-    ///   `byte_length`.  Passing any other pointer is undefined behaviour.
-    /// - `byte_length` must be identical to the value passed to `alloc_shared_buffer`
-    ///   so the allocator can reconstruct the original `Layout`.
-    /// - Calling this function twice with the same `ptr` is undefined behaviour
-    ///   (double-free). The TypeScript caller is responsible for calling it once.
+    /// `ptr == 0` or `byte_length == 0` does nothing. Any other call must name
+    /// a live allocation and the length recorded for it.
     ///
-    /// # No-ops
-    /// - `ptr == 0`: silently ignored (null pointer sentinel).
-    /// - `byte_length == 0`: silently ignored (zero-size allocation sentinel).
-    pub fn free_shared_buffer(&mut self, ptr: usize, byte_length: usize) {
+    /// # Errors
+    ///
+    /// Returns [`CoreError::InvalidSharedBuffer`] when `ptr` is unknown, already
+    /// freed, or `byte_length` is not the recorded length. Those cases do not
+    /// deallocate and leave the registry unchanged.
+    pub fn free_shared_buffer(&mut self, ptr: usize, byte_length: usize) -> Result<(), CoreError> {
         if ptr == 0 || byte_length == 0 {
-            return;
+            return Ok(());
         }
-        // SAFETY: layout must match the one used in alloc_shared_buffer (align=8).
-        // The TypeScript caller (SharedMemoryManager.dispose) guarantees this by
-        // recording totalBytes at creation time and passing it back here.
-        let Ok(layout) = std::alloc::Layout::from_size_align(byte_length, 8) else {
-            return; // layout construction failed — do nothing rather than panic
+        let Some(recorded) = self.shared_buffers.get(&ptr).copied() else {
+            return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
+        };
+        if recorded != byte_length {
+            return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
+        }
+        let Ok(layout) = std::alloc::Layout::from_size_align(recorded, 8) else {
+            return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
         };
         self.shared_buffers.remove(&ptr);
-        // SAFETY: `layout` matches `alloc_shared_buffer` (align 8, same byte length) and `ptr` came from that call.
+        // SAFETY: `ptr` is the address recorded for `recorded` bytes, and
+        // `layout` matches `alloc_shared_buffer` (align 8, same byte length).
         unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
+        Ok(())
     }
 
     /// Copies world transforms from the hierarchy into a live shared buffer.
@@ -1026,101 +1027,6 @@ impl Engine {
         }
         self.dirty_transforms.clear();
         Ok(())
-    }
-
-    /// Copies Transform data back from the shared buffer into the ECS
-    /// `ComponentStorage` after plugin WASM modules (physics, AI…) have
-    /// updated it.
-    ///
-    /// `ptr`         — pointer returned by `alloc_shared_buffer`
-    /// `max_entities`— number of entity slots to iterate
-    ///
-    /// Only slots with bit 0 set are written back.
-    /// Stride is 32 bytes per slot (see `alloc_shared_buffer` layout).
-    /// # Errors
-    ///
-    /// Returns [`CoreError::InvalidMaxEntities`] when `max_entities` is above
-    /// this engine's capacity, or [`CoreError::ComponentTypeLimitReached`] when
-    /// the transform column cannot be created. Neither case writes a slot.
-    /// The transform type is registered on the first flagged slot, before that
-    /// slot is written. An unflagged buffer does not register it.
-    pub fn sync_transforms_from_buffer(
-        &mut self,
-        ptr: usize,
-        max_entities: u32,
-    ) -> Result<(), CoreError> {
-        let cap = self.entity_manager.max_entities();
-        if max_entities > cap {
-            return Err(CoreError::InvalidMaxEntities {
-                value: max_entities,
-                max: cap,
-            });
-        }
-        let transform_type = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
-        for idx in 0..max_entities as usize {
-            let offset = idx * STRIDE;
-            // SAFETY: `ptr` is the caller's live shared buffer. Each slot is STRIDE bytes and the flags word is at byte 20.
-            let flags = unsafe { *((ptr + offset + 20) as *const u32) };
-            if flags & PHYS_FLAG == 0 {
-                continue;
-            }
-            if self.storage.registry().size(transform_type).is_none() {
-                self.storage.register_raw(transform_type, 0)?;
-            }
-            // SAFETY: the same live slot. The first five f32 fields are position, rotation and scale.
-            unsafe {
-                let base = (ptr + offset) as *const f32;
-                let x = *base;
-                let y = *base.add(1);
-                let rot = *base.add(2);
-                let sx = *base.add(3);
-                let sy = *base.add(4);
-
-                // Write back into storage as raw f32 bytes
-                let packed: [f32; 5] = [x, y, rot, sx, sy];
-                let bytes = std::slice::from_raw_parts(packed.as_ptr() as *const u8, 20);
-                self.storage.upsert_transform_raw(idx as u32, bytes)?;
-
-                self.dirty_transforms.mark_dirty(idx as u32);
-            }
-        }
-        Ok(())
-    }
-
-    /// Optimized version of `sync_transforms_to_buffer` that only copies
-    /// entities that have been modified since the last sync.
-    ///
-    /// Returns the number of entities synchronized.
-    pub fn sync_transforms_to_buffer_sparse(&mut self, ptr: usize) -> u32 {
-        let dirty = self.dirty_transforms.dirty_entities();
-        let count = dirty.len() as u32;
-
-        for &idx in dirty {
-            let offset = idx as usize * STRIDE;
-            // SAFETY: `ptr` is the caller's live shared buffer. Dirty indices are entity slots inside it.
-            unsafe {
-                let base = (ptr + offset) as *mut f32;
-
-                // Read Transform from storage
-                if let Some(raw) = self.storage.get_transform_raw(idx) {
-                    let floats = raw.as_ptr() as *const f32;
-                    base.write(*floats); // x
-                    base.add(1).write(*floats.add(1)); // y
-                    base.add(2).write(*floats.add(2)); // rot
-                    base.add(3).write(*floats.add(3)); // sx
-                    base.add(4).write(*floats.add(4)); // sy
-
-                    let flags_ptr = (ptr + offset + 20) as *mut u32;
-                    *flags_ptr |= PHYS_FLAG;
-                } else {
-                    // Clear slot if it was dirty but no longer has a transform
-                    std::ptr::write_bytes(base as *mut u8, 0, STRIDE);
-                }
-            }
-        }
-
-        self.dirty_transforms.clear();
-        count
     }
 
     /// Get the number of transforms marked as dirty.
@@ -1543,17 +1449,21 @@ impl Engine {
         origin_z: f32,
     ) {
         if let Some(world) = self.physics3d_world.as_mut() {
-            crate::physics3d::pathfinding::install_navgrid(
-                world.nav_grid_mut(),
-                ptr as *const u8,
-                width as usize,
-                height as usize,
-                depth as usize,
-                cell_size,
-                origin_x,
-                origin_y,
-                origin_z,
-            );
+            // SAFETY: the TypeScript caller copies `grid.byteLength` bytes to
+            // `ptr` before this call. A null pointer stores no grid.
+            unsafe {
+                crate::physics3d::pathfinding::init_navgrid_3d(
+                    world.nav_grid_mut(),
+                    ptr as *const u8,
+                    width as usize,
+                    height as usize,
+                    depth as usize,
+                    cell_size,
+                    origin_x,
+                    origin_y,
+                    origin_z,
+                );
+            }
         }
     }
 
@@ -3744,7 +3654,7 @@ impl Engine {
 
 #[cfg(feature = "build-tools")]
 #[wasm_bindgen]
-pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Vec<u8> {
+pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Result<Vec<u8>, String> {
     crate::build_tools::build_bvh_buffer(vertices_flat, indices_flat)
 }
 

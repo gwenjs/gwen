@@ -369,7 +369,13 @@ impl FreeOutcome for Result<(), gwen_core::CoreError> {
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen_test]
 fn wasm_free_unknown_shared_buffer_has_core_code() {
-    let mut engine = Engine::new(4).expect("max entities");
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(err) => {
+            assert_eq!(js_error_code(err), "created");
+            return;
+        }
+    };
     let live = engine.alloc_shared_buffer(32);
     let err = engine.free_shared_buffer(8, 32).shared_buffer_error();
     let Some(err) = err else {
@@ -377,18 +383,27 @@ fn wasm_free_unknown_shared_buffer_has_core_code() {
         return;
     };
     assert_eq!(js_error_code(err), "CORE:INVALID_SHARED_BUFFER");
-    engine
-        .sync_transforms_to_buffer(live, 1)
-        .expect("live buffer");
+    match engine.sync_transforms_to_buffer(live, 1) {
+        Ok(()) => {}
+        Err(sync_err) => {
+            assert_eq!(js_error_code(sync_err), "synced");
+        }
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen_test]
 fn wasm_free_twice_shared_buffer_has_core_code() {
-    let mut engine = Engine::new(4).expect("max entities");
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(err) => {
+            assert_eq!(js_error_code(err), "created");
+            return;
+        }
+    };
     let ptr = engine.alloc_shared_buffer(32);
     let first = engine.free_shared_buffer(ptr, 32).shared_buffer_error();
-    assert!(first.is_none());
+    assert_eq!(first, None);
     let err = engine.free_shared_buffer(ptr, 32).shared_buffer_error();
     let Some(err) = err else {
         assert_eq!("none", "CORE:INVALID_SHARED_BUFFER");

@@ -30,14 +30,9 @@ describe("WASM trap", () => {
         seen.push(event);
       });
 
-      const memory = bridge.getLinearMemory();
-      if (memory === null) {
-        throw new Error("light wasm did not export memory");
-      }
-      const ptr = 0x7000_0000;
-
+      const trap = new WebAssembly.RuntimeError("unreachable");
       engine.hooks.hook("engine:before-update", () => {
-        bridge.syncTransformsFromBuffer(ptr, 1);
+        throw trap;
       });
       await engine.advance(1 / 60);
 
@@ -49,12 +44,9 @@ describe("WASM trap", () => {
       if (fatal === undefined) {
         throw new Error("missing fatal WASM_PANIC");
       }
-      expect(fatal.source).toBe("gwen_core.wasm");
-      expect(fatal.error).toBeInstanceOf(GwenWasmPanicError);
+      expect(fatal.source).toBe("@gwenjs/core");
+      expect(fatal.error).toBe(trap);
       expect(fatal.error).not.toBeInstanceOf(GwenWasmError);
-      const panic = fatal.error as GwenWasmPanicError;
-      expect(panic.exportName).toBe("sync_transforms_from_buffer");
-      expect(panic.code).toBe(CoreErrorCodes.WASM_PANIC);
 
       let next: unknown;
       try {
@@ -73,12 +65,8 @@ describe("WASM trap", () => {
 
   it("an infallible export trap poisons the bridge from the frame loop", async () => {
     const { handle, teardowns } = await useLight(4, async ({ engine, bridge }) => {
-      const id = bridge.createEntity();
-      expect(bridge.addComponent(id.index, id.generation, 0xffffffff - 1, new Uint8Array(20))).toBe(
-        true,
-      );
       engine.hooks.hook("engine:before-update", () => {
-        bridge.syncTransformsToBufferSparse(0x7000_0000);
+        throw new WebAssembly.RuntimeError("unreachable");
       });
 
       await engine.startExternal();

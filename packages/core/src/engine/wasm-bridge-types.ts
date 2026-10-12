@@ -302,12 +302,15 @@ export interface WasmEngineBase {
   /**
    * Deallocate a buffer previously allocated by `alloc_shared_buffer`.
    *
-   * Must be called with the **exact same `byteLength`** that was passed to
-   * `alloc_shared_buffer` so the allocator can reconstruct the original
-   * `Layout`. Passing a different size is undefined behaviour in Rust.
+   * `ptr == 0` or `byteLength == 0` does nothing. Any other call must use the
+   * pointer and the byte length recorded at allocation.
    *
    * @param ptr        Raw pointer returned by `alloc_shared_buffer`.
    * @param byteLength Exact byte count used during allocation.
+   * @throws {GwenWasmError} code `CORE:INVALID_SHARED_BUFFER` when `ptr` is
+   *   unknown, already freed, or `byteLength` is not the recorded length.
+   *   The message is `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   Nothing is deallocated.
    */
   free_shared_buffer(ptr: number, byteLength: number): void;
   /**
@@ -318,11 +321,6 @@ export interface WasmEngineBase {
    */
   sync_transforms_to_buffer(ptr: number, maxEntities: number): void;
   /**
-   * Copy ONLY dirty ECS transform data into the shared buffer.
-   * @param ptr    Pointer returned by `alloc_shared_buffer`.
-   */
-  sync_transforms_to_buffer_sparse(ptr: number): void;
-  /**
    * Return the number of entities with dirty transforms since last clear.
    */
   dirty_transform_count(): number;
@@ -330,12 +328,6 @@ export interface WasmEngineBase {
    * Clear the dirty transform set.
    */
   clear_transform_dirty(): void;
-  /**
-   * Copy transform data from the shared buffer back into the ECS (after WASM plugins write).
-   * @param ptr    Pointer returned by `alloc_shared_buffer`.
-   * @param maxEntities  Number of entity slots to sync.
-   */
-  sync_transforms_from_buffer(ptr: number, maxEntities: number): void;
 
   // ── Stats ────────────────────────────────────────────────────────────────
 
@@ -880,19 +872,21 @@ export interface WasmBridge {
   /**
    * Release a buffer previously obtained from `allocSharedBuffer`.
    *
-   * Pass the exact `byteLength` used at allocation time — the Rust allocator
-   * needs it to reconstruct the original memory layout. After this call the
-   * pointer is invalid; any further reads or writes are undefined behaviour.
+   * `ptr == 0` or `byteLength == 0` does nothing. Any other call must use the
+   * pointer and the byte length recorded at allocation. After a successful
+   * call the pointer is no longer live.
    *
    * @param ptr        Pointer returned by `allocSharedBuffer`.
    * @param byteLength Byte count used during `allocSharedBuffer`.
+   * @throws {GwenWasmError} code `CORE:INVALID_SHARED_BUFFER` when `ptr` is
+   *   unknown, already freed, or `byteLength` is not the recorded length.
+   *   The message is `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   Nothing is deallocated.
    */
   freeSharedBuffer(ptr: number, byteLength: number): void;
   syncTransformsToBuffer(ptr: number, maxEntities: number): void;
-  syncTransformsToBufferSparse(ptr: number): void;
   dirtyTransformCount(): number;
   clearTransformDirty(): void;
-  syncTransformsFromBuffer(ptr: number, maxEntities: number): void;
   getLinearMemory(): WebAssembly.Memory | null;
   checkMemoryGrow(): boolean;
 

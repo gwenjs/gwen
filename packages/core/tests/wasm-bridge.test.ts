@@ -7,7 +7,7 @@
  * Coverage:
  *   - Uninitialized bridge throws on all methods
  *   - Initialized bridge (mock) delegates correctly
- *   - SAB methods: allocSharedBuffer, syncTransformsToBuffer, syncTransformsFromBuffer
+ *   - SAB methods: allocSharedBuffer, syncTransformsToBuffer
  *   - getLinearMemory() returns null with mock, live WebAssembly.Memory with real module
  *   - Per-instance isolation and reset
  *   - Engine integration
@@ -145,20 +145,20 @@ describe("WasmBridge — with injected mock", () => {
     const mock = createMockWasmEngine();
     poisoned._injectMock(mock);
     const trap = new WebAssembly.RuntimeError("unreachable");
-    mock.sync_transforms_from_buffer = vi.fn(() => {
+    mock.sync_transforms_to_buffer = () => {
       throw trap;
-    });
+    };
 
     let first: unknown;
     try {
-      poisoned.syncTransformsFromBuffer(8, 1);
+      poisoned.syncTransformsToBuffer(8, 1);
     } catch (error: unknown) {
       first = error;
     }
     expect(first).toBeInstanceOf(GwenWasmPanicError);
     expect(first).not.toBeInstanceOf(GwenWasmError);
     expect((first as GwenWasmPanicError).code).toBe(CoreErrorCodes.WASM_PANIC);
-    expect((first as GwenWasmPanicError).exportName).toBe("sync_transforms_from_buffer");
+    expect((first as GwenWasmPanicError).exportName).toBe("sync_transforms_to_buffer");
     expect((first as GwenWasmPanicError).cause).toBe(trap);
 
     mock.create_entity = vi.fn(() => ({ index: 1, generation: 0 }));
@@ -410,18 +410,6 @@ describe("WasmBridge — with injected mock", () => {
   it("syncTransformsToBuffer() delegates ptr and maxEntities to mock", () => {
     bridge.syncTransformsToBuffer(4096, 10_000);
     expect(mock.sync_transforms_to_buffer).toHaveBeenCalledWith(4096, 10_000);
-  });
-
-  it("syncTransformsFromBuffer() delegates ptr and maxEntities to mock", () => {
-    bridge.syncTransformsFromBuffer(4096, 10_000);
-    expect(mock.sync_transforms_from_buffer).toHaveBeenCalledWith(4096, 10_000);
-  });
-
-  it("syncTransformsToBuffer() and syncTransformsFromBuffer() pass different ptr values", () => {
-    bridge.syncTransformsToBuffer(1024, 500);
-    bridge.syncTransformsFromBuffer(2048, 500);
-    expect(mock.sync_transforms_to_buffer).toHaveBeenCalledWith(1024, 500);
-    expect(mock.sync_transforms_from_buffer).toHaveBeenCalledWith(2048, 500);
   });
 
   // ── getLinearMemory() ────────────────────────────────────────────────────
