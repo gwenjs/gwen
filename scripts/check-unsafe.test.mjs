@@ -185,6 +185,21 @@ test('a Safety section on an earlier fn does not cover the next unsafe fn', () =
   assert.deepEqual(ok, ['id U-002 is not in UNSAFE.md']);
 });
 
+test('a Safety section on an earlier fn does not cover the next unsafe fn without a blank line', () => {
+  const detached = [
+    '/// # Safety',
+    '/// The earlier function upholds the invariant.',
+    'const fn earlier() {}',
+    '// SAFETY: the caller keeps the pointer in range. [U-002]',
+    'pub unsafe fn later() {}',
+  ].join('\n');
+  const errors = evaluateUnsafe(files({ 'crates/gwen-core/src/a.rs': detached }), []);
+  assert.deepEqual(errors, [
+    'unsafe fn has no # Safety: crates/gwen-core/src/a.rs:5',
+    'id U-002 is not in UNSAFE.md',
+  ]);
+});
+
 test('a test name that appears only in a comment fails', () => {
   const text = `${validBlock}// fn unsafe_site_u001() {}\n`;
   const errors = evaluateUnsafe(files({ 'crates/gwen-core/src/a.rs': text }), [
@@ -278,4 +293,63 @@ test('an ffi-ptr row citing packages/physics3d/src/plugin/spatial-queries.ts:153
     },
   );
   assert.deepEqual(errors, []);
+});
+
+test('an unsafe_site name must use the same id number as the row', () => {
+  const mismatchDoc = validDoc.replace('unsafe_site_u001', 'unsafe_site_u999_records_align');
+  const mismatch = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs':
+        '#[test]\nfn unsafe_site_u999_records_align() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: mismatchDoc }],
+  );
+  assert.deepEqual(mismatch, ['test unsafe_site_u999_records_align does not match id U-001']);
+
+  const sameDoc = validDoc.replace('unsafe_site_u001', 'unsafe_site_u001_records_align_8');
+  const same = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs':
+        '#[test]\nfn unsafe_site_u001_records_align_8() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: sameDoc }],
+  );
+  assert.deepEqual(same, []);
+
+  const paddedDoc = validDoc.replace('unsafe_site_u001', 'unsafe_site_u1_records_align_8');
+  const padded = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs': '#[test]\nfn unsafe_site_u1_records_align_8() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: paddedDoc }],
+  );
+  assert.deepEqual(padded, []);
+});
+
+test('an unconditional ignore on an unsafe_site test is not a proof', () => {
+  const bare = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs': '#[test]\n#[ignore]\nfn unsafe_site_u001() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }],
+  );
+  assert.deepEqual(bare, ['test unsafe_site_u001 is ignored: U-001']);
+
+  const reason = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs':
+        '#[ignore = "needs a gpu"]\n#[test]\nfn unsafe_site_u001() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }],
+  );
+  assert.deepEqual(reason, ['test unsafe_site_u001 is ignored: U-001']);
+
+  const miri = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs':
+        '#[test]\n#[cfg_attr(miri, ignore = "slow under miri")]\nfn unsafe_site_u001() {}\n',
+    }),
+    [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }],
+  );
+  assert.deepEqual(miri, []);
 });
