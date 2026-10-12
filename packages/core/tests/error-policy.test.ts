@@ -830,6 +830,7 @@ describe("plugin lifecycle errors", () => {
       if (!(caught instanceof Error)) throw new Error("expected Error");
       expect(caught.message).toBe("boom");
       expect(order).toEqual(["boom", "later"]);
+      expect(engine.state).toBe("stopped");
       engine.errors.emit({ level: "error", code: "TEST:ERROR", message: "after" });
       expect(errorHooks).toBe(1);
     } finally {
