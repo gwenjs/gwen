@@ -33,7 +33,7 @@ mod tests {
     }
 
     #[test]
-    fn unsafe_site_u027_ring_ptr_matches_the_static() {
+    fn ring_ptr_matches_the_static() {
         gwen_channel!(audit, 4, 8);
         let exported = gwen_audit_ring_ptr();
         let address = &raw const GWEN_CHANNEL_AUDIT as *const u8 as i32;

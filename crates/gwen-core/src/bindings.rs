@@ -1451,8 +1451,8 @@ impl Engine {
     ) {
         if let Some(world) = self.physics3d_world.as_mut() {
             // SAFETY: a null pointer or a zero cell count stores no grid and does
-            // not read. Otherwise this reads `width * height * depth` bytes and
-            // does not check that the buffer is that long. [U-004]
+            // not read. Otherwise this reads `width * height * depth` bytes. The
+            // length is still not checked here. #110 owns the unchecked read. [U-004]
             unsafe {
                 crate::physics3d::pathfinding::init_navgrid_3d(
                     world.nav_grid_mut(),
@@ -4074,13 +4074,10 @@ mod tests {
     /// The registry stores alignment 8 for every live shared buffer.
     #[test]
     fn unsafe_site_u001_records_align_8() {
-        let mut engine = match Engine::new(1) {
-            Ok(engine) => engine,
-            Err(_) => {
-                assert_eq!(0, 1);
-                return;
-            }
-        };
+        let mut engine = Engine::new(1).unwrap_or_else(|err| {
+            assert_eq!("", err.code());
+            std::process::abort();
+        });
         let lengths = [1usize, 3, 9, 8];
         let mut ptrs = [0usize; 4];
         for (index, length) in lengths.iter().copied().enumerate() {
@@ -4088,7 +4085,7 @@ mod tests {
             assert_ne!(ptr, 0);
             assert_eq!(ptr % 8, 0);
             let Some((_, align)) = engine.shared_buffers.get(&ptr).copied() else {
-                assert_eq!(0, 1);
+                assert_eq!("", "missing shared buffer");
                 return;
             };
             assert_eq!(align, 8);
@@ -4103,22 +4100,19 @@ mod tests {
     #[cfg(feature = "physics3d")]
     #[test]
     fn unsafe_site_u004_export_copies_cells() {
-        let mut engine = match Engine::new(4) {
-            Ok(engine) => engine,
-            Err(_) => {
-                assert_eq!(0, 1);
-                return;
-            }
-        };
+        let mut engine = Engine::new(4).unwrap_or_else(|err| {
+            assert_eq!("", err.code());
+            std::process::abort();
+        });
         engine.physics3d_init(0.0, 0.0, 0.0, 4);
         let cells = [9u8, 8, 7, 6, 5, 4, 3, 2, 1];
         engine.physics3d_init_navgrid_3d(cells.as_ptr() as usize, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
         let Some(world) = engine.physics3d_world.as_ref() else {
-            assert_eq!(0, 1);
+            assert_eq!("", "no physics3d world");
             return;
         };
         let Some(grid) = world.nav_grid() else {
-            assert_eq!(0, 1);
+            assert_eq!("", "no nav grid");
             return;
         };
         assert_eq!(

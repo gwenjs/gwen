@@ -42,30 +42,11 @@ impl Drop for SharedGuard<'_> {
 }
 
 #[test]
-fn unsafe_site_u001_alloc_is_8_byte_aligned() {
-    let mut engine = match Engine::new(1) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
-    let mut buffers = SharedGuard::new(&mut engine);
-    let ptr = buffers.alloc(1);
-    assert_ne!(ptr, 0);
-    assert_eq!(ptr % 8, 0);
-    assert_eq!(buffers.engine().free_shared_buffer(ptr, 1), Ok(()));
-}
-
-#[test]
 fn unsafe_site_u002_second_free_is_invalid() {
-    let mut engine = match Engine::new(1) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(1).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let mut buffers = SharedGuard::new(&mut engine);
     let ptr = buffers.alloc(8);
     assert_ne!(ptr, 0);
@@ -78,13 +59,10 @@ fn unsafe_site_u002_second_free_is_invalid() {
 
 #[test]
 fn unsafe_site_u003_short_sync_is_invalid() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let mut buffers = SharedGuard::new(&mut engine);
     let ptr = buffers.alloc(TRANSFORM_STRIDE);
     assert_ne!(ptr, 0);
@@ -125,7 +103,7 @@ fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
 #[cfg(feature = "physics2d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u005_step_records_a_collision() {
@@ -145,7 +123,7 @@ fn unsafe_site_u005_step_records_a_collision() {
 #[cfg(feature = "physics2d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u006_two_worlds_do_not_share_events() {
@@ -161,7 +139,7 @@ fn unsafe_site_u006_two_worlds_do_not_share_events() {
 #[cfg(feature = "physics2d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u007_event_buffer_fills_then_clears() {
@@ -257,7 +235,7 @@ fn first_pair_3d(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 2] {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u010_step_records_a_collision() {
@@ -273,7 +251,7 @@ fn unsafe_site_u010_step_records_a_collision() {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u011_two_worlds_do_not_share_events() {
@@ -295,7 +273,7 @@ fn unsafe_site_u011_two_worlds_do_not_share_events() {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u012_event_buffer_fills_then_clears() {
@@ -324,7 +302,7 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u013_overlap_writes_the_entity() {
@@ -378,7 +356,7 @@ fn no_hit_bits() -> [u32; 5] {
 
 #[cfg(feature = "physics3d")]
 #[test]
-fn unsafe_site_u016_unknown_entity_writes_no_hit() {
+fn unknown_entity_writes_no_hit() {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -397,7 +375,7 @@ fn unsafe_site_u016_unknown_entity_writes_no_hit() {
 
 #[cfg(feature = "physics3d")]
 #[test]
-fn unsafe_site_u019_body_without_collider_writes_no_hit() {
+fn body_without_collider_writes_no_hit() {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -416,7 +394,7 @@ fn unsafe_site_u019_body_without_collider_writes_no_hit() {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
 fn unsafe_site_u022_grounded_move_writes_contact() {
@@ -473,16 +451,20 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
     );
     world.step(1.0 / 60.0);
     world.character_controller_move(0, 0.0, -20.0, 0.0, 1.0 / 60.0);
-    assert_eq!(cc_slot_bits(&world)[0], 1.0f32.to_bits());
+    let slot = cc_slot_bits(&world);
+    assert_eq!(slot[0], 1.0f32.to_bits());
+    assert_eq!(slot[1], 0.0f32.to_bits());
+    assert_eq!(slot[2], (-1.0f32).to_bits());
+    assert_eq!(slot[3], 0.0f32.to_bits());
 }
 
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+    ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u023_air_move_writes_no_hit() {
+fn air_move_writes_no_hit() {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
