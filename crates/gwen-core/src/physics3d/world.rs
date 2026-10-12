@@ -2343,9 +2343,9 @@ impl PhysicsWorld3D {
     /// Number of overlapping entities written to `out_ptr`.
     ///
     /// # Safety
-    /// `out_ptr` must point to at least `max_results * 4` bytes of valid WASM
-    /// linear memory. This is guaranteed by the TypeScript layer which allocates
-    /// the scratch buffer before calling this function.
+    /// `out_ptr` is used as `max_results` u32 slots. This export does not check
+    /// that length. The composable caps the count at the scratch view in
+    /// `spatial-queries.ts`. A raw call is the physics child of #52. [U-013]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn overlap_shape(
         &self,
