@@ -19,11 +19,6 @@ import {
 import { createEngine } from "../../src/engine/engine-factory.js";
 import type { GwenEngine } from "../../src/engine/engine-types.js";
 import { toGwenWasmError, WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
-import {
-  FLAG_HAS_TRANSFORM,
-  FLAGS_OFFSET,
-  TRANSFORM_STRIDE,
-} from "../../src/hooks/wasm/shared-memory.js";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 const DETACH = 0xffffffff;
@@ -51,8 +46,6 @@ function lightUrls(): { jsUrl: string; wasmUrl: string } {
     wasmUrl: `data:application/wasm;base64,${wasmBytes.toString("base64")}`,
   };
 }
-
-const TRANSFORM_TYPE_ID = 0xffffffff - 1;
 
 function expectWasmError(error: unknown, code: CoreWasmErrorCode, exportName: string): void {
   expect(error).toBeInstanceOf(GwenWasmError);
@@ -336,41 +329,6 @@ describe("WASM coded errors", () => {
       await engine.stop();
     }
     expect(engine.state).toBe("stopped");
-  });
-
-  it("syncTransformsFromBuffer registers the transform only on a flagged slot", async () => {
-    const handle = await useLight(4, async ({ engine, bridge }) => {
-      const entity = bridge.createEntity();
-      const ptr = bridge.allocSharedBuffer(TRANSFORM_STRIDE);
-      bridge.syncTransformsFromBuffer(ptr, 1);
-      for (let typeId = 0; typeId < 128; typeId += 1) {
-        expect(
-          bridge.addComponent(entity.index, entity.generation, typeId, new Uint8Array([1])),
-        ).toBe(true);
-      }
-      expect(bridge.hasComponent(entity.index, entity.generation, TRANSFORM_TYPE_ID)).toBe(false);
-
-      const memory = bridge.getLinearMemory();
-      if (memory === null) {
-        throw new Error("light wasm did not export memory");
-      }
-      new DataView(memory.buffer).setUint32(ptr + FLAGS_OFFSET, FLAG_HAS_TRANSFORM, true);
-
-      let caught: unknown;
-      try {
-        bridge.syncTransformsFromBuffer(ptr, 1);
-      } catch (error: unknown) {
-        caught = error;
-      }
-      expectWasmError(
-        caught,
-        CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-        "sync_transforms_from_buffer",
-      );
-      expect(bridge.hasComponent(entity.index, entity.generation, TRANSFORM_TYPE_ID)).toBe(false);
-      await expectNextFrame(engine);
-    });
-    expect(handle.engine.state).toBe("stopped");
   });
 
   it("a wrongly sized bulk buffer throws both sizes and the next frame runs", async () => {

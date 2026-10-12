@@ -23,10 +23,8 @@ export function createMockWasmEngine(): WasmEngine {
     get_entity_generation: vi.fn(() => 0),
     alloc_shared_buffer: vi.fn(() => 4096),
     sync_transforms_to_buffer: vi.fn(),
-    sync_transforms_to_buffer_sparse: vi.fn(),
     dirty_transform_count: vi.fn(() => 0),
     clear_transform_dirty: vi.fn(),
-    sync_transforms_from_buffer: vi.fn(),
     stats: vi.fn(() => '{"entities":0,"frame":1}'),
   } as unknown as WasmEngine; // allowlist: WasmEngine requires every export; tests stub only the calls they make #52
 }

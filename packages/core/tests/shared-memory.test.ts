@@ -74,7 +74,6 @@ function makeMockBridge(totalBytes = 512 * 1024): {
     allocSharedBuffer: vi.fn(() => basePtr),
     freeSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
-    syncTransformsFromBuffer: vi.fn(),
     getLinearMemory: vi.fn(() => fakeMemory),
     stats: vi.fn(),
   } as unknown as WasmBridge;
@@ -103,7 +102,6 @@ function makeNullMemoryBridge(): WasmBridge {
     allocSharedBuffer: vi.fn(() => 4096),
     freeSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
-    syncTransformsFromBuffer: vi.fn(),
     getLinearMemory: vi.fn(() => null),
     stats: vi.fn(),
   } as unknown as WasmBridge;

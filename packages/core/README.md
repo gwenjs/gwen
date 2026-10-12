@@ -347,6 +347,6 @@ Types: `InitInput`, `InitOutput`, `SyncInitInput`
 
 ### `./wasm/physics3d`
 
-Values: `Engine`, `JsEntityId`, `default`, `find_path_3d`, `get_path_buffer_ptr_3d`, `initSync`, `init_navgrid_3d`
+Values: `Engine`, `JsEntityId`, `default`, `find_path_3d`, `get_path_buffer_ptr_3d`, `initSync`
 
 Types: `InitInput`, `InitOutput`, `SyncInitInput`

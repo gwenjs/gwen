@@ -172,7 +172,10 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     }
     assert_eq!(slot_bytes(exact, 0), [0u8; TRANSFORM_STRIDE]);
 
-    engine.free_shared_buffer(exact, TRANSFORM_STRIDE);
+    let free_err = engine
+        .free_shared_buffer(exact, TRANSFORM_STRIDE)
+        .shared_buffer_error();
+    assert_eq!(free_err, None);
     let freed = match engine.sync_transforms_to_buffer(exact, 1) {
         Err(err) => err,
         Ok(()) => {
@@ -219,7 +222,7 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
         .free_shared_buffer(0, TRANSFORM_STRIDE)
         .shared_buffer_error();
     let _ = engine.free_shared_buffer(ptr, 0).shared_buffer_error();
-    assert!(engine.sync_transforms_to_buffer(ptr, 1).is_ok());
+    assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
     let err = engine.free_shared_buffer(ptr, 16).shared_buffer_error();
     assert_eq!(
         err,
@@ -228,5 +231,5 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
             len: TRANSFORM_STRIDE
         })
     );
-    assert!(engine.sync_transforms_to_buffer(ptr, 1).is_ok());
+    assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
 }

@@ -104,35 +104,14 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 /// * `origin_z`  — World-space Z coordinate of the grid origin.
 ///
 /// # Safety
-/// `ptr` must point to a valid, readable allocation of at least
-/// `width * height * depth` bytes for the duration of this call.
-/// ABI shim. The live grid is stored on each `PhysicsWorld3D`.
 ///
-/// This function keeps the export name and signature and does not store a grid.
-#[wasm_bindgen]
-#[allow(
-    unused_variables,
-    reason = "ABI shim keeps the export signature and does not read the arguments"
-)]
-#[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
-pub fn init_navgrid_3d(
-    ptr: *const u8,
-    width: usize,
-    height: usize,
-    depth: usize,
-    cell_size: f32,
-    origin_x: f32,
-    origin_y: f32,
-    origin_z: f32,
-) {
-}
-
-/// Copy a voxel grid into `slot`. `ptr` must address `width * height * depth` bytes.
+/// `ptr` is null, or it addresses at least `width * height * depth` readable
+/// bytes for this call. A null pointer or a zero cell count stores no grid.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
-pub(crate) fn install_navgrid(
+pub(crate) unsafe fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
     width: usize,
@@ -148,7 +127,7 @@ pub(crate) fn install_navgrid(
         *slot = None;
         return;
     }
-    // SAFETY: the caller contract requires `ptr` to address at least `len` bytes.
+    // SAFETY: the caller of this unsafe function guarantees `ptr` addresses `len` bytes.
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
@@ -160,6 +139,32 @@ pub(crate) fn install_navgrid(
         origin_y,
         origin_z,
     });
+}
+
+/// Copy a voxel grid into `slot`. `ptr` must address `width * height * depth` bytes.
+#[allow(
+    clippy::too_many_arguments,
+    reason = "matches the navgrid upload signature"
+)]
+#[cfg(test)]
+pub(crate) fn install_navgrid(
+    slot: &mut Option<NavGrid3D>,
+    ptr: *const u8,
+    width: usize,
+    height: usize,
+    depth: usize,
+    cell_size: f32,
+    origin_x: f32,
+    origin_y: f32,
+    origin_z: f32,
+) {
+    // SAFETY: callers of this wrapper pass a pointer to `width * height * depth`
+    // bytes, or null. `init_navgrid_3d` copies those bytes before it returns.
+    unsafe {
+        init_navgrid_3d(
+            slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,
+        );
+    }
 }
 
 /// Find a path between two world-space points using A* on the uploaded voxel grid.

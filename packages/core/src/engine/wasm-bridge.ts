@@ -874,7 +874,11 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   freeSharedBuffer(ptr: number, byteLength: number): void {
-    this._requireWasm().free_shared_buffer(ptr, byteLength);
+    try {
+      this._requireWasm().free_shared_buffer(ptr, byteLength);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "free_shared_buffer");
+    }
   }
 
   syncTransformsToBuffer(ptr: number, maxEntities: number): void {
@@ -886,25 +890,12 @@ export class WasmBridgeImpl implements WasmBridge {
     }
   }
 
-  syncTransformsToBufferSparse(ptr: number): void {
-    this._requireWasm().sync_transforms_to_buffer_sparse(ptr);
-  }
-
   dirtyTransformCount(): number {
     return this._requireWasm().dirty_transform_count();
   }
 
   clearTransformDirty(): void {
     this._requireWasm().clear_transform_dirty();
-  }
-
-  syncTransformsFromBuffer(ptr: number, maxEntities: number): void {
-    const wasm = this._requireWasm();
-    try {
-      wasm.sync_transforms_from_buffer(ptr, maxEntities);
-    } catch (error: unknown) {
-      throw this._mapWasmError(error, "sync_transforms_from_buffer");
-    }
   }
 
   // ── Linear memory ────────────────────────────────────────────────────────
