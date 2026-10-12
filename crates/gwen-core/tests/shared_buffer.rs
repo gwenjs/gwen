@@ -83,13 +83,10 @@ fn slot_bytes(ptr: usize, index: usize) -> [u8; TRANSFORM_STRIDE] {
 
 #[test]
 fn packed_values_match_world_transforms_including_a_parented_child() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let parent = match engine.create_entity() {
         Ok(id) => id,
         Err(err) => {
@@ -162,13 +159,10 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
 
 #[test]
 fn unknown_or_short_buffer_is_invalid_shared_buffer() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let unknown = match engine.sync_transforms_to_buffer(0x1000, 1) {
         Err(err) => err,
         Ok(()) => {
@@ -245,13 +239,10 @@ impl FreeOutcome for Result<(), CoreError> {
 
 #[test]
 fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let mut buffers = SharedGuard::new(&mut engine);
     let ptr = buffers.alloc(TRANSFORM_STRIDE);
     assert_eq!(
@@ -285,13 +276,10 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
 
 #[test]
 fn free_unknown_pointer_is_invalid_shared_buffer_and_keeps_the_registry() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let mut buffers = SharedGuard::new(&mut engine);
     let live = buffers.alloc(TRANSFORM_STRIDE);
     let err = buffers
@@ -310,13 +298,10 @@ fn free_unknown_pointer_is_invalid_shared_buffer_and_keeps_the_registry() {
 
 #[test]
 fn free_twice_is_invalid_shared_buffer_and_keeps_the_registry() {
-    let mut engine = match Engine::new(4) {
-        Ok(engine) => engine,
-        Err(_) => {
-            assert_eq!(0, 1);
-            return;
-        }
-    };
+    let mut engine = Engine::new(4).unwrap_or_else(|err| {
+        assert_eq!("", err.code());
+        std::process::abort();
+    });
     let mut buffers = SharedGuard::new(&mut engine);
     let live = buffers.alloc(TRANSFORM_STRIDE);
     let other = buffers.alloc(TRANSFORM_STRIDE);

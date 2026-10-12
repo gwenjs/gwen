@@ -4,10 +4,8 @@
 //! World inputs are rounded to nearest grid cell and path nodes are written
 //! back as `f32` points in `PATH_BUFFER`.
 
-use wasm_bindgen::prelude::*;
-
-#[cfg(feature = "pathfinding-2d")]
 use pathfinding::prelude::astar;
+use wasm_bindgen::prelude::*;
 
 /// Maximum number of nodes in a single path result.
 pub const MAX_PATH_NODES: usize = 256;
@@ -23,12 +21,10 @@ pub struct PathNode {
 static mut PATH_BUFFER: [PathNode; MAX_PATH_NODES] = [PathNode { x: 0.0, y: 0.0 }; MAX_PATH_NODES];
 static mut PATH_NODE_COUNT: usize = 0;
 
-#[cfg(feature = "pathfinding-2d")]
 fn neighbors4((x, y): (i32, i32)) -> [(i32, i32); 4] {
     [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
 }
 
-#[cfg(feature = "pathfinding-2d")]
 #[inline]
 fn manhattan((ax, ay): (i32, i32), (bx, by): (i32, i32)) -> u32 {
     ((ax - bx).abs() + (ay - by).abs()) as u32
@@ -52,33 +48,26 @@ pub fn find_path_2d(start_x: f32, start_y: f32, end_x: f32, end_y: f32) -> usize
     let start = (start_x.round() as i32, start_y.round() as i32);
     let goal = (end_x.round() as i32, end_y.round() as i32);
 
-    #[cfg(feature = "pathfinding-2d")]
-    {
-        let path = astar(
-            &start,
-            |&p| neighbors4(p).into_iter().map(|n| (n, 1u32)),
-            |&p| manhattan(p, goal),
-            |&p| p == goal,
-        )
-        .map(|(nodes, _cost)| nodes)
-        .unwrap_or_else(|| vec![start, goal]);
+    let path = astar(
+        &start,
+        |&p| neighbors4(p).into_iter().map(|n| (n, 1u32)),
+        |&p| manhattan(p, goal),
+        |&p| p == goal,
+    )
+    .map(|(nodes, _cost)| nodes)
+    .unwrap_or_else(|| vec![start, goal]);
 
-        let count = path.len().min(MAX_PATH_NODES);
-        // SAFETY: `PATH_BUFFER` is a static mut and this function is its only writer.
-        // The write finishes before any caller reads the buffer. [U-008]
-        unsafe {
-            for (i, (x, y)) in path.into_iter().take(count).enumerate() {
-                PATH_BUFFER[i] = PathNode {
-                    x: x as f32,
-                    y: y as f32,
-                };
-            }
-            PATH_NODE_COUNT = count;
-            #[allow(
-                clippy::needless_return,
-                reason = "this cfg branch is not the function tail"
-            )]
-            return PATH_NODE_COUNT;
+    let count = path.len().min(MAX_PATH_NODES);
+    // SAFETY: `PATH_BUFFER` is a static mut and this function is its only writer.
+    // The write finishes before any caller reads the buffer. [U-008]
+    unsafe {
+        for (i, (x, y)) in path.into_iter().take(count).enumerate() {
+            PATH_BUFFER[i] = PathNode {
+                x: x as f32,
+                y: y as f32,
+            };
         }
+        PATH_NODE_COUNT = count;
+        PATH_NODE_COUNT
     }
 }

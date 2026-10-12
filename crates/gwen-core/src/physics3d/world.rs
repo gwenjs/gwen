@@ -2343,8 +2343,8 @@ impl PhysicsWorld3D {
     /// Number of overlapping entities written to `out_ptr`.
     ///
     /// # Safety
-    /// `out_ptr` is used as `max_results` u32 slots. This function does not
-    /// check that length. [U-013]
+    /// `out_ptr` is used as `max_results` u32 slots. The length is still not
+    /// checked here. #110 owns the unchecked write. [U-013]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn overlap_shape(
         &self,
@@ -2372,7 +2372,7 @@ impl PhysicsWorld3D {
         let filter = Self::make_query_filter(layers, mask);
         let mut count: u32 = 0;
         let out_slice =
-            // SAFETY: `out_ptr` is used as `max_results` u32 slots. This function does not check that length. [U-013]
+            // SAFETY: `out_ptr` is used as `max_results` u32 slots. The length is still not checked here. #110 owns the unchecked write. [U-013]
             unsafe { std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize) };
         self.query_pipeline.intersections_with_shape(
             &self.rigid_body_set,
@@ -2942,33 +2942,6 @@ impl PhysicsWorld3D {
         vz: f32,
         dt: f32,
     ) {
-        /// Sentinel written on every early-exit path (not grounded, no contact).
-        const NO_HIT: [f32; 5] = [
-            0.0,
-            0.0,
-            1.0,
-            0.0,
-            // f32::from_bits(u32::MAX) — bit-pattern sentinel for "no entity"
-            f32::from_bits(u32::MAX),
-        ];
-
-        /// Write NO_HIT sentinel into the buffer at `base`.
-        #[inline(always)]
-        /// # Safety
-        ///
-        /// `buf` is `cc_state` and `base` is one controller slot inside it.
-        // SAFETY: `buf` is `cc_state` and `base` is one controller slot inside it. [U-014]
-        unsafe fn write_no_hit(buf: *mut [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE], base: usize) {
-            // SAFETY: `base` is a controller slot and `buf` is `cc_state`, which holds those slots. [U-015]
-            unsafe {
-                (*buf)[base] = NO_HIT[0];
-                (*buf)[base + 1] = NO_HIT[1];
-                (*buf)[base + 2] = NO_HIT[2];
-                (*buf)[base + 3] = NO_HIT[3];
-                (*buf)[base + 4] = NO_HIT[4];
-            }
-        }
-
         let Some(&slot) = self.cc_slot_indices.get(&entity_index) else {
             return;
         };
@@ -2976,9 +2949,7 @@ impl PhysicsWorld3D {
 
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("character_controller_move: unknown entity {}", entity_index);
-            // SAFETY: this entity has a controller slot but `entity_handles` has no body.
-            // `cc_state` is this world's buffer and `base` is that slot. [U-016]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let Some((cc, apply_impulses)) = self.cc_controllers.get(&entity_index) else {
@@ -3003,8 +2974,7 @@ impl PhysicsWorld3D {
                 "character_controller_move: entity {} has no collider",
                 entity_index
             );
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-019]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
             return;
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
@@ -3082,8 +3052,7 @@ impl PhysicsWorld3D {
                 (*buf)[base + 4] = f32::from_bits(ground_entity_bits);
             }
         } else {
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-023]
-            unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
+            self.write_cc_no_hit(base);
         }
     }
 
