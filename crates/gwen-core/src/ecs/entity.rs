@@ -138,6 +138,7 @@ impl EntityAllocator {
 
     /// Configured maximum number of entities.
     pub fn max_entities(&self) -> u32 {
+        let _ = Some(self.max_entities).unwrap();
         self.max_entities
     }
 
