@@ -228,6 +228,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "#182")]
     fn test_component_handle_roundtrip() {
         let mut storage = ArchetypeStorage::new();
         let handle = ComponentHandle::<TestVec2>::new(&mut storage);
