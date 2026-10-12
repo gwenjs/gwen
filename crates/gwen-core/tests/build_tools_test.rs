@@ -52,6 +52,46 @@ mod build_tools_tests {
         assert_eq!(trimesh.indices().len(), 1);
     }
 
+    trait BvhOutcome {
+        fn error_text(self) -> String;
+    }
+
+    impl BvhOutcome for Vec<u8> {
+        fn error_text(self) -> String {
+            format!("produced {} bytes", self.len())
+        }
+    }
+
+    impl BvhOutcome for Result<Vec<u8>, String> {
+        fn error_text(self) -> String {
+            match self {
+                Ok(buf) => format!("produced {} bytes", buf.len()),
+                Err(message) => message,
+            }
+        }
+    }
+
+    fn bvh_failure_text(vertices: &[f32], indices: &[u32]) -> String {
+        match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            build_bvh_buffer(vertices, indices).error_text()
+        })) {
+            Ok(text) => text,
+            Err(_) => "panic".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_build_bvh_buffer_bad_vertex_length_returns_err() {
+        let text = bvh_failure_text(&[1.0], &[0, 1, 2]);
+        assert!(text.contains("multiple of 3"), "expected Err, got {text}");
+    }
+
+    #[test]
+    fn test_build_bvh_buffer_bad_index_length_returns_err() {
+        let text = bvh_failure_text(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0], &[0]);
+        assert!(text.contains("multiple of 3"), "expected Err, got {text}");
+    }
+
     #[test]
     fn test_build_bvh_from_glb_invalid_bytes() {
         let result = build_bvh_from_glb(&[0xFF, 0xFE, 0x00], None);
