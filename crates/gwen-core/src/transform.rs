@@ -597,6 +597,10 @@ mod tests {
         clippy::disallowed_methods,
         reason = "wall-clock measurement in a test"
     )]
+    #[cfg_attr(
+        miri,
+        ignore = "wall-clock bound; Miri interprets the update and 10 ms cannot hold"
+    )]
     fn test_transform_performance_update_100() {
         let mut ts = TransformSystem::new();
 
