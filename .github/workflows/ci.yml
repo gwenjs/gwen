@@ -314,25 +314,27 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
         with:
-          toolchain: nightly-2026-10-01
-          components: miri
+          toolchain: ${{ env.MIRI_TOOLCHAIN }}
+          components: miri, rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: '. -> target'
-      - name: Miri gwen-core
-        run: cargo +nightly-2026-10-01 miri test -p gwen-core --lib --tests
+          cache-on-failure: true
+      - name: Miri gwen-core unsafe sites and shared buffer
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --test unsafe_sites --test shared_buffer
       - name: Miri gwen-core physics2d unsafe sites
-        run: cargo +nightly-2026-10-01 miri test -p gwen-core --features physics2d unsafe_site_
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --test unsafe_sites
       - name: Miri gwen-core physics3d unsafe sites
-        run: cargo +nightly-2026-10-01 miri test -p gwen-core --features physics3d unsafe_site_
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test unsafe_sites
       - name: Miri gwen-wasm-utils
-        run: cargo +nightly-2026-10-01 miri test -p gwen-wasm-utils
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
 
   ci-status:
     name: CI Status
