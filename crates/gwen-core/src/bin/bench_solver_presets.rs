@@ -5,7 +5,7 @@
     clippy::unreachable,
     clippy::todo,
     clippy::unimplemented,
-    reason = "bench harness, not a wasm export (#80)"
+    reason = "bench harness, not a wasm export (#183)"
 )]
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
