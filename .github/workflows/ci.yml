@@ -329,9 +329,16 @@ jobs:
           cache-on-failure: true
       - name: Miri gwen-core unsafe sites and shared buffer
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --test unsafe_sites --test shared_buffer
+      # Rapier 0.22 index_mut2 does two get_unchecked_mut on one Vec.
+      # Stacked Borrows rejects that on every colliding step. Tree Borrows
+      # accepts distinct indices. Leak checks stay on.
       - name: Miri gwen-core physics2d unsafe sites
+        env:
+          MIRIFLAGS: -Zmiri-tree-borrows
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --test unsafe_sites
       - name: Miri gwen-core physics3d unsafe sites
+        env:
+          MIRIFLAGS: -Zmiri-tree-borrows
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test unsafe_sites
       - name: Miri gwen-core lib unsafe_site tests
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib unsafe_site_
