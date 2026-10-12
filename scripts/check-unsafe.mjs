@@ -4,22 +4,36 @@
  * Run: node scripts/check-unsafe.mjs
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const KINDS = new Set(['static-mut', 'ffi-ptr', 'raw-alloc', 'ptr-arith']);
+const KINDS = new Set(['static-mut', 'ffi-ptr', 'raw-alloc', 'ptr-arith', 'send-sync']);
 const ID_RE = /\[(U-\d+)\]/g;
+const TEST_ATTR_RE = /^#\[\s*(tokio::test|wasm_bindgen_test|test)\b/;
+const UNSAFE_SITE_RE = /^unsafe_site_[A-Za-z0-9_]+$/;
 
 /**
+ * @typedef {{ tests: Set<string>, all: Set<string> }} CrateFns
+ * @typedef {{ exists?: (filePath: string) => boolean }} UnsafeAuditOptions
+ */
+
+/**
+ * Check unsafe sites against UNSAFE.md rows.
+ * `options.exists` reports whether a repo-relative ffi-ptr citation path is on
+ * disk. When it returns true, the helper does not open the file: an integer
+ * line greater than or equal to 1 is enough.
+ *
  * @param {{ path: string, text: string }[]} files
  * @param {{ path: string, text: string }[]} docs
+ * @param {UnsafeAuditOptions} [options]
  * @returns {string[]}
  */
-export function evaluateUnsafe(files, docs) {
+export function evaluateUnsafe(files, docs, options) {
+  const exists = options?.exists;
   /** @type {string[]} */
   const errors = [];
-  /** @type {Map<string, Set<string>>} */
+  /** @type {Map<string, CrateFns>} */
   const fns = new Map();
   /** @type {{ crate: string, id: string | null, path: string, line: number, fnItem: boolean }[]} */
   const sites = [];
@@ -29,7 +43,7 @@ export function evaluateUnsafe(files, docs) {
     if (!file.path.endsWith('.rs')) continue;
     const crate = crateName(file.path);
     if (crate === null) continue;
-    collectFns(file.text, crate, fns);
+    collectFns(file.text, file.path, crate, fns);
     if (skipFile(file.path)) continue;
     scanFile(file, crate, sites, errors);
   }
@@ -58,21 +72,26 @@ export function evaluateUnsafe(files, docs) {
     if (count > 1) errors.push(`duplicate id ${id}`);
   }
 
-  /** @type {Set<string>} */
-  const codeIds = new Set();
+  /** @type {Map<string, Set<string>>} */
+  const codeIds = new Map();
   for (const site of sites) {
     if (site.id === null) continue;
-    codeIds.add(site.id);
+    let ids = codeIds.get(site.crate);
+    if (ids === undefined) {
+      ids = new Set();
+      codeIds.set(site.crate, ids);
+    }
+    ids.add(site.id);
     const row = rows.get(site.id);
     if (row === undefined || row.crate !== site.crate) {
       errors.push(`id ${site.id} is not in UNSAFE.md`);
     }
   }
   for (const [id, row] of rows) {
-    if (!codeIds.has(id)) errors.push(`UNSAFE.md id ${id} is not in the code`);
-    if (row.test === 'removed') continue;
-    const names = fns.get(row.crate) ?? new Set();
-    if (!names.has(row.test)) errors.push(`test ${row.test} was not found`);
+    const ids = codeIds.get(row.crate);
+    if (ids === undefined || !ids.has(id)) errors.push(`UNSAFE.md id ${id} is not in the code`);
+    const problem = proofProblem(id, row, fns.get(row.crate), exists);
+    if (problem !== null) errors.push(problem);
   }
   return errors;
 }
@@ -89,31 +108,141 @@ function crateName(filePath) {
 }
 
 /**
+ * Skip site scanning for the crate's top-level tests directory, benches, and
+ * `*_tests.rs`. A tests directory under `src/` stays in the scan.
+ *
  * @param {string} filePath
  * @returns {boolean}
  */
 function skipFile(filePath) {
+  if (filePath.endsWith('_tests.rs')) return true;
+  if (filePath.includes('/benches/')) return true;
+  const parts = filePath.split('/');
+  const crates = parts.indexOf('crates');
+  return crates !== -1 && parts[crates + 2] === 'tests';
+}
+
+/**
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function fileCountsAsTests(filePath) {
+  if (filePath.endsWith('_tests.rs')) return true;
+  const parts = filePath.split('/');
+  const crates = parts.indexOf('crates');
+  if (crates === -1) return false;
+  const file = parts[crates + 3];
   return (
-    filePath.includes('/tests/') ||
-    filePath.includes('/benches/') ||
-    filePath.endsWith('_tests.rs')
+    parts[crates + 2] === 'tests' &&
+    file !== undefined &&
+    file.endsWith('.rs') &&
+    parts.length === crates + 4
   );
 }
 
 /**
- * @param {string} text
+ * @param {Map<string, CrateFns>} fns
  * @param {string} crate
- * @param {Map<string, Set<string>>} fns
+ * @returns {CrateFns}
  */
-function collectFns(text, crate, fns) {
-  let names = fns.get(crate);
-  if (names === undefined) {
-    names = new Set();
-    fns.set(crate, names);
+function fnBucket(fns, crate) {
+  let bucket = fns.get(crate);
+  if (bucket === undefined) {
+    bucket = { tests: new Set(), all: new Set() };
+    fns.set(crate, bucket);
   }
-  for (const match of text.matchAll(/\bfn\s+([A-Za-z0-9_]+)/g)) {
-    if (match[1] !== undefined) names.add(match[1]);
+  return bucket;
+}
+
+/**
+ * @param {string} text
+ * @param {string} filePath
+ * @param {string} crate
+ * @param {Map<string, CrateFns>} fns
+ */
+function collectFns(text, filePath, crate, fns) {
+  const bucket = fnBucket(fns, crate);
+  const lines = text.split('\n');
+  const fileIsTest = fileCountsAsTests(filePath);
+  let line = 1;
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      line += 1;
+      i += 1;
+      continue;
+    }
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      line += skipped.newlines;
+      i = skipped.index;
+      continue;
+    }
+    if (isIdentStart(text[i])) {
+      const startLine = line;
+      const start = i;
+      i += 1;
+      while (i < text.length && isIdent(text[i])) i += 1;
+      const word = text.slice(start, i);
+      if (word === 'r' && text[i] === '#' && isIdentStart(text[i + 1])) {
+        i += 1;
+        while (i < text.length && isIdent(text[i])) i += 1;
+        continue;
+      }
+      if (word !== 'fn') continue;
+      const name = readNextIdent(text, i);
+      if (name === null) continue;
+      bucket.all.add(name);
+      if (fileIsTest || hasTestAttribute(lines, startLine)) bucket.tests.add(name);
+      continue;
+    }
+    i += 1;
   }
+}
+
+/**
+ * @param {string} text
+ * @param {number} index
+ * @returns {string | null}
+ */
+function readNextIdent(text, index) {
+  let i = index;
+  while (i < text.length) {
+    const char = text[i];
+    if (char === ' ' || char === '\t' || char === '\r' || char === '\n') {
+      i += 1;
+      continue;
+    }
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      i = skipped.index;
+      continue;
+    }
+    if (!isIdentStart(char)) return null;
+    const start = i;
+    i += 1;
+    while (i < text.length && isIdent(text[i])) i += 1;
+    return text.slice(start, i);
+  }
+  return null;
+}
+
+/**
+ * @param {readonly string[]} lines
+ * @param {number} fnLine 1-based line of the `fn` token
+ * @returns {boolean}
+ */
+function hasTestAttribute(lines, fnLine) {
+  const own = (lines[fnLine - 1] ?? '').trim();
+  if (TEST_ATTR_RE.test(own)) return true;
+  for (let index = fnLine - 2; index >= 0; index -= 1) {
+    const trimmed = (lines[index] ?? '').trim();
+    if (trimmed === '') return false;
+    if (TEST_ATTR_RE.test(trimmed)) return true;
+    if (isPreludeLine(trimmed)) continue;
+    return false;
+  }
+  return false;
 }
 
 /**
@@ -134,6 +263,48 @@ function parseRows(text) {
     });
   }
   return rows;
+}
+
+/**
+ * @param {string} id
+ * @param {{ kind: string, test: string }} row
+ * @param {CrateFns | undefined} bucket
+ * @param {((filePath: string) => boolean) | undefined} exists
+ * @returns {string | null}
+ */
+function proofProblem(id, row, bucket, exists) {
+  if (row.test === 'removed') return `test cell removed is not a proof: ${id}`;
+  if (UNSAFE_SITE_RE.test(row.test)) {
+    if (bucket !== undefined && bucket.tests.has(row.test)) return null;
+    if (bucket !== undefined && bucket.all.has(row.test)) {
+      return `test ${row.test} is not an unsafe_site test`;
+    }
+    return `test ${row.test} was not found`;
+  }
+  if (row.kind === 'ffi-ptr') {
+    const citation = parseCitation(row.test);
+    if (citation !== null && exists !== undefined && exists(citation.path)) return null;
+  }
+  return `test ${row.test} was not found`;
+}
+
+/**
+ * Repo-relative `path:line`. The line must be an integer >= 1. Callers that
+ * trust `exists` do not read the file, so they do not check the line exists.
+ *
+ * @param {string} cell
+ * @returns {{ path: string, line: number } | null}
+ */
+function parseCitation(cell) {
+  const match = /^([^:\s]+):(\d+)$/.exec(cell);
+  if (match === null) return null;
+  const filePath = match[1];
+  const digits = match[2];
+  if (filePath === undefined || digits === undefined) return null;
+  if (filePath.startsWith('/') || filePath.split('/').includes('..')) return null;
+  const line = Number(digits);
+  if (!Number.isInteger(line) || line < 1) return null;
+  return { path: filePath, line };
 }
 
 /**
@@ -166,10 +337,10 @@ function scanFile(file, crate, sites, errors) {
       sites.push({ crate, id, path: file.path, line: hit.line, fnItem });
       continue;
     }
-    if (hit.word === 'allow' && !allowNamesIssue(hit.text)) {
+    if ((hit.word === 'allow' || hit.word === 'expect') && !mentionsIssue(hit.text)) {
       const lint = hit.text.match(/clippy::(unwrap_used|expect_used|panic)\b/);
-      if (lint !== null) {
-        errors.push(`allow clippy::${lint[1]} has no issue: ${file.path}:${hit.line}`);
+      if (lint !== null && lint[1] !== undefined) {
+        errors.push(`${hit.word} clippy::${lint[1]} has no issue: ${file.path}:${hit.line}`);
       }
     }
   }
@@ -211,24 +382,98 @@ function firstId(comment) {
 }
 
 /**
+ * Doc comments and attributes on this item only. A blank line, another item,
+ * or a previous item's docs end the prelude.
+ *
  * @param {string[]} lines
  * @param {number} index
  * @returns {boolean}
  */
 function hasSafetySection(lines, index) {
-  for (let cursor = index - 1; cursor >= 0 && index - cursor <= 40; cursor -= 1) {
+  let pending = 0;
+  for (let cursor = index - 1; cursor >= 0; cursor -= 1) {
     const trimmed = (lines[cursor] ?? '').trim();
-    if (/^(pub(\([^)]*\))?\s+)?(async\s+)?(unsafe\s+)?fn\b/.test(trimmed)) return false;
-    if (trimmed.includes('# Safety')) return true;
+    if (trimmed === '') {
+      if (pending === 0) return false;
+      continue;
+    }
+    if (pending === 0 && isFnLine(trimmed)) return false;
+    const counts = bracketCounts(trimmed);
+    const insideAttribute = pending > 0 || counts.closes > counts.opens || trimmed.startsWith('#');
+    if (!insideAttribute && !isPreludeLine(trimmed)) return false;
+    if (
+      pending === 0 &&
+      (trimmed.startsWith('//') || trimmed.startsWith('/*')) &&
+      trimmed.includes('# Safety')
+    ) {
+      return true;
+    }
+    const nextPending = pending + counts.closes - counts.opens;
+    if (nextPending < 0) return false;
+    pending = nextPending;
   }
   return false;
+}
+
+/**
+ * Brackets outside comments and strings. Comments contribute nothing so a
+ * `(...)` in a SAFETY line does not look like an open attribute.
+ *
+ * @param {string} trimmed
+ * @returns {{ opens: number, closes: number }}
+ */
+function bracketCounts(trimmed) {
+  if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return { opens: 0, closes: 0 };
+  let opens = 0;
+  let closes = 0;
+  let i = 0;
+  while (i < trimmed.length) {
+    const char = trimmed[i];
+    if (char === '"') {
+      i += 1;
+      while (i < trimmed.length && trimmed[i] !== '"') {
+        if (trimmed[i] === '\\') i += 1;
+        i += 1;
+      }
+      i += 1;
+      continue;
+    }
+    if (char === '(' || char === '[') opens += 1;
+    else if (char === ')' || char === ']') closes += 1;
+    i += 1;
+  }
+  return { opens, closes };
+}
+
+/**
+ * @param {string} trimmed
+ * @returns {boolean}
+ */
+function isFnLine(trimmed) {
+  if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return false;
+  const code = trimmed.replace(/"(?:\\.|[^"\\])*"/g, '""');
+  return /\bfn\b/.test(code);
+}
+
+/**
+ * @param {string} trimmed
+ * @returns {boolean}
+ */
+function isPreludeLine(trimmed) {
+  return (
+    trimmed.startsWith('//') ||
+    trimmed.startsWith('/*') ||
+    trimmed.startsWith('#') ||
+    trimmed.startsWith(']') ||
+    trimmed.startsWith(')')
+  );
 }
 
 /**
  * @param {string} text
  * @returns {boolean}
  */
-function allowNamesIssue(text) {
+function mentionsIssue(text) {
   return /#\d+/.test(text);
 }
 
@@ -237,8 +482,7 @@ function allowNamesIssue(text) {
  * @returns {Set<number>}
  */
 function testModLines(text) {
-  const stripped = strip(text);
-  const source = stripped.split('\n');
+  const source = strip(text).split('\n');
   /** @type {Set<number>} */
   const inside = new Set();
   /** @type {number[]} */
@@ -276,73 +520,260 @@ function codeHits(text) {
   let line = 1;
   let i = 0;
   while (i < text.length) {
-    const char = text[i];
-    if (char === '\n') {
+    if (text[i] === '\n') {
       line += 1;
       i += 1;
       continue;
     }
-    if (char === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\n') i += 1;
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      line += skipped.newlines;
+      i = skipped.index;
       continue;
     }
-    if (char === '/' && text[i + 1] === '*') {
-      i += 2;
-      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
-        if (text[i] === '\n') line += 1;
-        i += 1;
-      }
-      i += 2;
-      continue;
-    }
-    if (char === '"') {
-      i += 1;
-      while (i < text.length && text[i] !== '"') {
-        if (text[i] === '\\') i += 1;
-        else if (text[i] === '\n') line += 1;
-        i += 1;
-      }
-      i += 1;
-      continue;
-    }
-    if (isIdentStart(char)) {
+    if (isIdentStart(text[i])) {
       const start = i;
       const startLine = line;
       i += 1;
       while (i < text.length && isIdent(text[i])) i += 1;
       const word = text.slice(start, i);
-      if (word === 'unsafe') hits.push({ word, line: startLine, text: '' });
-      else if (word === 'allow' && text[i] === '(') {
-        const allowStart = i;
-        let depth = 0;
-        let cursor = i;
-        let allowLine = line;
-        while (cursor < text.length) {
-          const next = text[cursor];
-          if (next === '\n') allowLine += 1;
-          if (next === '(') depth += 1;
-          else if (next === ')') {
-            depth -= 1;
-            if (depth === 0) {
-              cursor += 1;
-              break;
-            }
+      if (word === 'r' && text[i] === '#' && isIdentStart(text[i + 1])) {
+        i += 1;
+        while (i < text.length && isIdent(text[i])) i += 1;
+        continue;
+      }
+      if (word === 'unsafe') {
+        hits.push({ word, line: startLine, text: '' });
+        continue;
+      }
+      if (word === 'allow' || word === 'expect') {
+        const call = readBalancedCall(text, i, line);
+        if (call !== null) {
+          if (/clippy::(unwrap_used|expect_used|panic)\b/.test(call.text)) {
+            hits.push({ word, line: startLine, text: call.text });
           }
-          cursor += 1;
+          line = call.line;
+          i = call.index;
         }
-        const body = text.slice(start, cursor);
-        if (/clippy::(unwrap_used|expect_used|panic)\b/.test(body)) {
-          hits.push({ word: 'allow', line: startLine, text: body });
-        }
-        line = allowLine;
-        i = cursor;
-        void allowStart;
+        continue;
       }
       continue;
     }
     i += 1;
   }
   return hits;
+}
+
+/**
+ * @param {string} text
+ * @param {number} index index just after the ident
+ * @param {number} line
+ * @returns {{ text: string, index: number, line: number } | null}
+ */
+function readBalancedCall(text, index, line) {
+  let i = index;
+  let cursorLine = line;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      cursorLine += 1;
+      i += 1;
+      continue;
+    }
+    if (text[i] === ' ' || text[i] === '\t' || text[i] === '\r') {
+      i += 1;
+      continue;
+    }
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      cursorLine += skipped.newlines;
+      i = skipped.index;
+      continue;
+    }
+    break;
+  }
+  if (text[i] !== '(') return null;
+  const open = i;
+  let depth = 0;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      cursorLine += 1;
+      i += 1;
+      continue;
+    }
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      cursorLine += skipped.newlines;
+      i = skipped.index;
+      continue;
+    }
+    if (text[i] === '(') depth += 1;
+    else if (text[i] === ')') {
+      depth -= 1;
+      if (depth === 0) {
+        i += 1;
+        return { text: text.slice(open, i), index: i, line: cursorLine };
+      }
+    }
+    i += 1;
+  }
+  return { text: text.slice(open), index: text.length, line: cursorLine };
+}
+
+/**
+ * Comments, strings, and char literals. Lifetimes stay in the code stream.
+ * Shared by the site scan and the `#[cfg(test)] mod tests` brace tracker.
+ *
+ * @param {string} text
+ * @param {number} index
+ * @returns {{ index: number, newlines: number } | null}
+ */
+function skipTrivia(text, index) {
+  if (text[index] === '/' && text[index + 1] === '/') {
+    let i = index + 2;
+    while (i < text.length && text[i] !== '\n') i += 1;
+    return { index: i, newlines: 0 };
+  }
+  if (text[index] === '/' && text[index + 1] === '*') return skipBlockComment(text, index);
+  const raw = skipRawString(text, index);
+  if (raw !== null) return raw;
+  if (text[index] === '"') return skipCookedString(text, index);
+  if (text[index] === "'") return skipCharLiteral(text, index);
+  return null;
+}
+
+/**
+ * @param {string} text
+ * @param {number} index
+ * @returns {{ index: number, newlines: number }}
+ */
+function skipBlockComment(text, index) {
+  let i = index + 2;
+  let depth = 1;
+  let newlines = 0;
+  while (i < text.length && depth > 0) {
+    if (text[i] === '\n') {
+      newlines += 1;
+      i += 1;
+      continue;
+    }
+    if (text[i] === '/' && text[i + 1] === '*') {
+      depth += 1;
+      i += 2;
+      continue;
+    }
+    if (text[i] === '*' && text[i + 1] === '/') {
+      depth -= 1;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return { index: i, newlines };
+}
+
+/**
+ * `r"..."`, `r#"..."#`, `r##"..."##`, plus `b` and `c` prefixes.
+ *
+ * @param {string} text
+ * @param {number} index
+ * @returns {{ index: number, newlines: number } | null}
+ */
+function skipRawString(text, index) {
+  if (index > 0 && isIdent(text[index - 1])) return null;
+  let k = index;
+  if ((text[k] === 'b' || text[k] === 'c') && text[k + 1] === 'r') k += 1;
+  if (text[k] !== 'r') return null;
+  k += 1;
+  let hashes = 0;
+  while (text[k] === '#') {
+    hashes += 1;
+    k += 1;
+  }
+  if (text[k] !== '"') return null;
+  let i = k + 1;
+  let newlines = 0;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      newlines += 1;
+      i += 1;
+      continue;
+    }
+    if (text[i] === '"') {
+      let matched = 0;
+      while (matched < hashes && text[i + 1 + matched] === '#') matched += 1;
+      if (matched === hashes) return { index: i + 1 + hashes, newlines };
+    }
+    i += 1;
+  }
+  return { index: text.length, newlines };
+}
+
+/**
+ * @param {string} text
+ * @param {number} index
+ * @returns {{ index: number, newlines: number }}
+ */
+function skipCookedString(text, index) {
+  let i = index + 1;
+  let newlines = 0;
+  while (i < text.length) {
+    if (text[i] === '\n') {
+      newlines += 1;
+      i += 1;
+      continue;
+    }
+    if (text[i] === '\\') {
+      i += 1;
+      if (i >= text.length) break;
+      if (text[i] === '\n') newlines += 1;
+      i += 1;
+      continue;
+    }
+    if (text[i] === '"') return { index: i + 1, newlines };
+    i += 1;
+  }
+  return { index: text.length, newlines };
+}
+
+/**
+ * A char literal (`'"'`, `'\\'`, `'\n'`, `'a'`). A lifetime (`'` + ident, no
+ * closing quote) returns null so the caller keeps it as code.
+ *
+ * @param {string} text
+ * @param {number} index
+ * @returns {{ index: number, newlines: number } | null}
+ */
+function skipCharLiteral(text, index) {
+  const next = text[index + 1];
+  if (next === undefined || next === '\n' || next === '\r') return null;
+  if (next === '\\') {
+    let i = index + 2;
+    if (text[i] === undefined) return null;
+    if (text[i] === 'u' && text[i + 1] === '{') {
+      i += 2;
+      while (i < text.length && text[i] !== '}') i += 1;
+      if (text[i] === '}') i += 1;
+    } else if (text[i] === 'x') {
+      i += 1;
+      let hex = 0;
+      while (hex < 2 && i < text.length && /[0-9a-fA-F]/.test(text[i] ?? '')) {
+        hex += 1;
+        i += 1;
+      }
+    } else {
+      i += 1;
+    }
+    if (text[i] !== "'") return null;
+    return { index: i + 1, newlines: 0 };
+  }
+  if (isIdentStart(next)) {
+    let i = index + 2;
+    while (i < text.length && isIdent(text[i])) i += 1;
+    if (i === index + 2 && text[i] === "'") return { index: i + 1, newlines: 0 };
+    return null;
+  }
+  if (text[index + 2] === "'") return { index: index + 3, newlines: 0 };
+  return null;
 }
 
 /**
@@ -369,40 +800,13 @@ function strip(text) {
   let out = '';
   let i = 0;
   while (i < text.length) {
-    if (text[i] === '/' && text[i + 1] === '/') {
-      while (i < text.length && text[i] !== '\n') {
-        out += ' ';
-        i += 1;
-      }
+    const skipped = skipTrivia(text, i);
+    if (skipped !== null) {
+      out += text.slice(i, skipped.index).replace(/[^\n]/g, ' ');
+      i = skipped.index;
       continue;
     }
-    if (text[i] === '/' && text[i + 1] === '*') {
-      out += '  ';
-      i += 2;
-      while (i < text.length && !(text[i] === '*' && text[i + 1] === '/')) {
-        out += text[i] === '\n' ? '\n' : ' ';
-        i += 1;
-      }
-      out += '  ';
-      i += 2;
-      continue;
-    }
-    if (text[i] === '"') {
-      out += ' ';
-      i += 1;
-      while (i < text.length && text[i] !== '"') {
-        out += text[i] === '\n' ? '\n' : ' ';
-        if (text[i] === '\\') {
-          i += 1;
-          if (i < text.length) out += text[i] === '\n' ? '\n' : ' ';
-        }
-        i += 1;
-      }
-      out += ' ';
-      i += 1;
-      continue;
-    }
-    out += text[i];
+    out += text[i] ?? '';
     i += 1;
   }
   return out;
@@ -421,12 +825,30 @@ function main() {
       text: readFileSync(filePath, 'utf8'),
     };
   });
-  const errors = evaluateUnsafe(files, docs);
+  const errors = evaluateUnsafe(files, docs, {
+    exists(filePath) {
+      return repoFileExists(root, filePath);
+    },
+  });
   if (errors.length > 0) {
     for (const error of errors) console.error(error);
     process.exit(1);
   }
   console.log(`unsafe audit ok (${files.length} rust files)`);
+}
+
+/**
+ * Does not read the file. A true result does not prove the citation line is in range.
+ *
+ * @param {string} root
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function repoFileExists(root, filePath) {
+  if (filePath.startsWith('/') || filePath.includes('\\')) return false;
+  const parts = filePath.split('/');
+  if (parts.includes('..') || parts.includes('')) return false;
+  return existsSync(path.join(root, filePath));
 }
 
 /**
