@@ -88,17 +88,29 @@ export class DisposableRegistry implements DisposableRegistryBase {
   }
 
   /**
-   * Dispose all registered resources in LIFO order, then clear the registry.
+   * Dispose all registered resources in LIFO order.
    *
-   * Each disposable's `dispose()` is called exactly once (subsequent
-   * `disposeAll()` calls on an empty registry are safe no-ops).
+   * The stack is copied and cleared before any `dispose()` runs, so a second
+   * call does not retry. Every entry still runs when an earlier one throws.
+   * The first error is rethrown after the loop.
    */
   disposeAll(): void {
-    for (let i = this._stack.length - 1; i >= 0; i--) {
-      const entry = this._stack[i];
-      if (entry !== undefined) entry.d.dispose();
+    const stack = this._stack.splice(0);
+    let firstError: unknown;
+    let failed = false;
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const entry = stack[i];
+      if (entry === undefined) continue;
+      try {
+        entry.d.dispose();
+      } catch (error: unknown) {
+        if (!failed) {
+          firstError = error;
+          failed = true;
+        }
+      }
     }
-    this._stack.length = 0;
+    if (failed) throw firstError;
   }
 
   /** Number of disposables currently registered. */

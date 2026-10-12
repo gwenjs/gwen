@@ -15,11 +15,14 @@
 //! it, [`find_path_3d`] falls back to a trivial two-waypoint straight-line result.
 //!
 //! # Usage
-//! 1. Call [`init_navgrid_3d`] once (or whenever the grid changes) to upload the
-//!    voxel data from WASM linear memory.
+//! 1. Call [`Engine::physics3d_init_navgrid_3d`] once (or whenever the grid
+//!    changes) to upload the voxel data from WASM linear memory.
+//!    [`init_navgrid_3d`] is `pub(crate)` and is not the public call.
 //! 2. Call [`find_path_3d`] to compute a path; the return value is the waypoint count.
 //! 3. Call [`get_path_buffer_ptr_3d`] to obtain a pointer to the result buffer and
 //!    wrap it in a `Float32Array` view from JavaScript.
+//!
+//! [`Engine::physics3d_init_navgrid_3d`]: crate::bindings::Engine::physics3d_init_navgrid_3d
 
 use std::cell::RefCell;
 
@@ -105,8 +108,10 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 ///
 /// # Safety
 ///
-/// `ptr` is null, or it addresses at least `width * height * depth` readable
-/// bytes for this call. A null pointer or a zero cell count stores no grid.
+/// A null pointer or a zero cell count stores no grid and does not read.
+/// Otherwise this function reads `width * height * depth` bytes and does not
+/// check that the buffer is that long. The missing check is the physics child
+/// of #52.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
@@ -127,7 +132,10 @@ pub(crate) unsafe fn init_navgrid_3d(
         *slot = None;
         return;
     }
-    // SAFETY: the caller of this unsafe function guarantees `ptr` addresses `len` bytes.
+    // SAFETY: a null pointer or a zero cell count stores no grid and does not
+    // read (handled above). Otherwise this reads `width * height * depth`
+    // bytes and does not check that the buffer is that long. The missing
+    // check is the physics child of #52.
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
@@ -141,7 +149,9 @@ pub(crate) unsafe fn init_navgrid_3d(
     });
 }
 
-/// Copy a voxel grid into `slot`. `ptr` must address `width * height * depth` bytes.
+/// Copy a voxel grid into `slot`. A null pointer or a zero cell count stores
+/// no grid. Any other call reads `width * height * depth` bytes and does not
+/// check that length. The missing check is the physics child of #52.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
@@ -158,8 +168,10 @@ pub(crate) fn install_navgrid(
     origin_y: f32,
     origin_z: f32,
 ) {
-    // SAFETY: callers of this wrapper pass a pointer to `width * height * depth`
-    // bytes, or null. `init_navgrid_3d` copies those bytes before it returns.
+    // SAFETY: a null pointer or a zero cell count stores no grid and does not
+    // read. Otherwise this reads `width * height * depth` bytes and does not
+    // check that the buffer is that long. The missing check is the physics
+    // child of #52.
     unsafe {
         init_navgrid_3d(
             slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,

@@ -38,14 +38,25 @@ use rapier3d::{geometry::TriMesh, na::Point3};
 ///
 /// # Errors
 ///
-/// Returns an error when a length is not a multiple of 3, or when the mesh
-/// bytes do not encode.
+/// Returns an error when a length is not a multiple of 3, when indices are
+/// empty, when an index is >= the vertex count, or on bincode encode failure.
 pub fn build_bvh_buffer(vertices_flat: &[f32], indices_flat: &[u32]) -> Result<Vec<u8>, String> {
     if !vertices_flat.len().is_multiple_of(3) {
         return Err("vertices_flat length must be a multiple of 3".to_string());
     }
     if !indices_flat.len().is_multiple_of(3) {
         return Err("indices_flat length must be a multiple of 3".to_string());
+    }
+    if indices_flat.is_empty() {
+        return Err("indices_flat must contain at least one triangle".to_string());
+    }
+    let vertex_count = vertices_flat.len() / 3;
+    for &index in indices_flat {
+        if (index as usize) >= vertex_count {
+            return Err(format!(
+                "index {index} is outside the vertex count {vertex_count}"
+            ));
+        }
     }
 
     let verts: Vec<Point3<f32>> = vertices_flat

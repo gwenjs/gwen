@@ -391,8 +391,11 @@ export class GwenEngineImpl implements GwenEngine {
     // another live engine may still need those keys.
     this._wasmRunner.clear();
 
-    this.disposables.disposeAll(); // LIFO — last registered, first disposed
-    this._policy.dispose();
+    try {
+      this.disposables.disposeAll(); // LIFO — last registered, first disposed
+    } finally {
+      this._policy.dispose();
+    }
   }
 
   /**

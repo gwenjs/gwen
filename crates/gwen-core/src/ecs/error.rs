@@ -63,8 +63,9 @@ pub enum CoreError {
         /// Length the caller passed.
         actual: u32,
     },
-    /// `ptr` is not the start of a live `alloc_shared_buffer` allocation
-    /// long enough for the requested slot count.
+    /// `ptr` is not live, the byte length is not the recorded one, or the
+    /// buffer is not long enough for the requested slot count. The `len`
+    /// field is 0 when `ptr` is not live.
     InvalidSharedBuffer {
         /// Pointer the caller passed.
         ptr: usize,
