@@ -11,7 +11,7 @@
     "light": {
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
       "raw": 90001,
-      "gzip": { "baseline": 34438, "budget": 40313 },
+      "gzip": { "baseline": 38265, "budget": 40313 },
       "brotli": { "baseline": 31853, "budget": 33901 }
     },
     "physics2d": {
