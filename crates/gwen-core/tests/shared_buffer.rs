@@ -182,3 +182,51 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     };
     assert_eq!(freed, CoreError::InvalidSharedBuffer { ptr: exact, len: 0 });
 }
+
+trait FreeOutcome {
+    fn shared_buffer_error(self) -> Option<CoreError>;
+}
+
+impl FreeOutcome for () {
+    fn shared_buffer_error(self) -> Option<CoreError> {
+        None
+    }
+}
+
+impl FreeOutcome for Result<(), CoreError> {
+    fn shared_buffer_error(self) -> Option<CoreError> {
+        self.err()
+    }
+}
+
+fn engine_or_skip() -> Option<Engine> {
+    match Engine::new(4) {
+        Ok(engine) => Some(engine),
+        Err(err) => {
+            assert_eq!(err.code(), "created");
+            None
+        }
+    }
+}
+
+#[test]
+fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
+    let Some(mut engine) = engine_or_skip() else {
+        return;
+    };
+    let ptr = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let _ = engine
+        .free_shared_buffer(0, TRANSFORM_STRIDE)
+        .shared_buffer_error();
+    let _ = engine.free_shared_buffer(ptr, 0).shared_buffer_error();
+    assert!(engine.sync_transforms_to_buffer(ptr, 1).is_ok());
+    let err = engine.free_shared_buffer(ptr, 16).shared_buffer_error();
+    assert_eq!(
+        err,
+        Some(CoreError::InvalidSharedBuffer {
+            ptr,
+            len: TRANSFORM_STRIDE
+        })
+    );
+    assert!(engine.sync_transforms_to_buffer(ptr, 1).is_ok());
+}
