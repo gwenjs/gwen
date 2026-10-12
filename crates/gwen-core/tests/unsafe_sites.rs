@@ -123,6 +123,10 @@ fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
 }
 
 #[cfg(feature = "physics2d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u005_step_records_a_collision() {
     use gwen_core::physics2d::PhysicsCollisionEvent;
@@ -139,6 +143,10 @@ fn unsafe_site_u005_step_records_a_collision() {
 }
 
 #[cfg(feature = "physics2d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u006_two_worlds_do_not_share_events() {
     let mut crowded = overlapping_pair();
@@ -153,7 +161,7 @@ fn unsafe_site_u006_two_worlds_do_not_share_events() {
 #[cfg(feature = "physics2d")]
 #[cfg_attr(
     miri,
-    ignore = "46 stacked bodies: one Rapier step exceeds the Miri job budget"
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
 )]
 #[test]
 fn unsafe_site_u007_event_buffer_fills_then_clears() {
@@ -247,6 +255,10 @@ fn first_pair_3d(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 2] {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u010_step_records_a_collision() {
     let mut world = overlapping_pair_3d();
@@ -259,6 +271,10 @@ fn unsafe_site_u010_step_records_a_collision() {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u011_two_worlds_do_not_share_events() {
     let mut crowded = overlapping_pair_3d();
@@ -279,7 +295,7 @@ fn unsafe_site_u011_two_worlds_do_not_share_events() {
 #[cfg(feature = "physics3d")]
 #[cfg_attr(
     miri,
-    ignore = "46 stacked bodies: one Rapier step exceeds the Miri job budget"
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
 )]
 #[test]
 fn unsafe_site_u012_event_buffer_fills_then_clears() {
@@ -306,6 +322,10 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u013_overlap_writes_the_entity() {
     use gwen_core::physics3d::PhysicsWorld3D;
@@ -394,6 +414,10 @@ fn unsafe_site_u019_body_without_collider_writes_no_hit() {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u022_grounded_move_writes_contact() {
     use gwen_core::physics3d::PhysicsWorld3D;
@@ -453,6 +477,10 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
 }
 
 #[cfg(feature = "physics3d")]
+#[cfg_attr(
+    miri,
+    ignore = "x86_64 Miri cannot execute Rapier's stmxcsr inside PhysicsPipeline::step"
+)]
 #[test]
 fn unsafe_site_u023_air_move_writes_no_hit() {
     use gwen_core::physics3d::PhysicsWorld3D;
