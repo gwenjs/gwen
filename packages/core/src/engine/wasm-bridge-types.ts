@@ -309,7 +309,9 @@ export interface WasmEngineBase {
    * @param byteLength Exact byte count used during allocation.
    * @throws {GwenWasmError} code `CORE:INVALID_SHARED_BUFFER` when `ptr` is
    *   unknown, already freed, or `byteLength` is not the recorded length.
-   *   The message is `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   When the length differs, the message is
+   *   `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   `len` is 0 when `ptr` is unknown or already freed.
    *   Nothing is deallocated.
    */
   free_shared_buffer(ptr: number, byteLength: number): void;
@@ -880,7 +882,9 @@ export interface WasmBridge {
    * @param byteLength Byte count used during `allocSharedBuffer`.
    * @throws {GwenWasmError} code `CORE:INVALID_SHARED_BUFFER` when `ptr` is
    *   unknown, already freed, or `byteLength` is not the recorded length.
-   *   The message is `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   When the length differs, the message is
+   *   `invalid shared buffer: ptr <ptr>, len <recorded>`.
+   *   `len` is 0 when `ptr` is unknown or already freed.
    *   Nothing is deallocated.
    */
   freeSharedBuffer(ptr: number, byteLength: number): void;

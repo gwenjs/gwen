@@ -1449,8 +1449,10 @@ impl Engine {
         origin_z: f32,
     ) {
         if let Some(world) = self.physics3d_world.as_mut() {
-            // SAFETY: the TypeScript caller copies `grid.byteLength` bytes to
-            // `ptr` before this call. A null pointer stores no grid.
+            // SAFETY: a null pointer or a zero cell count stores no grid and does
+            // not read. Otherwise this reads `width * height * depth` bytes and
+            // does not check that the buffer is that long. The missing check is
+            // the physics child of #52.
             unsafe {
                 crate::physics3d::pathfinding::init_navgrid_3d(
                     world.nav_grid_mut(),
