@@ -64,7 +64,7 @@ pub fn find_path_2d(start_x: f32, start_y: f32, end_x: f32, end_y: f32) -> usize
         .unwrap_or_else(|| vec![start, goal]);
 
         let count = path.len().min(MAX_PATH_NODES);
-        // SAFETY: `count` is at most `MAX_PATH_NODES`. This function is the only writer.
+        // SAFETY: `count` is at most `MAX_PATH_NODES`. This function is the only writer. [U-008]
         unsafe {
             for (i, (x, y)) in path.into_iter().take(count).enumerate() {
                 PATH_BUFFER[i] = PathNode {
@@ -82,7 +82,7 @@ pub fn find_path_2d(start_x: f32, start_y: f32, end_x: f32, end_y: f32) -> usize
     }
 
     #[cfg(not(feature = "pathfinding-2d"))]
-    // SAFETY: two nodes fit in `PATH_BUFFER`. This function is the only writer.
+    // SAFETY: two nodes fit in `PATH_BUFFER`. This function is the only writer. [U-009]
     unsafe {
         PATH_BUFFER[0] = PathNode {
             x: start.0 as f32,

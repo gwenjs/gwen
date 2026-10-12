@@ -191,7 +191,7 @@ The WASM bridge uses `unsafe` code for:
 - Structure-of-Arrays (SoA) alignment assumptions
 - Ring buffer pointers
 
-All unsafe blocks are justified with comments explaining the invariants maintained.
+Every non-test `unsafe` site has an id in the crate's `UNSAFE.md`. `pnpm check:unsafe` checks the ids.
 
 See the `gwen-wasm-utils` crate for WASM utility implementations.
 

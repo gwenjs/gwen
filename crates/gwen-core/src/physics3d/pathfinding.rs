@@ -116,6 +116,9 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
+// SAFETY: a null pointer or a zero cell count stores no grid and does not read.
+// Otherwise this reads `width * height * depth` bytes and does not check that
+// the buffer is that long. The missing check is the physics child of #52. [U-024]
 pub(crate) unsafe fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
@@ -135,7 +138,7 @@ pub(crate) unsafe fn init_navgrid_3d(
     // SAFETY: a null pointer or a zero cell count stores no grid and does not
     // read (handled above). Otherwise this reads `width * height * depth`
     // bytes and does not check that the buffer is that long. The missing
-    // check is the physics child of #52.
+    // check is the physics child of #52. [U-025]
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
@@ -171,7 +174,7 @@ pub(crate) fn install_navgrid(
     // SAFETY: a null pointer or a zero cell count stores no grid and does not
     // read. Otherwise this reads `width * height * depth` bytes and does not
     // check that the buffer is that long. The missing check is the physics
-    // child of #52.
+    // child of #52. [U-026]
     unsafe {
         init_navgrid_3d(
             slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,
