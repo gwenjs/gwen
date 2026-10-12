@@ -938,7 +938,8 @@ impl Engine {
             return 0; // OOM — caller must handle gracefully
         }
         let addr = ptr as usize;
-        self.shared_buffers.insert(addr, (byte_length, layout.align()));
+        self.shared_buffers
+            .insert(addr, (byte_length, layout.align()));
         addr
     }
 
@@ -1439,7 +1440,7 @@ impl Engine {
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_init_navgrid_3d(
         &mut self,
-        ptr: u32,
+        ptr: usize,
         width: u32,
         height: u32,
         depth: u32,
@@ -1451,8 +1452,7 @@ impl Engine {
         if let Some(world) = self.physics3d_world.as_mut() {
             // SAFETY: a null pointer or a zero cell count stores no grid and does
             // not read. Otherwise this reads `width * height * depth` bytes and
-            // does not check that the buffer is that long. The missing check is
-            // the physics child of #52. [U-004]
+            // does not check that the buffer is that long. [U-004]
             unsafe {
                 crate::physics3d::pathfinding::init_navgrid_3d(
                     world.nav_grid_mut(),
@@ -2758,7 +2758,7 @@ impl Engine {
                 p2,
                 layers,
                 mask,
-                out_ptr,
+                out_ptr as usize,
                 max_results,
             )
         } else {
@@ -4097,5 +4097,33 @@ mod tests {
         for (index, length) in lengths.iter().copied().enumerate() {
             assert_eq!(engine.free_shared_buffer(ptrs[index], length), Ok(()));
         }
+    }
+
+    /// The export copies a buffer this test sized. It does not check that length.
+    #[cfg(feature = "physics3d")]
+    #[test]
+    fn unsafe_site_u004_export_copies_cells() {
+        let mut engine = match Engine::new(4) {
+            Ok(engine) => engine,
+            Err(_) => {
+                assert_eq!(0, 1);
+                return;
+            }
+        };
+        engine.physics3d_init(0.0, 0.0, 0.0, 4);
+        let cells = [9u8, 8, 7, 6, 5, 4, 3, 2, 1];
+        engine.physics3d_init_navgrid_3d(cells.as_ptr() as usize, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        let Some(world) = engine.physics3d_world.as_ref() else {
+            assert_eq!(0, 1);
+            return;
+        };
+        let Some(grid) = world.nav_grid() else {
+            assert_eq!(0, 1);
+            return;
+        };
+        assert_eq!(
+            crate::physics3d::pathfinding::navgrid_cells(grid),
+            cells.as_slice()
+        );
     }
 }

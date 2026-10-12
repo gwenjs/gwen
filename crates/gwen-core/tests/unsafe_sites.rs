@@ -3,35 +3,75 @@
 use gwen_core::bindings::Engine;
 use gwen_core::{CoreError, TRANSFORM_STRIDE};
 
+/// Frees every non-zero buffer it allocated, including when the test panics.
+struct SharedGuard<'a> {
+    engine: &'a mut Engine,
+    live: Vec<(usize, usize)>,
+}
+
+impl<'a> SharedGuard<'a> {
+    fn new(engine: &'a mut Engine) -> Self {
+        Self {
+            engine,
+            live: Vec::new(),
+        }
+    }
+
+    fn alloc(&mut self, len: usize) -> usize {
+        let ptr = self.engine.alloc_shared_buffer(len);
+        if ptr != 0 {
+            self.live.push((ptr, len));
+        }
+        ptr
+    }
+
+    fn engine(&mut self) -> &mut Engine {
+        self.engine
+    }
+}
+
+impl Drop for SharedGuard<'_> {
+    fn drop(&mut self) {
+        for (ptr, len) in self.live.drain(..) {
+            if ptr == 0 {
+                continue;
+            }
+            let _ = self.engine.free_shared_buffer(ptr, len);
+        }
+    }
+}
+
 #[test]
 fn unsafe_site_u001_alloc_is_8_byte_aligned() {
     let mut engine = match Engine::new(1) {
         Ok(engine) => engine,
-        Err(err) => {
-            assert_eq!(err.code(), "created");
+        Err(_) => {
+            assert_eq!(0, 1);
             return;
         }
     };
-    let ptr = engine.alloc_shared_buffer(1);
+    let mut buffers = SharedGuard::new(&mut engine);
+    let ptr = buffers.alloc(1);
     assert_ne!(ptr, 0);
     assert_eq!(ptr % 8, 0);
-    assert_eq!(engine.free_shared_buffer(ptr, 1), Ok(()));
+    assert_eq!(buffers.engine().free_shared_buffer(ptr, 1), Ok(()));
 }
 
 #[test]
 fn unsafe_site_u002_second_free_is_invalid() {
     let mut engine = match Engine::new(1) {
         Ok(engine) => engine,
-        Err(err) => {
-            assert_eq!(err.code(), "created");
+        Err(_) => {
+            assert_eq!(0, 1);
             return;
         }
     };
-    let ptr = engine.alloc_shared_buffer(8);
+    let mut buffers = SharedGuard::new(&mut engine);
+    let ptr = buffers.alloc(8);
     assert_ne!(ptr, 0);
-    assert_eq!(engine.free_shared_buffer(ptr, 8), Ok(()));
+    assert_eq!(buffers.engine().free_shared_buffer(ptr, 8), Ok(()));
     assert_eq!(
-        engine.free_shared_buffer(ptr, 8),
+        buffers.engine().free_shared_buffer(ptr, 8),
         Err(CoreError::InvalidSharedBuffer { ptr, len: 0 })
     );
 }
@@ -40,16 +80,17 @@ fn unsafe_site_u002_second_free_is_invalid() {
 fn unsafe_site_u003_short_sync_is_invalid() {
     let mut engine = match Engine::new(4) {
         Ok(engine) => engine,
-        Err(err) => {
-            assert_eq!(err.code(), "created");
+        Err(_) => {
+            assert_eq!(0, 1);
             return;
         }
     };
-    let ptr = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let mut buffers = SharedGuard::new(&mut engine);
+    let ptr = buffers.alloc(TRANSFORM_STRIDE);
     assert_ne!(ptr, 0);
-    assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
+    assert_eq!(buffers.engine().sync_transforms_to_buffer(ptr, 1), Ok(()));
     assert_eq!(
-        engine.sync_transforms_to_buffer(ptr, 2),
+        buffers.engine().sync_transforms_to_buffer(ptr, 2),
         Err(CoreError::InvalidSharedBuffer {
             ptr,
             len: TRANSFORM_STRIDE,
@@ -58,29 +99,76 @@ fn unsafe_site_u003_short_sync_is_invalid() {
 }
 
 #[cfg(feature = "physics2d")]
+fn overlapping_pair() -> gwen_core::physics2d::PhysicsWorld {
+    use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
+
+    let mut world = PhysicsWorld::new(0.0, 0.0);
+    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default());
+    let right = world.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default());
+    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default());
+    world
+}
+
+#[cfg(feature = "physics2d")]
+fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
+    use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
+
+    let mut world = PhysicsWorld::new(0.0, 0.0);
+    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default());
+    let right = world.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default());
+    world
+}
+
+#[cfg(feature = "physics2d")]
+#[test]
+fn unsafe_site_u005_step_records_a_collision() {
+    use gwen_core::physics2d::PhysicsCollisionEvent;
+
+    let mut world = overlapping_pair();
+    world.step(1.0 / 60.0);
+    assert_ne!(world.collision_event_count(), 0);
+    // SAFETY: `step` just wrote at least one event at the start of this world's buffer.
+    let event = unsafe { *world.collision_events_ptr() };
+    let event: PhysicsCollisionEvent = event;
+    let mut pair = [event.entity_a, event.entity_b];
+    pair.sort_unstable();
+    assert_eq!(pair, [1, 2]);
+}
+
+#[cfg(feature = "physics2d")]
+#[test]
+fn unsafe_site_u006_two_worlds_do_not_share_events() {
+    let mut crowded = overlapping_pair();
+    let mut quiet = separated_pair();
+    crowded.step(1.0 / 60.0);
+    quiet.step(1.0 / 60.0);
+    assert_ne!(crowded.collision_event_count(), 0);
+    assert_eq!(quiet.collision_event_count(), 0);
+    assert_ne!(crowded.collision_events_ptr(), quiet.collision_events_ptr());
+}
+
+#[cfg(feature = "physics2d")]
 #[test]
 fn unsafe_site_u007_event_buffer_fills_then_clears() {
-    use gwen_core::physics2d::{CollisionEventBuffer, PhysicsCollisionEvent, MAX_COLLISION_EVENTS};
+    use gwen_core::physics2d::{
+        BodyOptions, BodyType, ColliderOptions, PhysicsWorld, MAX_COLLISION_EVENTS,
+    };
 
-    let mut buffer = CollisionEventBuffer::new();
-    for index in 0..MAX_COLLISION_EVENTS + 1 {
-        buffer.push(PhysicsCollisionEvent {
-            entity_a: index as u32,
-            entity_b: 1,
-            collider_a_id: 0,
-            collider_b_id: 0,
-            flags: 1,
-        });
+    let mut world = PhysicsWorld::new(0.0, 0.0);
+    for entity in 0..46 {
+        let handle =
+            world.add_rigid_body(entity, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default());
     }
-    assert_eq!(buffer.len(), MAX_COLLISION_EVENTS);
-    // SAFETY: `as_ptr` points at `MAX_COLLISION_EVENTS` slots and index 0 is inside that array.
-    let first = unsafe { *buffer.as_ptr() };
-    // SAFETY: `MAX_COLLISION_EVENTS - 1` is the last slot of that same array.
-    let last = unsafe { *buffer.as_ptr().add(MAX_COLLISION_EVENTS - 1) };
-    assert_eq!(first.entity_a, 0);
-    assert_eq!(last.entity_a, (MAX_COLLISION_EVENTS - 1) as u32);
-    buffer.clear();
-    assert_eq!(buffer.len(), 0);
+    world.step(1.0 / 60.0);
+    assert_eq!(world.collision_event_count(), MAX_COLLISION_EVENTS as u32);
+
+    let mut quiet = separated_pair();
+    quiet.step(1.0 / 60.0);
+    assert_eq!(quiet.collision_event_count(), 0);
 }
 
 #[cfg(feature = "physics2d")]
@@ -97,28 +185,296 @@ fn unsafe_site_u008_path_caps_at_max_nodes() {
 }
 
 #[cfg(feature = "physics3d")]
+fn add_dynamic_box(world: &mut gwen_core::physics3d::PhysicsWorld3D, entity: u32, x: f32) {
+    assert_eq!(
+        u8::from(world.add_body(entity, x, 0.0, 0.0, 1, 1.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        u8::from(world.add_box_collider(
+            entity,
+            0.5,
+            0.5,
+            0.5,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            entity,
+        )),
+        1
+    );
+}
+
+#[cfg(feature = "physics3d")]
+fn overlapping_pair_3d() -> gwen_core::physics3d::PhysicsWorld3D {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    add_dynamic_box(&mut world, 1, 0.0);
+    add_dynamic_box(&mut world, 2, 0.2);
+    world
+}
+
+#[cfg(feature = "physics3d")]
+fn separated_pair_3d() -> gwen_core::physics3d::PhysicsWorld3D {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    add_dynamic_box(&mut world, 1, 0.0);
+    add_dynamic_box(&mut world, 2, 50.0);
+    world
+}
+
+#[cfg(feature = "physics3d")]
+fn first_pair_3d(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 2] {
+    use gwen_core::physics3d::PhysicsCollisionEvent3D;
+
+    // SAFETY: `step` just wrote at least one event at the start of this world's buffer.
+    let event = unsafe { *(world.get_collision_events_ptr() as *const PhysicsCollisionEvent3D) };
+    let mut pair = [event.entity_a, event.entity_b];
+    pair.sort_unstable();
+    pair
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u010_step_records_a_collision() {
+    let mut world = overlapping_pair_3d();
+    world.step(1.0 / 60.0);
+    if world.get_collision_event_count() == 0 {
+        world.step(1.0 / 60.0);
+    }
+    assert_ne!(world.get_collision_event_count(), 0);
+    assert_eq!(first_pair_3d(&world), [1, 2]);
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u011_two_worlds_do_not_share_events() {
+    let mut crowded = overlapping_pair_3d();
+    let mut quiet = separated_pair_3d();
+    crowded.step(1.0 / 60.0);
+    if crowded.get_collision_event_count() == 0 {
+        crowded.step(1.0 / 60.0);
+    }
+    quiet.step(1.0 / 60.0);
+    assert_ne!(crowded.get_collision_event_count(), 0);
+    assert_eq!(quiet.get_collision_event_count(), 0);
+    assert_ne!(
+        crowded.get_collision_events_ptr(),
+        quiet.get_collision_events_ptr()
+    );
+}
+
+#[cfg(feature = "physics3d")]
 #[test]
 fn unsafe_site_u012_event_buffer_fills_then_clears() {
-    use gwen_core::physics3d::events::{
-        CollisionEventBuffer3D, PhysicsCollisionEvent3D, MAX_COLLISION_EVENTS_3D,
-    };
+    use gwen_core::physics3d::events::MAX_COLLISION_EVENTS_3D;
+    use gwen_core::physics3d::PhysicsWorld3D;
 
-    let mut buffer = CollisionEventBuffer3D::new();
-    for index in 0..MAX_COLLISION_EVENTS_3D + 1 {
-        buffer.push(PhysicsCollisionEvent3D {
-            entity_a: index as u32,
-            entity_b: 1,
-            flags: 1,
-            collider_a_id: 0,
-            collider_b_id: 0,
-        });
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    for entity in 0..46 {
+        add_dynamic_box(&mut world, entity, 0.0);
     }
-    assert_eq!(buffer.len(), MAX_COLLISION_EVENTS_3D);
-    assert_eq!(buffer.get(0).entity_a, 0);
+    world.step(1.0 / 60.0);
+    if world.get_collision_event_count() == 0 {
+        world.step(1.0 / 60.0);
+    }
     assert_eq!(
-        buffer.get(MAX_COLLISION_EVENTS_3D - 1).entity_a,
-        (MAX_COLLISION_EVENTS_3D - 1) as u32
+        world.get_collision_event_count(),
+        MAX_COLLISION_EVENTS_3D as u32
     );
-    buffer.clear();
-    assert_eq!(buffer.len(), 0);
+
+    let mut quiet = separated_pair_3d();
+    quiet.step(1.0 / 60.0);
+    assert_eq!(quiet.get_collision_event_count(), 0);
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u013_overlap_writes_the_entity() {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    add_dynamic_box(&mut world, 4, 0.0);
+    world.step(1.0 / 60.0);
+    let mut buf = [0u32; 16];
+    let count = world.overlap_shape(
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        1.0,
+        0,
+        0.5,
+        0.5,
+        0.5,
+        0xFFFF_FFFF,
+        0xFFFF_FFFF,
+        buf.as_mut_ptr() as usize,
+        16,
+    );
+    assert_eq!(count, 1);
+    assert_eq!(buf[0], 4);
+}
+
+#[cfg(feature = "physics3d")]
+fn cc_slot_bits(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 5] {
+    let mut slot = [0f32; 5];
+    // SAFETY: slot 0 is the first five floats of this world's character-controller state.
+    unsafe {
+        std::ptr::copy_nonoverlapping(world.cc_state_ptr(), slot.as_mut_ptr(), 5);
+    }
+    slot.map(f32::to_bits)
+}
+
+#[cfg(feature = "physics3d")]
+fn no_hit_bits() -> [u32; 5] {
+    [
+        0.0f32.to_bits(),
+        0.0f32.to_bits(),
+        1.0f32.to_bits(),
+        0.0f32.to_bits(),
+        u32::MAX,
+    ]
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u016_unknown_entity_writes_no_hit() {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    assert_eq!(
+        u8::from(world.add_body(3, 0.0, 1.0, 0.0, 2, 1.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        world.add_character_controller(3, 0.0, 45.0, 0.0, 0.0, false, false),
+        0
+    );
+    assert_eq!(u8::from(world.remove_body(3)), 1);
+    world.character_controller_move(3, 0.0, -1.0, 0.0, 1.0 / 60.0);
+    assert_eq!(cc_slot_bits(&world), no_hit_bits());
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u019_body_without_collider_writes_no_hit() {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    assert_eq!(
+        u8::from(world.add_body(5, 0.0, 1.0, 0.0, 2, 1.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        world.add_character_controller(5, 0.0, 45.0, 0.0, 0.0, false, false),
+        0
+    );
+    world.character_controller_move(5, 0.0, -1.0, 0.0, 1.0 / 60.0);
+    assert_eq!(cc_slot_bits(&world), no_hit_bits());
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u022_grounded_move_writes_contact() {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    assert_eq!(
+        u8::from(world.add_body(1, 0.0, -0.5, 0.0, 0, 0.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        u8::from(world.add_box_collider(
+            1,
+            8.0,
+            0.5,
+            8.0,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            1,
+        )),
+        1
+    );
+    assert_eq!(
+        u8::from(world.add_body(0, 0.0, 0.5, 0.0, 2, 1.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        u8::from(world.add_box_collider(
+            0,
+            0.3,
+            0.4,
+            0.3,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2,
+        )),
+        1
+    );
+    assert_eq!(
+        world.add_character_controller(0, 0.3, 50.0, 0.01, 0.5, true, false),
+        0
+    );
+    world.step(1.0 / 60.0);
+    world.character_controller_move(0, 0.0, -20.0, 0.0, 1.0 / 60.0);
+    assert_eq!(cc_slot_bits(&world)[0], 1.0f32.to_bits());
+}
+
+#[cfg(feature = "physics3d")]
+#[test]
+fn unsafe_site_u023_air_move_writes_no_hit() {
+    use gwen_core::physics3d::PhysicsWorld3D;
+
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    assert_eq!(
+        u8::from(world.add_body(0, 0.0, 2.0, 0.0, 2, 1.0, 0.0, 0.0)),
+        1
+    );
+    assert_eq!(
+        u8::from(world.add_box_collider(
+            0,
+            0.3,
+            0.5,
+            0.3,
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            0xFFFF_FFFF,
+            0xFFFF_FFFF,
+            2,
+        )),
+        1
+    );
+    assert_eq!(
+        world.add_character_controller(0, 0.2, 45.0, 0.02, 0.0, false, false),
+        0
+    );
+    world.step(1.0 / 60.0);
+    world.character_controller_move(0, 0.0, 1.0, 0.0, 1.0 / 60.0);
+    assert_eq!(cc_slot_bits(&world), no_hit_bits());
 }

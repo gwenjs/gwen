@@ -2343,9 +2343,8 @@ impl PhysicsWorld3D {
     /// Number of overlapping entities written to `out_ptr`.
     ///
     /// # Safety
-    /// `out_ptr` is used as `max_results` u32 slots. This export does not check
-    /// that length. The composable caps the count at the scratch view in
-    /// `spatial-queries.ts`. A raw call is the physics child of #52. [U-013]
+    /// `out_ptr` is used as `max_results` u32 slots. This function does not
+    /// check that length. [U-013]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn overlap_shape(
         &self,
@@ -2362,7 +2361,7 @@ impl PhysicsWorld3D {
         p2: f32,
         layers: u32,
         mask: u32,
-        out_ptr: u32,
+        out_ptr: usize,
         max_results: u32,
     ) -> u32 {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
@@ -2373,7 +2372,7 @@ impl PhysicsWorld3D {
         let filter = Self::make_query_filter(layers, mask);
         let mut count: u32 = 0;
         let out_slice =
-            // SAFETY: `out_ptr` is used as `max_results` u32 slots and this export does not check that length. The composable caps the count at the scratch view in spatial-queries.ts. A raw call is the physics child of #52. [U-013]
+            // SAFETY: `out_ptr` is used as `max_results` u32 slots. This function does not check that length. [U-013]
             unsafe { std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize) };
         self.query_pipeline.intersections_with_shape(
             &self.rigid_body_set,
@@ -2967,7 +2966,8 @@ impl PhysicsWorld3D {
 
         let Some(&handle) = self.entity_handles.get(&entity_index) else {
             debug_warn!("character_controller_move: unknown entity {}", entity_index);
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-016]
+            // SAFETY: this entity has a controller slot but `entity_handles` has no body.
+            // `cc_state` is this world's buffer and `base` is that slot. [U-016]
             unsafe { write_no_hit(std::ptr::addr_of_mut!(self.cc_state), base) };
             return;
         };
@@ -5072,7 +5072,7 @@ mod tests {
             0.0,
             0xFFFF_FFFF,
             0xFFFF_FFFF,
-            buf.as_mut_ptr() as u32,
+            buf.as_mut_ptr() as usize,
             16,
         );
         assert_eq!(count, 0);

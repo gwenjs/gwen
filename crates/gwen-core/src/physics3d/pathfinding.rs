@@ -110,15 +110,14 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 ///
 /// A null pointer or a zero cell count stores no grid and does not read.
 /// Otherwise this function reads `width * height * depth` bytes and does not
-/// check that the buffer is that long. The missing check is the physics child
-/// of #52.
+/// check that the buffer is that long.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
 // SAFETY: a null pointer or a zero cell count stores no grid and does not read.
 // Otherwise this reads `width * height * depth` bytes and does not check that
-// the buffer is that long. The missing check is the physics child of #52. [U-024]
+// the buffer is that long. [U-024]
 pub(crate) unsafe fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
@@ -137,8 +136,7 @@ pub(crate) unsafe fn init_navgrid_3d(
     }
     // SAFETY: a null pointer or a zero cell count stores no grid and does not
     // read (handled above). Otherwise this reads `width * height * depth`
-    // bytes and does not check that the buffer is that long. The missing
-    // check is the physics child of #52. [U-025]
+    // bytes and does not check that the buffer is that long. [U-025]
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
@@ -154,7 +152,7 @@ pub(crate) unsafe fn init_navgrid_3d(
 
 /// Copy a voxel grid into `slot`. A null pointer or a zero cell count stores
 /// no grid. Any other call reads `width * height * depth` bytes and does not
-/// check that length. The missing check is the physics child of #52.
+/// check that length.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
@@ -173,13 +171,20 @@ pub(crate) fn install_navgrid(
 ) {
     // SAFETY: a null pointer or a zero cell count stores no grid and does not
     // read. Otherwise this reads `width * height * depth` bytes and does not
-    // check that the buffer is that long. The missing check is the physics
-    // child of #52. [U-026]
+    // check that the buffer is that long. [U-026]
     unsafe {
         init_navgrid_3d(
             slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,
         );
     }
+}
+
+/// Cells copied into `grid`.
+///
+/// Test-only. The export test lives in another module and cannot see the field.
+#[cfg(test)]
+pub(crate) fn navgrid_cells(grid: &NavGrid3D) -> &[u8] {
+    &grid.cells
 }
 
 /// Find a path between two world-space points using A* on the uploaded voxel grid.
@@ -487,6 +492,18 @@ mod tests {
         let mut slot = None;
         install_navgrid(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
         slot
+    }
+
+    /// `install_navgrid` copies the nine bytes the caller sized. The upload does not check length.
+    #[cfg(feature = "pathfinding-3d")]
+    #[test]
+    fn unsafe_site_u026_install_copies_cells() {
+        let cells = [0u8, 1, 2, 3, 4, 5, 6, 7, 8];
+        let Some(grid) = upload_3x1x3(&cells) else {
+            assert_eq!(0, 1);
+            return;
+        };
+        assert_eq!(grid.cells, cells);
     }
 
     /// Reads the first `count` waypoints through the public [`get_path_buffer_ptr_3d`] export.

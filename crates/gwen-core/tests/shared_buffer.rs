@@ -30,6 +30,44 @@ fn read_u32(ptr: usize, offset: usize) -> u32 {
     u32::from_le_bytes(bytes)
 }
 
+/// Frees every non-zero buffer it allocated, including when the test panics.
+struct SharedGuard<'a> {
+    engine: &'a mut Engine,
+    live: Vec<(usize, usize)>,
+}
+
+impl<'a> SharedGuard<'a> {
+    fn new(engine: &'a mut Engine) -> Self {
+        Self {
+            engine,
+            live: Vec::new(),
+        }
+    }
+
+    fn alloc(&mut self, len: usize) -> usize {
+        let ptr = self.engine.alloc_shared_buffer(len);
+        if ptr != 0 {
+            self.live.push((ptr, len));
+        }
+        ptr
+    }
+
+    fn engine(&mut self) -> &mut Engine {
+        self.engine
+    }
+}
+
+impl Drop for SharedGuard<'_> {
+    fn drop(&mut self) {
+        for (ptr, len) in self.live.drain(..) {
+            if ptr == 0 {
+                continue;
+            }
+            let _ = self.engine.free_shared_buffer(ptr, len);
+        }
+    }
+}
+
 fn slot_bytes(ptr: usize, index: usize) -> [u8; TRANSFORM_STRIDE] {
     let mut bytes = [0u8; TRANSFORM_STRIDE];
     // SAFETY: `ptr + index * TRANSFORM_STRIDE` addresses one live transform slot.
@@ -47,8 +85,8 @@ fn slot_bytes(ptr: usize, index: usize) -> [u8; TRANSFORM_STRIDE] {
 fn packed_values_match_world_transforms_including_a_parented_child() {
     let mut engine = match Engine::new(4) {
         Ok(engine) => engine,
-        Err(err) => {
-            assert_eq!(err.code(), "created");
+        Err(_) => {
+            assert_eq!(0, 1);
             return;
         }
     };
@@ -79,8 +117,9 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
     }
     engine.set_entity_local_position(child.index(), 3.0, 4.0);
 
-    let ptr = engine.alloc_shared_buffer(4 * TRANSFORM_STRIDE);
-    match engine.sync_transforms_to_buffer(ptr, 4) {
+    let mut buffers = SharedGuard::new(&mut engine);
+    let ptr = buffers.alloc(4 * TRANSFORM_STRIDE);
+    match buffers.engine().sync_transforms_to_buffer(ptr, 4) {
         Ok(()) => {}
         Err(err) => {
             assert_eq!(err.code(), "synced");
@@ -90,15 +129,15 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
 
     assert_eq!(
         read_f32(ptr, 0).to_bits(),
-        engine.get_entity_world_x(0).to_bits()
+        buffers.engine().get_entity_world_x(0).to_bits()
     );
     assert_eq!(
         read_f32(ptr, 4).to_bits(),
-        engine.get_entity_world_y(0).to_bits()
+        buffers.engine().get_entity_world_y(0).to_bits()
     );
     assert_eq!(
         read_f32(ptr, 8).to_bits(),
-        engine.get_entity_world_rotation(0).to_bits()
+        buffers.engine().get_entity_world_rotation(0).to_bits()
     );
     assert_eq!(read_f32(ptr, 12).to_bits(), 2.0f32.to_bits());
     assert_eq!(read_f32(ptr, 16).to_bits(), 2.0f32.to_bits());
@@ -108,11 +147,11 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
     assert_eq!(read_f32(ptr, 48).to_bits(), 2.0f32.to_bits());
     assert_eq!(
         read_f32(ptr, 32).to_bits(),
-        engine.get_entity_world_x(1).to_bits()
+        buffers.engine().get_entity_world_x(1).to_bits()
     );
     assert_eq!(
         read_f32(ptr, 36).to_bits(),
-        engine.get_entity_world_y(1).to_bits()
+        buffers.engine().get_entity_world_y(1).to_bits()
     );
     assert_eq!(read_u32(ptr, 20) & 1, 1);
     assert_eq!(read_u32(ptr, 20) & !1, 0);
@@ -125,8 +164,8 @@ fn packed_values_match_world_transforms_including_a_parented_child() {
 fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     let mut engine = match Engine::new(4) {
         Ok(engine) => engine,
-        Err(err) => {
-            assert_eq!(err.code(), "created");
+        Err(_) => {
+            assert_eq!(0, 1);
             return;
         }
     };
@@ -146,8 +185,9 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     );
     assert_eq!(unknown.code(), "CORE:INVALID_SHARED_BUFFER");
 
-    let short = engine.alloc_shared_buffer(16);
-    let short_err = match engine.sync_transforms_to_buffer(short, 1) {
+    let mut buffers = SharedGuard::new(&mut engine);
+    let short = buffers.alloc(16);
+    let short_err = match buffers.engine().sync_transforms_to_buffer(short, 1) {
         Err(err) => err,
         Ok(()) => {
             assert_eq!("ok", "CORE:INVALID_SHARED_BUFFER");
@@ -162,8 +202,8 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
         }
     );
 
-    let exact = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    match engine.sync_transforms_to_buffer(exact, 1) {
+    let exact = buffers.alloc(TRANSFORM_STRIDE);
+    match buffers.engine().sync_transforms_to_buffer(exact, 1) {
         Ok(()) => {}
         Err(err) => {
             assert_eq!(err.code(), "exact");
@@ -172,11 +212,12 @@ fn unknown_or_short_buffer_is_invalid_shared_buffer() {
     }
     assert_eq!(slot_bytes(exact, 0), [0u8; TRANSFORM_STRIDE]);
 
-    let free_err = engine
+    let free_err = buffers
+        .engine()
         .free_shared_buffer(exact, TRANSFORM_STRIDE)
         .shared_buffer_error();
     assert_eq!(free_err, None);
-    let freed = match engine.sync_transforms_to_buffer(exact, 1) {
+    let freed = match buffers.engine().sync_transforms_to_buffer(exact, 1) {
         Err(err) => err,
         Ok(()) => {
             assert_eq!("ok", "CORE:INVALID_SHARED_BUFFER");
@@ -202,34 +243,36 @@ impl FreeOutcome for Result<(), CoreError> {
     }
 }
 
-fn engine_or_skip() -> Option<Engine> {
-    match Engine::new(4) {
-        Ok(engine) => Some(engine),
-        Err(err) => {
-            assert_eq!(err.code(), "created");
-            None
-        }
-    }
-}
-
 #[test]
 fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
-    let Some(mut engine) = engine_or_skip() else {
-        return;
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(_) => {
+            assert_eq!(0, 1);
+            return;
+        }
     };
-    let ptr = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
+    let mut buffers = SharedGuard::new(&mut engine);
+    let ptr = buffers.alloc(TRANSFORM_STRIDE);
     assert_eq!(
-        engine
+        buffers
+            .engine()
             .free_shared_buffer(0, TRANSFORM_STRIDE)
             .shared_buffer_error(),
         None
     );
     assert_eq!(
-        engine.free_shared_buffer(ptr, 0).shared_buffer_error(),
+        buffers
+            .engine()
+            .free_shared_buffer(ptr, 0)
+            .shared_buffer_error(),
         None
     );
-    assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
-    let err = engine.free_shared_buffer(ptr, 16).shared_buffer_error();
+    assert_eq!(buffers.engine().sync_transforms_to_buffer(ptr, 1), Ok(()));
+    let err = buffers
+        .engine()
+        .free_shared_buffer(ptr, 16)
+        .shared_buffer_error();
     assert_eq!(
         err,
         Some(CoreError::InvalidSharedBuffer {
@@ -237,16 +280,22 @@ fn free_wrong_length_is_invalid_shared_buffer_and_keeps_the_allocation() {
             len: TRANSFORM_STRIDE
         })
     );
-    assert_eq!(engine.sync_transforms_to_buffer(ptr, 1), Ok(()));
+    assert_eq!(buffers.engine().sync_transforms_to_buffer(ptr, 1), Ok(()));
 }
 
 #[test]
 fn free_unknown_pointer_is_invalid_shared_buffer_and_keeps_the_registry() {
-    let Some(mut engine) = engine_or_skip() else {
-        return;
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(_) => {
+            assert_eq!(0, 1);
+            return;
+        }
     };
-    let live = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    let err = engine
+    let mut buffers = SharedGuard::new(&mut engine);
+    let live = buffers.alloc(TRANSFORM_STRIDE);
+    let err = buffers
+        .engine()
         .free_shared_buffer(0x1000, TRANSFORM_STRIDE)
         .shared_buffer_error();
     assert_eq!(
@@ -256,30 +305,37 @@ fn free_unknown_pointer_is_invalid_shared_buffer_and_keeps_the_registry() {
             len: 0
         })
     );
-    assert_eq!(engine.sync_transforms_to_buffer(live, 1), Ok(()));
+    assert_eq!(buffers.engine().sync_transforms_to_buffer(live, 1), Ok(()));
 }
 
 #[test]
 fn free_twice_is_invalid_shared_buffer_and_keeps_the_registry() {
-    let Some(mut engine) = engine_or_skip() else {
-        return;
+    let mut engine = match Engine::new(4) {
+        Ok(engine) => engine,
+        Err(_) => {
+            assert_eq!(0, 1);
+            return;
+        }
     };
-    let live = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    let other = engine.alloc_shared_buffer(TRANSFORM_STRIDE);
-    let first = engine
+    let mut buffers = SharedGuard::new(&mut engine);
+    let live = buffers.alloc(TRANSFORM_STRIDE);
+    let other = buffers.alloc(TRANSFORM_STRIDE);
+    let first = buffers
+        .engine()
         .free_shared_buffer(live, TRANSFORM_STRIDE)
         .shared_buffer_error();
     assert_eq!(first, None);
-    let second = engine
+    let second = buffers
+        .engine()
         .free_shared_buffer(live, TRANSFORM_STRIDE)
         .shared_buffer_error();
     assert_eq!(
         second,
         Some(CoreError::InvalidSharedBuffer { ptr: live, len: 0 })
     );
-    assert_eq!(engine.sync_transforms_to_buffer(other, 1), Ok(()));
+    assert_eq!(buffers.engine().sync_transforms_to_buffer(other, 1), Ok(()));
     assert_eq!(
-        engine.sync_transforms_to_buffer(live, 1),
+        buffers.engine().sync_transforms_to_buffer(live, 1),
         Err(CoreError::InvalidSharedBuffer { ptr: live, len: 0 })
     );
 }
