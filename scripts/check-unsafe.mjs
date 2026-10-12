@@ -14,7 +14,7 @@ const TEST_ATTR_RE = /^#\[\s*(tokio::test|wasm_bindgen_test|test)\b/;
 const UNSAFE_SITE_RE = /^unsafe_site_[A-Za-z0-9_]+$/;
 
 /**
- * @typedef {{ tests: Set<string>, all: Set<string> }} CrateFns
+ * @typedef {{ tests: Set<string>, all: Set<string>, ignored: Set<string> }} CrateFns
  * @typedef {{ exists?: (filePath: string) => boolean }} UnsafeAuditOptions
  */
 
@@ -148,7 +148,7 @@ function fileCountsAsTests(filePath) {
 function fnBucket(fns, crate) {
   let bucket = fns.get(crate);
   if (bucket === undefined) {
-    bucket = { tests: new Set(), all: new Set() };
+    bucket = { tests: new Set(), all: new Set(), ignored: new Set() };
     fns.set(crate, bucket);
   }
   return bucket;
@@ -193,7 +193,10 @@ function collectFns(text, filePath, crate, fns) {
       const name = readNextIdent(text, i);
       if (name === null) continue;
       bucket.all.add(name);
-      if (fileIsTest || hasTestAttribute(lines, startLine)) bucket.tests.add(name);
+      if (fileIsTest || hasTestAttribute(lines, startLine)) {
+        bucket.tests.add(name);
+        if (hasUnconditionalIgnore(lines, startLine)) bucket.ignored.add(name);
+      }
       continue;
     }
     i += 1;
@@ -246,6 +249,42 @@ function hasTestAttribute(lines, fnLine) {
 }
 
 /**
+ * `#[ignore]` or `#[ignore = "..."]` on this line, outside strings and comments.
+ * `#[cfg_attr(..., ignore = ...)]` is not this attribute.
+ *
+ * @param {string} trimmed
+ * @returns {boolean}
+ */
+function isUnconditionalIgnore(trimmed) {
+  if (trimmed.startsWith('//') || trimmed.startsWith('/*')) return false;
+  const code = trimmed.replace(/"(?:\\.|[^"\\])*"/g, '""');
+  const commentAt = code.indexOf('//');
+  const head = commentAt === -1 ? code : code.slice(0, commentAt);
+  return /#\[\s*ignore\s*(?:=|\])/.test(head);
+}
+
+/**
+ * The attribute sits on this function: the `fn` line or the prelude above it.
+ * A blank line or another item ends the prelude, same as `#[test]`.
+ *
+ * @param {readonly string[]} lines
+ * @param {number} fnLine 1-based line of the `fn` token
+ * @returns {boolean}
+ */
+function hasUnconditionalIgnore(lines, fnLine) {
+  const own = (lines[fnLine - 1] ?? '').trim();
+  if (isUnconditionalIgnore(own)) return true;
+  for (let index = fnLine - 2; index >= 0; index -= 1) {
+    const trimmed = (lines[index] ?? '').trim();
+    if (trimmed === '') return false;
+    if (isUnconditionalIgnore(trimmed)) return true;
+    if (isPreludeLine(trimmed)) continue;
+    return false;
+  }
+  return false;
+}
+
+/**
  * @param {string} text
  * @returns {{ id: string, kind: string, test: string }[]}
  */
@@ -266,6 +305,38 @@ function parseRows(text) {
 }
 
 /**
+ * Digit runs compared as integers, so `u001` and `u1` are the same number.
+ *
+ * @param {string} digits
+ * @returns {string}
+ */
+function integerDigits(digits) {
+  const stripped = digits.replace(/^0+/, '');
+  return stripped === '' ? '0' : stripped;
+}
+
+/**
+ * `unsafe_site_u<digits>` must use the same integer as the row id.
+ * A name that is not that shape is not checked here.
+ *
+ * @param {string} id
+ * @param {string} testName
+ * @returns {string | null}
+ */
+function siteNumberProblem(id, testName) {
+  const site = /^unsafe_site_u(\d+)/.exec(testName);
+  if (site === null) return null;
+  const siteDigits = site[1];
+  if (siteDigits === undefined) return null;
+  const row = /^U-(\d+)$/.exec(id);
+  if (row === null) return null;
+  const rowDigits = row[1];
+  if (rowDigits === undefined) return null;
+  if (integerDigits(siteDigits) === integerDigits(rowDigits)) return null;
+  return `test ${testName} does not match id ${id}`;
+}
+
+/**
  * @param {string} id
  * @param {{ kind: string, test: string }} row
  * @param {CrateFns | undefined} bucket
@@ -275,7 +346,12 @@ function parseRows(text) {
 function proofProblem(id, row, bucket, exists) {
   if (row.test === 'removed') return `test cell removed is not a proof: ${id}`;
   if (UNSAFE_SITE_RE.test(row.test)) {
-    if (bucket !== undefined && bucket.tests.has(row.test)) return null;
+    const number = siteNumberProblem(id, row.test);
+    if (number !== null) return number;
+    if (bucket !== undefined && bucket.tests.has(row.test)) {
+      if (bucket.ignored.has(row.test)) return `test ${row.test} is ignored: ${id}`;
+      return null;
+    }
     if (bucket !== undefined && bucket.all.has(row.test)) {
       return `test ${row.test} is not an unsafe_site test`;
     }
