@@ -32,19 +32,19 @@ function regionModule(name: string, step?: (dt: number) => void): WasmModuleOpti
   return { ...options, step: (_handle, dt) => step(dt) };
 }
 
-/** A declared memory region is not a transform region unless `transformRegion` names it. */
-function moduleWithoutTransformRegion(name: string, step?: (dt: number) => void): WasmModuleOptions {
-  const options: WasmModuleOptions = {
-    name,
-    url: "http://x/mod.wasm",
-    memory: {
-      regions: [
-        { name: "transforms", byteOffset: REGION_OFFSET, byteLength: COPY_BYTES, type: "f32" as const },
-      ],
-    },
+/** Drops `transformRegion` from `regionModule`. The memory region stays. */
+function moduleWithoutTransformRegion(name: string, step: (dt: number) => void): WasmModuleOptions {
+  const declared = regionModule(name, step);
+  const memory = declared.memory;
+  if (memory === undefined) {
+    throw new Error("regionModule declares memory");
+  }
+  return {
+    name: declared.name,
+    url: declared.url,
+    memory,
+    step: (_handle, dt) => step(dt),
   };
-  if (step === undefined) return options;
-  return { ...options, step: (_handle, dt) => step(dt) };
 }
 
 describe("transform region before the bridge is active", () => {
