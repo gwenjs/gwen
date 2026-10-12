@@ -59,20 +59,13 @@ macro_rules! __gwen_channel_inner {
                 [0u8; $crate::ring::HEADER_BYTES + $capacity * $item_size];
 
             #[no_mangle]
-            #[allow(
-                unused_unsafe,
-                reason = "`&raw const` does not create a reference; the block keeps this audited site"
-            )]
             /// Returns the byte offset of this ring buffer in WASM linear memory.
             ///
             /// The GWEN TypeScript engine calls this function immediately after
             /// instantiation to determine where to place the `WasmRingBuffer`.
             /// The value is a stable compile-time address in the data segment.
             pub extern "C" fn [<gwen_ $name _ring_ptr>]() -> i32 {
-                // SAFETY: `&raw const` takes the address of the static mut and does
-                // not create a reference. The slot stays zeroed until `RingWriter`
-                // writes it, and those writes are bounds-checked. [U-027]
-                unsafe { &raw const [<GWEN_CHANNEL_ $name:upper>] as *const u8 as i32 }
+                &raw const [<GWEN_CHANNEL_ $name:upper>] as *const u8 as i32
             }
 
             #[no_mangle]
