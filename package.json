@@ -36,6 +36,7 @@
     "clean": "./scripts/clean-cargo.sh clean && pnpm -r clean",
     "lint": "oxlint --config oxlint.json packages/",
     "check:unsafe": "node scripts/check-unsafe.mjs",
+    "check:wasm-size": "node scripts/check-wasm-size.mjs",
     "lint:rust": "cargo fmt --all --check && cargo clippy --workspace --all-targets -- -D warnings && cargo clippy -p gwen-core --all-targets --features physics2d -- -D warnings && cargo clippy -p gwen-core --all-targets --features physics3d -- -D warnings && cargo clippy -p gwen-core --all-targets --features build-tools -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics2d -- -D warnings && cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics3d -- -D warnings && pnpm check:unsafe",
     "lint:fix": "oxlint --config oxlint.json --fix packages/",
     "format": "oxfmt packages/",

@@ -141,16 +141,9 @@ wasm-pack build --target web --features build-tools
 
 ## Binary Size
 
-WASM binaries are optimized for size:
-
-| Variant | Size | Notes |
-|---------|------|-------|
-| light | ~100 KB | ECS only, no physics |
-| physics2d | ~200 KB | With Rapier 2D |
-| physics3d | ~250 KB | With Rapier 3D |
-| physics3d + tools | ~300 KB | Includes fracture |
-
-Sizes are gzip-compressed in distributed npm packages.
+Shipped browser binaries are optimised with the `wasm-opt` version pinned in `wasm-size.json`.
+`pnpm check:wasm-size` compares each variant with that file.
+The Node build-tools binary is reported in the CI step summary and is not gated.
 
 ## Troubleshooting
 
