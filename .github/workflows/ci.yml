@@ -314,7 +314,9 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Cold run 38290952283 job 114950634994: no cache, wall 136s.
+    # Twice that, in whole minutes, is 6. The warm run was 91s.
+    timeout-minutes: 6
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
