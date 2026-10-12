@@ -333,6 +333,8 @@ jobs:
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --test unsafe_sites
       - name: Miri gwen-core physics3d unsafe sites
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test unsafe_sites
+      - name: Miri gwen-core lib unsafe_site tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib unsafe_site_
       - name: Miri gwen-wasm-utils
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
 
