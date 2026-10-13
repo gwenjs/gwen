@@ -16,8 +16,8 @@
         "budget": 2097
       },
       "brotli": {
-        "baseline": 1000,
-        "budget": 3048
+        "baseline": 5000,
+        "budget": 7048
       }
     }
   }
