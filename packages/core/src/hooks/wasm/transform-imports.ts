@@ -11,7 +11,12 @@
 /**
  * Accessor functions provided by the host engine to a community WASM plugin.
  *
- * Each function returns a stable value captured at construction time.
+ * `transform_stride` and `max_entities` return the numbers passed to
+ * `buildTransformImports`. `transform_buffer_ptr` is a binding the loader
+ * updates. When the module exports `gwen_<region>_ptr` and the declared
+ * offset is 0, the probe instance's `start` reads 0. The loader then stores
+ * the offset that export returned, and the real instance's `start` reads
+ * that offset.
  * Rust plugins should call these once during `init()` and cache the results
  * locally — calling them on the hot path incurs unnecessary JS↔WASM overhead.
  */
