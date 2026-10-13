@@ -205,6 +205,53 @@ test("verify-red fails a test that passes on the base", () => {
   assert.match(output, /NOT RED added\.test\.mjs/);
 });
 
+test("verify-red fixture git ignores an inherited GIT_DIR", () => {
+  if (process.env.GWEN_VERIFY_RED_GIT_DIR_CHILD === "1") {
+    const result = runVerifyRed(
+      [
+        "import assert from 'node:assert/strict';",
+        "import test from 'node:test';",
+        "test('passes on the base', () => {",
+        "  assert.equal(1, 1);",
+        "});",
+        "",
+      ].join("\n"),
+      "base",
+    );
+    const output = `${result.stdout}\n${result.stderr}`;
+    assert.match(output, /(?:ℹ|#) pass 1/);
+    assert.match(output, /NOT RED added\.test\.mjs/);
+    return;
+  }
+  const decoy = mkdtempSync(join(tmpdir(), "gwen-decoy-git-"));
+  try {
+    const env = {
+      ...process.env,
+      GWEN_VERIFY_RED_GIT_DIR_CHILD: "1",
+      GIT_DIR: decoy,
+      GIT_INDEX_FILE: join(decoy, "index"),
+    };
+    for (const key of Object.keys(env)) {
+      if (key.startsWith("NODE_TEST") || key === "NODE_CHANNEL_FD") delete env[key];
+    }
+    const child = spawnSync(
+      process.execPath,
+      [
+        "--test",
+        "--test-name-pattern",
+        "verify-red fixture git ignores an inherited GIT_DIR",
+        fileURLToPath(import.meta.url),
+      ],
+      { encoding: "utf8", env },
+    );
+    const output = `${child.stdout}\n${child.stderr}`;
+    assert.equal(child.status, 0, output);
+    assert.match(output, /NOT RED added\.test\.mjs/);
+  } finally {
+    rmSync(decoy, { recursive: true, force: true });
+  }
+});
+
 test("verify-red asks gh for the pull request number", () => {
   const dir = mkdtempSync(join(tmpdir(), "gwen-verify-red-gh-"));
   const argsFile = join(dir, "gh-args.txt");
