@@ -124,10 +124,7 @@ export function codeLinesOfClass(source: string, className: string): number {
   throw new Error(`export class ${className} did not close`);
 }
 
-const sourcePath = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "../../src/engine/gwen-engine.ts",
-);
+const sourcePath = join(dirname(fileURLToPath(import.meta.url)), "../../src/engine/gwen-engine.ts");
 
 describe("GwenEngineImpl", () => {
   it("is under 300 code lines", () => {
