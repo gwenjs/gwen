@@ -286,9 +286,12 @@ export interface WasmEngineBase {
   bulk_destroy(indices: Uint32Array): void;
   /**
    * Create N entities each with a transform in a single WASM call.
-   * @param positions Flat `[x0, y0, x1, y1, ...]` array — length must be `2 * N`.
-   * @param rotations Flat `[r0, r1, ...]` array — length must be `N` (or empty for all-zero).
-   * @returns `Uint32Array` of N entity slot indices.
+   * @param positions Flat `[x0, y0, x1, y1, ...]` array. Length must be exactly `2 * N`.
+   * @param rotations Flat `[r0, r1, ...]` array. Length must be exactly `N`.
+   * @returns `Uint32Array` of N entity slot indices. Both empty (`N = 0`) returns an empty array.
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` before any entity is created when
+   *   `positions` has an odd length or `rotations` is not exactly `N`.
+   * @throws {GwenWasmError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining capacity.
    */
   bulk_spawn_with_transforms(positions: Float32Array, rotations: Float32Array): Uint32Array;
 
@@ -743,6 +746,9 @@ export interface WasmBridge {
   createEntity(): WasmEntityId;
   /**
    * Create N entities, each with a transform.
+   * `positions` length must be exactly `2 * N`. `rotations` length must be exactly `N`.
+   * @throws {GwenError} code `CORE:BUFFER_LENGTH_MISMATCH` before any entity is created when
+   *   `positions` has an odd length or `rotations` is not exactly `N`.
    * @throws {GwenError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining capacity.
    *   No entity is created in that case.
    */

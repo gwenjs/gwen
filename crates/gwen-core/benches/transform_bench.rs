@@ -129,8 +129,9 @@ fn bench_bulk_ops(c: &mut Criterion) {
         b.iter(|| {
             let mut engine = Engine::new(300).expect("max entities");
             let positions: Vec<f32> = (0..200).flat_map(|i| [i as f32 * 16.0, 0.0]).collect();
+            let rotations = vec![0.0f32; 200];
             engine
-                .bulk_spawn_with_transforms(&positions, &[])
+                .bulk_spawn_with_transforms(&positions, &rotations)
                 .expect("entity limit");
         })
     });

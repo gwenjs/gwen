@@ -99,7 +99,10 @@ fn bulk_spawn_over_capacity_creates_nothing() {
     engine.create_entity().expect("slot");
     let before = engine.count_entities();
     let err = engine
-        .bulk_spawn_with_transforms(&[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0], &[])
+        .bulk_spawn_with_transforms(
+            &[0.0, 0.0, 1.0, 1.0, 2.0, 2.0, 3.0, 3.0],
+            &[0.0, 0.0, 0.0, 0.0],
+        )
         .map_or_else(|err| err, |_| panic!("expected an error"));
     assert!(matches!(err, CoreError::EntityLimitReached { max: 3 }));
     assert_known_code(&err);
