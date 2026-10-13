@@ -22,9 +22,9 @@
  *
  * ## Sentinel guards
  * Each allocated region is followed by a 4-byte sentinel word (`0xDEADBEEF`).
- * `checkSentinels()` verifies them when `__GWEN_DEV__` and `engine.debug` are both set. If a Rust
- * plugin writes past its `MemoryRegion.byteLength`, the sentinel is overwritten
- * and the check throws — turning silent heap corruption into an immediate error.
+ * `checkSentinels()` reads that word when `__GWEN_DEV__` and `engine.debug`
+ * are both set, and throws if it changed. A community module cannot write
+ * this buffer. The word still marks an overrun of the core allocation.
  *
  * ## Usage
  * ```typescript
