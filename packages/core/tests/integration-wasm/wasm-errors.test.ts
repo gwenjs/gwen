@@ -331,6 +331,46 @@ describe("WASM coded errors", () => {
     expect(engine.state).toBe("stopped");
   });
 
+  it("bulk_spawn_with_transforms rejects an odd positions length and the next call works", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const other = await createRealEngine({ variant: "light", maxEntities: 4 });
+    const { engine, bridge } = handle;
+    try {
+      const first = bridge.createEntity();
+      expect(bridge.countEntities()).toBe(1);
+      let caught: unknown;
+      try {
+        bridge.bulkSpawnWithTransforms(
+          new Float32Array([1, 2, 3, 4, 5]),
+          new Float32Array([0, 0]),
+        );
+      } catch (error: unknown) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenWasmError);
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenWasmError)) {
+        throw new Error("expected GwenWasmError");
+      }
+      expect(caught.code).toBe(CoreErrorCodes.BUFFER_LENGTH_MISMATCH);
+      expect(caught.exportName).toBe("bulk_spawn_with_transforms");
+      expect(caught.message).toBe("buffer positions length mismatch: expected 6, actual 5");
+      expect(bridge.countEntities()).toBe(1);
+      expect(bridge.isAlive(first.index, first.generation)).toBe(true);
+      expect(other.bridge.countEntities()).toBe(0);
+      const spawned = bridge.bulkSpawnWithTransforms(
+        new Float32Array([8, 9]),
+        new Float32Array([0.25]),
+      );
+      expect(spawned.length).toBe(1);
+      expect(bridge.countEntities()).toBe(2);
+      await expectNextFrame(engine);
+    } finally {
+      await handle.dispose();
+      await other.dispose();
+    }
+  });
+
   it("a wrongly sized bulk buffer throws both sizes and the next frame runs", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     const { engine, bridge } = handle;

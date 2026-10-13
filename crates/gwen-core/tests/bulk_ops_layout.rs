@@ -15,6 +15,14 @@
 //! - Properly assigns positions and rotations to bulk-spawned entities
 
 use gwen_core::bindings::Engine;
+use gwen_core::CoreError;
+
+fn open(max_entities: u32) -> Engine {
+    match Engine::new(max_entities) {
+        Ok(engine) => engine,
+        Err(_) => unreachable!("max entities"),
+    }
+}
 
 #[test]
 fn bulk_destroy_frees_all_provided_entities() {
@@ -60,6 +68,9 @@ fn bulk_spawn_with_transforms_creates_correct_count() {
     let mut engine = Engine::new(100).expect("max entities");
     let positions = [0.0f32, 0.0, 16.0, 0.0, 32.0, 0.0];
     let rotations = [0.0f32, 0.0, 0.0];
+    assert_eq!(engine.bulk_spawn_with_transforms(&[], &[]), Ok(vec![]));
+    assert_eq!(engine.count_entities(), 0);
+
     let ids = engine
         .bulk_spawn_with_transforms(&positions, &rotations)
         .expect("entity limit");
@@ -92,38 +103,105 @@ fn bulk_spawn_assigns_correct_rotations() {
         .expect("entity limit");
     engine.update_transforms();
 
-    // Verify entities were created
     assert_eq!(ids.len(), 3);
     assert_eq!(engine.count_entities(), 3);
+    assert_eq!(engine.get_entity_local_rotation(ids[0]), 0.5);
+    assert_eq!(engine.get_entity_local_rotation(ids[1]), 1.0);
+    assert_eq!(engine.get_entity_local_rotation(ids[2]), 1.5);
 }
 
 #[test]
-fn bulk_spawn_handles_fewer_rotations_than_entities() {
-    let mut engine = Engine::new(100).expect("max entities");
-    // Create 4 entities but only provide 2 rotations
+fn bulk_spawn_rejects_fewer_rotations_than_entities() {
+    let mut engine = open(100);
+    assert_eq!(engine.create_entity().map(|id| id.index()), Ok(0));
     let positions = [0.0f32, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-    let rotations = [0.5f32, 1.0]; // Only 2 rotations
-    let ids = engine
-        .bulk_spawn_with_transforms(&positions, &rotations)
-        .expect("entity limit");
-
-    // Should still create all 4 entities
-    assert_eq!(ids.len(), 4);
-    assert_eq!(engine.count_entities(), 4);
+    let rotations = [0.5f32, 1.0];
+    let err = engine.bulk_spawn_with_transforms(&positions, &rotations);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "rotations",
+            expected: 4,
+            actual: 2,
+        })
+    );
+    if let Err(ref mismatch) = err {
+        assert_eq!(mismatch.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        assert_eq!(
+            mismatch.to_string(),
+            "buffer rotations length mismatch: expected 4, actual 2"
+        );
+    }
+    assert_eq!(engine.count_entities(), 1);
 }
 
 #[test]
-fn bulk_spawn_with_empty_rotations() {
-    let mut engine = Engine::new(100).expect("max entities");
-    let positions = [5.0f32, 10.0, 15.0, 20.0];
-    let ids = engine
-        .bulk_spawn_with_transforms(&positions, &[])
-        .expect("entity limit");
-    engine.update_transforms();
+fn bulk_spawn_rejects_empty_rotations() {
+    let mut engine = open(100);
+    assert_eq!(engine.create_entity().map(|id| id.index()), Ok(0));
+    let err = engine.bulk_spawn_with_transforms(&[5.0, 10.0, 15.0, 20.0], &[]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "rotations",
+            expected: 2,
+            actual: 0,
+        })
+    );
+    if let Err(ref mismatch) = err {
+        assert_eq!(mismatch.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        assert_eq!(
+            mismatch.to_string(),
+            "buffer rotations length mismatch: expected 2, actual 0"
+        );
+    }
+    assert_eq!(engine.count_entities(), 1);
+}
 
-    // All rotations should default to 0.0
-    assert_eq!(ids.len(), 2);
-    assert_eq!(engine.count_entities(), 2);
+#[test]
+fn bulk_spawn_rejects_an_odd_positions_length() {
+    let mut engine = open(100);
+    assert_eq!(engine.create_entity().map(|id| id.index()), Ok(0));
+    let err = engine.bulk_spawn_with_transforms(&[0.0, 0.0, 0.0, 0.0, 1.0], &[0.0, 0.0]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "positions",
+            expected: 6,
+            actual: 5,
+        })
+    );
+    if let Err(ref mismatch) = err {
+        assert_eq!(mismatch.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        assert_eq!(
+            mismatch.to_string(),
+            "buffer positions length mismatch: expected 6, actual 5"
+        );
+    }
+    assert_eq!(engine.count_entities(), 1);
+}
+
+#[test]
+fn bulk_spawn_rejects_one_extra_rotation() {
+    let mut engine = open(100);
+    assert_eq!(engine.create_entity().map(|id| id.index()), Ok(0));
+    let err = engine.bulk_spawn_with_transforms(&[0.0, 0.0, 1.0, 1.0], &[0.1, 0.2, 0.3]);
+    assert_eq!(
+        err,
+        Err(CoreError::BufferLengthMismatch {
+            buffer: "rotations",
+            expected: 2,
+            actual: 3,
+        })
+    );
+    if let Err(ref mismatch) = err {
+        assert_eq!(mismatch.code(), "CORE:BUFFER_LENGTH_MISMATCH");
+        assert_eq!(
+            mismatch.to_string(),
+            "buffer rotations length mismatch: expected 2, actual 3"
+        );
+    }
+    assert_eq!(engine.count_entities(), 1);
 }
 
 #[test]
