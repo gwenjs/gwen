@@ -9,15 +9,17 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 /** Frozen allow-list. Unlicense is omitted: MIT covers byteorder and memchr. */
 const ALLOWED_LICENSES = ["Apache-2.0", "MIT", "MPL-2.0", "Unicode-3.0", "Zlib"];
 
-/** Advisories with no upgrade. The fixable crossbeam-epoch id is not here. */
+/** Unmaintained, patched = []. The fixable crossbeam-epoch id is not here. */
 const IGNORES = [
   {
     id: "RUSTSEC-2024-0436",
-    reason: "paste 1.0.15 has no upgrade. #189. 2026-10-13.",
+    reason:
+      "paste 1.0.15 is informational unmaintained, patched = []. Proc-macro, compile time only. #189. 2026-10-13.",
   },
   {
     id: "RUSTSEC-2025-0141",
-    reason: "bincode 2.0.1 has no upgrade. #188. 2026-10-13.",
+    reason:
+      "bincode 2.0.1 is informational unmaintained, patched = []. Ships in the physics3d wasm. #188. 2026-10-13.",
   },
 ];
 
@@ -350,7 +352,7 @@ test("deny.toml allows exactly the five frozen licenses", () => {
   assert.deepEqual(ids, ALLOWED_LICENSES);
 });
 
-test("advisories with no upgrade are ignored with an issue and a date", () => {
+test("ignored advisories cite an issue and a date", () => {
   const advisories = section(readOrEmpty(join(root, "deny.toml")), "advisories");
   const found = [...advisories.matchAll(/id = "([^"]+)", reason = "([^"]+)"/g)].map((match) => ({
     id: match[1] ?? "",
