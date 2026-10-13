@@ -30,9 +30,18 @@ const CARGO_DENY_SHA256 = "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac613
 function readOrEmpty(path) {
   try {
     return readFileSync(path, "utf8");
-  } catch {
-    return "";
+  } catch (error) {
+    if (isEnoent(error)) return "";
+    throw error;
   }
+}
+
+/**
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+function isEnoent(error) {
+  return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
 }
 
 /**
@@ -74,11 +83,12 @@ function jobBlock(yaml, id) {
  * @returns {boolean}
  */
 function below(version, floor) {
-  const left = version.split(".").map((part) => Number(part));
-  const right = floor.split(".").map((part) => Number(part));
+  const left = version.split(".");
+  const right = floor.split(".");
   for (let i = 0; i < 3; i++) {
-    const a = left[i] ?? 0;
-    const b = right[i] ?? 0;
+    const a = Number(left[i]);
+    const b = Number(right[i]);
+    if (!Number.isInteger(a) || !Number.isInteger(b)) return true;
     if (a < b) return true;
     if (a > b) return false;
   }
