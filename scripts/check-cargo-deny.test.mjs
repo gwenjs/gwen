@@ -95,6 +95,16 @@ function below(version, floor) {
   return false;
 }
 
+test("a directory read is not an empty file", () => {
+  assert.throws(
+    () => readOrEmpty(root),
+    (error) => {
+      assert.equal(isEnoent(error), false);
+      return true;
+    },
+  );
+});
+
 test("gwen-wasm-utils declares MPL-2.0", () => {
   const cargo = readOrEmpty(join(root, "crates/gwen-wasm-utils/Cargo.toml"));
   assert.match(cargo, /^license = "MPL-2\.0"$/m);
@@ -141,6 +151,7 @@ test("the cargo-deny job checks every kind and ci-status reads it", () => {
   assert.match(job, /cargo-deny-0\.20\.2-x86_64-unknown-linux-musl\.tar\.gz/);
   assert.match(job, new RegExp(CARGO_DENY_SHA256));
   assert.match(job, /sha256sum -c/);
+  assert.match(job, /export PATH="\$dest:\$PATH"\n\s*cargo-deny --version/);
   assert.match(job, /cargo deny --all-features check licenses advisories bans sources/);
   const status = jobBlock(yaml, "ci-status");
   assert.match(status, /(?:needs:\s*\[[^\]]*rust-deny|^\s+- rust-deny$)/m);
