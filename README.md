@@ -116,7 +116,7 @@ export const GameScene = defineScene({
 ### Prerequisites
 
 - Node.js 18+, pnpm 8+
-- Rust + `wasm-pack` (only needed to rebuild WASM — not required for TypeScript-only changes)
+- Rust 1.99.0, wasm-pack 0.13.1, and wasm-opt 133 (only needed to rebuild WASM — not required for TypeScript-only changes). `./scripts/build-wasm.sh` runs `wasm-opt -Oz` on every browser binary. `GWEN_SKIP_WASM_OPT=1` skips that on a laptop and is refused when `CI=true`.
 
 ### Setup
 

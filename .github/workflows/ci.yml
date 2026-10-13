@@ -54,8 +54,19 @@ jobs:
       - name: Install pinned wasm-opt
         run: |
           version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmOpt"])')
-          curl -fsSL -o /tmp/binaryen.tar.gz "https://github.com/WebAssembly/binaryen/releases/download/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz"
-          sudo tar -xzf /tmp/binaryen.tar.gz -C /usr/local --strip-components=1
+          url=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["url"])')
+          sha=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["sha256"])')
+          case "$url" in
+            *"/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz") ;;
+            *) echo "binaryen url does not match wasm-opt ${version}" >&2; exit 1 ;;
+          esac
+          curl -fsSL -o /tmp/binaryen.tar.gz "$url"
+          echo "$sha  /tmp/binaryen.tar.gz" | sha256sum -c
+          dest="${RUNNER_TEMP}/binaryen"
+          mkdir -p "$dest"
+          tar -xzf /tmp/binaryen.tar.gz -C "$dest" --strip-components=1
+          echo "$dest/bin" >> "$GITHUB_PATH"
+          export PATH="$dest/bin:$PATH"
           wasm-opt --version
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
@@ -358,6 +369,7 @@ jobs:
   wasm-size:
     name: WASM size budget
     runs-on: ubuntu-latest
+    timeout-minutes: 2
     needs: [rust]
     permissions:
       contents: read

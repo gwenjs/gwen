@@ -4,8 +4,11 @@
 
 - **Node.js** ≥ 20
 - **pnpm** ≥ 9
-- **Rust** + `wasm-pack` (only needed for crate changes)
-  - Install: `rustup target add wasm32-unknown-unknown`
+- **Rust** 1.99.0, **wasm-pack** 0.13.1, and **wasm-opt** 133 (only needed to rebuild WASM)
+  - `rustup toolchain install 1.99.0 --profile minimal`
+  - `rustup target add wasm32-unknown-unknown`
+  - `cargo install wasm-pack --version 0.13.1 --locked`
+  - wasm-opt prints `wasm-opt version 133 (version_133)` from the official binaryen archive, or `wasm-opt version 133` from a source build of tag `version_133` (Homebrew builds that tag). `./scripts/build-wasm.sh` runs `wasm-opt -Oz` on every browser binary. `GWEN_SKIP_WASM_OPT=1` skips that on a laptop and is refused when `CI=true`.
 
 ## Initial Setup
 

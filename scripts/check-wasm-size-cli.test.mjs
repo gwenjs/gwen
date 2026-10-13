@@ -314,6 +314,41 @@ test('tolerance 0.5 with recomputed budgets fails', () => {
       '[WASM SIZE] tolerance 0.5 != 0.05; toleranceMinBytes 2048 != 2048',
     ),
   );
+  assert.ok(
+    result.lines.includes('[WASM SIZE] light gzip: stored budget 150000 != formula 105000'),
+  );
+  assert.ok(
+    result.lines.includes('[WASM SIZE] light brotli: stored budget 150000 != formula 105000'),
+  );
+});
+
+test('toleranceMinBytes 0 with recomputed budgets fails', () => {
+  const baseline = 10_000;
+  const withoutFloor = baseline + Math.ceil(baseline * 0.05);
+  const result = evaluateWasmSize({
+    catalog: catalog(baseline, baseline, {
+      toleranceMinBytes: 0,
+      gzipBudget: withoutFloor,
+      brotliBudget: withoutFloor,
+    }),
+    measured: { light: { raw: 1, gzip: baseline, brotli: baseline } },
+    observed: toolchain,
+    jsonChanged: false,
+    prBody: '## WASM size budget\nfloor removed\n',
+  });
+  assert.equal(withoutFloor, 10_500);
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.lines.includes(
+      '[WASM SIZE] tolerance 0.05 != 0.05; toleranceMinBytes 0 != 2048',
+    ),
+  );
+  assert.ok(
+    result.lines.includes('[WASM SIZE] light gzip: stored budget 10500 != formula 12048'),
+  );
+  assert.ok(
+    result.lines.includes('[WASM SIZE] light brotli: stored budget 10500 != formula 12048'),
+  );
 });
 
 test('cli: a higher baseline without a filled section exits 1', () => {
@@ -342,6 +377,25 @@ test('cli: a higher baseline with a filled section exits 0', () => {
     commitCatalog(root, catalog(5000, 5000), wasm);
     const result = runCli(root, base, { GWEN_PR_BODY: '## WASM size budget\nrecorded from CI\n' });
     assert.equal(result.status, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('cli: a higher brotli baseline without a filled section exits 1', () => {
+  const wasm = Buffer.from('gwen-wasm-size-check'.repeat(50));
+  const size = measure(wasm);
+  const { root, base } = initRepo(catalog(size.gzip, 1000));
+  try {
+    commitCatalog(root, catalog(size.gzip, 5000), wasm);
+    const result = runCli(root, base, {});
+    assert.equal(result.status, 1);
+    assert.ok(
+      result.stdout.includes(
+        '[WASM SIZE] light brotli: baseline raised from 1000 to 5000 without a non-empty "## WASM size budget" section',
+      ),
+    );
+    assert.equal(result.stdout.includes('light gzip: baseline raised'), false);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -445,7 +499,9 @@ test('a failure wins over can be lowered', () => {
     prBody: '',
   });
   assert.equal(result.ok, false);
-  assert.match(result.table, /\| over$/m);
+  assert.match(result.table, /\| over \|/);
+  assert.ok(result.lines.some((line) => line.includes('→ measured')));
+  assert.ok(result.lines.some((line) => line.includes('can be lowered')));
   assert.equal(result.table.includes('can be lowered'), false);
 });
 
@@ -527,6 +583,10 @@ test('binaryen archives are pinned by sha256 and the workflow checks them', () =
   assert.ok(ci.includes('sha256sum -c'));
   assert.equal(ci.includes('sudo tar -xzf /tmp/binaryen.tar.gz -C /usr/local'), false);
   assert.match(ci, /wasm-size:[\s\S]*timeout-minutes: 2/);
+  assert.match(
+    ci,
+    /echo "\$dest\/bin" >> "\$GITHUB_PATH"\n {10}export PATH="\$dest\/bin:\$PATH"\n {10}wasm-opt --version/,
+  );
 });
 
 test('the toolchain stamp is not in the core package', () => {
@@ -588,10 +648,47 @@ test('a missing wasm-opt names the archives and the skip hatch', () => {
     assert.equal(result.status, 1);
     const text = `${result.stdout}\n${result.stderr}`;
     assert.ok(text.includes('binaryen-version_133-arm64-macos.tar.gz'));
+    assert.ok(text.includes('binaryen-version_133-x86_64-macos.tar.gz'));
     assert.ok(text.includes('binaryen-version_133-x86_64-linux.tar.gz'));
     assert.ok(text.includes('shasum -a 256 -c'));
+    assert.ok(text.includes('sha256sum -c'));
     assert.ok(text.includes('GWEN_SKIP_WASM_OPT=1'));
     assert.ok(text.includes('CI=true'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('an official wasm-opt 133 is accepted', () => {
+  const { root, result } = runBuildProbe('wasm-opt version 133 (version_133)', {
+    GWEN_WASM_OPT_CHECK_ONLY: '1',
+  });
+  try {
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a wasm-opt 132 is refused', () => {
+  const { root, result } = runBuildProbe('wasm-opt version 132 (version_132)', {
+    GWEN_WASM_OPT_CHECK_ONLY: '1',
+  });
+  try {
+    assert.equal(result.status, 1);
+    assert.ok(`${result.stdout}\n${result.stderr}`.includes('not pinned 133'));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('a wasm-opt parenthetical that disagrees is refused', () => {
+  const { root, result } = runBuildProbe('wasm-opt version 133 (version_132)', {
+    GWEN_WASM_OPT_CHECK_ONLY: '1',
+  });
+  try {
+    assert.equal(result.status, 1);
+    assert.ok(`${result.stdout}\n${result.stderr}`.includes('not pinned 133'));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
