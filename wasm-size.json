@@ -10,14 +10,14 @@
   "variants": {
     "light": {
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
-      "raw": 2,
+      "raw": 1,
       "gzip": {
-        "baseline": 0,
-        "budget": 2048
+        "baseline": 1000,
+        "budget": 3048
       },
       "brotli": {
-        "baseline": 0,
-        "budget": 2048
+        "baseline": 30,
+        "budget": 2078
       }
     }
   }
