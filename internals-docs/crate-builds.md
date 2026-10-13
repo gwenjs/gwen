@@ -49,7 +49,7 @@ The `build-wasm.sh` script needs Rust 1.99.0, wasm-pack 0.13.1, and wasm-opt 133
 
 ```bash
 # Build physics3d with fracture simulation
-pnpm build:wasm-tools
+pnpm build:wasm:tools
 
 # This requires the `build-tools` feature in physics3d crate
 ```
@@ -195,7 +195,7 @@ See the `gwen-wasm-utils` crate for WASM utility implementations.
 The GitHub Actions workflow (`ci.yml`):
 1. Installs Rust 1.99.0, wasm-pack 0.13.1, and wasm-opt 133. The wasm-opt archive sha256 is checked from `wasm-size.json`.
 2. Runs `./scripts/build-wasm.sh`, which applies `wasm-opt -Oz` to every browser binary
-3. Builds the Node build-tools binary inside `./scripts/build-wasm.sh`, which checks wasm-pack against `wasm-size.json`. CI does not run `pnpm build:wasm-tools`. `scripts/build-wasm-tools.sh` still does not check the wasm-pack version.
+3. Builds the Node build-tools binary inside `./scripts/build-wasm.sh`, which checks wasm-pack against `wasm-size.json`. CI does not run `pnpm build:wasm:tools`. `scripts/build-wasm-tools.sh` still does not check the wasm-pack version.
 4. Uploads the WASM artifacts for the publish workflow
 5. Publishes npm packages with embedded WASM. `toolchain.json` is not part of the `@gwenjs/core` package.
 

@@ -294,7 +294,7 @@ Three variants exist (controlled by Cargo features):
 
 ```bash
 # Build physics3d with fracture (requires build-tools)
-pnpm build:wasm-tools
+pnpm build:wasm:tools
 
 # Build standard physics3d only
 pnpm build:wasm
