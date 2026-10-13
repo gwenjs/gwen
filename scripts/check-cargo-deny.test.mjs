@@ -6,8 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-/** Licenses `cargo deny` 0.20.2 listed for `--all-features` on 507aa6e9. */
-const ALLOWED_LICENSES = ["Apache-2.0", "MIT", "MPL-2.0", "Unicode-3.0", "Unlicense", "Zlib"];
+/** Frozen allow-list. Unlicense is omitted: MIT covers byteorder and memchr. */
+const ALLOWED_LICENSES = ["Apache-2.0", "MIT", "MPL-2.0", "Unicode-3.0", "Zlib"];
 
 /** Advisories with no upgrade. The fixable crossbeam-epoch id is not here. */
 const IGNORES = [
@@ -100,7 +100,7 @@ test("gwen-wasm-utils declares MPL-2.0", () => {
   assert.match(cargo, /^license = "MPL-2\.0"$/m);
 });
 
-test("deny.toml allows exactly the licenses cargo-deny reported", () => {
+test("deny.toml allows exactly the five frozen licenses", () => {
   const licenses = section(readOrEmpty(join(root, "deny.toml")), "licenses");
   const allow = licenses.match(/allow\s*=\s*\[([\s\S]*?)\]/);
   const ids = [...(allow?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? "");
