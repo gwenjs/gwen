@@ -327,11 +327,9 @@ jobs:
         run: cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics2d -- -D warnings
       - name: Clippy gwen-core wasm32 physics3d
         run: cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics3d -- -D warnings
-      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
-        with:
-          node-version: 22
-      - name: Unsafe audit
-        run: node scripts/check-unsafe.mjs
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Unsafe audit and script tests
+        run: pnpm check:unsafe && pnpm test:scripts
 
   rust-miri:
     name: Miri
