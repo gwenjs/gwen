@@ -7,14 +7,7 @@ import { fileURLToPath } from "node:url";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 /** Licenses `cargo deny` 0.20.2 listed for `--all-features` on 507aa6e9. */
-const ALLOWED_LICENSES = [
-  "Apache-2.0",
-  "MIT",
-  "MPL-2.0",
-  "Unicode-3.0",
-  "Unlicense",
-  "Zlib",
-];
+const ALLOWED_LICENSES = ["Apache-2.0", "MIT", "MPL-2.0", "Unicode-3.0", "Unlicense", "Zlib"];
 
 /** Advisories with no upgrade. The fixable crossbeam-epoch id is not here. */
 const IGNORES = [
@@ -28,8 +21,7 @@ const IGNORES = [
   },
 ];
 
-const CARGO_DENY_SHA256 =
-  "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f";
+const CARGO_DENY_SHA256 = "9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f";
 
 /**
  * @param {string} path
@@ -136,16 +128,10 @@ test("the cargo-deny job checks every kind and ci-status reads it", () => {
   assert.match(job, /name: cargo-deny/);
   assert.match(job, /timeout-minutes: 2/);
   assert.match(job, /toolchain: "1\.99\.0"/);
-  assert.match(
-    job,
-    /cargo-deny-0\.20\.2-x86_64-unknown-linux-musl\.tar\.gz/,
-  );
+  assert.match(job, /cargo-deny-0\.20\.2-x86_64-unknown-linux-musl\.tar\.gz/);
   assert.match(job, new RegExp(CARGO_DENY_SHA256));
   assert.match(job, /sha256sum -c/);
-  assert.match(
-    job,
-    /cargo deny --all-features check licenses advisories bans sources/,
-  );
+  assert.match(job, /cargo deny --all-features check licenses advisories bans sources/);
   const status = jobBlock(yaml, "ci-status");
   assert.match(status, /(?:needs:\s*\[[^\]]*rust-deny|^\s+- rust-deny$)/m);
   assert.match(status, /needs\['rust-deny'\]\.result/);
