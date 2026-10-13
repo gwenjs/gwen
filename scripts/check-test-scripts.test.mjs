@@ -76,7 +76,7 @@ test("root package.json defines test:scripts as the script glob", () => {
 
 test("pnpm test ends with pnpm test:scripts", () => {
   const pkg = readJson(join(root, "package.json"));
-  const parts = pkg.scripts.test.split("&&").map((part) => part.trim());
+  const parts = String(pkg.scripts["test"]).split("&&").map((part) => part.trim());
   assert.equal(parts.at(-1), "pnpm test:scripts");
 });
 
