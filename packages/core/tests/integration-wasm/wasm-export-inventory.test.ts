@@ -90,7 +90,9 @@ const ENGINE: Record<string, ExportRow> = {
   remove_component: infallible(
     "a dead entity returns false at bindings.rs:248-252; a missing location returns None at storage.rs:150; the next index is that stored archetype id at storage.rs:152",
   ),
-  remove_entity_from_query: infallible("the index parameter is unused at bindings.rs:598-599"),
+  remove_entity_from_query: infallible(
+    "bindings.rs:598-599 forwards the index to QuerySystem::remove_entity, which ignores it at query.rs:172-174",
+  ),
   set_components_bulk: result(),
   set_entity_local_position: infallible(
     "a missing transform is None and the call returns at bindings.rs:790-794; set_position stores the Vec2 at transform.rs:160-162",
