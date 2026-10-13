@@ -10,7 +10,7 @@
   "variants": {
     "light": {
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
-      "raw": 1,
+      "raw": 2,
       "gzip": {
         "baseline": 49,
         "budget": 2097
