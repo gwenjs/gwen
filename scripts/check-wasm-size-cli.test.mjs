@@ -602,12 +602,17 @@ test('the toolchain stamp is not in the core package', () => {
   })();
   writeFileSync(stamp, '{"rust":"1.99.0","wasmPack":"0.13.1","wasmOpt":"133"}\n');
   try {
-    const result = spawnSync('pnpm', ['pack', '--dry-run', '--pack-destination', tmpdir()], {
-      cwd: core,
-      encoding: 'utf8',
-    });
-    assert.equal(result.status, 0, result.stderr);
+    // agent-hygiene does not install the workspace. pnpm pack then exits 1
+    // with ERR_PNPM_CANNOT_RESOLVE_WORKSPACE_PROTOCOL. npm pack reads the
+    // same files field, including the negation, without that install.
+    const result = spawnSync(
+      'npm',
+      ['pack', '--dry-run', '--ignore-scripts', '--pack-destination', tmpdir()],
+      { cwd: core, encoding: 'utf8' },
+    );
     const listing = `${result.stdout}\n${result.stderr}`;
+    assert.equal(result.status, 0, listing);
+    assert.ok(listing.includes('@gwenjs/core'));
     assert.equal(listing.includes('toolchain.json'), false);
   } finally {
     if (previous) writeFileSync(stamp, previous);
