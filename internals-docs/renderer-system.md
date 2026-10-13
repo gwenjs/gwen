@@ -46,7 +46,7 @@ ship the adapter.
 | Native WebGL2 (`@gwenjs/renderer-webgl`) | Scene graph, materials, and loaders do not exist. Highest time and maintenance. | No shipped byte size. |
 | WebGPU plus a WebGL2 fallback | Two backends, so about twice the WebGL2 cost. CI has no GPU. Smoke coverage is Canvas 2D only. | No shipped byte size. |
 
-physics3d WASM is about 250 KB gzip (`internals-docs/crate-builds.md`). three.js gzip
+physics3d WASM gzip baseline is 292045 bytes (`wasm-size.json`, variant `physics3d`). three.js gzip
 size is not in this repo. The follow-up bundle spike measures it against
 `bundle-budget.json` before that package is published. Do not invent a three.js size.
 
