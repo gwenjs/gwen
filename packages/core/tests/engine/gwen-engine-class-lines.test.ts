@@ -132,4 +132,20 @@ describe("GwenEngineImpl", () => {
     const lines = codeLinesOfClass(source, "GwenEngineImpl");
     expect(lines).toBeLessThan(300);
   });
+
+  it("counts a brace in a string, a line comment, a block comment, a template, and a blank line", () => {
+    const source = [
+      "export class Sample {",
+      '  label = "brace } inside"',
+      "  // comment }",
+      "  /* block }",
+      "     still a comment */",
+      "  tick = `template } ${1}`",
+      "",
+      "  value = 1",
+      "}",
+    ].join("\n");
+    expect(codeLinesOfClass(source, "Sample")).toBe(5);
+    expect(codeLinesOfClass(readFileSync(sourcePath, "utf8"), "GwenEngineImpl")).toBeLessThan(300);
+  });
 });
