@@ -209,6 +209,7 @@ impl Archetype {
         let mut mask = BitSet128::new();
         for &type_id in &component_types {
             if let Some(&bit_idx) = bit_indices.get(&type_id) {
+                // Assigned by ComponentRegistry::assign_bit_index, below MAX_COMPONENT_TYPES.
                 mask.set(bit_idx);
             }
         }

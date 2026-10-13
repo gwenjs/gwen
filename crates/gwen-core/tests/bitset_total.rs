@@ -16,7 +16,7 @@ use gwen_core::{BitSet128, CoreError};
 #[test]
 fn set_returns_true_for_bits_inside_the_set() {
     let mut set = BitSet128::new();
-    let mut other = BitSet128::new();
+    let other = BitSet128::new();
     for index in [0u8, 63, 64, 127] {
         assert_eq!(set.contains(index), false);
         assert_eq!(set.set(index), true);

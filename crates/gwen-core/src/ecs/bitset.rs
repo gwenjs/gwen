@@ -17,33 +17,37 @@ impl BitSet128 {
         Self { low: 0, high: 0 }
     }
 
-    /// Set a bit at the given index.
+    /// Sets the bit at `index`.
     ///
-    /// # Panics
-    /// Panics if index >= 128.
+    /// Returns `true` when that bit is set. Returns `false` when `index` is
+    /// 128 or greater, and leaves this set unchanged.
     #[inline]
-    #[allow(clippy::panic, reason = "index >= 128 is a caller bug; removal is #52")]
-    pub fn set(&mut self, index: u8) {
-        assert!(index < 128, "BitSet128 index out of bounds: {}", index);
-        if index < 64 {
-            self.low |= 1 << index;
+    pub fn set(&mut self, index: u8) -> bool {
+        if index < 128 {
+            if index < 64 {
+                self.low |= 1 << index;
+            } else {
+                self.high |= 1 << (index - 64);
+            }
+            true
         } else {
-            self.high |= 1 << (index - 64);
+            false
         }
     }
 
-    /// Check if a bit is set.
+    /// Returns whether the bit at `index` is set.
     ///
-    /// # Panics
-    /// Panics if index >= 128.
+    /// Returns `false` when `index` is 128 or greater.
     #[inline]
-    #[allow(clippy::panic, reason = "index >= 128 is a caller bug; removal is #52")]
     pub fn contains(&self, index: u8) -> bool {
-        assert!(index < 128, "BitSet128 index out of bounds: {}", index);
-        if index < 64 {
-            (self.low & (1 << index)) != 0
+        if index < 128 {
+            if index < 64 {
+                (self.low & (1 << index)) != 0
+            } else {
+                (self.high & (1 << (index - 64))) != 0
+            }
         } else {
-            (self.high & (1 << (index - 64))) != 0
+            false
         }
     }
 
@@ -117,9 +121,9 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_bitset_out_of_bounds() {
         let mut bs = BitSet128::new();
-        bs.set(128);
+        assert_eq!(bs.set(128), false);
+        assert_eq!(bs.is_empty(), true);
     }
 }
