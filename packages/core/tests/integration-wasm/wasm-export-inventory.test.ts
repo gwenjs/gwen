@@ -24,62 +24,118 @@ function infallible(why: string): { kind: "infallible"; why: string } {
 
 const ENGINE: Record<string, ExportRow> = {
   constructor: result(),
-  __destroy_into_raw: infallible(""),
-  free: infallible(""),
-  "Symbol(Symbol.dispose)": infallible(""),
-  "Symbol(nodejs.dispose)": infallible(""),
+  __destroy_into_raw: infallible(
+    "the light glue zeroes __wbg_ptr and returns it; this method does not call Rust",
+  ),
+  free: infallible(
+    "the glue zeroes __wbg_ptr, then calls the generated drop; Engine has no Drop impl",
+  ),
+  "Symbol(Symbol.dispose)": infallible(
+    "the light glue assigns Symbol.dispose to free at gwen_core.js:915",
+  ),
+  "Symbol(nodejs.dispose)": infallible(
+    "wasm-bindgen aliases this name to Symbol.dispose, which the glue assigns to free",
+  ),
   add_component: result(),
-  add_entity_transform: infallible(""),
-  alloc_shared_buffer: infallible(""),
-  bulk_destroy: infallible(""),
+  add_entity_transform: infallible(
+    "get_entity_generation uses records.get and unwrap_or(u32::MAX) at bindings.rs:605-608; add_transform inserts that key then reads it at transform.rs:321-322",
+  ),
+  alloc_shared_buffer: infallible(
+    "a zero length, a rejected layout, or a null alloc_zeroed each return 0 at bindings.rs:929-939",
+  ),
+  bulk_destroy: infallible(
+    "an index past records fails is_alive at entity.rs:121-122 and is skipped at bindings.rs:3565-3566",
+  ),
   bulk_spawn_with_transforms: result(),
-  count_entities: infallible(""),
+  count_entities: infallible("returns the stored live count at bindings.rs:176-177; no argument"),
   create_entity: result(),
-  delete_entity: infallible(""),
-  dirty_transform_count: infallible(""),
+  delete_entity: infallible(
+    "deallocate returns false when the index is past records at entity.rs:98-99; a stale generation returns false at entity.rs:105-106",
+  ),
+  dirty_transform_count: infallible(
+    "DirtySet::len is dense.len() at dirty_set.rs:67-68; the as u32 cast truncates",
+  ),
   free_shared_buffer: result(),
-  get_component_raw: infallible(""),
+  get_component_raw: infallible(
+    "a dead entity returns an empty Vec at bindings.rs:286-290; get_component uses location get at storage.rs:217-220",
+  ),
   get_components_bulk: result(),
-  get_entity_generation: infallible(""),
-  get_entity_local_rotation: infallible(""),
-  get_entity_local_x: infallible(""),
-  get_entity_local_y: infallible(""),
-  get_entity_world_rotation: infallible(""),
-  get_entity_world_x: infallible(""),
-  get_entity_world_y: infallible(""),
-  get_query_result_capacity: infallible(""),
-  get_query_result_ptr: infallible(""),
-  has_component: infallible(""),
-  has_entity_parent: infallible(""),
-  is_alive: infallible(""),
-  query_entities: infallible(""),
+  get_entity_generation: infallible(
+    "records.get, then unwrap_or(u32::MAX) at bindings.rs:605-608 and entity.rs:145-146",
+  ),
+  get_entity_local_rotation: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:867-872"),
+  get_entity_local_x: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:817-822"),
+  get_entity_local_y: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:827-832"),
+  get_entity_world_rotation: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:857-862"),
+  get_entity_world_x: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:837-842"),
+  get_entity_world_y: infallible("HashMap get, then unwrap_or(0.0) at bindings.rs:847-852"),
+  get_query_result_capacity: infallible(
+    "returns the buffer length cast to u32 at bindings.rs:682-683; the cast truncates",
+  ),
+  get_query_result_ptr: infallible("returns Vec::as_ptr at bindings.rs:673-674; no index"),
+  has_component: infallible(
+    "a dead entity returns false at bindings.rs:268-272; storage uses location get at storage.rs:195-200",
+  ),
+  has_entity_parent: infallible("HashMap get, then unwrap_or(false) at bindings.rs:877-882"),
+  is_alive: infallible("an index past records returns false at entity.rs:121-122"),
+  query_entities: infallible(
+    "an unknown type id is skipped by bit_index at query.rs:26-28; archetype ids come from the graph list at storage.rs:360-365",
+  ),
   query_entities_to_buffer: result(),
   query_read_bulk: result(),
   query_write_bulk: result(),
-  register_component_type: infallible(""),
-  remove_component: infallible(""),
-  remove_entity_from_query: infallible(""),
+  register_component_type: infallible(
+    "no argument; the counter starts at 0 at bindings.rs:131 and the body adds 1 at bindings.rs:198-199. The light build is wasm-pack --release and profile.release does not set overflow-checks, so that add wraps. A debug build panics when the add overflows u32",
+  ),
+  remove_component: infallible(
+    "a dead entity returns false at bindings.rs:248-252; a missing location returns None at storage.rs:150",
+  ),
+  remove_entity_from_query: infallible("the index parameter is unused at bindings.rs:598-599"),
   set_components_bulk: result(),
-  set_entity_local_position: infallible(""),
-  set_entity_local_rotation: infallible(""),
-  set_entity_local_scale: infallible(""),
+  set_entity_local_position: infallible(
+    "a missing transform is None and the call returns at bindings.rs:790-794; set_position stores the Vec2 at transform.rs:160-162",
+  ),
+  set_entity_local_rotation: infallible(
+    "a missing transform is None and the call returns at bindings.rs:799-803",
+  ),
+  set_entity_local_scale: infallible(
+    "a missing transform is None and the call returns at bindings.rs:808-812",
+  ),
   set_entity_parent: result(),
-  stats: infallible(""),
+  stats: infallible("formats the stored live count at bindings.rs:3278-3279; no argument"),
   sync_transforms_to_buffer: result(),
-  translate_entity: infallible(""),
-  update_entity_archetype: infallible(""),
-  update_transforms: infallible(""),
+  translate_entity: infallible(
+    "a missing transform is None and the call returns at bindings.rs:780-785; the f32 add does not trap",
+  ),
+  update_entity_archetype: infallible(
+    "both parameters are unused; the body is empty at bindings.rs:590-592",
+  ),
+  update_transforms: infallible(
+    "update walks a cloned id list with HashMap gets at transform.rs:424-459; the hierarchy walk is a loop at transform.rs:479-495",
+  ),
 };
 
 const JS_ENTITY_ID: Record<string, ExportRow> = {
-  constructor: infallible(""),
-  __destroy_into_raw: infallible(""),
-  free: infallible(""),
-  "Symbol(Symbol.dispose)": infallible(""),
-  "Symbol(nodejs.dispose)": infallible(""),
-  generation: infallible(""),
-  index: infallible(""),
-  "static __wrap": infallible(""),
+  constructor: infallible(
+    "JsEntityId has no wasm_bindgen constructor at bindings.rs:54-67; new JsEntityId() does not enter Rust",
+  ),
+  __destroy_into_raw: infallible(
+    "the light glue zeroes __wbg_ptr and returns it; this method does not call Rust",
+  ),
+  free: infallible(
+    "the glue zeroes __wbg_ptr, then calls the generated drop; JsEntityId has no Drop impl",
+  ),
+  "Symbol(Symbol.dispose)": infallible(
+    "the light glue assigns Symbol.dispose to free at gwen_core.js:958",
+  ),
+  "Symbol(nodejs.dispose)": infallible(
+    "wasm-bindgen aliases this name to Symbol.dispose, which the glue assigns to free",
+  ),
+  generation: infallible("returns the stored field at bindings.rs:65-66"),
+  index: infallible("returns the stored field at bindings.rs:58-59"),
+  "static __wrap": infallible(
+    "the glue stores ptr >>> 0 on the object at gwen_core.js:923-928; the method does not call Rust",
+  ),
 };
 
 type WasmCtor = new (...args: never[]) => unknown;
