@@ -9,9 +9,27 @@
     clippy::unimplemented,
     reason = "test-only code"
 )]
+#![allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 
 use gwen_core::bindings::Engine;
 use gwen_core::{BitSet128, CoreError};
+
+fn must_ok<T, E>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(_) => unreachable!(),
+    }
+}
+
+fn must_err<T, E>(result: Result<T, E>) -> E {
+    match result {
+        Ok(_) => unreachable!(),
+        Err(err) => err,
+    }
+}
 
 #[test]
 fn set_returns_true_for_bits_inside_the_set() {
@@ -58,10 +76,10 @@ fn contains_rejects_128_and_255_on_a_full_set() {
 
 #[test]
 fn query_finds_bit_127_and_the_129th_type_is_refused() {
-    let mut engine = Engine::new(4).expect("engine");
-    let holder = engine.create_entity().expect("holder");
-    let other = engine.create_entity().expect("other");
-    let only_last = engine.create_entity().expect("only last");
+    let mut engine = must_ok(Engine::new(4));
+    let holder = must_ok(engine.create_entity());
+    let other = must_ok(engine.create_entity());
+    let only_last = must_ok(engine.create_entity());
     for type_id in 0..128u32 {
         assert_eq!(
             engine.add_component(holder.index(), holder.generation(), type_id, &[1]),
@@ -85,10 +103,8 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
         vec![1]
     );
 
-    let err = match engine.add_component(holder.index(), holder.generation(), 128, &[9, 9, 9, 9]) {
-        Ok(value) => panic!("expected ComponentTypeLimitReached, got {value}"),
-        Err(err) => err,
-    };
+    let err =
+        must_err(engine.add_component(holder.index(), holder.generation(), 128, &[9, 9, 9, 9]));
     assert_eq!(err, CoreError::ComponentTypeLimitReached { max: 128 });
     assert_eq!(err.code(), "CORE:COMPONENT_TYPE_LIMIT_REACHED");
     assert_eq!(err.to_string(), "Component type limit reached: 128");
@@ -106,8 +122,8 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
     );
     assert_eq!(engine.count_entities(), 3);
 
-    let mut second = Engine::new(2).expect("second engine");
-    let fresh = second.create_entity().expect("fresh");
+    let mut second = must_ok(Engine::new(2));
+    let fresh = must_ok(second.create_entity());
     assert_eq!(
         second.add_component(fresh.index(), fresh.generation(), 0, &[1]),
         Ok(true)
