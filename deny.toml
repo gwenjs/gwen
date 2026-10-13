@@ -1,0 +1,24 @@
+[advisories]
+ignore = [
+  { id = "RUSTSEC-2024-0436", reason = "paste 1.0.15 has no upgrade. #189. 2026-10-13." },
+  { id = "RUSTSEC-2025-0141", reason = "bincode 2.0.1 has no upgrade. #188. 2026-10-13." },
+]
+
+[licenses]
+allow = [
+  "Apache-2.0",
+  "MIT",
+  "MPL-2.0",
+  "Unicode-3.0",
+  "Unlicense",
+  "Zlib",
+]
+
+[bans]
+multiple-versions = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []

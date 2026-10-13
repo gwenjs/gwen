@@ -405,10 +405,37 @@ jobs:
           SIZE_BASE: ${{ github.event_name == 'pull_request' && format('origin/{0}', github.base_ref) || '' }}
         run: pnpm check:wasm-size
 
+  rust-deny:
+    name: cargo-deny
+    runs-on: ubuntu-latest
+    # Cold advisory fetch on this machine, 2026-10-13: 1.08s.
+    # Rust lint on run 38357504232 installed this toolchain in 32s
+    # (2026-10-13T06:34:54Z to 06:35:26Z). 2 * ceil(32/60) = 2.
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: "1.99.0"
+      - name: Install cargo-deny 0.20.2
+        run: |
+          url="https://github.com/EmbarkStudios/cargo-deny/releases/download/0.20.2/cargo-deny-0.20.2-x86_64-unknown-linux-musl.tar.gz"
+          sha=9f12ed4c49936e09b48bf862b595cde2fe64fcbd9d74dfacac6131ca824c8d5f
+          curl -fsSL -o /tmp/cargo-deny.tar.gz "$url"
+          echo "$sha  /tmp/cargo-deny.tar.gz" | sha256sum -c
+          dest="${RUNNER_TEMP}/cargo-deny"
+          mkdir -p "$dest"
+          tar -xzf /tmp/cargo-deny.tar.gz -C "$dest" --strip-components=1
+          echo "$dest" >> "$GITHUB_PATH"
+          export PATH="$dest:$PATH"
+          cargo-deny --version
+      - name: cargo deny
+        run: cargo deny --all-features check licenses advisories bans sources
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size]
+    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny]
     if: always()
     steps:
       - name: Check all jobs
@@ -424,7 +451,8 @@ jobs:
              [ "${{ needs['agent-hygiene'].result }}" != "success" ] || \
              [ "${{ needs['verify-red'].result }}" != "success" ] || \
              [ "${{ needs['rust-miri'].result }}" != "success" ] || \
-             [ "${{ needs['wasm-size'].result }}" != "success" ]; then
+             [ "${{ needs['wasm-size'].result }}" != "success" ] || \
+             [ "${{ needs['rust-deny'].result }}" != "success" ]; then
             echo "❌ CI failed"
             exit 1
           fi
