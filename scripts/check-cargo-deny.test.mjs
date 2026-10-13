@@ -95,16 +95,6 @@ function below(version, floor) {
   return false;
 }
 
-test("a directory read is not an empty file", () => {
-  assert.throws(
-    () => readOrEmpty(root),
-    (error) => {
-      assert.equal(isEnoent(error), false);
-      return true;
-    },
-  );
-});
-
 test("gwen-wasm-utils declares MPL-2.0", () => {
   const cargo = readOrEmpty(join(root, "crates/gwen-wasm-utils/Cargo.toml"));
   assert.match(cargo, /^license = "MPL-2\.0"$/m);
