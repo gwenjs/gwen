@@ -12,6 +12,7 @@
  *   engine-state.ts                             — EngineStateMachine
  *   engine-error-policy.ts                      — EngineErrorPolicy
  *   engine-loop.ts                              — EngineLoop
+ *   engine-collaborators.ts                     — collaborator construction
  *   hook-dispatch.ts                            — hook runners
  *   engine-internals.ts                         — pool dormancy and live query ids
  *   frame-scheduler.ts                          — rAF and worker fallback
@@ -20,44 +21,24 @@
  *   engine-factory.ts                           — createEngine and setupGwen
  */
 
-import { createHooks, type Hookable } from "hookable";
 import { GwenError, type GwenErrorTarget } from "@gwenjs/schema";
-import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { engineContext } from "./context";
 import { gwenEngineSelf, popEngine, pushEngine } from "./engine-local";
 import { componentRegistryFor, componentTypeIds } from "./engine-component-registry";
-import { stringPoolFor } from "../utils/string-pool";
-import { createLogger } from "../logger/index";
-import type { IGwenLogger } from "@gwenjs/schema";
-import { WasmBridgeImpl } from "./wasm-bridge";
-import { EngineMemory } from "./engine-memory.js";
+import type { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
 // ─── Imports from extracted modules (used by implementation below) ──────────
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
-
-import { createErrorBus } from "./error-bus.js";
-import { bindFailureReporter, isIsolated } from "./error-isolation.js";
-import { ScopedHooksTracker } from "./hook-tracker.js";
-import { PluginRegistry } from "./plugin-registry.js";
-import { ServiceContainer } from "./service-container.js";
-import { EngineEntities } from "./engine-entities.js";
-import { EngineStatsRecorder } from "./engine-stats.js";
-import { EngineStateMachine } from "./engine-state.js";
-import { EngineErrorPolicy } from "./engine-error-policy.js";
-import { EngineLoop } from "./engine-loop.js";
-import { bindEngineOnHooks, emitEntityDestroy } from "./hook-dispatch.js";
-import { rememberEngineInternals } from "./engine-internals.js";
-import { WasmModuleRunner } from "./wasm-module-runner.js";
+import { EngineCollaborators } from "./engine-collaborators.js";
 
 import type {
   WasmModuleOptions,
   WasmModuleHandle,
   PlacementBridge,
   EngineErrorBus,
-  GwenEngineOptions,
   GwenProvides,
   GwenWasmModules,
   GwenPlugin,
@@ -65,48 +46,29 @@ import type {
   GwenEngineState,
   GwenEngine,
 } from "./engine-types.js";
-import { DisposableRegistry, createDisposable } from "../disposable.js";
 import type { ComponentType } from "../types";
 
 // #region Engine implementation
 
-export class GwenEngineImpl implements GwenEngine {
+export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   /** Real engine behind a hooks proxy. */
   get [gwenEngineSelf](): this {
+    return this;
+  }
+
+  protected asEngine(): GwenEngine {
     return this;
   }
 
   /** Engine that `activate()` replaced. Restored by `deactivate()` when this engine is still current. */
   private _engineBeforeActivate: GwenEngine | undefined;
   private _activateCaptured = false;
-  // ─── Config ──────────────────────────────────────────────────────────────
-  readonly maxEntities: number;
-  readonly targetFPS: number;
-  readonly maxDeltaSeconds: number;
-  timeScale: number = 1;
-  readonly variant: "light" | "physics2d" | "physics3d";
-  readonly debug: boolean;
-  readonly logger: IGwenLogger;
-  physicsHz: number;
-  maxCatchupSteps: number;
-
-  // ─── Disposables ─────────────────────────────────────────────────────────
-  readonly disposables = new DisposableRegistry();
-
-  // ─── Internal state ───────────────────────────────────────────────────────
-  private readonly _pluginRegistry: PluginRegistry;
-  private readonly _serviceContainer: ServiceContainer;
-  private readonly _stateMachine: EngineStateMachine;
   /**
    * The one teardown claim allowed by the #107 amendment. Set when the first `stop()`
    * starts teardown. While it is set, every `stop()` returns at once. Only `stop()`
    * reads it; every other check reads `state`.
    */
   private _teardownOnce: true | null = null;
-  /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
-  private readonly _policy: EngineErrorPolicy;
-
-  private readonly _memory: EngineMemory;
 
   get errors(): EngineErrorBus {
     return this._policy.bus;
@@ -126,130 +88,6 @@ export class GwenEngineImpl implements GwenEngine {
 
   get state(): GwenEngineState {
     return this._stateMachine.state;
-  }
-
-  private readonly _wasmRunner: WasmModuleRunner;
-
-  // ─── Frame stats ─────────────────────────────────────────────────────────
-  private readonly _stats: EngineStatsRecorder;
-  private readonly _loop: EngineLoop;
-
-  // ─── Hooks ───────────────────────────────────────────────────────────────
-  readonly hooks: Hookable<GwenRuntimeHooks> = createHooks<GwenRuntimeHooks>();
-
-  /** @internal */ readonly _bridge: WasmBridgeImpl;
-
-  private readonly _entities: EngineEntities;
-
-  constructor(opts: GwenEngineOptions) {
-    this._bridge = opts._bridge ?? new WasmBridgeImpl();
-    this.maxEntities = opts.maxEntities ?? 10_000;
-    this.targetFPS = opts.targetFPS ?? 60;
-    this.maxDeltaSeconds = opts.maxDeltaSeconds ?? 0.1;
-    this.variant = opts.variant ?? "light";
-    this.debug = opts.debug ?? false;
-    this.physicsHz = opts.physicsHz ?? 0;
-    this.maxCatchupSteps = opts.maxCatchupSteps ?? 2;
-    this._stats = new EngineStatsRecorder({
-      targetFPS: this.targetFPS,
-      debug: this.debug,
-      entityCount: () => this._entities.count(),
-      linearMemory: () => {
-        const readMemory = this._bridge.getLinearMemory;
-        if (typeof readMemory !== "function") return null;
-        return readMemory.call(this._bridge);
-      },
-      phaseMs: () => this._loop.lastPhaseMs,
-    });
-    this.logger = createLogger("gwen:core", this.debug, () => this._stats.frameCount);
-    // `provide` calls `assert` immediately. The machine exists before the first one.
-    this._stateMachine = new EngineStateMachine({
-      hooks: this.hooks,
-      logger: this.logger,
-      cancelFrame: () => this._loop.cancel(),
-    });
-    this._serviceContainer = new ServiceContainer({
-      assertState: (method) => this._stateMachine.assert(method),
-    });
-    this.provide("wasm:bridge", this._bridge);
-    this.provide("logger", this.logger);
-    const reportDestroyFailure = (id: EntityId, error: unknown): void => {
-      this._policy.reportEntityDestroyFailure(id, error);
-    };
-    this._entities = new EngineEntities({
-      maxEntities: this.maxEntities,
-      queryCacheSize: opts.queryCacheSize ?? 256,
-      assertState: (method) => this._stateMachine.assert(method),
-      registerComponent: (type) => this.getOrRegisterComponent(type),
-      emitDestroy: (id) => emitEntityDestroy(this, this.hooks, reportDestroyFailure, id),
-    });
-
-    const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
-    this._policy = new EngineErrorPolicy({
-      bus: errorBus,
-      hooks: this.hooks,
-      logger: this.logger,
-      state: this._stateMachine,
-      frame: () => this._stats.frameCount,
-      debug: this.debug,
-      owner: this,
-      disposables: this.disposables,
-      pluginNamed: (name) => this._pluginRegistry.pluginNamed(name),
-      bridge: this._bridge,
-    });
-    this.provide("errors", errorBus);
-    this._pluginRegistry = new PluginRegistry({
-      hooks: this.hooks,
-      tracker: new ScopedHooksTracker(),
-      errors: errorBus,
-      assertState: (method) => this._stateMachine.assertPlugin(method),
-      logger: this.logger,
-      debug: this.debug,
-      remember: (proxy) => this._rememberInternals(proxy),
-      frame: () => this._stats.frameCount,
-      reportSetup: (plugin, error) => this._policy.reportSetupError(plugin, error),
-      reportTeardown: (plugin, error) => this._policy.reportTeardown(plugin, error),
-      dropIsolation: (name) => this._policy.dropIsolation(name),
-    });
-    bindFailureReporter(this, (error, target, hook) => {
-      this._policy.reportCaught(error, hook, { target });
-    });
-    this._memory = new EngineMemory(this._bridge, errorBus);
-    this.provide("memory", this._memory);
-    this._wasmRunner = new WasmModuleRunner({
-      bridge: this._bridge,
-      maxEntities: this.maxEntities,
-      disposables: this.disposables,
-      memory: this._memory,
-      assertState: (method) => this._stateMachine.assert(method),
-      isFaulted: () => this._stateMachine.isFaulted(),
-      isIsolated: (id) => isIsolated(this, id),
-      frame: () => this._stats.frameCount,
-      reportCaught: (err, hook, forced) => this._policy.reportCaught(err, hook, forced),
-      publish: (event) => this._policy.publish(event),
-    });
-    this.disposables.add(
-      "engine:memory",
-      createDisposable(() => {
-        this._memory.disposeAll();
-      }),
-    );
-    this._loop = new EngineLoop({
-      owner: this,
-      config: this,
-      hooks: this.hooks,
-      stats: this._stats,
-      modules: this._wasmRunner,
-      bridge: this._bridge,
-      memory: this._memory,
-      policy: this._policy,
-      state: this._stateMachine,
-      logger: this.logger,
-    });
-    this._policy.attach();
-    this._rememberInternals(this);
-    bindEngineOnHooks(this, this.hooks);
-    stringPoolFor(this);
   }
 
   // ─── Plugin runner ────────────────────────────────────────────────────────
@@ -521,15 +359,6 @@ export class GwenEngineImpl implements GwenEngine {
     return this._entities.isAlive(id);
   }
 
-  /**
-   * Slot flag used by actor pools. Not a component and not on {@link GwenEngine}.
-   * Returns false when `id` is not alive, without changing state.
-   * @internal
-   */
-  _setEntityDormant(id: EntityId, dormant: boolean): boolean {
-    return this._entities.setDormant(id, dormant);
-  }
-
   // ─── ECS component management ─────────────────────────────────────────────
 
   /**
@@ -654,13 +483,6 @@ export class GwenEngineImpl implements GwenEngine {
   }
   getStats(): EngineStats {
     return this._stats.snapshot();
-  }
-
-  private _rememberInternals(key: object): void {
-    rememberEngineInternals(key, {
-      setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
-      queryIds: (components) => this._entities.resolveIds(components),
-    });
   }
 }
 
