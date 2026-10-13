@@ -54,7 +54,7 @@ pub enum CoreError {
         /// Inclusive upper bound that applies to this call.
         max: u32,
     },
-    /// A bulk read or write was given slices whose lengths do not agree.
+    /// A bulk read, write, or spawn was given slices whose lengths do not agree.
     BufferLengthMismatch {
         /// Name of the buffer that disagreed
         /// (`"data"`, `"gens"`, `"positions"`, or `"rotations"`).
