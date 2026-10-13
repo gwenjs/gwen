@@ -372,10 +372,7 @@ describe("WASM coded errors", () => {
 
       let spawnCaught: unknown;
       try {
-        bridge.bulkSpawnWithTransforms(
-          new Float32Array([1, 2, 3, 4, 5]),
-          new Float32Array([0, 0]),
-        );
+        bridge.bulkSpawnWithTransforms(new Float32Array([1, 2, 3, 4, 5]), new Float32Array([0, 0]));
       } catch (error: unknown) {
         spawnCaught = error;
       }
