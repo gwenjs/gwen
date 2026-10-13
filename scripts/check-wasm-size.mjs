@@ -3,6 +3,7 @@
  * Compare shipped WASM artifacts with wasm-size.json.
  * Run: node scripts/check-wasm-size.mjs
  * Stamp helper: node scripts/check-wasm-size.mjs --write-report-only
+ * PR body: GWEN_PR_BODY, when set, replaces `gh pr view`.
  */
 
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -154,6 +155,7 @@ function delta(baseline, measured) {
  *   observed: { rust: string, wasmPack: string, wasmOpt: string },
  *   jsonChanged: boolean,
  *   prBody: string,
+ *   baseCatalog?: Catalog | null,
  * }} input
  * @returns {{ ok: boolean, lines: string[], table: string }}
  */
@@ -164,6 +166,13 @@ export function evaluateWasmSize(input) {
   /** @type {string[]} */
   const rows = [];
   let ok = true;
+
+  if (catalog.tolerance !== TOLERANCE || catalog.toleranceMinBytes !== TOLERANCE_MIN_BYTES) {
+    ok = false;
+    lines.push(
+      `[WASM SIZE] tolerance ${catalog.tolerance} != ${TOLERANCE}; toleranceMinBytes ${catalog.toleranceMinBytes} != ${TOLERANCE_MIN_BYTES}`,
+    );
+  }
 
   for (const [name, variant] of Object.entries(catalog.variants)) {
     const sample = sampleFor(name, variant, input);
@@ -178,16 +187,16 @@ export function evaluateWasmSize(input) {
       'gzip',
       variant.gzip,
       sample.gzip,
-      catalog.tolerance,
-      catalog.toleranceMinBytes,
+      TOLERANCE,
+      TOLERANCE_MIN_BYTES,
     );
     const brotli = judge(
       name,
       'brotli',
       variant.brotli,
       sample.brotli,
-      catalog.tolerance,
-      catalog.toleranceMinBytes,
+      TOLERANCE,
+      TOLERANCE_MIN_BYTES,
     );
     lines.push(...gzip.failures, ...brotli.failures, ...gzip.notes, ...brotli.notes);
     if (gzip.failures.length > 0 || brotli.failures.length > 0) ok = false;
@@ -219,18 +228,78 @@ export function evaluateWasmSize(input) {
     }
   }
 
-  if (input.jsonChanged) {
-    const hasSection = input.prBody.split(/\r?\n/).some((line) => line.trim() === '## WASM size budget');
-    if (!hasSection) {
+  const section = budgetSection(input.prBody);
+  if (input.jsonChanged && !section.heading) {
+    ok = false;
+    lines.push(
+      '[WASM SIZE] wasm-size.json changed without a "WASM size budget" section in the PR body',
+    );
+  }
+  if (input.baseCatalog && !section.content) {
+    for (const raised of raisedBaselines(catalog, input.baseCatalog)) {
       ok = false;
       lines.push(
-        '[WASM SIZE] wasm-size.json changed without a "WASM size budget" section in the PR body',
+        `[WASM SIZE] ${raised.name} ${raised.metric}: baseline raised from ${raised.from} to ${raised.to} without a non-empty "## WASM size budget" section`,
       );
     }
   }
 
-  const table = ['variant | raw | gzip Δ | brotli Δ | budget | status', ...rows].join('\n');
+  const table = [
+    '| variant | raw | gzip Δ | brotli Δ | budget | status |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...rows.map((row) => `| ${row} |`),
+  ].join('\n');
   return { ok, lines, table };
+}
+
+/**
+ * A real h2, outside a fence, with at least one non-blank line before the next h2.
+ * @param {string} body
+ * @returns {{ heading: boolean, content: boolean }}
+ */
+function budgetSection(body) {
+  let fence = false;
+  let heading = false;
+  let content = false;
+  for (const raw of body.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (line.startsWith('```')) {
+      fence = !fence;
+      continue;
+    }
+    if (fence) continue;
+    if (!heading) {
+      if (line === '## WASM size budget') heading = true;
+      continue;
+    }
+    if (line.startsWith('## ')) break;
+    if (line !== '') content = true;
+  }
+  return { heading, content };
+}
+
+/**
+ * @param {Catalog} catalog
+ * @param {Catalog} baseCatalog
+ * @returns {{ name: string, metric: string, from: number, to: number }[]}
+ */
+function raisedBaselines(catalog, baseCatalog) {
+  /** @type {{ name: string, metric: string, from: number, to: number }[]} */
+  const raised = [];
+  for (const [name, variant] of Object.entries(catalog.variants)) {
+    const previous = baseCatalog.variants?.[name];
+    if (!previous) continue;
+    const pairs = [
+      { metric: 'gzip', from: previous.gzip.baseline, to: variant.gzip.baseline },
+      { metric: 'brotli', from: previous.brotli.baseline, to: variant.brotli.baseline },
+    ];
+    for (const pair of pairs) {
+      if (typeof pair.from === 'number' && typeof pair.to === 'number' && pair.to > pair.from) {
+        raised.push({ name, metric: pair.metric, from: pair.from, to: pair.to });
+      }
+    }
+  }
+  return raised;
 }
 
 /**
@@ -263,12 +332,39 @@ function observeCommands() {
   const optText = runVersion('wasm-opt', ['--version']);
   const rust = rustText.match(/^rustc (\S+)/);
   const pack = packText.match(/^wasm-pack (\S+)/);
-  const opt = optText.match(/^wasm-opt version (\d+) \(version_\1\)$/);
   return {
     rust: rust?.[1] ?? 'missing',
     wasmPack: pack?.[1] ?? 'missing',
-    wasmOpt: opt?.[1] ?? (optText || 'missing'),
+    wasmOpt: parseWasmOptVersion(optText),
   };
+}
+
+/**
+ * Official archives print `wasm-opt version 133 (version_133)`.
+ * A source build of tag version_133, including Homebrew, prints `wasm-opt version 133`.
+ * @param {string} text
+ * @returns {string}
+ */
+function parseWasmOptVersion(text) {
+  const match = text.match(/^wasm-opt version (\d+)(?: \(version_(\d+)\))?$/);
+  if (!match) return text || 'missing';
+  if (match[2] !== undefined && match[2] !== match[1]) return text || 'missing';
+  return match[1] ?? 'missing';
+}
+
+/**
+ * @param {string} root
+ * @returns {Catalog | null}
+ */
+function readBaseCatalog(root) {
+  const base = process.env.SIZE_BASE ?? '';
+  if (base === '') return null;
+  const show = spawnSync('git', ['show', `${base}:wasm-size.json`], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  if (show.status !== 0) return null;
+  return JSON.parse(show.stdout);
 }
 
 /**
@@ -293,6 +389,7 @@ function jsonChanged(root) {
  * @returns {string}
  */
 function readPrBody() {
+  if (process.env.GWEN_PR_BODY !== undefined) return process.env.GWEN_PR_BODY;
   const number = process.env.PR_NUMBER ?? '';
   if (number === '') return '';
   const args = ['pr', 'view', number, '--json', 'body', '--jq', '.body'];
@@ -387,6 +484,7 @@ function main() {
     }
   }
   const changed = jsonChanged(ROOT);
+  const baseCatalog = readBaseCatalog(ROOT);
   const result = evaluateWasmSize({
     catalog,
     files,
@@ -394,6 +492,7 @@ function main() {
     observed,
     jsonChanged: changed,
     prBody: changed ? readPrBody() : '',
+    baseCatalog,
   });
   const text = `${[...result.lines, '', result.table, ''].join('\n')}`;
   process.stdout.write(text);

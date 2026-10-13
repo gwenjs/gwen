@@ -37,11 +37,13 @@ pnpm build:cargo
 pnpm dev
 ```
 
-The `build-wasm.sh` script:
-1. Detects available WASM variants in `crates/`
-2. Builds each with `wasm-pack`
-3. Outputs to `packages/{core,physics2d,physics3d}/wasm/`
-4. Generates `.wasm` files and TypeScript bindings (`.d.ts`)
+The `build-wasm.sh` script needs Rust 1.99.0, wasm-pack 0.13.1, and wasm-opt 133. It:
+1. Refuses to run when `rustc`, `wasm-pack`, or `wasm-opt` is not the pinned version (`wasm-opt version 133 (version_133)`, or `wasm-opt version 133` from a source build of that tag)
+2. Builds each browser variant with `wasm-pack --no-opt`
+3. Runs `wasm-opt -Oz` on every browser binary, including bvh and fracture
+4. Writes `packages/core/wasm/toolchain.json` with the observed rustc, wasm-pack, and wasm-opt versions
+
+`GWEN_SKIP_WASM_OPT=1` skips the `wasm-opt` pass on a laptop and is refused when `CI=true`.
 
 ### Build Tools Variant
 
@@ -191,10 +193,10 @@ See the `gwen-wasm-utils` crate for WASM utility implementations.
 ## CI Build Process
 
 The GitHub Actions workflow (`ci.yml`):
-1. Installs Rust and wasm-pack
-2. Runs `pnpm build:wasm` (default variants)
-3. Runs `pnpm build:wasm-tools` (if tools variant changes)
-4. Commits WASM binaries to cache (for publish workflow)
-5. Publishes npm packages with embedded WASM
+1. Installs Rust 1.99.0, wasm-pack 0.13.1, and wasm-opt 133. The wasm-opt archive sha256 is checked from `wasm-size.json`.
+2. Runs `./scripts/build-wasm.sh`, which applies `wasm-opt -Oz` to every browser binary
+3. Runs `pnpm build:wasm-tools` when the tools variant changes (`scripts/build-wasm-tools.sh` does not check the wasm-pack version)
+4. Uploads the WASM artifacts for the publish workflow
+5. Publishes npm packages with embedded WASM. `toolchain.json` is not part of the `@gwenjs/core` package.
 
 This ensures end users never need to build WASM locally.

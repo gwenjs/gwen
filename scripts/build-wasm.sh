@@ -55,6 +55,23 @@ read_pin() {
     "$PROJECT_ROOT/wasm-size.json" "$1"
 }
 
+# Official archives print "wasm-opt version 133 (version_133)".
+# A source build of tag version_133, including Homebrew, prints "wasm-opt version 133".
+parse_wasm_opt_version() {
+  local text="$1"
+  local num="" paren=""
+  if [[ "$text" =~ ^wasm-opt\ version\ ([0-9]+)(\ \(version_([0-9]+)\))?$ ]]; then
+    num="${BASH_REMATCH[1]}"
+    paren="${BASH_REMATCH[3]}"
+    if [ -n "$paren" ] && [ "$paren" != "$num" ]; then
+      return 1
+    fi
+    printf '%s\n' "$num"
+    return 0
+  fi
+  return 1
+}
+
 # Check prerequisites
 check_prerequisites() {
   if ! command -v wasm-pack >/dev/null 2>&1; then
@@ -88,14 +105,23 @@ check_prerequisites() {
   fi
 
   if ! command -v wasm-opt >/dev/null 2>&1; then
-    log_error "wasm-opt is not installed (pinned version ${opt_pin})"
+    log_error "wasm-opt ${opt_pin} is not installed."
+    log_error "Install the official archive and put its bin directory on PATH."
+    log_error "macOS arm64: https://github.com/WebAssembly/binaryen/releases/download/version_${opt_pin}/binaryen-version_${opt_pin}-arm64-macos.tar.gz"
+    log_error "macOS x86_64: https://github.com/WebAssembly/binaryen/releases/download/version_${opt_pin}/binaryen-version_${opt_pin}-x86_64-macos.tar.gz"
+    log_error "Linux x86_64: https://github.com/WebAssembly/binaryen/releases/download/version_${opt_pin}/binaryen-version_${opt_pin}-x86_64-linux.tar.gz"
+    log_error "Check the download with shasum -a 256 -c (macOS) or sha256sum -c (Linux). The sha256 values are in wasm-size.json."
+    log_error "Local escape hatch: GWEN_SKIP_WASM_OPT=1 (refused when CI=true)."
     exit 1
   fi
-  local opt_got expected
-  opt_got="$(wasm-opt --version)"
-  expected="wasm-opt version ${opt_pin} (version_${opt_pin})"
-  if [ "$opt_got" != "$expected" ]; then
-    log_error "wasm-opt --version '${opt_got}' != '${expected}'"
+  local opt_text opt_got
+  opt_text="$(wasm-opt --version | tr -d '\r')"
+  if ! opt_got="$(parse_wasm_opt_version "$opt_text")"; then
+    log_error "wasm-opt --version '${opt_text}' is not pinned ${opt_pin}"
+    exit 1
+  fi
+  if [ "$opt_got" != "$opt_pin" ]; then
+    log_error "wasm-opt --version '${opt_text}' is not pinned ${opt_pin}"
     exit 1
   fi
   log_success "wasm-opt ${opt_pin} matches wasm-size.json"
@@ -119,7 +145,11 @@ write_toolchain_stamp() {
   if [ "$SKIP_WASM_OPT" = "1" ]; then
     opt_value="skipped"
   else
-    opt_value="$(read_pin wasmOpt)"
+    local opt_text
+    opt_text="$(wasm-opt --version | tr -d '\r')"
+    if ! opt_value="$(parse_wasm_opt_version "$opt_text")"; then
+      opt_value="missing"
+    fi
   fi
   mkdir -p "$ENGINE_CORE_WASM"
   python3 - "$ENGINE_CORE_WASM/toolchain.json" "$rust_got" "$pack_got" "$opt_value" <<'PY'
@@ -173,10 +203,18 @@ build_variant() {
 
 # Main
 main() {
+  if [ "${GWEN_WRITE_STAMP_ONLY:-}" = "1" ]; then
+    write_toolchain_stamp
+    exit 0
+  fi
+
   log_info "🚀 Starting Multi-Variant WASM Build Pipeline (RFC-V2-006)"
   echo ""
 
   check_prerequisites
+  if [ "${GWEN_WASM_OPT_CHECK_ONLY:-}" = "1" ]; then
+    exit 0
+  fi
   echo ""
 
   # 1. Build light variant (no physics, no pathfinding)

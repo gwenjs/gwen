@@ -6,6 +6,7 @@
   "files": [
     "dist",
     "wasm",
+    "!wasm/toolchain.json",
     "LICENSE"
   ],
   "type": "module",

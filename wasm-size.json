@@ -5,6 +5,20 @@
     "wasmPack": "0.13.1",
     "wasmOpt": "133"
   },
+  "binaryen": {
+    "linux-x86_64": {
+      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz",
+      "sha256": "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
+    },
+    "macos-arm64": {
+      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-arm64-macos.tar.gz",
+      "sha256": "ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8"
+    },
+    "macos-x86_64": {
+      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-macos.tar.gz",
+      "sha256": "13a9b90be775c6389ce3d1f879cb8627bea56708ba8c122983941d53a8199b95"
+    }
+  },
   "tolerance": 0.05,
   "toleranceMinBytes": 2048,
   "variants": {
