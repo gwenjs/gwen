@@ -126,6 +126,7 @@ const DENY_KEYS = {
 
 const CRATES_IO = "https://github.com/rust-lang/crates.io-index";
 const DENY_RUN = "cargo deny --all-features --locked check licenses advisories bans sources";
+const CHECKSUM_LINE = 'echo "$sha  /tmp/cargo-deny.tar.gz" | sha256sum -c';
 
 /**
  * @param {string} text
@@ -272,7 +273,11 @@ function parsedTables(parsed) {
  * @returns {entry is IgnoreEntry}
  */
 function isIgnoreEntry(entry) {
-  return typeof entry === "object" && entry !== null && "reason" in entry;
+  if (typeof entry !== "object" || entry === null) return false;
+  if (!("id" in entry) || !("reason" in entry)) return false;
+  const id = entry.id;
+  const reason = entry.reason;
+  return typeof id === "string" && (reason === null || typeof reason === "string");
 }
 
 /**
@@ -310,6 +315,8 @@ function rustDenyPolicy(yaml) {
   let checksumBad = false;
   let setPlusE = false;
   for (const line of block.split("\n")) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith("#")) continue;
     if (/^ {4}continue-on-error:\s*true\s*(?:#.*)?$/.test(line)) jobContinue = true;
     if (/^ {6}- continue-on-error:\s*true\s*(?:#.*)?$/.test(line)) stepContinue = true;
     if (/^ {8}continue-on-error:\s*true\s*(?:#.*)?$/.test(line)) stepContinue = true;
@@ -320,16 +327,15 @@ function rustDenyPolicy(yaml) {
         if (value.includes("cargo deny")) denyRun = value;
       }
     }
-    if (line.includes("set +e")) setPlusE = true;
-    if (line.includes("sha256sum")) {
-      checksums += 1;
-      if (!line.includes("sha256sum -c") || line.includes("||")) checksumBad = true;
-    }
+    if (trimmed.includes("set +e")) setPlusE = true;
+    if (trimmed.includes("||") || trimmed.includes("| true")) checksumBad = true;
+    if (trimmed === CHECKSUM_LINE) checksums += 1;
+    else if (trimmed.includes("sha256sum")) checksumBad = true;
   }
   let checksumDetail = "ok";
   if (setPlusE) checksumDetail = "set +e";
-  else if (checksums === 0) checksumDetail = "no sha256sum -c";
   else if (checksumBad) checksumDetail = "sha256sum weakened";
+  else if (checksums === 0) checksumDetail = "no sha256sum -c";
   return {
     found: true,
     jobContinue,
@@ -346,18 +352,21 @@ test("gwen-wasm-utils declares MPL-2.0", () => {
 });
 
 test("deny.toml allows exactly the five frozen licenses", () => {
-  const licenses = section(readOrEmpty(join(root, "deny.toml")), "licenses");
-  const allow = licenses.match(/allow\s*=\s*\[([\s\S]*?)\]/);
-  const ids = [...(allow?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((match) => match[1] ?? "");
-  assert.deepEqual(ids, ALLOWED_LICENSES);
+  const tables = parsedTables(parseDeny(readOrEmpty(join(root, "deny.toml"))));
+  assert.deepEqual(tables.licenses?.allow, ALLOWED_LICENSES);
 });
 
 test("ignored advisories cite an issue and a date", () => {
-  const advisories = section(readOrEmpty(join(root, "deny.toml")), "advisories");
-  const found = [...advisories.matchAll(/id = "([^"]+)", reason = "([^"]+)"/g)].map((match) => ({
-    id: match[1] ?? "",
-    reason: match[2] ?? "",
-  }));
+  const tables = parsedTables(parseDeny(readOrEmpty(join(root, "deny.toml"))));
+  const ignore = tables.advisories?.ignore;
+  assert.ok(Array.isArray(ignore));
+  /** @type {{ id: string, reason: string | null }[]} */
+  const found = [];
+  for (const entry of ignore) {
+    assert.equal(isIgnoreEntry(entry), true);
+    if (!isIgnoreEntry(entry)) continue;
+    found.push({ id: entry.id, reason: entry.reason });
+  }
   assert.deepEqual(found, IGNORES);
 });
 
@@ -375,6 +384,11 @@ test("sources are crates.io only and duplicate versions warn", () => {
   assert.match(sources, /unknown-git = "deny"/);
   assert.match(sources, /allow-git = \[\]/);
   assert.match(bans, /multiple-versions = "warn"/);
+  const tables = parsedTables(parseDeny(text));
+  assert.equal(tables.sources?.["unknown-registry"], "deny");
+  assert.equal(tables.sources?.["unknown-git"], "deny");
+  assert.deepEqual(tables.sources?.["allow-git"], []);
+  assert.equal(tables.bans?.["multiple-versions"], "warn");
 });
 
 test("the cargo-deny job checks every kind and ci-status reads it", () => {
