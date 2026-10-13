@@ -154,6 +154,27 @@ test('cli: json changed without the section exits 1', () => {
   }
 });
 
+test('cli: a hook GIT_DIR still sees the fixture catalog', () => {
+  const wasm = Buffer.from('gwen-wasm-size-check'.repeat(50));
+  const size = measure(wasm);
+  const { root, base } = initRepo(catalog(size.gzip, size.brotli));
+  const decoy = mkdtempSync(path.join(tmpdir(), 'gwen-decoy-git-'));
+  try {
+    const changed = catalog(size.gzip, size.brotli);
+    changed.variants.light.raw = 2;
+    commitCatalog(root, changed, wasm);
+    const result = runCli(root, base, {
+      GIT_DIR: decoy,
+      GIT_INDEX_FILE: path.join(decoy, 'index'),
+    });
+    assert.equal(result.status, 1, `${result.stdout}\n${result.stderr}`);
+    assert.ok(result.stdout.includes(sectionLine), result.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(decoy, { recursive: true, force: true });
+  }
+});
+
 test('cli: the section exits 0', () => {
   const wasm = Buffer.from('gwen-wasm-size-check'.repeat(50));
   const size = measure(wasm);
