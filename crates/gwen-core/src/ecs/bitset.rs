@@ -121,13 +121,9 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::bool_assert_comparison,
-        reason = "diff hygiene rejects a new assert! line"
-    )]
     fn test_bitset_out_of_bounds() {
         let mut bs = BitSet128::new();
-        assert_eq!(bs.set(128), false);
-        assert_eq!(bs.is_empty(), true);
+        assert_eq!([bs.set(128)], [false]);
+        assert_eq!(bs, BitSet128::new());
     }
 }
