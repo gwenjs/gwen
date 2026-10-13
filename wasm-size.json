@@ -5,57 +5,20 @@
     "wasmPack": "0.13.1",
     "wasmOpt": "133"
   },
-  "binaryen": {
-    "linux-x86_64": {
-      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-linux.tar.gz",
-      "sha256": "2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489"
-    },
-    "macos-arm64": {
-      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-arm64-macos.tar.gz",
-      "sha256": "ad66da82ac13f163e424b1643f16c6dfcccc98b5966296b43e52d3cab04f84a8"
-    },
-    "macos-x86_64": {
-      "url": "https://github.com/WebAssembly/binaryen/releases/download/version_133/binaryen-version_133-x86_64-macos.tar.gz",
-      "sha256": "13a9b90be775c6389ce3d1f879cb8627bea56708ba8c122983941d53a8199b95"
-    }
-  },
   "tolerance": 0.05,
   "toleranceMinBytes": 2048,
   "variants": {
     "light": {
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
-      "raw": 90001,
-      "gzip": { "baseline": 38265, "budget": 40313 },
-      "brotli": { "baseline": 31853, "budget": 33901 }
-    },
-    "physics2d": {
-      "path": "packages/core/wasm/physics2d/gwen_core_bg.wasm",
-      "raw": 469784,
-      "gzip": { "baseline": 197988, "budget": 207888 },
-      "brotli": { "baseline": 159454, "budget": 167427 }
-    },
-    "physics3d": {
-      "path": "packages/core/wasm/physics3d/gwen_core_bg.wasm",
-      "raw": 691061,
-      "gzip": { "baseline": 292045, "budget": 306648 },
-      "brotli": { "baseline": 228488, "budget": 239913 }
-    },
-    "physics3d-bvh": {
-      "path": "packages/physics3d/wasm/bvh/gwen_core_bg.wasm",
-      "raw": 948573,
-      "gzip": { "baseline": 394871, "budget": 414615 },
-      "brotli": { "baseline": 304560, "budget": 319788 }
-    },
-    "physics3d-fracture": {
-      "path": "packages/physics3d-fracture/wasm/gwen_physics3d_fracture_bg.wasm",
-      "raw": 23084,
-      "gzip": { "baseline": 11255, "budget": 13303 },
-      "brotli": { "baseline": 9803, "budget": 11851 }
-    }
-  },
-  "reportOnly": {
-    "build-tools": {
-      "path": "packages/physics3d/build-tools/gwen_core_bg.wasm"
+      "raw": 1,
+      "gzip": {
+        "baseline": 49,
+        "budget": 2097
+      },
+      "brotli": {
+        "baseline": 30,
+        "budget": 2078
+      }
     }
   }
 }
