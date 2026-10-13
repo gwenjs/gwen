@@ -57,7 +57,7 @@ const ENGINE: Record<string, ExportRow> = {
   ),
   free_shared_buffer: result(),
   get_component_raw: infallible(
-    "a dead entity returns an empty Vec at bindings.rs:286-290; get_component uses location get at storage.rs:217-220",
+    "a dead entity returns an empty Vec at bindings.rs:286-290; get_location uses slice get at storage.rs:217-220; the column slice at archetype.rs:108-114 runs only for that stored row",
   ),
   get_components_bulk: result(),
   get_entity_generation: infallible(
@@ -74,7 +74,7 @@ const ENGINE: Record<string, ExportRow> = {
   ),
   get_query_result_ptr: infallible("returns Vec::as_ptr at bindings.rs:673-674; no index"),
   has_component: infallible(
-    "a dead entity returns false at bindings.rs:268-272; storage uses location get at storage.rs:195-200",
+    "a dead entity returns false at bindings.rs:268-272; get_location uses slice get at storage.rs:195-200; graph.get indexes the stored archetype id at archetype_graph.rs:109-110",
   ),
   has_entity_parent: infallible("HashMap get, then unwrap_or(false) at bindings.rs:877-882"),
   is_alive: infallible("an index past records returns false at entity.rs:121-122"),
@@ -88,7 +88,7 @@ const ENGINE: Record<string, ExportRow> = {
     "no argument; the counter starts at 0 at bindings.rs:131 and the body adds 1 at bindings.rs:198-199. The light build is wasm-pack --release and profile.release does not set overflow-checks, so that add wraps. A debug build panics when the add overflows u32",
   ),
   remove_component: infallible(
-    "a dead entity returns false at bindings.rs:248-252; a missing location returns None at storage.rs:150",
+    "a dead entity returns false at bindings.rs:248-252; a missing location returns None at storage.rs:150; the next index is that stored archetype id at storage.rs:152",
   ),
   remove_entity_from_query: infallible("the index parameter is unused at bindings.rs:598-599"),
   set_components_bulk: result(),
