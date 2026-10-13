@@ -353,6 +353,30 @@ function parseWasmOptVersion(text) {
 }
 
 /**
+ * Git calls in this script always mean `root`. A hook's GIT_DIR points elsewhere.
+ * @returns {NodeJS.ProcessEnv}
+ */
+function gitCwdEnv() {
+  const env = { ...process.env };
+  for (const key of [
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_IMPLICIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_INDEX_VERSION',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_COMMON_DIR',
+    'GIT_PREFIX',
+    'GIT_NAMESPACE',
+    'GIT_QUARANTINE_PATH',
+  ]) {
+    delete env[key];
+  }
+  return env;
+}
+
+/**
  * @param {string} root
  * @returns {Catalog | null}
  */
@@ -362,6 +386,7 @@ function readBaseCatalog(root) {
   const show = spawnSync('git', ['show', `${base}:wasm-size.json`], {
     cwd: root,
     encoding: 'utf8',
+    env: gitCwdEnv(),
   });
   if (show.status !== 0) return null;
   return JSON.parse(show.stdout);
@@ -377,6 +402,7 @@ function jsonChanged(root) {
   const diff = spawnSync('git', ['diff', '--name-only', `${base}...HEAD`, '--', 'wasm-size.json'], {
     cwd: root,
     encoding: 'utf8',
+    env: gitCwdEnv(),
   });
   if (diff.status !== 0) {
     process.stderr.write(diff.stderr || `git diff failed against ${base}\n`);

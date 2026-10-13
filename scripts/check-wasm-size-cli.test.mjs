@@ -71,7 +71,23 @@ function catalog(gzipBaseline, brotliBaseline, opts = {}) {
  * @param {string[]} args
  */
 function git(root, args) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8' });
+  const env = { ...process.env };
+  for (const key of [
+    'GIT_DIR',
+    'GIT_WORK_TREE',
+    'GIT_IMPLICIT_WORK_TREE',
+    'GIT_INDEX_FILE',
+    'GIT_INDEX_VERSION',
+    'GIT_OBJECT_DIRECTORY',
+    'GIT_ALTERNATE_OBJECT_DIRECTORIES',
+    'GIT_COMMON_DIR',
+    'GIT_PREFIX',
+    'GIT_NAMESPACE',
+    'GIT_QUARANTINE_PATH',
+  ]) {
+    delete env[key];
+  }
+  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', env });
   if (result.status !== 0) {
     throw new Error(result.stderr || result.stdout || `git ${args.join(' ')} failed`);
   }
