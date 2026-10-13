@@ -260,9 +260,12 @@ describe("module transform region", () => {
         },
       });
       await started.advance(1, 1 / 60);
+      started.bridge.engine().set_entity_local_position(0, 9, 8);
       await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
       expect(grown).toBe(true);
+      expect(handle.exports.read_x()).toBe(9);
+      expect(handle.exports.read_y()).toBe(8);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
     });
@@ -281,9 +284,12 @@ describe("module transform region", () => {
         ),
       );
       await started.advance(1, 1 / 60);
+      started.bridge.engine().set_entity_local_position(0, 9, 8);
       started.bridge.getLinearMemory()!.grow(1);
       await started.advance(1, 1 / 60);
       const wasm = started.bridge.engine();
+      expect(handle.exports.read_x()).toBe(9);
+      expect(handle.exports.read_y()).toBe(8);
       expect(handle.exports.read_x()).toBe(wasm.get_entity_world_x(0));
       expect(handle.exports.read_y()).toBe(wasm.get_entity_world_y(0));
     });
@@ -351,6 +357,12 @@ describe("module transform region", () => {
           throw new Error(`${item.name}: expected GwenError`);
         }
         expect(caught.code, item.name).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
+        if (item.name === "offset-zero") {
+          expect(caught.message, item.name).toContain("offset 0 must be a positive multiple of 4");
+        }
+        if (item.name === "offset-two") {
+          expect(caught.message, item.name).toContain("offset 2 is not a positive multiple of 4");
+        }
         expect(() => started.engine.getWasmModule(item.name)).toThrow();
         await started.advance(1, 1 / 60);
         expect(started.engine.state).not.toBe("faulted");
