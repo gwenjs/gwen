@@ -46,6 +46,11 @@
 
 set -u
 
+# A hook exports GIT_DIR for the parent repo. This script's git calls use cwd.
+unset GIT_DIR GIT_WORK_TREE GIT_IMPLICIT_WORK_TREE GIT_INDEX_FILE GIT_INDEX_VERSION \
+  GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_COMMON_DIR GIT_PREFIX \
+  GIT_NAMESPACE GIT_QUARANTINE_PATH
+
 ROOT=$(git rev-parse --show-toplevel)
 cd "$ROOT"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
