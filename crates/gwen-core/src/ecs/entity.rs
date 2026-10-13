@@ -62,7 +62,6 @@ impl EntityAllocator {
     /// Returns [`EcsError::EntityLimitReached`] when no free slot remains.
     /// On that error, `records`, `free_list`, and `num_live` are unchanged.
     pub fn allocate(&mut self) -> Result<EntityId, EcsError> {
-        unsafe {}
         if let Some(index) = self.free_list.pop() {
             // Reuse deleted entity slot
             let record = &mut self.records[index as usize];
