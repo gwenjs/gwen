@@ -1,7 +1,7 @@
 /**
  * @file Engine error types and error codes.
  *
- * Extracted from gwen-engine.ts — pure type/class definitions with no runtime
+ * Pure type/class definitions with no runtime
  * engine dependencies. Safe to import without pulling in the full engine module.
  */
 

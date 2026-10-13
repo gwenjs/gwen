@@ -29,7 +29,6 @@ import type { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
-// ─── Imports from extracted modules (used by implementation below) ──────────
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 import { EngineCollaborators } from "./engine-collaborators.js";
@@ -362,14 +361,6 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   // ─── ECS component management ─────────────────────────────────────────────
 
   /**
-   * Attach a component to an entity.
-   * Merges `def.defaults` with the supplied `data` (data wins on conflict).
-   *
-   * @param id - Target entity
-   * @param def - Component definition
-   * @param data - Partial data to store (merged with defaults)
-   */
-  /**
    * Rust component type id for `name`, owned by this engine.
    * The same name (including an HMR re-definition) keeps the same id.
    * Numeric ids are not baked by the Vite optimizer; cached lookup is #66.
@@ -384,6 +375,14 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     return componentTypeIds(this);
   }
 
+  /**
+   * Attach a component to an entity.
+   * Merges `def.defaults` with the supplied `data` (data wins on conflict).
+   *
+   * @param id - Target entity
+   * @param def - Component definition
+   * @param data - Partial data to store (merged with defaults)
+   */
   addComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
@@ -473,7 +472,7 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   get rawFrameTime(): number {
     return this._stats.rawFrameTime;
   }
-  /** Frame counter — increments by 1 for each completed `_runFrame` call. */
+  /** Completed frames. In fixed mode, one per simulation step. */
   get frameCount(): number {
     return this._stats.frameCount;
   }

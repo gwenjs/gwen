@@ -190,8 +190,7 @@ types.ts & schema.ts are at root (no internal deps)
 
 ### File Size Guidelines
 
-- **Keep files < 250 lines** for readability
-- **If a file exceeds 300L:** Split into focused sub-files
+- `oxlint` `max-lines` 400, skipping blank lines and comments, covers `gwen-engine.ts` and `engine-loop.ts` only.
 - **Example:** If `scene.ts` grows:
   ```
   api/

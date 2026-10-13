@@ -44,7 +44,7 @@ export abstract class EngineCollaborators {
   protected readonly _pluginRegistry: PluginRegistry;
   protected readonly _serviceContainer: ServiceContainer;
   protected readonly _stateMachine: EngineStateMachine;
-  /** Caller `errorBus`, or `createErrorBus()` when omitted. @internal */
+  /** Error policy for this engine. @internal */
   protected readonly _policy: EngineErrorPolicy;
   protected readonly _memory: EngineMemory;
   protected readonly _wasmRunner: WasmModuleRunner;

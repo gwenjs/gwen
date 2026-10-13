@@ -1,8 +1,7 @@
 /**
  * @file Engine public type contracts.
  *
- * Extracted from gwen-engine.ts — public type contracts, plus
- * `checkPluginApiVersion`, which throws {@link GwenError}
+ * Includes `checkPluginApiVersion`, which throws {@link GwenError}
  * `CORE:WASM_API_VERSION_MISMATCH` when policy is `"throw"`.
  */
 
