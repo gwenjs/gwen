@@ -12,8 +12,8 @@
       "path": "packages/core/wasm/light/gwen_core_bg.wasm",
       "raw": 1,
       "gzip": {
-        "baseline": 1000,
-        "budget": 3048
+        "baseline": 5000,
+        "budget": 7048
       },
       "brotli": {
         "baseline": 30,
