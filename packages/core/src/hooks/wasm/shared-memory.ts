@@ -141,9 +141,10 @@ export interface MemoryRegion {
  *
  * ### Sentinel guards (debug mode)
  * A 4-byte sentinel (`0xDEADBEEF`) is written immediately after each region.
- * Call `checkSentinels(bridge)` once per frame (or on demand) to verify that
- * no plugin has overflowed its buffer. This check is O(n_plugins) and
- * negligible compared to the physics step.
+ * Call `checkSentinels(bridge)` once per frame (or on demand). A community
+ * module cannot write this buffer. The word still marks an overrun of the
+ * core allocation. This check is O(n_plugins) and negligible compared to the
+ * physics step.
  */
 export class SharedMemoryManager {
   private readonly basePtr: number;
@@ -275,20 +276,19 @@ export class SharedMemoryManager {
   // ── Sentinel integrity check ───────────────────────────────────────────────
 
   /**
-   * Verify that no plugin has written past its allocated region.
-   *
    * Reads the 4-byte sentinel at the end of each region and compares it
-   * against `SENTINEL` (`0xDEADBEEF`). Should be called once per frame in
-   * debug mode, **after** `dispatchWasmStep` and **before** reading the buffer
-   * back into the ECS — the only moment an overrun could have occurred.
+   * against `SENTINEL` (`0xDEADBEEF`). A community module cannot write this
+   * buffer. The word still marks an overrun of the core allocation.
+   *
+   * Should be called once per frame in debug mode, **after**
+   * `dispatchWasmStep` and **before** reading the buffer back into the ECS.
    *
    * This method reads directly from `gwen-core`'s WASM linear memory via
    * the bridge. It is a pure read — no ECS state is modified.
    *
    * @param bridge  Active WasmBridge — needed to access the linear memory view.
    *
-   * @throws {GwenError} If any sentinel has been overwritten, indicating a
-   *   buffer-overrun bug in the offending Rust plugin.
+   * @throws {GwenError} If the sentinel word changed.
    */
   checkSentinels(bridge: WasmBridge): void {
     const memory = bridge.getLinearMemory();
