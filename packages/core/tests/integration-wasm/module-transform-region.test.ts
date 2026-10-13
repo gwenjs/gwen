@@ -302,6 +302,7 @@ describe("module transform region", () => {
       offset: number;
       length: number;
       regionName: string;
+      reason: string;
     }> = [
       {
         name: "bad-name",
@@ -309,6 +310,7 @@ describe("module transform region", () => {
         offset: REGION_OFFSET,
         length: REQUIRED_BYTES,
         regionName: "missing",
+        reason: "unknown region name",
       },
       {
         name: "offset-zero",
@@ -316,6 +318,7 @@ describe("module transform region", () => {
         offset: 0,
         length: REQUIRED_BYTES,
         regionName: "transforms",
+        reason: "offset 0 must be a positive multiple of 4",
       },
       {
         name: "offset-two",
@@ -323,6 +326,7 @@ describe("module transform region", () => {
         offset: 2,
         length: REQUIRED_BYTES,
         regionName: "transforms",
+        reason: "offset 2 is not a positive multiple of 4",
       },
       {
         name: "past-end",
@@ -330,6 +334,7 @@ describe("module transform region", () => {
         offset: 65532,
         length: REQUIRED_BYTES,
         regionName: "transforms",
+        reason: "region ends at 67580, past memory of 65536 bytes",
       },
       {
         name: "no-memory",
@@ -337,6 +342,7 @@ describe("module transform region", () => {
         offset: REGION_OFFSET,
         length: REQUIRED_BYTES,
         regionName: "transforms",
+        reason: "the module does not export memory",
       },
     ];
     for (const item of cases) {
@@ -357,12 +363,7 @@ describe("module transform region", () => {
           throw new Error(`${item.name}: expected GwenError`);
         }
         expect(caught.code, item.name).toBe(CoreErrorCodes.WASM_MODULE_REGION_INVALID);
-        if (item.name === "offset-zero") {
-          expect(caught.message, item.name).toContain("offset 0 must be a positive multiple of 4");
-        }
-        if (item.name === "offset-two") {
-          expect(caught.message, item.name).toContain("offset 2 is not a positive multiple of 4");
-        }
+        expect(caught.message, item.name).toContain(item.reason);
         expect(() => started.engine.getWasmModule(item.name)).toThrow();
         await started.advance(1, 1 / 60);
         expect(started.engine.state).not.toBe("faulted");
