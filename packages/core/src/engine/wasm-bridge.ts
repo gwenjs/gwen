@@ -4,15 +4,6 @@
  * The Rust/WASM core is MANDATORY — no TypeScript fallback exists.
  * Call `await initWasm()` BEFORE creating the Engine, or an error is thrown.
  *
- * ⚠️  INTENTIONAL CO-LOCATION — Do not split the implementation.
- * V8 inlines calls between functions in the same compilation unit.
- * A previous refactor attempt that split this file caused a measurable perf
- * regression on the hot path (entity queries + component reads at ~1000 entities/frame).
- * Keep all bridge implementation code co-located so the JIT can inline across
- * method boundaries. Type-only definitions (interfaces, type aliases) have been
- * extracted to wasm-bridge-types.ts since they are erased at compile time
- * and have no impact on V8 inlining.
- *
  * NAVIGATION (use IDE region folding — Ctrl+Shift+[ / Cmd+Shift+[):
  *   wasm-bridge-types.ts                        — variant type contracts (WasmEngine*)
  *   #region Module loading & initialization     — variant detection, fetch, instantiation
@@ -38,8 +29,8 @@ import {
 } from "./engine-errors";
 import { engineContext, GwenContextError } from "./context";
 
-// ─── Re-exports from extracted type module ──────────────────────────────────
-// All public types were in this file before extraction. Re-export them so
+// ─── Re-exports from the type module ────────────────────────────────────────
+// Public types live in ./wasm-bridge-types.ts. Re-export them so
 // existing `import { ... } from './wasm-bridge.js'` statements keep working.
 
 export type {
@@ -53,8 +44,6 @@ export type {
   InitWasmOptions,
   WasmBridge,
 } from "./wasm-bridge-types.js";
-
-// ─── Imports from extracted module (used by implementation below) ───────────
 
 import type {
   CoreVariant,
