@@ -24,6 +24,7 @@ impl QueryId {
         let mut mask = BitSet128::new();
         for &type_id in &required {
             if let Some(bit_idx) = registry.bit_index(type_id) {
+                // Assigned by ComponentRegistry::assign_bit_index, below MAX_COMPONENT_TYPES.
                 mask.set(bit_idx);
             }
         }
