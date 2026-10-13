@@ -30,7 +30,7 @@ function jobBlock(yaml, id) {
 
 /**
  * @param {string} jobText
- * @returns {{ uses: string, run: string }[]}
+ * @returns {{ uses: string, run: string, continueOnError: boolean, hasIf: boolean }[]}
  */
 function stepsOf(jobText) {
   const steps = [];
@@ -39,7 +39,7 @@ function stepsOf(jobText) {
   for (const line of jobText.split("\n")) {
     if (/^ {6}- /.test(line)) {
       if (step) steps.push(step);
-      step = { uses: "", run: "" };
+      step = { uses: "", run: "", continueOnError: false, hasIf: false };
       runBlock = false;
       const uses = /^ {6}- uses: (\S+)/.exec(line);
       const run = /^ {6}- run: ?(.*)$/.exec(line);
@@ -48,9 +48,19 @@ function stepsOf(jobText) {
         if (run[1] === "|" || run[1] === ">") runBlock = true;
         else step.run = run[1] ?? "";
       }
+      if (/^ {6}- continue-on-error:/.test(line)) step.continueOnError = true;
+      if (/^ {6}- if:/.test(line)) step.hasIf = true;
       continue;
     }
     if (!step) continue;
+    if (/^ {8}continue-on-error:/.test(line)) {
+      step.continueOnError = true;
+      continue;
+    }
+    if (/^ {8}if:/.test(line)) {
+      step.hasIf = true;
+      continue;
+    }
     const uses = /^ {8}uses: (\S+)/.exec(line);
     const run = /^ {8}run: ?(.*)$/.exec(line);
     if (uses?.[1]) step.uses = uses[1];
@@ -82,8 +92,10 @@ test("pnpm test ends with pnpm test:scripts", () => {
 
 test("rust-lint runs pnpm check:unsafe and pnpm test:scripts", () => {
   const yaml = readFileSync(join(root, ".github/workflows/ci.yml"), "utf8");
-  const runs = stepsOf(jobBlock(yaml, "rust-lint")).map((step) => step.run);
-  assert.ok(runs.includes(RUST_LINT_SCRIPTS), runs.filter(Boolean).join("\n"));
+  const step = stepsOf(jobBlock(yaml, "rust-lint")).find((item) => item.run === RUST_LINT_SCRIPTS);
+  assert.ok(step, "missing run");
+  assert.equal(step.continueOnError, false);
+  assert.equal(step.hasIf, false);
 });
 
 test("rust-lint sets up Node with the pnpm composite action", () => {
