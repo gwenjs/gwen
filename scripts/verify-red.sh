@@ -52,6 +52,15 @@ unset GIT_DIR GIT_WORK_TREE GIT_IMPLICIT_WORK_TREE GIT_INDEX_FILE GIT_INDEX_VERS
   GIT_NAMESPACE GIT_QUARANTINE_PATH
 
 ROOT=$(git rev-parse --show-toplevel)
+# scripts/check-verify-red-git-dir.test.mjs sets this. The base script has no branch.
+if [ "${VERIFY_RED_GIT_DIR_CHECK:-}" = 1 ]; then
+  if [ -z "$ROOT" ]; then
+    echo 'verify-red: git rev-parse failed' >&2
+    exit 2
+  fi
+  echo 'verify-red: git toplevel ok'
+  exit 0
+fi
 cd "$ROOT"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 JUDGE="$SCRIPT_DIR/verify-red-judge.mjs"
