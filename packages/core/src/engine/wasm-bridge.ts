@@ -537,6 +537,13 @@ export class WasmBridgeImpl implements WasmBridge {
   /**
    * Create N entities, each with a transform.
    *
+   * `positions` length must be exactly `2 * N`. `rotations` length must be exactly `N`.
+   * Both empty (`N = 0`) returns an empty array and creates nothing.
+   *
+   * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` before any entity is created
+   *   when `positions` has an odd length (expected is the next even length) or when
+   *   `rotations` is not exactly `N`. The message names the buffer and both sizes.
+   *   The bridge stays usable.
    * @throws {GwenWasmError} code `CORE:ENTITY_LIMIT_REACHED` when N exceeds the remaining
    *   capacity. No entity is created in that case. The bridge stays usable.
    */

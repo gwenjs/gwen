@@ -56,7 +56,8 @@ pub enum CoreError {
     },
     /// A bulk read or write was given slices whose lengths do not agree.
     BufferLengthMismatch {
-        /// Name of the buffer that disagreed (`"data"` or `"gens"`).
+        /// Name of the buffer that disagreed
+        /// (`"data"`, `"gens"`, `"positions"`, or `"rotations"`).
         buffer: &'static str,
         /// Length the call required, in elements or bytes.
         expected: u32,

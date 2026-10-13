@@ -3574,21 +3574,24 @@ impl Engine {
     /// Create N entities, each with a transform, and return their indices.
     ///
     /// # Arguments
-    /// * `positions` - Flat `[x0, y0, x1, y1, ...]` array — length must be `2 * N`.
-    /// * `rotations` - Flat `[r0, r1, ...]` array — length must be `N`. Pass empty slice for all-zero.
+    /// * `positions` - Flat `[x0, y0, x1, y1, ...]` array. Length must be exactly `2 * N`.
+    /// * `rotations` - Flat `[r0, r1, ...]` array. Length must be exactly `N`.
     ///
     /// # Returns
     /// `Vec<u32>` (exposed as `Uint32Array` to JavaScript) of N entity indices in the same order as `positions`.
+    /// Both slices empty (`N = 0`) returns an empty vec and creates nothing.
     ///
     /// # Errors
     ///
+    /// Returns [`CoreError::BufferLengthMismatch`] before any entity is created
+    /// when `positions` has an odd length (the message's expected value is the
+    /// next even length) or when `rotations.len()` is not `N`.
     /// Returns [`CoreError::EntityLimitReached`] when N is greater than the
     /// remaining entity capacity. Nothing is created in that case.
     ///
     /// # Description
-    /// This method efficiently spawns multiple entities with transforms in a single operation.
-    /// Each entity is created with a position (x, y) and an optional rotation. If the rotations
-    /// array is shorter than N, remaining entities use rotation 0.0. Scale is always set to (1, 1).
+    /// This method spawns multiple entities with transforms in one call.
+    /// Each entity gets a position `(x, y)`, the rotation at the same index, and scale `(1, 1)`.
     ///
     /// # Examples
     /// ```js
@@ -3604,7 +3607,25 @@ impl Engine {
         positions: &[f32],
         rotations: &[f32],
     ) -> Result<Vec<u32>, CoreError> {
+        if !positions.len().is_multiple_of(2) {
+            let expected = match positions.len().checked_add(1) {
+                Some(len) => bulk_len_u32(len),
+                None => u32::MAX,
+            };
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "positions",
+                expected,
+                actual: bulk_len_u32(positions.len()),
+            });
+        }
         let count = positions.len() / 2;
+        if rotations.len() != count {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "rotations",
+                expected: bulk_len_u32(count),
+                actual: bulk_len_u32(rotations.len()),
+            });
+        }
         if count > self.entity_manager.remaining_capacity() as usize {
             let max = self.entity_manager.max_entities();
             return Err(CoreError::EntityLimitReached { max });
@@ -3617,11 +3638,7 @@ impl Engine {
             let index = js_id.index();
             let x = positions[i * 2];
             let y = positions[i * 2 + 1];
-            let rotation = if i < rotations.len() {
-                rotations[i]
-            } else {
-                0.0
-            };
+            let rotation = rotations[i];
 
             let entity = EntityId::from_parts(index, self.get_entity_generation(index));
             self.transform_system.add_transform(
