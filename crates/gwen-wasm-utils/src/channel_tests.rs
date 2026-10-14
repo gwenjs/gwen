@@ -68,14 +68,15 @@ mod tests {
         );
     }
 
-    /// Verify that `version = N` generates `gwen_plugin_api_version()`.
+    /// The channel macro must not emit `gwen_plugin_api_version`.
+    /// That export belongs to `gwen_plugin_abi!` and always returns the crate constant.
     #[test]
-    fn version_export_is_generated_when_requested() {
-        gwen_channel!(versioned, 8, 4, version = 1_000_002);
+    fn gwen_channel_does_not_emit_the_version_export() {
+        let src = include_str!("channel.rs");
         assert_eq!(
-            gwen_plugin_api_version(),
-            1_000_002,
-            "version must be encoded as major * 1_000_000 + minor * 1_000 + patch"
+            src.find("version ="),
+            None,
+            "gwen_channel! must not take a version arm or emit gwen_plugin_api_version"
         );
     }
 
