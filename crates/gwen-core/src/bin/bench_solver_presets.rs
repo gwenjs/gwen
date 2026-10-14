@@ -68,17 +68,20 @@ fn preset_runs() -> [PresetRun; 4] {
 }
 
 fn must_u32(result: Result<u32, Physics2DError>) -> u32 {
-    result.unwrap_or_else(|err| {
-        assert_eq!(err.code(), "");
-        std::process::abort();
-    })
+    match result {
+        Ok(value) => value,
+        Err(err) => {
+            eprintln!("{err}");
+            std::process::exit(1);
+        }
+    }
 }
 
 fn must_unit(result: Result<(), Physics2DError>) {
-    result.unwrap_or_else(|err| {
-        assert_eq!(err.code(), "");
-        std::process::abort();
-    });
+    if let Err(err) = result {
+        eprintln!("{err}");
+        std::process::exit(1);
+    }
 }
 
 fn add_box(world: &mut PhysicsWorld, entity: u32, x: f32, y: f32, kind: BodyType) {
