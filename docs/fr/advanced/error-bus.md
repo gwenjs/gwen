@@ -7,7 +7,11 @@ description: Signalement d'erreurs structuré et non fatal dans tout le moteur.
 
 Le bus d'erreurs de GWEN fournit un moyen structuré pour le moteur, les plugins et le code du jeu d'émettre et de gérer les erreurs avec élégance. Au lieu de lancer des exceptions (qui arrêtent le jeu), les erreurs sont émises comme des événements que votre code peut écouter et sur lesquels il peut agir—gardant le jeu en cours d'exécution même en cas de problème.
 
-Un appel `@gwenjs/physics2d` refusé n'emprunte pas ce bus. Il lève un `GwenWasmError`. `code` commence par `PHYSICS2D:` et `exportName` est l'export WASM. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Un échec de `physics_step` sort du hook `engine:before-update` par le chemin d'erreur de hook du moteur. Le plugin physics2d n'émet pas de code récupérable pour cet échec.
+Un appel physics2d que vous faites vous-même lève un `GwenWasmError`. `code` est `PHYSICS2D:*` et `exportName` est l'export WASM. Attrapez cet appel.
+
+`physics_step` tourne dans `engine:before-update`. Un pas refusé est isolé : la frame continue, et `engine.errors` reçoit une erreur de hook. Le `code` de l'événement est `CORE:FRAME_LOOP_ERROR` et `error` est le `GwenWasmError`.
+
+Un piège lève `GwenWasmPanicError` et empoisonne le pont. Le `code` sur le bus est `CORE:WASM_PANIC`.
 
 ## Les bases
 
@@ -131,9 +135,9 @@ Avec le bus d'erreurs :
 
 ## En pratique
 
-### Un appel physics2d refusé lève une erreur
+### Un appel que vous faites lève une erreur
 
-Il n'y a pas d'événement `PHYSICS:STEP_FAILED` ni `PHYSICS:INVALID_SHAPE`. Attrapez l'appel que vous avez fait. Le bus ne le reçoit pas.
+Il n'y a pas d'événement `PHYSICS:STEP_FAILED` ni `PHYSICS:INVALID_SHAPE`. Attrapez l'appel que vous avez fait. Le plugin ne recopie pas cette exception sur le bus.
 
 ```ts
 import { GwenWasmError } from '@gwenjs/core'
@@ -148,10 +152,26 @@ export const PathSystem = defineSystem(() => {
       physics.findPath({ x: 0, y: 0 }, { x: 10, y: 0 })
     } catch (err) {
       if (err instanceof GwenWasmError && err.code === 'PHYSICS2D:INVALID_PATH_REQUEST') {
-        // Récupérez ici. Cette erreur n'a pas été émise sur le bus.
+        // Récupérez ici. L'exception de cet appel n'est pas un événement du bus.
       }
     }
   })
+})
+```
+
+### Le pas physique est une erreur de hook
+
+`physics_step` n'est pas un appel que vous faites. Il tourne dans `engine:before-update`. Un pas refusé est isolé : la frame continue, et `engine.errors` reçoit l'erreur de hook. `event.code` vaut `CORE:FRAME_LOOP_ERROR`. `event.error` est le `GwenWasmError` (`PHYSICS2D:*`, `exportName` `physics_step`). `event.context.hook` vaut `engine:before-update`.
+
+Un piège est un `GwenWasmPanicError`. Le pont est empoisonné. Le `code` sur le bus est `CORE:WASM_PANIC`.
+
+```ts
+engine.errors.on((event) => {
+  if (event.context?.hook !== 'engine:before-update') return
+  const cause = event.error
+  if (cause instanceof GwenWasmError && cause.exportName === 'physics_step') {
+    // Le pas a été refusé. La frame a tout de même fini ce hook.
+  }
 })
 ```
 
