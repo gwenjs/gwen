@@ -77,47 +77,29 @@ fn unsafe_site_u003_short_sync_is_invalid() {
 }
 
 #[cfg(feature = "physics2d")]
-fn must_u32(result: Result<u32, gwen_core::physics2d::Physics2DError>) -> u32 {
-    result.unwrap_or_else(|err| {
-        assert_eq!(err.code(), "");
-        std::process::abort();
-    })
-}
-
-#[cfg(feature = "physics2d")]
-fn must_unit(result: Result<(), gwen_core::physics2d::Physics2DError>) {
-    result.unwrap_or_else(|err| {
-        assert_eq!(err.code(), "");
-        std::process::abort();
-    });
-}
-
-#[cfg(feature = "physics2d")]
-fn overlapping_pair() -> gwen_core::physics2d::PhysicsWorld {
+fn overlapping_pair(
+) -> Result<gwen_core::physics2d::PhysicsWorld, gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
-    let left =
-        must_u32(world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
-    must_unit(world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default()));
-    let right =
-        must_u32(world.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default()));
-    must_unit(world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default()));
-    world
+    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default())?;
+    let right = world.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default())?;
+    Ok(world)
 }
 
 #[cfg(feature = "physics2d")]
-fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
+fn separated_pair(
+) -> Result<gwen_core::physics2d::PhysicsWorld, gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
-    let left =
-        must_u32(world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
-    must_unit(world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default()));
-    let right =
-        must_u32(world.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
-    must_unit(world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default()));
-    world
+    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default())?;
+    let right = world.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default())?;
+    Ok(world)
 }
 
 #[cfg(feature = "physics2d")]
@@ -126,10 +108,10 @@ fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u005_step_records_a_collision() {
+fn unsafe_site_u005_step_records_a_collision() -> Result<(), gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::PhysicsCollisionEvent;
 
-    let mut world = overlapping_pair();
+    let mut world = overlapping_pair()?;
     world.step(1.0 / 60.0);
     assert_ne!(world.collision_event_count(), 0);
     // SAFETY: `step` just wrote at least one event at the start of this world's buffer.
@@ -138,6 +120,7 @@ fn unsafe_site_u005_step_records_a_collision() {
     let mut pair = [event.entity_a, event.entity_b];
     pair.sort_unstable();
     assert_eq!(pair, [1, 2]);
+    Ok(())
 }
 
 #[cfg(feature = "physics2d")]
@@ -146,14 +129,16 @@ fn unsafe_site_u005_step_records_a_collision() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u006_two_worlds_do_not_share_events() {
-    let mut crowded = overlapping_pair();
-    let mut quiet = separated_pair();
+fn unsafe_site_u006_two_worlds_do_not_share_events(
+) -> Result<(), gwen_core::physics2d::Physics2DError> {
+    let mut crowded = overlapping_pair()?;
+    let mut quiet = separated_pair()?;
     crowded.step(1.0 / 60.0);
     quiet.step(1.0 / 60.0);
     assert_ne!(crowded.collision_event_count(), 0);
     assert_eq!(quiet.collision_event_count(), 0);
     assert_ne!(crowded.collision_events_ptr(), quiet.collision_events_ptr());
+    Ok(())
 }
 
 #[cfg(feature = "physics2d")]
@@ -162,21 +147,17 @@ fn unsafe_site_u006_two_worlds_do_not_share_events() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u007_event_buffer_fills_then_clears() {
+fn unsafe_site_u007_event_buffer_fills_then_clears(
+) -> Result<(), gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::{
         BodyOptions, BodyType, ColliderOptions, PhysicsWorld, MAX_COLLISION_EVENTS,
     };
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
     for entity in 0..46 {
-        let handle = must_u32(world.add_rigid_body(
-            entity,
-            0.0,
-            0.0,
-            BodyType::Dynamic,
-            BodyOptions::default(),
-        ));
-        must_unit(world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default()));
+        let handle =
+            world.add_rigid_body(entity, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default())?;
     }
     world.step(1.0 / 60.0);
     assert_eq!(world.collision_event_count(), MAX_COLLISION_EVENTS as u32);
@@ -185,6 +166,7 @@ fn unsafe_site_u007_event_buffer_fills_then_clears() {
     }
     world.step(1.0 / 60.0);
     assert_eq!(world.collision_event_count(), 0);
+    Ok(())
 }
 
 #[cfg(feature = "physics2d")]

@@ -300,35 +300,33 @@ impl PhysicsWorld {
                 handle: body_handle_raw,
             });
         };
-        {
-            let entity_index = self
-                .body_to_entity
-                .get(&handle)
-                .copied()
-                .unwrap_or(u32::MAX);
-            let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
-            let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
-            let builder = ColliderBuilder::cuboid(hw, hh)
-                .translation(vector![opts.offset_x, opts.offset_y])
-                .restitution(opts.material.restitution)
-                .friction(opts.material.friction)
-                .density(opts.density)
-                .sensor(opts.is_sensor)
-                .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
-                .user_data(pack_collider_user_data(entity_index, opts.collider_id))
-                .active_events(ActiveEvents::COLLISION_EVENTS)
-                .active_hooks(if opts.is_one_way {
-                    ActiveHooks::MODIFY_SOLVER_CONTACTS
-                } else {
-                    ActiveHooks::empty()
-                });
-            let collider = builder.build();
-            let handle =
-                self.collider_set
-                    .insert_with_parent(collider, handle, &mut self.rigid_body_set);
-            if opts.is_one_way {
-                self.one_way_colliders.insert(handle);
-            }
+        let entity_index = self
+            .body_to_entity
+            .get(&handle)
+            .copied()
+            .unwrap_or(u32::MAX);
+        let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
+        let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
+        let builder = ColliderBuilder::cuboid(hw, hh)
+            .translation(vector![opts.offset_x, opts.offset_y])
+            .restitution(opts.material.restitution)
+            .friction(opts.material.friction)
+            .density(opts.density)
+            .sensor(opts.is_sensor)
+            .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
+            .user_data(pack_collider_user_data(entity_index, opts.collider_id))
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .active_hooks(if opts.is_one_way {
+                ActiveHooks::MODIFY_SOLVER_CONTACTS
+            } else {
+                ActiveHooks::empty()
+            });
+        let collider = builder.build();
+        let handle =
+            self.collider_set
+                .insert_with_parent(collider, handle, &mut self.rigid_body_set);
+        if opts.is_one_way {
+            self.one_way_colliders.insert(handle);
         }
         Ok(())
     }
@@ -367,35 +365,33 @@ impl PhysicsWorld {
                 handle: body_handle_raw,
             });
         };
-        {
-            let entity_index = self
-                .body_to_entity
-                .get(&handle)
-                .copied()
-                .unwrap_or(u32::MAX);
-            let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
-            let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
-            let builder = ColliderBuilder::ball(radius)
-                .translation(vector![opts.offset_x, opts.offset_y])
-                .restitution(opts.material.restitution)
-                .friction(opts.material.friction)
-                .density(opts.density)
-                .sensor(opts.is_sensor)
-                .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
-                .user_data(pack_collider_user_data(entity_index, opts.collider_id))
-                .active_events(ActiveEvents::COLLISION_EVENTS)
-                .active_hooks(if opts.is_one_way {
-                    ActiveHooks::MODIFY_SOLVER_CONTACTS
-                } else {
-                    ActiveHooks::empty()
-                });
-            let collider = builder.build();
-            let collider_handle =
-                self.collider_set
-                    .insert_with_parent(collider, handle, &mut self.rigid_body_set);
-            if opts.is_one_way {
-                self.one_way_colliders.insert(collider_handle);
-            }
+        let entity_index = self
+            .body_to_entity
+            .get(&handle)
+            .copied()
+            .unwrap_or(u32::MAX);
+        let groups = rapier2d::geometry::Group::from_bits_truncate(opts.groups.membership);
+        let filter = rapier2d::geometry::Group::from_bits_truncate(opts.groups.filter);
+        let builder = ColliderBuilder::ball(radius)
+            .translation(vector![opts.offset_x, opts.offset_y])
+            .restitution(opts.material.restitution)
+            .friction(opts.material.friction)
+            .density(opts.density)
+            .sensor(opts.is_sensor)
+            .collision_groups(rapier2d::geometry::InteractionGroups::new(groups, filter))
+            .user_data(pack_collider_user_data(entity_index, opts.collider_id))
+            .active_events(ActiveEvents::COLLISION_EVENTS)
+            .active_hooks(if opts.is_one_way {
+                ActiveHooks::MODIFY_SOLVER_CONTACTS
+            } else {
+                ActiveHooks::empty()
+            });
+        let collider = builder.build();
+        let collider_handle =
+            self.collider_set
+                .insert_with_parent(collider, handle, &mut self.rigid_body_set);
+        if opts.is_one_way {
+            self.one_way_colliders.insert(collider_handle);
         }
         Ok(())
     }
@@ -879,16 +875,12 @@ mod tests {
     }
 
     #[test]
-    fn test_unload_tilemap_chunk_body_unknown_chunk_is_noop() {
+    fn test_unload_tilemap_chunk_body_unknown_chunk_returns_not_loaded() {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        let err = match world.unload_tilemap_chunk_body(0x1234) {
-            Ok(()) => {
-                assert_eq!(0, 1);
-                return;
-            }
-            Err(err) => err,
-        };
-        assert_eq!(err.code(), "PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED");
+        assert_eq!(
+            world.unload_tilemap_chunk_body(0x1234),
+            Err(Physics2DError::TilemapChunkNotLoaded)
+        );
         assert_eq!(world.entity_to_body.len(), 0);
     }
 
