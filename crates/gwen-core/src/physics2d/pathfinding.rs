@@ -27,11 +27,6 @@ pub const MAX_PATH_COORD: i32 = 16_777_215;
 /// A 4-connected path of this distance has [`MAX_PATH_NODES`] nodes.
 /// A longer request is refused before the search, instead of running and
 /// then keeping only the first 256 nodes.
-///
-/// A native debug call of the worst accepted request, `(0, 0)` to `(255, 0)`,
-/// took 1_386_750 ns around `find_path_2d`. The process that made that call
-/// had a maximum resident set size of 2_818_048 bytes (`/usr/bin/time -l`).
-/// That size includes the test harness.
 pub const MAX_PATH_DISTANCE: u32 = 255;
 
 /// A node in a path (x, y coordinate).
