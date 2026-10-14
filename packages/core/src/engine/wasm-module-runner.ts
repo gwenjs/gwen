@@ -2,7 +2,12 @@ import { GwenError, type GwenErrorPayload, type GwenErrorTarget } from "@gwenjs/
 import { buildTransformImports } from "../hooks/wasm/transform-imports.js";
 import { SharedMemoryManager, TRANSFORM_STRIDE } from "../hooks/wasm/shared-memory.js";
 import { DisposableRegistry, createDisposable } from "../disposable.js";
-import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "./engine-errors.js";
+import {
+  CoreErrorCodes,
+  GwenWasmAbiError,
+  GwenWasmError,
+  GwenWasmPanicError,
+} from "./engine-errors.js";
 import type { EngineMemory, MemoryView } from "./engine-memory.js";
 import { checkPluginApiVersion } from "./engine-types.js";
 import type { GwenWasmModules, WasmModuleHandle, WasmModuleOptions } from "./engine-types.js";
@@ -104,12 +109,15 @@ export class WasmModuleRunner {
         );
         if (hasPtrExport) {
           const probe = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
+          // The export can trap. Check the ABI first, and do not let this catch rewrap it.
+          checkPluginApiVersion(probe.exports, options.name);
           probeOffset = this._resolveTransformOffset(probe.exports, declared);
           // The real start() reads modulePtr, so publish the probe offset first.
           modulePtr = probeOffset;
         }
       }
     } catch (err) {
+      if (err instanceof GwenWasmAbiError) throw err;
       throw new GwenError(
         CoreErrorCodes.WASM_LOAD_ERROR,
         `[GWEN] loadWasmModule("${options.name}"): failed to load WASM module from "${options.url}". ` +
