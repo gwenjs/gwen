@@ -2,159 +2,111 @@
  * @file Tests for checkPluginApiVersion and GWEN_PLUGIN_API_VERSION.
  */
 
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine/engine-types";
 
+const FIX = "Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.";
+
+function readField(value: object, key: string): unknown {
+  return Reflect.get(value, key);
+}
+
 describe("checkPluginApiVersion", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("returns true when no gwen_plugin_api_version export exists", () => {
-    const exports = {} as unknown as WebAssembly.Exports; // Empty exports
-    const result = checkPluginApiVersion(exports, "oldPlugin");
-    expect(result).toBe(true);
-  });
-
-  it("returns true when version matches expectedVersion", () => {
-    const exports = {
-      gwen_plugin_api_version: () => 1_000_000,
-    } as unknown as WebAssembly.Exports;
-    const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000);
-    expect(result).toBe(true);
-  });
-
-  it("calls console.warn and returns false on mismatch with policy=warn", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const exports = {
-      gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as unknown as WebAssembly.Exports;
-
-    const result = checkPluginApiVersion(
-      exports,
-      "myPlugin",
-      1_000_000, // v1.0.0
-      "warn",
-    );
-
-    expect(result).toBe(false);
-    expect(warnSpy).toHaveBeenCalledWith(
-      '[GWEN] Plugin "myPlugin" was compiled against API version 1002003 but engine expects 1000000.',
+  it("throws GwenWasmAbiError with actual null when the export is absent", () => {
+    const exports: WebAssembly.Exports = {};
+    let caught: unknown;
+    try {
+      checkPluginApiVersion(exports, "bare");
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) return;
+    expect(caught.name).toBe("GwenWasmAbiError");
+    expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
+    expect(readField(caught, "module")).toBe("bare");
+    expect(readField(caught, "expected")).toBe(2_000_000);
+    expect(readField(caught, "actual")).toBeNull();
+    expect(caught.message).toBe(
+      `[GWEN] loadWasmModule("bare"): plugin ABI version none declared does not match 2000000. ${FIX}`,
     );
   });
 
-  it("throws on mismatch with policy=throw", () => {
-    const exports = {
-      gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as unknown as WebAssembly.Exports;
+  it("throws GwenWasmAbiError with actual null when the export is not a function", () => {
+    const exports: WebAssembly.Exports = {};
+    Object.defineProperty(exports, "gwen_plugin_api_version", { value: "not a function" });
+    let caught: unknown;
+    try {
+      checkPluginApiVersion(exports, "bad-export");
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) return;
+    expect(caught.name).toBe("GwenWasmAbiError");
+    expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
+    expect(readField(caught, "actual")).toBeNull();
+    expect(caught.message).toContain("none declared");
+    expect(caught.message).toContain("bad-export");
+    expect(caught.message).toContain(FIX);
+  });
 
-    expect(() =>
-      checkPluginApiVersion(
-        exports,
-        "myPlugin",
-        1_000_000, // v1.0.0
-        "throw",
-      ),
-    ).toThrow(
-      '[GWEN] Plugin "myPlugin" was compiled against API version 1002003 but engine expects 1000000.',
+  it("throws GwenWasmAbiError with actual null when the export returns a non-number", () => {
+    const exports: WebAssembly.Exports = {
+      gwen_plugin_api_version: () => "nope",
+    };
+    let caught: unknown;
+    try {
+      checkPluginApiVersion(exports, "text-version");
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) return;
+    expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
+    expect(readField(caught, "actual")).toBeNull();
+    expect(caught.message).toContain('loadWasmModule("text-version")');
+    expect(caught.message).toContain("none declared");
+  });
+
+  it("throws GwenWasmAbiError naming 2000000 and 2000001", () => {
+    const exports: WebAssembly.Exports = {
+      gwen_plugin_api_version: () => 2_000_001,
+    };
+    let caught: unknown;
+    try {
+      checkPluginApiVersion(exports, "next");
+    } catch (error: unknown) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(Error);
+    if (!(caught instanceof Error)) return;
+    expect(caught.name).toBe("GwenWasmAbiError");
+    expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
+    expect(readField(caught, "module")).toBe("next");
+    expect(readField(caught, "expected")).toBe(2_000_000);
+    expect(readField(caught, "actual")).toBe(2_000_001);
+    expect(caught.message).toBe(
+      `[GWEN] loadWasmModule("next"): plugin ABI version 2000001 does not match 2000000. ${FIX}`,
     );
   });
 
-  it("returns false silently on mismatch with policy=ignore", () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const exports = {
-      gwen_plugin_api_version: () => 1_002_003, // v1.2.3
-    } as unknown as WebAssembly.Exports;
-
-    const result = checkPluginApiVersion(
-      exports,
-      "myPlugin",
-      1_000_000, // v1.0.0
-      "ignore",
-    );
-
-    expect(result).toBe(false);
-    expect(warnSpy).not.toHaveBeenCalled();
-  });
-
-  it("uses GWEN_PLUGIN_API_VERSION as default expected version", () => {
-    const exports = {
+  it("returns undefined when the export equals the current version", () => {
+    const exports: WebAssembly.Exports = {
       gwen_plugin_api_version: () => GWEN_PLUGIN_API_VERSION,
-    } as unknown as WebAssembly.Exports;
-
-    const result = checkPluginApiVersion(exports, "myPlugin"); // No expectedVersion provided
-
-    expect(result).toBe(true);
-  });
-
-  it('uses "warn" as default policy when not specified', () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const exports = {
-      gwen_plugin_api_version: () => 2_000_000, // v2.0.0
-    } as unknown as WebAssembly.Exports;
-
-    const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000); // No policy provided
-
-    expect(result).toBe(false);
-    expect(warnSpy).toHaveBeenCalled();
-  });
-
-  it("handles version encoding correctly (major * 1_000_000 + minor * 1_000 + patch)", () => {
-    // v1.2.3 = 1*1_000_000 + 2*1_000 + 3 = 1_002_003
-    const version123 = 1_002_003;
-    const exports = {
-      gwen_plugin_api_version: () => version123,
-    } as unknown as WebAssembly.Exports;
-
-    expect(checkPluginApiVersion(exports, "plugin", version123)).toBe(true);
-    expect(checkPluginApiVersion(exports, "plugin", 1_002_004)).toBe(false);
-    expect(checkPluginApiVersion(exports, "plugin", 1_002_002)).toBe(false);
-  });
-
-  it("includes raw encoded integer versions in the warning message", () => {
-    // v1.2.3 = 1_002_003
-    // v2.3.4 = 2_003_004
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    const exports = {
-      gwen_plugin_api_version: () => 2_003_004,
-    } as unknown as WebAssembly.Exports;
-
-    checkPluginApiVersion(exports, "testPlugin", 1_002_003, "warn");
-
-    expect(warnSpy).toHaveBeenCalledWith(
-      '[GWEN] Plugin "testPlugin" was compiled against API version 2003004 but engine expects 1002003.',
-    );
-  });
-
-  it("correctly types gwen_plugin_api_version as a function", () => {
-    const exports = {
-      gwen_plugin_api_version: () => 1_000_000,
-      someOtherExport: "not a function",
-    } as unknown as WebAssembly.Exports;
-
-    // This should not throw during version check
-    const result = checkPluginApiVersion(exports, "myPlugin", 1_000_000);
-    expect(result).toBe(true);
-  });
-
-  it("ignores non-function gwen_plugin_api_version exports", () => {
-    const exports = {
-      gwen_plugin_api_version: "not a function",
-    } as unknown as WebAssembly.Exports;
-
-    const result = checkPluginApiVersion(exports, "myPlugin");
-    expect(result).toBe(true); // Should return true as if no version export exists
+    };
+    expect(checkPluginApiVersion(exports, "current")).toBeUndefined();
   });
 });
 
 describe("GWEN_PLUGIN_API_VERSION", () => {
-  it("is set to 1_000_000 (representing v1.0.0)", () => {
-    expect(GWEN_PLUGIN_API_VERSION).toBe(1_000_000);
+  it("is 2_000_000", () => {
+    expect(GWEN_PLUGIN_API_VERSION).toBe(2_000_000);
   });
 
-  it("uses encoding: major * 1_000_000 + minor * 1_000 + patch", () => {
-    // v1.0.0 = 1*1_000_000 + 0*1_000 + 0 = 1_000_000
+  it("uses encoding major * 1_000_000 + minor * 1_000 + patch", () => {
+    // v2.0.0 = 2*1_000_000 + 0*1_000 + 0 = 2_000_000
     // oxlint-disable-next-line erasing-op
-    expect(GWEN_PLUGIN_API_VERSION).toBe(1 * 1_000_000 + 0 * 1_000 + 0);
+    expect(GWEN_PLUGIN_API_VERSION).toBe(2 * 1_000_000 + 0 * 1_000 + 0);
   });
 });

@@ -7,8 +7,17 @@
 
 import { describe, it, expect } from "vitest";
 import { buildTransformImports, type GwenTransformImports } from "@gwenjs/core/internal";
+import { GWEN_PLUGIN_API_VERSION } from "../../src/engine/engine-types";
 
 describe("buildTransformImports", () => {
+  it("returns abi_version equal to 2_000_000", () => {
+    const imports: WebAssembly.ModuleImports = buildTransformImports(1024, 32, 10_000);
+    const abi = imports["abi_version"];
+    const value = typeof abi === "function" ? Reflect.apply(abi, undefined, []) : undefined;
+    expect(value).toBe(2_000_000);
+    expect(value).toBe(GWEN_PLUGIN_API_VERSION);
+  });
+
   it("returns an object with three functions", () => {
     const imports = buildTransformImports(1024, 32, 10_000);
     expect(imports).toHaveProperty("transform_buffer_ptr");
