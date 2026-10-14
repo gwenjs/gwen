@@ -9,8 +9,13 @@
 )]
 //! Native checks for [`gwen_core::CoreError`].
 //!
-//! Each variant is produced by the export that owns it. An `Err` leaves the
-//! engine state unchanged.
+//! Each variant is produced by the export that owns it.
+//! `Engine::set_components_bulk` can return `ComponentWriteRejected` before
+//! the loop, which changes nothing, or in the middle of the loop, which
+//! leaves the entities written earlier in that call with their new value.
+//! Those two outcomes are pinned in `bindings.rs` by
+//! `set_components_bulk_rejects_a_fixed_size_mismatch_before_writing_the_first_entity`
+//! and `set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size`.
 
 use gwen_core::bindings::Engine;
 use gwen_core::{CoreError, TRANSFORM_SAB_TYPE_ID};
