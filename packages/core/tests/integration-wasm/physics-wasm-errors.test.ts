@@ -11,14 +11,10 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
  * PHYSICS2D code and the export name. The following advance still steps.
  */
 describe("physics2d WASM errors", () => {
-  async function boot(): Promise<{
-    handle: RealEngineHandle;
-    physics: Physics2DAPI;
-  }> {
-    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+  async function startPhysics(handle: RealEngineHandle): Promise<Physics2DAPI> {
     await handle.engine.use(Physics2DPlugin());
     await handle.engine.startExternal();
-    return { handle, physics: handle.engine.inject("physics2d") };
+    return handle.engine.inject("physics2d");
   }
 
   function requireWasmError(err: unknown, code: string, exportName: string): GwenWasmError {
@@ -47,8 +43,9 @@ describe("physics2d WASM errors", () => {
   }
 
   it("a second addRigidBody throws PHYSICS2D:BODY_ALREADY_EXISTS and the next advance still steps", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
+      const physics = await startPhysics(handle);
       const id = handle.engine.createEntity();
       physics.addRigidBody(id, "dynamic", 0, 5);
       let caught: unknown;
@@ -65,8 +62,9 @@ describe("physics2d WASM errors", () => {
   });
 
   it("a bulk kinematic length mismatch throws PHYSICS2D:BUFFER_LENGTH_MISMATCH with both sizes and the next advance still steps", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
+      const physics = await startPhysics(handle);
       let caught: unknown;
       try {
         physics.bulkStepKinematics(
@@ -92,8 +90,9 @@ describe("physics2d WASM errors", () => {
   });
 
   it("a non-finite path request throws PHYSICS2D:INVALID_PATH_REQUEST and the next advance still steps", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
     try {
+      const physics = await startPhysics(handle);
       const findPath = physics.findPath;
       if (findPath === undefined) {
         throw new Error("findPath is missing");
