@@ -141,7 +141,10 @@ describe("WasmBridge — with injected mock", () => {
   });
 
   it("toGwenWasmError maps a PHYSICS2D code only when the caller accepts that prefix", () => {
-    const poison = vi.fn();
+    const poisoned: WebAssembly.RuntimeError[] = [];
+    const poison = (cause: WebAssembly.RuntimeError): void => {
+      poisoned.push(cause);
+    };
     const cause = new Error("buffer vx length mismatch: expected 1, actual 2");
     (cause as Error & { code: string }).code = "PHYSICS2D:BUFFER_LENGTH_MISMATCH";
     expect(toGwenWasmError(cause, "physics_bulk_step_kinematics", poison)).toBe(cause);
@@ -154,7 +157,7 @@ describe("WasmBridge — with injected mock", () => {
       exportName: "physics_bulk_step_kinematics",
       cause,
     });
-    expect(poison).not.toHaveBeenCalled();
+    expect(poisoned).toEqual([]);
   });
 
   it("a RuntimeError poisons the bridge so the next call never enters WASM", () => {

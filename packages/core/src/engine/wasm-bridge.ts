@@ -192,14 +192,17 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
 // #region WasmBridge implementation (hot path — do not split) ─────────────────
 
 /**
- * Map a core export failure onto a typed error.
+ * Map an export failure onto a typed error.
  * Internal: not on {@link WasmBridge} and not a method of {@link WasmBridgeImpl}.
- * `poison` marks the calling bridge after a core trap.
+ * `poison` marks the calling bridge after a trap.
+ * `accepts` lets a caller recognise one more code prefix. Core codes stay
+ * recognised without it. A trap is still {@link GwenWasmPanicError}.
  */
 export function toGwenWasmError(
   err: unknown,
   exportName: string,
   poison: (cause: WebAssembly.RuntimeError) => void,
+  accepts?: (code: unknown) => code is string,
 ): unknown {
   if (err instanceof WebAssembly.RuntimeError) {
     poison(err);
@@ -208,6 +211,9 @@ export function toGwenWasmError(
   if (err instanceof Error) {
     const code = (err as Error & { code?: unknown }).code;
     if (isCoreWasmErrorCode(code)) {
+      return new GwenWasmError(code, err.message, exportName, err);
+    }
+    if (accepts !== undefined && accepts(code)) {
       return new GwenWasmError(code, err.message, exportName, err);
     }
   }

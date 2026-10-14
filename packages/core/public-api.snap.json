@@ -283,11 +283,13 @@
       "executeAsync",
       "getTweenManager",
       "getWasmBridge",
+      "poisonWasmBridge",
       "readTransform3DPosition",
       "readTransform3DRotation",
       "readTransform3DScale",
       "reportRejectedHook",
       "stringPoolFor",
+      "toGwenWasmError",
       "writeTransform3DPosition",
       "writeTransform3DRotation",
       "writeTransform3DScale"

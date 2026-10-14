@@ -7,6 +7,8 @@ description: Signalement d'erreurs structuré et non fatal dans tout le moteur.
 
 Le bus d'erreurs de GWEN fournit un moyen structuré pour le moteur, les plugins et le code du jeu d'émettre et de gérer les erreurs avec élégance. Au lieu de lancer des exceptions (qui arrêtent le jeu), les erreurs sont émises comme des événements que votre code peut écouter et sur lesquels il peut agir—gardant le jeu en cours d'exécution même en cas de problème.
 
+Un appel `@gwenjs/physics2d` refusé n'emprunte pas ce bus. Il lève un `GwenWasmError`. `code` commence par `PHYSICS2D:` et `exportName` est l'export WASM. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Un échec de `physics_step` sort du hook `engine:before-update` par le chemin d'erreur de hook du moteur. Le plugin physics2d n'émet pas de code récupérable pour cet échec.
+
 ## Les bases
 
 Accédez au bus d'erreurs via le moteur :
@@ -49,9 +51,9 @@ Enregistrez un gestionnaire qui reçoit tous les événements d'erreur :
 
 ```ts
 engine.errors.on((event) => {
-  if (event.code === 'PHYSICS:INVALID_SHAPE') {
-    // Gérer les formes de physique invalides spécifiquement
-    rebuildPhysicsWorld()
+  if (event.code === 'GAME:ASSET_MISSING') {
+    // Gérer un code émis par votre jeu
+    reloadAsset()
   }
 
   if (event.level === 'error') {
@@ -129,34 +131,25 @@ Avec le bus d'erreurs :
 
 ## En pratique
 
-### Récupération gracieuse de défaillance physique
+### Un appel physics2d refusé lève une erreur
 
-La physique est coûteuse en termes de calcul et peut échouer. Au lieu de planter, émettez et récupérez :
+Il n'y a pas d'événement `PHYSICS:STEP_FAILED` ni `PHYSICS:INVALID_SHAPE`. Attrapez l'appel que vous avez fait. Le bus ne le reçoit pas.
 
 ```ts
+import { GwenWasmError } from '@gwenjs/core'
 import { usePhysics2D } from '@gwenjs/physics2d'
-import { useEngine } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
-export const PhysicsSystem = defineSystem(() => {
+export const PathSystem = defineSystem(() => {
   const physics = usePhysics2D()
-  const engine = useEngine()
 
   onUpdate(() => {
     try {
-      physics.step(dt)
+      physics.findPath({ x: 0, y: 0 }, { x: 10, y: 0 })
     } catch (err) {
-      engine.errors.emit({
-        level: 'error',
-        code: 'PHYSICS:STEP_FAILED',
-        message: 'Physics step exceeded CPU budget',
-        source: 'game:physics',
-        error: err,
-        context: { dt, bodyCount: physics.bodyCount() }
-      })
-
-      // Tenter une récupération : réduire la qualité de simulation
-      physics.setSubsteps(1)
+      if (err instanceof GwenWasmError && err.code === 'PHYSICS2D:INVALID_PATH_REQUEST') {
+        // Récupérez ici. Cette erreur n'a pas été émise sur le bus.
+      }
     }
   })
 })
