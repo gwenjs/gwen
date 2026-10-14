@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 
 /**
  * Physics2d glue classification.
- * `result` is unused: no physics2d export returns `Result` yet.
+ * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
  * `known-panic` is issue 110: a TypeScript float reaches Rapier or the path
  * search, and this PR does not prove that call cannot panic.
@@ -22,6 +22,10 @@ function infallible(why: string): { kind: "infallible"; why: string } {
 
 function knownPanic(issue: number): { kind: "known-panic"; issue: number } {
   return { kind: "known-panic", issue };
+}
+
+function result(): { kind: "result" } {
+  return { kind: "result" };
 }
 
 const ISSUE = 110;
@@ -42,10 +46,10 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics2d_bulk_sync_to_rapier: infallible(
     "set_components_bulk returns Result and the wrapper discards it",
   ),
-  physics_add_ball_collider: knownPanic(ISSUE),
-  physics_add_box_collider: knownPanic(ISSUE),
-  physics_add_rigid_body: knownPanic(ISSUE),
-  physics_apply_impulse: knownPanic(ISSUE),
+  physics_add_ball_collider: result(),
+  physics_add_box_collider: result(),
+  physics_add_rigid_body: result(),
+  physics_apply_impulse: result(),
   physics_bulk_step_kinematics: knownPanic(ISSUE),
   physics_consume_event_metrics: infallible("returns a four-zero Vec and reads no world"),
   physics_get_collision_event_count: infallible(
@@ -54,35 +58,25 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics_get_collision_events_ptr: infallible(
     "returns the event buffer pointer, or null when the world is absent",
   ),
-  physics_get_linear_velocity: infallible(
-    "a missing world or slot returns an empty Vec; the body is read with rigid_body_set.get",
-  ),
-  physics_get_position: infallible(
-    "a missing world or slot returns an empty Vec; the body is read with rigid_body_set.get",
-  ),
+  physics_get_linear_velocity: result(),
+  physics_get_position: result(),
   physics_get_sensor_state: infallible("get_sensor_state returns the constant pair (0, false)"),
   physics_init: infallible(
     "PhysicsWorld::new stores the gravity vector and builds empty Rapier sets",
   ),
-  physics_load_tilemap_chunk_body: knownPanic(ISSUE),
+  physics_load_tilemap_chunk_body: result(),
   physics_point_query: knownPanic(ISSUE),
   physics_query_radius: knownPanic(ISSUE),
   physics_query_rect: knownPanic(ISSUE),
-  physics_remove_rigid_body: infallible(
-    "a missing slot returns before Rapier; remove uses the handle this world inserted",
-  ),
+  physics_remove_rigid_body: result(),
   physics_set_event_coalescing: infallible("the body ignores the argument"),
   physics_set_global_ccd_enabled: infallible("the body ignores the argument"),
-  physics_set_kinematic_position: knownPanic(ISSUE),
-  physics_set_linear_damping: knownPanic(ISSUE),
-  physics_set_linear_velocity: knownPanic(ISSUE),
-  physics_set_quality: infallible(
-    "from_u8 maps any other byte to Medium and the solver count uses NonZeroUsize::new().unwrap_or",
-  ),
+  physics_set_kinematic_position: result(),
+  physics_set_linear_damping: result(),
+  physics_set_linear_velocity: result(),
+  physics_set_quality: result(),
   physics_step: knownPanic(ISSUE),
-  physics_unload_tilemap_chunk_body: infallible(
-    "a missing chunk id returns before remove_rigid_body",
-  ),
+  physics_unload_tilemap_chunk_body: result(),
   physics_update_sensor_state: infallible("the body ignores its arguments"),
 };
 
@@ -163,6 +157,16 @@ describe("physics2d export inventory", () => {
     expect(missing, `table entries absent from the glue: ${missing.join(", ")}`).toEqual([]);
     for (const [name, row] of Object.entries(PHYSICS2D)) {
       requireReason(name, row);
+      if (row.kind === "result") {
+        expect(glueThrows(glue.Engine, name), name).toBe(true);
+      }
     }
   });
 });
+
+function glueThrows(ctor: WasmCtor, name: string): boolean {
+  const desc = Object.getOwnPropertyDescriptor(ctor.prototype as object, name);
+  const fn = desc?.value;
+  if (typeof fn !== "function") return false;
+  return Function.prototype.toString.call(fn).includes("throw takeObject");
+}
