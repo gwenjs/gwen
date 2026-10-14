@@ -10,7 +10,12 @@ export { reportRejectedHook } from "./hooks/report-rejected-hook";
 
 export { engineContext, executeAsync } from "./engine/context";
 
-export { WasmBridgeImpl, getWasmBridge } from "./engine/wasm-bridge";
+export {
+  WasmBridgeImpl,
+  getWasmBridge,
+  poisonWasmBridge,
+  toGwenWasmError,
+} from "./engine/wasm-bridge";
 export type {
   WasmEntityId,
   WasmEngine,

@@ -416,8 +416,32 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
   ): number;
   /** Apply impulse. */
   physics_apply_impulse(slot: number, x: number, y: number): void;
-  /** Set linear velocity. */
-  physics_set_linear_velocity(slot: number, vx: number, vy: number): void;
+  /**
+   * Set linear velocity.
+   * Returns 1 when the body was updated. Throws on a coded failure.
+   */
+  physics_set_linear_velocity(slot: number, vx: number, vy: number): number;
+  /** Apply one impulse to each listed body. Throws on a coded failure. */
+  physics2d_bulk_apply_impulse(
+    slots: Uint32Array,
+    gens: Uint32Array,
+    rigidbody_type_id: number,
+    impulse_data: Uint8Array,
+  ): void;
+  /** Copy Rapier poses into the ECS buffers. Returns `[count, bytes]`. */
+  physics2d_bulk_sync_from_rapier(
+    transform_type_id: number,
+    out_slots: Uint32Array,
+    out_gens: Uint32Array,
+    out_buf: Uint8Array,
+  ): Uint32Array;
+  /** Copy ECS poses into Rapier. Throws on a coded failure. */
+  physics2d_bulk_sync_to_rapier(
+    slots: Uint32Array,
+    gens: Uint32Array,
+    transform_type_id: number,
+    data: Uint8Array,
+  ): void;
   /** Get linear velocity. Returns [vx, vy]. */
   physics_get_linear_velocity(slot: number): Float32Array;
   /** Get position and rotation. Returns [x, y, rotation]. */
