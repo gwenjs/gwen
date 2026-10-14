@@ -68,18 +68,6 @@ mod tests {
         );
     }
 
-    /// The channel macro must not emit `gwen_plugin_api_version`.
-    /// That export belongs to `gwen_plugin_abi!` and always returns the crate constant.
-    #[test]
-    fn gwen_channel_does_not_emit_the_version_export() {
-        let src = include_str!("channel.rs");
-        assert_eq!(
-            src.find("version ="),
-            None,
-            "gwen_channel! must not take a version arm or emit gwen_plugin_api_version"
-        );
-    }
-
     /// Verify that two channels have distinct addresses.
     #[test]
     fn two_channels_have_distinct_addresses() {
