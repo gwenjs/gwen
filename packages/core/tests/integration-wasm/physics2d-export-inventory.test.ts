@@ -31,26 +31,20 @@ function result(): { kind: "result" } {
 const ISSUE = 110;
 
 const PHYSICS2D: Record<string, ExportRow> = {
-  find_path_2d: knownPanic(ISSUE),
+  find_path_2d: result(),
   get_collision_event_count: infallible("returns 0"),
   get_collision_events_ptr: infallible("returns a null pointer"),
   get_path_buffer_ptr: infallible("returns the address of the static path buffer"),
-  path_find_2d: knownPanic(ISSUE),
+  path_find_2d: result(),
   path_get_result_ptr: infallible("returns the address of the static path buffer"),
-  physics2d_bulk_apply_impulse: infallible(
-    "set_components_bulk returns Result and the wrapper discards it",
-  ),
-  physics2d_bulk_sync_from_rapier: infallible(
-    "query_read_bulk returns Result and a mismatch becomes the pair (0, 0)",
-  ),
-  physics2d_bulk_sync_to_rapier: infallible(
-    "set_components_bulk returns Result and the wrapper discards it",
-  ),
+  physics2d_bulk_apply_impulse: result(),
+  physics2d_bulk_sync_from_rapier: result(),
+  physics2d_bulk_sync_to_rapier: result(),
   physics_add_ball_collider: result(),
   physics_add_box_collider: result(),
   physics_add_rigid_body: result(),
   physics_apply_impulse: result(),
-  physics_bulk_step_kinematics: knownPanic(ISSUE),
+  physics_bulk_step_kinematics: result(),
   physics_consume_event_metrics: infallible("returns a four-zero Vec and reads no world"),
   physics_get_collision_event_count: infallible(
     "returns the event buffer length, or 0 when the world is absent",
@@ -158,15 +152,16 @@ describe("physics2d export inventory", () => {
     for (const [name, row] of Object.entries(PHYSICS2D)) {
       requireReason(name, row);
       if (row.kind === "result") {
-        expect(glueThrows(glue.Engine, name), name).toBe(true);
+        expect(glueThrows(glue, glue.Engine, name), name).toBe(true);
       }
     }
   });
 });
 
-function glueThrows(ctor: WasmCtor, name: string): boolean {
-  const desc = Object.getOwnPropertyDescriptor(ctor.prototype as object, name);
-  const fn = desc?.value;
+function glueThrows(mod: object, ctor: WasmCtor, name: string): boolean {
+  const onProto = Object.getOwnPropertyDescriptor(ctor.prototype as object, name)?.value;
+  const onModule = Object.getOwnPropertyDescriptor(mod, name)?.value;
+  const fn = typeof onProto === "function" ? onProto : onModule;
   if (typeof fn !== "function") return false;
   return Function.prototype.toString.call(fn).includes("throw takeObject");
 }
