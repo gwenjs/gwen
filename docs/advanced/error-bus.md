@@ -7,7 +7,11 @@ description: Structured, non-fatal error reporting across the engine.
 
 GWEN's error bus provides a structured way for the engine, plugins, and game code to emit and handle errors gracefully. Instead of throwing exceptions (which halt the game), errors are emitted as events that your code can listen to and respond to—keeping the game running even when something goes wrong.
 
-A rejected `@gwenjs/physics2d` call does not use this bus. It throws a `GwenWasmError`. `code` starts with `PHYSICS2D:` and `exportName` is the WASM export. A trap throws `GwenWasmPanicError` and poisons the bridge. A `physics_step` failure leaves `engine:before-update` through the engine's hook-error path. The physics2d plugin does not emit a recoverable code for that failure.
+A physics2d call you make yourself throws `GwenWasmError`. `code` is `PHYSICS2D:*` and `exportName` is the WASM export. Catch that call.
+
+`physics_step` runs inside `engine:before-update`. A rejected step is isolated: the frame continues, and `engine.errors` receives a hook error. The event `code` is `CORE:FRAME_LOOP_ERROR` and `error` is the `GwenWasmError`.
+
+A trap throws `GwenWasmPanicError` and poisons the bridge. The bus event `code` is `CORE:WASM_PANIC`.
 
 ## The Basics
 
@@ -131,9 +135,9 @@ With the error bus:
 
 ## In Practice
 
-### A rejected physics2d call throws
+### A call you make throws
 
-There is no `PHYSICS:STEP_FAILED` event and no `PHYSICS:INVALID_SHAPE` event. Catch the call you made. The bus does not receive it.
+There is no `PHYSICS:STEP_FAILED` event and no `PHYSICS:INVALID_SHAPE` event. Catch the call you made. The plugin does not copy that throw onto the bus.
 
 ```ts
 import { GwenWasmError } from '@gwenjs/core'
@@ -148,10 +152,26 @@ export const PathSystem = defineSystem(() => {
       physics.findPath({ x: 0, y: 0 }, { x: 10, y: 0 })
     } catch (err) {
       if (err instanceof GwenWasmError && err.code === 'PHYSICS2D:INVALID_PATH_REQUEST') {
-        // Recover here. This error was not emitted on the bus.
+        // Recover here. This call's throw is not a bus event.
       }
     }
   })
+})
+```
+
+### The physics step is a hook error
+
+`physics_step` is not a call you make. It runs in `engine:before-update`. A rejected step is isolated: the frame continues, and `engine.errors` receives the hook error. `event.code` is `CORE:FRAME_LOOP_ERROR`. `event.error` is the `GwenWasmError` (`PHYSICS2D:*`, `exportName` `physics_step`). `event.context.hook` is `engine:before-update`.
+
+A trap is `GwenWasmPanicError`. The bridge is poisoned. The bus event `code` is `CORE:WASM_PANIC`.
+
+```ts
+engine.errors.on((event) => {
+  if (event.context?.hook !== 'engine:before-update') return
+  const cause = event.error
+  if (cause instanceof GwenWasmError && cause.exportName === 'physics_step') {
+    // The step was rejected. The frame still finished this hook.
+  }
 })
 ```
 

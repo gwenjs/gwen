@@ -311,18 +311,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         events: [],
       };
     }
-    const count = callPhysicsExport("physics_get_collision_event_count", () =>
-      pb.physics_get_collision_event_count(),
-    );
+    const count = pb.physics_get_collision_event_count();
     const visibleCount = max !== undefined && max >= 0 ? Math.min(max, count) : count;
     const length = (): number => {
       const live = st.bridge!.getLinearMemory();
       if (live === null) return 0;
-      const bytes =
-        live.buffer.byteLength -
-        callPhysicsExport("physics_get_collision_events_ptr", () =>
-          pb.physics_get_collision_events_ptr(),
-        );
+      const bytes = live.buffer.byteLength - pb.physics_get_collision_events_ptr();
       const cap = MAX_EVENTS * EVENT_STRIDE;
       if (bytes <= 0) return 0;
       return bytes > cap ? cap : bytes;
@@ -333,10 +327,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         st.collisionEvents = st.currentEngine.memory.view({
           name: "physics2d:collision-events",
           type: "dataview",
-          ptr: () =>
-            callPhysicsExport("physics_get_collision_events_ptr", () =>
-              pb.physics_get_collision_events_ptr(),
-            ),
+          ptr: () => pb.physics_get_collision_events_ptr(),
           length,
         });
       }
@@ -377,9 +368,9 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       else ev.bColliderId = bId;
     }
 
-    const metrics = callPhysicsExport("physics_consume_event_metrics", () =>
-      pb.physics_consume_event_metrics ? pb.physics_consume_event_metrics() : [0, 0, 0, 0],
-    );
+    const metrics = pb.physics_consume_event_metrics
+      ? pb.physics_consume_event_metrics()
+      : [0, 0, 0, 0];
     const batch: InternalCollisionEventsBatch = {
       frame: metrics[0] ?? 0,
       count: visibleCount,
@@ -656,7 +647,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
         const count = callPhysicsExport("path_find_2d", () =>
           pb.path_find_2d(from.x, from.y, to.x, to.y),
         );
-        const ptr = callPhysicsExport("path_get_result_ptr", () => pb.path_get_result_ptr());
+        const ptr = pb.path_get_result_ptr();
         const memory = st.bridge!.getLinearMemory();
         if (!memory) return [];
         const view = new Float32Array(memory.buffer, ptr, count * 2);
@@ -732,18 +723,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
 
       st.currentEngine = useEngine();
       const pb = st.bridge.getPhysicsBridge() as WasmEnginePhysics2D;
-      callPhysicsExport("physics_init", () =>
-        pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities),
-      );
+      pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities);
       callPhysicsExport("physics_set_quality", () =>
         pb.physics_set_quality(PHYSICS_QUALITY_PRESET_CODE[cfg.qualityPreset]),
       );
-      callPhysicsExport("physics_set_event_coalescing", () =>
-        pb.physics_set_event_coalescing(cfg.coalesceEvents ? 1 : 0),
-      );
-      callPhysicsExport("physics_set_global_ccd_enabled", () =>
-        pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0),
-      );
+      pb.physics_set_event_coalescing(cfg.coalesceEvents ? 1 : 0);
+      pb.physics_set_global_ccd_enabled(resolveGlobalCcdEnabled(cfg) ? 1 : 0);
 
       const api = bindToEngine(useEngine(), createAPI());
       st.physicsService = api;
