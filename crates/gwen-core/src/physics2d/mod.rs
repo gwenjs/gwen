@@ -10,11 +10,13 @@
 //! This module is only active when the `physics2d` feature is enabled.
 
 pub mod components;
+pub mod error;
 pub mod events;
 pub mod pathfinding;
 pub mod world;
 
 pub use components::*;
+pub use error::{PathRequestReject, Physics2DError};
 pub use events::*;
 pub use pathfinding::*;
 pub use world::*;
