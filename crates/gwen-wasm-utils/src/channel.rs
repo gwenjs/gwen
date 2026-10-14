@@ -86,6 +86,11 @@ macro_rules! __gwen_channel_inner {
 /// - `$capacity` — Number of items the ring buffer can hold.
 /// - `$item_size` — Size of each item in bytes (stride).
 ///
+/// ```compile_fail
+/// use gwen_wasm_utils::gwen_channel;
+/// gwen_channel!(x, 8, 4, version = 1);
+/// ```
+///
 /// # Example
 ///
 /// ```ignore
