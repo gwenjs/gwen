@@ -99,14 +99,16 @@ describe("checkPluginApiVersion", () => {
   });
 });
 
+function abiNumber(major: number, minor: number, patch: number): number {
+  return major * 1_000_000 + minor * 1_000 + patch;
+}
+
 describe("GWEN_PLUGIN_API_VERSION", () => {
   it("is 2_000_000", () => {
     expect(GWEN_PLUGIN_API_VERSION).toBe(2_000_000);
   });
 
   it("uses encoding major * 1_000_000 + minor * 1_000 + patch", () => {
-    // v2.0.0 = 2*1_000_000 + 0*1_000 + 0 = 2_000_000
-    // oxlint-disable-next-line erasing-op
-    expect(GWEN_PLUGIN_API_VERSION).toBe(2 * 1_000_000 + 0 * 1_000 + 0);
+    expect(GWEN_PLUGIN_API_VERSION).toBe(abiNumber(2, 0, 0));
   });
 });

@@ -86,7 +86,7 @@ export const CoreErrorCodes = {
   SHARED_MEMORY_EXHAUSTED: "CORE:SHARED_MEMORY_EXHAUSTED",
   SHARED_MEMORY_SENTINEL_OVERWRITE: "CORE:SHARED_MEMORY_SENTINEL_OVERWRITE",
   INVALID_ENTITY_ID: "CORE:INVALID_ENTITY_ID",
-  WASM_API_VERSION_MISMATCH: "CORE:WASM_API_VERSION_MISMATCH",
+  WASM_MODULE_ABI_MISMATCH: "CORE:WASM_MODULE_ABI_MISMATCH",
   INVALID_COMPONENT_TYPE: "CORE:INVALID_COMPONENT_TYPE",
   INVALID_SCENE_ROUTE: "CORE:INVALID_SCENE_ROUTE",
   ADVANCE_REENTRANT: "CORE:ADVANCE_REENTRANT",
@@ -147,6 +147,33 @@ export class GwenWasmError<C extends string = `CORE:${string}`> extends GwenErro
     this.code = code;
     this.exportName = exportName;
     this.cause = cause;
+  }
+}
+
+/**
+ * A plugin WASM module declared an ABI version other than the core's.
+ *
+ * `actual` is null when `gwen_plugin_api_version` is absent, not a function,
+ * or does not return a number. The module is not registered. The engine keeps
+ * running. This is not emitted on the error bus.
+ */
+export class GwenWasmAbiError extends GwenError {
+  override readonly code: typeof CoreErrorCodes.WASM_MODULE_ABI_MISMATCH;
+  readonly module: string;
+  readonly expected: number;
+  readonly actual: number | null;
+
+  constructor(moduleName: string, expected: number, actual: number | null) {
+    const shown = actual === null ? "none declared" : String(actual);
+    super(
+      CoreErrorCodes.WASM_MODULE_ABI_MISMATCH,
+      `[GWEN] loadWasmModule("${moduleName}"): plugin ABI version ${shown} does not match ${expected}. Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.`,
+    );
+    this.name = "GwenWasmAbiError";
+    this.code = CoreErrorCodes.WASM_MODULE_ABI_MISMATCH;
+    this.module = moduleName;
+    this.expected = expected;
+    this.actual = actual;
   }
 }
 

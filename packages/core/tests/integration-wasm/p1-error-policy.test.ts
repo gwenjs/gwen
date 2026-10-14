@@ -7,12 +7,14 @@ import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 // (func (export "trap") unreachable)
+// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000))
 function trapModuleBytes(): Uint8Array<ArrayBuffer> {
-  return new Uint8Array([
-    0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x01, 0x04, 0x01, 0x60, 0x00, 0x00, 0x03, 0x02,
-    0x01, 0x00, 0x07, 0x08, 0x01, 0x04, 0x74, 0x72, 0x61, 0x70, 0x00, 0x00, 0x0a, 0x05, 0x01, 0x03,
-    0x00, 0x00, 0x0b,
-  ]);
+  return Uint8Array.from(
+    Buffer.from(
+      "0061736d010000000108026000006000017f030302000107220204747261700000176777656e5f706c7567696e5f6170695f76657273696f6e00010a0d020300000b0700418089fa000b",
+      "hex",
+    ),
+  );
 }
 
 async function useReal(

@@ -38,6 +38,7 @@ export {
   GwenPluginNotFoundError,
   CoreErrorCodes,
   GwenWasmError,
+  GwenWasmAbiError,
   GwenWasmPanicError,
   GwenEngineStateError,
 } from "./engine/engine-errors";

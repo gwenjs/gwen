@@ -439,7 +439,6 @@ describe("module transform region", () => {
           url: wasmDataUrl(TRANSFORM_READER_ABI_WASM),
           memory: { regions: [region(REGION_OFFSET, REQUIRED_BYTES)] },
           transformRegion: "transforms",
-          versionPolicy: "throw",
         });
       } catch (error: unknown) {
         caught = error;
@@ -447,7 +446,10 @@ describe("module transform region", () => {
       if (!(caught instanceof Error)) {
         throw new Error("expected Error");
       }
-      expect(caught.message).toContain("API version");
+      expect(caught.name).toBe("GwenWasmAbiError");
+      expect(Reflect.get(caught, "code")).toBe(CoreErrorCodes.WASM_MODULE_ABI_MISMATCH);
+      expect(Reflect.get(caught, "actual")).toBe(2);
+      expect(caught.message).toContain("2000000");
       expect(() => started.engine.getWasmModule("abi-before-region")).toThrow();
       await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");

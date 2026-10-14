@@ -34,6 +34,13 @@ import { describe, expect, it } from "vitest";
 import { GWEN_PLUGIN_API_VERSION } from "../../src/engine/engine-types.js";
 import { createRealEngine } from "./harness.js";
 
+declare module "../../src/engine/engine-types.js" {
+  interface GwenWasmModules {
+    next: WebAssembly.Exports;
+    bare: WebAssembly.Exports;
+  }
+}
+
 const FIX = "Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.";
 
 const CURRENT_HEX =
@@ -222,10 +229,12 @@ describe("plugin ABI handshake", () => {
         .catch(() => undefined);
       expect(first?.exports.read_abi()).toBe(2_000_000);
       if (first === undefined) return;
-      const second = await started.engine.loadWasmModule<AbiReadExports>({
-        name: "reader",
-        url: "data:application/wasm;base64,AAAA",
-      });
+      const second = await started.engine
+        .loadWasmModule<AbiReadExports>({
+          name: "reader",
+          url: "data:application/wasm;base64,AAAA",
+        })
+        .catch(() => undefined);
       expect(second).toBe(first);
     } finally {
       await started.dispose();

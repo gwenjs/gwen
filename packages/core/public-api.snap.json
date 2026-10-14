@@ -12,6 +12,7 @@
       "GwenEngineStateError",
       "GwenLogger",
       "GwenPluginNotFoundError",
+      "GwenWasmAbiError",
       "GwenWasmError",
       "GwenWasmPanicError",
       "Types",

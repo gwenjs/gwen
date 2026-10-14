@@ -80,6 +80,7 @@ export class WasmModuleRunner {
       transform_buffer_ptr: () => modulePtr,
       transform_stride: builtImports.transform_stride,
       max_entities: builtImports.max_entities,
+      abi_version: builtImports.abi_version,
     };
 
     let wasmModule: WebAssembly.Module;
@@ -127,13 +128,9 @@ export class WasmModuleRunner {
       );
     }
 
-    // Plugin API version (#92) before any resolved-region check.
-    void checkPluginApiVersion(
-      instance.exports,
-      options.name,
-      options.expectedVersion,
-      options.versionPolicy,
-    );
+    // Plugin ABI version before any resolved-region check. Outside both
+    // instantiate catches, so GwenWasmAbiError is not rewrapped.
+    checkPluginApiVersion(instance.exports, options.name);
 
     const memory =
       instance.exports["memory"] instanceof WebAssembly.Memory
