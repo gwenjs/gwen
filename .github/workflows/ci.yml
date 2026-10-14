@@ -39,6 +39,8 @@ jobs:
           cargo install wasm-pack --version "$version" --locked
       - name: Rust tests — gwen-core
         run: cargo test -p gwen-core
+      - name: Rust tests — gwen-wasm-utils
+        run: cargo test -p gwen-wasm-utils
       - name: Rust tests — gwen-core build-tools
         run: cargo test -p gwen-core --features build-tools --test build_tools_test
       - name: Rust tests — gwen-core physics2d

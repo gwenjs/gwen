@@ -17,14 +17,8 @@
 //! - `pub extern "C" fn gwen_events_ring_cap() -> i32` — capacity (128)
 //! - `pub extern "C" fn gwen_events_ring_item_size() -> i32` — item size (16)
 //!
-//! With `version = V`:
-//!
-//! ```ignore
-//! gwen_channel!(events, 128, 16, version = 1_000_000);
-//! ```
-//!
-//! Also generates:
-//! - `pub extern "C" fn gwen_plugin_api_version() -> i32` — returns V
+//! The plugin ABI export is not part of this macro. Call `gwen_plugin_abi!()`
+//! for `gwen_plugin_api_version`.
 //!
 //! ## Why a static buffer?
 //!
@@ -43,7 +37,7 @@
 //! from the heap and are not known until runtime.
 
 /// Internal helper macro for ring-buffer channel generation.
-/// Used by `gwen_channel!()` to avoid duplication between versioned and unversioned forms.
+/// Used by `gwen_channel!()`.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! __gwen_channel_inner {
@@ -91,29 +85,15 @@ macro_rules! __gwen_channel_inner {
 ///   function names like `gwen_{name}_ring_ptr()`.
 /// - `$capacity` — Number of items the ring buffer can hold.
 /// - `$item_size` — Size of each item in bytes (stride).
-/// - `version = $version` — (optional) Plugin API version exported as `gwen_plugin_api_version()`.
 ///
 /// # Example
 ///
 /// ```ignore
-/// // Simple channel with no version export
 /// gwen_channel!(events, 256, 12);
-///
-/// // Channel with API version
-/// gwen_channel!(commands, 128, 8, version = 1_000_000);
 /// ```
 #[macro_export]
 macro_rules! gwen_channel {
     ($name:ident, $capacity:expr, $item_size:expr) => {
         $crate::__gwen_channel_inner!($name, $capacity, $item_size);
-    };
-    ($name:ident, $capacity:expr, $item_size:expr, version = $version:expr) => {
-        $crate::__gwen_channel_inner!($name, $capacity, $item_size);
-
-        #[no_mangle]
-        /// Returns the plugin API version.
-        pub extern "C" fn gwen_plugin_api_version() -> i32 {
-            $version as i32
-        }
     };
 }
