@@ -30,8 +30,9 @@ const ATTACH_DOC = [
 const TYPES_DOC = `/**
  * @file Engine public type contracts.
  *
- * Includes \`checkPluginApiVersion\`, which throws {@link GwenError}
- * \`CORE:WASM_API_VERSION_MISMATCH\` when policy is \`"throw"\`.
+ * Includes \`checkPluginApiVersion\`, which throws {@link GwenWasmAbiError}
+ * \`CORE:WASM_MODULE_ABI_MISMATCH\` when the export is absent, not a function,
+ * or differs from \`GWEN_PLUGIN_API_VERSION\`.
  */
 `;
 
