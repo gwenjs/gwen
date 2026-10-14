@@ -74,7 +74,13 @@ pub enum CoreError {
         len: usize,
     },
     /// Storage refused a component write: the bytes do not fit the column, or
-    /// the entity row is inconsistent. Nothing was written.
+    /// the entity row is inconsistent.
+    ///
+    /// A refusal before `Engine::set_components_bulk` writes anything
+    /// (`crates/gwen-core/src/bindings.rs` lines 536-541) changes nothing.
+    /// A refusal in the middle of that loop (lines 561-566) leaves the
+    /// entities written before it with their new value. The refused entity
+    /// is not written and not marked dirty.
     ComponentWriteRejected {
         /// Entity slot index.
         entity: u32,
