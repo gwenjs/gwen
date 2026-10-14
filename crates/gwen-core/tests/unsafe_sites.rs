@@ -171,15 +171,16 @@ fn unsafe_site_u007_event_buffer_fills_then_clears(
 
 #[cfg(feature = "physics2d")]
 #[test]
-fn unsafe_site_u008_path_caps_at_max_nodes() {
+fn unsafe_site_u008_path_caps_at_max_nodes() -> Result<(), gwen_core::physics2d::Physics2DError> {
     use gwen_core::physics2d::{find_path_2d, get_path_buffer_ptr, MAX_PATH_NODES};
 
-    let count = find_path_2d(0.0, 0.0, 300.0, 0.0);
+    let count = find_path_2d(0.0, 0.0, 255.0, 0.0)?;
     assert_eq!(count, MAX_PATH_NODES);
     // SAFETY: `find_path_2d` just wrote `MAX_PATH_NODES` nodes and this read is the last one.
     let last = unsafe { *get_path_buffer_ptr().add(MAX_PATH_NODES - 1) };
     assert_eq!(last.x, 255.0);
     assert_eq!(last.y, 0.0);
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]

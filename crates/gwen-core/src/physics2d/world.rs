@@ -500,15 +500,38 @@ impl PhysicsWorld {
     /// `new_pos = current_pos + (vx[i], vy[i]) * dt`
     /// and calls [`set_next_kinematic_position`] with the preserved current angle.
     ///
-    /// Lengths of `slots`, `vx`, and `vy` must be equal; any trailing mismatch
-    /// is silently ignored. Bodies not found by their slot are skipped.
+    /// Lengths of `slots`, `vx`, and `vy` must be equal. A mismatch returns
+    /// before any body moves. Bodies not found by their slot are skipped.
     ///
     /// # Returns
     /// Number of bodies actually updated.
-    pub fn bulk_step_kinematics(&mut self, slots: &[u32], vx: &[f32], vy: &[f32], dt: f32) -> u32 {
-        let count = slots.len().min(vx.len()).min(vy.len());
+    ///
+    /// # Errors
+    /// Returns [`Physics2DError::BufferLengthMismatch`] when `vx` or `vy`
+    /// has a different length from `slots`. `vx` is checked first.
+    pub fn bulk_step_kinematics(
+        &mut self,
+        slots: &[u32],
+        vx: &[f32],
+        vy: &[f32],
+        dt: f32,
+    ) -> Result<u32, Physics2DError> {
+        if slots.len() != vx.len() {
+            return Err(Physics2DError::BufferLengthMismatch {
+                buffer: "vx",
+                expected: crate::bindings::bulk_len_u32(slots.len()),
+                actual: crate::bindings::bulk_len_u32(vx.len()),
+            });
+        }
+        if slots.len() != vy.len() {
+            return Err(Physics2DError::BufferLengthMismatch {
+                buffer: "vy",
+                expected: crate::bindings::bulk_len_u32(slots.len()),
+                actual: crate::bindings::bulk_len_u32(vy.len()),
+            });
+        }
         let mut updated = 0u32;
-        for i in 0..count {
+        for i in 0..slots.len() {
             let Some(&handle) = self.entity_to_body.get(&slots[i]) else {
                 continue;
             };
@@ -522,7 +545,7 @@ impl PhysicsWorld {
             body.set_next_kinematic_position(iso);
             updated += 1;
         }
-        updated
+        Ok(updated)
     }
 
     /// Returns sensor state — always `(0, false)` because sensor contact tracking is
@@ -828,7 +851,7 @@ mod tests {
         let slots = [0u32, 1u32];
         let vx = [1.0f32, 0.0f32];
         let vy = [0.0f32, 2.0f32];
-        let updated = world.bulk_step_kinematics(&slots, &vx, &vy, 1.0);
+        let updated = world.bulk_step_kinematics(&slots, &vx, &vy, 1.0)?;
         assert_eq!(updated, 2);
         world.step(1.0 / 60.0); // advance sim so next_kinematic is applied
         let pos0 = world.get_position(0).unwrap();
