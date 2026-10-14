@@ -7,8 +7,8 @@ import { describe, expect, it } from "vitest";
  * Physics2d glue classification.
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
- * `known-panic` is issue 110: a TypeScript float reaches Rapier or the path
- * search, and this PR does not prove that call cannot panic.
+ * `known-panic` is issue 110. `physics_step` reaches `PhysicsPipeline::step`
+ * and the three queries reach Rapier shapes. Those calls stay unaudited.
  * An export matching the physics2d name rule that is missing from the table fails.
  */
 type ExportRow =
@@ -160,7 +160,7 @@ describe("physics2d export inventory", () => {
 
 function glueThrows(mod: object, ctor: WasmCtor, name: string): boolean {
   const onProto = Object.getOwnPropertyDescriptor(ctor.prototype as object, name)?.value;
-  const onModule = Object.getOwnPropertyDescriptor(mod, name)?.value;
+  const onModule = Reflect.get(mod, name);
   const fn = typeof onProto === "function" ? onProto : onModule;
   if (typeof fn !== "function") return false;
   return Function.prototype.toString.call(fn).includes("throw takeObject");

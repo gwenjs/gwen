@@ -216,16 +216,16 @@ export const LIGHT_WASM = [
 ] as const;
 
 export const PHYSICS2D_WASM_EXTRA = [
-  "engine_path_find_2d (i32,f32,f32,f32,f32)->(i32)",
+  "engine_path_find_2d (i32,i32,f32,f32,f32,f32)->()",
   "engine_path_get_result_ptr (i32)->(i32)",
-  "engine_physics2d_bulk_apply_impulse (i32,i32,i32,i32,i32,i32,i32,i32)->()",
+  "engine_physics2d_bulk_apply_impulse (i32,i32,i32,i32,i32,i32,i32,i32,i32)->()",
   "engine_physics2d_bulk_sync_from_rapier (i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32,i32)->()",
-  "engine_physics2d_bulk_sync_to_rapier (i32,i32,i32,i32,i32,i32,i32,i32)->()",
+  "engine_physics2d_bulk_sync_to_rapier (i32,i32,i32,i32,i32,i32,i32,i32,i32)->()",
   "engine_physics_add_ball_collider (i32,i32,i32,f32,f32,f32,i32,f32,i32,i32,f64,f64,f64)->()",
   "engine_physics_add_box_collider (i32,i32,i32,f32,f32,f32,f32,i32,f32,i32,i32,f64,f64,f64,f64)->()",
   "engine_physics_add_rigid_body (i32,i32,i32,f32,f32,i32,f32,f32,f32,f32,f32,f32,f64,f64)->()",
   "engine_physics_apply_impulse (i32,i32,i32,f32,f32)->()",
-  "engine_physics_bulk_step_kinematics (i32,i32,i32,i32,i32,i32,i32,f32)->(i32)",
+  "engine_physics_bulk_step_kinematics (i32,i32,i32,i32,i32,i32,i32,i32,f32)->()",
   "engine_physics_consume_event_metrics (i32,i32)->()",
   "engine_physics_get_collision_event_count (i32)->(i32)",
   "engine_physics_get_collision_events_ptr (i32)->(i32)",
@@ -333,7 +333,7 @@ export const PHYSICS2D_FREE_JS = [
 ];
 
 export const PHYSICS2D_FREE_WASM = [
-  "find_path_2d (f32,f32,f32,f32)->(i32)",
+  "find_path_2d (i32,f32,f32,f32,f32)->()",
   "get_collision_event_count ()->(i32)",
   "get_collision_events_ptr ()->(i32)",
   "get_path_buffer_ptr ()->(i32)",

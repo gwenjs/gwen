@@ -1371,6 +1371,12 @@ impl Engine {
     ///
     /// # Returns
     /// Number of bodies updated.
+    ///
+    /// # Errors
+    /// Returns [`Physics2DError::WorldNotInitialized`] when `physics_init` has
+    /// not run, before any length check. Returns
+    /// [`Physics2DError::BufferLengthMismatch`] when `vx` or `vy` differs in
+    /// length from `slots`. `vx` is checked first. Nothing moves on either error.
     #[cfg(feature = "physics2d")]
     pub fn physics_bulk_step_kinematics(
         &mut self,
@@ -1378,11 +1384,11 @@ impl Engine {
         vx: &[f32],
         vy: &[f32],
         dt: f32,
-    ) -> u32 {
-        self.physics_world
-            .as_mut()
-            .map(|w| w.bulk_step_kinematics(slots, vx, vy, dt))
-            .unwrap_or(0)
+    ) -> Result<u32, Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        world.bulk_step_kinematics(slots, vx, vy, dt)
     }
 
     /// No-op stub — sensor contact state is tracked entirely in the JavaScript plugin layer
@@ -1477,9 +1483,23 @@ impl Engine {
 
     // ─── Pathfinding (2D) ──────────────────────────────────────────────────────
 
+    /// Find a 2D path. Same bounds as [`crate::physics2d::find_path_2d`].
+    ///
+    /// # Errors
+    /// Returns [`Physics2DError::InvalidPathRequest`] when a coordinate is not
+    /// finite, a rounded coordinate is outside the accepted bound, or the
+    /// Manhattan distance is past the accepted bound. A refusal does not write
+    /// the path buffer.
     #[cfg(feature = "physics2d")]
-    pub fn path_find_2d(&mut self, from_x: f32, from_y: f32, to_x: f32, to_y: f32) -> u32 {
-        crate::physics2d::pathfinding::find_path_2d(from_x, from_y, to_x, to_y) as u32
+    pub fn path_find_2d(
+        &mut self,
+        from_x: f32,
+        from_y: f32,
+        to_x: f32,
+        to_y: f32,
+    ) -> Result<u32, Physics2DError> {
+        crate::physics2d::pathfinding::find_path_2d(from_x, from_y, to_x, to_y)
+            .map(|count| count as u32)
     }
 
     #[cfg(feature = "physics2d")]
@@ -3468,6 +3488,9 @@ impl Engine {
     /// Only available when compiled with `features = ["physics2d"]`.
     ///
     /// See [`crate::bulk_ops_physics2d::physics2d_bulk_sync_from_rapier`] for details.
+    ///
+    /// # Errors
+    /// Propagates [`CoreError`] from that function. A length mismatch writes nothing.
     #[cfg(feature = "physics2d")]
     #[wasm_bindgen]
     pub fn physics2d_bulk_sync_from_rapier(
@@ -3476,15 +3499,15 @@ impl Engine {
         out_slots: &mut [u32],
         out_gens: &mut [u32],
         out_buf: &mut [u8],
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, CoreError> {
         let (count, bytes) = crate::bulk_ops_physics2d::physics2d_bulk_sync_from_rapier(
             self,
             transform_type_id,
             out_slots,
             out_gens,
             out_buf,
-        );
-        vec![count, bytes]
+        )?;
+        Ok(vec![count, bytes])
     }
 
     /// Bulk-sync ECS transforms → Rapier physics2D.
@@ -3493,6 +3516,9 @@ impl Engine {
     /// Only available when compiled with `features = ["physics2d"]`.
     ///
     /// See [`crate::bulk_ops_physics2d::physics2d_bulk_sync_to_rapier`] for details.
+    ///
+    /// # Errors
+    /// Propagates [`CoreError`] from that function. A length mismatch writes nothing.
     #[cfg(feature = "physics2d")]
     #[wasm_bindgen]
     pub fn physics2d_bulk_sync_to_rapier(
@@ -3501,14 +3527,14 @@ impl Engine {
         gens: &[u32],
         transform_type_id: u32,
         data: &[u8],
-    ) {
+    ) -> Result<(), CoreError> {
         crate::bulk_ops_physics2d::physics2d_bulk_sync_to_rapier(
             self,
             slots,
             gens,
             transform_type_id,
             data,
-        );
+        )
     }
 
     /// Bulk-apply impulses to physics2D entities.
@@ -3517,6 +3543,9 @@ impl Engine {
     /// Only available when compiled with `features = ["physics2d"]`.
     ///
     /// See [`crate::bulk_ops_physics2d::physics2d_bulk_apply_impulse`] for details.
+    ///
+    /// # Errors
+    /// Propagates [`CoreError`] from that function. A length mismatch writes nothing.
     #[cfg(feature = "physics2d")]
     #[wasm_bindgen]
     pub fn physics2d_bulk_apply_impulse(
@@ -3525,14 +3554,14 @@ impl Engine {
         gens: &[u32],
         rigidbody_type_id: u32,
         impulse_data: &[u8],
-    ) {
+    ) -> Result<(), CoreError> {
         crate::bulk_ops_physics2d::physics2d_bulk_apply_impulse(
             self,
             slots,
             gens,
             rigidbody_type_id,
             impulse_data,
-        );
+        )
     }
 
     // ─── Bulk physics 3D API (Tier 3) ─────────────────────────────────────────
