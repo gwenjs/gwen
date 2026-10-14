@@ -514,8 +514,6 @@ export const PhysicsPlugin = definePlugin(() => ({
       step: (handle, dt) => {
         handle.exports.step(dt)
       },
-      expectedVersion: 1_000_000,
-      versionPolicy: 'warn',
     })
 
     // Vue de région mémoire — toujours live après memory.grow()
@@ -541,8 +539,6 @@ export const PhysicsPlugin = definePlugin(() => ({
 | `channels` | `WasmChannelOptions[]` | Ring buffers pour l'échange de messages TS↔WASM |
 | `transformRegion` | `string` | Nom optionnel d'une entrée de `memory.regions` qui reçoit la copie des transforms à chaque image |
 | `step` | `(handle, dt) => void` | Callback par image (optionnel). `dt` est en secondes |
-| `expectedVersion` | `number` | Valeur attendue de l'export `gwen_plugin_api_version` |
-| `versionPolicy` | `'warn' \| 'throw' \| 'ignore'` | Comportement en cas d'incompatibilité de version |
 
 ### Région de transforms
 
@@ -552,7 +548,7 @@ L'offset est l'export `gwen_<name>_ptr()` quand le module le fournit, sinon le `
 
 Quand cet export existe, le moteur instancie le module deux fois. La première instance lit l'offset. La seconde est le handle que le jeu garde. La fonction `start` s'exécute sur les deux instances. Le second `start` voit l'offset renvoyé par le premier export. La version d'API du plugin est vérifiée avant d'accepter cet offset. Un offset de sonde différent de la seconde instance est `CORE:WASM_MODULE_REGION_INVALID`.
 
-Importez `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32) et `gwen.max_entities`. Le format est little-endian, 32 octets par index d'entité :
+Importez `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32), `gwen.max_entities` et `gwen.abi_version`. `abi_version` renvoie `2_000_000` et reste constant pendant toute la vie du module. Le format est little-endian, 32 octets par index d'entité :
 
 | Offset | Type | Sens |
 |---|---|---|
@@ -587,13 +583,18 @@ buf.empty        // true si rien à dépiler
 buf.full         // true si push échouerait
 ```
 
-### Côté Rust
+### ABI du plugin
 
-Exportez une constante de version pour que GWEN puisse vérifier la compatibilité API :
+La version d'ABI courante est `2_000_000` (v2.0.0). Le nombre vaut `major * 1_000_000 + minor * 1_000 + patch`.
 
-```rust
-#[no_mangle]
-pub extern "C" fn gwen_plugin_api_version() -> u32 {
-    1_000_000 // v1.0.0
-}
-```
+`loadWasmModule` rejette un module dont l'export `gwen_plugin_api_version` est absent, n'est pas une fonction, ou n'est pas exactement ce nombre. L'erreur est `GwenWasmAbiError`, code `CORE:WASM_MODULE_ABI_MISMATCH`. Le message nomme le module et les deux versions. Si l'export est absent ou n'est pas une fonction, la version réelle se lit « none declared ». Le module n'est pas enregistré. Le moteur continue.
+
+Un changement ultérieur augmente le nombre de 1_000 dans la même pull request s'il change l'un de ces trois points :
+
+- un nom d'import `gwen`, sa signature, ou le sens de la valeur renvoyée
+- la disposition de la région de transforms (taille du slot, offsets des champs, ou bits de flags)
+- la disposition du canal ring-buffer, ou la convention d'export `gwen_<name>_ring_ptr` / `gwen_<name>_ptr`
+
+Un changement d'un export du cœur n'augmente pas ce nombre. Le cœur est livré avec sa propre glue JavaScript.
+
+En Rust, `gwen_plugin_abi!()` émet `gwen_plugin_api_version() -> i32` et renvoie `GWEN_PLUGIN_API_VERSION` de `gwen-wasm-utils`. Recompilez le plugin après une augmentation. L'import hôte `gwen.abi_version() -> i32` renvoie le même nombre pendant toute la vie du module.

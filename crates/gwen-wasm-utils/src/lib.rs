@@ -11,7 +11,7 @@
 
 /// Plugin ABI number shared with the TypeScript constant.
 /// Encoded as major * 1_000_000 + minor * 1_000 + patch.
-pub const GWEN_PLUGIN_API_VERSION: i32 = 1_000_000;
+pub const GWEN_PLUGIN_API_VERSION: i32 = 2_000_000;
 
 /// Emits `gwen_plugin_api_version`, which returns [`GWEN_PLUGIN_API_VERSION`].
 #[macro_export]

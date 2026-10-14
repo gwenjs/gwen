@@ -12,51 +12,22 @@ declare module "../src/engine/engine-types.js" {
   }
 }
 
-// ─── Minimal valid WASM binary ────────────────────────────────────────────────
-// A wasm module that exports nothing (but is syntactically valid):
-// (module)
-const MINIMAL_WASM = new Uint8Array([
-  0x00,
-  0x61,
-  0x73,
-  0x6d, // magic: \0asm
-  0x01,
-  0x00,
-  0x00,
-  0x00, // version: 1
-]);
+// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000))
+const MINIMAL_WASM = Uint8Array.from(
+  Buffer.from(
+    "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "hex",
+  ),
+);
 
-// A wasm module that exports a `memory`:
-// (module (memory (export "memory") 1))
-const WASM_WITH_MEMORY = new Uint8Array([
-  0x00,
-  0x61,
-  0x73,
-  0x6d, // magic
-  0x01,
-  0x00,
-  0x00,
-  0x00, // version
-  // Memory section: 1 memory of min 1 page
-  0x05,
-  0x03,
-  0x01,
-  0x00,
-  0x01,
-  // Export section: export "memory" as mem index 0
-  0x07,
-  0x0a,
-  0x01,
-  0x06,
-  0x6d,
-  0x65,
-  0x6d,
-  0x6f,
-  0x72,
-  0x79,
-  0x02,
-  0x00,
-]);
+// (module (memory (export "memory") 1)
+//   (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000)))
+const WASM_WITH_MEMORY = Uint8Array.from(
+  Buffer.from(
+    "0061736d010000000105016000017f030201000503010001072402066d656d6f72790200176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "hex",
+  ),
+);
 
 // ─── Helper: mock fetch with a wasm buffer ────────────────────────────────────
 

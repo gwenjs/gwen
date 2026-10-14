@@ -23,7 +23,13 @@ declare module "../../src/engine/engine-types.js" {
   }
 }
 
-const EMPTY_WASM = Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+// (func (export "gwen_plugin_api_version") (result i32) (i32.const 2000000))
+const EMPTY_WASM = Uint8Array.from(
+  Buffer.from(
+    "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "hex",
+  ),
+);
 
 interface Served {
   url: string;
@@ -180,7 +186,10 @@ describe("WasmModuleRunner", () => {
       expect(again).toBe(loaded);
       expect(fetched).toBe(loaded);
       expect(loaded.name).toBe("audio");
-      expect(loaded.exports).toEqual({});
+      const version = loaded.exports["gwen_plugin_api_version"];
+      expect(typeof version).toBe("function");
+      if (typeof version !== "function") return;
+      expect(version()).toBe(2_000_000);
       expect(loaded.memory).toBeUndefined();
       expect(served.hits()).toBe(1);
       expect(calls).toEqual(["loadWasmModule", "loadWasmModule"]);

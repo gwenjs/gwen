@@ -303,8 +303,10 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    * @throws {GwenError} `CORE:WASM_MODULE_REGION_TOO_SMALL` or
    *   `CORE:WASM_MODULE_REGION_INVALID` when `transformRegion` fails a load check.
    *   The module is not registered and the engine keeps running.
-   * @throws {GwenError} `CORE:WASM_API_VERSION_MISMATCH` when `versionPolicy`
-   *   is `throw` and `gwen_plugin_api_version` does not match.
+   * @throws {GwenWasmAbiError} `CORE:WASM_MODULE_ABI_MISMATCH` when
+   *   `gwen_plugin_api_version` is absent, not a function, or not equal to
+   *   `GWEN_PLUGIN_API_VERSION`. The module is not registered and the engine
+   *   keeps running.
    */
   loadWasmModule<Exports extends WebAssembly.Exports = WebAssembly.Exports>(
     options: WasmModuleOptions<Exports>,

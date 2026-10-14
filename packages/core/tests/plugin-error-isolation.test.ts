@@ -91,11 +91,15 @@ describe("plugin error isolation", () => {
         throw new Error("wasm bridge missing");
       }
       bridge._injectMock(createMockWasmEngine());
-      const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+      const wasmBytes = Uint8Array.from(
+        Buffer.from(
+          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+          "hex",
+        ),
+      );
       await engine.loadWasmModule({
         name: "community-mod",
         url: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
-        versionPolicy: "ignore",
         step() {
           throw new WebAssembly.RuntimeError("unreachable");
         },
@@ -114,11 +118,15 @@ describe("plugin error isolation", () => {
     it('emits with source "wasm:<name>" for community WASM module errors', async () => {
       const bus = createMockErrorBus();
       const engine = await createEngine({ errorBus: bus });
-      const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+      const wasmBytes = Uint8Array.from(
+        Buffer.from(
+          "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+          "hex",
+        ),
+      );
       await engine.loadWasmModule({
         name: "my-audio-mod",
         url: `data:application/wasm;base64,${Buffer.from(wasmBytes).toString("base64")}`,
-        versionPolicy: "ignore",
         step() {
           throw new TypeError("audio step failed");
         },

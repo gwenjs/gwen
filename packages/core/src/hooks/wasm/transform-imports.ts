@@ -1,3 +1,5 @@
+import { GWEN_PLUGIN_API_VERSION } from "../../engine/engine-types.js";
+
 /**
  * Host-function imports for a community WASM module's own transform region.
  *
@@ -50,6 +52,12 @@ export interface GwenTransformImports extends WebAssembly.ModuleImports {
    * This is a hard limit; plugins must clamp their entity IDs to [0, max_entities).
    */
   readonly max_entities: () => number;
+
+  /**
+   * Returns {@link GWEN_PLUGIN_API_VERSION}. The value stays constant for the
+   * life of the module.
+   */
+  readonly abi_version: () => number;
 }
 
 /**
@@ -84,5 +92,6 @@ export function buildTransformImports(
     transform_buffer_ptr: () => transformPtr,
     transform_stride: () => stride,
     max_entities: () => maxEntities,
+    abi_version: () => GWEN_PLUGIN_API_VERSION,
   };
 }

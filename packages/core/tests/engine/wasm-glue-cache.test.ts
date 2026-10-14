@@ -16,7 +16,12 @@ declare module "../../src/engine/engine-types.js" {
   }
 }
 
-const MINIMAL_WASM = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+const MINIMAL_WASM = Uint8Array.from(
+  Buffer.from(
+    "0061736d010000000105016000017f03020100071b01176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "hex",
+  ),
+);
 
 describe("WasmBridgeImpl._reset keeps the shared glue cache", () => {
   afterEach(() => {

@@ -1,8 +1,9 @@
 /**
  * @file Engine public type contracts.
  *
- * Includes `checkPluginApiVersion`, which throws {@link GwenError}
- * `CORE:WASM_API_VERSION_MISMATCH` when policy is `"throw"`.
+ * Includes `checkPluginApiVersion`, which throws {@link GwenWasmAbiError}
+ * `CORE:WASM_MODULE_ABI_MISMATCH` when the export is absent, not a function,
+ * or differs from `GWEN_PLUGIN_API_VERSION`.
  */
 
 import type { Hookable } from "hookable";
@@ -23,8 +24,7 @@ import type {
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import type { EngineMemory } from "./engine-memory.js";
 import { DisposableRegistry } from "../disposable";
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "./engine-errors.js";
+import { GwenWasmAbiError } from "./engine-errors.js";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
 export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
@@ -72,69 +72,30 @@ export interface WasmModuleOptions<Exports extends WebAssembly.Exports = WebAsse
    * @param dt - Delta time in seconds since the last frame.
    */
   readonly step?: (handle: WasmModuleHandle<Exports>, dt: number) => void;
-  /**
-   * Expected plugin API version (encoded as major * 1_000_000 + minor * 1_000 + patch).
-   * When provided, the engine compares this against the `gwen_plugin_api_version` export.
-   * Defaults to GWEN_PLUGIN_API_VERSION if omitted.
-   *
-   * @example
-   * ```typescript
-   * // Check against version 1.2.3
-   * expectedVersion: 1_002_003
-   * ```
-   */
-  readonly expectedVersion?: number;
-  /**
-   * Policy for version mismatches:
-   * - 'warn' (default): logs a console.warn but continues loading
-   * - 'throw': throws an Error, preventing the module from loading
-   * - 'ignore': silently continues regardless of version
-   */
-  readonly versionPolicy?: "warn" | "throw" | "ignore";
 }
 
 /** Current GWEN plugin API version. Encoded as major * 1_000_000 + minor * 1_000 + patch. */
-export const GWEN_PLUGIN_API_VERSION = 1_000_000; // v1.0.0
+export const GWEN_PLUGIN_API_VERSION = 2_000_000; // v2.0.0
 
 /**
- * Checks the plugin API version exported by a WASM module against the expected version.
+ * Rejects a plugin instance whose ABI export differs from {@link GWEN_PLUGIN_API_VERSION}.
  *
- * @param exports - The WebAssembly module exports to inspect
- * @param moduleName - Module name for error/warning messages
- * @param expectedVersion - The version to check against (defaults to GWEN_PLUGIN_API_VERSION)
- * @param policy - How to handle mismatches: 'warn' | 'throw' | 'ignore'
- * @returns true if versions match or no version export found, false if mismatch with 'warn'/'ignore'
- * @throws {GwenError} When policy is 'throw' and versions don't match
+ * Comparison is strict equality. An absent export, a non-function, or a
+ * non-number is `actual: null`. There is no warn or ignore path.
  *
- * @example
- * ```typescript
- * checkPluginApiVersion(instance.exports, 'myPlugin', 1_000_000, 'throw');
- * // Throws if the plugin's gwen_plugin_api_version doesn't match 1.0.0
- * ```
+ * @param exports - Instantiated module exports
+ * @param moduleName - Name passed to `loadWasmModule`
+ * @throws {GwenWasmAbiError} `CORE:WASM_MODULE_ABI_MISMATCH`
  */
-export function checkPluginApiVersion(
-  exports: WebAssembly.Exports,
-  moduleName: string,
-  expectedVersion = GWEN_PLUGIN_API_VERSION,
-  policy: "warn" | "throw" | "ignore" = "warn",
-): boolean {
+export function checkPluginApiVersion(exports: WebAssembly.Exports, moduleName: string): void {
   const versionFn = exports["gwen_plugin_api_version"];
-  if (typeof versionFn !== "function") {
-    return true; // No version export — old plugin, skip check
+  let actual: number | null = null;
+  if (typeof versionFn === "function") {
+    const returned: unknown = Reflect.apply(versionFn, undefined, []);
+    if (typeof returned === "number") actual = returned;
   }
-  const actual = (versionFn as () => number)();
-  if (actual === expectedVersion) {
-    return true;
-  }
-  const msg = `[GWEN] Plugin "${moduleName}" was compiled against API version ${actual} but engine expects ${expectedVersion}.`;
-  if (policy === "throw") {
-    throw new GwenError(CoreErrorCodes.WASM_API_VERSION_MISMATCH, msg);
-  }
-  if (policy === "warn") {
-    // eslint-disable-next-line no-console
-    console.warn(msg);
-  }
-  return false;
+  if (actual === GWEN_PLUGIN_API_VERSION) return;
+  throw new GwenWasmAbiError(moduleName, GWEN_PLUGIN_API_VERSION, actual);
 }
 
 /**

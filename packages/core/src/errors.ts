@@ -12,6 +12,7 @@ export {
   GwenActorError,
   ActorErrorCodes,
   GwenWasmError,
+  GwenWasmAbiError,
   GwenWasmPanicError,
   CoreErrorCodes,
 } from "./engine/engine-errors.js";

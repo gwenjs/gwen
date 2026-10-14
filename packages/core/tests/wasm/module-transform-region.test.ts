@@ -12,10 +12,12 @@ const MAX_ENTITIES = 4;
 const COPY_BYTES = MAX_ENTITIES * 32;
 const REGION_OFFSET = 64;
 
-const WASM_WITH_MEMORY = new Uint8Array([
-  0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00, 0x05, 0x03, 0x01, 0x00, 0x01, 0x07, 0x0a, 0x01,
-  0x06, 0x6d, 0x65, 0x6d, 0x6f, 0x72, 0x79, 0x02, 0x00,
-]);
+const WASM_WITH_MEMORY = Uint8Array.from(
+  Buffer.from(
+    "0061736d010000000105016000017f030201000503010001072402066d656d6f72790200176777656e5f706c7567696e5f6170695f76657273696f6e00000a09010700418089fa000b",
+    "hex",
+  ),
+);
 
 function regionModule(name: string, step?: (dt: number) => void): WasmModuleOptions {
   const options: WasmModuleOptions = {
