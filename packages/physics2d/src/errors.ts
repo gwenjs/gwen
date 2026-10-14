@@ -14,6 +14,22 @@ export const Physics2DErrorCodes = {
   INVALID_PREFAB_EXTENSION: "PHYSICS2D:INVALID_PREFAB_EXTENSION",
   /** Not in the #64 table. The site is newer than that list. */
   POSITION_COMPONENT_REQUIRED: "PHYSICS2D:POSITION_COMPONENT_REQUIRED",
+  /** The export touched the world before physics_init. */
+  NOT_INITIALIZED: "PHYSICS2D:NOT_INITIALIZED",
+  /** No rigid body is registered for the slot. */
+  BODY_NOT_FOUND: "PHYSICS2D:BODY_NOT_FOUND",
+  /** The slot already has a rigid body. */
+  BODY_ALREADY_EXISTS: "PHYSICS2D:BODY_ALREADY_EXISTS",
+  /** Body kind is not 0, 1, or 2. */
+  INVALID_BODY_KIND: "PHYSICS2D:INVALID_BODY_KIND",
+  /** Parallel slices of a bulk call differ in length. */
+  BUFFER_LENGTH_MISMATCH: "PHYSICS2D:BUFFER_LENGTH_MISMATCH",
+  /** A tilemap chunk id is already loaded. */
+  TILEMAP_CHUNK_ALREADY_LOADED: "PHYSICS2D:TILEMAP_CHUNK_ALREADY_LOADED",
+  /** A tilemap chunk id is not loaded. */
+  TILEMAP_CHUNK_NOT_LOADED: "PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED",
+  /** A path coordinate or distance is outside the accepted bounds. */
+  INVALID_PATH_REQUEST: "PHYSICS2D:INVALID_PATH_REQUEST",
 } as const;
 
 export type Physics2DErrorCode = (typeof Physics2DErrorCodes)[keyof typeof Physics2DErrorCodes];
