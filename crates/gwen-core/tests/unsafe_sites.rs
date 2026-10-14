@@ -77,14 +77,32 @@ fn unsafe_site_u003_short_sync_is_invalid() {
 }
 
 #[cfg(feature = "physics2d")]
+fn must_u32(result: Result<u32, gwen_core::physics2d::Physics2DError>) -> u32 {
+    result.unwrap_or_else(|err| {
+        assert_eq!(err.code(), "");
+        std::process::abort();
+    })
+}
+
+#[cfg(feature = "physics2d")]
+fn must_unit(result: Result<(), gwen_core::physics2d::Physics2DError>) {
+    result.unwrap_or_else(|err| {
+        assert_eq!(err.code(), "");
+        std::process::abort();
+    });
+}
+
+#[cfg(feature = "physics2d")]
 fn overlapping_pair() -> gwen_core::physics2d::PhysicsWorld {
     use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
-    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default());
-    let right = world.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default());
-    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default());
+    let left =
+        must_u32(world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
+    must_unit(world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default()));
+    let right =
+        must_u32(world.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default()));
+    must_unit(world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default()));
     world
 }
 
@@ -93,10 +111,12 @@ fn separated_pair() -> gwen_core::physics2d::PhysicsWorld {
     use gwen_core::physics2d::{BodyOptions, BodyType, ColliderOptions, PhysicsWorld};
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
-    let left = world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-    world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default());
-    let right = world.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-    world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default());
+    let left =
+        must_u32(world.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
+    must_unit(world.add_box_collider(left, 0.5, 0.5, ColliderOptions::default()));
+    let right =
+        must_u32(world.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default()));
+    must_unit(world.add_box_collider(right, 0.5, 0.5, ColliderOptions::default()));
     world
 }
 
@@ -149,9 +169,14 @@ fn unsafe_site_u007_event_buffer_fills_then_clears() {
 
     let mut world = PhysicsWorld::new(0.0, 0.0);
     for entity in 0..46 {
-        let handle =
-            world.add_rigid_body(entity, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default());
+        let handle = must_u32(world.add_rigid_body(
+            entity,
+            0.0,
+            0.0,
+            BodyType::Dynamic,
+            BodyOptions::default(),
+        ));
+        must_unit(world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default()));
     }
     world.step(1.0 / 60.0);
     assert_eq!(world.collision_event_count(), MAX_COLLISION_EVENTS as u32);

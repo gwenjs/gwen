@@ -8,6 +8,7 @@
     reason = "bench harness, not a wasm export (#183)"
 )]
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
+use gwen_core::physics2d::error::Physics2DError;
 use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
 use std::time::Instant;
 
@@ -66,22 +67,37 @@ fn preset_runs() -> [PresetRun; 4] {
     ]
 }
 
+fn must_u32(result: Result<u32, Physics2DError>) -> u32 {
+    result.unwrap_or_else(|err| {
+        assert_eq!(err.code(), "");
+        std::process::abort();
+    })
+}
+
+fn must_unit(result: Result<(), Physics2DError>) {
+    result.unwrap_or_else(|err| {
+        assert_eq!(err.code(), "");
+        std::process::abort();
+    });
+}
+
 fn add_box(world: &mut PhysicsWorld, entity: u32, x: f32, y: f32, kind: BodyType) {
-    let handle = world.add_rigid_body(entity, x, y, kind, BodyOptions::default());
-    world.add_box_collider(
+    let handle = must_u32(world.add_rigid_body(entity, x, y, kind, BodyOptions::default()));
+    must_unit(world.add_box_collider(
         handle,
         STACK_HALF_EXTENT,
         STACK_HALF_EXTENT,
         ColliderOptions::default(),
-    );
+    ));
 }
 
 fn setup_stack_world(run: PresetRun) -> PhysicsWorld {
     let mut world = PhysicsWorld::new(0.0, -9.81);
     world.set_quality_preset(run.preset);
 
-    let ground = world.add_rigid_body(1, 0.0, -0.75, BodyType::Fixed, BodyOptions::default());
-    world.add_box_collider(ground, 12.0, 0.5, ColliderOptions::default());
+    let ground =
+        must_u32(world.add_rigid_body(1, 0.0, -0.75, BodyType::Fixed, BodyOptions::default()));
+    must_unit(world.add_box_collider(ground, 12.0, 0.5, ColliderOptions::default()));
 
     let mut entity = 100u32;
     let start_x = -((STACK_COLS as f32 - 1.0) * STACK_SPACING) * 0.5;
@@ -152,10 +168,10 @@ fn setup_tunnel_world(run: PresetRun) -> PhysicsWorld {
     let mut world = PhysicsWorld::new(0.0, 0.0);
     world.set_quality_preset(run.preset);
 
-    let wall = world.add_rigid_body(2, 0.0, 0.0, BodyType::Fixed, BodyOptions::default());
-    world.add_box_collider(wall, 0.05, 2.0, ColliderOptions::default());
+    let wall = must_u32(world.add_rigid_body(2, 0.0, 0.0, BodyType::Fixed, BodyOptions::default()));
+    must_unit(world.add_box_collider(wall, 0.05, 2.0, ColliderOptions::default()));
 
-    let projectile = world.add_rigid_body(
+    let projectile = must_u32(world.add_rigid_body(
         3,
         -6.0,
         0.0,
@@ -164,8 +180,8 @@ fn setup_tunnel_world(run: PresetRun) -> PhysicsWorld {
             initial_velocity: (120.0, 0.0),
             ..BodyOptions::default()
         },
-    );
-    world.add_box_collider(projectile, 0.08, 0.08, ColliderOptions::default());
+    ));
+    must_unit(world.add_box_collider(projectile, 0.08, 0.08, ColliderOptions::default()));
     world
 }
 

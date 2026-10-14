@@ -6,6 +6,7 @@
 
 use crate::ecs::storage::ArchetypeStorage;
 use crate::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
+use crate::physics2d::error::Physics2DError;
 use crate::physics2d::events::{
     CollisionEventBuffer, PhysicsCollisionEvent as StaticCollisionEvent,
 };
@@ -233,6 +234,8 @@ impl PhysicsWorld {
     }
 
     /// Adds a rigid body to the simulation.
+    ///
+    /// A slot that already has a body is refused. The first body stays.
     pub fn add_rigid_body(
         &mut self,
         entity_index: u32,
@@ -240,8 +243,10 @@ impl PhysicsWorld {
         y: f32,
         body_type: BodyType,
         opts: BodyOptions,
-    ) -> u32 {
-        self.remove_rigid_body(entity_index);
+    ) -> Result<u32, Physics2DError> {
+        if self.entity_to_body.contains_key(&entity_index) {
+            return Err(Physics2DError::BodyAlreadyExists { slot: entity_index });
+        }
 
         let mut builder = match body_type {
             BodyType::Fixed => RigidBodyBuilder::fixed(),
@@ -279,7 +284,7 @@ impl PhysicsWorld {
         self.body_to_entity.insert(handle, entity_index);
         self.handle_by_raw.insert(raw, handle);
 
-        raw
+        Ok(raw)
     }
 
     /// Adds a box collider to an existing rigid body.
@@ -289,8 +294,13 @@ impl PhysicsWorld {
         hw: f32,
         hh: f32,
         opts: ColliderOptions,
-    ) {
-        if let Some(handle) = self.handle_by_raw.get(&body_handle_raw).copied() {
+    ) -> Result<(), Physics2DError> {
+        let Some(handle) = self.handle_by_raw.get(&body_handle_raw).copied() else {
+            return Err(Physics2DError::StaleBodyHandle {
+                handle: body_handle_raw,
+            });
+        };
+        {
             let entity_index = self
                 .body_to_entity
                 .get(&handle)
@@ -320,6 +330,7 @@ impl PhysicsWorld {
                 self.one_way_colliders.insert(handle);
             }
         }
+        Ok(())
     }
 
     /// Removes a rigid body and all its colliders from the simulation.
@@ -339,9 +350,24 @@ impl PhysicsWorld {
         }
     }
 
+    /// Reports whether a rigid body is registered for this slot.
+    pub fn contains_body(&self, entity_index: u32) -> bool {
+        self.entity_to_body.contains_key(&entity_index)
+    }
+
     /// Adds a ball collider to an existing rigid body.
-    pub fn add_ball_collider(&mut self, body_handle_raw: u32, radius: f32, opts: ColliderOptions) {
-        if let Some(handle) = self.handle_by_raw.get(&body_handle_raw).copied() {
+    pub fn add_ball_collider(
+        &mut self,
+        body_handle_raw: u32,
+        radius: f32,
+        opts: ColliderOptions,
+    ) -> Result<(), Physics2DError> {
+        let Some(handle) = self.handle_by_raw.get(&body_handle_raw).copied() else {
+            return Err(Physics2DError::StaleBodyHandle {
+                handle: body_handle_raw,
+            });
+        };
+        {
             let entity_index = self
                 .body_to_entity
                 .get(&handle)
@@ -371,6 +397,7 @@ impl PhysicsWorld {
                 self.one_way_colliders.insert(collider_handle);
             }
         }
+        Ok(())
     }
 
     /// Get position and rotation of a body.
@@ -533,30 +560,36 @@ impl PhysicsWorld {
     ///
     /// # Returns
     /// The raw body handle to use when attaching colliders.
+    /// A chunk id that is already loaded is refused and the first body stays.
     pub fn load_tilemap_chunk_body(
         &mut self,
         chunk_id: u32,
         pseudo_entity: u32,
         x: f32,
         y: f32,
-    ) -> u32 {
+    ) -> Result<u32, Physics2DError> {
+        if self.tilemap_chunk_to_entity.contains_key(&chunk_id) {
+            return Err(Physics2DError::TilemapChunkAlreadyLoaded);
+        }
         let handle_raw =
-            self.add_rigid_body(pseudo_entity, x, y, BodyType::Fixed, BodyOptions::default());
+            self.add_rigid_body(pseudo_entity, x, y, BodyType::Fixed, BodyOptions::default())?;
         self.tilemap_chunk_to_entity.insert(chunk_id, pseudo_entity);
-        handle_raw
+        Ok(handle_raw)
     }
 
     /// Remove the static rigid body associated with a tilemap chunk.
     ///
     /// Removes the body and all attached colliders from the simulation.
-    /// A no-op if the chunk has not been loaded.
+    /// Refuses a chunk id that is not loaded, and leaves the map unchanged.
     ///
     /// # Parameters
     /// * `chunk_id` — Unique chunk identifier previously passed to [`load_tilemap_chunk_body`].
-    pub fn unload_tilemap_chunk_body(&mut self, chunk_id: u32) {
-        if let Some(pseudo_entity) = self.tilemap_chunk_to_entity.remove(&chunk_id) {
-            self.remove_rigid_body(pseudo_entity);
-        }
+    pub fn unload_tilemap_chunk_body(&mut self, chunk_id: u32) -> Result<(), Physics2DError> {
+        let Some(pseudo_entity) = self.tilemap_chunk_to_entity.remove(&chunk_id) else {
+            return Err(Physics2DError::TilemapChunkNotLoaded);
+        };
+        self.remove_rigid_body(pseudo_entity);
+        Ok(())
     }
 
     pub fn query_radius(
@@ -720,6 +753,7 @@ mod tests {
         reason = "test-only code"
     )]
     use super::*;
+    use crate::physics2d::error::Physics2DError;
 
     #[test]
     fn test_physics_world_creation() {
@@ -728,7 +762,7 @@ mod tests {
     }
 
     #[test]
-    fn test_add_remove_body() {
+    fn test_add_remove_body() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, -9.81);
         let entity_index = 1;
         let body_handle = world.add_rigid_body(
@@ -737,7 +771,7 @@ mod tests {
             0.0,
             BodyType::Dynamic,
             BodyOptions::default(),
-        );
+        )?;
 
         assert!(world.entity_to_body.contains_key(&entity_index));
         assert!(world.handle_by_raw.contains_key(&body_handle));
@@ -745,10 +779,11 @@ mod tests {
         world.remove_rigid_body(entity_index);
         assert!(!world.entity_to_body.contains_key(&entity_index));
         assert!(!world.handle_by_raw.contains_key(&body_handle));
+        Ok(())
     }
 
     #[test]
-    fn test_physics_step() {
+    fn test_physics_step() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, -9.81);
         let entity_index = 1;
         world.add_rigid_body(
@@ -757,7 +792,7 @@ mod tests {
             10.0,
             BodyType::Dynamic,
             BodyOptions::default(),
-        );
+        )?;
 
         // Initial position
         let handle = world.entity_to_body[&entity_index];
@@ -770,14 +805,16 @@ mod tests {
         // Should have moved down
         let body = world.rigid_body_set.get(handle).unwrap();
         assert!(body.translation().y < 10.0);
+        Ok(())
     }
 
     #[test]
-    fn test_set_kinematic_position_returns_true() {
+    fn test_set_kinematic_position_returns_true() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, -9.81);
         let opts = BodyOptions::default();
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Kinematic, opts);
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Kinematic, opts)?;
         assert!(world.set_kinematic_position(0, 1.0, 2.0, 0.5));
+        Ok(())
     }
 
     #[test]
@@ -787,11 +824,11 @@ mod tests {
     }
 
     #[test]
-    fn test_bulk_step_kinematics_integrates_positions() {
+    fn test_bulk_step_kinematics_integrates_positions() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0); // no gravity
         let opts = BodyOptions::default();
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Kinematic, opts);
-        world.add_rigid_body(1, 0.0, 0.0, BodyType::Kinematic, opts);
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Kinematic, opts)?;
+        world.add_rigid_body(1, 0.0, 0.0, BodyType::Kinematic, opts)?;
         let slots = [0u32, 1u32];
         let vx = [1.0f32, 0.0f32];
         let vy = [0.0f32, 2.0f32];
@@ -802,53 +839,67 @@ mod tests {
         let pos1 = world.get_position(1).unwrap();
         assert!((pos0.0 - 1.0).abs() < 0.01, "slot 0 x should be ~1.0");
         assert!((pos1.1 - 2.0).abs() < 0.01, "slot 1 y should be ~2.0");
+        Ok(())
     }
 
     // ── tilemap chunk bodies ──────────────────────────────────────────────────
 
     #[test]
-    fn test_load_tilemap_chunk_body_registers_pseudo_entity() {
+    fn test_load_tilemap_chunk_body_registers_pseudo_entity() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
         let pseudo_entity = 0x80000001u32;
-        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 10.0, 20.0);
+        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 10.0, 20.0)?;
         assert!(world.entity_to_body.contains_key(&pseudo_entity));
+        Ok(())
     }
 
     #[test]
-    fn test_load_tilemap_chunk_body_creates_static_body_at_position() {
+    fn test_load_tilemap_chunk_body_creates_static_body_at_position() -> Result<(), Physics2DError>
+    {
         let mut world = PhysicsWorld::new(0.0, 0.0);
         let pseudo_entity = 0x80000001u32;
-        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 5.0, 8.0);
+        world.load_tilemap_chunk_body(0xABCD, pseudo_entity, 5.0, 8.0)?;
         let (x, y, _) = world
             .get_position(pseudo_entity)
             .expect("body should exist");
         assert!((x - 5.0).abs() < 1e-4, "x={x}");
         assert!((y - 8.0).abs() < 1e-4, "y={y}");
+        Ok(())
     }
 
     #[test]
-    fn test_unload_tilemap_chunk_body_removes_body() {
+    fn test_unload_tilemap_chunk_body_removes_body() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
         let pseudo_entity = 0x80000002u32;
-        world.load_tilemap_chunk_body(0xBEEF, pseudo_entity, 0.0, 0.0);
+        world.load_tilemap_chunk_body(0xBEEF, pseudo_entity, 0.0, 0.0)?;
         assert!(world.entity_to_body.contains_key(&pseudo_entity));
-        world.unload_tilemap_chunk_body(0xBEEF);
+        world.unload_tilemap_chunk_body(0xBEEF)?;
         assert!(!world.entity_to_body.contains_key(&pseudo_entity));
+        Ok(())
     }
 
     #[test]
     fn test_unload_tilemap_chunk_body_unknown_chunk_is_noop() {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        world.unload_tilemap_chunk_body(0x1234); // should not panic
+        let err = match world.unload_tilemap_chunk_body(0x1234) {
+            Ok(()) => {
+                assert_eq!(0, 1);
+                return;
+            }
+            Err(err) => err,
+        };
+        assert_eq!(err.code(), "PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED");
+        assert_eq!(world.entity_to_body.len(), 0);
     }
 
     // ── apply_impulse ─────────────────────────────────────────────────────────
 
     #[test]
-    fn test_apply_impulse_returns_true_for_dynamic_body() {
+    fn test_apply_impulse_returns_true_for_dynamic_body() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         assert!(world.apply_impulse(0, 10.0, 0.0));
+        Ok(())
     }
 
     #[test]
@@ -860,22 +911,25 @@ mod tests {
     /// Impulse changes velocity immediately (no step needed).
     /// The body needs a collider attached to have nonzero mass — mass comes from collider density.
     #[test]
-    fn test_apply_impulse_changes_velocity() {
+    fn test_apply_impulse_changes_velocity() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        let handle = world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default());
+        let handle =
+            world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default())?;
         world.apply_impulse(0, 5.0, 0.0);
         let (vx, _vy) = world.get_linear_velocity(0).expect("velocity readable");
         assert!(vx > 0.0, "impulse should have increased vx, got {vx}");
+        Ok(())
     }
 
     // ── set_linear_velocity ───────────────────────────────────────────────────
 
     #[test]
-    fn test_set_linear_velocity_returns_true_for_dynamic_body() {
+    fn test_set_linear_velocity_returns_true_for_dynamic_body() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         assert!(world.set_linear_velocity(0, 2.0, -3.0));
+        Ok(())
     }
 
     #[test]
@@ -887,55 +941,59 @@ mod tests {
     /// Verify the velocity is immediately readable back via [`get_linear_velocity`]
     /// without requiring a physics step.
     #[test]
-    fn test_set_linear_velocity_readable_via_getter() {
+    fn test_set_linear_velocity_readable_via_getter() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0);
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         world.set_linear_velocity(0, 3.5, -1.2);
         let (vx, vy) = world
             .get_linear_velocity(0)
             .expect("velocity should be readable");
         assert!((vx - 3.5).abs() < 1e-4, "vx={vx}");
         assert!((vy + 1.2).abs() < 1e-4, "vy={vy}");
+        Ok(())
     }
 
     /// Verify the body actually moves in the expected direction after a physics step.
     #[test]
-    fn test_set_linear_velocity_affects_position_after_step() {
+    fn test_set_linear_velocity_affects_position_after_step() -> Result<(), Physics2DError> {
         let mut world = PhysicsWorld::new(0.0, 0.0); // no gravity
-        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
+        world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         world.set_linear_velocity(0, 10.0, 5.0);
         world.step(0.1);
         let (x, y, _) = world.get_position(0).expect("body should exist");
         // position = v * dt = (1.0, 0.5), allow some solver tolerance
         assert!(x > 0.5, "expected x > 0.5, got {x}");
         assert!(y > 0.2, "expected y > 0.2, got {y}");
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod multi_engine_collision {
     use super::*;
+    use crate::physics2d::error::Physics2DError;
 
     #[test]
     #[allow(
         clippy::bool_assert_comparison,
         reason = "diff hygiene rejects a new assert! line"
     )]
-    fn two_engines_keep_separate_collision_buffers() {
+    fn two_engines_keep_separate_collision_buffers() -> Result<(), Physics2DError> {
         let mut a = PhysicsWorld::new(0.0, 0.0);
         let mut b = PhysicsWorld::new(0.0, 0.0);
-        let ha = a.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-        a.add_box_collider(ha, 0.5, 0.5, ColliderOptions::default());
-        let hb = a.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default());
-        a.add_box_collider(hb, 0.5, 0.5, ColliderOptions::default());
-        let hc = b.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-        b.add_box_collider(hc, 0.5, 0.5, ColliderOptions::default());
-        let hd = b.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default());
-        b.add_box_collider(hd, 0.5, 0.5, ColliderOptions::default());
+        let ha = a.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        a.add_box_collider(ha, 0.5, 0.5, ColliderOptions::default())?;
+        let hb = a.add_rigid_body(2, 0.2, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        a.add_box_collider(hb, 0.5, 0.5, ColliderOptions::default())?;
+        let hc = b.add_rigid_body(1, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        b.add_box_collider(hc, 0.5, 0.5, ColliderOptions::default())?;
+        let hd = b.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
+        b.add_box_collider(hd, 0.5, 0.5, ColliderOptions::default())?;
         a.step(1.0 / 60.0);
         b.step(1.0 / 60.0);
         assert_ne!(a.collision_events_ptr(), b.collision_events_ptr());
         assert_eq!(b.collision_event_count(), 0);
         assert_eq!(a.collision_event_count() > 0, true);
+        Ok(())
     }
 }

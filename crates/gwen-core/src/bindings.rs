@@ -22,7 +22,7 @@ use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "physics2d")]
 use crate::physics2d::{
-    BodyOptions, BodyType, ColliderOptions, PhysicsQualityPreset, PhysicsWorld,
+    BodyOptions, BodyType, ColliderOptions, Physics2DError, PhysicsQualityPreset, PhysicsWorld,
 };
 
 #[cfg(feature = "physics3d")]
@@ -1043,17 +1043,23 @@ impl Engine {
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_step(&mut self, delta: f32) {
+    pub fn physics_step(&mut self, delta: f32) -> Result<(), Physics2DError> {
         if let Some(ref mut world) = self.physics_world {
             world.step(delta);
             world.sync_to_storage(&mut self.storage);
+            Ok(())
+        } else {
+            Err(Physics2DError::WorldNotInitialized)
         }
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_set_quality(&mut self, preset: u8) {
+    pub fn physics_set_quality(&mut self, preset: u8) -> Result<(), Physics2DError> {
         if let Some(ref mut world) = self.physics_world {
             world.set_quality_preset(PhysicsQualityPreset::from_u8(preset));
+            Ok(())
+        } else {
+            Err(Physics2DError::WorldNotInitialized)
         }
     }
 
@@ -1085,33 +1091,38 @@ impl Engine {
         vy: f32,
         ccd_enabled: Option<u32>,
         extra_solver_iters: Option<usize>,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics_world {
-            let b_type = match body_type {
-                0 => BodyType::Fixed,
-                2 => BodyType::Kinematic,
-                _ => BodyType::Dynamic,
-            };
-            let opts = BodyOptions {
-                mass,
-                gravity_scale,
-                linear_damping,
-                angular_damping,
-                initial_velocity: (vx, vy),
-                ccd_enabled: ccd_enabled.map(|v| v != 0),
-                additional_solver_iterations: extra_solver_iters,
-            };
-            world.add_rigid_body(slot, x, y, b_type, opts)
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        let b_type = match body_type {
+            0 => BodyType::Fixed,
+            1 => BodyType::Dynamic,
+            2 => BodyType::Kinematic,
+            _ => return Err(Physics2DError::InvalidBodyKind { kind: body_type }),
+        };
+        let opts = BodyOptions {
+            mass,
+            gravity_scale,
+            linear_damping,
+            angular_damping,
+            initial_velocity: (vx, vy),
+            ccd_enabled: ccd_enabled.map(|v| v != 0),
+            additional_solver_iterations: extra_solver_iters,
+        };
+        world.add_rigid_body(slot, x, y, b_type, opts)
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_remove_rigid_body(&mut self, slot: u32) {
-        if let Some(ref mut world) = self.physics_world {
-            world.remove_rigid_body(slot);
+    pub fn physics_remove_rigid_body(&mut self, slot: u32) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        if !world.contains_body(slot) {
+            return Err(Physics2DError::BodyNotFound { slot });
         }
+        world.remove_rigid_body(slot);
+        Ok(())
     }
 
     // ─── Physics 2D — Collider management ──────────────────────────────────────
@@ -1133,23 +1144,24 @@ impl Engine {
         offset_x: Option<f32>,
         offset_y: Option<f32>,
         one_way: Option<u32>,
-    ) {
-        if let Some(ref mut world) = self.physics_world {
-            let opts = ColliderOptions {
-                material: crate::physics2d::components::PhysicsMaterial {
-                    restitution,
-                    friction,
-                },
-                is_sensor: is_sensor != 0,
-                density,
-                groups: crate::physics2d::components::CollisionGroups { membership, filter },
-                collider_id: collider_id.unwrap_or(u32::MAX),
-                offset_x: offset_x.unwrap_or(0.0),
-                offset_y: offset_y.unwrap_or(0.0),
-                is_one_way: one_way.unwrap_or(0) != 0,
-            };
-            world.add_box_collider(handle, hw, hh, opts);
-        }
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        let opts = ColliderOptions {
+            material: crate::physics2d::components::PhysicsMaterial {
+                restitution,
+                friction,
+            },
+            is_sensor: is_sensor != 0,
+            density,
+            groups: crate::physics2d::components::CollisionGroups { membership, filter },
+            collider_id: collider_id.unwrap_or(u32::MAX),
+            offset_x: offset_x.unwrap_or(0.0),
+            offset_y: offset_y.unwrap_or(0.0),
+            is_one_way: one_way.unwrap_or(0) != 0,
+        };
+        world.add_box_collider(handle, hw, hh, opts)
     }
 
     #[cfg(feature = "physics2d")]
@@ -1167,43 +1179,46 @@ impl Engine {
         collider_id: Option<u32>,
         offset_x: Option<f32>,
         offset_y: Option<f32>,
-    ) {
-        if let Some(ref mut world) = self.physics_world {
-            let opts = ColliderOptions {
-                material: crate::physics2d::components::PhysicsMaterial {
-                    restitution,
-                    friction,
-                },
-                is_sensor: is_sensor != 0,
-                density,
-                groups: crate::physics2d::components::CollisionGroups { membership, filter },
-                collider_id: collider_id.unwrap_or(u32::MAX),
-                offset_x: offset_x.unwrap_or(0.0),
-                offset_y: offset_y.unwrap_or(0.0),
-                is_one_way: false,
-            };
-            world.add_ball_collider(handle, radius, opts);
-        }
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        let opts = ColliderOptions {
+            material: crate::physics2d::components::PhysicsMaterial {
+                restitution,
+                friction,
+            },
+            is_sensor: is_sensor != 0,
+            density,
+            groups: crate::physics2d::components::CollisionGroups { membership, filter },
+            collider_id: collider_id.unwrap_or(u32::MAX),
+            offset_x: offset_x.unwrap_or(0.0),
+            offset_y: offset_y.unwrap_or(0.0),
+            is_one_way: false,
+        };
+        world.add_ball_collider(handle, radius, opts)
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_get_position(&self, slot: u32) -> Vec<f32> {
-        if let Some(ref world) = self.physics_world {
-            if let Some((x, y, rot)) = world.get_position(slot) {
-                return vec![x, y, rot];
-            }
-        }
-        Vec::new()
+    pub fn physics_get_position(&self, slot: u32) -> Result<Vec<f32>, Physics2DError> {
+        let Some(world) = self.physics_world.as_ref() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        Ok(match world.get_position(slot) {
+            Some((x, y, rot)) => vec![x, y, rot],
+            None => Vec::new(),
+        })
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_get_linear_velocity(&self, slot: u32) -> Vec<f32> {
-        if let Some(ref world) = self.physics_world {
-            if let Some((vx, vy)) = world.get_linear_velocity(slot) {
-                return vec![vx, vy];
-            }
-        }
-        Vec::new()
+    pub fn physics_get_linear_velocity(&self, slot: u32) -> Result<Vec<f32>, Physics2DError> {
+        let Some(world) = self.physics_world.as_ref() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        Ok(match world.get_linear_velocity(slot) {
+            Some((vx, vy)) => vec![vx, vy],
+            None => Vec::new(),
+        })
     }
 
     /// Set the linear velocity of a 2D dynamic rigid body.
@@ -1218,14 +1233,24 @@ impl Engine {
     /// * `vx`, `vy` — New linear velocity in metres per second.
     ///
     /// # Returns
-    /// `1` if the body was found and updated; `0` if no rigid body is registered
-    /// for `slot` or the physics world is not initialised.
+    /// `Ok(1)` when the body was found and updated.
+    /// `WorldNotInitialized` when `physics_init` has not run.
+    /// `BodyNotFound` when the slot has no rigid body.
     #[cfg(feature = "physics2d")]
-    pub fn physics_set_linear_velocity(&mut self, slot: u32, vx: f32, vy: f32) -> u32 {
-        self.physics_world
-            .as_mut()
-            .map(|w| w.set_linear_velocity(slot, vx, vy) as u32)
-            .unwrap_or(0)
+    pub fn physics_set_linear_velocity(
+        &mut self,
+        slot: u32,
+        vx: f32,
+        vy: f32,
+    ) -> Result<u32, Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        if world.set_linear_velocity(slot, vx, vy) {
+            Ok(1)
+        } else {
+            Err(Physics2DError::BodyNotFound { slot })
+        }
     }
 
     /// Apply a linear impulse to a 2D dynamic rigid body.
@@ -1238,9 +1263,19 @@ impl Engine {
     /// * `slot`     — Entity slot index (packed entity id stripped of generation bits).
     /// * `ix`, `iy` — Impulse vector in newton-seconds (kg·m/s).
     #[cfg(feature = "physics2d")]
-    pub fn physics_apply_impulse(&mut self, slot: u32, ix: f32, iy: f32) {
-        if let Some(ref mut world) = self.physics_world {
-            world.apply_impulse(slot, ix, iy);
+    pub fn physics_apply_impulse(
+        &mut self,
+        slot: u32,
+        ix: f32,
+        iy: f32,
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        if world.apply_impulse(slot, ix, iy) {
+            Ok(())
+        } else {
+            Err(Physics2DError::BodyNotFound { slot })
         }
     }
 
@@ -1257,6 +1292,7 @@ impl Engine {
     ///
     /// # Returns
     /// Raw body handle — pass to `physics_add_box_collider` to attach colliders.
+    /// A chunk id that is already loaded is refused and the first body stays.
     #[cfg(feature = "physics2d")]
     pub fn physics_load_tilemap_chunk_body(
         &mut self,
@@ -1264,24 +1300,28 @@ impl Engine {
         pseudo_entity: u32,
         x: f32,
         y: f32,
-    ) -> u32 {
-        self.physics_world
-            .as_mut()
-            .map(|w| w.load_tilemap_chunk_body(chunk_id, pseudo_entity, x, y))
-            .unwrap_or(0)
+    ) -> Result<u32, Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        world.load_tilemap_chunk_body(chunk_id, pseudo_entity, x, y)
     }
 
     /// Remove the static rigid body for a tilemap chunk and all its colliders.
     ///
-    /// No-op if the chunk was not loaded or the physics world is not initialised.
+    /// Refuses a chunk that was not loaded, or a world that is not initialised.
     ///
     /// # Parameters
     /// * `chunk_id` — The same identifier passed to [`physics_load_tilemap_chunk_body`].
     #[cfg(feature = "physics2d")]
-    pub fn physics_unload_tilemap_chunk_body(&mut self, chunk_id: u32) {
-        if let Some(ref mut world) = self.physics_world {
-            world.unload_tilemap_chunk_body(chunk_id);
-        }
+    pub fn physics_unload_tilemap_chunk_body(
+        &mut self,
+        chunk_id: u32,
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        world.unload_tilemap_chunk_body(chunk_id)
     }
 
     #[cfg(feature = "physics2d")]
@@ -1303,13 +1343,25 @@ impl Engine {
     /// * `angle` — Target orientation in radians (`0.0` = no rotation, body is upright).
     ///
     /// # Returns
-    /// `1` if found and updated; `0` otherwise.
+    /// `Ok(1)` when the body was found and updated.
+    /// `WorldNotInitialized` when `physics_init` has not run.
+    /// `BodyNotFound` when the slot has no rigid body.
     #[cfg(feature = "physics2d")]
-    pub fn physics_set_kinematic_position(&mut self, slot: u32, x: f32, y: f32, angle: f32) -> u32 {
-        self.physics_world
-            .as_mut()
-            .map(|w| w.set_kinematic_position(slot, x, y, angle) as u32)
-            .unwrap_or(0)
+    pub fn physics_set_kinematic_position(
+        &mut self,
+        slot: u32,
+        x: f32,
+        y: f32,
+        angle: f32,
+    ) -> Result<u32, Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        if world.set_kinematic_position(slot, x, y, angle) {
+            Ok(1)
+        } else {
+            Err(Physics2DError::BodyNotFound { slot })
+        }
     }
 
     /// Integrate N kinematic body positions in one WASM call.
@@ -1340,10 +1392,19 @@ impl Engine {
     pub fn physics_update_sensor_state(&mut self, _slot: u32, _collider_id: u32, _active: u32) {}
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_set_linear_damping(&mut self, slot: u32, damping: f32) {
-        if let Some(ref mut world) = self.physics_world {
-            world.set_linear_damping(slot, damping);
+    pub fn physics_set_linear_damping(
+        &mut self,
+        slot: u32,
+        damping: f32,
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        if !world.contains_body(slot) {
+            return Err(Physics2DError::BodyNotFound { slot });
         }
+        world.set_linear_damping(slot, damping);
+        Ok(())
     }
 
     #[cfg(feature = "physics2d")]
@@ -1354,11 +1415,11 @@ impl Engine {
         radius: f32,
         membership: u32,
         filter: u32,
-    ) -> Vec<u32> {
-        self.physics_world
-            .as_ref()
-            .map(|w| w.query_radius(x, y, radius, membership, filter))
-            .unwrap_or_default()
+    ) -> Result<Vec<u32>, Physics2DError> {
+        let Some(world) = self.physics_world.as_ref() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        Ok(world.query_radius(x, y, radius, membership, filter))
     }
 
     #[cfg(feature = "physics2d")]
@@ -1370,19 +1431,25 @@ impl Engine {
         hh: f32,
         membership: u32,
         filter: u32,
-    ) -> Vec<u32> {
-        self.physics_world
-            .as_ref()
-            .map(|w| w.query_rect(x, y, hw, hh, membership, filter))
-            .unwrap_or_default()
+    ) -> Result<Vec<u32>, Physics2DError> {
+        let Some(world) = self.physics_world.as_ref() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        Ok(world.query_rect(x, y, hw, hh, membership, filter))
     }
 
     #[cfg(feature = "physics2d")]
-    pub fn physics_point_query(&self, x: f32, y: f32, membership: u32, filter: u32) -> Vec<u32> {
-        self.physics_world
-            .as_ref()
-            .map(|w| w.point_query(x, y, membership, filter))
-            .unwrap_or_default()
+    pub fn physics_point_query(
+        &self,
+        x: f32,
+        y: f32,
+        membership: u32,
+        filter: u32,
+    ) -> Result<Vec<u32>, Physics2DError> {
+        let Some(world) = self.physics_world.as_ref() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        Ok(world.point_query(x, y, membership, filter))
     }
 
     #[cfg(feature = "physics2d")]
