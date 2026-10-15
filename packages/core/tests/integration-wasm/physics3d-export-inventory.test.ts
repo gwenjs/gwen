@@ -38,8 +38,6 @@ const JOINT_ADD =
   "a missing body returns u32::MAX at the entity_handles.get let-else (world.rs:2475-2485); ImpulseJointSet::insert has no assert (impulse_joint_set.rs:232-272) and Graph::add_edge only asserts on an invalid node index (graph.rs:220-228); NaN or inf only reach the step";
 const JOINT_SET =
   "joint_handles.get and impulse_joint_set.get_mut return early with false (world.rs:2715-2720); the generic_joint setter indexes the fixed motors array with AngX";
-const COLLIDER_SHAPE =
-  "the body lookup returns false at world.rs:701-704; the parry shape constructor has no assert (cuboid.rs, ball.rs, capsule.rs); insert_with_parent expects a body that entity_handles keeps in sync (collider_set.rs:121); NaN, inf or negative sizes only reach the step";
 
 const PHYSICS3D: Record<string, ExportRow> = {
   find_path_3d: infallible(
@@ -50,23 +48,21 @@ const PHYSICS3D: Record<string, ExportRow> = {
   ),
   physics3d_add_ball_joint: infallible(JOINT_ADD),
   physics3d_add_body: result(),
-  physics3d_add_box_collider: infallible(COLLIDER_SHAPE),
-  physics3d_add_capsule_collider: infallible(COLLIDER_SHAPE),
+  physics3d_add_box_collider: result(),
+  physics3d_add_capsule_collider: result(),
   physics3d_add_character_controller: infallible(
     "a missing body returns u32::MAX at world.rs:2858-2861; the pool check and slot arithmetic use get, pop and a compare (world.rs:2888-2901); no indexing. It inserts into cc_controllers before the pool check (world.rs:2886), a state bug fixed in PR 4",
   ),
-  physics3d_add_compound_collider: infallible(
-    "len % 12 is checked before as_chunks::<12>() (world.rs:1356-1361), so chunk[0..11] stay in range; an unknown shape type is skipped by continue (world.rs:1379); f32 to u32 casts saturate",
-  ),
-  physics3d_add_convex_collider: knownPanic(ISSUE),
+  physics3d_add_compound_collider: result(),
+  physics3d_add_convex_collider: result(),
   physics3d_add_fixed_joint: infallible(JOINT_ADD),
   physics3d_add_force: result(),
   physics3d_add_force_at_point: result(),
-  physics3d_add_heightfield_collider: knownPanic(ISSUE),
-  physics3d_add_mesh_collider: knownPanic(ISSUE),
+  physics3d_add_heightfield_collider: result(),
+  physics3d_add_mesh_collider: result(),
   physics3d_add_prismatic_joint: infallible(JOINT_ADD),
   physics3d_add_revolute_joint: infallible(JOINT_ADD),
-  physics3d_add_sphere_collider: infallible(COLLIDER_SHAPE),
+  physics3d_add_sphere_collider: result(),
   physics3d_add_spring_joint: infallible(JOINT_ADD),
   physics3d_add_torque: result(),
   physics3d_apply_angular_impulse: result(),
@@ -74,15 +70,9 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_bulk_apply_impulse: infallible(
     "set_components_bulk is a result row of the light inventory (wasm-export-inventory.test.ts:96); its Err is dropped by let _ = (bulk_ops_physics3d.rs:85), so no panic and no error reaches TypeScript",
   ),
-  physics3d_bulk_spawn_static_boxes: infallible(
-    "every positions_flat and half_extents_flat index is checked against n * 3 first (world.rs:1273-1287), and n * 3 cannot overflow a 32-bit usize because a u32 slice holds under 2^30 items; it overwrites a registered slot (world.rs:1315), a state bug fixed in PR 3",
-  ),
-  physics3d_bulk_step_kinematic_rotations: infallible(
-    "count is the minimum of the four slice lengths (world.rs:1542), so every index i is in range; set_next_kinematic_position has no assert; NaN only reaches the step; a length mismatch is silently ignored, fixed in PR 3",
-  ),
-  physics3d_bulk_step_kinematics: infallible(
-    "count is the minimum of the four slice lengths (world.rs:1495), so every index i is in range; set_next_kinematic_position has no assert; NaN only reaches the step; a length mismatch is silently ignored, fixed in PR 3",
-  ),
+  physics3d_bulk_spawn_static_boxes: result(),
+  physics3d_bulk_step_kinematic_rotations: result(),
+  physics3d_bulk_step_kinematics: result(),
   physics3d_bulk_sync_from_rapier: infallible(
     "query_read_bulk is a result row of the light inventory (wasm-export-inventory.test.ts:85); every Err becomes (0, 0) and result[0] is read only after the len >= 2 check (bulk_ops_physics3d.rs:35-44)",
   ),
@@ -121,19 +111,17 @@ const PHYSICS3D: Record<string, ExportRow> = {
   ),
   physics3d_init_navgrid_3d: knownPanic(ISSUE),
   physics3d_is_body_sleeping: result(),
-  physics3d_load_bvh_collider: knownPanic(ISSUE),
+  physics3d_load_bvh_collider: result(),
   physics3d_lock_rotations: result(),
   physics3d_lock_translations: result(),
   physics3d_overlap_shape: knownPanic(ISSUE),
   physics3d_project_point: knownPanic(ISSUE),
-  physics3d_rebuild_mesh_collider: knownPanic(ISSUE),
+  physics3d_rebuild_mesh_collider: result(),
   physics3d_remove_body: result(),
   physics3d_remove_character_controller: infallible(
     "HashMap::remove and Vec::push only (world.rs:3065-3070)",
   ),
-  physics3d_remove_collider: infallible(
-    "a missing key returns false (world.rs:1415-1417); ColliderSet::remove returns Option (collider_set.rs:184-190)",
-  ),
+  physics3d_remove_collider: result(),
   physics3d_remove_joint: infallible(
     "a missing id returns false (world.rs:2693-2699); ImpulseJointSet::remove returns Option (impulse_joint_set.rs:316-336)",
   ),
@@ -151,7 +139,7 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_set_linear_velocity: result(),
   physics3d_set_quality: result(),
   physics3d_step: knownPanic(ISSUE),
-  physics3d_update_heightfield_collider: knownPanic(ISSUE),
+  physics3d_update_heightfield_collider: result(),
   physics3d_update_sensor_state: result(),
   physics3d_wake_all: result(),
 };
