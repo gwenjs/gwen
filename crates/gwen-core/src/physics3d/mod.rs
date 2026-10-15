@@ -12,6 +12,7 @@
 //! never included in a runtime WASM binary.
 
 pub mod components;
+pub mod error;
 pub mod events;
 pub mod pathfinding;
 pub mod world;
@@ -19,6 +20,9 @@ pub mod world;
 pub use components::{
     BodyOptions3D, BodyType3D, ColliderOptions3D, CollisionGroups3D, PhysicsMaterial3D,
     PhysicsQualityPreset3D,
+};
+pub use error::{
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason, Physics3DError,
 };
 pub use events::{
     get_collision_event_count_3d, get_collision_events_ptr_3d, PhysicsCollisionEvent3D,
