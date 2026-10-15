@@ -1523,6 +1523,16 @@ impl Engine {
     /// * `origin_x`  — World-space X origin of the first cell.
     /// * `origin_y`  — World-space Y origin of the first cell.
     /// * `origin_z`  — World-space Z origin of the first cell.
+    ///
+    /// The cell count is validated and capped. The pointer is not: it comes from
+    /// `__wbindgen_malloc`, which keeps no record this crate can read, so the export cannot tell
+    /// whether `ptr` addresses `width * height * depth` readable bytes. The caller must
+    /// guarantee it. A null pointer stores no grid.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `InvalidNavGrid` when a dimension is zero, the cell count overflows, or the cell count is
+    /// above `MAX_NAVGRID_CELLS`. A refusal keeps the grid that was uploaded before.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_init_navgrid_3d(
@@ -1535,24 +1545,24 @@ impl Engine {
         origin_x: f32,
         origin_y: f32,
         origin_z: f32,
-    ) {
-        if let Some(world) = self.physics3d_world.as_mut() {
-            // SAFETY: a null pointer or a zero cell count stores no grid and does
-            // not read. Otherwise this reads `width * height * depth` bytes. The
-            // length is still not checked here. #110 owns the unchecked read. [U-004]
-            unsafe {
-                crate::physics3d::pathfinding::init_navgrid_3d(
-                    world.nav_grid_mut(),
-                    ptr as *const u8,
-                    width as usize,
-                    height as usize,
-                    depth as usize,
-                    cell_size,
-                    origin_x,
-                    origin_y,
-                    origin_z,
-                );
-            }
+    ) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        // SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
+        // `width * height * depth` bytes, a count that is validated and capped first. The
+        // pointer's origin cannot be checked: the caller must pass an address that holds that
+        // many bytes. [U-004]
+        unsafe {
+            crate::physics3d::pathfinding::init_navgrid_3d(
+                world.nav_grid_mut(),
+                ptr as *const u8,
+                width,
+                height,
+                depth,
+                cell_size,
+                origin_x,
+                origin_y,
+                origin_z,
+            )
         }
     }
 
@@ -1566,7 +1576,13 @@ impl Engine {
     /// * `to_x/to_y/to_z`       — World-space goal position.
     ///
     /// # Returns
-    /// Waypoint count (0 if no grid has been uploaded).
+    /// Waypoint count.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `NavGridNotInitialized` when no grid has been uploaded.
+    /// `InvalidPathRequest` when a rounded cell coordinate is not finite or is past
+    /// `MAX_PATH_COORD`. A refusal does not write the path buffer.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_find_path_3d(
         &mut self,
@@ -1576,20 +1592,14 @@ impl Engine {
         to_x: f32,
         to_y: f32,
         to_z: f32,
-    ) -> u32 {
-        if let Some(world) = self.physics3d_world.as_ref() {
-            crate::physics3d::pathfinding::find_path_on_grid(
-                world.nav_grid(),
-                from_x,
-                from_y,
-                from_z,
-                to_x,
-                to_y,
-                to_z,
-            ) as u32
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d()?;
+        crate::physics3d::pathfinding::find_path_checked(
+            world.nav_grid(),
+            (from_x, from_y, from_z),
+            (to_x, to_y, to_z),
+        )
+        .map(|count| count as u32)
     }
 
     /// Returns the WASM linear-memory pointer to the 3D path waypoint buffer.
@@ -2943,8 +2953,17 @@ impl Engine {
 
     /// Find all colliders overlapping a shape, writing entity indices to a WASM memory pointer.
     ///
+    /// `out_ptr` must be the start of a live [`Self::alloc_shared_buffer`] allocation of at
+    /// least `max_results * 4` bytes. The check runs before the output slice is built.
+    ///
     /// # Returns
     /// Number of overlapping entities written to `out_ptr`.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `Core(InvalidSharedBuffer)` when `out_ptr` is null, is not the start of a live shared
+    /// allocation of this engine, or the allocation is shorter than `max_results * 4` bytes.
+    /// A refusal writes nothing.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_overlap_shape(
@@ -2964,28 +2983,20 @@ impl Engine {
         mask: u32,
         out_ptr: u32,
         max_results: u32,
-    ) -> u32 {
-        if let Some(ref world) = self.physics3d_world {
-            world.overlap_shape(
-                pos_x,
-                pos_y,
-                pos_z,
-                rot_x,
-                rot_y,
-                rot_z,
-                rot_w,
-                shape_type,
-                p0,
-                p1,
-                p2,
-                layers,
-                mask,
-                out_ptr as usize,
-                max_results,
-            )
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d()?;
+        self.check_shared_u32_slots(out_ptr as usize, max_results)?;
+        let out_slots = out_ptr as usize as *mut u32;
+        let slot_count = max_results as usize;
+        // SAFETY: `check_shared_u32_slots` just proved that `out_slots` is the start of a live
+        // allocation made by `alloc_shared_buffer` (8-byte aligned, so 4-byte aligned) of at
+        // least `slot_count * 4` bytes, and nothing else in this engine holds a reference into
+        // it. The slice does not outlive this call. [U-013]
+        let out = unsafe { std::slice::from_raw_parts_mut(out_slots, slot_count) };
+        Ok(world.overlap_shape(
+            pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, shape_type, p0, p1, p2, layers, mask,
+            out,
+        ))
     }
 
     /// Project a world-space point onto the nearest collider.
@@ -3023,8 +3034,15 @@ impl Engine {
     /// * `apply_impulses_to_dynamic` — Push dynamic bodies on contact.
     ///
     /// # Returns
-    /// The entity slot index on success, or [`u32::MAX`] if the entity has no body
-    /// or the physics world has not been initialised.
+    /// The compact controller slot. A second call for an entity that already has a controller
+    /// replaces its configuration and returns the same slot.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the entity has no body.
+    /// `CharacterControllerLimitReached` when all slots are taken. The check runs before any
+    /// insert, so a refusal leaves the pool as it was.
+    /// `InvalidCollider` when `skin_width` is NaN or negative, which rapier asserts on.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_character_controller(
@@ -3036,24 +3054,26 @@ impl Engine {
         snap_to_ground: f32,
         slide_on_steep_slopes: bool,
         apply_impulses_to_dynamic: bool,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_character_controller(
-                entity_index,
-                step_height,
-                slope_limit,
-                skin_width,
-                snap_to_ground,
-                slide_on_steep_slopes,
-                apply_impulses_to_dynamic,
-            )
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_character_controller(
+            entity_index,
+            step_height,
+            slope_limit,
+            skin_width,
+            snap_to_ground,
+            slide_on_steep_slopes,
+            apply_impulses_to_dynamic,
+        )
     }
 
     /// Drive a character controller for one frame.
     /// Results are written to the CC SAB buffer; read via [`physics3d_get_cc_sab_ptr`].
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `CharacterControllerNotFound` when the entity has no controller.
+    /// `BodyNotFound` when the controller's body was removed.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_character_controller_move(
         &mut self,
@@ -3062,10 +3082,9 @@ impl Engine {
         vy: f32,
         vz: f32,
         dt: f32,
-    ) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.character_controller_move(entity_index, vx, vy, vz, dt);
-        }
+    ) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.character_controller_move(entity_index, vx, vy, vz, dt)
     }
 
     /// Returns the WASM linear-memory pointer to the CC state buffer.
@@ -3093,11 +3112,17 @@ impl Engine {
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `CharacterControllerNotFound` when the entity has no controller.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_remove_character_controller(&mut self, entity_index: u32) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.remove_character_controller(entity_index);
-        }
+    pub fn physics3d_remove_character_controller(
+        &mut self,
+        entity_index: u32,
+    ) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.remove_character_controller(entity_index)
     }
 
     // ─── Physics 3D — Joints (RFC-08) ─────────────────────────────────────────
@@ -3110,7 +3135,12 @@ impl Engine {
     /// * `bx/by/bz` — Anchor on body B (local space).
     ///
     /// # Returns
-    /// Stable joint ID, or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when either entity has no body. The error names the first one missing,
+    /// `entity_a` before `entity_b`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_fixed_joint(
@@ -3123,12 +3153,9 @@ impl Engine {
         bx: f32,
         by: f32,
         bz: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_fixed_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_fixed_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
     }
 
     /// Attach two bodies with a revolute (hinge) joint.
@@ -3142,7 +3169,12 @@ impl Engine {
     /// * `limit_min` / `limit_max` — Angular limits in radians.
     ///
     /// # Returns
-    /// Stable joint ID, or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when either entity has no body. The error names the first one missing,
+    /// `entity_a` before `entity_b`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_revolute_joint(
@@ -3161,15 +3193,12 @@ impl Engine {
         use_limits: bool,
         limit_min: f32,
         limit_max: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_revolute_joint(
-                entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
-                limit_min, limit_max,
-            )
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_revolute_joint(
+            entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
+            limit_min, limit_max,
+        )
     }
 
     /// Attach two bodies with a prismatic (slider) joint.
@@ -3183,7 +3212,12 @@ impl Engine {
     /// * `limit_min` / `limit_max` — Limits in metres.
     ///
     /// # Returns
-    /// Stable joint ID, or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when either entity has no body. The error names the first one missing,
+    /// `entity_a` before `entity_b`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_prismatic_joint(
@@ -3202,15 +3236,12 @@ impl Engine {
         use_limits: bool,
         limit_min: f32,
         limit_max: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_prismatic_joint(
-                entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
-                limit_min, limit_max,
-            )
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_prismatic_joint(
+            entity_a, entity_b, ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z, use_limits,
+            limit_min, limit_max,
+        )
     }
 
     /// Attach two bodies with a ball (spherical) joint.
@@ -3221,7 +3252,12 @@ impl Engine {
     /// * `bx/by/bz` — Anchor on body B (local space).
     ///
     /// # Returns
-    /// Stable joint ID, or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when either entity has no body. The error names the first one missing,
+    /// `entity_a` before `entity_b`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_ball_joint(
@@ -3234,12 +3270,9 @@ impl Engine {
         bx: f32,
         by: f32,
         bz: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_ball_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_ball_joint(entity_a, entity_b, ax, ay, az, bx, by, bz)
     }
 
     /// Attach two bodies with a spring joint.
@@ -3253,7 +3286,12 @@ impl Engine {
     /// * `damping`     — Damping coefficient (N·s/m).
     ///
     /// # Returns
-    /// Stable joint ID, or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when either entity has no body. The error names the first one missing,
+    /// `entity_a` before `entity_b`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_spring_joint(
@@ -3269,24 +3307,21 @@ impl Engine {
         rest_length: f32,
         stiffness: f32,
         damping: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_spring_joint(
-                entity_a,
-                entity_b,
-                ax,
-                ay,
-                az,
-                bx,
-                by,
-                bz,
-                rest_length,
-                stiffness,
-                damping,
-            )
-        } else {
-            u32::MAX
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_spring_joint(
+            entity_a,
+            entity_b,
+            ax,
+            ay,
+            az,
+            bx,
+            by,
+            bz,
+            rest_length,
+            stiffness,
+            damping,
+        )
     }
 
     /// Remove a joint by its stable ID.
@@ -3295,14 +3330,16 @@ impl Engine {
     /// * `id` — Joint ID returned by `physics3d_add_*_joint`.
     ///
     /// # Returns
-    /// `true` if the joint was found and removed, `false` otherwise.
+    /// `true` once the joint is removed.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `JointNotFound` when no joint is registered for `id`.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_remove_joint(&mut self, id: u32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.remove_joint(id)
-        } else {
-            false
-        }
+    pub fn physics3d_remove_joint(&mut self, id: u32) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.remove_joint(id)?;
+        Ok(true)
     }
 
     /// Set a motor velocity target on a joint's primary axis (AngX).
@@ -3313,19 +3350,21 @@ impl Engine {
     /// * `max_force` — Maximum motor force / torque (N or N·m).
     ///
     /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
+    /// `true` once the motor is set.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `JointNotFound` when no joint is registered for `id`.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_joint_motor_velocity(
         &mut self,
         id: u32,
         velocity: f32,
         max_force: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_joint_motor_velocity(id, velocity, max_force)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.set_joint_motor_velocity(id, velocity, max_force)?;
+        Ok(true)
     }
 
     /// Set a motor position target on a joint's primary axis (AngX).
@@ -3337,7 +3376,11 @@ impl Engine {
     /// * `damping`   — Damping coefficient (N·m·s/rad or N·s/m).
     ///
     /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
+    /// `true` once the motor is set.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `JointNotFound` when no joint is registered for `id`.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_joint_motor_position(
         &mut self,
@@ -3345,12 +3388,10 @@ impl Engine {
         target: f32,
         stiffness: f32,
         damping: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_joint_motor_position(id, target, stiffness, damping)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.set_joint_motor_position(id, target, stiffness, damping)?;
+        Ok(true)
     }
 
     /// Enable or disable a joint.
@@ -3360,14 +3401,20 @@ impl Engine {
     /// * `enabled` — `true` to enable, `false` to disable.
     ///
     /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
+    /// `true` once the joint is updated.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `JointNotFound` when no joint is registered for `id`.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_joint_enabled(&mut self, id: u32, enabled: bool) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_joint_enabled(id, enabled)
-        } else {
-            false
-        }
+    pub fn physics3d_set_joint_enabled(
+        &mut self,
+        id: u32,
+        enabled: bool,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.set_joint_enabled(id, enabled)?;
+        Ok(true)
     }
 
     // ─── Physics 3D — Getters (read-only) ─────────────────────────────────────
@@ -3726,6 +3773,10 @@ impl Engine {
     /// Only available when compiled with `features = ["physics3d"]`.
     ///
     /// See [`crate::bulk_ops_physics3d::physics3d_bulk_sync_from_rapier`] for details.
+    ///
+    /// # Errors
+    /// `Core(BufferLengthMismatch)` when `out_slots` and `out_gens` differ in length. Nothing is
+    /// written.
     #[cfg(feature = "physics3d")]
     #[wasm_bindgen]
     pub fn physics3d_bulk_sync_from_rapier(
@@ -3734,15 +3785,16 @@ impl Engine {
         out_slots: &mut [u32],
         out_gens: &mut [u32],
         out_buf: &mut [u8],
-    ) -> Vec<u32> {
+    ) -> Result<Vec<u32>, Physics3DError> {
         let (count, bytes) = crate::bulk_ops_physics3d::physics3d_bulk_sync_from_rapier(
             self,
             transform_type_id,
             out_slots,
             out_gens,
             out_buf,
-        );
-        vec![count, bytes]
+        )
+        .map_err(Physics3DError::Core)?;
+        Ok(vec![count, bytes])
     }
 
     /// Bulk-sync ECS Transform3D → Rapier3D (7×f32 = 28 bytes per entity).
@@ -3751,6 +3803,10 @@ impl Engine {
     /// Only available when compiled with `features = ["physics3d"]`.
     ///
     /// See [`crate::bulk_ops_physics3d::physics3d_bulk_sync_to_rapier`] for details.
+    ///
+    /// # Errors
+    /// `Core(BufferLengthMismatch)` when `slots`, `gens` and `data` do not agree. Nothing is
+    /// written.
     #[cfg(feature = "physics3d")]
     #[wasm_bindgen]
     pub fn physics3d_bulk_sync_to_rapier(
@@ -3759,14 +3815,15 @@ impl Engine {
         gens: &[u32],
         transform_type_id: u32,
         data: &[u8],
-    ) {
+    ) -> Result<(), Physics3DError> {
         crate::bulk_ops_physics3d::physics3d_bulk_sync_to_rapier(
             self,
             slots,
             gens,
             transform_type_id,
             data,
-        );
+        )
+        .map_err(Physics3DError::Core)
     }
 
     /// Bulk-apply 3D impulses `[fx, fy, fz]` (12 bytes/entity) to physics3D entities.
@@ -3775,6 +3832,10 @@ impl Engine {
     /// Only available when compiled with `features = ["physics3d"]`.
     ///
     /// See [`crate::bulk_ops_physics3d::physics3d_bulk_apply_impulse`] for details.
+    ///
+    /// # Errors
+    /// `Core(BufferLengthMismatch)` when `slots`, `gens` and `impulse_data` do not agree. Nothing
+    /// is written.
     #[cfg(feature = "physics3d")]
     #[wasm_bindgen]
     pub fn physics3d_bulk_apply_impulse(
@@ -3783,14 +3844,15 @@ impl Engine {
         gens: &[u32],
         rigidbody_type_id: u32,
         impulse_data: &[u8],
-    ) {
+    ) -> Result<(), Physics3DError> {
         crate::bulk_ops_physics3d::physics3d_bulk_apply_impulse(
             self,
             slots,
             gens,
             rigidbody_type_id,
             impulse_data,
-        );
+        )
+        .map_err(Physics3DError::Core)
     }
 
     // ─── Bulk entity operations ────────────────────────────────────────────────
@@ -3928,6 +3990,34 @@ impl Engine {
         self.physics3d_world
             .as_ref()
             .ok_or(Physics3DError::WorldNotInitialized)
+    }
+
+    /// Check that `ptr` is the start of a live [`Self::alloc_shared_buffer`] allocation of this
+    /// engine and that the allocation holds at least `count` `u32` slots.
+    ///
+    /// Not a `#[wasm_bindgen]` export: `physics3d_overlap_shape` runs it before it builds the
+    /// output slice. It is `pub` so a native test can drive it with a full-width address, which
+    /// the `u32` argument of the export cannot carry on a 64-bit host.
+    ///
+    /// # Errors
+    /// Returns [`CoreError::InvalidSharedBuffer`] inside [`Physics3DError::Core`]. `len` is 0
+    /// when `ptr` is null, is not the start of a live allocation, was freed, or belongs to
+    /// another engine. `len` is the recorded byte length when the allocation is too short. The
+    /// byte count is computed in `u64`, so `count * 4` cannot overflow.
+    pub fn check_shared_u32_slots(&self, ptr: usize, count: u32) -> Result<(), Physics3DError> {
+        let Some((len, _)) = self.shared_buffers.get(&ptr).copied() else {
+            return Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
+                ptr,
+                len: 0,
+            }));
+        };
+        if u64::from(count) * 4 > len as u64 {
+            return Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
+                ptr,
+                len,
+            }));
+        }
+        Ok(())
     }
 
     /// Mutably borrow the 3D world, or refuse when `physics3d_init` has not run.
@@ -4415,7 +4505,7 @@ mod tests {
         }
     }
 
-    /// The export copies a buffer this test sized. It does not check that length.
+    /// The export copies a buffer this test sized. The dimensions are checked, the address is not.
     #[cfg(feature = "physics3d")]
     #[test]
     fn unsafe_site_u004_export_copies_cells() {
@@ -4425,7 +4515,10 @@ mod tests {
         });
         engine.physics3d_init(0.0, 0.0, 0.0, 4);
         let cells = [9u8, 8, 7, 6, 5, 4, 3, 2, 1];
-        engine.physics3d_init_navgrid_3d(cells.as_ptr() as usize, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(
+            engine.physics3d_init_navgrid_3d(cells.as_ptr() as usize, 3, 1, 3, 1.0, 0.0, 0.0, 0.0),
+            Ok(())
+        );
         let Some(world) = engine.physics3d_world.as_ref() else {
             assert_eq!("", "no physics3d world");
             return;

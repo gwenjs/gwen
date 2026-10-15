@@ -47,7 +47,9 @@ export const Physics3DErrorCodes = {
   NAVGRID_NOT_INITIALIZED: "PHYSICS3D:NAVGRID_NOT_INITIALIZED",
   /** Navigation grid dimensions are zero, overflow, or exceed the cell limit. */
   INVALID_NAVGRID: "PHYSICS3D:INVALID_NAVGRID",
-  /** A collider size, radius or other float is not accepted by the physics engine. */
+  /** A path request has a coordinate that is not finite or lies past the accepted cell bound. */
+  INVALID_PATH_REQUEST: "PHYSICS3D:INVALID_PATH_REQUEST",
+  /** A collider size, radius, character controller skin width or other float is not accepted by the physics engine. */
   INVALID_COLLIDER: "PHYSICS3D:INVALID_COLLIDER",
 } as const;
 
