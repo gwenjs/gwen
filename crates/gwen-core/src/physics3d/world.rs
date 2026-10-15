@@ -315,12 +315,27 @@ const COMPOUND_SHAPE_CAPSULE: u32 = 2;
 
 /// Largest absolute value accepted for a collider coordinate, offset, height, scale or size.
 ///
-/// Measured with `tests/physics3d_collider_probe.rs`: a sphere radius or mesh vertex of `1e20`
-/// reaches `Option::unwrap` on `None` in parry3d-0.17.6 `query/point/point_composite_shape.rs:152`
-/// and an out-of-bounds index in `query/clip/clip_aabb_line.rs:141` during a point projection or
-/// a ray cast, and `1e19` does not. `1e9` keeps three squared terms (`3e18`) far below
-/// `f32::MAX` (`3.4e38`), so distance computations stay finite, and sits ten orders of magnitude
-/// below the first measured panic.
+/// Measured with `tests/physics3d_magnitude_probe.rs` (parry3d-0.17.6):
+///
+/// - A point projection onto a trimesh reaches `Option::unwrap` on `None` in
+///   `query/point/point_composite_shape.rs:152` once the triangles are wide enough that a
+///   squared triangle area overflows `f32`. With corners at `+-m` the first panic sits between
+///   `m = 2e9` and `2.5e9` for a diagonal triangle and between `2e9` and `3e9` for a floor patch;
+///   `1e9` is clean. So the bound sits only a factor of 2 to 3 below the measured edge for a
+///   single huge triangle, not orders of magnitude below it. A mesh with one far vertex
+///   (`1e15`, `1e19`, `1e20` against a 8 m floor patch) did not panic in the same two queries
+///   here; the earlier report of a first panic between `1e19` and `1e20` in
+///   `query/clip/clip_aabb_line.rs:141` was not reproduced by this probe.
+/// - `f32` has a 24-bit mantissa: the gap between neighbouring values is `64` at `1e9` and
+///   `65536` at `1e12`, against `f32::EPSILON` (about `1.2e-7`) at `1.0`. At the bound a
+///   position resolves to 64 metres, which is coarse but finite.
+/// - A ground box with half extents `1e9` and a dynamic ball above it keeps finite body states
+///   and ray hits after 120 steps, and a mesh with corners at `+-1e9` can be stepped and queried
+///   through the exports without a panic. A raw rapier step with a `1e12` ground cuboid also
+///   gives finite positions and no panic (all three are tests in the probe file), so the
+///   step itself is not what sets the bound; the trimesh projection above is.
+///
+/// A tighter bound such as `1e8` would leave a factor of about 25 below the measured edge.
 pub const MAX_COLLIDER_MAGNITUDE: f32 = 1.0e9;
 
 fn invalid_collider(reason: InvalidColliderReason) -> Physics3DError {
@@ -445,6 +460,11 @@ fn trimesh_builder(
     if !vertices_flat.len().is_multiple_of(3) {
         return Err(Physics3DError::InvalidMeshBuffer {
             actual: crate::bindings::bulk_len_u32(vertices_flat.len()),
+        });
+    }
+    if !indices_flat.len().is_multiple_of(3) {
+        return Err(Physics3DError::InvalidMeshBuffer {
+            actual: crate::bindings::bulk_len_u32(indices_flat.len()),
         });
     }
     let vertex_chunks = vertices_flat.as_chunks::<3>().0;
@@ -981,9 +1001,11 @@ impl PhysicsWorld3D {
     /// parameters common to all shape types, then insert it.
     ///
     /// # Errors
-    /// Returns [`Physics3DError::BodyNotFound`] when `entity_index` has no body, and
-    /// [`Physics3DError::InvalidCollider`] when an offset, friction or restitution is refused.
-    /// Nothing is inserted on error.
+    /// Returns [`Physics3DError::BodyNotFound`] when `entity_index` has no body,
+    /// [`Physics3DError::InvalidCollider`] when an offset, friction or restitution is refused, and
+    /// [`Physics3DError::ColliderAlreadyExists`] when `(entity_index, collider_id)` is already
+    /// registered. The id is checked last: the shape builders have already validated their
+    /// values, and nothing is inserted or overwritten on error.
     fn insert_collider(
         &mut self,
         entity_index: u32,
@@ -992,6 +1014,7 @@ impl PhysicsWorld3D {
     ) -> Result<(), Physics3DError> {
         let body_handle = self.require_body(entity_index)?;
         check_collider_params(&params)?;
+        self.require_free_collider_id(entity_index, params.collider_id)?;
 
         let groups = Self::make_interaction_groups(params.layer_bits, params.mask_bits);
         let collider = builder
@@ -1009,6 +1032,27 @@ impl PhysicsWorld3D {
                 .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
         self.collider_handles
             .insert((entity_index, params.collider_id), ch);
+        Ok(())
+    }
+
+    /// Refuse a collider id that is already registered for `entity_index`.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::ColliderAlreadyExists`] when the key is in the registry.
+    fn require_free_collider_id(
+        &self,
+        entity_index: u32,
+        collider_id: u32,
+    ) -> Result<(), Physics3DError> {
+        if self
+            .collider_handles
+            .contains_key(&(entity_index, collider_id))
+        {
+            return Err(Physics3DError::ColliderAlreadyExists {
+                slot: entity_index,
+                collider_id,
+            });
+        }
         Ok(())
     }
 
@@ -1200,8 +1244,9 @@ impl PhysicsWorld3D {
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
     /// [`Physics3DError::InvalidShape`] when `rows` or `cols` is below 2 or `heights_flat` does
     /// not hold exactly `rows * cols` samples (the product is computed with `checked_mul` on
-    /// `u32`, so it cannot wrap on wasm32), and [`Physics3DError::InvalidCollider`] when a
-    /// height, scale or coefficient is refused. The world is unchanged on error.
+    /// `u32`, so it cannot wrap on wasm32), [`Physics3DError::InvalidCollider`] when a
+    /// height, scale or coefficient is refused, and [`Physics3DError::ColliderAlreadyExists`]
+    /// when the id is registered. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_heightfield_collider(
         &mut self,
@@ -1241,7 +1286,8 @@ impl PhysicsWorld3D {
     /// collider is registered under that id, a new one is inserted.
     ///
     /// # Errors
-    /// Same as [`Self::add_heightfield_collider`]. On error the old collider is untouched.
+    /// Same as [`Self::add_heightfield_collider`], except that an id that is already registered is
+    /// replaced by design and never refused. On error the old collider is untouched.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn update_heightfield_collider(
         &mut self,
@@ -1287,15 +1333,16 @@ impl PhysicsWorld3D {
     /// Attach a triangle-mesh collider to a 3D body.
     ///
     /// `vertices_flat` must be a multiple of 3 floats (`[x0,y0,z0, x1,y1,z1, ...]`).
-    /// `indices_flat` is read as triangles (`[a0,b0,c0, ...]`); a trailing partial triangle is
-    /// dropped.
+    /// `indices_flat` is read as triangles (`[a0,b0,c0, ...]`) and must also be a multiple of 3.
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
-    /// [`Physics3DError::InvalidMeshBuffer`] when `vertices_flat` is not a multiple of 3,
-    /// [`Physics3DError::InvalidShape`] when there is no vertex or no whole triangle or an index
-    /// is not below the vertex count, and [`Physics3DError::InvalidCollider`] when a vertex,
-    /// offset or coefficient is refused. The world is unchanged on error.
+    /// [`Physics3DError::InvalidMeshBuffer`] when `vertices_flat` or `indices_flat` is not a
+    /// multiple of 3 (`actual` is the length of the buffer that failed; positions are checked
+    /// first), [`Physics3DError::InvalidShape`] when there is no vertex or no triangle or an index
+    /// is not below the vertex count, [`Physics3DError::InvalidCollider`] when a vertex, offset or
+    /// coefficient is refused, and [`Physics3DError::ColliderAlreadyExists`] when the id is
+    /// registered. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_mesh_collider(
         &mut self,
@@ -1347,7 +1394,8 @@ impl PhysicsWorld3D {
     /// * `mask_bits`      — Collision filter bitmask.
     ///
     /// # Errors
-    /// Same as [`Self::add_mesh_collider`]. On error the old collider is untouched.
+    /// Same as [`Self::add_mesh_collider`], except that an id that is already registered is
+    /// replaced by design and never refused. On error the old collider is untouched.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn rebuild_mesh_collider(
         &mut self,
@@ -1406,9 +1454,10 @@ impl PhysicsWorld3D {
     /// [`Physics3DError::InvalidShape`] with `ConvexTooFewPoints` below 4 points or
     /// `ConvexDegenerate` when parry's `try_convex_hull` rejects the points (collinear, duplicated, or
     /// an extreme aspect ratio such as `1e9` against `1`; coplanar points that parry accepts stay
-    /// accepted), and
+    /// accepted),
     /// [`Physics3DError::InvalidCollider`] when a coordinate, the density, an offset or a
-    /// coefficient is refused. The world is unchanged on error.
+    /// coefficient is refused, and [`Physics3DError::ColliderAlreadyExists`] when the id is
+    /// registered. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_convex_collider(
         &mut self,
@@ -1471,7 +1520,8 @@ impl PhysicsWorld3D {
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
     /// [`Physics3DError::BvhLoadFailed`] with `TooShort`, `BadMagic`, `DecodeFailed` or
-    /// `InvalidMesh`, and [`Physics3DError::InvalidCollider`] for an offset or coefficient.
+    /// `InvalidMesh`, [`Physics3DError::InvalidCollider`] for an offset or coefficient, and
+    /// [`Physics3DError::ColliderAlreadyExists`] when the id is registered.
     /// The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn load_bvh_collider(
@@ -1641,7 +1691,10 @@ impl PhysicsWorld3D {
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
     /// [`Physics3DError::InvalidCompound`] when `shape_data.len()` is not a multiple of 12 or a
     /// part has an unknown shape type, and [`Physics3DError::InvalidCollider`] when a size, offset,
-    /// coefficient or id is refused. Nothing is inserted on error.
+    /// coefficient or id is refused, and [`Physics3DError::ColliderAlreadyExists`] when a part id
+    /// (truncated to `u32`) is already registered for the slot or repeats inside the buffer. Every
+    /// part is checked against the registry and against the earlier parts before the first
+    /// insert, so nothing is inserted on error.
     pub fn add_compound_collider(
         &mut self,
         entity_index: u32,
@@ -1660,6 +1713,17 @@ impl PhysicsWorld3D {
         let mut parts = Vec::with_capacity(shape_data.len() / FLOATS_PER_SHAPE);
         for chunk in shape_data.as_chunks::<FLOATS_PER_SHAPE>().0 {
             parts.push(compound_part(chunk, layer_bits, mask_bits)?);
+        }
+
+        let mut seen = HashSet::with_capacity(parts.len());
+        for (_, params) in &parts {
+            self.require_free_collider_id(entity_index, params.collider_id)?;
+            if !seen.insert(params.collider_id) {
+                return Err(Physics3DError::ColliderAlreadyExists {
+                    slot: entity_index,
+                    collider_id: params.collider_id,
+                });
+            }
         }
 
         let count = u32::try_from(parts.len()).unwrap_or(u32::MAX);

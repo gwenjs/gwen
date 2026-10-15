@@ -33,6 +33,8 @@ export const Physics3DErrorCodes = {
   BUFFER_LENGTH_MISMATCH: "PHYSICS3D:BUFFER_LENGTH_MISMATCH",
   /** No collider is registered for the slot and collider id. */
   COLLIDER_NOT_FOUND: "PHYSICS3D:COLLIDER_NOT_FOUND",
+  /** An add-collider export refused an id that is already registered for the slot. */
+  COLLIDER_ALREADY_EXISTS: "PHYSICS3D:COLLIDER_ALREADY_EXISTS",
   /** Shape data cannot build a collider (heightfield size, mesh index, convex points). */
   INVALID_SHAPE: "PHYSICS3D:INVALID_SHAPE",
   /** No joint is registered for the joint id. */

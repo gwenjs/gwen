@@ -1920,6 +1920,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// INVALID_COLLIDER for a size, offset or coefficient that is not finite, a negative size, or a value above `MAX_COLLIDER_MAGNITUDE`.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -1975,6 +1976,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// INVALID_COLLIDER as for the box.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2030,6 +2032,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// INVALID_COLLIDER as for the box.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2089,6 +2092,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// INVALID_SHAPE for fewer than 2 rows or columns or a sample count that differs from `rows * cols`, and INVALID_COLLIDER.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2202,7 +2206,8 @@ impl Engine {
     /// # Errors
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
-    /// INVALID_MESH_BUFFER when `vertices` is not a multiple of 3, INVALID_SHAPE for an empty mesh or an index past the vertex count, and INVALID_COLLIDER.
+    /// INVALID_MESH_BUFFER when `vertices` or `indices` is not a multiple of 3, INVALID_SHAPE for an empty mesh or an index past the vertex count, and INVALID_COLLIDER.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2321,6 +2326,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// INVALID_SHAPE for fewer than 4 points or a cloud that `try_convex_hull` rejects, and INVALID_COLLIDER.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2381,6 +2387,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
     /// BVH_LOAD_FAILED for a short buffer, a wrong magic, an undecodable payload or an invalid decoded mesh, and INVALID_COLLIDER.
+    /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -2478,6 +2485,7 @@ impl Engine {
     /// Returns [`Physics3DError::WorldNotInitialized`], [`Physics3DError::BodyNotFound`],
     /// `INVALID_COMPOUND` for a length that is not a multiple of 12 or an unknown shape type
     /// (refused, not skipped), and `INVALID_COLLIDER` for a refused size, offset, coefficient or
+    /// COLLIDER_ALREADY_EXISTS when a part id is already registered for the slot or repeats inside the buffer; nothing is inserted.
     /// id. Nothing is inserted on error.
     #[cfg(feature = "physics3d")]
     #[wasm_bindgen]
