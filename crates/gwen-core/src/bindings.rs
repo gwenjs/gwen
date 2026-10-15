@@ -16,7 +16,7 @@ use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
-use crate::transform::{Transform, TransformSystem, TRANSFORM_SAB_TYPE_ID};
+use crate::transform::{Transform, TransformSystem, FLAG_HAS_TRANSFORM, TRANSFORM_SAB_TYPE_ID};
 use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +31,44 @@ use crate::physics3d::{Physics3DError, PhysicsWorld3D};
 use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
+
+/// Two fixed world-pose buffers. `current` is the index last written.
+struct TransformHistory {
+    buffers: [Vec<u8>; 2],
+    current: Option<u32>,
+}
+
+impl TransformHistory {
+    fn new() -> Self {
+        Self {
+            buffers: [Vec::new(), Vec::new()],
+            current: None,
+        }
+    }
+}
+
+/// Byte length of both history buffers, or `None` when the product overflows.
+fn history_pair_bytes(max_entities: u32) -> Option<usize> {
+    let entities = usize::try_from(max_entities).ok()?;
+    entities.checked_mul(2)?.checked_mul(TRANSFORM_STRIDE)
+}
+
+fn write_history_slot(buffer: &mut [u8], index: u32, packed: &[u8; TRANSFORM_STRIDE]) -> bool {
+    let Ok(slot_index) = usize::try_from(index) else {
+        return false;
+    };
+    let Some(offset) = slot_index.checked_mul(TRANSFORM_STRIDE) else {
+        return false;
+    };
+    let Some(end) = offset.checked_add(TRANSFORM_STRIDE) else {
+        return false;
+    };
+    let Some(dest) = buffer.get_mut(offset..end) else {
+        return false;
+    };
+    dest.copy_from_slice(packed);
+    true
+}
 
 fn write_f32(slot: &mut [u8; STRIDE], offset: usize, value: f32) {
     slot[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
@@ -95,6 +133,8 @@ pub struct Engine {
     dirty_transforms: DirtySet,
     /// Hierarchical transform system for managing entity transforms
     transform_system: TransformSystem,
+    /// Two world-pose buffers. Empty until the first history commit.
+    transform_history: TransformHistory,
     /// Live `alloc_shared_buffer` allocations: pointer → (byte length, alignment).
     shared_buffers: HashMap<usize, (usize, usize)>,
     #[cfg(feature = "physics2d")]
@@ -131,6 +171,7 @@ impl Engine {
             next_js_type_id: 0,
             dirty_transforms: DirtySet::new(max_entities),
             transform_system: TransformSystem::new(),
+            transform_history: TransformHistory::new(),
             shared_buffers: HashMap::new(),
             #[cfg(feature = "physics2d")]
             physics_world: None,
@@ -890,6 +931,125 @@ impl Engine {
         self.transform_system.update();
     }
 
+    /// Packs every live transform into the older history buffer.
+    ///
+    /// The first call allocates two zeroed buffers. The byte count is
+    /// `2 * max_entities * 32`, computed with `checked_mul`. When that product
+    /// overflows, or the allocation fails, nothing is stored, the current
+    /// index is left as it was, and the return is `u32::MAX`.
+    /// A successful call returns only `0` or `1`, the buffer just written.
+    /// `u32::MAX` is not a buffer index. The export has no error code: `0` is
+    /// already a successful index, so it cannot also mean failure.
+    ///
+    /// Each slot is 32 bytes: world x, y, rotation, scale x, scale y, flags,
+    /// then 8 zero bytes. Bit 0 means the slot has a live transform. Bit 2
+    /// ([`crate::transform::FLAG_TELEPORT`]) is set for a node created,
+    /// re-parented, or marked since the previous commit, and that mark clears
+    /// once the slot is stored. A slot with no live transform is 32 zero bytes.
+    /// After `delete_entity`, the next commit writes zeros into that slot.
+    ///
+    /// Bit 2 exists only in these two buffers. No plugin module receives their
+    /// address, so the bit is not part of the plugin ABI and the plugin ABI
+    /// number stays unchanged.
+    #[wasm_bindgen]
+    pub fn transform_history_commit(&mut self) -> u32 {
+        let unallocated = self
+            .transform_history
+            .buffers
+            .first()
+            .is_none_or(|buffer| buffer.is_empty());
+        if unallocated {
+            let Some(pair_bytes) = history_pair_bytes(self.entity_manager.max_entities()) else {
+                return u32::MAX;
+            };
+            let Some(one) = pair_bytes.checked_div(2) else {
+                return u32::MAX;
+            };
+            let mut first = Vec::new();
+            let mut second = Vec::new();
+            if first.try_reserve_exact(one).is_err() || second.try_reserve_exact(one).is_err() {
+                return u32::MAX;
+            }
+            if first.capacity() < one || second.capacity() < one {
+                return u32::MAX;
+            }
+            first.resize(one, 0);
+            second.resize(one, 0);
+            self.transform_history.buffers = [first, second];
+        }
+
+        let write_at = match self.transform_history.current {
+            Some(0) => 1u32,
+            _ => 0,
+        };
+        let buffer_index = if write_at == 0 { 0usize } else { 1usize };
+        let filled = self
+            .transform_history
+            .buffers
+            .get_mut(buffer_index)
+            .is_some_and(|buffer| {
+                buffer.fill(0);
+                true
+            });
+        if !filled {
+            return u32::MAX;
+        }
+
+        let max_entities = self.entity_manager.max_entities();
+        for index in 0..max_entities {
+            let generation = self.get_entity_generation(index);
+            if !self.is_alive(index, generation) {
+                continue;
+            }
+            let entity = EntityId::from_parts(index, generation);
+            let mut packed = [0u8; TRANSFORM_STRIDE];
+            if !self.transform_system.pack_history_slot(entity, &mut packed) {
+                continue;
+            }
+            let stored = self
+                .transform_history
+                .buffers
+                .get_mut(buffer_index)
+                .is_some_and(|buffer| write_history_slot(buffer, index, &packed));
+            if stored {
+                self.transform_system.clear_pending_snap(entity);
+            }
+        }
+        self.transform_history.current = Some(write_at);
+        write_at
+    }
+
+    /// Byte address of history buffer `0` or `1`.
+    ///
+    /// Returns `0` before the first successful commit, and when `buffer` is
+    /// greater than 1. The address stays valid until the engine is dropped.
+    /// The buffers are not reallocated after the first successful commit.
+    #[wasm_bindgen]
+    pub fn transform_history_ptr(&self, buffer: u32) -> usize {
+        if buffer > 1 {
+            return 0;
+        }
+        let Ok(index) = usize::try_from(buffer) else {
+            return 0;
+        };
+        let Some(bytes) = self.transform_history.buffers.get(index) else {
+            return 0;
+        };
+        if bytes.is_empty() {
+            return 0;
+        }
+        bytes.as_ptr() as usize
+    }
+
+    /// Marks the transform at `index` so the next history commit sets bit 2.
+    ///
+    /// No transform for the current generation: the call changes nothing.
+    #[wasm_bindgen]
+    pub fn mark_entity_teleport(&mut self, index: u32) {
+        let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        self.transform_system.mark_pending_snap(entity);
+    }
+
     // ─── Shared memory buffers (plugin bridge) ────────────────────────────────
 
     /// Allocates `byte_length` bytes in the WASM linear memory and returns
@@ -1018,7 +1178,7 @@ impl Engine {
                 write_f32(&mut slot, 8, node.world_rotation());
                 write_f32(&mut slot, 12, scale.x);
                 write_f32(&mut slot, 16, scale.y);
-                slot[20..24].copy_from_slice(&1u32.to_le_bytes());
+                slot[20..24].copy_from_slice(&FLAG_HAS_TRANSFORM.to_le_bytes());
             }
             // SAFETY: `ptr` starts a live allocation of `len` bytes and
             // `offset + STRIDE <= needed <= len`, so `slot` fits in that allocation. [U-003]
@@ -1044,13 +1204,30 @@ impl Engine {
 
     #[cfg(feature = "physics2d")]
     pub fn physics_step(&mut self, delta: f32) -> Result<(), Physics2DError> {
-        if let Some(ref mut world) = self.physics_world {
+        let poses = {
+            let Some(world) = self.physics_world.as_mut() else {
+                return Err(Physics2DError::WorldNotInitialized);
+            };
             world.step(delta);
             world.sync_to_storage(&mut self.storage);
-            Ok(())
-        } else {
-            Err(Physics2DError::WorldNotInitialized)
+            world.dynamic_poses()
+        };
+        // The column write above stays. Root nodes also take the pose so a
+        // later history commit can interpolate the body. A child keeps its
+        // parent; only its local pose is updated.
+        for (index, x, y, rotation) in poses {
+            let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+            let Some(node) = self.transform_system.get_transform_mut(entity) else {
+                continue;
+            };
+            let rooted = node.parent().is_none();
+            node.set_position(Vec2::new(x, y));
+            node.set_rotation(rotation);
+            if rooted {
+                node.update_as_root();
+            }
         }
+        Ok(())
     }
 
     #[cfg(feature = "physics2d")]

@@ -441,7 +441,6 @@ fn wasm_deep_chain_and_cycle_do_not_trap() {
     assert!(!engine.has_entity_parent(1));
 }
 
-#[cfg(target_arch = "wasm32")]
 fn history_slot(engine: &Engine, buffer: u32, index: u32) -> [u8; 32] {
     let base = engine.transform_history_ptr(buffer);
     assert_ne!(base, 0);

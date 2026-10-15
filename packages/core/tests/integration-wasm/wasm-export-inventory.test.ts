@@ -78,6 +78,9 @@ const ENGINE: Record<string, ExportRow> = {
   ),
   has_entity_parent: infallible("HashMap get, then unwrap_or(false) at bindings.rs:877-882"),
   is_alive: infallible("an index past records returns false at entity.rs:121-122"),
+  mark_entity_teleport: infallible(
+    "get_entity_generation then mark_pending_snap at bindings.rs:1048-1050; a missing node is a no-op at transform.rs:417-420",
+  ),
   query_entities: infallible(
     "an unknown type id is skipped by bit_index at query.rs:26-28; archetype ids come from the graph list at storage.rs:360-365",
   ),
@@ -108,6 +111,12 @@ const ENGINE: Record<string, ExportRow> = {
   sync_transforms_to_buffer: result(),
   translate_entity: infallible(
     "a missing transform is None and the call returns at bindings.rs:780-785; the f32 add does not trap",
+  ),
+  transform_history_commit: infallible(
+    "history_pair_bytes uses checked_mul at bindings.rs:51-53; try_reserve_exact failure returns u32::MAX and does not flip at bindings.rs:970-971; a dead entity is skipped by is_alive at bindings.rs:1001-1002; pack_history_slot writes the slot at bindings.rs:1006",
+  ),
+  transform_history_ptr: infallible(
+    "buffer greater than 1 or an empty buffer returns 0 at bindings.rs:1029-1039; a stored buffer returns as_ptr cast to usize at bindings.rs:1041",
   ),
   update_entity_archetype: infallible(
     "both parameters are unused; the body is empty at bindings.rs:590-592",
