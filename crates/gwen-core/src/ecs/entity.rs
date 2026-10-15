@@ -172,6 +172,23 @@ impl EntityManager {
         }
     }
 
+    /// `max_entities` is `limit` and the record buffer is empty.
+    ///
+    /// `Engine::new` rejects a limit past `MAX_ENTITIES_LIMIT`, so the history
+    /// overflow test cannot construct that engine. This builds the same manager
+    /// shape without reserving one record per entity.
+    #[cfg(all(test, target_arch = "wasm32"))]
+    pub(crate) fn with_unreserved_limit(limit: u32) -> Self {
+        Self {
+            allocator: EntityAllocator {
+                records: Vec::new(),
+                free_list: Vec::new(),
+                num_live: 0,
+                max_entities: limit,
+            },
+        }
+    }
+
     /// Create a new entity.
     ///
     /// # Errors
