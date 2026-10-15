@@ -130,6 +130,43 @@ fn collider_not_found_code_message_and_equality() -> TestResult {
 }
 
 #[test]
+fn collider_already_exists_code_message_and_equality() -> TestResult {
+    let err = Physics3DError::ColliderAlreadyExists {
+        slot: 2,
+        collider_id: 5,
+    };
+    assert_eq!(err.code(), "PHYSICS3D:COLLIDER_ALREADY_EXISTS");
+    assert_eq!(
+        err.to_string(),
+        "a collider 5 is already registered for slot 2"
+    );
+    assert_eq!(
+        err,
+        Physics3DError::ColliderAlreadyExists {
+            slot: 2,
+            collider_id: 5
+        }
+    );
+    assert_ne!(
+        err,
+        Physics3DError::ColliderAlreadyExists {
+            slot: 2,
+            collider_id: 6
+        }
+    );
+    assert_ne!(
+        err,
+        Physics3DError::ColliderNotFound {
+            slot: 2,
+            collider_id: 5
+        }
+    );
+    let message = message_via_std(err)?;
+    assert_eq!(message, "a collider 5 is already registered for slot 2");
+    Ok(())
+}
+
+#[test]
 fn invalid_shape_trimesh_code_message_and_equality() -> TestResult {
     let err = Physics3DError::InvalidShape {
         reason: InvalidShapeReason::TrimeshIndexOutOfRange,
@@ -517,41 +554,11 @@ fn invalid_collider_non_finite_code_message_and_equality() -> TestResult {
     assert_ne!(
         err,
         Physics3DError::InvalidCollider {
-            reason: InvalidColliderReason::NotPositive
-        }
-    );
-    let message = message_via_std(err)?;
-    assert_eq!(message, "collider refused: a value is not finite");
-    Ok(())
-}
-
-#[test]
-fn invalid_collider_not_positive_code_message_and_equality() -> TestResult {
-    let err = Physics3DError::InvalidCollider {
-        reason: InvalidColliderReason::NotPositive,
-    };
-    assert_eq!(err.code(), "PHYSICS3D:INVALID_COLLIDER");
-    assert_eq!(
-        err.to_string(),
-        "collider refused: a size must be greater than zero"
-    );
-    assert_eq!(
-        err,
-        Physics3DError::InvalidCollider {
-            reason: InvalidColliderReason::NotPositive
-        }
-    );
-    assert_ne!(
-        err,
-        Physics3DError::InvalidCollider {
             reason: InvalidColliderReason::Negative
         }
     );
     let message = message_via_std(err)?;
-    assert_eq!(
-        message,
-        "collider refused: a size must be greater than zero"
-    );
+    assert_eq!(message, "collider refused: a value is not finite");
     Ok(())
 }
 

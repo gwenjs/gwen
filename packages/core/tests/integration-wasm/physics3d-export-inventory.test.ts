@@ -205,6 +205,7 @@ describe("physics3d export inventory", () => {
     expect(Physics3DErrorCodes.INVALID_BODY_KIND).toBe("PHYSICS3D:INVALID_BODY_KIND");
     expect(Physics3DErrorCodes.BUFFER_LENGTH_MISMATCH).toBe("PHYSICS3D:BUFFER_LENGTH_MISMATCH");
     expect(Physics3DErrorCodes.COLLIDER_NOT_FOUND).toBe("PHYSICS3D:COLLIDER_NOT_FOUND");
+    expect(Physics3DErrorCodes.COLLIDER_ALREADY_EXISTS).toBe("PHYSICS3D:COLLIDER_ALREADY_EXISTS");
     expect(Physics3DErrorCodes.INVALID_SHAPE).toBe("PHYSICS3D:INVALID_SHAPE");
     expect(Physics3DErrorCodes.JOINT_NOT_FOUND).toBe("PHYSICS3D:JOINT_NOT_FOUND");
     expect(Physics3DErrorCodes.CHARACTER_CONTROLLER_NOT_FOUND).toBe(

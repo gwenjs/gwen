@@ -798,8 +798,7 @@ fn mesh_without_vertices_or_triangles_is_refused() -> Outcome {
     refused(no_setup, empty, |e| mesh(e, &QUAD, &[]))?;
     refused(no_setup, empty, |e| mesh(e, &[], &QUAD_IDX))?;
     refused(no_setup, empty, |e| mesh(e, &[], &[]))?;
-    // A partial triangle is dropped, which leaves no triangle.
-    refused(no_setup, empty, |e| mesh(e, &QUAD, &[0, 1]))
+    Ok(())
 }
 
 #[test]
@@ -1268,6 +1267,323 @@ fn bulk_step_kinematic_rotations_returns_the_count() -> Outcome {
     assert_eq!(
         e.physics3d_bulk_step_kinematic_rotations(&[], &[], &[], &[], 0.5),
         Ok(0)
+    );
+    Ok(())
+}
+
+// ── INVALID_MESH_BUFFER: indices ─────────────────────────────────────────────
+
+#[test]
+fn mesh_indices_length_not_a_multiple_of_three_is_refused() -> Outcome {
+    for len in [1usize, 2, 4, 5, 7] {
+        let mut indices = vec![0u32; len];
+        indices
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, v)| *v = (i % 3) as u32);
+        refused(
+            no_setup,
+            Physics3DError::InvalidMeshBuffer { actual: len as u32 },
+            |e| mesh(e, &QUAD, &indices),
+        )?;
+    }
+    // A whole triangle followed by a stray index used to be accepted.
+    refused(
+        no_setup,
+        Physics3DError::InvalidMeshBuffer { actual: 4 },
+        |e| mesh(e, &QUAD, &[0, 1, 2, 3]),
+    )
+}
+
+#[test]
+fn mesh_positions_length_is_reported_before_the_indices_length() -> Outcome {
+    refused(
+        no_setup,
+        Physics3DError::InvalidMeshBuffer { actual: 5 },
+        |e| mesh(e, &[0.0; 5], &[0, 1, 2, 3]),
+    )
+}
+
+#[test]
+fn rebuild_mesh_with_indices_not_a_multiple_of_three_keeps_the_old_collider() -> Outcome {
+    refused(
+        mesh_floor,
+        Physics3DError::InvalidMeshBuffer { actual: 4 },
+        |e| {
+            ok(e.physics3d_rebuild_mesh_collider(
+                5,
+                7,
+                &QUAD,
+                &[0, 1, 2, 3],
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                ALL,
+                ALL,
+            ))
+        },
+    )?;
+    // The old floor still holds the ball: it is still registered under id 7.
+    let mut e = scene()?;
+    mesh_floor(&mut e)?;
+    let refusal = e.physics3d_rebuild_mesh_collider(
+        5,
+        7,
+        &QUAD,
+        &[0, 1, 2, 3],
+        0.0,
+        0.0,
+        0.0,
+        false,
+        0.5,
+        0.0,
+        ALL,
+        ALL,
+    );
+    assert_eq!(
+        refusal,
+        Err(Physics3DError::InvalidMeshBuffer { actual: 4 })
+    );
+    assert_eq!(e.physics3d_remove_collider(5, 7), Ok(true));
+    Ok(())
+}
+
+// ── COLLIDER_ALREADY_EXISTS ──────────────────────────────────────────────────
+
+fn already_exists() -> Physics3DError {
+    Physics3DError::ColliderAlreadyExists {
+        slot: 5,
+        collider_id: 7,
+    }
+}
+
+/// Slot 5 holds a fixed box floor (collider 7) with a dynamic ball (slot 6) above it.
+fn box_floor(e: &mut Engine) -> Outcome {
+    e.physics3d_add_body(5, 30.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0)?;
+    e.physics3d_add_box_collider(
+        5, 8.0, 0.5, 8.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+    )?;
+    e.physics3d_add_body(6, 30.0, 4.0, 0.0, 1, 1.0, 0.0, 0.0)?;
+    e.physics3d_add_sphere_collider(6, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 8)?;
+    Ok(())
+}
+
+/// Runs `op` on a world built by `setup`. It must return `expected`, leave the world bit for bit
+/// as a twin that never saw it, and leave the first collider registered under its id: removing
+/// that id on both worlds must still give identical simulations.
+fn duplicate_refused(
+    setup: fn(&mut Engine) -> Outcome,
+    expected: Physics3DError,
+    op: impl Fn(&mut Engine) -> Outcome,
+) -> Outcome {
+    refused(setup, expected, &op)?;
+    let mut touched = scene()?;
+    setup(&mut touched)?;
+    let mut untouched = scene()?;
+    setup(&mut untouched)?;
+    assert_eq!(op(&mut touched), Err(expected));
+    assert_eq!(touched.physics3d_remove_collider(5, 7), Ok(true));
+    assert_eq!(untouched.physics3d_remove_collider(5, 7), Ok(true));
+    assert_eq!(fingerprint(&mut touched)?, fingerprint(&mut untouched)?);
+    Ok(())
+}
+
+#[test]
+fn add_box_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(box_floor, already_exists(), |e| {
+        ok(e.physics3d_add_box_collider(
+            5, 3.0, 3.0, 3.0, 0.0, 4.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn add_sphere_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(box_floor, already_exists(), |e| {
+        ok(e.physics3d_add_sphere_collider(5, 3.0, 0.0, 4.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7))
+    })
+}
+
+#[test]
+fn add_capsule_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(box_floor, already_exists(), |e| {
+        ok(e.physics3d_add_capsule_collider(
+            5, 3.0, 3.0, 0.0, 4.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn add_convex_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(box_floor, already_exists(), |e| {
+        ok(e.physics3d_add_convex_collider(
+            5, &TETRA, 0.0, 4.0, 0.0, false, 0.5, 0.0, 1.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn add_heightfield_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(heightfield_floor, already_exists(), |e| {
+        ok(e.physics3d_add_heightfield_collider(
+            5, &FLAT_3X3, 3, 3, 40.0, 1.0, 40.0, 0.5, 0.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn add_mesh_collider_on_a_registered_id_is_refused() -> Outcome {
+    duplicate_refused(mesh_floor, already_exists(), |e| {
+        ok(e.physics3d_add_mesh_collider(
+            5, &QUAD, &QUAD_IDX, 0.0, 2.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn load_bvh_collider_on_a_registered_id_is_refused() -> Outcome {
+    let bytes = bvh_bytes(&QUAD, &QUAD_IDX);
+    duplicate_refused(box_floor, already_exists(), |e| {
+        ok(e.physics3d_load_bvh_collider(5, &bytes, 0.0, 2.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7))
+    })
+}
+
+#[test]
+fn add_compound_collider_with_a_registered_id_inserts_nothing() -> Outcome {
+    // The first part has a free id and must not survive the refusal of the second.
+    let data = [part(0.0, [3.0; 3], 3.0), part(1.0, [3.0, 0.0, 0.0], 7.0)].concat();
+    duplicate_refused(box_floor, already_exists(), |e| {
+        e.physics3d_add_compound_collider(5, &data, ALL, ALL)
+            .map(|_| ())
+    })?;
+    let mut e = scene()?;
+    box_floor(&mut e)?;
+    e.physics3d_add_compound_collider(5, &data, ALL, ALL).ok();
+    assert_eq!(
+        e.physics3d_remove_collider(5, 3),
+        Err(Physics3DError::ColliderNotFound {
+            slot: 5,
+            collider_id: 3
+        })
+    );
+    Ok(())
+}
+
+#[test]
+fn add_compound_collider_with_a_repeated_id_inserts_nothing() -> Outcome {
+    let repeated = Physics3DError::ColliderAlreadyExists {
+        slot: 5,
+        collider_id: 3,
+    };
+    // Ids 3 and 4 are free; the third part repeats 3, and 3.5 truncates to 3 as well.
+    for data in [
+        [
+            part(0.0, [3.0; 3], 3.0),
+            part(1.0, [3.0, 0.0, 0.0], 4.0),
+            part(0.0, [3.0; 3], 3.0),
+        ]
+        .concat(),
+        [part(0.0, [3.0; 3], 3.0), part(1.0, [3.0, 0.0, 0.0], 3.5)].concat(),
+    ] {
+        refused(box_floor, repeated, |e| {
+            e.physics3d_add_compound_collider(5, &data, ALL, ALL)
+                .map(|_| ())
+        })?;
+        let mut e = scene()?;
+        box_floor(&mut e)?;
+        assert_eq!(
+            e.physics3d_add_compound_collider(5, &data, ALL, ALL),
+            Err(repeated)
+        );
+        for id in [3, 4] {
+            assert_eq!(
+                e.physics3d_remove_collider(5, id),
+                Err(Physics3DError::ColliderNotFound {
+                    slot: 5,
+                    collider_id: id
+                })
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn a_value_error_is_reported_before_a_registered_id() -> Outcome {
+    refused(
+        box_floor,
+        invalid_collider(InvalidColliderReason::NonFinite),
+        |e| {
+            ok(e.physics3d_add_box_collider(
+                5, NAN, 3.0, 3.0, 0.0, 4.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+            ))
+        },
+    )
+}
+
+#[test]
+fn a_missing_body_is_reported_before_a_registered_id() -> Outcome {
+    refused(box_floor, Physics3DError::BodyNotFound { slot: 77 }, |e| {
+        ok(e.physics3d_add_box_collider(
+            77, 3.0, 3.0, 3.0, 0.0, 4.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7,
+        ))
+    })
+}
+
+#[test]
+fn the_same_id_on_another_slot_and_a_removed_id_are_accepted() -> Outcome {
+    let mut e = scene()?;
+    box_floor(&mut e)?;
+    // Slot 6 has no collider 7.
+    assert_eq!(
+        e.physics3d_add_box_collider(6, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7),
+        Ok(true)
+    );
+    // Once removed, slot 5 can take id 7 again.
+    assert_eq!(e.physics3d_remove_collider(5, 7), Ok(true));
+    assert_eq!(
+        e.physics3d_add_sphere_collider(5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 7),
+        Ok(true)
+    );
+    Ok(())
+}
+
+#[test]
+fn update_heightfield_and_rebuild_mesh_still_replace_an_existing_id() -> Outcome {
+    let mut hf_world = scene()?;
+    heightfield_floor(&mut hf_world)?;
+    assert_eq!(
+        hf_world.physics3d_update_heightfield_collider(
+            5, 7, &FLAT_3X3, 3, 3, 40.0, 1.0, 40.0, 0.5, 0.0, ALL, ALL
+        ),
+        Ok(true)
+    );
+    assert_eq!(hf_world.physics3d_remove_collider(5, 7), Ok(true));
+    assert_eq!(
+        hf_world.physics3d_remove_collider(5, 7),
+        Err(Physics3DError::ColliderNotFound {
+            slot: 5,
+            collider_id: 7
+        })
+    );
+    let mut mesh_world = scene()?;
+    mesh_floor(&mut mesh_world)?;
+    assert_eq!(
+        mesh_world.physics3d_rebuild_mesh_collider(
+            5, 7, &QUAD, &QUAD_IDX, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL
+        ),
+        Ok(true)
+    );
+    assert_eq!(mesh_world.physics3d_remove_collider(5, 7), Ok(true));
+    assert_eq!(
+        mesh_world.physics3d_remove_collider(5, 7),
+        Err(Physics3DError::ColliderNotFound {
+            slot: 5,
+            collider_id: 7
+        })
     );
     Ok(())
 }
