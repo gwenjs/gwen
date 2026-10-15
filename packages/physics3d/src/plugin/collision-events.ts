@@ -6,6 +6,7 @@ import type { InternalCollisionEvent3D } from "./bridge";
 import { EVENT_STRIDE_3D, MAX_EVENTS_3D, COLLIDER_ID_ABSENT } from "./constants";
 import { computeColliderAABB, aabbOverlap } from "./physics3d-utils";
 import type { PluginContext } from "./plugin-context";
+import { mapPhysics3DError } from "./wasm-errors";
 
 // ─── AABB collision detection (local mode) ────────────────────────────────────
 
@@ -170,7 +171,12 @@ export function readWasmCollisionEvents(ctx: PluginContext): InternalCollisionEv
     }
   }
 
-  pb.physics3d_consume_events?.();
+  // Per-frame call: `try` here, no closure. A rejected consume leaves the update hook.
+  try {
+    pb.physics3d_consume_events?.();
+  } catch (err: unknown) {
+    throw mapPhysics3DError(ctx, err, "physics3d_consume_events");
+  }
   ctx.lastFrameEventCount = count;
   return ctx.pooledEvents;
 }

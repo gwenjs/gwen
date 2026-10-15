@@ -13,10 +13,13 @@ import type {
 import { guardOwned, ownedSlot } from "./entity-owner";
 import { entityIndexToId } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
+import { callPhysics3DExport, mapPhysics3DError } from "./wasm-errors";
 
 /**
  * Returns a {@link CharacterControllerHandle} whose `move()` is a no-op and
- * all state properties return safe defaults.
+ * all state properties return safe defaults. Used when the entity owns no body
+ * (the TypeScript registry check, before any WASM call) or the export is absent.
+ * A full controller pool is not this case: it throws.
  */
 function createInertCharacterControllerHandle(): CharacterControllerHandle {
   const zero: Physics3DVec3 = { x: 0, y: 0, z: 0 };
@@ -77,8 +80,14 @@ export function createCharacterControllerMethods(
       const entityIndex = owned.slot;
 
       if (ctx.backendMode === "wasm") {
-        const slotIndex =
-          ctx.wasmBridge?.physics3d_add_character_controller?.(
+        const bridge = ctx.wasmBridge;
+        if (bridge === null || bridge.physics3d_add_character_controller === undefined) {
+          return createInertCharacterControllerHandle();
+        }
+        // A full pool throws PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED. Rust checks
+        // before it inserts, so the pool is unchanged and nothing is registered here.
+        const slotIndex = callPhysics3DExport(ctx, "physics3d_add_character_controller", () =>
+          bridge.physics3d_add_character_controller!(
             entityIndex,
             stepHeight,
             slopeLimit,
@@ -86,14 +95,8 @@ export function createCharacterControllerMethods(
             snapToGround,
             slideOnSteepSlopes,
             applyImpulsesToDynamic,
-          ) ?? 0xffffffff;
-
-        if (slotIndex === 0xffffffff) {
-          if (__GWEN_DEV__) {
-            ctx.log.warn("addCharacterController: CC pool exhausted (max 32 controllers)");
-          }
-          return createInertCharacterControllerHandle();
-        }
+          ),
+        );
         ctx.ccRegistrations.set(entityIndex, { slotIndex, entityIndex });
 
         const descBuf = ctx.ccDescriptorBuffer;
@@ -134,13 +137,21 @@ export function createCharacterControllerMethods(
               descBuf.view[di + 2] = desiredVelocity.y;
               descBuf.view[di + 3] = desiredVelocity.z;
             }
-            ctx.wasmBridge?.physics3d_character_controller_move?.(
-              entityIndex,
-              desiredVelocity.x,
-              desiredVelocity.y,
-              desiredVelocity.z,
-              dt,
-            );
+            // Per-frame call: `try` here, no closure. A controller that was removed is
+            // skipped, as before; a registered one that Rust rejects throws.
+            if (ctx.ccRegistrations.get(entityIndex)?.slotIndex === slotIndex) {
+              try {
+                ctx.wasmBridge?.physics3d_character_controller_move?.(
+                  entityIndex,
+                  desiredVelocity.x,
+                  desiredVelocity.y,
+                  desiredVelocity.z,
+                  dt,
+                );
+              } catch (err: unknown) {
+                throw mapPhysics3DError(ctx, err, "physics3d_character_controller_move");
+              }
+            }
             const view = ctx.ccState === null ? null : ctx.ccState.array;
             if (view !== null) {
               const base = slotIndex * ctx.CC_STATE_STRIDE;
@@ -211,10 +222,15 @@ export function createCharacterControllerMethods(
       const owned = ownedSlot(ctx, entityId);
       if (!owned) return;
       const entityIndex = owned.slot;
-      ctx.ccRegistrations.delete(entityIndex);
+      // Idempotent through the registry: a second remove, or a body without a controller,
+      // is a no-op and never reaches Rust, which would answer CHARACTER_CONTROLLER_NOT_FOUND.
+      if (!ctx.ccRegistrations.has(entityIndex)) return;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge?.physics3d_remove_character_controller?.(entityIndex);
+        callPhysics3DExport(ctx, "physics3d_remove_character_controller", () =>
+          ctx.wasmBridge?.physics3d_remove_character_controller?.(entityIndex),
+        );
       }
+      ctx.ccRegistrations.delete(entityIndex);
     },
   };
 }

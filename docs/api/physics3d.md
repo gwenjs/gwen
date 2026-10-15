@@ -321,6 +321,48 @@ const hit = physics.castRay(
 const isGrounded = hit !== null
 ```
 
+## Errors
+
+A rejected `@gwenjs/physics3d` WASM call throws a `GwenWasmError`. `code` starts with `PHYSICS3D:` and `exportName` is the WASM export. `cause` is the original error. A trap throws `GwenWasmPanicError` and poisons the bridge. These errors are not emitted on the [error bus](/advanced/error-bus).
+
+```ts
+import { GwenWasmError } from '@gwenjs/core'
+
+try {
+  physics.addRevoluteJoint({ bodyA, bodyB })
+} catch (err) {
+  if (err instanceof GwenWasmError && err.code === 'PHYSICS3D:INVALID_JOINT') {
+    // A joint value was NaN or infinite
+  }
+}
+```
+
+| Code | Raised when |
+|---|---|
+| `NOT_INITIALIZED` | An export touches the world before it is initialized |
+| `BODY_NOT_FOUND` | No rigid body is registered for the slot |
+| `BODY_ALREADY_EXISTS` | The slot already has a body. The first body is kept |
+| `INVALID_BODY_KIND` | Body kind is not 0 (fixed), 1 (dynamic) or 2 (kinematic) |
+| `BUFFER_LENGTH_MISMATCH` | Parallel buffers of a bulk call differ in length |
+| `COLLIDER_NOT_FOUND` | No collider is registered for the slot and collider id |
+| `COLLIDER_ALREADY_EXISTS` | The collider id is already registered for the slot |
+| `INVALID_SHAPE` | Shape data cannot build a collider (mesh index out of range, heightfield too small or wrong sample count, convex hull with fewer than 4 points or degenerate) |
+| `INVALID_MESH_BUFFER` | A mesh positions or indices length is not a multiple of 3 |
+| `INVALID_COMPOUND` | A compound buffer length is not a multiple of 12, or a part has an unknown shape |
+| `BVH_LOAD_FAILED` | A baked BVH is too short, has a bad header, or does not decode to a valid mesh |
+| `INVALID_COLLIDER` | A size, radius, offset, density or skin width is NaN, infinite, negative or too large |
+| `JOINT_NOT_FOUND` | No joint is registered for the joint id |
+| `INVALID_JOINT` | A joint anchor, axis, spring value, motor value or limit is NaN or infinite |
+| `CHARACTER_CONTROLLER_NOT_FOUND` | No character controller is registered for the slot |
+| `CHARACTER_CONTROLLER_LIMIT_REACHED` | All 32 character controller slots are in use |
+| `NAVGRID_NOT_INITIALIZED` | A path query ran before the navigation grid was uploaded |
+| `INVALID_NAVGRID` | A grid dimension is zero, the cell count overflows, or the grid is above 64 cubed |
+| `INVALID_PATH_REQUEST` | A path coordinate is not finite or is past the accepted bound |
+
+`findPath3D` is the one exception: with no navigation grid uploaded it returns an empty array instead of throwing `NAVGRID_NOT_INITIALIZED`.
+
+A bulk read whose output pointer is not a live shared buffer throws `CORE:INVALID_SHARED_BUFFER`.
+
 ## Vite Integration
 
 ### physics3dVitePlugin(options?)

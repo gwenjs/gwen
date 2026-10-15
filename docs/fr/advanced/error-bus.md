@@ -9,6 +9,8 @@ Le bus d'erreurs de GWEN fournit un moyen structuré pour le moteur, les plugins
 
 Un appel physics2d que vous faites vous-même lève un `GwenWasmError`. `code` est `PHYSICS2D:*` et `exportName` est l'export WASM. Attrapez cet appel.
 
+Un appel physics3d que vous faites vous-même fait de même : il lève un `GwenWasmError` avec un `code` `PHYSICS3D:*`. Voir [Erreurs](/fr/api/physics3d#erreurs).
+
 `physics_step` tourne dans `engine:before-update`. Un pas refusé est isolé : la frame continue, et `engine.errors` reçoit une erreur de hook. Le `code` de l'événement est `CORE:FRAME_LOOP_ERROR` et `error` est le `GwenWasmError`.
 
 Un piège lève `GwenWasmPanicError` et empoisonne le pont. Le `code` sur le bus est `CORE:WASM_PANIC`.

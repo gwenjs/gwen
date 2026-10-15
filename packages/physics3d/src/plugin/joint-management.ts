@@ -23,6 +23,8 @@ import {
   makeJointHandle,
 } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
+import { Physics3DErrorCodes } from "../errors/codes";
+import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 
 /** Both ends must own their slots. A dead id throws. An unowned live id yields null. */
 function jointEnds(
@@ -35,6 +37,23 @@ function jointEnds(
   const b = guardOwned(ctx, bodyB, operation);
   if (!a || !b) return null;
   return { slotA: a.slot, slotB: b.slot };
+}
+
+/**
+ * Create one joint in Rust. An absent export is the local-mode answer (warning, dummy joint).
+ * A rejected call throws `GwenWasmError`; there is no sentinel id.
+ */
+function wasmJointHandle(
+  ctx: PluginContext,
+  exportName: string,
+  create: () => number | undefined,
+): JointHandle3D {
+  const id = callPhysics3DExport(ctx, exportName, create);
+  if (id === undefined) {
+    emitLocalJointWarning(ctx.log);
+    return makeDummyJoint();
+  }
+  return makeJointHandle(id);
 }
 
 export function createJointMethods(
@@ -63,7 +82,8 @@ export function createJointMethods(
       const b = opts.anchorB ?? {};
 
       if (ctx.backendMode === "wasm") {
-        const id =
+        // Rust rejects a missing body or a non-finite value: the typed error propagates.
+        return wasmJointHandle(ctx, "physics3d_add_fixed_joint", () =>
           ctx.wasmBridge!.physics3d_add_fixed_joint?.(
             slotA,
             slotB,
@@ -73,12 +93,8 @@ export function createJointMethods(
             b.x ?? 0,
             b.y ?? 0,
             b.z ?? 0,
-          ) ?? 0xffffffff;
-        if (id === 0xffffffff) {
-          emitLocalJointWarning(ctx.log);
-          return makeDummyJoint();
-        }
-        return makeJointHandle(id);
+          ),
+        );
       }
 
       emitLocalJointWarning(ctx.log);
@@ -100,7 +116,8 @@ export function createJointMethods(
       const limitMax = opts.limits?.[1] ?? 0;
 
       if (ctx.backendMode === "wasm") {
-        const id =
+        // Rust rejects a missing body or a non-finite value: the typed error propagates.
+        return wasmJointHandle(ctx, "physics3d_add_revolute_joint", () =>
           ctx.wasmBridge!.physics3d_add_revolute_joint?.(
             slotA,
             slotB,
@@ -116,12 +133,8 @@ export function createJointMethods(
             useLimits,
             limitMin,
             limitMax,
-          ) ?? 0xffffffff;
-        if (id === 0xffffffff) {
-          emitLocalJointWarning(ctx.log);
-          return makeDummyJoint();
-        }
-        return makeJointHandle(id);
+          ),
+        );
       }
 
       emitLocalJointWarning(ctx.log);
@@ -143,7 +156,8 @@ export function createJointMethods(
       const limitMax = opts.limits?.[1] ?? 0;
 
       if (ctx.backendMode === "wasm") {
-        const id =
+        // Rust rejects a missing body or a non-finite value: the typed error propagates.
+        return wasmJointHandle(ctx, "physics3d_add_prismatic_joint", () =>
           ctx.wasmBridge!.physics3d_add_prismatic_joint?.(
             slotA,
             slotB,
@@ -159,12 +173,8 @@ export function createJointMethods(
             useLimits,
             limitMin,
             limitMax,
-          ) ?? 0xffffffff;
-        if (id === 0xffffffff) {
-          emitLocalJointWarning(ctx.log);
-          return makeDummyJoint();
-        }
-        return makeJointHandle(id);
+          ),
+        );
       }
 
       emitLocalJointWarning(ctx.log);
@@ -184,7 +194,8 @@ export function createJointMethods(
       const coneAngle = opts.coneAngle ?? 0;
 
       if (ctx.backendMode === "wasm") {
-        const id =
+        // Rust rejects a missing body or a non-finite value: the typed error propagates.
+        return wasmJointHandle(ctx, "physics3d_add_ball_joint", () =>
           ctx.wasmBridge!.physics3d_add_ball_joint?.(
             slotA,
             slotB,
@@ -196,12 +207,8 @@ export function createJointMethods(
             b.z ?? 0,
             useConeLimit,
             coneAngle,
-          ) ?? 0xffffffff;
-        if (id === 0xffffffff) {
-          emitLocalJointWarning(ctx.log);
-          return makeDummyJoint();
-        }
-        return makeJointHandle(id);
+          ),
+        );
       }
 
       emitLocalJointWarning(ctx.log);
@@ -219,7 +226,8 @@ export function createJointMethods(
       const b = opts.anchorB ?? {};
 
       if (ctx.backendMode === "wasm") {
-        const id =
+        // Rust rejects a missing body or a non-finite value: the typed error propagates.
+        return wasmJointHandle(ctx, "physics3d_add_spring_joint", () =>
           ctx.wasmBridge!.physics3d_add_spring_joint?.(
             slotA,
             slotB,
@@ -232,12 +240,8 @@ export function createJointMethods(
             opts.restLength,
             opts.stiffness,
             opts.damping,
-          ) ?? 0xffffffff;
-        if (id === 0xffffffff) {
-          emitLocalJointWarning(ctx.log);
-          return makeDummyJoint();
-        }
-        return makeJointHandle(id);
+          ),
+        );
       }
 
       emitLocalJointWarning(ctx.log);
@@ -246,27 +250,42 @@ export function createJointMethods(
 
     removeJoint(id: JointId): void {
       if (ctx.backendMode !== "wasm") return;
-      ctx.wasmBridge!.physics3d_remove_joint?.(id as number);
+      // Idempotent. Rust removes a joint together with either of its bodies, so a TypeScript
+      // id registry would go stale. A joint that is already gone satisfies the call.
+      try {
+        callPhysics3DExport(ctx, "physics3d_remove_joint", () =>
+          ctx.wasmBridge!.physics3d_remove_joint?.(id as number),
+        );
+      } catch (err: unknown) {
+        if (hasPhysics3DCode(err, Physics3DErrorCodes.JOINT_NOT_FOUND)) return;
+        throw err;
+      }
     },
 
     setJointMotorVelocity(id: JointId, velocity: number, maxForce: number): void {
       if (ctx.backendMode !== "wasm") return;
-      ctx.wasmBridge!.physics3d_set_joint_motor_velocity?.(id as number, velocity, maxForce);
+      callPhysics3DExport(ctx, "physics3d_set_joint_motor_velocity", () =>
+        ctx.wasmBridge!.physics3d_set_joint_motor_velocity?.(id as number, velocity, maxForce),
+      );
     },
 
     setJointMotorPosition(id: JointId, target: number, stiffness: number, damping: number): void {
       if (ctx.backendMode !== "wasm") return;
-      ctx.wasmBridge!.physics3d_set_joint_motor_position?.(
-        id as number,
-        target,
-        stiffness,
-        damping,
+      callPhysics3DExport(ctx, "physics3d_set_joint_motor_position", () =>
+        ctx.wasmBridge!.physics3d_set_joint_motor_position?.(
+          id as number,
+          target,
+          stiffness,
+          damping,
+        ),
       );
     },
 
     setJointEnabled(id: JointId, enabled: boolean): void {
       if (ctx.backendMode !== "wasm") return;
-      ctx.wasmBridge!.physics3d_set_joint_enabled?.(id as number, enabled);
+      callPhysics3DExport(ctx, "physics3d_set_joint_enabled", () =>
+        ctx.wasmBridge!.physics3d_set_joint_enabled?.(id as number, enabled),
+      );
     },
   };
 }

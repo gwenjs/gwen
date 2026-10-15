@@ -301,6 +301,8 @@ Types d'articulations :
 - `'rope'` — Contrainte de distance
 - etc.
 
+Une articulation dont un ancrage, un axe, un ressort, une valeur de moteur ou une limite est NaN ou infini lève `PHYSICS3D:INVALID_JOINT`. Voir [Erreurs](/fr/api/physics3d#erreurs).
+
 ## Couches de collision
 
 Utilisez les couches pour contrôler quels objets entrent en collision :
