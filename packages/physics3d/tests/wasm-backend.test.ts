@@ -181,7 +181,11 @@ vi.mock("@gwenjs/core", () => ({
 
 import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
 import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
-import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
+import {
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
+  GwenWasmError,
+} from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
@@ -235,6 +239,22 @@ describe("Physics3D plugin — WASM backend mode", () => {
     expect(physics3dAddBody).toHaveBeenCalledWith(10, 0, 0, 0, 1 /* dynamic */, 5, 0, 0);
     expect(service.hasBody(10n)).toBe(true);
     expect(service.getBodyCount()).toBe(1);
+  });
+
+  it("setup passes the event coalescing flag to physics3d_set_event_coalescing as a boolean", () => {
+    const coalescing: boolean[] = [];
+    mockBridge.getPhysicsBridge.mockReturnValueOnce({
+      physics3d_init: physics3dInit,
+      physics3d_step: physics3dStep,
+      physics3d_add_body: physics3dAddBody,
+      physics3d_set_event_coalescing: (enabled: boolean) => {
+        coalescing.push(enabled);
+      },
+    });
+
+    setup();
+
+    expect(coalescing).toEqual([true]);
   });
 
   it("delegates createBody with initial position", () => {
@@ -785,15 +805,35 @@ describe("Group B — RFC-08: joints", () => {
     expect(physics3dAddSpringJoint).toHaveBeenCalledWith(10, 11, 0, 0, 0, 0, 0, 0, 2, 100, 10);
   });
 
-  it("addFixedJoint returns dummy handle (0xffffffff) when WASM returns 0xffffffff", () => {
+  it("addFixedJoint throws the typed error when Rust rejects it, not a dummy handle", () => {
+    const rejected = Object.assign(new Error("no body registered for slot 11"), {
+      code: "PHYSICS3D:BODY_NOT_FOUND",
+    });
+    physics3dAddFixedJoint.mockImplementationOnce(() => {
+      throw rejected;
+    });
+    const { service } = setupWithBody(10);
+    service.createBody(11n);
+
+    let caught: unknown;
+    try {
+      service.addFixedJoint({ bodyA: 10n, bodyB: 11n });
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:BODY_NOT_FOUND");
+    expect(caught.exportName).toBe("physics3d_add_fixed_joint");
+  });
+
+  it("a joint id of 0xffffffff is an id, not a failure", () => {
     physics3dAddFixedJoint.mockReturnValueOnce(0xffffffff);
     const { service } = setupWithBody(10);
     service.createBody(11n);
 
-    const handle = service.addFixedJoint({ bodyA: 10n, bodyB: 11n });
-
-    // When WASM signals an error via 0xffffffff, the plugin returns the dummy handle value
-    expect(handle).toBe(0xffffffff);
+    expect(service.addFixedJoint({ bodyA: 10n, bodyB: 11n })).toBe(0xffffffff);
   });
 
   it("removeJoint delegates to physics3d_remove_joint with the joint id", () => {
@@ -918,7 +958,7 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.entity).toBe(5n);
   });
 
-  it("castRay passes solid=false as 0 in the last argument", () => {
+  it("castRay passes solid=false as false in the last argument", () => {
     physics3dCastRay.mockReturnValue([1, 0, 1, 0, 1, 0, 0, 1, 0]);
     const { api } = setup();
 
@@ -935,7 +975,7 @@ describe("Group C — RFC-07: spatial queries", () => {
       50,
       expect.any(Number),
       expect.any(Number),
-      0, // solid=false → 0
+      false, // solid=false
     );
   });
 
@@ -1084,7 +1124,54 @@ describe("Group C — RFC-07: spatial queries", () => {
     expect(result!.isInside).toBe(true);
   });
 
-  it("projectPoint passes solid=false as 0 in the last argument", () => {
+  it.each([
+    ["castRay", "physics3d_cast_ray"],
+    ["castShape", "physics3d_cast_shape"],
+    ["projectPoint", "physics3d_project_point"],
+  ] as const)(
+    "%s lets a rejected %s leave as GwenWasmError, not as a miss",
+    (method, exportName) => {
+      const rejected = Object.assign(new Error("the physics3d world is not initialised"), {
+        code: "PHYSICS3D:NOT_INITIALIZED",
+      });
+      const mock =
+        method === "castRay"
+          ? physics3dCastRay
+          : method === "castShape"
+            ? physics3dCastShape
+            : physics3dProjectPoint;
+      mock.mockImplementationOnce(() => {
+        throw rejected;
+      });
+      const { api } = setup();
+
+      let caught: unknown;
+      try {
+        if (method === "castRay") {
+          api.castRay({ x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 }, 10);
+        } else if (method === "castShape") {
+          api.castShape(
+            { x: 0, y: 1, z: 0 },
+            { x: 0, y: 0, z: 0, w: 1 },
+            { x: 0, y: -1, z: 0 },
+            { type: "sphere", radius: 0.5 },
+            10,
+          );
+        } else {
+          api.projectPoint({ x: 0, y: 1, z: 0 });
+        }
+      } catch (err: unknown) {
+        caught = err;
+      }
+
+      expect(caught).toBeInstanceOf(GwenWasmError);
+      if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+      expect(caught.code).toBe("PHYSICS3D:NOT_INITIALIZED");
+      expect(caught.exportName).toBe(exportName);
+    },
+  );
+
+  it("projectPoint passes solid=false as false in the last argument", () => {
     physics3dProjectPoint.mockReturnValue(undefined);
     const { api } = setup();
 
@@ -1092,7 +1179,7 @@ describe("Group C — RFC-07: spatial queries", () => {
 
     // args: px, py, pz, layers, mask, solid
     const args = physics3dProjectPoint.mock.calls[0]!;
-    expect(args[5]).toBe(0); // solid=false → 0
+    expect(args[5]).toBe(false); // solid=false
   });
 });
 
@@ -1245,17 +1332,71 @@ describe("Group D — RFC-09: character controller", () => {
     expect(physics3dAddCharacterController).toHaveBeenCalledTimes(2);
   });
 
-  it("addCharacterController when WASM returns 0xffffffff — handle still created", () => {
-    physics3dAddCharacterController.mockReturnValueOnce(0xffffffff);
+  it("addCharacterController throws CHARACTER_CONTROLLER_LIMIT_REACHED when Rust refuses it", () => {
+    const rejected = Object.assign(new Error("character controller limit reached (max 32)"), {
+      code: "PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED",
+    });
+    physics3dAddCharacterController.mockImplementationOnce(() => {
+      throw rejected;
+    });
     const { api, entityId } = setupWithBody(10);
 
+    let caught: unknown;
+    try {
+      api.addCharacterController(entityId);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED");
+    expect(caught.exportName).toBe("physics3d_add_character_controller");
+    // Nothing was registered: a later remove never reaches Rust.
+    api.removeCharacterController(entityId);
+    expect(physics3dRemoveCharacterController).not.toHaveBeenCalled();
+  });
+
+  it("handle.move throws the typed error when Rust rejects a registered controller", () => {
+    const rejected = Object.assign(new Error("no character controller registered for slot 10"), {
+      code: "PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND",
+    });
+    physics3dCharacterControllerMove.mockImplementationOnce(() => {
+      throw rejected;
+    });
+    const { api, entityId } = setupWithBody(10);
     const handle = api.addCharacterController(entityId);
 
-    expect(handle).toBeDefined();
-    expect(handle).not.toBeNull();
-    expect(physics3dAddCharacterController).toHaveBeenCalled();
-    // isGrounded is still false and groundNormal is still null because sabView.view is null
-    expect(handle.isGrounded).toBe(false);
-    expect(handle.groundNormal).toBeNull();
+    let caught: unknown;
+    try {
+      handle.move({ x: 1, y: 0, z: 0 }, 1 / 60);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND");
+    expect(caught.exportName).toBe("physics3d_character_controller_move");
+  });
+
+  it("handle.move after removeCharacterController does not reach Rust", () => {
+    const { api, entityId } = setupWithBody(10);
+    const handle = api.addCharacterController(entityId);
+    api.removeCharacterController(entityId);
+
+    handle.move({ x: 1, y: 0, z: 0 }, 1 / 60);
+
+    expect(physics3dCharacterControllerMove).not.toHaveBeenCalled();
+  });
+
+  it("removeCharacterController is idempotent: a second call does not reach Rust", () => {
+    const { api, entityId } = setupWithBody(10);
+    api.addCharacterController(entityId);
+
+    api.removeCharacterController(entityId);
+    api.removeCharacterController(entityId);
+
+    expect(physics3dRemoveCharacterController).toHaveBeenCalledTimes(1);
   });
 });

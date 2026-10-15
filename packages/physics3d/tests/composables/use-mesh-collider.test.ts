@@ -37,6 +37,8 @@ vi.mock("../../src/composables.js", () => ({
   usePhysics3D: vi.fn(() => mockPhysics3D),
 }));
 
+import { GwenError } from "@gwenjs/schema";
+import { GwenWasmError } from "../../../core/src/engine/engine-errors.ts";
 import { useMeshCollider } from "../../src/composables/use-mesh-collider.js";
 
 describe("useMeshCollider", () => {
@@ -141,6 +143,44 @@ describe("useMeshCollider", () => {
     await expect(handle.rebuild(vertices, indices)).rejects.toThrow(
       "physics3d_rebuild_mesh_collider failed",
     );
+    expect(handle.status).toBe("error");
+  });
+
+  it("maps a typed WASM rejection to MESH_REBUILD_FAILED and keeps it as the cause", async () => {
+    const cause = new Error("no collider 1 registered for slot 1");
+    const rejected = new GwenWasmError<"PHYSICS3D:COLLIDER_NOT_FOUND">(
+      "PHYSICS3D:COLLIDER_NOT_FOUND",
+      "no collider 1 registered for slot 1",
+      "physics3d_rebuild_mesh_collider",
+      cause,
+    );
+    mockPhysics3D.rebuildMeshCollider.mockImplementationOnce(() => {
+      throw rejected;
+    });
+    const handle = useMeshCollider({ vertices, indices });
+
+    let caught: unknown;
+    try {
+      await handle.rebuild(vertices, indices);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+    expect(caught.code).toBe("PHYSICS3D:MESH_REBUILD_FAILED");
+    expect(caught.cause).toBe(rejected);
+    expect(handle.status).toBe("error");
+  });
+
+  it("lets an error that is not a WASM rejection pass through unchanged", async () => {
+    const stale = new Error("stale entity");
+    mockPhysics3D.rebuildMeshCollider.mockImplementationOnce(() => {
+      throw stale;
+    });
+    const handle = useMeshCollider({ vertices, indices });
+
+    await expect(handle.rebuild(vertices, indices)).rejects.toBe(stale);
     expect(handle.status).toBe("error");
   });
 });
