@@ -5258,8 +5258,8 @@ mod multi_engine_state {
         let ev_a = engines[0].physics3d_get_collision_events_ptr();
         let ev_b = engines[1].physics3d_get_collision_events_ptr();
         assert_ne!(ev_a, ev_b);
-        engines[0].physics3d_step(1.0 / 60.0);
-        engines[1].physics3d_step(1.0 / 60.0);
+        assert_eq!(engines[0].physics3d_step(1.0 / 60.0), Ok(()));
+        assert_eq!(engines[1].physics3d_step(1.0 / 60.0), Ok(()));
         assert_eq!(engines[0].physics3d_get_collision_event_count(), 0);
         assert_eq!(engines[1].physics3d_get_collision_event_count(), 0);
 

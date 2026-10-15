@@ -26,7 +26,7 @@ use crate::physics2d::{
 };
 
 #[cfg(feature = "physics3d")]
-use crate::physics3d::PhysicsWorld3D;
+use crate::physics3d::{Physics3DError, PhysicsWorld3D};
 
 use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
@@ -1609,16 +1609,25 @@ impl Engine {
         self.physics3d_world = Some(PhysicsWorld3D::new(gx, gy, gz));
     }
 
+    /// Advance the 3D simulation by `delta` seconds.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_step(&mut self, delta: f32) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.step(delta);
-        }
+    pub fn physics3d_step(&mut self, delta: f32) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.step(delta);
+        Ok(())
     }
 
     /// Register a new 3D rigid body for the given entity index.
     ///
-    /// Returns `false` if the entity index is already registered (no-op).
+    /// Returns `Ok(true)` once the body is registered.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `InvalidBodyKind` when `kind` is not 0, 1 or 2.
+    /// `BodyAlreadyExists` when the slot already has a body; the first body is kept.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -1639,65 +1648,71 @@ impl Engine {
         mass: f32,
         linear_damping: f32,
         angular_damping: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_body(
-                entity_index,
-                x,
-                y,
-                z,
-                kind,
-                mass,
-                linear_damping,
-                angular_damping,
-            )
-        } else {
-            false
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        check_body_kind(kind)?;
+        if world.has_body(entity_index) {
+            return Err(Physics3DError::BodyAlreadyExists { slot: entity_index });
         }
+        world.add_body(
+            entity_index,
+            x,
+            y,
+            z,
+            kind,
+            mass,
+            linear_damping,
+            angular_damping,
+        );
+        Ok(true)
     }
 
     // ─── Physics 3D — Body management ─────────────────────────────────────────
 
     /// Remove the 3D rigid body registered for the given entity index.
     ///
-    /// Returns `false` if no body was registered or the physics world is not initialised.
+    /// Returns `Ok(true)` once the body is removed.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_remove_body(&mut self, entity_index: u32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.remove_body(entity_index)
-        } else {
-            false
-        }
+    pub fn physics3d_remove_body(&mut self, entity_index: u32) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.remove_body(entity_index), entity_index)
     }
 
-    /// Return `true` if a 3D body is registered for the given entity index.
+    /// Return `Ok(true)` if a 3D body is registered for the given entity index.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_has_body(&self, entity_index: u32) -> bool {
-        if let Some(ref world) = self.physics3d_world {
-            world.has_body(entity_index)
-        } else {
-            false
-        }
+    pub fn physics3d_has_body(&self, entity_index: u32) -> Result<bool, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.has_body(entity_index))
     }
 
     /// Return the full body state as a flat `Float32Array` of 13 elements.
     ///
     /// Layout: `[px, py, pz, qx, qy, qz, qw, vx, vy, vz, ax, ay, az]`
     ///
-    /// Returns an empty array if the entity has no body or the world is not
-    /// initialised.
+    /// Returns an empty array if the entity has no body.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_body_state(&self, entity_index: u32) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_body_state(entity_index)
-        } else {
-            Vec::new()
-        }
+    pub fn physics3d_get_body_state(&self, entity_index: u32) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.get_body_state(entity_index))
     }
 
     /// Overwrite all state fields of an existing 3D body in one call.
     ///
-    /// Returns `false` if the entity has no registered body.
+    /// Returns `Ok(true)` once the state is written.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -1723,8 +1738,9 @@ impl Engine {
         ax: f32,
         ay: f32,
         az: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
             world.set_body_state(
                 entity_index,
                 px,
@@ -1740,27 +1756,33 @@ impl Engine {
                 ax,
                 ay,
                 az,
-            )
-        } else {
-            false
-        }
+            ),
+            entity_index,
+        )
     }
 
     /// Return the linear velocity of a 3D body as `[vx, vy, vz]`.
     ///
     /// Returns an empty array if the entity has no body.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_linear_velocity(&self, entity_index: u32) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_linear_velocity(entity_index)
-        } else {
-            Vec::new()
-        }
+    pub fn physics3d_get_linear_velocity(
+        &self,
+        entity_index: u32,
+    ) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.get_linear_velocity(entity_index))
     }
 
     /// Set the linear velocity of a 3D body.
     ///
-    /// Returns `false` if the entity has no registered body.
+    /// Returns `Ok(true)` once the velocity is set.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_linear_velocity(
         &mut self,
@@ -1768,29 +1790,36 @@ impl Engine {
         vx: f32,
         vy: f32,
         vz: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_linear_velocity(entity_index, vx, vy, vz)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.set_linear_velocity(entity_index, vx, vy, vz),
+            entity_index,
+        )
     }
 
     /// Return the angular velocity of a 3D body as `[ax, ay, az]` (rad/s).
     ///
     /// Returns an empty array if the entity has no body.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_angular_velocity(&self, entity_index: u32) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_angular_velocity(entity_index)
-        } else {
-            Vec::new()
-        }
+    pub fn physics3d_get_angular_velocity(
+        &self,
+        entity_index: u32,
+    ) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.get_angular_velocity(entity_index))
     }
 
     /// Set the angular velocity of a 3D body.
     ///
-    /// Returns `false` if the entity has no registered body.
+    /// Returns `Ok(true)` once the velocity is set.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_angular_velocity(
         &mut self,
@@ -1798,17 +1827,21 @@ impl Engine {
         ax: f32,
         ay: f32,
         az: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_angular_velocity(entity_index, ax, ay, az)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.set_angular_velocity(entity_index, ax, ay, az),
+            entity_index,
+        )
     }
 
     /// Apply a world-space linear impulse to a 3D body.
     ///
-    /// Wakes the body if sleeping. Returns `false` if the entity has no body.
+    /// Wakes the body if sleeping. Returns `Ok(true)` once applied.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
@@ -1820,41 +1853,52 @@ impl Engine {
         ix: f32,
         iy: f32,
         iz: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.apply_impulse(entity_index, ix, iy, iz)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.apply_impulse(entity_index, ix, iy, iz), entity_index)
     }
 
     /// Return the body kind discriminant for a 3D body.
     ///
-    /// Returns `0` = Fixed, `1` = Dynamic, `2` = KinematicPositionBased,
-    /// or `255` if the entity has no registered body.
+    /// Returns `0` = Fixed, `1` = Dynamic, `2` = KinematicPositionBased.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
+    /// `InvalidBodyKind` when Rapier reports a body type this API never creates.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_body_kind(&self, entity_index: u32) -> u8 {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_body_kind(entity_index)
-        } else {
-            255
+    pub fn physics3d_get_body_kind(&self, entity_index: u32) -> Result<u8, Physics3DError> {
+        let world = self.world3d()?;
+        if !world.has_body(entity_index) {
+            return Err(Physics3DError::BodyNotFound { slot: entity_index });
+        }
+        match world.get_body_kind(entity_index) {
+            kind @ 0..=2 => Ok(kind),
+            kind => Err(Physics3DError::InvalidBodyKind { kind }),
         }
     }
 
     /// Change the body kind of an existing 3D body at runtime.
     ///
-    /// Returns `false` if the entity has no registered body.
+    /// Returns `Ok(true)` once the kind is changed.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `InvalidBodyKind` when `kind` is not 0, 1 or 2; the body keeps its kind.
+    /// `BodyNotFound` when the slot has no body.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `kind`         — `0` = Fixed, `1` = Dynamic, `2` = KinematicPositionBased.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_body_kind(&mut self, entity_index: u32, kind: u8) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_body_kind(entity_index, kind)
-        } else {
-            false
-        }
+    pub fn physics3d_set_body_kind(
+        &mut self,
+        entity_index: u32,
+        kind: u8,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        check_body_kind(kind)?;
+        body_found(world.set_body_kind(entity_index, kind), entity_index)
     }
 
     // ─── Physics 3D — Collider management ──────────────────────────────────────
@@ -2450,13 +2494,16 @@ impl Engine {
     /// interpolates from the current to the next position when computing
     /// collision response.
     ///
-    /// Returns `false` if the entity has no registered body or the world is not
-    /// initialised.
+    /// Returns `Ok(true)` once the target is stored.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
     /// * `px/py/pz`        — Target world-space position.
     /// * `qx/qy/qz/qw`    — Target orientation as a unit quaternion (xyzw order).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_set_kinematic_position(
@@ -2469,12 +2516,12 @@ impl Engine {
         qy: f32,
         qz: f32,
         qw: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_kinematic_position(entity_index, px, py, pz, qx, qy, qz, qw)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.set_kinematic_position(entity_index, px, py, pz, qx, qy, qz, qw),
+            entity_index,
+        )
     }
 
     /// Integrate the positions of N 3D kinematic bodies in one WASM call.
@@ -2536,12 +2583,15 @@ impl Engine {
     /// Apply a world-space angular (torque) impulse to a 3D body.
     ///
     /// Immediately changes the body's angular velocity. Wakes the body if
-    /// sleeping. Returns `false` if the entity has no body or the world is
-    /// not initialised.
+    /// sleeping. Returns `Ok(true)` once applied.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `ax/ay/az`     — Angular impulse vector (N·m·s).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_apply_angular_impulse(
         &mut self,
@@ -2549,12 +2599,12 @@ impl Engine {
         ax: f32,
         ay: f32,
         az: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.apply_angular_impulse(entity_index, ax, ay, az)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.apply_angular_impulse(entity_index, ax, ay, az),
+            entity_index,
+        )
     }
 
     // ─── Physics 3D — RFC-09: Forces, torques, gravity scale, locks, sleep ────
@@ -2564,13 +2614,20 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index of the target body.
     /// * `fx` / `fy` / `fz` — Force vector in world space (Newtons).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_add_force(&mut self, entity_index: u32, fx: f32, fy: f32, fz: f32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_force(entity_index, fx, fy, fz)
-        } else {
-            false
-        }
+    pub fn physics3d_add_force(
+        &mut self,
+        entity_index: u32,
+        fx: f32,
+        fy: f32,
+        fz: f32,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.add_force(entity_index, fx, fy, fz), entity_index)
     }
 
     /// Apply a continuous torque to a dynamic body for the current simulation step.
@@ -2578,13 +2635,20 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index of the target body.
     /// * `tx` / `ty` / `tz` — Torque vector in world space (Newton-metres).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_add_torque(&mut self, entity_index: u32, tx: f32, ty: f32, tz: f32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_torque(entity_index, tx, ty, tz)
-        } else {
-            false
-        }
+    pub fn physics3d_add_torque(
+        &mut self,
+        entity_index: u32,
+        tx: f32,
+        ty: f32,
+        tz: f32,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.add_torque(entity_index, tx, ty, tz), entity_index)
     }
 
     /// Apply a continuous force at a world-space point on a dynamic body.
@@ -2593,6 +2657,10 @@ impl Engine {
     /// * `entity_index` — ECS entity slot index of the target body.
     /// * `fx` / `fy` / `fz` — Force vector (Newtons).
     /// * `px` / `py` / `pz` — World-space application point.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_force_at_point(
@@ -2604,12 +2672,12 @@ impl Engine {
         px: f32,
         py: f32,
         pz: f32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_force_at_point(entity_index, fx, fy, fz, px, py, pz)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.add_force_at_point(entity_index, fx, fy, fz, px, py, pz),
+            entity_index,
+        )
     }
 
     /// Set the gravity scale multiplier for a body.
@@ -2617,13 +2685,18 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `scale` — Gravity multiplier (`0.0` = weightless, `1.0` = normal).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_gravity_scale(&mut self, entity_index: u32, scale: f32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_gravity_scale(entity_index, scale)
-        } else {
-            false
-        }
+    pub fn physics3d_set_gravity_scale(
+        &mut self,
+        entity_index: u32,
+        scale: f32,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.set_gravity_scale(entity_index, scale), entity_index)
     }
 
     /// Read the current gravity scale multiplier of a body.
@@ -2631,14 +2704,18 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     ///
-    /// Returns `1.0` if the world is uninitialised or the entity is not found.
+    /// Returns the multiplier.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_gravity_scale(&self, entity_index: u32) -> f32 {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_gravity_scale(entity_index)
-        } else {
-            1.0
+    pub fn physics3d_get_gravity_scale(&self, entity_index: u32) -> Result<f32, Physics3DError> {
+        let world = self.world3d()?;
+        if !world.has_body(entity_index) {
+            return Err(Physics3DError::BodyNotFound { slot: entity_index });
         }
+        Ok(world.get_gravity_scale(entity_index))
     }
 
     /// Additively lock translation axes for a body.
@@ -2646,6 +2723,10 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `x` / `y` / `z` — Lock each axis when `true`.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_lock_translations(
         &mut self,
@@ -2653,12 +2734,9 @@ impl Engine {
         x: bool,
         y: bool,
         z: bool,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.lock_translations(entity_index, x, y, z)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.lock_translations(entity_index, x, y, z), entity_index)
     }
 
     /// Additively lock rotation axes for a body.
@@ -2666,6 +2744,10 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `x` / `y` / `z` — Lock rotation about each axis when `true`.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_lock_rotations(
         &mut self,
@@ -2673,12 +2755,9 @@ impl Engine {
         x: bool,
         y: bool,
         z: bool,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.lock_rotations(entity_index, x, y, z)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(world.lock_rotations(entity_index, x, y, z), entity_index)
     }
 
     /// Put a body to sleep (`sleeping = true`) or force it awake (`sleeping = false`).
@@ -2686,13 +2765,21 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `sleeping`     — Desired sleep state.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_body_sleeping(&mut self, entity_index: u32, sleeping: bool) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_body_sleeping(entity_index, sleeping)
-        } else {
-            false
-        }
+    pub fn physics3d_set_body_sleeping(
+        &mut self,
+        entity_index: u32,
+        sleeping: bool,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.set_body_sleeping(entity_index, sleeping),
+            entity_index,
+        )
     }
 
     /// Return whether a body is currently sleeping.
@@ -2700,22 +2787,29 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     ///
-    /// Returns `false` if the world is uninitialised or the entity is not found.
+    /// Returns `true` when the body sleeps.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_is_body_sleeping(&self, entity_index: u32) -> bool {
-        if let Some(ref world) = self.physics3d_world {
-            world.is_body_sleeping(entity_index)
-        } else {
-            false
+    pub fn physics3d_is_body_sleeping(&self, entity_index: u32) -> Result<bool, Physics3DError> {
+        let world = self.world3d()?;
+        if !world.has_body(entity_index) {
+            return Err(Physics3DError::BodyNotFound { slot: entity_index });
         }
+        Ok(world.is_body_sleeping(entity_index))
     }
 
     /// Wake every dynamic body in the simulation.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_wake_all(&mut self) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.wake_all();
-        }
+    pub fn physics3d_wake_all(&mut self) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.wake_all();
+        Ok(())
     }
 
     /// Sets additional per-body solver iterations for better simulation accuracy.
@@ -2728,18 +2822,22 @@ impl Engine {
     /// * `iterations`   — Number of additional iterations (0 = world default).
     ///
     /// # Returns
-    /// `true` on success, `false` if the entity has no registered body.
+    /// `Ok(true)` once the iteration count is stored.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_body_solver_iterations(
         &mut self,
         entity_index: u32,
         iterations: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_body_solver_iterations(entity_index, iterations)
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        body_found(
+            world.set_body_solver_iterations(entity_index, iterations),
+            entity_index,
+        )
     }
 
     // ─── Physics 3D — Spatial queries (RFC-07) ────────────────────────────────
@@ -2748,6 +2846,9 @@ impl Engine {
     ///
     /// # Returns
     /// 9 floats on hit `[1.0, entity, toi, nx, ny, nz, px, py, pz]`, or `[0.0]` on miss.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_cast_ray(
@@ -2762,18 +2863,18 @@ impl Engine {
         layers: u32,
         mask: u32,
         solid: bool,
-    ) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.cast_ray(ox, oy, oz, dx, dy, dz, max_dist, layers, mask, solid)
-        } else {
-            vec![0.0]
-        }
+    ) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.cast_ray(ox, oy, oz, dx, dy, dz, max_dist, layers, mask, solid))
     }
 
     /// Cast a shape along a direction and return the first collision.
     ///
     /// # Returns
     /// 15 floats on hit or `[0.0]` on miss. See [`PhysicsWorld3D::cast_shape`].
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_cast_shape(
@@ -2795,15 +2896,12 @@ impl Engine {
         max_dist: f32,
         layers: u32,
         mask: u32,
-    ) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.cast_shape(
-                pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, dir_x, dir_y, dir_z, shape_type,
-                p0, p1, p2, max_dist, layers, mask,
-            )
-        } else {
-            vec![0.0]
-        }
+    ) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.cast_shape(
+            pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, dir_x, dir_y, dir_z, shape_type, p0,
+            p1, p2, max_dist, layers, mask,
+        ))
     }
 
     /// Find all colliders overlapping a shape, writing entity indices to a WASM memory pointer.
@@ -2857,6 +2955,9 @@ impl Engine {
     ///
     /// # Returns
     /// 6 floats on hit `[1.0, entity, px, py, pz, is_inside]`, or `[0.0]` on miss.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_project_point(
         &self,
@@ -2866,12 +2967,9 @@ impl Engine {
         layers: u32,
         mask: u32,
         solid: bool,
-    ) -> Vec<f32> {
-        if let Some(ref world) = self.physics3d_world {
-            world.project_point(px, py, pz, layers, mask, solid)
-        } else {
-            vec![0.0]
-        }
+    ) -> Result<Vec<f32>, Physics3DError> {
+        let world = self.world3d()?;
+        Ok(world.project_point(px, py, pz, layers, mask, solid))
     }
 
     // ─── Physics 3D — Character Controller (RFC-09D) ──────────────────────────
@@ -3240,18 +3338,26 @@ impl Engine {
     /// Return the sensor state for a 3D collider as a packed `u64`.
     ///
     /// Bit layout: `bits 0–31 = contact_count (u32)`, `bit 32 = is_active (bool)`.
-    /// Returns `0` if no state has been recorded or the world is not initialised.
+    /// Returns `0` if no state has been recorded for a registered body.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `sensor_id`    — Stable collider ID used when the sensor was created.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_get_sensor_state(&self, entity_index: u32, sensor_id: u32) -> u64 {
-        if let Some(ref world) = self.physics3d_world {
-            world.get_sensor_state(entity_index, sensor_id)
-        } else {
-            0
+    pub fn physics3d_get_sensor_state(
+        &self,
+        entity_index: u32,
+        sensor_id: u32,
+    ) -> Result<u64, Physics3DError> {
+        let world = self.world3d()?;
+        if !world.has_body(entity_index) {
+            return Err(Physics3DError::BodyNotFound { slot: entity_index });
         }
+        Ok(world.get_sensor_state(entity_index, sensor_id))
     }
 
     /// Manually override the sensor state for a 3D collider.
@@ -3265,6 +3371,10 @@ impl Engine {
     /// * `sensor_id`    — Stable collider ID.
     /// * `is_active`    — Whether the sensor is currently overlapping.
     /// * `count`        — Number of concurrent overlapping contacts.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `BodyNotFound` when the slot has no body.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_update_sensor_state(
         &mut self,
@@ -3272,10 +3382,13 @@ impl Engine {
         sensor_id: u32,
         is_active: bool,
         count: u32,
-    ) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.update_sensor_state(entity_index, sensor_id, is_active, count);
+    ) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        if !world.has_body(entity_index) {
+            return Err(Physics3DError::BodyNotFound { slot: entity_index });
         }
+        world.update_sensor_state(entity_index, sensor_id, is_active, count);
+        Ok(())
     }
 
     /// Select the physics quality preset for the 3D simulation.
@@ -3287,16 +3400,18 @@ impl Engine {
     /// | High   | 2    | 8            | 3                   | 2            |
     /// | Esport | 3    | 10           | 4                   | 4            |
     ///
-    /// Any unrecognised value maps to `Medium`. No-op if the world is not
-    /// initialised.
+    /// Any unrecognised value maps to `Medium`.
     ///
     /// # Arguments
     /// * `preset` — Quality level discriminant (0–3).
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_quality(&mut self, preset: u8) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_quality(preset);
-        }
+    pub fn physics3d_set_quality(&mut self, preset: u8) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.set_quality(preset);
+        Ok(())
     }
 
     /// Enable or disable collision event coalescing for the 3D world.
@@ -3305,15 +3420,16 @@ impl Engine {
     /// single step are deduplicated before writing to the ring buffer. This
     /// reduces event volume at the cost of losing intermediate state transitions.
     ///
-    /// No-op if the world is not initialised.
-    ///
     /// # Arguments
     /// * `enabled` — `true` to enable coalescing, `false` to disable.
+    ///
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_event_coalescing(&mut self, enabled: bool) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.set_event_coalescing(enabled);
-        }
+    pub fn physics3d_set_event_coalescing(&mut self, enabled: bool) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.set_event_coalescing(enabled);
+        Ok(())
     }
 
     /// Return a raw pointer to the 3D collision event ring buffer.
@@ -3351,12 +3467,13 @@ impl Engine {
     /// Call after JavaScript has finished reading the event buffer. The next
     /// [`physics3d_step`] call also implicitly clears the buffer.
     ///
-    /// No-op if the world is not initialised.
+    /// # Errors
+    /// `WorldNotInitialized` when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_consume_events(&mut self) {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.consume_events();
-        }
+    pub fn physics3d_consume_events(&mut self) -> Result<(), Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.consume_events();
+        Ok(())
     }
 
     // ─── Engine stats ─────────────────────────────────────────────────────────
@@ -3765,6 +3882,46 @@ impl Engine {
     }
 }
 
+#[cfg(feature = "physics3d")]
+impl Engine {
+    /// Borrow the 3D world, or refuse when `physics3d_init` has not run.
+    ///
+    /// Not a `#[wasm_bindgen]` export.
+    fn world3d(&self) -> Result<&PhysicsWorld3D, Physics3DError> {
+        self.physics3d_world
+            .as_ref()
+            .ok_or(Physics3DError::WorldNotInitialized)
+    }
+
+    /// Mutably borrow the 3D world, or refuse when `physics3d_init` has not run.
+    ///
+    /// Not a `#[wasm_bindgen]` export.
+    fn world3d_mut(&mut self) -> Result<&mut PhysicsWorld3D, Physics3DError> {
+        self.physics3d_world
+            .as_mut()
+            .ok_or(Physics3DError::WorldNotInitialized)
+    }
+}
+
+/// Map a world call that reports "no such body" with `false` to a typed result.
+#[cfg(feature = "physics3d")]
+fn body_found(found: bool, slot: u32) -> Result<bool, Physics3DError> {
+    if found {
+        Ok(true)
+    } else {
+        Err(Physics3DError::BodyNotFound { slot })
+    }
+}
+
+/// Refuse a body kind that is not 0 (fixed), 1 (dynamic) or 2 (kinematic).
+#[cfg(feature = "physics3d")]
+fn check_body_kind(kind: u8) -> Result<(), Physics3DError> {
+    if kind > 2 {
+        return Err(Physics3DError::InvalidBodyKind { kind });
+    }
+    Ok(())
+}
+
 // ─── build-tools exports ──────────────────────────────────────────────────────
 
 #[cfg(feature = "build-tools")]
@@ -4124,7 +4281,10 @@ mod tests {
     fn test_physics3d_rebuild_mesh_collider_binding_happy_path() {
         let mut engine = Engine::new(64).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 64);
-        engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed body
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
 
         let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
