@@ -758,6 +758,24 @@ impl PhysicsWorld {
             }
         }
     }
+
+    /// Dynamic-body poses as `(entity index, x, y, rotation)`.
+    ///
+    /// A missing Rapier body is skipped. Fixed and kinematic bodies are not included.
+    pub fn dynamic_poses(&self) -> Vec<(u32, f32, f32, f32)> {
+        let mut poses = Vec::new();
+        for (&index, &handle) in &self.entity_to_body {
+            let Some(body) = self.rigid_body_set.get(handle) else {
+                continue;
+            };
+            if !body.is_dynamic() {
+                continue;
+            }
+            let pos = body.translation();
+            poses.push((index, pos.x, pos.y, body.rotation().angle()));
+        }
+        poses
+    }
 }
 
 #[cfg(test)]

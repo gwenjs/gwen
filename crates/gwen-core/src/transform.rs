@@ -20,6 +20,16 @@ pub const TRANSFORM3D_STRIDE: usize = 48;
 /// Byte offset of the `flags` field within a 2D entity slot.
 pub const FLAGS_OFFSET: usize = 20;
 
+/// Bit 0 of a 2D slot: the slot holds a live transform.
+pub const FLAG_HAS_TRANSFORM: u32 = 0b001;
+
+/// Bit 2 of a history slot: the next rendered sample snaps instead of lerping.
+///
+/// Written only into the two history buffers owned by the engine. Plugin
+/// modules never receive those addresses, so the bit is outside the plugin
+/// ABI and does not change the plugin ABI number.
+pub const FLAG_TELEPORT: u32 = 0b100;
+
 /// Byte offset of the `flags` field within a 3D entity slot.
 pub const FLAGS3D_OFFSET: usize = 40;
 
@@ -134,6 +144,8 @@ pub struct TransformNode {
 
     // Dirty flag
     dirty: bool,
+    /// The next stored history slot sets [`FLAG_TELEPORT`], then this clears.
+    pending_snap: bool,
 }
 
 impl TransformNode {
@@ -148,6 +160,7 @@ impl TransformNode {
             parent: None,
             children: Vec::new(),
             dirty: true,
+            pending_snap: true,
         }
     }
 
@@ -394,7 +407,60 @@ impl TransformSystem {
         }
 
         self.order_dirty = true;
+        self.mark_pending_snap(entity);
         Ok(())
+    }
+
+    /// The next history commit stores [`FLAG_TELEPORT`] for `entity`.
+    ///
+    /// Missing node: nothing changes.
+    pub fn mark_pending_snap(&mut self, entity: EntityId) {
+        if let Some(node) = self.transforms.get_mut(&entity) {
+            node.pending_snap = true;
+        }
+    }
+
+    /// Clears the snap mark after the caller has stored the packed slot.
+    pub fn clear_pending_snap(&mut self, entity: EntityId) {
+        if let Some(node) = self.transforms.get_mut(&entity) {
+            node.pending_snap = false;
+        }
+    }
+
+    /// Writes the world pose of `entity` into the first 32 bytes of `out`.
+    ///
+    /// Bit 0 is set. Bit 2 is set while a snap is pending. The mark is left
+    /// set; the caller clears it after the bytes are stored. Returns false
+    /// when the node is missing or `out` is shorter than one slot, and then
+    /// `out` is unchanged.
+    pub fn pack_history_slot(&self, entity: EntityId, out: &mut [u8]) -> bool {
+        let Some(node) = self.transforms.get(&entity) else {
+            return false;
+        };
+        if out.len() < TRANSFORM_STRIDE {
+            return false;
+        }
+        let mut flags = FLAG_HAS_TRANSFORM;
+        if node.pending_snap {
+            flags |= FLAG_TELEPORT;
+        }
+        let position = node.world_position();
+        let scale = node.world_scale();
+        let mut packed = [0u8; TRANSFORM_STRIDE];
+        let stored = store_f32(&mut packed, 0, position.x)
+            && store_f32(&mut packed, 4, position.y)
+            && store_f32(&mut packed, 8, node.world_rotation())
+            && store_f32(&mut packed, 12, scale.x)
+            && store_f32(&mut packed, 16, scale.y)
+            && store_u32(&mut packed, FLAGS_OFFSET, flags);
+        if !stored {
+            return false;
+        }
+        let Some(dest) = out.get_mut(..TRANSFORM_STRIDE) else {
+            return false;
+        };
+        dest.copy_from_slice(&packed);
+        true
     }
 
     /// True when `target` is a strict descendant of `root`.
@@ -500,6 +566,28 @@ impl Default for TransformSystem {
     fn default() -> Self {
         Self::new()
     }
+}
+
+fn store_f32(slot: &mut [u8], offset: usize, value: f32) -> bool {
+    let Some(end) = offset.checked_add(4) else {
+        return false;
+    };
+    let Some(dest) = slot.get_mut(offset..end) else {
+        return false;
+    };
+    dest.copy_from_slice(&value.to_le_bytes());
+    true
+}
+
+fn store_u32(slot: &mut [u8], offset: usize, value: u32) -> bool {
+    let Some(end) = offset.checked_add(4) else {
+        return false;
+    };
+    let Some(dest) = slot.get_mut(offset..end) else {
+        return false;
+    };
+    dest.copy_from_slice(&value.to_le_bytes());
+    true
 }
 
 #[cfg(test)]

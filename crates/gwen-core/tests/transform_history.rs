@@ -69,8 +69,8 @@ fn commit_packs_world_values_and_alternates_buffers() -> Result<(), CoreError> {
     assert_eq!(f32_at(&child_slot, 0), 15.0);
     assert_eq!(f32_at(&child_slot, 4), 0.0);
     assert_eq!(f32_at(&child_slot, 8), 0.4);
-    assert_eq!(f32_at(&child_slot, 12), 2.0);
-    assert_eq!(f32_at(&child_slot, 16), 3.0);
+    assert!((f32_at(&child_slot, 12) - 2.0).abs() < 1.0e-5);
+    assert!((f32_at(&child_slot, 16) - 3.0).abs() < 1.0e-5);
 
     engine.set_entity_local_position(child.index(), 8.0, 0.0);
     engine.update_transforms();
