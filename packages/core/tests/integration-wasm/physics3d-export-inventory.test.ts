@@ -201,6 +201,7 @@ describe("physics3d export inventory", () => {
     expect(Physics3DErrorCodes.INVALID_NAVGRID).toBe("PHYSICS3D:INVALID_NAVGRID");
     expect(Physics3DErrorCodes.INVALID_PATH_REQUEST).toBe("PHYSICS3D:INVALID_PATH_REQUEST");
     expect(Physics3DErrorCodes.INVALID_COLLIDER).toBe("PHYSICS3D:INVALID_COLLIDER");
+    expect(Physics3DErrorCodes.INVALID_JOINT).toBe("PHYSICS3D:INVALID_JOINT");
     expect(Physics3DErrorCodes.INVALID_MESH_BUFFER).toBe("PHYSICS3D:INVALID_MESH_BUFFER");
     expect(Physics3DErrorCodes.INVALID_COMPOUND).toBe("PHYSICS3D:INVALID_COMPOUND");
     expect(Physics3DErrorCodes.BVH_LOAD_FAILED).toBe("PHYSICS3D:BVH_LOAD_FAILED");
