@@ -1,6 +1,7 @@
 //! Native probe: hostile float inputs (NaN, +/-inf, negative, zero, huge, tiny) must never make
 //! the physics3d exports panic. Each case runs in its own `catch_unwind` on a fresh engine.
-//! A control case (1x1 heightfield) is known to panic and proves the probe can detect panics.
+//! A control case (1x1 heightfield built straight through rapier) is known to panic and proves
+//! the probe can detect panics.
 #![cfg(feature = "physics3d")]
 
 use gwen_core::bindings::Engine;
@@ -297,24 +298,13 @@ fn panicked(f: impl FnOnce()) -> bool {
     catch_unwind(AssertUnwindSafe(f)).is_err()
 }
 
+/// Builds a heightfield straight through rapier. The export refuses a grid below 2x2, so the
+/// control reaches parry's own assert without it.
 fn heightfield(rows: usize, cols: usize) {
-    let Some(mut e) = world() else { return };
-    let _ = e.physics3d_add_body(9, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
+    use rapier3d::na::{DMatrix, Vector3};
     let heights = vec![0.0f32; rows * cols];
-    let _ = e.physics3d_add_heightfield_collider(
-        9,
-        &heights,
-        rows as u32,
-        cols as u32,
-        1.0,
-        1.0,
-        1.0,
-        0.5,
-        0.0,
-        ALL,
-        ALL,
-        7,
-    );
+    let matrix = DMatrix::from_row_slice(rows, cols, &heights);
+    let _ = rapier3d::geometry::ColliderBuilder::heightfield(matrix, Vector3::new(1.0, 1.0, 1.0));
 }
 
 #[test]

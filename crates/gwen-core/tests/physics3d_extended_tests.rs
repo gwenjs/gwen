@@ -17,7 +17,7 @@
 #[cfg(feature = "physics3d")]
 mod physics3d_extended {
     use gwen_core::bindings::Engine;
-    use gwen_core::physics3d::Physics3DError;
+    use gwen_core::physics3d::{InvalidCompoundReason, Physics3DError};
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -38,228 +38,276 @@ mod physics3d_extended {
     #[test]
     fn test_physics3d_add_box_collider_returns_true() {
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_add_box_collider(
-            0, // entity_index
-            0.5,
-            0.5,
-            0.5, // half-extents
-            0.0,
-            0.0,
-            0.0,   // offset
-            false, // is_sensor
-            0.5,
-            0.0, // friction, restitution
-            0xFFFF_FFFF,
-            0xFFFF_FFFF, // layer_bits, mask_bits
-            1,           // collider_id
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                0, // entity_index
+                0.5,
+                0.5,
+                0.5, // half-extents
+                0.0,
+                0.0,
+                0.0,   // offset
+                false, // is_sensor
+                0.5,
+                0.0, // friction, restitution
+                0xFFFF_FFFF,
+                0xFFFF_FFFF, // layer_bits, mask_bits
+                1,           // collider_id
+            ),
+            Ok(true)
+        );
     }
 
     #[test]
-    fn test_physics3d_add_box_collider_no_body_returns_false() {
+    fn test_physics3d_add_box_collider_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Entity 99 has no body registered.
-        assert!(!engine.physics3d_add_box_collider(
-            99,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                99,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Err(Physics3DError::BodyNotFound { slot: 99 })
+        );
     }
 
     #[test]
-    fn test_physics3d_add_box_collider_world_uninitialised_returns_false() {
+    fn test_physics3d_add_box_collider_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
         // No physics3d_init call.
-        assert!(!engine.physics3d_add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
     fn test_physics3d_add_sphere_collider_returns_true() {
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_add_sphere_collider(
-            0,   // entity_index
-            0.4, // radius
-            0.0,
-            0.0,
-            0.0, // offset
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            2, // collider_id
-        ));
+        assert_eq!(
+            engine.physics3d_add_sphere_collider(
+                0,   // entity_index
+                0.4, // radius
+                0.0,
+                0.0,
+                0.0, // offset
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                2, // collider_id
+            ),
+            Ok(true)
+        );
     }
 
     #[test]
-    fn test_physics3d_add_sphere_collider_no_body_returns_false() {
+    fn test_physics3d_add_sphere_collider_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(!engine.physics3d_add_sphere_collider(
-            5,
-            0.4,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            2,
-        ));
+        assert_eq!(
+            engine.physics3d_add_sphere_collider(
+                5,
+                0.4,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                2,
+            ),
+            Err(Physics3DError::BodyNotFound { slot: 5 })
+        );
     }
 
     #[test]
     fn test_physics3d_add_capsule_collider_returns_true() {
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_add_capsule_collider(
-            0,   // entity_index
-            0.3, // radius
-            0.5, // half_height
-            0.0,
-            0.0,
-            0.0, // offset
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            3, // collider_id
-        ));
+        assert_eq!(
+            engine.physics3d_add_capsule_collider(
+                0,   // entity_index
+                0.3, // radius
+                0.5, // half_height
+                0.0,
+                0.0,
+                0.0, // offset
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                3, // collider_id
+            ),
+            Ok(true)
+        );
     }
 
     #[test]
-    fn test_physics3d_add_capsule_collider_no_body_returns_false() {
+    fn test_physics3d_add_capsule_collider_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(!engine.physics3d_add_capsule_collider(
-            7,
-            0.3,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            3,
-        ));
+        assert_eq!(
+            engine.physics3d_add_capsule_collider(
+                7,
+                0.3,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                3,
+            ),
+            Err(Physics3DError::BodyNotFound { slot: 7 })
+        );
     }
 
     #[test]
     fn test_physics3d_remove_collider_happy_path() {
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            10,
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                10,
+            ),
+            Ok(true)
+        );
         // First remove succeeds.
-        assert!(engine.physics3d_remove_collider(0, 10));
+        assert_eq!(engine.physics3d_remove_collider(0, 10), Ok(true));
         // Second remove on the same ID returns false — already gone.
-        assert!(!engine.physics3d_remove_collider(0, 10));
+        assert_eq!(
+            engine.physics3d_remove_collider(0, 10),
+            Err(Physics3DError::ColliderNotFound {
+                slot: 0,
+                collider_id: 10
+            })
+        );
     }
 
     #[test]
-    fn test_physics3d_remove_collider_unknown_id_returns_false() {
+    fn test_physics3d_remove_collider_unknown_id_returns_collider_not_found() {
         let mut engine = engine_with_one_body();
-        assert!(!engine.physics3d_remove_collider(0, 999));
+        assert_eq!(
+            engine.physics3d_remove_collider(0, 999),
+            Err(Physics3DError::ColliderNotFound {
+                slot: 0,
+                collider_id: 999
+            })
+        );
     }
 
     #[test]
-    fn test_physics3d_remove_collider_world_uninitialised_returns_false() {
+    fn test_physics3d_remove_collider_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
-        assert!(!engine.physics3d_remove_collider(0, 1));
+        assert_eq!(
+            engine.physics3d_remove_collider(0, 1),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
     fn test_physics3d_add_multiple_collider_shapes_same_body() {
         let mut engine = engine_with_one_body();
         // Three distinct collider IDs can coexist on the same body.
-        assert!(engine.physics3d_add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
-        ));
-        assert!(engine.physics3d_add_sphere_collider(
-            0,
-            0.4,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            2,
-        ));
-        assert!(engine.physics3d_add_capsule_collider(
-            0,
-            0.3,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            3,
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            engine.physics3d_add_sphere_collider(
+                0,
+                0.4,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                2,
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            engine.physics3d_add_capsule_collider(
+                0,
+                0.3,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                3,
+            ),
+            Ok(true)
+        );
         // Remove all three.
-        assert!(engine.physics3d_remove_collider(0, 1));
-        assert!(engine.physics3d_remove_collider(0, 2));
-        assert!(engine.physics3d_remove_collider(0, 3));
+        assert_eq!(engine.physics3d_remove_collider(0, 1), Ok(true));
+        assert_eq!(engine.physics3d_remove_collider(0, 2), Ok(true));
+        assert_eq!(engine.physics3d_remove_collider(0, 3), Ok(true));
     }
 
     // ── Sensor state get / update ─────────────────────────────────────────────
@@ -460,36 +508,42 @@ mod physics3d_extended {
         );
 
         // Large box sensors so they definitely overlap at origin.
-        assert!(engine.physics3d_add_box_collider(
-            0,
-            1.0,
-            1.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            true,
-            0.0,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
-        ));
-        assert!(engine.physics3d_add_box_collider(
-            1,
-            1.0,
-            1.0,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            true,
-            0.0,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            2,
-        ));
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                0,
+                1.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                true,
+                0.0,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Ok(true)
+        );
+        assert_eq!(
+            engine.physics3d_add_box_collider(
+                1,
+                1.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                true,
+                0.0,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                2,
+            ),
+            Ok(true)
+        );
 
         // Step: Rapier will generate the overlap event and write it into the buffer.
         assert_eq!(engine.physics3d_step(0.016), Ok(()));
@@ -531,7 +585,7 @@ mod physics3d_extended {
     }
 
     #[test]
-    fn test_physics3d_set_kinematic_position_no_body_returns_false() {
+    fn test_physics3d_set_kinematic_position_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert_eq!(
@@ -541,7 +595,7 @@ mod physics3d_extended {
     }
 
     #[test]
-    fn test_physics3d_set_kinematic_position_world_uninitialised_returns_false() {
+    fn test_physics3d_set_kinematic_position_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
         assert_eq!(
             engine.physics3d_set_kinematic_position(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
@@ -561,7 +615,7 @@ mod physics3d_extended {
     }
 
     #[test]
-    fn test_physics3d_apply_angular_impulse_no_body_returns_false() {
+    fn test_physics3d_apply_angular_impulse_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         assert_eq!(
@@ -571,7 +625,7 @@ mod physics3d_extended {
     }
 
     #[test]
-    fn test_physics3d_apply_angular_impulse_world_uninitialised_returns_false() {
+    fn test_physics3d_apply_angular_impulse_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
         assert_eq!(
             engine.physics3d_apply_angular_impulse(0, 1.0, 0.0, 0.0),
@@ -616,40 +670,40 @@ mod physics3d_extended {
 
         assert_eq!(
             engine.physics3d_add_compound_collider(0, &data, 0xFFFF_FFFF, 0xFFFF_FFFF),
-            3
+            Ok(3)
         );
     }
 
     #[test]
-    fn test_physics3d_add_compound_collider_no_body_returns_zero() {
+    fn test_physics3d_add_compound_collider_no_body_returns_body_not_found() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Entity 5 has no body.
         let data: Vec<f32> = vec![0.0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 1.0];
         assert_eq!(
             engine.physics3d_add_compound_collider(5, &data, 0xFFFF_FFFF, 0xFFFF_FFFF),
-            0
+            Err(Physics3DError::BodyNotFound { slot: 5 })
         );
     }
 
     #[test]
-    fn test_physics3d_add_compound_collider_world_uninitialised_returns_zero() {
+    fn test_physics3d_add_compound_collider_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
         // No physics3d_init call.
         let data: Vec<f32> = vec![0.0, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 1.0];
         assert_eq!(
             engine.physics3d_add_compound_collider(0, &data, 0xFFFF_FFFF, 0xFFFF_FFFF),
-            0
+            Err(Physics3DError::WorldNotInitialized)
         );
     }
 
     #[test]
-    fn test_physics3d_add_compound_collider_partial_on_unknown_shape() {
+    fn test_physics3d_add_compound_collider_refuses_unknown_shape() {
         let mut engine = engine_with_one_body();
 
         #[rustfmt::skip]
         let data: Vec<f32> = vec![
-            // shape type 77 — unknown, skipped
+            // shape type 77 — unknown, refuses the whole batch
             77.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  0.0, 0.5, 0.0, 1.0,
             // valid BOX
              0.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  0.0, 0.5, 0.0, 2.0,
@@ -657,7 +711,9 @@ mod physics3d_extended {
 
         assert_eq!(
             engine.physics3d_add_compound_collider(0, &data, 0xFFFF_FFFF, 0xFFFF_FFFF),
-            1
+            Err(Physics3DError::InvalidCompound {
+                reason: InvalidCompoundReason::UnknownShapeType
+            })
         );
     }
 }

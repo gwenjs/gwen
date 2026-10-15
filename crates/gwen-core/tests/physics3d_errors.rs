@@ -324,58 +324,106 @@ fn invalid_compound_shape_type_code_message_and_equality() -> TestResult {
     Ok(())
 }
 
-#[test]
-fn bvh_load_failed_header_code_message_and_equality() -> TestResult {
-    let err = Physics3DError::BvhLoadFailed {
-        reason: BvhLoadReason::HeaderInvalid,
-    };
-    assert_eq!(err.code(), "PHYSICS3D:BVH_LOAD_FAILED");
-    assert_eq!(err.to_string(), "BVH load failed: the header is invalid");
-    assert_eq!(
-        err,
-        Physics3DError::BvhLoadFailed {
-            reason: BvhLoadReason::HeaderInvalid
-        }
-    );
-    assert_ne!(
-        err,
-        Physics3DError::BvhLoadFailed {
-            reason: BvhLoadReason::PayloadTruncated
-        }
-    );
-    let message = message_via_std(err)?;
-    assert_eq!(message, "BVH load failed: the header is invalid");
+/// Asserts code, message, `dyn Error` message, equality and inequality with `other`.
+fn check_error(
+    err: Physics3DError,
+    code: &str,
+    message: &str,
+    other: Physics3DError,
+) -> TestResult {
+    assert_eq!(err.code(), code);
+    assert_eq!(err.to_string(), message);
+    let same = err;
+    assert_eq!(err, same);
+    assert_ne!(err, other);
+    assert_eq!(message_via_std(err)?, message);
     Ok(())
 }
 
+fn bvh(reason: BvhLoadReason) -> Physics3DError {
+    Physics3DError::BvhLoadFailed { reason }
+}
+
 #[test]
-fn bvh_load_failed_truncated_code_message_and_equality() -> TestResult {
-    let err = Physics3DError::BvhLoadFailed {
-        reason: BvhLoadReason::PayloadTruncated,
-    };
-    assert_eq!(err.code(), "PHYSICS3D:BVH_LOAD_FAILED");
-    assert_eq!(
-        err.to_string(),
-        "BVH load failed: the payload is shorter than the header declares"
-    );
-    assert_eq!(
-        err,
-        Physics3DError::BvhLoadFailed {
-            reason: BvhLoadReason::PayloadTruncated
-        }
-    );
-    assert_ne!(
-        err,
-        Physics3DError::BvhLoadFailed {
-            reason: BvhLoadReason::HeaderInvalid
-        }
-    );
-    let message = message_via_std(err)?;
-    assert_eq!(
-        message,
-        "BVH load failed: the payload is shorter than the header declares"
-    );
-    Ok(())
+fn bvh_load_failed_too_short_code_message_and_equality() -> TestResult {
+    check_error(
+        bvh(BvhLoadReason::TooShort),
+        "PHYSICS3D:BVH_LOAD_FAILED",
+        "BVH load failed: the buffer is shorter than the 8-byte header",
+        bvh(BvhLoadReason::BadMagic),
+    )
+}
+
+#[test]
+fn bvh_load_failed_bad_magic_code_message_and_equality() -> TestResult {
+    check_error(
+        bvh(BvhLoadReason::BadMagic),
+        "PHYSICS3D:BVH_LOAD_FAILED",
+        "BVH load failed: the magic is not GBVH",
+        bvh(BvhLoadReason::TooShort),
+    )
+}
+
+#[test]
+fn bvh_load_failed_decode_failed_code_message_and_equality() -> TestResult {
+    check_error(
+        bvh(BvhLoadReason::DecodeFailed),
+        "PHYSICS3D:BVH_LOAD_FAILED",
+        "BVH load failed: the payload is not a valid triangle mesh",
+        bvh(BvhLoadReason::InvalidMesh),
+    )
+}
+
+#[test]
+fn bvh_load_failed_invalid_mesh_code_message_and_equality() -> TestResult {
+    check_error(
+        bvh(BvhLoadReason::InvalidMesh),
+        "PHYSICS3D:BVH_LOAD_FAILED",
+        "BVH load failed: the decoded mesh is empty, not finite, or has an index outside its list",
+        bvh(BvhLoadReason::DecodeFailed),
+    )
+}
+
+#[test]
+fn invalid_shape_convex_degenerate_code_message_and_equality() -> TestResult {
+    check_error(
+        Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::ConvexDegenerate,
+        },
+        "PHYSICS3D:INVALID_SHAPE",
+        "shape refused: a convex hull cannot be built from these points",
+        Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::ConvexTooFewPoints,
+        },
+    )
+}
+
+#[test]
+fn invalid_shape_mesh_empty_code_message_and_equality() -> TestResult {
+    check_error(
+        Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::MeshEmpty,
+        },
+        "PHYSICS3D:INVALID_SHAPE",
+        "shape refused: a mesh needs at least one vertex and one triangle",
+        Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::ConvexDegenerate,
+        },
+    )
+}
+
+#[test]
+fn invalid_collider_too_large_code_message_and_equality() -> TestResult {
+    check_error(
+        Physics3DError::InvalidCollider {
+            reason: InvalidColliderReason::TooLarge,
+        },
+        "PHYSICS3D:INVALID_COLLIDER",
+        "collider refused: a value is larger than the accepted magnitude",
+        Physics3DError::InvalidCollider {
+            reason: InvalidColliderReason::Negative,
+        },
+    )
 }
 
 #[test]

@@ -190,7 +190,7 @@ fn add_dynamic_box(world: &mut gwen_core::physics3d::PhysicsWorld3D, entity: u32
         1
     );
     assert_eq!(
-        u8::from(world.add_box_collider(
+        world.add_box_collider(
             entity,
             0.5,
             0.5,
@@ -204,8 +204,8 @@ fn add_dynamic_box(world: &mut gwen_core::physics3d::PhysicsWorld3D, entity: u32
             0xFFFF_FFFF,
             0xFFFF_FFFF,
             entity,
-        )),
-        1
+        ),
+        Ok(())
     );
 }
 
@@ -414,7 +414,7 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
         1
     );
     assert_eq!(
-        u8::from(world.add_box_collider(
+        world.add_box_collider(
             1,
             8.0,
             0.5,
@@ -428,15 +428,15 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
             0xFFFF_FFFF,
             0xFFFF_FFFF,
             1,
-        )),
-        1
+        ),
+        Ok(())
     );
     assert_eq!(
         u8::from(world.add_body(0, 0.0, 0.5, 0.0, 2, 1.0, 0.0, 0.0)),
         1
     );
     assert_eq!(
-        u8::from(world.add_box_collider(
+        world.add_box_collider(
             0,
             0.3,
             0.4,
@@ -450,8 +450,8 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
             0xFFFF_FFFF,
             0xFFFF_FFFF,
             2,
-        )),
-        1
+        ),
+        Ok(())
     );
     assert_eq!(
         world.add_character_controller(0, 0.3, 50.0, 0.01, 0.5, true, false),
@@ -481,7 +481,7 @@ fn air_move_writes_no_hit() {
         1
     );
     assert_eq!(
-        u8::from(world.add_box_collider(
+        world.add_box_collider(
             0,
             0.3,
             0.5,
@@ -495,8 +495,8 @@ fn air_move_writes_no_hit() {
             0xFFFF_FFFF,
             0xFFFF_FFFF,
             2,
-        )),
-        1
+        ),
+        Ok(())
     );
     assert_eq!(
         world.add_character_controller(0, 0.2, 45.0, 0.02, 0.0, false, false),

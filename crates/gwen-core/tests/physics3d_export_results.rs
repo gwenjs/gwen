@@ -456,7 +456,7 @@ fn queries_return_the_miss_array_and_hit_arrays() -> Result<(), Physics3DError> 
     add(&mut engine, 1, 0.0, 0)?;
     let attached = engine.physics3d_add_box_collider(
         1, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL_BITS, ALL_BITS, 1,
-    );
+    )?;
     assert_eq!(u8::from(attached), 1);
     engine.physics3d_step(0.016)?;
     let hit = engine.physics3d_cast_ray(
