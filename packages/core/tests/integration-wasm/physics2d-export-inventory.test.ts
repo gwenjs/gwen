@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * Physics2d glue classification.
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
- * `known-panic` is issue 110. `physics_step` reaches `PhysicsPipeline::step`
+ * `known-panic` is issue 217. `physics_step` reaches `PhysicsPipeline::step`
  * and the three queries reach Rapier shapes. Those calls stay unaudited.
  * An export matching the physics2d name rule that is missing from the table fails.
  */
@@ -28,7 +28,7 @@ function result(): { kind: "result" } {
   return { kind: "result" };
 }
 
-const ISSUE = 110;
+const ISSUE = 217;
 
 const PHYSICS2D: Record<string, ExportRow> = {
   find_path_2d: result(),

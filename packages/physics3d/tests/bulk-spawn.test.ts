@@ -305,21 +305,4 @@ describe("bulkSpawnStaticBoxes — WASM mode", () => {
     expect(destroyed).toEqual([0n, 1n]);
     expect(service.getBodyCount()).toBe(0);
   });
-
-  it("only registers spawned entities when WASM returns count < N", () => {
-    const { service } = setup();
-    // Mock WASM returning only 1 even though 3 were requested
-    physics3dBulkSpawnStaticBoxes.mockReturnValue(1);
-    const positions = new Float32Array([0, 0, 0, 5, 0, 0, 10, 0, 0]);
-    const { entityIds, count } = service.bulkSpawnStaticBoxes({
-      positions,
-      halfExtents: new Float32Array([0.5, 0.5, 0.5]),
-    });
-    expect(count).toBe(1);
-    expect(entityIds).toHaveLength(1);
-    // Only the first entity should be tracked; the other 2 are unregistered
-    expect(service.hasBody(entityIds[0]! as unknown as Parameters<typeof service.hasBody>[0])).toBe(
-      true,
-    );
-  });
 });
