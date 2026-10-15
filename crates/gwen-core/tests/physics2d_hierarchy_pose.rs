@@ -44,13 +44,13 @@ fn dynamic_body_hierarchy_world_matches_rapier_and_the_column_keeps_the_pose(
 
     let pose = engine.physics_get_position(index)?;
     assert_eq!(pose.len(), 3);
-    assert!(pose[1] < 10.0);
+    assert_eq!(pose[1].partial_cmp(&10.0), Some(std::cmp::Ordering::Less));
     assert_eq!(engine.get_entity_world_x(index), pose[0]);
     assert_eq!(engine.get_entity_world_y(index), pose[1]);
     assert_eq!(engine.get_entity_world_rotation(index), pose[2]);
 
     let column = engine.get_component_raw(index, generation, TRANSFORM_SAB_TYPE_ID);
-    assert!(column.len() >= 12);
+    assert_eq!(column.get(0..12).map(|bytes| bytes.len()), Some(12));
     assert_eq!(f32_at(&column, 0), pose[0]);
     assert_eq!(f32_at(&column, 4), pose[1]);
     assert_eq!(f32_at(&column, 8), pose[2]);

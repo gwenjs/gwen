@@ -477,7 +477,13 @@ fn wasm_history_ptr_rejects_buffer_2() {
 #[wasm_bindgen_test]
 fn wasm_history_commit_alternates_zero_and_one() {
     let mut engine = make_engine();
-    let id = engine.create_entity().expect("entity limit");
+    let id = match engine.create_entity() {
+        Ok(id) => id,
+        Err(_) => {
+            assert_eq!(0, 1);
+            return;
+        }
+    };
     engine.add_entity_transform(id.index(), 2.0, 0.0, 0.0, 1.0, 1.0);
     engine.update_transforms();
     let first = engine.transform_history_commit();
@@ -488,10 +494,8 @@ fn wasm_history_commit_alternates_zero_and_one() {
     engine.mark_entity_teleport(id.index());
     let second = engine.transform_history_commit();
     assert_eq!(second, 1);
-    let flags = u32::from_le_bytes(
-        history_slot(&engine, second, id.index())[20..24]
-            .try_into()
-            .expect("flag bytes"),
-    );
+    let mut flag_bytes = [0u8; 4];
+    flag_bytes.copy_from_slice(&history_slot(&engine, second, id.index())[20..24]);
+    let flags = u32::from_le_bytes(flag_bytes);
     assert_eq!(flags & 0b100, 0b100);
 }
