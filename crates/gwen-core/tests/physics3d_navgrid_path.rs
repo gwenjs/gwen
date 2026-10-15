@@ -168,10 +168,21 @@ fn cell_count_at_the_cap_is_accepted_and_one_above_is_refused() -> Outcome {
 }
 
 #[test]
-fn a_cubic_grid_at_the_cap_is_accepted() -> Outcome {
-    assert_eq!(128usize.pow(3), MAX_NAVGRID_CELLS);
+fn a_cubic_grid_at_the_cap_is_accepted_and_a_larger_one_is_refused() -> Outcome {
+    assert_eq!(64usize.pow(3), MAX_NAVGRID_CELLS);
     let mut e = engine()?;
-    assert_eq!(upload_open(&mut e, [128, 128, 128], 1.0, [0.0; 3]), Ok(()));
+    assert_eq!(upload_open(&mut e, [64, 64, 64], 1.0, [0.0; 3]), Ok(()));
+    assert_eq!(find(&mut e, [0.0; 3], [2.0, 0.0, 0.0]), Ok(3));
+    let cells = vec![0u8; MAX_NAVGRID_CELLS];
+    assert_eq!(
+        upload(&mut e, &cells, 65, 64, 64),
+        Err(invalid_grid(65, 64, 64))
+    );
+    assert_eq!(
+        upload(&mut e, &cells, 128, 128, 128),
+        Err(invalid_grid(128, 128, 128))
+    );
+    // The refusals kept the accepted grid.
     assert_eq!(find(&mut e, [0.0; 3], [2.0, 0.0, 0.0]), Ok(3));
     Ok(())
 }
@@ -340,13 +351,19 @@ fn max_path_coord_is_the_last_exact_cell_below_two_to_the_24() {
 
 // --- measurement ---
 
-/// The worst accepted search: a full-size open grid and a goal outside it, so A* visits every
-/// cell and finds no route. Ignored by default because it takes seconds in a debug build.
+/// The worst accepted search: an open cubic grid and a goal outside it, so A* visits every cell
+/// and finds no route. The side comes from `GWEN_NAVGRID_SIDE` (default 64) so one build measures
+/// several sizes; a side whose cube is above the cap is refused and the test fails on the upload.
+/// Ignored by default because it takes seconds in a debug build.
 #[test]
 #[ignore = "measurement: run on demand, see MAX_NAVGRID_CELLS"]
 fn worst_accepted_grid_search() -> Outcome {
+    let side = std::env::var("GWEN_NAVGRID_SIDE")
+        .ok()
+        .and_then(|v| v.parse::<u32>().ok())
+        .unwrap_or(64);
     let mut e = engine()?;
-    upload_open(&mut e, [128, 128, 128], 1.0, [0.0; 3])?;
+    upload_open(&mut e, [side; 3], 1.0, [0.0; 3])?;
     assert_eq!(find(&mut e, [0.0; 3], [-5.0, -5.0, -5.0]), Ok(2));
     Ok(())
 }

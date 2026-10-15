@@ -9,7 +9,9 @@
 
 use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::MAX_CC_ENTITIES;
-use gwen_core::physics3d::{InvalidColliderReason, Physics3DError, PhysicsWorld3D};
+use gwen_core::physics3d::{
+    InvalidColliderReason, InvalidJointReason, Physics3DError, PhysicsWorld3D,
+};
 
 const ALL: u32 = 0xFFFF_FFFF;
 const NAN: f32 = f32::NAN;
@@ -244,6 +246,31 @@ fn move_on_a_controller_whose_body_was_removed_returns_body_not_found() -> Outco
     Ok(())
 }
 
+/// Bit pattern of the first character-controller state slot of a bare world.
+fn cc_slot_bits(world: &PhysicsWorld3D) -> [u32; 5] {
+    let mut slot = [0f32; 5];
+    // SAFETY: slot 0 is the first five floats of this world's character-controller state buffer,
+    // which `cc_state_ptr` points at and which lives as long as `world`.
+    unsafe {
+        std::ptr::copy_nonoverlapping(world.cc_state_ptr(), slot.as_mut_ptr(), 5);
+    }
+    slot.map(f32::to_bits)
+}
+
+#[test]
+fn removed_body_move_is_refused_and_leaves_the_slot() -> Outcome {
+    let mut world = world_with_bodies(4);
+    assert_eq!(world_add_cc(&mut world, 3), Ok(0));
+    assert_eq!(u8::from(world.remove_body(3)), 1);
+    let before = cc_slot_bits(&world);
+    assert_eq!(
+        world.character_controller_move(3, 0.0, -1.0, 0.0, 1.0 / 60.0),
+        Err(Physics3DError::BodyNotFound { slot: 3 })
+    );
+    assert_eq!(cc_slot_bits(&world), before);
+    Ok(())
+}
+
 #[test]
 fn move_returns_ok_and_the_body_follows_the_requested_translation() -> Outcome {
     let mut e = scene()?;
@@ -461,5 +488,344 @@ fn a_joint_with_both_ends_on_one_entity_keeps_body_states_finite() -> Outcome {
             .collect();
         assert_eq!(non_finite, Vec::<u32>::new(), "kind {kind}");
     }
+    Ok(())
+}
+
+// --- joints: non-finite values ---
+
+const HOSTILE: [f32; 3] = [NAN, INF, -INF];
+
+fn non_finite() -> Physics3DError {
+    Physics3DError::InvalidJoint {
+        reason: InvalidJointReason::NonFinite,
+    }
+}
+
+/// Every float the five add exports take, with sane defaults. Anchors are `[ax, ay, az, bx, by,
+/// bz]`; the axis is used by the revolute and prismatic kinds; the limits by the same two kinds;
+/// the spring values (rest length, stiffness, damping) by the spring kind.
+#[derive(Clone, Copy)]
+struct JointArgs {
+    anchors: [f32; 6],
+    axis: [f32; 3],
+    use_limits: bool,
+    limits: [f32; 2],
+    spring: [f32; 3],
+}
+
+impl JointArgs {
+    fn sane() -> Self {
+        Self {
+            anchors: [0.0; 6],
+            axis: [0.0, 1.0, 0.0],
+            use_limits: false,
+            limits: [0.0; 2],
+            spring: [1.0, 100.0, 1.0],
+        }
+    }
+}
+
+const KINDS: [&str; 5] = ["fixed", "revolute", "prismatic", "ball", "spring"];
+
+/// Adds one joint of `kind` (index into `KINDS`) on bodies `a` and `b`.
+fn add_joint(
+    e: &mut Engine,
+    kind: usize,
+    a: u32,
+    b: u32,
+    j: &JointArgs,
+) -> Result<u32, Physics3DError> {
+    let [ax, ay, az, bx, by, bz] = j.anchors;
+    let [x, y, z] = j.axis;
+    let [lo, hi] = j.limits;
+    let [rest, stiffness, damping] = j.spring;
+    match kind {
+        0 => e.physics3d_add_fixed_joint(a, b, ax, ay, az, bx, by, bz),
+        1 => e.physics3d_add_revolute_joint(
+            a,
+            b,
+            ax,
+            ay,
+            az,
+            bx,
+            by,
+            bz,
+            x,
+            y,
+            z,
+            j.use_limits,
+            lo,
+            hi,
+        ),
+        2 => e.physics3d_add_prismatic_joint(
+            a,
+            b,
+            ax,
+            ay,
+            az,
+            bx,
+            by,
+            bz,
+            x,
+            y,
+            z,
+            j.use_limits,
+            lo,
+            hi,
+        ),
+        3 => e.physics3d_add_ball_joint(a, b, ax, ay, az, bx, by, bz),
+        _ => e.physics3d_add_spring_joint(a, b, ax, ay, az, bx, by, bz, rest, stiffness, damping),
+    }
+}
+
+/// One `JointArgs` per hostile value in every float position that `kind` reads.
+fn hostile_args(kind: usize) -> Vec<(String, JointArgs)> {
+    let mut out = Vec::new();
+    for v in HOSTILE {
+        for i in 0..6 {
+            let mut j = JointArgs::sane();
+            j.anchors[i] = v;
+            out.push((format!("anchor {i} = {v}"), j));
+        }
+        if kind == 1 || kind == 2 {
+            for i in 0..3 {
+                let mut j = JointArgs::sane();
+                j.axis[i] = v;
+                out.push((format!("axis {i} = {v}"), j));
+            }
+        }
+        if kind == 4 {
+            for i in 0..3 {
+                let mut j = JointArgs::sane();
+                j.spring[i] = v;
+                out.push((format!("spring {i} = {v}"), j));
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn add_joint_refuses_a_non_finite_value_and_consumes_nothing() -> Outcome {
+    for (kind, name) in KINDS.iter().enumerate() {
+        for (what, bad) in hostile_args(kind) {
+            let mut touched = scene()?;
+            let mut untouched = scene()?;
+            assert_eq!(
+                add_joint(&mut touched, kind, 2, 3, &bad),
+                Err(non_finite()),
+                "{name} {what}"
+            );
+            // No joint id was consumed and no joint exists: the next add is the first.
+            let sane = JointArgs::sane();
+            assert_eq!(
+                add_joint(&mut touched, kind, 2, 3, &sane),
+                Ok(0),
+                "{name} {what}"
+            );
+            assert_eq!(
+                add_joint(&mut untouched, kind, 2, 3, &sane),
+                Ok(0),
+                "{name} {what}"
+            );
+            assert_eq!(
+                fingerprint(&mut touched)?,
+                fingerprint(&mut untouched)?,
+                "{name} {what}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn add_joint_checks_the_world_then_the_bodies_then_the_values() -> Outcome {
+    let mut bad = JointArgs::sane();
+    bad.anchors[0] = NAN;
+    let mut no_world = Engine::new(4).map_err(Physics3DError::Core)?;
+    let mut e = scene()?;
+    for (kind, name) in KINDS.iter().enumerate() {
+        assert_eq!(
+            add_joint(&mut no_world, kind, 0, 1, &bad),
+            Err(Physics3DError::WorldNotInitialized),
+            "{}",
+            name
+        );
+        assert_eq!(
+            add_joint(&mut e, kind, 99, 3, &bad),
+            Err(Physics3DError::BodyNotFound { slot: 99 }),
+            "{}",
+            name
+        );
+        assert_eq!(
+            add_joint(&mut e, kind, 2, 98, &bad),
+            Err(Physics3DError::BodyNotFound { slot: 98 }),
+            "{}",
+            name
+        );
+        assert_eq!(
+            add_joint(&mut e, kind, 2, 3, &bad),
+            Err(non_finite()),
+            "{}",
+            name
+        );
+    }
+    Ok(())
+}
+
+#[test]
+fn add_joint_accepts_finite_edge_values() -> Outcome {
+    let edges = [
+        (
+            "negative anchors",
+            [-5.0, -1.0, -2.0, -3.0, -4.0, -6.0],
+            [0.0, 1.0, 0.0],
+        ),
+        ("zero axis", [0.0; 6], [0.0; 3]),
+        ("tiny axis", [0.0; 6], [1e-30; 3]),
+    ];
+    for (kind, name) in KINDS.iter().enumerate() {
+        for (what, anchors, axis) in edges {
+            let mut e = scene()?;
+            let mut j = JointArgs::sane();
+            j.anchors = anchors;
+            j.axis = axis;
+            j.spring = [-1.0, 0.0, 0.0];
+            assert_eq!(add_joint(&mut e, kind, 2, 3, &j), Ok(0), "{} {what}", name);
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn joint_limits_refuse_nan_only_when_used_and_allow_infinite_sides() -> Outcome {
+    for kind in [1, 2] {
+        let mut used = JointArgs::sane();
+        used.use_limits = true;
+        for limits in [[NAN, 1.0], [-1.0, NAN], [NAN, NAN]] {
+            let mut e = scene()?;
+            used.limits = limits;
+            assert_eq!(
+                add_joint(&mut e, kind, 2, 3, &used),
+                Err(non_finite()),
+                "{}",
+                KINDS[kind]
+            );
+            assert_eq!(add_joint(&mut e, kind, 2, 3, &JointArgs::sane()), Ok(0));
+        }
+        for limits in [[-INF, 1.0], [-1.0, INF], [-INF, INF]] {
+            let mut e = scene()?;
+            used.limits = limits;
+            assert_eq!(
+                add_joint(&mut e, kind, 2, 3, &used),
+                Ok(0),
+                "{}",
+                KINDS[kind]
+            );
+        }
+        // Unused limits are never read, so a NaN there is not a refusal.
+        let mut unused = JointArgs::sane();
+        unused.limits = [NAN, NAN];
+        let mut e = scene()?;
+        assert_eq!(
+            add_joint(&mut e, kind, 2, 3, &unused),
+            Ok(0),
+            "{}",
+            KINDS[kind]
+        );
+    }
+    Ok(())
+}
+
+/// A scene with one revolute joint on slots 2 and 3, and its twin built the same way.
+fn scene_pair_with_joint() -> Result<(Engine, Engine, u32), Physics3DError> {
+    let mut touched = scene()?;
+    let mut untouched = scene()?;
+    let j = JointArgs::sane();
+    let id = add_joint(&mut touched, 1, 2, 3, &j)?;
+    assert_eq!(add_joint(&mut untouched, 1, 2, 3, &j), Ok(id));
+    Ok((touched, untouched, id))
+}
+
+#[test]
+fn motor_velocity_refuses_a_non_finite_value_and_changes_nothing() -> Outcome {
+    for v in HOSTILE {
+        for (what, velocity, force) in [("velocity", v, 10.0), ("max_force", 1.0, v)] {
+            let (mut touched, mut untouched, id) = scene_pair_with_joint()?;
+            assert_eq!(
+                touched.physics3d_set_joint_motor_velocity(id, velocity, force),
+                Err(non_finite()),
+                "{what} {v}"
+            );
+            assert_eq!(
+                fingerprint(&mut touched)?,
+                fingerprint(&mut untouched)?,
+                "{what} {v}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn motor_position_refuses_a_non_finite_value_and_changes_nothing() -> Outcome {
+    for v in HOSTILE {
+        for (what, args) in [
+            ("target", (v, 10.0, 1.0)),
+            ("stiffness", (1.0, v, 1.0)),
+            ("damping", (1.0, 10.0, v)),
+        ] {
+            let (mut touched, mut untouched, id) = scene_pair_with_joint()?;
+            assert_eq!(
+                touched.physics3d_set_joint_motor_position(id, args.0, args.1, args.2),
+                Err(non_finite()),
+                "{what} {v}"
+            );
+            assert_eq!(
+                fingerprint(&mut touched)?,
+                fingerprint(&mut untouched)?,
+                "{what} {v}"
+            );
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn motor_setters_check_the_world_then_the_joint_then_the_values() -> Outcome {
+    let mut no_world = Engine::new(4).map_err(Physics3DError::Core)?;
+    let not_init = Err(Physics3DError::WorldNotInitialized);
+    assert_eq!(
+        no_world.physics3d_set_joint_motor_velocity(0, NAN, 1.0),
+        not_init
+    );
+    assert_eq!(
+        no_world.physics3d_set_joint_motor_position(0, NAN, 1.0, 1.0),
+        not_init
+    );
+    let mut e = scene()?;
+    let unknown = Err(Physics3DError::JointNotFound { joint_id: 9999 });
+    assert_eq!(
+        e.physics3d_set_joint_motor_velocity(9999, NAN, 1.0),
+        unknown
+    );
+    assert_eq!(
+        e.physics3d_set_joint_motor_position(9999, NAN, 1.0, 1.0),
+        unknown
+    );
+    Ok(())
+}
+
+#[test]
+fn motor_setters_accept_finite_edge_values() -> Outcome {
+    let (mut e, _, id) = scene_pair_with_joint()?;
+    assert_eq!(
+        e.physics3d_set_joint_motor_velocity(id, -1e6, 0.0),
+        Ok(true)
+    );
+    assert_eq!(
+        e.physics3d_set_joint_motor_position(id, -1.0, 0.0, 0.0),
+        Ok(true)
+    );
     Ok(())
 }

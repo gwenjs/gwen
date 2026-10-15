@@ -6,8 +6,8 @@
 
 use gwen_core::ecs::CoreError;
 use gwen_core::physics3d::{
-    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason,
-    PathRequestReject, Physics3DError, MAX_NAVGRID_CELLS,
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidJointReason,
+    InvalidShapeReason, PathRequestReject, Physics3DError, MAX_NAVGRID_CELLS,
 };
 use std::error::Error;
 
@@ -632,6 +632,30 @@ fn invalid_collider_negative_code_message_and_equality() -> TestResult {
     );
     let message = message_via_std(err)?;
     assert_eq!(message, "collider refused: a value must not be negative");
+    Ok(())
+}
+
+#[test]
+fn invalid_joint_non_finite_code_message_and_equality() -> TestResult {
+    let err = Physics3DError::InvalidJoint {
+        reason: InvalidJointReason::NonFinite,
+    };
+    assert_eq!(err.code(), "PHYSICS3D:INVALID_JOINT");
+    assert_eq!(err.to_string(), "joint refused: a value is not finite");
+    assert_eq!(
+        err,
+        Physics3DError::InvalidJoint {
+            reason: InvalidJointReason::NonFinite
+        }
+    );
+    assert_ne!(
+        err,
+        Physics3DError::InvalidCollider {
+            reason: InvalidColliderReason::NonFinite
+        }
+    );
+    let message = message_via_std(err)?;
+    assert_eq!(message, "joint refused: a value is not finite");
     Ok(())
 }
 
