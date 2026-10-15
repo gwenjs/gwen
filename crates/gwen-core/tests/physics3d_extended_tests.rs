@@ -17,6 +17,7 @@
 #[cfg(feature = "physics3d")]
 mod physics3d_extended {
     use gwen_core::bindings::Engine;
+    use gwen_core::physics3d::Physics3DError;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -25,7 +26,10 @@ mod physics3d_extended {
     fn engine_with_one_body() -> Engine {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(engine.physics3d_add_body(0, 0.0, 5.0, 0.0, 1, 1.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 5.0, 0.0, 1, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
         engine
     }
 
@@ -264,20 +268,26 @@ mod physics3d_extended {
     fn test_physics3d_get_sensor_state_default_is_zero() {
         let engine = engine_with_one_body();
         // No sensor has been configured: packed result must be 0.
-        assert_eq!(engine.physics3d_get_sensor_state(0, 42), 0);
+        assert_eq!(
+            engine.physics3d_get_sensor_state(0, 42).unwrap_or(u64::MAX),
+            0
+        );
     }
 
     #[test]
-    fn test_physics3d_get_sensor_state_world_uninitialised_returns_zero() {
+    fn test_physics3d_get_sensor_state_world_uninitialised_returns_not_initialized() {
         let engine = Engine::new(32).expect("max entities");
-        assert_eq!(engine.physics3d_get_sensor_state(0, 1), 0);
+        assert_eq!(
+            engine.physics3d_get_sensor_state(0, 1),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
     fn test_physics3d_update_sensor_state_active_with_count() {
         let mut engine = engine_with_one_body();
-        engine.physics3d_update_sensor_state(0, 5, true, 3);
-        let packed = engine.physics3d_get_sensor_state(0, 5);
+        assert_eq!(engine.physics3d_update_sensor_state(0, 5, true, 3), Ok(()));
+        let packed = engine.physics3d_get_sensor_state(0, 5).unwrap_or(u64::MAX);
         let count = (packed & 0xFFFF_FFFF) as u32;
         let active = ((packed >> 32) & 1) != 0;
         assert_eq!(count, 3, "contact count");
@@ -288,9 +298,9 @@ mod physics3d_extended {
     fn test_physics3d_update_sensor_state_inactive_zero_count() {
         let mut engine = engine_with_one_body();
         // Write active state first, then clear it.
-        engine.physics3d_update_sensor_state(0, 7, true, 2);
-        engine.physics3d_update_sensor_state(0, 7, false, 0);
-        let packed = engine.physics3d_get_sensor_state(0, 7);
+        assert_eq!(engine.physics3d_update_sensor_state(0, 7, true, 2), Ok(()));
+        assert_eq!(engine.physics3d_update_sensor_state(0, 7, false, 0), Ok(()));
+        let packed = engine.physics3d_get_sensor_state(0, 7).unwrap_or(u64::MAX);
         let count = (packed & 0xFFFF_FFFF) as u32;
         let active = ((packed >> 32) & 1) != 0;
         assert_eq!(count, 0, "contact count after clear");
@@ -298,20 +308,26 @@ mod physics3d_extended {
     }
 
     #[test]
-    fn test_physics3d_update_sensor_state_world_uninitialised_is_noop() {
+    fn test_physics3d_update_sensor_state_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
         // Should not panic even without a world.
-        engine.physics3d_update_sensor_state(0, 1, true, 5);
+        assert_eq!(
+            engine.physics3d_update_sensor_state(0, 1, true, 5),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
     fn test_physics3d_sensor_state_separate_per_collider_id() {
         let mut engine = engine_with_one_body();
-        engine.physics3d_update_sensor_state(0, 10, true, 1);
-        engine.physics3d_update_sensor_state(0, 20, false, 0);
+        assert_eq!(engine.physics3d_update_sensor_state(0, 10, true, 1), Ok(()));
+        assert_eq!(
+            engine.physics3d_update_sensor_state(0, 20, false, 0),
+            Ok(())
+        );
 
-        let s10 = engine.physics3d_get_sensor_state(0, 10);
-        let s20 = engine.physics3d_get_sensor_state(0, 20);
+        let s10 = engine.physics3d_get_sensor_state(0, 10).unwrap_or(u64::MAX);
+        let s20 = engine.physics3d_get_sensor_state(0, 20).unwrap_or(u64::MAX);
         assert_ne!(s10, s20, "different sensor IDs must have independent state");
         assert!(((s10 >> 32) & 1) != 0, "sensor 10 is active");
         assert!(((s20 >> 32) & 1) == 0, "sensor 20 is inactive");
@@ -324,7 +340,7 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         for preset in 0u8..=3 {
-            engine.physics3d_set_quality(preset);
+            assert_eq!(engine.physics3d_set_quality(preset), Ok(()));
         }
     }
 
@@ -333,26 +349,31 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Any value outside [0, 3] must not panic and fall back to Medium.
-        engine.physics3d_set_quality(255);
-        engine.physics3d_step(0.016);
+        assert_eq!(engine.physics3d_set_quality(255), Ok(()));
+        assert_eq!(engine.physics3d_step(0.016), Ok(()));
     }
 
     #[test]
-    fn test_physics3d_set_quality_world_uninitialised_is_noop() {
+    fn test_physics3d_set_quality_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
-        // No panic expected when world is not initialised.
-        engine.physics3d_set_quality(2);
+        assert_eq!(
+            engine.physics3d_set_quality(2),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
     fn test_physics3d_set_quality_step_still_runs_after_preset_change() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(engine.physics3d_add_body(0, 0.0, 10.0, 0.0, 1, 1.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 10.0, 0.0, 1, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
         // Switch to High quality and verify the simulation advances without error.
-        engine.physics3d_set_quality(2);
-        engine.physics3d_step(0.016);
-        let state = engine.physics3d_get_body_state(0);
+        assert_eq!(engine.physics3d_set_quality(2), Ok(()));
+        assert_eq!(engine.physics3d_step(0.016), Ok(()));
+        let state = engine.physics3d_get_body_state(0).unwrap_or_default();
         assert_eq!(
             state.len(),
             13,
@@ -366,14 +387,17 @@ mod physics3d_extended {
     fn test_physics3d_set_event_coalescing_toggle_does_not_panic() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        engine.physics3d_set_event_coalescing(true);
-        engine.physics3d_set_event_coalescing(false);
+        assert_eq!(engine.physics3d_set_event_coalescing(true), Ok(()));
+        assert_eq!(engine.physics3d_set_event_coalescing(false), Ok(()));
     }
 
     #[test]
-    fn test_physics3d_set_event_coalescing_world_uninitialised_is_noop() {
+    fn test_physics3d_set_event_coalescing_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
-        engine.physics3d_set_event_coalescing(true);
+        assert_eq!(
+            engine.physics3d_set_event_coalescing(true),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     // ── Collision event buffer ────────────────────────────────────────────────
@@ -405,15 +429,18 @@ mod physics3d_extended {
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Step to let Rapier potentially populate the buffer (it will be empty
         // with no colliders, but consume_events must not panic either way).
-        engine.physics3d_step(0.016);
-        engine.physics3d_consume_events();
+        assert_eq!(engine.physics3d_step(0.016), Ok(()));
+        assert_eq!(engine.physics3d_consume_events(), Ok(()));
         assert_eq!(engine.physics3d_get_collision_event_count(), 0);
     }
 
     #[test]
-    fn test_physics3d_consume_events_world_uninitialised_is_noop() {
+    fn test_physics3d_consume_events_world_uninitialised_returns_not_initialized() {
         let mut engine = Engine::new(32).expect("max entities");
-        engine.physics3d_consume_events();
+        assert_eq!(
+            engine.physics3d_consume_events(),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
@@ -423,8 +450,14 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, 0.0, 0.0, 32); // zero gravity to keep bodies still
                                                   // Both bodies at the same position so their colliders immediately overlap.
-        assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0));
-        assert!(engine.physics3d_add_body(1, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
+        assert_eq!(
+            engine.physics3d_add_body(1, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
 
         // Large box sensors so they definitely overlap at origin.
         assert!(engine.physics3d_add_box_collider(
@@ -459,7 +492,7 @@ mod physics3d_extended {
         ));
 
         // Step: Rapier will generate the overlap event and write it into the buffer.
-        engine.physics3d_step(0.016);
+        assert_eq!(engine.physics3d_step(0.016), Ok(()));
 
         let count = engine.physics3d_get_collision_event_count();
         let ptr = engine.physics3d_get_collision_events_ptr();
@@ -471,11 +504,11 @@ mod physics3d_extended {
         assert!(ptr != 0, "event buffer pointer must be non-null after step");
 
         // Consume must clear the count.
-        engine.physics3d_consume_events();
+        assert_eq!(engine.physics3d_consume_events(), Ok(()));
         assert_eq!(engine.physics3d_get_collision_event_count(), 0);
 
         // A subsequent step should not panic regardless of prior state.
-        engine.physics3d_step(0.016);
+        assert_eq!(engine.physics3d_step(0.016), Ok(()));
         let _ = count; // suppress unused-variable warning
     }
 
@@ -486,22 +519,34 @@ mod physics3d_extended {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
         // Kind 2 = KinematicPositionBased
-        assert!(engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0),
+            Ok(true)
+        );
         // Identity quaternion (0, 0, 0, 1)
-        assert!(engine.physics3d_set_kinematic_position(0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0));
+        assert_eq!(
+            engine.physics3d_set_kinematic_position(0, 1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0),
+            Ok(true)
+        );
     }
 
     #[test]
     fn test_physics3d_set_kinematic_position_no_body_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(!engine.physics3d_set_kinematic_position(99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+        assert_eq!(
+            engine.physics3d_set_kinematic_position(99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+            Err(Physics3DError::BodyNotFound { slot: 99 })
+        );
     }
 
     #[test]
     fn test_physics3d_set_kinematic_position_world_uninitialised_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
-        assert!(!engine.physics3d_set_kinematic_position(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0));
+        assert_eq!(
+            engine.physics3d_set_kinematic_position(0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     // ── Angular impulse ───────────────────────────────────────────────────────
@@ -509,20 +554,29 @@ mod physics3d_extended {
     #[test]
     fn test_physics3d_apply_angular_impulse_returns_true() {
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_apply_angular_impulse(0, 0.0, 1.0, 0.0));
+        assert_eq!(
+            engine.physics3d_apply_angular_impulse(0, 0.0, 1.0, 0.0),
+            Ok(true)
+        );
     }
 
     #[test]
     fn test_physics3d_apply_angular_impulse_no_body_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
         engine.physics3d_init(0.0, -9.81, 0.0, 32);
-        assert!(!engine.physics3d_apply_angular_impulse(42, 1.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_apply_angular_impulse(42, 1.0, 0.0, 0.0),
+            Err(Physics3DError::BodyNotFound { slot: 42 })
+        );
     }
 
     #[test]
     fn test_physics3d_apply_angular_impulse_world_uninitialised_returns_false() {
         let mut engine = Engine::new(32).expect("max entities");
-        assert!(!engine.physics3d_apply_angular_impulse(0, 1.0, 0.0, 0.0));
+        assert_eq!(
+            engine.physics3d_apply_angular_impulse(0, 1.0, 0.0, 0.0),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     #[test]
@@ -535,9 +589,12 @@ mod physics3d_extended {
         // assert the WASM binding correctly delegates to the world and propagates
         // the `true` return value.
         let mut engine = engine_with_one_body();
-        assert!(engine.physics3d_apply_angular_impulse(0, 0.0, 10.0, 0.0));
+        assert_eq!(
+            engine.physics3d_apply_angular_impulse(0, 0.0, 10.0, 0.0),
+            Ok(true)
+        );
         // Angular velocity getter must return 3 elements (binding is wired up).
-        let av = engine.physics3d_get_angular_velocity(0);
+        let av = engine.physics3d_get_angular_velocity(0).unwrap_or_default();
         assert_eq!(av.len(), 3);
     }
 

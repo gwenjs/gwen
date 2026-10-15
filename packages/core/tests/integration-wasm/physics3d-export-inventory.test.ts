@@ -8,10 +8,12 @@ import { describe, expect, it } from "vitest";
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
  * `known-panic` is issue 110: a TypeScript input can reach a Rust panic, or the
- * path was not proven. No physics3d export returns a `Result` yet. A later PR
- * flips a row to `result` when it converts the export.
+ * path was not proven. `physics3d_step` and the three queries return a `Result`
+ * for a missing world and stay `known-panic` for the Rapier and parry call.
+ * A later PR flips a row to `result` when it converts the export.
  * An export matching the physics3d name rule that is missing from the table fails.
- * A row that is not `result` while the glue throws also fails.
+ * A `result` row whose glue does not throw fails.
+ * An `infallible` row whose glue throws fails.
  */
 type ExportRow =
   | { kind: "result" }
@@ -26,16 +28,16 @@ function knownPanic(issue: number): { kind: "known-panic"; issue: number } {
   return { kind: "known-panic", issue };
 }
 
+function result(): { kind: "result" } {
+  return { kind: "result" };
+}
+
 const ISSUE = 110;
 
 const JOINT_ADD =
   "a missing body returns u32::MAX at the entity_handles.get let-else (world.rs:2475-2485); ImpulseJointSet::insert has no assert (impulse_joint_set.rs:232-272) and Graph::add_edge only asserts on an invalid node index (graph.rs:220-228); NaN or inf only reach the step";
 const JOINT_SET =
   "joint_handles.get and impulse_joint_set.get_mut return early with false (world.rs:2715-2720); the generic_joint setter indexes the fixed motors array with AngX";
-const BODY_SETTER =
-  "entity_handles.get and rigid_body_set.get_mut return early with false; the rapier RigidBody setter has no assert, unwrap or expect (rigid_body.rs); NaN or inf only reach the step";
-const BODY_GETTER =
-  "entity_handles.get and rigid_body_set.get return early with an empty Vec or a sentinel; the getter reads stored fields";
 const COLLIDER_SHAPE =
   "the body lookup returns false at world.rs:701-704; the parry shape constructor has no assert (cuboid.rs, ball.rs, capsule.rs); insert_with_parent expects a body that entity_handles keeps in sync (collider_set.rs:121); NaN, inf or negative sizes only reach the step";
 
@@ -47,9 +49,7 @@ const PHYSICS3D: Record<string, ExportRow> = {
     "returns the address of the thread-local path buffer without dereferencing it (pathfinding.rs:83-87)",
   ),
   physics3d_add_ball_joint: infallible(JOINT_ADD),
-  physics3d_add_body: infallible(
-    "a duplicate slot returns false at world.rs:592-598; kind_to_body_type has a wildcard arm (world.rs:143-148); the builder and RigidBodySet::insert have no assert for mass, damping or position (rigid_body.rs, arena.rs:295-300)",
-  ),
+  physics3d_add_body: result(),
   physics3d_add_box_collider: infallible(COLLIDER_SHAPE),
   physics3d_add_capsule_collider: infallible(COLLIDER_SHAPE),
   physics3d_add_character_controller: infallible(
@@ -60,17 +60,17 @@ const PHYSICS3D: Record<string, ExportRow> = {
   ),
   physics3d_add_convex_collider: knownPanic(ISSUE),
   physics3d_add_fixed_joint: infallible(JOINT_ADD),
-  physics3d_add_force: infallible(BODY_SETTER),
-  physics3d_add_force_at_point: infallible(BODY_SETTER),
+  physics3d_add_force: result(),
+  physics3d_add_force_at_point: result(),
   physics3d_add_heightfield_collider: knownPanic(ISSUE),
   physics3d_add_mesh_collider: knownPanic(ISSUE),
   physics3d_add_prismatic_joint: infallible(JOINT_ADD),
   physics3d_add_revolute_joint: infallible(JOINT_ADD),
   physics3d_add_sphere_collider: infallible(COLLIDER_SHAPE),
   physics3d_add_spring_joint: infallible(JOINT_ADD),
-  physics3d_add_torque: infallible(BODY_SETTER),
-  physics3d_apply_angular_impulse: infallible(BODY_SETTER),
-  physics3d_apply_impulse: infallible(BODY_SETTER),
+  physics3d_add_torque: result(),
+  physics3d_apply_angular_impulse: result(),
+  physics3d_apply_impulse: result(),
   physics3d_bulk_apply_impulse: infallible(
     "set_components_bulk is a result row of the light inventory (wasm-export-inventory.test.ts:96); its Err is dropped by let _ = (bulk_ops_physics3d.rs:85), so no panic and no error reaches TypeScript",
   ),
@@ -92,13 +92,11 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_cast_ray: knownPanic(ISSUE),
   physics3d_cast_shape: knownPanic(ISSUE),
   physics3d_character_controller_move: knownPanic(ISSUE),
-  physics3d_consume_events: infallible("the body sets the event count to 0 (events.rs:55-57)"),
+  physics3d_consume_events: result(),
   physics3d_find_path_3d: knownPanic(ISSUE),
-  physics3d_get_angular_velocity: infallible(BODY_GETTER),
-  physics3d_get_body_kind: infallible(
-    "entity_handles.get and rigid_body_set.get return 255 early; body_type_to_kind has a wildcard arm (world.rs:155-162)",
-  ),
-  physics3d_get_body_state: infallible(BODY_GETTER),
+  physics3d_get_angular_velocity: result(),
+  physics3d_get_body_kind: result(),
+  physics3d_get_body_state: result(),
   physics3d_get_cc_sab_ptr: infallible(
     "returns the address of the fixed cc_state array without reading it (world.rs:3082-3084)",
   ),
@@ -108,32 +106,28 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_get_collision_events_ptr: infallible(
     "returns the event buffer address, or 0 when the world is absent (world.rs:504-506)",
   ),
-  physics3d_get_gravity_scale: infallible(BODY_GETTER),
-  physics3d_get_linear_velocity: infallible(BODY_GETTER),
+  physics3d_get_gravity_scale: result(),
+  physics3d_get_linear_velocity: result(),
   physics3d_get_max_cc_entities: infallible(
     "returns the constant MAX_CC_ENTITIES (world.rs:3098-3100)",
   ),
   physics3d_get_path_buffer_ptr_3d: infallible(
     "returns the address of the thread-local path buffer without dereferencing it (pathfinding.rs:83-87)",
   ),
-  physics3d_get_sensor_state: infallible(
-    "HashMap::get then unwrap_or((0, false)); the shift is 32 on a u64 (world.rs:534-541)",
-  ),
-  physics3d_has_body: infallible("contains_key on a HashMap (world.rs:672-674)"),
+  physics3d_get_sensor_state: result(),
+  physics3d_has_body: result(),
   physics3d_init: infallible(
     "PhysicsWorld3D::new stores the three gravity floats and builds empty rapier sets; the max_entities argument is unused (world.rs:318-351)",
   ),
   physics3d_init_navgrid_3d: knownPanic(ISSUE),
-  physics3d_is_body_sleeping: infallible(BODY_GETTER),
+  physics3d_is_body_sleeping: result(),
   physics3d_load_bvh_collider: knownPanic(ISSUE),
-  physics3d_lock_rotations: infallible(BODY_SETTER),
-  physics3d_lock_translations: infallible(BODY_SETTER),
+  physics3d_lock_rotations: result(),
+  physics3d_lock_translations: result(),
   physics3d_overlap_shape: knownPanic(ISSUE),
   physics3d_project_point: knownPanic(ISSUE),
   physics3d_rebuild_mesh_collider: knownPanic(ISSUE),
-  physics3d_remove_body: infallible(
-    "a missing slot returns false (world.rs:662-663); RigidBodySet::remove returns Option (rigid_body_set.rs:88); the joint unwrap at impulse_joint_set.rs:366 holds because insert stores every joint id (impulse_joint_set.rs:240) and a self-loop edge is yielded once (graph.rs:672-675)",
-  ),
+  physics3d_remove_body: result(),
   physics3d_remove_character_controller: infallible(
     "HashMap::remove and Vec::push only (world.rs:3065-3070)",
   ),
@@ -143,35 +137,23 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_remove_joint: infallible(
     "a missing id returns false (world.rs:2693-2699); ImpulseJointSet::remove returns Option (impulse_joint_set.rs:316-336)",
   ),
-  physics3d_set_angular_velocity: infallible(BODY_SETTER),
-  physics3d_set_body_kind: infallible(
-    `${BODY_SETTER}; kind_to_body_type has a wildcard arm (world.rs:143-148) and set_body_type compares and assigns (rigid_body.rs:219-232)`,
-  ),
-  physics3d_set_body_sleeping: infallible(BODY_SETTER),
-  physics3d_set_body_solver_iterations: infallible(
-    `${BODY_SETTER}; a huge iteration count only slows the step`,
-  ),
-  physics3d_set_body_state: infallible(
-    `${BODY_SETTER}; UnitQuaternion::new_normalize divides by the norm without an assert (unit.rs:131-134)`,
-  ),
-  physics3d_set_event_coalescing: infallible("the body assigns one bool (world.rs:393-395)"),
-  physics3d_set_gravity_scale: infallible(BODY_SETTER),
+  physics3d_set_angular_velocity: result(),
+  physics3d_set_body_kind: result(),
+  physics3d_set_body_sleeping: result(),
+  physics3d_set_body_solver_iterations: result(),
+  physics3d_set_body_state: result(),
+  physics3d_set_event_coalescing: result(),
+  physics3d_set_gravity_scale: result(),
   physics3d_set_joint_enabled: infallible(JOINT_SET),
   physics3d_set_joint_motor_position: infallible(JOINT_SET),
   physics3d_set_joint_motor_velocity: infallible(JOINT_SET),
-  physics3d_set_kinematic_position: infallible(
-    `${BODY_SETTER}; UnitQuaternion::new_normalize divides by the norm without an assert (unit.rs:131-134)`,
-  ),
-  physics3d_set_linear_velocity: infallible(BODY_SETTER),
-  physics3d_set_quality: infallible(
-    "PhysicsQualityPreset3D::from_u8 has a wildcard arm (components.rs:83-90) and apply_quality_config uses unwrap_or(NonZeroUsize::MIN) (world.rs:356-362)",
-  ),
+  physics3d_set_kinematic_position: result(),
+  physics3d_set_linear_velocity: result(),
+  physics3d_set_quality: result(),
   physics3d_step: knownPanic(ISSUE),
   physics3d_update_heightfield_collider: knownPanic(ISSUE),
-  physics3d_update_sensor_state: infallible("one HashMap::insert (world.rs:554-563)"),
-  physics3d_wake_all: infallible(
-    "iterates rigid_body_set.iter_mut and calls wake_up, which has no assert (rigid_body.rs)",
-  ),
+  physics3d_update_sensor_state: result(),
+  physics3d_wake_all: result(),
 };
 
 const PHYSICS3D_NAME = /^physics3d_|_3d$/;
@@ -270,7 +252,7 @@ describe("physics3d export inventory", () => {
       const throws = glueThrows(glue, glue.Engine, name);
       if (row.kind === "result") {
         expect(throws, `${name} is a result row but the glue does not throw`).toBe(true);
-      } else {
+      } else if (row.kind === "infallible") {
         expect(throws, `${name} throws in the glue: flip its row to result`).toBe(false);
       }
     }
