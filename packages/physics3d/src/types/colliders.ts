@@ -157,7 +157,8 @@ export interface MeshColliderHandle3D extends ColliderHandle3D {
    * @param vertices - New vertex positions `[x0,y0,z0, x1,y1,z1, ...]`.
    * @param indices  - New triangle indices `[a0,b0,c0, ...]`.
    * @returns A promise that resolves once the WASM swap is complete.
-   * @throws If `physics3d_rebuild_mesh_collider` returns `false` (entity missing).
+   * @throws {GwenError} `PHYSICS3D:MESH_REBUILD_FAILED` when `physics3d_rebuild_mesh_collider`
+   *   rejects the rebuild or the entity has no body. The typed WASM error is the `cause`.
    */
   rebuild(vertices: Float32Array, indices: Uint32Array): Promise<void>;
 }

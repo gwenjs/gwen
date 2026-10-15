@@ -304,6 +304,7 @@ export interface Physics3DAPI {
    * @param vz - Z velocity components in m/s.
    * @param dt - Delta time in seconds.
    * @returns Number of bodies updated.
+   * @throws {GwenWasmError} `PHYSICS3D:BUFFER_LENGTH_MISMATCH` when an array length differs. No body moves.
    */
   bulkStepKinematics(
     slots: Uint32Array,
@@ -352,7 +353,10 @@ export interface Physics3DAPI {
   /**
    * Remove a collider by its stable `colliderId`.
    *
-   * @returns `false` if no matching collider was found.
+   * @returns `false` if the entity has no body or the registry holds no collider with this id
+   *   (the call never reaches Rust then, so a second removal is a no-op).
+   * @throws {GwenWasmError} `PHYSICS3D:COLLIDER_NOT_FOUND` when the registry holds the id but
+   *   Rust does not (a registry and WASM desync). The registry is left as it was.
    */
   removeCollider(entityId: Physics3DEntityId, colliderId: number): boolean;
 
@@ -508,6 +512,9 @@ export interface Physics3DAPI {
    * relative movement.
    *
    * In local-simulation mode returns a no-op dummy handle.
+   * A missing owner body returns the dummy handle and logs a warning (TypeScript check, before
+   * any WASM call). A rejection from Rust throws `GwenWasmError` (`PHYSICS3D:BODY_NOT_FOUND`
+   * or `PHYSICS3D:INVALID_JOINT`) instead of returning a dummy handle.
    *
    * @param opts - Joint options including the two body identifiers and optional anchors.
    * @returns An opaque joint handle. Pass it to `removeJoint` to destroy the joint.
@@ -550,7 +557,8 @@ export interface Physics3DAPI {
   /**
    * Destroy a previously created joint.
    *
-   * No-op in local-simulation mode.
+   * No-op in local-simulation mode. Idempotent: a joint that is already gone (removed, or
+   * destroyed with one of its bodies) is not an error.
    *
    * @param id - The joint handle returned by one of the `addXxxJoint` methods.
    */
@@ -698,6 +706,8 @@ export interface Physics3DAPI {
    * In local mode the grid is stored for JavaScript A* use.
    *
    * @param opts - Grid dimensions, cell size, origin, and the raw voxel data.
+   * @throws {GwenWasmError} `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid
+   *   over the cell limit (WASM mode). The temporary upload buffer is freed either way.
    */
   initNavGrid3D(opts: Pathfinding3DOptions): void;
 
@@ -706,6 +716,8 @@ export interface Physics3DAPI {
    *
    * Returns an ordered list of waypoints from `from` to `to`.
    * Returns an empty array when no path exists or the grid is not initialized.
+   * @throws {GwenWasmError} `PHYSICS3D:INVALID_PATH_REQUEST` for a coordinate that is not finite
+   *   or lies past the accepted bound (WASM mode).
    *
    * @param from - Start position in world space.
    * @param to   - End position in world space.
@@ -797,6 +809,8 @@ export interface Physics3DAPI {
    * @param entityId - Target entity.
    * @param opts     - Controller parameters (step height, slope limit, etc.).
    * @returns A {@link CharacterControllerHandle} for driving the controller each frame.
+   * @throws {GwenWasmError} `PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED` when the pool is full.
+   *   The pool is unchanged. It no longer returns an inert handle.
    */
   addCharacterController(
     entityId: Physics3DEntityId,
@@ -805,6 +819,7 @@ export interface Physics3DAPI {
 
   /**
    * Remove the character controller associated with an entity.
+   * Idempotent: an entity without a controller is a no-op.
    *
    * @param entityId - Target entity whose controller should be destroyed.
    */

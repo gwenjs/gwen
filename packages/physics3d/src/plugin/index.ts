@@ -69,6 +69,7 @@ import { createCharacterControllerMethods } from "./character-controller";
 import { createSpatialQueryMethods } from "./spatial-queries";
 
 import { createPathfindingMethods } from "./pathfinding-service";
+import { callPhysics3DExport, mapPhysics3DError } from "./wasm-errors";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
 
@@ -206,10 +207,22 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
     setAngularVelocity: _setAngularVelocity,
     setKinematicPosition: _setKinematicPosition,
     bulkStepKinematics: (slots, vx, vy, vz, dt) => {
-      return ctx.wasmBridge?.physics3d_bulk_step_kinematics?.(slots, vx, vy, vz, dt) ?? 0;
+      const pb = ctx.wasmBridge;
+      if (pb === null) return 0;
+      return callPhysics3DExport(
+        ctx,
+        "physics3d_bulk_step_kinematics",
+        () => pb.physics3d_bulk_step_kinematics?.(slots, vx, vy, vz, dt) ?? 0,
+      );
     },
     bulkStepKinematicRotations: (slots, wx, wy, wz, dt) => {
-      return ctx.wasmBridge?.physics3d_bulk_step_kinematic_rotations?.(slots, wx, wy, wz, dt) ?? 0;
+      const pb = ctx.wasmBridge;
+      if (pb === null) return 0;
+      return callPhysics3DExport(
+        ctx,
+        "physics3d_bulk_step_kinematic_rotations",
+        () => pb.physics3d_bulk_step_kinematic_rotations?.(slots, wx, wy, wz, dt) ?? 0,
+      );
     },
     addCollider: _addCollider,
     removeCollider: _removeCollider,
@@ -306,14 +319,32 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
       );
 
       if (typeof pb.physics3d_set_quality === "function") {
-        pb.physics3d_set_quality(QUALITY_PRESETS[ctx.cfg.qualityPreset]);
+        const setQuality = pb.physics3d_set_quality;
+        callPhysics3DExport(ctx, "physics3d_set_quality", () =>
+          setQuality.call(pb, QUALITY_PRESETS[ctx.cfg.qualityPreset]),
+        );
       }
 
       if (typeof pb.physics3d_set_event_coalescing === "function") {
-        pb.physics3d_set_event_coalescing(ctx.cfg.coalesceEvents ? 1 : 0);
+        const setCoalescing = pb.physics3d_set_event_coalescing;
+        callPhysics3DExport(ctx, "physics3d_set_event_coalescing", () =>
+          setCoalescing.call(pb, ctx.cfg.coalesceEvents),
+        );
       }
 
-      ctx.stepFn = typeof pb.physics3d_step === "function" ? pb.physics3d_step.bind(pb) : null;
+      // One step per frame: `try` here, no closure per call. A rejected step leaves
+      // `engine:before-update` through the existing hook-error path.
+      const step = pb.physics3d_step;
+      ctx.stepFn =
+        typeof step === "function"
+          ? (delta: number): void => {
+              try {
+                step.call(pb, delta);
+              } catch (err: unknown) {
+                throw mapPhysics3DError(ctx, err, "physics3d_step");
+              }
+            }
+          : null;
 
       // Detect WASM backend: if physics3d_add_body is exported, delegate to Rapier3D
       if (typeof pb.physics3d_add_body === "function") {

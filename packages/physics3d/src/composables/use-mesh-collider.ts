@@ -30,6 +30,17 @@ function isPreloadedBvhHandle(v: unknown): v is PreloadedBvhHandle {
   return typeof v === "object" && v !== null && "url" in v && "status" in v;
 }
 
+/** True when `err` is the typed error one WASM export threw (`GwenWasmError.exportName`). */
+function isRejectionOf(err: unknown, exportName: string): err is GwenError {
+  if (!(err instanceof GwenError)) return false;
+  const name: unknown = Reflect.get(err, "exportName");
+  return name === exportName;
+}
+
+function rebuildFailedMessage(err: GwenError): string {
+  return `physics3d_rebuild_mesh_collider failed (${err.code}): ${err.message}`;
+}
+
 /**
  * Attach a trimesh collider to the current entity.
  *
@@ -153,7 +164,21 @@ export function useMeshCollider(
         "isSensor" | "friction" | "restitution" | "layers" | "mask"
       > = {};
       if (currentOptions.isSensor !== undefined) rebuildOpts.isSensor = currentOptions.isSensor;
-      const ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);
+      let ok: boolean;
+      try {
+        ok = physics.rebuildMeshCollider(entityId, colliderId, vertices, indices, rebuildOpts);
+      } catch (err: unknown) {
+        _status = "error";
+        // The export now throws a typed error where it used to answer `false`. Report the same
+        // MESH_REBUILD_FAILED and keep the typed error as `cause`. Other errors (a dead entity)
+        // pass through unchanged.
+        if (isRejectionOf(err, "physics3d_rebuild_mesh_collider")) {
+          throw new GwenError(Physics3DErrorCodes.MESH_REBUILD_FAILED, rebuildFailedMessage(err), {
+            cause: err,
+          });
+        }
+        throw err;
+      }
       if (!ok) {
         _status = "error";
         throw new GwenError(

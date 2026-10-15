@@ -530,16 +530,26 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
  * - `0` — Fixed (static, infinite mass)
  * - `1` — Dynamic (fully simulated by Rapier)
  * - `2` — KinematicPositionBased (position driven by explicit writes)
- * - `255` — sentinel value returned by `physics3d_get_body_kind` when no body is registered
+ *
+ * A fallible export throws an `Error` with a `code` property (`PHYSICS3D:*`, or
+ * `CORE:*` for a shared-buffer check). It never returns a sentinel for a failure.
+ * A `boolean` result is `true` on success. A missing body is an empty `Float32Array`
+ * for a getter that returns a vector, and a `[0]` for a query miss.
  */
 export interface WasmEnginePhysics3D extends WasmEngineBase {
   // ── World lifecycle ───────────────────────────────────────────────────────
 
   physics3d_init(gx: number, gy: number, gz: number, maxEntities: number): void;
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. A Rapier trap stays a trap. */
   physics3d_step(delta: number): void;
+  physics3d_set_quality?(preset: number): void;
+  physics3d_set_event_coalescing?(enabled: boolean): void;
+  physics3d_set_body_solver_iterations?(entityIndex: number, iterations: number): boolean;
+  physics3d_wake_all?(): void;
 
   // ── Body lifecycle ────────────────────────────────────────────────────────
 
+  /** Returns `true`. Throws `PHYSICS3D:BODY_ALREADY_EXISTS` when the slot has a body. */
   physics3d_add_body(
     entityIndex: number,
     x: number,
@@ -550,11 +560,13 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     linearDamping: number,
     angularDamping: number,
   ): boolean;
+  /** Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND` when the slot has no body. */
   physics3d_remove_body(entityIndex: number): boolean;
   physics3d_has_body(entityIndex: number): boolean;
 
   // ── State read/write ──────────────────────────────────────────────────────
 
+  /** Empty array when the slot has no body. Layout `[px,py,pz, qx,qy,qz,qw, vx,vy,vz, ax,ay,az]`. */
   physics3d_get_body_state(entityIndex: number): Float32Array;
   physics3d_set_body_state(
     entityIndex: number,
@@ -589,6 +601,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
 
   // ── Body kind ─────────────────────────────────────────────────────────────
 
+  /** Returns `0`, `1` or `2`. Throws `PHYSICS3D:BODY_NOT_FOUND` when the slot has no body. */
   physics3d_get_body_kind(entityIndex: number): number;
   physics3d_set_body_kind(entityIndex: number, kind: number): boolean;
 
@@ -604,6 +617,22 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     qz: number,
     qw: number,
   ): boolean;
+  /** Returns the number of bodies moved. Throws `PHYSICS3D:BUFFER_LENGTH_MISMATCH`. */
+  physics3d_bulk_step_kinematics?(
+    slots: Uint32Array,
+    vx: Float32Array,
+    vy: Float32Array,
+    vz: Float32Array,
+    dt: number,
+  ): number;
+  /** Returns the number of bodies rotated. Throws `PHYSICS3D:BUFFER_LENGTH_MISMATCH`. */
+  physics3d_bulk_step_kinematic_rotations?(
+    slots: Uint32Array,
+    wx: Float32Array,
+    wy: Float32Array,
+    wz: Float32Array,
+    dt: number,
+  ): number;
 
   // ── Angular impulse ───────────────────────────────────────────────────────
 
@@ -621,49 +650,77 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     halfX: number,
     halfY: number,
     halfZ: number,
-    friction: number,
-    restitution: number,
-    density: number,
-    isSensor: number,
-    membership: number,
-    filter: number,
-    colliderId: number,
     offsetX: number,
     offsetY: number,
     offsetZ: number,
+    isSensor: boolean,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
   ): boolean;
 
   physics3d_add_sphere_collider?(
     entityIndex: number,
     radius: number,
-    friction: number,
-    restitution: number,
-    density: number,
-    isSensor: number,
-    membership: number,
-    filter: number,
-    colliderId: number,
     offsetX: number,
     offsetY: number,
     offsetZ: number,
+    isSensor: boolean,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
   ): boolean;
 
   physics3d_add_capsule_collider?(
     entityIndex: number,
     radius: number,
     halfHeight: number,
-    friction: number,
-    restitution: number,
-    density: number,
-    isSensor: number,
-    membership: number,
-    filter: number,
-    colliderId: number,
     offsetX: number,
     offsetY: number,
     offsetZ: number,
+    isSensor: boolean,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
   ): boolean;
 
+  physics3d_add_heightfield_collider?(
+    entityIndex: number,
+    heightsFlat: Float32Array,
+    rows: number,
+    cols: number,
+    scaleX: number,
+    scaleY: number,
+    scaleZ: number,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
+  ): boolean;
+
+  physics3d_update_heightfield_collider?(
+    entityIndex: number,
+    colliderId: number,
+    heightsFlat: Float32Array,
+    rows: number,
+    cols: number,
+    scaleX: number,
+    scaleY: number,
+    scaleZ: number,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+  ): boolean;
+
+  /** Returns `true`. Throws `PHYSICS3D:COLLIDER_NOT_FOUND` when the pair is unknown. */
   physics3d_remove_collider?(entityIndex: number, colliderId: number): boolean;
 
   physics3d_add_mesh_collider?(
@@ -696,20 +753,282 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     maskBits: number,
   ): boolean;
 
+  physics3d_add_convex_collider?(
+    entityIndex: number,
+    vertices: Float32Array,
+    offsetX: number,
+    offsetY: number,
+    offsetZ: number,
+    isSensor: boolean,
+    friction: number,
+    restitution: number,
+    density: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
+  ): boolean;
+
+  physics3d_load_bvh_collider?(
+    entityIndex: number,
+    bvhBytes: Uint8Array,
+    offsetX: number,
+    offsetY: number,
+    offsetZ: number,
+    isSensor: boolean,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+    colliderId: number,
+  ): boolean;
+
+  /** Returns the number of colliders inserted, equal to the number of shapes. */
+  physics3d_add_compound_collider?(
+    entityIndex: number,
+    shapeData: Float32Array,
+    layerBits: number,
+    maskBits: number,
+  ): number;
+
+  /** Returns the number of bodies spawned. Nothing is written when it throws. */
+  physics3d_bulk_spawn_static_boxes?(
+    entityIndices: Uint32Array,
+    positionsFlat: Float32Array,
+    halfExtentsFlat: Float32Array,
+    friction: number,
+    restitution: number,
+    layerBits: number,
+    maskBits: number,
+  ): number;
+
   // ── Sensor state ──────────────────────────────────────────────────────────
 
-  physics3d_get_sensor_state?(entityIndex: number, sensorId: number): BigInt64Array | number[];
+  /**
+   * Packed state: bits 0-31 are the contact count, bit 32 is the active flag.
+   * `0n` when no state was recorded for a registered body.
+   */
+  physics3d_get_sensor_state?(entityIndex: number, sensorId: number): bigint;
   physics3d_update_sensor_state?(
     entityIndex: number,
     sensorId: number,
-    isActive: number,
+    isActive: boolean,
     count: number,
   ): void;
 
-  // ── Quality & coalescing ──────────────────────────────────────────────────
+  // ── Forces, gravity scale, locks, sleeping ────────────────────────────────
 
-  physics3d_set_quality?(preset: number): void;
-  physics3d_set_event_coalescing?(enabled: number): void;
+  physics3d_add_force?(entityIndex: number, fx: number, fy: number, fz: number): boolean;
+  physics3d_add_torque?(entityIndex: number, tx: number, ty: number, tz: number): boolean;
+  physics3d_add_force_at_point?(
+    entityIndex: number,
+    fx: number,
+    fy: number,
+    fz: number,
+    px: number,
+    py: number,
+    pz: number,
+  ): boolean;
+  physics3d_set_gravity_scale?(entityIndex: number, scale: number): boolean;
+  /** Returns the scale. Throws `PHYSICS3D:BODY_NOT_FOUND` when the slot has no body. */
+  physics3d_get_gravity_scale?(entityIndex: number): number;
+  physics3d_lock_translations?(entityIndex: number, x: boolean, y: boolean, z: boolean): boolean;
+  physics3d_lock_rotations?(entityIndex: number, x: boolean, y: boolean, z: boolean): boolean;
+  physics3d_set_body_sleeping?(entityIndex: number, sleeping: boolean): boolean;
+  physics3d_is_body_sleeping?(entityIndex: number): boolean;
+
+  // ── Joints ────────────────────────────────────────────────────────────────
+
+  /** Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
+  physics3d_add_fixed_joint?(
+    entityA: number,
+    entityB: number,
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+  ): number;
+  physics3d_add_revolute_joint?(
+    entityA: number,
+    entityB: number,
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+    axisX: number,
+    axisY: number,
+    axisZ: number,
+    useLimits: boolean,
+    limitMin: number,
+    limitMax: number,
+  ): number;
+  physics3d_add_prismatic_joint?(
+    entityA: number,
+    entityB: number,
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+    axisX: number,
+    axisY: number,
+    axisZ: number,
+    useLimits: boolean,
+    limitMin: number,
+    limitMax: number,
+  ): number;
+  physics3d_add_ball_joint?(
+    entityA: number,
+    entityB: number,
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+    useConeLimit: boolean,
+    coneAngle: number,
+  ): number;
+  physics3d_add_spring_joint?(
+    entityA: number,
+    entityB: number,
+    ax: number,
+    ay: number,
+    az: number,
+    bx: number,
+    by: number,
+    bz: number,
+    restLength: number,
+    stiffness: number,
+    damping: number,
+  ): number;
+  /** Returns `true`. Throws `PHYSICS3D:JOINT_NOT_FOUND` when the id is unknown. */
+  physics3d_remove_joint?(id: number): boolean;
+  physics3d_set_joint_motor_velocity?(id: number, velocity: number, maxForce: number): boolean;
+  physics3d_set_joint_motor_position?(
+    id: number,
+    target: number,
+    stiffness: number,
+    damping: number,
+  ): boolean;
+  physics3d_set_joint_enabled?(id: number, enabled: boolean): boolean;
+
+  // ── Navigation grid ───────────────────────────────────────────────────────
+
+  /** Throws `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid over the cell limit. */
+  physics3d_init_navgrid_3d?(
+    ptr: number,
+    width: number,
+    height: number,
+    depth: number,
+    cellSize: number,
+    originX: number,
+    originY: number,
+    originZ: number,
+  ): void;
+  /** Returns the waypoint count. Throws `PHYSICS3D:NAVGRID_NOT_INITIALIZED` or `PHYSICS3D:INVALID_PATH_REQUEST`. */
+  physics3d_find_path_3d?(
+    fromX: number,
+    fromY: number,
+    fromZ: number,
+    toX: number,
+    toY: number,
+    toZ: number,
+  ): number;
+  physics3d_get_path_buffer_ptr_3d?(): number;
+
+  // ── Spatial queries ───────────────────────────────────────────────────────
+
+  /** `[1, entity, toi, nx, ny, nz, px, py, pz]` on a hit, `[0]` on a miss. */
+  physics3d_cast_ray?(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    maxDist: number,
+    layers: number,
+    mask: number,
+    solid: boolean,
+  ): Float32Array;
+  /** 15 floats on a hit, `[0]` on a miss. */
+  physics3d_cast_shape?(
+    posX: number,
+    posY: number,
+    posZ: number,
+    rotX: number,
+    rotY: number,
+    rotZ: number,
+    rotW: number,
+    dirX: number,
+    dirY: number,
+    dirZ: number,
+    shapeType: number,
+    p0: number,
+    p1: number,
+    p2: number,
+    maxDist: number,
+    layers: number,
+    mask: number,
+  ): Float32Array;
+  /** Returns the overlap count. Throws `CORE:INVALID_SHARED_BUFFER` for an `outPtr` that is not a live shared buffer. */
+  physics3d_overlap_shape?(
+    posX: number,
+    posY: number,
+    posZ: number,
+    rotX: number,
+    rotY: number,
+    rotZ: number,
+    rotW: number,
+    shapeType: number,
+    p0: number,
+    p1: number,
+    p2: number,
+    layers: number,
+    mask: number,
+    outPtr: number,
+    maxResults: number,
+  ): number;
+  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. */
+  physics3d_project_point?(
+    px: number,
+    py: number,
+    pz: number,
+    layers: number,
+    mask: number,
+    solid: boolean,
+  ): Float32Array;
+
+  // ── Character controller ──────────────────────────────────────────────────
+
+  /**
+   * Returns the controller slot. Throws `PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED`
+   * when the pool is full. The pool is unchanged when it throws.
+   */
+  physics3d_add_character_controller?(
+    entityIndex: number,
+    stepHeight: number,
+    slopeLimit: number,
+    skinWidth: number,
+    snapToGround: number,
+    slideOnSteepSlopes: boolean,
+    applyImpulsesToDynamic: boolean,
+  ): number;
+  physics3d_character_controller_move?(
+    entityIndex: number,
+    vx: number,
+    vy: number,
+    vz: number,
+    dt: number,
+  ): void;
+  physics3d_remove_character_controller?(entityIndex: number): void;
+  physics3d_get_cc_sab_ptr?(): number;
+  physics3d_get_max_cc_entities?(): number;
 
   // ── Collision event ring buffer ───────────────────────────────────────────
 

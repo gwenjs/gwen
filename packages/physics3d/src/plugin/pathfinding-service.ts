@@ -3,8 +3,10 @@
  */
 
 import type { Physics3DAPI, Physics3DVec3, Pathfinding3DOptions, PathWaypoint3D } from "../types";
+import { Physics3DErrorCodes } from "../errors/codes";
 import { localFindPath3D } from "./pathfinding";
 import type { PluginContext } from "./plugin-context";
+import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 
 export function createPathfindingMethods(
   ctx: PluginContext,
@@ -18,18 +20,24 @@ export function createPathfindingMethods(
         const wasmMem = ctx.bridgeRuntime?.getLinearMemory?.();
         if (typeof allocFn === "function" && wasmMem) {
           const ptr = allocFn.call(ctx.wasmBridge, opts.grid.byteLength, 1);
-          new Uint8Array(wasmMem.buffer, ptr, opts.grid.byteLength).set(opts.grid);
-          ctx.wasmBridge!.physics3d_init_navgrid_3d?.(
-            ptr,
-            opts.width,
-            opts.height,
-            opts.depth,
-            opts.cellSize,
-            opts.origin?.x ?? 0,
-            opts.origin?.y ?? 0,
-            opts.origin?.z ?? 0,
-          );
-          freeFn?.call(ctx.wasmBridge, ptr, opts.grid.byteLength, 1);
+          try {
+            new Uint8Array(wasmMem.buffer, ptr, opts.grid.byteLength).set(opts.grid);
+            callPhysics3DExport(ctx, "physics3d_init_navgrid_3d", () =>
+              pb.physics3d_init_navgrid_3d?.(
+                ptr,
+                opts.width,
+                opts.height,
+                opts.depth,
+                opts.cellSize,
+                opts.origin?.x ?? 0,
+                opts.origin?.y ?? 0,
+                opts.origin?.z ?? 0,
+              ),
+            );
+          } finally {
+            // The buffer is released when the export throws, as well as when it returns.
+            freeFn?.call(ctx.wasmBridge, ptr, opts.grid.byteLength, 1);
+          }
         }
         return;
       }
@@ -39,14 +47,16 @@ export function createPathfindingMethods(
 
     findPath3D(from: Physics3DVec3, to: Physics3DVec3): PathWaypoint3D[] {
       if (ctx.backendMode === "wasm") {
-        const count = ctx.wasmBridge!.physics3d_find_path_3d?.(
-          from.x,
-          from.y,
-          from.z,
-          to.x,
-          to.y,
-          to.z,
-        );
+        let count: number | undefined;
+        try {
+          count = callPhysics3DExport(ctx, "physics3d_find_path_3d", () =>
+            ctx.wasmBridge!.physics3d_find_path_3d?.(from.x, from.y, from.z, to.x, to.y, to.z),
+          );
+        } catch (err: unknown) {
+          // Documented contract: no grid uploaded yields an empty path. Other codes throw.
+          if (hasPhysics3DCode(err, Physics3DErrorCodes.NAVGRID_NOT_INITIALIZED)) return [];
+          throw err;
+        }
         if (!count || count === 0) return [];
         const ptr = ctx.wasmBridge!.physics3d_get_path_buffer_ptr_3d?.();
         if (!ptr) return [];

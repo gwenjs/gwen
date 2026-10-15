@@ -321,6 +321,48 @@ const hit = physics.castRay(
 const isGrounded = hit !== null
 ```
 
+## Erreurs
+
+Un appel WASM `@gwenjs/physics3d` refusé lève un `GwenWasmError`. `code` commence par `PHYSICS3D:` et `exportName` est l'export WASM. `cause` est l'erreur d'origine. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Ces erreurs ne sont pas émises sur le [bus d'erreurs](/fr/advanced/error-bus).
+
+```ts
+import { GwenWasmError } from '@gwenjs/core'
+
+try {
+  physics.addRevoluteJoint({ bodyA, bodyB })
+} catch (err) {
+  if (err instanceof GwenWasmError && err.code === 'PHYSICS3D:INVALID_JOINT') {
+    // Une valeur d'articulation était NaN ou infinie
+  }
+}
+```
+
+| Code | Levé quand |
+|---|---|
+| `NOT_INITIALIZED` | Un export touche le monde avant son initialisation |
+| `BODY_NOT_FOUND` | Aucun corps rigide n'est enregistré pour le slot |
+| `BODY_ALREADY_EXISTS` | Le slot a déjà un corps. Le premier corps est conservé |
+| `INVALID_BODY_KIND` | Le type de corps n'est pas 0 (fixe), 1 (dynamique) ou 2 (cinématique) |
+| `BUFFER_LENGTH_MISMATCH` | Les tampons parallèles d'un appel groupé ont des longueurs différentes |
+| `COLLIDER_NOT_FOUND` | Aucun collider n'est enregistré pour ce slot et cet id |
+| `COLLIDER_ALREADY_EXISTS` | L'id du collider est déjà enregistré pour le slot |
+| `INVALID_SHAPE` | Les données de forme ne permettent pas de construire un collider (index de maillage hors limites, heightfield trop petit ou au mauvais nombre d'échantillons, enveloppe convexe de moins de 4 points ou dégénérée) |
+| `INVALID_MESH_BUFFER` | La longueur des positions ou des indices d'un maillage n'est pas un multiple de 3 |
+| `INVALID_COMPOUND` | La longueur d'un tampon composé n'est pas un multiple de 12, ou une partie a une forme inconnue |
+| `BVH_LOAD_FAILED` | Un BVH précalculé est trop court, a un en-tête incorrect, ou ne se décode pas en maillage valide |
+| `INVALID_COLLIDER` | Une taille, un rayon, un décalage, une densité ou une marge de peau est NaN, infini, négatif ou trop grand |
+| `JOINT_NOT_FOUND` | Aucune articulation n'est enregistrée pour cet id |
+| `INVALID_JOINT` | Un ancrage, un axe, une valeur de ressort, de moteur ou une limite d'articulation est NaN ou infini |
+| `CHARACTER_CONTROLLER_NOT_FOUND` | Aucun contrôleur de personnage n'est enregistré pour le slot |
+| `CHARACTER_CONTROLLER_LIMIT_REACHED` | Les 32 emplacements de contrôleur de personnage sont utilisés |
+| `NAVGRID_NOT_INITIALIZED` | Une requête de chemin a eu lieu avant l'envoi de la grille de navigation |
+| `INVALID_NAVGRID` | Une dimension de la grille est nulle, le nombre de cellules déborde, ou la grille dépasse 64 au cube |
+| `INVALID_PATH_REQUEST` | Une coordonnée de chemin n'est pas finie ou dépasse la borne acceptée |
+
+`findPath3D` fait exception : sans grille de navigation envoyée, elle renvoie un tableau vide au lieu de lever `NAVGRID_NOT_INITIALIZED`.
+
+Une lecture groupée dont le pointeur de sortie n'est pas un tampon partagé actif lève `CORE:INVALID_SHARED_BUFFER`.
+
 ## Intégration Vite
 
 ### physics3dVitePlugin(options?)

@@ -5,6 +5,7 @@
 import type { Physics3DAPI, Physics3DEntityId, Physics3DVec3 } from "../types";
 import { guardOwned } from "./entity-owner";
 import type { PluginContext } from "./plugin-context";
+import { callPhysics3DExport } from "./wasm-errors";
 
 export function createForcesAndConstraints(
   ctx: PluginContext,
@@ -27,7 +28,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_add_force?.(slot, force.x ?? 0, force.y ?? 0, force.z ?? 0);
+        callPhysics3DExport(ctx, "physics3d_add_force", () =>
+          ctx.wasmBridge!.physics3d_add_force?.(slot, force.x ?? 0, force.y ?? 0, force.z ?? 0),
+        );
         return;
       }
       const acc = ctx.localForces.get(slot) ?? { x: 0, y: 0, z: 0 };
@@ -43,7 +46,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_add_torque?.(slot, torque.x ?? 0, torque.y ?? 0, torque.z ?? 0);
+        callPhysics3DExport(ctx, "physics3d_add_torque", () =>
+          ctx.wasmBridge!.physics3d_add_torque?.(slot, torque.x ?? 0, torque.y ?? 0, torque.z ?? 0),
+        );
         return;
       }
       const acc = ctx.localTorques.get(slot) ?? { x: 0, y: 0, z: 0 };
@@ -63,14 +68,16 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_add_force_at_point?.(
-          slot,
-          force.x ?? 0,
-          force.y ?? 0,
-          force.z ?? 0,
-          point.x ?? 0,
-          point.y ?? 0,
-          point.z ?? 0,
+        callPhysics3DExport(ctx, "physics3d_add_force_at_point", () =>
+          ctx.wasmBridge!.physics3d_add_force_at_point?.(
+            slot,
+            force.x ?? 0,
+            force.y ?? 0,
+            force.z ?? 0,
+            point.x ?? 0,
+            point.y ?? 0,
+            point.z ?? 0,
+          ),
         );
         return;
       }
@@ -87,7 +94,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_set_gravity_scale?.(slot, scale);
+        callPhysics3DExport(ctx, "physics3d_set_gravity_scale", () =>
+          ctx.wasmBridge!.physics3d_set_gravity_scale?.(slot, scale),
+        );
         return;
       }
       ctx.localGravityScales.set(slot, scale);
@@ -98,7 +107,9 @@ export function createForcesAndConstraints(
       if (!owned) return 1;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        return ctx.wasmBridge!.physics3d_get_gravity_scale?.(slot) ?? 1.0;
+        return callPhysics3DExport(ctx, "physics3d_get_gravity_scale", () =>
+          ctx.wasmBridge!.physics3d_get_gravity_scale!(slot),
+        );
       }
       return ctx.localGravityScales.get(slot) ?? 1.0;
     },
@@ -108,7 +119,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_lock_translations?.(slot, x, y, z);
+        callPhysics3DExport(ctx, "physics3d_lock_translations", () =>
+          ctx.wasmBridge!.physics3d_lock_translations?.(slot, x, y, z),
+        );
         return;
       }
       const cur = ctx.localAxisLocks.get(slot) ?? {
@@ -132,7 +145,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_lock_rotations?.(slot, x, y, z);
+        callPhysics3DExport(ctx, "physics3d_lock_rotations", () =>
+          ctx.wasmBridge!.physics3d_lock_rotations?.(slot, x, y, z),
+        );
         return;
       }
       const cur = ctx.localAxisLocks.get(slot) ?? {
@@ -156,7 +171,9 @@ export function createForcesAndConstraints(
       if (!owned) return;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_set_body_sleeping?.(slot, sleeping);
+        callPhysics3DExport(ctx, "physics3d_set_body_sleeping", () =>
+          ctx.wasmBridge!.physics3d_set_body_sleeping?.(slot, sleeping),
+        );
         return;
       }
       if (sleeping) {
@@ -171,14 +188,18 @@ export function createForcesAndConstraints(
       if (!owned) return false;
       const slot = owned.slot;
       if (ctx.backendMode === "wasm") {
-        return ctx.wasmBridge!.physics3d_is_body_sleeping?.(slot) ?? false;
+        return callPhysics3DExport(ctx, "physics3d_is_body_sleeping", () =>
+          ctx.wasmBridge!.physics3d_is_body_sleeping!(slot),
+        );
       }
       return ctx.localSleeping.has(slot);
     },
 
     wakeAll(): void {
       if (ctx.backendMode === "wasm") {
-        ctx.wasmBridge!.physics3d_wake_all?.();
+        callPhysics3DExport(ctx, "physics3d_wake_all", () =>
+          ctx.wasmBridge!.physics3d_wake_all?.(),
+        );
         return;
       }
       ctx.localSleeping.clear();

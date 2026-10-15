@@ -10,24 +10,35 @@ export type InternalCollisionEvent3D = {
   started: boolean;
 };
 
-/** WASM exports available in the physics3d variant. */
+/**
+ * WASM exports available in the physics3d variant.
+ *
+ * A fallible export throws an `Error` with a `code` property (`PHYSICS3D:*`, or
+ * `CORE:INVALID_SHARED_BUFFER` for the overlap output pointer). It never returns a
+ * sentinel for a failure: a `boolean` result is `true` on success, a joint or
+ * controller result is the new id or slot. Absence stays a value: an empty
+ * `Float32Array` for a vector getter on a missing body, `[0]` for a query miss.
+ * The plugin maps a throw to `GwenWasmError` in `./wasm-errors`.
+ */
 export interface Physics3DWasmBridge {
   // World lifecycle
   physics3d_init?: (gx: number, gy: number, gz: number, maxEntities: number) => void;
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. */
   physics3d_step?: (delta: number) => void;
   physics3d_set_quality?: (preset: number) => void;
-  physics3d_set_event_coalescing?: (enabled: number) => void;
+  physics3d_set_event_coalescing?: (enabled: boolean) => void;
   /**
    * Set the number of additional solver iterations for a specific body.
    * Overrides the world-level quality preset for that body.
    *
    * @param entityIndex - ECS entity slot index.
    * @param iterations  - Number of additional solver iterations (0 = world default).
-   * @returns `true` on success.
+   * @returns `true` on success. Throws `PHYSICS3D:BODY_NOT_FOUND` for an unknown slot.
    */
   physics3d_set_body_solver_iterations?: (entityIndex: number, iterations: number) => boolean;
 
   // Body lifecycle
+  /** Returns `true`. Throws `PHYSICS3D:BODY_ALREADY_EXISTS` when the slot has a body. */
   physics3d_add_body?: (
     entityIndex: number,
     x: number,
@@ -38,10 +49,12 @@ export interface Physics3DWasmBridge {
     linearDamping: number,
     angularDamping: number,
   ) => boolean;
+  /** Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND` when the slot has no body. */
   physics3d_remove_body?: (entityIndex: number) => boolean;
   physics3d_has_body?: (entityIndex: number) => boolean;
 
-  // State read/write — Float32Array layout: [px,py,pz, qx,qy,qz,qw, vx,vy,vz, ax,ay,az]
+  // State read/write — Float32Array layout: [px,py,pz, qx,qy,qz,qw, vx,vy,vz, ax,ay,az].
+  // An empty array means the slot has no body.
   physics3d_get_body_state?: (entityIndex: number) => Float32Array;
   physics3d_set_body_state?: (
     entityIndex: number,
@@ -86,6 +99,7 @@ export interface Physics3DWasmBridge {
   ) => boolean;
 
   // Body kind
+  /** Returns `0`, `1` or `2`. Throws `PHYSICS3D:BODY_NOT_FOUND` when the slot has no body. */
   physics3d_get_body_kind?: (entityIndex: number) => number;
   physics3d_set_body_kind?: (entityIndex: number, kind: number) => boolean;
 
@@ -100,6 +114,7 @@ export interface Physics3DWasmBridge {
     qz: number,
     qw: number,
   ) => boolean;
+  /** Returns the number of bodies moved. Throws `PHYSICS3D:BUFFER_LENGTH_MISMATCH`. */
   physics3d_bulk_step_kinematics?: (
     slots: Uint32Array,
     vx: Float32Array,
@@ -107,6 +122,7 @@ export interface Physics3DWasmBridge {
     vz: Float32Array,
     dt: number,
   ) => number;
+  /** Returns the number of bodies rotated. Throws `PHYSICS3D:BUFFER_LENGTH_MISMATCH`. */
   physics3d_bulk_step_kinematic_rotations?: (
     slots: Uint32Array,
     wx: Float32Array,
@@ -124,7 +140,7 @@ export interface Physics3DWasmBridge {
     offsetX: number,
     offsetY: number,
     offsetZ: number,
-    isSensor: number,
+    isSensor: boolean,
     friction: number,
     restitution: number,
     membership: number,
@@ -137,7 +153,7 @@ export interface Physics3DWasmBridge {
     offsetX: number,
     offsetY: number,
     offsetZ: number,
-    isSensor: number,
+    isSensor: boolean,
     friction: number,
     restitution: number,
     membership: number,
@@ -151,7 +167,7 @@ export interface Physics3DWasmBridge {
     offsetX: number,
     offsetY: number,
     offsetZ: number,
-    isSensor: number,
+    isSensor: boolean,
     friction: number,
     restitution: number,
     membership: number,
@@ -192,6 +208,7 @@ export interface Physics3DWasmBridge {
     layerBits: number,
     maskBits: number,
   ) => number;
+  /** Returns `true`. Throws `PHYSICS3D:COLLIDER_NOT_FOUND` when the pair is unknown. */
   physics3d_remove_collider?: (entityIndex: number, colliderId: number) => boolean;
   /**
    * Attach a triangle-mesh collider to a 3D body.
@@ -204,7 +221,7 @@ export interface Physics3DWasmBridge {
     offsetX: number,
     offsetY: number,
     offsetZ: number,
-    isSensor: number,
+    isSensor: boolean,
     friction: number,
     restitution: number,
     layerBits: number,
@@ -250,7 +267,7 @@ export interface Physics3DWasmBridge {
   ) => boolean;
   /**
    * Attach a convex-hull collider to a 3D body.
-   * Falls back to a unit sphere on degenerate input (Rapier-side).
+   * Throws `PHYSICS3D:INVALID_SHAPE` for fewer than 4 points.
    * Parameter order matches the Rust WASM export exactly.
    */
   physics3d_add_convex_collider?: (
@@ -259,7 +276,7 @@ export interface Physics3DWasmBridge {
     offsetX: number,
     offsetY: number,
     offsetZ: number,
-    isSensor: number,
+    isSensor: boolean,
     friction: number,
     restitution: number,
     density: number,
@@ -270,6 +287,8 @@ export interface Physics3DWasmBridge {
   /**
    * Bulk-spawn N static box bodies in one WASM call.
    * `entityIndices` must be pre-allocated by the TypeScript caller.
+   * Returns the number of bodies spawned. Throws `PHYSICS3D:BODY_ALREADY_EXISTS` or
+   * `PHYSICS3D:BUFFER_LENGTH_MISMATCH`; nothing is written when it throws.
    */
   physics3d_bulk_spawn_static_boxes?: (
     entityIndices: Uint32Array,
@@ -282,17 +301,22 @@ export interface Physics3DWasmBridge {
   ) => number;
 
   // Sensor
-  physics3d_get_sensor_state?: (entityIndex: number, sensorId: number) => BigInt64Array | number[];
+  /**
+   * Packed state: bits 0-31 are the contact count, bit 32 is the active flag.
+   * `0n` when no state was recorded. Throws `PHYSICS3D:BODY_NOT_FOUND`.
+   */
+  physics3d_get_sensor_state?: (entityIndex: number, sensorId: number) => bigint;
   physics3d_update_sensor_state?: (
     entityIndex: number,
     sensorId: number,
-    isActive: number,
+    isActive: boolean,
     count: number,
   ) => void;
 
   // Collision events
   physics3d_get_collision_events_ptr?: () => number;
   physics3d_get_collision_event_count?: () => number;
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. */
   physics3d_consume_events?: () => void;
 
   // Memory
@@ -300,7 +324,7 @@ export interface Physics3DWasmBridge {
 
   // ─── RFC-08: Joints ──────────────────────────────────────────────────────────
 
-  /** Create a fixed (weld) joint. Returns the joint id, or 0xFFFFFFFF on failure. */
+  /** Create a fixed (weld) joint. Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_add_fixed_joint?: (
     slotA: number,
     slotB: number,
@@ -312,7 +336,7 @@ export interface Physics3DWasmBridge {
     anchorBz: number,
   ) => number;
 
-  /** Create a revolute (hinge) joint. Returns the joint id, or 0xFFFFFFFF on failure. */
+  /** Create a revolute (hinge) joint. Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_add_revolute_joint?: (
     slotA: number,
     slotB: number,
@@ -330,7 +354,7 @@ export interface Physics3DWasmBridge {
     limitMax: number,
   ) => number;
 
-  /** Create a prismatic (slider) joint. Returns the joint id, or 0xFFFFFFFF on failure. */
+  /** Create a prismatic (slider) joint. Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_add_prismatic_joint?: (
     slotA: number,
     slotB: number,
@@ -348,7 +372,7 @@ export interface Physics3DWasmBridge {
     limitMax: number,
   ) => number;
 
-  /** Create a ball (spherical) joint. Returns the joint id, or 0xFFFFFFFF on failure. */
+  /** Create a ball (spherical) joint. Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_add_ball_joint?: (
     slotA: number,
     slotB: number,
@@ -362,7 +386,7 @@ export interface Physics3DWasmBridge {
     coneAngle: number,
   ) => number;
 
-  /** Create a spring joint. Returns the joint id, or 0xFFFFFFFF on failure. */
+  /** Create a spring joint. Returns the joint id. Throws `PHYSICS3D:BODY_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_add_spring_joint?: (
     slotA: number,
     slotB: number,
@@ -377,30 +401,30 @@ export interface Physics3DWasmBridge {
     damping: number,
   ) => number;
 
-  /** Destroy a joint by its numeric id. */
-  physics3d_remove_joint?: (id: number) => void;
+  /** Destroy a joint by its numeric id. Returns `true`. Throws `PHYSICS3D:JOINT_NOT_FOUND`. */
+  physics3d_remove_joint?: (id: number) => boolean;
 
-  /** Set a motor velocity target on a revolute or prismatic joint. */
-  physics3d_set_joint_motor_velocity?: (id: number, velocity: number, maxForce: number) => void;
+  /** Set a motor velocity target. Returns `true`. Throws `PHYSICS3D:JOINT_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
+  physics3d_set_joint_motor_velocity?: (id: number, velocity: number, maxForce: number) => boolean;
 
-  /** Set a motor position target on a revolute or prismatic joint. */
+  /** Set a motor position target. Returns `true`. Throws `PHYSICS3D:JOINT_NOT_FOUND` or `PHYSICS3D:INVALID_JOINT`. */
   physics3d_set_joint_motor_position?: (
     id: number,
     target: number,
     stiffness: number,
     damping: number,
-  ) => void;
+  ) => boolean;
 
-  /** Enable or disable a joint. */
-  physics3d_set_joint_enabled?: (id: number, enabled: boolean) => void;
+  /** Enable or disable a joint. Returns `true`. Throws `PHYSICS3D:JOINT_NOT_FOUND`. */
+  physics3d_set_joint_enabled?: (id: number, enabled: boolean) => boolean;
 
   // ─── RFC-09: Continuous forces ────────────────────────────────────────────────
 
-  /** Apply a linear force to a body (accumulates per step). */
-  physics3d_add_force?: (entityIndex: number, fx: number, fy: number, fz: number) => void;
+  /** Apply a linear force to a body (accumulates per step). Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_add_force?: (entityIndex: number, fx: number, fy: number, fz: number) => boolean;
 
-  /** Apply a torque to a body (accumulates per step). */
-  physics3d_add_torque?: (entityIndex: number, tx: number, ty: number, tz: number) => void;
+  /** Apply a torque to a body (accumulates per step). Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_add_torque?: (entityIndex: number, tx: number, ty: number, tz: number) => boolean;
 
   /** Apply a force at a specific world-space point. */
   physics3d_add_force_at_point?: (
@@ -411,24 +435,29 @@ export interface Physics3DWasmBridge {
     px: number,
     py: number,
     pz: number,
-  ) => void;
+  ) => boolean;
 
-  /** Set the per-body gravity scale multiplier. */
-  physics3d_set_gravity_scale?: (entityIndex: number, scale: number) => void;
+  /** Set the per-body gravity scale multiplier. Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_set_gravity_scale?: (entityIndex: number, scale: number) => boolean;
 
-  /** Read the per-body gravity scale multiplier. */
+  /** Read the per-body gravity scale multiplier. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
   physics3d_get_gravity_scale?: (entityIndex: number) => number;
 
-  /** Lock translation axes on a body. */
-  physics3d_lock_translations?: (entityIndex: number, x: boolean, y: boolean, z: boolean) => void;
+  /** Lock translation axes on a body. Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_lock_translations?: (
+    entityIndex: number,
+    x: boolean,
+    y: boolean,
+    z: boolean,
+  ) => boolean;
 
-  /** Lock rotation axes on a body. */
-  physics3d_lock_rotations?: (entityIndex: number, x: boolean, y: boolean, z: boolean) => void;
+  /** Lock rotation axes on a body. Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_lock_rotations?: (entityIndex: number, x: boolean, y: boolean, z: boolean) => boolean;
 
-  /** Put a body to sleep or wake it up. */
-  physics3d_set_body_sleeping?: (entityIndex: number, sleeping: boolean) => void;
+  /** Put a body to sleep or wake it up. Returns `true`. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
+  physics3d_set_body_sleeping?: (entityIndex: number, sleeping: boolean) => boolean;
 
-  /** Returns `true` when the body is sleeping. */
+  /** Returns `true` when the body is sleeping. Throws `PHYSICS3D:BODY_NOT_FOUND`. */
   physics3d_is_body_sleeping?: (entityIndex: number) => boolean;
 
   /** Wake every sleeping body in the world. */
@@ -436,7 +465,10 @@ export interface Physics3DWasmBridge {
 
   // ─── RFC-09: Pathfinding ──────────────────────────────────────────────────────
 
-  /** Upload a voxel navigation grid. */
+  /**
+   * Upload a voxel navigation grid.
+   * Throws `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid over the cell limit.
+   */
   physics3d_init_navgrid_3d?: (
     ptr: number,
     width: number,
@@ -451,6 +483,8 @@ export interface Physics3DWasmBridge {
   /**
    * Find a path from `from` to `to` using the uploaded navigation grid.
    * Returns the number of waypoints written to the path buffer.
+   * Throws `PHYSICS3D:NAVGRID_NOT_INITIALIZED` before the grid upload and
+   * `PHYSICS3D:INVALID_PATH_REQUEST` for a coordinate that is not finite or too large.
    */
   physics3d_find_path_3d?: (
     fromX: number,
@@ -475,7 +509,7 @@ export interface Physics3DWasmBridge {
   /**
    * Cast a ray. Returns a Float32Array:
    * `[hit, entityIndex, distance, nx, ny, nz, px, py, pz]`.
-   * `result[0] === 0` means no hit.
+   * `result[0] === 0` means no hit. A miss is `[0]`.
    */
   physics3d_cast_ray?: (
     originX: number,
@@ -487,7 +521,7 @@ export interface Physics3DWasmBridge {
     maxDist: number,
     layers: number,
     mask: number,
-    solid: number,
+    solid: boolean,
   ) => Float32Array;
 
   /**
@@ -519,6 +553,8 @@ export interface Physics3DWasmBridge {
    * Test a shape for overlap against all colliders.
    * Writes up to `maxResults` entity slot indices into the scratch buffer at
    * `outPtr`. Returns the number of overlapping entities found.
+   * Throws `CORE:INVALID_SHARED_BUFFER` when `outPtr` is not the start of a live shared
+   * allocation of at least `maxResults * 4` bytes.
    */
   physics3d_overlap_shape?: (
     posX: number,
@@ -550,14 +586,16 @@ export interface Physics3DWasmBridge {
     pointZ: number,
     layers: number,
     mask: number,
-    solid: number,
+    solid: boolean,
   ) => Float32Array;
 
   // ─── RFC-09: Character Controller ────────────────────────────────────────────
 
   /**
    * Create a character controller for the given entity slot.
-   * Returns the controller's SAB slot index, or 0xFFFFFFFF on failure.
+   * Returns the controller's SAB slot index.
+   * Throws `PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED` when the pool is full (the pool is
+   * unchanged) and `PHYSICS3D:BODY_NOT_FOUND` for a slot without a body.
    */
   physics3d_add_character_controller?: (
     entityIndex: number,
@@ -572,6 +610,7 @@ export interface Physics3DWasmBridge {
   /**
    * Drive a character controller for one frame.
    * Results are written to the CC SAB buffer (see `physics3d_get_cc_sab_ptr`).
+   * Throws `PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND` when the slot has no controller.
    *
    * @param entityIndex - ECS entity slot index.
    * @param vx - Desired velocity X component (m/s).
@@ -587,7 +626,7 @@ export interface Physics3DWasmBridge {
     dt: number,
   ) => void;
 
-  /** Remove the character controller for an entity. */
+  /** Remove the character controller for an entity. Throws `PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND`. */
   physics3d_remove_character_controller?: (entityIndex: number) => void;
 
   /**

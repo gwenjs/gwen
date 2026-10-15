@@ -25,6 +25,7 @@ import type {
 } from "../types";
 import { entityIndexToId, encodeShape, u32ToF32 } from "./plugin-helpers";
 import type { PluginContext } from "./plugin-context";
+import { callPhysics3DExport } from "./wasm-errors";
 
 export function createSpatialQueryMethods(
   ctx: PluginContext,
@@ -52,17 +53,20 @@ export function createSpatialQueryMethods(
     ): RayHit | null {
       if (ctx.backendMode === "wasm") {
         const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
-        const result = ctx.wasmBridge!.physics3d_cast_ray?.(
-          origin.x,
-          origin.y,
-          origin.z,
-          direction.x,
-          direction.y,
-          direction.z,
-          maxDist,
-          layers,
-          mask,
-          solid ? 1 : 0,
+        // A miss is `[0]`. A missing world or a Rapier trap is not a miss: it throws.
+        const result = callPhysics3DExport(ctx, "physics3d_cast_ray", () =>
+          ctx.wasmBridge!.physics3d_cast_ray?.(
+            origin.x,
+            origin.y,
+            origin.z,
+            direction.x,
+            direction.y,
+            direction.z,
+            maxDist,
+            layers,
+            mask,
+            solid,
+          ),
         );
         if (!result || result.length < 9 || result[0] === 0) return null;
         const entityIndex = result[1] as number;
@@ -92,24 +96,26 @@ export function createSpatialQueryMethods(
       if (ctx.backendMode === "wasm") {
         const { layers = 0xffffffff, mask = 0xffffffff } = opts;
         const [shapeType, p0, p1, p2] = encodeShape(shape);
-        const result = ctx.wasmBridge!.physics3d_cast_shape?.(
-          pos.x,
-          pos.y,
-          pos.z,
-          rot.x,
-          rot.y,
-          rot.z,
-          rot.w,
-          dir.x,
-          dir.y,
-          dir.z,
-          shapeType,
-          p0,
-          p1,
-          p2,
-          maxDist,
-          layers,
-          mask,
+        const result = callPhysics3DExport(ctx, "physics3d_cast_shape", () =>
+          ctx.wasmBridge!.physics3d_cast_shape?.(
+            pos.x,
+            pos.y,
+            pos.z,
+            rot.x,
+            rot.y,
+            rot.z,
+            rot.w,
+            dir.x,
+            dir.y,
+            dir.z,
+            shapeType,
+            p0,
+            p1,
+            p2,
+            maxDist,
+            layers,
+            mask,
+          ),
         );
         if (!result || result.length < 15 || result[0] === 0) return null;
         const entityIndex = result[1] as number;
@@ -160,24 +166,28 @@ export function createSpatialQueryMethods(
             length: () => ctx.MAX_COMPOSABLE_OVERLAP_RESULTS,
           });
         }
-        const count =
-          ctx.wasmBridge!.physics3d_overlap_shape?.(
-            pos.x,
-            pos.y,
-            pos.z,
-            rot.x,
-            rot.y,
-            rot.z,
-            rot.w,
-            shapeType,
-            p0,
-            p1,
-            p2,
-            layers,
-            mask,
-            ctx.overlapScratchPtr,
-            safeMax,
-          ) ?? 0;
+        const count = callPhysics3DExport(
+          ctx,
+          "physics3d_overlap_shape",
+          () =>
+            ctx.wasmBridge!.physics3d_overlap_shape?.(
+              pos.x,
+              pos.y,
+              pos.z,
+              rot.x,
+              rot.y,
+              rot.z,
+              rot.w,
+              shapeType,
+              p0,
+              p1,
+              p2,
+              layers,
+              mask,
+              ctx.overlapScratchPtr,
+              safeMax,
+            ) ?? 0,
+        );
 
         const scratchView = ctx.overlapScratch.array;
         const entities: EntityId[] = [];
@@ -199,13 +209,8 @@ export function createSpatialQueryMethods(
     ): PointProjection | null {
       if (ctx.backendMode === "wasm") {
         const { layers = 0xffffffff, mask = 0xffffffff, solid = true } = opts;
-        const result = ctx.wasmBridge!.physics3d_project_point?.(
-          point.x,
-          point.y,
-          point.z,
-          layers,
-          mask,
-          solid ? 1 : 0,
+        const result = callPhysics3DExport(ctx, "physics3d_project_point", () =>
+          ctx.wasmBridge!.physics3d_project_point?.(point.x, point.y, point.z, layers, mask, solid),
         );
         if (!result || result.length < 6 || result[0] === 0) return null;
         const entityIndex = result[1] as number;

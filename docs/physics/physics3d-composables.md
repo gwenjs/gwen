@@ -301,6 +301,8 @@ Joint types:
 - `'rope'` — Distance constraint
 - etc.
 
+A joint with a NaN or infinite anchor, axis, spring, motor value or limit throws `PHYSICS3D:INVALID_JOINT`. See [Errors](/api/physics3d#errors).
+
 ## Collision Layers
 
 Use layers to control which objects collide:
