@@ -18,6 +18,10 @@ pub enum InvalidShapeReason {
     HeightfieldSampleCount,
     /// A convex hull was given fewer than 4 points.
     ConvexTooFewPoints,
+    /// Parry's `try_convex_hull` rejects the points (collinear, duplicated, or an extreme aspect ratio).
+    ConvexDegenerate,
+    /// A mesh has no vertex or no triangle.
+    MeshEmpty,
 }
 
 /// Why `physics3d_add_compound_collider` refuses a buffer.
@@ -32,10 +36,15 @@ pub enum InvalidCompoundReason {
 /// Why `physics3d_load_bvh_collider` refuses a baked BVH.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BvhLoadReason {
-    /// The header check failed.
-    HeaderInvalid,
-    /// The payload is shorter than the header declares.
-    PayloadTruncated,
+    /// The buffer is shorter than the 8-byte header.
+    TooShort,
+    /// The first four bytes are not `GBVH`.
+    BadMagic,
+    /// The payload is not a valid bincode `TriMesh`.
+    DecodeFailed,
+    /// The decoded mesh has no triangle, a vertex that is not finite or too large, or an
+    /// index or BVH leaf that points outside its list.
+    InvalidMesh,
 }
 
 /// Why a collider export refuses a numeric parameter before it reaches Rapier.
@@ -45,8 +54,12 @@ pub enum InvalidColliderReason {
     NonFinite,
     /// A size (half extent, radius, scale) is zero or negative where it must be positive.
     NotPositive,
-    /// A value (mass, density, friction, restitution) is negative where zero is allowed.
+    /// A value (half extent, radius, half height, scale, density) is negative where zero is
+    /// allowed.
     Negative,
+    /// A coordinate, offset, height or size is larger in magnitude than
+    /// [`MAX_COLLIDER_MAGNITUDE`](crate::physics3d::world::MAX_COLLIDER_MAGNITUDE).
+    TooLarge,
 }
 
 /// Failure returned by a fallible physics3d export.
@@ -206,6 +219,13 @@ impl fmt::Display for Physics3DError {
                 InvalidShapeReason::ConvexTooFewPoints => {
                     write!(f, "shape refused: a convex hull needs at least 4 points")
                 }
+                InvalidShapeReason::ConvexDegenerate => write!(
+                    f,
+                    "shape refused: a convex hull cannot be built from these points"
+                ),
+                InvalidShapeReason::MeshEmpty => {
+                    write!(f, "shape refused: a mesh needs at least one vertex and one triangle")
+                }
             },
             Self::InvalidMeshBuffer { actual } => {
                 write!(f, "mesh buffer length {actual} is not a multiple of 3")
@@ -220,10 +240,16 @@ impl fmt::Display for Physics3DError {
                 }
             },
             Self::BvhLoadFailed { reason } => match reason {
-                BvhLoadReason::HeaderInvalid => write!(f, "BVH load failed: the header is invalid"),
-                BvhLoadReason::PayloadTruncated => write!(
+                BvhLoadReason::TooShort => {
+                    write!(f, "BVH load failed: the buffer is shorter than the 8-byte header")
+                }
+                BvhLoadReason::BadMagic => write!(f, "BVH load failed: the magic is not GBVH"),
+                BvhLoadReason::DecodeFailed => {
+                    write!(f, "BVH load failed: the payload is not a valid triangle mesh")
+                }
+                BvhLoadReason::InvalidMesh => write!(
                     f,
-                    "BVH load failed: the payload is shorter than the header declares"
+                    "BVH load failed: the decoded mesh is empty, not finite, or has an index outside its list"
                 ),
             },
             Self::JointNotFound { joint_id } => {
@@ -249,6 +275,9 @@ impl fmt::Display for Physics3DError {
                 }
                 InvalidColliderReason::Negative => {
                     write!(f, "collider refused: a value must not be negative")
+                }
+                InvalidColliderReason::TooLarge => {
+                    write!(f, "collider refused: a value is larger than the accepted magnitude")
                 }
             },
             Self::Core(inner) => write!(f, "{inner}"),

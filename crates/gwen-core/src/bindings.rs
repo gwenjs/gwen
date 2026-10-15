@@ -1905,9 +1905,6 @@ impl Engine {
 
     /// Attach an axis-aligned box collider to a 3D body.
     ///
-    /// Returns `false` if the entity has no registered body or the world is not
-    /// initialised.
-    ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
     /// * `half_x/y/z`     — Box half-extents (metres).
@@ -1918,6 +1915,12 @@ impl Engine {
     /// * `layer_bits`      — Collision layer membership bitmask.
     /// * `mask_bits`       — Collision filter bitmask (which layers this collider hits).
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_COLLIDER for a size, offset or coefficient that is not finite, a negative size, or a value above `MAX_COLLIDER_MAGNITUDE`.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_box_collider(
@@ -1935,32 +1938,27 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_box_collider(
-                entity_index,
-                half_x,
-                half_y,
-                half_z,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_box_collider(
+            entity_index,
+            half_x,
+            half_y,
+            half_z,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Attach a sphere collider to a 3D body.
-    ///
-    /// Returns `false` if the entity has no registered body or the world is not
-    /// initialised.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -1972,6 +1970,12 @@ impl Engine {
     /// * `layer_bits`      — Collision layer membership bitmask.
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_COLLIDER as for the box.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_sphere_collider(
@@ -1987,33 +1991,28 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_sphere_collider(
-                entity_index,
-                radius,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_sphere_collider(
+            entity_index,
+            radius,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Attach a Y-axis capsule collider to a 3D body.
     ///
     /// The capsule extends `±half_height` metres along the Y axis, capped by
     /// hemispheres of `radius` metres.
-    ///
-    /// Returns `false` if the entity has no registered body or the world is not
-    /// initialised.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -2026,6 +2025,12 @@ impl Engine {
     /// * `layer_bits`      — Collision layer membership bitmask.
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_COLLIDER as for the box.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_capsule_collider(
@@ -2042,33 +2047,29 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_capsule_collider(
-                entity_index,
-                radius,
-                half_height,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_capsule_collider(
+            entity_index,
+            radius,
+            half_height,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Attach a heightfield collider to a 3D fixed body.
     ///
     /// The heightfield is defined on a `rows × cols` grid. Pass a row-major
-    /// `Float32Array` from JavaScript. Returns `false` if the entity has no
-    /// registered body, the world is not initialised, or the array length does
-    /// not equal `rows * cols`.
+    /// `Float32Array` from JavaScript.
     ///
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
@@ -2083,6 +2084,12 @@ impl Engine {
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_SHAPE for fewer than 2 rows or columns or a sample count that differs from `rows * cols`, and INVALID_COLLIDER.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_heightfield_collider(
@@ -2099,33 +2106,30 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_heightfield_collider(
-                entity_index,
-                heights_flat,
-                rows as usize,
-                cols as usize,
-                scale_x,
-                scale_y,
-                scale_z,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_heightfield_collider(
+            entity_index,
+            heights_flat,
+            rows,
+            cols,
+            scale_x,
+            scale_y,
+            scale_z,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Replace the height data of an existing heightfield collider.
     ///
     /// Atomically removes the old collider and inserts a new one with the
     /// provided height data. All other parameters (scale, friction, layers)
-    /// must be re-supplied. Returns `false` if the entity has no registered
-    /// body, the world is not initialised, or the array length is wrong.
+    /// must be re-supplied. The input is validated before the old collider is removed.
     ///
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
@@ -2140,6 +2144,12 @@ impl Engine {
     /// * `restitution`   — Bounciness coefficient (\[0, 1\]).
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// the same as `physics3d_add_heightfield_collider`; the old collider is kept on every error.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_update_heightfield_collider(
@@ -2156,31 +2166,26 @@ impl Engine {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.update_heightfield_collider(
-                entity_index,
-                collider_id,
-                heights_flat,
-                rows as usize,
-                cols as usize,
-                scale_x,
-                scale_y,
-                scale_z,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.update_heightfield_collider(
+            entity_index,
+            collider_id,
+            heights_flat,
+            rows,
+            cols,
+            scale_x,
+            scale_y,
+            scale_z,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+        )?;
+        Ok(true)
     }
 
     /// Attach a triangle-mesh (trimesh) collider to a 3D body.
-    ///
-    /// Returns `false` if the entity has no registered body, either slice is empty,
-    /// or the world is not initialised.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -2193,6 +2198,12 @@ impl Engine {
     /// * `layer_bits`      — Collision layer membership bitmask.
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_MESH_BUFFER when `vertices` is not a multiple of 3, INVALID_SHAPE for an empty mesh or an index past the vertex count, and INVALID_COLLIDER.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_mesh_collider(
@@ -2209,25 +2220,23 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_mesh_collider(
-                entity_index,
-                vertices,
-                indices,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_mesh_collider(
+            entity_index,
+            vertices,
+            indices,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Rebuild a mesh collider with new geometry at runtime.
@@ -2237,9 +2246,7 @@ impl Engine {
     /// If no matching collider exists, a new one is created (same result as calling
     /// `physics3d_add_mesh_collider`).
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no registered body or the world is
-    /// not initialised.
+    /// The input is validated before the old collider is removed.
     ///
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
@@ -2252,6 +2259,12 @@ impl Engine {
     /// * `restitution`   — Bounciness coefficient (\[0, 1\]).
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// the same as `physics3d_add_mesh_collider`; the old collider is kept on every error.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_rebuild_mesh_collider(
@@ -2268,32 +2281,29 @@ impl Engine {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.rebuild_mesh_collider(
-                entity_index,
-                collider_id,
-                vertices_flat,
-                indices_flat,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.rebuild_mesh_collider(
+            entity_index,
+            collider_id,
+            vertices_flat,
+            indices_flat,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+        )?;
+        Ok(true)
     }
 
     /// Attach a convex-hull collider to a 3D body.
     ///
-    /// Falls back to a unit sphere when Rapier cannot construct a valid convex hull
-    /// (degenerate point cloud). Returns `false` if the entity has no registered body,
-    /// the vertex slice is empty, or the world is not initialised.
+    /// The hull is computed with the fallible `try_convex_hull`; a degenerate cloud is refused
+    /// instead of falling back to a sphere.
     ///
     /// # Arguments
     /// * `entity_index`    — ECS entity slot index.
@@ -2306,6 +2316,12 @@ impl Engine {
     /// * `layer_bits`      — Collision layer membership bitmask.
     /// * `mask_bits`       — Collision filter bitmask.
     /// * `collider_id`     — Stable application-defined ID stored in collision events.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// INVALID_SHAPE for fewer than 4 points or a cloud that `try_convex_hull` rejects, and INVALID_COLLIDER.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_convex_collider(
@@ -2322,25 +2338,23 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_convex_collider(
-                entity_index,
-                vertices,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                density,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_convex_collider(
+            entity_index,
+            vertices,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            density,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Load a pre-baked BVH buffer as a trimesh collider.
@@ -2362,9 +2376,12 @@ impl Engine {
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable application-defined collider ID.
     ///
-    /// # Returns
-    /// `false` if `bvh_bytes` is malformed, the magic header is missing,
-    /// or the entity has no registered rigid body.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
+    /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
+    /// BVH_LOAD_FAILED for a short buffer, a wrong magic, an undecodable payload or an invalid decoded mesh, and INVALID_COLLIDER.
+    /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_load_bvh_collider(
@@ -2380,24 +2397,22 @@ impl Engine {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.load_bvh_collider(
-                entity_index,
-                bvh_bytes,
-                offset_x,
-                offset_y,
-                offset_z,
-                is_sensor,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-                collider_id,
-            )
-        } else {
-            false
-        }
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.load_bvh_collider(
+            entity_index,
+            bvh_bytes,
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        )?;
+        Ok(true)
     }
 
     /// Bulk-spawn N static box bodies in one call.
@@ -2416,6 +2431,12 @@ impl Engine {
     /// * `restitution`       — Bounciness coefficient (\[0, 1\]).
     /// * `layer_bits`        — Collision layer membership bitmask.
     /// * `mask_bits`         — Collision filter bitmask.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`]; `BUFFER_LENGTH_MISMATCH` naming `positions`
+    /// or `half_extents` when a buffer is shorter than `N * 3`; `BODY_ALREADY_EXISTS` when a slot is
+    /// registered or listed twice; `INVALID_COLLIDER` for a refused position, extent or coefficient.
+    /// Nothing is written on error.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_bulk_spawn_static_boxes(
@@ -2427,20 +2448,17 @@ impl Engine {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.bulk_add_static_boxes(
-                entity_indices,
-                positions_flat,
-                half_extents_flat,
-                friction,
-                restitution,
-                layer_bits,
-                mask_bits,
-            )
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.bulk_add_static_boxes(
+            entity_indices,
+            positions_flat,
+            half_extents_flat,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+        )
     }
 
     /// Attach multiple primitive colliders to one 3D body in a single WASM call.
@@ -2455,6 +2473,12 @@ impl Engine {
     /// # Returns
     /// Number of colliders successfully inserted; `0` if the world is not
     /// initialised, the entity has no body, or `shape_data` is malformed.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`], [`Physics3DError::BodyNotFound`],
+    /// `INVALID_COMPOUND` for a length that is not a multiple of 12 or an unknown shape type
+    /// (refused, not skipped), and `INVALID_COLLIDER` for a refused size, offset, coefficient or
+    /// id. Nothing is inserted on error.
     #[cfg(feature = "physics3d")]
     #[wasm_bindgen]
     pub fn physics3d_add_compound_collider(
@@ -2463,12 +2487,9 @@ impl Engine {
         shape_data: &[f32],
         layer_bits: u32,
         mask_bits: u32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.add_compound_collider(entity_index, shape_data, layer_bits, mask_bits)
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.add_compound_collider(entity_index, shape_data, layer_bits, mask_bits)
     }
 
     /// Remove a specific collider from a 3D body.
@@ -2479,13 +2500,19 @@ impl Engine {
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
     /// * `collider_id`  — Stable ID that was passed when the collider was created.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init` and
+    /// [`Physics3DError::ColliderNotFound`] when no collider is registered under the pair.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_remove_collider(&mut self, entity_index: u32, collider_id: u32) -> bool {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.remove_collider(entity_index, collider_id)
-        } else {
-            false
-        }
+    pub fn physics3d_remove_collider(
+        &mut self,
+        entity_index: u32,
+        collider_id: u32,
+    ) -> Result<bool, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.remove_collider(entity_index, collider_id)?;
+        Ok(true)
     }
 
     /// Set the next kinematic position and orientation of a 3D body.
@@ -2536,6 +2563,10 @@ impl Engine {
     ///
     /// # Returns
     /// Number of bodies updated.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] and `BUFFER_LENGTH_MISMATCH` naming `vx`,
+    /// `vy` or `vz` (checked in that order). No body moves on error.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_bulk_step_kinematics(
         &mut self,
@@ -2544,12 +2575,9 @@ impl Engine {
         vy: &[f32],
         vz: &[f32],
         dt: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.bulk_step_kinematics(slots, vx, vy, vz, dt)
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.bulk_step_kinematics(slots, vx, vy, vz, dt)
     }
 
     /// Integrate the orientations of N 3D kinematic bodies in one WASM call.
@@ -2564,6 +2592,10 @@ impl Engine {
     ///
     /// # Returns
     /// Number of bodies updated.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::WorldNotInitialized`] and `BUFFER_LENGTH_MISMATCH` naming `wx`,
+    /// `wy` or `wz` (checked in that order). No body moves on error.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_bulk_step_kinematic_rotations(
         &mut self,
@@ -2572,12 +2604,9 @@ impl Engine {
         wy: &[f32],
         wz: &[f32],
         dt: f32,
-    ) -> u32 {
-        if let Some(ref mut world) = self.physics3d_world {
-            world.bulk_step_kinematic_rotations(slots, wx, wy, wz, dt)
-        } else {
-            0
-        }
+    ) -> Result<u32, Physics3DError> {
+        let world = self.world3d_mut()?;
+        world.bulk_step_kinematic_rotations(slots, wx, wy, wz, dt)
     }
 
     /// Apply a world-space angular (torque) impulse to a 3D body.
@@ -4288,60 +4317,69 @@ mod tests {
 
         let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(engine.physics3d_add_mesh_collider(
-            0,
-            &verts,
-            &idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            42
-        ));
+        assert_eq!(
+            engine.physics3d_add_mesh_collider(
+                0,
+                &verts,
+                &idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                42
+            ),
+            Ok(true)
+        );
 
         let new_verts: Vec<f32> = vec![0.0, 0.0, 0.0, 3.0, 0.0, 0.0, 0.0, 3.0, 0.0];
         let new_idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(engine.physics3d_rebuild_mesh_collider(
-            0,
-            42,
-            &new_verts,
-            &new_idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF
-        ));
+        assert_eq!(
+            engine.physics3d_rebuild_mesh_collider(
+                0,
+                42,
+                &new_verts,
+                &new_idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF
+            ),
+            Ok(true)
+        );
     }
 
     #[cfg(feature = "physics3d")]
     #[test]
-    fn test_physics3d_rebuild_mesh_collider_binding_returns_false_when_no_world() {
+    fn test_physics3d_rebuild_mesh_collider_binding_returns_not_initialized_when_no_world() {
         let mut engine = Engine::new(64).expect("max entities");
         // physics3d not initialised.
         let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(!engine.physics3d_rebuild_mesh_collider(
-            0,
-            1,
-            &verts,
-            &idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF
-        ));
+        assert_eq!(
+            engine.physics3d_rebuild_mesh_collider(
+                0,
+                1,
+                &verts,
+                &idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF
+            ),
+            Err(Physics3DError::WorldNotInitialized)
+        );
     }
 
     /// The registry stores alignment 8 for every live shared buffer.

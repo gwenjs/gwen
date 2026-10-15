@@ -27,7 +27,7 @@
 //! Stopped` events during the step and can also be overridden manually via
 //! [`update_sensor_state`].
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
 
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
@@ -39,6 +39,9 @@ use rapier3d::prelude::*;
 
 use crate::physics3d::components::{
     quality_solver_config_3d, PhysicsQualityPreset3D, QualitySolverConfig3D,
+};
+use crate::physics3d::error::{
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason, Physics3DError,
 };
 use crate::physics3d::events::{CollisionEventBuffer3D, PhysicsCollisionEvent3D};
 use crate::physics3d::pathfinding::NavGrid3D;
@@ -307,6 +310,293 @@ pub struct PhysicsWorld3D {
 const COMPOUND_SHAPE_BOX: u32 = 0;
 const COMPOUND_SHAPE_SPHERE: u32 = 1;
 const COMPOUND_SHAPE_CAPSULE: u32 = 2;
+
+// ─── Collider input validation (E4) ──────────────────────────────────────────
+
+/// Largest absolute value accepted for a collider coordinate, offset, height, scale or size.
+///
+/// Measured with `tests/physics3d_collider_probe.rs`: a sphere radius or mesh vertex of `1e20`
+/// reaches `Option::unwrap` on `None` in parry3d-0.17.6 `query/point/point_composite_shape.rs:152`
+/// and an out-of-bounds index in `query/clip/clip_aabb_line.rs:141` during a point projection or
+/// a ray cast, and `1e19` does not. `1e9` keeps three squared terms (`3e18`) far below
+/// `f32::MAX` (`3.4e38`), so distance computations stay finite, and sits ten orders of magnitude
+/// below the first measured panic.
+pub const MAX_COLLIDER_MAGNITUDE: f32 = 1.0e9;
+
+fn invalid_collider(reason: InvalidColliderReason) -> Physics3DError {
+    Physics3DError::InvalidCollider { reason }
+}
+
+/// Refuse NaN and infinity. A NaN collider parameter makes rapier produce NaN body positions.
+fn check_collider_coefficient(value: f32) -> Result<(), Physics3DError> {
+    if value.is_finite() {
+        Ok(())
+    } else {
+        Err(invalid_collider(InvalidColliderReason::NonFinite))
+    }
+}
+
+/// Refuse a value that is not finite or whose magnitude exceeds [`MAX_COLLIDER_MAGNITUDE`].
+fn check_collider_coordinate(value: f32) -> Result<(), Physics3DError> {
+    check_collider_coefficient(value)?;
+    if value.abs() > MAX_COLLIDER_MAGNITUDE {
+        return Err(invalid_collider(InvalidColliderReason::TooLarge));
+    }
+    Ok(())
+}
+
+/// Refuse a size (half extent, radius, half height, scale) that is not finite, negative, or too
+/// large. Zero is accepted: it does not panic and keeps body positions finite.
+fn check_collider_size(value: f32) -> Result<(), Physics3DError> {
+    check_collider_coefficient(value)?;
+    if value < 0.0 {
+        return Err(invalid_collider(InvalidColliderReason::Negative));
+    }
+    check_collider_coordinate(value)
+}
+
+/// Refuse a density that is not finite or is negative. A negative density gives a negative mass
+/// and NaN body positions.
+fn check_collider_density(value: f32) -> Result<(), Physics3DError> {
+    check_collider_coefficient(value)?;
+    if value < 0.0 {
+        return Err(invalid_collider(InvalidColliderReason::Negative));
+    }
+    Ok(())
+}
+
+/// Validate the offset and the coefficients shared by every collider export.
+fn check_collider_params(params: &ColliderParams) -> Result<(), Physics3DError> {
+    check_collider_coordinate(params.offset_x)?;
+    check_collider_coordinate(params.offset_y)?;
+    check_collider_coordinate(params.offset_z)?;
+    check_collider_coefficient(params.friction)?;
+    check_collider_coefficient(params.restitution)
+}
+
+fn buffer_mismatch(buffer: &'static str, expected: usize, actual: usize) -> Physics3DError {
+    Physics3DError::BufferLengthMismatch {
+        buffer,
+        expected: crate::bindings::bulk_len_u32(expected),
+        actual: crate::bindings::bulk_len_u32(actual),
+    }
+}
+
+/// Refuse a bulk buffer whose length differs from the slot list.
+fn check_bulk_len(
+    buffer: &'static str,
+    expected: usize,
+    actual: usize,
+) -> Result<(), Physics3DError> {
+    if expected == actual {
+        Ok(())
+    } else {
+        Err(buffer_mismatch(buffer, expected, actual))
+    }
+}
+
+/// Build a heightfield collider after validating the grid, the heights and the scale.
+///
+/// `rows * cols` is computed with `checked_mul` on `u32`, so an overflow is refused on wasm32
+/// and native alike. The two parry asserts are covered: `HeightField::with_flags` needs at least
+/// 2 rows and columns (parry3d-0.17.6 `shape/heightfield3.rs:92`) and `DMatrix::from_row_slice`
+/// needs exactly `rows * cols` samples (nalgebra-0.33.3 `base/construction.rs:107-110`).
+fn heightfield_builder(
+    heights_flat: &[f32],
+    rows: u32,
+    cols: u32,
+    scale: [f32; 3],
+) -> Result<ColliderBuilder, Physics3DError> {
+    if rows < 2 || cols < 2 {
+        return Err(Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::HeightfieldTooSmall,
+        });
+    }
+    let samples = rows
+        .checked_mul(cols)
+        .and_then(|count| usize::try_from(count).ok());
+    if samples != Some(heights_flat.len()) {
+        return Err(Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::HeightfieldSampleCount,
+        });
+    }
+    for value in scale {
+        check_collider_size(value)?;
+    }
+    for &height in heights_flat {
+        check_collider_coordinate(height)?;
+    }
+    let matrix = rapier3d::na::DMatrix::from_row_slice(rows as usize, cols as usize, heights_flat);
+    Ok(ColliderBuilder::heightfield(
+        matrix,
+        vector![scale[0], scale[1], scale[2]],
+    ))
+}
+
+/// Build a trimesh collider after validating the buffers, the vertices and every index.
+///
+/// An index at or past the vertex count would be read by `TriMesh::rebuild_qbvh` (parry3d-0.17.6
+/// `shape/trimesh.rs:489-493`) and abort the instance; `TriMesh::new` also asserts that the
+/// index list is not empty (`shape/trimesh.rs:318`).
+fn trimesh_builder(
+    vertices_flat: &[f32],
+    indices_flat: &[u32],
+) -> Result<ColliderBuilder, Physics3DError> {
+    if !vertices_flat.len().is_multiple_of(3) {
+        return Err(Physics3DError::InvalidMeshBuffer {
+            actual: crate::bindings::bulk_len_u32(vertices_flat.len()),
+        });
+    }
+    let vertex_chunks = vertices_flat.as_chunks::<3>().0;
+    let index_chunks = indices_flat.as_chunks::<3>().0;
+    if vertex_chunks.is_empty() || index_chunks.is_empty() {
+        return Err(Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::MeshEmpty,
+        });
+    }
+    for &coordinate in vertices_flat {
+        check_collider_coordinate(coordinate)?;
+    }
+    let vertex_count = vertex_chunks.len();
+    for triangle in index_chunks {
+        for &index in triangle {
+            if usize::try_from(index).map_or(true, |i| i >= vertex_count) {
+                return Err(Physics3DError::InvalidShape {
+                    reason: InvalidShapeReason::TrimeshIndexOutOfRange,
+                });
+            }
+        }
+    }
+    let points: Vec<rapier3d::na::Point3<f32>> = vertex_chunks
+        .iter()
+        .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
+        .collect();
+    let triangles: Vec<[u32; 3]> = index_chunks.to_vec();
+    Ok(ColliderBuilder::trimesh(points, triangles))
+}
+
+/// Build a convex-hull collider with the fallible `try_convex_hull`.
+fn convex_builder(vertices_flat: &[f32], density: f32) -> Result<ColliderBuilder, Physics3DError> {
+    check_collider_density(density)?;
+    let chunks = vertices_flat.as_chunks::<3>().0;
+    if chunks.len() < 4 {
+        return Err(Physics3DError::InvalidShape {
+            reason: InvalidShapeReason::ConvexTooFewPoints,
+        });
+    }
+    for coordinate in chunks.iter().flatten() {
+        check_collider_coordinate(*coordinate)?;
+    }
+    let points: Vec<rapier3d::na::Point3<f32>> = chunks
+        .iter()
+        .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
+        .collect();
+    let degenerate = || Physics3DError::InvalidShape {
+        reason: InvalidShapeReason::ConvexDegenerate,
+    };
+    let (hull_points, hull_triangles) =
+        rapier3d::parry::transformation::try_convex_hull(&points).map_err(|_| degenerate())?;
+    let polyhedron =
+        rapier3d::parry::shape::ConvexPolyhedron::from_convex_mesh(hull_points, &hull_triangles)
+            .ok_or_else(degenerate)?;
+    Ok(ColliderBuilder::new(rapier3d::geometry::SharedShape::new(polyhedron)).density(density))
+}
+
+/// Decode a baked BVH buffer into a collider after validating the header and the mesh.
+fn bvh_builder(bvh_bytes: &[u8]) -> Result<ColliderBuilder, Physics3DError> {
+    use rapier3d::geometry::TriMesh;
+    let failure = |reason| Physics3DError::BvhLoadFailed { reason };
+    let Some((header, payload)) = bvh_bytes.split_at_checked(8) else {
+        return Err(failure(BvhLoadReason::TooShort));
+    };
+    if !header.starts_with(b"GBVH") {
+        return Err(failure(BvhLoadReason::BadMagic));
+    }
+    let decoded: Result<(TriMesh, usize), _> =
+        bincode::serde::decode_from_slice(payload, bincode::config::standard());
+    let Ok((trimesh, _)) = decoded else {
+        return Err(failure(BvhLoadReason::DecodeFailed));
+    };
+    if !decoded_mesh_is_valid(&trimesh) {
+        return Err(failure(BvhLoadReason::InvalidMesh));
+    }
+    Ok(ColliderBuilder::new(rapier3d::geometry::SharedShape::new(
+        trimesh,
+    )))
+}
+
+/// Check what parry reads without checking: triangle indices (`shape/trimesh.rs:988-992`) and
+/// BVH leaf ids, plus non-empty and finite bounded vertices.
+fn decoded_mesh_is_valid(mesh: &rapier3d::geometry::TriMesh) -> bool {
+    let vertices = mesh.vertices();
+    let triangles = mesh.indices();
+    if vertices.is_empty() || triangles.is_empty() {
+        return false;
+    }
+    let coordinates_ok = vertices
+        .iter()
+        .flat_map(|v| v.coords.iter())
+        .all(|c| check_collider_coordinate(*c).is_ok());
+    let indices_ok = triangles
+        .iter()
+        .flatten()
+        .all(|&i| usize::try_from(i).is_ok_and(|i| i < vertices.len()));
+    let leaves_ok = mesh
+        .qbvh()
+        .iter_data()
+        .all(|(_, &leaf)| usize::try_from(leaf).is_ok_and(|i| i < triangles.len()));
+    coordinates_ok && indices_ok && leaves_ok
+}
+
+/// Validate one 12-float compound part and build its collider.
+fn compound_part(
+    chunk: &[f32; 12],
+    layer_bits: u32,
+    mask_bits: u32,
+) -> Result<(ColliderBuilder, ColliderParams), Physics3DError> {
+    let unknown = || Physics3DError::InvalidCompound {
+        reason: InvalidCompoundReason::UnknownShapeType,
+    };
+    let kind = chunk[0];
+    if !(kind.fract() == 0.0 && (0.0..=2.0).contains(&kind)) {
+        return Err(unknown());
+    }
+    let (p0, p1, p2) = (chunk[1], chunk[2], chunk[3]);
+    // chunk[4] is reserved (p3), ignored
+    let builder = match kind as u32 {
+        COMPOUND_SHAPE_BOX => {
+            check_collider_size(p0)?;
+            check_collider_size(p1)?;
+            check_collider_size(p2)?;
+            ColliderBuilder::cuboid(p0, p1, p2)
+        }
+        COMPOUND_SHAPE_SPHERE => {
+            check_collider_size(p0)?;
+            ColliderBuilder::ball(p0)
+        }
+        COMPOUND_SHAPE_CAPSULE => {
+            check_collider_size(p0)?;
+            check_collider_size(p1)?;
+            ColliderBuilder::capsule_y(p1, p0)
+        }
+        _ => return Err(unknown()),
+    };
+    let id = chunk[11];
+    check_collider_density(id)?;
+    let params = ColliderParams {
+        offset_x: chunk[5],
+        offset_y: chunk[6],
+        offset_z: chunk[7],
+        is_sensor: chunk[8] != 0.0,
+        friction: chunk[9],
+        restitution: chunk[10],
+        layer_bits,
+        mask_bits,
+        collider_id: id as u32,
+    };
+    check_collider_params(&params)?;
+    Ok((builder, params))
+}
 
 impl PhysicsWorld3D {
     /// Create a new 3D physics world with the given gravity vector.
@@ -690,18 +980,18 @@ impl PhysicsWorld3D {
     /// Finish configuring a [`ColliderBuilder`] with the shared collider
     /// parameters common to all shape types, then insert it.
     ///
-    /// Returns `true` if a parent rigid body was found for the entity and the
-    /// collider was inserted, or `false` if `entity_index` has no body.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when `entity_index` has no body, and
+    /// [`Physics3DError::InvalidCollider`] when an offset, friction or restitution is refused.
+    /// Nothing is inserted on error.
     fn insert_collider(
         &mut self,
         entity_index: u32,
         params: ColliderParams,
         builder: ColliderBuilder,
-    ) -> bool {
-        let Some(&body_handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("insert_collider(entity={}, collider={}): no registered body — call add_body() first", entity_index, params.collider_id);
-            return false;
-        };
+    ) -> Result<(), Physics3DError> {
+        let body_handle = self.require_body(entity_index)?;
+        check_collider_params(&params)?;
 
         let groups = Self::make_interaction_groups(params.layer_bits, params.mask_bits);
         let collider = builder
@@ -719,7 +1009,18 @@ impl PhysicsWorld3D {
                 .insert_with_parent(collider, body_handle, &mut self.rigid_body_set);
         self.collider_handles
             .insert((entity_index, params.collider_id), ch);
-        true
+        Ok(())
+    }
+
+    /// Look up the rigid body registered for `entity_index`.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when no body is registered.
+    fn require_body(&self, entity_index: u32) -> Result<RigidBodyHandle, Physics3DError> {
+        self.entity_handles
+            .get(&entity_index)
+            .copied()
+            .ok_or(Physics3DError::BodyNotFound { slot: entity_index })
     }
 
     /// Attach an axis-aligned box collider to the rigid body of an entity.
@@ -729,14 +1030,17 @@ impl PhysicsWorld3D {
     /// * `half_x/y/z`  — Half-extents of the box (metres).
     /// * `offset_x/y/z`— Local-space offset from the body origin.
     /// * `is_sensor`   — If `true`, no physical response; only events.
-    /// * `friction`    — Surface friction coefficient (≥ 0).
-    /// * `restitution` — Bounciness in \[0, 1\].
+    /// * `friction`    — Surface friction coefficient.
+    /// * `restitution` — Bounciness coefficient.
     /// * `layer_bits`  — Collision layer bitmask.
     /// * `mask_bits`   — Collision filter bitmask.
     /// * `collider_id` — Stable ID stored in events and used as the map key.
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no registered body.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body and
+    /// [`Physics3DError::InvalidCollider`] when a size, offset or coefficient is not finite, a
+    /// size is negative, or a size or offset exceeds [`MAX_COLLIDER_MAGNITUDE`].
+    /// The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_box_collider(
         &mut self,
@@ -753,7 +1057,11 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        check_collider_size(half_x)?;
+        check_collider_size(half_y)?;
+        check_collider_size(half_z)?;
         let builder = ColliderBuilder::cuboid(half_x, half_y, half_z);
         let params = ColliderParams {
             offset_x,
@@ -776,14 +1084,14 @@ impl PhysicsWorld3D {
     /// * `radius`       — Sphere radius (metres).
     /// * `offset_x/y/z`— Local-space offset from the body origin.
     /// * `is_sensor`    — If `true`, no physical response; only events.
-    /// * `friction`     — Surface friction coefficient (≥ 0).
-    /// * `restitution`  — Bounciness in \[0, 1\].
+    /// * `friction`     — Surface friction coefficient.
+    /// * `restitution`  — Bounciness coefficient.
     /// * `layer_bits`   — Collision layer bitmask.
     /// * `mask_bits`    — Collision filter bitmask.
     /// * `collider_id`  — Stable ID stored in events and used as the map key.
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no registered body.
+    /// # Errors
+    /// Same as [`Self::add_box_collider`], with `radius` as the size.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_sphere_collider(
         &mut self,
@@ -798,7 +1106,9 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        check_collider_size(radius)?;
         let builder = ColliderBuilder::ball(radius);
         let params = ColliderParams {
             offset_x,
@@ -825,14 +1135,14 @@ impl PhysicsWorld3D {
     /// * `half_height`   — Half-height of the cylindrical shaft (metres).
     /// * `offset_x/y/z` — Local-space offset from the body origin.
     /// * `is_sensor`     — If `true`, no physical response; only events.
-    /// * `friction`      — Surface friction coefficient (≥ 0).
-    /// * `restitution`   — Bounciness in \[0, 1\].
+    /// * `friction`      — Surface friction coefficient.
+    /// * `restitution`   — Bounciness coefficient.
     /// * `layer_bits`    — Collision layer bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable ID stored in events and used as the map key.
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no registered body.
+    /// # Errors
+    /// Same as [`Self::add_box_collider`], with `radius` and `half_height` as the sizes.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_capsule_collider(
         &mut self,
@@ -848,7 +1158,10 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        check_collider_size(radius)?;
+        check_collider_size(half_height)?;
         let builder = ColliderBuilder::capsule_y(half_height, radius);
         let params = ColliderParams {
             offset_x,
@@ -872,26 +1185,30 @@ impl PhysicsWorld3D {
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
     /// * `heights_flat`  — Row-major flat array of `rows × cols` height values.
-    /// * `rows`          — Number of rows (Z axis).
-    /// * `cols`          — Number of columns (X axis).
+    /// * `rows`          — Number of rows (Z axis), at least 2.
+    /// * `cols`          — Number of columns (X axis), at least 2.
     /// * `scale_x`       — World-space width of the entire heightfield (metres).
     /// * `scale_y`       — World-space maximum height multiplier (metres).
     /// * `scale_z`       — World-space depth of the entire heightfield (metres).
     /// * `friction`      — Surface friction coefficient.
-    /// * `restitution`   — Bounciness \[0, 1\].
+    /// * `restitution`   — Bounciness coefficient.
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable ID for event lookup.
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no body or input is invalid.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
+    /// [`Physics3DError::InvalidShape`] when `rows` or `cols` is below 2 or `heights_flat` does
+    /// not hold exactly `rows * cols` samples (the product is computed with `checked_mul` on
+    /// `u32`, so it cannot wrap on wasm32), and [`Physics3DError::InvalidCollider`] when a
+    /// height, scale or coefficient is refused. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_heightfield_collider(
         &mut self,
         entity_index: u32,
         heights_flat: &[f32],
-        rows: usize,
-        cols: usize,
+        rows: u32,
+        cols: u32,
         scale_x: f32,
         scale_y: f32,
         scale_z: f32,
@@ -900,13 +1217,9 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        if heights_flat.len() != rows * cols {
-            return false;
-        }
-        use rapier3d::na::DMatrix;
-        let matrix = DMatrix::from_row_slice(rows, cols, heights_flat);
-        let builder = ColliderBuilder::heightfield(matrix, vector![scale_x, scale_y, scale_z]);
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = heightfield_builder(heights_flat, rows, cols, [scale_x, scale_y, scale_z])?;
         let params = ColliderParams {
             offset_x: 0.0,
             offset_y: 0.0,
@@ -923,19 +1236,20 @@ impl PhysicsWorld3D {
 
     /// Replace the height data of an existing heightfield collider.
     ///
-    /// Removes the old collider by `(entity_index, collider_id)` and inserts a
-    /// new one with updated heights while preserving all other parameters.
+    /// Everything is validated first. Only then is the old collider removed
+    /// by `(entity_index, collider_id)` and a new one inserted with the updated heights. If no
+    /// collider is registered under that id, a new one is inserted.
     ///
-    /// Returns `true` on success. Returns `false` if the entity has no body or
-    /// the input dimensions are inconsistent.
+    /// # Errors
+    /// Same as [`Self::add_heightfield_collider`]. On error the old collider is untouched.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn update_heightfield_collider(
         &mut self,
         entity_index: u32,
         collider_id: u32,
         heights_flat: &[f32],
-        rows: usize,
-        cols: usize,
+        rows: u32,
+        cols: u32,
         scale_x: f32,
         scale_y: f32,
         scale_z: f32,
@@ -943,7 +1257,21 @@ impl PhysicsWorld3D {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> bool {
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = heightfield_builder(heights_flat, rows, cols, [scale_x, scale_y, scale_z])?;
+        let params = ColliderParams {
+            offset_x: 0.0,
+            offset_y: 0.0,
+            offset_z: 0.0,
+            is_sensor: false,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        };
+        check_collider_params(&params)?;
         if let Some(&ch) = self.collider_handles.get(&(entity_index, collider_id)) {
             self.collider_set.remove(
                 ch,
@@ -953,28 +1281,21 @@ impl PhysicsWorld3D {
             );
             self.collider_handles.remove(&(entity_index, collider_id));
         }
-        self.add_heightfield_collider(
-            entity_index,
-            heights_flat,
-            rows,
-            cols,
-            scale_x,
-            scale_y,
-            scale_z,
-            friction,
-            restitution,
-            layer_bits,
-            mask_bits,
-            collider_id,
-        )
+        self.insert_collider(entity_index, params, builder)
     }
 
     /// Attach a triangle-mesh collider to a 3D body.
     ///
     /// `vertices_flat` must be a multiple of 3 floats (`[x0,y0,z0, x1,y1,z1, ...]`).
-    /// `indices_flat` must be a multiple of 3 u32s (`[a0,b0,c0, ...]`).
+    /// `indices_flat` is read as triangles (`[a0,b0,c0, ...]`); a trailing partial triangle is
+    /// dropped.
     ///
-    /// Returns `false` when the entity has no registered body, or either slice is empty.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
+    /// [`Physics3DError::InvalidMeshBuffer`] when `vertices_flat` is not a multiple of 3,
+    /// [`Physics3DError::InvalidShape`] when there is no vertex or no whole triangle or an index
+    /// is not below the vertex count, and [`Physics3DError::InvalidCollider`] when a vertex,
+    /// offset or coefficient is refused. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_mesh_collider(
         &mut self,
@@ -990,23 +1311,9 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        let verts: Vec<rapier3d::na::Point3<f32>> = vertices_flat
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
-            .collect();
-        let idxs: Vec<[u32; 3]> = indices_flat
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .map(|c| [c[0], c[1], c[2]])
-            .collect();
-        if verts.is_empty() || idxs.is_empty() {
-            return false;
-        }
-        let builder = ColliderBuilder::trimesh(verts, idxs);
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = trimesh_builder(vertices_flat, indices_flat)?;
         let params = ColliderParams {
             offset_x,
             offset_y,
@@ -1023,9 +1330,9 @@ impl PhysicsWorld3D {
 
     /// Rebuild an existing mesh collider with new geometry.
     ///
-    /// Removes the old collider and inserts a fresh trimesh built from `vertices_flat`
-    /// and `indices_flat`. If no collider with the given `(entity_index, collider_id)`
-    /// pair exists, a new one is inserted (same behaviour as [`add_mesh_collider`]).
+    /// Everything is validated first. Only then is the old collider removed and a fresh trimesh
+    /// inserted. If no collider with the given `(entity_index, collider_id)` pair exists, a new
+    /// one is inserted (same behaviour as [`Self::add_mesh_collider`]).
     ///
     /// # Arguments
     /// * `entity_index`   — ECS entity slot index.
@@ -1034,13 +1341,13 @@ impl PhysicsWorld3D {
     /// * `indices_flat`   — New triangle indices `[a0,b0,c0, ...]`.
     /// * `offset_x/y/z`  — Local-space offset from the body origin.
     /// * `is_sensor`      — If `true`, no physical response; only events.
-    /// * `friction`       — Surface friction coefficient (≥ 0).
-    /// * `restitution`    — Bounciness in \[0, 1\].
+    /// * `friction`       — Surface friction coefficient.
+    /// * `restitution`    — Bounciness coefficient.
     /// * `layer_bits`     — Collision layer bitmask.
     /// * `mask_bits`      — Collision filter bitmask.
     ///
-    /// # Returns
-    /// `true` on success, `false` if the entity has no registered body.
+    /// # Errors
+    /// Same as [`Self::add_mesh_collider`]. On error the old collider is untouched.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn rebuild_mesh_collider(
         &mut self,
@@ -1056,7 +1363,21 @@ impl PhysicsWorld3D {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> bool {
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = trimesh_builder(vertices_flat, indices_flat)?;
+        let params = ColliderParams {
+            offset_x,
+            offset_y,
+            offset_z,
+            is_sensor,
+            friction,
+            restitution,
+            layer_bits,
+            mask_bits,
+            collider_id,
+        };
+        check_collider_params(&params)?;
         // Remove the existing collider if present.
         if let Some(&ch) = self.collider_handles.get(&(entity_index, collider_id)) {
             self.collider_set.remove(
@@ -1069,30 +1390,25 @@ impl PhysicsWorld3D {
             self.collider_handles.remove(&(entity_index, collider_id));
             self.sensor_states.remove(&(entity_index, collider_id));
         }
-        // Insert new trimesh with updated geometry.
-        self.add_mesh_collider(
-            entity_index,
-            vertices_flat,
-            indices_flat,
-            offset_x,
-            offset_y,
-            offset_z,
-            is_sensor,
-            friction,
-            restitution,
-            layer_bits,
-            mask_bits,
-            collider_id,
-        )
+        self.insert_collider(entity_index, params, builder)
     }
 
     /// Attach a convex-hull collider to a 3D body.
     ///
-    /// `vertices_flat` must be a multiple of 3 floats (`[x0,y0,z0, x1,y1,z1, ...]`).
-    /// When Rapier cannot compute a convex hull (e.g. degenerate point cloud), the
-    /// function falls back to a unit sphere (`ball(0.5)`) rather than failing.
+    /// `vertices_flat` must hold at least 4 points (`[x0,y0,z0, x1,y1,z1, ...]`); a trailing
+    /// partial point is dropped. The hull is computed with parry's fallible
+    /// `try_convex_hull`, because `ColliderBuilder::convex_hull` calls the unwrapping
+    /// `convex_hull` (parry3d-0.17.6 `shape/convex_polyhedron.rs:120`,
+    /// `transformation/convex_hull3/convex_hull.rs:10-12`) and panics on degenerate input.
     ///
-    /// Returns `false` when the entity has no registered body or the vertex slice is empty.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
+    /// [`Physics3DError::InvalidShape`] with `ConvexTooFewPoints` below 4 points or
+    /// `ConvexDegenerate` when parry's `try_convex_hull` rejects the points (collinear, duplicated, or
+    /// an extreme aspect ratio such as `1e9` against `1`; coplanar points that parry accepts stay
+    /// accepted), and
+    /// [`Physics3DError::InvalidCollider`] when a coordinate, the density, an offset or a
+    /// coefficient is refused. The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_convex_collider(
         &mut self,
@@ -1108,31 +1424,9 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        let verts: Vec<rapier3d::na::Point3<f32>> = vertices_flat
-            .as_chunks::<3>()
-            .0
-            .iter()
-            .map(|c| rapier3d::na::Point3::new(c[0], c[1], c[2]))
-            .collect();
-        if verts.is_empty() {
-            return false;
-        }
-        let builder = if verts.len() < 4 {
-            // parry3d panics on IncompleteInput when fewer than 4 points are
-            // provided; use the ball fallback directly rather than letting it panic.
-            debug_warn!("add_convex_collider(entity={}): only {} vertices — degenerate input, falling back to unit sphere", entity_index, verts.len());
-            ColliderBuilder::ball(0.5)
-        } else {
-            match ColliderBuilder::convex_hull(&verts) {
-                Some(b) => b,
-                None => {
-                    debug_warn!("add_convex_collider(entity={}): Rapier convex hull failed on {} vertices, falling back to unit sphere", entity_index, verts.len());
-                    ColliderBuilder::ball(0.5)
-                }
-            }
-        }
-        .density(density);
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = convex_builder(vertices_flat, density)?;
         let params = ColliderParams {
             offset_x,
             offset_y,
@@ -1157,20 +1451,28 @@ impl PhysicsWorld3D {
     /// # Format
     /// `[4: "GBVH"][2: rapier_major u16 LE][2: rapier_minor u16 LE][N: bincode(TriMesh)]`
     ///
+    /// The two version words are not read. The decoded mesh is checked before it is used: at
+    /// least one triangle, finite bounded vertices, every triangle index below the vertex count
+    /// and every BVH leaf below the triangle count. The inner BVH node links, topology and
+    /// pseudo-normals come from the bytes and are trusted: the buffer is expected to come from
+    /// the build tool.
+    ///
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
     /// * `bvh_bytes`     — Pre-baked BVH buffer (GBVH header + bincode `TriMesh`).
     /// * `offset_x/y/z`  — Local-space offset from the body origin (metres).
     /// * `is_sensor`     — When `true`, collision response is suppressed; only events fire.
-    /// * `friction`      — Surface friction coefficient (≥ 0).
-    /// * `restitution`   — Bounciness coefficient (\[0, 1\]).
+    /// * `friction`      — Surface friction coefficient.
+    /// * `restitution`   — Bounciness coefficient.
     /// * `layer_bits`    — Collision layer membership bitmask.
     /// * `mask_bits`     — Collision filter bitmask.
     /// * `collider_id`   — Stable application-defined collider ID.
     ///
-    /// # Returns
-    /// `true` on success, `false` if `bvh_bytes` is too short, the magic header
-    /// is wrong, bincode decoding fails, or the entity has no registered body.
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
+    /// [`Physics3DError::BvhLoadFailed`] with `TooShort`, `BadMagic`, `DecodeFailed` or
+    /// `InvalidMesh`, and [`Physics3DError::InvalidCollider`] for an offset or coefficient.
+    /// The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn load_bvh_collider(
         &mut self,
@@ -1185,38 +1487,9 @@ impl PhysicsWorld3D {
         layer_bits: u32,
         mask_bits: u32,
         collider_id: u32,
-    ) -> bool {
-        use rapier3d::geometry::TriMesh;
-        if bvh_bytes.len() < 8 {
-            debug_warn!(
-                "load_bvh_collider(entity={}): buffer too short ({} bytes, need ≥ 8)",
-                entity_index,
-                bvh_bytes.len()
-            );
-            return false;
-        }
-        if &bvh_bytes[0..4] != b"GBVH" {
-            debug_warn!(
-                "load_bvh_collider(entity={}): invalid magic header, expected 'GBVH'",
-                entity_index
-            );
-            return false;
-        }
-        let payload = &bvh_bytes[8..];
-        let result: Result<(TriMesh, _), _> =
-            bincode::serde::decode_from_slice(payload, bincode::config::standard());
-        let trimesh = match result {
-            Ok((t, _)) => t,
-            Err(_e) => {
-                debug_warn!(
-                    "load_bvh_collider(entity={}): bincode decode failed — {:?}",
-                    entity_index,
-                    _e
-                );
-                return false;
-            }
-        };
-        let builder = ColliderBuilder::new(rapier3d::geometry::SharedShape::new(trimesh));
+    ) -> Result<(), Physics3DError> {
+        self.require_body(entity_index)?;
+        let builder = bvh_builder(bvh_bytes)?;
         let params = ColliderParams {
             offset_x,
             offset_y,
@@ -1235,6 +1508,8 @@ impl PhysicsWorld3D {
     ///
     /// Creates N fixed rigid bodies with cuboid colliders, one per entity index.
     /// This avoids N WASM round-trips for a single batch of static scenery.
+    /// Everything is validated before the first body is created: either all N bodies are
+    /// added or none.
     ///
     /// # Arguments
     /// * `entity_indices` — array of entity indices to attach bodies to.
@@ -1247,15 +1522,13 @@ impl PhysicsWorld3D {
     /// * `mask_bits` — collision mask bits for all bodies.
     ///
     /// # Returns
-    /// Number of bodies successfully added. If input buffers are malformed
-    /// (too short), returns 0 and adds no bodies. Partial success is not possible —
-    /// either all N bodies are added or none.
+    /// Number of bodies added. An empty batch returns 0.
     ///
-    /// # Bounds Checking
-    /// Returns 0 (without adding anything) if:
-    /// - `entity_indices.is_empty()` (n=0)
-    /// - `positions_flat.len() < n * 3` (positions buffer too short)
-    /// - `!uniform_extents && half_extents_flat.len() < n * 3` (extents buffer too short for per-entity mode)
+    /// # Errors
+    /// Returns [`Physics3DError::BufferLengthMismatch`] naming `positions` or `half_extents`
+    /// when a buffer is shorter than `n * 3`, [`Physics3DError::BodyAlreadyExists`] when a slot is
+    /// registered or listed twice, and [`Physics3DError::InvalidCollider`] when a position,
+    /// extent or coefficient is refused. Nothing is written on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn bulk_add_static_boxes(
         &mut self,
@@ -1266,24 +1539,40 @@ impl PhysicsWorld3D {
         restitution: f32,
         layer_bits: u32,
         mask_bits: u32,
-    ) -> u32 {
+    ) -> Result<u32, Physics3DError> {
         let n = entity_indices.len();
-
-        // Return 0 early on malformed input — never panic
         if n == 0 {
-            return 0;
+            return Ok(0);
         }
 
-        // Validate positions buffer length
-        if positions_flat.len() < n * 3 {
-            return 0;
+        let needed = n.saturating_mul(3);
+        if positions_flat.len() < needed {
+            return Err(buffer_mismatch("positions", needed, positions_flat.len()));
         }
-
         let uniform_extents = half_extents_flat.len() == 3;
+        if !uniform_extents && half_extents_flat.len() < needed {
+            return Err(buffer_mismatch(
+                "half_extents",
+                needed,
+                half_extents_flat.len(),
+            ));
+        }
 
-        // Validate half_extents buffer length
-        if !uniform_extents && half_extents_flat.len() < n * 3 {
-            return 0;
+        let mut seen = HashSet::with_capacity(n);
+        for &slot in entity_indices {
+            if self.entity_handles.contains_key(&slot) || !seen.insert(slot) {
+                return Err(Physics3DError::BodyAlreadyExists { slot });
+            }
+        }
+
+        check_collider_coefficient(friction)?;
+        check_collider_coefficient(restitution)?;
+        for &position in positions_flat.iter().take(needed) {
+            check_collider_coordinate(position)?;
+        }
+        let extent_count = if uniform_extents { 3 } else { needed };
+        for &extent in half_extents_flat.iter().take(extent_count) {
+            check_collider_size(extent)?;
         }
 
         let groups = Self::make_interaction_groups(layer_bits, mask_bits);
@@ -1313,6 +1602,7 @@ impl PhysicsWorld3D {
                 .build();
             let handle = self.rigid_body_set.insert(rb);
             self.entity_handles.insert(entity_index, handle);
+            self.handle_to_entity.insert(handle, entity_index);
 
             let collider = ColliderBuilder::cuboid(hx, hy, hz)
                 .collision_groups(groups)
@@ -1327,12 +1617,13 @@ impl PhysicsWorld3D {
             self.collider_handles.insert((entity_index, 0), ch);
             count += 1;
         }
-        count
+        Ok(count)
     }
 
     /// Attach multiple primitive colliders to one rigid body in a single call.
     ///
-    /// This avoids N WASM round-trips for an N-shape compound body.
+    /// This avoids N WASM round-trips for an N-shape compound body. Every part is validated
+    /// before the first one is inserted: either all parts are added or none.
     ///
     /// # Buffer layout (12 `f32` per shape)
     /// `[shape_type, p0, p1, p2, p3, offset_x, offset_y, offset_z, is_sensor, friction, restitution, collider_id]`
@@ -1340,64 +1631,42 @@ impl PhysicsWorld3D {
     /// - SPHERE (1):  `p0=radius, p1=p2=p3=0`
     /// - CAPSULE (2): `p0=radius, p1=half_height, p2=p3=0`
     ///
-    /// Unknown shape types are silently skipped (not counted).
+    /// `shape_type` must be exactly 0, 1 or 2. `collider_id` must be finite and not negative;
+    /// it is truncated to `u32`.
     ///
     /// # Returns
-    /// Number of colliders successfully inserted (0 if `entity_index` has no
-    /// body or `shape_data.len()` is not a multiple of 12).
+    /// Number of colliders inserted (0 for an empty buffer).
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
+    /// [`Physics3DError::InvalidCompound`] when `shape_data.len()` is not a multiple of 12 or a
+    /// part has an unknown shape type, and [`Physics3DError::InvalidCollider`] when a size, offset,
+    /// coefficient or id is refused. Nothing is inserted on error.
     pub fn add_compound_collider(
         &mut self,
         entity_index: u32,
         shape_data: &[f32],
         layer_bits: u32,
         mask_bits: u32,
-    ) -> u32 {
+    ) -> Result<u32, Physics3DError> {
         const FLOATS_PER_SHAPE: usize = 12;
+        self.require_body(entity_index)?;
         if !shape_data.len().is_multiple_of(FLOATS_PER_SHAPE) {
-            return 0;
+            return Err(Physics3DError::InvalidCompound {
+                reason: InvalidCompoundReason::LengthNotMultipleOfStride,
+            });
         }
 
-        let mut count = 0u32;
+        let mut parts = Vec::with_capacity(shape_data.len() / FLOATS_PER_SHAPE);
         for chunk in shape_data.as_chunks::<FLOATS_PER_SHAPE>().0 {
-            let shape_type = chunk[0] as u32;
-            let p0 = chunk[1];
-            let p1 = chunk[2];
-            let p2 = chunk[3];
-            // chunk[4] is reserved (p3), ignored
-            let ox = chunk[5];
-            let oy = chunk[6];
-            let oz = chunk[7];
-            let is_sensor = chunk[8] != 0.0;
-            let friction = chunk[9];
-            let restitution = chunk[10];
-            let collider_id = chunk[11] as u32;
-
-            let builder = match shape_type {
-                COMPOUND_SHAPE_BOX => ColliderBuilder::cuboid(p0, p1, p2),
-                COMPOUND_SHAPE_SPHERE => ColliderBuilder::ball(p0),
-                COMPOUND_SHAPE_CAPSULE => ColliderBuilder::capsule_y(p1, p0),
-                _ => continue,
-            };
-
-            if self.insert_collider(
-                entity_index,
-                ColliderParams {
-                    offset_x: ox,
-                    offset_y: oy,
-                    offset_z: oz,
-                    is_sensor,
-                    friction,
-                    restitution,
-                    layer_bits,
-                    mask_bits,
-                    collider_id,
-                },
-                builder,
-            ) {
-                count += 1;
-            }
+            parts.push(compound_part(chunk, layer_bits, mask_bits)?);
         }
-        count
+
+        let count = u32::try_from(parts.len()).unwrap_or(u32::MAX);
+        for (builder, params) in parts {
+            self.insert_collider(entity_index, params, builder)?;
+        }
+        Ok(count)
     }
 
     /// Remove a specific collider from the simulation.
@@ -1408,12 +1677,20 @@ impl PhysicsWorld3D {
     /// * `entity_index` — ECS entity slot index.
     /// * `collider_id`  — Stable ID that was passed when the collider was created.
     ///
-    /// # Returns
-    /// `true` if the collider was found and removed, `false` otherwise.
-    pub fn remove_collider(&mut self, entity_index: u32, collider_id: u32) -> bool {
+    /// # Errors
+    /// Returns [`Physics3DError::ColliderNotFound`] when no collider is registered under
+    /// `(entity_index, collider_id)`.
+    pub fn remove_collider(
+        &mut self,
+        entity_index: u32,
+        collider_id: u32,
+    ) -> Result<(), Physics3DError> {
         let key = (entity_index, collider_id);
         let Some(ch) = self.collider_handles.remove(&key) else {
-            return false;
+            return Err(Physics3DError::ColliderNotFound {
+                slot: entity_index,
+                collider_id,
+            });
         };
         // Also drop any sensor state for this specific collider.
         self.sensor_states.remove(&key);
@@ -1425,7 +1702,7 @@ impl PhysicsWorld3D {
             // wake_up = true so the parent body re-enters the active island.
             true,
         );
-        true
+        Ok(())
     }
 
     // ── Kinematic body control ────────────────────────────────────────────────
@@ -1473,9 +1750,8 @@ impl PhysicsWorld3D {
     /// `new_pos = current_pos + (vx[i], vy[i], vz[i]) * dt`
     /// The current orientation is preserved unchanged.
     ///
-    /// Lengths of `slots`, `vx`, `vy`, and `vz` must be equal; any trailing mismatch
-    /// is silently ignored (only `min(slots.len(), vx.len(), vy.len(), vz.len())` bodies
-    /// are processed). Bodies not found by their slot index are silently skipped.
+    /// Lengths of `slots`, `vx`, `vy`, and `vz` must be equal. A mismatch returns before any
+    /// body moves. Bodies not found by their slot index are silently skipped.
     ///
     /// # Arguments
     /// * `slots` — Entity indices. Must have the same length as `vx`, `vy`, `vz`.
@@ -1484,6 +1760,10 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Number of bodies actually updated.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BufferLengthMismatch`] when `vx`, `vy` or `vz` has a different
+    /// length from `slots`. They are checked in that order.
     pub fn bulk_step_kinematics(
         &mut self,
         slots: &[u32],
@@ -1491,10 +1771,12 @@ impl PhysicsWorld3D {
         vy: &[f32],
         vz: &[f32],
         dt: f32,
-    ) -> u32 {
-        let count = slots.len().min(vx.len()).min(vy.len()).min(vz.len());
+    ) -> Result<u32, Physics3DError> {
+        check_bulk_len("vx", slots.len(), vx.len())?;
+        check_bulk_len("vy", slots.len(), vy.len())?;
+        check_bulk_len("vz", slots.len(), vz.len())?;
         let mut updated = 0u32;
-        for i in 0..count {
+        for i in 0..slots.len() {
             let Some(&handle) = self.entity_handles.get(&slots[i]) else {
                 continue;
             };
@@ -1511,7 +1793,7 @@ impl PhysicsWorld3D {
             body.set_next_kinematic_position(iso);
             updated += 1;
         }
-        updated
+        Ok(updated)
     }
 
     /// Integrate the orientations of N 3D kinematic bodies in one pass.
@@ -1520,9 +1802,8 @@ impl PhysicsWorld3D {
     /// `dq = 0.5 * [wx, wy, wz, 0] * q * dt`, then normalises.
     /// The current position is preserved unchanged.
     ///
-    /// Lengths of `slots`, `wx`, `wy`, and `wz` must be equal; any trailing mismatch
-    /// is silently ignored. Bodies not found by their slot index are silently skipped.
-    /// The position of each body is preserved unchanged.
+    /// Lengths of `slots`, `wx`, `wy`, and `wz` must be equal. A mismatch returns before any
+    /// body moves. Bodies not found by their slot index are silently skipped.
     ///
     /// # Arguments
     /// * `slots` — Entity indices.
@@ -1531,6 +1812,10 @@ impl PhysicsWorld3D {
     ///
     /// # Returns
     /// Number of bodies actually updated.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BufferLengthMismatch`] when `wx`, `wy` or `wz` has a different
+    /// length from `slots`. They are checked in that order.
     pub fn bulk_step_kinematic_rotations(
         &mut self,
         slots: &[u32],
@@ -1538,10 +1823,12 @@ impl PhysicsWorld3D {
         wy: &[f32],
         wz: &[f32],
         dt: f32,
-    ) -> u32 {
-        let count = slots.len().min(wx.len()).min(wy.len()).min(wz.len());
+    ) -> Result<u32, Physics3DError> {
+        check_bulk_len("wx", slots.len(), wx.len())?;
+        check_bulk_len("wy", slots.len(), wy.len())?;
+        check_bulk_len("wz", slots.len(), wz.len())?;
         let mut updated = 0u32;
-        for i in 0..count {
+        for i in 0..slots.len() {
             let Some(&handle) = self.entity_handles.get(&slots[i]) else {
                 continue;
             };
@@ -1564,7 +1851,7 @@ impl PhysicsWorld3D {
             body.set_next_kinematic_position(iso);
             updated += 1;
         }
-        updated
+        Ok(updated)
     }
 
     // ── State read/write ──────────────────────────────────────────────────────
@@ -3362,11 +3649,11 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
     }
 
     #[test]
-    fn test_physics3d_add_box_collider_returns_false_for_unknown_entity() {
+    fn test_physics3d_add_box_collider_returns_body_not_found_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let ok = world.add_box_collider(
             99,
@@ -3383,7 +3670,7 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 99 }));
     }
 
     #[test]
@@ -3404,7 +3691,7 @@ mod tests {
             u32::MAX,
             2,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
     }
 
     #[test]
@@ -3426,63 +3713,75 @@ mod tests {
             u32::MAX,
             3,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
     }
 
     #[test]
     fn test_physics3d_remove_collider_happy_path() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            7,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                7,
+            ),
+            Ok(())
         );
 
-        assert!(world.remove_collider(0, 7));
+        assert_eq!(world.remove_collider(0, 7), Ok(()));
     }
 
     #[test]
-    fn test_physics3d_remove_collider_unknown_returns_false() {
+    fn test_physics3d_remove_collider_unknown_returns_collider_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
-        assert!(!world.remove_collider(0, 999));
+        assert_eq!(
+            world.remove_collider(0, 999),
+            Err(Physics3DError::ColliderNotFound {
+                slot: 0,
+                collider_id: 999
+            })
+        );
     }
 
     #[test]
     fn test_physics3d_remove_body_cleans_collider_map() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            1,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                1,
+            ),
+            Ok(())
         );
 
         world.remove_body(0);
 
         // The collider_handles map should no longer contain this entry.
-        assert!(world.collider_handles.is_empty());
+        assert_eq!(world.collider_handles.len(), 0);
     }
 
     #[test]
@@ -3490,48 +3789,57 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
-        assert!(world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            1,
-        ));
-        assert!(world.add_sphere_collider(
-            0,
-            0.3,
-            0.0,
-            1.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            2,
-        ));
-        assert!(world.add_capsule_collider(
-            0,
-            0.2,
-            0.4,
-            0.0,
-            -1.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            3,
-        ));
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                1,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            world.add_sphere_collider(
+                0,
+                0.3,
+                0.0,
+                1.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                2,
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            world.add_capsule_collider(
+                0,
+                0.2,
+                0.4,
+                0.0,
+                -1.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                3,
+            ),
+            Ok(())
+        );
 
         assert_eq!(world.collider_handles.len(), 3);
     }
@@ -3713,20 +4021,23 @@ mod tests {
         // A box collider is required so Rapier can derive a non-zero inertia
         // tensor; without a shape, additional_mass() only sets translational
         // mass and apply_torque_impulse() has no effect.
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            99,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                99,
+            ),
+            Ok(())
         );
         // Step once to initialise mass properties (same requirement as linear impulse).
         world.step(1.0 / 60.0);
@@ -3767,12 +4078,12 @@ mod tests {
             u32::MAX,
             42,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
         assert!(world.collider_handles.contains_key(&(0, 42)));
     }
 
     #[test]
-    fn test_physics3d_add_heightfield_collider_wrong_size_returns_false() {
+    fn test_physics3d_add_heightfield_collider_wrong_size_returns_sample_count_error() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
@@ -3792,7 +4103,13 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::InvalidShape {
+                reason: InvalidShapeReason::HeightfieldSampleCount
+            })
+        );
+        assert_eq!(world.collider_handles.len(), 0);
     }
 
     #[test]
@@ -3801,19 +4118,22 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         let flat = [0.0f32; 9];
-        world.add_heightfield_collider(
-            0,
-            &flat,
-            3,
-            3,
-            10.0,
-            1.0,
-            10.0,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            99,
+        assert_eq!(
+            world.add_heightfield_collider(
+                0,
+                &flat,
+                3,
+                3,
+                10.0,
+                1.0,
+                10.0,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                99,
+            ),
+            Ok(())
         );
         assert!(world.collider_handles.contains_key(&(0, 99)));
 
@@ -3834,13 +4154,13 @@ mod tests {
             u32::MAX,
             u32::MAX,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
         // collider_id 99 must still be present after the rebuild
         assert!(world.collider_handles.contains_key(&(0, 99)));
     }
 
     #[test]
-    fn test_physics3d_add_heightfield_collider_no_body_returns_false() {
+    fn test_physics3d_add_heightfield_collider_no_body_returns_body_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         // No body registered for entity 7
         let heights = [0.0f32; 4];
@@ -3858,7 +4178,7 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 7 }));
     }
 
     // ─── add_mesh_collider ────────────────────────────────────────────────────
@@ -3884,11 +4204,11 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
     }
 
     #[test]
-    fn test_physics3d_add_mesh_collider_returns_false_for_unknown_entity() {
+    fn test_physics3d_add_mesh_collider_returns_body_not_found_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: &[u32] = &[0, 1, 2];
@@ -3906,11 +4226,11 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 99 }));
     }
 
     #[test]
-    fn test_physics3d_add_mesh_collider_returns_false_for_empty_vertices() {
+    fn test_physics3d_add_mesh_collider_returns_mesh_empty_for_empty_vertices() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let ok = world.add_mesh_collider(
@@ -3927,11 +4247,16 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::InvalidShape {
+                reason: InvalidShapeReason::MeshEmpty
+            })
+        );
     }
 
     #[test]
-    fn test_physics3d_add_mesh_collider_returns_false_for_empty_indices() {
+    fn test_physics3d_add_mesh_collider_returns_mesh_empty_for_empty_indices() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
@@ -3949,7 +4274,12 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::InvalidShape {
+                reason: InvalidShapeReason::MeshEmpty
+            })
+        );
     }
 
     #[test]
@@ -3958,19 +4288,22 @@ mod tests {
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: &[u32] = &[0, 1, 2];
-        world.add_mesh_collider(
-            0,
-            verts,
-            idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            7,
+        assert_eq!(
+            world.add_mesh_collider(
+                0,
+                verts,
+                idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                7,
+            ),
+            Ok(())
         );
         assert!(world.collider_handles.contains_key(&(0, 7)));
     }
@@ -3985,39 +4318,45 @@ mod tests {
         // Simple triangle mesh (one triangle).
         let verts_a: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs_a: Vec<u32> = vec![0, 1, 2];
-        assert!(world.add_mesh_collider(
-            0,
-            &verts_a,
-            &idxs_a,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            10
-        ));
+        assert_eq!(
+            world.add_mesh_collider(
+                0,
+                &verts_a,
+                &idxs_a,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                10
+            ),
+            Ok(())
+        );
         assert_eq!(world.collider_handles.len(), 1);
 
         // Rebuild with a slightly different triangle.
         let verts_b: Vec<f32> = vec![0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0, 0.0];
         let idxs_b: Vec<u32> = vec![0, 1, 2];
-        assert!(world.rebuild_mesh_collider(
-            0,
-            10,
-            &verts_b,
-            &idxs_b,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF
-        ));
+        assert_eq!(
+            world.rebuild_mesh_collider(
+                0,
+                10,
+                &verts_b,
+                &idxs_b,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF
+            ),
+            Ok(())
+        );
 
         // Still exactly one collider handle — old one removed, new one inserted.
         assert_eq!(world.collider_handles.len(), 1);
@@ -4031,43 +4370,49 @@ mod tests {
         // No collider registered yet — rebuild should insert a fresh one.
         let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(world.rebuild_mesh_collider(
-            0,
-            99,
-            &verts,
-            &idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF
-        ));
+        assert_eq!(
+            world.rebuild_mesh_collider(
+                0,
+                99,
+                &verts,
+                &idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF
+            ),
+            Ok(())
+        );
         assert_eq!(world.collider_handles.len(), 1);
     }
 
     #[test]
-    fn test_rebuild_mesh_collider_returns_false_for_unknown_entity() {
+    fn test_rebuild_mesh_collider_returns_body_not_found_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         // Entity 999 has no body registered.
         let verts: Vec<f32> = vec![0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0];
         let idxs: Vec<u32> = vec![0, 1, 2];
-        assert!(!world.rebuild_mesh_collider(
-            999,
-            1,
-            &verts,
-            &idxs,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF
-        ));
+        assert_eq!(
+            world.rebuild_mesh_collider(
+                999,
+                1,
+                &verts,
+                &idxs,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF
+            ),
+            Err(Physics3DError::BodyNotFound { slot: 999 })
+        );
     }
 
     // ─── add_convex_collider ──────────────────────────────────────────────────
@@ -4092,11 +4437,11 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(ok);
+        assert_eq!(ok, Ok(()));
     }
 
     #[test]
-    fn test_physics3d_add_convex_collider_returns_false_for_unknown_entity() {
+    fn test_physics3d_add_convex_collider_returns_body_not_found_for_unknown_entity() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
         let ok = world.add_convex_collider(
@@ -4113,11 +4458,11 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 42 }));
     }
 
     #[test]
-    fn test_physics3d_add_convex_collider_returns_false_for_empty_vertices() {
+    fn test_physics3d_add_convex_collider_returns_too_few_points_for_empty_vertices() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let ok = world.add_convex_collider(
@@ -4134,7 +4479,12 @@ mod tests {
             u32::MAX,
             1,
         );
-        assert!(!ok);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::InvalidShape {
+                reason: InvalidShapeReason::ConvexTooFewPoints
+            })
+        );
     }
 
     #[test]
@@ -4142,30 +4492,32 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0];
-        world.add_convex_collider(
-            0,
-            verts,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            1.0,
-            u32::MAX,
-            u32::MAX,
-            5,
+        assert_eq!(
+            world.add_convex_collider(
+                0,
+                verts,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                1.0,
+                u32::MAX,
+                u32::MAX,
+                5,
+            ),
+            Ok(())
         );
         assert!(world.collider_handles.contains_key(&(0, 5)));
     }
 
     #[test]
-    fn test_physics3d_add_convex_collider_degenerate_falls_back_to_sphere() {
-        // Only 2 non-unique points — convex_hull returns None → fallback ball(0.5)
+    fn test_physics3d_add_convex_collider_two_points_is_refused() {
+        // Only 2 points: fewer than the 4 a hull needs.
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         let verts: &[f32] = &[0.0, 0.0, 0.0, 0.0, 0.0, 0.0];
-        // Should still succeed (ball fallback) rather than panic
         let ok = world.add_convex_collider(
             0,
             verts,
@@ -4180,7 +4532,13 @@ mod tests {
             u32::MAX,
             3,
         );
-        assert!(ok);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::InvalidShape {
+                reason: InvalidShapeReason::ConvexTooFewPoints
+            })
+        );
+        assert_eq!(world.collider_handles.len(), 0);
     }
 
     // ─── bulk_add_static_boxes ────────────────────────────────────────────────
@@ -4200,7 +4558,7 @@ mod tests {
             u32::MAX,
             u32::MAX,
         );
-        assert_eq!(n, 3);
+        assert_eq!(n, Ok(3));
     }
 
     #[test]
@@ -4209,14 +4567,17 @@ mod tests {
         let indices: &[u32] = &[20, 21];
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5];
-        world.bulk_add_static_boxes(
-            indices,
-            positions,
-            half_extents,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
+        assert_eq!(
+            world.bulk_add_static_boxes(
+                indices,
+                positions,
+                half_extents,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+            ),
+            Ok(2)
         );
         assert!(world.entity_handles.contains_key(&20));
         assert!(world.entity_handles.contains_key(&21));
@@ -4228,14 +4589,17 @@ mod tests {
         let indices: &[u32] = &[30, 31];
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
         let half_extents: &[f32] = &[0.5, 0.5, 0.5];
-        world.bulk_add_static_boxes(
-            indices,
-            positions,
-            half_extents,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
+        assert_eq!(
+            world.bulk_add_static_boxes(
+                indices,
+                positions,
+                half_extents,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+            ),
+            Ok(2)
         );
         // collider_id is always 0 for bulk-spawned boxes
         assert!(world.collider_handles.contains_key(&(30, 0)));
@@ -4258,7 +4622,7 @@ mod tests {
             u32::MAX,
             u32::MAX,
         );
-        assert_eq!(n, 2);
+        assert_eq!(n, Ok(2));
         assert!(world.entity_handles.contains_key(&40));
         assert!(world.entity_handles.contains_key(&41));
     }
@@ -4268,11 +4632,11 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let n =
             world.bulk_add_static_boxes(&[], &[], &[0.5, 0.5, 0.5], 0.5, 0.0, u32::MAX, u32::MAX);
-        assert_eq!(n, 0);
+        assert_eq!(n, Ok(0));
     }
 
     #[test]
-    fn test_physics3d_bulk_add_static_boxes_wrong_positions_buffer_returns_zero() {
+    fn test_physics3d_bulk_add_static_boxes_wrong_positions_buffer_returns_mismatch() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let indices: &[u32] = &[10, 11, 12];
         // Positions buffer too short: 6 floats instead of 9 (3 boxes × 3 coords)
@@ -4287,12 +4651,19 @@ mod tests {
             u32::MAX,
             u32::MAX,
         );
-        // Should return 0 (no bodies added), not panic
-        assert_eq!(n, 0);
+        assert_eq!(
+            n,
+            Err(Physics3DError::BufferLengthMismatch {
+                buffer: "positions",
+                expected: 9,
+                actual: 6
+            })
+        );
+        assert_eq!(world.entity_handles.len(), 0);
     }
 
     #[test]
-    fn test_physics3d_bulk_add_static_boxes_wrong_extents_buffer_returns_zero() {
+    fn test_physics3d_bulk_add_static_boxes_wrong_extents_buffer_returns_mismatch() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let indices: &[u32] = &[20, 21];
         let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
@@ -4308,8 +4679,15 @@ mod tests {
             u32::MAX,
             u32::MAX,
         );
-        // Should return 0, not panic
-        assert_eq!(n, 0);
+        assert_eq!(
+            n,
+            Err(Physics3DError::BufferLengthMismatch {
+                buffer: "half_extents",
+                expected: 6,
+                actual: 4
+            })
+        );
+        assert_eq!(world.entity_handles.len(), 0);
     }
 
     #[test]
@@ -4329,7 +4707,59 @@ mod tests {
             u32::MAX,
         );
         // Should succeed and add 3 bodies
-        assert_eq!(n, 3);
+        assert_eq!(n, Ok(3));
+    }
+
+    #[test]
+    fn test_physics3d_bulk_add_static_boxes_registers_handle_to_entity() {
+        let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
+        let positions: &[f32] = &[0.0, 0.0, 0.0, 1.0, 0.0, 0.0];
+        assert_eq!(
+            world.bulk_add_static_boxes(
+                &[50, 51],
+                positions,
+                &[0.5, 0.5, 0.5],
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX
+            ),
+            Ok(2)
+        );
+        let reverse: Vec<Option<u32>> = [50u32, 51]
+            .iter()
+            .map(|slot| {
+                world
+                    .entity_handles
+                    .get(slot)
+                    .and_then(|handle| world.handle_to_entity.get(handle))
+                    .copied()
+            })
+            .collect();
+        assert_eq!(reverse, vec![Some(50), Some(51)]);
+        assert_eq!(world.handle_to_entity.len(), 2);
+    }
+
+    #[test]
+    fn test_physics3d_bulk_add_static_boxes_on_registered_slot_changes_nothing() {
+        let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
+        world.add_body(60, 1.0, 2.0, 3.0, 1, 1.0, 0.0, 0.0);
+        let handle = world.entity_handles.get(&60).copied();
+        let result = world.bulk_add_static_boxes(
+            &[61, 60],
+            &[0.0; 6],
+            &[0.5, 0.5, 0.5],
+            0.5,
+            0.0,
+            u32::MAX,
+            u32::MAX,
+        );
+        assert_eq!(result, Err(Physics3DError::BodyAlreadyExists { slot: 60 }));
+        assert_eq!(world.entity_handles.get(&60).copied(), handle);
+        assert_eq!(world.entity_handles.len(), 1);
+        assert_eq!(world.handle_to_entity.len(), 1);
+        assert_eq!(world.collider_handles.len(), 0);
+        assert_eq!(world.rigid_body_set.len(), 1);
     }
 
     // ── add_compound_collider ─────────────────────────────────────────────────
@@ -4349,7 +4779,7 @@ mod tests {
         ];
 
         let count = world.add_compound_collider(0, &data, u32::MAX, u32::MAX);
-        assert_eq!(count, 3);
+        assert_eq!(count, Ok(3));
         assert_eq!(world.collider_handles.len(), 3);
     }
 
@@ -4369,12 +4799,12 @@ mod tests {
         ];
 
         let count = world.add_compound_collider(0, &data, u32::MAX, u32::MAX);
-        assert_eq!(count, 3);
+        assert_eq!(count, Ok(3));
         assert_eq!(world.collider_handles.len(), 3);
     }
 
     #[test]
-    fn test_add_compound_collider_unknown_entity_returns_zero() {
+    fn test_add_compound_collider_unknown_entity_returns_body_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         // No body registered at entity 99.
         #[rustfmt::skip]
@@ -4383,7 +4813,7 @@ mod tests {
         ];
         assert_eq!(
             world.add_compound_collider(99, &data, u32::MAX, u32::MAX),
-            0
+            Err(Physics3DError::BodyNotFound { slot: 99 })
         );
     }
 
@@ -4391,34 +4821,48 @@ mod tests {
     fn test_add_compound_collider_empty_buffer_returns_zero() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
-        assert_eq!(world.add_compound_collider(0, &[], u32::MAX, u32::MAX), 0);
+        assert_eq!(
+            world.add_compound_collider(0, &[], u32::MAX, u32::MAX),
+            Ok(0)
+        );
     }
 
     #[test]
-    fn test_add_compound_collider_misaligned_buffer_returns_zero() {
+    fn test_add_compound_collider_misaligned_buffer_returns_invalid_compound() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
         // 11 floats — not a multiple of 12
         let data = vec![0.0f32; 11];
-        assert_eq!(world.add_compound_collider(0, &data, u32::MAX, u32::MAX), 0);
+        assert_eq!(
+            world.add_compound_collider(0, &data, u32::MAX, u32::MAX),
+            Err(Physics3DError::InvalidCompound {
+                reason: InvalidCompoundReason::LengthNotMultipleOfStride
+            })
+        );
+        assert_eq!(world.collider_handles.len(), 0);
     }
 
     #[test]
-    fn test_add_compound_collider_unknown_shape_type_skipped() {
+    fn test_add_compound_collider_unknown_shape_type_is_refused_and_inserts_nothing() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 1, 1.0, 0.0, 0.0);
 
         #[rustfmt::skip]
         let data: Vec<f32> = vec![
-            // shape type 99 — unknown, should be skipped
+            // shape type 99 — unknown, refuses the whole batch
             99.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  0.0, 0.5, 0.0, 1.0,
             // valid BOX
              0.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  0.0, 0.5, 0.0, 2.0,
         ];
 
-        // Only the valid box is inserted.
-        assert_eq!(world.add_compound_collider(0, &data, u32::MAX, u32::MAX), 1);
-        assert_eq!(world.collider_handles.len(), 1);
+        // The valid box is not inserted either.
+        assert_eq!(
+            world.add_compound_collider(0, &data, u32::MAX, u32::MAX),
+            Err(Physics3DError::InvalidCompound {
+                reason: InvalidCompoundReason::UnknownShapeType
+            })
+        );
+        assert_eq!(world.collider_handles.len(), 0);
     }
 
     #[test]
@@ -4431,7 +4875,10 @@ mod tests {
             // is_sensor = 1.0
             0.0, 0.5, 0.5, 0.5, 0.0,  0.0, 0.0, 0.0,  1.0, 0.5, 0.0, 5.0,
         ];
-        assert_eq!(world.add_compound_collider(0, &data, u32::MAX, u32::MAX), 1);
+        assert_eq!(
+            world.add_compound_collider(0, &data, u32::MAX, u32::MAX),
+            Ok(1)
+        );
     }
 
     // ─── load_bvh_collider ────────────────────────────────────────────────────
@@ -4461,43 +4908,51 @@ mod tests {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
         let bytes = make_simple_trimesh_bytes();
-        let ok =
-            world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
-        assert!(ok, "load_bvh_collider should succeed with valid bytes");
+        assert_eq!(
+            world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1),
+            Ok(())
+        );
         assert!(world.collider_handles.contains_key(&(0, 1)));
     }
 
     #[test]
-    fn test_load_bvh_collider_invalid_bytes() {
+    fn test_load_bvh_collider_bad_magic_is_refused() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
         let ok = world.load_bvh_collider(
             0, &[0u8; 8], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
         );
-        assert!(!ok, "load_bvh_collider should fail with garbage bytes");
+        assert_eq!(
+            ok,
+            Err(Physics3DError::BvhLoadFailed {
+                reason: BvhLoadReason::BadMagic
+            })
+        );
     }
 
     #[test]
-    fn test_load_bvh_collider_too_short() {
+    fn test_load_bvh_collider_too_short_is_refused() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
         let ok = world.load_bvh_collider(
             0, &[0u8; 4], 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
         );
-        assert!(
-            !ok,
-            "load_bvh_collider should fail when buffer is shorter than 8 bytes"
+        assert_eq!(
+            ok,
+            Err(Physics3DError::BvhLoadFailed {
+                reason: BvhLoadReason::TooShort
+            })
         );
     }
 
     #[test]
-    fn test_load_bvh_collider_no_body() {
+    fn test_load_bvh_collider_no_body_returns_body_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         let bytes = make_simple_trimesh_bytes();
         let ok = world.load_bvh_collider(
             99, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1,
         );
-        assert!(!ok, "should fail when entity has no registered body");
+        assert_eq!(ok, Err(Physics3DError::BodyNotFound { slot: 99 }));
     }
 
     // ── T2: bulk kinematic integration ──────────────────────────────────────────
@@ -4512,7 +4967,7 @@ mod tests {
         let vy = [0.0f32, 2.0f32];
         let vz = [0.0f32, 0.0f32];
         let n = world.bulk_step_kinematics(&slots, &vx, &vy, &vz, 1.0);
-        assert_eq!(n, 2);
+        assert_eq!(n, Ok(2));
 
         // Verify positions changed after simulation step
         world.step(1.0 / 60.0);
@@ -4546,7 +5001,7 @@ mod tests {
         let qw_before = state_before[6]; // w component of quaternion at index 6
 
         let n = world.bulk_step_kinematic_rotations(&slots, &wx, &wy, &wz, 1.0);
-        assert_eq!(n, 1);
+        assert_eq!(n, Ok(1));
 
         // Verify quaternion changed after simulation step
         world.step(1.0 / 60.0);
@@ -4570,21 +5025,28 @@ mod tests {
         let vy = [0.0f32, 0.0f32];
         let vz = [0.0f32, 0.0f32];
         let n = world.bulk_step_kinematics(&slots, &vx, &vy, &vz, 1.0);
-        assert_eq!(n, 1, "only 1 of 2 bodies exists");
+        assert_eq!(n, Ok(1), "only 1 of 2 bodies exists");
     }
 
     #[test]
-    fn test_bulk_step_kinematics_3d_mismatched_arrays() {
+    fn test_bulk_step_kinematics_3d_mismatched_arrays_are_refused() {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         assert!(world.add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
         assert!(world.add_body(1, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
-        // slots has 2, but vx/vy/vz only have 1 — should process min(2,1,1,1)=1
+        // slots has 2, but vx/vy/vz only have 1 — refused before any body moves
         let slots = [0u32, 1u32];
         let vx = [1.0f32];
         let vy = [0.0f32];
         let vz = [0.0f32];
         let n = world.bulk_step_kinematics(&slots, &vx, &vy, &vz, 1.0);
-        assert_eq!(n, 1, "should process min slice length");
+        assert_eq!(
+            n,
+            Err(Physics3DError::BufferLengthMismatch {
+                buffer: "vx",
+                expected: 2,
+                actual: 1
+            })
+        );
     }
 
     // ── RFC-09: forces, torques, gravity scale, axis locks, sleep ─────────────
@@ -4609,20 +5071,23 @@ mod tests {
     fn test_rfc09_add_torque_changes_angular_velocity() {
         let mut world = world_with_one_dynamic();
         // A collider is needed for Rapier to derive a non-zero inertia tensor.
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            99,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                99,
+            ),
+            Ok(())
         );
         world.step(1.0 / 60.0);
 
@@ -4682,20 +5147,23 @@ mod tests {
     #[test]
     fn test_rfc09_lock_rotations_y_prevents_y_rotation() {
         let mut world = world_with_one_dynamic();
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            u32::MAX,
-            u32::MAX,
-            99,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                99,
+            ),
+            Ok(())
         );
         world.step(1.0 / 60.0);
 
@@ -4845,20 +5313,23 @@ mod tests {
     fn world_with_box_at_origin() -> PhysicsWorld3D {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Ok(())
         );
         world.step(1.0 / 60.0); // populates query_pipeline
         world
@@ -4915,20 +5386,23 @@ mod tests {
         // Build a world but do NOT call step() — query_pipeline is empty.
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
-        world.add_box_collider(
-            0,
-            0.5,
-            0.5,
-            0.5,
-            0.0,
-            0.0,
-            0.0,
-            false,
-            0.5,
-            0.0,
-            0xFFFF_FFFF,
-            0xFFFF_FFFF,
-            1,
+        assert_eq!(
+            world.add_box_collider(
+                0,
+                0.5,
+                0.5,
+                0.5,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                0xFFFF_FFFF,
+                0xFFFF_FFFF,
+                1,
+            ),
+            Ok(())
         );
         // query_pipeline never updated → ray misses.
         let result = world.cast_ray(
