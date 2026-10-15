@@ -105,6 +105,10 @@ async function harness(
         update_transforms() {
           order.push("transforms");
         },
+        transform_history_commit() {
+          order.push("commit");
+          return 0;
+        },
       };
     },
   };
@@ -165,6 +169,57 @@ async function harness(
 }
 
 describe("EngineLoop", () => {
+  it("a fixed display frame commits inside the step and renders once after afterTick", async () => {
+    const rig = await harness({ physicsHz: 60, maxCatchupSteps: 2, maxDeltaSeconds: 1 });
+    const alphas: Array<number | undefined> = [];
+    rig.hooks.hook("engine:render", (alpha?: number) => {
+      alphas.push(alpha);
+    });
+    const previousRaf = globalThis.requestAnimationFrame;
+    const previousCancel = globalThis.cancelAnimationFrame;
+    const previousNow = performance.now;
+    const slot: { current: ((now: number) => void) | null } = { current: null };
+    let clock = 0;
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+      slot.current = (now: number) => cb(now);
+      return 7;
+    };
+    globalThis.cancelAnimationFrame = () => {
+      slot.current = null;
+    };
+    performance.now = () => clock;
+    try {
+      rig.state.transition("running", "USER");
+      rig.loop.markStart();
+      rig.loop.startScheduled();
+      const frame = slot.current;
+      slot.current = null;
+      if (frame === null) throw new Error("no frame scheduled");
+      clock = 1000 / 60;
+      await frame(clock);
+      expect(rig.order).toEqual([
+        "transforms",
+        "commit",
+        "commit",
+        "tick",
+        "before-update",
+        "modules",
+        "transforms",
+        "commit",
+        "update:0",
+        "after-update",
+        "afterTick:1",
+        "render",
+      ]);
+      expect(alphas).toEqual([0]);
+    } finally {
+      globalThis.requestAnimationFrame = previousRaf;
+      globalThis.cancelAnimationFrame = previousCancel;
+      performance.now = previousNow;
+      await rig.stop();
+    }
+  });
+
   it("phase order is tick then modules then transforms then update then afterTick", async () => {
     const rig = await harness();
     try {
