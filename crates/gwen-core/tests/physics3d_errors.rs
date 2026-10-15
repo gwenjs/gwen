@@ -6,7 +6,8 @@
 
 use gwen_core::ecs::CoreError;
 use gwen_core::physics3d::{
-    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason, Physics3DError,
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason,
+    PathRequestReject, Physics3DError, MAX_NAVGRID_CELLS,
 };
 use std::error::Error;
 
@@ -520,20 +521,65 @@ fn navgrid_not_initialized_code_message_and_equality() -> TestResult {
     Ok(())
 }
 
+fn invalid_navgrid_message() -> String {
+    format!(
+        "navigation grid 0x4x4 is invalid: a dimension is zero, the cell count overflows, or it is above {MAX_NAVGRID_CELLS} cells"
+    )
+}
+
 #[test]
 fn invalid_navgrid_code_message_and_equality() -> TestResult {
     let err = Physics3DError::InvalidNavGrid { w: 0, h: 4, d: 4 };
     assert_eq!(err.code(), "PHYSICS3D:INVALID_NAVGRID");
-    assert_eq!(
-        err.to_string(),
-        "navigation grid 0x4x4 is invalid: a dimension is zero or the cell count overflows"
-    );
+    assert_eq!(err.to_string(), invalid_navgrid_message());
     assert_eq!(err, Physics3DError::InvalidNavGrid { w: 0, h: 4, d: 4 });
     assert_ne!(err, Physics3DError::InvalidNavGrid { w: 1, h: 4, d: 4 });
     let message = message_via_std(err)?;
+    assert_eq!(message, invalid_navgrid_message());
+    Ok(())
+}
+
+#[test]
+fn invalid_path_request_non_finite_code_message_and_equality() -> TestResult {
+    let err = Physics3DError::InvalidPathRequest {
+        reason: PathRequestReject::NonFinite,
+    };
+    assert_eq!(err.code(), "PHYSICS3D:INVALID_PATH_REQUEST");
+    assert_eq!(
+        err.to_string(),
+        "path request refused: a coordinate is not finite"
+    );
+    assert_eq!(
+        err,
+        Physics3DError::InvalidPathRequest {
+            reason: PathRequestReject::NonFinite
+        }
+    );
+    assert_ne!(
+        err,
+        Physics3DError::InvalidPathRequest {
+            reason: PathRequestReject::CoordOutOfRange
+        }
+    );
+    let message = message_via_std(err)?;
+    assert_eq!(message, "path request refused: a coordinate is not finite");
+    Ok(())
+}
+
+#[test]
+fn invalid_path_request_coord_out_of_range_code_message_and_equality() -> TestResult {
+    let err = Physics3DError::InvalidPathRequest {
+        reason: PathRequestReject::CoordOutOfRange,
+    };
+    assert_eq!(err.code(), "PHYSICS3D:INVALID_PATH_REQUEST");
+    assert_eq!(
+        err.to_string(),
+        "path request refused: a coordinate is past the accepted bound"
+    );
+    let message = message_via_std(err)?;
     assert_eq!(
         message,
-        "navigation grid 0x4x4 is invalid: a dimension is zero or the cell count overflows"
+        "path request refused: a coordinate is past the accepted bound"
     );
     Ok(())
 }
