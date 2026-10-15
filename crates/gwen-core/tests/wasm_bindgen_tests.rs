@@ -440,3 +440,59 @@ fn wasm_deep_chain_and_cycle_do_not_trap() {
         .expect("detach");
     assert!(!engine.has_entity_parent(1));
 }
+
+#[cfg(target_arch = "wasm32")]
+fn history_slot(engine: &Engine, buffer: u32, index: u32) -> [u8; 32] {
+    let base = engine.transform_history_ptr(buffer);
+    assert_ne!(base, 0);
+    let mut slot = [0u8; 32];
+    // SAFETY: `base` is this engine's history allocation and `index` is below `max_entities`.
+    unsafe {
+        std::ptr::copy_nonoverlapping(
+            (base + index as usize * 32) as *const u8,
+            slot.as_mut_ptr(),
+            32,
+        );
+    }
+    slot
+}
+
+#[wasm_bindgen_test]
+fn wasm_history_commit_before_any_transform_is_zero() {
+    let mut engine = make_engine();
+    assert_eq!(engine.transform_history_ptr(0), 0);
+    let buffer = engine.transform_history_commit();
+    assert_eq!(buffer, 0);
+    assert_eq!(history_slot(&engine, buffer, 0), [0u8; 32]);
+    assert_ne!(engine.transform_history_ptr(0), 0);
+}
+
+#[wasm_bindgen_test]
+fn wasm_history_ptr_rejects_buffer_2() {
+    let mut engine = make_engine();
+    assert_eq!(engine.transform_history_ptr(2), 0);
+    let _ = engine.transform_history_commit();
+    assert_eq!(engine.transform_history_ptr(2), 0);
+}
+
+#[wasm_bindgen_test]
+fn wasm_history_commit_alternates_zero_and_one() {
+    let mut engine = make_engine();
+    let id = engine.create_entity().expect("entity limit");
+    engine.add_entity_transform(id.index(), 2.0, 0.0, 0.0, 1.0, 1.0);
+    engine.update_transforms();
+    let first = engine.transform_history_commit();
+    assert_eq!(first, 0);
+    let mut x = [0u8; 4];
+    x.copy_from_slice(&history_slot(&engine, first, id.index())[0..4]);
+    assert_eq!(f32::from_le_bytes(x), 2.0);
+    engine.mark_entity_teleport(id.index());
+    let second = engine.transform_history_commit();
+    assert_eq!(second, 1);
+    let flags = u32::from_le_bytes(
+        history_slot(&engine, second, id.index())[20..24]
+            .try_into()
+            .expect("flag bytes"),
+    );
+    assert_eq!(flags & 0b100, 0b100);
+}
