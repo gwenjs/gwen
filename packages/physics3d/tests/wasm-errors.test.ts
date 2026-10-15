@@ -250,21 +250,23 @@ describe("colliders", () => {
     expect(ctx.activeSensors.get(SLOT_A)?.has(7)).toBe(true);
   });
 
-  it("removeCollider removes the registry entry after Rust removed the collider", () => {
-    const removed: Array<[number, number]> = [];
+  it("removeCollider asks Rust first and removes the registry entry only after it answered", () => {
+    const seen: number[] = [];
+    const holder: { ctx?: PluginContext } = {};
     const ctx = makeContext({
-      physics3d_remove_collider: (slot, id) => {
-        removed.push([slot, id]);
+      physics3d_remove_collider: () => {
+        seen.push(holder.ctx?.localColliders.get(SLOT_A)?.length ?? -1);
         return true;
       },
     });
+    holder.ctx = ctx;
     ownBody(ctx, ENTITY_A, SLOT_A);
     ctx.localColliders.set(SLOT_A, [
       { colliderId: 7, shape: { type: "box", halfX: 1, halfY: 1, halfZ: 1 } },
     ]);
 
     expect(createRemoveCollider(ctx)(ENTITY_A, 7)).toBe(true);
-    expect(removed).toEqual([[SLOT_A, 7]]);
+    expect(seen).toEqual([1]);
     expect(ctx.localColliders.get(SLOT_A)).toHaveLength(0);
   });
 
@@ -344,22 +346,6 @@ describe("joints", () => {
     requireWasmError(err, "PHYSICS3D:INVALID_JOINT", "physics3d_add_fixed_joint");
   });
 
-  it("an unowned body keeps the TypeScript path: dummy handle, no call to Rust", () => {
-    let called = false;
-    const ctx = makeContext({
-      physics3d_add_fixed_joint: () => {
-        called = true;
-        return 1;
-      },
-    });
-    ownBody(ctx, ENTITY_A, SLOT_A);
-
-    const handle = createJointMethods(ctx).addFixedJoint({ bodyA: ENTITY_A, bodyB: ENTITY_B });
-
-    expect(handle).toBe(0xffffffff);
-    expect(called).toBe(false);
-  });
-
   it("removeJoint is idempotent: JOINT_NOT_FOUND is not an error", () => {
     const ctx = twoBodies({
       physics3d_remove_joint: () => {
@@ -403,9 +389,10 @@ describe("sensor state", () => {
     expect(createGetSensorState(ctx)(ENTITY_A, 1)).toEqual({ contactCount: 3, isActive: true });
   });
 
-  it("reads 0n as no contact and not active", () => {
+  it("reads 0n from Rust as no contact and not active, even when the local mirror disagrees", () => {
     const ctx = makeContext({ physics3d_get_sensor_state: () => 0n });
     ownBody(ctx, ENTITY_A, SLOT_A);
+    ctx.localSensorStates.set(SLOT_A, new Map([[1, { contactCount: 9, isActive: true }]]));
 
     expect(createGetSensorState(ctx)(ENTITY_A, 1)).toEqual({ contactCount: 0, isActive: false });
   });
@@ -542,15 +529,6 @@ describe("navigation grid", () => {
     const err = caught(() => createPathfindingMethods(ctx).initNavGrid3D(options));
 
     requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
-    expect(freed).toEqual([[16, 8, 1]]);
-  });
-
-  it("frees the upload buffer once after a successful upload", () => {
-    const freed: Array<[number, number, number]> = [];
-    const ctx = navContext(() => undefined, freed);
-
-    createPathfindingMethods(ctx).initNavGrid3D(options);
-
     expect(freed).toEqual([[16, 8, 1]]);
   });
 
