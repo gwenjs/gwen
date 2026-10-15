@@ -10,7 +10,7 @@ import { GwenWasmError, createEntityId } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 
 import { buildLayerRegistry, normalizePhysics3DConfig } from "../src/config";
-import { createBody } from "../src/plugin/body-management";
+import { createBody, removeBody } from "../src/plugin/body-management";
 import { getBodyKind, setBodyKind } from "../src/plugin/body-management";
 import { createCharacterControllerMethods } from "../src/plugin/character-controller";
 import {
@@ -458,6 +458,99 @@ describe("forces", () => {
     const err = caught(() => createForcesAndConstraints(ctx).isBodySleeping(ENTITY_A));
 
     requireWasmError(err, "PHYSICS3D:BODY_NOT_FOUND", "physics3d_is_body_sleeping");
+  });
+});
+
+describe("character controller release on body removal", () => {
+  function ownWithController(ctx: PluginContext): void {
+    ownBody(ctx, ENTITY_A, SLOT_A);
+    ctx.ccRegistrations.set(SLOT_A, { slotIndex: 0, entityIndex: SLOT_A });
+  }
+
+  it("removeBody releases the Rust controller before the Rust body and clears the registration", () => {
+    const calls: string[] = [];
+    const ctx = makeContext({
+      physics3d_remove_character_controller: (slot) => {
+        calls.push(`cc:${slot}`);
+      },
+      physics3d_remove_body: (slot) => {
+        calls.push(`body:${slot}`);
+        return true;
+      },
+    });
+    ownWithController(ctx);
+
+    expect(removeBody(ctx, ENTITY_A)).toBe(true);
+
+    expect(calls).toEqual([`cc:${SLOT_A}`, `body:${SLOT_A}`]);
+    expect(ctx.ccRegistrations.has(SLOT_A)).toBe(false);
+  });
+
+  it("tolerates CHARACTER_CONTROLLER_NOT_FOUND on a desync and still removes the body", () => {
+    const removed: number[] = [];
+    const ctx = makeContext({
+      physics3d_remove_character_controller: () => {
+        throw codedError(
+          "PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND",
+          "no character controller registered for slot 5",
+        );
+      },
+      physics3d_remove_body: (slot) => {
+        removed.push(slot);
+        return true;
+      },
+    });
+    ownWithController(ctx);
+
+    expect(removeBody(ctx, ENTITY_A)).toBe(true);
+
+    expect(removed).toEqual([SLOT_A]);
+    expect(ctx.ccRegistrations.has(SLOT_A)).toBe(false);
+    expect(ctx.bodyByEntity.has(SLOT_A)).toBe(false);
+  });
+
+  it("throws any other rejection and keeps both the body and the registration", () => {
+    const removed: number[] = [];
+    const ctx = makeContext({
+      physics3d_remove_character_controller: () => {
+        throw codedError("PHYSICS3D:INVALID_SHAPE", "unexpected");
+      },
+      physics3d_remove_body: (slot) => {
+        removed.push(slot);
+        return true;
+      },
+    });
+    ownWithController(ctx);
+
+    const err = caught(() => removeBody(ctx, ENTITY_A));
+
+    requireWasmError(err, "PHYSICS3D:INVALID_SHAPE", "physics3d_remove_character_controller");
+    expect(removed).toEqual([]);
+    expect(ctx.bodyByEntity.has(SLOT_A)).toBe(true);
+    expect(ctx.ccRegistrations.has(SLOT_A)).toBe(true);
+  });
+
+  it("createBody replacing a previous owner releases that owner's controller", () => {
+    const calls: string[] = [];
+    const ctx = makeContext({
+      physics3d_remove_character_controller: (slot) => {
+        calls.push(`cc:${slot}`);
+      },
+      physics3d_remove_body: (slot) => {
+        calls.push(`body:${slot}`);
+        return true;
+      },
+      physics3d_add_body: (slot) => {
+        calls.push(`add:${slot}`);
+        return true;
+      },
+    });
+    ownWithController(ctx);
+
+    createBody(ctx, ENTITY_A, {}, () => true);
+
+    expect(calls).toEqual([`cc:${SLOT_A}`, `body:${SLOT_A}`, `add:${SLOT_A}`]);
+    expect(ctx.ccRegistrations.has(SLOT_A)).toBe(false);
   });
 });
 

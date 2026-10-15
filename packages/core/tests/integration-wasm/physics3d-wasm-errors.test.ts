@@ -286,6 +286,41 @@ describe("physics3d WASM errors", () => {
     }
   });
 
+  it("removing a body frees its character controller slot, and the pool is full again at 32", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 128 });
+    try {
+      const physics = await startPhysics(handle);
+      const ids: EntityId[] = [];
+      for (let i = 0; i < 34; i += 1) {
+        const id = handle.engine.createEntity();
+        physics.createBody(id, { kind: "kinematic", initialPosition: { x: i, y: 0, z: 0 } });
+        ids.push(id);
+      }
+      for (const id of ids.slice(0, 32)) {
+        physics.addCharacterController(id);
+      }
+      const first = ids[0];
+      const next = ids[32];
+      const over = ids[33];
+      if (first === undefined || next === undefined || over === undefined) {
+        throw new Error("expected 34 entities");
+      }
+
+      expect(physics.removeBody(first)).toBe(true);
+
+      expect(() => physics.addCharacterController(next)).not.toThrow();
+      const err = caught(() => physics.addCharacterController(over));
+      requireWasmError(
+        err,
+        "PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED",
+        "physics3d_add_character_controller",
+      );
+      await expectStepMovesABody(handle, physics);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
   it("findPath3D before any grid keeps returning an empty path", async () => {
     const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
     try {

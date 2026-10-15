@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * Physics3d glue classification.
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
- * `known-panic` is issue 110: a TypeScript input can reach a Rust panic, or the
+ * `known-panic` is issue 217: a TypeScript input can reach a Rust panic, or the
  * path was not proven. `physics3d_step` and the three queries return a `Result`
  * for a missing world and stay `known-panic` for the Rapier and parry call.
  * A later PR flips a row to `result` when it converts the export.
@@ -32,7 +32,7 @@ function result(): { kind: "result" } {
   return { kind: "result" };
 }
 
-const ISSUE = 110;
+const ISSUE = 217;
 
 const PHYSICS3D: Record<string, ExportRow> = {
   find_path_3d: infallible(
