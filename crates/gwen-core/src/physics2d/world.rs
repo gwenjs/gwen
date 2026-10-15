@@ -173,6 +173,8 @@ pub struct PhysicsWorld {
     global_ccd_enabled: bool,
     pub one_way_colliders: HashSet<ColliderHandle>,
     collision_events: CollisionEventBuffer,
+    /// Reused by `physics_step` so a step does not allocate a pose list.
+    dynamic_pose_scratch: Vec<(u32, f32, f32, f32)>,
 }
 
 struct OneWayHooks<'a> {
@@ -217,6 +219,7 @@ impl PhysicsWorld {
             global_ccd_enabled: false,
             one_way_colliders: HashSet::new(),
             collision_events: CollisionEventBuffer::new(),
+            dynamic_pose_scratch: Vec::new(),
         };
         world.set_quality_preset(PhysicsQualityPreset::Medium);
         world
@@ -759,11 +762,12 @@ impl PhysicsWorld {
         }
     }
 
-    /// Dynamic-body poses as `(entity index, x, y, rotation)`.
+    /// Fills `out` with dynamic-body poses `(entity index, x, y, rotation)`.
     ///
-    /// A missing Rapier body is skipped. Fixed and kinematic bodies are not included.
-    pub fn dynamic_poses(&self) -> Vec<(u32, f32, f32, f32)> {
-        let mut poses = Vec::new();
+    /// Clears `out` and appends into its existing capacity. A missing Rapier
+    /// body is skipped. Fixed and kinematic bodies are not included.
+    pub fn write_dynamic_poses(&self, out: &mut Vec<(u32, f32, f32, f32)>) {
+        out.clear();
         for (&index, &handle) in &self.entity_to_body {
             let Some(body) = self.rigid_body_set.get(handle) else {
                 continue;
@@ -772,9 +776,23 @@ impl PhysicsWorld {
                 continue;
             }
             let pos = body.translation();
-            poses.push((index, pos.x, pos.y, body.rotation().angle()));
+            out.push((index, pos.x, pos.y, body.rotation().angle()));
         }
+    }
+
+    /// Takes the pose scratch, fills it, and returns it.
+    ///
+    /// The caller writes the poses, then [`Self::restore_dynamic_pose_scratch`]
+    /// puts the same allocation back.
+    pub fn take_filled_dynamic_poses(&mut self) -> Vec<(u32, f32, f32, f32)> {
+        let mut poses = std::mem::take(&mut self.dynamic_pose_scratch);
+        self.write_dynamic_poses(&mut poses);
         poses
+    }
+
+    /// Puts a pose list back so the next step can reuse its capacity.
+    pub fn restore_dynamic_pose_scratch(&mut self, poses: Vec<(u32, f32, f32, f32)>) {
+        self.dynamic_pose_scratch = poses;
     }
 }
 

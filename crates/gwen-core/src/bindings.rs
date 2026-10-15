@@ -935,11 +935,11 @@ impl Engine {
     ///
     /// The first call allocates two zeroed buffers. The byte count is
     /// `2 * max_entities * 32`, computed with `checked_mul`. When that product
-    /// overflows, or the allocation fails, nothing is stored, the current
-    /// index is left as it was, and the return is `u32::MAX`.
+    /// overflows, or `try_reserve_exact` fails, this returns
+    /// [`CoreError::HistoryBuffersUnavailable`]. Nothing is stored and the
+    /// written-buffer index is left as it was.
+    ///
     /// A successful call returns only `0` or `1`, the buffer just written.
-    /// `u32::MAX` is not a buffer index. The export has no error code: `0` is
-    /// already a successful index, so it cannot also mean failure.
     ///
     /// Each slot is 32 bytes: world x, y, rotation, scale x, scale y, flags,
     /// then 8 zero bytes. Bit 0 means the slot has a live transform. Bit 2
@@ -951,27 +951,34 @@ impl Engine {
     /// Bit 2 exists only in these two buffers. No plugin module receives their
     /// address, so the bit is not part of the plugin ABI and the plugin ABI
     /// number stays unchanged.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`CoreError::HistoryBuffersUnavailable`] when the buffers cannot
+    /// be allocated. The history state is unchanged.
     #[wasm_bindgen]
-    pub fn transform_history_commit(&mut self) -> u32 {
+    pub fn transform_history_commit(&mut self) -> Result<u32, CoreError> {
         let unallocated = self
             .transform_history
             .buffers
             .first()
             .is_none_or(|buffer| buffer.is_empty());
         if unallocated {
-            let Some(pair_bytes) = history_pair_bytes(self.entity_manager.max_entities()) else {
-                return u32::MAX;
+            let max_entities = self.entity_manager.max_entities();
+            let unavailable = CoreError::HistoryBuffersUnavailable { max_entities };
+            let Some(pair_bytes) = history_pair_bytes(max_entities) else {
+                return Err(unavailable);
             };
             let Some(one) = pair_bytes.checked_div(2) else {
-                return u32::MAX;
+                return Err(unavailable);
             };
             let mut first = Vec::new();
             let mut second = Vec::new();
             if first.try_reserve_exact(one).is_err() || second.try_reserve_exact(one).is_err() {
-                return u32::MAX;
+                return Err(unavailable);
             }
             if first.capacity() < one || second.capacity() < one {
-                return u32::MAX;
+                return Err(unavailable);
             }
             first.resize(one, 0);
             second.resize(one, 0);
@@ -992,7 +999,9 @@ impl Engine {
                 true
             });
         if !filled {
-            return u32::MAX;
+            return Err(CoreError::HistoryBuffersUnavailable {
+                max_entities: self.entity_manager.max_entities(),
+            });
         }
 
         let max_entities = self.entity_manager.max_entities();
@@ -1016,7 +1025,7 @@ impl Engine {
             }
         }
         self.transform_history.current = Some(write_at);
-        write_at
+        Ok(write_at)
     }
 
     /// Byte address of history buffer `0` or `1`.
@@ -1210,22 +1219,25 @@ impl Engine {
             };
             world.step(delta);
             world.sync_to_storage(&mut self.storage);
-            world.dynamic_poses()
+            world.take_filled_dynamic_poses()
         };
         // The column write above stays. Root nodes also take the pose so a
         // later history commit can interpolate the body. A child keeps its
         // parent; only its local pose is updated.
-        for (index, x, y, rotation) in poses {
-            let entity = EntityId::from_parts(index, self.get_entity_generation(index));
+        for (index, x, y, rotation) in &poses {
+            let entity = EntityId::from_parts(*index, self.get_entity_generation(*index));
             let Some(node) = self.transform_system.get_transform_mut(entity) else {
                 continue;
             };
             let rooted = node.parent().is_none();
-            node.set_position(Vec2::new(x, y));
-            node.set_rotation(rotation);
+            node.set_position(Vec2::new(*x, *y));
+            node.set_rotation(*rotation);
             if rooted {
                 node.update_as_root();
             }
+        }
+        if let Some(world) = self.physics_world.as_mut() {
+            world.restore_dynamic_pose_scratch(poses);
         }
         Ok(())
     }
@@ -4721,7 +4733,6 @@ mod tests {
             cells.as_slice()
         );
     }
-
 }
 
 /// Allocation failure of `transform_history_commit` on a native host.
@@ -4813,10 +4824,7 @@ mod history_commit_failure {
         assert_eq!(ptr0, 0);
         assert_eq!(ptr1, 0);
         assert_eq!(parity, None);
-        assert_eq!(
-            shown,
-            "Err(HistoryBuffersUnavailable { max_entities: 64 })"
-        );
+        assert_eq!(shown, "Err(HistoryBuffersUnavailable { max_entities: 64 })");
         assert_eq!(next, "Ok(0)");
     }
 }
@@ -4837,7 +4845,7 @@ mod history_commit_overflow {
         }
         match history_pair_bytes(SMALLEST_OVERFLOW) {
             None => {}
-            Some(bytes) => assert_eq!(bytes, 0),
+            Some(bytes) => assert_eq!(bytes, 1),
         }
         let mut engine = match Engine::new(1) {
             Ok(engine) => engine,

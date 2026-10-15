@@ -212,7 +212,7 @@ export const LIGHT_WASM = [
   "engine_set_entity_parent (i32,i32,i32,i32,i32)->()",
   "engine_stats (i32,i32)->()",
   "engine_sync_transforms_to_buffer (i32,i32,i32,i32)->()",
-  "engine_transform_history_commit (i32)->(i32)",
+  "engine_transform_history_commit (i32,i32)->()",
   "engine_transform_history_ptr (i32,i32)->(i32)",
   "engine_translate_entity (i32,i32,f32,f32)->()",
   "engine_update_entity_archetype (i32,i32,i32,i32)->()",

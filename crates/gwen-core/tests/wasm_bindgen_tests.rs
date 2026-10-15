@@ -441,6 +441,16 @@ fn wasm_deep_chain_and_cycle_do_not_trap() {
     assert!(!engine.has_entity_parent(1));
 }
 
+fn committed(engine: &mut Engine) -> u32 {
+    match engine.transform_history_commit() {
+        Ok(index) => index,
+        Err(_) => {
+            assert_eq!(0, 1);
+            0
+        }
+    }
+}
+
 fn history_slot(engine: &Engine, buffer: u32, index: u32) -> [u8; 32] {
     let base = engine.transform_history_ptr(buffer);
     assert_ne!(base, 0);
@@ -460,7 +470,7 @@ fn history_slot(engine: &Engine, buffer: u32, index: u32) -> [u8; 32] {
 fn wasm_history_commit_before_any_transform_is_zero() {
     let mut engine = make_engine();
     assert_eq!(engine.transform_history_ptr(0), 0);
-    let buffer = engine.transform_history_commit();
+    let buffer = committed(&mut engine);
     assert_eq!(buffer, 0);
     assert_eq!(history_slot(&engine, buffer, 0), [0u8; 32]);
     assert_ne!(engine.transform_history_ptr(0), 0);
@@ -470,7 +480,7 @@ fn wasm_history_commit_before_any_transform_is_zero() {
 fn wasm_history_ptr_rejects_buffer_2() {
     let mut engine = make_engine();
     assert_eq!(engine.transform_history_ptr(2), 0);
-    let _ = engine.transform_history_commit();
+    let _ = committed(&mut engine);
     assert_eq!(engine.transform_history_ptr(2), 0);
 }
 
@@ -486,13 +496,13 @@ fn wasm_history_commit_alternates_zero_and_one() {
     };
     engine.add_entity_transform(id.index(), 2.0, 0.0, 0.0, 1.0, 1.0);
     engine.update_transforms();
-    let first = engine.transform_history_commit();
+    let first = committed(&mut engine);
     assert_eq!(first, 0);
     let mut x = [0u8; 4];
     x.copy_from_slice(&history_slot(&engine, first, id.index())[0..4]);
     assert_eq!(f32::from_le_bytes(x), 2.0);
     engine.mark_entity_teleport(id.index());
-    let second = engine.transform_history_commit();
+    let second = committed(&mut engine);
     assert_eq!(second, 1);
     let mut flag_bytes = [0u8; 4];
     flag_bytes.copy_from_slice(&history_slot(&engine, second, id.index())[20..24]);

@@ -55,7 +55,18 @@ fn assert_known_code(err: &CoreError) {
         CoreError::ComponentWriteRejected { .. } => {
             assert_eq!(err.code(), "CORE:COMPONENT_WRITE_REJECTED");
         }
+        CoreError::HistoryBuffersUnavailable { .. } => {
+            assert_eq!(err.code(), "CORE:HISTORY_BUFFERS_UNAVAILABLE");
+        }
     }
+}
+
+#[test]
+fn history_buffers_unavailable_reports_its_code_and_message() {
+    let err = CoreError::HistoryBuffersUnavailable { max_entities: 64 };
+    assert_eq!(err.code(), "CORE:HISTORY_BUFFERS_UNAVAILABLE");
+    assert_eq!(err.to_string(), "history buffers cannot be allocated");
+    assert_known_code(&err);
 }
 
 #[test]
