@@ -22,8 +22,8 @@ pub use components::{
     PhysicsQualityPreset3D,
 };
 pub use error::{
-    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason,
-    PathRequestReject, Physics3DError,
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidJointReason,
+    InvalidShapeReason, PathRequestReject, Physics3DError,
 };
 pub use events::{
     get_collision_event_count_3d, get_collision_events_ptr_3d, PhysicsCollisionEvent3D,

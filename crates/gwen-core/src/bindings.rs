@@ -3141,6 +3141,8 @@ impl Engine {
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `BodyNotFound` when either entity has no body. The error names the first one missing,
     /// `entity_a` before `entity_b`.
+    /// `InvalidJoint` when an anchor, axis, spring value or used joint limit is NaN or infinite
+    /// (a limit may be infinite on one side). The check runs after the body check.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_fixed_joint(
@@ -3175,6 +3177,8 @@ impl Engine {
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `BodyNotFound` when either entity has no body. The error names the first one missing,
     /// `entity_a` before `entity_b`.
+    /// `InvalidJoint` when an anchor, axis, spring value or used joint limit is NaN or infinite
+    /// (a limit may be infinite on one side). The check runs after the body check.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_revolute_joint(
@@ -3218,6 +3222,8 @@ impl Engine {
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `BodyNotFound` when either entity has no body. The error names the first one missing,
     /// `entity_a` before `entity_b`.
+    /// `InvalidJoint` when an anchor, axis, spring value or used joint limit is NaN or infinite
+    /// (a limit may be infinite on one side). The check runs after the body check.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_prismatic_joint(
@@ -3258,6 +3264,8 @@ impl Engine {
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `BodyNotFound` when either entity has no body. The error names the first one missing,
     /// `entity_a` before `entity_b`.
+    /// `InvalidJoint` when an anchor, axis, spring value or used joint limit is NaN or infinite
+    /// (a limit may be infinite on one side). The check runs after the body check.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_ball_joint(
@@ -3292,6 +3300,8 @@ impl Engine {
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `BodyNotFound` when either entity has no body. The error names the first one missing,
     /// `entity_a` before `entity_b`.
+    /// `InvalidJoint` when an anchor, axis, spring value or used joint limit is NaN or infinite
+    /// (a limit may be infinite on one side). The check runs after the body check.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_add_spring_joint(
@@ -3355,6 +3365,7 @@ impl Engine {
     /// # Errors
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `JointNotFound` when no joint is registered for `id`.
+    /// `InvalidJoint` when a float is NaN or infinite. The check runs after the joint check.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_joint_motor_velocity(
         &mut self,
@@ -3381,6 +3392,7 @@ impl Engine {
     /// # Errors
     /// `WorldNotInitialized` when `physics3d_init` has not run.
     /// `JointNotFound` when no joint is registered for `id`.
+    /// `InvalidJoint` when a float is NaN or infinite. The check runs after the joint check.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_set_joint_motor_position(
         &mut self,

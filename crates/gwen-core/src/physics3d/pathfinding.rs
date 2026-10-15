@@ -37,31 +37,37 @@ use pathfinding::prelude::astar;
 /// Maximum number of waypoint nodes in one path result.
 pub const MAX_PATH_NODES_3D: usize = 512;
 
-/// Largest cell count [`init_navgrid_3d`] accepts, inclusive: `128 * 128 * 128`.
+/// Largest cell count [`init_navgrid_3d`] accepts, inclusive: `64 * 64 * 64`.
 ///
 /// A grid is `width * height * depth` bytes copied into Rust-owned storage. The worst search
 /// on it is an open grid with a goal outside it: A* visits every cell and finds no route.
 ///
-/// The cap was chosen from a native run of that worst search on a full-size grid, the ignored test
-/// `worst_accepted_grid_search` in `tests/physics3d_navgrid_path.rs` (a `128 x 128 x 128` open
-/// grid, cell size 1, goal at `(-5, -5, -5)`):
+/// The cap was chosen from native runs of that worst search on open cubic grids, the ignored
+/// integration test `worst_accepted_grid_search` of the `physics3d_navgrid_path` test target (cell
+/// size 1, goal at `(-5, -5, -5)`, side taken from the `GWEN_NAVGRID_SIDE` variable):
 ///
 /// ```text
 /// cargo test -p gwen-core --features physics3d --test physics3d_navgrid_path --no-run
-/// /usr/bin/time -l target/debug/deps/physics3d_navgrid_path-<hash> --ignored --exact worst_accepted_grid_search
+/// GWEN_NAVGRID_SIDE=<side> /usr/bin/time -l target/<profile>/deps/physics3d_navgrid_path-<hash> --ignored --exact worst_accepted_grid_search
 /// ```
 ///
-/// | build | search time | maximum resident set size |
-/// | --- | --- | --- |
-/// | debug | 4.44 s | 266_764_288 bytes |
-/// | release | 0.41 s | 267_026_432 bytes |
+/// | side | cells | debug time | debug peak RSS | release time | release peak RSS |
+/// | --- | --- | --- | --- | --- | --- |
+/// | 64 | 262_144 | 0.51 s | 29_491_200 bytes | 0.04 s | 28_508_160 bytes |
+/// | 96 | 884_736 | 1.66 s | 77_660_160 bytes | 0.14 s | 76_627_968 bytes |
+/// | 128 | 2_097_152 | 4.45 s | 266_797_056 bytes | 0.39 s | 265_797_632 bytes |
 ///
-/// The same test binary running one cheap test used 7_585_792 bytes. The difference, about 124
-/// bytes per cell, is the A* state: its visited map and its open list. A scratch run of the same
-/// search on a `256^3` grid (16_777_216 cells, not committed) measured 1_984_004_096 bytes and
-/// 5.58 s in release, about 2 GiB for one query, so the cap stops at `2^21` cells. Times are for
-/// one run on one host and give the order of magnitude, not a guarantee.
-pub const MAX_NAVGRID_CELLS: usize = 2_097_152;
+/// A cheap test in the same binary used 3_473_408 bytes (debug) and 2_441_216 bytes (release).
+/// The difference, about 100 to 125 bytes per cell, is the A* state: its visited map and its open
+/// list. A scratch run on a `256^3` grid (16_777_216 cells, not committed) measured 1_984_004_096
+/// bytes and 5.58 s in release, about 2 GiB for one query.
+///
+/// The cap is `64^3`. One query then stays near 30 MB and well under a second even in a debug
+/// build, while `128^3` costs about 266 MB for one query, and WebAssembly linear memory grows but
+/// never shrinks, so that peak would stay resident. A `64^3` grid at cell size 1 still covers a
+/// 64 metre cube; a larger world needs a coarser cell size. Times are for one run on one host and
+/// give the order of magnitude, not a guarantee.
+pub const MAX_NAVGRID_CELLS: usize = 262_144;
 
 /// Largest cell coordinate [`find_path_checked`] accepts on any axis, inclusive.
 ///

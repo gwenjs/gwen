@@ -41,7 +41,8 @@ use crate::physics3d::components::{
     quality_solver_config_3d, PhysicsQualityPreset3D, QualitySolverConfig3D,
 };
 use crate::physics3d::error::{
-    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason, Physics3DError,
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidJointReason,
+    InvalidShapeReason, Physics3DError,
 };
 use crate::physics3d::events::{CollisionEventBuffer3D, PhysicsCollisionEvent3D};
 use crate::physics3d::pathfinding::NavGrid3D;
@@ -337,6 +338,31 @@ const COMPOUND_SHAPE_CAPSULE: u32 = 2;
 ///
 /// A tighter bound such as `1e8` would leave a factor of about 25 below the measured edge.
 pub const MAX_COLLIDER_MAGNITUDE: f32 = 1.0e9;
+
+/// Refuse a joint value that is NaN or infinite. Measured on rapier3d 0.22: a NaN or infinite
+/// anchor, axis, spring value or motor velocity makes body states NaN after a few steps.
+fn check_joint_values(values: &[f32]) -> Result<(), Physics3DError> {
+    if values.iter().all(|v| v.is_finite()) {
+        Ok(())
+    } else {
+        Err(non_finite_joint())
+    }
+}
+
+fn non_finite_joint() -> Physics3DError {
+    Physics3DError::InvalidJoint {
+        reason: InvalidJointReason::NonFinite,
+    }
+}
+
+/// Refuse a NaN joint limit when limits are used. An infinite side means no limit on that side
+/// and keeps body states finite, so it is accepted. Unused limits are never read.
+fn check_joint_limits(use_limits: bool, limits: [f32; 2]) -> Result<(), Physics3DError> {
+    if use_limits && limits.iter().any(|v| v.is_nan()) {
+        return Err(non_finite_joint());
+    }
+    Ok(())
+}
 
 fn invalid_collider(reason: InvalidColliderReason) -> Physics3DError {
     Physics3DError::InvalidCollider { reason }
@@ -2843,7 +2869,8 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
-    /// no body. A refusal consumes no joint id.
+    /// no body, checked before the values. Returns [`Physics3DError::InvalidJoint`] when a float
+    /// is NaN or infinite. A refusal consumes no joint id and changes nothing.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_fixed_joint(
         &mut self,
@@ -2857,6 +2884,7 @@ impl PhysicsWorld3D {
         bz: f32,
     ) -> Result<u32, Physics3DError> {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
+        check_joint_values(&[ax, ay, az, bx, by, bz])?;
         let joint = FixedJointBuilder::new()
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
@@ -2880,7 +2908,8 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
-    /// no body. A refusal consumes no joint id.
+    /// no body, checked before the values. Returns [`Physics3DError::InvalidJoint`] when a float
+    /// is NaN or infinite. A refusal consumes no joint id and changes nothing.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_revolute_joint(
         &mut self,
@@ -2900,6 +2929,8 @@ impl PhysicsWorld3D {
         limit_max: f32,
     ) -> Result<u32, Physics3DError> {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
+        check_joint_values(&[ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z])?;
+        check_joint_limits(use_limits, [limit_min, limit_max])?;
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
             .unwrap_or_else(|| Unit::new_normalize(vector![0.0, 1.0, 0.0]));
         let mut builder = RevoluteJointBuilder::new(axis)
@@ -2927,7 +2958,8 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
-    /// no body. A refusal consumes no joint id.
+    /// no body, checked before the values. Returns [`Physics3DError::InvalidJoint`] when a float
+    /// is NaN or infinite. A refusal consumes no joint id and changes nothing.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_prismatic_joint(
         &mut self,
@@ -2947,6 +2979,8 @@ impl PhysicsWorld3D {
         limit_max: f32,
     ) -> Result<u32, Physics3DError> {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
+        check_joint_values(&[ax, ay, az, bx, by, bz, axis_x, axis_y, axis_z])?;
+        check_joint_limits(use_limits, [limit_min, limit_max])?;
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
             .unwrap_or_else(|| Unit::new_normalize(vector![1.0, 0.0, 0.0]));
         let mut builder = PrismaticJointBuilder::new(axis)
@@ -2971,7 +3005,8 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
-    /// no body. A refusal consumes no joint id.
+    /// no body, checked before the values. Returns [`Physics3DError::InvalidJoint`] when a float
+    /// is NaN or infinite. A refusal consumes no joint id and changes nothing.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_ball_joint(
         &mut self,
@@ -2985,6 +3020,7 @@ impl PhysicsWorld3D {
         bz: f32,
     ) -> Result<u32, Physics3DError> {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
+        check_joint_values(&[ax, ay, az, bx, by, bz])?;
         let joint = SphericalJointBuilder::new()
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
@@ -3008,7 +3044,8 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
-    /// no body. A refusal consumes no joint id.
+    /// no body, checked before the values. Returns [`Physics3DError::InvalidJoint`] when a float
+    /// is NaN or infinite. A refusal consumes no joint id and changes nothing.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_spring_joint(
         &mut self,
@@ -3025,6 +3062,7 @@ impl PhysicsWorld3D {
         damping: f32,
     ) -> Result<u32, Physics3DError> {
         let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
+        check_joint_values(&[ax, ay, az, bx, by, bz, rest_length, stiffness, damping])?;
         let joint = SpringJointBuilder::new(rest_length, stiffness, damping)
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
@@ -3058,7 +3096,9 @@ impl PhysicsWorld3D {
     /// * `max_force` — Maximum motor force / torque (N or N·m).
     ///
     /// # Errors
-    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`, checked
+    /// before the values. Returns [`Physics3DError::InvalidJoint`] when a float is NaN or
+    /// infinite; the motor is left as it was.
     pub fn set_joint_motor_velocity(
         &mut self,
         id: u32,
@@ -3066,6 +3106,7 @@ impl PhysicsWorld3D {
         max_force: f32,
     ) -> Result<(), Physics3DError> {
         let handle = self.require_joint(id)?;
+        check_joint_values(&[velocity, max_force])?;
         let joint = self
             .impulse_joint_set
             .get_mut(handle)
@@ -3085,7 +3126,9 @@ impl PhysicsWorld3D {
     /// * `damping`    — Damping coefficient (N·m·s/rad or N·s/m).
     ///
     /// # Errors
-    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`, checked
+    /// before the values. Returns [`Physics3DError::InvalidJoint`] when a float is NaN or
+    /// infinite; the motor is left as it was.
     pub fn set_joint_motor_position(
         &mut self,
         id: u32,
@@ -3094,6 +3137,7 @@ impl PhysicsWorld3D {
         damping: f32,
     ) -> Result<(), Physics3DError> {
         let handle = self.require_joint(id)?;
+        check_joint_values(&[target, stiffness, damping])?;
         let joint = self
             .impulse_joint_set
             .get_mut(handle)

@@ -51,6 +51,8 @@ export const Physics3DErrorCodes = {
   INVALID_PATH_REQUEST: "PHYSICS3D:INVALID_PATH_REQUEST",
   /** A collider size, radius, character controller skin width or other float is not accepted by the physics engine. */
   INVALID_COLLIDER: "PHYSICS3D:INVALID_COLLIDER",
+  /** A joint anchor, axis, spring value, motor value or joint limit is NaN or infinite. */
+  INVALID_JOINT: "PHYSICS3D:INVALID_JOINT",
 } as const;
 
 /** Type of a Physics3D error code string. */
