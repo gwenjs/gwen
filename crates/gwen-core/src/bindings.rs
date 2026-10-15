@@ -4733,99 +4733,98 @@ mod tests {
             cells.as_slice()
         );
     }
-}
+    /// Allocation failure of `transform_history_commit` on a native host.
+    /// A process-wide counter would count other lib tests. The flag is per thread.
+    #[cfg(all(test, not(target_arch = "wasm32")))]
+    mod history_commit_failure {
+        use std::alloc::{GlobalAlloc, Layout, System};
+        use std::cell::Cell;
 
-/// Allocation failure of `transform_history_commit` on a native host.
-/// A process-wide counter would count other lib tests. The flag is per thread.
-#[cfg(all(test, not(target_arch = "wasm32")))]
-mod history_commit_failure {
-    use std::alloc::{GlobalAlloc, Layout, System};
-    use std::cell::Cell;
+        use super::super::*;
 
-    use super::*;
+        thread_local! {
+            static FAIL_LARGE: Cell<bool> = const { Cell::new(false) };
+        }
 
-    thread_local! {
-        static FAIL_LARGE: Cell<bool> = const { Cell::new(false) };
-    }
+        struct ResetFail;
 
-    struct ResetFail;
+        impl Drop for ResetFail {
+            fn drop(&mut self) {
+                FAIL_LARGE.with(|flag| flag.set(false));
+            }
+        }
 
-    impl Drop for ResetFail {
-        fn drop(&mut self) {
+        // SAFETY: forwards to the system allocator, except a large request made while
+        // `FAIL_LARGE` is set on this thread, which returns null so `try_reserve_exact` fails.
+        unsafe impl GlobalAlloc for FailLarge {
+            unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+                let fail = FAIL_LARGE.with(Cell::get);
+                if fail && layout.size() >= 1024 {
+                    return std::ptr::null_mut();
+                }
+                // SAFETY: `layout` is the layout the caller passed to this allocator.
+                unsafe { System.alloc(layout) }
+            }
+
+            unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+                // SAFETY: `ptr` and `layout` are the pair this allocator returned.
+                unsafe { System.dealloc(ptr, layout) }
+            }
+
+            unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+                let fail = FAIL_LARGE.with(Cell::get);
+                if fail && new_size >= 1024 {
+                    return std::ptr::null_mut();
+                }
+                // SAFETY: `ptr` and `layout` are the pair this allocator returned.
+                unsafe { System.realloc(ptr, layout, new_size) }
+            }
+        }
+
+        struct FailLarge;
+
+        #[global_allocator]
+        static GLOBAL: FailLarge = FailLarge;
+
+        #[test]
+        fn history_pair_bytes_fits_67108864_entities_when_usize_is_64_bits() {
+            assert_eq!(usize::BITS, 64);
+            let smallest_wasm32_overflow = 67_108_864u32;
+            let product = u64::from(smallest_wasm32_overflow) * 64;
+            assert_eq!(product, 1u64 << 32);
+            match history_pair_bytes(smallest_wasm32_overflow) {
+                Some(bytes) => assert_eq!(bytes, product as usize),
+                None => assert_eq!(0, 1),
+            }
+            match history_pair_bytes(u32::MAX) {
+                Some(bytes) => assert_eq!(bytes, usize::try_from(u32::MAX).unwrap_or(0) * 64),
+                None => assert_eq!(0, 1),
+            }
+        }
+
+        #[test]
+        fn history_commit_allocation_failure_stores_nothing_and_does_not_flip_parity() {
+            let mut engine = match Engine::new(64) {
+                Ok(engine) => engine,
+                Err(err) => {
+                    assert_eq!(err.code(), "");
+                    return;
+                }
+            };
+            FAIL_LARGE.with(|flag| flag.set(true));
+            let _reset = ResetFail;
+            let shown = format!("{:?}", engine.transform_history_commit());
+            let ptr0 = engine.transform_history_ptr(0);
+            let ptr1 = engine.transform_history_ptr(1);
+            let parity = engine.transform_history.current;
             FAIL_LARGE.with(|flag| flag.set(false));
+            let next = format!("{:?}", engine.transform_history_commit());
+            assert_eq!(ptr0, 0);
+            assert_eq!(ptr1, 0);
+            assert_eq!(parity, None);
+            assert_eq!(shown, "Err(HistoryBuffersUnavailable { max_entities: 64 })");
+            assert_eq!(next, "Ok(0)");
         }
-    }
-
-    // SAFETY: forwards to the system allocator, except a large request made while
-    // `FAIL_LARGE` is set on this thread, which returns null so `try_reserve_exact` fails.
-    unsafe impl GlobalAlloc for FailLarge {
-        unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-            let fail = FAIL_LARGE.with(Cell::get);
-            if fail && layout.size() >= 1024 {
-                return std::ptr::null_mut();
-            }
-            // SAFETY: `layout` is the layout the caller passed to this allocator.
-            unsafe { System.alloc(layout) }
-        }
-
-        unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-            // SAFETY: `ptr` and `layout` are the pair this allocator returned.
-            unsafe { System.dealloc(ptr, layout) }
-        }
-
-        unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-            let fail = FAIL_LARGE.with(Cell::get);
-            if fail && new_size >= 1024 {
-                return std::ptr::null_mut();
-            }
-            // SAFETY: `ptr` and `layout` are the pair this allocator returned.
-            unsafe { System.realloc(ptr, layout, new_size) }
-        }
-    }
-
-    struct FailLarge;
-
-    #[global_allocator]
-    static GLOBAL: FailLarge = FailLarge;
-
-    #[test]
-    fn history_pair_bytes_fits_67108864_entities_when_usize_is_64_bits() {
-        assert_eq!(usize::BITS, 64);
-        let smallest_wasm32_overflow = 67_108_864u32;
-        let product = u64::from(smallest_wasm32_overflow) * 64;
-        assert_eq!(product, 1u64 << 32);
-        match history_pair_bytes(smallest_wasm32_overflow) {
-            Some(bytes) => assert_eq!(bytes, product as usize),
-            None => assert_eq!(0, 1),
-        }
-        match history_pair_bytes(u32::MAX) {
-            Some(bytes) => assert_eq!(bytes, usize::try_from(u32::MAX).unwrap_or(0) * 64),
-            None => assert_eq!(0, 1),
-        }
-    }
-
-    #[test]
-    fn history_commit_allocation_failure_stores_nothing_and_does_not_flip_parity() {
-        let mut engine = match Engine::new(64) {
-            Ok(engine) => engine,
-            Err(err) => {
-                assert_eq!(err.code(), "");
-                return;
-            }
-        };
-        FAIL_LARGE.with(|flag| flag.set(true));
-        let _reset = ResetFail;
-        let shown = format!("{:?}", engine.transform_history_commit());
-        let ptr0 = engine.transform_history_ptr(0);
-        let ptr1 = engine.transform_history_ptr(1);
-        let parity = engine.transform_history.current;
-        FAIL_LARGE.with(|flag| flag.set(false));
-        let next = format!("{:?}", engine.transform_history_commit());
-        assert_eq!(ptr0, 0);
-        assert_eq!(ptr1, 0);
-        assert_eq!(parity, None);
-        assert_eq!(shown, "Err(HistoryBuffersUnavailable { max_entities: 64 })");
-        assert_eq!(next, "Ok(0)");
     }
 }
 
