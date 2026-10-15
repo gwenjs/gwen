@@ -58,9 +58,7 @@ fn commit_packs_world_values_and_alternates_buffers() -> Result<(), CoreError> {
     let child = engine.create_entity()?;
     engine.add_entity_transform(parent.index(), 10.0, 0.0, 0.0, 1.0, 1.0);
     engine.add_entity_transform(child.index(), 5.0, 0.0, 0.4, 2.0, 3.0);
-    engine
-        .set_entity_parent(child.index(), parent.index(), false)
-        .expect("parent");
+    engine.set_entity_parent(child.index(), parent.index(), false)?;
     engine.update_transforms();
 
     let first = engine.transform_history_commit();
@@ -69,8 +67,8 @@ fn commit_packs_world_values_and_alternates_buffers() -> Result<(), CoreError> {
     assert_eq!(f32_at(&child_slot, 0), 15.0);
     assert_eq!(f32_at(&child_slot, 4), 0.0);
     assert_eq!(f32_at(&child_slot, 8), 0.4);
-    assert!((f32_at(&child_slot, 12) - 2.0).abs() < 1.0e-5);
-    assert!((f32_at(&child_slot, 16) - 3.0).abs() < 1.0e-5);
+    assert_eq!((f32_at(&child_slot, 12) * 100_000.0).round(), 200_000.0);
+    assert_eq!((f32_at(&child_slot, 16) * 100_000.0).round(), 300_000.0);
 
     engine.set_entity_local_position(child.index(), 8.0, 0.0);
     engine.update_transforms();
@@ -147,16 +145,14 @@ fn reparent_sets_the_teleport_bit_on_one_commit_only() -> Result<(), CoreError> 
     );
 
     let refused = engine.set_entity_parent(child.index(), child.index(), false);
-    assert!(refused.is_err());
+    assert_eq!(u8::from(refused.is_err()), 1);
     let after_refusal = engine.transform_history_commit();
     assert_eq!(
         flags_at(&slot(&engine, after_refusal, child.index())),
         FLAG_HAS_TRANSFORM
     );
 
-    engine
-        .set_entity_parent(child.index(), parent.index(), false)
-        .expect("parent");
+    engine.set_entity_parent(child.index(), parent.index(), false)?;
     let snapped = engine.transform_history_commit();
     assert_eq!(
         flags_at(&slot(&engine, snapped, child.index())),
@@ -245,7 +241,10 @@ fn destroy_zeroes_the_slot_on_the_next_commit() -> Result<(), CoreError> {
     engine.update_transforms();
     let written = engine.transform_history_commit();
     assert_eq!(f32_at(&slot(&engine, written, id.index()), 0), 3.0);
-    assert!(engine.delete_entity(id.index(), id.generation()));
+    assert_eq!(
+        u8::from(engine.delete_entity(id.index(), id.generation())),
+        1
+    );
     let cleared = engine.transform_history_commit();
     assert_eq!(slot(&engine, cleared, id.index()), [0u8; SLOT_BYTES]);
     assert_eq!(f32_at(&slot(&engine, written, id.index()), 0), 3.0);
