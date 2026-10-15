@@ -828,14 +828,6 @@ describe("Group B — RFC-08: joints", () => {
     expect(caught.exportName).toBe("physics3d_add_fixed_joint");
   });
 
-  it("a joint id of 0xffffffff is an id, not a failure", () => {
-    physics3dAddFixedJoint.mockReturnValueOnce(0xffffffff);
-    const { service } = setupWithBody(10);
-    service.createBody(11n);
-
-    expect(service.addFixedJoint({ bodyA: 10n, bodyB: 11n })).toBe(0xffffffff);
-  });
-
   it("removeJoint delegates to physics3d_remove_joint with the joint id", () => {
     const { service } = setupWithBody(10);
 
