@@ -77,7 +77,12 @@ vi.mock("@gwenjs/core", () => ({
 
 import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
 import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
-import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
+import {
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
+  GwenWasmError,
+  GwenWasmPanicError,
+} from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
@@ -170,6 +175,11 @@ function makeEngine(generationFor: (slot: number) => number | undefined = () => 
   } as unknown as GwenEngine;
 
   return { engine, services, hookMap };
+}
+
+/** An `Error` with the `code` property a wasm-bindgen `Result` throw carries. */
+function codedError(code: string, message: string): Error {
+  return Object.assign(new Error(message), { code });
 }
 
 function runFrame(hookMap: Map<string, (...args: unknown[]) => unknown>, dt: number): void {
@@ -270,6 +280,75 @@ describe("Physics3D collision events — WASM backend mode", () => {
     runFrame(hookMap, 1 / 60);
 
     expect(physics3dConsumeEvents).toHaveBeenCalledTimes(1);
+  });
+
+  it("a rejected physics3d_consume_events leaves the update hook as GwenWasmError", () => {
+    const { service, hookMap } = setup();
+    service.createBody(5n);
+    service.createBody(6n);
+    mockMemoryBuffer = buildEventBuffer([{ slotA: 5, slotB: 6, started: true }]);
+    mockEventCount = 1;
+    const rejected = codedError(
+      "PHYSICS3D:NOT_INITIALIZED",
+      "the physics3d world is not initialised",
+    );
+    physics3dConsumeEvents.mockImplementationOnce(() => {
+      throw rejected;
+    });
+
+    let caught: unknown;
+    try {
+      runFrame(hookMap, 1 / 60);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:NOT_INITIALIZED");
+    expect(caught.exportName).toBe("physics3d_consume_events");
+    expect(caught.cause).toBe(rejected);
+  });
+
+  it("a rejected physics3d_step leaves before-update as GwenWasmError", () => {
+    const { hookMap } = setup();
+    const rejected = codedError(
+      "PHYSICS3D:NOT_INITIALIZED",
+      "the physics3d world is not initialised",
+    );
+    physics3dStep.mockImplementationOnce(() => {
+      throw rejected;
+    });
+
+    let caught: unknown;
+    try {
+      runFrame(hookMap, 1 / 60);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:NOT_INITIALIZED");
+    expect(caught.exportName).toBe("physics3d_step");
+  });
+
+  it("a physics3d_step trap stays GwenWasmPanicError", () => {
+    const { hookMap } = setup();
+    physics3dStep.mockImplementationOnce(() => {
+      throw new WebAssembly.RuntimeError("unreachable");
+    });
+
+    let caught: unknown;
+    try {
+      runFrame(hookMap, 1 / 60);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmPanicError);
+    if (!(caught instanceof GwenWasmPanicError)) throw new Error("expected GwenWasmPanicError");
+    expect(caught.exportName).toBe("physics3d_step");
   });
 
   it("parses absent collider ids as undefined", () => {

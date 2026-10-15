@@ -45,7 +45,11 @@ vi.mock("@gwenjs/core", () => ({
 
 import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
 import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
-import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
+import {
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
+  GwenWasmError,
+} from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine, EntityId } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
@@ -268,6 +272,38 @@ describe("bulkSpawnStaticBoxes — WASM mode", () => {
     const args = physics3dBulkSpawnStaticBoxes.mock.calls[0];
     // args[2] = halfExtentsFlat — must be the exact buffer passed in
     expect(args[2]).toBe(halfExtents);
+  });
+
+  it("destroys the entities it created when Rust rejects the spawn, and registers no body", () => {
+    const { service, engine } = setup();
+    const destroyed: EntityId[] = [];
+    Reflect.set(engine, "destroyEntity", (id: EntityId): boolean => {
+      destroyed.push(id);
+      return true;
+    });
+    const rejected = Object.assign(new Error("positions: expected 6, actual 3"), {
+      code: "PHYSICS3D:BUFFER_LENGTH_MISMATCH",
+    });
+    physics3dBulkSpawnStaticBoxes.mockImplementation(() => {
+      throw rejected;
+    });
+
+    let caught: unknown;
+    try {
+      service.bulkSpawnStaticBoxes({
+        positions: new Float32Array([0, 0, 0, 5, 0, 0]),
+        halfExtents: new Float32Array([0.5, 0.5, 0.5]),
+      });
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:BUFFER_LENGTH_MISMATCH");
+    expect(caught.exportName).toBe("physics3d_bulk_spawn_static_boxes");
+    expect(destroyed).toEqual([0n, 1n]);
+    expect(service.getBodyCount()).toBe(0);
   });
 
   it("only registers spawned entities when WASM returns count < N", () => {

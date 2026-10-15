@@ -96,7 +96,11 @@ vi.mock("@gwenjs/core", () => ({
 
 import { createEngineLocal } from "../../core/src/engine/engine-local.ts";
 import { useEngine, GwenContextError } from "../../core/src/engine/context.ts";
-import { CoreErrorCodes, GwenPluginNotFoundError } from "../../core/src/engine/engine-errors.ts";
+import {
+  CoreErrorCodes,
+  GwenPluginNotFoundError,
+  GwenWasmError,
+} from "../../core/src/engine/engine-errors.ts";
 import { Physics3DPlugin, type Physics3DAPI } from "../src/index";
 import type { GwenEngine } from "@gwenjs/core";
 import { engineContext } from "@gwenjs/core/internal";
@@ -451,16 +455,28 @@ describe("CC SAB memory map", () => {
 
     expect(cc1.isGrounded).toBe(true);
   });
-  it("returns an inert handle and does not throw when CC pool is exhausted", () => {
-    // Mock Rust returning u32::MAX (0xffffffff) = pool exhausted
+  it("throws CHARACTER_CONTROLLER_LIMIT_REACHED instead of returning an inert handle when the pool is full", () => {
     const setup = setupWasmWithCcSab();
     setup.service.createBody(99n, { kind: "dynamic" });
-    physics3dAddCharacterController.mockReturnValueOnce(0xffffffff);
-    const handle = setup.service.addCharacterController(99n);
-    expect(() => handle.move({ x: 0, y: -5, z: 0 }, 1 / 60)).not.toThrow();
-    expect(handle.isGrounded).toBe(false);
-    expect(handle.groundNormal).toBeNull();
-    expect(handle.groundEntity).toBeNull();
+    const rejected = Object.assign(new Error("character controller limit reached (max 32)"), {
+      code: "PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED",
+    });
+    physics3dAddCharacterController.mockImplementationOnce(() => {
+      throw rejected;
+    });
+
+    let caught: unknown;
+    try {
+      setup.service.addCharacterController(99n);
+    } catch (err: unknown) {
+      caught = err;
+    }
+
+    expect(caught).toBeInstanceOf(GwenWasmError);
+    if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
+    expect(caught.code).toBe("PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED");
+    expect(caught.exportName).toBe("physics3d_add_character_controller");
+    expect(caught.cause).toBe(rejected);
   });
 });
 
