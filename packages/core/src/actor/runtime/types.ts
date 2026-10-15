@@ -29,12 +29,13 @@ export type { PrefabDefinition, PrefabEntries, PrefabOverrides } from "./define-
 export type UpdateFn = (dt: number) => void;
 
 /**
- * Render-phase callback invoked once per render frame.
+ * Render-phase callback invoked once per display frame.
  *
- * Registered via `onRender()` inside a `defineActor()` factory. No delta-time
- * is provided — use this for draw calls and visual state synchronisation only.
+ * Registered via `onRender()` inside a `defineActor()` factory.
+ * `alpha` is the interpolation factor: `1` when `physicsHz` is `0`,
+ * and the leftover fraction of a fixed step otherwise.
  */
-export type RenderFn = () => void;
+export type RenderFn = (alpha: number) => void;
 
 /**
  * General-purpose no-argument, no-return callback.

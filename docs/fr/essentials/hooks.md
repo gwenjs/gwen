@@ -115,11 +115,11 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 | `engine:stop` | — | Une fois, à l'arrêt du moteur |
 | `engine:state-change` | `{ from, to, reason }` | Une fois par vraie transition du cycle de vie |
 | `engine:tick` | `dt: number` | Chaque début de frame |
-| `engine:afterTick` | `dt: number` | Chaque fin de frame |
+| `engine:afterTick` | `dt: number` | Après chaque pas de simulation |
 | `engine:before-update` | `dt: number` | Avant la physique |
 | `engine:update` | `dt: number` | Phase de mise à jour principale |
 | `engine:after-update` | `dt: number` | Après la phase de mise à jour |
-| `engine:render` | — | Phase de rendu |
+| `engine:render` | `alpha: number` | Une fois par frame d'affichage |
 | `entity:spawn` | `id: EntityId` | Entité créée |
 | `entity:destroy` | `id: EntityId` | Entité détruite |
 | `scene:enter` | `name, params?` | Scène activée |

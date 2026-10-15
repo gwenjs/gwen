@@ -45,8 +45,8 @@ export type ComponentDef = ComponentDefinition<ComponentSchema>;
 /** A frame update callback receiving delta time in seconds. */
 type UpdateFn = (dt: number) => void;
 
-/** A render callback (no delta time — called every frame at render phase). */
-type RenderFn = () => void;
+/** A render callback. `alpha` is the display-frame interpolation factor. */
+type RenderFn = (alpha: number) => void;
 
 // ─── Lifecycle composables ───────────────────────────────────────────────────
 
@@ -105,11 +105,12 @@ export function onAfterUpdate(fn: UpdateFn): void {
 }
 
 /**
- * Registers a callback to run every frame during the `engine:render` phase.
- * No delta time — use for draw calls only. Must be called synchronously inside
- * a {@link defineSystem} setup callback or a {@link defineActor} factory.
+ * Registers a callback to run once per display frame during `engine:render`.
+ * `alpha` is the interpolation factor, not a delta time. Must be called
+ * synchronously inside a {@link defineSystem} setup callback or a
+ * {@link defineActor} factory.
  *
- * @param fn - Render callback.
+ * @param fn - Render callback. Receives `alpha`.
  * @throws {GwenContextError} If called outside an active scope context.
  */
 export function onRender(fn: RenderFn): void {

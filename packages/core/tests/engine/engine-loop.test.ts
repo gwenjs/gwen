@@ -20,6 +20,7 @@ const REENTRANT = "[GwenEngine] advance() called re-entrantly — only one advan
 interface HarnessOptions {
   grow?: boolean;
   warns?: string[];
+  commitTrap?: boolean;
 }
 
 interface Harness {
@@ -107,6 +108,9 @@ async function harness(
         },
         transform_history_commit() {
           order.push("commit");
+          if (options.commitTrap === true) {
+            throw new WebAssembly.RuntimeError("commit trap");
+          }
           return 0;
         },
       };
@@ -212,6 +216,42 @@ describe("EngineLoop", () => {
         "render",
       ]);
       expect(alphas).toEqual([0]);
+    } finally {
+      globalThis.requestAnimationFrame = previousRaf;
+      globalThis.cancelAnimationFrame = previousCancel;
+      performance.now = previousNow;
+      await rig.stop();
+    }
+  });
+
+  it("a RuntimeError from history commit faults the engine before render", async () => {
+    const rig = await harness(
+      { physicsHz: 60, maxCatchupSteps: 1, maxDeltaSeconds: 1 },
+      { commitTrap: true },
+    );
+    const previousRaf = globalThis.requestAnimationFrame;
+    const previousCancel = globalThis.cancelAnimationFrame;
+    const previousNow = performance.now;
+    const slot: { current: ((now: number) => void) | null } = { current: null };
+    globalThis.requestAnimationFrame = (cb: FrameRequestCallback): number => {
+      slot.current = (now: number) => cb(now);
+      return 7;
+    };
+    globalThis.cancelAnimationFrame = () => {
+      slot.current = null;
+    };
+    performance.now = () => 0;
+    try {
+      rig.state.transition("running", "USER");
+      rig.loop.markStart();
+      rig.loop.startScheduled();
+      const frame = slot.current;
+      slot.current = null;
+      if (frame === null) throw new Error("no frame scheduled");
+      await frame(1000 / 60);
+      expect(rig.state.state).toBe("faulted");
+      expect(rig.order).toContain("commit");
+      expect(rig.order).not.toContain("render");
     } finally {
       globalThis.requestAnimationFrame = previousRaf;
       globalThis.cancelAnimationFrame = previousCancel;

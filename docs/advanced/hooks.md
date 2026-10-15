@@ -125,7 +125,7 @@ These are the engine lifecycle events you can subscribe to. All fire automatical
 | `engine:start` | `() => void` | `engine.start()` called; RAF loop begins |
 | `engine:stop` | `() => void` | `engine.stop()` called; cleanup begins |
 | `engine:tick` | `(dt: number) => void` | Each frame begins (dt in milliseconds) |
-| `engine:afterTick` | `(dt: number) => void` | Each frame completes (after render phase) |
+| `engine:afterTick` | `(dt: number) => void` | After each simulation step. After render when `physicsHz` is 0. Before the display render in fixed mode. |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | Frame loop catches an unhandled error |
 | `entity:spawn` | `(id: EntityId) => void` | Entity created |
 | `entity:destroy` | `(id: EntityId) => void` | Entity removed |

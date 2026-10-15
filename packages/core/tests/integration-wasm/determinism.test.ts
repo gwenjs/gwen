@@ -215,7 +215,7 @@ async function runWorld(variant: CoreVariant, inputs: readonly number[]): Promis
 
     await advance(STEPS, DT);
     expect(step).toBe(STEPS);
-    // `physicsHz` is stored but `advance(dt)` ignores it until #79. This is the variable-dt path at dt = 1/60.
+    // `advance(1/60)` at `physicsHz` 60 runs one fixed step per call.
     expect(engine.physicsHz).toBe(60);
     if (startY !== undefined && probe !== undefined && physics !== null) {
       const endY = physics(probe)[1];

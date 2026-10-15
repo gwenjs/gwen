@@ -42,6 +42,7 @@ import type {
   GwenWasmModules,
   GwenPlugin,
   EngineStats,
+  EngineFrame,
   GwenEngineState,
   GwenEngine,
 } from "./engine-types.js";
@@ -83,6 +84,10 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
 
   get memory(): EngineMemory {
     return this._memory;
+  }
+
+  get frame(): EngineFrame {
+    return this._loop.frame;
   }
 
   get state(): GwenEngineState {
@@ -191,6 +196,7 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     this._loop.markStart();
     await this._beginStart();
     if (this._stateMachine.state !== "running") return;
+    this._loop.armFixedStep();
     this._loop.startScheduled();
   }
 
@@ -281,6 +287,8 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     if (state !== "idle") throw new GwenEngineStateError(state, "startExternal");
     this._policy.attach();
     await this._beginStart();
+    if (this._stateMachine.state !== "running") return;
+    this._loop.armFixedStep();
     // Intentionally skip RAF — the caller drives the loop via advance().
   }
 

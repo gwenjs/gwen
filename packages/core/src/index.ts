@@ -67,6 +67,7 @@ export type {
   GwenWasmModules,
   GwenEngineOptions,
   EngineStats,
+  EngineFrame,
   EngineFramePhaseMs,
   WasmModuleHandle,
   WasmModuleOptions,

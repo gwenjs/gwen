@@ -108,7 +108,7 @@ Enregistrez les callbacks dans la phase correcte selon votre cas d'usage :
 | `onBeforeUpdate(fn)` | Avant physique/WASM | Lecture des entrées, pré-simulation |
 | `onUpdate(fn)` | Mise à jour principale | Logique de jeu, IA, mouvement |
 | `onAfterUpdate(fn)` | Post-mise à jour | Synchronisation d'état, score |
-| `onRender(fn)` | Rendu | Appels de dessin (pas de `dt`) |
+| `onRender(fn)` | Rendu | Appels de dessin. Reçoit le facteur d'interpolation `alpha`, pas un delta |
 
 ```ts
 export const InputSystem = defineSystem(() => {

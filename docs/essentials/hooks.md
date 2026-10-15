@@ -115,11 +115,11 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `engine:stop` | — | Once, on engine teardown |
 | `engine:state-change` | `{ from, to, reason }` | Once per real lifecycle transition |
 | `engine:tick` | `dt: number` | Every frame start |
-| `engine:afterTick` | `dt: number` | Every frame end |
+| `engine:afterTick` | `dt: number` | After each simulation step |
 | `engine:before-update` | `dt: number` | Before physics |
 | `engine:update` | `dt: number` | Main update phase |
 | `engine:after-update` | `dt: number` | After update phase |
-| `engine:render` | — | Render phase |
+| `engine:render` | `alpha: number` | Once per display frame |
 | `entity:spawn` | `id: EntityId` | Entity created |
 | `entity:destroy` | `id: EntityId` | Entity destroyed |
 | `scene:enter` | `name, params?` | Scene activated |
