@@ -60,6 +60,14 @@ pub enum InvalidColliderReason {
     TooLarge,
 }
 
+/// Why a joint export refuses a numeric parameter before it reaches Rapier.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum InvalidJointReason {
+    /// An anchor, axis, rest length, stiffness, damping, motor target, motor velocity or motor
+    /// force is NaN or infinite, or a joint limit is NaN.
+    NonFinite,
+}
+
 /// Why `physics3d_find_path_3d` refuses a request before it searches.
 ///
 /// The numeric bound is
@@ -173,6 +181,11 @@ pub enum Physics3DError {
         /// Which check refused the parameter.
         reason: InvalidColliderReason,
     },
+    /// A joint numeric parameter was refused before reaching Rapier.
+    InvalidJoint {
+        /// Which check refused the parameter.
+        reason: InvalidJointReason,
+    },
     /// A physics3d bulk export is forwarding a core bulk failure.
     Core(CoreError),
 }
@@ -201,6 +214,7 @@ impl Physics3DError {
             Self::InvalidNavGrid { .. } => "PHYSICS3D:INVALID_NAVGRID",
             Self::InvalidPathRequest { .. } => "PHYSICS3D:INVALID_PATH_REQUEST",
             Self::InvalidCollider { .. } => "PHYSICS3D:INVALID_COLLIDER",
+            Self::InvalidJoint { .. } => "PHYSICS3D:INVALID_JOINT",
             Self::Core(inner) => inner.code(),
         }
     }
@@ -314,6 +328,11 @@ impl fmt::Display for Physics3DError {
                 }
                 InvalidColliderReason::TooLarge => {
                     write!(f, "collider refused: a value is larger than the accepted magnitude")
+                }
+            },
+            Self::InvalidJoint { reason } => match reason {
+                InvalidJointReason::NonFinite => {
+                    write!(f, "joint refused: a value is not finite")
                 }
             },
             Self::Core(inner) => write!(f, "{inner}"),
