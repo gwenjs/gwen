@@ -13,7 +13,7 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Mutex;
 
 use gwen_core::ecs::{ArchetypeColumn, ArchetypeStorage, ComponentTypeId};
@@ -157,4 +157,32 @@ fn variable_size_swap_remove_of_a_middle_row_allocates_nothing() {
     assert_eq!(allocations, 0);
     assert_eq!(column.get(0), b"cccc");
     assert_eq!(column.get(1), b"bb");
+}
+
+#[test]
+fn allocations_on_other_threads_are_not_counted() {
+    let _guard = hold_lock();
+    let running = AtomicBool::new(true);
+    let measured = std::thread::scope(|scope| {
+        let worker = scope.spawn(|| {
+            let mut kept = 0usize;
+            while running.load(Ordering::Relaxed) {
+                let block = vec![0u8; 64];
+                kept = kept.wrapping_add(block.len());
+                drop(block);
+            }
+            kept
+        });
+        let measured = allocs_during(|| {
+            let mut sum = 0u64;
+            for n in 0..20_000_000u64 {
+                sum = sum.wrapping_add(n);
+            }
+            std::hint::black_box(sum);
+        });
+        running.store(false, Ordering::Relaxed);
+        let _ = worker.join();
+        measured
+    });
+    assert_eq!(measured, 0);
 }
