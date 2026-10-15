@@ -58,7 +58,11 @@ declare module "@gwenjs/schema" {
     "plugin:registered": (pluginName: string) => void;
     /** Fired at the start of every tick, before any phase runs. */
     "engine:tick": (dt: number) => void;
-    /** Fired at the end of every tick, after the render phase. */
+    /**
+     * Fired after each simulation step.
+     * In the variable loop this is after `engine:render`.
+     * In fixed mode it is before the display frame's render.
+     */
     "engine:afterTick": (dt: number) => void;
     /** Fired when a new entity is created. */
     "entity:spawn": (id: EntityId) => void;
@@ -72,8 +76,12 @@ declare module "@gwenjs/schema" {
     "engine:update": (dt: number) => void;
     /** Fired at Phase 7a of the frame loop — after update. Replaces plugin.onAfterUpdate(). */
     "engine:after-update": (dt: number) => void;
-    /** Fired at Phase 7b of the frame loop — render pass. Replaces plugin.onRender(). */
-    "engine:render": () => void;
+    /**
+     * Fired once per display frame.
+     * `alpha` is `1` when `physicsHz` is `0`.
+     * In fixed mode it is the leftover fraction of a step, in `[0, 1)`.
+     */
+    "engine:render": (alpha: number) => void;
     /**
      * Fired when gwen-core linear memory grew, before the next frame phase.
      * `epoch` is the new per-engine epoch.

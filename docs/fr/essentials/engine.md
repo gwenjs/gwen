@@ -165,11 +165,12 @@ export default defineConfig({
 ```
 
 Le pattern accumulateur :
-1. À chaque frame réelle, le temps écoulé s'accumule.
-2. Pour chaque `1 / physicsHz` secondes accumulées, un pas de simulation est déclenché.
-3. Si la machine prend du retard, `maxCatchupSteps` évite une spirale de rattrapage.
+1. À chaque frame d'affichage, le temps écoulé s'accumule. `advance(dt)` ajoute `dt` au même accumulateur.
+2. Pour chaque `1 / physicsHz` secondes accumulées, un pas de simulation est déclenché, jusqu'à `maxCatchupSteps`.
+3. Les pas entiers encore présents après ce plafond sont abandonnés.
+4. Un seul `engine:render(alpha)` suit ces pas, y compris quand aucun pas n'a tourné. `alpha` est la fraction de pas restante, dans `[0, 1)`, et ignore `timeScale`.
 
-`engine.timeScale` s'applique toujours : un `timeScale` de `0.5` divise par deux la vitesse de simulation effective.
+`engine.timeScale` ne multiplie que le `dt` du pas. Un `timeScale` de `0.5` divise par deux la vitesse de simulation et laisse `alpha` inchangé.
 
 ::: info Déterminisme
 Avec `physicsHz > 0`, chaque pas de simulation s'exécute avec le même `dt`. Deux exécutions atteignent le même état du monde lorsque chaque pas fixe reçoit les mêmes entrées dans le même ordre, en partant de la même configuration, sur la même version de GWEN, la même variante WASM et le même navigateur ou runtime. Pour contrôler les pas exactement, pilotez la boucle vous-même avec `engine.advance(1 / physicsHz)`. GWEN 1.0 ne garantit pas le déterminisme entre navigateurs, systèmes d'exploitation ou processeurs, et n'en donne aucune pour la boucle à delta variable (`physicsHz: 0`). Lire `performance.now()`, `Date.now()` ou `Math.random()` dans un système casse la reproductibilité. GWEN 1.0 n'a pas de snapshot du monde ni de sauvegarde/restauration intégrés.
@@ -181,8 +182,8 @@ Le jeu en réseau ne fait pas partie de GWEN 1.0. Le transport, la prédiction e
 Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code actuel.
 
 1. Cible (#89) : le moteur démarre dans Node sans globaux DOM, depuis des octets ou un module compilé, pour les variantes light, 2D et 3D.
-2. Cible (#79) : `startExternal()` plus un `advance(1 / physicsHz)` exécute un pas fixe. `engine:afterTick` s'exécute une fois par pas, et `frameCount` compte ces pas. Jusqu'à #79, `advance(dt)` utilise le `dt` de l'appelant et ignore `physicsHz`.
-3. Sur le chemin `advance`, le `dt` de simulation est la valeur passée par l'appelant, plafonnée par `maxDeltaSeconds` et multipliée par `timeScale`. Il ne vient pas de l'horloge murale.
+2. `startExternal()` plus un `advance(1 / physicsHz)` exécute un pas fixe et un rendu. `engine:afterTick` s'exécute une fois par pas, et `frameCount` compte ces pas. `advance(dt)` accumule sur la même horloge que `start()`.
+3. Avec `physicsHz === 0`, `advance(dt)` exécute un pas. Son `dt` est la valeur de l'appelant, plafonnée par `maxDeltaSeconds` et multipliée par `timeScale`. Il ne vient pas de l'horloge murale. Avec `physicsHz > 0`, la valeur plafonnée est ajoutée à l'accumulateur et chaque pas utilise `1 / physicsHz` multiplié par `timeScale`.
 4. Cible (#59) : plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution, et `stop()` sur un moteur laisse les autres tourner. Jusqu'à #59, `stop()` efface chaque clé `__gwenGlue_*` de `globalThis`.
 5. Une erreur fatale ne fait passer que ce moteur à `faulted`.
 6. Les gestionnaires d'erreur globaux sont optionnels. Le cœur n'en installe aucun sauf si `window` existe.

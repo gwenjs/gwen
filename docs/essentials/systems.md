@@ -108,7 +108,7 @@ Register callbacks in the correct phase for your use case:
 | `onBeforeUpdate(fn)` | Before physics/WASM | Input sampling, pre-simulation |
 | `onUpdate(fn)` | Main update | Game logic, AI, movement |
 | `onAfterUpdate(fn)` | Post-update | State sync, scoring |
-| `onRender(fn)` | Render | Draw calls (no `dt`) |
+| `onRender(fn)` | Render | Draw calls. Receives the interpolation factor `alpha`, not a delta time |
 
 ```ts
 export const InputSystem = defineSystem(() => {

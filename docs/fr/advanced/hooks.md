@@ -124,7 +124,7 @@ Ce sont les événements du cycle de vie du moteur auxquels vous pouvez vous abo
 | `engine:start` | `() => void` | `engine.start()` appelé ; la boucle RAF commence |
 | `engine:stop` | `() => void` | `engine.stop()` appelé ; le nettoyage commence |
 | `engine:tick` | `(dt: number) => void` | Chaque frame commence (dt en millisecondes) |
-| `engine:afterTick` | `(dt: number) => void` | Chaque frame se termine (après la phase de rendu) |
+| `engine:afterTick` | `(dt: number) => void` | Après chaque pas de simulation. Après le rendu quand `physicsHz` vaut 0. Avant le rendu d'affichage en mode fixe. |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | La boucle de frames capture une erreur non gérée |
 | `entity:spawn` | `(id: EntityId) => void` | Entité créée |
 | `entity:destroy` | `(id: EntityId) => void` | Entité supprimée |

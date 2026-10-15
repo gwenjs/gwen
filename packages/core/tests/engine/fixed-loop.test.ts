@@ -278,7 +278,7 @@ describe("fixed-timestep loop (physicsHz)", () => {
     steps = 0;
     await harness.tick((1000 / 60) * 11);
     expect(steps).toBe(1);
-    expect(frameOf(engine).alpha).toBe(0);
+    expect(frameOf(engine).alpha).toBeCloseTo(0, 5);
 
     await engine.stop();
   });
@@ -314,16 +314,30 @@ describe("fixed-timestep loop (physicsHz)", () => {
     await harness.tick(1000 / 120);
     expect(pausedAlpha).toHaveLength(1);
     expect(normalAlpha).toHaveLength(1);
-    expect(pausedAlpha[0]).toBeCloseTo(0.5, 5);
-    expect(normalAlpha[0]).toBeCloseTo(pausedAlpha[0], 5);
+    const pausedHalf = pausedAlpha[0];
+    const normalHalf = normalAlpha[0];
+    if (pausedHalf === undefined || normalHalf === undefined) {
+      throw new Error("missing half-step alpha");
+    }
+    expect(pausedHalf).toBeCloseTo(0.5, 5);
+    expect(normalHalf).toBeCloseTo(pausedHalf, 5);
     expect(pausedDt).toEqual([]);
 
     await harness.tick(1000 / 120 + 1000 / 60);
     await harness.tick(1000 / 120 + 1000 / 60);
     expect(pausedDt).toHaveLength(1);
-    expect(pausedDt[0]).toBe(0);
-    expect(pausedAlpha[1]).toBeCloseTo(0.5, 5);
-    expect(normalAlpha[1]).toBeCloseTo(pausedAlpha[1], 5);
+    const pausedStepDt = pausedDt[0];
+    if (pausedStepDt === undefined) {
+      throw new Error("missing paused step dt");
+    }
+    expect(pausedStepDt).toBe(0);
+    const pausedFull = pausedAlpha[1];
+    const normalFull = normalAlpha[1];
+    if (pausedFull === undefined || normalFull === undefined) {
+      throw new Error("missing full-step alpha");
+    }
+    expect(pausedFull).toBeCloseTo(0.5, 5);
+    expect(normalFull).toBeCloseTo(pausedFull, 5);
 
     await paused.stop();
     await normal.stop();

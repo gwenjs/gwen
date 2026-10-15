@@ -304,13 +304,14 @@ export interface GwenEngineOptions {
   /**
    * Fixed-timestep simulation rate in Hz.
    *
-   * When non-zero, `engine.start()` switches from a variable-dt loop to a
-   * fixed-step accumulator loop. Each real frame accumulates elapsed time and
-   * dispatches as many fixed-dt steps as needed to consume it.
+   * When non-zero, `start()` and `startExternal()` capture `1 / physicsHz` and
+   * share one accumulator. Each display frame, from the scheduled loop or from
+   * `advance(dt)`, runs 0 to `maxCatchupSteps` fixed steps and then one
+   * `engine:render(alpha)`. `onUpdate` receives `1 / physicsHz`, scaled by
+   * `timeScale`. `alpha` is the leftover fraction of a step and ignores
+   * `timeScale`.
    *
-   * Set this to your physics simulation rate (e.g. `60` for 60 Hz). Systems
-   * registered with `onUpdate` receive `1 / physicsHz` as `dt` regardless of
-   * actual frame pacing.
+   * `0` keeps the variable loop: one step per display frame and `engine:render(1)`.
    *
    * The 1.0 reproducibility statement for these fixed steps is the Determinism note in the engine essentials.
    *
@@ -320,11 +321,11 @@ export interface GwenEngineOptions {
   physicsHz?: number;
 
   /**
-   * Maximum number of fixed simulation steps dispatched in a single real frame.
+   * Maximum number of fixed simulation steps dispatched in a single display frame.
    *
    * Prevents the spiral-of-death: if the machine falls behind (e.g. tab
-   * hidden), accumulated time is capped so the engine does not attempt to
-   * catch up indefinitely.
+   * hidden), the frame runs at most this many steps. Whole steps still left
+   * in the accumulator are dropped.
    *
    * @default 2
    * @see physicsHz
@@ -370,11 +371,31 @@ export interface GwenProvides {
 }
 
 /**
+ * Interpolation state for the display frame currently running.
+ * The same object is returned for the life of the engine.
+ */
+export interface EngineFrame {
+  /** Value passed to the latest `engine:render`. `1` before the first render. */
+  alpha: number;
+  /** `true` after `start()` or `startExternal()` captured `physicsHz > 0`. */
+  fixedStep: boolean;
+  /**
+   * Fixed steps run in the current display frame, from 0 to `maxCatchupSteps`.
+   * `1` after a variable (`physicsHz === 0`) frame.
+   */
+  steps: number;
+  /** `true` only while `engine:render` handlers run. */
+  rendering: boolean;
+  /** History views. `null` until a later change installs them. */
+  readonly transforms2D: null;
+}
+
+/**
  * Per-phase timing for one display frame, in milliseconds.
  * Measured with `performance.now()` around each phase of `_runFrame`.
  * With `physicsHz > 0`, each field is the sum of the simulation steps in that
- * display frame. `render` still runs once per step, so it is the sum of those
- * passes until one render per display frame lands. `total` covers those steps.
+ * display frame. `render` is the single render pass. `total` covers the steps
+ * and that pass.
  */
 export interface EngineFramePhaseMs {
   /** Duration of the `engine:tick` hook. */
@@ -385,11 +406,11 @@ export interface EngineFramePhaseMs {
   wasm: number;
   /** `update_transforms` and the `engine:update` hook. */
   update: number;
-  /** `engine:after-update` and `engine:render`. */
+  /** `engine:after-update`, plus the display frame's `engine:render` pass. */
   render: number;
   /** Duration of the `engine:afterTick` hook. */
   afterTick: number;
-  /** Whole `_runFrame`. In fixed mode, the summed steps of the display frame. */
+  /** Steps of this display frame, including its render pass. */
   total: number;
 }
 
@@ -509,6 +530,12 @@ export interface GwenEngine extends GwenEngineBase {
 
   /** Linear-memory views. Always present. Same object as `inject("memory")`. */
   readonly memory: EngineMemory;
+
+  /**
+   * Display-frame state. One object for the life of the engine.
+   * `transforms2D` stays `null` until history views are installed.
+   */
+  readonly frame: EngineFrame;
 
   // ─── Context ─────────────────────────────────────────────────────────────
   run<T>(fn: () => T): T;

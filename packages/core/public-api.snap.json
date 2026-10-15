@@ -48,6 +48,7 @@
       "EngineConfig",
       "EngineErrorBus",
       "EngineErrorPayload",
+      "EngineFrame",
       "EngineFramePhaseMs",
       "EngineLocal",
       "EngineState",

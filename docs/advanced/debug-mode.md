@@ -120,7 +120,7 @@ if (p) {
 }
 ```
 
-With `physicsHz > 0`, one display frame can run several simulation steps. `getStats()` adds those steps into each `phaseMs` field. `total` covers those steps. `frameCount` counts the steps. `engine:render` still runs once per step, so `phaseMs.render` is the sum of those passes.
+With `physicsHz > 0`, one display frame can run several simulation steps. `getStats()` adds those steps into each `phaseMs` field. `total` covers the steps and the render pass. `frameCount` counts the steps. `engine:render` runs once per display frame, so `phaseMs.render` includes that single pass.
 
 > **Note:** Use `engine.getStats()` — not `engine.stats`. It is a method call.
 

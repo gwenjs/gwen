@@ -7,12 +7,21 @@ import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 import { popEngine, pushEngine } from "./engine-local.js";
 import { isThenable } from "./error-isolation.js";
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
-import type { EngineFramePhaseMs, GwenEngine } from "./engine-types.js";
+import type { EngineFrame, EngineFramePhaseMs, GwenEngine } from "./engine-types.js";
 import type { EngineErrorPolicy } from "./engine-error-policy.js";
 import type { EngineMemory } from "./engine-memory.js";
 import type { EngineStateMachine } from "./engine-state.js";
 import type { EngineStatsRecorder } from "./engine-stats.js";
 import { cancelScheduledFrame, scheduleFrame } from "./frame-scheduler.js";
+import {
+  armFixedStepState,
+  commitFixedStepHistory,
+  createFixedStepState,
+  emitEngineRender,
+  runFixedDisplay,
+  type DisplayTiming,
+} from "./fixed-display.js";
+import { recordPhaseBudget } from "./phase-budget.js";
 
 /**
  * Mutable engine knobs. Read on each frame. Never copied into the loop.
@@ -30,7 +39,10 @@ export interface EngineLoopConfig {
 export interface EngineLoopBridge {
   checkMemoryGrow(): boolean;
   getLinearMemory(): WebAssembly.Memory | null;
-  engine(): { update_transforms?: () => void };
+  engine(): {
+    update_transforms?: () => void;
+    transform_history_commit?: () => number;
+  };
 }
 
 /** Module stepping used between `engine:before-update` and `update_transforms`. */
@@ -60,16 +72,27 @@ export class EngineLoop {
   private _advancing = false;
   private _rafHandle: number | ReturnType<typeof setTimeout> = 0;
   private _lastFrameTime = 0;
-  private _accumulator = 0;
+  private readonly _fixed = createFixedStepState();
+  private readonly _timing: DisplayTiming = { timed: false, t0: 0 };
   private _lastPhaseMs?: EngineFramePhaseMs;
-  private _sumPhases = false;
-  private _displayTimed = false;
-  private _displayT0 = 0;
 
   constructor(private readonly deps: EngineLoopDeps) {}
 
   get lastPhaseMs(): EngineFramePhaseMs | undefined {
     return this._lastPhaseMs;
+  }
+
+  /** The engine's one display-frame object. */
+  get frame(): EngineFrame {
+    return this._fixed.frame;
+  }
+
+  /**
+   * Capture `fixedDt` and reset the shared accumulator.
+   * With `physicsHz > 0`, seed the history buffers once.
+   */
+  armFixedStep(): void {
+    armFixedStepState(this._fixed, this.deps);
   }
 
   /** Stamp the clock before `engine:init`, so the first raw frame includes that wait. */
@@ -85,9 +108,7 @@ export class EngineLoop {
 
   startScheduled(): void {
     if (this.deps.config.physicsHz) {
-      // Fixed timestep loop — accumulator pattern
-      const fixedDt = 1 / this.deps.config.physicsHz;
-      this._accumulator = 0;
+      this.armFixedStep();
 
       const loop = async (now: number) => {
         if (this.deps.state.state !== "running") return;
@@ -96,31 +117,18 @@ export class EngineLoop {
           const rawSeconds = (now - this._lastFrameTime) / 1000;
           this._lastFrameTime = now;
           this.deps.stats.recordRawFrameTime(rawSeconds);
-          this._accumulator += Math.min(rawSeconds, this.deps.config.maxDeltaSeconds);
-
-          let steps = 0;
-          this._sumPhases = true;
-          this._displayTimed = false;
           try {
-            while (
-              this._accumulator >= fixedDt &&
-              steps < this.deps.config.maxCatchupSteps &&
-              this.deps.state.state === "running"
-            ) {
-              const scaledDt = fixedDt * clamp(this.deps.config.timeScale, 0, 100);
-              this.deps.stats.setDeltaTime(scaledDt);
-              try {
-                await this._runFrame(scaledDt);
-              } catch (err) {
-                this.deps.policy.handleFrameLoopError(err);
-              }
-              if (this.deps.state.state !== "running") break;
-              this._accumulator -= fixedDt;
-              steps++;
-            }
-          } finally {
-            this._sumPhases = false;
-            this._displayTimed = false;
+            await runFixedDisplay(
+              this._fixed,
+              this.deps,
+              rawSeconds,
+              (scaledDt) => this._runFrame(scaledDt, false),
+              () => this._phaseSlot(),
+              this._timing,
+              () => performance.now(),
+            );
+          } catch (err) {
+            this.deps.policy.handleFrameLoopError(err);
           }
         } finally {
           if (this.deps.state.state === "running") this._rafHandle = scheduleFrame(loop);
@@ -170,12 +178,30 @@ export class EngineLoop {
     }
     this._advancing = true;
     this.deps.stats.recordRawFrameTime(dt);
+    if (this._fixed.fixedDt > 0) {
+      try {
+        await runFixedDisplay(
+          this._fixed,
+          this.deps,
+          dt,
+          (scaledDt) => this._runFrame(scaledDt, false),
+          () => this._phaseSlot(),
+          this._timing,
+          () => performance.now(),
+        );
+      } catch (err) {
+        this.deps.policy.handleFrameLoopError(err);
+      } finally {
+        this._advancing = false;
+      }
+      return;
+    }
     // Cap dt at maxDeltaSeconds to prevent spiral-of-death after tab suspension.
     const cappedDt =
       Math.min(dt, this.deps.config.maxDeltaSeconds) * clamp(this.deps.config.timeScale, 0, 100);
     this.deps.stats.setDeltaTime(cappedDt);
     try {
-      await this._runFrame(cappedDt);
+      await this._runFrame(cappedDt, true);
     } catch (err) {
       this.deps.policy.handleFrameLoopError(err);
     } finally {
@@ -205,17 +231,6 @@ export class EngineLoop {
     return result.then(undefined, (error: unknown) => {
       this.deps.policy.reportCaught(error, hook);
     });
-  }
-
-  private _guardHook0(hook: "engine:render"): unknown {
-    let result: unknown;
-    try {
-      result = this.deps.hooks.callHook(hook);
-    } catch (error) {
-      this.deps.policy.reportCaught(error, hook);
-      return undefined;
-    }
-    return this._settleHook(hook, result);
   }
 
   private _guardHook1(
@@ -272,7 +287,7 @@ export class EngineLoop {
     this.deps.policy.reportMemoryGrow(error, frame);
   }
 
-  private async _runFrame(dt: number): Promise<void> {
+  private async _runFrame(dt: number, includeRender = true): Promise<void> {
     // Phases start with this engine current. Each hook handler re-asserts it
     // before it runs. After an await, the continuation keeps this engine only
     // when no other engine has run. `finally` restores the engine found on
@@ -343,6 +358,7 @@ export class EngineLoop {
           message: `update_transforms failed: ${detail}`,
         });
       }
+      if (!includeRender) commitFixedStepHistory(this.deps);
 
       // Phase 5 — emit update hook
       if (this.deps.state.isFaulted()) return;
@@ -366,9 +382,15 @@ export class EngineLoop {
       if (isThenable(afterDone)) await afterDone;
       if (this.deps.state.isFaulted()) return;
 
-      // Phase 6b — emit render hook
-      const renderDone = this._guardHook0("engine:render");
-      if (isThenable(renderDone)) await renderDone;
+      // Phase 6b — variable loop only. Fixed mode renders once after the steps.
+      if (includeRender) {
+        this._fixed.frame.steps = 1;
+        this._fixed.frame.alpha = 1;
+        this._fixed.frame.rendering = true;
+        const renderDone = emitEngineRender(this.deps, 1);
+        if (isThenable(renderDone)) await renderDone;
+        this._fixed.frame.rendering = false;
+      }
       if (instrument) t7 = performance.now();
 
       // Phase 7 — update stats, then fire engine:afterTick hook
@@ -384,83 +406,27 @@ export class EngineLoop {
       if (instrument) t8 = performance.now();
 
       if (instrument) {
-        const tick = t2 - t1;
-        const plugins = t3 - t2;
-        const wasm = t5 - t3;
-        const update = t6 - t5;
-        const render = t7 - t6;
-        const afterTick = t8 - t7;
-        const slot = this._phaseSlot();
-        if (this._sumPhases && this._displayTimed) {
-          slot.tick += tick;
-          slot.plugins += plugins;
-          slot.wasm += wasm;
-          slot.update += update;
-          slot.render += render;
-          slot.afterTick += afterTick;
-          slot.total = t8 - this._displayT0;
-        } else {
-          slot.tick = tick;
-          slot.plugins = plugins;
-          slot.wasm = wasm;
-          slot.update = update;
-          slot.render = render;
-          slot.afterTick = afterTick;
-          slot.total = t8 - t0;
-          if (this._sumPhases) {
-            this._displayTimed = true;
-            this._displayT0 = t0;
-          }
-        }
-        const budget = 1000 / this.deps.config.targetFPS;
-        if (tick > budget * 0.5) {
-          this.deps.logger.warn(`phase "tick" exceeded 50% of frame budget`, {
-            phase: "tick",
-            ms: tick.toFixed(2),
-            budgetMs: budget.toFixed(2),
+        const next = recordPhaseBudget(
+          this._phaseSlot(),
+          {
+            sumPhases: this._fixed.sumPhases,
+            displayTimed: this._timing.timed,
+            displayT0: this._timing.t0,
+            t0,
+            t1,
+            t2,
+            t3,
+            t5,
+            t6,
+            t7,
+            t8,
+            targetFPS: this.deps.config.targetFPS,
             frame: this.deps.stats.frameCount,
-          });
-        }
-        if (plugins > budget * 0.5) {
-          this.deps.logger.warn(`phase "plugins" exceeded 50% of frame budget`, {
-            phase: "plugins",
-            ms: plugins.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this.deps.stats.frameCount,
-          });
-        }
-        if (wasm > budget * 0.5) {
-          this.deps.logger.warn(`phase "wasm" exceeded 50% of frame budget`, {
-            phase: "wasm",
-            ms: wasm.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this.deps.stats.frameCount,
-          });
-        }
-        if (update > budget * 0.5) {
-          this.deps.logger.warn(`phase "update" exceeded 50% of frame budget`, {
-            phase: "update",
-            ms: update.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this.deps.stats.frameCount,
-          });
-        }
-        if (render > budget * 0.5) {
-          this.deps.logger.warn(`phase "render" exceeded 50% of frame budget`, {
-            phase: "render",
-            ms: render.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this.deps.stats.frameCount,
-          });
-        }
-        if (afterTick > budget * 0.5) {
-          this.deps.logger.warn(`phase "afterTick" exceeded 50% of frame budget`, {
-            phase: "afterTick",
-            ms: afterTick.toFixed(2),
-            budgetMs: budget.toFixed(2),
-            frame: this.deps.stats.frameCount,
-          });
-        }
+          },
+          this.deps.logger,
+        );
+        this._timing.timed = next.displayTimed;
+        this._timing.t0 = next.displayT0;
       }
     } finally {
       popEngine(this.deps.owner, previousEngine);

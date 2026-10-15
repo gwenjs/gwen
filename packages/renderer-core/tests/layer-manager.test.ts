@@ -372,7 +372,7 @@ describe("LayerManager", () => {
       const wired = getOrCreateLayerManager(engine, root);
       wired.register(service);
       wired.mount();
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls).toHaveLength(1);
       const first = calls[0];
       expect(first?.alpha).toBe(1);
@@ -394,7 +394,7 @@ describe("LayerManager", () => {
         Array.from(expected.projectionMatrix),
       );
 
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls).toHaveLength(2);
     } finally {
       await engine.stop();
@@ -414,14 +414,14 @@ describe("LayerManager", () => {
       const wired = getOrCreateLayerManager(engine, root);
       wired.register(early);
       wired.mount();
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls.early).toBe(1);
       wired.register(late);
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls.early).toBe(2);
       expect(calls.late).toBe(0);
       wired.mount();
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls.late).toBe(1);
     } finally {
       await engine.stop();
@@ -438,10 +438,10 @@ describe("LayerManager", () => {
       const wired = getOrCreateLayerManager(engine, root);
       wired.register(service);
       wired.mount();
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls).toBe(1);
       wired.dispose();
-      await engine.hooks.callHook("engine:render");
+      await engine.hooks.callHook("engine:render", 1);
       expect(calls).toBe(1);
     } finally {
       await engine.stop();

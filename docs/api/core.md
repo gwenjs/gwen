@@ -559,10 +559,10 @@ function onAfterUpdate(cb: () => void): void
 
 **Signature:**
 ```ts
-function onRender(cb: () => void): void
+function onRender(cb: (alpha: number) => void): void
 ```
 
-**Description.** Registers a callback to run during the render phase.
+**Description.** Registers a callback to run once per display frame. `alpha` is `1` when `physicsHz` is `0`, and the leftover fraction of a fixed step otherwise.
 
 **Returns:** `void`
 

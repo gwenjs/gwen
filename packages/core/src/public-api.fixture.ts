@@ -23,6 +23,7 @@ type _0 = [
   Root.EngineConfig,
   Root.EngineErrorBus,
   Root.EngineErrorPayload,
+  Root.EngineFrame,
   Root.EngineFramePhaseMs,
   Root.EngineState,
   Root.EngineStateChange,

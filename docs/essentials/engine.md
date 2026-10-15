@@ -165,11 +165,12 @@ export default defineConfig({
 ```
 
 The accumulator pattern:
-1. Each real frame, elapsed time accumulates.
-2. For each `1 / physicsHz` seconds accumulated, one simulation step fires.
-3. If the machine falls behind, `maxCatchupSteps` prevents a runaway catch-up spiral.
+1. Each display frame, elapsed time accumulates. `advance(dt)` adds `dt` to the same accumulator.
+2. For each `1 / physicsHz` seconds accumulated, one simulation step fires, up to `maxCatchupSteps`.
+3. Whole steps still left after that cap are dropped.
+4. One `engine:render(alpha)` runs after those steps, including when no step ran. `alpha` is the leftover fraction of a step, in `[0, 1)`, and ignores `timeScale`.
 
-`engine.timeScale` still applies: a `timeScale` of `0.5` halves the effective simulation speed.
+`engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged.
 
 ::: info Determinism
 With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs reach the same world state when every fixed step receives the same inputs in the same order, starting from the same configuration, on the same GWEN version, WASM variant and browser or runtime. To control steps exactly, drive the loop yourself with `engine.advance(1 / physicsHz)`. GWEN 1.0 makes no determinism guarantee across browsers, operating systems or CPUs, and none for the variable-dt loop (`physicsHz: 0`). Reading `performance.now()`, `Date.now()` or `Math.random()` inside a system breaks reproducibility. GWEN 1.0 has no built-in world snapshot or save/restore.
@@ -181,8 +182,8 @@ Networked play is not part of GWEN 1.0. Transport, prediction, and interest mana
 These are 1.0 targets. A line marked Target is not true on this tree.
 
 1. Target (#89): the engine starts in Node with no DOM globals, from bytes or a compiled module, for the light, 2D, and 3D variants.
-2. Target (#79): `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step. `engine:afterTick` runs once per step, and `frameCount` counts those steps. Until #79, `advance(dt)` uses the caller `dt` and ignores `physicsHz`.
-3. On the `advance` path, simulation `dt` is the value the caller passes, capped by `maxDeltaSeconds` and scaled by `timeScale`. It does not come from the wall clock.
+2. `startExternal()` plus one `advance(1 / physicsHz)` runs one fixed step and one render. `engine:afterTick` runs once per step, and `frameCount` counts those steps. `advance(dt)` accumulates on the same clock as `start()`.
+3. With `physicsHz === 0`, `advance(dt)` runs one step. Its `dt` is the caller value, capped by `maxDeltaSeconds` and scaled by `timeScale`, and it does not come from the wall clock. With `physicsHz > 0`, the capped caller value is added to the accumulator and each step uses `1 / physicsHz` scaled by `timeScale`.
 4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. Until #59, `stop()` deletes every `__gwenGlue_*` key on `globalThis`.
 5. A fatal error moves only that engine to `faulted`.
 6. Global error handlers are optional. Core installs none unless `window` exists.
