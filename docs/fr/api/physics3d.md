@@ -361,6 +361,8 @@ try {
 
 `findPath3D` fait exception : sans grille de navigation envoyée, elle renvoie un tableau vide au lieu de lever `NAVGRID_NOT_INITIALIZED`.
 
+**Limite connue (issue #218) :** avec le backend WASM, `initNavGrid3D` n'envoie pas encore la grille, donc `findPath3D` renvoie toujours un tableau vide. La recherche de chemin ne fonctionne qu'avec le backend local tant que #218 n'est pas corrigée.
+
 Une lecture groupée dont le pointeur de sortie n'est pas un tampon partagé actif lève `CORE:INVALID_SHARED_BUFFER`.
 
 ## Intégration Vite
