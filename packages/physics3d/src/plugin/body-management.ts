@@ -12,7 +12,7 @@ import type {
 } from "../types";
 import type { Physics3DColliderOptions } from "../types";
 import type { PluginContext } from "./plugin-context";
-import { callPhysics3DExport } from "./wasm-errors";
+import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
 import { entitySlot, guardAlive, guardOwned, noteOwnerChange, ownedSlot } from "./entity-owner";
 import { vec3, quat, kindToU8, kindFromU8, parseBodyState, cloneState } from "./physics3d-utils";
 
@@ -280,9 +280,30 @@ function applyWasmBodyOptions(
   }
 }
 
+/**
+ * Free the Rust controller slot of a body and its registry entry. No registration: no call.
+ * CHARACTER_CONTROLLER_NOT_FOUND means Rust already lost it: the registry entry is dropped
+ * anyway. Any other rejection is thrown and the registration stays.
+ */
+function releaseCharacterControllerWasm(ctx: PluginContext, slot: number): void {
+  if (!ctx.ccRegistrations.has(slot)) return;
+  try {
+    callPhysics3DExport(ctx, "physics3d_remove_character_controller", () =>
+      ctx.wasmBridge?.physics3d_remove_character_controller?.(slot),
+    );
+  } catch (err: unknown) {
+    if (!hasPhysics3DCode(err, "PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND")) throw err;
+  }
+  ctx.ccRegistrations.delete(slot);
+}
+
 export function removeBodyWasm(ctx: PluginContext, entityId: Physics3DEntityId): boolean {
   const slot = entitySlot(entityId);
   if (!ctx.bodyByEntity.has(slot)) return false;
+  // Rust `remove_body` does not free the controller slot. Release it first: a controller
+  // needs its body (`character_controller_move` answers BODY_NOT_FOUND without one), and a
+  // rejected release then leaves body and registry untouched, so the caller can retry.
+  releaseCharacterControllerWasm(ctx, slot);
   callPhysics3DExport(ctx, "physics3d_remove_body", () =>
     ctx.wasmBridge!.physics3d_remove_body!(slot),
   );

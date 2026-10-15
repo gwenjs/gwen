@@ -361,6 +361,8 @@ try {
 
 `findPath3D` is the one exception: with no navigation grid uploaded it returns an empty array instead of throwing `NAVGRID_NOT_INITIALIZED`.
 
+**Known limit (issue #218):** in the WASM backend `initNavGrid3D` does not upload the grid yet, so `findPath3D` always returns an empty array. Pathfinding works in the local backend only until #218 is fixed.
+
 A bulk read whose output pointer is not a live shared buffer throws `CORE:INVALID_SHARED_BUFFER`.
 
 ## Vite Integration
