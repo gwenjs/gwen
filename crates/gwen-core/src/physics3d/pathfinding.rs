@@ -28,11 +28,50 @@ use std::cell::RefCell;
 
 use wasm_bindgen::prelude::*;
 
+use super::PathRequestReject;
+use super::Physics3DError;
+
 #[cfg(feature = "pathfinding-3d")]
 use pathfinding::prelude::astar;
 
 /// Maximum number of waypoint nodes in one path result.
 pub const MAX_PATH_NODES_3D: usize = 512;
+
+/// Largest cell count [`init_navgrid_3d`] accepts, inclusive: `128 * 128 * 128`.
+///
+/// A grid is `width * height * depth` bytes copied into Rust-owned storage. The worst search
+/// on it is an open grid with a goal outside it: A* visits every cell and finds no route.
+///
+/// The cap was chosen from a native run of that worst search on a full-size grid, the ignored test
+/// `worst_accepted_grid_search` in `tests/physics3d_navgrid_path.rs` (a `128 x 128 x 128` open
+/// grid, cell size 1, goal at `(-5, -5, -5)`):
+///
+/// ```text
+/// cargo test -p gwen-core --features physics3d --test physics3d_navgrid_path --no-run
+/// /usr/bin/time -l target/debug/deps/physics3d_navgrid_path-<hash> --ignored --exact worst_accepted_grid_search
+/// ```
+///
+/// | build | search time | maximum resident set size |
+/// | --- | --- | --- |
+/// | debug | 4.44 s | 266_764_288 bytes |
+/// | release | 0.41 s | 267_026_432 bytes |
+///
+/// The same test binary running one cheap test used 7_585_792 bytes. The difference, about 124
+/// bytes per cell, is the A* state: its visited map and its open list. A scratch run of the same
+/// search on a `256^3` grid (16_777_216 cells, not committed) measured 1_984_004_096 bytes and
+/// 5.58 s in release, about 2 GiB for one query, so the cap stops at `2^21` cells. Times are for
+/// one run on one host and give the order of magnitude, not a guarantee.
+pub const MAX_NAVGRID_CELLS: usize = 2_097_152;
+
+/// Largest cell coordinate [`find_path_checked`] accepts on any axis, inclusive.
+///
+/// Every integer from `-16777216` to `16777216` is an exact `f32`. This bound is `2^24 - 1`, so
+/// the next integer is the first one refused. A cell inside the bound has a 6-neighbour at most
+/// one step outside it, and that step still fits in `i32`: `neighbors6` only adds or subtracts 1.
+/// The Manhattan helper runs on accepted cells. The difference of two such values is at most
+/// `33_554_430`, which fits in `i32` and is not `i32::MIN`, so `.abs()` does not overflow. The
+/// sum of the three absolute differences is at most `100_663_290`, which fits in `i32` and `u32`.
+pub const MAX_PATH_COORD: i32 = 16_777_215;
 
 /// Voxel grid state uploaded by [`init_navgrid_3d`].
 #[derive(Default)]
@@ -86,6 +125,27 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
     PATH_BUFFER_3D.with(|buffer| buffer.as_ptr() as *const f32)
 }
 
+/// Validates the dimensions of a navigation grid and returns its cell count.
+///
+/// # Errors
+/// Returns [`Physics3DError::InvalidNavGrid`] when a dimension is zero, when `width * height *
+/// depth` overflows (`checked_mul`), or when the product is above [`MAX_NAVGRID_CELLS`].
+fn navgrid_cell_count(width: u32, height: u32, depth: u32) -> Result<usize, Physics3DError> {
+    let invalid = Physics3DError::InvalidNavGrid {
+        w: width,
+        h: height,
+        d: depth,
+    };
+    let cells = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|n| n.checked_mul(depth as usize))
+        .ok_or(invalid)?;
+    if cells == 0 || cells > MAX_NAVGRID_CELLS {
+        return Err(invalid);
+    }
+    Ok(cells)
+}
+
 /// Uploads a voxel navigation grid for 3D A* pathfinding.
 ///
 /// # Description
@@ -106,54 +166,58 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 /// * `origin_y`  — World-space Y coordinate of the grid origin.
 /// * `origin_z`  — World-space Z coordinate of the grid origin.
 ///
+/// # Errors
+/// Returns [`Physics3DError::InvalidNavGrid`] when a dimension is zero, when the cell count
+/// overflows, or when it is above [`MAX_NAVGRID_CELLS`]. A refusal does not touch `slot`.
+///
 /// # Safety
 ///
-/// A null pointer or a zero cell count stores no grid and does not read.
-/// Otherwise this function reads `width * height * depth` bytes. The length
-/// is still not checked here. #110 owns the unchecked read.
+/// The dimensions are validated and capped. The pointer is not: it comes from
+/// `__wbindgen_malloc`, which keeps no record this crate can read, so nothing here can tell
+/// whether `ptr` addresses `width * height * depth` readable bytes. The caller must guarantee
+/// it. A null pointer stores no grid and does not read.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
-// SAFETY: a null pointer or a zero cell count stores no grid and does not read.
-// Otherwise this reads `width * height * depth` bytes. The length is still not
-// checked here. #110 owns the unchecked read. [U-024]
+// SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
+// `width * height * depth` bytes, a count that is validated and capped. The pointer's origin is
+// not checked: the caller must pass an address that holds that many bytes. [U-024]
 pub(crate) unsafe fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     cell_size: f32,
     origin_x: f32,
     origin_y: f32,
     origin_z: f32,
-) {
-    let len = width.saturating_mul(height).saturating_mul(depth);
-    if ptr.is_null() || len == 0 {
+) -> Result<(), Physics3DError> {
+    let len = navgrid_cell_count(width, height, depth)?;
+    if ptr.is_null() {
         *slot = None;
-        return;
+        return Ok(());
     }
-    // SAFETY: a null pointer or a zero cell count stores no grid and does not
-    // read (handled above). Otherwise this reads `width * height * depth`
-    // bytes. The length is still not checked here. #110 owns the unchecked
-    // read. [U-025]
+    // SAFETY: the null pointer is handled above and `len` is validated and capped. The caller
+    // guarantees `ptr` addresses `len` readable bytes; the pointer's origin cannot be checked.
+    // [U-025]
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
-        width,
-        height,
-        depth,
+        width: width as usize,
+        height: height as usize,
+        depth: depth as usize,
         cell_size,
         origin_x,
         origin_y,
         origin_z,
     });
+    Ok(())
 }
 
-/// Copy a voxel grid into `slot`. A null pointer or a zero cell count stores
-/// no grid. Any other call reads `width * height * depth` bytes. The length
-/// is still not checked here. #110 owns the unchecked read.
+/// Copy a voxel grid into `slot`. A refused call returns the same error as
+/// [`init_navgrid_3d`]. Any other call reads `width * height * depth` bytes from `ptr`.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
@@ -162,21 +226,21 @@ pub(crate) unsafe fn init_navgrid_3d(
 pub(crate) fn install_navgrid(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
-    width: usize,
-    height: usize,
-    depth: usize,
+    width: u32,
+    height: u32,
+    depth: u32,
     cell_size: f32,
     origin_x: f32,
     origin_y: f32,
     origin_z: f32,
-) {
-    // SAFETY: a null pointer or a zero cell count stores no grid and does not
-    // read. Otherwise this reads `width * height * depth` bytes. The length is
-    // still not checked here. #110 owns the unchecked read. [U-026]
+) -> Result<(), Physics3DError> {
+    // SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
+    // `width * height * depth` bytes, a validated and capped count. The caller of this test
+    // wrapper passes the address of a buffer that holds that many bytes. [U-026]
     unsafe {
         init_navgrid_3d(
             slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,
-        );
+        )
     }
 }
 
@@ -241,6 +305,59 @@ pub(crate) fn find_path_on_grid(
     })
 }
 
+/// Rounded cell coordinate of `world` on one axis. NaN and infinity pass through.
+#[inline]
+fn axis_cell(world: f32, origin: f32, cell_size: f32) -> f32 {
+    ((world - origin) / cell_size).round()
+}
+
+/// Refuses a rounded cell coordinate that is not finite or is past [`MAX_PATH_COORD`].
+fn check_axis_cell(cell: f32) -> Result<(), Physics3DError> {
+    if !cell.is_finite() {
+        return Err(Physics3DError::InvalidPathRequest {
+            reason: PathRequestReject::NonFinite,
+        });
+    }
+    if cell.abs() > MAX_PATH_COORD as f32 {
+        return Err(Physics3DError::InvalidPathRequest {
+            reason: PathRequestReject::CoordOutOfRange,
+        });
+    }
+    Ok(())
+}
+
+/// Find a path on `grid` after checking the grid exists and the request is in range.
+///
+/// The checked request is searched with [`find_path_on_grid`], so an accepted request gives the
+/// same waypoints as before.
+///
+/// # Errors
+/// Returns [`Physics3DError::NavGridNotInitialized`] when `grid` is `None`, and
+/// [`Physics3DError::InvalidPathRequest`] when a rounded cell coordinate of `from` or `to` is
+/// not finite or is past [`MAX_PATH_COORD`]. That covers NaN or infinite coordinates, a zero or
+/// NaN cell size, and a non-finite origin. A refusal does not write the path buffer.
+pub(crate) fn find_path_checked(
+    grid: Option<&NavGrid3D>,
+    from: (f32, f32, f32),
+    to: (f32, f32, f32),
+) -> Result<usize, Physics3DError> {
+    let grid = grid.ok_or(Physics3DError::NavGridNotInitialized)?;
+    for (x, y, z) in [from, to] {
+        check_axis_cell(axis_cell(x, grid.origin_x, grid.cell_size))?;
+        check_axis_cell(axis_cell(y, grid.origin_y, grid.cell_size))?;
+        check_axis_cell(axis_cell(z, grid.origin_z, grid.cell_size))?;
+    }
+    Ok(find_path_on_grid(
+        Some(grid),
+        from.0,
+        from.1,
+        from.2,
+        to.0,
+        to.1,
+        to.2,
+    ))
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 /// Searches `grid` from `from` to `to` and writes the waypoints to `buffer`.
@@ -293,9 +410,9 @@ fn write_path(
 #[inline]
 fn world_to_cell(wx: f32, wy: f32, wz: f32, g: &NavGrid3D) -> (i32, i32, i32) {
     (
-        ((wx - g.origin_x) / g.cell_size).round() as i32,
-        ((wy - g.origin_y) / g.cell_size).round() as i32,
-        ((wz - g.origin_z) / g.cell_size).round() as i32,
+        axis_cell(wx, g.origin_x, g.cell_size) as i32,
+        axis_cell(wy, g.origin_y, g.cell_size) as i32,
+        axis_cell(wz, g.origin_z, g.cell_size) as i32,
     )
 }
 
@@ -487,36 +604,39 @@ mod tests {
         );
     }
 
-    /// A null pointer or a zero cell count stores no grid.
+    /// A null pointer stores no grid. A zero dimension is refused and leaves the slot alone.
     #[cfg(feature = "pathfinding-3d")]
     #[test]
     fn unsafe_site_u024_null_or_empty_stores_no_grid() {
         let mut slot = Some(NavGrid3D::default());
         // SAFETY: the pointer is null, so this call takes the no-read branch.
-        unsafe {
-            init_navgrid_3d(&mut slot, std::ptr::null(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
-        }
+        let result =
+            unsafe { init_navgrid_3d(&mut slot, std::ptr::null(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0) };
+        assert_eq!(result, Ok(()));
         assert_eq!(slot.map(|grid| grid.cells.len()), None);
 
         let cells = [9u8];
         let mut slot = Some(NavGrid3D::default());
-        // SAFETY: the cell count is zero, so this call does not read `cells`.
-        unsafe {
-            init_navgrid_3d(&mut slot, cells.as_ptr(), 0, 1, 1, 1.0, 0.0, 0.0, 0.0);
-        }
-        assert_eq!(slot.map(|grid| grid.cells.len()), None);
+        // SAFETY: the cell count is zero, so this call is refused before it reads `cells`.
+        let result =
+            unsafe { init_navgrid_3d(&mut slot, cells.as_ptr(), 0, 1, 1, 1.0, 0.0, 0.0, 0.0) };
+        assert_eq!(
+            result,
+            Err(Physics3DError::InvalidNavGrid { w: 0, h: 1, d: 1 })
+        );
+        assert_eq!(slot.map(|grid| grid.cells.len()), Some(0));
     }
 
-    /// `init_navgrid_3d` copies the nine bytes the caller sized. The read does not check length.
+    /// `init_navgrid_3d` copies the nine bytes the caller sized.
     #[cfg(feature = "pathfinding-3d")]
     #[test]
     fn unsafe_site_u025_read_copies_cells() {
         let cells = [0u8, 1, 2, 3, 4, 5, 6, 7, 8];
         let mut slot = None;
-        // SAFETY: `cells` is nine bytes. The callee does not check that length. #110 owns the read.
-        unsafe {
-            init_navgrid_3d(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
-        }
+        // SAFETY: `cells` is nine bytes, the count the call names: 3 * 1 * 3.
+        let result =
+            unsafe { init_navgrid_3d(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0) };
+        assert_eq!(result, Ok(()));
         let Some(grid) = slot else {
             assert_eq!("", "nav grid missing");
             return;
@@ -528,11 +648,11 @@ mod tests {
     #[cfg(feature = "pathfinding-3d")]
     fn upload_3x1x3(cells: &[u8; 9]) -> Option<NavGrid3D> {
         let mut slot = None;
-        install_navgrid(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        install_navgrid(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0).ok()?;
         slot
     }
 
-    /// `install_navgrid` copies the nine bytes the caller sized. The upload does not check length.
+    /// `install_navgrid` copies the nine bytes the caller sized.
     #[cfg(feature = "pathfinding-3d")]
     #[test]
     fn unsafe_site_u026_install_copies_cells() {

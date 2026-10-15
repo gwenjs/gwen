@@ -60,6 +60,19 @@ pub enum InvalidColliderReason {
     TooLarge,
 }
 
+/// Why `physics3d_find_path_3d` refuses a request before it searches.
+///
+/// The numeric bound is
+/// [`MAX_PATH_COORD`](crate::physics3d::pathfinding::MAX_PATH_COORD).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PathRequestReject {
+    /// A cell coordinate is NaN or infinite. A zero or NaN cell size, or a non-finite origin,
+    /// gives this for every request.
+    NonFinite,
+    /// A rounded cell coordinate is past the accepted bound.
+    CoordOutOfRange,
+}
+
 /// Failure returned by a fallible physics3d export.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Physics3DError {
@@ -140,7 +153,8 @@ pub enum Physics3DError {
     },
     /// `physics3d_find_path_3d` ran before `physics3d_init_navgrid_3d`.
     NavGridNotInitialized,
-    /// A navigation grid dimension is zero, or the cell count overflows or is too large.
+    /// A navigation grid dimension is zero, the cell count overflows, or the cell count is above
+    /// [`MAX_NAVGRID_CELLS`](crate::physics3d::pathfinding::MAX_NAVGRID_CELLS).
     InvalidNavGrid {
         /// Width in cells.
         w: u32,
@@ -148,6 +162,11 @@ pub enum Physics3DError {
         h: u32,
         /// Depth in cells.
         d: u32,
+    },
+    /// A path request has a coordinate that is not finite or is past the accepted bound.
+    InvalidPathRequest {
+        /// Which check refused the request.
+        reason: PathRequestReject,
     },
     /// A collider numeric parameter was refused before reaching Rapier.
     InvalidCollider {
@@ -180,6 +199,7 @@ impl Physics3DError {
             }
             Self::NavGridNotInitialized => "PHYSICS3D:NAVGRID_NOT_INITIALIZED",
             Self::InvalidNavGrid { .. } => "PHYSICS3D:INVALID_NAVGRID",
+            Self::InvalidPathRequest { .. } => "PHYSICS3D:INVALID_PATH_REQUEST",
             Self::InvalidCollider { .. } => "PHYSICS3D:INVALID_COLLIDER",
             Self::Core(inner) => inner.code(),
         }
@@ -273,8 +293,18 @@ impl fmt::Display for Physics3DError {
             Self::NavGridNotInitialized => write!(f, "navigation grid is not initialized"),
             Self::InvalidNavGrid { w, h, d } => write!(
                 f,
-                "navigation grid {w}x{h}x{d} is invalid: a dimension is zero or the cell count overflows"
+                "navigation grid {w}x{h}x{d} is invalid: a dimension is zero, the cell count overflows, or it is above {} cells",
+                crate::physics3d::pathfinding::MAX_NAVGRID_CELLS
             ),
+            Self::InvalidPathRequest { reason } => match reason {
+                PathRequestReject::NonFinite => {
+                    write!(f, "path request refused: a coordinate is not finite")
+                }
+                PathRequestReject::CoordOutOfRange => write!(
+                    f,
+                    "path request refused: a coordinate is past the accepted bound"
+                ),
+            },
             Self::InvalidCollider { reason } => match reason {
                 InvalidColliderReason::NonFinite => {
                     write!(f, "collider refused: a value is not finite")

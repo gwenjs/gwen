@@ -380,6 +380,22 @@ fn check_collider_density(value: f32) -> Result<(), Physics3DError> {
     Ok(())
 }
 
+/// Refuse a character controller skin width that parry asserts on: NaN or negative.
+///
+/// `KinematicCharacterController::move_shape` loosens an AABB by the skin width, and
+/// `Aabb::loosened` asserts `amount >= 0.0` (`parry3d-0.17.6/src/bounding_volume/aabb.rs:584`).
+/// Positive infinity and huge values do not panic (probe: `physics3d_cc_joint_probe.rs`) and
+/// stay accepted.
+fn check_cc_skin_width(value: f32) -> Result<(), Physics3DError> {
+    if value.is_nan() {
+        return Err(invalid_collider(InvalidColliderReason::NonFinite));
+    }
+    if value < 0.0 {
+        return Err(invalid_collider(InvalidColliderReason::Negative));
+    }
+    Ok(())
+}
+
 /// Validate the offset and the coefficients shared by every collider export.
 fn check_collider_params(params: &ColliderParams) -> Result<(), Physics3DError> {
     check_collider_coordinate(params.offset_x)?;
@@ -2680,22 +2696,17 @@ impl PhysicsWorld3D {
         ]
     }
 
-    /// Find all colliders overlapping a shape, writing entity indices to a WASM memory pointer.
+    /// Find all colliders overlapping a shape, writing entity indices into `out`.
     ///
     /// # Arguments
     /// * `pos_x/y/z`   — Shape origin.
     /// * `rot_x/y/z/w` — Shape orientation (unit quaternion).
     /// * `shape_type` / `p0/p1/p2` — Shape encoding.
     /// * `layers` / `mask` — Collision filter.
-    /// * `out_ptr`     — WASM linear-memory pointer to write `u32` entity indices.
-    /// * `max_results` — Maximum number of results to write.
+    /// * `out`         - Destination for entity indices. Its length is the result cap.
     ///
     /// # Returns
-    /// Number of overlapping entities written to `out_ptr`.
-    ///
-    /// # Safety
-    /// `out_ptr` is used as `max_results` u32 slots. The length is still not
-    /// checked here. #110 owns the unchecked write. [U-013]
+    /// Number of overlapping entities written to `out`.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn overlap_shape(
         &self,
@@ -2712,8 +2723,7 @@ impl PhysicsWorld3D {
         p2: f32,
         layers: u32,
         mask: u32,
-        out_ptr: usize,
-        max_results: u32,
+        out: &mut [u32],
     ) -> u32 {
         let shape = Self::decode_shape(shape_type, p0, p1, p2);
         let iso = Isometry::from_parts(
@@ -2722,9 +2732,6 @@ impl PhysicsWorld3D {
         );
         let filter = Self::make_query_filter(layers, mask);
         let mut count: u32 = 0;
-        let out_slice =
-            // SAFETY: `out_ptr` is used as `max_results` u32 slots. The length is still not checked here. #110 owns the unchecked write. [U-013]
-            unsafe { std::slice::from_raw_parts_mut(out_ptr as *mut u32, max_results as usize) };
         self.query_pipeline.intersections_with_shape(
             &self.rigid_body_set,
             &self.collider_set,
@@ -2732,15 +2739,14 @@ impl PhysicsWorld3D {
             shape.as_ref(),
             filter,
             |ch| {
-                if count >= max_results {
+                let Some(slot) = out.get_mut(count as usize) else {
                     return false;
-                }
-                let entity_index = self
+                };
+                *slot = self
                     .collider_set
                     .get(ch)
                     .map(|c| unpack_user_data(c.user_data).0)
                     .unwrap_or(u32::MAX);
-                out_slice[count as usize] = entity_index;
                 count += 1;
                 true
             },
@@ -2794,6 +2800,29 @@ impl PhysicsWorld3D {
 
     // ── RFC-08: Joints ───────────────────────────────────────────────────────────
 
+    /// Handles of the two bodies a joint connects.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `a`, `b` that has no body.
+    fn joint_bodies(
+        &self,
+        a: u32,
+        b: u32,
+    ) -> Result<(RigidBodyHandle, RigidBodyHandle), Physics3DError> {
+        Ok((self.require_body(a)?, self.require_body(b)?))
+    }
+
+    /// Rapier handle of the joint registered under `id`.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    fn require_joint(&self, id: u32) -> Result<ImpulseJointHandle, Physics3DError> {
+        self.joint_handles
+            .get(&id)
+            .copied()
+            .ok_or(Physics3DError::JointNotFound { joint_id: id })
+    }
+
     /// Allocate a new stable joint ID and store the handle.
     fn register_joint(&mut self, handle: ImpulseJointHandle) -> u32 {
         let id = self.next_joint_id;
@@ -2810,7 +2839,11 @@ impl PhysicsWorld3D {
     /// * `bx/by/bz` — Anchor point on body B in body-B local space.
     ///
     /// # Returns
-    /// Stable joint ID (u32) on success, `u32::MAX` if either entity has no body.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
+    /// no body. A refusal consumes no joint id.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_fixed_joint(
         &mut self,
@@ -2822,24 +2855,14 @@ impl PhysicsWorld3D {
         bx: f32,
         by: f32,
         bz: f32,
-    ) -> u32 {
-        let (Some(&ha), Some(&hb)) = (
-            self.entity_handles.get(&entity_a),
-            self.entity_handles.get(&entity_b),
-        ) else {
-            debug_warn!(
-                "add_fixed_joint: entity {} or {} has no registered body",
-                entity_a,
-                entity_b
-            );
-            return u32::MAX;
-        };
+    ) -> Result<u32, Physics3DError> {
+        let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         let joint = FixedJointBuilder::new()
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
-        self.register_joint(handle)
+        Ok(self.register_joint(handle))
     }
 
     /// Attach two bodies with a revolute (hinge) joint.
@@ -2853,7 +2876,11 @@ impl PhysicsWorld3D {
     /// * `limit_min` / `limit_max` — Angular limits in radians (only if `use_limits`).
     ///
     /// # Returns
-    /// Stable joint ID or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
+    /// no body. A refusal consumes no joint id.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_revolute_joint(
         &mut self,
@@ -2871,18 +2898,8 @@ impl PhysicsWorld3D {
         use_limits: bool,
         limit_min: f32,
         limit_max: f32,
-    ) -> u32 {
-        let (Some(&ha), Some(&hb)) = (
-            self.entity_handles.get(&entity_a),
-            self.entity_handles.get(&entity_b),
-        ) else {
-            debug_warn!(
-                "add_revolute_joint: entity {} or {} has no registered body",
-                entity_a,
-                entity_b
-            );
-            return u32::MAX;
-        };
+    ) -> Result<u32, Physics3DError> {
+        let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
             .unwrap_or_else(|| Unit::new_normalize(vector![0.0, 1.0, 0.0]));
         let mut builder = RevoluteJointBuilder::new(axis)
@@ -2892,7 +2909,7 @@ impl PhysicsWorld3D {
             builder = builder.limits([limit_min, limit_max]);
         }
         let handle = self.impulse_joint_set.insert(ha, hb, builder.build(), true);
-        self.register_joint(handle)
+        Ok(self.register_joint(handle))
     }
 
     /// Attach two bodies with a prismatic (slider) joint.
@@ -2906,7 +2923,11 @@ impl PhysicsWorld3D {
     /// * `limit_min` / `limit_max` — Limits in metres.
     ///
     /// # Returns
-    /// Stable joint ID or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
+    /// no body. A refusal consumes no joint id.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_prismatic_joint(
         &mut self,
@@ -2924,18 +2945,8 @@ impl PhysicsWorld3D {
         use_limits: bool,
         limit_min: f32,
         limit_max: f32,
-    ) -> u32 {
-        let (Some(&ha), Some(&hb)) = (
-            self.entity_handles.get(&entity_a),
-            self.entity_handles.get(&entity_b),
-        ) else {
-            debug_warn!(
-                "add_prismatic_joint: entity {} or {} has no registered body",
-                entity_a,
-                entity_b
-            );
-            return u32::MAX;
-        };
+    ) -> Result<u32, Physics3DError> {
+        let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         let axis = Unit::try_new(vector![axis_x, axis_y, axis_z], 1e-6)
             .unwrap_or_else(|| Unit::new_normalize(vector![1.0, 0.0, 0.0]));
         let mut builder = PrismaticJointBuilder::new(axis)
@@ -2945,7 +2956,7 @@ impl PhysicsWorld3D {
             builder = builder.limits([limit_min, limit_max]);
         }
         let handle = self.impulse_joint_set.insert(ha, hb, builder.build(), true);
-        self.register_joint(handle)
+        Ok(self.register_joint(handle))
     }
 
     /// Attach two bodies with a ball (spherical) joint.
@@ -2956,7 +2967,11 @@ impl PhysicsWorld3D {
     /// * `bx/by/bz` — Anchor on body B (local space).
     ///
     /// # Returns
-    /// Stable joint ID or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
+    /// no body. A refusal consumes no joint id.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_ball_joint(
         &mut self,
@@ -2968,24 +2983,14 @@ impl PhysicsWorld3D {
         bx: f32,
         by: f32,
         bz: f32,
-    ) -> u32 {
-        let (Some(&ha), Some(&hb)) = (
-            self.entity_handles.get(&entity_a),
-            self.entity_handles.get(&entity_b),
-        ) else {
-            debug_warn!(
-                "add_ball_joint: entity {} or {} has no registered body",
-                entity_a,
-                entity_b
-            );
-            return u32::MAX;
-        };
+    ) -> Result<u32, Physics3DError> {
+        let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         let joint = SphericalJointBuilder::new()
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
-        self.register_joint(handle)
+        Ok(self.register_joint(handle))
     }
 
     /// Attach two bodies with a spring joint.
@@ -2999,7 +3004,11 @@ impl PhysicsWorld3D {
     /// * `damping`     — Damping coefficient (N·s/m).
     ///
     /// # Returns
-    /// Stable joint ID or `u32::MAX` on failure.
+    /// Stable joint ID.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] for the first of `entity_a`, `entity_b` that has
+    /// no body. A refusal consumes no joint id.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_spring_joint(
         &mut self,
@@ -3014,24 +3023,14 @@ impl PhysicsWorld3D {
         rest_length: f32,
         stiffness: f32,
         damping: f32,
-    ) -> u32 {
-        let (Some(&ha), Some(&hb)) = (
-            self.entity_handles.get(&entity_a),
-            self.entity_handles.get(&entity_b),
-        ) else {
-            debug_warn!(
-                "add_spring_joint: entity {} or {} has no registered body",
-                entity_a,
-                entity_b
-            );
-            return u32::MAX;
-        };
+    ) -> Result<u32, Physics3DError> {
+        let (ha, hb) = self.joint_bodies(entity_a, entity_b)?;
         let joint = SpringJointBuilder::new(rest_length, stiffness, damping)
             .local_anchor1(point![ax, ay, az])
             .local_anchor2(point![bx, by, bz])
             .build();
         let handle = self.impulse_joint_set.insert(ha, hb, joint, true);
-        self.register_joint(handle)
+        Ok(self.register_joint(handle))
     }
 
     /// Remove a joint by its stable ID.
@@ -3039,40 +3038,42 @@ impl PhysicsWorld3D {
     /// # Arguments
     /// * `id` — Joint ID returned by `add_*_joint`.
     ///
-    /// # Returns
-    /// `true` if the joint was found and removed, `false` otherwise.
-    pub fn remove_joint(&mut self, id: u32) -> bool {
-        if let Some(handle) = self.joint_handles.remove(&id) {
-            self.impulse_joint_set.remove(handle, true);
-            true
-        } else {
-            false
-        }
+    /// # Errors
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    pub fn remove_joint(&mut self, id: u32) -> Result<(), Physics3DError> {
+        let handle = self.require_joint(id)?;
+        self.joint_handles.remove(&id);
+        self.impulse_joint_set.remove(handle, true);
+        Ok(())
     }
 
     /// Set a motor velocity target on a joint's primary rotational axis (AngX).
     ///
     /// Applies to revolute and prismatic joints. For other joint types the call
-    /// is a no-op but still returns `true` if the joint ID is valid.
+    /// is a no-op but still succeeds if the joint ID is valid.
     ///
     /// # Arguments
     /// * `id`        — Joint ID.
     /// * `velocity`  — Target angular / linear velocity (rad/s or m/s).
     /// * `max_force` — Maximum motor force / torque (N or N·m).
     ///
-    /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
-    pub fn set_joint_motor_velocity(&mut self, id: u32, velocity: f32, max_force: f32) -> bool {
-        let Some(&handle) = self.joint_handles.get(&id) else {
-            return false;
-        };
-        let Some(joint) = self.impulse_joint_set.get_mut(handle) else {
-            return false;
-        };
+    /// # Errors
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    pub fn set_joint_motor_velocity(
+        &mut self,
+        id: u32,
+        velocity: f32,
+        max_force: f32,
+    ) -> Result<(), Physics3DError> {
+        let handle = self.require_joint(id)?;
+        let joint = self
+            .impulse_joint_set
+            .get_mut(handle)
+            .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint
             .data
             .set_motor_velocity(JointAxis::AngX, velocity, max_force);
-        true
+        Ok(())
     }
 
     /// Set a motor position target on a joint's primary rotational axis (AngX).
@@ -3083,25 +3084,24 @@ impl PhysicsWorld3D {
     /// * `stiffness`  — Spring stiffness (N·m/rad or N/m).
     /// * `damping`    — Damping coefficient (N·m·s/rad or N·s/m).
     ///
-    /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
+    /// # Errors
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
     pub fn set_joint_motor_position(
         &mut self,
         id: u32,
         target: f32,
         stiffness: f32,
         damping: f32,
-    ) -> bool {
-        let Some(&handle) = self.joint_handles.get(&id) else {
-            return false;
-        };
-        let Some(joint) = self.impulse_joint_set.get_mut(handle) else {
-            return false;
-        };
+    ) -> Result<(), Physics3DError> {
+        let handle = self.require_joint(id)?;
+        let joint = self
+            .impulse_joint_set
+            .get_mut(handle)
+            .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint
             .data
             .set_motor_position(JointAxis::AngX, target, stiffness, damping);
-        true
+        Ok(())
     }
 
     /// Enable or disable a joint (controls whether it generates contact forces).
@@ -3110,17 +3110,16 @@ impl PhysicsWorld3D {
     /// * `id`      — Joint ID.
     /// * `enabled` — `true` to enable, `false` to disable.
     ///
-    /// # Returns
-    /// `true` if the joint exists, `false` otherwise.
-    pub fn set_joint_enabled(&mut self, id: u32, enabled: bool) -> bool {
-        let Some(&handle) = self.joint_handles.get(&id) else {
-            return false;
-        };
-        let Some(joint) = self.impulse_joint_set.get_mut(handle) else {
-            return false;
-        };
+    /// # Errors
+    /// Returns [`Physics3DError::JointNotFound`] when no joint is registered for `id`.
+    pub fn set_joint_enabled(&mut self, id: u32, enabled: bool) -> Result<(), Physics3DError> {
+        let handle = self.require_joint(id)?;
+        let joint = self
+            .impulse_joint_set
+            .get_mut(handle)
+            .ok_or(Physics3DError::JointNotFound { joint_id: id })?;
         joint.data.set_enabled(enabled);
-        true
+        Ok(())
     }
 
     // ── Body kind ─────────────────────────────────────────────────────────────
@@ -3179,22 +3178,28 @@ impl PhysicsWorld3D {
     /// character, and [`remove_character_controller`] when the entity is
     /// destroyed.
     ///
-    /// Inserting a second controller for the same entity replaces the first.
+    /// Inserting a second controller for the same entity replaces the first and keeps its slot.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index. The entity must already have a registered rigid body.
     /// * `step_height` — Maximum height (metres) the controller can step up onto. Pass `0.0` to disable auto-stepping.
     /// * `slope_limit` — Maximum climbable slope angle in **degrees**. Slopes steeper than this are treated as walls.
     /// * `skin_width` — Separation (metres) kept between the character shape and surfaces (`cc.offset`).
+    ///   NaN and negative values are refused: parry asserts `amount >= 0.0` in `Aabb::loosened`
+    ///   (`parry3d-0.17.6/src/bounding_volume/aabb.rs:584`) when the controller moves.
     /// * `snap_to_ground` — Distance (metres) to snap the character to the ground. Pass `0.0` to disable snapping.
     /// * `slide_on_steep_slopes` — When `true` the character slides along steep surfaces instead of stopping.
     /// * `apply_impulses_to_dynamic` — When `true` the controller pushes dynamic bodies it collides with.
     ///
     /// # Returns
-    /// The assigned compact slot index (0 .. [`MAX_CC_ENTITIES`]) on success,
-    /// [`u32::MAX`] if the entity has no registered rigid body, or [`u32::MAX`]
-    /// if the CC pool is exhausted (all [`MAX_CC_ENTITIES`] slots occupied and
-    /// none have been freed).
+    /// The assigned compact slot index (0 .. [`MAX_CC_ENTITIES`]). An entity that already has a
+    /// controller keeps the slot it had.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::BodyNotFound`] when the entity has no registered rigid body,
+    /// [`Physics3DError::InvalidCollider`] when `skin_width` is NaN or negative, and
+    /// [`Physics3DError::CharacterControllerLimitReached`] when all [`MAX_CC_ENTITIES`] slots are
+    /// taken. Every check runs before the first insert, so a refusal leaves the pool unchanged.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn add_character_controller(
         &mut self,
@@ -3205,11 +3210,13 @@ impl PhysicsWorld3D {
         snap_to_ground: f32,
         slide_on_steep_slopes: bool,
         apply_impulses_to_dynamic: bool,
-    ) -> u32 {
-        if !self.entity_handles.contains_key(&entity_index) {
-            debug_warn!("add_character_controller: unknown entity {}", entity_index);
-            return u32::MAX;
-        }
+    ) -> Result<u32, Physics3DError> {
+        self.require_body(entity_index)?;
+        check_cc_skin_width(skin_width)?;
+        let slot = match self.cc_slot_indices.get(&entity_index).copied() {
+            Some(existing) => existing,
+            None => self.take_cc_slot()?,
+        };
         // Impulse application to dynamic bodies is handled via
         // `solve_character_collision_impulses` in `character_controller_move`.
         // That field does not exist in rapier3d 0.22.0.
@@ -3236,22 +3243,32 @@ impl PhysicsWorld3D {
         };
         self.cc_controllers
             .insert(entity_index, (cc, apply_impulses_to_dynamic));
-        let slot = if let Some(recycled) = self.cc_free_slots.pop() {
-            recycled
-        } else {
-            if self.next_cc_slot >= MAX_CC_ENTITIES as u32 {
-                eprintln!(
-                    "[gwen-core] add_character_controller: CC pool exhausted (max {})",
-                    MAX_CC_ENTITIES
-                );
-                return u32::MAX;
-            }
-            let s = self.next_cc_slot;
-            self.next_cc_slot += 1;
-            s
-        };
         self.cc_slot_indices.insert(entity_index, slot);
-        slot
+        Ok(slot)
+    }
+
+    /// Takes a free controller slot: a recycled one first, then the next unused one.
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::CharacterControllerLimitReached`] when none is left. A refusal
+    /// changes nothing.
+    fn take_cc_slot(&mut self) -> Result<u32, Physics3DError> {
+        if let Some(recycled) = self.cc_free_slots.pop() {
+            return Ok(recycled);
+        }
+        if self.next_cc_slot >= MAX_CC_ENTITIES as u32 {
+            return Err(Physics3DError::CharacterControllerLimitReached {
+                max: MAX_CC_ENTITIES as u32,
+            });
+        }
+        let slot = self.next_cc_slot;
+        self.next_cc_slot += 1;
+        Ok(slot)
+    }
+
+    /// Number of registered character controllers.
+    pub fn character_controller_count(&self) -> usize {
+        self.cc_controllers.len()
     }
 
     /// Writes the not-grounded sentinel into one controller slot.
@@ -3292,29 +3309,20 @@ impl PhysicsWorld3D {
         vy: f32,
         vz: f32,
         dt: f32,
-    ) {
+    ) -> Result<(), Physics3DError> {
         let Some(&slot) = self.cc_slot_indices.get(&entity_index) else {
-            return;
+            return Err(Physics3DError::CharacterControllerNotFound { slot: entity_index });
         };
         let base = slot as usize * CC_STATE_STRIDE;
 
-        let Some(&handle) = self.entity_handles.get(&entity_index) else {
-            debug_warn!("character_controller_move: unknown entity {}", entity_index);
-            self.write_cc_no_hit(base);
-            return;
-        };
+        let handle = self.require_body(entity_index)?;
         let Some((cc, apply_impulses)) = self.cc_controllers.get(&entity_index) else {
-            debug_warn!(
-                "character_controller_move: no CC for entity {}",
-                entity_index
-            );
-            self.write_cc_no_hit(base);
-            return;
+            return Err(Physics3DError::CharacterControllerNotFound { slot: entity_index });
         };
         let apply_impulses = *apply_impulses;
         let Some(body) = self.rigid_body_set.get(handle) else {
             self.write_cc_no_hit(base);
-            return;
+            return Ok(());
         };
         let position = *body.position();
         let desired = Vector::new(vx * dt, vy * dt, vz * dt);
@@ -3326,11 +3334,11 @@ impl PhysicsWorld3D {
                 entity_index
             );
             self.write_cc_no_hit(base);
-            return;
+            return Ok(());
         };
         let Some(collider) = self.collider_set.get(collider_handle) else {
             self.write_cc_no_hit(base);
-            return;
+            return Ok(());
         };
         let shape = collider.shape();
 
@@ -3370,7 +3378,7 @@ impl PhysicsWorld3D {
         // Write the resolved position back as a kinematic interpolation target.
         let Some(body_mut) = self.rigid_body_set.get_mut(handle) else {
             self.write_cc_no_hit(base);
-            return;
+            return Ok(());
         };
         let mut new_pos = *body_mut.position();
         new_pos.translation.vector += movement.translation;
@@ -3405,19 +3413,24 @@ impl PhysicsWorld3D {
         } else {
             self.write_cc_no_hit(base);
         }
+        Ok(())
     }
 
-    /// Removes the registered character controller for `entity_index`.
-    ///
-    /// This is a no-op if no controller is registered for the entity.
+    /// Removes the registered character controller for `entity_index` and frees its slot.
     ///
     /// # Arguments
     /// * `entity_index` — ECS entity slot index.
-    pub fn remove_character_controller(&mut self, entity_index: u32) {
+    ///
+    /// # Errors
+    /// Returns [`Physics3DError::CharacterControllerNotFound`] when no controller is registered
+    /// for the entity. A refusal changes nothing.
+    pub fn remove_character_controller(&mut self, entity_index: u32) -> Result<(), Physics3DError> {
+        let Some(slot) = self.cc_slot_indices.remove(&entity_index) else {
+            return Err(Physics3DError::CharacterControllerNotFound { slot: entity_index });
+        };
         self.cc_controllers.remove(&entity_index);
-        if let Some(slot) = self.cc_slot_indices.remove(&entity_index) {
-            self.cc_free_slots.push(slot);
-        }
+        self.cc_free_slots.push(slot);
+        Ok(())
     }
 }
 
@@ -5286,14 +5299,18 @@ mod tests {
     fn test_rfc08_add_fixed_joint_returns_valid_id() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_fixed_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        assert_ne!(id, u32::MAX, "add_fixed_joint should return a valid ID");
+        assert_eq!(
+            id,
+            Ok(0),
+            "add_fixed_joint should return the first joint ID"
+        );
     }
 
     #[test]
-    fn test_rfc08_add_fixed_joint_missing_entity_returns_max() {
+    fn test_rfc08_add_fixed_joint_missing_entity_returns_body_not_found() {
         let (mut world, a, _) = make_two_body_world();
         let id = world.add_fixed_joint(a, 99, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        assert_eq!(id, u32::MAX, "missing entity should yield u32::MAX");
+        assert_eq!(id, Err(Physics3DError::BodyNotFound { slot: 99 }));
     }
 
     #[test]
@@ -5302,7 +5319,7 @@ mod tests {
         let id = world.add_revolute_joint(
             a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, false, 0.0, 0.0,
         );
-        assert_ne!(id, u32::MAX);
+        assert_eq!(id, Ok(0));
     }
 
     #[test]
@@ -5311,62 +5328,77 @@ mod tests {
         let id = world.add_prismatic_joint(
             a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, false, 0.0, 0.0,
         );
-        assert_ne!(id, u32::MAX);
+        assert_eq!(id, Ok(0));
     }
 
     #[test]
     fn test_rfc08_add_ball_joint_returns_valid_id() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_ball_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        assert_ne!(id, u32::MAX);
+        assert_eq!(id, Ok(0));
     }
 
     #[test]
     fn test_rfc08_add_spring_joint_returns_valid_id() {
         let (mut world, a, b) = make_two_body_world();
         let id = world.add_spring_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 100.0, 1.0);
-        assert_ne!(id, u32::MAX);
+        assert_eq!(id, Ok(0));
     }
 
     #[test]
-    fn test_rfc08_remove_joint_returns_true() {
+    fn test_rfc08_remove_joint_returns_ok() {
         let (mut world, a, b) = make_two_body_world();
-        let id = world.add_fixed_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        assert!(world.remove_joint(id));
+        assert_eq!(
+            world.add_fixed_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Ok(0)
+        );
+        assert_eq!(world.remove_joint(0), Ok(()));
     }
 
     #[test]
-    fn test_rfc08_remove_joint_unknown_id_returns_false() {
+    fn test_rfc08_remove_joint_unknown_id_returns_joint_not_found() {
         let (mut world, _, _) = make_two_body_world();
-        assert!(!world.remove_joint(9999));
+        assert_eq!(
+            world.remove_joint(9999),
+            Err(Physics3DError::JointNotFound { joint_id: 9999 })
+        );
     }
 
     #[test]
-    fn test_rfc08_set_joint_motor_velocity_unknown_returns_false() {
+    fn test_rfc08_set_joint_motor_velocity_unknown_returns_joint_not_found() {
         let (mut world, _, _) = make_two_body_world();
-        assert!(!world.set_joint_motor_velocity(9999, 1.0, 100.0));
+        assert_eq!(
+            world.set_joint_motor_velocity(9999, 1.0, 100.0),
+            Err(Physics3DError::JointNotFound { joint_id: 9999 })
+        );
     }
 
     #[test]
     fn test_rfc08_set_joint_enabled_false_then_re_enable() {
         let (mut world, a, b) = make_two_body_world();
-        let id = world.add_revolute_joint(
-            a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, false, 0.0, 0.0,
+        assert_eq!(
+            world.add_revolute_joint(
+                a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, false, 0.0, 0.0,
+            ),
+            Ok(0)
         );
-        assert!(world.set_joint_enabled(id, false));
-        assert!(world.set_joint_enabled(id, true));
+        assert_eq!(world.set_joint_enabled(0, false), Ok(()));
+        assert_eq!(world.set_joint_enabled(0, true), Ok(()));
     }
 
     #[test]
     fn test_rfc08_remove_body_cleans_up_joint() {
         let (mut world, a, b) = make_two_body_world();
-        let id = world.add_fixed_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-        assert_ne!(id, u32::MAX);
+        assert_eq!(
+            world.add_fixed_joint(a, b, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0),
+            Ok(0)
+        );
         // Removing body A should evict the joint from the map.
         assert!(world.remove_body(a));
-        // The joint handle is now stale; remove_joint should return false.
-        assert!(
-            !world.remove_joint(id),
+        // The joint handle is now stale; remove_joint should report it unknown.
+        assert_eq!(
+            world.remove_joint(0),
+            Err(Physics3DError::JointNotFound { joint_id: 0 }),
             "joint map should be cleaned up after remove_body"
         );
     }
@@ -5585,8 +5617,7 @@ mod tests {
             0.0,
             0xFFFF_FFFF,
             0xFFFF_FFFF,
-            buf.as_mut_ptr() as usize,
-            16,
+            &mut buf,
         );
         assert_eq!(count, 0);
     }
@@ -5610,21 +5641,24 @@ mod tests {
     fn test_rfc09d_add_character_controller_returns_compact_slot() {
         let mut world = world_with_kinematic_body();
         let slot = world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
-        assert_eq!(slot, 0, "first CC should get compact slot 0");
+        assert_eq!(slot, Ok(0), "first CC should get compact slot 0");
     }
 
     #[test]
-    fn test_rfc09d_add_character_controller_unknown_entity_returns_max() {
+    fn test_rfc09d_add_character_controller_unknown_entity_returns_body_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
         // Entity 99 has no registered body.
         let result = world.add_character_controller(99, 0.35, 45.0, 0.02, 0.2, true, true);
-        assert_eq!(result, u32::MAX, "unknown entity should return u32::MAX");
+        assert_eq!(result, Err(Physics3DError::BodyNotFound { slot: 99 }));
     }
 
     #[test]
     fn test_rfc09d_add_character_controller_stores_controller() {
         let mut world = world_with_kinematic_body();
-        world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
+        assert_eq!(
+            world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
+            Ok(0)
+        );
         assert_eq!(
             world.cc_controllers.len(),
             1,
@@ -5635,12 +5669,15 @@ mod tests {
     #[test]
     fn test_rfc09d_remove_character_controller_cleans_up() {
         let mut world = world_with_kinematic_body();
-        world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
+        assert_eq!(
+            world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
+            Ok(0)
+        );
         assert!(
             !world.cc_controllers.is_empty(),
             "controller should exist before removal"
         );
-        world.remove_character_controller(0);
+        assert_eq!(world.remove_character_controller(0), Ok(()));
         assert!(
             world.cc_controllers.is_empty(),
             "cc_controllers should be empty after removal"
@@ -5652,16 +5689,21 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc09d_character_controller_move_unknown_entity_no_panic() {
+    fn test_rfc09d_character_controller_move_unknown_entity_returns_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        // Must not panic for an entity that was never registered.
-        world.character_controller_move(42, 0.0, -1.0, 0.0, 1.0 / 60.0);
+        assert_eq!(
+            world.character_controller_move(42, 0.0, -1.0, 0.0, 1.0 / 60.0),
+            Err(Physics3DError::CharacterControllerNotFound { slot: 42 })
+        );
     }
 
     #[test]
     fn test_rfc09d_character_controller_move_applies_translation() {
         let mut world = world_with_kinematic_body();
-        world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
+        assert_eq!(
+            world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
+            Ok(0)
+        );
 
         // Step once to populate the query pipeline.
         world.step(1.0 / 60.0);
@@ -5677,7 +5719,10 @@ mod tests {
             .y;
 
         // Move downward; the character should have a next-position applied.
-        world.character_controller_move(0, 0.0, -1.0, 0.0, 1.0 / 60.0);
+        assert_eq!(
+            world.character_controller_move(0, 0.0, -1.0, 0.0, 1.0 / 60.0),
+            Ok(())
+        );
 
         // After set_next_kinematic_position the next position is stored but the
         // current position updates on the following step.  We read the next
@@ -5707,25 +5752,36 @@ mod tests {
     // ── Gap 3: CC SAB buffer — void move, buffer writes ──────────────────────
 
     #[test]
-    fn test_rfc_character_controller_move_no_panic_no_cc() {
+    fn test_rfc_character_controller_move_no_cc_returns_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        // No CC registered — must not panic.
-        world.character_controller_move(0, 0.0, -1.0, 0.0, 1.0 / 60.0);
+        assert_eq!(
+            world.character_controller_move(0, 0.0, -1.0, 0.0, 1.0 / 60.0),
+            Err(Physics3DError::CharacterControllerNotFound { slot: 0 })
+        );
     }
 
     #[test]
-    fn test_rfc_character_controller_move_no_entity_no_panic() {
+    fn test_rfc_character_controller_move_no_entity_returns_not_found() {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        world.character_controller_move(42, 0.0, -1.0, 0.0, 1.0 / 60.0);
+        assert_eq!(
+            world.character_controller_move(42, 0.0, -1.0, 0.0, 1.0 / 60.0),
+            Err(Physics3DError::CharacterControllerNotFound { slot: 42 })
+        );
     }
 
     #[test]
     fn test_rfc_character_controller_move_writes_no_hit_sentinel_to_sab() {
         let mut world = world_with_kinematic_body();
-        world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
+        assert_eq!(
+            world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
+            Ok(0)
+        );
         world.step(1.0 / 60.0);
         // Move in empty scene — no floor, so not grounded.
-        world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0);
+        assert_eq!(
+            world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0),
+            Ok(())
+        );
         // Slot 0: grounded flag must be 0.0
         let grounded = world.cc_state[0];
         assert_eq!(grounded, 0.0_f32, "no-hit sentinel must set grounded=0.0");
@@ -5742,7 +5798,10 @@ mod tests {
         world
             .collider_set
             .insert_with_parent(col, h, &mut world.rigid_body_set);
-        world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true);
+        assert_eq!(
+            world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
+            Ok(0)
+        );
 
         // Add a static floor at y ≈ 0 so the character can land.
         let floor = rapier3d::prelude::ColliderBuilder::cuboid(5.0, 0.1, 5.0)
@@ -5755,7 +5814,10 @@ mod tests {
 
         // Drive the character downward for up to 120 frames; verify no panic.
         for _ in 0..120 {
-            world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0);
+            assert_eq!(
+                world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0),
+                Ok(())
+            );
             world.step(1.0 / 60.0);
         }
         // Grounded flag is 0.0 or 1.0 — just verify no panic and valid float.
@@ -5804,16 +5866,19 @@ mod multi_engine_state {
         let mut world_a = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         let world_b = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         let cells = [0u8; 8];
-        install_navgrid(
-            world_a.nav_grid_mut(),
-            cells.as_ptr(),
-            2,
-            2,
-            2,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
+        assert_eq!(
+            install_navgrid(
+                world_a.nav_grid_mut(),
+                cells.as_ptr(),
+                2,
+                2,
+                2,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+            ),
+            Ok(())
         );
         assert_eq!(world_a.nav_grid().is_some(), true);
         assert_eq!(world_b.nav_grid().is_none(), true);
