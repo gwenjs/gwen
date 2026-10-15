@@ -334,8 +334,7 @@ fn unsafe_site_u013_overlap_writes_the_entity() {
         0.5,
         0xFFFF_FFFF,
         0xFFFF_FFFF,
-        buf.as_mut_ptr() as usize,
-        16,
+        &mut buf,
     );
     assert_eq!(count, 1);
     assert_eq!(buf[0], 4);
@@ -364,7 +363,7 @@ fn no_hit_bits() -> [u32; 5] {
 
 #[cfg(feature = "physics3d")]
 #[test]
-fn unknown_entity_writes_no_hit() {
+fn removed_body_move_is_refused_and_leaves_the_slot() {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -374,11 +373,15 @@ fn unknown_entity_writes_no_hit() {
     );
     assert_eq!(
         world.add_character_controller(3, 0.0, 45.0, 0.0, 0.0, false, false),
-        0
+        Ok(0)
     );
     assert_eq!(u8::from(world.remove_body(3)), 1);
-    world.character_controller_move(3, 0.0, -1.0, 0.0, 1.0 / 60.0);
-    assert_eq!(cc_slot_bits(&world), no_hit_bits());
+    let before = cc_slot_bits(&world);
+    assert_eq!(
+        world.character_controller_move(3, 0.0, -1.0, 0.0, 1.0 / 60.0),
+        Err(gwen_core::physics3d::Physics3DError::BodyNotFound { slot: 3 })
+    );
+    assert_eq!(cc_slot_bits(&world), before);
 }
 
 #[cfg(feature = "physics3d")]
@@ -393,9 +396,12 @@ fn body_without_collider_writes_no_hit() {
     );
     assert_eq!(
         world.add_character_controller(5, 0.0, 45.0, 0.0, 0.0, false, false),
-        0
+        Ok(0)
     );
-    world.character_controller_move(5, 0.0, -1.0, 0.0, 1.0 / 60.0);
+    assert_eq!(
+        world.character_controller_move(5, 0.0, -1.0, 0.0, 1.0 / 60.0),
+        Ok(())
+    );
     assert_eq!(cc_slot_bits(&world), no_hit_bits());
 }
 
@@ -455,10 +461,13 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
     );
     assert_eq!(
         world.add_character_controller(0, 0.3, 50.0, 0.01, 0.5, true, false),
-        0
+        Ok(0)
     );
     world.step(1.0 / 60.0);
-    world.character_controller_move(0, 0.0, -20.0, 0.0, 1.0 / 60.0);
+    assert_eq!(
+        world.character_controller_move(0, 0.0, -20.0, 0.0, 1.0 / 60.0),
+        Ok(())
+    );
     let slot = cc_slot_bits(&world);
     assert_eq!(slot[0], 1.0f32.to_bits());
     assert_eq!(slot[1], 0.0f32.to_bits());
@@ -500,9 +509,12 @@ fn air_move_writes_no_hit() {
     );
     assert_eq!(
         world.add_character_controller(0, 0.2, 45.0, 0.02, 0.0, false, false),
-        0
+        Ok(0)
     );
     world.step(1.0 / 60.0);
-    world.character_controller_move(0, 0.0, 1.0, 0.0, 1.0 / 60.0);
+    assert_eq!(
+        world.character_controller_move(0, 0.0, 1.0, 0.0, 1.0 / 60.0),
+        Ok(())
+    );
     assert_eq!(cc_slot_bits(&world), no_hit_bits());
 }
