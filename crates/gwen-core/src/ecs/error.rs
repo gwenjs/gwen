@@ -89,6 +89,11 @@ pub enum CoreError {
         /// Bytes passed for this entity.
         bytes: u32,
     },
+    /// The two history buffers could not be allocated.
+    HistoryBuffersUnavailable {
+        /// Configured maximum number of entities.
+        max_entities: u32,
+    },
 }
 
 impl CoreError {
@@ -103,6 +108,7 @@ impl CoreError {
             Self::BufferLengthMismatch { .. } => "CORE:BUFFER_LENGTH_MISMATCH",
             Self::InvalidSharedBuffer { .. } => "CORE:INVALID_SHARED_BUFFER",
             Self::ComponentWriteRejected { .. } => "CORE:COMPONENT_WRITE_REJECTED",
+            Self::HistoryBuffersUnavailable { .. } => "CORE:HISTORY_BUFFERS_UNAVAILABLE",
         }
     }
 }
@@ -164,6 +170,9 @@ impl fmt::Display for CoreError {
                 f,
                 "Component write rejected: entity {entity} component type {component_type} ({bytes} bytes)"
             ),
+            Self::HistoryBuffersUnavailable { .. } => {
+                write!(f, "history buffers cannot be allocated")
+            }
         }
     }
 }
