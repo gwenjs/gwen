@@ -13,15 +13,27 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::cell::Cell;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use gwen_core::ecs::{ArchetypeColumn, ArchetypeStorage, ComponentTypeId};
 
 struct CountingAlloc;
 
-static ALLOCS: AtomicUsize = AtomicUsize::new(0);
 static LOCK: Mutex<()> = Mutex::new(());
+
+thread_local! {
+    /// Allocations made by this thread. `Cell<usize>` has no destructor and a `const`
+    /// initializer, so reading or writing it never allocates inside the allocator.
+    /// A process-wide counter also counted the libtest harness thread and the other
+    /// test threads, which allocate while a measured window is open.
+    static ALLOCS: Cell<usize> = const { Cell::new(0) };
+}
+
+fn count_allocation() {
+    ALLOCS.with(|count| count.set(count.get() + 1));
+}
 
 fn hold_lock() -> std::sync::MutexGuard<'static, ()> {
     match LOCK.lock() {
@@ -33,7 +45,7 @@ fn hold_lock() -> std::sync::MutexGuard<'static, ()> {
 // SAFETY: forwards to the system allocator and only counts calls. The test process is the only user.
 unsafe impl GlobalAlloc for CountingAlloc {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        ALLOCS.fetch_add(1, Ordering::Relaxed);
+        count_allocation();
         // SAFETY: `layout` is the layout the caller passed to this allocator.
         unsafe { System.alloc(layout) }
     }
@@ -44,7 +56,7 @@ unsafe impl GlobalAlloc for CountingAlloc {
     }
 
     unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        ALLOCS.fetch_add(1, Ordering::Relaxed);
+        count_allocation();
         // SAFETY: `ptr` and `layout` are the pair this allocator returned.
         unsafe { System.realloc(ptr, layout, new_size) }
     }
@@ -54,9 +66,9 @@ unsafe impl GlobalAlloc for CountingAlloc {
 static GLOBAL: CountingAlloc = CountingAlloc;
 
 fn allocs_during(body: impl FnOnce()) -> usize {
-    ALLOCS.store(0, Ordering::Relaxed);
+    ALLOCS.with(|count| count.set(0));
     body();
-    ALLOCS.load(Ordering::Relaxed)
+    ALLOCS.with(Cell::get)
 }
 
 #[allow(
