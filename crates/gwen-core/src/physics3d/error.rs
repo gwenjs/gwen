@@ -52,8 +52,6 @@ pub enum BvhLoadReason {
 pub enum InvalidColliderReason {
     /// A value is NaN or infinite.
     NonFinite,
-    /// A size (half extent, radius, scale) is zero or negative where it must be positive.
-    NotPositive,
     /// A value (half extent, radius, half height, scale, density) is negative where zero is
     /// allowed.
     Negative,
@@ -98,12 +96,19 @@ pub enum Physics3DError {
         /// Collider id.
         collider_id: u32,
     },
+    /// An add refused a collider id that is already registered for the slot.
+    ColliderAlreadyExists {
+        /// Entity slot.
+        slot: u32,
+        /// Collider id.
+        collider_id: u32,
+    },
     /// A shape was refused.
     InvalidShape {
         /// Which check refused the shape.
         reason: InvalidShapeReason,
     },
-    /// A mesh positions buffer length is not a multiple of 3.
+    /// A mesh positions or indices buffer length is not a multiple of 3.
     InvalidMeshBuffer {
         /// Length the caller passed.
         actual: u32,
@@ -163,6 +168,7 @@ impl Physics3DError {
             Self::InvalidBodyKind { .. } => "PHYSICS3D:INVALID_BODY_KIND",
             Self::BufferLengthMismatch { .. } => "PHYSICS3D:BUFFER_LENGTH_MISMATCH",
             Self::ColliderNotFound { .. } => "PHYSICS3D:COLLIDER_NOT_FOUND",
+            Self::ColliderAlreadyExists { .. } => "PHYSICS3D:COLLIDER_ALREADY_EXISTS",
             Self::InvalidShape { .. } => "PHYSICS3D:INVALID_SHAPE",
             Self::InvalidMeshBuffer { .. } => "PHYSICS3D:INVALID_MESH_BUFFER",
             Self::InvalidCompound { .. } => "PHYSICS3D:INVALID_COMPOUND",
@@ -203,6 +209,9 @@ impl fmt::Display for Physics3DError {
             ),
             Self::ColliderNotFound { slot, collider_id } => {
                 write!(f, "no collider {collider_id} is registered for slot {slot}")
+            }
+            Self::ColliderAlreadyExists { slot, collider_id } => {
+                write!(f, "a collider {collider_id} is already registered for slot {slot}")
             }
             Self::InvalidShape { reason } => match reason {
                 InvalidShapeReason::TrimeshIndexOutOfRange => {
@@ -269,9 +278,6 @@ impl fmt::Display for Physics3DError {
             Self::InvalidCollider { reason } => match reason {
                 InvalidColliderReason::NonFinite => {
                     write!(f, "collider refused: a value is not finite")
-                }
-                InvalidColliderReason::NotPositive => {
-                    write!(f, "collider refused: a size must be greater than zero")
                 }
                 InvalidColliderReason::Negative => {
                     write!(f, "collider refused: a value must not be negative")
