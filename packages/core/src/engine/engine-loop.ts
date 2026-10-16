@@ -18,6 +18,7 @@ import {
   commitFixedStepHistory,
   createFixedStepState,
   emitEngineRender,
+  releaseHistoryViews,
   runFixedDisplay,
   type DisplayTiming,
 } from "./fixed-display.js";
@@ -42,6 +43,7 @@ export interface EngineLoopBridge {
   engine(): {
     update_transforms?: () => void;
     transform_history_commit?: () => number;
+    transform_history_ptr?: (buffer: number) => number;
   };
 }
 
@@ -104,6 +106,11 @@ export class EngineLoop {
     if (!this._rafHandle) return;
     cancelScheduledFrame(this._rafHandle);
     this._rafHandle = 0;
+  }
+
+  /** Dispose the history views. Safe when fixed step was never armed. */
+  releaseHistory(): void {
+    releaseHistoryViews(this._fixed);
   }
 
   startScheduled(): void {
@@ -358,7 +365,7 @@ export class EngineLoop {
           message: `update_transforms failed: ${detail}`,
         });
       }
-      if (!includeRender) commitFixedStepHistory(this.deps);
+      if (!includeRender) commitFixedStepHistory(this._fixed, this.deps);
 
       // Phase 5 — emit update hook
       if (this.deps.state.isFaulted()) return;

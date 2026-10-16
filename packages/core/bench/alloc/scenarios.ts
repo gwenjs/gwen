@@ -1,3 +1,4 @@
+import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
@@ -247,6 +248,26 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
             });
           });
           await handle.engine.use(system());
+        },
+      };
+    case "render.interpolate2d":
+      return {
+        name: path,
+        physicsHz: 30,
+        async build(handle, entities) {
+          const wasm = handle.bridge.engine();
+          for (let i = 0; i < entities; i += 1) {
+            const id = handle.engine.createEntity();
+            wasm.add_entity_transform(entityIndex(id), i, 0, 0, 1, 1);
+          }
+          const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 };
+          handle.engine.hooks.hook("engine:render", (alpha: number) => {
+            const pair = handle.engine.frame.transforms2D;
+            if (pair === null) return;
+            for (let slot = 0; slot < entities; slot += 1) {
+              if (readInterpolatedTransform2D(pair, slot, alpha, out)) sink = out.x;
+            }
+          });
         },
       };
     case "entity.index":

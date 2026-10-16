@@ -23,6 +23,7 @@ import type {
 } from "@gwenjs/schema";
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import type { EngineMemory } from "./engine-memory.js";
+import type { TransformPair2D } from "./transform-pair.js";
 import { DisposableRegistry } from "../disposable";
 import { GwenWasmAbiError } from "./engine-errors.js";
 
@@ -386,8 +387,11 @@ export interface EngineFrame {
   readonly steps: number;
   /** `true` only while `engine:render` handlers run. */
   readonly rendering: boolean;
-  /** History views. `null` until a later change installs them. */
-  readonly transforms2D: null;
+  /**
+   * History views. `null` when `physicsHz` is 0, before the fixed seed,
+   * and after `stop()`.
+   */
+  readonly transforms2D: TransformPair2D | null;
 }
 
 /**
@@ -533,7 +537,7 @@ export interface GwenEngine extends GwenEngineBase {
 
   /**
    * Display-frame state. One object for the life of the engine.
-   * `transforms2D` stays `null` until history views are installed.
+   * `transforms2D` is `null` until a fixed-step seed installs the history views.
    */
   readonly frame: EngineFrame;
 

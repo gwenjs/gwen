@@ -23,6 +23,7 @@ const PATHS: AllocPathName[] = [
   "pool.cycle",
   "tween.tick",
   "entity.index",
+  "render.interpolate2d",
 ];
 
 function thresholds(overrides?: {

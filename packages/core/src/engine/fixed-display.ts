@@ -1,6 +1,8 @@
 import { clamp } from "@gwenjs/math";
 
 import type { EngineFramePhaseMs } from "./engine-types.js";
+import { installHistoryViews, type HistoryViews } from "./history-views.js";
+import type { TransformPair2D } from "./transform-pair.js";
 
 /**
  * Loop-owned frame. Field writes stay here.
@@ -11,7 +13,7 @@ interface MutableEngineFrame {
   fixedStep: boolean;
   steps: number;
   rendering: boolean;
-  transforms2D: null;
+  transforms2D: TransformPair2D | null;
 }
 import type { EngineLoopDeps } from "./engine-loop.js";
 import { popEngine, pushEngine } from "./engine-local.js";
@@ -23,6 +25,7 @@ export interface FixedStepState {
   fixedDt: number;
   armed: boolean;
   frame: MutableEngineFrame;
+  history: HistoryViews | null;
   sumPhases: boolean;
 }
 
@@ -44,6 +47,7 @@ export function createFixedStepState(): FixedStepState {
       rendering: false,
       transforms2D: null,
     },
+    history: null,
     sumPhases: false,
   };
 }
@@ -60,7 +64,7 @@ export function armFixedStepState(state: FixedStepState, deps: EngineLoopDeps): 
     state.frame.fixedStep = true;
     if (!state.armed) {
       state.armed = true;
-      seedHistory(deps);
+      seedHistory(state, deps);
     }
     return;
   }
@@ -156,9 +160,10 @@ function thrownCode(err: unknown): string | undefined {
   return typeof code === "string" ? code : undefined;
 }
 
-function commitHistory(deps: EngineLoopDeps): void {
+function commitHistory(deps: EngineLoopDeps): number | undefined {
   try {
-    deps.bridge.engine().transform_history_commit?.();
+    const parity = deps.bridge.engine().transform_history_commit?.();
+    return typeof parity === "number" ? parity : undefined;
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
     const code = thrownCode(err);
@@ -169,11 +174,12 @@ function commitHistory(deps: EngineLoopDeps): void {
         ? { message: `transform_history_commit failed: ${detail}` }
         : { message: `transform_history_commit failed: ${detail}`, code },
     );
+    return undefined;
   }
 }
 
-/** `update_transforms`, then two commits, so the first render has both buffers. */
-function seedHistory(deps: EngineLoopDeps): void {
+/** `update_transforms`, then two commits, then the four history views. */
+function seedHistory(state: FixedStepState, deps: EngineLoopDeps): void {
   try {
     deps.bridge.engine().update_transforms?.();
   } catch (err) {
@@ -183,7 +189,20 @@ function seedHistory(deps: EngineLoopDeps): void {
     });
   }
   commitHistory(deps);
-  commitHistory(deps);
+  const parity = commitHistory(deps);
+  if (parity === undefined || state.history !== null) return;
+  const wasm = deps.bridge.engine();
+  const readPtr = wasm.transform_history_ptr;
+  if (readPtr === undefined) return;
+  const installed = installHistoryViews(
+    deps.memory,
+    deps.owner.maxEntities,
+    (buffer) => readPtr.call(wasm, buffer),
+    parity,
+  );
+  if (installed === undefined) return;
+  state.history = installed;
+  state.frame.transforms2D = installed.pair;
 }
 
 async function renderDisplayPass(
@@ -215,6 +234,15 @@ async function renderDisplayPass(
 }
 
 /** History commit after `update_transforms`, only on a fixed step. */
-export function commitFixedStepHistory(deps: EngineLoopDeps): void {
-  commitHistory(deps);
+export function commitFixedStepHistory(state: FixedStepState, deps: EngineLoopDeps): void {
+  const parity = commitHistory(deps);
+  if (parity !== undefined) state.history?.setParity(parity);
+}
+
+/** Drop the four history views. Later reads throw `CORE:MEMORY_VIEW_INVALID`. */
+export function releaseHistoryViews(state: FixedStepState): void {
+  const history = state.history;
+  state.history = null;
+  state.frame.transforms2D = null;
+  history?.dispose();
 }

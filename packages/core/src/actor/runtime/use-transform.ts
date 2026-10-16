@@ -56,9 +56,32 @@ import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { entityIndex, type EntityId } from "../../engine/engine-api";
+import type { GwenEngine } from "../../engine/engine-types";
+import {
+  readInterpolatedTransform2D,
+  type InterpolatedTransform2D,
+} from "../../engine/transform-pair";
 
 /** Sentinel index passed to `set_entity_parent` to signal "detach from parent". */
 const DETACH_SENTINEL = 0xffffffff;
+
+/** One sample reused by every `world` read. Rendering does not allocate. */
+const renderedSample: InterpolatedTransform2D = {
+  x: 0,
+  y: 0,
+  rotation: 0,
+  scaleX: 1,
+  scaleY: 1,
+};
+
+function renderedSampleFor(engine: GwenEngine, slot: number): InterpolatedTransform2D | undefined {
+  const frame = engine.frame;
+  if (!frame.rendering) return undefined;
+  const pair = frame.transforms2D;
+  if (pair === null) return undefined;
+  if (!readInterpolatedTransform2D(pair, slot, frame.alpha, renderedSample)) return undefined;
+  return renderedSample;
+}
 
 /**
  * Returns a `TransformHandle` for reading and writing the current actor's transform.
@@ -81,10 +104,11 @@ const DETACH_SENTINEL = 0xffffffff;
 export function useTransform(): TransformHandle {
   let entityId: EntityId;
   let idx: number;
+  let engine: GwenEngine;
 
   try {
     entityId = _getActorEntityId();
-    _getActorEngine(); // Verify we're in actor context
+    engine = _getActorEngine();
     idx = entityIndex(entityId);
   } catch {
     throw new GwenComposableError(
@@ -105,18 +129,43 @@ export function useTransform(): TransformHandle {
   // Stable world-transform view — created once per actor spawn, not on every
   // `transform.world` access. Getter functions close over `bridge` and `idx`
   // exactly like the other methods, so WASM reads happen lazily on property access.
+  const rawX = (): number => (bridge.get_entity_world_x?.(idx) as number) ?? 0;
+  const rawY = (): number => (bridge.get_entity_world_y?.(idx) as number) ?? 0;
+  const rawRotation = (): number => (bridge.get_entity_world_rotation?.(idx) as number) ?? 0;
+
   const world = Object.freeze({
     get x() {
-      return (bridge.get_entity_world_x?.(idx) as number) ?? 0;
+      return renderedSampleFor(engine, idx)?.x ?? rawX();
     },
     get y() {
-      return (bridge.get_entity_world_y?.(idx) as number) ?? 0;
+      return renderedSampleFor(engine, idx)?.y ?? rawY();
     },
     get z() {
       return 0;
     },
     get rotation() {
-      return (bridge.get_entity_world_rotation?.(idx) as number) ?? 0;
+      return renderedSampleFor(engine, idx)?.rotation ?? rawRotation();
+    },
+    get scaleX() {
+      return 1;
+    },
+    get scaleY() {
+      return 1;
+    },
+  });
+
+  const worldRaw = Object.freeze({
+    get x() {
+      return rawX();
+    },
+    get y() {
+      return rawY();
+    },
+    get z() {
+      return 0;
+    },
+    get rotation() {
+      return rawRotation();
     },
     get scaleX() {
       return 1;
@@ -153,11 +202,12 @@ export function useTransform(): TransformHandle {
     },
 
     get worldRaw() {
-      return world;
+      return worldRaw;
     },
 
     teleport(x, y) {
       bridge.set_entity_local_position?.(idx, x, y ?? 0);
+      bridge.mark_entity_teleport?.(idx);
     },
 
     get hasParent() {
@@ -201,7 +251,11 @@ export interface TransformHandle {
   rotate(delta: number): void;
   /** Set local scale. `sy` defaults to `sx` if omitted. */
   scaleTo(sx: number, sy?: number): void;
-  /** World transform values — updated each frame by `update_transforms()`. */
+  /**
+   * World transform. During `engine:render`, when history views are installed
+   * and the current slot has a transform, `x`, `y` and `rotation` are interpolated.
+   * Otherwise the values are the raw world reads. `scaleX` and `scaleY` stay `1`.
+   */
   readonly world: {
     readonly x: number;
     readonly y: number;
@@ -210,7 +264,7 @@ export interface TransformHandle {
     readonly scaleX: number;
     readonly scaleY: number;
   };
-  /** Raw world reads. This stub returns the same object as `world`. */
+  /** Raw world reads. Never interpolated. */
   readonly worldRaw: {
     readonly x: number;
     readonly y: number;
@@ -219,7 +273,7 @@ export interface TransformHandle {
     readonly scaleX: number;
     readonly scaleY: number;
   };
-  /** Set the local position. This stub does not mark a teleport. */
+  /** Set the local position and mark the next history commit as a teleport. */
   teleport(x: number, y: number): void;
   /** True if this entity has a parent in the TransformSystem. */
   readonly hasParent: boolean;

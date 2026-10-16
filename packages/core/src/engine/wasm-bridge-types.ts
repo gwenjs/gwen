@@ -269,6 +269,12 @@ export interface WasmEngineBase {
    * Must be called once per frame before reading world positions.
    */
   update_transforms(): void;
+  /** Pack history and return the buffer just written, `0` or `1`. */
+  transform_history_commit(): number;
+  /** Byte offset of history buffer `0` or `1`. `0` when that buffer is absent. */
+  transform_history_ptr(buffer: number): number;
+  /** Mark the live transform at `index` so the next commit sets the teleport bit. */
+  mark_entity_teleport(index: number): void;
   /** Get an entity's world X position (after parent chain propagation). */
   get_entity_world_x(index: number): number;
   /** Get an entity's world Y position (after parent chain propagation). */

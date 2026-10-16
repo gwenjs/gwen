@@ -220,6 +220,7 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
   private async _teardown(): Promise<void> {
     this._loop.cancel();
+    this._loop.releaseHistory();
     try {
       await this.hooks.callHook("engine:stop");
     } catch (err) {
