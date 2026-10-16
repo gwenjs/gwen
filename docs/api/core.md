@@ -28,7 +28,7 @@ import { useTween } from '@gwenjs/core'
 function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 ```
 
-**Description.** Loads the WASM core and creates the engine. This is the entry point for an application. `createEngine()` does not load WASM. `engine.start()` returns a promise and throws `CORE:WASM_NOT_INITIALIZED` until WASM is loaded.
+**Description.** Loads the WASM core and creates the engine. This is the entry point for an application. `createEngine()` loads the light WASM bridge when no `_bridge` is given. `engine.start()` returns a promise. It throws `CORE:WASM_NOT_INITIALIZED` when that bridge is not active.
 
 **Parameters:**
 | Param | Type | Description |

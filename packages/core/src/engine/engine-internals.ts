@@ -26,7 +26,7 @@ export function setEntityDormant(engine: GwenEngine, id: EntityId, dormant: bool
 }
 
 /**
- * Cached id list for one query. The same array until a real membership change.
+ * Cached id list for one query. The same array object across a dormancy toggle and a later add.
  * @internal
  */
 export function readLiveQueryIds(

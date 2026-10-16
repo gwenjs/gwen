@@ -105,6 +105,9 @@ export abstract class EngineCollaborators {
       engine,
       bridge: this._bridge,
     });
+    this.hooks.hook("engine:stop", () => {
+      this._entities.releaseQueries();
+    });
 
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });
     this._policy = new EngineErrorPolicy({
