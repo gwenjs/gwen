@@ -376,16 +376,16 @@ export interface GwenProvides {
  */
 export interface EngineFrame {
   /** Value passed to the latest `engine:render`. `1` before the first render. */
-  alpha: number;
+  readonly alpha: number;
   /** `true` after `start()` or `startExternal()` captured `physicsHz > 0`. */
-  fixedStep: boolean;
+  readonly fixedStep: boolean;
   /**
    * Fixed steps run in the current display frame, from 0 to `maxCatchupSteps`.
    * `1` after a variable (`physicsHz === 0`) frame.
    */
-  steps: number;
+  readonly steps: number;
   /** `true` only while `engine:render` handlers run. */
-  rendering: boolean;
+  readonly rendering: boolean;
   /** History views. `null` until a later change installs them. */
   readonly transforms2D: null;
 }
