@@ -88,18 +88,20 @@ describe("WASM coded errors", () => {
     const handle = await useLight(4, async ({ engine, bridge }) => {
       const entity = bridge.createEntity();
       const bytes = new Uint8Array([1, 2, 3, 4]);
-      for (let typeId = 0; typeId < 128; typeId += 1) {
+      const lanes = new Uint8Array([0]);
+      for (let index = 0; index < 128; index += 1) {
+        const typeId = bridge.registerComponent(lanes);
         expect(bridge.addComponent(entity.index, entity.generation, typeId, bytes)).toBe(true);
       }
 
       let caught: unknown;
       try {
-        bridge.addComponent(entity.index, entity.generation, 128, new Uint8Array([9, 9, 9, 9]));
+        bridge.registerComponent(lanes);
       } catch (error: unknown) {
         caught = error;
       }
 
-      expectWasmError(caught, CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED, "add_component");
+      expectWasmError(caught, CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED, "register_component");
       expect(bridge.hasComponent(entity.index, entity.generation, 128)).toBe(false);
       expect(bridge.hasComponent(entity.index, entity.generation, 127)).toBe(true);
       const rewritten = new Uint8Array([4, 3, 2, 1]);
@@ -337,7 +339,7 @@ describe("WASM coded errors", () => {
     const { engine, bridge } = handle;
     try {
       const entity = bridge.createEntity();
-      const typeId = 7;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const original = new Uint8Array([1, 2, 3, 4]);
       expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
 
@@ -406,7 +408,7 @@ describe("WASM coded errors", () => {
     const { engine, bridge } = handle;
     try {
       const entity = bridge.createEntity();
-      const typeId = 7;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const original = new Uint8Array([1, 2, 3, 4]);
       expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
       const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
@@ -459,7 +461,7 @@ describe("WASM coded errors", () => {
     const { engine, bridge } = handle;
     try {
       const entity = bridge.createEntity();
-      const typeId = 7;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const original = new Uint8Array([1, 2, 3, 4]);
       expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
       const outSlots = new Uint32Array([7, 7]);
@@ -505,7 +507,7 @@ describe("WASM coded errors", () => {
     const { engine, bridge } = handle;
     try {
       const entity = bridge.createEntity();
-      const typeId = 7;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const original = new Uint8Array([1, 2, 3, 4]);
       expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
       const out = new Uint8Array([9, 9, 9, 9, 9, 9, 9, 9]);
@@ -558,7 +560,7 @@ describe("WASM coded errors", () => {
     const { engine, bridge } = handle;
     try {
       const entity = bridge.createEntity();
-      const typeId = 7;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const original = new Uint8Array([1, 2, 3, 4]);
       expect(bridge.addComponent(entity.index, entity.generation, typeId, original)).toBe(true);
       const outSlots = new Uint32Array([7]);

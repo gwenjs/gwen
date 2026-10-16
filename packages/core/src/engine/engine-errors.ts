@@ -100,6 +100,7 @@ export const CoreErrorCodes = {
   ACTOR_POOL_EXHAUSTED: "CORE:ACTOR_POOL_EXHAUSTED",
   COMPONENT_LAYOUT_INVALID: "CORE:COMPONENT_LAYOUT_INVALID",
   ARCHETYPE_LIMIT_REACHED: "CORE:ARCHETYPE_LIMIT_REACHED",
+  QUERY_INVALID: "CORE:QUERY_INVALID",
 } as const;
 
 /**
@@ -116,7 +117,8 @@ export type CoreWasmErrorCode =
   | typeof CoreErrorCodes.INVALID_SHARED_BUFFER
   | typeof CoreErrorCodes.COMPONENT_WRITE_REJECTED
   | typeof CoreErrorCodes.COMPONENT_LAYOUT_INVALID
-  | typeof CoreErrorCodes.ARCHETYPE_LIMIT_REACHED;
+  | typeof CoreErrorCodes.ARCHETYPE_LIMIT_REACHED
+  | typeof CoreErrorCodes.QUERY_INVALID;
 
 const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.ENTITY_LIMIT_REACHED,
@@ -129,6 +131,7 @@ const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.COMPONENT_WRITE_REJECTED,
   CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
   CoreErrorCodes.ARCHETYPE_LIMIT_REACHED,
+  CoreErrorCodes.QUERY_INVALID,
 ];
 
 /** True when `code` is one of the recoverable core WASM codes. */

@@ -57,11 +57,11 @@ describe("component type budget", () => {
     expect(caught.name).toBe("GwenError");
   });
 
-  it("the registry accepts its 128th name and rejects the 129th before registerComponentType", async () => {
+  it("the registry accepts its 128th name and the next wasm layout is refused", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     const registry = new EngineComponentRegistry(handle.bridge);
     let caught: unknown;
-    let nextBridgeId = -1;
+    let wasmCaught: unknown;
     let registered = 0;
     try {
       for (let i = 1; i <= 128; i += 1) {
@@ -78,14 +78,22 @@ describe("component type budget", () => {
       } catch (error: unknown) {
         caught = error;
       }
-      nextBridgeId = handle.bridge.registerComponentType();
+      try {
+        handle.bridge.registerComponent(new Uint8Array([0]));
+      } catch (error: unknown) {
+        wasmCaught = error;
+      }
     } finally {
       await handle.dispose();
     }
 
     const firstId = registry.get("Reg1");
     expect(firstId).toEqual(expect.any(Number));
-    expect(nextBridgeId - (firstId ?? 0)).toBe(128);
+    expect(wasmCaught).toBeInstanceOf(GwenWasmError);
+    if (!(wasmCaught instanceof GwenWasmError)) {
+      throw new Error("expected GwenWasmError");
+    }
+    expect(wasmCaught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught).not.toBeInstanceOf(GwenWasmError);
     expect(caught).not.toBeInstanceOf(GwenWasmPanicError);

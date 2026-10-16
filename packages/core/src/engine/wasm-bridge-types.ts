@@ -79,15 +79,33 @@ export interface WasmEngineBase {
   // ── Component ────────────────────────────────────────────────────────────
 
   /**
-   * Register a new component type in the Rust ECS.
-   * @returns A unique `typeId` (u32) used in all subsequent component calls.
+   * Register a component layout. Each byte is a lane kind.
+   * @returns The type id used by later component calls.
    */
-  register_component_type(): number;
+  register_component(lane_kinds: Uint8Array): number;
+  /** Byte address of the 512-byte staging buffer. */
+  component_staging_ptr(): number;
+  /** Copy `staging[0..rowBytes]` onto the entity. */
+  write_component_staged(index: number, generation: number, type_id: number): boolean;
+  /** Copy the row into the staging buffer. */
+  read_component_staged(index: number, generation: number, type_id: number): boolean;
+  /** Move the row across the awake boundary. */
+  set_entity_dormant(index: number, generation: number, dormant: boolean): boolean;
+  /** `true` when the live row is past the awake prefix. */
+  is_entity_dormant(index: number, generation: number): boolean;
+  /** Record a chunk query. Empty `type_ids` is `CORE:QUERY_INVALID`. */
+  register_query(type_ids: Uint32Array): number;
+  /** Fill the query table and return its byte address. */
+  query_chunks(query: number): number;
+  /** Drop a query. An unknown handle does nothing. */
+  release_query(query: number): void;
+  /** Bumps on a structural change, not on an in-place lane write. */
+  storage_generation(): number;
   /**
    * Attach or overwrite a component on an entity.
    * @param index      Raw entity slot index.
    * @param generation Entity generation counter (stale-reference guard).
-   * @param typeId     Component type ID returned by `register_component_type`.
+   * @param typeId     Component type ID returned by `register_component`.
    * @param data       Raw bytes — must match the layout registered for `typeId`.
    * @returns `false` if the entity is dead.
    */
@@ -111,7 +129,7 @@ export interface WasmEngineBase {
    * Bulk-read component data for multiple entities in a single WASM call.
    * @param slots Raw entity slot indices.
    * @param gens  Per-slot generation counters for stale-reference detection.
-   * @param typeId Component type ID returned by `register_component_type`.
+   * @param typeId Component type ID returned by `register_component`.
    * @param outBuf Caller-allocated output buffer; must be `n * componentSize` bytes.
    * @returns Total bytes written into `outBuf`.
    * The wasm export throws an `Error` whose `code` is
@@ -129,7 +147,7 @@ export interface WasmEngineBase {
    * Bulk-write component data for multiple entities in a single WASM call.
    * @param slots Raw entity slot indices.
    * @param gens  Per-slot generation counters for stale-reference detection.
-   * @param typeId Component type ID returned by `register_component_type`.
+   * @param typeId Component type ID returned by `register_component`.
    * @param data  Packed component bytes (`n * componentSize` total).
    */
   set_components_bulk(
@@ -1110,15 +1128,54 @@ export interface WasmBridge {
   // ── Component ────────────────────────────────────────────────────────────
 
   /**
-   * Register a new component type in the Rust ECS.
-   * @returns A unique `typeId` (u32) used in all subsequent component calls.
+   * Register a component layout. Each byte is a lane kind.
+   * @returns The type id used by later component calls.
+   * @throws {GwenWasmError} `CORE:COMPONENT_LAYOUT_INVALID` when a lane byte
+   *   is unknown, the list is longer than 64, or the row is wider than 512.
+   * @throws {GwenWasmError} `CORE:COMPONENT_TYPE_LIMIT_REACHED` on the 129th layout.
    */
-  registerComponentType(): number;
+  registerComponent(laneKinds: Uint8Array): number;
+  /** Byte address of the 512-byte staging buffer. */
+  componentStagingPtr(): number;
+  /**
+   * Copy `staging[0..rowBytes]` onto the entity.
+   * @returns `false` when the entity is dead or stale.
+   */
+  writeComponentStaged(index: number, generation: number, typeId: number): boolean;
+  /**
+   * Copy the row into the staging buffer.
+   * @returns `false` when the entity is dead, stale, or has no such row.
+   */
+  readComponentStaged(index: number, generation: number, typeId: number): boolean;
+  /**
+   * Move the row across the awake boundary.
+   * `false` is a dead or stale entity, or an entity with no component row.
+   */
+  setEntityDormant(index: number, generation: number, dormant: boolean): boolean;
+  /** `true` when the live row is past the awake prefix. */
+  isEntityDormant(index: number, generation: number): boolean;
+  /**
+   * Record a chunk query.
+   * @throws {GwenWasmError} `CORE:QUERY_INVALID` when `typeIds` is empty.
+   * @throws {GwenWasmError} `CORE:COMPONENT_LAYOUT_INVALID` when a type id
+   *   was never registered.
+   */
+  registerQuery(typeIds: Uint32Array): number;
+  /**
+   * Fill the query table and return its byte address.
+   * `count` is the awake prefix. Chunks with no awake row are omitted.
+   * @throws {GwenWasmError} `CORE:QUERY_INVALID` when the handle is unknown.
+   */
+  queryChunks(query: number): number;
+  /** Drop a query. An unknown handle does nothing. */
+  releaseQuery(query: number): void;
+  /** Bumps on a structural change, not on an in-place lane write. */
+  storageGeneration(): number;
   /**
    * Attach or overwrite a component on an entity.
    * @param index      Raw entity slot index.
    * @param generation Entity generation counter (stale-reference guard).
-   * @param typeId     Component type ID returned by `registerComponentType`.
+   * @param typeId     Component type ID returned by `registerComponent`.
    * @param data       Raw bytes — layout must match what the Rust side expects for `typeId`.
    * @returns `false` if the entity is dead.
    */
@@ -1143,7 +1200,7 @@ export interface WasmBridge {
    * Reads component data for multiple entities in a single WASM call.
    *
    * @param entities       Packed `EntityId` handles (index + generation).
-   * @param componentTypeId Component type ID from `registerComponentType()`.
+   * @param componentTypeId Component type ID from `registerComponent()`.
    * @param componentSize  Byte size of one component instance.
    * @returns `Float32Array` of length `entities.length * (componentSize / 4)`.
    */
@@ -1157,16 +1214,14 @@ export interface WasmBridge {
    * Writes component data for multiple entities in a single WASM call.
    *
    * @param entities        Packed `EntityId` handles (index + generation).
-   * @param componentTypeId Component type ID from `registerComponentType()`.
+   * @param componentTypeId Component type ID from `registerComponent()`.
    * @param data            Packed component data; total byte length must equal
    *                        `entities.length * componentSize`.
    * @throws {GwenWasmError} code `CORE:BUFFER_LENGTH_MISMATCH` when `data`
    *   is not that length for a type that already has a stride. The message
    *   names both sizes. Nothing is written.
-   * @throws `CORE:COMPONENT_WRITE_REJECTED` when core storage refuses the write.
-   *   A fixed-size type whose size differs from the stride is refused before
-   *   any entity is written. A refusal found later, for one entity, leaves the
-   *   entities before it in `entities` with their new value.
+   * @throws {GwenWasmError} `CORE:BUFFER_LENGTH_MISMATCH` when `data` is not
+   *   `entities.length` times the registered row width. Nothing is written.
    */
   writeComponentsBulk(entities: EntityId[], componentTypeId: number, data: Float32Array): void;
 

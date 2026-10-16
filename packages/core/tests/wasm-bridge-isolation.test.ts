@@ -8,7 +8,7 @@ function makeMock(): WasmEngine {
     count_entities: vi.fn(() => 42),
     delete_entity: vi.fn(() => true),
     is_alive: vi.fn(() => true),
-    register_component_type: vi.fn(() => 0),
+    register_component: vi.fn(() => 0),
     add_component: vi.fn(() => true),
     remove_component: vi.fn(() => true),
     has_component: vi.fn(() => false),

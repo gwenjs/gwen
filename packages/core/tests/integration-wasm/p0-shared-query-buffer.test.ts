@@ -17,9 +17,9 @@ describe("P0 shared query buffer", () => {
     const first = await createRealEngine({ variant: "light", maxEntities: 32 });
     const second = await createRealEngine({ variant: "light", maxEntities: 32 });
     try {
-      const typeA = first.bridge.registerComponentType();
-      second.bridge.registerComponentType();
-      const typeB = second.bridge.registerComponentType();
+      const typeA = first.bridge.registerComponent(new Uint8Array([0]));
+      second.bridge.registerComponent(new Uint8Array([0]));
+      const typeB = second.bridge.registerComponent(new Uint8Array([0]));
 
       const slotsA: number[] = [];
       for (let i = 0; i < 3; i += 1) {

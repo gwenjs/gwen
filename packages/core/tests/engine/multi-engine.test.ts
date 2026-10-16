@@ -48,7 +48,7 @@ describe("two engines", () => {
       const bridge = engine.inject("wasm:bridge");
       let calls = 0;
       bridge._injectMock({
-        register_component_type() {
+        register_component(_laneKinds: Uint8Array) {
           calls += 1;
           return calls;
         },

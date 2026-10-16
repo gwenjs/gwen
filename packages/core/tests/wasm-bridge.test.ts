@@ -48,8 +48,8 @@ describe("WasmBridge — not initialized", () => {
     expect(() => bridge.countEntities()).toThrow("WASM");
   });
 
-  it("registerComponentType() throws", () => {
-    expect(() => bridge.registerComponentType()).toThrow("WASM");
+  it("registerComponent() throws", () => {
+    expect(() => bridge.registerComponent(new Uint8Array([0]))).toThrow("WASM");
   });
 
   it("addComponent() throws", () => {
@@ -145,6 +145,7 @@ describe("WasmBridge — with injected mock", () => {
     const codes = [
       CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
       CoreErrorCodes.ARCHETYPE_LIMIT_REACHED,
+      CoreErrorCodes.QUERY_INVALID,
     ] as const;
     for (const code of codes) {
       const cause = new Error(code);
@@ -240,9 +241,10 @@ describe("WasmBridge — with injected mock", () => {
     expect(mock.is_alive).toHaveBeenCalledWith(0, 0);
   });
 
-  it("registerComponentType() delegates to mock", () => {
-    const id = bridge.registerComponentType();
-    expect(mock.register_component_type).toHaveBeenCalled();
+  it("registerComponent() delegates to mock", () => {
+    const lanes = new Uint8Array([0]);
+    const id = bridge.registerComponent(lanes);
+    expect(mock.register_component).toHaveBeenCalledWith(lanes);
     expect(id).toBe(0);
   });
 
