@@ -152,6 +152,14 @@ export function useTransform(): TransformHandle {
       return world;
     },
 
+    get worldRaw() {
+      return world;
+    },
+
+    teleport(x, y) {
+      bridge.set_entity_local_position?.(idx, x, y ?? 0);
+    },
+
     get hasParent() {
       return (bridge.has_entity_parent?.(idx) as boolean) ?? false;
     },
@@ -202,6 +210,17 @@ export interface TransformHandle {
     readonly scaleX: number;
     readonly scaleY: number;
   };
+  /** Raw world reads. This stub returns the same object as `world`. */
+  readonly worldRaw: {
+    readonly x: number;
+    readonly y: number;
+    readonly z: number;
+    readonly rotation: number;
+    readonly scaleX: number;
+    readonly scaleY: number;
+  };
+  /** Set the local position. This stub does not mark a teleport. */
+  teleport(x: number, y: number): void;
   /** True if this entity has a parent in the TransformSystem. */
   readonly hasParent: boolean;
   /** Set a new parent. */

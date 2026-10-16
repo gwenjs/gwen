@@ -88,6 +88,13 @@ export const FLAGS3D_OFFSET = 40;
 export const FLAG_HAS_TRANSFORM = 0b01;
 
 /**
+ * Bit 2 of a history slot. The renderer copies `current` and skips the lerp.
+ * This bit is written only in the two history buffers. No plugin module
+ * receives those buffers, so it is not a plugin ABI bit.
+ */
+export const FLAG_TELEPORT = 0b100;
+
+/**
  * Sentinel value written at the end of each allocated region.
  * Overwriting it signals a buffer-overrun bug in a Rust plugin.
  * Value: `0xDEADBEEF` (classic memory-safety canary).
