@@ -1,21 +1,20 @@
 //! Tier 1 bulk ECS operations — pure core, no physics dependency.
 //!
 //! This module provides the **data-transfer** layer for bulk WASM operations.
-//! Entity selection is handled by the archetype-cached [`QuerySystem`] in
-//! `bindings.rs`; this module fills `out_slots`/`out_gens` from the query
-//! result and performs a single [`get_components_bulk`] call.
+//! Entity selection is handled by the chunk query in `bindings.rs`; this
+//! module fills `out_slots`/`out_gens` from the query result and performs a
+//! single [`get_components_bulk`] call.
 //!
 //! # Frame pattern
 //! ```text
 //! JS → WASM: engine.query_read_bulk(type_ids, read_type_id, out_slots, out_gens, out_buf)
-//!              ↳ QuerySystem (archetype-cached) → entity list
+//!              ↳ chunk query → awake entity list
 //!              ↳ fill_and_read_bulk → out_slots / out_gens / out_buf packed in one call
 //! JS mutates out_buf in-place
 //! JS → WASM: engine.query_write_bulk(slots, gens, write_type_id, out_buf)
 //!              ↳ set_components_bulk → one write pass, one crossing
 //! ```
 //!
-//! [`QuerySystem`]: crate::ecs::query::QuerySystem
 //! [`get_components_bulk`]: crate::bindings::Engine::get_components_bulk
 
 use crate::bindings::{bulk_len_u32, Engine};
@@ -25,7 +24,7 @@ use crate::CoreError;
 /// one component type into `out_buf` — all without additional WASM crossings.
 ///
 /// This is the inner half of [`Engine::query_read_bulk`]: entity selection
-/// (via the archetype `QuerySystem`) is done in the binding layer; this
+/// (via the chunk query) is done in the binding layer; this
 /// function handles generation lookup and the packed component read.
 ///
 /// # Arguments
@@ -132,7 +131,7 @@ mod tests {
     #[test]
     fn test_fill_and_read_bulk_resolves_generations() -> Result<(), CoreError> {
         let mut engine = make_engine();
-        let type_id = engine.register_component_type();
+        let type_id = engine.register_component(&[0]).expect("layout");
 
         let e = engine.create_entity()?;
         engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0])?;
@@ -160,7 +159,7 @@ mod tests {
     #[test]
     fn test_fill_and_read_bulk_roundtrip_three_entities() -> Result<(), CoreError> {
         let mut engine = make_engine();
-        let type_id = engine.register_component_type();
+        let type_id = engine.register_component(&[0]).expect("layout");
 
         let e0 = engine.create_entity()?;
         let e1 = engine.create_entity()?;
@@ -201,7 +200,7 @@ mod tests {
         // More matches than the old 10_000 hard cap. Only the caller slices cap the result.
         const MATCHES: usize = 10_050;
         let mut engine = Engine::new(MATCHES as u32)?;
-        let type_id = engine.register_component_type();
+        let type_id = engine.register_component(&[0]).expect("layout");
         let entity_slots: Vec<u32> = (0..MATCHES as u32).collect();
 
         for _ in 0..MATCHES {

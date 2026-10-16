@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_physics3d_sync_roundtrip() {
         let mut engine = make_engine();
-        let transform_type_id = engine.register_component_type();
+        let transform_type_id = engine.register_component(&[0; 7]).expect("layout");
 
         let e = engine.create_entity().expect("entity limit");
         // Pack transform [x=1.0, y=2.0, z=3.0, qx=0.0, qy=0.0, qz=0.0, qw=1.0] = 28 bytes
@@ -182,7 +182,7 @@ mod tests {
     #[test]
     fn physics3d_bulk_sync_from_rapier_refuses_a_longer_generation_list() {
         let mut engine = make_engine();
-        let type_id = engine.register_component_type();
+        let type_id = engine.register_component(&[0]).expect("layout");
         assert_eq!(
             engine
                 .create_entity()
@@ -192,7 +192,7 @@ mod tests {
         assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
 
         let mut other = make_engine();
-        let other_type_id = other.register_component_type();
+        let other_type_id = other.register_component(&[0]).expect("layout");
         assert_eq!(
             other
                 .create_entity()

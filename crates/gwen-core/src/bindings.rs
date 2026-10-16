@@ -10,11 +10,9 @@
 
 use std::collections::HashMap;
 
-use crate::ecs::component::ComponentTypeId;
+use crate::ecs::chunk_store::{ChunkStore, LAYOUT_REASON_UNREGISTERED_TYPE};
 use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
-use crate::ecs::query::{QueryId, QuerySystem};
-use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
 use crate::transform::{Transform, TransformSystem, FLAG_HAS_TRANSFORM};
 use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
@@ -119,15 +117,10 @@ impl From<EntityId> for JsEntityId {
 #[wasm_bindgen]
 pub struct Engine {
     pub(crate) entity_manager: EntityManager,
-    pub(crate) storage: ArchetypeStorage,
-    query_system: QuerySystem,
+    pub(crate) storage: ChunkStore,
     /// Entity ids from the last successful `query_entities_to_buffer` call.
     /// Length is `max_entities` from construction and is never reallocated.
     query_result_buffer: Vec<u32>,
-    /// Monotonically increasing counter used by `register_component_type`.
-    /// Each call returns a fresh ID regardless of the underlying Rust type,
-    /// because JS does not have Rust's `TypeId` concept.
-    next_js_type_id: u32,
     /// Hierarchical transform system for managing entity transforms
     transform_system: TransformSystem,
     /// Two world-pose buffers. Empty until the first history commit.
@@ -162,10 +155,8 @@ impl Engine {
         }
         Ok(Engine {
             entity_manager: EntityManager::new(max_entities),
-            storage: ArchetypeStorage::new(),
-            query_system: QuerySystem::new(),
+            storage: ChunkStore::new(max_entities)?,
             query_result_buffer: vec![0u32; max_entities as usize],
-            next_js_type_id: 0,
             transform_system: TransformSystem::new(),
             transform_history: TransformHistory::new(),
             shared_buffers: HashMap::new(),
@@ -198,15 +189,15 @@ impl Engine {
     /// that stale handles are correctly rejected.
     pub fn delete_entity(&mut self, index: u32, generation: u32) -> bool {
         let id = EntityId::from_parts(index, generation);
-        if self.entity_manager.delete_entity(id) {
-            if let Some(arch_id) = self.storage.remove_entity(index) {
-                self.query_system.on_archetype_change(arch_id);
-            }
-            self.query_system.remove_entity(index);
-            true
-        } else {
-            false
+        if !self.entity_manager.is_alive(id) {
+            return false;
         }
+        // The store bumps its slot generation here. The entity manager bumps
+        // the same slot on the next reuse, so the two counters meet again.
+        if !self.storage.delete_entity(index, generation) {
+            return false;
+        }
+        self.entity_manager.delete_entity(id)
     }
 
     /// Get count of live entities
@@ -223,26 +214,26 @@ impl Engine {
 
     // ─── Component registry ───────────────────────────────────────────────────
 
-    /// Register a new component type and return a unique numeric type ID.
+    /// Register a component layout and return its type id.
     ///
-    /// Each call returns a fresh, monotonically increasing ID.  Unlike the
-    /// native Rust API (which uses `std::any::TypeId`), this counter is
-    /// JS-friendly: callers just keep the returned number and pass it back.
+    /// Lane bytes are the `LaneKind` discriminants, in schema field order.
+    /// `data` passed to [`Self::add_component`] must be exactly `rowBytes` long.
     ///
-    /// The actual column is created lazily on the first `add_component` call,
-    /// using the byte-slice length to determine the element size.
-    pub fn register_component_type(&mut self) -> u32 {
-        let id = self.next_js_type_id;
-        self.next_js_type_id += 1;
-        id
+    /// # Errors
+    ///
+    /// [`CoreError::ComponentTypeLimitReached`] on the 129th layout.
+    /// [`CoreError::ComponentLayoutInvalid`] when a lane byte is unknown, the
+    /// list is longer than 64, or the row is wider than 512 bytes. The table
+    /// is unchanged.
+    pub fn register_component(&mut self, lane_kinds: &[u8]) -> Result<u32, CoreError> {
+        self.storage.register(lane_kinds)
     }
 
-    /// Add a raw-byte component to an entity.
+    /// Add or overwrite one component row.
     ///
-    /// Uses **variable-size** mode: the column accepts any byte slice length
-    /// and performs an upsert (add-or-update). This is required because
-    /// TypeScript serialises components as JSON, so the byte length can
-    /// change between calls for the same component type.
+    /// `false` is a dead or stale entity. A wrong length or an unregistered
+    /// type is [`CoreError::ComponentLayoutInvalid`] and writes nothing.
+    /// An in-place overwrite does not bump [`Self::storage_generation`].
     pub fn add_component(
         &mut self,
         index: u32,
@@ -256,22 +247,14 @@ impl Engine {
         {
             return Ok(false);
         }
-        let type_id = ComponentTypeId::from_raw(component_type_id);
-        match self.storage.upsert_js(index, type_id, data)? {
-            ColumnMove::Rejected => return Ok(false),
-            ColumnMove::InPlace => {}
-            ColumnMove::Migrated(migration) => {
-                if let Some(from) = migration.from {
-                    self.query_system.on_archetype_change(from);
-                }
-                self.query_system.on_archetype_change(migration.to);
-            }
-        }
-
-        Ok(true)
+        self.storage.add(index, generation, component_type_id, data)
     }
 
     /// Remove a component from an entity.
+    ///
+    /// `false` is a dead entity, a stale generation, or a type the entity does
+    /// not have. An archetype-table failure also returns `false` and leaves
+    /// the row unchanged: the store checks the limit before it reserves a row.
     pub fn remove_component(
         &mut self,
         index: u32,
@@ -284,16 +267,9 @@ impl Engine {
         {
             return false;
         }
-        let type_id = ComponentTypeId::from_raw(component_type_id);
-        if let Some(migration) = self.storage.remove_component(index, type_id) {
-            if let Some(from) = migration.from {
-                self.query_system.on_archetype_change(from);
-            }
-            self.query_system.on_archetype_change(migration.to);
-            true
-        } else {
-            false
-        }
+        self.storage
+            .remove(index, generation, component_type_id)
+            .unwrap_or_default()
     }
 
     /// Check if entity has component
@@ -304,8 +280,7 @@ impl Engine {
         {
             return false;
         }
-        let type_id = ComponentTypeId::from_raw(component_type_id);
-        self.storage.has_component(index, type_id)
+        self.storage.has(index, generation, component_type_id)
     }
 
     /// Get raw component bytes for an entity (returns empty Vec if not found).
@@ -322,11 +297,135 @@ impl Engine {
         {
             return Vec::new();
         }
-        let type_id = ComponentTypeId::from_raw(component_type_id);
-        self.storage
-            .get_component(index, type_id)
-            .map(|bytes| bytes.to_vec())
-            .unwrap_or_default()
+        let width = self
+            .storage
+            .layout(component_type_id)
+            .map(|layout| usize::from(layout.row_bytes))
+            .unwrap_or(0);
+        if width == 0 {
+            return Vec::new();
+        }
+        let mut bytes = vec![0u8; width];
+        if self
+            .storage
+            .copy_row(index, generation, component_type_id, &mut bytes)
+        {
+            bytes
+        } else {
+            Vec::new()
+        }
+    }
+
+    /// Storage generation. A lane write does not change it.
+    pub fn storage_generation(&self) -> u32 {
+        self.storage.generation()
+    }
+
+    /// Address of the 512-byte staging buffer.
+    ///
+    /// wasm32 returns the real address. A 64-bit host returns 0 when the
+    /// address does not fit in `u32`. The buffer itself stays inside the engine.
+    pub fn component_staging_ptr(&self) -> u32 {
+        u32::try_from(self.storage.staging().as_ptr() as usize).unwrap_or(0)
+    }
+
+    /// Upsert from `staging[0..rowBytes]`.
+    ///
+    /// `Ok(false)` is a dead or stale entity. The staging bytes stay as the
+    /// caller left them.
+    pub fn write_component_staged(
+        &mut self,
+        index: u32,
+        generation: u32,
+        type_id: u32,
+    ) -> Result<bool, CoreError> {
+        if !self
+            .entity_manager
+            .is_alive(EntityId::from_parts(index, generation))
+        {
+            return Ok(false);
+        }
+        self.storage.write_staged(index, generation, type_id)
+    }
+
+    /// Copy the row into the staging buffer.
+    ///
+    /// `false` is a dead entity, a stale generation, or a missing component.
+    /// The staging bytes are then unchanged.
+    pub fn read_component_staged(&mut self, index: u32, generation: u32, type_id: u32) -> bool {
+        if !self
+            .entity_manager
+            .is_alive(EntityId::from_parts(index, generation))
+        {
+            return false;
+        }
+        self.storage.read_staged(index, generation, type_id)
+    }
+
+    /// Swap the row across the awake boundary.
+    ///
+    /// `Ok(false)` is a dead or stale entity, or an entity with no component
+    /// row. Dormancy lives on the row, so an entity with no components cannot
+    /// be dormant and this call changes nothing. The same state again is
+    /// `Ok(true)` and does not bump [`Self::storage_generation`].
+    ///
+    /// The return is `Result<bool, _>` rather than `Result<(), _>`: a stale
+    /// entity has no `CoreError` of its own, and this call does not add one.
+    pub fn set_entity_dormant(
+        &mut self,
+        index: u32,
+        generation: u32,
+        dormant: bool,
+    ) -> Result<bool, CoreError> {
+        if !self
+            .entity_manager
+            .is_alive(EntityId::from_parts(index, generation))
+        {
+            return Ok(false);
+        }
+        self.storage.set_dormant(index, generation, dormant)
+    }
+
+    /// `true` when the live row is dormant.
+    ///
+    /// A dead entity, a stale generation, or an entity with no row is `false`.
+    pub fn is_entity_dormant(&self, index: u32, generation: u32) -> bool {
+        if !self
+            .entity_manager
+            .is_alive(EntityId::from_parts(index, generation))
+        {
+            return false;
+        }
+        self.storage.is_dormant(index, generation).unwrap_or(false)
+    }
+
+    /// Record a chunk query. The handle is the index used by [`Self::query_chunks`].
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::QueryInvalid`] when `type_ids` is empty.
+    /// [`CoreError::ComponentLayoutInvalid`] when a type id was never registered.
+    /// Neither call stores a query.
+    pub fn register_query(&mut self, type_ids: &[u32]) -> Result<u32, CoreError> {
+        self.storage.register_query(type_ids)
+    }
+
+    /// Refresh the query table and return its byte address as `u32`.
+    ///
+    /// `count` in each entry is the chunk's awake prefix. Chunks with no awake
+    /// row are omitted. A repeat call at the same storage generation rewrites
+    /// those counts in the existing buffer.
+    ///
+    /// # Errors
+    ///
+    /// [`CoreError::QueryInvalid`] when `query` was never registered or was released.
+    pub fn query_chunks(&mut self, query: u32) -> Result<u32, CoreError> {
+        self.storage.query_chunks(query)
+    }
+
+    /// Drop a query. An unknown handle does nothing.
+    pub fn release_query(&mut self, query: u32) {
+        self.storage.release_query(query);
     }
 
     // ─── Bulk component operations ────────────────────────────────────────────
@@ -351,7 +450,7 @@ impl Engine {
     /// * `slots` – Entity slot indices (must have the same length as `gens`).
     /// * `gens`  – Per-slot generation counters for stale-reference detection.
     /// * `component_type_id` – Numeric component type ID returned by
-    ///   [`register_component_type`].
+    ///   [`register_component`].
     /// * `out_buf` – Caller-allocated output buffer. A shorter buffer stops
     ///   the copy at the last component that fits.
     ///
@@ -391,52 +490,47 @@ impl Engine {
             return Ok(0);
         }
 
-        let type_id = ComponentTypeId::from_raw(component_type_id);
+        let width = self
+            .storage
+            .layout(component_type_id)
+            .map(|layout| usize::from(layout.row_bytes))
+            .unwrap_or(0);
         let mut bytes_written: usize = 0;
 
         for i in 0..n {
             let slot = slots[i];
             let gen = gens[i];
 
-            // Resolve the component slice from storage (no allocation).
-            let component_bytes = if self
-                .entity_manager
-                .is_alive(EntityId::from_parts(slot, gen))
+            let copied = if width > 0
+                && self
+                    .entity_manager
+                    .is_alive(EntityId::from_parts(slot, gen))
             {
-                self.storage.get_component(slot, type_id)
-            } else {
-                None
-            };
-
-            if let Some(src) = component_bytes {
-                let comp_size = src.len();
                 let dst_start = bytes_written;
-                let dst_end = dst_start + comp_size;
-
-                // Guard: don't write past the end of the output buffer.
+                let dst_end = dst_start + width;
                 if dst_end > out_buf.len() {
                     break;
                 }
-
-                out_buf[dst_start..dst_end].copy_from_slice(src);
-                bytes_written = dst_end;
-            } else {
-                // Entity dead or missing component: advance by inferred size
-                // (use the first successful read's size, else 0).
-                // The output buffer slot was already zeroed by the JS caller.
-                if bytes_written == 0 {
-                    // We have not determined component size yet; skip this slot
-                    // but cannot advance the cursor — leave at 0 until we hit
-                    // a live entity.  The JS side must pre-zero the buffer.
-                    continue;
+                match out_buf.get_mut(dst_start..dst_end) {
+                    Some(dst) => self.storage.copy_row(slot, gen, component_type_id, dst),
+                    None => false,
                 }
-                // Infer component size from the first written component.
-                let comp_size = bytes_written / i.max(1);
-                bytes_written += comp_size;
-                if bytes_written > out_buf.len() {
-                    bytes_written = out_buf.len();
+            } else {
+                false
+            };
+
+            if copied {
+                bytes_written += width;
+            } else if width > 0 {
+                // Dead or missing: leave the caller-zeroed slot and advance
+                // by the registered row width so the next row stays aligned.
+                let Some(next) = bytes_written.checked_add(width) else {
+                    break;
+                };
+                if next > out_buf.len() {
                     break;
                 }
+                bytes_written = next;
             }
         }
 
@@ -455,32 +549,27 @@ impl Engine {
     /// [ entity_0_bytes | entity_1_bytes | … | entity_N_bytes ]
     /// ```
     /// `slots` and `gens` must have the same length. `data` must be exactly
-    /// `slots.len() × stride` bytes. `stride` is the size already stored for
-    /// this type, or `data.len() / slots.len()` when the type is new.
+    /// `slots.len() × row_bytes` for the registered layout.
     /// Dead or unknown entities are silently skipped.
     ///
     /// # Arguments
     /// * `slots` – Entity slot indices (same length as `gens`).
     /// * `gens`  – Per-slot generation counters for stale-reference detection.
     /// * `component_type_id` – Numeric component type ID returned by
-    ///   [`register_component_type`].
+    ///   [`register_component`].
     /// * `data` – Packed component data; total length must equal
-    ///   `slots.len() × component_size_bytes`.
+    ///   `slots.len() × row_bytes`.
     ///
     /// # Errors
     ///
     /// Returns [`CoreError::BufferLengthMismatch`] before any write when
-    /// `gens` differs in length from `slots`, or when `data` is not
-    /// `slots.len() × stride` bytes. The message names the buffer, the
-    /// expected length, and the actual length.
-    /// Returns [`CoreError::ComponentTypeLimitReached`] before any write when
-    /// this call would introduce the 129th distinct component type.
-    /// Returns [`CoreError::ComponentWriteRejected`] before any write when the
-    /// type is registered fixed size and the stride differs from that size.
-    /// Also returns it when storage refuses the write of one entity in the
-    /// loop (an inconsistent row, or a column built under another registered
-    /// size): that entity is not written and not marked dirty, but entities
-    /// earlier in `slots` keep their new value.
+    /// `gens` differs in length from `slots`, or when `data` is not a whole
+    /// number of rows and is not `slots.len() × row_bytes`. The message names
+    /// the buffer, the expected length, and the actual length.
+    /// Returns [`CoreError::ComponentLayoutInvalid`] with reason 3 before any
+    /// write when the type was never registered.
+    /// Returns [`CoreError::BufferLengthMismatch`] on `"data"` before any write
+    /// when `data` is not `slots.len() × row_bytes`. No row changes.
     /// Dead entities are skipped.
     pub fn set_components_bulk(
         &mut self,
@@ -502,117 +591,68 @@ impl Engine {
             return Ok(());
         }
 
-        let type_id = ComponentTypeId::from_raw(component_type_id);
-        let known_stride = (0..n).find_map(|i| {
-            if !self
-                .entity_manager
-                .is_alive(EntityId::from_parts(slots[i], gens[i]))
-            {
-                return None;
-            }
-            self.storage
-                .get_component(slots[i], type_id)
-                .map(|bytes| bytes.len())
-        });
-
-        let comp_size = match known_stride {
-            Some(size) => {
-                let expected_len = match n.checked_mul(size) {
-                    Some(len) => len,
-                    None => {
-                        return Err(CoreError::BufferLengthMismatch {
-                            buffer: "data",
-                            expected: u32::MAX,
-                            actual: bulk_len_u32(data.len()),
-                        });
-                    }
-                };
-                if data.len() != expected_len {
-                    return Err(CoreError::BufferLengthMismatch {
-                        buffer: "data",
-                        expected: bulk_len_u32(expected_len),
-                        actual: bulk_len_u32(data.len()),
-                    });
-                }
-                size
-            }
-            None => {
-                if data.is_empty() || !data.len().is_multiple_of(n) {
-                    let aligned = data.len() / n * n;
-                    let expected = if aligned == 0 { n } else { aligned };
-                    return Err(CoreError::BufferLengthMismatch {
-                        buffer: "data",
-                        expected: bulk_len_u32(expected),
-                        actual: bulk_len_u32(data.len()),
-                    });
-                }
-                data.len() / n
-            }
+        let Some(layout) = self.storage.layout(component_type_id) else {
+            return Err(CoreError::ComponentLayoutInvalid {
+                type_id: component_type_id,
+                reason: LAYOUT_REASON_UNREGISTERED_TYPE,
+            });
         };
-
-        if comp_size == 0 {
-            return Ok(());
+        let row_bytes = usize::from(layout.row_bytes);
+        let Some(expected_len) = n.checked_mul(row_bytes) else {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "data",
+                expected: u32::MAX,
+                actual: bulk_len_u32(data.len()),
+            });
+        };
+        if data.len() != expected_len {
+            return Err(CoreError::BufferLengthMismatch {
+                buffer: "data",
+                expected: bulk_len_u32(expected_len),
+                actual: bulk_len_u32(data.len()),
+            });
         }
-
-        let first_live = (0..n).find(|&i| {
-            self.entity_manager
-                .is_alive(EntityId::from_parts(slots[i], gens[i]))
-        });
-        let Some(first_live) = first_live else {
-            return Ok(());
-        };
-        match self.storage.registry().size(type_id) {
-            None => self.storage.register_raw(type_id, 0)?,
-            // A type registered fixed size gets columns that refuse a write of
-            // another length. Refuse it before the loop: nothing is written or
-            // marked dirty.
-            Some(size) if size != 0 && size != comp_size => {
-                return Err(CoreError::ComponentWriteRejected {
-                    entity: slots[first_live],
-                    component_type: component_type_id,
-                    bytes: u32::try_from(comp_size).unwrap_or(u32::MAX),
-                });
+        if row_bytes == 0 {
+            for i in 0..n {
+                let slot = slots[i];
+                let gen = gens[i];
+                if !self
+                    .entity_manager
+                    .is_alive(EntityId::from_parts(slot, gen))
+                {
+                    continue;
+                }
+                let _ = self.storage.add(slot, gen, component_type_id, &[])?;
             }
-            Some(_) => {}
+            return Ok(());
         }
 
         for i in 0..n {
             let slot = slots[i];
             let gen = gens[i];
-
             if !self
                 .entity_manager
                 .is_alive(EntityId::from_parts(slot, gen))
             {
                 continue;
             }
-
-            let src_start = i * comp_size;
-            let src_end = src_start + comp_size;
-            let slice = &data[src_start..src_end];
-            match self.storage.upsert_js(slot, type_id, slice)? {
-                ColumnMove::Rejected => {
-                    return Err(CoreError::ComponentWriteRejected {
-                        entity: slot,
-                        component_type: component_type_id,
-                        bytes: u32::try_from(comp_size).unwrap_or(u32::MAX),
-                    });
-                }
-                ColumnMove::InPlace => {}
-                ColumnMove::Migrated(migration) => {
-                    if let Some(from) = migration.from {
-                        self.query_system.on_archetype_change(from);
-                    }
-                    self.query_system.on_archetype_change(migration.to);
-                }
-            }
+            let src_start = i * row_bytes;
+            let src_end = src_start + row_bytes;
+            let Some(slice) = data.get(src_start..src_end) else {
+                return Err(CoreError::BufferLengthMismatch {
+                    buffer: "data",
+                    expected: bulk_len_u32(expected_len),
+                    actual: bulk_len_u32(data.len()),
+                });
+            };
+            let _ = self.storage.add(slot, gen, component_type_id, slice)?;
         }
         Ok(())
     }
 
     // ─── Component queries ────────────────────────────────────────────────────
     // Note: query_entities(&mut self) and query_entities_to_buffer(&mut self)
-    // require &mut self because QuerySystem::query() mutates the query cache.
+    // take `&mut self` because filling a chunk query rewrites its table.
 
     /// Update the archetype of an entity after component changes.
     /// Pass the full list of component type IDs currently on the entity.
@@ -624,8 +664,8 @@ impl Engine {
     /// Remove an entity from the query system cache.
     /// Must be called after delete_entity so the query system stops returning
     /// the destroyed entity in subsequent queries.
-    pub fn remove_entity_from_query(&mut self, index: u32) {
-        self.query_system.remove_entity(index);
+    pub fn remove_entity_from_query(&mut self, _index: u32) {
+        // Chunk queries read the store. Deleting the entity drops its row.
     }
 
     /// Get the current generation for a slot index.
@@ -640,15 +680,14 @@ impl Engine {
     /// Query entities that have ALL the listed component types.
     /// Returns a flat `Uint32Array` of entity indices.
     pub fn query_entities(&mut self, component_type_ids: &[u32]) -> Vec<u32> {
-        let types: Vec<ComponentTypeId> = component_type_ids
-            .iter()
-            .map(|&id| ComponentTypeId::from_raw(id))
-            .collect();
-        let query_id = QueryId::new(types, self.storage.registry());
-        self.query_system
-            .query(&self.storage, query_id)
-            .entities()
-            .to_vec()
+        let matches = self.storage.count_awake(component_type_ids);
+        let mut slots = vec![0u32; matches];
+        let mut gens = vec![0u32; matches];
+        let written = self
+            .storage
+            .write_awake(component_type_ids, &mut slots, &mut gens);
+        slots.truncate(written);
+        slots
     }
 
     /// Query entities and copy every match into this engine's result buffer.
@@ -676,21 +715,20 @@ impl Engine {
         &mut self,
         component_type_ids: &[u32],
     ) -> Result<u32, CoreError> {
-        let types: Vec<ComponentTypeId> = component_type_ids
-            .iter()
-            .map(|&id| ComponentTypeId::from_raw(id))
-            .collect();
-        let query_id = QueryId::new(types, self.storage.registry());
-        let results = self.query_system.query(&self.storage, query_id);
-        let matches = results.len();
+        let matches = self.storage.count_awake(component_type_ids);
         if matches > self.query_result_buffer.len() {
             return Err(CoreError::QueryCapacityExceeded {
                 matches: matches as u32,
                 capacity: self.query_result_buffer.len() as u32,
             });
         }
-        self.query_result_buffer[..matches].copy_from_slice(results.entities());
-        Ok(matches as u32)
+        let mut gens = vec![0u32; matches];
+        let written = self.storage.write_awake(
+            component_type_ids,
+            &mut self.query_result_buffer[..matches],
+            &mut gens,
+        );
+        Ok(written as u32)
     }
 
     /// Pointer to this engine's query result buffer.
@@ -3767,8 +3805,8 @@ impl Engine {
     ///
     /// Combines an archetype-cached query and a bulk component read into a **single** WASM
     /// boundary crossing, eliminating N per-entity crossings that dominate frame budgets at
-    /// scale.  Uses the same archetype-based [`QuerySystem`] as [`query_entities_to_buffer`],
-    /// so repeated queries with the same filter set are served from cache.
+    /// scale. The match set is the awake rows of the chunk store, the same
+    /// rows [`query_entities_to_buffer`] writes.
     ///
     /// # Arguments
     /// * `component_type_ids` – Entity must possess ALL of these component type IDs.
@@ -3823,27 +3861,19 @@ impl Engine {
             return Ok(vec![0, 0]);
         }
 
-        // Step 1: archetype-based query (cached, same path as query_entities_to_buffer)
-        let types: Vec<crate::ecs::component::ComponentTypeId> = component_type_ids
-            .iter()
-            .map(|&id| crate::ecs::component::ComponentTypeId::from_raw(id))
-            .collect();
-        let query_id = QueryId::new(types, self.storage.registry());
-        let results = self.query_system.query(&self.storage, query_id);
-        let entities = results.entities();
-
-        // Step 2: fill out_slots / out_gens and bulk-read component data.
-        // `results` is a cloned QueryResult (owned value, not borrowing self),
-        // so reborrowing self here is safe despite the earlier &mut self.query_system.
-        let (count, bytes) = crate::bulk_ops::fill_and_read_bulk(
-            self,
-            entities,
+        let written = self
+            .storage
+            .write_awake(component_type_ids, out_slots, out_gens);
+        if written == 0 {
+            return Ok(vec![0, 0]);
+        }
+        let bytes = self.get_components_bulk(
+            &out_slots[..written],
+            &out_gens[..written],
             read_type_id,
-            out_slots,
-            out_gens,
             out_buf,
         )?;
-        Ok(vec![count, bytes])
+        Ok(vec![written as u32, bytes])
     }
 
     /// Write back component data for a previously-queried entity set in one WASM call.
@@ -4274,8 +4304,8 @@ mod tests {
     #[test]
     fn test_query_entities_to_buffer() {
         let mut engine = Engine::new(100).expect("max entities");
-        let t0 = engine.register_component_type();
-        let t1 = engine.register_component_type();
+        let t0 = engine.register_component(&[0]).expect("layout");
+        let t1 = engine.register_component(&[0]).expect("layout");
 
         let e0 = engine.create_entity().expect("entity limit");
         let e1 = engine.create_entity().expect("entity limit");
@@ -4327,7 +4357,7 @@ mod tests {
         let max = 11_000u32;
         let mut engine = Engine::new(max).expect("max entities");
         assert_eq!(engine.get_query_result_capacity(), max);
-        let t0 = engine.register_component_type();
+        let t0 = engine.register_component(&[0]).expect("layout");
 
         for _ in 0..max {
             let e = engine.create_entity().expect("entity limit");
@@ -4360,8 +4390,8 @@ mod tests {
             "two engines must not share the query buffer"
         );
 
-        let ta = a.register_component_type();
-        let tb = b.register_component_type();
+        let ta = a.register_component(&[0]).expect("layout");
+        let tb = b.register_component(&[0]).expect("layout");
         let ea = a.create_entity().expect("entity limit");
         a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0])
             .expect("component");
@@ -4396,31 +4426,23 @@ mod tests {
         let Ok((mut engine, e)) = made else {
             unreachable!("Engine::new(4) and one entity always succeed");
         };
-        let transform = ComponentTypeId::from_raw(7);
-        // WASM exports register every column as variable size. A fixed 4-byte
-        // column is the one storage state that rejects a write of another size.
-        // The entity has no transform yet, so no stored length fixes the stride
-        // and the 8-byte write reaches storage.
-        let registered = engine.storage.register_raw(transform, 4);
-        assert_eq!(registered, Ok(()));
+        let type_id = engine.register_component(&[0]).expect("layout");
 
-        let result = engine.set_components_bulk(&[e.index()], &[e.generation()], 7, &[9u8; 8]);
+        let result =
+            engine.set_components_bulk(&[e.index()], &[e.generation()], type_id, &[9u8; 8]);
 
-        let err = result.err();
         assert_eq!(
-            err.map(|err| err.code()),
-            Some("CORE:COMPONENT_WRITE_REJECTED")
+            result,
+            Err(CoreError::BufferLengthMismatch {
+                buffer: "data",
+                expected: 4,
+                actual: 8
+            })
         );
         assert_eq!(
-            err.map(|err| err.to_string()),
-            Some(format!(
-                "Component write rejected: entity {} component type {} ({} bytes)",
-                e.index(),
-                7,
-                8
-            ))
+            engine.get_component_raw(e.index(), e.generation(), type_id),
+            Vec::<u8>::new()
         );
-        assert_eq!(engine.storage.get_component(e.index(), transform), None);
     }
 
     #[test]
@@ -4433,48 +4455,38 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let transform = ComponentTypeId::from_raw(7);
-        let other = engine.register_component_type();
-        // The first entity gets an 8-byte transform while its column is variable
-        // size, so the 8-byte stride below matches its stored length.
-        let added_first = engine.add_component(
-            first.index(),
-            first.generation(),
-            7,
-            &[1, 2, 3, 4, 5, 6, 7, 8],
-        );
+        let type_id = engine.register_component(&[0]).expect("layout");
+        let added_first =
+            engine.add_component(first.index(), first.generation(), type_id, &[1, 2, 3, 4]);
         assert_eq!(added_first, Ok(true));
-        // Then the transform is registered fixed 4 bytes. The second entity holds
-        // another component, so its move builds a new archetype whose transform
-        // column is fixed 4 bytes and refuses an 8-byte write.
-        assert_eq!(engine.storage.register_raw(transform, 4), Ok(()));
-        let added_second =
-            engine.add_component(second.index(), second.generation(), other, &[0, 0, 0, 0]);
-        assert_eq!(added_second, Ok(true));
 
         let result = engine.set_components_bulk(
             &[first.index(), second.index()],
             &[first.generation(), second.generation()],
-            7,
+            type_id,
             &[9u8; 16],
         );
 
         assert_eq!(
-            result.err().map(|err| err.code()),
-            Some("CORE:COMPONENT_WRITE_REJECTED")
+            result,
+            Err(CoreError::BufferLengthMismatch {
+                buffer: "data",
+                expected: 8,
+                actual: 16
+            })
         );
         assert_eq!(
-            engine.storage.get_component(first.index(), transform),
-            Some([1u8, 2, 3, 4, 5, 6, 7, 8].as_slice())
+            engine.get_component_raw(first.index(), first.generation(), type_id),
+            vec![1, 2, 3, 4]
         );
         assert_eq!(
-            engine.storage.get_component(second.index(), transform),
-            None
+            engine.get_component_raw(second.index(), second.generation(), type_id),
+            Vec::<u8>::new()
         );
     }
 
     #[test]
-    fn set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size() {
+    fn set_components_bulk_keeps_written_rows_when_a_later_width_is_wrong() {
         let made = Engine::new(4).and_then(|mut engine| {
             let first = engine.create_entity()?;
             let second = engine.create_entity()?;
@@ -4483,48 +4495,37 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let transform = ComponentTypeId::from_raw(7);
-        let other = engine.register_component_type();
-        // The second entity's column is built while the transform is fixed
-        // 4 bytes, then the type is registered variable size: the check before
-        // the loop lets the write through and that column refuses it.
-        assert_eq!(engine.storage.register_raw(transform, 4), Ok(()));
-        let added_second =
-            engine.add_component(second.index(), second.generation(), 7, &[1, 2, 3, 4]);
-        assert_eq!(added_second, Ok(true));
-        assert_eq!(engine.storage.register_raw(transform, 0), Ok(()));
-        // The first entity holds another component, so its transform lands in a
-        // new archetype whose column is variable size. Its 8 bytes set the stride.
-        let added_other =
-            engine.add_component(first.index(), first.generation(), other, &[0, 0, 0, 0]);
-        assert_eq!(added_other, Ok(true));
-        let added_first = engine.add_component(
-            first.index(),
-            first.generation(),
-            7,
-            &[5, 6, 7, 8, 5, 6, 7, 8],
+        let type_id = engine.register_component(&[0]).expect("layout");
+        let written = engine.set_components_bulk(
+            &[first.index(), second.index()],
+            &[first.generation(), second.generation()],
+            type_id,
+            &[1, 2, 3, 4, 5, 6, 7, 8],
         );
-        assert_eq!(added_first, Ok(true));
+        assert_eq!(written, Ok(()));
 
         let result = engine.set_components_bulk(
             &[first.index(), second.index()],
             &[first.generation(), second.generation()],
-            7,
+            type_id,
             &[9u8; 16],
         );
 
         assert_eq!(
-            result.err().map(|err| err.code()),
-            Some("CORE:COMPONENT_WRITE_REJECTED")
+            result,
+            Err(CoreError::BufferLengthMismatch {
+                buffer: "data",
+                expected: 8,
+                actual: 16
+            })
         );
         assert_eq!(
-            engine.storage.get_component(second.index(), transform),
-            Some([1u8, 2, 3, 4].as_slice())
+            engine.get_component_raw(first.index(), first.generation(), type_id),
+            vec![1, 2, 3, 4]
         );
-        // The entity before the refused one keeps its new value.
         assert_eq!(
-            engine.storage.get_component(first.index(), transform),
-            Some([9u8; 8].as_slice())
+            engine.get_component_raw(second.index(), second.generation(), type_id),
+            vec![5, 6, 7, 8]
         );
     }
 
@@ -4536,7 +4537,7 @@ mod tests {
         );
 
         let mut engine = Engine::new(4).expect("max entities");
-        let t0 = engine.register_component_type();
+        let t0 = engine.register_component(&[0]).expect("layout");
         for _ in 0..4 {
             let e = engine.create_entity().expect("entity limit");
             engine

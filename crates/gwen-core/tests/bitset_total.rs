@@ -81,6 +81,7 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
     let other = must_ok(engine.create_entity());
     let only_last = must_ok(engine.create_entity());
     for type_id in 0..128u32 {
+        assert_eq!(engine.register_component(&[4]), Ok(type_id));
         assert_eq!(
             engine.add_component(holder.index(), holder.generation(), type_id, &[1]),
             Ok(true)
@@ -103,8 +104,7 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
         vec![1]
     );
 
-    let err =
-        must_err(engine.add_component(holder.index(), holder.generation(), 128, &[9, 9, 9, 9]));
+    let err = must_err(engine.register_component(&[4]));
     assert_eq!(err, CoreError::ComponentTypeLimitReached { max: 128 });
     assert_eq!(err.code(), "CORE:COMPONENT_TYPE_LIMIT_REACHED");
     assert_eq!(err.to_string(), "Component type limit reached: 128");
@@ -124,6 +124,7 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
 
     let mut second = must_ok(Engine::new(2));
     let fresh = must_ok(second.create_entity());
+    assert_eq!(second.register_component(&[4]), Ok(0));
     assert_eq!(
         second.add_component(fresh.index(), fresh.generation(), 0, &[1]),
         Ok(true)

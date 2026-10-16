@@ -73,14 +73,11 @@ pub enum CoreError {
         /// Byte length of the live allocation, or 0 when `ptr` is not live.
         len: usize,
     },
-    /// Storage refused a component write: the bytes do not fit the column, or
-    /// the entity row is inconsistent.
+    /// Storage refused a component write.
     ///
-    /// A refusal from the fixed-size check before the loop in
-    /// `Engine::set_components_bulk` changes nothing. A refusal from the
-    /// `ColumnMove::Rejected` arm inside its loop leaves the entities written
-    /// before it with their new value. The refused entity is not written and
-    /// not marked dirty.
+    /// The chunk store reports a wrong row width as
+    /// [`CoreError::BufferLengthMismatch`] or
+    /// [`CoreError::ComponentLayoutInvalid`] before any row changes.
     ComponentWriteRejected {
         /// Entity slot index.
         entity: u32,
@@ -111,6 +108,13 @@ pub enum CoreError {
         /// Maximum number of archetypes (4096).
         max: u32,
     },
+    /// `register_query` got no type ids, or `query_chunks` got an unknown handle.
+    ///
+    /// An empty type list uses `query` 0. Nothing is stored.
+    QueryInvalid {
+        /// Handle the caller passed, or 0 when the type list was empty.
+        query: u32,
+    },
 }
 
 impl CoreError {
@@ -128,6 +132,7 @@ impl CoreError {
             Self::HistoryBuffersUnavailable { .. } => "CORE:HISTORY_BUFFERS_UNAVAILABLE",
             Self::ComponentLayoutInvalid { .. } => "CORE:COMPONENT_LAYOUT_INVALID",
             Self::ArchetypeLimitReached { .. } => "CORE:ARCHETYPE_LIMIT_REACHED",
+            Self::QueryInvalid { .. } => "CORE:QUERY_INVALID",
         }
     }
 }
@@ -198,6 +203,7 @@ impl fmt::Display for CoreError {
             Self::ArchetypeLimitReached { max } => {
                 write!(f, "Archetype limit reached: {max}")
             }
+            Self::QueryInvalid { query } => write!(f, "Query invalid: {query}"),
         }
     }
 }
