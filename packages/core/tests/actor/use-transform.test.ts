@@ -23,6 +23,7 @@ function createMockEngine() {
     get_entity_world_rotation: () => 0,
     has_entity_parent: () => false,
     set_entity_parent: () => {},
+    register_component: () => 0,
   };
 }
 
@@ -63,6 +64,7 @@ function createStatefulMockEngine() {
     get_entity_world_rotation: () => 0,
     has_entity_parent: () => false,
     set_entity_parent: () => {},
+    register_component: () => 0,
   };
 }
 

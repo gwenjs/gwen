@@ -17,6 +17,7 @@ import {
 import { defineScene, useSystem, type SystemHandle } from "../src/scene/index";
 import { defineSystem, onUpdate } from "../src/system/index";
 import { activateTestWasm } from "./helpers/activate-test-wasm";
+import { stubValue } from "./helpers/stub-component";
 
 const FiveArgHooks = defineHooks({
   "game:five": (_a: number, _b: number, _c: number, _d: number, _e: number): void => undefined,
@@ -254,7 +255,7 @@ describe("frame isolation", () => {
 
   it("isolates an actor and leaves that isolation in place when the pool acquires another", async () => {
     const engine = await createEngine();
-    const Hp = { __name__: "Hp" };
+    const Hp = stubValue("Hp");
     const Prefab = definePrefab([{ def: Hp, defaults: { value: 1 } }]);
     let throws = 0;
     const Actor = defineActor("BoomActor", Prefab, () => {
