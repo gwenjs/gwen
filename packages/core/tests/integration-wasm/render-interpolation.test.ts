@@ -27,38 +27,44 @@ describe("render interpolation on real wasm", () => {
       const slot = entityIndex(id);
       wasm.add_entity_transform(slot, 0, 0, 0, 1, 1);
       const out = fresh();
-      const samples: Array<{ alpha: number; x: number; mid: number }> = [];
+      const samples: Array<{ alpha: number; x: number }> = [];
       handle.engine.hooks.hook("engine:update", () => {
         wasm.translate_entity(slot, 1, 0);
       });
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
         const pair = handle.engine.frame.transforms2D;
         if (pair === null) {
-          samples.push({ alpha, x: Number.NaN, mid: Number.NaN });
+          samples.push({ alpha, x: Number.NaN });
           return;
         }
-        const base = slot * 8;
-        const prev = pair.previous[base] ?? 0;
-        const cur = pair.current[base] ?? 0;
         const ok = readInterpolatedTransform2D(pair, slot, alpha, out);
-        samples.push({ alpha, x: ok ? out.x : Number.NaN, mid: (prev + cur) / 2 });
+        samples.push({ alpha, x: ok ? out.x : Number.NaN });
       });
       await handle.advance(10, 1 / 60);
-      expect(samples).toHaveLength(10);
-      for (let i = 0; i < samples.length; i += 1) {
-        const row = samples[i]!;
-        expect(row.alpha).toBe(i % 2 === 0 ? 0.5 : 0);
-        if (row.alpha === 0.5) expect(row.x).toBeCloseTo(row.mid, 5);
+      // The first advance calls startExternal. That seeds with update_transforms
+      // and two commits while local x is still 0, so both samples are 0.
+      // fixedDt is 1/30. advance(1/60) adds half a step.
+      // Even frames do not step and render at alpha 0.5.
+      // Odd frames run one step and render at alpha 0.
+      // The step commits after update_transforms and before engine:update.
+      // translate(+1) stays dirty until the next step publishes it.
+      // Alpha 0 copies previous. Alpha 0.5 is (previous + current) / 2.
+      // 0: no step, lerp(0, 0) = 0
+      // 1: step publishes 0, alpha 0 copies 0, local becomes 1
+      // 2: no step, lerp(0, 0) = 0
+      // 3: step publishes 1, alpha 0 copies 0, local becomes 2
+      // 4: lerp(0, 1) = 0.5
+      // 5: step publishes 2, alpha 0 copies 1
+      // 6: lerp(1, 2) = 1.5
+      // 7: step publishes 3, alpha 0 copies 2
+      // 8: lerp(2, 3) = 2.5
+      // 9: step publishes 4, alpha 0 copies 3
+      expect(samples.map((row) => row.alpha)).toEqual([0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0]);
+      const expected = [0, 0, 0, 0, 0.5, 1, 1.5, 2, 2.5, 3];
+      expect(samples).toHaveLength(expected.length);
+      for (let i = 0; i < expected.length; i += 1) {
+        expect(samples[i]!.x).toBeCloseTo(expected[i]!, 5);
       }
-      let spaced = 0;
-      for (let i = 1; i < samples.length; i += 1) {
-        const delta = samples[i]!.x - samples[i - 1]!.x;
-        if (spaced > 0 || Math.abs(delta - 0.5) < 1e-4) {
-          expect(delta).toBeCloseTo(0.5, 5);
-          spaced += 1;
-        }
-      }
-      expect(spaced).toBeGreaterThanOrEqual(4);
     } finally {
       await handle.dispose();
     }
@@ -72,28 +78,39 @@ describe("render interpolation on real wasm", () => {
       const slot = entityIndex(id);
       wasm.add_entity_transform(slot, 0, 0, 0, 1, 1);
       const out = fresh();
-      const samples: Array<{ alpha: number; x: number; mid: number }> = [];
+      const samples: Array<{ alpha: number; x: number }> = [];
       handle.engine.hooks.hook("engine:update", () => {
         wasm.translate_entity(slot, 1, 0);
       });
       handle.engine.hooks.hook("engine:render", (alpha: number) => {
         const pair = handle.engine.frame.transforms2D;
         if (pair === null) {
-          samples.push({ alpha, x: Number.NaN, mid: Number.NaN });
+          samples.push({ alpha, x: Number.NaN });
           return;
         }
-        const base = slot * 8;
-        const prev = pair.previous[base] ?? 0;
-        const cur = pair.current[base] ?? 0;
         const ok = readInterpolatedTransform2D(pair, slot, alpha, out);
-        samples.push({ alpha, x: ok ? out.x : Number.NaN, mid: (prev + cur) / 2 });
+        samples.push({ alpha, x: ok ? out.x : Number.NaN });
       });
       await handle.advance(10, 1 / 120);
-      expect(samples).toHaveLength(10);
-      for (let i = 0; i < samples.length; i += 1) {
-        const row = samples[i]!;
-        expect(row.alpha).toBe(i % 2 === 0 ? 0.5 : 0);
-        if (row.alpha === 0.5) expect(row.x).toBeCloseTo(row.mid, 5);
+      // fixedDt is 1/60. advance(1/120) also adds half a step, so the step
+      // pattern matches a 30 Hz engine fed 1/60. The translate is still once
+      // per step, and the commit is still before that translate.
+      // Seed pair is (0, 0). Alpha 0 copies previous. Alpha 0.5 lerps.
+      // 0: acc 1/120, no step, alpha 0.5, lerp(0, 0) = 0
+      // 1: acc 1/60, step publishes 0, alpha 0 copies 0, local becomes 1
+      // 2: acc 1/120, no step, lerp(0, 0) = 0
+      // 3: step publishes 1, alpha 0 copies 0, local becomes 2
+      // 4: lerp(0, 1) = 0.5
+      // 5: step publishes 2, alpha 0 copies 1
+      // 6: lerp(1, 2) = 1.5
+      // 7: step publishes 3, alpha 0 copies 2
+      // 8: lerp(2, 3) = 2.5
+      // 9: step publishes 4, alpha 0 copies 3
+      expect(samples.map((row) => row.alpha)).toEqual([0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0, 0.5, 0]);
+      const expected = [0, 0, 0, 0, 0.5, 1, 1.5, 2, 2.5, 3];
+      expect(samples).toHaveLength(expected.length);
+      for (let i = 0; i < expected.length; i += 1) {
+        expect(samples[i]!.x).toBeCloseTo(expected[i]!, 5);
       }
     } finally {
       await handle.dispose();
@@ -169,6 +186,36 @@ describe("render interpolation on real wasm", () => {
       expect(snapped?.ok).toBe(true);
       expect(snapped?.x).toBe(4);
       expect((snapped?.flags ?? 0) & HAS).toBe(HAS);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("a destroyed TS entity stays packed after destroyEntity", async () => {
+    // createEntity() writes no wasm record. destroyEntity does not remove the
+    // TransformNode. The next commit still packs the slot, so the helper stays
+    // true. #220 removes that node. This assertion flips when that lands.
+    const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 30 });
+    try {
+      const wasm = handle.bridge.engine();
+      const id = handle.engine.createEntity();
+      const slot = entityIndex(id);
+      wasm.add_entity_transform(slot, 8, 0, 0, 1, 1);
+      const out = fresh();
+      const afterDestroy: Array<{ ok: boolean; x: number }> = [];
+      let renders = 0;
+      handle.engine.hooks.hook("engine:render", (alpha: number) => {
+        renders += 1;
+        if (renders < 2) return;
+        const pair = handle.engine.frame.transforms2D;
+        if (pair === null) return;
+        const ok = readInterpolatedTransform2D(pair, slot, alpha, out);
+        afterDestroy.push({ ok, x: ok ? out.x : Number.NaN });
+      });
+      await handle.advance(1, 1 / 30);
+      handle.engine.destroyEntity(id);
+      await handle.advance(1, 1 / 30);
+      expect(afterDestroy).toEqual([{ ok: true, x: 8 }]);
     } finally {
       await handle.dispose();
     }
