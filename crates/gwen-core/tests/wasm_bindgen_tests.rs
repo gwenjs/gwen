@@ -128,8 +128,8 @@ fn wasm_delete_with_wrong_generation_rejected() {
 #[wasm_bindgen_test]
 fn wasm_register_component_type_returns_sequential_ids() {
     let mut engine = make_engine();
-    let t0 = engine.register_component_type();
-    let t1 = engine.register_component_type();
+    let t0 = engine.register_component(&[0]).expect("layout");
+    let t1 = engine.register_component(&[0]).expect("layout");
     assert!(t1 > t0); // IDs are sequential
 }
 
@@ -137,7 +137,7 @@ fn wasm_register_component_type_returns_sequential_ids() {
 fn wasm_add_component_and_has_component() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0]).expect("layout");
 
     // Add 4 raw bytes (one u32)
     let data: &[u8] = &[42u8, 0, 0, 0];
@@ -151,7 +151,7 @@ fn wasm_add_component_and_has_component() {
 fn wasm_add_component_stale_id_rejected() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0]).expect("layout");
     engine.delete_entity(id.index(), id.generation());
 
     // Stale handle — should refuse to add component
@@ -165,7 +165,7 @@ fn wasm_add_component_stale_id_rejected() {
 fn wasm_get_component_raw_returns_bytes() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0]).expect("layout");
 
     let value: u32 = 0xDEAD_BEEF;
     let data = value.to_le_bytes();
@@ -181,7 +181,7 @@ fn wasm_get_component_raw_returns_bytes() {
 fn wasm_get_component_raw_empty_for_missing() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0]).expect("layout");
 
     let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
     assert!(raw.is_empty());
@@ -195,7 +195,7 @@ fn wasm_get_component_raw_empty_for_missing() {
 fn wasm_remove_component() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0]).expect("layout");
     let data: &[u8] = &[1u8, 0, 0, 0];
     engine
         .add_component(id.index(), id.generation(), type_id, &data)
@@ -209,8 +209,8 @@ fn wasm_remove_component() {
 #[wasm_bindgen_test]
 fn wasm_query_entities_returns_correct_set() {
     let mut engine = make_engine();
-    let t0 = engine.register_component_type();
-    let t1 = engine.register_component_type();
+    let t0 = engine.register_component(&[0]).expect("layout");
+    let t1 = engine.register_component(&[0]).expect("layout");
 
     let e0 = engine.create_entity().expect("entity limit");
     let e1 = engine.create_entity().expect("entity limit");
@@ -218,18 +218,18 @@ fn wasm_query_entities_returns_correct_set() {
 
     // e0: t0 + t1
     engine
-        .add_component(e0.index(), e0.generation(), t0, &[])
+        .add_component(e0.index(), e0.generation(), t0, &[0, 0, 0, 0])
         .expect("component");
     engine
-        .add_component(e0.index(), e0.generation(), t1, &[])
+        .add_component(e0.index(), e0.generation(), t1, &[0, 0, 0, 0])
         .expect("component");
     // e1: t0 only
     engine
-        .add_component(e1.index(), e1.generation(), t0, &[])
+        .add_component(e1.index(), e1.generation(), t0, &[0, 0, 0, 0])
         .expect("component");
     // e2: t1 only
     engine
-        .add_component(e2.index(), e2.generation(), t1, &[])
+        .add_component(e2.index(), e2.generation(), t1, &[0, 0, 0, 0])
         .expect("component");
     let results_t0 = engine.query_entities(&[t0]);
     assert_eq!(results_t0.len(), 2); // e0 and e1
@@ -244,7 +244,7 @@ fn wasm_query_entities_returns_correct_set() {
 #[wasm_bindgen_test]
 fn wasm_query_empty_when_no_entities() {
     let mut engine = make_engine();
-    let t0 = engine.register_component_type();
+    let t0 = engine.register_component(&[0]).expect("layout");
     let results = engine.query_entities(&[t0]);
     assert!(results.is_empty());
 }
@@ -296,20 +296,18 @@ fn wasm_err_is_a_js_error_with_a_core_code() {
 
     let mut small = Engine::new(2).expect("max entities");
     let id = small.create_entity().expect("entity limit");
-    let type_id = small.register_component_type();
+    let type_id = small.register_component(&[0]).expect("layout");
     small
-        .add_component(id.index(), id.generation(), type_id, &[1])
+        .add_component(id.index(), id.generation(), type_id, &[1, 0, 0, 0])
         .expect("component");
     small.testing_shrink_query_buffer(0);
     let err = must_err(small.query_entities_to_buffer(&[type_id]));
     assert_eq!(js_error_code(err), "CORE:QUERY_CAPACITY_EXCEEDED");
 
-    for extra in 1..128 {
-        small
-            .add_component(id.index(), id.generation(), extra, &[1])
-            .expect("component");
+    for _extra in 1..128 {
+        small.register_component(&[0]).expect("layout");
     }
-    let err = must_err(small.add_component(id.index(), id.generation(), 128, &[1]));
+    let err = must_err(small.register_component(&[0]));
     assert_eq!(js_error_code(err), "CORE:COMPONENT_TYPE_LIMIT_REACHED");
 
     let err = must_err(Engine::new(0));

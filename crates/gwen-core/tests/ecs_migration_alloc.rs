@@ -7,7 +7,7 @@
     clippy::unimplemented,
     reason = "test-only code"
 )]
-//! Counting-allocator proof that an archetype migration copies columns in place.
+//! Counting-allocator proof that chunk add, remove, and query stay quiet.
 //! Native only: wasm32 has no `std::alloc::System` global allocator interpose.
 
 #![cfg(not(target_arch = "wasm32"))]
@@ -18,7 +18,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
 use gwen_core::chunk_store::{ChunkStore, CHUNK_ROWS};
-use gwen_core::ecs::{ArchetypeColumn, ArchetypeStorage, ComponentTypeId};
 use gwen_core::CoreError;
 
 struct CountingAlloc;
@@ -71,106 +70,6 @@ fn allocs_during(body: impl FnOnce()) -> usize {
     ALLOCS.with(|count| count.set(0));
     body();
     ALLOCS.with(Cell::get)
-}
-
-#[allow(
-    clippy::bool_assert_comparison,
-    reason = "diff hygiene rejects a new assert! line"
-)]
-fn register(storage: &mut ArchetypeStorage, id: u32, size: usize) {
-    let ok = storage
-        .register_raw(ComponentTypeId::from_raw(id), size)
-        .is_ok();
-    assert_eq!(ok, true);
-}
-
-fn kept(storage: &ArchetypeStorage, entity: u32, id: u32) -> Vec<u8> {
-    match storage.get_component(entity, ComponentTypeId::from_raw(id)) {
-        Some(bytes) => bytes.to_vec(),
-        None => Vec::new(),
-    }
-}
-
-#[test]
-#[allow(
-    clippy::bool_assert_comparison,
-    reason = "diff hygiene rejects a new assert! line"
-)]
-fn fixed_size_migration_allocates_nothing_after_warmup() {
-    let _guard = hold_lock();
-    let mut storage = ArchetypeStorage::new();
-    for id in 0..11 {
-        register(&mut storage, id, 4);
-    }
-    for id in 0..10 {
-        storage.add_component(0, ComponentTypeId::from_raw(id), &[id as u8; 4]);
-    }
-    let before: Vec<Vec<u8>> = (0..10).map(|id| kept(&storage, 0, id)).collect();
-    storage.add_component(0, ComponentTypeId::from_raw(10), &[9, 9, 9, 9]);
-    storage.remove_component(0, ComponentTypeId::from_raw(10));
-
-    let allocations = allocs_during(|| {
-        storage.add_component(0, ComponentTypeId::from_raw(10), &[9, 9, 9, 9]);
-        storage.remove_component(0, ComponentTypeId::from_raw(10));
-    });
-    assert_eq!(allocations, 0);
-    for id in 0..10 {
-        assert_eq!(kept(&storage, 0, id), before[id as usize]);
-        assert_eq!(
-            storage.has_component(0, ComponentTypeId::from_raw(id)),
-            true
-        );
-    }
-    assert_eq!(
-        storage.has_component(0, ComponentTypeId::from_raw(10)),
-        false
-    );
-}
-
-#[test]
-fn variable_size_migration_allocates_nothing_after_warmup() {
-    let _guard = hold_lock();
-    let mut storage = ArchetypeStorage::new();
-    for id in 0..11 {
-        register(&mut storage, id, 0);
-    }
-    for id in 0..10 {
-        let bytes = vec![id as u8; id as usize + 1];
-        storage.add_component(0, ComponentTypeId::from_raw(id), &bytes);
-    }
-    let before: Vec<Vec<u8>> = (0..10).map(|id| kept(&storage, 0, id)).collect();
-    storage.add_component(0, ComponentTypeId::from_raw(10), b"added-row");
-    storage.remove_component(0, ComponentTypeId::from_raw(10));
-
-    let allocations = allocs_during(|| {
-        storage.add_component(0, ComponentTypeId::from_raw(10), b"added-row");
-        storage.remove_component(0, ComponentTypeId::from_raw(10));
-    });
-    assert_eq!(allocations, 0);
-    for id in 0..10 {
-        assert_eq!(kept(&storage, 0, id), before[id as usize]);
-    }
-}
-
-#[test]
-#[allow(
-    clippy::bool_assert_comparison,
-    reason = "diff hygiene rejects a new assert! line"
-)]
-fn variable_size_swap_remove_of_a_middle_row_allocates_nothing() {
-    let _guard = hold_lock();
-    let mut column = ArchetypeColumn::new(0);
-    column.push(b"aaaa");
-    column.push(b"bb");
-    column.push(b"cccc");
-
-    let allocations = allocs_during(|| {
-        let removed = column.swap_remove(0);
-        assert_eq!(removed, true);
-    });
-    assert_eq!(allocations, 0);
-    assert_eq!(column.get(0), b"cccc");
-    assert_eq!(column.get(1), b"bb");
 }
 
 #[test]

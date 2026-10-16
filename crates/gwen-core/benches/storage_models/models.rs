@@ -16,7 +16,7 @@
 //!
 //! Link: internals-docs/adr/0001-component-storage.md
 
-use gwen_core::{ArchetypeStorage, BitSet128, ComponentTypeId};
+use gwen_core::chunk_store::ChunkStore;
 
 /// Entity counts of the reference scene. See ADR-0001.
 pub const STORAGE_REFERENCE_SCENE: [usize; 2] = [1_000, 10_000];
@@ -30,11 +30,6 @@ const POS: u8 = 0b0001;
 const VEL: u8 = 0b0010;
 const HEALTH: u8 = 0b0100;
 const ENEMY: u8 = 0b1000;
-
-const POS_RAW: u32 = 1;
-const VEL_RAW: u32 = 2;
-const HEALTH_RAW: u32 = 3;
-const ENEMY_RAW: u32 = 4;
 
 pub fn structural_ops(entity_count: usize) -> usize {
     entity_count / 200
@@ -120,56 +115,63 @@ pub fn run_frame(model: &mut impl StorageModel, frame: u32, dt: f32) {
     }
 }
 
-fn pos_id() -> ComponentTypeId {
-    ComponentTypeId::from_raw(POS_RAW)
-}
-
-fn vel_id() -> ComponentTypeId {
-    ComponentTypeId::from_raw(VEL_RAW)
-}
-
-fn health_id() -> ComponentTypeId {
-    ComponentTypeId::from_raw(HEALTH_RAW)
-}
-
-fn enemy_id() -> ComponentTypeId {
-    ComponentTypeId::from_raw(ENEMY_RAW)
-}
-
-/// Production `ArchetypeStorage` with `register_raw(id, 8)` and HashMap migration.
+/// Production `ChunkStore`. Each vec2 is two `f32` lanes.
 ///
-/// Column buffers are `pub(crate)`, so iteration uses the public per-entity API.
-/// `heap_bytes` is component payload plus entity-id slots, not `Vec` capacity
-/// or the private index maps.
+/// `heap_bytes` is component payload plus one entity-id slot per row that
+/// holds any component. It does not count `Vec` capacity.
 pub struct ModelAProd {
     entity_count: usize,
-    storage: ArchetypeStorage,
+    storage: ChunkStore,
+    pos: u32,
+    vel: u32,
+    health: u32,
+    enemy: u32,
 }
 
 impl ModelAProd {
     pub fn build(entity_count: usize) -> Self {
-        let mut storage = ArchetypeStorage::new();
-        let _ = storage.register_raw(pos_id(), 8);
-        let _ = storage.register_raw(vel_id(), 8);
-        let _ = storage.register_raw(health_id(), 8);
-        let _ = storage.register_raw(enemy_id(), 0);
+        let mut storage = ChunkStore::new(entity_count as u32).expect("store");
+        let pos = storage.register(&[0, 0]).expect("pos");
+        let vel = storage.register(&[0, 0]).expect("vel");
+        let health = storage.register(&[0, 0]).expect("health");
+        let enemy = storage.register(&[]).expect("enemy");
         for entity in 0..entity_count as u32 {
-            let pos = write_pair(initial_position(entity));
-            let vel = write_pair(initial_velocity(entity));
-            let _ = storage.add_component(entity, pos_id(), &pos);
-            let _ = storage.add_component(entity, vel_id(), &vel);
+            let pos_bytes = write_pair(initial_position(entity));
+            let vel_bytes = write_pair(initial_velocity(entity));
+            storage.add(entity, 0, pos, &pos_bytes).expect("pos row");
+            storage.add(entity, 0, vel, &vel_bytes).expect("vel row");
             if entity % 2 == 0 {
-                let health = write_pair(initial_health(entity));
-                let _ = storage.add_component(entity, health_id(), &health);
+                let health_bytes = write_pair(initial_health(entity));
+                storage
+                    .add(entity, 0, health, &health_bytes)
+                    .expect("health row");
             }
             if entity % 4 == 0 {
-                let _ = storage.add_component(entity, enemy_id(), &[]);
+                storage.add(entity, 0, enemy, &[]).expect("enemy row");
             }
         }
         Self {
             entity_count,
             storage,
+            pos,
+            vel,
+            health,
+            enemy,
         }
+    }
+
+    fn read_pair_of(&self, entity: u32, type_id: u32) -> Option<[f32; 2]> {
+        let mut bytes = [0u8; 8];
+        if self.storage.copy_row(entity, 0, type_id, &mut bytes) {
+            Some(read_pair(&bytes, 0))
+        } else {
+            None
+        }
+    }
+
+    fn write_pair_of(&mut self, entity: u32, type_id: u32, pair: [f32; 2]) {
+        let bytes = write_pair(pair);
+        let _ = self.storage.add(entity, 0, type_id, &bytes);
     }
 }
 
@@ -180,89 +182,78 @@ impl StorageModel for ModelAProd {
 
     fn movement(&mut self, dt: f32) {
         for entity in 0..self.entity_count as u32 {
-            let vel = match self.storage.get_component(entity, vel_id()) {
-                Some(bytes) if bytes.len() >= 8 => read_pair(bytes, 0),
-                _ => continue,
-            };
-            let Some(pos) = self.storage.get_component_mut(entity, pos_id()) else {
+            let Some(vel) = self.read_pair_of(entity, self.vel) else {
                 continue;
             };
-            if pos.len() < 8 {
+            let Some(pos) = self.read_pair_of(entity, self.pos) else {
                 continue;
-            }
-            let x = read_f32(pos, 0) + vel[0] * dt;
-            let y = read_f32(pos, 4) + vel[1] * dt;
-            write_f32(pos, 0, x);
-            write_f32(pos, 4, y);
+            };
+            self.write_pair_of(
+                entity,
+                self.pos,
+                [pos[0] + vel[0] * dt, pos[1] + vel[1] * dt],
+            );
         }
     }
 
     fn regen(&mut self, dt: f32) {
         for entity in 0..self.entity_count as u32 {
-            let Some(bytes) = self.storage.get_component_mut(entity, health_id()) else {
+            let Some(health) = self.read_pair_of(entity, self.health) else {
                 continue;
             };
-            if bytes.len() < 8 {
-                continue;
-            }
-            let current = read_f32(bytes, 0) + dt;
-            write_f32(bytes, 0, current);
+            self.write_pair_of(entity, self.health, [health[0] + dt, health[1]]);
         }
     }
 
     fn add_health(&mut self, entity: u32) {
-        if self.storage.has_component(entity, health_id()) {
+        if self.storage.has(entity, 0, self.health) {
             return;
         }
-        let bytes = write_pair(spawned_health());
-        let _ = self.storage.add_component(entity, health_id(), &bytes);
+        self.write_pair_of(entity, self.health, spawned_health());
     }
 
     fn remove_health(&mut self, entity: u32) {
-        let _ = self.storage.remove_component(entity, health_id());
+        let _ = self.storage.remove(entity, 0, self.health);
     }
 
     fn heap_bytes(&self) -> usize {
         let mut total = 0usize;
-        for id in self.storage.archetypes_matching(BitSet128::new()) {
-            let arch = self.storage.archetype(id);
-            let rows = arch.len();
-            if rows == 0 {
-                continue;
-            }
-            for type_id in arch.component_types() {
-                if let Some(bytes) = arch.get_component(0, *type_id) {
-                    total += bytes.len() * rows;
+        let ids = [self.pos, self.vel, self.health, self.enemy];
+        for entity in 0..self.entity_count as u32 {
+            let mut any = false;
+            for type_id in ids {
+                if !self.storage.has(entity, 0, type_id) {
+                    continue;
                 }
+                let width = self
+                    .storage
+                    .layout(type_id)
+                    .map(|layout| usize::from(layout.row_bytes))
+                    .unwrap_or(0);
+                total += width;
+                any = true;
             }
-            total += rows * std::mem::size_of::<u32>();
+            if any {
+                total += std::mem::size_of::<u32>();
+            }
         }
         total
     }
 
     fn position(&self, entity: u32) -> [f32; 2] {
-        match self.storage.get_component(entity, pos_id()) {
-            Some(bytes) if bytes.len() >= 8 => read_pair(bytes, 0),
-            _ => [0.0, 0.0],
-        }
+        self.read_pair_of(entity, self.pos).unwrap_or([0.0, 0.0])
     }
 
     fn velocity(&self, entity: u32) -> [f32; 2] {
-        match self.storage.get_component(entity, vel_id()) {
-            Some(bytes) if bytes.len() >= 8 => read_pair(bytes, 0),
-            _ => [0.0, 0.0],
-        }
+        self.read_pair_of(entity, self.vel).unwrap_or([0.0, 0.0])
     }
 
     fn health(&self, entity: u32) -> Option<[f32; 2]> {
-        self.storage
-            .get_component(entity, health_id())
-            .filter(|bytes| bytes.len() >= 8)
-            .map(|bytes| read_pair(bytes, 0))
+        self.read_pair_of(entity, self.health)
     }
 
     fn has_enemy(&self, entity: u32) -> bool {
-        self.storage.has_component(entity, enemy_id())
+        self.storage.has(entity, 0, self.enemy)
     }
 }
 

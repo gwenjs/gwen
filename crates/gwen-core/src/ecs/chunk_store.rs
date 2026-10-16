@@ -1,6 +1,6 @@
 //! Chunked archetype columns.
 //!
-//! Public so native tests can reach it. The engine does not call it yet.
+//! Public so native tests can reach it. The engine stores components here.
 //! A hole is filled from the archetype's last live row, including a row in an
 //! earlier chunk. A trailing empty chunk is skipped. The moved row keeps its
 //! dormancy: if it lands on the wrong side of `awake`, it swaps with the
@@ -47,6 +47,7 @@ pub const LAYOUT_REASON_ROW_TOO_BIG: u8 = 5;
 
 const NO_CHUNK: u32 = u32::MAX;
 const TYPE_SLOTS: usize = MAX_COMPONENT_TYPES as usize;
+const STAGING_WORDS: usize = MAX_ROW_BYTES / 8;
 
 /// One column kind. The byte is the spec discriminant.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -149,7 +150,25 @@ pub struct ChunkStore {
     chunks: Vec<ChunkSlot>,
     /// Freed chunk ids. Popped only by a later call, after `generation` bumped.
     free_chunks: Vec<u32>,
-    staging: [u8; MAX_ROW_BYTES],
+    staging: [u64; STAGING_WORDS],
+    queries: Vec<Option<StoreQuery>>,
+    free_queries: Vec<u32>,
+}
+
+struct StoreQuery {
+    types: Vec<u32>,
+    /// Viewable lanes in query order: `(type_id, lane offset inside that type)`.
+    viewable: Vec<(u32, u16)>,
+    matched: Vec<u32>,
+    lane_at: Vec<u16>,
+    scratch: Vec<u32>,
+    table: Vec<u32>,
+    built_generation: u32,
+    ready: bool,
+}
+
+fn ptr_word(ptr: usize) -> u32 {
+    u32::try_from(ptr).unwrap_or(0)
 }
 
 fn lane_size(kind: u8) -> Option<usize> {
@@ -221,7 +240,9 @@ impl ChunkStore {
             archetypes: Vec::new(),
             chunks: Vec::new(),
             free_chunks: Vec::new(),
-            staging: [0; MAX_ROW_BYTES],
+            staging: [0; STAGING_WORDS],
+            queries: Vec::new(),
+            free_queries: Vec::new(),
         })
     }
 
@@ -564,7 +585,7 @@ impl ChunkStore {
         let Some(dst) = tmp.get_mut(..width) else {
             return Err(layout_error(type_id, LAYOUT_REASON_ROW_TOO_BIG));
         };
-        let Some(src) = self.staging.get(..width) else {
+        let Some(src) = self.staging().get(..width) else {
             return Err(layout_error(type_id, LAYOUT_REASON_ROW_TOO_BIG));
         };
         dst.copy_from_slice(src);
@@ -593,7 +614,7 @@ impl ChunkStore {
         if !self.copy_row(index, generation, type_id, dst) {
             return false;
         }
-        let Some(slot) = self.staging.get_mut(..width) else {
+        let Some(slot) = self.staging_mut().get_mut(..width) else {
             return false;
         };
         let Some(src) = tmp.get(..width) else {
@@ -603,14 +624,14 @@ impl ChunkStore {
         true
     }
 
-    /// The 512-byte staging buffer.
+    /// The 512-byte staging buffer. The allocation is 8-byte aligned.
     pub fn staging(&self) -> &[u8] {
-        &self.staging
+        bytemuck::try_cast_slice(&self.staging).unwrap_or(&[])
     }
 
-    /// The 512-byte staging buffer.
+    /// The 512-byte staging buffer. The allocation is 8-byte aligned.
     pub fn staging_mut(&mut self) -> &mut [u8] {
-        &mut self.staging
+        bytemuck::try_cast_slice_mut(&mut self.staging).unwrap_or(&mut [])
     }
 
     /// Storage generation. A lane write does not change it.
@@ -770,6 +791,360 @@ impl ChunkStore {
     /// Layout recorded for `type_id`.
     pub fn layout(&self, type_id: u32) -> Option<&ComponentLayout> {
         self.layouts.get(type_id as usize)
+    }
+
+    /// Address of the chunk's entity-generation column.
+    pub fn entity_generation_ptr(&self, chunk: u32) -> Option<usize> {
+        Some(self.chunk_ref(chunk)?.entity_generation.as_ptr() as usize)
+    }
+
+    /// The live row holds `type_id` and the generation matches.
+    pub fn has(&self, index: u32, generation: u32, type_id: u32) -> bool {
+        let Some(slot) = self.slots.get(index as usize) else {
+            return false;
+        };
+        if slot.generation != generation || slot.chunk == NO_CHUNK {
+            return false;
+        }
+        let Some(arch) = self
+            .chunk_ref(slot.chunk)
+            .map(|chunk| chunk.archetype as usize)
+        else {
+            return false;
+        };
+        self.arch_has(arch, type_id)
+    }
+
+    /// Awake rows whose archetype holds every type in `types`.
+    pub fn count_awake(&self, types: &[u32]) -> usize {
+        if types.is_empty() {
+            return 0;
+        }
+        let mut total = 0usize;
+        for index in 0..self.archetypes.len() {
+            if !self.arch_has_types(index, types) {
+                continue;
+            }
+            let chunks = self
+                .archetypes
+                .get(index)
+                .map(|arch| arch.chunks.len())
+                .unwrap_or(0);
+            for cursor in 0..chunks {
+                let Some(chunk_id) = self
+                    .archetypes
+                    .get(index)
+                    .and_then(|arch| arch.chunks.get(cursor))
+                    .copied()
+                else {
+                    continue;
+                };
+                let awake = self
+                    .chunk_ref(chunk_id)
+                    .map(|chunk| chunk.awake)
+                    .unwrap_or(0);
+                total = total.saturating_add(usize::from(awake));
+            }
+        }
+        total
+    }
+
+    /// Writes awake `(index, generation)` pairs into the two buffers.
+    ///
+    /// The number written is the smaller of the match count and the buffer lengths.
+    pub fn write_awake(&self, types: &[u32], slots: &mut [u32], gens: &mut [u32]) -> usize {
+        if types.is_empty() {
+            return 0;
+        }
+        let cap = slots.len().min(gens.len());
+        let mut written = 0usize;
+        for index in 0..self.archetypes.len() {
+            if written >= cap {
+                break;
+            }
+            if !self.arch_has_types(index, types) {
+                continue;
+            }
+            let chunks = self
+                .archetypes
+                .get(index)
+                .map(|arch| arch.chunks.len())
+                .unwrap_or(0);
+            for cursor in 0..chunks {
+                if written >= cap {
+                    break;
+                }
+                let Some(chunk_id) = self
+                    .archetypes
+                    .get(index)
+                    .and_then(|arch| arch.chunks.get(cursor))
+                    .copied()
+                else {
+                    continue;
+                };
+                let Some(chunk) = self.chunk_ref(chunk_id) else {
+                    continue;
+                };
+                let awake = usize::from(chunk.awake);
+                for row in 0..awake {
+                    if written >= cap {
+                        break;
+                    }
+                    let Some(entity) = chunk.entity_index.get(row).copied() else {
+                        continue;
+                    };
+                    let Some(generation) = chunk.entity_generation.get(row).copied() else {
+                        continue;
+                    };
+                    let Some(slot) = slots.get_mut(written) else {
+                        break;
+                    };
+                    *slot = entity;
+                    let Some(gen) = gens.get_mut(written) else {
+                        break;
+                    };
+                    *gen = generation;
+                    written += 1;
+                }
+            }
+        }
+        written
+    }
+
+    /// Records a query. An empty list is [`CoreError::QueryInvalid`] and stores nothing.
+    ///
+    /// An unregistered type id is [`CoreError::ComponentLayoutInvalid`] and stores nothing.
+    pub fn register_query(&mut self, type_ids: &[u32]) -> Result<u32, CoreError> {
+        if type_ids.is_empty() {
+            return Err(CoreError::QueryInvalid { query: 0 });
+        }
+        let mut viewable = Vec::new();
+        for &type_id in type_ids {
+            let Some(layout) = self.layouts.get(type_id as usize) else {
+                return Err(layout_error(type_id, LAYOUT_REASON_UNREGISTERED_TYPE));
+            };
+            for (offset, lane) in layout.lanes.iter().enumerate() {
+                if lane.0 > 4 {
+                    continue;
+                }
+                let Ok(offset) = u16::try_from(offset) else {
+                    continue;
+                };
+                viewable.push((type_id, offset));
+            }
+        }
+        let query = StoreQuery {
+            types: type_ids.to_vec(),
+            viewable,
+            matched: Vec::new(),
+            lane_at: Vec::new(),
+            scratch: Vec::new(),
+            table: Vec::new(),
+            built_generation: u32::MAX,
+            ready: false,
+        };
+        if let Some(id) = self.free_queries.pop() {
+            let Some(slot) = self.queries.get_mut(id as usize) else {
+                return Err(CoreError::QueryInvalid { query: id });
+            };
+            *slot = Some(query);
+            return Ok(id);
+        }
+        let Ok(id) = u32::try_from(self.queries.len()) else {
+            return Err(CoreError::QueryInvalid { query: 0 });
+        };
+        self.queries.push(Some(query));
+        Ok(id)
+    }
+
+    /// Drops a query. An unknown handle does nothing.
+    pub fn release_query(&mut self, query: u32) {
+        let Some(slot) = self.queries.get_mut(query as usize) else {
+            return;
+        };
+        if slot.is_none() {
+            return;
+        }
+        *slot = None;
+        self.free_queries.push(query);
+    }
+
+    /// Words of the last `query_chunks` fill. `None` when the handle is unknown.
+    pub fn query_table(&self, query: u32) -> Option<&[u32]> {
+        self.queries
+            .get(query as usize)?
+            .as_ref()
+            .map(|query| query.table.as_slice())
+    }
+
+    /// Fills the query table and returns its address as `u32`.
+    ///
+    /// On a 64-bit host the address does not fit, and the word is 0. The table
+    /// is still readable from [`ChunkStore::query_table`]. wasm32 stores the
+    /// real address. A second call with the same storage generation rewrites
+    /// counts in the existing buffer.
+    pub fn query_chunks(&mut self, query: u32) -> Result<u32, CoreError> {
+        self.fill_query(query)?;
+        let ptr = self
+            .query_table(query)
+            .map(|table| table.as_ptr() as usize)
+            .unwrap_or(0);
+        Ok(u32::try_from(ptr).unwrap_or(0))
+    }
+
+    fn fill_query(&mut self, query_id: u32) -> Result<(), CoreError> {
+        let Ok(index) = usize::try_from(query_id) else {
+            return Err(CoreError::QueryInvalid { query: query_id });
+        };
+        let exists = self.queries.get(index).is_some_and(|slot| slot.is_some());
+        if !exists {
+            return Err(CoreError::QueryInvalid { query: query_id });
+        }
+        let generation = self.generation;
+        let mut query = match self.queries.get_mut(index).and_then(|slot| slot.take()) {
+            Some(query) => query,
+            None => return Err(CoreError::QueryInvalid { query: query_id }),
+        };
+        if query.ready && query.built_generation == generation {
+            self.rewrite_counts(&mut query.table);
+            if let Some(slot) = self.queries.get_mut(index) {
+                *slot = Some(query);
+            }
+            return Ok(());
+        }
+        self.rebuild_query(&mut query);
+        if let Some(slot) = self.queries.get_mut(index) {
+            *slot = Some(query);
+        }
+        Ok(())
+    }
+
+    fn rewrite_counts(&self, table: &mut [u32]) {
+        let stride = table.get(2).copied().unwrap_or(0) as usize;
+        if stride == 0 {
+            return;
+        }
+        let mut cursor = 4usize;
+        let mut awake_total = 0u32;
+        while cursor + 1 < table.len() {
+            let chunk_id = table[cursor];
+            let awake = self
+                .chunk_ref(chunk_id)
+                .map(|chunk| u32::from(chunk.awake))
+                .unwrap_or(0);
+            if let Some(slot) = table.get_mut(cursor + 1) {
+                *slot = awake;
+            }
+            awake_total = awake_total.saturating_add(awake);
+            cursor = cursor.saturating_add(stride);
+        }
+        if let Some(slot) = table.get_mut(3) {
+            *slot = awake_total;
+        }
+    }
+
+    fn rebuild_query(&mut self, query: &mut StoreQuery) {
+        query.matched.clear();
+        query.lane_at.clear();
+        query.table.clear();
+        let view_count = query.viewable.len();
+        let arch_count = self.archetypes.len();
+        for arch_index in 0..arch_count {
+            if !self.arch_has_types(arch_index, &query.types) {
+                continue;
+            }
+            let lane_start = query.lane_at.len();
+            let mut lanes_ok = true;
+            for cursor in 0..view_count {
+                let Some((type_id, offset)) = query.viewable.get(cursor).copied() else {
+                    lanes_ok = false;
+                    break;
+                };
+                let Some((start, _)) = self.lane_range(arch_index, type_id) else {
+                    lanes_ok = false;
+                    break;
+                };
+                let lane = start.saturating_add(usize::from(offset));
+                let Ok(word) = u16::try_from(lane) else {
+                    lanes_ok = false;
+                    break;
+                };
+                query.lane_at.push(word);
+            }
+            if !lanes_ok {
+                query.lane_at.truncate(lane_start);
+                continue;
+            }
+            let Some(arch_id) = self.archetypes.get(arch_index).map(|arch| arch.id) else {
+                query.lane_at.truncate(lane_start);
+                continue;
+            };
+            query.matched.push(arch_id);
+        }
+        let stride = 4usize.saturating_add(view_count);
+        let Ok(stride_word) = u32::try_from(stride) else {
+            return;
+        };
+        query
+            .table
+            .extend_from_slice(&[0, self.generation, stride_word, 0]);
+        let matched = query.matched.len();
+        let mut chunk_count = 0u32;
+        let mut awake_total = 0u32;
+        for cursor in 0..matched {
+            let Some(arch_id) = query.matched.get(cursor).copied() else {
+                continue;
+            };
+            query.scratch.clear();
+            if let Some(arch) = self.archetypes.get(arch_id as usize) {
+                query.scratch.extend_from_slice(&arch.chunks);
+            }
+            let chunks = query.scratch.len();
+            for chunk_cursor in 0..chunks {
+                let Some(chunk_id) = query.scratch.get(chunk_cursor).copied() else {
+                    continue;
+                };
+                let Some(awake) = self.chunk_ref(chunk_id).map(|chunk| chunk.awake) else {
+                    continue;
+                };
+                if awake == 0 {
+                    continue;
+                }
+                let awake_word = u32::from(awake);
+                let index_ptr = self.entity_index_ptr(chunk_id).unwrap_or(0);
+                let generation_ptr = self.entity_generation_ptr(chunk_id).unwrap_or(0);
+                query.table.push(chunk_id);
+                query.table.push(awake_word);
+                query.table.push(ptr_word(index_ptr));
+                query.table.push(ptr_word(generation_ptr));
+                let base = cursor.saturating_mul(view_count);
+                for lane_cursor in 0..view_count {
+                    let lane = usize::from(
+                        query
+                            .lane_at
+                            .get(base.saturating_add(lane_cursor))
+                            .copied()
+                            .unwrap_or(0),
+                    );
+                    let ptr = self.lane_ptr(chunk_id, lane).unwrap_or(0);
+                    query.table.push(ptr_word(ptr));
+                }
+                chunk_count = chunk_count.saturating_add(1);
+                awake_total = awake_total.saturating_add(awake_word);
+            }
+        }
+        if let Some(slot) = query.table.get_mut(0) {
+            *slot = chunk_count;
+        }
+        if let Some(slot) = query.table.get_mut(3) {
+            *slot = awake_total;
+        }
+        query.built_generation = self.generation;
+        query.ready = true;
+    }
+
+    fn arch_has_types(&self, arch: usize, types: &[u32]) -> bool {
+        types.iter().all(|type_id| self.arch_has(arch, *type_id))
     }
 
     fn check_index(&self, index: u32) -> Result<(), CoreError> {

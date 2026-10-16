@@ -195,7 +195,7 @@ fn check_refuses_an_allocation_that_belongs_to_another_engine() -> Outcome {
 
 fn engine_with_component(bytes: &[u8]) -> Result<(Engine, u32, u32, u32), CoreError> {
     let mut e = Engine::new(8)?;
-    let type_id = e.register_component_type();
+    let type_id = e.register_component(&[0])?;
     let id = e.create_entity()?;
     assert_eq!(
         e.add_component(id.index(), id.generation(), type_id, bytes),

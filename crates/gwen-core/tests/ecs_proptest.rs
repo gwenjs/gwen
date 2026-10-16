@@ -87,7 +87,7 @@ fn fresh_engine() -> (Engine, Model) {
     let mut engine = must_ok(Engine::new(ENGINE_CAP));
     let mut type_ids = [0u32; TYPE_COUNT];
     for (i, slot) in type_ids.iter_mut().enumerate() {
-        *slot = engine.register_component_type();
+        *slot = engine.register_component(&[0]).expect("layout");
         assert_eq!(*slot, i as u32);
     }
 
@@ -102,7 +102,7 @@ fn fresh_engine() -> (Engine, Model) {
     assert_eq!(index, 0);
     assert_eq!(generation, 0);
     for &type_id in &type_ids {
-        let added = must_ok(engine.add_component(index, generation, type_id, &[1]));
+        let added = must_ok(engine.add_component(index, generation, type_id, &[1, 0, 0, 0]));
         assert_eq!(added, true);
     }
     for &type_id in &type_ids {
@@ -147,8 +147,12 @@ fn assert_invariants(engine: &mut Engine, model: &Model) {
                 !engine.delete_entity(index, slot.generation),
                 "stale delete accepted at {index}",
             );
-            let stale_add =
-                must_ok(engine.add_component(index, slot.generation, model.type_ids[0], &[1]));
+            let stale_add = must_ok(engine.add_component(
+                index,
+                slot.generation,
+                model.type_ids[0],
+                &[1, 0, 0, 0],
+            ));
             assert_eq!(stale_add, false, "stale add accepted at {index}");
         }
     }
@@ -231,7 +235,8 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
             let stale = model.slots[index as usize].generation.wrapping_add(1);
             assert!(!engine.delete_entity(index, stale));
             assert!(!engine.is_alive(index, stale));
-            let stale_add = must_ok(engine.add_component(index, stale, model.type_ids[0], &[1]));
+            let stale_add =
+                must_ok(engine.add_component(index, stale, model.type_ids[0], &[1, 0, 0, 0]));
             assert_eq!(stale_add, false);
         }
         Op::AddComponent(raw, ty_raw) => {

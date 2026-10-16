@@ -113,7 +113,7 @@ fn bulk_step_without_a_world_is_not_a_zero_success() -> Result<(), Physics2DErro
 #[test]
 fn sync_from_rapier_mismatch_is_not_an_empty_read() -> Result<(), CoreError> {
     let mut engine = Engine::new(8)?;
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0])?;
     let id = engine.create_entity()?;
     assert_eq!(
         engine.add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4]),
@@ -154,7 +154,7 @@ fn sync_from_rapier_mismatch_is_not_an_empty_read() -> Result<(), CoreError> {
     assert_eq!(&read_buf[..4], &[1, 2, 3, 4]);
 
     let mut other = Engine::new(8)?;
-    let other_type = other.register_component_type();
+    let other_type = other.register_component(&[0])?;
     let other_id = other.create_entity()?;
     assert_eq!(
         other.add_component(
@@ -191,7 +191,7 @@ fn sync_from_rapier_mismatch_is_not_an_empty_read() -> Result<(), CoreError> {
 #[test]
 fn sync_to_rapier_mismatch_leaves_the_component() -> Result<(), CoreError> {
     let mut engine = Engine::new(8)?;
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0])?;
     let id = engine.create_entity()?;
     assert_eq!(
         engine.add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4]),
@@ -225,7 +225,7 @@ fn sync_to_rapier_mismatch_leaves_the_component() -> Result<(), CoreError> {
     );
 
     let mut other = Engine::new(8)?;
-    let other_type = other.register_component_type();
+    let other_type = other.register_component(&[0])?;
     let other_id = other.create_entity()?;
     assert_eq!(
         other.add_component(
@@ -259,7 +259,7 @@ fn sync_to_rapier_mismatch_leaves_the_component() -> Result<(), CoreError> {
 #[test]
 fn apply_impulse_mismatch_leaves_the_component() -> Result<(), CoreError> {
     let mut engine = Engine::new(8)?;
-    let type_id = engine.register_component_type();
+    let type_id = engine.register_component(&[0])?;
     let id = engine.create_entity()?;
     assert_eq!(
         engine.add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4]),
@@ -285,7 +285,7 @@ fn apply_impulse_mismatch_leaves_the_component() -> Result<(), CoreError> {
     );
 
     let mut other = Engine::new(8)?;
-    let other_type = other.register_component_type();
+    let other_type = other.register_component(&[0])?;
     let other_id = other.create_entity()?;
     assert_eq!(
         other.add_component(
