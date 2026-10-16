@@ -468,9 +468,17 @@ describe("fixed-timestep loop (physicsHz)", () => {
     const harness = setupFixedLoopHarness();
     const engine = await createEngine({ physicsHz: 60 });
     const renders: number[] = [];
+    let steps = 0;
     engine.hooks.hook("engine:render", (alpha?: number) => {
       renders.push(alpha ?? Number.NaN);
     });
+    await engine.use(
+      defineSystem(function negativeFrameSystem() {
+        onUpdate(() => {
+          steps += 1;
+        });
+      })(),
+    );
     harness.setNow(1000);
     activateTestWasm(engine);
     await engine.start();
@@ -479,6 +487,8 @@ describe("fixed-timestep loop (physicsHz)", () => {
     if (alpha === undefined) throw new Error("missing alpha");
     expect(alpha).toBeGreaterThanOrEqual(0);
     expect(alpha).toBeLessThan(1);
+    await harness.tick(1000 / 60);
+    expect(steps).toBe(1);
     await engine.stop();
   });
 
