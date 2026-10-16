@@ -243,8 +243,13 @@ describe("WasmBridge — with injected mock", () => {
 
   it("registerComponent() delegates to mock", () => {
     const lanes = new Uint8Array([0]);
+    const seen: Uint8Array[] = [];
+    mock.register_component = (value: Uint8Array) => {
+      seen.push(value);
+      return 0;
+    };
     const id = bridge.registerComponent(lanes);
-    expect(mock.register_component).toHaveBeenCalledWith(lanes);
+    expect(seen).toEqual([lanes]);
     expect(id).toBe(0);
   });
 

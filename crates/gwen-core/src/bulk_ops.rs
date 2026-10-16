@@ -131,7 +131,7 @@ mod tests {
     #[test]
     fn test_fill_and_read_bulk_resolves_generations() -> Result<(), CoreError> {
         let mut engine = make_engine();
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = engine.register_component(&[0])?;
 
         let e = engine.create_entity()?;
         engine.add_component(e.index(), e.generation(), type_id, &[7u8, 0, 0, 0])?;
@@ -159,7 +159,7 @@ mod tests {
     #[test]
     fn test_fill_and_read_bulk_roundtrip_three_entities() -> Result<(), CoreError> {
         let mut engine = make_engine();
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = engine.register_component(&[0])?;
 
         let e0 = engine.create_entity()?;
         let e1 = engine.create_entity()?;
@@ -200,7 +200,7 @@ mod tests {
         // More matches than the old 10_000 hard cap. Only the caller slices cap the result.
         const MATCHES: usize = 10_050;
         let mut engine = Engine::new(MATCHES as u32)?;
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = engine.register_component(&[0])?;
         let entity_slots: Vec<u32> = (0..MATCHES as u32).collect();
 
         for _ in 0..MATCHES {

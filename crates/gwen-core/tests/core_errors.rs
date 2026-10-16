@@ -29,6 +29,13 @@ fn must_err<T, E>(result: Result<T, E>) -> E {
     }
 }
 
+fn must_ok<T, E>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(_) => unreachable!(),
+    }
+}
+
 fn assert_known_code(err: &CoreError) {
     match err {
         CoreError::EntityLimitReached { .. } => {
@@ -154,7 +161,7 @@ fn bulk_spawn_over_capacity_creates_nothing() {
 #[test]
 fn query_over_capacity_leaves_the_buffer_unchanged() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     for _ in 0..4 {
         let id = engine.create_entity().expect("slot");
         engine
@@ -344,7 +351,7 @@ fn sync_rejects_a_length_above_capacity_without_writing() {
 #[test]
 fn set_components_bulk_rejects_a_wrongly_sized_buffer() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -377,7 +384,7 @@ fn set_components_bulk_rejects_a_wrongly_sized_buffer() {
 #[test]
 fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -410,7 +417,7 @@ fn set_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
 fn get_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
     let other = engine(4);
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -450,7 +457,7 @@ fn get_components_bulk_rejects_mismatched_slot_and_generation_lengths() {
 #[test]
 fn get_components_bulk_rejects_a_longer_generation_list() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -490,7 +497,7 @@ fn get_components_bulk_rejects_a_longer_generation_list() {
 fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
     let mut other = engine(4);
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -562,7 +569,7 @@ fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
 fn query_read_bulk_rejects_a_longer_generation_list() {
     let mut other = engine(4);
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -644,7 +651,7 @@ fn get_components_bulk_returns_zero_for_two_empty_slices() {
 #[test]
 fn get_components_bulk_stops_when_the_output_buffer_is_full() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -670,7 +677,7 @@ fn get_components_bulk_stops_when_the_output_buffer_is_full() {
 #[test]
 fn query_read_bulk_truncates_to_the_shared_output_length() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -706,7 +713,7 @@ fn query_read_bulk_truncates_to_the_shared_output_length() {
 #[test]
 fn query_read_bulk_returns_zero_when_the_type_list_is_empty() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()
@@ -729,7 +736,7 @@ fn query_read_bulk_returns_zero_when_the_type_list_is_empty() {
 #[test]
 fn query_read_bulk_rejects_a_length_mismatch_before_an_empty_type_list() {
     let mut engine = engine(4);
-    let type_id = engine.register_component(&[0]).expect("layout");
+    let type_id = must_ok(engine.register_component(&[0]));
     assert_eq!(
         engine
             .create_entity()

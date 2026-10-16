@@ -128,26 +128,31 @@ pub struct ModelAProd {
     enemy: u32,
 }
 
+fn must<T, E>(result: Result<T, E>) -> T {
+    match result {
+        Ok(value) => value,
+        Err(_) => unreachable!(),
+    }
+}
+
 impl ModelAProd {
     pub fn build(entity_count: usize) -> Self {
-        let mut storage = ChunkStore::new(entity_count as u32).expect("store");
-        let pos = storage.register(&[0, 0]).expect("pos");
-        let vel = storage.register(&[0, 0]).expect("vel");
-        let health = storage.register(&[0, 0]).expect("health");
-        let enemy = storage.register(&[]).expect("enemy");
+        let mut storage = must(ChunkStore::new(entity_count as u32));
+        let pos = must(storage.register(&[0, 0]));
+        let vel = must(storage.register(&[0, 0]));
+        let health = must(storage.register(&[0, 0]));
+        let enemy = must(storage.register(&[]));
         for entity in 0..entity_count as u32 {
             let pos_bytes = write_pair(initial_position(entity));
             let vel_bytes = write_pair(initial_velocity(entity));
-            storage.add(entity, 0, pos, &pos_bytes).expect("pos row");
-            storage.add(entity, 0, vel, &vel_bytes).expect("vel row");
+            must(storage.add(entity, 0, pos, &pos_bytes));
+            must(storage.add(entity, 0, vel, &vel_bytes));
             if entity % 2 == 0 {
                 let health_bytes = write_pair(initial_health(entity));
-                storage
-                    .add(entity, 0, health, &health_bytes)
-                    .expect("health row");
+                must(storage.add(entity, 0, health, &health_bytes));
             }
             if entity % 4 == 0 {
-                storage.add(entity, 0, enemy, &[]).expect("enemy row");
+                must(storage.add(entity, 0, enemy, &[]));
             }
         }
         Self {
