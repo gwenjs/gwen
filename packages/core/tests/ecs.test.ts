@@ -367,6 +367,17 @@ describe("QueryEngine", () => {
     expect(r1).toBe(r2);
   });
 
+  it("refills the same id array when a second entity is added", () => {
+    const firstId = engine.createEntity();
+    engine.addComponent(firstId, Position, { x: 1, y: 2 });
+    const first = readLiveQueryIds(engine, [Position]);
+    const secondId = engine.createEntity();
+    engine.addComponent(secondId, Position, { x: 3, y: 4 });
+    const again = readLiveQueryIds(engine, [Position]);
+    expect(again).toBe(first);
+    expect(again).toContain(secondId);
+  });
+
   it("should treat definition and name query inputs as equivalent", () => {
     const e = engine.createEntity();
     engine.addComponent(e, Position, { x: 1, y: 2 });
