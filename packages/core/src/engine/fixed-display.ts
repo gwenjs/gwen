@@ -1,6 +1,18 @@
 import { clamp } from "@gwenjs/math";
 
-import type { EngineFrame, EngineFramePhaseMs } from "./engine-types.js";
+import type { EngineFramePhaseMs } from "./engine-types.js";
+
+/**
+ * Loop-owned frame. Field writes stay here.
+ * The same object is returned as the readonly public `EngineFrame`.
+ */
+interface MutableEngineFrame {
+  alpha: number;
+  fixedStep: boolean;
+  steps: number;
+  rendering: boolean;
+  transforms2D: null;
+}
 import type { EngineLoopDeps } from "./engine-loop.js";
 import { popEngine, pushEngine } from "./engine-local.js";
 import { isThenable } from "./error-isolation.js";
@@ -10,7 +22,7 @@ export interface FixedStepState {
   accumulator: number;
   fixedDt: number;
   armed: boolean;
-  frame: EngineFrame;
+  frame: MutableEngineFrame;
   sumPhases: boolean;
 }
 
@@ -68,7 +80,9 @@ export async function runFixedDisplay(
   readNow: () => number,
 ): Promise<void> {
   const fixedDt = state.fixedDt;
-  state.accumulator += Math.min(rawSeconds, deps.config.maxDeltaSeconds);
+  // A non-finite or negative dt adds nothing. The first rAF stamp can be
+  // older than `markStart()`. The variable-loop path is unchanged.
+  state.accumulator += Math.min(finiteElapsed(rawSeconds), deps.config.maxDeltaSeconds);
   let steps = 0;
   state.sumPhases = true;
   timing.timed = false;
@@ -99,7 +113,7 @@ export async function runFixedDisplay(
     }
     state.frame.steps = steps;
     if (deps.state.state !== "running") return;
-    const alpha = Math.min(state.accumulator / fixedDt, 1 - Number.EPSILON);
+    const alpha = displayAlpha(state.accumulator, fixedDt);
     try {
       await renderDisplayPass(state.frame, alpha, deps, state.sumPhases, phaseSlot, readNow);
     } catch (err) {
@@ -125,14 +139,36 @@ export function emitEngineRender(deps: EngineLoopDeps, alpha: number): unknown {
   });
 }
 
+function finiteElapsed(rawSeconds: number): number {
+  if (!Number.isFinite(rawSeconds) || rawSeconds < 0) return 0;
+  return rawSeconds;
+}
+
+function displayAlpha(accumulator: number, fixedDt: number): number {
+  const ratio = accumulator / fixedDt;
+  if (!Number.isFinite(ratio)) return 0;
+  return Math.min(Math.max(ratio, 0), 1 - Number.EPSILON);
+}
+
+function thrownCode(err: unknown): string | undefined {
+  if (typeof err !== "object" || err === null || !("code" in err)) return undefined;
+  const code = err.code;
+  return typeof code === "string" ? code : undefined;
+}
+
 function commitHistory(deps: EngineLoopDeps): void {
   try {
     deps.bridge.engine().transform_history_commit?.();
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    deps.policy.reportCaught(err, "transform_history_commit", {
-      message: `transform_history_commit failed: ${detail}`,
-    });
+    const code = thrownCode(err);
+    deps.policy.reportCaught(
+      err,
+      "transform_history_commit",
+      code === undefined
+        ? { message: `transform_history_commit failed: ${detail}` }
+        : { message: `transform_history_commit failed: ${detail}`, code },
+    );
   }
 }
 
@@ -151,7 +187,7 @@ function seedHistory(deps: EngineLoopDeps): void {
 }
 
 async function renderDisplayPass(
-  frame: EngineFrame,
+  frame: MutableEngineFrame,
   alpha: number,
   deps: EngineLoopDeps,
   sumPhases: boolean,
