@@ -250,3 +250,17 @@ fn destroy_zeroes_the_slot_on_the_next_commit() -> Result<(), CoreError> {
     assert_eq!(f32_at(&slot(&engine, written, id.index()), 0), 3.0);
     Ok(())
 }
+
+#[test]
+fn commit_packs_a_transform_on_a_slot_with_no_wasm_entity() -> Result<(), CoreError> {
+    let mut engine = Engine::new(4)?;
+    engine.add_entity_transform(0, 3.0, 4.0, 0.0, 1.0, 1.0);
+    engine.update_transforms();
+    let written = engine.transform_history_commit()?;
+    let packed = slot(&engine, written, 0);
+    assert_eq!(f32_at(&packed, 0), 3.0);
+    assert_eq!(f32_at(&packed, 4), 4.0);
+    assert_eq!(flags_at(&packed) & FLAG_HAS_TRANSFORM, FLAG_HAS_TRANSFORM);
+    assert_eq!(slot(&engine, written, 1), [0u8; SLOT_BYTES]);
+    Ok(())
+}
