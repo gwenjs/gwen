@@ -314,3 +314,25 @@ fn chunk_store_boundary_add_remove_allocates_nothing_after_warmup() -> Result<()
     assert_eq!(store.slot_generation(boundary), Some(generation));
     Ok(())
 }
+
+#[test]
+fn chunk_store_query_chunks_allocates_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(8)?;
+    let position = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &[1, 0, 0, 0]), Ok(true));
+    assert_eq!(store.add(1, 0, position, &[2, 0, 0, 0]), Ok(true));
+    let query = store.register_query(&[position])?;
+    let first = store.query_chunks(query)?;
+    let allocations = allocs_during(|| {
+        for _ in 0..4 {
+            let again = store.query_chunks(query);
+            assert_eq!(again, Ok(first));
+        }
+    });
+    assert_eq!(allocations, 0);
+    let table = store.query_table(query).unwrap_or(&[]);
+    assert_eq!(table.first().copied(), Some(1));
+    assert_eq!(table.get(3).copied(), Some(2));
+    Ok(())
+}
