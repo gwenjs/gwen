@@ -23,6 +23,7 @@ use wasm_bindgen_test::*;
 wasm_bindgen_test_configure!(run_in_node_experimental);
 
 use gwen_core::bindings::{Engine, JsEntityId};
+use gwen_core::CoreError;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -278,6 +279,18 @@ fn must_ok<T, E>(result: Result<T, E>) -> T {
         Ok(value) => value,
         Err(_) => unreachable!(),
     }
+}
+
+#[test]
+fn register_component_round_trips_four_bytes() -> Result<(), CoreError> {
+    let mut engine = Engine::new(8)?;
+    let type_id = engine.register_component(&[0])?;
+    let id = engine.create_entity()?;
+    let added = engine.add_component(id.index(), id.generation(), type_id, &[7, 0, 0, 0])?;
+    assert_eq!(Some(added), Some(true));
+    let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
+    assert_eq!(raw, vec![7, 0, 0, 0]);
+    Ok(())
 }
 
 #[cfg(target_arch = "wasm32")]
