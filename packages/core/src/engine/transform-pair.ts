@@ -31,6 +31,10 @@ const FLAG_WORD = 5;
  * or the current slot has no transform.
  * A teleport flag, or a previous slot with no transform, copies `current`.
  * `alpha` is clamped to `[0, 1]`. `NaN` becomes `1`.
+ *
+ * A TypeScript `createEntity` writes no wasm record. `destroyEntity` does not
+ * remove the transform node, so this keeps returning true for that slot.
+ * Renderers must drop an entity on `entity:destroy`. Issue #220 removes the node.
  */
 export function readInterpolatedTransform2D(
   pair: TransformPair2D,

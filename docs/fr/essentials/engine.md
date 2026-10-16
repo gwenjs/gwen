@@ -170,6 +170,39 @@ Le pattern accumulateur :
 3. Les pas entiers encore présents après ce plafond sont abandonnés.
 4. Un seul `engine:render(alpha)` suit ces pas, y compris quand aucun pas n'a tourné. `alpha` est la fraction de pas restante, dans `[0, 1)`, et ignore `timeScale`.
 
+### Interpolation
+
+Avec `physicsHz > 0`, chaque pas fixe enregistre un échantillon d'historique 2D après `update_transforms` et avant `engine:update`. `engine.frame` est le même objet pendant toute la vie du moteur.
+
+`engine.frame.alpha` est la valeur passée au dernier `engine:render`. Elle vaut `1` quand `physicsHz` est `0`, et la fraction de pas restante sinon. `engine.frame.rendering` est vrai seulement pendant ces handlers. `engine.frame.transforms2D` est la paire d'historique, ou `null` quand `physicsHz` est `0`, avant la première paire du pas fixe, et après `stop()`.
+
+Un renderer lit un slot depuis `engine:render`. Déclarez `out` une fois. La fonction écrit dedans et n'alloue rien.
+
+```ts
+import { readInterpolatedTransform2D } from '@gwenjs/core'
+
+const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }
+
+engine.hooks.hook('engine:render', (alpha) => {
+  const pair = engine.frame.transforms2D
+  if (pair === null) return
+  if (!readInterpolatedTransform2D(pair, slot, alpha, out)) return
+  draw(out.x, out.y, out.rotation)
+})
+```
+
+La fonction renvoie false, et ne touche pas `out`, quand `slot` est hors de la paire ou que l'échantillon courant n'a pas de transform. Un drapeau de téléportation, ou un échantillon précédent sans transform, copie l'échantillon courant.
+
+`useTransform().world` utilise cet échantillon pour `x`, `y` et `rotation` pendant le rendu, quand la paire est présente et que le slot courant a une transform. `worldRaw` lit toujours le cache monde brut. `scaleX` et `scaleY` restent `1` des deux côtés, et `z` reste `0`. `teleport(x, y)` fixe la position locale et marque le prochain commit d'historique, donc les rendus suivants sautent au lieu de mélanger.
+
+L'échantillon enregistré sur un pas n'inclut pas les écritures `engine:update` de ce même pas. Ces écritures sont publiées au pas suivant. Un rendu à `alpha` 0 copie l'échantillon précédent. C'est le retard d'un pas.
+
+`createEntity()` n'écrit pas d'enregistrement wasm. `destroyEntity` émet `entity:destroy` et ne retire pas le nœud de transform. Le commit suivant emballe encore ce slot, et `readInterpolatedTransform2D` reste vrai. Un renderer doit abandonner l'entité sur `entity:destroy`. Un `delete_entity` wasm garde son enregistrement. Le commit suivant ignore cet enregistrement mort après avoir vidé le tampon, donc le slot est à zéro et la fonction renvoie false.
+
+`physicsHz === 0` n'alloue pas les tampons d'historique. `alpha` reste `1`, `transforms2D` reste `null`, et `world` est égal à `worldRaw`.
+
+Le callback `renderViews` d'un renderer surface reçoit toujours `1`. Cette page ne change pas cet appel.
+
 `engine.timeScale` ne multiplie que le `dt` du pas. Un `timeScale` de `0.5` divise par deux la vitesse de simulation et laisse `alpha` inchangé.
 
 ::: info Déterminisme

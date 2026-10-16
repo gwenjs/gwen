@@ -170,6 +170,39 @@ The accumulator pattern:
 3. Whole steps still left after that cap are dropped.
 4. One `engine:render(alpha)` runs after those steps, including when no step ran. `alpha` is the leftover fraction of a step, in `[0, 1)`, and ignores `timeScale`.
 
+### Interpolation
+
+With `physicsHz > 0`, each fixed step stores a 2D history sample after `update_transforms` and before `engine:update`. `engine.frame` is the same object for the life of the engine.
+
+`engine.frame.alpha` is the value passed to the latest `engine:render`. It is `1` when `physicsHz` is `0`, and the leftover fraction of a step otherwise. `engine.frame.rendering` is true only while those handlers run. `engine.frame.transforms2D` is the history pair, or `null` when `physicsHz` is `0`, before the first fixed seed, and after `stop()`.
+
+A renderer reads one slot from `engine:render`. Hoist `out`. The helper writes into it and allocates nothing.
+
+```ts
+import { readInterpolatedTransform2D } from '@gwenjs/core'
+
+const out = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }
+
+engine.hooks.hook('engine:render', (alpha) => {
+  const pair = engine.frame.transforms2D
+  if (pair === null) return
+  if (!readInterpolatedTransform2D(pair, slot, alpha, out)) return
+  draw(out.x, out.y, out.rotation)
+})
+```
+
+The helper returns false, and leaves `out` untouched, when `slot` is outside the pair or the current sample has no transform. A teleport flag, or a previous sample with no transform, copies the current sample.
+
+`useTransform().world` uses that sample for `x`, `y`, and `rotation` during render when the pair is present and the current slot has a transform. `worldRaw` always reads the raw world cache. `scaleX` and `scaleY` stay `1` on both, and `z` stays `0`. `teleport(x, y)` sets the local position and marks the next history commit, so the following renders snap instead of blending.
+
+The sample stored on a step does not include the `engine:update` writes of that same step. Those writes are published on the next step. A render at `alpha` 0 copies the previous sample. That is the one-step lag.
+
+`createEntity()` writes no wasm record. `destroyEntity` emits `entity:destroy` and does not remove the transform node. The next commit still packs that slot, and `readInterpolatedTransform2D` keeps returning true. A renderer must drop the entity on `entity:destroy`. A wasm `delete_entity` keeps its record. The next commit skips that dead record after clearing the buffer, so the slot is zeros and the helper returns false.
+
+`physicsHz === 0` does not allocate the history buffers. `alpha` stays `1`, `transforms2D` stays `null`, and `world` matches `worldRaw`.
+
+A surface renderer `renderViews` callback still receives `1`. This page does not change that call.
+
 `engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged.
 
 ::: info Determinism

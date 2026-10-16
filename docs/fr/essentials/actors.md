@@ -201,14 +201,16 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 | `rotateTo(angle)` | Définir la rotation locale (radians) |
 | `rotate(delta)` | Ajouter un delta à la rotation locale |
 | `scaleTo(sx, sy?)` | Définir l'échelle locale (`sy` par défaut `sx`) |
+| `teleport(x, y)` | Fixer la position locale et faire sauter le prochain échantillon rendu |
 
-**Propriétés en lecture** — valeurs monde, mises à jour une fois par frame :
+**Propriétés en lecture** — position monde. Pendant `onRender`, `x`, `y` et `rotation` peuvent être un mélange. Voir la note ci-dessous.
 
 | Propriété | Description |
 |---|---|
-| `world.x`, `world.y` | Position monde |
-| `world.rotation` | Rotation monde (radians) |
-| `world.scaleX`, `world.scaleY` | Échelle monde |
+| `world.x`, `world.y` | Position monde. Interpolée pendant `onRender` quand une paire d'historique est installée |
+| `world.rotation` | Rotation monde (radians). Même règle que `world.x` |
+| `world.scaleX`, `world.scaleY` | Restent `1` |
+| `worldRaw.x`, `worldRaw.y`, `worldRaw.rotation` | Cache monde brut. Jamais interpolé |
 | `hasParent` | `true` si attaché à un parent |
 
 **Hiérarchie :**
@@ -218,8 +220,10 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 | `setParent(handleOrId, keepWorldPos?)` | Attacher à une entité parente |
 | `detach(keepWorldPos?)` | Détacher du parent |
 
-::: info Les lectures monde ont un frame de retard
-`world.x/y` reflète l'état du **frame précédent**. Les écritures faites en `onUpdate` sont visibles au frame suivant.
+::: info Lectures monde pendant le rendu
+Hors de `onRender`, `world` est égal à `worldRaw`. Une écriture dans `onUpdate` est publiée au pas suivant, parce que le commit d'historique a lieu avant `engine:update`.
+Pendant `onRender`, quand `physicsHz > 0` et que `engine.frame.transforms2D` est défini, `world.x`, `world.y` et `world.rotation` suivent `engine:render(alpha)`. `worldRaw` reste le cache brut. `scaleX` et `scaleY` restent `1`.
+`destroyEntity` ne vide pas ce slot d'historique. Abandonnez l'entité sur `entity:destroy`.
 :::
 
 ## Acteurs enfants
