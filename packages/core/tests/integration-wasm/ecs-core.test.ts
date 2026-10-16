@@ -38,7 +38,7 @@ describe("real WASM ECS core", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: MAX_ENTITIES });
     try {
       const { bridge } = handle;
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const random = mulberry32(SEED);
       const model: Model = { slots: [], free: [], live: 0 };
 
@@ -97,7 +97,7 @@ describe("real WASM ECS core", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
     try {
       const { bridge } = handle;
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const created = bridge.createEntity();
       expect(bridge.addComponent(created.index, created.generation, typeId, COMPONENT_BYTES)).toBe(
         true,

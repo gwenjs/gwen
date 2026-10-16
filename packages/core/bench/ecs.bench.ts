@@ -85,7 +85,7 @@ describe("Component add + get — 1 000 entities", () => {
   bench("WASM (if active)", () => {
     const bridge = benchBridge;
     if (!bridge.isActive()) return;
-    const typeId = bridge.registerComponentType()!;
+    const typeId = bridge.registerComponent(new Uint8Array([0, 0]))!;
     const data = new Uint8Array(8); // 2× f32
     const ids: Array<{ index: number; generation: number }> = [];
     for (let i = 0; i < 1_000; i++) {
@@ -112,7 +112,7 @@ describe("Query — 1 000 entities, 1 component type", () => {
   bench("WASM (if active)", () => {
     const bridge = benchBridge;
     if (!bridge.isActive()) return;
-    const typeId = bridge.registerComponentType()!;
+    const typeId = bridge.registerComponent(new Uint8Array([0, 0]))!;
     const data = new Uint8Array(8);
     for (let i = 0; i < 1_000; i++) {
       const id = bridge.createEntity()!;

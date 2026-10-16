@@ -38,7 +38,7 @@ const WASM_BIN = resolve(_dir, "../wasm/light/gwen_core_bg.wasm");
 /** Minimal shape of a wasm-bindgen Engine instance */
 interface RawWasmEngine {
   create_entity(): { index: number; generation: number };
-  register_component_type(): number;
+  register_component(lane_kinds: Uint8Array): number;
   add_component(index: number, generation: number, typeId: number, data: Uint8Array): boolean;
   get_component_raw(index: number, generation: number, typeId: number): Uint8Array;
   update_entity_archetype(index: number, typeIds: Uint32Array): void;
@@ -79,8 +79,8 @@ interface WasmWorld {
 
 function buildWasmWorld(n: number): WasmWorld {
   const engine = loadWasmEngine(n + 64);
-  const posTypeId = engine.register_component_type();
-  const velTypeId = engine.register_component_type();
+  const posTypeId = engine.register_component(new Uint8Array([0, 0]));
+  const velTypeId = engine.register_component(new Uint8Array([0, 0]));
   const posBuf = new Uint8Array(COMP_BYTES);
   const velBuf = new Uint8Array(COMP_BYTES);
   const archetypeIds = new Uint32Array([posTypeId, velTypeId]);

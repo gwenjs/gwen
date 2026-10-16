@@ -10,7 +10,7 @@ describe("P0 query cap", () => {
     });
     try {
       const { bridge } = handle;
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const spawned = 15_000;
       for (let i = 0; i < spawned; i += 1) {
         const id = bridge.createEntity();

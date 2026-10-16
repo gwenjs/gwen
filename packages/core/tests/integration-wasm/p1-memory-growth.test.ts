@@ -9,7 +9,7 @@ describe("memory growth", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 32 });
     const { engine, bridge } = handle;
     try {
-      const typeId = bridge.engine().register_component_type();
+      const typeId = bridge.engine().register_component(new Uint8Array([0]));
       const id = bridge.createEntity();
       bridge.addComponent(id.index, id.generation, typeId, new Uint8Array([7, 0, 0, 0]));
       expect(bridge.queryEntitiesRaw([typeId])).toBe(1);
@@ -93,7 +93,6 @@ describe("memory growth", () => {
       const memory = bridge.getLinearMemory();
       if (memory === null) throw new Error("light wasm did not export memory");
       const started = memory.buffer.byteLength;
-      const typeId = bridge.engine().register_component_type();
       const shared = SharedMemoryManager.create(bridge, 64);
       const region = shared.allocateRegion("test-spawn", 16);
       const view = engine.memory.view({
@@ -105,9 +104,8 @@ describe("memory growth", () => {
       view.array[0] = 1;
 
       let grew = false;
-      for (let i = 0; i < 256 && !grew; i += 1) {
-        const id = bridge.createEntity();
-        bridge.addComponent(id.index, id.generation, typeId, new Uint8Array(4096));
+      for (let i = 0; i < 32 && !grew; i += 1) {
+        bridge.allocSharedBuffer(1024 * 1024);
         grew = memory.buffer.byteLength !== started;
       }
       expect(grew).toBe(true);

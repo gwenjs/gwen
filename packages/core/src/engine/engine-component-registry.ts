@@ -2,7 +2,7 @@
  * Engine Component Registry — TypeScript ↔ Rust component type ID mapping.
  *
  * Every ECS component type has a string name on the TS side (e.g. `'Transform'`)
- * and a numeric ID on the Rust side (assigned by `register_component_type()`).
+ * and a numeric ID on the Rust side (assigned by `register_component`).
  *
  * This registry owns the bidirectional mapping and provides helpers to:
  * - Register a new type (lazy — on first use)
@@ -14,6 +14,7 @@
 
 import { GwenError } from "@gwenjs/schema";
 
+import type { ComponentSchema, SchemaType } from "../schema";
 import type { ComponentType } from "../types";
 import { unpackEntityId, type EntityId } from "./engine-api";
 import type { GwenEngine } from "./engine-types";
@@ -43,9 +44,78 @@ export function componentTypeIds(engine: GwenEngine): ReadonlyMap<ComponentType,
   return registries.peek(engine)?.getAll() ?? new Map();
 }
 
+/** One f32 lane. Names still reach the registry until the engine passes definitions. */
+const NAME_LANES = Uint8Array.of(0);
+
+function laneParts(type: SchemaType["type"]): readonly number[] {
+  switch (type) {
+    case "f32":
+      return [0];
+    case "f64":
+      return [1];
+    case "i32":
+      return [2];
+    case "u32":
+      return [3];
+    case "bool":
+      return [4];
+    case "i64":
+      return [5];
+    case "u64":
+      return [6];
+    case "string":
+      return [7];
+    case "vec2":
+      return [0, 0];
+    case "vec3":
+      return [0, 0, 0];
+    case "vec4":
+    case "quat":
+    case "color":
+      return [0, 0, 0, 0];
+    default: {
+      const unexpected: never = type;
+      throw new GwenError(
+        CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
+        `Component layout invalid: ${String(unexpected)}`,
+      );
+    }
+  }
+}
+
+function lanesFromSchema(schema: ComponentSchema): Uint8Array {
+  const lanes: number[] = [];
+  for (const key of Object.keys(schema)) {
+    const field = schema[key];
+    if (!field) {
+      throw new GwenError(
+        CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
+        `Component layout invalid: ${key}`,
+      );
+    }
+    lanes.push(...laneParts(field.type));
+  }
+  return Uint8Array.from(lanes);
+}
+
+function sameLanes(left: Uint8Array, right: Uint8Array): boolean {
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) return false;
+  }
+  return true;
+}
+
+export interface ComponentLayoutSource {
+  readonly name: string;
+  readonly schema: ComponentSchema;
+}
+
 export class EngineComponentRegistry {
   /** TS component name → Rust numeric typeId */
   private typeIds = new Map<ComponentType, number>();
+  /** Lane bytes stored with the name. A second layout must match. */
+  private layouts = new Map<string, Uint8Array>();
   /** Used only while the bridge has no WASM engine. Each registry has its own counter. */
   private nextLocalId = 0;
 
@@ -68,15 +138,31 @@ export class EngineComponentRegistry {
   // ── Registration ─────────────────────────────────────────────────────────────
 
   /**
-   * Get the Rust typeId for a component type name.
-   * Registers a new ID with the WASM core if this is the first use.
+   * Get the Rust typeId for a component name or a definition.
+   * A string is one f32 lane. A definition uses its schema, in field order.
+   * The same name with different lanes throws and stores nothing.
    *
    * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this name
-   *   would be the 129th user type. The check runs before `registerComponentType`.
+   *   would be the 129th user type. The check runs before `registerComponent`.
+   * @throws {GwenError} code `CORE:COMPONENT_LAYOUT_INVALID` when this name is
+   *   already stored with different lanes.
    */
-  getOrRegister(type: ComponentType): number {
-    const existing = this.typeIds.get(type);
-    if (existing !== undefined) return existing;
+  getOrRegister(type: ComponentType): number;
+  getOrRegister(def: ComponentLayoutSource): number;
+  getOrRegister(typeOrDef: ComponentType | ComponentLayoutSource): number {
+    const name = typeof typeOrDef === "string" ? typeOrDef : typeOrDef.name;
+    const lanes = typeof typeOrDef === "string" ? NAME_LANES : lanesFromSchema(typeOrDef.schema);
+    const existing = this.typeIds.get(name);
+    const stored = this.layouts.get(name);
+    if (existing !== undefined && stored !== undefined) {
+      if (!sameLanes(stored, lanes)) {
+        throw new GwenError(
+          CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
+          `Component layout invalid: ${name}`,
+        );
+      }
+      return existing;
+    }
     if (this.typeIds.size >= MAX_COMPONENT_TYPES) {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
@@ -87,8 +173,9 @@ export class EngineComponentRegistry {
     // ask WASM again. Baked numeric ids are disabled; a hotter cache is #66.
     const bridgeActive =
       typeof this.wasmBridge.isActive === "function" && this.wasmBridge.isActive();
-    const typeId = bridgeActive ? this.wasmBridge.registerComponentType() : this.nextLocalId++;
-    this.typeIds.set(type, typeId);
+    const typeId = bridgeActive ? this.wasmBridge.registerComponent(lanes) : this.nextLocalId++;
+    this.typeIds.set(name, typeId);
+    this.layouts.set(name, lanes.slice());
     return typeId;
   }
 

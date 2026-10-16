@@ -32,7 +32,7 @@ describe("real WASM memory growth", () => {
       expect(after).toBeGreaterThan(before);
       expect(bridge.checkMemoryGrow()).toBe(true);
 
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const expected: number[] = [];
       for (let n = 0; n < 5; n += 1) {
         const id = bridge.createEntity();

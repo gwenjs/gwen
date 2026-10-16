@@ -45,7 +45,7 @@ function makePlacementMock() {
     delete_entity: () => true,
     is_alive: () => true,
     count_entities: () => 0,
-    register_component_type: () => 0,
+    register_component: () => 0,
     add_component: () => true,
     remove_component: () => true,
     has_component: () => false,

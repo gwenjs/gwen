@@ -32,8 +32,8 @@ describe("real WASM queries", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
     try {
       const { bridge } = handle;
-      const typeA = bridge.registerComponentType();
-      const typeB = bridge.registerComponentType();
+      const typeA = bridge.registerComponent(new Uint8Array([0]));
+      const typeB = bridge.registerComponent(new Uint8Array([0]));
       const withA: number[] = [];
       const withBoth: number[] = [];
 
@@ -70,7 +70,7 @@ describe("real WASM queries", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: spawned });
     try {
       const { bridge } = handle;
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       const expected: number[] = [];
       for (let n = 0; n < spawned; n += 1) {
         const id = bridge.createEntity();
@@ -92,9 +92,9 @@ describe("real WASM queries", () => {
     try {
       first = await createRealEngine({ variant: "light", maxEntities: 32 });
       second = await createRealEngine({ variant: "light", maxEntities: 32 });
-      const typeA = first.bridge.registerComponentType();
-      second.bridge.registerComponentType();
-      const typeB = second.bridge.registerComponentType();
+      const typeA = first.bridge.registerComponent(new Uint8Array([0]));
+      second.bridge.registerComponent(new Uint8Array([0]));
+      const typeB = second.bridge.registerComponent(new Uint8Array([0]));
 
       const slotsA: number[] = [];
       for (let n = 0; n < 3; n += 1) {
@@ -126,8 +126,8 @@ describe("real WASM queries", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
     try {
       const { bridge } = handle;
-      const typeA = bridge.registerComponentType();
-      const typeB = bridge.registerComponentType();
+      const typeA = bridge.registerComponent(new Uint8Array([0]));
+      const typeB = bridge.registerComponent(new Uint8Array([0]));
       const created = bridge.createEntity();
       const bytes = new Uint8Array(4);
 

@@ -47,7 +47,10 @@ const ENGINE: Record<string, ExportRow> = {
     "an index past records fails is_alive at entity.rs:121-122 and is skipped at bindings.rs:3565-3566",
   ),
   bulk_spawn_with_transforms: result(),
-  count_entities: infallible("returns the stored live count at bindings.rs:176-177; no argument"),
+  component_staging_ptr: infallible(
+    "returns the staging address as u32, or 0 when it does not fit, at bindings.rs:328-329",
+  ),
+  count_entities: infallible("returns the stored live count at bindings.rs:204-206; no argument"),
   create_entity: result(),
   delete_entity: infallible(
     "deallocate returns false when the index is past records at entity.rs:98-99; a stale generation returns false at entity.rs:105-106",
@@ -71,29 +74,39 @@ const ENGINE: Record<string, ExportRow> = {
   ),
   get_query_result_ptr: infallible("returns Vec::as_ptr at bindings.rs:673-674; no index"),
   has_component: infallible(
-    "a dead entity returns false at bindings.rs:268-272; get_location uses slice get at storage.rs:195-200; graph.get indexes the stored archetype id at archetype_graph.rs:109-110",
+    "a dead entity returns false at bindings.rs:276-281; the store answers the live row at bindings.rs:283",
   ),
   has_entity_parent: infallible("HashMap get, then unwrap_or(false) at bindings.rs:877-882"),
   is_alive: infallible("an index past records returns false at entity.rs:121-122"),
+  is_entity_dormant: infallible(
+    "a dead entity returns false at bindings.rs:392-398; a missing row is false at bindings.rs:399",
+  ),
   mark_entity_teleport: infallible(
     "get_entity_generation then mark_pending_snap at bindings.rs:1057-1059; a missing node is a no-op at transform.rs:417-420",
   ),
+  query_chunks: result(),
   query_entities: infallible(
-    "an unknown type id is skipped by bit_index at query.rs:26-28; archetype ids come from the graph list at storage.rs:360-365",
+    "count_awake then write_awake copy the awake slots at bindings.rs:682-690",
   ),
   query_entities_to_buffer: result(),
   query_read_bulk: result(),
   query_write_bulk: result(),
-  register_component_type: infallible(
-    "no argument; the counter starts at 0 at bindings.rs:131 and the body adds 1 at bindings.rs:198-199. The light build is wasm-pack --release and profile.release does not set overflow-checks, so that add wraps. A debug build panics when the add overflows u32",
+  read_component_staged: infallible(
+    "a dead entity returns false at bindings.rs:355-361; a missing component returns false and leaves the staging bytes unchanged",
+  ),
+  register_component: result(),
+  register_query: result(),
+  release_query: infallible(
+    "forwards the handle at bindings.rs:427-428; an unknown handle does nothing",
   ),
   remove_component: infallible(
-    "a dead entity returns false at bindings.rs:248-252; a missing location returns None at storage.rs:150; the next index is that stored archetype id at storage.rs:152",
+    "a dead entity returns false at bindings.rs:264-268; a store error becomes false at bindings.rs:270-272 and the row stays",
   ),
   remove_entity_from_query: infallible(
-    "bindings.rs:598-599 forwards the index to QuerySystem::remove_entity, which ignores it at query.rs:172-174",
+    "the body ignores the index at bindings.rs:667-669; deleting the entity drops its row",
   ),
   set_components_bulk: result(),
+  set_entity_dormant: result(),
   set_entity_local_position: infallible(
     "a missing transform is None and the call returns at bindings.rs:790-794; set_position stores the Vec2 at transform.rs:160-162",
   ),
@@ -104,7 +117,10 @@ const ENGINE: Record<string, ExportRow> = {
     "a missing transform is None and the call returns at bindings.rs:808-812",
   ),
   set_entity_parent: result(),
-  stats: infallible("formats the stored live count at bindings.rs:3278-3279; no argument"),
+  stats: infallible("formats the stored live count at bindings.rs:3798-3799; no argument"),
+  storage_generation: infallible(
+    "returns the stored generation at bindings.rs:320-321; a lane write does not change it",
+  ),
   sync_transforms_to_buffer: result(),
   translate_entity: infallible(
     "a missing transform is None and the call returns at bindings.rs:780-785; the f32 add does not trap",
@@ -114,8 +130,9 @@ const ENGINE: Record<string, ExportRow> = {
     "buffer greater than 1 or an empty buffer returns 0 at bindings.rs:1038-1048; a stored buffer returns as_ptr cast to usize at bindings.rs:1050",
   ),
   update_entity_archetype: infallible(
-    "both parameters are unused; the body is empty at bindings.rs:590-592",
+    "both parameters are unused; the body is empty at bindings.rs:659-662",
   ),
+  write_component_staged: result(),
   update_transforms: infallible(
     "update walks a cloned id list with HashMap gets at transform.rs:424-459; the hierarchy walk is a loop at transform.rs:479-495",
   ),
@@ -220,13 +237,18 @@ describe("WASM export inventory", () => {
       "create_entity",
       "free_shared_buffer",
       "get_components_bulk",
+      "query_chunks",
       "query_entities_to_buffer",
       "query_read_bulk",
       "query_write_bulk",
+      "register_component",
+      "register_query",
       "set_components_bulk",
+      "set_entity_dormant",
       "set_entity_parent",
       "sync_transforms_to_buffer",
       "transform_history_commit",
+      "write_component_staged",
     ]);
   });
 });

@@ -246,8 +246,6 @@ export function poisonWasmBridge(bridge: object, cause: WebAssembly.RuntimeError
 export class WasmBridgeImpl implements WasmBridge {
   // ── Per-instance state (was module-level) ─────────────────────────────────
   private _wasmEngine: WasmEngine | null = null;
-  /** Ids for test mocks that do not export `register_component_type`. */
-  private _localTypeId = 0;
   private _wasmModule: GwenCoreWasm | null = null;
   private _wasmExports: { memory?: WebAssembly.Memory } | null = null;
   private _initPromise: Promise<void> | null = null;
@@ -578,13 +576,69 @@ export class WasmBridgeImpl implements WasmBridge {
 
   // ── Component ────────────────────────────────────────────────────────────
 
-  registerComponentType(): number {
+  registerComponent(laneKinds: Uint8Array): number {
     const wasm = this._requireWasm();
-    if (typeof wasm.register_component_type !== "function") {
-      this._localTypeId += 1;
-      return this._localTypeId;
+    try {
+      return wasm.register_component(laneKinds);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "register_component");
     }
-    return wasm.register_component_type();
+  }
+
+  componentStagingPtr(): number {
+    return this._requireWasm().component_staging_ptr();
+  }
+
+  writeComponentStaged(index: number, generation: number, typeId: number): boolean {
+    const wasm = this._requireWasm();
+    try {
+      return wasm.write_component_staged(index, generation, typeId);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "write_component_staged");
+    }
+  }
+
+  readComponentStaged(index: number, generation: number, typeId: number): boolean {
+    return this._requireWasm().read_component_staged(index, generation, typeId);
+  }
+
+  setEntityDormant(index: number, generation: number, dormant: boolean): boolean {
+    const wasm = this._requireWasm();
+    try {
+      return wasm.set_entity_dormant(index, generation, dormant);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "set_entity_dormant");
+    }
+  }
+
+  isEntityDormant(index: number, generation: number): boolean {
+    return this._requireWasm().is_entity_dormant(index, generation);
+  }
+
+  registerQuery(typeIds: Uint32Array): number {
+    const wasm = this._requireWasm();
+    try {
+      return wasm.register_query(typeIds);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "register_query");
+    }
+  }
+
+  queryChunks(query: number): number {
+    const wasm = this._requireWasm();
+    try {
+      return wasm.query_chunks(query);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "query_chunks");
+    }
+  }
+
+  releaseQuery(query: number): void {
+    this._requireWasm().release_query(query);
+  }
+
+  storageGeneration(): number {
+    return this._requireWasm().storage_generation();
   }
 
   addComponent(index: number, generation: number, typeId: number, data: Uint8Array): boolean {

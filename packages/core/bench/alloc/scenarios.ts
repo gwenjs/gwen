@@ -58,8 +58,8 @@ function spawnBridgeEntities(
   ids: EntityId[];
 } {
   const { bridge } = handle;
-  const posType = bridge.registerComponentType();
-  const velType = bridge.registerComponentType();
+  const posType = bridge.registerComponent(new Uint8Array([0, 0]));
+  const velType = bridge.registerComponent(new Uint8Array([0, 0]));
   const typeIds = [posType, velType];
   const bytes = new Uint8Array(8);
   const ids: EntityId[] = Array.from({ length: entities });

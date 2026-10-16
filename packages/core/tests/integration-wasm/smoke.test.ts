@@ -10,7 +10,7 @@ describe("real WASM engine", () => {
     });
     try {
       const { engine, bridge } = handle;
-      const typeId = bridge.registerComponentType();
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
       for (let i = 0; i < 3; i += 1) {
         const id = bridge.createEntity();
         bridge.addComponent(id.index, id.generation, typeId, new Uint8Array(4));

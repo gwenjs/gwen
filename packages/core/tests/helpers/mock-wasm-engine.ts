@@ -9,7 +9,7 @@ export function createMockWasmEngine(): WasmEngine {
     delete_entity: vi.fn(() => true),
     is_alive: vi.fn(() => true),
     count_entities: vi.fn(() => 0),
-    register_component_type: vi.fn(() => 0),
+    register_component: vi.fn(() => 0),
     add_component: vi.fn(() => true),
     remove_component: vi.fn(() => true),
     has_component: vi.fn(() => false),
