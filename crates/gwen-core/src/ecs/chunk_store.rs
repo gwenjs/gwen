@@ -1,12 +1,20 @@
 //! Chunked archetype columns.
 //!
 //! Public so native tests can reach it. The engine does not call it yet.
-//! A hole is filled from the archetype's last row, including a row in an
-//! earlier chunk. The moved row keeps its dormancy: if it lands on the wrong
-//! side of `awake`, it swaps with the boundary row in that same chunk and
-//! `awake` moves by one. A later chunk may stay fully awake. Chunk slots are
-//! freed only after the row move, and a freed id is taken again on a later
-//! call, once this call has bumped `generation`.
+//! A hole is filled from the archetype's last live row, including a row in an
+//! earlier chunk. A trailing empty chunk is skipped. The moved row keeps its
+//! dormancy: if it lands on the wrong side of `awake`, it swaps with the
+//! boundary row in that same chunk and `awake` moves by one. A later chunk
+//! may stay fully awake. An archetype keeps at most one empty chunk. A chunk
+//! that becomes empty is freed only when that archetype already keeps another
+//! empty chunk. The kept chunk is reused by the next row once every earlier
+//! chunk is full. A freed id is taken again on a later call, once this call
+//! has bumped `generation`.
+//!
+//! Dormancy lives on the row. An entity with no components has no row, so
+//! [`ChunkStore::set_dormant`] returns `Ok(false)`. Removing the last
+//! component drops the row and forgets dormancy. The next [`ChunkStore::add`]
+//! is awake.
 
 use super::{BitSet128, CoreError, MAX_COMPONENT_TYPES, MAX_ENTITIES_LIMIT};
 
@@ -280,6 +288,15 @@ impl ChunkStore {
     /// `Ok(false)` is a stale generation: nothing changes. A new row is awake.
     /// A row that already had components keeps its dormancy across the move.
     /// On `Err`, nothing has been written.
+    ///
+    /// The source row, when there is one, and the new bytes are checked
+    /// before a destination row is reserved. Reserving that row is the first
+    /// write of the move. A `false` return after the reserve does not occur
+    /// on a public call: the destination archetype is a different mask, the
+    /// bytes already matched the layout, and the source hole was checked.
+    /// Copying kept lanes, writing the new lanes, storing the entity index,
+    /// finishing the awake swap, or filling the source hole would fail only
+    /// if a lane or the chunk disappeared during this call.
     pub fn add(
         &mut self,
         index: u32,
@@ -340,7 +357,14 @@ impl ChunkStore {
     }
 
     /// Drops `type_id`. `Ok(false)` means the entity does not have it, or the
-    /// generation is stale. Either way the store is unchanged.
+    /// generation is stale. Those paths leave the store unchanged.
+    ///
+    /// Dropping the last component checks the row before clearing its
+    /// location. A failed fill after that check does not occur: the chunk is
+    /// still live and the row is inside `len`. A move onto another archetype
+    /// checks the source row before reserving the destination. A `false`
+    /// return after that reserve does not occur, for the same reason as
+    /// [`ChunkStore::add`].
     pub fn remove(&mut self, index: u32, generation: u32, type_id: u32) -> Result<bool, CoreError> {
         self.check_index(index)?;
         if !self.generation_matches(index, generation) {
@@ -357,6 +381,9 @@ impl ChunkStore {
             None => return Ok(false),
         };
         if type_count <= 1 {
+            if !self.can_fill(arch, chunk_id, row) {
+                return Ok(false);
+            }
             if !self.clear_loc(index) {
                 return Ok(false);
             }
@@ -422,9 +449,15 @@ impl ChunkStore {
     /// Frees the slot when `generation` matches.
     ///
     /// An index past the table or a stale generation returns `false` and
-    /// changes nothing. The storage generation bumps only when a row was
-    /// removed. The slot generation always bumps on success, so the next
-    /// occupant of this index is a new entity and is not dormant.
+    /// changes nothing. When the entity has a row, that row is checked
+    /// before the slot is cleared. The check fails only when the row is
+    /// already outside `len` or the archetype has no live row. Public calls
+    /// do not build that state, and a failure leaves the slot as it was.
+    /// Filling the hole after the check does not fail: the chunk is still
+    /// live, the row is inside `len`, and clearing the slot does not drop
+    /// the chunk. The storage generation bumps only when a row was removed.
+    /// The slot generation always bumps on success, so the next occupant of
+    /// this index is a new entity and is not dormant.
     pub fn delete_entity(&mut self, index: u32, generation: u32) -> bool {
         if index >= self.max_entities {
             return false;
@@ -433,6 +466,11 @@ impl ChunkStore {
             return false;
         }
         let saved = self.row_of(index);
+        if let Some((chunk_id, row, arch)) = saved {
+            if !self.can_fill(arch, chunk_id, row) {
+                return false;
+            }
+        }
         let Some(slot) = self.slots.get_mut(index as usize) else {
             return false;
         };
@@ -450,9 +488,17 @@ impl ChunkStore {
 
     /// Moves the row across its chunk's awake boundary.
     ///
-    /// `Ok(false)` is a stale generation or an entity with no row. The same
-    /// state again is `Ok(true)` and does not bump `generation`. An index
-    /// past the table is [`CoreError::InvalidMaxEntities`].
+    /// `Ok(false)` is a stale generation, or an entity with no row. An entity
+    /// with no components has no row, so this returns `Ok(false)` and changes
+    /// nothing. Removing the last component drops the row and forgets
+    /// dormancy. The next [`ChunkStore::add`] of that index is awake.
+    /// The same state again is `Ok(true)` and does not bump `generation`.
+    /// An index past the table is [`CoreError::InvalidMaxEntities`].
+    ///
+    /// Sleeping a row while `awake` is 0 does not occur: every row is already
+    /// dormant, and the same-state check has returned. A failed boundary swap
+    /// does not occur either: both rows sit inside `len` of the chunk this
+    /// call just read.
     pub fn set_dormant(
         &mut self,
         index: u32,
@@ -821,6 +867,15 @@ impl ChunkStore {
         })
     }
 
+    /// Moves one entity onto `dest`.
+    ///
+    /// The source row and the fresh bytes are checked before [`Self::reserve`].
+    /// `false` before the reserve reserves nothing. `false` after the reserve
+    /// would mean a copy, a write, the entity assign, the awake swap, or the
+    /// source fill failed. Those later failures need a lane or a chunk to
+    /// disappear after the checks, which this call does not do. The
+    /// destination archetype is not the source archetype, so the reserve does
+    /// not change the source row.
     fn migrate(
         &mut self,
         index: u32,
@@ -830,6 +885,16 @@ impl ChunkStore {
         source: Option<RowAt>,
         fresh: Option<(u32, &[u8])>,
     ) -> bool {
+        if let Some(src) = source {
+            if src.arch == dest || !self.can_fill(src.arch, src.chunk, src.row) {
+                return false;
+            }
+        }
+        if let Some((type_id, data)) = fresh {
+            if !self.type_fits(dest, type_id, data) {
+                return false;
+            }
+        }
         let Some(reserved) = self.reserve(dest, dormant) else {
             return false;
         };
@@ -974,16 +1039,24 @@ impl ChunkStore {
     }
 
     fn ensure_room(&mut self, arch_index: usize) -> bool {
-        let needs_new = match self
-            .archetypes
-            .get(arch_index)
-            .and_then(|arch| arch.chunks.last().copied())
-        {
+        let needs_new = match self.archetypes.get(arch_index) {
             None => true,
-            Some(id) => match self.chunk_ref(id) {
-                Some(chunk) => chunk.len as usize >= CHUNK_ROWS,
-                None => true,
-            },
+            Some(arch) => {
+                let mut room = false;
+                for id in &arch.chunks {
+                    let Some(slot) = self.chunks.get(*id as usize) else {
+                        continue;
+                    };
+                    let Some(chunk) = slot.data.as_ref() else {
+                        continue;
+                    };
+                    if (chunk.len as usize) < CHUNK_ROWS {
+                        room = true;
+                        break;
+                    }
+                }
+                !room
+            }
         };
         if needs_new {
             self.alloc_chunk(arch_index).is_some()
@@ -992,11 +1065,35 @@ impl ChunkStore {
         }
     }
 
+    /// Chunk that should receive the next row: a partial live chunk, or the
+    /// empty chunk kept for this archetype.
+    fn append_chunk_id(&self, arch_index: usize) -> Option<u32> {
+        let arch = self.archetypes.get(arch_index)?;
+        let mut partial = None;
+        let mut spare = None;
+        for id in &arch.chunks {
+            let Some(slot) = self.chunks.get(*id as usize) else {
+                continue;
+            };
+            let Some(chunk) = slot.data.as_ref() else {
+                continue;
+            };
+            if chunk.len == 0 {
+                if spare.is_none() {
+                    spare = Some(*id);
+                }
+            } else if (chunk.len as usize) < CHUNK_ROWS {
+                partial = Some(*id);
+            }
+        }
+        partial.or(spare)
+    }
+
     fn reserve(&mut self, arch_index: usize, dormant: bool) -> Option<Reserved> {
         if !self.ensure_room(arch_index) {
             return None;
         }
-        let chunk_id = *self.archetypes.get(arch_index)?.chunks.last()?;
+        let chunk_id = self.append_chunk_id(arch_index)?;
         let chunk = self.chunk_mut(chunk_id)?;
         if chunk.len as usize >= CHUNK_ROWS {
             return None;
@@ -1317,13 +1414,57 @@ impl ChunkStore {
         wrote && self.note(entity, dst, dst_row)
     }
 
-    fn last_row(&self, arch_index: usize) -> Option<(u32, u16)> {
-        let chunk_id = *self.archetypes.get(arch_index)?.chunks.last()?;
-        let chunk = self.chunk_ref(chunk_id)?;
-        if chunk.len == 0 {
-            return None;
+    fn can_fill(&self, arch_index: usize, chunk_id: u32, row: u16) -> bool {
+        let Some(chunk) = self.chunk_ref(chunk_id) else {
+            return false;
+        };
+        if chunk.archetype as usize != arch_index {
+            return false;
         }
-        Some((chunk_id, chunk.len - 1))
+        if usize::from(row) >= usize::from(chunk.len) {
+            return false;
+        }
+        self.last_live(arch_index).is_some()
+    }
+
+    fn type_fits(&self, arch_index: usize, type_id: u32, data: &[u8]) -> bool {
+        if !self.arch_has(arch_index, type_id) {
+            return false;
+        }
+        match self.layouts.get(type_id as usize) {
+            Some(layout) => data.len() == usize::from(layout.row_bytes),
+            None => false,
+        }
+    }
+
+    fn last_live(&self, arch_index: usize) -> Option<(u32, u16)> {
+        let arch = self.archetypes.get(arch_index)?;
+        for id in arch.chunks.iter().rev() {
+            let slot = self.chunks.get(*id as usize)?;
+            let chunk = slot.data.as_ref()?;
+            if chunk.len > 0 {
+                return Some((*id, chunk.len - 1));
+            }
+        }
+        None
+    }
+
+    fn keeps_another_empty(&self, arch_index: usize, chunk_id: u32) -> bool {
+        let Some(arch) = self.archetypes.get(arch_index) else {
+            return false;
+        };
+        arch.chunks.iter().any(|&id| {
+            id != chunk_id
+                && self
+                    .chunks
+                    .get(id as usize)
+                    .and_then(|slot| slot.data.as_ref())
+                    .is_some_and(|chunk| chunk.len == 0)
+        })
+    }
+
+    fn last_row(&self, arch_index: usize) -> Option<(u32, u16)> {
+        self.last_live(arch_index)
     }
 
     fn fill_hole(&mut self, arch_index: usize, chunk_id: u32, row: u16) -> bool {
@@ -1346,11 +1487,7 @@ impl ChunkStore {
     }
 
     fn pop_last(&mut self, arch_index: usize) -> bool {
-        let Some(chunk_id) = self
-            .archetypes
-            .get(arch_index)
-            .and_then(|arch| arch.chunks.last().copied())
-        else {
+        let Some((chunk_id, _)) = self.last_live(arch_index) else {
             return false;
         };
         let now_empty = {
@@ -1368,17 +1505,13 @@ impl ChunkStore {
             }
             chunk.len == 0
         };
-        if now_empty {
-            let only = self
-                .archetypes
-                .get(arch_index)
-                .is_some_and(|arch| arch.chunks.len() == 1);
-            if !only {
-                if let Some(arch) = self.archetypes.get_mut(arch_index) {
-                    arch.chunks.pop();
+        if now_empty && self.keeps_another_empty(arch_index, chunk_id) {
+            if let Some(arch) = self.archetypes.get_mut(arch_index) {
+                if let Some(pos) = arch.chunks.iter().position(|id| *id == chunk_id) {
+                    arch.chunks.remove(pos);
                 }
-                self.free_chunk(chunk_id);
             }
+            self.free_chunk(chunk_id);
         }
         true
     }
