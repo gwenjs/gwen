@@ -105,11 +105,16 @@ describe("readInterpolatedTransform2D", () => {
     const current = slotBuffer(2);
     writeSlot(previous, 0, 1, 1, 0, 1, 1, FLAG_HAS_TRANSFORM);
     writeSlot(current, 0, 3, 1, 0, 1, 1, FLAG_HAS_TRANSFORM);
+    const aliased = slotBuffer(1);
+    new Uint32Array(aliased)[1] = FLAG_HAS_TRANSFORM;
+    const aliasOut = sample();
     const out = sample();
     expect(readInterpolatedTransform2D(pairOf(previous, current), -1, 0.5, out)).toBe(false);
     expect(readInterpolatedTransform2D(pairOf(previous, current), 2, 0.5, out)).toBe(false);
     expect(readInterpolatedTransform2D(pairOf(previous, current), 0.5, 0.5, out)).toBe(false);
+    expect(readInterpolatedTransform2D(pairOf(aliased, aliased), -0.5, 0.5, aliasOut)).toBe(false);
     expect(out).toEqual({ x: 42, y: 42, rotation: 42, scaleX: 42, scaleY: 42 });
+    expect(aliasOut.x).toBe(42);
   });
 
   it("returns false when the current slot has no transform and leaves the sample untouched", () => {
