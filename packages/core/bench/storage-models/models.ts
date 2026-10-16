@@ -775,8 +775,10 @@ export class TodayModel implements StorageModel {
       const pos = entity.get(Position);
       const vel = entity.get(Velocity);
       if (pos === undefined || vel === undefined) continue;
-      pos.x += vel.vx * dt;
-      pos.y += vel.vy * dt;
+      this.engine.addComponent(entity.id, Position, {
+        x: pos.x + vel.vx * dt,
+        y: pos.y + vel.vy * dt,
+      });
     }
   }
 
@@ -784,7 +786,7 @@ export class TodayModel implements StorageModel {
     for (const entity of this.healthQuery) {
       const health = entity.get(Health);
       if (health === undefined) continue;
-      health.current += dt;
+      this.engine.addComponent(entity.id, Health, { current: health.current + dt });
     }
   }
 

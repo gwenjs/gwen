@@ -197,7 +197,7 @@ The helper returns false, and leaves `out` untouched, when `slot` is outside the
 
 The sample stored on a step does not include the `engine:update` writes of that same step. Those writes are published on the next step. A render at `alpha` 0 copies the previous sample. That is the one-step lag.
 
-`createEntity()` writes no wasm record. `destroyEntity` emits `entity:destroy` and does not remove the transform node. The next commit still packs that slot, and `readInterpolatedTransform2D` keeps returning true. A renderer must drop the entity on `entity:destroy`. A wasm `delete_entity` keeps its record. The next commit skips that dead record after clearing the buffer, so the slot is zeros and the helper returns false.
+`createEntity()` allocates a wasm entity. `destroyEntity` calls `delete_entity`, emits `entity:destroy`, and does not remove the transform node. The record stays. The next commit skips that dead record after clearing the buffer, so the slot is zeros and `readInterpolatedTransform2D` returns false. A renderer must drop the entity on `entity:destroy`. Issue #220 removes the node.
 
 `physicsHz === 0` does not allocate the history buffers. `alpha` stays `1`, `transforms2D` stays `null`, and `world` matches `worldRaw`.
 

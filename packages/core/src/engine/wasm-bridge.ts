@@ -104,12 +104,28 @@ declare const window: GwenWindow;
 interface WasmGlueModule {
   /** Async init — returns raw WASM instance exports including the linear memory. */
   default?: (init: {
-    module_or_path?: Response | undefined;
+    module_or_path?: Response | BufferSource | undefined;
   }) => Promise<{ memory?: WebAssembly.Memory }>;
   /** Sync init — returns raw WASM instance exports including the linear memory. */
   initSync?: (init: { module: ArrayBuffer }) => { memory?: WebAssembly.Memory };
   Engine?: new (maxEntities: number) => WasmEngine;
   [key: string]: unknown;
+}
+
+function bytesFromDataUrl(url: string): Uint8Array<ArrayBuffer> {
+  const comma = url.indexOf(",");
+  if (comma < 0) {
+    throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, "data URL has no payload");
+  }
+  const meta = url.slice(5, comma);
+  const payload = url.slice(comma + 1);
+  if (!meta.includes(";base64")) {
+    return new TextEncoder().encode(decodeURIComponent(payload));
+  }
+  const binary = atob(payload);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) bytes[i] = binary.charCodeAt(i);
+  return bytes;
 }
 
 /**
@@ -119,12 +135,14 @@ interface WasmGlueModule {
  *   to work around Vite's restriction on dynamic `import()` for `/public` assets.
  * - **Web Worker** (no DOM): falls back to a dynamic `import()` which is natively
  *   supported in module workers (`new Worker(url, { type: 'module' })`).
+ * - **Node** (including a test DOM): loads the glue with `import()`.
  *
  * The loaded module is cached on `globalThis` under a deterministic key so repeated
  * calls for the same URL are free (no extra network round-trips).
  *
  * @param jsUrl Absolute or root-relative URL to the wasm-bindgen JS glue file.
  */
+
 async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
   const key = `__gwenGlue_${jsUrl.replace(/\W/g, "_")}`;
   const ctx = globalThis as Record<string, unknown>;
@@ -136,6 +154,15 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
   // the main thread (window.location) and module workers (self.location).
   const base = (globalThis as { location?: { href: string } }).location?.href ?? jsUrl;
   const absoluteUrl = new URL(jsUrl, base).href;
+
+  // Node keeps `document` under happy-dom. The blob script below never loads there.
+  const nodeVersion = (globalThis as { process?: { versions?: { node?: string } } }).process
+    ?.versions?.node;
+  if (typeof nodeVersion === "string") {
+    const glue = (await import(/* @vite-ignore */ absoluteUrl)) as WasmGlueModule;
+    ctx[key] = glue;
+    return glue;
+  }
 
   // ── Worker path: no DOM, use dynamic import() ─────────────────────────────
   if (typeof document === "undefined") {
@@ -343,9 +370,11 @@ export class WasmBridgeImpl implements WasmBridge {
       const _fetchController = new AbortController();
       const _fetchTimeoutId = setTimeout(() => _fetchController.abort(), 10_000);
 
-      let wasmInput: Response | undefined;
+      let wasmInput: Response | Uint8Array<ArrayBuffer> | undefined;
       try {
-        if (resolvedWasmUrl) {
+        if (resolvedWasmUrl?.startsWith("data:")) {
+          wasmInput = bytesFromDataUrl(resolvedWasmUrl);
+        } else if (resolvedWasmUrl) {
           wasmInput = await fetch(resolvedWasmUrl, { signal: _fetchController.signal });
           if (!wasmInput.ok) {
             throw new GwenError(
@@ -428,6 +457,12 @@ export class WasmBridgeImpl implements WasmBridge {
    * @throws {GwenError} If `init()` has not been called yet.
    * @internal
    */
+  /** Reads stay available after a panic. Writes use {@link _requireWasm}. */
+  private _wasmForRead(): WasmEngine {
+    if (!this._wasmEngine) return this._requireWasm();
+    return this._wasmEngine;
+  }
+
   private _requireWasm(): WasmEngine {
     if (this._poisoned && this._panicCause) {
       throw new GwenWasmPanicError(undefined, this._panicCause);
@@ -567,11 +602,11 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   isAlive(index: number, generation: number): boolean {
-    return this._requireWasm().is_alive(index, generation);
+    return this._wasmForRead().is_alive(index, generation);
   }
 
   countEntities(): number {
-    return this._requireWasm().count_entities();
+    return this._wasmForRead().count_entities();
   }
 
   // ── Component ────────────────────────────────────────────────────────────
@@ -586,7 +621,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   componentStagingPtr(): number {
-    return this._requireWasm().component_staging_ptr();
+    return this._wasmForRead().component_staging_ptr();
   }
 
   writeComponentStaged(index: number, generation: number, typeId: number): boolean {
@@ -599,7 +634,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   readComponentStaged(index: number, generation: number, typeId: number): boolean {
-    return this._requireWasm().read_component_staged(index, generation, typeId);
+    return this._wasmForRead().read_component_staged(index, generation, typeId);
   }
 
   setEntityDormant(index: number, generation: number, dormant: boolean): boolean {
@@ -612,7 +647,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   isEntityDormant(index: number, generation: number): boolean {
-    return this._requireWasm().is_entity_dormant(index, generation);
+    return this._wasmForRead().is_entity_dormant(index, generation);
   }
 
   registerQuery(typeIds: Uint32Array): number {
@@ -655,7 +690,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   hasComponent(index: number, generation: number, typeId: number): boolean {
-    return this._requireWasm().has_component(index, generation, typeId);
+    return this._wasmForRead().has_component(index, generation, typeId);
   }
 
   getComponentRaw(index: number, generation: number, typeId: number): Uint8Array {
@@ -912,7 +947,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   getEntityGeneration(index: number): number {
-    return this._requireWasm().get_entity_generation(index);
+    return this._wasmForRead().get_entity_generation(index);
   }
 
   // ── Shared memory ────────────────────────────────────────────────────────

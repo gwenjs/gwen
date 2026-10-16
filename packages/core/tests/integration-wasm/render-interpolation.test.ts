@@ -191,10 +191,11 @@ describe("render interpolation on real wasm", () => {
     }
   });
 
-  it("a destroyed TS entity stays packed after destroyEntity", async () => {
-    // createEntity() writes no wasm record. destroyEntity does not remove the
-    // TransformNode. The next commit still packs the slot, so the helper stays
-    // true. #220 removes that node. This assertion flips when that lands.
+  it("a destroyed engine entity reads false after destroyEntity", async () => {
+    // createEntity() allocates a wasm entity. destroyEntity calls delete_entity
+    // and does not remove the TransformNode. The next commit clears the buffer
+    // and skips the dead record, so the helper returns false. #220 still removes
+    // the node.
     const handle = await createRealEngine({ variant: "light", maxEntities: 32, physicsHz: 30 });
     try {
       const wasm = handle.bridge.engine();
@@ -215,7 +216,7 @@ describe("render interpolation on real wasm", () => {
       await handle.advance(1, 1 / 30);
       handle.engine.destroyEntity(id);
       await handle.advance(1, 1 / 30);
-      expect(afterDestroy).toEqual([{ ok: true, x: 8 }]);
+      expect(afterDestroy).toEqual([{ ok: false, x: Number.NaN }]);
     } finally {
       await handle.dispose();
     }

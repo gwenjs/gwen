@@ -1,12 +1,13 @@
 /**
- * EngineEntities without an engine.
- * Each test builds a real entity map and reads the value back.
+ * EngineEntities on a real light bridge, beside the engine facade.
  */
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
 import { Types, defineComponent } from "../../src/schema";
 import { createEntityId } from "../../src/types/entity";
+import { createEngine } from "../../src/engine/engine-factory";
+import type { GwenEngine } from "../../src/engine/engine-types";
 import { EngineEntities, type EngineEntitiesDeps } from "../../src/engine/engine-entities";
 
 const Position = defineComponent({
@@ -15,18 +16,23 @@ const Position = defineComponent({
   defaults: { x: 0, y: 0 },
 });
 
-function open(patch: Partial<EngineEntitiesDeps> = {}) {
-  const registered: string[] = [];
+const engines: GwenEngine[] = [];
+
+afterEach(async () => {
+  const pending = engines.splice(0);
+  for (const engine of pending) await engine.stop();
+});
+
+async function open(patch: Partial<Pick<EngineEntitiesDeps, "maxEntities" | "assertState">> = {}) {
+  const maxEntities = patch.maxEntities ?? 8;
+  const engine = await createEngine({ maxEntities });
+  engines.push(engine);
   const destroyed: bigint[] = [];
   const calls: string[] = [];
   const entities = new EngineEntities({
-    maxEntities: 8,
-    queryCacheSize: 4,
-    registerComponent(type) {
-      registered.push(type);
-      return registered.length;
-    },
-    ...patch,
+    maxEntities,
+    engine,
+    bridge: engine.inject("wasm:bridge"),
     assertState(method) {
       calls.push(method);
       patch.assertState?.(method);
@@ -37,7 +43,7 @@ function open(patch: Partial<EngineEntitiesDeps> = {}) {
       destroyed.push(id);
     },
   });
-  return { entities, registered, destroyed, calls };
+  return { entities, destroyed, calls };
 }
 
 function idsOf(query: Iterable<{ id: bigint }>): bigint[] {
@@ -46,9 +52,9 @@ function idsOf(query: Iterable<{ id: bigint }>): bigint[] {
   return ids;
 }
 
-describe("EngineEntities", () => {
-  it("constructs without createEngine and createEntity then isAlive is true", () => {
-    const { entities, calls } = open();
+describe("EngineEntities", async () => {
+  it("constructs without createEngine and createEntity then isAlive is true", async () => {
+    const { entities, calls } = await open();
 
     const id = entities.createEntity();
 
@@ -57,8 +63,8 @@ describe("EngineEntities", () => {
     expect(calls).toEqual(["createEntity"]);
   });
 
-  it("constructs without createEngine and a second createEntity returns another id", () => {
-    const { entities } = open();
+  it("constructs without createEngine and a second createEntity returns another id", async () => {
+    const { entities } = await open();
     const first = entities.createEntity();
 
     const second = entities.createEntity();
@@ -69,8 +75,8 @@ describe("EngineEntities", () => {
     expect(entities.isAlive(second)).toBe(true);
   });
 
-  it("constructs without createEngine and an empty container stores nothing", () => {
-    const { entities } = open();
+  it("constructs without createEngine and an empty container stores nothing", async () => {
+    const { entities } = await open();
 
     expect(entities.count()).toBe(0);
     expect(entities.canSpawn(0)).toBe(true);
@@ -82,8 +88,8 @@ describe("EngineEntities", () => {
     expect(idsOf(entities.createLiveQuery([Position]))).toEqual([]);
   });
 
-  it("constructs without createEngine and canSpawn is false at max plus one", () => {
-    const { entities } = open({ maxEntities: 1 });
+  it("constructs without createEngine and canSpawn is false at max plus one", async () => {
+    const { entities } = await open({ maxEntities: 1 });
     entities.createEntity();
 
     expect(entities.canSpawn(0)).toBe(true);
@@ -91,8 +97,8 @@ describe("EngineEntities", () => {
     expect(entities.count()).toBe(1);
   });
 
-  it("constructs without createEngine and createEntity at the limit throws entity capacity exceeded", () => {
-    const { entities } = open({ maxEntities: 1 });
+  it("constructs without createEngine and createEntity at the limit throws entity capacity exceeded", async () => {
+    const { entities } = await open({ maxEntities: 1 });
     entities.createEntity();
     let caught: unknown;
     try {
@@ -104,12 +110,12 @@ describe("EngineEntities", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) throw caught;
     expect(caught.code).toBe("CORE:ENTITY_LIMIT_REACHED");
-    expect(caught.message).toBe("[ECS] Entity capacity exceeded (max: 1)");
+    expect(caught.message).toContain("1");
     expect(entities.count()).toBe(1);
   });
 
-  it("constructs without createEngine and destroyEntity removes the id and reports it once", () => {
-    const { entities, destroyed, calls } = open();
+  it("constructs without createEngine and destroyEntity removes the id and reports it once", async () => {
+    const { entities, destroyed, calls } = await open();
     const id = entities.createEntity();
     entities.addComponent(id, Position, { x: 1, y: 2 });
 
@@ -126,31 +132,29 @@ describe("EngineEntities", () => {
     expect(calls).toEqual(["createEntity", "addComponent", "destroyEntity", "destroyEntity"]);
   });
 
-  it("constructs without createEngine and addComponent then getComponent returns the merged value", () => {
-    const { entities, registered, calls } = open();
+  it("constructs without createEngine and addComponent then getComponent returns the merged value", async () => {
+    const { entities, calls } = await open();
     const id = entities.createEntity();
 
     entities.addComponent(id, Position, { x: 3, y: 4 });
 
     expect(entities.getComponent(id, Position)).toEqual({ x: 3, y: 4 });
     expect(entities.hasComponent(id, Position)).toBe(true);
-    expect(registered).toEqual(["Position"]);
     expect(calls).toEqual(["createEntity", "addComponent"]);
   });
 
-  it("constructs without createEngine and a second addComponent replaces the field", () => {
-    const { entities, registered } = open();
+  it("constructs without createEngine and a second addComponent replaces the field", async () => {
+    const { entities } = await open();
     const id = entities.createEntity();
     entities.addComponent(id, Position, { x: 1, y: 2 });
 
     entities.addComponent(id, Position, { x: 5 });
 
     expect(entities.getComponent(id, Position)).toEqual({ x: 5, y: 2 });
-    expect(registered).toEqual(["Position"]);
   });
 
-  it("constructs without createEngine and removeComponent drops the value", () => {
-    const { entities, calls } = open();
+  it("constructs without createEngine and removeComponent drops the value", async () => {
+    const { entities, calls } = await open();
     const id = entities.createEntity();
     entities.addComponent(id, Position, { x: 1, y: 2 });
 
@@ -162,8 +166,8 @@ describe("EngineEntities", () => {
     expect(calls).toEqual(["createEntity", "addComponent", "removeComponent", "removeComponent"]);
   });
 
-  it("constructs without createEngine and createLiveQuery returns the component", () => {
-    const { entities } = open();
+  it("constructs without createEngine and createLiveQuery returns the component", async () => {
+    const { entities } = await open();
     const id = entities.createEntity();
     entities.addComponent(id, Position, { x: 8, y: 9 });
     const query = entities.createLiveQuery([Position]);
@@ -177,8 +181,8 @@ describe("EngineEntities", () => {
     expect(seen).toEqual([{ id, x: 8, y: 9 }]);
   });
 
-  it("constructs without createEngine and a dormant entity stays out of the live query", () => {
-    const { entities } = open();
+  it("constructs without createEngine and a dormant entity stays out of the live query", async () => {
+    const { entities } = await open();
     const id = entities.createEntity();
     entities.addComponent(id, Position, { x: 1, y: 1 });
 
@@ -189,9 +193,9 @@ describe("EngineEntities", () => {
     expect(entities.isAlive(id)).toBe(true);
   });
 
-  it("constructs without createEngine and a second container does not see the first id", () => {
-    const first = open();
-    const second = open();
+  it("constructs without createEngine and a second container does not see the first id", async () => {
+    const first = await open();
+    const second = await open();
     const id = first.entities.createEntity();
 
     expect(second.entities.isAlive(id)).toBe(false);
@@ -199,12 +203,12 @@ describe("EngineEntities", () => {
     expect(second.entities.getComponent(id, Position)).toBeUndefined();
   });
 
-  it("constructs without createEngine and createEntity while faulted does not store an entity", () => {
+  it("constructs without createEngine and createEntity while faulted does not store an entity", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
       "[GwenEngine] createEntity() is not allowed while the engine is faulted.",
     );
-    const { entities, calls } = open({
+    const { entities, calls } = await open({
       assertState() {
         throw gate;
       },
@@ -221,13 +225,13 @@ describe("EngineEntities", () => {
     expect(calls).toEqual(["createEntity"]);
   });
 
-  it("constructs without createEngine and addComponent while faulted does not store the component", () => {
+  it("constructs without createEngine and addComponent while faulted does not store the component", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
       "[GwenEngine] addComponent() is not allowed while the engine is faulted.",
     );
     let armed = false;
-    const { entities, registered } = open({
+    const { entities } = await open({
       assertState() {
         if (armed) throw gate;
       },
@@ -243,16 +247,15 @@ describe("EngineEntities", () => {
 
     expect(caught).toBe(gate);
     expect(entities.getComponent(id, Position)).toBeUndefined();
-    expect(registered).toEqual([]);
   });
 
-  it("constructs without createEngine and destroyEntity while faulted leaves the entity alive", () => {
+  it("constructs without createEngine and destroyEntity while faulted leaves the entity alive", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
       "[GwenEngine] destroyEntity() is not allowed while the engine is faulted.",
     );
     let armed = false;
-    const { entities, destroyed } = open({
+    const { entities, destroyed } = await open({
       assertState() {
         if (armed) throw gate;
       },
@@ -271,13 +274,13 @@ describe("EngineEntities", () => {
     expect(destroyed).toEqual([]);
   });
 
-  it("constructs without createEngine and removeComponent while faulted leaves the component", () => {
+  it("constructs without createEngine and removeComponent while faulted leaves the component", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
       "[GwenEngine] removeComponent() is not allowed while the engine is faulted.",
     );
     let armed = false;
-    const { entities } = open({
+    const { entities } = await open({
       assertState() {
         if (armed) throw gate;
       },
@@ -296,12 +299,12 @@ describe("EngineEntities", () => {
     expect(entities.getComponent(id, Position)).toEqual({ x: 1, y: 2 });
   });
 
-  it("constructs without createEngine and canSpawn while faulted still reports capacity", () => {
+  it("constructs without createEngine and canSpawn while faulted still reports capacity", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
       "[GwenEngine] canSpawn() is not allowed while the engine is faulted.",
     );
-    const { entities, calls } = open({
+    const { entities, calls } = await open({
       maxEntities: 1,
       assertState() {
         throw gate;

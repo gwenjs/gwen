@@ -2,9 +2,13 @@ import { readInterpolatedTransform2D } from "../../src/engine/transform-pair";
 import { defineActor, useEntityId } from "../../src/actor/runtime/define-actor";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
+import { componentStaging } from "../../src/engine/chunk-lanes";
 import { useEngine } from "../../src/engine/context";
+import { componentRegistryFor } from "../../src/engine/engine-component-registry";
 import type { EntityId } from "../../src/engine/engine-api";
-import { createEntityId, entityIndex } from "../../src/types/entity";
+import { unwrapEngine } from "../../src/engine/engine-local";
+import type { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
+import { createEntityId, entityGeneration, entityIndex } from "../../src/types/entity";
 import { defineComponent, Types } from "../../src/schema";
 import { defineSystem, onUpdate, useQuery } from "../../src/system/runtime/define-system";
 import { TweenPlugin } from "../../src/tween/engine-plugin";
@@ -73,6 +77,48 @@ function spawnBridgeEntities(
   return { typeIds, posType, ids };
 }
 
+interface StagedMotion {
+  bridge: WasmBridgeImpl;
+  view: DataView;
+  posType: number;
+  velType: number;
+}
+
+function stagedMotion(engine: ReturnType<typeof useEngine>): StagedMotion {
+  const real = unwrapEngine(engine);
+  const bridge = real.tryInject("wasm:bridge");
+  if (!bridge) throw new Error("[ALLOC GATE] wasm bridge missing");
+  return {
+    bridge,
+    view: componentStaging(real, () => bridge.componentStagingPtr()),
+    posType: componentRegistryFor(real).getOrRegister(Position),
+    velType: componentRegistryFor(real).getOrRegister(Velocity),
+  };
+}
+
+function stepPosition(motion: StagedMotion, id: EntityId, dt: number): void {
+  const slot = entityIndex(id);
+  const generation = entityGeneration(id);
+  motion.bridge.readComponentStaged(slot, generation, motion.posType);
+  const x = motion.view.getFloat32(0, true);
+  const y = motion.view.getFloat32(4, true);
+  motion.bridge.readComponentStaged(slot, generation, motion.velType);
+  const vx = motion.view.getFloat32(0, true);
+  motion.bridge.readComponentStaged(slot, generation, motion.posType);
+  motion.view.setFloat32(0, x + vx * dt, true);
+  motion.view.setFloat32(4, y, true);
+  motion.bridge.writeComponentStaged(slot, generation, motion.posType);
+}
+
+function stepPositionX(motion: StagedMotion, id: EntityId, dt: number): void {
+  const slot = entityIndex(id);
+  const generation = entityGeneration(id);
+  motion.bridge.readComponentStaged(slot, generation, motion.posType);
+  const x = motion.view.getFloat32(0, true);
+  motion.view.setFloat32(0, x + dt, true);
+  motion.bridge.writeComponentStaged(slot, generation, motion.posType);
+}
+
 function updateSystem(extraObject: boolean): AllocScenario {
   return {
     name: "update.system",
@@ -82,13 +128,12 @@ function updateSystem(extraObject: boolean): AllocScenario {
         ? Array.from({ length: entities })
         : null;
       const system = defineSystem("alloc-update-system", () => {
+        const motion = stagedMotion(useEngine());
         const query = useQuery([Position, Velocity]);
         onUpdate((dt) => {
           let index = 0;
           for (const entry of query) {
-            const pos = entry.get(Position);
-            const vel = entry.get(Velocity);
-            if (pos && vel) pos.x += vel.vx * dt;
+            stepPosition(motion, entry.id, dt);
             if (slots) slots[index] = { n: index };
             index += 1;
           }
@@ -117,11 +162,11 @@ export function createScenario(path: AllocPathName, options?: ScenarioOptions): 
         name: path,
         async build(handle, entities) {
           const prefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+          const motion = stagedMotion(handle.engine);
           const actor = defineActor("alloc-update-actor", prefab, () => {
             const id = useEntityId();
-            const pos = useEngine().getComponent(id, Position);
             onUpdate((dt) => {
-              if (pos) pos.x += dt;
+              stepPositionX(motion, id, dt);
             });
           });
           await handle.engine.use(actor._plugin);

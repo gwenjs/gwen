@@ -160,7 +160,7 @@ describe("WASM coded errors", () => {
     expect(handle.engine.state).toBe("stopped");
   });
 
-  it("useTransform().setParent maps INVALID_PARENT and leaves the bridge usable", async () => {
+  it("useTransform().setParent maps INVALID_PARENT and actor spawns stay allocated", async () => {
     const handle = await useLight(8, async ({ engine, bridge }) => {
       const Actor = defineActor(prefab, () => ({ transform: useTransform() }));
       await engine.use(Actor._plugin);
@@ -199,8 +199,10 @@ describe("WASM coded errors", () => {
 
       child.detach();
       expect(child.hasParent).toBe(false);
-      expect(bridge.countEntities()).toBe(0);
-      expect(bridge.createEntity().index).toBe(0);
+      expect(bridge.countEntities()).toBe(2);
+      const extra = bridge.createEntity();
+      expect(bridge.isAlive(extra.index, extra.generation)).toBe(true);
+      expect(bridge.countEntities()).toBe(3);
       await expectNextFrame(engine);
     });
     expect(handle.engine.state).toBe("stopped");

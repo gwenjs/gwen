@@ -34,7 +34,6 @@ src/
 │   │                              # - Stats & debug
 │   │                              # - Event system
 │   ├── engine-api.ts              # Shims & utilities (170L)
-│   │                              # - EntityManagerShim, ComponentRegistryShim
 │   │                              # - packId/unpackId helpers
 │   │                              # - createShims() factory
 │   ├── engine-global.ts           # Global singleton (30L)
@@ -122,7 +121,7 @@ import { EntityId } from "../engine";
 
 ```typescript
 // engine/engine.ts importing from core/
-import type { EntityManager } from "../core/ecs";
+import type { EntityId } from "../types/entity";
 import { PluginManager } from "../plugin-system/plugin-manager";
 ```
 
@@ -208,7 +207,7 @@ All test files (`.test.ts`, `.bench.ts`) import from the **public API**:
 import { Engine, defineConfig } from "@gwenjs/core";
 
 // ✅ OK for internal tests (verify implementation)
-import { EntityManager } from "../src/core/ecs";
+import { createEngine } from "../src/index";
 ```
 
 ### Running Tests
@@ -224,7 +223,7 @@ pnpm test --watch     # Watch mode
 
 ```typescript
 import { Engine } from "./engine";
-import { EntityManager } from "./ecs";
+import { createEngine } from "./engine/engine-factory";
 import { PluginManager } from "./plugin-manager";
 ```
 
@@ -232,7 +231,7 @@ import { PluginManager } from "./plugin-manager";
 
 ```typescript
 import { Engine } from "./engine/engine";
-import { EntityManager } from "./core/ecs";
+import { createEngine } from "./engine/engine-factory";
 import { PluginManager } from "./plugin-system/plugin-manager";
 ```
 

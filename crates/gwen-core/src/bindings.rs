@@ -977,10 +977,10 @@ impl Engine {
     /// manager has no record. `add_entity_transform` keys that node by
     /// `u32::MAX`, and the commit packs it.
     ///
-    /// A TypeScript `createEntity` writes no wasm record. `destroyEntity`
-    /// removes that entity and emits `entity:destroy`. It does not remove the
-    /// transform node, so the next commit still packs the slot and a history
-    /// read stays true. Renderers must drop an entity on `entity:destroy`.
+    /// A TypeScript `createEntity` allocates a wasm entity. `destroyEntity`
+    /// calls `delete_entity` and emits `entity:destroy`. It does not remove the
+    /// transform node. The next commit skips the dead record, so a history
+    /// read returns false. Renderers must drop an entity on `entity:destroy`.
     /// Issue #220 removes the node.
     ///
     /// Bit 2 exists only in these two buffers. No plugin module receives their

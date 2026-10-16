@@ -407,12 +407,12 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    *
    * @param id - Target entity
    * @param def - Component definition to look up
-   * @returns The stored component data, or `undefined`
+   * @returns A readonly snapshot of the row, or `undefined`. The snapshot is deep-frozen in dev.
    */
   getComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
-  ): InferComponent<D> | undefined {
+  ): Readonly<InferComponent<D>> | undefined {
     return this._entities.getComponent(id, def);
   }
 

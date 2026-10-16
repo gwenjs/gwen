@@ -357,16 +357,15 @@ describe("defineActorPool — acquire", () => {
       const hp = engine.getComponent(id, Hp);
       expect(hp).toEqual({ value: 100 });
       if (!hp) return;
-      hp.value = 3;
+      engine.addComponent(id, Hp, { value: 3 });
       pool.release(id);
       await flush(engine);
       // Dormant: the previous life's value stays until the slot is reused.
-      expect(hp.value).toBe(3);
+      expect(engine.getComponent(id, Hp)).toEqual({ value: 3 });
       const cached = readLiveQueryIds(engine, [Hp]);
 
       expect(pool.acquire()).toBe(id);
-      expect(engine.getComponent(id, Hp)).toBe(hp);
-      expect(hp.value).toBe(100);
+      expect(engine.getComponent(id, Hp)).toEqual({ value: 100 });
       // In place: the cached query id list is not invalidated.
       expect(readLiveQueryIds(engine, [Hp])).toBe(cached);
     } finally {
@@ -390,7 +389,7 @@ describe("defineActorPool — acquire", () => {
       const id = pool.acquire();
       const pair = engine.getComponent(id, Pair);
       if (!pair) throw new Error("the pooled actor has no Pair component");
-      pair.b = 99;
+      engine.addComponent(id, Pair, { b: 99 });
       pool.release(id);
       await flush(engine);
 
@@ -679,7 +678,6 @@ describe("defineActorPool — scope", () => {
     pool.acquire();
     pool.acquire();
 
-    activateTestWasm(engine);
     await engine.start();
     await engine.stop();
 
@@ -1088,12 +1086,12 @@ describe("defineActorPool — dormancy (#56)", () => {
       pool.release(id);
       await flush(engine);
       expect(setOf()).toEqual(before);
-      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(engine.getComponent(id, Mark)).toEqual(mark);
       expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
 
       expect(pool.acquire()).toBe(id);
       expect(setOf()).toEqual(before);
-      expect(engine.getComponent(id, Mark)).toBe(mark);
+      expect(engine.getComponent(id, Mark)).toEqual(mark);
       expect(readLiveQueryIds(engine, [Mark])).toBe(cached);
     } finally {
       await engine.stop();

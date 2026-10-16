@@ -1,47 +1,98 @@
 /**
- * ECS Tests — EntityManager, ComponentRegistry, QueryEngine
+ * Entity, component, and query behaviour through the engine public API.
+ * Generation checks from #54 read the packed id. Dormancy uses the WASM row flag.
  */
 
-import { describe, it, expect, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { GwenError } from "@gwenjs/schema";
-import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
+import { normalizeComponentTypesForQuery } from "../src/core/component-type-normalizer";
+import { createEngine } from "../src/engine/engine-factory";
 import { CoreErrorCodes } from "../src/engine/engine-errors";
+import { readLiveQueryIds, setEntityDormant } from "../src/engine/engine-internals";
+import type { GwenEngine } from "../src/engine/engine-types";
 import { defineComponent, Types } from "../src/schema";
+import { entityGeneration, entityIndex, unpackEntityId, type EntityId } from "../src/types/entity";
 
-// ============= EntityManager =============
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+const Velocity = defineComponent({
+  name: "Velocity",
+  schema: { vx: Types.f32, vy: Types.f32 },
+  defaults: { vx: 0, vy: 0 },
+});
+
+const Health = defineComponent({
+  name: "Health",
+  schema: { current: Types.f32, max: Types.f32 },
+  defaults: { current: 0, max: 0 },
+});
+
+const Hp = defineComponent({
+  name: "Hp",
+  schema: { value: Types.f32 },
+  defaults: { value: 0 },
+});
+
+const Ghost = defineComponent({
+  name: "Ghost",
+  schema: { n: Types.u32 },
+  defaults: { n: 0 },
+});
+
+const engines: GwenEngine[] = [];
+
+afterEach(async () => {
+  const pending = engines.splice(0);
+  for (const engine of pending) await engine.stop();
+});
+
+async function open(maxEntities = 100): Promise<GwenEngine> {
+  const engine = await createEngine({ maxEntities });
+  engines.push(engine);
+  return engine;
+}
+
+function isDormant(engine: GwenEngine, id: EntityId): boolean {
+  const parts = unpackEntityId(id);
+  return engine.inject("wasm:bridge").isEntityDormant(parts.index, parts.generation);
+}
 
 describe("EntityManager", () => {
-  let em: EntityManager;
+  let engine: GwenEngine;
 
-  beforeEach(() => {
-    em = new EntityManager(100);
+  beforeEach(async () => {
+    engine = await open();
   });
 
   describe("create", () => {
     it("should create entities with unique IDs", () => {
-      const e1 = em.create();
-      const e2 = em.create();
-      const e3 = em.create();
+      const e1 = engine.createEntity();
+      const e2 = engine.createEntity();
+      const e3 = engine.createEntity();
       expect(e1).not.toBe(e2);
       expect(e2).not.toBe(e3);
     });
 
     it("should increment entity count", () => {
-      expect(em.count()).toBe(0);
-      em.create();
-      expect(em.count()).toBe(1);
-      em.create();
-      expect(em.count()).toBe(2);
+      expect(engine.getStats().entityCount).toBe(0);
+      engine.createEntity();
+      expect(engine.getStats().entityCount).toBe(1);
+      engine.createEntity();
+      expect(engine.getStats().entityCount).toBe(2);
     });
 
-    it("should throw when capacity is exceeded", () => {
-      const small = new EntityManager(3);
-      small.create();
-      small.create();
-      small.create();
+    it("should throw when capacity is exceeded", async () => {
+      const small = await open(3);
+      small.createEntity();
+      small.createEntity();
+      small.createEntity();
       let caught: unknown;
       try {
-        small.create();
+        small.createEntity();
       } catch (error: unknown) {
         caught = error;
       }
@@ -50,86 +101,89 @@ describe("EntityManager", () => {
       expect((caught as GwenError).message).toContain("3");
     });
 
-    it("should create 1000 entities", () => {
-      const big = new EntityManager(1000);
+    it("should create 1000 entities", async () => {
+      const big = await open(1000);
       for (let i = 0; i < 1000; i++) {
-        big.create();
+        big.createEntity();
       }
-      expect(big.count()).toBe(1000);
+      expect(big.getStats().entityCount).toBe(1000);
     });
   });
 
   describe("destroy", () => {
     it("should destroy alive entity", () => {
-      const e = em.create();
-      expect(em.destroy(e)).toBe(true);
+      const e = engine.createEntity();
+      expect(engine.destroyEntity(e)).toBe(true);
     });
 
     it("should return false for already-dead entity", () => {
-      const e = em.create();
-      em.destroy(e);
-      expect(em.destroy(e)).toBe(false);
+      const e = engine.createEntity();
+      engine.destroyEntity(e);
+      expect(engine.destroyEntity(e)).toBe(false);
     });
 
     it("should decrement count on destroy", () => {
-      const e1 = em.create();
-      em.create();
-      expect(em.count()).toBe(2);
-      em.destroy(e1);
-      expect(em.count()).toBe(1);
+      const e1 = engine.createEntity();
+      engine.createEntity();
+      expect(engine.getStats().entityCount).toBe(2);
+      engine.destroyEntity(e1);
+      expect(engine.getStats().entityCount).toBe(1);
     });
 
     it("should NOT affect other entities", () => {
-      const e1 = em.create();
-      const e2 = em.create();
-      em.destroy(e1);
-      expect(em.isAlive(e2)).toBe(true);
+      const e1 = engine.createEntity();
+      const e2 = engine.createEntity();
+      engine.destroyEntity(e1);
+      expect(engine.isAlive(e2)).toBe(true);
     });
   });
 
   describe("isAlive", () => {
     it("should be true for new entity", () => {
-      const e = em.create();
-      expect(em.isAlive(e)).toBe(true);
+      const e = engine.createEntity();
+      expect(engine.isAlive(e)).toBe(true);
     });
 
     it("should be false after destroy", () => {
-      const e = em.create();
-      em.destroy(e);
-      expect(em.isAlive(e)).toBe(false);
+      const e = engine.createEntity();
+      engine.destroyEntity(e);
+      expect(engine.isAlive(e)).toBe(false);
     });
 
     it("should detect stale IDs (generation counter)", () => {
-      const e = em.create();
-      const staleId = e; // save old ID
-      em.destroy(e);
-      const e2 = em.create(); // reuses same slot
-      // The old stale ID should no longer be alive
-      expect(em.isAlive(staleId)).toBe(false);
-      expect(em.isAlive(e2)).toBe(true);
+      const e = engine.createEntity();
+      const staleId = e;
+      engine.destroyEntity(e);
+      const e2 = engine.createEntity();
+      expect(engine.isAlive(staleId)).toBe(false);
+      expect(engine.destroyEntity(staleId)).toBe(false);
+      expect(engine.isAlive(e2)).toBe(true);
+      expect(entityIndex(e)).toBe(entityIndex(e2));
+      expect(entityGeneration(e2)).not.toBe(entityGeneration(staleId));
     });
   });
 
   describe("free list reuse", () => {
     it("should reuse destroyed slots", () => {
-      const e1 = em.create();
-      em.destroy(e1);
-      const e2 = em.create();
-      // Different ID (generation incremented) but same slot
+      const e1 = engine.createEntity();
+      engine.destroyEntity(e1);
+      const e2 = engine.createEntity();
       expect(e1).not.toBe(e2);
-      expect(em.isAlive(e2)).toBe(true);
-      expect(em.count()).toBe(1);
+      expect(entityIndex(e1)).toBe(entityIndex(e2));
+      expect(entityGeneration(e2)).toBe(entityGeneration(e1) + 1);
+      expect(engine.isAlive(e2)).toBe(true);
+      expect(engine.getStats().entityCount).toBe(1);
     });
   });
 
   describe("iteration", () => {
     it("should iterate over all alive entities", () => {
-      const e1 = em.create();
-      const e2 = em.create();
-      const e3 = em.create();
-      em.destroy(e2);
+      const e1 = engine.createEntity();
+      const e2 = engine.createEntity();
+      const e3 = engine.createEntity();
+      engine.destroyEntity(e2);
 
-      const alive = [...em];
+      const alive = [...readLiveQueryIds(engine, [])];
       expect(alive.length).toBe(2);
       expect(alive).toContain(e1);
       expect(alive).toContain(e3);
@@ -138,308 +192,292 @@ describe("EntityManager", () => {
   });
 
   describe("generation width (u32 parity)", () => {
-    it("should continue incrementing generation beyond 65535", () => {
-      const small = new EntityManager(1);
-      let id = small.create();
+    it("should continue incrementing generation beyond 65535", async () => {
+      const small = await open(1);
+      let id = small.createEntity();
 
       for (let i = 0; i < 70_000; i++) {
-        expect(small.destroy(id)).toBe(true);
-        id = small.create();
+        expect(small.destroyEntity(id)).toBe(true);
+        id = small.createEntity();
       }
 
-      expect(small.getGeneration(0)).toBeGreaterThan(65_535);
+      expect(entityGeneration(id)).toBeGreaterThan(65_535);
     });
 
-    it("should keep stale IDs invalid after many slot recyclings", () => {
-      const small = new EntityManager(1);
-      const stale = small.create();
-      expect(small.destroy(stale)).toBe(true);
+    it("should keep stale IDs invalid after many slot recyclings", async () => {
+      const small = await open(1);
+      const stale = small.createEntity();
+      expect(small.destroyEntity(stale)).toBe(true);
 
-      let current = small.create();
+      let current = small.createEntity();
       for (let i = 0; i < 70_000; i++) {
-        expect(small.destroy(current)).toBe(true);
-        current = small.create();
+        expect(small.destroyEntity(current)).toBe(true);
+        current = small.createEntity();
       }
 
       expect(small.isAlive(stale)).toBe(false);
+      expect(small.destroyEntity(stale)).toBe(false);
       expect(small.isAlive(current)).toBe(true);
     });
   });
 });
 
-// ============= ComponentRegistry =============
-
 describe("ComponentRegistry", () => {
-  let em: EntityManager;
-  let reg: ComponentRegistry;
+  let engine: GwenEngine;
 
-  beforeEach(() => {
-    em = new EntityManager(100);
-    reg = new ComponentRegistry();
+  beforeEach(async () => {
+    engine = await open();
   });
 
   it("should add and get a component", () => {
-    const e = em.create();
-    reg.add(e, "position", { x: 10, y: 20 });
-    expect(reg.get(e, "position")).toEqual({ x: 10, y: 20 });
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 10, y: 20 });
+    expect(engine.getComponent(e, Position)).toEqual({ x: 10, y: 20 });
   });
 
   it("should return undefined for missing component", () => {
-    const e = em.create();
-    expect(reg.get(e, "position")).toBeUndefined();
+    const e = engine.createEntity();
+    expect(engine.getComponent(e, Position)).toBeUndefined();
   });
 
   it("should check has correctly", () => {
-    const e = em.create();
-    expect(reg.has(e, "position")).toBe(false);
-    reg.add(e, "position", { x: 0, y: 0 });
-    expect(reg.has(e, "position")).toBe(true);
+    const e = engine.createEntity();
+    expect(engine.hasComponent(e, Position)).toBe(false);
+    engine.addComponent(e, Position, { x: 0, y: 0 });
+    expect(engine.hasComponent(e, Position)).toBe(true);
   });
 
   it("should remove a component", () => {
-    const e = em.create();
-    reg.add(e, "velocity", { vx: 5, vy: 0 });
-    expect(reg.remove(e, "velocity")).toBe(true);
-    expect(reg.has(e, "velocity")).toBe(false);
+    const e = engine.createEntity();
+    engine.addComponent(e, Velocity, { vx: 5, vy: 0 });
+    expect(engine.removeComponent(e, Velocity)).toBe(true);
+    expect(engine.hasComponent(e, Velocity)).toBe(false);
   });
 
   it("should return false removing non-existent component", () => {
-    const e = em.create();
-    expect(reg.remove(e, "ghost")).toBe(false);
+    const e = engine.createEntity();
+    expect(engine.removeComponent(e, Ghost)).toBe(false);
   });
 
   it("should update component data", () => {
-    const e = em.create();
-    reg.add(e, "health", { current: 100, max: 100 });
-    reg.add(e, "health", { current: 50, max: 100 });
-    expect(reg.get(e, "health")).toEqual({ current: 50, max: 100 });
+    const e = engine.createEntity();
+    engine.addComponent(e, Health, { current: 100, max: 100 });
+    engine.addComponent(e, Health, { current: 50, max: 100 });
+    expect(engine.getComponent(e, Health)).toEqual({ current: 50, max: 100 });
   });
 
   it("should isolate components between entities", () => {
-    const e1 = em.create();
-    const e2 = em.create();
-    reg.add(e1, "position", { x: 1, y: 1 });
-    reg.add(e2, "position", { x: 2, y: 2 });
-    expect(reg.get(e1, "position")).toEqual({ x: 1, y: 1 });
-    expect(reg.get(e2, "position")).toEqual({ x: 2, y: 2 });
+    const e1 = engine.createEntity();
+    const e2 = engine.createEntity();
+    engine.addComponent(e1, Position, { x: 1, y: 1 });
+    engine.addComponent(e2, Position, { x: 2, y: 2 });
+    expect(engine.getComponent(e1, Position)).toEqual({ x: 1, y: 1 });
+    expect(engine.getComponent(e2, Position)).toEqual({ x: 2, y: 2 });
   });
 
   it("should support multiple component types", () => {
-    const e = em.create();
-    reg.add(e, "position", { x: 5, y: 5 });
-    reg.add(e, "velocity", { vx: 1, vy: 0 });
-    reg.add(e, "health", { current: 100, max: 100 });
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 5, y: 5 });
+    engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
+    engine.addComponent(e, Health, { current: 100, max: 100 });
 
-    expect(reg.has(e, "position")).toBe(true);
-    expect(reg.has(e, "velocity")).toBe(true);
-    expect(reg.has(e, "health")).toBe(true);
+    expect(engine.hasComponent(e, Position)).toBe(true);
+    expect(engine.hasComponent(e, Velocity)).toBe(true);
+    expect(engine.hasComponent(e, Health)).toBe(true);
   });
 
   it("should remove all components for an entity", () => {
-    const e = em.create();
-    reg.add(e, "position", { x: 0, y: 0 });
-    reg.add(e, "velocity", { vx: 0, vy: 0 });
-    reg.removeAll(e);
-    expect(reg.has(e, "position")).toBe(false);
-    expect(reg.has(e, "velocity")).toBe(false);
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 0, y: 0 });
+    engine.addComponent(e, Velocity, { vx: 0, vy: 0 });
+    expect(engine.removeComponent(e, Position)).toBe(true);
+    expect(engine.removeComponent(e, Velocity)).toBe(true);
+    expect(engine.hasComponent(e, Position)).toBe(false);
+    expect(engine.hasComponent(e, Velocity)).toBe(false);
   });
 });
 
-// ============= QueryEngine =============
-
 describe("QueryEngine", () => {
-  let em: EntityManager;
-  let reg: ComponentRegistry;
-  let qe: QueryEngine;
+  let engine: GwenEngine;
 
-  const Position = defineComponent({
-    name: "Position",
-    schema: { x: Types.f32, y: Types.f32 },
-  });
-
-  const Velocity = defineComponent({
-    name: "Velocity",
-    schema: { vx: Types.f32, vy: Types.f32 },
-  });
-
-  beforeEach(() => {
-    em = new EntityManager(100);
-    reg = new ComponentRegistry();
-    qe = new QueryEngine();
+  beforeEach(async () => {
+    engine = await open();
   });
 
   it("should return all alive entities for empty query", () => {
-    const e1 = em.create();
-    const e2 = em.create();
-    const results = qe.query([], em, reg);
+    const e1 = engine.createEntity();
+    const e2 = engine.createEntity();
+    const results = readLiveQueryIds(engine, []);
     expect(results).toContain(e1);
     expect(results).toContain(e2);
   });
 
   it("should return entities with required components", () => {
-    const e1 = em.create();
-    const e2 = em.create();
-    const e3 = em.create();
+    const e1 = engine.createEntity();
+    const e2 = engine.createEntity();
+    const e3 = engine.createEntity();
 
-    reg.add(e1, "position", {});
-    reg.add(e2, "position", {});
-    reg.add(e2, "velocity", {});
-    reg.add(e3, "velocity", {});
+    engine.addComponent(e1, Position, {});
+    engine.addComponent(e2, Position, {});
+    engine.addComponent(e2, Velocity, {});
+    engine.addComponent(e3, Velocity, {});
 
-    const withPos = qe.query(["position"], em, reg);
+    const withPos = readLiveQueryIds(engine, [Position]);
     expect(withPos).toContain(e1);
     expect(withPos).toContain(e2);
     expect(withPos).not.toContain(e3);
   });
 
   it("should filter by multiple required components", () => {
-    const e1 = em.create();
-    const e2 = em.create();
+    const e1 = engine.createEntity();
+    const e2 = engine.createEntity();
 
-    reg.add(e1, "position", {});
-    reg.add(e1, "velocity", {});
-    reg.add(e2, "position", {});
+    engine.addComponent(e1, Position, {});
+    engine.addComponent(e1, Velocity, {});
+    engine.addComponent(e2, Position, {});
 
-    qe.invalidate();
-    const results = qe.query(["position", "velocity"], em, reg);
+    const results = readLiveQueryIds(engine, [Position, Velocity]);
     expect(results).toContain(e1);
     expect(results).not.toContain(e2);
   });
 
   it("should return empty for no matches", () => {
-    em.create(); // no components
-    const results = qe.query(["position"], em, reg);
+    engine.createEntity();
+    const results = readLiveQueryIds(engine, [Position]);
     expect(results).toHaveLength(0);
   });
 
   it("should invalidate cache on demand", () => {
-    const e = em.create();
-    const results1 = qe.query(["position"], em, reg);
+    const e = engine.createEntity();
+    const results1 = readLiveQueryIds(engine, [Position]);
     expect(results1).not.toContain(e);
 
-    // Add component and invalidate
-    reg.add(e, "position", {});
-    qe.invalidate();
+    engine.addComponent(e, Position, {});
 
-    const results2 = qe.query(["position"], em, reg);
+    const results2 = readLiveQueryIds(engine, [Position]);
     expect(results2).toContain(e);
   });
 
   it("should cache results (same query twice)", () => {
-    const e = em.create();
-    reg.add(e, "position", {});
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, {});
 
-    const r1 = qe.query(["position"], em, reg);
-    const r2 = qe.query(["position"], em, reg); // should hit cache
-    expect(r1).toBe(r2); // same array reference
+    const r1 = readLiveQueryIds(engine, [Position]);
+    const r2 = readLiveQueryIds(engine, [Position]);
+    expect(r1).toBe(r2);
   });
 
   it("should treat definition and name query inputs as equivalent", () => {
-    const e = em.create();
-    reg.add(e, Position, { x: 1, y: 2 });
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 1, y: 2 });
 
-    const byDefinition = qe.query([Position], em, reg);
-    const byName = qe.query([Position.name], em, reg);
-    expect(byDefinition).toEqual(byName);
-    expect(byDefinition).toContain(e);
+    expect(normalizeComponentTypesForQuery([Position])).toEqual(
+      normalizeComponentTypesForQuery([Position.name]),
+    );
+    expect(readLiveQueryIds(engine, [Position])).toContain(e);
   });
 
   it("should canonicalize mixed order and duplicate query inputs", () => {
-    const e = em.create();
-    reg.add(e, Position, { x: 0, y: 0 });
-    reg.add(e, Velocity, { vx: 1, vy: 0 });
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 0, y: 0 });
+    engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
 
-    const r1 = qe.query([Position, Velocity.name, Position.name], em, reg);
-    const r2 = qe.query([Velocity, Position], em, reg);
+    expect(normalizeComponentTypesForQuery([Position, Velocity.name, Position.name])).toEqual(
+      normalizeComponentTypesForQuery([Velocity, Position]),
+    );
+    const r1 = readLiveQueryIds(engine, [Position, Velocity]);
+    const r2 = readLiveQueryIds(engine, [Velocity, Position]);
     expect(r1).toEqual(r2);
     expect(r1).toContain(e);
   });
 
   it("should reject invalid component references in query", () => {
-    expect(() => qe.query([""], em, reg)).toThrow("Component type must not be an empty string");
-    expect(() => qe.query([null as unknown as string], em, reg)).toThrow(
+    expect(() => normalizeComponentTypesForQuery([""])).toThrow(
+      "Component type must not be an empty string",
+    );
+    expect(() => normalizeComponentTypesForQuery([null])).toThrow(
       "Invalid component type. Expected string or ComponentDefinition",
     );
   });
 
   it("should use precomputedKey when provided", () => {
-    const e = em.create();
-    reg.add(e, Position, { x: 1, y: 2 });
-    reg.add(e, Velocity, { vx: 1, vy: 0 });
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 1, y: 2 });
+    engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
 
-    // Query with precomputedKey skips normalization
     const precomputedKey = "Position|Velocity";
-    const resultsWithKey = qe.query([Position, Velocity], em, reg, precomputedKey);
-    expect(resultsWithKey).toContain(e);
+    const seen: EntityId[] = [];
+    for (const entity of engine.createLiveQuery([Position, Velocity], precomputedKey)) {
+      seen.push(entity.id);
+    }
+    expect(seen).toContain(e);
   });
 
   it("precomputedKey should hit cache on subsequent calls", () => {
-    const e = em.create();
-    reg.add(e, Position, { x: 1, y: 2 });
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 1, y: 2 });
 
     const precomputedKey = "Position";
-    const r1 = qe.query([Position], em, reg, precomputedKey);
-    const r2 = qe.query([Position], em, reg, precomputedKey);
-    expect(r1).toBe(r2); // same array reference (cache hit)
+    engine.createLiveQuery([Position], precomputedKey);
+    const r1 = readLiveQueryIds(engine, [Position]);
+    const r2 = readLiveQueryIds(engine, [Position]);
+    expect(r1).toBe(r2);
+    expect(r1).toContain(e);
   });
 
   it("precomputedKey should work with different component orders", () => {
-    const e = em.create();
-    reg.add(e, Position, { x: 1, y: 2 });
-    reg.add(e, Velocity, { vx: 1, vy: 0 });
-    qe.invalidate();
+    const e = engine.createEntity();
+    engine.addComponent(e, Position, { x: 1, y: 2 });
+    engine.addComponent(e, Velocity, { vx: 1, vy: 0 });
 
-    // When components are in different order, precomputedKey should still work
-    // because it contains the sorted canonical form
-    const precomputedKey = "Position|Velocity"; // alphabetically sorted
-    const resultsWithKey = qe.query([Velocity, Position], em, reg, precomputedKey);
-    expect(resultsWithKey).toContain(e);
+    const precomputedKey = "Position|Velocity";
+    const seen: EntityId[] = [];
+    for (const entity of engine.createLiveQuery([Velocity, Position], precomputedKey)) {
+      seen.push(entity.id);
+    }
+    expect(seen).toContain(e);
   });
 });
 
 describe("dormant slot byte (#56)", () => {
-  it("sets and clears the dormant byte", () => {
-    const em = new EntityManager(8);
-    const id = em.create();
-    expect(em.isDormant(id)).toBe(false);
-    expect(em.setDormant(id, true)).toBe(true);
-    expect(em.isDormant(id)).toBe(true);
-    expect(em.isAlive(id)).toBe(true);
-    expect(em.setDormant(id, false)).toBe(true);
-    expect(em.isDormant(id)).toBe(false);
+  it("sets and clears the dormant byte", async () => {
+    const engine = await open(8);
+    const id = engine.createEntity();
+    engine.addComponent(id, Position, { x: 1, y: 1 });
+    expect(isDormant(engine, id)).toBe(false);
+    expect(setEntityDormant(engine, id, true)).toBe(true);
+    expect(isDormant(engine, id)).toBe(true);
+    expect(engine.isAlive(id)).toBe(true);
+    expect(setEntityDormant(engine, id, false)).toBe(true);
+    expect(isDormant(engine, id)).toBe(false);
   });
 
-  it("resets the dormant byte on destroy and on the recycled create", () => {
-    const em = new EntityManager(4);
-    const id = em.create();
-    expect(em.setDormant(id, true)).toBe(true);
-    expect(em.destroy(id)).toBe(true);
-    expect(em.isDormant(id)).toBe(false);
-    expect(em.setDormant(id, true)).toBe(false);
-    const recycled = em.create();
-    expect(em.isDormant(recycled)).toBe(false);
+  it("resets the dormant byte on destroy and on the recycled create", async () => {
+    const engine = await open(4);
+    const id = engine.createEntity();
+    engine.addComponent(id, Position, { x: 1, y: 1 });
+    expect(setEntityDormant(engine, id, true)).toBe(true);
+    expect(engine.destroyEntity(id)).toBe(true);
+    expect(isDormant(engine, id)).toBe(false);
+    expect(setEntityDormant(engine, id, true)).toBe(false);
+    const recycled = engine.createEntity();
+    expect(isDormant(engine, recycled)).toBe(false);
+    expect(entityIndex(recycled)).toBe(entityIndex(id));
   });
 
-  it("keeps the cached query array across a dormancy toggle and an in-place write", () => {
-    const em = new EntityManager(4);
-    const reg = new ComponentRegistry();
-    const qe = new QueryEngine();
-    const id = em.create();
-    const stored = { value: 1 };
-    reg.add(id, "Hp", stored);
-    const first = qe.query(["Hp"], em, reg);
+  it("keeps the cached query array across a dormancy toggle and an in-place write", async () => {
+    const engine = await open(4);
+    const id = engine.createEntity();
+    engine.addComponent(id, Hp, { value: 1 });
+    const first = readLiveQueryIds(engine, [Hp]);
 
-    expect(em.setDormant(id, true)).toBe(true);
-    expect(qe.query(["Hp"], em, reg)).toBe(first);
-    expect(em.setDormant(id, false)).toBe(true);
+    expect(setEntityDormant(engine, id, true)).toBe(true);
+    expect(readLiveQueryIds(engine, [Hp])).toBe(first);
+    expect([...engine.createLiveQuery([Hp])]).toEqual([]);
+    expect(setEntityDormant(engine, id, false)).toBe(true);
 
-    stored.value = 4;
-    expect(qe.query(["Hp"], em, reg)).toBe(first);
-    expect(reg.get(id, "Hp")).toEqual({ value: 4 });
+    engine.addComponent(id, Hp, { value: 4 });
+    expect(readLiveQueryIds(engine, [Hp])).toBe(first);
+    expect(engine.getComponent(id, Hp)).toEqual({ value: 4 });
   });
 });

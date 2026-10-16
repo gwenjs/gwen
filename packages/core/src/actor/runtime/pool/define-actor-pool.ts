@@ -1,9 +1,15 @@
 import { createHooks } from "hookable";
 import type { EntityId } from "../../../engine/engine-api";
 import { setEntityDormant } from "../../../engine/engine-internals";
+import { unwrapEngine } from "../../../engine/engine-local";
 import type { GwenEngine, GwenPlugin } from "../../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
-import { entityIndex } from "../../../types/entity";
+import { entityGeneration, entityIndex } from "../../../types/entity";
+import { componentRegistryFor } from "../../../engine/engine-component-registry";
+import { componentStaging } from "../../../engine/chunk-lanes";
+import type { WasmBridgeImpl } from "../../../engine/wasm-bridge";
+import { computeSchemaLayout } from "../../../schema.js";
+import { stringPoolFor } from "../../../utils/string-pool.js";
 import type { ActorDefinition } from "../types";
 import { PoolExhaustedError } from "./errors";
 import type { ActorPool, ActorPoolDefinition, PoolHooks, PoolOptions, PoolStats } from "./types";
@@ -402,6 +408,61 @@ export function defineActorPool<Props, PublicAPI>(
     }
   }
 
+  // A nested function in rewriteRows is allocated on every acquire.
+  // Bind the bridge, the staging view, and the layouts once.
+  let rowReal: GwenEngine | null = null;
+  let rowBridge: WasmBridgeImpl | null = null;
+  let rowView: DataView | null = null;
+  let rowStrings: ReturnType<typeof stringPoolFor> | null = null;
+  const rowTypes = new Map<string, number>();
+  const rowLayouts = new Map<string, ReturnType<typeof computeSchemaLayout>>();
+
+  function bindRowWriter(engine: GwenEngine): void {
+    const real = unwrapEngine(engine);
+    const bridge = real.tryInject("wasm:bridge");
+    if (!bridge) return;
+    rowReal = real;
+    rowBridge = bridge;
+    rowView = componentStaging(real, () => bridge.componentStagingPtr());
+    rowStrings = stringPoolFor(real);
+  }
+
+  function rewriteRows(engine: GwenEngine, id: EntityId): void {
+    if (rowBridge === null) bindRowWriter(engine);
+    const bridge = rowBridge;
+    const view = rowView;
+    const strings = rowStrings;
+    const real = rowReal;
+    if (!bridge || !view || !strings || !real) return;
+    const index = entityIndex(id);
+    const generation = entityGeneration(id);
+    const entries = actor._prefab.components;
+    for (let i = 0; i < entries.length; i += 1) {
+      const entry = entries[i]!;
+      const name = entry.def.name;
+      let typeId = rowTypes.get(name);
+      if (typeId === undefined) {
+        typeId = componentRegistryFor(real).getOrRegister(entry.def);
+        rowTypes.set(name, typeId);
+      }
+      if (!bridge.hasComponent(index, generation, typeId)) continue;
+      let layout = rowLayouts.get(name);
+      if (layout === undefined) {
+        layout = computeSchemaLayout(entry.def.schema);
+        rowLayouts.set(name, layout);
+      }
+      const defaults = entry.def.defaults;
+      if (defaults) {
+        bridge.readComponentStaged(index, generation, typeId);
+        layout.patch(view, defaults, strings);
+        bridge.writeComponentStaged(index, generation, typeId);
+      }
+      bridge.readComponentStaged(index, generation, typeId);
+      layout.patch(view, entry.defaults, strings);
+      bridge.writeComponentStaged(index, generation, typeId);
+    }
+  }
+
   // A rest parameter allocates an array on every call, including acquire().
   function acquire(props?: Props): EntityId {
     const engine = _getEngine();
@@ -410,24 +471,13 @@ export function defineActorPool<Props, PublicAPI>(
     while (availableCount > 0) {
       availableCount -= 1;
       const candidate = available[availableCount]!;
-      // A dead id fails this write and is dropped. The slot stays dormant
-      // while component defaults, then prefab defaults, are written into the
-      // existing component objects.
-      // Reuse does not add or remove a component and does not invalidate queries:
-      // a prefab component removed during the previous life stays removed.
-      if (!setEntityDormant(engine, candidate, true)) continue;
+      // A dead id is dropped. Reuse patches the existing row and does not
+      // add a component that the previous life removed.
+      if (!setEntityDormant(engine, candidate, true) && !engine.isAlive(candidate)) continue;
       const inst = actor._instances.get(candidate);
       if (!inst) continue;
-      const entries = actor._prefab.components;
-      for (let i = 0; i < entries.length; i += 1) {
-        const entry = entries[i]!;
-        const existing = engine.getComponent(candidate, entry.def);
-        if (existing === undefined) continue;
-        // Same order as a fresh spawn: component defaults, then the prefab entry.
-        if (entry.def.defaults) Object.assign(existing, entry.def.defaults);
-        Object.assign(existing, entry.defaults);
-      }
-      if (!setEntityDormant(engine, candidate, false)) continue;
+      rewriteRows(engine, candidate);
+      if (!setEntityDormant(engine, candidate, false) && !engine.isAlive(candidate)) continue;
       inst._scope.resume();
       for (let i = 0; i < inst._reset.length; i += 1) inst._reset[i]!(props);
       for (let i = 0; i < inst._enable.length; i += 1) inst._enable[i]!();
@@ -489,7 +539,7 @@ export function defineActorPool<Props, PublicAPI>(
     inst._scope.forgetIsolation();
     inst._scope.pause();
 
-    const stillAlive = setEntityDormant(_engine, id, true);
+    const stillAlive = setEntityDormant(_engine, id, true) || _engine.isAlive(id);
     deactivate(id);
     if (stillAlive) {
       available[availableCount] = id;

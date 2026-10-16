@@ -246,12 +246,15 @@ describe("chunk columns through the bridge", () => {
       const first = engine.getComponent(id, EngineLanePos);
       expect(first?.x).toBe(1);
       if (first === undefined) throw new Error("component was not stored");
+      const writeX = (row: { x: number }): void => {
+        row.x = 9;
+      };
       if (__GWEN_DEV__) {
         expect(() => {
-          first.x = 9;
+          writeX(first);
         }).toThrow(TypeError);
       } else {
-        first.x = 9;
+        writeX(first);
       }
       expect(engine.getComponent(id, EngineLanePos)?.x).toBe(1);
     } finally {

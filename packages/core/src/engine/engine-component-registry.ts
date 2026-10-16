@@ -4,10 +4,9 @@
  * Every ECS component type has a string name on the TS side (e.g. `'Transform'`)
  * and a numeric ID on the Rust side (assigned by `register_component`).
  *
- * This registry owns the bidirectional mapping and provides helpers to:
+ * This registry owns the name-to-id mapping:
  * - Register a new type (lazy — on first use)
  * - Look up the numeric ID for a type name
- * - Collect all type IDs currently attached to an entity
  *
  * @internal Used exclusively by the Engine class.
  */
@@ -16,7 +15,6 @@ import { GwenError } from "@gwenjs/schema";
 
 import type { ComponentSchema, SchemaType } from "../schema";
 import type { ComponentType } from "../types";
-import { unpackEntityId, type EntityId } from "./engine-api";
 import type { GwenEngine } from "./engine-types";
 import { createEngineLocal } from "./engine-local";
 import { CoreErrorCodes } from "./engine-errors";
@@ -47,32 +45,47 @@ export function componentTypeIds(engine: GwenEngine): ReadonlyMap<ComponentType,
 /** One f32 lane. Names still reach the registry until the engine passes definitions. */
 const NAME_LANES = Uint8Array.of(0);
 
+const LANE_F32 = [0];
+const LANE_F64 = [1];
+const LANE_I32 = [2];
+const LANE_U32 = [3];
+const LANE_BOOL = [4];
+const LANE_I64 = [5];
+const LANE_U64 = [6];
+const LANE_STRING = [7];
+const LANE_VEC2 = [0, 0];
+const LANE_VEC3 = [0, 0, 0];
+const LANE_VEC4 = [0, 0, 0, 0];
+
+/** Same schema object, same lane bytes. A hot add must not build a new array. */
+const schemaLanes = new WeakMap<ComponentSchema, Uint8Array>();
+
 function laneParts(type: SchemaType["type"]): readonly number[] {
   switch (type) {
     case "f32":
-      return [0];
+      return LANE_F32;
     case "f64":
-      return [1];
+      return LANE_F64;
     case "i32":
-      return [2];
+      return LANE_I32;
     case "u32":
-      return [3];
+      return LANE_U32;
     case "bool":
-      return [4];
+      return LANE_BOOL;
     case "i64":
-      return [5];
+      return LANE_I64;
     case "u64":
-      return [6];
+      return LANE_U64;
     case "string":
-      return [7];
+      return LANE_STRING;
     case "vec2":
-      return [0, 0];
+      return LANE_VEC2;
     case "vec3":
-      return [0, 0, 0];
+      return LANE_VEC3;
     case "vec4":
     case "quat":
     case "color":
-      return [0, 0, 0, 0];
+      return LANE_VEC4;
     default: {
       const unexpected: never = type;
       throw new GwenError(
@@ -84,6 +97,8 @@ function laneParts(type: SchemaType["type"]): readonly number[] {
 }
 
 function lanesFromSchema(schema: ComponentSchema): Uint8Array {
+  const cached = schemaLanes.get(schema);
+  if (cached !== undefined) return cached;
   const lanes: number[] = [];
   for (const key of Object.keys(schema)) {
     const field = schema[key];
@@ -93,9 +108,12 @@ function lanesFromSchema(schema: ComponentSchema): Uint8Array {
         `Component layout invalid: ${key}`,
       );
     }
-    lanes.push(...laneParts(field.type));
+    const parts = laneParts(field.type);
+    for (let index = 0; index < parts.length; index += 1) lanes.push(parts[index]!);
   }
-  return Uint8Array.from(lanes);
+  const bytes = Uint8Array.from(lanes);
+  schemaLanes.set(schema, bytes);
+  return bytes;
 }
 
 function sameLanes(left: Uint8Array, right: Uint8Array): boolean {
@@ -118,20 +136,6 @@ export class EngineComponentRegistry {
   private layouts = new Map<string, Uint8Array>();
   /** Used only while the bridge has no WASM engine. Each registry has its own counter. */
   private nextLocalId = 0;
-
-  /**
-   * TS-side cache of active typeIds per entity slot.
-   *
-   * Key: slot index (raw, not packed EntityId) — invariant with respect to generation.
-   * Value: Set of typeIds attached to this slot.
-   *
-   * Invariant: this cache stays in sync with the WASM state via the internal
-   * methods of `Engine` (`_addComponentInternal`, `_removeComponentInternal`,
-   * `_destroyEntityInternal`).
-   *
-   * Eliminates O(N×M) WASM calls in getEntityTypeIds() — replaced by an O(1) read.
-   */
-  private entityTypeCache = new Map<number, Set<number>>();
 
   constructor(private readonly wasmBridge: WasmBridge) {}
 
@@ -193,69 +197,5 @@ export class EngineComponentRegistry {
    */
   getAll(): ReadonlyMap<ComponentType, number> {
     return this.typeIds;
-  }
-
-  // ── Entity helpers ───────────────────────────────────────────────────────────
-
-  /**
-   * Track that a component type has been added to an entity slot.
-   *
-   * Maintains the entityTypeCache in sync with WASM state.
-   * Called after `addComponent` succeeds on WASM.
-   *
-   * @param slotIndex Raw entity slot index (not packed EntityId)
-   * @param typeId Rust component type ID
-   */
-  trackAdd(slotIndex: number, typeId: number): void {
-    let types = this.entityTypeCache.get(slotIndex);
-    if (!types) {
-      types = new Set<number>();
-      this.entityTypeCache.set(slotIndex, types);
-    }
-    types.add(typeId);
-  }
-
-  /**
-   * Track that a component type has been removed from an entity slot.
-   *
-   * Maintains the entityTypeCache in sync with WASM state.
-   * Called after `removeComponent` succeeds on WASM.
-   *
-   * @param slotIndex Raw entity slot index (not packed EntityId)
-   * @param typeId Rust component type ID
-   */
-  trackRemove(slotIndex: number, typeId: number): void {
-    const types = this.entityTypeCache.get(slotIndex);
-    if (types) {
-      types.delete(typeId);
-      // Cleanup empty sets to avoid memory leak
-      if (types.size === 0) {
-        this.entityTypeCache.delete(slotIndex);
-      }
-    }
-  }
-
-  /**
-   * Collect all Rust typeIds currently attached to an entity.
-   *
-   * Used to rebuild the archetype bitmask after add/remove operations.
-   *
-   * **Performance:** O(1) cache read instead of O(N×M) WASM calls.
-   * The cache is maintained by trackAdd/trackRemove called from Engine.
-   */
-  getEntityTypeIds(id: EntityId): number[] {
-    const { index } = unpackEntityId(id);
-    const types = this.entityTypeCache.get(index);
-    return types ? Array.from(types) : [];
-  }
-
-  /**
-   * Clear the cache for a specific entity slot.
-   * Called when an entity is destroyed to prevent memory leaks.
-   *
-   * @param slotIndex Raw entity slot index (not packed EntityId)
-   */
-  clearEntityCache(slotIndex: number): void {
-    this.entityTypeCache.delete(slotIndex);
   }
 }

@@ -138,6 +138,11 @@ export interface SchemaLayout<T> {
    * `strings` is the caller's pool (one manager per engine).
    */
   deserialize: (view: DataView, strings: StringPoolManager) => T;
+  /**
+   * Write only the keys present in `data` into an already filled `view`.
+   * Absent keys stay as they are. No object is allocated.
+   */
+  patch: (view: DataView, data: Partial<T>, strings: StringPoolManager) => void;
 }
 
 // ── Internal types for serialization ──────────────────────────────────────────
@@ -347,11 +352,23 @@ export function computeSchemaLayout<T extends Record<string, FieldValue>>(
     return obj as T;
   };
 
+  const patch = (view: DataView, data: Partial<T>, strings: StringPoolManager): void => {
+    const record = data as Record<string, unknown>;
+    for (let index = 0; index < handlers.length; index += 1) {
+      const field = handlers[index]!;
+      if (!Object.prototype.hasOwnProperty.call(record, field.key)) continue;
+      const value = record[field.key];
+      if (value === undefined) continue;
+      field.handler.serialize(view, field.meta.offset, value, field.typeObj, strings);
+    }
+  };
+
   return {
     byteLength: totalByteLength,
     hasString: order.some(([, m]) => m.type === "string"),
     serialize,
     deserialize,
+    patch,
   };
 }
 
