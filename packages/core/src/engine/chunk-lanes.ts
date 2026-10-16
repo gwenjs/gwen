@@ -31,6 +31,11 @@ interface CacheEntry {
 const laneCaches = new WeakMap<GwenEngine, Map<string, CacheEntry>>();
 const stagingViews = new WeakMap<GwenEngine, MemoryView<"dataview">>();
 
+/** Number of lane-cache entries kept for this engine. */
+export function chunkLaneCacheSize(engine: GwenEngine): number {
+  return laneCaches.get(engine)?.size ?? 0;
+}
+
 function laneArray(
   kind: 0,
   buffer: ArrayBufferLike,

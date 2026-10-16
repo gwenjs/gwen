@@ -178,4 +178,33 @@ describe("chunk columns through the bridge", () => {
       await handle.dispose();
     }
   });
+
+  it("drops the awake count after a dormancy toggle and the lane length matches", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { engine, bridge } = handle;
+      const typeId = bridge.registerComponent(new Uint8Array([0]));
+      const first = bridge.createEntity();
+      const second = bridge.createEntity();
+      const staging = componentStaging(engine, () => bridge.componentStagingPtr());
+      staging.setFloat32(0, 3, true);
+      expect(bridge.writeComponentStaged(first.index, first.generation, typeId)).toBe(true);
+      staging.setFloat32(0, 4, true);
+      expect(bridge.writeComponentStaged(second.index, second.generation, typeId)).toBe(true);
+      const query = bridge.registerQuery(new Uint32Array([typeId]));
+      const before = chunkLaneViews(engine, bridge.queryChunks(query), [0]);
+      expect(before[0]?.count).toBe(2);
+      expect(bridge.setEntityDormant(second.index, second.generation, true)).toBe(true);
+      const ptr = bridge.queryChunks(query);
+      const after = chunkLaneViews(engine, ptr, [0]);
+      const memory = bridge.getLinearMemory();
+      if (memory === null) throw new Error("light wasm did not export memory");
+      const table = new Uint32Array(memory.buffer, ptr, 8);
+      expect(table[5]).toBe(1);
+      expect(after[0]?.count).toBe(table[5]);
+      expect(after[0]?.lanes[0]?.length).toBe(table[5]);
+    } finally {
+      await handle.dispose();
+    }
+  });
 });
