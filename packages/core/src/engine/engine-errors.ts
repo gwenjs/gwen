@@ -98,6 +98,8 @@ export const CoreErrorCodes = {
   OUTSIDE_CLEANUP_CONTEXT: "CORE:OUTSIDE_CLEANUP_CONTEXT",
   OUTSIDE_ENGINE_CONTEXT: "CORE:OUTSIDE_ENGINE_CONTEXT",
   ACTOR_POOL_EXHAUSTED: "CORE:ACTOR_POOL_EXHAUSTED",
+  COMPONENT_LAYOUT_INVALID: "CORE:COMPONENT_LAYOUT_INVALID",
+  ARCHETYPE_LIMIT_REACHED: "CORE:ARCHETYPE_LIMIT_REACHED",
 } as const;
 
 /**
@@ -112,7 +114,9 @@ export type CoreWasmErrorCode =
   | typeof CoreErrorCodes.INVALID_MAX_ENTITIES
   | typeof CoreErrorCodes.BUFFER_LENGTH_MISMATCH
   | typeof CoreErrorCodes.INVALID_SHARED_BUFFER
-  | typeof CoreErrorCodes.COMPONENT_WRITE_REJECTED;
+  | typeof CoreErrorCodes.COMPONENT_WRITE_REJECTED
+  | typeof CoreErrorCodes.COMPONENT_LAYOUT_INVALID
+  | typeof CoreErrorCodes.ARCHETYPE_LIMIT_REACHED;
 
 const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.ENTITY_LIMIT_REACHED,
@@ -123,6 +127,8 @@ const CORE_WASM_ERROR_CODE_LIST: readonly CoreWasmErrorCode[] = [
   CoreErrorCodes.BUFFER_LENGTH_MISMATCH,
   CoreErrorCodes.INVALID_SHARED_BUFFER,
   CoreErrorCodes.COMPONENT_WRITE_REJECTED,
+  CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
+  CoreErrorCodes.ARCHETYPE_LIMIT_REACHED,
 ];
 
 /** True when `code` is one of the recoverable core WASM codes. */

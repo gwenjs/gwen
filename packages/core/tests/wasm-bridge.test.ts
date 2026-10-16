@@ -140,6 +140,21 @@ describe("WasmBridge — with injected mock", () => {
     expect(poison).toHaveBeenCalledWith(trap);
   });
 
+  it("maps the chunk-store core codes onto GwenWasmError", () => {
+    const poison = (): void => {};
+    const codes = [
+      CoreErrorCodes.COMPONENT_LAYOUT_INVALID,
+      CoreErrorCodes.ARCHETYPE_LIMIT_REACHED,
+    ] as const;
+    for (const code of codes) {
+      const cause = new Error(code);
+      (cause as Error & { code: string }).code = code;
+      const mapped = toGwenWasmError(cause, "register_component", poison);
+      expect(mapped).toBeInstanceOf(GwenWasmError);
+      expect(mapped).toMatchObject({ code, exportName: "register_component", cause });
+    }
+  });
+
   it("toGwenWasmError maps a PHYSICS2D code only when the caller accepts that prefix", () => {
     const poisoned: WebAssembly.RuntimeError[] = [];
     const poison = (cause: WebAssembly.RuntimeError): void => {

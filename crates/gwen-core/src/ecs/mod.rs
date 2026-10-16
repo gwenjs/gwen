@@ -5,6 +5,7 @@
 pub mod archetype;
 pub mod archetype_graph;
 pub mod bitset;
+pub mod chunk_store;
 pub mod component;
 pub mod entity;
 pub mod error;

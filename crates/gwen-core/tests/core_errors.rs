@@ -58,6 +58,12 @@ fn assert_known_code(err: &CoreError) {
         CoreError::HistoryBuffersUnavailable { .. } => {
             assert_eq!(err.code(), "CORE:HISTORY_BUFFERS_UNAVAILABLE");
         }
+        CoreError::ComponentLayoutInvalid { .. } => {
+            assert_eq!(err.code(), "CORE:COMPONENT_LAYOUT_INVALID");
+        }
+        CoreError::ArchetypeLimitReached { .. } => {
+            assert_eq!(err.code(), "CORE:ARCHETYPE_LIMIT_REACHED");
+        }
     }
 }
 
@@ -66,6 +72,25 @@ fn history_buffers_unavailable_reports_its_code_and_message() {
     let err = CoreError::HistoryBuffersUnavailable { max_entities: 64 };
     assert_eq!(err.code(), "CORE:HISTORY_BUFFERS_UNAVAILABLE");
     assert_eq!(err.to_string(), "history buffers cannot be allocated");
+    assert_known_code(&err);
+}
+
+#[test]
+fn component_layout_invalid_reports_its_code_and_message() {
+    let err = CoreError::ComponentLayoutInvalid {
+        type_id: 3,
+        reason: 4,
+    };
+    assert_eq!(err.code(), "CORE:COMPONENT_LAYOUT_INVALID");
+    assert_eq!(err.to_string(), "Component layout invalid: type 3 reason 4");
+    assert_known_code(&err);
+}
+
+#[test]
+fn archetype_limit_reached_reports_its_code_and_message() {
+    let err = CoreError::ArchetypeLimitReached { max: 4096 };
+    assert_eq!(err.code(), "CORE:ARCHETYPE_LIMIT_REACHED");
+    assert_eq!(err.to_string(), "Archetype limit reached: 4096");
     assert_known_code(&err);
 }
 
