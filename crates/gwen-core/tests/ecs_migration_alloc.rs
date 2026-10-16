@@ -202,6 +202,10 @@ fn allocations_on_other_threads_are_not_counted() {
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn chunk_store_add_remove_allocates_nothing_after_warmup() -> Result<(), CoreError> {
     let _guard = hold_lock();
     let mut store = ChunkStore::new(8)?;
@@ -226,6 +230,10 @@ fn chunk_store_add_remove_allocates_nothing_after_warmup() -> Result<(), CoreErr
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn chunk_store_delete_allocates_nothing_after_warmup() -> Result<(), CoreError> {
     let _guard = hold_lock();
     let mut store = ChunkStore::new(8)?;
@@ -245,6 +253,10 @@ fn chunk_store_delete_allocates_nothing_after_warmup() -> Result<(), CoreError> 
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn chunk_store_in_place_write_allocates_nothing_after_warmup() -> Result<(), CoreError> {
     let _guard = hold_lock();
     let mut store = ChunkStore::new(4)?;
@@ -264,6 +276,10 @@ fn chunk_store_in_place_write_allocates_nothing_after_warmup() -> Result<(), Cor
 }
 
 #[test]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 fn chunk_store_staged_read_and_write_allocate_nothing_after_warmup() -> Result<(), CoreError> {
     let _guard = hold_lock();
     let mut store = ChunkStore::new(4)?;
