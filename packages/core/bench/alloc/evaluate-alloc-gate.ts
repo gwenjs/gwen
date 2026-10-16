@@ -14,6 +14,7 @@ export const ALLOC_PATH_NAMES = [
   "pool.cycle",
   "tween.tick",
   "entity.index",
+  "render.interpolate2d",
 ] as const;
 
 export type AllocPathName = (typeof ALLOC_PATH_NAMES)[number];

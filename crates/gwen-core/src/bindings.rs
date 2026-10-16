@@ -931,7 +931,7 @@ impl Engine {
         self.transform_system.update();
     }
 
-    /// Packs every live transform into the older history buffer.
+    /// Packs every transform node whose key matches the slot's current generation.
     ///
     /// The first call allocates two zeroed buffers. The byte count is
     /// `2 * max_entities * 32`, computed with `checked_mul`. When that product
@@ -945,8 +945,11 @@ impl Engine {
     /// then 8 zero bytes. Bit 0 means the slot has a live transform. Bit 2
     /// ([`crate::transform::FLAG_TELEPORT`]) is set for a node created,
     /// re-parented, or marked since the previous commit, and that mark clears
-    /// once the slot is stored. A slot with no live transform is 32 zero bytes.
-    /// After `delete_entity`, the next commit writes zeros into that slot.
+    /// once the slot is stored. A slot with no transform node is 32 zero bytes.
+    /// After `delete_entity`, the wasm record remains and the next commit writes
+    /// zeros into that slot. A slot that was never created in the wasm entity
+    /// manager has no record. `add_entity_transform` keys that node by
+    /// `u32::MAX`, and the commit packs it.
     ///
     /// Bit 2 exists only in these two buffers. No plugin module receives their
     /// address, so the bit is not part of the plugin ABI and the plugin ABI
@@ -1007,7 +1010,11 @@ impl Engine {
         let max_entities = self.entity_manager.max_entities();
         for index in 0..max_entities {
             let generation = self.get_entity_generation(index);
-            if !self.is_alive(index, generation) {
+            // A deleted wasm entity keeps its record and its transform node.
+            // That slot stays zero. A missing record is packed: the node is
+            // keyed by this generation, which is u32::MAX until the slot exists.
+            let wasm_record = self.entity_manager.get_generation(index).is_some();
+            if wasm_record && !self.is_alive(index, generation) {
                 continue;
             }
             let entity = EntityId::from_parts(index, generation);

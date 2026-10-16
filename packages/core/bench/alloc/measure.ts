@@ -5,6 +5,8 @@ import type { AllocPathName, AllocRunConfig } from "./evaluate-alloc-gate";
 
 export interface AllocScenario {
   readonly name: AllocPathName;
+  /** Fixed-step rate for this path only. Absent keeps the engine default. */
+  readonly physicsHz?: number;
   build(handle: RealEngineHandle, entities: number): Promise<void>;
 }
 
@@ -42,7 +44,11 @@ export async function measureFrameAllocations(
     throw new Error(`[ALLOC GATE] ${scenario.name}: repeats must be >= 5`);
   }
 
-  const handle = await createRealEngine({ variant: "light", maxEntities: 4096 });
+  const handle = await createRealEngine({
+    variant: "light",
+    maxEntities: 4096,
+    ...(scenario.physicsHz !== undefined ? { physicsHz: scenario.physicsHz } : {}),
+  });
   const gcStarts: number[] = [];
   const observer = new PerformanceObserver((list) => {
     readGcStarts(list.getEntries(), gcStarts);
