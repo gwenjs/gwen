@@ -21,7 +21,6 @@ use std::sync::Mutex;
 
 use gwen_core::bindings::Engine;
 use gwen_core::physics2d::Physics2DError;
-use gwen_core::TRANSFORM_SAB_TYPE_ID;
 
 struct CountingAlloc;
 
@@ -81,14 +80,6 @@ fn world_with_dynamic_bodies() -> Result<Engine, Physics2DError> {
     for index in 0..BODIES {
         let id = engine.create_entity().map_err(Physics2DError::Core)?;
         engine.add_entity_transform(id.index(), 0.0, 10.0, 0.0, 1.0, 1.0);
-        engine
-            .add_component(
-                id.index(),
-                id.generation(),
-                TRANSFORM_SAB_TYPE_ID,
-                &[0u8; 20],
-            )
-            .map_err(Physics2DError::Core)?;
         engine.physics_add_rigid_body(
             index, 0.0, 10.0, 1, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, None, None,
         )?;

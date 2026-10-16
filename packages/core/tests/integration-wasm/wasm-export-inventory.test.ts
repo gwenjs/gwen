@@ -52,9 +52,6 @@ const ENGINE: Record<string, ExportRow> = {
   delete_entity: infallible(
     "deallocate returns false when the index is past records at entity.rs:98-99; a stale generation returns false at entity.rs:105-106",
   ),
-  dirty_transform_count: infallible(
-    "DirtySet::len is dense.len() at dirty_set.rs:67-68; the as u32 cast truncates",
-  ),
   free_shared_buffer: result(),
   get_component_raw: infallible(
     "a dead entity returns an empty Vec at bindings.rs:286-290; get_location uses slice get at storage.rs:217-220; the column slice at archetype.rs:108-114 runs only for that stored row",

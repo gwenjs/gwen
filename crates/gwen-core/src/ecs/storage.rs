@@ -7,7 +7,6 @@ use crate::ecs::archetype_graph::ArchetypeGraph;
 use crate::ecs::bitset::BitSet128;
 use crate::ecs::component::{ComponentRegistry, ComponentTypeId};
 use crate::ecs::error::CoreError;
-use crate::transform::TRANSFORM_SAB_TYPE_ID;
 use std::collections::HashMap;
 
 /// Outcome of one component write. `Rejected` means nothing was mutated.
@@ -368,22 +367,6 @@ impl ArchetypeStorage {
     /// Get an archetype by ID.
     pub fn archetype(&self, id: ArchetypeId) -> &Archetype {
         self.graph.get(id)
-    }
-
-    // ── Shared Buffer helpers ──────────────
-
-    pub fn get_transform_raw(&self, entity_id: u32) -> Option<&[u8]> {
-        let type_id = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
-        self.get_component(entity_id, type_id)
-    }
-
-    pub fn upsert_transform_raw(
-        &mut self,
-        entity_id: u32,
-        data: &[u8],
-    ) -> Result<ColumnMove, CoreError> {
-        let type_id = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
-        self.upsert_js(entity_id, type_id, data)
     }
 }
 
