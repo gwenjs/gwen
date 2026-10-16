@@ -17,7 +17,7 @@ use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
-use gwen_core::chunk_store::ChunkStore;
+use gwen_core::chunk_store::{ChunkStore, CHUNK_ROWS};
 use gwen_core::ecs::{ArchetypeColumn, ArchetypeStorage, ComponentTypeId};
 use gwen_core::CoreError;
 
@@ -297,5 +297,36 @@ fn chunk_store_staged_read_and_write_allocate_nothing_after_warmup() -> Result<(
     assert_eq!(allocations, 0);
     assert_eq!(store.generation(), generation);
     assert_eq!(store.staging()[..4], [4, 0, 0, 0]);
+    Ok(())
+}
+
+#[test]
+fn chunk_store_boundary_add_remove_allocates_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(2048)?;
+    let position = store.register(&[0])?;
+    let bytes = [7, 0, 0, 0];
+    let boundary = u32::try_from(CHUNK_ROWS).unwrap_or(1024);
+    for index in 0..boundary + 1 {
+        assert_eq!(store.add(index, 0, position, &bytes), Ok(true));
+    }
+    assert_eq!(Some(store.delete_entity(boundary, 0)), Some(true));
+    let mut generation = 1u32;
+    let allocations = allocs_during(|| {
+        for _ in 0..4 {
+            let added = store.add(boundary, generation, position, &bytes);
+            assert_eq!(added, Ok(true));
+            let mut kept = [0u8; 4];
+            let copied = store.copy_row(boundary, generation, position, &mut kept);
+            assert_eq!(Some(copied), Some(true));
+            assert_eq!(kept, bytes);
+            let deleted = store.delete_entity(boundary, generation);
+            assert_eq!(Some(deleted), Some(true));
+            generation = generation.wrapping_add(1);
+        }
+    });
+    assert_eq!(allocations, 0);
+    assert_eq!(store.location(boundary), None);
+    assert_eq!(store.slot_generation(boundary), Some(generation));
     Ok(())
 }

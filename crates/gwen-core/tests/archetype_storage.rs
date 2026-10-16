@@ -14,6 +14,16 @@ fn open(max_entities: u32) -> Result<ChunkStore, CoreError> {
     ChunkStore::new(max_entities)
 }
 
+fn empty_chunks(store: &ChunkStore) -> u32 {
+    let mut empty = 0u32;
+    for id in 0..store.chunk_slot_count() {
+        if store.chunk_len(id) == Some(0) {
+            empty = empty.saturating_add(1);
+        }
+    }
+    empty
+}
+
 fn le4(value: u32) -> [u8; 4] {
     value.to_le_bytes()
 }
@@ -236,9 +246,9 @@ fn cross_chunk_fill_at_row_1024_fixes_the_moved_entity() -> Result<(), CoreError
     assert_eq!(moved.row, 0);
     assert_eq!(moved.chunk == tail.chunk, false);
     assert_eq!(row4(&store, 1024, 0, kind)?, le4(1024));
-    assert_eq!(store.archetype_chunk_count(0), Some(1));
+    assert_eq!(store.archetype_chunk_count(0), Some(2));
     assert_eq!(store.chunk_len(moved.chunk), Some(CHUNK_ROWS as u16));
-    assert_eq!(store.chunk_len(tail.chunk), None);
+    assert_eq!(store.chunk_len(tail.chunk), Some(0));
     assert_eq!(store.location(0), None);
     Ok(())
 }
@@ -638,7 +648,8 @@ fn cross_chunk_dormant_fill_stays_dormant() -> Result<(), CoreError> {
     if let Some(awake) = awake {
         assert_eq!(u32::from(loc.row >= awake), 1);
     }
-    assert_eq!(store.archetype_chunk_count(0), Some(1));
+    assert_eq!(store.archetype_chunk_count(0), Some(2));
+    assert_eq!(empty_chunks(&store), 1);
     assert_eq!(store.chunk_len(loc.chunk), Some(CHUNK_ROWS as u16));
     assert_boundaries(&store);
     Ok(())
@@ -696,5 +707,21 @@ fn sixty_four_lanes_fit_and_sixty_five_do_not() -> Result<(), CoreError> {
     assert_eq!(store.copy_row(0, 0, id, &mut out), true);
     assert_eq!(out[0], 7);
     assert_eq!(out[511], 0);
+    Ok(())
+}
+
+#[test]
+fn a_dormant_entity_is_awake_after_losing_its_last_component() -> Result<(), CoreError> {
+    let mut store = open(2)?;
+    let kind = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, kind, &le4(1)), Ok(true));
+    assert_eq!(store.set_dormant(0, 0, true), Ok(true));
+    assert_eq!(store.is_dormant(0, 0), Some(true));
+    assert_eq!(store.remove(0, 0, kind), Ok(true));
+    assert_eq!(store.location(0), None);
+    assert_eq!(store.set_dormant(0, 0, true), Ok(false));
+    assert_eq!(store.add(0, 0, kind, &le4(2)), Ok(true));
+    assert_eq!(store.is_dormant(0, 0), Some(false));
+    assert_eq!(row4(&store, 0, 0, kind)?, le4(2));
     Ok(())
 }
