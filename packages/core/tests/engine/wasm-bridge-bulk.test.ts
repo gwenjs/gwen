@@ -16,7 +16,7 @@ function makeMockBridge(overrides: Partial<WasmBridge> = {}): WasmBridge {
     deleteEntity: vi.fn(),
     isAlive: vi.fn(),
     countEntities: vi.fn(),
-    registerComponent: vi.fn(),
+    registerComponent: () => 0,
     addComponent: vi.fn(),
     removeComponent: vi.fn(),
     hasComponent: vi.fn(),

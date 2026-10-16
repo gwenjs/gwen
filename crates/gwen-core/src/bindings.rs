@@ -4301,11 +4301,18 @@ mod tests {
     use super::*;
     use crate::CoreError;
 
+    fn must_ok<T, E>(result: Result<T, E>) -> T {
+        match result {
+            Ok(value) => value,
+            Err(_) => unreachable!(),
+        }
+    }
+
     #[test]
     fn test_query_entities_to_buffer() {
         let mut engine = Engine::new(100).expect("max entities");
-        let t0 = engine.register_component(&[0]).expect("layout");
-        let t1 = engine.register_component(&[0]).expect("layout");
+        let t0 = must_ok(engine.register_component(&[0]));
+        let t1 = must_ok(engine.register_component(&[0]));
 
         let e0 = engine.create_entity().expect("entity limit");
         let e1 = engine.create_entity().expect("entity limit");
@@ -4357,7 +4364,7 @@ mod tests {
         let max = 11_000u32;
         let mut engine = Engine::new(max).expect("max entities");
         assert_eq!(engine.get_query_result_capacity(), max);
-        let t0 = engine.register_component(&[0]).expect("layout");
+        let t0 = must_ok(engine.register_component(&[0]));
 
         for _ in 0..max {
             let e = engine.create_entity().expect("entity limit");
@@ -4390,8 +4397,8 @@ mod tests {
             "two engines must not share the query buffer"
         );
 
-        let ta = a.register_component(&[0]).expect("layout");
-        let tb = b.register_component(&[0]).expect("layout");
+        let ta = must_ok(a.register_component(&[0]));
+        let tb = must_ok(b.register_component(&[0]));
         let ea = a.create_entity().expect("entity limit");
         a.add_component(ea.index(), ea.generation(), ta, &[1, 0, 0, 0])
             .expect("component");
@@ -4426,7 +4433,7 @@ mod tests {
         let Ok((mut engine, e)) = made else {
             unreachable!("Engine::new(4) and one entity always succeed");
         };
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = must_ok(engine.register_component(&[0]));
 
         let result =
             engine.set_components_bulk(&[e.index()], &[e.generation()], type_id, &[9u8; 8]);
@@ -4455,7 +4462,7 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = must_ok(engine.register_component(&[0]));
         let added_first =
             engine.add_component(first.index(), first.generation(), type_id, &[1, 2, 3, 4]);
         assert_eq!(added_first, Ok(true));
@@ -4495,7 +4502,7 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = must_ok(engine.register_component(&[0]));
         let written = engine.set_components_bulk(
             &[first.index(), second.index()],
             &[first.generation(), second.generation()],
@@ -4537,7 +4544,7 @@ mod tests {
         );
 
         let mut engine = Engine::new(4).expect("max entities");
-        let t0 = engine.register_component(&[0]).expect("layout");
+        let t0 = must_ok(engine.register_component(&[0]));
         for _ in 0..4 {
             let e = engine.create_entity().expect("entity limit");
             engine

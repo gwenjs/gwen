@@ -119,6 +119,13 @@ mod tests {
         Engine::new(1000).expect("max entities")
     }
 
+    fn must_ok<T, E>(result: Result<T, E>) -> T {
+        match result {
+            Ok(value) => value,
+            Err(_) => unreachable!(),
+        }
+    }
+
     #[test]
     fn test_physics3d_sync_from_rapier_empty_engine() {
         let mut engine = make_engine();
@@ -143,7 +150,7 @@ mod tests {
     #[test]
     fn test_physics3d_sync_roundtrip() {
         let mut engine = make_engine();
-        let transform_type_id = engine.register_component(&[0; 7]).expect("layout");
+        let transform_type_id = must_ok(engine.register_component(&[0; 7]));
 
         let e = engine.create_entity().expect("entity limit");
         // Pack transform [x=1.0, y=2.0, z=3.0, qx=0.0, qy=0.0, qz=0.0, qw=1.0] = 28 bytes
@@ -182,7 +189,7 @@ mod tests {
     #[test]
     fn physics3d_bulk_sync_from_rapier_refuses_a_longer_generation_list() {
         let mut engine = make_engine();
-        let type_id = engine.register_component(&[0]).expect("layout");
+        let type_id = must_ok(engine.register_component(&[0]));
         assert_eq!(
             engine
                 .create_entity()
@@ -192,7 +199,7 @@ mod tests {
         assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
 
         let mut other = make_engine();
-        let other_type_id = other.register_component(&[0]).expect("layout");
+        let other_type_id = must_ok(other.register_component(&[0]));
         assert_eq!(
             other
                 .create_entity()

@@ -87,7 +87,7 @@ fn fresh_engine() -> (Engine, Model) {
     let mut engine = must_ok(Engine::new(ENGINE_CAP));
     let mut type_ids = [0u32; TYPE_COUNT];
     for (i, slot) in type_ids.iter_mut().enumerate() {
-        *slot = engine.register_component(&[0]).expect("layout");
+        *slot = must_ok(engine.register_component(&[0]));
         assert_eq!(*slot, i as u32);
     }
 

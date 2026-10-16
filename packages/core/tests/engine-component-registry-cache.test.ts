@@ -217,15 +217,15 @@ describe("EngineComponentRegistry — entityTypeCache (P1-3)", () => {
 describe("EngineComponentRegistry lanes", () => {
   function recordingBridge(): { bridge: WasmBridge; seen: number[][] } {
     const seen: number[][] = [];
-    const bridge = {
+    const recorded = {
       isActive: () => true,
-      registerComponentType: () => 0,
       registerComponent: (lanes: Uint8Array) => {
         seen.push(Array.from(lanes));
         return seen.length;
       },
-      hasComponent: () => false,
-    } as unknown as WasmBridge;
+      hasComponent: (_index: number, _generation: number, _typeId: number) => false,
+    };
+    const bridge = recorded as WasmBridge;
     return { bridge, seen };
   }
 
