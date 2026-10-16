@@ -313,6 +313,33 @@ run_tests() {
   : >"$out"
   if [[ "$f" == */tests/integration-wasm/* ]]; then
     (cd "$tree/$pkg" && pnpm exec vitest run --config vitest.wasm.config.ts --reporter=json --outputFile "$out" "$rel") >"$log" 2>&1 || true
+  elif [[ "$rel" == bench/*.test.ts || "$rel" == bench/*.test.tsx || "$rel" == bench/*.test.mts ]]; then
+    # The package config excludes bench/**. --dir bench does not select those
+    # files when the config uses test projects. A one-off config includes them.
+    # The unit suite is unchanged.
+    local cfg
+    cfg=$(mktemp "${TMPDIR:-/tmp}/vr-bench.XXXXXX.ts")
+    cat >"$cfg" <<'CFG'
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  test: {
+    projects: [
+      {
+        define: { __GWEN_DEV__: "true" },
+        test: {
+          name: "dev",
+          environment: "node",
+          include: ["bench/**/*.test.ts", "bench/**/*.test.tsx", "bench/**/*.test.mts"],
+          exclude: ["**/node_modules/**", "**/dist/**"],
+        },
+      },
+    ],
+  },
+});
+CFG
+    (cd "$tree/$pkg" && pnpm exec vitest run --config "$cfg" --reporter=json --outputFile "$out" "$rel") >"$log" 2>&1 || true
+    rm -f "$cfg"
   else
     (cd "$tree/$pkg" && pnpm exec vitest run --reporter=json --outputFile "$out" "$rel") >"$log" 2>&1 || true
   fi
