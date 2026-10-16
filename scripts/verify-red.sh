@@ -317,15 +317,22 @@ run_tests() {
     # The package config excludes bench/**. --dir bench does not select those
     # files when the config uses test projects. A one-off config includes them.
     # The unit suite is unchanged.
+    # Written next to the package config so ../../vitest.aliases.ts resolves.
+    # Those aliases point @gwenjs/* at source. The package dist is not built here.
     local cfg
-    cfg=$(mktemp "${TMPDIR:-/tmp}/vr-bench.XXXXXX.ts")
+    cfg="$tree/$pkg/vr-bench.config.ts"
     cat >"$cfg" <<'CFG'
 import { defineConfig } from "vitest/config";
+import { gwenSourceAliases } from "../../vitest.aliases.ts";
+
+const alias = gwenSourceAliases();
 
 export default defineConfig({
+  resolve: { alias },
   test: {
     projects: [
       {
+        resolve: { alias },
         define: { __GWEN_DEV__: "true" },
         test: {
           name: "dev",
