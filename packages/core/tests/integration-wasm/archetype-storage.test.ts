@@ -4,6 +4,7 @@ import { defineComponent, Types } from "../../src/schema.js";
 import { chunkLaneViews, componentStaging } from "../../src/engine/chunk-lanes.js";
 import { componentRegistryFor } from "../../src/engine/engine-component-registry.js";
 import { CoreErrorCodes, GwenWasmError } from "../../src/engine/engine-errors.js";
+import { createEntityId } from "../../src/types/entity.js";
 import { createRealEngine } from "./harness.js";
 
 const EngineLanePos = defineComponent({
@@ -257,6 +258,30 @@ describe("chunk columns through the bridge", () => {
         writeX(first);
       }
       expect(engine.getComponent(id, EngineLanePos)?.x).toBe(1);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("includes a bulk-spawned entity in the live query and releases that query on stop", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { engine, bridge } = handle;
+      const slots = bridge.bulkSpawnWithTransforms(new Float32Array([1, 2]), new Float32Array([0]));
+      const index = slots[0];
+      if (index === undefined) throw new Error("bulk spawn returned no slot");
+      const id = createEntityId(index, bridge.getEntityGeneration(index));
+      engine.addComponent(id, EngineLanePos, { x: 1, y: 2 });
+      const seen = [...engine.createLiveQuery([EngineLanePos])].map((row) => row.id);
+      expect(seen).toContain(id);
+      const typeId = componentRegistryFor(engine).get(EngineLanePos.name);
+      if (typeId === undefined) throw new Error("component was not registered");
+      let reused = -1;
+      engine.hooks.hook("engine:stop", () => {
+        reused = bridge.registerQuery(new Uint32Array([typeId]));
+      });
+      await engine.stop();
+      expect(reused).toBe(0);
     } finally {
       await handle.dispose();
     }
