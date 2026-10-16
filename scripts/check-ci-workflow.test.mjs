@@ -529,6 +529,64 @@ test("verify-red does not count a wasm file as red when it cannot run", () => {
   assert.doesNotMatch(output, /verify-red: RED /);
 });
 
+test("verify-red runs an excluded bench file", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-fake-pnpm-"));
+  fakePnpmDirs.push(dir);
+  const bin = join(dir, "pnpm");
+  writeFileSync(
+    bin,
+    [
+      "#!/bin/sh",
+      'out=""',
+      'prev=""',
+      'config=""',
+      'for arg in "$@"; do',
+      '  if [ "$prev" = "--outputFile" ]; then',
+      '    out="$arg"',
+      "  fi",
+      '  if [ "$prev" = "--config" ]; then',
+      '    config="$arg"',
+      "  fi",
+      '  prev="$arg"',
+      "done",
+      'case "$*" in',
+      "  *vitest*)",
+      '    if [ -n "$config" ] && [ -n "$out" ]; then',
+      "      printf '%s\\n' '{\"testResults\":[{\"assertionResults\":[{\"fullName\":\"bench gate fails on the base\",\"status\":\"failed\"}]}]}' > \"$out\"",
+      "      exit 0",
+      "    fi",
+      '    echo "No test files found" >&2',
+      "    exit 1",
+      "    ;;",
+      "esac",
+      "exit 0",
+      "",
+    ].join("\n"),
+  );
+  chmodSync(bin, 0o755);
+  const result = runVerifyRed(
+    [
+      "import { test } from 'vitest';",
+      "test('bench gate fails on the base', () => {",
+      "  throw new Error('red');",
+      "});",
+      "",
+    ].join("\n"),
+    "base",
+    {
+      file: "packages/core/bench/added.test.ts",
+      seed(repo) {
+        mkdirSync(join(repo, "packages/core"), { recursive: true });
+        writeFileSync(join(repo, "packages/core/package.json"), '{"name":"@gwenjs/core"}\n');
+      },
+      pathPrefix: dir,
+    },
+  );
+  const output = `${result.stdout}\n${result.stderr}`;
+  assert.equal(result.status, 0, output);
+  assert.match(output, /verify-red: RED packages\/core\/bench\/added\.test\.ts/);
+});
+
 test("verify-red does not count a passing wasm test as red", () => {
   const wasmFile = "packages/core/tests/integration-wasm/added.test.ts";
   const result = runVerifyRed(
