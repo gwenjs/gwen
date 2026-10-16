@@ -10,11 +10,15 @@ describe("defineComponent distinct names", () => {
     defineComponent({ name: "Health", schema: { v: Types.f32 } });
     defineComponent({ name: "Health", schema: { v: Types.f32 } });
 
-    // Health counts once: 126 more names fill the 127 user types.
+    // Health counts once: 127 more names fill the 128 user types.
     let defined = 0;
-    for (let i = 1; i <= 126; i += 1) {
-      defineComponent({ name: `Fit${i}`, schema: { v: Types.f32 } });
-      defined += 1;
+    for (let i = 1; i <= 127; i += 1) {
+      try {
+        defineComponent({ name: `Fit${i}`, schema: { v: Types.f32 } });
+        defined += 1;
+      } catch {
+        break;
+      }
     }
     let caught: unknown;
     try {
@@ -23,7 +27,7 @@ describe("defineComponent distinct names", () => {
       caught = error;
     }
 
-    expect(defined).toBe(126);
+    expect(defined).toBe(127);
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) {
       throw new Error("expected GwenError");

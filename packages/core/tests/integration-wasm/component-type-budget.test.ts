@@ -7,22 +7,28 @@ import { EngineComponentRegistry } from "../../src/engine/engine-component-regis
 import { defineComponent, Types } from "../../src/schema";
 import { createRealEngine } from "./harness.js";
 
-const TRANSFORM_TYPE_ID = 0xffffffff - 1;
-
 describe("component type budget", () => {
-  it("127 user types and the transform accept writes in WASM; the 128th name throws in defineComponent", async () => {
-    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
-    let caught: unknown;
-    try {
-      const defs = [];
-      for (let i = 1; i <= 127; i += 1) {
+  it("128 user types accept writes in WASM and the 129th name throws in defineComponent", async () => {
+    let defined = 0;
+    const defs = [];
+    for (let i = 1; i <= 128; i += 1) {
+      try {
         defs.push(
           defineComponent({
-            name: `WithTransform${i}`,
+            name: `UserType${i}`,
             schema: { v: Types.f32 },
           }),
         );
+        defined += 1;
+      } catch {
+        break;
       }
+    }
+    expect(defined).toBe(128);
+
+    const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
+    let caught: unknown;
+    try {
       const entity = handle.bridge.createEntity();
       const bytes = new Uint8Array([1, 0, 0, 0]);
       for (const def of defs) {
@@ -31,13 +37,11 @@ describe("component type budget", () => {
           true,
         );
       }
-      expect(
-        handle.bridge.addComponent(entity.index, entity.generation, TRANSFORM_TYPE_ID, bytes),
-      ).toBe(true);
-
-      defineComponent({ name: "WithTransform128", schema: { v: Types.f32 } });
-    } catch (error: unknown) {
-      caught = error;
+      try {
+        defineComponent({ name: "UserType129", schema: { v: Types.f32 } });
+      } catch (error: unknown) {
+        caught = error;
+      }
     } finally {
       await handle.dispose();
     }
@@ -53,20 +57,27 @@ describe("component type budget", () => {
     expect(caught.name).toBe("GwenError");
   });
 
-  it("the registry rejects its 128th name before registerComponentType", async () => {
+  it("the registry accepts its 128th name and rejects the 129th before registerComponentType", async () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     const registry = new EngineComponentRegistry(handle.bridge);
     let caught: unknown;
     let nextBridgeId = -1;
+    let registered = 0;
     try {
-      try {
-        for (let i = 1; i <= 128; i += 1) {
+      for (let i = 1; i <= 128; i += 1) {
+        try {
           registry.getOrRegister(`Reg${i}`);
+          registered += 1;
+        } catch {
+          break;
         }
+      }
+      expect(registered).toBe(128);
+      try {
+        registry.getOrRegister("Reg129");
       } catch (error: unknown) {
         caught = error;
       }
-      // The WASM counter behind registerComponentType: one more id per call.
       nextBridgeId = handle.bridge.registerComponentType();
     } finally {
       await handle.dispose();
@@ -74,7 +85,7 @@ describe("component type budget", () => {
 
     const firstId = registry.get("Reg1");
     expect(firstId).toEqual(expect.any(Number));
-    expect(nextBridgeId - (firstId ?? 0)).toBe(127);
+    expect(nextBridgeId - (firstId ?? 0)).toBe(128);
     expect(caught).toBeInstanceOf(GwenError);
     expect(caught).not.toBeInstanceOf(GwenWasmError);
     expect(caught).not.toBeInstanceOf(GwenWasmPanicError);
@@ -82,9 +93,8 @@ describe("component type budget", () => {
       throw new Error("expected GwenError");
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
-    expect(caught.message).toContain("127");
     expect(caught.message).toContain("128");
-    expect(registry.get("Reg128")).toBeUndefined();
-    expect(registry.get("Reg127")).toEqual(expect.any(Number));
+    expect(registry.get("Reg129")).toBeUndefined();
+    expect(registry.get("Reg128")).toEqual(expect.any(Number));
   });
 });

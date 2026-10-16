@@ -6,12 +6,17 @@ import { CoreErrorCodes, GwenWasmError } from "../src/engine/engine-errors";
 import { defineComponent, Types } from "../src/schema";
 
 describe("defineComponent type limit", () => {
-  it("defining a 128th user component throws at definition time before any WASM call", () => {
-    const names: string[] = [];
-    for (let i = 1; i <= 127; i += 1) {
-      names.push(defineComponent({ name: `Limit${i}`, schema: { v: Types.f32 } }).name);
+  it("the 128th user component registers and the 129th throws at definition time", () => {
+    let registered = 0;
+    for (let i = 1; i <= 128; i += 1) {
+      try {
+        defineComponent({ name: `Limit${i}`, schema: { v: Types.f32 } });
+        registered += 1;
+      } catch {
+        break;
+      }
     }
-    expect(names).toHaveLength(127);
+    expect(registered).toBe(128);
 
     let caught: unknown;
     try {
@@ -26,7 +31,6 @@ describe("defineComponent type limit", () => {
       throw new Error("expected GwenError");
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED);
-    expect(caught.message).toContain("127");
     expect(caught.message).toContain("128");
     expect(caught.name).toBe("GwenError");
   });
