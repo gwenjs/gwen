@@ -197,7 +197,7 @@ La fonction renvoie false, et ne touche pas `out`, quand `slot` est hors de la p
 
 L'échantillon enregistré sur un pas n'inclut pas les écritures `engine:update` de ce même pas. Ces écritures sont publiées au pas suivant. Un rendu à `alpha` 0 copie l'échantillon précédent. C'est le retard d'un pas.
 
-`createEntity()` n'écrit pas d'enregistrement wasm. `destroyEntity` émet `entity:destroy` et ne retire pas le nœud de transform. Le commit suivant emballe encore ce slot, et `readInterpolatedTransform2D` reste vrai. Un renderer doit abandonner l'entité sur `entity:destroy`. Un `delete_entity` wasm garde son enregistrement. Le commit suivant ignore cet enregistrement mort après avoir vidé le tampon, donc le slot est à zéro et la fonction renvoie false.
+`createEntity()` alloue une entité wasm. `destroyEntity` appelle `delete_entity`, émet `entity:destroy` et ne retire pas le nœud de transform. L'enregistrement reste. Le commit suivant ignore cet enregistrement mort après avoir vidé le tampon, donc le slot est à zéro et `readInterpolatedTransform2D` renvoie false. Un renderer doit abandonner l'entité sur `entity:destroy`. Le ticket #220 retire le nœud.
 
 `physicsHz === 0` n'alloue pas les tampons d'historique. `alpha` reste `1`, `transforms2D` reste `null`, et `world` est égal à `worldRaw`.
 

@@ -35,8 +35,9 @@ export async function measureEngineFrame(): Promise<number> {
           for (const entity of query) {
             const pos = entity.get(Position);
             if (!pos) continue;
-            pos.x += 1;
-            sum += pos.x;
+            const next = pos.x + 1;
+            engine.addComponent(entity.id, Position, { x: next });
+            sum += next;
           }
           sink = sum;
         });

@@ -22,11 +22,6 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { bench, describe } from "vitest";
 
-// ── TS ECS (for comparison) ───────────────────────────────────────────────
-import { EntityManager, ComponentRegistry, QueryEngine } from "../src/core/ecs";
-import { defineComponent, Types } from "../src/schema";
-import type { EntityId as _EntityId } from "../src/types/entity";
-
 // ── WASM bootstrap (synchronous) ──────────────────────────────────────────
 
 const _require = createRequire(import.meta.url);
@@ -63,11 +58,6 @@ function loadWasmEngine(maxEntities: number): RawWasmEngine {
 
 const DT = 1 / 60;
 const COMP_BYTES = 8; // 2 × f32 per component
-
-// ── Component definitions (TS ECS) ────────────────────────────────────────
-
-const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
-const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
 
 // ── WASM world ────────────────────────────────────────────────────────────
 
@@ -122,45 +112,11 @@ function runWasmFrame(world: WasmWorld): void {
   }
 }
 
-// ── TS ECS world ──────────────────────────────────────────────────────────
-
-interface TsWorld {
-  em: EntityManager;
-  cr: ComponentRegistry;
-  qe: QueryEngine;
-}
-
-function buildTsWorld(n: number): TsWorld {
-  const em = new EntityManager(n);
-  const cr = new ComponentRegistry();
-  const qe = new QueryEngine();
-  for (let i = 0; i < n; i++) {
-    const id = em.create();
-    cr.add(id, Position, { x: i * 1.0, y: 0.0 });
-    cr.add(id, Velocity, { vx: 1.0, vy: 0.5 });
-  }
-  return { em, cr, qe };
-}
-
-function runTsFrame(ts: TsWorld): void {
-  const entities = ts.qe.resolve([Position, Velocity], ts.em, ts.cr);
-  for (const id of entities) {
-    const pos = ts.cr.get<{ x: number; y: number }>(id, Position)!;
-    const vel = ts.cr.get<{ vx: number; vy: number }>(id, Velocity)!;
-    ts.cr.add(id, Position, { x: pos.x + vel.vx * DT, y: pos.y + vel.vy * DT });
-  }
-  ts.qe.invalidate();
-}
-
 // ── Module-level world setup (avoids beforeAll timing issues) ─────────────
 
 const _wasm1k = buildWasmWorld(1_000);
 const _wasm5k = buildWasmWorld(5_000);
 const _wasm10k = buildWasmWorld(10_000);
-
-const _ts1k = buildTsWorld(1_000);
-const _ts5k = buildTsWorld(5_000);
-const _ts10k = buildTsWorld(10_000);
 
 // ── 1. Movement system — 1 frame ─────────────────────────────────────────
 
@@ -170,60 +126,12 @@ describe("WASM ECS movement system — 1 frame", () => {
   bench("10 000 entities", () => runWasmFrame(_wasm10k));
 });
 
-// ── 2. TS ECS movement system — 1 frame (same workload, for comparison) ──
-
-describe("TS ECS movement system — 1 frame", () => {
-  bench("1 000 entities", () => runTsFrame(_ts1k));
-  bench("5 000 entities", () => runTsFrame(_ts5k));
-  bench("10 000 entities", () => runTsFrame(_ts10k));
-});
-
-// ── 3. Side-by-side summary — 1 000 entities ─────────────────────────────
-
-const _wasmSbs = buildWasmWorld(1_000);
-const _tsSbs = buildTsWorld(1_000);
-
-describe("Side-by-side: TS vs WASM ECS — 1 000 entities, 1 frame", () => {
-  bench("TypeScript ECS", () => runTsFrame(_tsSbs));
-  bench("Rust WASM ECS", () => runWasmFrame(_wasmSbs));
-});
-
-// ── 4. 100-frame sustained simulation ────────────────────────────────────
-
-describe("Sustained 100-frame simulation — WASM vs TS", () => {
-  bench("WASM — 1 000 entities × 100 frames", () => {
-    const w = buildWasmWorld(1_000);
-    for (let f = 0; f < 100; f++) runWasmFrame(w);
-  });
-
-  bench("TS — 1 000 entities × 100 frames", () => {
-    const ts = buildTsWorld(1_000);
-    for (let f = 0; f < 100; f++) runTsFrame(ts);
-  });
-
-  bench("WASM — 5 000 entities × 100 frames", () => {
-    const w = buildWasmWorld(5_000);
-    for (let f = 0; f < 100; f++) runWasmFrame(w);
-  });
-
-  bench("TS — 5 000 entities × 100 frames", () => {
-    const ts = buildTsWorld(5_000);
-    for (let f = 0; f < 100; f++) runTsFrame(ts);
-  });
-});
-
-// ── 5. Query-only cost (no writes) ───────────────────────────────────────
+// ── 2. Query-only cost (no writes) ───────────────────────────────────────
 
 const _wasmQO = buildWasmWorld(5_000);
-const _tsQO = buildTsWorld(5_000);
 
 describe("Query-only cost (no writes) — 5 000 entities", () => {
   bench("WASM query_entities()", () => {
     _wasmQO.engine.query_entities(new Uint32Array([_wasmQO.posTypeId, _wasmQO.velTypeId]));
-  });
-
-  bench("TS QueryEngine.resolve()", () => {
-    _tsQO.qe.resolve([Position, Velocity], _tsQO.em, _tsQO.cr);
-    _tsQO.qe.invalidate();
   });
 });

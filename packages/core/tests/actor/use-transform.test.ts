@@ -7,23 +7,34 @@ import { defineActor } from "../../src/actor/runtime/define-actor";
 import { useTransform } from "../../src/actor/runtime/use-transform";
 import { defineLayout, placeActor, useLayout } from "@gwenjs/core/actor";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
+import { mockEntitySurface } from "../helpers/mock-wasm-engine";
+
+function install(bridge: WasmBridgeImpl, engine: object, memory: WebAssembly.Memory): void {
+  bridge._injectMock(engine as never);
+  bridge._injectMockExports({ memory });
+}
 
 // Helper to create a minimal mock WASM engine (stateless — all writes are no-ops)
 function createMockEngine() {
+  const surface = mockEntitySurface();
   return {
-    add_entity_transform: () => {},
-    update_transforms: () => {},
-    translate_entity: () => {},
-    set_entity_local_position: () => {},
-    set_entity_local_rotation: () => {},
-    get_entity_local_rotation: () => 0,
-    set_entity_local_scale: () => {},
-    get_entity_world_x: () => 0,
-    get_entity_world_y: () => 0,
-    get_entity_world_rotation: () => 0,
-    has_entity_parent: () => false,
-    set_entity_parent: () => {},
-    register_component: () => 0,
+    memory: surface.memory,
+    engine: {
+      ...surface.exports,
+      add_entity_transform: () => {},
+      update_transforms: () => {},
+      translate_entity: () => {},
+      set_entity_local_position: () => {},
+      set_entity_local_rotation: () => {},
+      get_entity_local_rotation: () => 0,
+      set_entity_local_scale: () => {},
+      get_entity_world_x: () => 0,
+      get_entity_world_y: () => 0,
+      get_entity_world_rotation: () => 0,
+      has_entity_parent: () => false,
+      set_entity_parent: () => {},
+      register_component: () => 0,
+    },
   };
 }
 
@@ -33,38 +44,43 @@ function createStatefulMockEngine() {
   type Pos = { x: number; y: number };
   const local = new Map<number, Pos>();
   let transformsUpToDate = false;
+  const surface = mockEntitySurface();
 
   return {
-    add_entity_transform(idx: number, x: number, y: number) {
-      local.set(idx, { x, y });
-      transformsUpToDate = false;
+    memory: surface.memory,
+    engine: {
+      ...surface.exports,
+      add_entity_transform(idx: number, x: number, y: number) {
+        local.set(idx, { x, y });
+        transformsUpToDate = false;
+      },
+      update_transforms() {
+        transformsUpToDate = true;
+      },
+      translate_entity(idx: number, dx: number, dy: number) {
+        const p = local.get(idx) ?? { x: 0, y: 0 };
+        local.set(idx, { x: p.x + dx, y: p.y + dy });
+        transformsUpToDate = false;
+      },
+      set_entity_local_position(idx: number, x: number, y: number) {
+        local.set(idx, { x, y });
+        transformsUpToDate = false;
+      },
+      get_entity_world_x(idx: number) {
+        // World == local for root entities (no hierarchy); only valid after update_transforms
+        return transformsUpToDate ? (local.get(idx)?.x ?? 0) : 0;
+      },
+      get_entity_world_y(idx: number) {
+        return transformsUpToDate ? (local.get(idx)?.y ?? 0) : 0;
+      },
+      set_entity_local_rotation: () => {},
+      get_entity_local_rotation: () => 0,
+      set_entity_local_scale: () => {},
+      get_entity_world_rotation: () => 0,
+      has_entity_parent: () => false,
+      set_entity_parent: () => {},
+      register_component: () => 0,
     },
-    update_transforms() {
-      transformsUpToDate = true;
-    },
-    translate_entity(idx: number, dx: number, dy: number) {
-      const p = local.get(idx) ?? { x: 0, y: 0 };
-      local.set(idx, { x: p.x + dx, y: p.y + dy });
-      transformsUpToDate = false;
-    },
-    set_entity_local_position(idx: number, x: number, y: number) {
-      local.set(idx, { x, y });
-      transformsUpToDate = false;
-    },
-    get_entity_world_x(idx: number) {
-      // World == local for root entities (no hierarchy); only valid after update_transforms
-      return transformsUpToDate ? (local.get(idx)?.x ?? 0) : 0;
-    },
-    get_entity_world_y(idx: number) {
-      return transformsUpToDate ? (local.get(idx)?.y ?? 0) : 0;
-    },
-    set_entity_local_rotation: () => {},
-    get_entity_local_rotation: () => 0,
-    set_entity_local_scale: () => {},
-    get_entity_world_rotation: () => 0,
-    has_entity_parent: () => false,
-    set_entity_parent: () => {},
-    register_component: () => 0,
   };
 }
 
@@ -83,7 +99,8 @@ describe("useTransform — registration in TransformSystem (regression)", () => 
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("calls add_entity_transform on spawn so translate/world are not silent no-ops", async () => {
@@ -106,7 +123,8 @@ describe("frame loop — update_transforms() called each frame (regression)", ()
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("calls update_transforms() on every engine.advance() tick", async () => {
@@ -127,7 +145,8 @@ describe("useTransform — end-to-end: translate reflects in world after frame t
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createStatefulMockEngine() as any);
+    const mock = createStatefulMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("world.x/y update after translate() + engine.advance()", async () => {
@@ -197,7 +216,8 @@ describe("useTransform — local write operations", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("translate() calls translate_entity on the bridge", async () => {
@@ -244,7 +264,8 @@ describe("useTransform — rotation and scale", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("rotateTo() calls set_entity_local_rotation with the given angle", async () => {
@@ -314,7 +335,8 @@ describe("useTransform — hasParent", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("hasParent returns false when bridge reports no parent", async () => {
@@ -367,7 +389,8 @@ describe("useTransform — world read values", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("world.x and world.y reflect bridge values", async () => {
@@ -437,7 +460,8 @@ describe("useTransform — setParent / detach", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("setParent works correctly with high-generation entity id", async () => {
@@ -538,7 +562,8 @@ describe("useTransform — world reads", () => {
 
   beforeEach(() => {
     bridge = new WasmBridgeImpl();
-    bridge._injectMock(createMockEngine() as any);
+    const mock = createMockEngine();
+    install(bridge, mock.engine, mock.memory);
   });
 
   it("world reads return values from the bridge", async () => {

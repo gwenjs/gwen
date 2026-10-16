@@ -578,7 +578,7 @@ describe("CameraSystem — projection type", () => {
     expect(state?.projection.type).toBe("perspective");
     if (state?.projection.type === "perspective") {
       expect(state.projection.fov).toBeCloseTo(Math.PI / 3);
-      expect(state.projection.near).toBe(0.1);
+      expect(state.projection.near).toBeCloseTo(0.1);
       expect(state.projection.far).toBe(1000);
     }
   });

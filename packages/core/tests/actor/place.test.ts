@@ -16,7 +16,7 @@ import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { createEngine } from "../../src/engine/engine-factory";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
-import type { WasmEngine } from "../../src/engine/wasm-bridge";
+import { createMockWasmEngine, mockEntitySurface } from "../helpers/mock-wasm-engine";
 import {
   _withLayoutContext,
   _isInLayoutContext,
@@ -34,42 +34,39 @@ import {
  * set_entity_local_position, bulk_destroy).
  */
 function makePlacementMock() {
+  const surface = mockEntitySurface();
   return {
-    // Placement methods (cast to PlacementBridge by getPlacementBridge)
-    add_entity_transform: () => {},
-    set_entity_parent: () => {},
-    set_entity_local_position: () => {},
-    bulk_destroy: () => {},
-    // Minimal WasmEngineBase stubs
-    create_entity: () => 0n,
-    delete_entity: () => true,
-    is_alive: () => true,
-    count_entities: () => 0,
-    register_component: () => 0,
-    add_component: () => true,
-    remove_component: () => true,
-    has_component: () => false,
-    get_component_raw: () => new Uint8Array(0),
-    update_entity_archetype: () => {},
-    remove_entity_from_query: () => {},
-    query_entities: () => new Uint32Array(0),
-    query_entities_to_buffer: () => 0,
-    get_query_result_ptr: () => 0,
-    get_entity_generation: () => 0,
-    alloc_shared_buffer: () => 0,
-    free_shared_buffer: () => {},
-    query_read_bulk: () => {},
-    query_write_bulk: () => {},
-    update_transforms: () => {},
-    bulk_destroy_entities: () => {},
-  } as unknown as WasmEngine;
+    surface,
+    engine: createMockWasmEngine({
+      ...surface.exports,
+      add_entity_transform: () => {},
+      set_entity_parent: () => {},
+      set_entity_local_position: () => {},
+      bulk_destroy: () => {},
+      add_component: () => true,
+      get_component_raw: () => new Uint8Array(0),
+      update_entity_archetype: () => {},
+      remove_entity_from_query: () => {},
+      query_entities: () => new Uint32Array(0),
+      query_entities_to_buffer: () => 0,
+      get_query_result_ptr: () => 0,
+      alloc_shared_buffer: () => 0,
+      free_shared_buffer: () => {},
+      query_read_bulk: () => {},
+      query_write_bulk: () => {},
+      update_transforms: () => {},
+      bulk_destroy_entities: () => {},
+    }),
+  };
 }
 
 let bridge: WasmBridgeImpl;
 
 beforeEach(() => {
   bridge = new WasmBridgeImpl();
-  bridge._injectMock(makePlacementMock());
+  const mock = makePlacementMock();
+  bridge._injectMock(mock.engine);
+  bridge._injectMockExports({ memory: mock.surface.memory });
 });
 
 // ─── Tests ────────────────────────────────────────────────────────────────────

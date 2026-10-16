@@ -338,13 +338,13 @@ export interface EntityAccessor<C extends readonly ComponentDef[]> {
   /** The entity's unique ID. */
   readonly id: EntityId;
   /**
-   * Retrieve the current component data for a definition in this query.
+   * Retrieve a readonly snapshot of one component in this query. Dev builds deep-freeze it.
    * A definition that was not queried is a compile error.
    * A missing value at runtime is a bug: the query only yields entities that have every def.
    *
    * @param def - One of the component definitions passed to the query
    */
-  get<D extends C[number]>(def: D): InferComponent<D>;
+  get<D extends C[number]>(def: D): Readonly<InferComponent<D>>;
 }
 
 /**

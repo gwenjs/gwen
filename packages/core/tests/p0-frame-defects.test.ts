@@ -111,7 +111,11 @@ describe("P0 frame defects", () => {
       debug: true,
       // Skip the uninitialized WASM bridge so the error logger does not call performance.now().
       // checkMemoryGrow is called on every phase. A missing method throws and the logger times it.
-      _bridge: { engine: () => ({}), checkMemoryGrow: () => false } as never,
+      _bridge: {
+        engine: () => ({}),
+        checkMemoryGrow: () => false,
+        countEntities: () => 0,
+      } as never,
     });
     await engine.startExternal();
     const now = vi.spyOn(performance, "now");
@@ -155,7 +159,7 @@ describe("P0 frame defects", () => {
     const before = engine.getStats();
     expect(before.entityCount).toBe(2);
     expect(before.rawFrameTime).toBe(0);
-    expect("wasmMemoryBytes" in before).toBe(false);
+    expect("wasmMemoryBytes" in before).toBe(true);
 
     await engine.startExternal();
     try {
@@ -193,7 +197,12 @@ describe("P0 frame defects", () => {
       maxCatchupSteps: 10,
       debug: true,
       // start() refuses an inactive bridge, so the stub reports itself active.
-      _bridge: { engine: () => ({}), checkMemoryGrow: () => false, isActive: () => true } as never,
+      _bridge: {
+        engine: () => ({}),
+        checkMemoryGrow: () => false,
+        isActive: () => true,
+        countEntities: () => 0,
+      } as never,
     });
     engine.hooks.hook("engine:before-update", () => {
       clock += 5;

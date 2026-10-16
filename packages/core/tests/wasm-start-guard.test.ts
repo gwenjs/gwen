@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { createEngine } from "../src/index.js";
+import { WasmBridgeImpl } from "../src/engine/wasm-bridge.js";
 import { GwenError } from "@gwenjs/schema";
 
 describe("start before WASM initialisation", () => {
   it("throws once and does not schedule a frame", async () => {
-    const engine = await createEngine();
+    const engine = await createEngine({ _bridge: new WasmBridgeImpl() });
     let scheduled = 0;
     const previousTimeout = globalThis.setTimeout;
     const previousRaf = globalThis.requestAnimationFrame;

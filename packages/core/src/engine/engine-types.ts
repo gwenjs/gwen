@@ -578,7 +578,7 @@ export interface GwenEngine extends GwenEngineBase {
   getComponent<D extends ComponentDefinition<ComponentSchema>>(
     id: EntityId,
     def: D,
-  ): InferComponent<D> | undefined;
+  ): Readonly<InferComponent<D>> | undefined;
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
   createLiveQuery<const C extends readonly ComponentDef[]>(

@@ -100,10 +100,10 @@ export abstract class EngineCollaborators {
     };
     this._entities = new EngineEntities({
       maxEntities: this.maxEntities,
-      queryCacheSize: opts.queryCacheSize ?? 256,
       assertState: (method) => this._stateMachine.assert(method),
-      registerComponent: (type) => this.getOrRegisterComponent(type),
       emitDestroy: (id) => emitEntityDestroy(engine, this.hooks, reportDestroyFailure, id),
+      engine,
+      bridge: this._bridge,
     });
 
     const errorBus = opts.errorBus ?? createErrorBus({ logger: this.logger });

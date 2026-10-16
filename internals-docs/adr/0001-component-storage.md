@@ -211,3 +211,20 @@ This tree does not implement the chunk loop yet. #113 and #65 do. Until they lan
 - #95 — `archetypeCount` becomes meaningful once #113 lands. The stat stays owned by #95.
 
 ## Before/after (#113)
+
+Local `today` rows only. Models A, B, and C were not re-timed. Rust rows were not re-run.
+
+Command, from each tree, dev project, Node v22.23.3:
+
+`pnpm --filter @gwenjs/core exec vitest bench --run bench/storage-models.bench.ts -t today`
+
+The same command also ran the prod project. This table uses the dev medians (`benchmark.median` in the vitest JSON). `iter_ns_per_entity` is that median in ns divided by E. `add_us`, `remove_us`, and `frame_us` are that median in µs. `bytes_per_entity` is `TodayModel.heapBytes() / E`. That method counts stored f32 bytes (16 per entity, plus 8 when Health is present). It is not a `heapUsed` delta.
+
+Base is `origin/v1-alpha` `3a3f0819d964d69153c3621be972bd48da8fe7a8`, tree `247a7b71235f4752e6a1e041383df4c145fd354c`, run in the PR 3 worktree. Head is the PR 4 worktree before its fix commit. CPU: Apple M4 Max. OS: Darwin 25.6.0 arm64.
+
+| model | runtime | E | iter_ns_per_entity | add_us | remove_us | frame_us | bytes_per_entity |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| today base | JS | 1000 | 91.125 | 0.3750 | 0.9165 | 271.2 | 20.000 |
+| today base | JS | 10000 | 94.196 | 0.5420 | 0.3330 | 2940.7 | 20.000 |
+| today head | JS | 1000 | 938.4 | 0.7500 | 0.6455 | 1417.8 | 20.000 |
+| today head | JS | 10000 | 959.1 | 0.7500 | 0.5415 | 14111.6 | 20.000 |

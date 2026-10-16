@@ -1,8 +1,7 @@
 /**
  * @file useQuery integration tests
  *
- * Tests for the `useQuery()` composable wired to the TS ECS
- * (EntityManager / ComponentRegistry / QueryEngine inside GwenEngineImpl).
+ * Tests for the `useQuery()` composable wired to the engine entity store.
  *
  * Each test creates a real engine instance and exercises the ECS API through
  * the public surface: `createEntity`, `addComponent`, `removeComponent`,

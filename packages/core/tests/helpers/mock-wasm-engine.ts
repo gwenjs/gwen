@@ -2,8 +2,43 @@ import { vi } from "vitest";
 
 import type { WasmEngine, WasmEntityId } from "../../src/engine/wasm-bridge";
 
+/**
+ * Entity and staging exports for a mock that replaced the real bridge.
+ * `memory` must be passed to `_injectMockExports` so component writes have a buffer.
+ */
+export function mockEntitySurface(): {
+  memory: WebAssembly.Memory;
+  exports: Record<string, unknown>;
+} {
+  let next = 0;
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  return {
+    memory,
+    exports: {
+      create_entity(): WasmEntityId {
+        const index = next;
+        next += 1;
+        return { index, generation: 0 };
+      },
+      delete_entity: () => true,
+      is_alive: () => true,
+      count_entities: () => next,
+      get_entity_generation: () => 0,
+      component_staging_ptr: () => 16,
+      write_component_staged: () => true,
+      read_component_staged: () => false,
+      has_component: () => false,
+      register_component: () => 1,
+      remove_component: () => true,
+      set_entity_dormant: () => true,
+      is_entity_dormant: () => false,
+      storage_generation: () => 0,
+    },
+  };
+}
+
 /** Partial engine stub. Only the methods these unit tests call are real. */
-export function createMockWasmEngine(): WasmEngine {
+export function createMockWasmEngine(extra: Record<string, unknown> = {}): WasmEngine {
   return {
     create_entity: vi.fn((): WasmEntityId => ({ index: 0, generation: 0 })),
     delete_entity: vi.fn(() => true),
@@ -24,5 +59,6 @@ export function createMockWasmEngine(): WasmEngine {
     alloc_shared_buffer: vi.fn(() => 4096),
     sync_transforms_to_buffer: vi.fn(),
     stats: vi.fn(() => '{"entities":0,"frame":1}'),
+    ...extra,
   } as unknown as WasmEngine; // allowlist: WasmEngine requires every export; tests stub only the calls they make #52
 }

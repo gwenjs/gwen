@@ -167,8 +167,10 @@ function referenceSystem(handle: RealEngineHandle, scene: FrameScene): GwenPlugi
         const pos = entity.get(Position);
         const vel = entity.get(Velocity);
         if (!pos || !vel) continue;
-        pos.x += vel.vx * dt;
-        pos.y += vel.vy * dt;
+        handle.engine.addComponent(entity.id, Position, {
+          x: pos.x + vel.vx * dt,
+          y: pos.y + vel.vy * dt,
+        });
       }
     });
     onRender(() => {
