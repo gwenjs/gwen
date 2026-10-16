@@ -163,8 +163,6 @@ struct StoreQuery {
     lane_at: Vec<u16>,
     scratch: Vec<u32>,
     table: Vec<u32>,
-    built_generation: u32,
-    ready: bool,
 }
 
 fn ptr_word(ptr: usize) -> u32 {
@@ -940,8 +938,6 @@ impl ChunkStore {
             lane_at: Vec::new(),
             scratch: Vec::new(),
             table: Vec::new(),
-            built_generation: u32::MAX,
-            ready: false,
         };
         if let Some(id) = self.free_queries.pop() {
             let Some(slot) = self.queries.get_mut(id as usize) else {
@@ -981,8 +977,8 @@ impl ChunkStore {
     ///
     /// On a 64-bit host the address does not fit, and the word is 0. The table
     /// is still readable from [`ChunkStore::query_table`]. wasm32 stores the
-    /// real address. A second call with the same storage generation rewrites
-    /// counts in the existing buffer.
+    /// real address. Awake changes bump the storage generation, so each call
+    /// rebuilds the table. A same-generation call fills the buffer again.
     pub fn query_chunks(&mut self, query: u32) -> Result<u32, CoreError> {
         self.fill_query(query)?;
         let ptr = self
@@ -1000,47 +996,15 @@ impl ChunkStore {
         if !exists {
             return Err(CoreError::QueryInvalid { query: query_id });
         }
-        let generation = self.generation;
         let mut query = match self.queries.get_mut(index).and_then(|slot| slot.take()) {
             Some(query) => query,
             None => return Err(CoreError::QueryInvalid { query: query_id }),
         };
-        if query.ready && query.built_generation == generation {
-            self.rewrite_counts(&mut query.table);
-            if let Some(slot) = self.queries.get_mut(index) {
-                *slot = Some(query);
-            }
-            return Ok(());
-        }
         self.rebuild_query(&mut query);
         if let Some(slot) = self.queries.get_mut(index) {
             *slot = Some(query);
         }
         Ok(())
-    }
-
-    fn rewrite_counts(&self, table: &mut [u32]) {
-        let stride = table.get(2).copied().unwrap_or(0) as usize;
-        if stride == 0 {
-            return;
-        }
-        let mut cursor = 4usize;
-        let mut awake_total = 0u32;
-        while cursor + 1 < table.len() {
-            let chunk_id = table[cursor];
-            let awake = self
-                .chunk_ref(chunk_id)
-                .map(|chunk| u32::from(chunk.awake))
-                .unwrap_or(0);
-            if let Some(slot) = table.get_mut(cursor + 1) {
-                *slot = awake;
-            }
-            awake_total = awake_total.saturating_add(awake);
-            cursor = cursor.saturating_add(stride);
-        }
-        if let Some(slot) = table.get_mut(3) {
-            *slot = awake_total;
-        }
     }
 
     fn rebuild_query(&mut self, query: &mut StoreQuery) {
@@ -1139,8 +1103,6 @@ impl ChunkStore {
         if let Some(slot) = query.table.get_mut(3) {
             *slot = awake_total;
         }
-        query.built_generation = self.generation;
-        query.ready = true;
     }
 
     fn arch_has_types(&self, arch: usize, types: &[u32]) -> bool {

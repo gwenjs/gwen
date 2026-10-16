@@ -64,7 +64,13 @@ describe("chunk column allocation", () => {
       const live = new Uint32Array(memory.buffer, ptr, 4)[0] ?? 0;
       expect(chunkLaneCacheSize(engine)).toBeLessThanOrEqual(live);
       expect(views.length).toBe(live);
-      expect(views[0]?.lanes[0]?.[0]).toBe(1);
+      expect(views[0]?.lanes[0]?.buffer).toBe(memory.buffer);
+      expect(bridge.removeComponent(id.index, id.generation, typeId)).toBe(true);
+      const emptyPtr = bridge.queryChunks(query);
+      chunkLaneViews(engine, emptyPtr, LANE);
+      const empty = new Uint32Array(memory.buffer, emptyPtr, 4)[0] ?? 0;
+      expect(empty).toBe(0);
+      expect(chunkLaneCacheSize(engine)).toBe(0);
     } finally {
       await handle.dispose();
     }
