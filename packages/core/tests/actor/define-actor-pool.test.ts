@@ -1259,7 +1259,9 @@ describe("defineActorPool — dormancy (#56)", () => {
     expect(engine.getComponent(id, Mark)).toEqual({ value: 4 });
     const other = engine.createEntity();
     engine.addComponent(other, Mark, { value: 2 });
-    expect(readLiveQueryIds(engine, [Mark])).not.toBe(first);
+    const after = readLiveQueryIds(engine, [Mark]);
+    expect(after).toBe(first);
+    expect(after).toContain(other);
   });
 
   it("does not leave a recycled slot dormant after destroyAll", async () => {

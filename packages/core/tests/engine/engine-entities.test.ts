@@ -189,7 +189,8 @@ describe("EngineEntities", async () => {
     expect(entities.setDormant(id, true)).toBe(true);
 
     expect(idsOf(entities.createLiveQuery([Position]))).toEqual([]);
-    expect(entities.resolveIds([Position])).toEqual([id]);
+    // A component query is the awake chunk list, so the dormant id is absent.
+    expect(entities.resolveIds([Position])).toEqual([]);
     expect(entities.isAlive(id)).toBe(true);
   });
 

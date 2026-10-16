@@ -36,6 +36,13 @@ interface IdCache {
   membership: number;
 }
 
+/** One wasm query and the id array refilled when storage generation changes. */
+interface MemberCache {
+  ids: EntityId[];
+  generation: number;
+  query: number;
+}
+
 function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
   return results[index] as EntityId; // boundary: dense query id list, index checked #77
 }
@@ -63,6 +70,8 @@ function freezeValue(value: unknown): void {
 export class EngineEntities {
   private readonly layouts = new Map<string, StoredLayout>();
   private readonly idLists = new Map<string, IdCache>();
+  /** Component queries. Empty type lists stay in `idLists`. */
+  private readonly memberLists = new Map<string, MemberCache>();
   /** Bumps on a cold add, a remove, or a destroy. Dormancy does not bump it. */
   private membership = 0;
   /** Bumps when an entity is created or destroyed. Component queries ignore it. */
@@ -226,7 +235,14 @@ export class EngineEntities {
 
   /**
    * Create a live query that reflects the current ECS state on each iteration.
-   * Dormant rows are absent. The registered query stays cached across a dormancy toggle.
+   *
+   * A component query reads awake rows from `query_chunks`. Dormant rows are
+   * absent from that list. An empty component list is not a wasm query and
+   * still lists every alive slot this engine created, including dormant rows.
+   * Iteration of that empty list skips dormant ids.
+   *
+   * The id array object stays across a dormancy toggle. The toggle bumps
+   * `storage_generation`, and the same array is refilled from the awake rows.
    */
   createLiveQuery<const C extends readonly ComponentDef[]>(
     components: C,
@@ -234,6 +250,7 @@ export class EngineEntities {
   ): LiveQuery<EntityAccessor<C>> {
     const resolveIds = (): readonly EntityId[] => this.resolveIds(components, precomputedKey);
     const bridge = this.deps.bridge;
+    const skipDormant = components.length === 0;
     const readComponent = <D extends C[number]>(id: EntityId, def: D): InferComponent<D> => {
       return this.getComponent(id, def) as InferComponent<D>; // boundary: queried component is present #77
     };
@@ -246,7 +263,9 @@ export class EngineEntities {
             while (i < results.length) {
               const id = readResolvedEntityId(results, i);
               i += 1;
-              if (bridge.isEntityDormant(entityIndex(id), entityGeneration(id))) continue;
+              if (skipDormant && bridge.isEntityDormant(entityIndex(id), entityGeneration(id))) {
+                continue;
+              }
               return {
                 done: false,
                 value: {
@@ -265,47 +284,117 @@ export class EngineEntities {
   }
 
   /**
-   * Ids that have every component, including dormant rows.
-   * The same array until a component is added or removed.
-   * Iteration skips dormant ids. The array itself stays.
+   * Ids that match every component.
+   *
+   * A component query is one `register_query` handle. `resolveIds` refills
+   * the same array when `storage_generation` changes, and returns that array
+   * when the generation is unchanged. A dormancy toggle bumps the generation
+   * and refills the awake rows, so the array object stays. An in-place write
+   * does not bump it. `releaseQueries` drops the handle on engine stop.
+   *
+   * An empty list cannot be registered (`register_query` rejects it). That
+   * path still lists alive slots this engine created, including dormant rows.
    */
   resolveIds(components: readonly ComponentDef[], precomputedKey?: string): readonly EntityId[] {
     const key = precomputedKey ?? components.map((def) => def.name).join("|");
-    const epoch = components.length === 0 ? this.aliveEpoch : this.membership;
-    const cached = this.idLists.get(key);
-    if (cached !== undefined && cached.membership === epoch) return cached.ids;
-    const fresh = components.length === 0 ? this.readAliveIds() : this.readMemberIds(components);
-    this.idLists.set(key, { ids: fresh, membership: epoch });
-    return fresh;
+    if (components.length === 0) {
+      const epoch = this.aliveEpoch;
+      const cached = this.idLists.get(key);
+      if (cached !== undefined && cached.membership === epoch) return cached.ids;
+      const fresh = this.readAliveIds();
+      this.idLists.set(key, { ids: fresh, membership: epoch });
+      return fresh;
+    }
+    const generation = this.deps.bridge.storageGeneration();
+    const cached = this.memberLists.get(key);
+    if (cached !== undefined && cached.generation === generation) return cached.ids;
+    if (cached === undefined) {
+      const query = this.memberQuery(components);
+      if (query === null) return [];
+      const ids: EntityId[] = [];
+      this.fillChunkIds(query, ids);
+      this.memberLists.set(key, { ids, generation, query });
+      return ids;
+    }
+    this.fillChunkIds(cached.query, cached.ids);
+    cached.generation = generation;
+    return cached.ids;
   }
 
-  /** Alive ids that have every component. Dormant rows stay in the list. */
-  private readMemberIds(components: readonly ComponentDef[]): EntityId[] {
-    const bridge = this.deps.bridge;
+  /** Drop every component-query handle. Called from `engine:stop` while WASM is alive. */
+  releaseQueries(): void {
+    if (!this.deps.bridge.isActive()) {
+      this.memberLists.clear();
+      return;
+    }
+    for (const entry of this.memberLists.values()) {
+      this.deps.bridge.releaseQuery(entry.query);
+    }
+    this.memberLists.clear();
+  }
+
+  /** `null` when a component type is not registered yet. */
+  private memberQuery(components: readonly ComponentDef[]): number | null {
     const registry = componentRegistryFor(this.deps.engine);
     const typeIds: number[] = [];
     for (let index = 0; index < components.length; index += 1) {
       const def = components[index];
       if (def === undefined) continue;
       const typeId = registry.get(def.name);
-      if (typeId === undefined) return [];
+      if (typeId === undefined) return null;
       typeIds.push(typeId);
     }
-    const ids: EntityId[] = [];
-    for (let index = 0; index < this.slotSpan; index += 1) {
-      const generation = bridge.getEntityGeneration(index);
-      if (!bridge.isAlive(index, generation)) continue;
-      let matches = true;
-      for (let type = 0; type < typeIds.length; type += 1) {
-        const typeId = typeIds[type];
-        if (typeId === undefined || !bridge.hasComponent(index, generation, typeId)) {
-          matches = false;
-          break;
-        }
-      }
-      if (matches) ids.push(createEntityId(index, generation));
+    if (typeIds.length === 0) return null;
+    return this.deps.bridge.registerQuery(new Uint32Array(typeIds));
+  }
+
+  /**
+   * Awake `(index, generation)` pairs from the query table.
+   * A row that already holds that pair keeps its bigint.
+   */
+  private fillChunkIds(query: number, into: EntityId[]): void {
+    const ptr = this.deps.bridge.queryChunks(query);
+    const memory = this.deps.engine.memory.linearMemory();
+    if (memory === null || ptr <= 0) {
+      into.length = 0;
+      return;
     }
-    return ids;
+    const buffer = memory.buffer;
+    const header = new Uint32Array(buffer, ptr, 4);
+    const chunkCount = header[0] ?? 0;
+    const stride = header[2] ?? 0;
+    if (chunkCount === 0 || stride < 4) {
+      into.length = 0;
+      return;
+    }
+    const words = 4 + chunkCount * stride;
+    const table = new Uint32Array(buffer, ptr, words);
+    let write = 0;
+    for (let chunk = 0; chunk < chunkCount; chunk += 1) {
+      const base = 4 + chunk * stride;
+      const count = table[base + 1] ?? 0;
+      const indexPtr = table[base + 2] ?? 0;
+      const generationPtr = table[base + 3] ?? 0;
+      if (count === 0 || indexPtr <= 0 || generationPtr <= 0) continue;
+      const indexes = new Uint32Array(buffer, indexPtr, count);
+      const generations = new Uint32Array(buffer, generationPtr, count);
+      for (let row = 0; row < count; row += 1) {
+        const index = indexes[row] ?? 0;
+        const generation = generations[row] ?? 0;
+        const kept = into[write];
+        if (
+          kept !== undefined &&
+          entityIndex(kept) === index &&
+          entityGeneration(kept) === generation
+        ) {
+          write += 1;
+          continue;
+        }
+        into[write] = createEntityId(index, generation);
+        write += 1;
+      }
+    }
+    into.length = write;
   }
 
   /** Alive entity ids, including dormant rows. An empty type list is not a WASM query. */
