@@ -17,7 +17,9 @@ use std::cell::Cell;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 
+use gwen_core::chunk_store::ChunkStore;
 use gwen_core::ecs::{ArchetypeColumn, ArchetypeStorage, ComponentTypeId};
+use gwen_core::CoreError;
 
 struct CountingAlloc;
 
@@ -197,4 +199,87 @@ fn allocations_on_other_threads_are_not_counted() {
         measured
     });
     assert_eq!(measured, 0);
+}
+
+#[test]
+fn chunk_store_add_remove_allocates_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(8)?;
+    let position = store.register(&[0])?;
+    let velocity = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &[1, 0, 0, 0])?, true);
+    assert_eq!(store.add(1, 0, position, &[2, 0, 0, 0])?, true);
+    assert_eq!(store.add(0, 0, velocity, &[3, 0, 0, 0])?, true);
+    assert_eq!(store.remove(0, 0, velocity)?, true);
+    let allocations = allocs_during(|| {
+        let added = store.add(0, 0, velocity, &[3, 0, 0, 0]);
+        let removed = store.remove(0, 0, velocity);
+        assert_eq!(added, Ok(true));
+        assert_eq!(removed, Ok(true));
+    });
+    assert_eq!(allocations, 0);
+    let mut kept = [0u8; 4];
+    assert_eq!(store.copy_row(1, 0, position, &mut kept), true);
+    assert_eq!(kept, [2, 0, 0, 0]);
+    assert_eq!(store.copy_row(0, 0, velocity, &mut kept), false);
+    Ok(())
+}
+
+#[test]
+fn chunk_store_delete_allocates_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(8)?;
+    let position = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &[1, 0, 0, 0])?, true);
+    assert_eq!(store.add(1, 0, position, &[2, 0, 0, 0])?, true);
+    let allocations = allocs_during(|| {
+        let deleted = store.delete_entity(1, 0);
+        assert_eq!(deleted, true);
+    });
+    assert_eq!(allocations, 0);
+    let mut kept = [0u8; 4];
+    assert_eq!(store.copy_row(0, 0, position, &mut kept), true);
+    assert_eq!(kept, [1, 0, 0, 0]);
+    assert_eq!(store.location(1), None);
+    Ok(())
+}
+
+#[test]
+fn chunk_store_in_place_write_allocates_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(4)?;
+    let position = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &[1, 0, 0, 0])?, true);
+    let generation = store.generation();
+    let allocations = allocs_during(|| {
+        let written = store.add(0, 0, position, &[9, 0, 0, 0]);
+        assert_eq!(written, Ok(true));
+    });
+    assert_eq!(allocations, 0);
+    assert_eq!(store.generation(), generation);
+    let mut kept = [0u8; 4];
+    assert_eq!(store.copy_row(0, 0, position, &mut kept), true);
+    assert_eq!(kept, [9, 0, 0, 0]);
+    Ok(())
+}
+
+#[test]
+fn chunk_store_staged_read_and_write_allocate_nothing_after_warmup() -> Result<(), CoreError> {
+    let _guard = hold_lock();
+    let mut store = ChunkStore::new(4)?;
+    let position = store.register(&[0])?;
+    assert_eq!(store.add(0, 0, position, &[1, 0, 0, 0])?, true);
+    let generation = store.generation();
+    store.staging_mut()[..4].copy_from_slice(&[4, 0, 0, 0]);
+    let allocations = allocs_during(|| {
+        let written = store.write_staged(0, 0, position);
+        assert_eq!(written, Ok(true));
+        store.staging_mut()[..4].fill(0);
+        let read = store.read_staged(0, 0, position);
+        assert_eq!(read, true);
+    });
+    assert_eq!(allocations, 0);
+    assert_eq!(store.generation(), generation);
+    assert_eq!(store.staging()[..4], [4, 0, 0, 0]);
+    Ok(())
 }

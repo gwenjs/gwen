@@ -94,6 +94,23 @@ pub enum CoreError {
         /// Configured maximum number of entities.
         max_entities: u32,
     },
+    /// A component layout was refused before any row changed.
+    ///
+    /// `reason`: 1 unknown lane, 2 more than 64 lanes, 3 unregistered type,
+    /// 4 `data` length is not the row width, 5 row wider than 512 bytes.
+    /// Sixty-four lanes of 8 bytes are exactly 512, so reason 5 is the same
+    /// bound as reason 2 for the lane sizes this store accepts.
+    ComponentLayoutInvalid {
+        /// Type id the caller passed, or the id the registration would have used.
+        type_id: u32,
+        /// Which check failed. See the variant docs.
+        reason: u8,
+    },
+    /// A new component mask would exceed the archetype table.
+    ArchetypeLimitReached {
+        /// Maximum number of archetypes (4096).
+        max: u32,
+    },
 }
 
 impl CoreError {
@@ -109,6 +126,8 @@ impl CoreError {
             Self::InvalidSharedBuffer { .. } => "CORE:INVALID_SHARED_BUFFER",
             Self::ComponentWriteRejected { .. } => "CORE:COMPONENT_WRITE_REJECTED",
             Self::HistoryBuffersUnavailable { .. } => "CORE:HISTORY_BUFFERS_UNAVAILABLE",
+            Self::ComponentLayoutInvalid { .. } => "CORE:COMPONENT_LAYOUT_INVALID",
+            Self::ArchetypeLimitReached { .. } => "CORE:ARCHETYPE_LIMIT_REACHED",
         }
     }
 }
@@ -172,6 +191,12 @@ impl fmt::Display for CoreError {
             ),
             Self::HistoryBuffersUnavailable { .. } => {
                 write!(f, "history buffers cannot be allocated")
+            }
+            Self::ComponentLayoutInvalid { type_id, reason } => {
+                write!(f, "Component layout invalid: type {type_id} reason {reason}")
+            }
+            Self::ArchetypeLimitReached { max } => {
+                write!(f, "Archetype limit reached: {max}")
             }
         }
     }
