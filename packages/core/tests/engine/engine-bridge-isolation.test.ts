@@ -44,7 +44,6 @@ function makeMock(entityCount = 0): WasmEngine {
     alloc_shared_buffer: vi.fn(() => 0),
     free_shared_buffer: vi.fn(),
     sync_transforms_to_buffer: vi.fn(),
-    clear_transform_dirty: vi.fn(),
     stats: vi.fn(() => "{}"),
   } as unknown as WasmEngine;
 }

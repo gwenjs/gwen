@@ -331,10 +331,6 @@ export interface WasmEngineBase {
    * @param maxEntities  Number of entity slots to sync.
    */
   sync_transforms_to_buffer(ptr: number, maxEntities: number): void;
-  /**
-   * Clear the dirty transform set.
-   */
-  clear_transform_dirty(): void;
 
   // ── Stats ────────────────────────────────────────────────────────────────
 
@@ -1240,7 +1236,6 @@ export interface WasmBridge {
    */
   freeSharedBuffer(ptr: number, byteLength: number): void;
   syncTransformsToBuffer(ptr: number, maxEntities: number): void;
-  clearTransformDirty(): void;
   getLinearMemory(): WebAssembly.Memory | null;
   checkMemoryGrow(): boolean;
 

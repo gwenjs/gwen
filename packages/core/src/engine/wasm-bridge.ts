@@ -892,10 +892,6 @@ export class WasmBridgeImpl implements WasmBridge {
     }
   }
 
-  clearTransformDirty(): void {
-    this._requireWasm().clear_transform_dirty();
-  }
-
   // ── Linear memory ────────────────────────────────────────────────────────
 
   /**
