@@ -31,7 +31,6 @@ function makeMockBridge(overrides: Partial<WasmBridge> = {}): WasmBridge {
     getEntityGeneration: vi.fn(),
     allocSharedBuffer: vi.fn(),
     syncTransformsToBuffer: vi.fn(),
-    clearTransformDirty: vi.fn(),
     getLinearMemory: vi.fn(),
     checkMemoryGrow: vi.fn(),
     stats: vi.fn(),

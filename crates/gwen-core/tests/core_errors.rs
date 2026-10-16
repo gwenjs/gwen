@@ -182,7 +182,7 @@ fn component_type_limit_is_raised_before_any_write() {
     assert_eq!(engine.count_entities(), 1);
 }
 
-/// 128 distinct user type ids accept a write. The last id is read back.
+/// Ids 1 through 128 each store `[1, 2, 3, 4]`. Id 128 and id 1 read those bytes back.
 #[test]
 fn transform_fits_beside_127_user_types() {
     let mut engine = engine(2);
@@ -199,7 +199,7 @@ fn transform_fits_beside_127_user_types() {
     assert_eq!(engine.get_component_raw(0, 0, 1), vec![1, 2, 3, 4]);
 }
 
-/// A 129th distinct type id is refused and stores nothing.
+/// Id 129 returns `ComponentTypeLimitReached { max: 128 }` and stores nothing. Id 128 still reads back.
 #[test]
 #[allow(
     clippy::bool_assert_comparison,

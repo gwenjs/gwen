@@ -17,6 +17,7 @@
 use gwen_core::bindings::Engine;
 use gwen_core::physics2d::Physics2DError;
 
+/// After one `physics_step`, world x, y, and rotation equal the Rapier pose.
 #[test]
 fn dynamic_body_hierarchy_world_matches_rapier_and_the_column_keeps_the_pose(
 ) -> Result<(), Physics2DError> {
