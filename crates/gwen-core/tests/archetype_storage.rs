@@ -1,3 +1,7 @@
+#![allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
 //! Native behaviour of the chunked archetype store.
 
 use gwen_core::chunk_store::{
