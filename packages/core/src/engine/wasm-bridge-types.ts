@@ -332,10 +332,6 @@ export interface WasmEngineBase {
    */
   sync_transforms_to_buffer(ptr: number, maxEntities: number): void;
   /**
-   * Return the number of entities with dirty transforms since last clear.
-   */
-  dirty_transform_count(): number;
-  /**
    * Clear the dirty transform set.
    */
   clear_transform_dirty(): void;
@@ -1244,7 +1240,6 @@ export interface WasmBridge {
    */
   freeSharedBuffer(ptr: number, byteLength: number): void;
   syncTransformsToBuffer(ptr: number, maxEntities: number): void;
-  dirtyTransformCount(): number;
   clearTransformDirty(): void;
   getLinearMemory(): WebAssembly.Memory | null;
   checkMemoryGrow(): boolean;

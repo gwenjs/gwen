@@ -11,12 +11,11 @@
 use std::collections::HashMap;
 
 use crate::ecs::component::ComponentTypeId;
-use crate::ecs::dirty_set::DirtySet;
 use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
 use crate::ecs::query::{QueryId, QuerySystem};
 use crate::ecs::storage::{ArchetypeStorage, ColumnMove};
-use crate::transform::{Transform, TransformSystem, FLAG_HAS_TRANSFORM, TRANSFORM_SAB_TYPE_ID};
+use crate::transform::{Transform, TransformSystem, FLAG_HAS_TRANSFORM};
 use crate::transform_math::Vec2;
 use wasm_bindgen::prelude::*;
 
@@ -129,8 +128,6 @@ pub struct Engine {
     /// Each call returns a fresh ID regardless of the underlying Rust type,
     /// because JS does not have Rust's `TypeId` concept.
     next_js_type_id: u32,
-    /// Tracks entities with modified transforms.
-    dirty_transforms: DirtySet,
     /// Hierarchical transform system for managing entity transforms
     transform_system: TransformSystem,
     /// Two world-pose buffers. Empty until the first history commit.
@@ -169,7 +166,6 @@ impl Engine {
             query_system: QuerySystem::new(),
             query_result_buffer: vec![0u32; max_entities as usize],
             next_js_type_id: 0,
-            dirty_transforms: DirtySet::new(max_entities),
             transform_system: TransformSystem::new(),
             transform_history: TransformHistory::new(),
             shared_buffers: HashMap::new(),
@@ -270,10 +266,6 @@ impl Engine {
                 }
                 self.query_system.on_archetype_change(migration.to);
             }
-        }
-
-        if component_type_id == TRANSFORM_SAB_TYPE_ID {
-            self.dirty_transforms.mark_dirty(index);
         }
 
         Ok(true)
@@ -613,10 +605,6 @@ impl Engine {
                     }
                     self.query_system.on_archetype_change(migration.to);
                 }
-            }
-
-            if component_type_id == TRANSFORM_SAB_TYPE_ID {
-                self.dirty_transforms.mark_dirty(slot);
             }
         }
         Ok(())
@@ -1208,13 +1196,7 @@ impl Engine {
                 std::ptr::copy_nonoverlapping(slot.as_ptr(), (ptr + offset) as *mut u8, STRIDE);
             }
         }
-        self.dirty_transforms.clear();
         Ok(())
-    }
-
-    /// Get the number of transforms marked as dirty.
-    pub fn dirty_transform_count(&self) -> u32 {
-        self.dirty_transforms.len() as u32
     }
 
     // ─── Physics 2D — World lifecycle ─────────────────────────────────────────
@@ -1231,12 +1213,10 @@ impl Engine {
                 return Err(Physics2DError::WorldNotInitialized);
             };
             world.step(delta);
-            world.sync_to_storage(&mut self.storage);
             world.take_filled_dynamic_poses()
         };
-        // The column write above stays. Root nodes also take the pose so a
-        // later history commit can interpolate the body. A child keeps its
-        // parent; only its local pose is updated.
+        // Root nodes take the pose so a later history commit can interpolate
+        // the body. A child keeps its parent; only its local pose is updated.
         for (index, x, y, rotation) in &poses {
             let entity = EntityId::from_parts(*index, self.get_entity_generation(*index));
             let Some(node) = self.transform_system.get_transform_mut(entity) else {
@@ -4408,10 +4388,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::bool_assert_comparison,
-        reason = "diff hygiene rejects a new assert! line"
-    )]
     fn set_components_bulk_returns_a_typed_error_when_storage_rejects_the_write() {
         let made = Engine::new(4).and_then(|mut engine| {
             let e = engine.create_entity()?;
@@ -4420,21 +4396,15 @@ mod tests {
         let Ok((mut engine, e)) = made else {
             unreachable!("Engine::new(4) and one entity always succeed");
         };
-        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        let transform = ComponentTypeId::from_raw(7);
         // WASM exports register every column as variable size. A fixed 4-byte
         // column is the one storage state that rejects a write of another size.
         // The entity has no transform yet, so no stored length fixes the stride
         // and the 8-byte write reaches storage.
         let registered = engine.storage.register_raw(transform, 4);
         assert_eq!(registered, Ok(()));
-        engine.dirty_transforms.clear();
 
-        let result = engine.set_components_bulk(
-            &[e.index()],
-            &[e.generation()],
-            TRANSFORM_SAB_TYPE_ID,
-            &[9u8; 8],
-        );
+        let result = engine.set_components_bulk(&[e.index()], &[e.generation()], 7, &[9u8; 8]);
 
         let err = result.err();
         assert_eq!(
@@ -4446,19 +4416,14 @@ mod tests {
             Some(format!(
                 "Component write rejected: entity {} component type {} ({} bytes)",
                 e.index(),
-                TRANSFORM_SAB_TYPE_ID,
+                7,
                 8
             ))
         );
         assert_eq!(engine.storage.get_component(e.index(), transform), None);
-        assert_eq!(engine.dirty_transforms.is_dirty(e.index()), false);
     }
 
     #[test]
-    #[allow(
-        clippy::bool_assert_comparison,
-        reason = "diff hygiene rejects a new assert! line"
-    )]
     fn set_components_bulk_rejects_a_fixed_size_mismatch_before_writing_the_first_entity() {
         let made = Engine::new(4).and_then(|mut engine| {
             let first = engine.create_entity()?;
@@ -4468,14 +4433,14 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        let transform = ComponentTypeId::from_raw(7);
         let other = engine.register_component_type();
         // The first entity gets an 8-byte transform while its column is variable
         // size, so the 8-byte stride below matches its stored length.
         let added_first = engine.add_component(
             first.index(),
             first.generation(),
-            TRANSFORM_SAB_TYPE_ID,
+            7,
             &[1, 2, 3, 4, 5, 6, 7, 8],
         );
         assert_eq!(added_first, Ok(true));
@@ -4486,12 +4451,11 @@ mod tests {
         let added_second =
             engine.add_component(second.index(), second.generation(), other, &[0, 0, 0, 0]);
         assert_eq!(added_second, Ok(true));
-        engine.dirty_transforms.clear();
 
         let result = engine.set_components_bulk(
             &[first.index(), second.index()],
             &[first.generation(), second.generation()],
-            TRANSFORM_SAB_TYPE_ID,
+            7,
             &[9u8; 16],
         );
 
@@ -4503,7 +4467,6 @@ mod tests {
             engine.storage.get_component(first.index(), transform),
             Some([1u8, 2, 3, 4, 5, 6, 7, 8].as_slice())
         );
-        assert_eq!(engine.dirty_transforms.is_dirty(first.index()), false);
         assert_eq!(
             engine.storage.get_component(second.index(), transform),
             None
@@ -4511,10 +4474,6 @@ mod tests {
     }
 
     #[test]
-    #[allow(
-        clippy::bool_assert_comparison,
-        reason = "diff hygiene rejects a new assert! line"
-    )]
     fn set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size() {
         let made = Engine::new(4).and_then(|mut engine| {
             let first = engine.create_entity()?;
@@ -4524,18 +4483,14 @@ mod tests {
         let Ok((mut engine, first, second)) = made else {
             unreachable!("Engine::new(4) and two entities always succeed");
         };
-        let transform = ComponentTypeId::from_raw(TRANSFORM_SAB_TYPE_ID);
+        let transform = ComponentTypeId::from_raw(7);
         let other = engine.register_component_type();
         // The second entity's column is built while the transform is fixed
         // 4 bytes, then the type is registered variable size: the check before
         // the loop lets the write through and that column refuses it.
         assert_eq!(engine.storage.register_raw(transform, 4), Ok(()));
-        let added_second = engine.add_component(
-            second.index(),
-            second.generation(),
-            TRANSFORM_SAB_TYPE_ID,
-            &[1, 2, 3, 4],
-        );
+        let added_second =
+            engine.add_component(second.index(), second.generation(), 7, &[1, 2, 3, 4]);
         assert_eq!(added_second, Ok(true));
         assert_eq!(engine.storage.register_raw(transform, 0), Ok(()));
         // The first entity holds another component, so its transform lands in a
@@ -4546,16 +4501,15 @@ mod tests {
         let added_first = engine.add_component(
             first.index(),
             first.generation(),
-            TRANSFORM_SAB_TYPE_ID,
+            7,
             &[5, 6, 7, 8, 5, 6, 7, 8],
         );
         assert_eq!(added_first, Ok(true));
-        engine.dirty_transforms.clear();
 
         let result = engine.set_components_bulk(
             &[first.index(), second.index()],
             &[first.generation(), second.generation()],
-            TRANSFORM_SAB_TYPE_ID,
+            7,
             &[9u8; 16],
         );
 
@@ -4567,7 +4521,6 @@ mod tests {
             engine.storage.get_component(second.index(), transform),
             Some([1u8, 2, 3, 4].as_slice())
         );
-        assert_eq!(engine.dirty_transforms.is_dirty(second.index()), false);
         // The entity before the refused one keeps its new value.
         assert_eq!(
             engine.storage.get_component(first.index(), transform),

@@ -4,7 +4,6 @@
 //! bidirectional mapping between GWEN entity indices (u32) and Rapier
 //! `RigidBodyHandle`s.
 
-use crate::ecs::storage::ArchetypeStorage;
 use crate::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use crate::physics2d::error::Physics2DError;
 use crate::physics2d::events::{
@@ -735,31 +734,6 @@ impl PhysicsWorld {
             },
             &EventCollector { buf },
         );
-    }
-
-    /// Syncs dynamic body positions from Rapier to the ArchetypeStorage.
-    pub fn sync_to_storage(&self, storage: &mut ArchetypeStorage) {
-        for (&entity_index, &handle) in &self.entity_to_body {
-            if let Some(body) = self.rigid_body_set.get(handle) {
-                if body.is_dynamic() {
-                    let pos = body.translation();
-                    let rot = body.rotation().angle();
-
-                    // Update transform in storage.
-                    // Assuming transform is stored as [f32; 5] (x, y, rot, sx, sy)
-                    if let Some(data) = storage.get_component_mut(
-                        entity_index,
-                        crate::ecs::component::ComponentTypeId::from_raw(u32::MAX - 1),
-                    ) {
-                        if data.len() >= 12 {
-                            data[0..4].copy_from_slice(&pos.x.to_le_bytes());
-                            data[4..8].copy_from_slice(&pos.y.to_le_bytes());
-                            data[8..12].copy_from_slice(&rot.to_le_bytes());
-                        }
-                    }
-                }
-            }
-        }
     }
 
     /// Fills `out` with dynamic-body poses `(entity index, x, y, rotation)`.

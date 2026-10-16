@@ -16,7 +16,7 @@
 //! and `set_components_bulk_rejects_in_the_loop_a_column_built_under_another_size`.
 
 use gwen_core::bindings::Engine;
-use gwen_core::{CoreError, TRANSFORM_SAB_TYPE_ID};
+use gwen_core::CoreError;
 
 fn engine(max_entities: u32) -> Engine {
     Engine::new(max_entities).expect("max entities")
@@ -182,8 +182,7 @@ fn component_type_limit_is_raised_before_any_write() {
     assert_eq!(engine.count_entities(), 1);
 }
 
-/// TS reserves one bit for the transform: 127 user names fit.
-/// 127 user types plus the transform must all accept writes.
+/// 128 distinct user type ids accept a write. The last id is read back.
 #[test]
 fn transform_fits_beside_127_user_types() {
     let mut engine = engine(2);
@@ -193,21 +192,14 @@ fn transform_fits_beside_127_user_types() {
             .map(|id| (id.index(), id.generation())),
         Ok((0, 0))
     );
-    for type_id in 1..=127u32 {
+    for type_id in 1..=128u32 {
         assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
     }
-    assert_eq!(
-        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
-        Ok(true)
-    );
-    assert_eq!(
-        engine.get_component_raw(0, 0, TRANSFORM_SAB_TYPE_ID),
-        vec![7, 7, 7, 7]
-    );
-    assert_eq!(engine.get_component_raw(0, 0, 127), vec![1, 2, 3, 4]);
+    assert_eq!(engine.get_component_raw(0, 0, 128), vec![1, 2, 3, 4]);
+    assert_eq!(engine.get_component_raw(0, 0, 1), vec![1, 2, 3, 4]);
 }
 
-/// Without the reserve, a 128th user type leaves no bit for the transform.
+/// A 129th distinct type id is refused and stores nothing.
 #[test]
 #[allow(
     clippy::bool_assert_comparison,
@@ -225,10 +217,11 @@ fn transform_is_refused_after_128_user_types() {
         assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
     }
     assert_eq!(
-        engine.add_component(0, 0, TRANSFORM_SAB_TYPE_ID, &[7, 7, 7, 7]),
+        engine.add_component(0, 0, 129, &[7, 7, 7, 7]),
         Err(CoreError::ComponentTypeLimitReached { max: 128 })
     );
-    assert_eq!(engine.has_component(0, 0, TRANSFORM_SAB_TYPE_ID), false);
+    assert_eq!(engine.has_component(0, 0, 129), false);
+    assert_eq!(engine.get_component_raw(0, 0, 128), vec![1, 2, 3, 4]);
 }
 
 #[test]

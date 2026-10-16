@@ -892,10 +892,6 @@ export class WasmBridgeImpl implements WasmBridge {
     }
   }
 
-  dirtyTransformCount(): number {
-    return this._requireWasm().dirty_transform_count();
-  }
-
   clearTransformDirty(): void {
     this._requireWasm().clear_transform_dirty();
   }

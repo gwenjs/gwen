@@ -21,9 +21,8 @@ import { createEngineLocal } from "./engine-local";
 import { CoreErrorCodes } from "./engine-errors";
 import type { WasmBridge } from "./wasm-bridge";
 
-/** Rust bit cap. One bit is the transform column, not a user name. */
+/** Rust bit cap. Every slot is a user name. */
 const MAX_COMPONENT_TYPES = 128;
-const RESERVED_INTERNAL_COMPONENT_TYPES = 1;
 
 const registries = createEngineLocal((engine: GwenEngine) => {
   const bridge = engine.tryInject("wasm:bridge");
@@ -73,18 +72,15 @@ export class EngineComponentRegistry {
    * Registers a new ID with the WASM core if this is the first use.
    *
    * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this name
-   *   would be the 128th user type. One bit is reserved for the transform
-   *   column. The check runs before `registerComponentType`.
+   *   would be the 129th user type. The check runs before `registerComponentType`.
    */
   getOrRegister(type: ComponentType): number {
     const existing = this.typeIds.get(type);
     if (existing !== undefined) return existing;
-    if (this.typeIds.size + RESERVED_INTERNAL_COMPONENT_TYPES >= MAX_COMPONENT_TYPES) {
+    if (this.typeIds.size >= MAX_COMPONENT_TYPES) {
       throw new GwenError(
         CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-        `Component type limit reached: ${MAX_COMPONENT_TYPES - RESERVED_INTERNAL_COMPONENT_TYPES} ` +
-          `user types fit (${MAX_COMPONENT_TYPES} type bits, ` +
-          `${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
+        `Component type limit reached: ${MAX_COMPONENT_TYPES} user types fit.`,
       );
     }
     // Same name, including an HMR swap, keeps this id. A second call does not

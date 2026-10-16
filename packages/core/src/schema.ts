@@ -28,16 +28,10 @@ import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes } from "./engine/engine-errors";
 
-/** Distinct component types the Rust bitset can hold. */
+/** Distinct component types the Rust bitset can hold. Every slot is a user name. */
 const MAX_COMPONENT_TYPES = 128;
 
-/**
- * The transform column (`TRANSFORM_SAB_TYPE_ID`) takes one bit when a module
- * syncs or writes that type. User names cannot use that bit.
- */
-const RESERVED_INTERNAL_COMPONENT_TYPES = 1;
-
-const MAX_USER_COMPONENT_TYPES = MAX_COMPONENT_TYPES - RESERVED_INTERNAL_COMPONENT_TYPES;
+const MAX_USER_COMPONENT_TYPES = MAX_COMPONENT_TYPES;
 
 // Supported scalar types for WASM memory layout
 export const Types = {
@@ -470,7 +464,7 @@ function _schemaLayout(schema: ComponentSchema): string {
 /**
  * Record the layout of `name`, or check it against the recorded one.
  * Throws before any WASM call: `CORE:INVALID_COMPONENT_SCHEMA` for another
- * layout, `CORE:COMPONENT_TYPE_LIMIT_REACHED` for the 128th distinct name.
+ * layout, `CORE:COMPONENT_TYPE_LIMIT_REACHED` for the 129th distinct name.
  */
 function _checkDefinition(name: string, schema: ComponentSchema): void {
   const layout = _schemaLayout(schema);
@@ -489,8 +483,7 @@ function _checkDefinition(name: string, schema: ComponentSchema): void {
   if (_definedLayouts.size >= MAX_USER_COMPONENT_TYPES) {
     throw new GwenError(
       CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-      `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit ` +
-        `(${MAX_COMPONENT_TYPES} type bits, ${RESERVED_INTERNAL_COMPONENT_TYPES} reserved for the transform).`,
+      `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit.`,
     );
   }
   _definedLayouts.set(name, layout);
@@ -589,11 +582,9 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  * @param factory Optional factory function (required for Form 2)
  * @returns The component definition with schema and name
  * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
- *   would define a new name past the user budget. The Rust cap is 128 types.
- *   One type is reserved for the transform column, so 127 distinct user names
- *   fit. Defining the same name again is accepted and counts once toward the
- *   127-name budget, which counts names in the whole process. The check runs
- *   here, before any WASM call.
+ *   would define a new name past 128 distinct user names. Defining the same
+ *   name again is accepted and counts once. The budget counts names in the
+ *   whole process. The check runs here, before any WASM call.
  * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when the name is
  *   already defined with other fields, field order or field types. Defaults
  *   may differ.
