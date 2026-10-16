@@ -201,14 +201,16 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 | `rotateTo(angle)` | Set local rotation (radians) |
 | `rotate(delta)` | Add delta to local rotation |
 | `scaleTo(sx, sy?)` | Set local scale (`sy` defaults to `sx`) |
+| `teleport(x, y)` | Set the local position and snap the next rendered sample |
 
-**Read properties** — world values, updated once per frame:
+**Read properties** — world position. During `onRender`, `x`, `y`, and `rotation` can be a blend. See the note below.
 
 | Property | Description |
 |---|---|
-| `world.x`, `world.y` | World position |
-| `world.rotation` | World rotation (radians) |
-| `world.scaleX`, `world.scaleY` | World scale |
+| `world.x`, `world.y` | World position. Interpolated during `onRender` when a history pair is installed |
+| `world.rotation` | World rotation (radians). Same rule as `world.x` |
+| `world.scaleX`, `world.scaleY` | Stay `1` |
+| `worldRaw.x`, `worldRaw.y`, `worldRaw.rotation` | Raw world cache. Never interpolated |
 | `hasParent` | `true` if attached to a parent |
 
 **Hierarchy:**
@@ -218,8 +220,10 @@ export const PlayerActor = defineActor(PlayerPrefab, (props: { x: number; y: num
 | `setParent(handleOrId, keepWorldPos?)` | Attach to a parent entity |
 | `detach(keepWorldPos?)` | Detach from parent |
 
-::: info World reads are one frame behind
-`world.x/y` reflects state from the **previous frame**. Writes made in `onUpdate` are visible on the next frame.
+::: info World reads during render
+Outside `onRender`, `world` matches `worldRaw`. A write in `onUpdate` is published on the next step, because the history commit runs before `engine:update`.
+During `onRender`, when `physicsHz > 0` and `engine.frame.transforms2D` is set, `world.x`, `world.y`, and `world.rotation` follow `engine:render(alpha)`. `worldRaw` stays the raw cache. `scaleX` and `scaleY` stay `1`.
+`destroyEntity` does not clear that history slot. Drop the entity on `entity:destroy`.
 :::
 
 ## Child actors
