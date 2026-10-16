@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 
+import { defineComponent, Types } from "../../src/schema.js";
 import { chunkLaneViews, componentStaging } from "../../src/engine/chunk-lanes.js";
+import { componentRegistryFor } from "../../src/engine/engine-component-registry.js";
 import { CoreErrorCodes, GwenWasmError } from "../../src/engine/engine-errors.js";
 import { createRealEngine } from "./harness.js";
+
+const EngineLanePos = defineComponent({
+  name: "EngineLanePos",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
 
 function floatAt(bytes: Uint8Array): number {
   return new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getFloat32(0, true);
@@ -203,6 +211,49 @@ describe("chunk columns through the bridge", () => {
       expect(table[5]).toBe(1);
       expect(after[0]?.count).toBe(table[5]);
       expect(after[0]?.lanes[0]?.length).toBe(table[5]);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("reads 1 from the lane after engine addComponent and getComponent returns it", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { engine, bridge } = handle;
+      const id = engine.createEntity();
+      engine.addComponent(id, EngineLanePos, { x: 1, y: 2 });
+      const stored = engine.getComponent(id, EngineLanePos);
+      expect(stored?.x).toBe(1);
+      expect(stored?.y).toBe(2);
+      const typeId = componentRegistryFor(engine).get(EngineLanePos.name);
+      expect(typeId).toBeTypeOf("number");
+      if (typeId === undefined) throw new Error("component was not registered");
+      const query = bridge.registerQuery(new Uint32Array([typeId]));
+      const chunks = chunkLaneViews(engine, bridge.queryChunks(query), [0, 0]);
+      expect(chunks[0]?.lanes[0]?.[0]).toBe(1);
+      expect(chunks[0]?.lanes[1]?.[0]).toBe(2);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("returns a snapshot so a later getComponent stays at 1", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+    try {
+      const { engine } = handle;
+      const id = engine.createEntity();
+      engine.addComponent(id, EngineLanePos, { x: 1, y: 2 });
+      const first = engine.getComponent(id, EngineLanePos);
+      expect(first?.x).toBe(1);
+      if (first === undefined) throw new Error("component was not stored");
+      if (__GWEN_DEV__) {
+        expect(() => {
+          first.x = 9;
+        }).toThrow(TypeError);
+      } else {
+        first.x = 9;
+      }
+      expect(engine.getComponent(id, EngineLanePos)?.x).toBe(1);
     } finally {
       await handle.dispose();
     }
