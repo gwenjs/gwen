@@ -13,6 +13,7 @@ import { EngineStatsRecorder } from "../../src/engine/engine-stats.js";
 import type { GwenRuntimeHooks } from "../../src/engine/runtime-hooks.js";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge.js";
 import { createEngine, useEngine } from "../../src/index.js";
+import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenLogger } from "../../src/logger/gwen-logger.js";
 
 const REENTRANT = "[GwenEngine] advance() called re-entrantly — only one advance per frame.";
@@ -257,6 +258,49 @@ describe("EngineLoop", () => {
       globalThis.cancelAnimationFrame = previousCancel;
       performance.now = previousNow;
       await rig.stop();
+    }
+  });
+
+  it("a history buffer error stays running and is reported once per step", async () => {
+    const engine = await createEngine({
+      physicsHz: 60,
+      maxCatchupSteps: 2,
+      maxDeltaSeconds: 1,
+    });
+    const seen: Array<{ code: string; hook: string }> = [];
+    engine.errors.on((event) => {
+      const context = event.context;
+      const hook = context === undefined ? undefined : context["hook"];
+      if (typeof hook === "string") seen.push({ code: event.code, hook });
+    });
+    const renders: number[] = [];
+    engine.hooks.hook("engine:render", () => {
+      renders.push(1);
+    });
+    const unavailable = new Error("history buffers cannot be allocated");
+    Object.assign(unavailable, { code: "CORE:HISTORY_BUFFERS_UNAVAILABLE" });
+    activateTestWasm(engine);
+    Object.assign(engine.inject("wasm:bridge").engine(), {
+      transform_history_commit(): number {
+        throw unavailable;
+      },
+    });
+    try {
+      await engine.startExternal();
+      expect(engine.state).toBe("running");
+      const before = seen.length;
+      await engine.advance(2 / 60);
+      const stepEvents = seen.slice(before).filter((event) => {
+        return (
+          event.hook === "transform_history_commit" &&
+          event.code === "CORE:HISTORY_BUFFERS_UNAVAILABLE"
+        );
+      });
+      expect(engine.state).toBe("running");
+      expect(renders).toHaveLength(1);
+      expect(stepEvents).toHaveLength(2);
+    } finally {
+      if (engine.state !== "stopped") await engine.stop();
     }
   });
 

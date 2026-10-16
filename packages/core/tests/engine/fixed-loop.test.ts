@@ -404,6 +404,84 @@ describe("fixed-timestep loop (physicsHz)", () => {
     await engine.stop();
   });
 
+  async function badDtThenExactStep(bad: number): Promise<{
+    badSteps: number;
+    steps: number;
+    alpha: number;
+  }> {
+    const engine = await createEngine({
+      physicsHz: 60,
+      maxCatchupSteps: 4,
+      maxDeltaSeconds: 1,
+    });
+    const alphas: number[] = [];
+    let steps = 0;
+    engine.hooks.hook("engine:render", (alpha?: number) => {
+      alphas.push(alpha ?? Number.NaN);
+    });
+    await engine.use(
+      defineSystem(function badDtSystem() {
+        onUpdate(() => {
+          steps += 1;
+        });
+      })(),
+    );
+    try {
+      activateTestWasm(engine);
+      await engine.startExternal();
+      await engine.advance(bad);
+      const badSteps = steps;
+      await engine.advance(1 / 60);
+      const alpha = alphas[alphas.length - 1];
+      if (alpha === undefined) throw new Error("missing alpha");
+      return { badSteps, steps, alpha };
+    } finally {
+      if (engine.state !== "stopped") await engine.stop();
+    }
+  }
+
+  it("advance(NaN) leaves the next fixed step usable", async () => {
+    const result = await badDtThenExactStep(Number.NaN);
+    expect(result.badSteps).toBe(0);
+    expect(result.steps).toBe(1);
+    expect(result.alpha).toBeGreaterThanOrEqual(0);
+    expect(result.alpha).toBeLessThan(1);
+  });
+
+  it("advance(-1) leaves the next fixed step usable", async () => {
+    const result = await badDtThenExactStep(-1);
+    expect(result.badSteps).toBe(0);
+    expect(result.steps).toBe(1);
+    expect(result.alpha).toBeGreaterThanOrEqual(0);
+    expect(result.alpha).toBeLessThan(1);
+  });
+
+  it("advance(Infinity) leaves the next fixed step usable", async () => {
+    const result = await badDtThenExactStep(Number.POSITIVE_INFINITY);
+    expect(result.badSteps).toBe(0);
+    expect(result.steps).toBe(1);
+    expect(result.alpha).toBeGreaterThanOrEqual(0);
+    expect(result.alpha).toBeLessThan(1);
+  });
+
+  it("a negative first frame delta keeps alpha at or above 0", async () => {
+    const harness = setupFixedLoopHarness();
+    const engine = await createEngine({ physicsHz: 60 });
+    const renders: number[] = [];
+    engine.hooks.hook("engine:render", (alpha?: number) => {
+      renders.push(alpha ?? Number.NaN);
+    });
+    harness.setNow(1000);
+    activateTestWasm(engine);
+    await engine.start();
+    await harness.tick(0);
+    const alpha = renders[0];
+    if (alpha === undefined) throw new Error("missing alpha");
+    expect(alpha).toBeGreaterThanOrEqual(0);
+    expect(alpha).toBeLessThan(1);
+    await engine.stop();
+  });
+
   it("stop() prevents further steps from being dispatched", async () => {
     const harness = setupFixedLoopHarness();
     const engine = await createEngine({ physicsHz: 60 });
