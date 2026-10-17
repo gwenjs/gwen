@@ -231,6 +231,15 @@ export class EngineEntities {
     if (this.depth === 0) return;
     this.depth -= 1;
     if (this.depth > 0) return;
+    if (this.nonDormant === 0) {
+      try {
+        this.flushDormant();
+      } finally {
+        this.opCount = 0;
+        this.depth = 0;
+      }
+      return;
+    }
     this.depth = 1;
     this.flushing = true;
     try {
@@ -243,10 +252,6 @@ export class EngineEntities {
   }
 
   private flush(): void {
-    if (this.nonDormant === 0) {
-      this.flushDormant();
-      return;
-    }
     let failure: unknown;
     let cursor = 0;
     while (cursor < this.opCount) {
@@ -568,7 +573,7 @@ export class EngineEntities {
     this.opGenerations[slot] = generation;
     this.opTypes[slot] = typeId;
     this.opFlags[slot] = flag;
-    if (link) {
+    if (link && kind !== OP_DORMANT) {
       this.ensureHeads(index);
       this.opPrev[slot] = this.slotHead[index] ?? NO_OP;
       this.slotHead[index] = slot;
