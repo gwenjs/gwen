@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type GwenErrorPayload } from "@gwenjs/schema";
 
 import {
   CoreErrorCodes,
@@ -8,8 +8,21 @@ import {
   Types,
   type GwenEngine,
 } from "../../src/index";
-import { defineActor, defineActorPool, definePrefab } from "../../src/actor/index";
-import { defineSystem, onUpdate, useQuery } from "../../src/system/index";
+import { defineActor, defineActorPool, definePrefab, useActorQuery } from "../../src/actor/index";
+import {
+  defineSystem,
+  onAfterUpdate,
+  onBeforeUpdate,
+  onRender,
+  onUpdate,
+  useComponentFor,
+  useQuery,
+} from "../../src/system/index";
+
+declare const __GWEN_DEV__: boolean;
+
+// Not on CoreErrorCodes yet. The literal keeps this file loadable.
+const PER_ENTITY_CODE = "CORE:QUERY_PER_ENTITY_PATH";
 
 // interim destroy-during-loop: passes on the base, added with the fix
 
@@ -390,3 +403,235 @@ describe("useQuery chunks", () => {
     });
   });
 });
+
+const ActorMark = defineComponent({
+  name: "QueryChunkActorMark",
+  schema: { v: Types.f32 },
+  defaults: { v: 0 },
+});
+
+function perEntityMessage(api: string): string {
+  return `${api} is per-entity; iterate the query by chunk (for (const chunk of query))`;
+}
+
+function contextString(
+  context: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  if (context === undefined) return undefined;
+  const value = context[key];
+  if (typeof value !== "string") return undefined;
+  return value;
+}
+
+function contextFrame(context: Record<string, unknown> | undefined): number | undefined {
+  if (context === undefined) return undefined;
+  const value = context["frame"];
+  if (typeof value !== "number") return undefined;
+  return value;
+}
+
+function collectErrors(engine: GwenEngine): GwenErrorPayload[] {
+  const events: GwenErrorPayload[] = [];
+  engine.errors.on((event) => {
+    events.push(event);
+  });
+  return events;
+}
+
+function perEntityEvents(events: readonly GwenErrorPayload[]): GwenErrorPayload[] {
+  return events.filter((event) => event.code === PER_ENTITY_CODE);
+}
+
+describe("per-entity query path", () => {
+  it("Query.each warns once in engine:update and a chunk loop does not", async () => {
+    await withEngine(async (engine) => {
+      const events = collectErrors(engine);
+      const id = engine.createEntity();
+      engine.addComponent(id, Position, { x: 1, y: 2 });
+
+      let recordedFrame: number | undefined;
+      let secondFrame = 0;
+      let sink = 0;
+      await engine.use(
+        defineSystem("per-entity-each", () => {
+          const query = useQuery([Position]);
+          for (const row of query.each()) sink += row.get(Position).x;
+          onUpdate(() => {
+            for (const chunk of query) sink += chunk.count;
+            let first = true;
+            for (const row of query.each()) {
+              if (first) {
+                first = false;
+                if (recordedFrame === undefined) recordedFrame = engine.frameCount;
+              }
+              sink += row.get(Position).x;
+            }
+            for (const row of query.each()) sink += row.get(Position).y;
+            if (recordedFrame !== undefined && engine.frameCount !== recordedFrame)
+              secondFrame += 1;
+          });
+          onRender(() => {
+            for (const row of query.each()) sink += row.get(Position).x;
+          });
+        })(),
+      );
+
+      await engine.startExternal();
+      await engine.advance(0.016);
+      await engine.advance(0.016);
+
+      if (__GWEN_DEV__) {
+        const warnings = perEntityEvents(events);
+        expect(warnings).toHaveLength(1);
+        const event = warnings[0];
+        expect(event).toBeDefined();
+        if (event === undefined) return;
+        expect(event.level).toBe("warning");
+        expect(event.code).toBe(PER_ENTITY_CODE);
+        expect(event.source).toBe("core");
+        expect(event.message).toBe(perEntityMessage("Query.each"));
+        expect(contextString(event.context, "api")).toBe("Query.each");
+        expect(contextString(event.context, "phase")).toBe("engine:update");
+        expect(contextFrame(event.context)).toBe(recordedFrame);
+        expect(secondFrame).toBeGreaterThan(0);
+      } else {
+        expect(perEntityEvents(events)).toHaveLength(0);
+        expect(secondFrame).toBeGreaterThan(0);
+      }
+      expect(sink).toBeGreaterThan(0);
+    });
+  });
+
+  it("useComponentFor warns once and is a separate api from Query.each", async () => {
+    await withEngine(async (engine) => {
+      const events = collectErrors(engine);
+      const id = engine.createEntity();
+      engine.addComponent(id, Position, { x: 4, y: 5 });
+      let seen = 0;
+      await engine.use(
+        defineSystem("per-entity-both", () => {
+          const query = useQuery([Position]);
+          onUpdate(() => {
+            const first = useComponentFor(id, Position);
+            const second = useComponentFor(id, Position);
+            seen = first.x + second.x;
+            for (const row of query.each()) seen += row.get(Position).x;
+          });
+        })(),
+      );
+
+      await engine.startExternal();
+      await engine.advance(0.016);
+
+      if (__GWEN_DEV__) {
+        const warnings = perEntityEvents(events);
+        expect(warnings).toHaveLength(2);
+        const apis = warnings.map((event) => contextString(event.context, "api")).sort();
+        expect(apis).toEqual(["Query.each", "useComponentFor"]);
+        for (const event of warnings) {
+          const api = contextString(event.context, "api");
+          expect(event.level).toBe("warning");
+          expect(event.code).toBe(PER_ENTITY_CODE);
+          expect(event.source).toBe("core");
+          expect(contextString(event.context, "phase")).toBe("engine:update");
+          expect(typeof contextFrame(event.context)).toBe("number");
+          expect(event.message).toBe(perEntityMessage(api ?? ""));
+        }
+      } else {
+        expect(perEntityEvents(events)).toHaveLength(0);
+      }
+      expect(seen).toBeGreaterThan(0);
+    });
+  });
+
+  it("before-update and after-update each warn with their own phase", async () => {
+    const engineA = await createEngine({ maxEntities: 32 });
+    try {
+      const engineB = await createEngine({ maxEntities: 32 });
+      try {
+        const eventsA = collectErrors(engineA);
+        const eventsB = collectErrors(engineB);
+        const idA = engineA.createEntity();
+        const idB = engineB.createEntity();
+        engineA.addComponent(idA, Position, { x: 1, y: 0 });
+        engineB.addComponent(idB, Position, { x: 1, y: 0 });
+
+        await engineA.use(
+          defineSystem("per-entity-before", () => {
+            const query = useQuery([Position]);
+            onBeforeUpdate(() => {
+              for (const row of query.each()) row.get(Position);
+            });
+          })(),
+        );
+        await engineB.use(
+          defineSystem("per-entity-after", () => {
+            const query = useQuery([Position]);
+            onAfterUpdate(() => {
+              for (const row of query.each()) row.get(Position);
+            });
+          })(),
+        );
+
+        await engineA.startExternal();
+        await engineB.startExternal();
+        await engineA.advance(0.016);
+        await engineB.advance(0.016);
+
+        expectPhase(eventsA, "engine:before-update");
+        expectPhase(eventsB, "engine:after-update");
+      } finally {
+        await engineB.stop();
+      }
+    } finally {
+      await engineA.stop();
+    }
+  });
+
+  it("useActorQuery on a Query yields the actor api and does not warn", async () => {
+    await withEngine(async (engine) => {
+      const events = collectErrors(engine);
+      const prefab = definePrefab([{ def: ActorMark, defaults: { v: 1 } }]);
+      const Actor = defineActor(prefab, () => ({ marker: 7 }));
+      await engine.use(Actor._plugin);
+      Actor._plugin.spawn();
+
+      let sum = 0;
+      await engine.use(
+        defineSystem("actor-query-on-chunk-query", () => {
+          const query = useQuery([ActorMark]);
+          // Query is not Iterable<{ id }> until the signature widens. Do not cast.
+          const nearby = useActorQuery(Actor, query);
+          onUpdate(() => {
+            for (const actor of nearby) sum += actor.marker;
+          });
+        })(),
+      );
+
+      await engine.startExternal();
+      await engine.advance(0.016);
+      expect(sum).toBe(7);
+      expect(events.some((event) => event.code === PER_ENTITY_CODE)).toBe(false);
+    });
+  });
+});
+
+function expectPhase(events: readonly GwenErrorPayload[], phase: string): void {
+  const warnings = perEntityEvents(events);
+  if (!__GWEN_DEV__) {
+    expect(warnings).toHaveLength(0);
+    return;
+  }
+  expect(warnings).toHaveLength(1);
+  const event = warnings[0];
+  expect(event).toBeDefined();
+  if (event === undefined) return;
+  expect(event.level).toBe("warning");
+  expect(event.code).toBe(PER_ENTITY_CODE);
+  expect(event.source).toBe("core");
+  expect(event.message).toBe(perEntityMessage("Query.each"));
+  expect(contextString(event.context, "api")).toBe("Query.each");
+  expect(contextString(event.context, "phase")).toBe(phase);
+  expect(typeof contextFrame(event.context)).toBe("number");
+}
