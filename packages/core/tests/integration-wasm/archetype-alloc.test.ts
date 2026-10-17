@@ -196,20 +196,23 @@ describe("chunk column allocation", () => {
   });
 
   it("counts a large array kept alive per op", async () => {
-    const ops = 8_000;
+    const ops = 100;
     const report = await measureAllocations(
       () => {
         const sink: number[][] = [];
         for (let index = 0; index < ops; index += 1) {
-          const block = new Array<number>(300_000);
-          block[0] = 1;
-          sink[0] = block;
+          const block = new Array<number>(20_000);
+          block.fill(0.5);
+          sink.push(block);
         }
-        if (sink[0]?.[0] !== 1) throw new Error("sink dropped the array");
+        if (sink.length !== ops || sink[0]?.[0] !== 0.5) throw new Error("sink dropped the array");
       },
-      { warmup: 1, ops },
+      { warmup: 4, ops },
     );
-    expect(report.bytesPerOp).toBeGreaterThanOrEqual(1);
+    // The array objects sit in new_space at about 94 bytes per op, so a
+    // floor of 1 passes without the large backing store. 10_000 is above
+    // that shell and below the 160 KB elements in new_large_object_space.
+    expect(report.bytesPerOp).toBeGreaterThanOrEqual(10_000);
   });
 
   it("counts retained bytes of an 8-byte object kept alive per op", async () => {
