@@ -16,12 +16,7 @@ export interface AllocationReport {
   allocatedBytes: number;
   /** GCs observed during the run. Above zero, allocatedBytes is a lower bound. */
   gcCount: number;
-  /**
-   * Sum of `space_used_size` after a forced GC following the run, minus the
-   * same sum after a forced GC before the run. `code_space`,
-   * `code_large_object_space`, `trusted_space`, and
-   * `trusted_large_object_space` are left out.
-   */
+  /** heapUsed after a forced GC following the run, minus the pre-run baseline. */
   retainedBytes: number;
   /** allocatedBytes / ops. */
   bytesPerOp: number;
@@ -40,26 +35,12 @@ function collectGc(): () => void {
   return () => Reflect.apply(fromVm, undefined, []);
 }
 
-const RETAINED_EXCLUDED = new Set([
-  "code_space",
-  "code_large_object_space",
-  "trusted_space",
-  "trusted_large_object_space",
-]);
-
-function countedBytes(rows: ReturnType<typeof v8.getHeapSpaceStatistics>): number {
+function countedBytes(): number {
+  const rows = v8.getHeapSpaceStatistics();
   const young = rows.find((space) => space.space_name === "new_space");
   if (young === undefined) throw new Error("[GWEN] measureAllocations: new_space is missing");
   const large = rows.find((space) => space.space_name === "new_large_object_space");
   return young.space_used_size + (large === undefined ? 0 : large.space_used_size);
-}
-
-function retainedSpaceBytes(rows: ReturnType<typeof v8.getHeapSpaceStatistics>): number {
-  let sum = 0;
-  for (const space of rows) {
-    if (!RETAINED_EXCLUDED.has(space.space_name)) sum += space.space_used_size;
-  }
-  return sum;
 }
 
 function logAlloc(ops: number, allocatedBytes: number, gcCount: number): void {
@@ -86,18 +67,17 @@ export async function measureAllocations(
   const gc = collectGc();
   for (let i = 0; i < opts.warmup; i += 1) await run();
   gc();
-  const before = v8.getHeapSpaceStatistics();
-  const youngBefore = countedBytes(before);
-  const retainedBefore = retainedSpaceBytes(before);
+  const youngBefore = countedBytes();
+  const before = process.memoryUsage().heapUsed;
   const profiler = new v8.GCProfiler();
   let profile: v8.GCProfilerResult | undefined;
   profiler.start();
   try {
     await run();
-    const allocatedBytes = countedBytes(v8.getHeapSpaceStatistics()) - youngBefore;
+    const allocatedBytes = countedBytes() - youngBefore;
     profile = profiler.stop();
     gc();
-    const retainedBytes = retainedSpaceBytes(v8.getHeapSpaceStatistics()) - retainedBefore;
+    const retainedBytes = process.memoryUsage().heapUsed - before;
     logAlloc(opts.ops, allocatedBytes, profile.statistics.length);
     return {
       allocatedBytes,
