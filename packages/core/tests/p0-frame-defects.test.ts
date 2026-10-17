@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CoreErrorCodes, GwenWasmPanicError, createEngine } from "../src/index.js";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError, createEngine } from "../src/index.js";
 import type { EngineStateChangePayload } from "../src/index.js";
 import { activateTestWasm } from "./helpers/activate-test-wasm";
 
@@ -75,6 +75,34 @@ describe("P0 frame defects", () => {
     expect(fatals).toHaveLength(1);
     expect(fatals[0]?.source).toBe("gwen_core.wasm");
     expect(engine.state).toBe("faulted");
+  });
+
+  it("a CORE:STORAGE_INCONSISTENT throw faults the engine", async () => {
+    const seen: Array<{ level: string; code: string; message: string }> = [];
+    const engine = await createEngine();
+    engine.hooks.hook("engine:error", (payload) => {
+      seen.push({ level: payload.level, code: payload.code, message: payload.message });
+    });
+    await engine.startExternal();
+    engine.hooks.hook("engine:before-update", () => {
+      throw new GwenWasmError(
+        CoreErrorCodes.STORAGE_INCONSISTENT,
+        "Storage inconsistent: site 1",
+        "has_component",
+        new Error("Storage inconsistent: site 1"),
+      );
+    });
+    try {
+      await engine.advance(1 / 60);
+      expect(engine.state).toBe("faulted");
+      expect(seen).toContainEqual({
+        level: "fatal",
+        code: CoreErrorCodes.STORAGE_INCONSISTENT,
+        message: "Storage inconsistent: site 1",
+      });
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("D14 FPS: getFPS reports the real frame rate, not the scaled dt", async () => {

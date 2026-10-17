@@ -601,6 +601,10 @@ export class WasmBridgeImpl implements WasmBridge {
     return this._requireWasm().delete_entity(index, generation);
   }
 
+  bulkDestroy(indices: Uint32Array): void {
+    this._requireWasm().bulk_destroy(indices);
+  }
+
   isAlive(index: number, generation: number): boolean {
     return this._wasmForRead().is_alive(index, generation);
   }
