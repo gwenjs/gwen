@@ -123,6 +123,10 @@ mod tests {
         clippy::disallowed_methods,
         reason = "wall-clock measurement in a test"
     )]
+    #[cfg_attr(
+        miri,
+        ignore = "wall-clock bound; Miri interprets allocation and 100 ms cannot hold. Measured 4100 ms."
+    )]
     fn test_allocate_10k() {
         let mut em = EntityManager::new(10000);
 
@@ -144,6 +148,10 @@ mod tests {
     #[allow(
         clippy::disallowed_methods,
         reason = "wall-clock measurement in a test"
+    )]
+    #[cfg_attr(
+        miri,
+        ignore = "wall-clock bound; Miri interprets deletion and 50 ms cannot hold. Measured 491 ms."
     )]
     fn test_deallocate_1k() {
         let mut em = EntityManager::new(10000);

@@ -309,9 +309,16 @@ proptest! {
     #![proptest_config(Config {
         // `cargo test` runs with the crate directory as cwd, so this path is
         // relative to crates/gwen-core. SourceParallel never finds src/lib.rs.
-        failure_persistence: Some(Box::new(FileFailurePersistence::Direct(
-            "tests/proptest-regressions/ecs_proptest.txt",
-        ))),
+        // Miri isolation rejects `getcwd`, which that file path needs.
+        failure_persistence: if cfg!(miri) {
+            None
+        } else {
+            Some(Box::new(FileFailurePersistence::Direct(
+                "tests/proptest-regressions/ecs_proptest.txt",
+            )))
+        },
+        // Default is 256 cases. Four keep the same invariant check under Miri.
+        cases: if cfg!(miri) { 4 } else { Config::default().cases },
         ..Config::default()
     })]
 

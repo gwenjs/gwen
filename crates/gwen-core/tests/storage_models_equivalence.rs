@@ -67,7 +67,15 @@ fn assert_same(left: &impl StorageModel, right: &impl StorageModel, entity: u32)
 
 #[test]
 fn reference_scene_models_match_after_60_frames() {
-    for &count in &STORAGE_REFERENCE_SCENE {
+    // The native scene is 1_000 and 10_000 entities for 60 frames.
+    // Under Miri that was still running after 638s. A short scene keeps the same compares.
+    let scene: &[usize] = if cfg!(miri) {
+        &[16]
+    } else {
+        &STORAGE_REFERENCE_SCENE
+    };
+    let frames = if cfg!(miri) { 4 } else { REFERENCE_FRAMES };
+    for &count in scene {
         let mut prod = ModelAProd::build(count);
         let mut direct = ModelADirect::build(count);
         let mut sparse = ModelB::build(count);
@@ -76,7 +84,7 @@ fn reference_scene_models_match_after_60_frames() {
         assert!(direct.heap_bytes() > 0, "A.direct heap");
         assert!(sparse.heap_bytes() > 0, "B heap");
         assert!(chunked.heap_bytes() > 0, "C heap");
-        for frame in 0..REFERENCE_FRAMES {
+        for frame in 0..frames {
             run_frame(&mut prod, frame, DT);
             run_frame(&mut direct, frame, DT);
             run_frame(&mut sparse, frame, DT);
