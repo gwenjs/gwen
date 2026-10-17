@@ -132,6 +132,10 @@ function updateSystem(extraObject: boolean): AllocScenario {
         });
       });
       await handle.engine.use(system());
+      // f32 reads allocate heap numbers until V8 optimizes this system.
+      // The gate's 8 warmup frames still land in that cold window (~68KB).
+      // These frames finish first, so the sample is the steady state.
+      await handle.advance(400, 1 / 60);
     },
   };
 }
