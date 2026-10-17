@@ -408,7 +408,7 @@ impl ChunkStore {
         };
         if type_count <= 1 {
             if !self.can_fill(arch, chunk_id, row) {
-                return Ok(false);
+                return Err(inconsistent(14));
             }
             if !self.clear_loc(index) {
                 return Ok(false);
@@ -495,7 +495,7 @@ impl ChunkStore {
         let saved = self.row_of(index)?;
         if let Some((chunk_id, row, arch)) = saved {
             if !self.can_fill(arch, chunk_id, row) {
-                return Ok(false);
+                return Err(inconsistent(13));
             }
             // `awake` past `len` is site 16. A row past `len` already failed
             // `can_fill` (site 13).
@@ -530,9 +530,8 @@ impl ChunkStore {
     /// An index past the table is [`CoreError::InvalidMaxEntities`].
     ///
     /// Sleeping a row while `awake` is 0 does not occur: every row is already
-    /// dormant, and the same-state check has returned. A failed boundary swap
-    /// does not occur either: both rows sit inside `len` of the chunk this
-    /// call just read.
+    /// dormant, and the same-state check has returned. A boundary swap whose
+    /// entity has no slot returns [`CoreError::StorageInconsistent`] site 21.
     pub fn set_dormant(
         &mut self,
         index: u32,
@@ -551,10 +550,10 @@ impl ChunkStore {
             return Ok(false);
         };
         if chunk.awake > chunk.len {
-            return Ok(false);
+            return Err(inconsistent(20));
         }
         if row >= chunk.len {
-            return Ok(false);
+            return Err(inconsistent(19));
         }
         let awake = chunk.awake;
         let is_dormant = row >= awake;
@@ -568,7 +567,7 @@ impl ChunkStore {
             }
             let boundary = awake - 1;
             if !self.swap_rows(chunk_id, row, boundary) {
-                return Ok(true);
+                return Err(inconsistent(21));
             }
             let Some(chunk) = self.chunk_mut(chunk_id) else {
                 return Ok(false);
@@ -576,7 +575,7 @@ impl ChunkStore {
             chunk.awake -= 1;
         } else {
             if !self.swap_rows(chunk_id, row, awake) {
-                return Ok(true);
+                return Err(inconsistent(21));
             }
             let Some(chunk) = self.chunk_mut(chunk_id) else {
                 return Ok(false);
@@ -674,13 +673,13 @@ impl ChunkStore {
             return Ok(None);
         }
         let Some(chunk) = self.chunk_ref(slot.chunk) else {
-            return Ok(None);
+            return Err(inconsistent(2));
         };
         if chunk.awake > chunk.len {
-            return Ok(None);
+            return Err(inconsistent(4));
         }
         if slot.row >= chunk.len {
-            return Ok(None);
+            return Err(inconsistent(3));
         }
         Ok(Some(slot.row >= chunk.awake))
     }
@@ -712,13 +711,13 @@ impl ChunkStore {
         let chunk_id = slot.chunk;
         let row = slot.row;
         let Some(chunk) = self.chunk_ref(chunk_id) else {
-            return Ok(false);
+            return Err(inconsistent(8));
         };
         if chunk.awake > chunk.len {
-            return Ok(false);
+            return Err(inconsistent(10));
         }
         if row >= chunk.len {
-            return Ok(false);
+            return Err(inconsistent(9));
         }
         let arch = chunk.archetype as usize;
         let Some((start, end)) = self.lane_range(arch, type_id) else {
@@ -727,7 +726,7 @@ impl ChunkStore {
         let mut offset = 0usize;
         for lane in start..end {
             let Some(cell) = self.read_cell(chunk_id, lane, row) else {
-                return Ok(false);
+                return Err(inconsistent(11));
             };
             let Some(size) = self
                 .chunk_ref(chunk_id)
@@ -826,7 +825,7 @@ impl ChunkStore {
             return Ok(None);
         }
         let Some(chunk) = self.chunk_ref(slot.chunk) else {
-            return Ok(None);
+            return Err(inconsistent(12));
         };
         Ok(Some(chunk.archetype))
     }
@@ -856,13 +855,13 @@ impl ChunkStore {
             return Ok(false);
         }
         let Some(chunk) = self.chunk_ref(slot.chunk) else {
-            return Ok(false);
+            return Err(inconsistent(5));
         };
         if chunk.awake > chunk.len {
-            return Ok(false);
+            return Err(inconsistent(7));
         }
         if slot.row >= chunk.len {
-            return Ok(false);
+            return Err(inconsistent(6));
         }
         Ok(self.arch_has(chunk.archetype as usize, type_id))
     }
@@ -901,10 +900,10 @@ impl ChunkStore {
     /// `awake` of a chunk an archetype still lists.
     fn listed_awake(&self, chunk_id: u32) -> Result<u16, CoreError> {
         let Some(chunk) = self.chunk_ref(chunk_id) else {
-            return Ok(0);
+            return Err(inconsistent(22));
         };
         if chunk.awake > chunk.len {
-            return Ok(0);
+            return Err(inconsistent(23));
         }
         Ok(chunk.awake)
     }
@@ -1211,7 +1210,7 @@ impl ChunkStore {
             return Ok(None);
         }
         let Some(chunk) = self.chunk_ref(slot.chunk) else {
-            return Ok(None);
+            return Err(inconsistent(1));
         };
         Ok(Some((slot.chunk, slot.row, chunk.archetype as usize)))
     }
@@ -1255,7 +1254,7 @@ impl ChunkStore {
         };
         let count = {
             let Some(current) = self.archetypes.get(arch).map(|item| &item.types) else {
-                return Ok(AddPlan { count: 0, dormant: false, source: None });
+                return Err(inconsistent(17));
             };
             match insert_sorted(current, type_id, target) {
                 Some(count) => count,
@@ -1341,10 +1340,10 @@ impl ChunkStore {
     fn write_in_place(&mut self, index: u32, type_id: u32, data: &[u8]) -> Result<(), CoreError> {
         let Some((chunk_id, row, arch)) = self.row_of(index)? else {
             // `row_has_type` just found this row. Same site as a missing lane.
-            return Ok(());
+            return Err(inconsistent(18));
         };
         if !self.write_type(arch, chunk_id, row, type_id, data) {
-            return Ok(());
+            return Err(inconsistent(18));
         }
         Ok(())
     }
@@ -1593,10 +1592,10 @@ impl ChunkStore {
             return Ok(None);
         };
         if chunk.awake > chunk.len {
-            return Ok(None);
+            return Err(inconsistent(16));
         }
         if row >= chunk.len {
-            return Ok(None);
+            return Err(inconsistent(15));
         }
         Ok(Some(row >= chunk.awake))
     }
