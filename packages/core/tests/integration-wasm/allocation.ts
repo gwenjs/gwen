@@ -1,13 +1,14 @@
 /// <reference types="node" />
 
-import { appendFileSync } from "node:fs";
 import v8 from "node:v8";
 import vm from "node:vm";
 
-import { expect } from "vitest";
-
 export interface AllocationReport {
-  /** heapUsed after the run, minus heapUsed after a forced GC before the run. */
+  /**
+   * `new_space` bytes used after the run, minus the same counter after a
+   * forced GC before the run. The second read is inside the window, so the
+   * floor is a few KB. Code space and trusted space are not counted.
+   */
   allocatedBytes: number;
   /** GCs observed during the run. Above zero, allocatedBytes is a lower bound. */
   gcCount: number;
@@ -36,20 +37,8 @@ function newSpaceUsed(): number {
   return found.space_used_size;
 }
 
-function logAlloc(ops: number, allocatedBytes: number, gcCount: number, youngDelta: number): void {
-  const file = process.env.GWEN_ALLOC_LOG;
-  if (file === undefined || file.length === 0) return;
-  const name = expect.getState().currentTestName ?? "unknown";
-  const mode = __GWEN_DEV__ ? "dev" : "prod";
-  const run = process.env.GWEN_ALLOC_RUN ?? "-";
-  appendFileSync(
-    file,
-    `ALLOC run=${run} mode=${mode} test=${JSON.stringify(name)} bytesPerOp=${allocatedBytes / ops} gcCount=${gcCount} allocatedBytes=${allocatedBytes} youngDelta=${youngDelta}\n`,
-  );
-}
-
 /**
- * Count heap bytes for one run. The profiler is stopped in `finally`.
+ * Count young-space bytes for one run. The profiler is stopped in `finally`.
  * Test-only. Promoting this helper is #57.
  */
 export async function measureAllocations(
@@ -60,20 +49,17 @@ export async function measureAllocations(
   const gc = collectGc();
   for (let i = 0; i < opts.warmup; i += 1) await run();
   gc();
-  const logging = process.env.GWEN_ALLOC_LOG !== undefined && process.env.GWEN_ALLOC_LOG.length > 0;
-  const youngBefore = logging ? newSpaceUsed() : 0;
+  const youngBefore = newSpaceUsed();
   const before = process.memoryUsage().heapUsed;
   const profiler = new v8.GCProfiler();
   let profile: v8.GCProfilerResult | undefined;
   profiler.start();
   try {
     await run();
-    const allocatedBytes = process.memoryUsage().heapUsed - before;
-    const youngDelta = logging ? newSpaceUsed() - youngBefore : 0;
+    const allocatedBytes = newSpaceUsed() - youngBefore;
     profile = profiler.stop();
     gc();
     const retainedBytes = process.memoryUsage().heapUsed - before;
-    if (logging) logAlloc(opts.ops, allocatedBytes, profile.statistics.length, youngDelta);
     return {
       allocatedBytes,
       gcCount: profile.statistics.length,

@@ -1,15 +1,13 @@
-name: Alloc repro
+name: Wasm sample
 
 on:
-  push:
-    branches: [wave6/234-alloc-floor]
   workflow_dispatch:
 
 jobs:
-  repro:
-    name: Archetype alloc x20
+  sample:
+    name: test:wasm
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -43,32 +41,5 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
       - name: Build WASM
         run: ./scripts/build-wasm.sh
-      - name: Run test:wasm twenty times
-        run: |
-          set +e
-          mkdir -p "$RUNNER_TEMP/alloc-repro"
-          summary="$RUNNER_TEMP/alloc-repro/summary.txt"
-          : > "$summary"
-          failed=0
-          for i in $(seq 1 20); do
-            alloc="$RUNNER_TEMP/alloc-repro/run-$i.txt"
-            log="$RUNNER_TEMP/alloc-repro/run-$i.log"
-            : > "$alloc"
-            GWEN_ALLOC_RUN="$i" GWEN_ALLOC_LOG="$alloc" pnpm --filter @gwenjs/core test:wasm >"$log" 2>&1
-            code=$?
-            echo "RUN $i exit=$code" | tee -a "$summary"
-            if [ -s "$alloc" ]; then
-              cat "$alloc" | tee -a "$summary"
-            else
-              echo "RUN $i has no ALLOC lines" | tee -a "$summary"
-            fi
-            if [ "$code" -ne 0 ]; then
-              failed=1
-              echo "FAIL RUN $i" | tee -a "$summary"
-              grep -n -E "AssertionError|expected|bytesPerOp|FAIL " "$log" | head -n 40 | tee -a "$summary"
-            fi
-          done
-          echo "----- TABLE -----"
-          cat "$summary"
-          echo "failed=$failed"
-          exit "$failed"
+      - name: Run test:wasm
+        run: pnpm --filter @gwenjs/core test:wasm
