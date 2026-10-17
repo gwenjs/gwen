@@ -1338,12 +1338,11 @@ impl ChunkStore {
     }
 
     fn write_in_place(&mut self, index: u32, type_id: u32, data: &[u8]) -> Result<(), CoreError> {
-        let Some((chunk_id, row, arch)) = self.row_of(index)? else {
-            // `row_has_type` just found this row. Same site as a missing lane.
-            return Err(inconsistent(18));
-        };
-        if !self.write_type(arch, chunk_id, row, type_id, data) {
-            return Err(inconsistent(18));
+        // `row_has_type` just found this row. A second miss is not a separate site.
+        if let Some((chunk_id, row, arch)) = self.row_of(index)? {
+            if !self.write_type(arch, chunk_id, row, type_id, data) {
+                return Err(inconsistent(18));
+            }
         }
         Ok(())
     }
