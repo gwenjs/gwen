@@ -143,6 +143,8 @@ export class EngineEntities {
   private wasmDirect = 0;
   /** True while the outermost loop is applying the queue. */
   private flushing = false;
+  /** Queued ops other than a dormancy toggle. Zero keeps the tiny flush. */
+  private nonDormant = 0;
 
   private readonly readStagingPtr = (): number => this.deps.bridge.componentStagingPtr();
 
@@ -241,6 +243,10 @@ export class EngineEntities {
   }
 
   private flush(): void {
+    if (this.nonDormant === 0) {
+      this.flushDormant();
+      return;
+    }
     let failure: unknown;
     let cursor = 0;
     while (cursor < this.opCount) {
@@ -261,6 +267,22 @@ export class EngineEntities {
       else if (kind === OP_BULK_SPAWN) this.applyBulkSpawn(slot);
     }
     if (failure !== undefined) throw failure;
+  }
+
+  /** A dormancy-only queue stays off the general decoder so the steady state allocates nothing. */
+  private flushDormant(): void {
+    const count = this.opCount;
+    const indexes = this.opIndexes;
+    const generations = this.opGenerations;
+    const flags = this.opFlags;
+    const bridge = this.deps.bridge;
+    for (let cursor = 0; cursor < count; cursor += 1) {
+      bridge.setEntityDormant(
+        indexes[cursor] ?? 0,
+        generations[cursor] ?? 0,
+        (flags[cursor] ?? 0) === 1,
+      );
+    }
   }
 
   private applyCreate(index: number, generation: number): void {
@@ -553,6 +575,7 @@ export class EngineEntities {
     } else {
       this.opPrev[slot] = NO_OP;
     }
+    if (kind !== OP_DORMANT) this.nonDormant += 1;
     this.opCount = slot + 1;
     return slot;
   }
@@ -627,16 +650,19 @@ export class EngineEntities {
     for (let slot = 0; slot < count; slot += 1) {
       const index = this.opIndexes[slot] ?? 0;
       if (index < this.slotHead.length) this.slotHead[index] = NO_OP;
-      if (kinds[slot] === OP_ADD) {
+      const kind = kinds[slot];
+      if (kind === OP_ADD) {
         this.addDefs[slot] = null;
         this.addData[slot] = null;
+      } else if (kind === OP_BULK_SPAWN) {
+        this.bulkPositions[slot] = null;
+        this.bulkRotations[slot] = null;
+        this.bulkIndices[slot] = null;
+        this.bulkGenerations[slot] = null;
       }
-      this.bulkPositions[slot] = null;
-      this.bulkRotations[slot] = null;
-      this.bulkIndices[slot] = null;
-      this.bulkGenerations[slot] = null;
     }
     this.opCount = 0;
+    this.nonDormant = 0;
   }
 
   /**
