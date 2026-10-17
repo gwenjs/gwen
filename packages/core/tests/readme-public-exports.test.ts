@@ -417,7 +417,7 @@ describe("package README public exports", () => {
     expect(missingReadmeLines()).toEqual([]);
   });
 
-  it("exports nothing deprecated from a public entry", () => {
-    expect(deprecatedPublicExports()).toEqual([]);
+  it("the only deprecated public export is useComponentFor", () => {
+    expect(deprecatedPublicExports()).toEqual(["@gwenjs/core ./system useComponentFor"]);
   });
 });
