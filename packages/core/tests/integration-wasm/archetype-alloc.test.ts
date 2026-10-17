@@ -188,4 +188,21 @@ describe("chunk column allocation", () => {
     );
     expect(leaked.bytesPerOp >= 1 || leaked.gcCount > 0).toBe(true);
   });
+
+  it("counts a large array kept alive per op", async () => {
+    const ops = 8_000;
+    const report = await measureAllocations(
+      () => {
+        const sink: number[][] = [];
+        for (let index = 0; index < ops; index += 1) {
+          const block = new Array<number>(300_000);
+          block[0] = 1;
+          sink[0] = block;
+        }
+        if (sink[0]?.[0] !== 1) throw new Error("sink dropped the array");
+      },
+      { warmup: 1, ops },
+    );
+    expect(report.bytesPerOp).toBeGreaterThanOrEqual(1);
+  });
 });
