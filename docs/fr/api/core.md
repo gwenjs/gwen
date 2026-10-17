@@ -214,7 +214,7 @@ export const MovementSystem = defineSystem('MovementSystem', () => {
 function useQuery<const C extends readonly ComponentDef[]>(components: C): Query<C>
 ```
 
-**Description.** Crée une requête qui itère les chunks d'entités ayant les composants spécifiés. Les chunks se mettent à jour quand les entités correspondent ou non. `each()` itère un accesseur par entité correspondante.
+**Description.** Crée une requête qui itère les chunks d'entités ayant les composants spécifiés. Un changement structurel pendant une boucle de chunks (création, destruction, ajout, retrait, ou bascule de dormance) s'applique à la fermeture de la boucle la plus extérieure. Les écritures de champs et un ajout sur place d'un composant déjà présent s'appliquent tout de suite. `each()` reste immédiat et itère un accesseur par entité correspondante.
 
 L'itération saute les entités dormantes d'un pool d'acteurs (relâchées et pas encore réacquises). Leurs composants restent attachés.
 

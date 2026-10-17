@@ -8,6 +8,8 @@ import {
 import { createEntityId, entityGeneration, entityIndex, type EntityId } from "../types/entity.js";
 import type { ComponentDef, EntityAccessor, LiveQuery } from "../system/runtime/define-system.js";
 import { createChunkQuery, releaseChunkQuery, type Query } from "./chunk-query.js";
+import { EntityIdMirror } from "./entity-id-mirror.js";
+import { bindEntityTrace } from "./entity-trace.js";
 import type { GwenEngine } from "./engine-types.js";
 import { componentRegistryFor } from "./engine-component-registry.js";
 import { componentStaging } from "./chunk-lanes.js";
@@ -43,6 +45,12 @@ interface MemberCache {
   generation: number;
   query: number;
 }
+
+const OP_CREATE = 1;
+const OP_DESTROY = 2;
+const OP_ADD = 3;
+const OP_REMOVE = 4;
+const OP_DORMANT = 5;
 
 function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
   return results[index] as EntityId; // boundary: dense query id list, index checked #77
@@ -81,10 +89,42 @@ export class EngineEntities {
   private aliveEpoch = 0;
   /** One past the highest slot index this engine has allocated. */
   private slotSpan = 0;
+  /** Open chunk loops on this engine. Structural ops queue while this is above 0. */
+  private depth = 0;
+  private readonly mirror: EntityIdMirror;
+  private readonly loopHooks = {
+    enter: (): void => {
+      this.enterLoop();
+    },
+    leave: (): void => {
+      this.leaveLoop();
+    },
+  };
+  private opCapacity = 0;
+  private opCount = 0;
+  private opKinds = new Uint8Array(0);
+  private opIndexes = new Uint32Array(0);
+  private opGenerations = new Uint32Array(0);
+  private opTypes = new Uint32Array(0);
+  private opFlags = new Uint8Array(0);
+  private addDefs: (ComponentDefinition<ComponentSchema> | null)[] = [];
+  private addData: (object | null)[] = [];
+  /** Component rows in the simulated state. Index is the entity slot. */
+  private rowCounts = new Uint16Array(0);
 
   private readonly readStagingPtr = (): number => this.deps.bridge.componentStagingPtr();
 
-  constructor(private readonly deps: EngineEntitiesDeps) {}
+  constructor(private readonly deps: EngineEntitiesDeps) {
+    this.mirror = new EntityIdMirror(deps.maxEntities);
+    bindEntityTrace(deps.bridge, {
+      allocated: (index, generation) => {
+        this.mirror.noteAllocated(index, generation);
+      },
+      deallocated: (index, generation) => {
+        this.mirror.noteDeallocated(index, generation);
+      },
+    });
+  }
 
   /** Alive entity ids. `getStats().entityCount` reads this. */
   count(): number {
@@ -98,6 +138,16 @@ export class EngineEntities {
    */
   createEntity(): EntityId {
     this.deps.assertState("createEntity");
+    if (this.depth === 0) return this.createNow();
+    const reserved = this.mirror.tryAllocate();
+    if (reserved === null) return this.createNow();
+    if (reserved.index >= this.slotSpan) this.slotSpan = reserved.index + 1;
+    this.pushOp(OP_CREATE, reserved.index, reserved.generation, 0, 0);
+    return createEntityId(reserved.index, reserved.generation);
+  }
+
+  /** WASM spawn. Used outside a chunk loop, and when the mirror is already full. */
+  private createNow(): EntityId {
     const created = this.deps.bridge.createEntity();
     if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
     this.aliveEpoch += 1;
@@ -118,11 +168,271 @@ export class EngineEntities {
     this.deps.assertState("destroyEntity");
     const index = entityIndex(id);
     const generation = entityGeneration(id);
+    if (this.depth === 0) return this.destroyNow(id, index, generation);
+    if (!this.mirror.deallocate(index, generation)) return false;
+    this.clearRows(index);
+    this.pushOp(OP_DESTROY, index, generation, 0, 0);
+    return true;
+  }
+
+  private destroyNow(id: EntityId, index: number, generation: number): boolean {
     if (!this.deps.bridge.deleteEntity(index, generation)) return false;
+    this.clearRows(index);
     this.membership += 1;
     this.aliveEpoch += 1;
     this.deps.emitDestroy(id);
     return true;
+  }
+
+  private enterLoop(): void {
+    this.depth += 1;
+  }
+
+  /**
+   * The outermost loop flushes. Depth stays above 0 for the whole flush so a
+   * destroy hook that spawns or destroys queues behind the op that fired it.
+   */
+  private leaveLoop(): void {
+    if (this.depth === 0) return;
+    this.depth -= 1;
+    if (this.depth > 0) return;
+    this.depth = 1;
+    try {
+      this.flush();
+    } finally {
+      this.clearOps();
+      this.depth = 0;
+    }
+  }
+
+  private flush(): void {
+    let cursor = 0;
+    while (cursor < this.opCount) {
+      const kind = this.opKinds[cursor] ?? 0;
+      const index = this.opIndexes[cursor] ?? 0;
+      const generation = this.opGenerations[cursor] ?? 0;
+      const typeId = this.opTypes[cursor] ?? 0;
+      const flag = this.opFlags[cursor] ?? 0;
+      const slot = cursor;
+      cursor += 1;
+      if (kind === OP_CREATE) this.applyCreate();
+      else if (kind === OP_DESTROY) this.applyDestroy(index, generation);
+      else if (kind === OP_ADD) this.applyAdd(slot, index, generation, typeId);
+      else if (kind === OP_REMOVE) this.applyRemove(index, generation, typeId);
+      else if (kind === OP_DORMANT) this.applyDormant(index, generation, flag === 1);
+    }
+  }
+
+  private applyCreate(): void {
+    const created = this.deps.bridge.createEntity();
+    if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
+    this.aliveEpoch += 1;
+  }
+
+  private applyDestroy(index: number, generation: number): void {
+    if (!this.deps.bridge.deleteEntity(index, generation)) return;
+    this.membership += 1;
+    this.aliveEpoch += 1;
+    this.deps.emitDestroy(createEntityId(index, generation));
+  }
+
+  private applyAdd(slot: number, index: number, generation: number, typeId: number): void {
+    const def = this.addDefs[slot];
+    const data = this.addData[slot];
+    if (def === undefined || def === null || data === undefined || data === null) return;
+    if (this.deps.bridge.hasComponent(index, generation, typeId)) {
+      this.writePresent(def, data, index, generation, typeId);
+      return;
+    }
+    if (this.writeCold(def, data, index, generation, typeId)) this.membership += 1;
+  }
+
+  private applyRemove(index: number, generation: number, typeId: number): void {
+    if (this.deps.bridge.removeComponent(index, generation, typeId)) this.membership += 1;
+  }
+
+  private applyDormant(index: number, generation: number, dormant: boolean): void {
+    this.deps.bridge.setEntityDormant(index, generation, dormant);
+  }
+
+  private addDeferred<D extends ComponentDefinition<ComponentSchema>>(
+    def: D,
+    data: Partial<InferComponent<D>>,
+    index: number,
+    generation: number,
+    typeId: number,
+  ): void {
+    if (!this.mirror.isAlive(index, generation)) {
+      this.queueAdd(def, data, index, generation, typeId);
+      return;
+    }
+    if (
+      !this.queuedRemoval(index, generation, typeId) &&
+      this.deps.bridge.hasComponent(index, generation, typeId)
+    ) {
+      this.writePresent(def, data, index, generation, typeId);
+      return;
+    }
+    const queued = this.latestQueuedAdd(index, generation, typeId);
+    if (queued >= 0) {
+      this.patchAdd(queued, data);
+      return;
+    }
+    this.bumpRows(index, 1);
+    this.queueAdd(def, data, index, generation, typeId);
+  }
+
+  private queueAdd(
+    def: ComponentDefinition<ComponentSchema>,
+    data: object,
+    index: number,
+    generation: number,
+    typeId: number,
+  ): void {
+    const slot = this.pushOp(OP_ADD, index, generation, typeId, 0);
+    this.addDefs[slot] = def;
+    this.addData[slot] = data;
+  }
+
+  private patchAdd(slot: number, data: object): void {
+    const target = this.addData[slot];
+    if (target === null || target === undefined) {
+      this.addData[slot] = data;
+      return;
+    }
+    const into = target as Record<string, unknown>;
+    const from = data as Record<string, unknown>;
+    for (const key in from) {
+      if (!Object.prototype.hasOwnProperty.call(from, key)) continue;
+      into[key] = from[key];
+    }
+  }
+
+  private queuedRemoval(index: number, generation: number, typeId: number): boolean {
+    let removed = false;
+    const count = this.opCount;
+    for (let slot = 0; slot < count; slot += 1) {
+      if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
+      const kind = this.opKinds[slot];
+      if (kind === OP_DESTROY) return true;
+      if (kind === OP_REMOVE && this.opTypes[slot] === typeId) removed = true;
+      else if (kind === OP_ADD && this.opTypes[slot] === typeId) removed = false;
+    }
+    return removed;
+  }
+
+  private latestQueuedAdd(index: number, generation: number, typeId: number): number {
+    let found = -1;
+    const count = this.opCount;
+    for (let slot = 0; slot < count; slot += 1) {
+      if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
+      const kind = this.opKinds[slot];
+      if (kind === OP_DESTROY) return -1;
+      if (kind === OP_REMOVE && this.opTypes[slot] === typeId) found = -1;
+      else if (kind === OP_ADD && this.opTypes[slot] === typeId) found = slot;
+    }
+    return found;
+  }
+
+  private simulatedHas(index: number, generation: number, typeId: number): boolean {
+    if (!this.mirror.isAlive(index, generation)) return false;
+    let present = this.deps.bridge.hasComponent(index, generation, typeId);
+    const count = this.opCount;
+    for (let slot = 0; slot < count; slot += 1) {
+      if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
+      const kind = this.opKinds[slot];
+      if (kind === OP_DESTROY) return false;
+      if (kind === OP_REMOVE && this.opTypes[slot] === typeId) present = false;
+      else if (kind === OP_ADD && this.opTypes[slot] === typeId) present = true;
+    }
+    return present;
+  }
+
+  private bumpRows(index: number, delta: number): void {
+    this.ensureRows(index);
+    const next = (this.rowCounts[index] ?? 0) + delta;
+    this.rowCounts[index] = next > 0 ? next : 0;
+  }
+
+  private clearRows(index: number): void {
+    if (index < this.rowCounts.length) this.rowCounts[index] = 0;
+  }
+
+  private rowCount(index: number): number {
+    if (index >= this.rowCounts.length) return 0;
+    return this.rowCounts[index] ?? 0;
+  }
+
+  private ensureRows(index: number): void {
+    if (index < this.rowCounts.length) return;
+    let next = this.rowCounts.length === 0 ? 8 : this.rowCounts.length;
+    while (next <= index) next *= 2;
+    const counts = new Uint16Array(next);
+    counts.set(this.rowCounts);
+    this.rowCounts = counts;
+  }
+
+  private pushOp(
+    kind: number,
+    index: number,
+    generation: number,
+    typeId: number,
+    flag: number,
+  ): number {
+    const slot = this.opCount;
+    this.ensureOps(slot + 1);
+    this.opKinds[slot] = kind;
+    this.opIndexes[slot] = index;
+    this.opGenerations[slot] = generation;
+    this.opTypes[slot] = typeId;
+    this.opFlags[slot] = flag;
+    this.opCount = slot + 1;
+    return slot;
+  }
+
+  private ensureOps(needed: number): void {
+    if (needed <= this.opCapacity) return;
+    let next = this.opCapacity === 0 ? 8 : this.opCapacity;
+    while (next < needed) next *= 2;
+    const kinds = new Uint8Array(next);
+    const indexes = new Uint32Array(next);
+    const generations = new Uint32Array(next);
+    const types = new Uint32Array(next);
+    const flags = new Uint8Array(next);
+    if (this.opCapacity > 0) {
+      kinds.set(this.opKinds);
+      indexes.set(this.opIndexes);
+      generations.set(this.opGenerations);
+      types.set(this.opTypes);
+      flags.set(this.opFlags);
+    }
+    const defs: (ComponentDefinition<ComponentSchema> | null)[] = [];
+    const data: (object | null)[] = [];
+    defs.length = next;
+    data.length = next;
+    for (let slot = 0; slot < this.opCount; slot += 1) {
+      defs[slot] = this.addDefs[slot] ?? null;
+      data[slot] = this.addData[slot] ?? null;
+    }
+    this.opKinds = kinds;
+    this.opIndexes = indexes;
+    this.opGenerations = generations;
+    this.opTypes = types;
+    this.opFlags = flags;
+    this.addDefs = defs;
+    this.addData = data;
+    this.opCapacity = next;
+  }
+
+  private clearOps(): void {
+    const count = this.opCount;
+    const kinds = this.opKinds;
+    for (let slot = 0; slot < count; slot += 1) {
+      if (kinds[slot] !== OP_ADD) continue;
+      this.addDefs[slot] = null;
+      this.addData[slot] = null;
+    }
+    this.opCount = 0;
   }
 
   /**
@@ -140,7 +450,12 @@ export class EngineEntities {
    * Returns false when `id` is not alive, without changing state.
    */
   setDormant(id: EntityId, dormant: boolean): boolean {
-    return this.deps.bridge.setEntityDormant(entityIndex(id), entityGeneration(id), dormant);
+    const index = entityIndex(id);
+    const generation = entityGeneration(id);
+    if (this.depth === 0) return this.deps.bridge.setEntityDormant(index, generation, dormant);
+    if (!this.mirror.isAlive(index, generation) || this.rowCount(index) === 0) return false;
+    this.pushOp(OP_DORMANT, index, generation, 0, dormant ? 1 : 0);
+    return true;
   }
 
   /**
@@ -156,11 +471,18 @@ export class EngineEntities {
     const typeId = componentRegistryFor(this.deps.engine).getOrRegister(def);
     const index = entityIndex(id);
     const generation = entityGeneration(id);
+    if (this.depth > 0) {
+      this.addDeferred(def, data, index, generation, typeId);
+      return;
+    }
     if (this.deps.bridge.hasComponent(index, generation, typeId)) {
       this.writePresent(def, data, index, generation, typeId);
       return;
     }
-    if (this.writeCold(def, data, index, generation, typeId)) this.membership += 1;
+    if (this.writeCold(def, data, index, generation, typeId)) {
+      this.membership += 1;
+      this.bumpRows(index, 1);
+    }
   }
 
   /** In-place lane write. Kept small so the call allocates nothing. */
@@ -231,8 +553,19 @@ export class EngineEntities {
     this.deps.assertState("removeComponent");
     const typeId = componentRegistryFor(this.deps.engine).get(def.name);
     if (typeId === undefined) return false;
-    const removed = this.deps.bridge.removeComponent(entityIndex(id), entityGeneration(id), typeId);
-    if (removed) this.membership += 1;
+    const index = entityIndex(id);
+    const generation = entityGeneration(id);
+    if (this.depth > 0) {
+      if (!this.simulatedHas(index, generation, typeId)) return false;
+      this.bumpRows(index, -1);
+      this.pushOp(OP_REMOVE, index, generation, typeId, 0);
+      return true;
+    }
+    const removed = this.deps.bridge.removeComponent(index, generation, typeId);
+    if (removed) {
+      this.membership += 1;
+      this.bumpRows(index, -1);
+    }
     return removed;
   }
 
@@ -251,8 +584,12 @@ export class EngineEntities {
     components: C,
     precomputedKey?: string,
   ): Query<C> {
-    const query = createChunkQuery(this.deps.engine, this.deps.bridge, components, () =>
-      this.createLiveQuery(components, precomputedKey),
+    const query = createChunkQuery(
+      this.deps.engine,
+      this.deps.bridge,
+      components,
+      () => this.createLiveQuery(components, precomputedKey),
+      this.loopHooks,
     );
     this.chunkQueries.push(query);
     return query;

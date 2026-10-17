@@ -42,19 +42,26 @@ describe("deferred structural ops", () => {
       expect(awake).toBe(0);
       for (const id of ids) setEntityDormant(engine, id, false);
 
-      const passes = 8;
+      const passes = 256;
       const report = await measureAllocations(
         () => {
           for (let pass = 0; pass < passes; pass += 1) {
             for (const chunk of query) {
-              for (let row = 0; row < chunk.count; row += 1) {
-                setEntityDormant(engine, chunk.entityId(row), true);
+              if (chunk.count === 0) continue;
+              for (let row = 0; row < ids.length; row += 1) {
+                const id = ids[row];
+                if (id === undefined) continue;
+                setEntityDormant(engine, id, true);
               }
             }
-            for (const id of ids) setEntityDormant(engine, id, false);
+            for (let row = 0; row < ids.length; row += 1) {
+              const id = ids[row];
+              if (id === undefined) continue;
+              setEntityDormant(engine, id, false);
+            }
           }
         },
-        { warmup: 2, ops: ROWS * 2 * passes },
+        { warmup: 8, ops: ROWS * 2 * passes },
       );
 
       expect(report.gcCount).toBe(0);
