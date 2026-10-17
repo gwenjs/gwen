@@ -2,6 +2,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
+import { unpackEntityId } from "../../src/index.js";
 import { defineComponent, Types } from "../../src/schema.js";
 import { useQuery } from "../../src/system/runtime/define-system.js";
 import { measureAllocations } from "./allocation.js";
@@ -223,6 +224,36 @@ describe("p65 bulk query", () => {
       expect(sink > 0).toBe(true);
       expect(report.gcCount).toBe(0);
       expect(report.bytesPerOp).toBeLessThan(1);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("queryEntitiesRaw with 17 type ids returns the one entity that has all of them", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 32 });
+    try {
+      const { engine, bridge } = handle;
+      const fields = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16].map((index) =>
+        defineComponent({
+          name: `P65All17Field${String(index)}`,
+          schema: { v: Types.f32 },
+          defaults: { v: 0 },
+        }),
+      );
+      const full = engine.createEntity();
+      for (const def of fields) engine.addComponent(full, def, { v: 1 });
+      const partial = engine.createEntity();
+      for (const def of fields.slice(0, 16)) engine.addComponent(partial, def, { v: 1 });
+      const ids = fields.map((def) => engine.getOrRegisterComponent(def.name));
+
+      const count = bridge.queryEntitiesRaw(ids);
+      expect(count).toBe(1);
+
+      const matched: number[] = [];
+      bridge.forEachQueryResultRaw(ids, (index) => {
+        matched.push(index);
+      });
+      expect(matched).toEqual([unpackEntityId(full).index]);
     } finally {
       await handle.dispose();
     }
