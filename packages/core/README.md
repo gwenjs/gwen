@@ -261,9 +261,45 @@ log.error("oops");
 
 ### `.`
 
-Values: `ActorErrorCodes`, `ComposableErrorCodes`, `CoreErrorCodes`, `GwenActorError`, `GwenComposableError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenLogger`, `GwenPluginNotFoundError`, `Types`, `consoleLogProvider`, `createEngine`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `defineSequence`, `emit`, `onCleanup`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `useTween`, `withAsyncContext`, `withCleanup`
+Values: `ActorErrorCodes`, `ComposableErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComposableError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenLogger`, `GwenPluginNotFoundError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `defineSequence`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `useTween`, `withAsyncContext`, `withCleanup`
 
-Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `EasingName`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFramePhaseMs`, `EngineState`, `EngineStateChange`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenHookable`, `GwenHooks`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `LogEntry`, `LogLevel`, `MemoryRegion`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `EasingName`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineState`, `EngineStateChange`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenHookable`, `GwenHooks`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `LogEntry`, `LogLevel`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+
+`EngineMemory` — Per-engine views over gwen-core linear memory.
+
+`FLAG_TELEPORT` — Bit 2 of a history slot: the renderer copies `current` and skips the lerp.
+
+`GwenWasmAbiError` — A plugin WASM module declared an ABI version other than the core's.
+
+`GwenWasmError` — Recoverable failure of one core WASM export.
+
+`GwenWasmPanicError` — A core WASM trap that does not extend `GwenWasmError`.
+
+`createEngineLocal` — Returns an `EngineLocal<T>` from `init` and an optional `dispose`.
+
+`readInterpolatedTransform2D` — Writes the interpolated 2D sample for a slot into `out`.
+
+`CoreWasmErrorCode` — Codes a core WASM export puts on the thrown `Error`; panic is not in this set.
+
+`EngineFrame` — Interpolation state for the display frame currently running.
+
+`EngineLocal` — Per-engine state slot.
+
+`GwenEngineStateMethod` — Lifecycle call rejected by `GwenEngineStateError`.
+
+`GwenWasmModules` — Augmentable registry of loaded WASM module names to their export types.
+
+`InterpolatedTransform2D` — Caller-owned sample whose fields the helper writes.
+
+`MemoryView` — Named view with `array`, `epoch`, and `dispose()`.
+
+`MemoryViewArray` — Typed array or `DataView` for one `MemoryViewType`.
+
+`MemoryViewDescriptor` — Name, view type, and functions that return the pointer and the length.
+
+`MemoryViewType` — `WasmMemoryRegion["type"]` or `"dataview"`.
+
+`TransformPair2D` — The last two committed 2D history buffers.
 
 ### `./system`
 
@@ -275,7 +311,11 @@ Types: `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`
 
 Values: `PoolExhaustedError`, `defineActor`, `defineActorPool`, `defineLayout`, `definePrefab`, `onAfterUpdate`, `onBeforeUpdate`, `onDestroy`, `onDisable`, `onEnable`, `onRelease`, `onRender`, `onReset`, `onStart`, `onUpdate`, `placeActor`, `placeGroup`, `placePrefab`, `useActor`, `useActorPool`, `useActorQuery`, `useChildren`, `useComponent`, `useEntityId`, `useLayout`, `usePrefab`, `useTransform`, `watchActorLeaks`
 
-Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabHandle`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
+Types: `ActorDefinition`, `ActorHandle`, `ActorInstance`, `ActorPlugin`, `ActorPool`, `ActorPoolDefinition`, `ChildrenHandle`, `CustomScope`, `LayoutDefinition`, `LayoutHandle`, `PlaceHandle`, `PoolHooks`, `PoolOptions`, `PoolStats`, `PrefabComponentEntry`, `PrefabDefinition`, `PrefabEntries`, `PrefabHandle`, `PrefabOverrides`, `RenderFn`, `TransformHandle`, `UpdateFn`, `UseLayoutOptions`, `VoidFn`, `WatchActorLeaksOptions`
+
+`PrefabEntries` — One prefab slot per component.
+
+`PrefabOverrides` — Flat field bag merged into every component at spawn.
 
 ### `./scene`
 
@@ -329,9 +369,17 @@ Types: `CreateRealEngineOptions`, `RealEngineHandle`
 
 no semver guarantee — framework packages and generated code only
 
-Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
+Values: `EASING_MAP`, `FLAGS_OFFSET`, `FLAG_HAS_TRANSFORM`, `GwenScope`, `MAX_SAB_BYTES`, `SENTINEL`, `SharedMemoryManager`, `StringPool`, `StringPoolManager`, `stringPoolFor`, `TRANSFORM3D_STRIDE`, `TRANSFORM_OFFSETS`, `TRANSFORM_STRIDE`, `Transform3D`, `TweenManager`, `TweenPlugin`, `TweenPool`, `WasmBridgeImpl`, `_getActorContext`, `_getActorEntityId`, `buildTransformImports`, `createDisposable`, `createGwenHooks`, `detectCoreVariant`, `engineContext`, `entityIndex`, `executeAsync`, `getTweenManager`, `getWasmBridge`, `poisonWasmBridge`, `readTransform3DPosition`, `readTransform3DRotation`, `readTransform3DScale`, `reportRejectedHook`, `toGwenWasmError`, `writeTransform3DPosition`, `writeTransform3DRotation`, `writeTransform3DScale`
 
 Types: `GwenCoreWasm`, `GwenTransformImports`, `InitWasmOptions`, `TweenPluginOptions`, `TweenPoolPolicy`, `TweenSlot`, `WasmEngine`, `WasmEnginePhysics2D`, `WasmEnginePhysics3D`, `WasmEntityId`
+
+`_getActorContext` — Actor context for the spawn in progress, or `null` when no factory is running.
+
+`poisonWasmBridge` — Marks a core bridge poisoned after a trap that did not go through `toGwenWasmError`.
+
+`reportRejectedHook` — Attaches a rejection handler to a fire-and-forget `callHook` result.
+
+`toGwenWasmError` — Maps an export failure onto a typed error.
 
 ### `./wasm/light`
 

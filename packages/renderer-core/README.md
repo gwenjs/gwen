@@ -98,9 +98,21 @@ const stats = manager.getStats();
 
 ### `.`
 
-Values: `BrowserSizeProvider`, `EmptyLayersError`, `RENDERER_CONTRACT_VERSION`, `RendererAlreadyRegisteredError`, `RendererContractVersionError`, `RendererErrorCodes`, `ScreenErrorCodes`, `ScreenPlugin`, `ScreenResizeObserverError`, `ScreenViewportNotFoundError`, `StaticSizeProvider`, `UnknownLayerError`, `defineRendererService`, `getOrCreateCameraManager`, `getOrCreateLayerManager`, `getOrCreateScreenService`, `getOrCreateViewportManager`, `useCameraManager`, `useScreen`, `useViewportManager`
+Values: `BrowserSizeProvider`, `EmptyLayersError`, `LayerOrderConflictError`, `RENDERER_CONTRACT_VERSION`, `RendererAlreadyRegisteredError`, `RendererContractVersionError`, `RendererErrorCodes`, `ScreenErrorCodes`, `ScreenPlugin`, `ScreenResizeObserverError`, `ScreenViewportNotFoundError`, `StaticSizeProvider`, `SurfaceInvalidError`, `UnknownLayerError`, `defineRendererService`, `getOrCreateCameraManager`, `getOrCreateLayerManager`, `getOrCreateScreenService`, `getOrCreateViewportManager`, `useCameraManager`, `useScreen`, `useViewportManager`, `writeCameraViews`
 
-Types: `AnimOpts`, `AnimatorHandle`, `CameraManager`, `CameraProjection`, `CameraState`, `HTMLHandle`, `LayerDef`, `ManagedRendererService`, `MeshHandle`, `RendererErrorCode`, `RendererFlushContext`, `RendererLayerStats`, `RendererMountContext`, `RendererRendererStats`, `RendererService`, `RendererServiceDef`, `RendererServiceInstance`, `RendererStats`, `RendererStatsCollector`, `ScreenErrorCode`, `ScreenPluginOptions`, `ScreenService`, `ScreenSizeProvider`, `SpriteHandle`, `ViewportBounds`, `ViewportBoundsProvider`, `ViewportContext`, `ViewportManager`, `ViewportPixels`, `ViewportRegion`, `ViewportScreenInfo`, `WorldTransform`
+Types: `AnimOpts`, `AnimatorHandle`, `CameraManager`, `CameraProjection`, `CameraState`, `HTMLHandle`, `LayerDef`, `ManagedRendererService`, `MeshHandle`, `RenderView`, `RendererErrorCode`, `RendererFlushContext`, `RendererKind`, `RendererLayerStats`, `RendererMountContext`, `RendererRendererStats`, `RendererService`, `RendererServiceDef`, `RendererServiceInstance`, `RendererStats`, `RendererStatsCollector`, `ScreenErrorCode`, `ScreenPluginOptions`, `ScreenService`, `ScreenSizeProvider`, `SpriteHandle`, `SurfaceRendererService`, `ViewportBounds`, `ViewportBoundsProvider`, `ViewportContext`, `ViewportManager`, `ViewportPixels`, `ViewportRegion`, `ViewportScreenInfo`, `WorldTransform`
+
+`LayerOrderConflictError` — Thrown when a surface layer shares its `order` with any other layer.
+
+`SurfaceInvalidError` — Thrown when a surface renderer does not declare exactly one world layer.
+
+`writeCameraViews` — Fills `out` from cameras, viewports, and screen info.
+
+`RenderView` — One rendered view: a viewport camera or an XR eye.
+
+`RendererKind` — `"layers"` or `"surface"`; omitted on `RendererService` means `"layers"`.
+
+`SurfaceRendererService` — A renderer that owns exactly one drawing surface.
 
 ### `./module`
 
@@ -110,9 +122,11 @@ Types: none
 
 ### `./testing`
 
-Values: `MockSizeProvider`, `runConformanceTests`
+Values: `MockSizeProvider`, `runConformanceTests`, `runSurfaceConformance`
 
 Types: `MockSizeProviderHandle`
+
+`runSurfaceConformance` — Surface-renderer checks on top of `runConformanceTests`.
 
 ### `./internal`
 

@@ -121,9 +121,19 @@ export const BulletPrefab = definePrefab({
 
 ### `.`
 
-Values: `Physics2DPlugin`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `default`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `physics2dVitePlugin`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
+Values: `Physics2DErrorCodes`, `Physics2DPlugin`, `Physics2DStaleBodyHandleError`, `Physics2DStaleEntityError`, `SENSOR_ID_FOOT`, `buildTilemapPhysicsChunks`, `createPhysicsKinematicSyncSystem`, `createPlatformerGroundedSystem`, `default`, `defineLayers`, `onContact`, `onSensorEnter`, `onSensorExit`, `patchTilemapPhysicsChunk`, `physics2dVitePlugin`, `useBoxCollider`, `useCapsuleCollider`, `useCollider`, `useDynamicBody`, `useKinematicBody`, `usePhysics2D`, `useRigidBody`, `useShape`, `useSphereCollider`, `useStaticBody`
 
-Types: `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `ContactEvent`, `DynamicBodyHandle`, `DynamicBodyOptions`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PhysicsQualityPreset`, `PlatformerGroundedSystemOptions`, `RigidBodyType`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
+Types: `BoxColliderHandle`, `BoxColliderOptions`, `CapsuleColliderHandle`, `CapsuleColliderOptions`, `CircleColliderHandle`, `ColliderOptions`, `CollisionContact`, `CollisionEvent`, `CollisionEventsBatch`, `ContactEvent`, `DynamicBodyHandle`, `DynamicBodyOptions`, `InternalCollisionEventsBatch`, `KinematicBodyHandle`, `KinematicBodyOptions`, `Physics2DAPI`, `Physics2DConfig`, `Physics2DErrorCode`, `Physics2DLayerDefinition`, `Physics2DPluginHooks`, `Physics2DPrefabExtension`, `PhysicsColliderDef`, `PhysicsColliderShape`, `PhysicsKinematicSyncSystemOptions`, `PhysicsQualityPreset`, `PlatformerGroundedSystemOptions`, `RigidBodyType`, `SensorState`, `ShapeOptions`, `SphereColliderOptions`, `StaticBodyHandle`, `StaticBodyOptions`, `TilemapPhysicsChunkMap`
+
+`Physics2DErrorCodes` — Error codes emitted by the Physics2D plugin.
+
+`Physics2DStaleBodyHandleError` — Thrown when a collider call uses a body handle that has no owner.
+
+`Physics2DStaleEntityError` — Thrown when a Physics2D call targets an entity that is not alive.
+
+`InternalCollisionEventsBatch` — Plugin batch whose `events` carry the slot indices omitted from `CollisionEvent`.
+
+`Physics2DErrorCode` — Every value of `Physics2DErrorCodes`.
 
 ### `./module`
 

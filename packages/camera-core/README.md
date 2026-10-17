@@ -200,4 +200,6 @@ no semver guarantee — framework packages and generated code only
 
 Values: `getCameraStores`
 
-Types: none
+Types: `CameraStores`
+
+`CameraStores` — Per-engine camera side stores.
