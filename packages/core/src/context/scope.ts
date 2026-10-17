@@ -15,7 +15,14 @@
 import type { GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
 import { ScopedHookable } from "../hooks/scoped-hookable.js";
-import { forgetTarget, guardHandler, targetFromScopeMeta } from "../engine/error-isolation.js";
+import type { GwenEngine } from "../engine/engine-types.js";
+import { enterSystemDepth, leaveSystemDepth } from "../engine/engine-internals.js";
+import {
+  forgetTarget,
+  guardHandler,
+  isThenable,
+  targetFromScopeMeta,
+} from "../engine/error-isolation.js";
 
 let _scopeIdCounter = 0;
 
@@ -103,7 +110,12 @@ export class GwenScope implements IGwenScope {
       String(name),
       this.engine,
     );
-    const unsub = this._hookable.hook(name, guarded as GwenRuntimeHooks[K]);
+    const scopeEngine: unknown = this.engine;
+    const tracked =
+      this.meta.type === "system" && isScopeEngine(scopeEngine)
+        ? withSystemDepth(scopeEngine, guarded)
+        : guarded;
+    const unsub = this._hookable.hook(name, tracked as GwenRuntimeHooks[K]);
     return () => {
       unsub();
       this._hookCount--;
@@ -147,4 +159,59 @@ export class GwenScope implements IGwenScope {
       if (idx !== -1) this.parent._children.splice(idx, 1);
     }
   }
+}
+
+/** The scope field is untyped. Keep only an object that can emit and report a frame. */
+function isScopeEngine(value: unknown): value is GwenEngine {
+  if (typeof value !== "object" || value === null) return false;
+  const frameCount: unknown = Reflect.get(value, "frameCount");
+  const errors: unknown = Reflect.get(value, "errors");
+  if (typeof frameCount !== "number") return false;
+  if (typeof errors !== "object" || errors === null) return false;
+  return typeof Reflect.get(errors, "emit") === "function";
+}
+
+type GuardedHook = (a: unknown, b: unknown, c: unknown, d: unknown) => unknown;
+
+/**
+ * System hooks only. Depth stays up until a returned thenable settles.
+ * A sync hook drops it before returning, including when the guard swallows a throw.
+ */
+function withSystemDepth(engine: GwenEngine, handler: GuardedHook): GuardedHook {
+  return function tracked(a: unknown, b: unknown, c: unknown, d: unknown): unknown {
+    enterSystemDepth(engine);
+    try {
+      const result =
+        arguments.length > 4
+          ? Function.prototype.apply.call(handler, undefined, arguments)
+          : handler(a, b, c, d);
+      if (!isThenable(result)) {
+        leaveSystemDepth(engine);
+        return result;
+      }
+      return settleSystemDepth(engine, result);
+    } catch (error: unknown) {
+      leaveSystemDepth(engine);
+      throw error;
+    }
+  };
+}
+
+function settleSystemDepth(engine: GwenEngine, result: PromiseLike<unknown>): PromiseLike<unknown> {
+  let left = false;
+  const leave = (): void => {
+    if (left) return;
+    left = true;
+    leaveSystemDepth(engine);
+  };
+  return result.then(
+    (value: unknown) => {
+      leave();
+      return value;
+    },
+    (error: unknown) => {
+      leave();
+      throw error;
+    },
+  );
 }

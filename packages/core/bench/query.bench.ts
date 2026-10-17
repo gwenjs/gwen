@@ -9,6 +9,8 @@ import { afterAll, bench, beforeAll, describe } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenEngine } from "../src/engine/engine-types";
 import { defineComponent, Types } from "../src/schema";
+import { useQuery } from "../src/system/runtime/define-system";
+import type { Query } from "../src/system/runtime/define-system";
 
 const Position = defineComponent({ name: "Position", schema: { x: Types.f32, y: Types.f32 } });
 const Velocity = defineComponent({ name: "Velocity", schema: { vx: Types.f32, vy: Types.f32 } });
@@ -32,27 +34,30 @@ async function fill(count: number, withHealth: "all" | "half" | "none"): Promise
   return engine;
 }
 
+const engines: GwenEngine[] = [];
+let one: GwenEngine;
+let five: GwenEngine;
+let ten: GwenEngine;
+let multi: GwenEngine;
+let half: GwenEngine;
+let chunkQuery: Query<readonly [typeof Position]>;
+
+// File-level hooks. Vitest's benchmark runner skips beforeAll on a nested describe.
+beforeAll(async () => {
+  one = await fill(1_000, "none");
+  five = await fill(5_000, "none");
+  ten = await fill(10_000, "none");
+  multi = await fill(1_000, "all");
+  half = await fill(1_000, "half");
+  engines.push(one, five, ten, multi, half);
+  chunkQuery = ten.run(() => useQuery([Position]));
+});
+
+afterAll(async () => {
+  for (const engine of engines) await engine.stop();
+});
+
 describe("Query iteration — engine createLiveQuery", () => {
-  const engines: GwenEngine[] = [];
-  let one: GwenEngine;
-  let five: GwenEngine;
-  let ten: GwenEngine;
-  let multi: GwenEngine;
-  let half: GwenEngine;
-
-  beforeAll(async () => {
-    one = await fill(1_000, "none");
-    five = await fill(5_000, "none");
-    ten = await fill(10_000, "none");
-    multi = await fill(1_000, "all");
-    half = await fill(1_000, "half");
-    engines.push(one, five, ten, multi, half);
-  });
-
-  afterAll(async () => {
-    for (const engine of engines) await engine.stop();
-  });
-
   bench(
     "1 000 entities, 1 component",
     () => {
@@ -78,6 +83,29 @@ describe("Query iteration — engine createLiveQuery", () => {
     () => {
       let sum = 0;
       for (const entity of ten.createLiveQuery([Position])) sum += entity.get(Position).x;
+      return sum;
+    },
+    SAMPLE,
+  );
+
+  bench(
+    "10 000 entities, chunk loop",
+    () => {
+      let sum = 0;
+      for (const chunk of chunkQuery) {
+        const pos = chunk.get(Position);
+        for (let row = 0; row < chunk.count; row++) sum += pos.x[row] ?? 0;
+      }
+      return sum;
+    },
+    SAMPLE,
+  );
+
+  bench(
+    "10 000 entities, each()",
+    () => {
+      let sum = 0;
+      for (const entity of chunkQuery.each()) sum += entity.get(Position).x;
       return sum;
     },
     SAMPLE,

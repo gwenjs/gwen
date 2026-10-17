@@ -23,6 +23,7 @@ import {
   type DisplayTiming,
 } from "./fixed-display.js";
 import { recordPhaseBudget } from "./phase-budget.js";
+import { setFramePhase } from "./engine-internals.js";
 
 /**
  * Mutable engine knobs. Read on each frame. Never copied into the loop.
@@ -331,8 +332,13 @@ export class EngineLoop {
         if (memoryGrow !== undefined) await memoryGrow;
       }
       if (this.deps.state.isFaulted()) return;
-      const beforeDone = this._guardHook1("engine:before-update", dt);
-      if (isThenable(beforeDone)) await beforeDone;
+      try {
+        setFramePhase(this.deps.owner, "engine:before-update");
+        const beforeDone = this._guardHook1("engine:before-update", dt);
+        if (isThenable(beforeDone)) await beforeDone;
+      } finally {
+        setFramePhase(this.deps.owner, null);
+      }
       if (instrument) t3 = performance.now();
 
       // Phase 3 — community WASM modules step (Cas B: user WASM, registration order)
@@ -374,8 +380,13 @@ export class EngineLoop {
         if (memoryGrow !== undefined) await memoryGrow;
       }
       if (this.deps.state.isFaulted()) return;
-      const updateDone = this._guardHook1("engine:update", dt);
-      if (isThenable(updateDone)) await updateDone;
+      try {
+        setFramePhase(this.deps.owner, "engine:update");
+        const updateDone = this._guardHook1("engine:update", dt);
+        if (isThenable(updateDone)) await updateDone;
+      } finally {
+        setFramePhase(this.deps.owner, null);
+      }
       if (instrument) t6 = performance.now();
 
       // Phase 6a — emit after-update hook
@@ -385,8 +396,13 @@ export class EngineLoop {
         if (memoryGrow !== undefined) await memoryGrow;
       }
       if (this.deps.state.isFaulted()) return;
-      const afterDone = this._guardHook1("engine:after-update", dt);
-      if (isThenable(afterDone)) await afterDone;
+      try {
+        setFramePhase(this.deps.owner, "engine:after-update");
+        const afterDone = this._guardHook1("engine:after-update", dt);
+        if (isThenable(afterDone)) await afterDone;
+      } finally {
+        setFramePhase(this.deps.owner, null);
+      }
       if (this.deps.state.isFaulted()) return;
 
       // Phase 6b — variable loop only. Fixed mode renders once after the steps.
@@ -436,6 +452,8 @@ export class EngineLoop {
         this._timing.t0 = next.displayT0;
       }
     } finally {
+      // Inner finally clears each phase. This covers a throw between those tries.
+      setFramePhase(this.deps.owner, null);
       popEngine(this.deps.owner, previousEngine);
     }
   }

@@ -107,6 +107,11 @@ export const CoreErrorCodes = {
    * row outside the awake prefix.
    */
   QUERY_INVALID: "CORE:QUERY_INVALID",
+  /**
+   * Dev-only warning on `engine.errors`. Not thrown and not fatal.
+   * Once per engine per api (`Query.each` or `useComponentFor`) during a system update phase.
+   */
+  QUERY_PER_ENTITY_PATH: "CORE:QUERY_PER_ENTITY_PATH",
   /** The chunk store broke an invariant. `site` is in the Rust error. Report the bug. */
   STORAGE_INCONSISTENT: "CORE:STORAGE_INCONSISTENT",
 } as const;

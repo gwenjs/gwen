@@ -88,6 +88,10 @@ CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() before the bridge is activ
 
 `CORE:STORAGE_INCONSISTENT` means the component store broke an invariant a normal call cannot build (a slot pointing at a missing chunk or row, a lane that disappeared, a count above the row length, a moved entity with no slot). A dead entity, a stale generation, and an absent component are not this code. Treat it as a bug in the engine and report it. The Rust error carries a stable `site` number. A running engine moves to `faulted`.
 
+`CORE:QUERY_PER_ENTITY_PATH` is a dev-only warning on `engine.errors`. It is not thrown and it is not fatal. It fires once per engine per api (`Query.each` or `useComponentFor`) during `engine:before-update`, `engine:update`, or `engine:after-update`.
+
+`CORE:QUERY_INVALID` has two origins and stays one code. Rust: the chunk store rejected an empty type list or an unknown handle. TypeScript: a query used after release or engine stop, a chunk used after its loop step, or `entityId(row)` outside `[0, count)`.
+
 Plugins define their own error codes following the same pattern: `'PLUGIN_NAME:ERROR_TYPE'`.
 
 ## Emitting Errors

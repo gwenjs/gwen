@@ -5,6 +5,7 @@ import type { ComponentSchema, SchemaType } from "../schema.js";
 import { createEntityId, type EntityId } from "../types/entity.js";
 import type { GwenEngine } from "./engine-types.js";
 import { CoreErrorCodes } from "./engine-errors.js";
+import { rememberQueryEngine, warnPerEntityPath } from "./engine-internals.js";
 import { componentRegistryFor } from "./engine-component-registry.js";
 import { chunkLaneViews, type LaneArray, type ViewableLaneKind } from "./chunk-lanes.js";
 import type { WasmBridgeImpl } from "./wasm-bridge.js";
@@ -610,6 +611,7 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
       this.handle = bridge.registerQuery(ids);
     }
     this.primary = new ChunkIter(this, new ChunkCursor(this, this.plans, components));
+    rememberQueryEngine(this, engine);
   }
 
   get count(): number {
@@ -630,6 +632,7 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
 
   readonly each = (): LiveQuery<EntityAccessor<C>> => {
     if (this.released) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    warnPerEntityPath(this.engine, "Query.each");
     return this.readEach();
   };
 

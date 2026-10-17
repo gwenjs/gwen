@@ -96,20 +96,6 @@ function stagedMotion(engine: ReturnType<typeof useEngine>): StagedMotion {
   };
 }
 
-function stepPosition(motion: StagedMotion, id: EntityId, dt: number): void {
-  const slot = entityIndex(id);
-  const generation = entityGeneration(id);
-  motion.bridge.readComponentStaged(slot, generation, motion.posType);
-  const x = motion.view.getFloat32(0, true);
-  const y = motion.view.getFloat32(4, true);
-  motion.bridge.readComponentStaged(slot, generation, motion.velType);
-  const vx = motion.view.getFloat32(0, true);
-  motion.bridge.readComponentStaged(slot, generation, motion.posType);
-  motion.view.setFloat32(0, x + vx * dt, true);
-  motion.view.setFloat32(4, y, true);
-  motion.bridge.writeComponentStaged(slot, generation, motion.posType);
-}
-
 function stepPositionX(motion: StagedMotion, id: EntityId, dt: number): void {
   const slot = entityIndex(id);
   const generation = entityGeneration(id);
@@ -128,14 +114,19 @@ function updateSystem(extraObject: boolean): AllocScenario {
         ? Array.from({ length: entities })
         : null;
       const system = defineSystem("alloc-update-system", () => {
-        const motion = stagedMotion(useEngine());
         const query = useQuery([Position, Velocity]);
         onUpdate((dt) => {
           let index = 0;
-          for (const entry of query.each()) {
-            stepPosition(motion, entry.id, dt);
-            if (slots) slots[index] = { n: index };
-            index += 1;
+          for (const chunk of query) {
+            const pos = chunk.get(Position);
+            const vel = chunk.get(Velocity);
+            for (let row = 0; row < chunk.count; row++) {
+              const x = pos.x[row] ?? 0;
+              const vx = vel.vx[row] ?? 0;
+              pos.x[row] = x + vx * dt;
+              if (slots) slots[index] = { n: index };
+              index += 1;
+            }
           }
           sink = index;
         });
