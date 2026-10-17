@@ -1,6 +1,8 @@
 name: Wasm sample
 
 on:
+  push:
+    branches: [wave6/234-alloc-floor]
   workflow_dispatch:
 
 jobs:
