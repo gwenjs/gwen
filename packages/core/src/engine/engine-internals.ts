@@ -5,6 +5,8 @@ import type { GwenEngine } from "./engine-types.js";
 interface EngineInternalOps {
   setDormant(id: EntityId, dormant: boolean): boolean;
   queryIds(components: readonly ComponentDef[]): readonly EntityId[];
+  structuralCompares(): number;
+  loopDepth(): number;
 }
 
 const engineInternals = new WeakMap<object, EngineInternalOps>();
@@ -36,4 +38,18 @@ export function readLiveQueryIds(
   const ops = engineInternals.get(engine);
   if (!ops) return [];
   return ops.queryIds(components);
+}
+
+/** Key comparisons made while queueing structural ops. Test seam only. @internal */
+export function readStructuralCompares(engine: GwenEngine): number {
+  const ops = engineInternals.get(engine);
+  if (!ops) return -1;
+  return ops.structuralCompares();
+}
+
+/** Open chunk-loop depth. Test seam only. @internal */
+export function readLoopDepth(engine: GwenEngine): number {
+  const ops = engineInternals.get(engine);
+  if (!ops) return -1;
+  return ops.loopDepth();
 }

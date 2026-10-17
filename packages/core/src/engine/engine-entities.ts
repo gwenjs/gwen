@@ -111,6 +111,8 @@ export class EngineEntities {
   private addData: (object | null)[] = [];
   /** Component rows in the simulated state. Index is the entity slot. */
   private rowCounts = new Uint16Array(0);
+  /** Key comparisons while scanning the queued ops. Read by the test seam. */
+  private structuralCompares = 0;
 
   private readonly readStagingPtr = (): number => this.deps.bridge.componentStagingPtr();
 
@@ -312,6 +314,7 @@ export class EngineEntities {
     let removed = false;
     const count = this.opCount;
     for (let slot = 0; slot < count; slot += 1) {
+      this.structuralCompares += 1;
       if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
       const kind = this.opKinds[slot];
       if (kind === OP_DESTROY) return true;
@@ -325,6 +328,7 @@ export class EngineEntities {
     let found = -1;
     const count = this.opCount;
     for (let slot = 0; slot < count; slot += 1) {
+      this.structuralCompares += 1;
       if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
       const kind = this.opKinds[slot];
       if (kind === OP_DESTROY) return -1;
@@ -339,6 +343,7 @@ export class EngineEntities {
     let present = this.deps.bridge.hasComponent(index, generation, typeId);
     const count = this.opCount;
     for (let slot = 0; slot < count; slot += 1) {
+      this.structuralCompares += 1;
       if (this.opIndexes[slot] !== index || this.opGenerations[slot] !== generation) continue;
       const kind = this.opKinds[slot];
       if (kind === OP_DESTROY) return false;
@@ -670,6 +675,16 @@ export class EngineEntities {
     this.fillChunkIds(cached.query, cached.ids);
     cached.generation = generation;
     return cached.ids;
+  }
+
+  /** Key comparisons made by the queued-op scans. @internal */
+  readStructuralCompares(): number {
+    return this.structuralCompares;
+  }
+
+  /** Open chunk loops. @internal */
+  readLoopDepth(): number {
+    return this.depth;
   }
 
   /** Drop every component-query handle. Called from `engine:stop` while WASM is alive. */

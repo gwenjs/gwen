@@ -190,6 +190,8 @@ export abstract class EngineCollaborators {
     rememberEngineInternals(key, {
       setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
       queryIds: (components) => this._entities.resolveIds(components),
+      structuralCompares: () => this._entities.readStructuralCompares(),
+      loopDepth: () => this._entities.readLoopDepth(),
     });
   }
 }
