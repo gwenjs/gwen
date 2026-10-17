@@ -90,6 +90,11 @@ interface QueryBridge {
   releaseQuery(query: number): void;
 }
 
+interface ChunkLoop {
+  enter(): void;
+  leave(): void;
+}
+
 const INVALID = "Query is invalid";
 
 const releases = new WeakMap<object, () => void>();
@@ -104,8 +109,9 @@ export function createChunkQuery<const C extends readonly ComponentDef[]>(
   bridge: WasmBridgeImpl,
   components: C,
   each: () => LiveQuery<EntityAccessor<C>>,
+  loop: ChunkLoop,
 ): Query<C> {
-  const query = new ChunkQuery(engine, bridge, components, each);
+  const query = new ChunkQuery(engine, bridge, components, each, loop);
   releases.set(query, () => {
     query.release();
   });
@@ -294,7 +300,6 @@ class ChunkStep<C extends readonly ComponentDef[]> implements QueryChunk<C> {
     this.rowCount = count;
     this.indexPtr = indexPtr;
     this.generationPtr = generationPtr;
-    this.ensureLive();
   }
 
   get count(): number {
@@ -431,6 +436,8 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
   private position = -1;
   private chunkCount = 0;
   private running = false;
+  /** True after `reset` until the loop ends or `return()` runs. One leave per enter. */
+  private held = false;
   private stride = 0;
   private readonly tableWords: number[] = [];
   private readonly steps: ChunkStep<C>[] = [];
@@ -458,6 +465,9 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
     this.chunkCount = 0;
     this.running = true;
     this.chunk.close();
+    if (this.held) return;
+    this.held = true;
+    this.owner.enterLoop();
   }
 
   next(): IteratorResult<QueryChunk<C>, undefined> {
@@ -469,8 +479,7 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
       this.chunk.close();
     }
     if (this.position >= this.chunkCount) {
-      this.running = false;
-      this.chunk.close();
+      this.finish();
       return this.finished;
     }
     const base = this.position * 4;
@@ -486,9 +495,18 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
   }
 
   return(): IteratorResult<QueryChunk<C>, undefined> {
+    this.finish();
+    return this.finished;
+  }
+
+  /** `for...of` calls `return()` on break or throw, and not when `next()` ends the loop. */
+  private finish(): void {
+    const open = this.held;
     this.running = false;
     this.chunk.close();
-    return this.finished;
+    if (!open) return;
+    this.held = false;
+    this.owner.leaveLoop();
   }
 
   private stepAt(index: number): ChunkStep<C> {
@@ -575,6 +593,7 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
     private readonly bridge: QueryBridge,
     components: C,
     private readonly readEach: () => LiveQuery<EntityAccessor<C>>,
+    private readonly loop: ChunkLoop,
   ) {
     this.components = components;
     const planned = planQuery(components);
@@ -599,6 +618,14 @@ class ChunkQuery<C extends readonly ComponentDef[]> implements Query<C> {
     const ptr = this.readTable();
     const header = new Uint32Array(this.buffer(), ptr, 4);
     return header[3] ?? 0;
+  }
+
+  enterLoop(): void {
+    this.loop.enter();
+  }
+
+  leaveLoop(): void {
+    this.loop.leave();
   }
 
   readonly each = (): LiveQuery<EntityAccessor<C>> => {
