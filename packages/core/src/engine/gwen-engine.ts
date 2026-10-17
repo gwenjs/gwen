@@ -28,7 +28,12 @@ import { componentRegistryFor, componentTypeIds } from "./engine-component-regis
 import type { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
+import type {
+  ComponentDef,
+  LiveQuery,
+  EntityAccessor,
+  Query,
+} from "../system/runtime/define-system";
 
 import { CoreErrorCodes, GwenEngineStateError } from "./engine-errors.js";
 import { EngineCollaborators } from "./engine-collaborators.js";
@@ -452,6 +457,13 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
    *   Do not pass manually; this parameter is injected by `gwenQueryHoistPlugin`.
    * @returns A live {@link LiveQuery} of {@link EntityAccessor} objects
    */
+  createQuery<const C extends readonly ComponentDef[]>(
+    components: C,
+    _precomputedKey?: string,
+  ): Query<C> {
+    return this._entities.createQuery(components, _precomputedKey);
+  }
+
   createLiveQuery<const C extends readonly ComponentDef[]>(
     components: C,
     _precomputedKey?: string,

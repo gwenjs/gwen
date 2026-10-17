@@ -132,7 +132,7 @@ function updateSystem(extraObject: boolean): AllocScenario {
         const query = useQuery([Position, Velocity]);
         onUpdate((dt) => {
           let index = 0;
-          for (const entry of query) {
+          for (const entry of query.each()) {
             stepPosition(motion, entry.id, dt);
             if (slots) slots[index] = { n: index };
             index += 1;

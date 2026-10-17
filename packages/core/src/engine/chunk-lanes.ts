@@ -152,6 +152,7 @@ export function componentStaging(engine: GwenEngine, readPtr: () => number): Dat
  * Lane columns for one query table.
  * One cache entry per chunk id. A repeat call with the same pointer, epoch,
  * and generation returns the same view array.
+ * A chunk shared by another lane layout rebuilds the entry when the pointers differ.
  * A detached buffer is rebuilt even when the epoch has not moved yet.
  */
 export function chunkLaneViews(
@@ -217,7 +218,17 @@ export function chunkLaneViews(
       const lanes = entry.lanes;
       for (let lane = 0; lane < kindCount; lane += 1) {
         const array = lanes[lane];
-        if (array === undefined || array.buffer !== buffer || array.buffer.byteLength === 0) {
+        const kind = laneKinds[lane];
+        const ptr = table[base + 4 + lane] ?? 0;
+        if (
+          array === undefined ||
+          kind === undefined ||
+          array.buffer !== buffer ||
+          array.buffer.byteLength === 0 ||
+          array.byteOffset !== ptr ||
+          array.length !== count ||
+          array.constructor !== LANE_VIEW[kind]
+        ) {
           reuse = false;
           break;
         }

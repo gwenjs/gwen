@@ -24,8 +24,8 @@ for (const chunk of query) {
   expectTypeOf(chunk.get(Position).x).toEqualTypeOf<Float32Array>();
   const label = chunk.get(Label);
   // @ts-expect-error string field is not a column
-  label.name;
+  void label.name;
   const big = chunk.get(Big);
   // @ts-expect-error i64 field is not a column
-  big.n;
+  void big.n;
 }

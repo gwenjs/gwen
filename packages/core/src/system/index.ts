@@ -13,5 +13,8 @@ export type {
   ComponentDef,
   EntityAccessor,
   DiscoverablePlugin,
+  Query,
+  QueryChunk,
+  ChunkColumns,
 } from "./runtime/define-system";
 export { useComponentFor } from "./runtime/use-component";

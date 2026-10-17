@@ -32,7 +32,7 @@ export async function measureEngineFrame(): Promise<number> {
         const query = useQuery([Position]);
         onUpdate(() => {
           let sum = 0;
-          for (const entity of query) {
+          for (const entity of query.each()) {
             const pos = entity.get(Position);
             if (!pos) continue;
             const next = pos.x + 1;

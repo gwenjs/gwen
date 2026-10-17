@@ -36,7 +36,7 @@ describe("pool acquire/release allocation (#56)", () => {
           const query = useQuery([Static]);
           onUpdate(() => {
             seen = 0;
-            for (const _entity of query) seen += 1;
+            for (const _entity of query.each()) seen += 1;
           });
         })(),
       );

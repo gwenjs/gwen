@@ -51,7 +51,7 @@ export const EnemyMovementSystem = defineSystem(() => {
   const entities = useQuery([Position, Enemy])
 
   onUpdate((dt) => {
-    for (const entity of entities) {
+    for (const entity of entities.each()) {
       const pos = useComponent(entity.id, Position)
       const enemy = useComponent(entity.id, Enemy)
       pos.x += enemy.speed * dt
@@ -104,7 +104,7 @@ export function computeDamage(base: number, multiplier: number, armor: number): 
 
 // In system — bulk pass
 onUpdate(() => {
-  for (const entity of entities) {
+  for (const entity of entities.each()) {
     const stats = useComponent(entity.id, Stats)
     stats.hp -= computeDamage(stats.attack, 1.2, stats.armor)
   }
@@ -154,6 +154,9 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 GWEN's Vite plugin scans your systems at build time and transforms the ergonomic
 `useComponent` proxy pattern into bulk WASM calls — automatically, without any change to
 your code.
+
+The samples in this section are the shape the optimizer still matches.
+A `useQuery` loop that runs uses `each()` or a chunk. The optimizer update is a separate change.
 
 **You write:**
 
@@ -240,7 +243,7 @@ Regardless of whether the optimizer applies, follow these rules inside `onUpdate
 
 ```ts
 onUpdate((dt) => {
-  for (const entity of entities) {
+  for (const entity of entities.each()) {
     // ✅ useComponent proxy — ergonomic and optimizable
     const pos = useComponent(entity.id, Position)
     pos.x += vel.x * dt

@@ -115,7 +115,15 @@
       "useService",
       "useWasmModule"
     ],
-    "types": ["ComponentDef", "DiscoverablePlugin", "EntityAccessor", "LiveQuery"]
+    "types": [
+      "ChunkColumns",
+      "ComponentDef",
+      "DiscoverablePlugin",
+      "EntityAccessor",
+      "LiveQuery",
+      "Query",
+      "QueryChunk"
+    ]
   },
   "./actor": {
     "values": [

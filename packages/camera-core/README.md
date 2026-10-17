@@ -145,7 +145,7 @@ engine.hooks.hook("camera:activate", ({ viewportId, entityId }) => {
 ## `CameraSystem` pipeline (per frame)
 
 1. `CameraManager.clearFrame()` — stale states are discarded
-2. For each entity in `useQuery([Camera])` with `active = 1`:
+2. For each entity in `createLiveQuery([Camera])` with `active = 1`:
    - Apply `FollowTarget` lerp toward the target entity — **or** advance `CameraPath` waypoints
    - Clamp to `CameraBounds`
    - Compute `CameraShake` offset (does **not** modify `Camera.x/y/z`)

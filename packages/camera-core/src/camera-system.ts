@@ -13,12 +13,7 @@
  *   3. Detect semantic changes per viewport and emit camera:* hooks
  */
 
-import {
-  defineSystem,
-  onAfterUpdate,
-  useQuery,
-  type DiscoverablePlugin,
-} from "@gwenjs/core/system";
+import { defineSystem, onAfterUpdate, type DiscoverablePlugin } from "@gwenjs/core/system";
 import { useEngine, emit } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
@@ -37,7 +32,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
   const cameras = useCameraManager();
   const _viewports = useViewportManager();
 
-  const cameraQuery = useQuery([Camera]);
+  const cameraQuery = engine.createLiveQuery([Camera]);
 
   // per-viewport tracking for semantic hook emission
   const activeEntityPerViewport = new Map<string, EntityId>(); // viewportId → entityId

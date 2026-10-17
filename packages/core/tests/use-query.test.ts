@@ -43,9 +43,9 @@ const EnemyTag = defineComponent({
  * Uses a plain `for...of` loop to avoid hot-path allocations in production,
  * but for test readability we use spread here.
  */
-function collect(query: Iterable<AnyAccessor>): AnyAccessor[] {
+function collect(query: { each(): Iterable<AnyAccessor> }): AnyAccessor[] {
   const result: AnyAccessor[] = [];
-  for (const e of query) result.push(e);
+  for (const e of query.each()) result.push(e);
   return result;
 }
 
@@ -226,7 +226,7 @@ describe("useQuery()", () => {
     const system = defineSystem(() => {
       const query = useQuery([Position, Velocity]);
       onUpdate(() => {
-        for (const accessor of query) {
+        for (const accessor of query.each()) {
           visited.push(accessor);
         }
       });

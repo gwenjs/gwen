@@ -971,7 +971,7 @@ describe("defineActorPool — dormancy (#56)", () => {
         const query = useQuery([Mark]);
         onUpdate(() => {
           seen.length = 0;
-          for (const entity of query) seen.push(entity.id);
+          for (const entity of query.each()) seen.push(entity.id);
         });
       })(),
     );

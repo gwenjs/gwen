@@ -200,21 +200,21 @@ function defineSystem(name: string, setup: () => void): GwenPlugin
 export const MovementSystem = defineSystem('MovementSystem', () => {
   const entities = useQuery([Transform, Velocity])
   onUpdate((dt) => {
-    for (const id of entities) {
-      Transform.x[id] += Velocity.x[id] * dt
+    for (const entity of entities.each()) {
+      Transform.x[entity.id] += Velocity.x[entity.id] * dt
     }
   })
 })
 ```
 
-### useQuery(components, opts?)
+### useQuery(components)
 
 **Signature:**
 ```ts
-function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
+function useQuery<const C extends readonly ComponentDef[]>(components: C): Query<C>
 ```
 
-**Description.** Crée une requête vivante qui itère sur toutes les entités ayant les composants spécifiés. La requête se met à jour automatiquement quand les entités correspondent/ne correspondent pas.
+**Description.** Crée une requête qui itère les chunks d'entités ayant les composants spécifiés. Les chunks se mettent à jour quand les entités correspondent ou non. `each()` itère un accesseur par entité correspondante.
 
 L'itération saute les entités dormantes d'un pool d'acteurs (relâchées et pas encore réacquises). Leurs composants restent attachés.
 
@@ -222,15 +222,14 @@ L'itération saute les entités dormantes d'un pool d'acteurs (relâchées et pa
 | Paramètre | Type | Description |
 |---|---|---|
 | components | `ComponentDef[]` | Composants à requêter |
-| opts.onChange | `function` | Appelé quand les entités sont ajoutées/retirées de la requête |
 
-**Retourne:** `LiveQuery` — un ensemble itérable d'entités correspondantes.
+**Retourne:** `Query` — un itérable de chunks. `each()` retourne les entités correspondantes.
 
 **Exemple:**
 ```ts
 const query = useQuery([Position, Velocity]);
 onUpdate(() => {
-  for (const entity of query) {
+  for (const entity of query.each()) {
     // Mettre à jour la position
   }
 });
@@ -527,7 +526,7 @@ function useActorQuery<P, A>(
 ```ts
 defineSystem(() => {
   const inRange = useQuery([InRangeTag])
-  const nearby = useActorQuery(EnemyActor, inRange)
+  const nearby = useActorQuery(EnemyActor, inRange.each())
 
   onUpdate(() => {
     for (const enemy of nearby) {
@@ -541,12 +540,12 @@ defineSystem(() => {
 | Param | Type | Description |
 |---|---|---|
 | `def` | `ActorDefinition<P, A>` | Définition d'acteur produite par `defineActor` |
-| `query` | `Iterable<{ readonly id: EntityId }>` | Tout itérable exposant des IDs d'entité — typiquement un `LiveQuery` de `useQuery` |
+| `query` | `Iterable<{ readonly id: EntityId }>` | Tout itérable exposant des IDs d'entité — typiquement `query.each()` de `useQuery` |
 
 **Retourne:** `Iterable<A>` — paresseux, zéro allocation. Les entités présentes dans `query` sans instance d'acteur vivante sont silencieusement ignorées.
 
 ::: tip Pourquoi accepter une query plutôt que des définitions de composants ?
-`useActorQuery` appartient à `@gwenjs/core/actor` et ne dépend pas de la couche système. Accepter un `LiveQuery` pré-construit découple les deux couches et rend la fonction composable avec tout itérable exposant un `id`.
+`useActorQuery` appartient à `@gwenjs/core/actor` et ne dépend pas de la couche système. Accepter `query.each()` découple les deux couches et rend la fonction composable avec tout itérable exposant un `id`.
 :::
 
 ### usePrefab(PrefabDef)

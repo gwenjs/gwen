@@ -163,7 +163,7 @@ function referenceSystem(handle: RealEngineHandle, scene: FrameScene): GwenPlugi
     const query = useQuery([Position, Velocity]);
     onUpdate((dt) => {
       updateFrames += 1;
-      for (const entity of query) {
+      for (const entity of query.each()) {
         const pos = entity.get(Position);
         const vel = entity.get(Velocity);
         if (!pos || !vel) continue;

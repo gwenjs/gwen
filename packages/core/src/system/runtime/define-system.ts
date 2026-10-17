@@ -14,7 +14,7 @@
  *   const entities = useQuery([Position, PlayerTag])
  *
  *   onUpdate((dt) => {
- *     for (const e of entities) {
+ *     for (const e of entities.each()) {
  *       if (input.keyboard.isDown('ArrowRight')) {
  *         physics.setLinearVelocity(e.id, { x: 200 * dt, y: 0 })
  *       }
@@ -36,6 +36,7 @@ import type { ComponentDefinition, ComponentSchema, InferComponent } from "../..
 import { ScopedHookable } from "../../hooks/scoped-hookable.js";
 import { isIsolated } from "../../engine/error-isolation.js";
 import { GwenScope } from "../../context/scope.js";
+import { releaseChunkQuery, type Query } from "../../engine/chunk-query.js";
 
 /** A component selector accepted by {@link useQuery}. */
 export type ComponentDef = ComponentDefinition<ComponentSchema>;
@@ -207,8 +208,8 @@ export interface DiscoverablePlugin extends GwenPlugin {
  * export const MovementSystem = defineSystem(() => {
  *   const entities = useQuery([Position, Velocity])
  *   onUpdate((dt) => {
- *     for (const id of entities) {
- *       Position.x[id] += Velocity.x[id] * dt
+ *     for (const entity of entities.each()) {
+ *       Position.x[entity.id] += Velocity.x[entity.id] * dt
  *     }
  *   })
  * })
@@ -356,18 +357,20 @@ export interface EntityAccessor<C extends readonly ComponentDef[]> {
  *
  * @typeParam T - Entity accessor type
  */
+export type { Query, QueryChunk, ChunkColumns } from "../../engine/chunk-query.js";
 export type LiveQuery<T> = Iterable<T>;
 
 /**
- * Defines a reactive entity query inside a {@link defineSystem} setup callback.
+ * Defines a chunk query inside a {@link defineSystem} setup callback.
  *
- * The returned iterable reflects the current ECS state at each iteration —
- * entities that match all supplied component definitions at the time you iterate.
+ * Iteration yields chunks whose rows match every supplied component.
+ * `each()` yields one accessor per matching entity, with the same rules as
+ * `createLiveQuery`.
  *
  * @param components - List of component definitions to match
  * @param _cacheKey - Pre-computed cache key injected by the Vite transform.
  *                    Internal — do not pass manually.
- * @returns A live query iterable of {@link EntityAccessor} objects
+ * @returns A chunk query. Column arrays are read with `chunk.get`. Accessors come from `each()`.
  *
  * @throws {GwenContextError} If called outside an active engine context
  *
@@ -377,9 +380,9 @@ export type LiveQuery<T> = Iterable<T>;
  *   const enemies = useQuery([Position, EnemyTag])
  *
  *   onUpdate(() => {
- *     for (const entity of enemies) {
- *       // reflects current ECS state at each iteration
- *       const pos = entity.get(Position)
+ *     for (const chunk of enemies) {
+ *       const pos = chunk.get(Position)
+ *       pos.x[0] += 1
  *     }
  *   })
  * })
@@ -388,9 +391,13 @@ export type LiveQuery<T> = Iterable<T>;
 export function useQuery<const C extends readonly ComponentDef[]>(
   components: C,
   cacheKey?: string,
-): LiveQuery<EntityAccessor<C>> {
+): Query<C> {
   const engine = useEngine();
-  return engine.createLiveQuery(components, cacheKey);
+  const query = engine.createQuery(components, cacheKey);
+  GwenScope.current()?.onCleanup(() => {
+    releaseChunkQuery(query);
+  });
+  return query;
 }
 
 // ─── useService ───────────────────────────────────────────────────────────────

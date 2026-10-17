@@ -23,7 +23,9 @@ interface QueryChunksHost {
 }
 
 function isEngineClass(value: unknown): value is { prototype: QueryChunksHost } {
-  return typeof value === "function" && typeof value.prototype === "object" && value.prototype !== null;
+  return (
+    typeof value === "function" && typeof value.prototype === "object" && value.prototype !== null
+  );
 }
 
 async function loadEnginePrototype(): Promise<QueryChunksHost> {

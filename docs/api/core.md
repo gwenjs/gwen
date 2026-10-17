@@ -173,9 +173,9 @@ export const moveSystem = defineSystem(function moveSystem() {
   const query = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
-    for (const id of query) {
-      Position.x[id] += Velocity.x[id] * dt
-      Position.y[id] += Velocity.y[id] * dt
+    for (const entity of query.each()) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+      Position.y[entity.id] += Velocity.y[entity.id] * dt
     }
   })
 })
@@ -185,10 +185,10 @@ export const moveSystem = defineSystem(function moveSystem() {
 
 **Signature:**
 ```ts
-function useQuery<const C extends readonly ComponentDef[]>(components: C): LiveQuery<EntityAccessor<C>>
+function useQuery<const C extends readonly ComponentDef[]>(components: C): Query<C>
 ```
 
-**Description.** Creates a live query that iterates over all entities with the specified components. The query updates automatically when entities match/unmatch.
+**Description.** Creates a query that iterates chunks of entities with the specified components. The chunks update when entities match or unmatch. `each()` iterates one accessor per matching entity.
 
 Iteration skips dormant pooled entities (released by an actor pool and not yet acquired again). Their components stay attached.
 
@@ -197,15 +197,15 @@ Iteration skips dormant pooled entities (released by an actor pool and not yet a
 |---|---|---|
 | components | `ComponentDef[]` | Components to query for |
 
-**Returns:** `LiveQuery` — an iterable set of matching entities.
+**Returns:** `Query` — an iterable of chunks. `each()` returns the matching entities.
 
 **Example:**
 ```ts
 const enemies = useQuery([Position, EnemyTag])
 
 onUpdate(() => {
-  for (const id of enemies) {
-    Position.x[id] += 1
+  for (const entity of enemies.each()) {
+    Position.x[entity.id] += 1
   }
 })
 ```
@@ -351,7 +351,7 @@ Pair with `useQuery` from `@gwenjs/core/system` to filter by component:
 ```ts
 defineSystem(() => {
   const inRange = useQuery([InRangeTag])
-  const nearby = useActorQuery(EnemyActor, inRange)
+  const nearby = useActorQuery(EnemyActor, inRange.each())
 
   onUpdate(() => {
     for (const enemy of nearby) {
@@ -365,12 +365,12 @@ defineSystem(() => {
 | Param | Type | Description |
 |---|---|---|
 | `def` | `ActorDefinition<P, A>` | Actor definition produced by `defineActor` |
-| `query` | `Iterable<{ readonly id: EntityId }>` | Any iterable exposing entity IDs — typically a `LiveQuery` from `useQuery` |
+| `query` | `Iterable<{ readonly id: EntityId }>` | Any iterable exposing entity IDs — typically `query.each()` from `useQuery` |
 
 **Returns:** `Iterable<A>` — lazy, zero-allocation. Entities in `query` with no live actor instance are silently skipped.
 
 ::: tip Why does it accept a query instead of component definitions?
-`useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting a pre-built `LiveQuery` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.
+`useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting `query.each()` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.
 :::
 
 #### useComponent(ComponentDef)

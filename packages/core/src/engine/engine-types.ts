@@ -13,7 +13,12 @@ import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
 import type { ComponentType } from "../types";
-import type { ComponentDef, LiveQuery, EntityAccessor } from "../system/runtime/define-system";
+import type {
+  ComponentDef,
+  LiveQuery,
+  EntityAccessor,
+  Query,
+} from "../system/runtime/define-system";
 import type {
   GwenPlugin,
   GwenEngineBase,
@@ -581,6 +586,10 @@ export interface GwenEngine extends GwenEngineBase {
   ): Readonly<InferComponent<D>> | undefined;
   hasComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
   removeComponent<D extends ComponentDefinition<ComponentSchema>>(id: EntityId, def: D): boolean;
+  createQuery<const C extends readonly ComponentDef[]>(
+    components: C,
+    _precomputedKey?: string,
+  ): Query<C>;
   createLiveQuery<const C extends readonly ComponentDef[]>(
     components: C,
     _precomputedKey?: string,

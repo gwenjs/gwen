@@ -771,7 +771,7 @@ export class TodayModel implements StorageModel {
   }
 
   movement(dt: number): void {
-    for (const entity of this.movementQuery) {
+    for (const entity of this.movementQuery.each()) {
       const pos = entity.get(Position);
       const vel = entity.get(Velocity);
       if (pos === undefined || vel === undefined) continue;
@@ -783,7 +783,7 @@ export class TodayModel implements StorageModel {
   }
 
   regen(dt: number): void {
-    for (const entity of this.healthQuery) {
+    for (const entity of this.healthQuery.each()) {
       const health = entity.get(Health);
       if (health === undefined) continue;
       this.engine.addComponent(entity.id, Health, { current: health.current + dt });
