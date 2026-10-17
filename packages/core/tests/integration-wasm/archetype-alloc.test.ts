@@ -211,4 +211,21 @@ describe("chunk column allocation", () => {
     );
     expect(report.bytesPerOp).toBeGreaterThanOrEqual(1);
   });
+
+  it("counts retained bytes of an 8-byte object kept alive per op", async () => {
+    const ops = 20_000;
+    const sink: Uint8Array[] = [];
+    const report = await measureAllocations(
+      () => {
+        for (let index = 0; index < ops; index += 1) {
+          const extra = new Uint8Array(8);
+          extra[0] = 1;
+          sink.push(extra);
+        }
+      },
+      { warmup: 1, ops },
+    );
+    if (sink.length !== ops * 2 || sink[0]?.[0] !== 1) throw new Error("sink dropped the object");
+    expect(report.retainedBytes / ops).toBeGreaterThanOrEqual(1);
+  });
 });
