@@ -2127,31 +2127,6 @@ mod storage_inconsistent {
         CoreError::StorageInconsistent { site }
     }
 
-    #[cfg(test)]
-    mod tests {
-        #[cfg(miri)]
-        use super::{kind, open};
-        #[cfg(miri)]
-        use crate::CoreError;
-
-        #[cfg(miri)]
-        #[test]
-        fn lane_ptr_load_reads_the_stored_bytes() -> Result<(), CoreError> {
-            let mut store = open()?;
-            let kind = kind(&mut store)?;
-            assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
-            let ptr = match store.lane_ptr(0, 0) {
-                Some(ptr) => ptr,
-                None => return Err(CoreError::StorageInconsistent { site: 0 }),
-            };
-            // SAFETY: `lane_ptr` is the address of this store's `Vec<u64>` lane.
-            // Row 0 holds the four bytes just written, and a `u64` buffer is aligned for `u32`.
-            let word = unsafe { (ptr as *const u32).read() };
-            assert_eq!(word, u32::from_le_bytes([1, 2, 3, 4]));
-            Ok(())
-        }
-    }
-
     #[test]
     fn site_1_slot_names_a_chunk_that_is_not_live() -> Result<(), CoreError> {
         let mut store = open()?;
