@@ -7,6 +7,7 @@ import {
 } from "../schema.js";
 import { createEntityId, entityGeneration, entityIndex, type EntityId } from "../types/entity.js";
 import type { ComponentDef, EntityAccessor, LiveQuery } from "../system/runtime/define-system.js";
+import { createChunkQuery, releaseChunkQuery, type Query } from "./chunk-query.js";
 import type { GwenEngine } from "./engine-types.js";
 import { componentRegistryFor } from "./engine-component-registry.js";
 import { componentStaging } from "./chunk-lanes.js";
@@ -72,6 +73,8 @@ export class EngineEntities {
   private readonly idLists = new Map<string, IdCache>();
   /** Component queries. Empty type lists stay in `idLists`. */
   private readonly memberLists = new Map<string, MemberCache>();
+  /** Chunk queries released on `engine:stop`. */
+  private readonly chunkQueries: object[] = [];
   /** Bumps on a cold add, a remove, or a destroy. Dormancy does not bump it. */
   private membership = 0;
   /** Bumps when an entity is created or destroyed. Component queries ignore it. */
@@ -244,6 +247,17 @@ export class EngineEntities {
    * The id array object stays across a dormancy toggle. The toggle bumps
    * `storage_generation`, and the same array is refilled from the awake rows.
    */
+  createQuery<const C extends readonly ComponentDef[]>(
+    components: C,
+    precomputedKey?: string,
+  ): Query<C> {
+    const query = createChunkQuery(this.deps.engine, this.deps.bridge, components, () =>
+      this.createLiveQuery(components, precomputedKey),
+    );
+    this.chunkQueries.push(query);
+    return query;
+  }
+
   createLiveQuery<const C extends readonly ComponentDef[]>(
     components: C,
     precomputedKey?: string,
@@ -323,6 +337,8 @@ export class EngineEntities {
 
   /** Drop every component-query handle. Called from `engine:stop` while WASM is alive. */
   releaseQueries(): void {
+    for (const query of this.chunkQueries) releaseChunkQuery(query);
+    this.chunkQueries.length = 0;
     if (!this.deps.bridge.isActive()) {
       this.memberLists.clear();
       return;

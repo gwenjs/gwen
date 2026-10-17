@@ -89,9 +89,9 @@ export const MovementSystem = defineSystem(() => {
   const query = useQuery([Position, Velocity])
 
   onUpdate((dt) => {
-    for (const id of query) {
-      Position.x[id] += Velocity.x[id] * dt
-      Position.y[id] += Velocity.y[id] * dt
+    for (const entity of query.each()) {
+      Position.x[entity.id] += Velocity.x[entity.id] * dt
+      Position.y[entity.id] += Velocity.y[entity.id] * dt
     }
   })
 })

@@ -85,7 +85,7 @@ Available types: `Types.f32`, `Types.f64`, `Types.i32`, `Types.i64`, `Types.u32`
 
 ## Systems
 
-Systems run game logic every frame. Use `useQuery` to iterate entities and frame hooks to schedule work.
+Systems run game logic every frame. Use `useQuery` to iterate chunks, `each()` to iterate entities, and frame hooks to schedule work.
 
 ```ts
 import {
@@ -305,7 +305,7 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useComponentFor`, `useQuery`, `useService`, `useWasmModule`
 
-Types: `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`
+Types: `ChunkColumns`, `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`, `Query`, `QueryChunk`
 
 ### `./actor`
 

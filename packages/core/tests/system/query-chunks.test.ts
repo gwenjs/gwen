@@ -25,6 +25,12 @@ const PoolPos = defineComponent({
   defaults: { x: 0 },
 });
 
+const Speed = defineComponent({
+  name: "QueryChunkSpeed",
+  schema: { v: Types.f32 },
+  defaults: { v: 0 },
+});
+
 async function withEngine(run: (engine: GwenEngine) => Promise<void>): Promise<void> {
   const engine = await createEngine({ maxEntities: 32 });
   try {
@@ -103,8 +109,9 @@ describe("useQuery chunks", () => {
       const id = engine.createEntity();
       engine.addComponent(id, Position, { x: 3, y: 4 });
       const query = engine.run(() => useQuery([Position]));
-      const each = (query as { each?: () => Iterable<{ get(def: typeof Position): { x: number } }> })
-        .each;
+      const each = (
+        query as { each?: () => Iterable<{ get(def: typeof Position): { x: number } }> }
+      ).each;
 
       expect(typeof each).toBe("function");
       if (typeof each !== "function") return;
@@ -133,14 +140,15 @@ describe("useQuery chunks", () => {
       engine.addComponent(id, Position, { x: 3, y: 4 });
       const query = engine.run(() => useQuery([Position]));
 
-      let entityId: ((row: number) => bigint) | undefined;
+      let found: bigint | undefined;
       for (const chunk of query) {
-        entityId = (chunk as { entityId?: (row: number) => bigint }).entityId;
+        const entityId = (chunk as { entityId?: (row: number) => bigint }).entityId;
+        expect(typeof entityId).toBe("function");
+        if (typeof entityId !== "function") return;
+        found = entityId(0);
       }
 
-      expect(typeof entityId).toBe("function");
-      if (typeof entityId !== "function") return;
-      expect(entityId(0)).toBe(id);
+      expect(found).toBe(id);
     });
   });
 
@@ -150,23 +158,18 @@ describe("useQuery chunks", () => {
       engine.addComponent(id, Position, { x: 3, y: 4 });
       const query = engine.run(() => useQuery([Position]));
 
-      let entityId: ((row: number) => bigint) | undefined;
-      let count: number | undefined;
+      let caught: unknown;
       for (const chunk of query) {
         const view = chunk as { count?: number; entityId?: (row: number) => bigint };
-        count = view.count;
-        entityId = view.entityId;
+        expect(typeof view.entityId).toBe("function");
+        if (typeof view.entityId !== "function" || typeof view.count !== "number") return;
+        try {
+          view.entityId(view.count);
+        } catch (error: unknown) {
+          caught = error;
+        }
       }
 
-      expect(typeof entityId).toBe("function");
-      if (typeof entityId !== "function" || typeof count !== "number") return;
-
-      let caught: unknown;
-      try {
-        entityId(count);
-      } catch (error: unknown) {
-        caught = error;
-      }
       expect(caught).toBeInstanceOf(GwenError);
       expect(caught).toMatchObject({ code: CoreErrorCodes.QUERY_INVALID });
     });
@@ -312,6 +315,38 @@ describe("useQuery chunks", () => {
       expect(pool.acquire()).toBe(id);
       const restored = engine.run(() => useQuery([PoolPos])) as { count?: number };
       expect(restored.count).toBe(1);
+    });
+  });
+
+  it("two queries on one entity read their own column", async () => {
+    await withEngine(async (engine) => {
+      const id = engine.createEntity();
+      engine.addComponent(id, PoolPos, { x: 1 });
+      engine.addComponent(id, Speed, { v: 2 });
+
+      const positions = engine.run(() => useQuery([PoolPos]));
+      const speeds = engine.run(() => useQuery([Speed]));
+
+      let x: unknown;
+      let v: unknown;
+      for (const chunk of positions) {
+        x = (chunk.get(PoolPos) as { x?: unknown }).x;
+      }
+      for (const chunk of speeds) {
+        v = (chunk.get(Speed) as { v?: unknown }).v;
+      }
+
+      expect(x).toBeInstanceOf(Float32Array);
+      expect(v).toBeInstanceOf(Float32Array);
+      if (!(x instanceof Float32Array) || !(v instanceof Float32Array)) return;
+      expect(x).not.toBe(v);
+      expect(x[0]).toBe(1);
+      expect(v[0]).toBe(2);
+
+      x[0] = 5;
+      v[0] = 6;
+      expect(engine.getComponent(id, PoolPos)?.x).toBe(5);
+      expect(engine.getComponent(id, Speed)?.v).toBe(6);
     });
   });
 });

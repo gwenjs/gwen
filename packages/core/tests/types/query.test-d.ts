@@ -15,7 +15,7 @@ const Health = defineComponent({
 
 const query = useQuery([Position]);
 
-for (const entity of query) {
+for (const entity of query.each()) {
   expectTypeOf(entity.get(Position)).toEqualTypeOf<Readonly<InferComponent<typeof Position>>>();
   // @ts-expect-error unqueried component is a compile error
   entity.get(Health);

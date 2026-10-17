@@ -100,6 +100,11 @@ export const CoreErrorCodes = {
   ACTOR_POOL_EXHAUSTED: "CORE:ACTOR_POOL_EXHAUSTED",
   COMPONENT_LAYOUT_INVALID: "CORE:COMPONENT_LAYOUT_INVALID",
   ARCHETYPE_LIMIT_REACHED: "CORE:ARCHETYPE_LIMIT_REACHED",
+  /**
+   * The chunk store rejected an empty type list or an unknown handle, or
+   * TypeScript rejected a released query, a chunk used after its loop step,
+   * or an entity row outside the awake prefix.
+   */
   QUERY_INVALID: "CORE:QUERY_INVALID",
   /** The chunk store broke an invariant. `site` is in the Rust error. Report the bug. */
   STORAGE_INCONSISTENT: "CORE:STORAGE_INCONSISTENT",

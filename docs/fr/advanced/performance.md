@@ -51,7 +51,7 @@ export const EnemyMovementSystem = defineSystem(() => {
   const entities = useQuery([Position, Enemy])
 
   onUpdate((dt) => {
-    for (const entity of entities) {
+    for (const entity of entities.each()) {
       const pos = useComponent(entity.id, Position)
       const enemy = useComponent(entity.id, Enemy)
       pos.x += enemy.speed * dt
@@ -104,7 +104,7 @@ export function computeDamage(base: number, multiplier: number, armor: number): 
 
 // Dans le system — passage en masse
 onUpdate(() => {
-  for (const entity of entities) {
+  for (const entity of entities.each()) {
     const stats = useComponent(entity.id, Stats)
     stats.hp -= computeDamage(stats.attack, 1.2, stats.armor)
   }
@@ -153,6 +153,9 @@ export const HUDActor = defineActor(HUDPrefab, () => {
 
 Le plugin Vite de GWEN analyse vos systems au build time et transforme le pattern proxy
 ergonomique `useComponent` en appels WASM en masse — automatiquement, sans modifier votre code.
+
+Les exemples de cette section sont la forme que l'optimiseur reconnaît encore.
+Une boucle `useQuery` qui s'exécute utilise `each()` ou un chunk. La mise à jour de l'optimiseur est un changement séparé.
 
 **Vous écrivez :**
 
@@ -239,7 +242,7 @@ Indépendamment de si l'optimiseur s'applique, respectez ces règles dans `onUpd
 
 ```ts
 onUpdate((dt) => {
-  for (const entity of entities) {
+  for (const entity of entities.each()) {
     // ✅ Proxy useComponent — ergonomique et optimisable
     const pos = useComponent(entity.id, Position)
     pos.x += vel.x * dt
