@@ -102,6 +102,9 @@ export abstract class EngineCollaborators {
       maxEntities: this.maxEntities,
       assertState: (method) => this._stateMachine.assert(method),
       emitDestroy: (id) => emitEntityDestroy(engine, this.hooks, reportDestroyFailure, id),
+      reportInconsistent: (error) => {
+        this._policy.reportCaught(error, "defer-create");
+      },
       engine,
       bridge: this._bridge,
     });
@@ -190,6 +193,8 @@ export abstract class EngineCollaborators {
     rememberEngineInternals(key, {
       setDormant: (id, dormant) => this._setEntityDormant(id, dormant),
       queryIds: (components) => this._entities.resolveIds(components),
+      structuralCompares: () => this._entities.readStructuralCompares(),
+      loopDepth: () => this._entities.readLoopDepth(),
     });
   }
 }

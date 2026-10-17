@@ -8,6 +8,9 @@ import {
 import { createEntityId, entityGeneration, entityIndex, type EntityId } from "../types/entity.js";
 import type { ComponentDef, EntityAccessor, LiveQuery } from "../system/runtime/define-system.js";
 import { createChunkQuery, releaseChunkQuery, type Query } from "./chunk-query.js";
+import { EntityIdMirror } from "./entity-id-mirror.js";
+import { bindEntityTrace } from "./entity-trace.js";
+import { CoreErrorCodes, GwenWasmError } from "./engine-errors.js";
 import type { GwenEngine } from "./engine-types.js";
 import { componentRegistryFor } from "./engine-component-registry.js";
 import { componentStaging } from "./chunk-lanes.js";
@@ -22,7 +25,8 @@ import { stringPoolFor } from "../utils/string-pool.js";
 export interface EngineEntitiesDeps {
   maxEntities: number;
   assertState: (method: string) => void;
-  emitDestroy: (id: EntityId) => void;
+  emitDestroy: (id: EntityId) => unknown;
+  reportInconsistent: (error: GwenWasmError) => void;
   engine: GwenEngine;
   bridge: WasmBridgeImpl;
 }
@@ -42,6 +46,28 @@ interface MemberCache {
   ids: EntityId[];
   generation: number;
   query: number;
+}
+
+const OP_CREATE = 1;
+const OP_DESTROY = 2;
+const OP_ADD = 3;
+const OP_REMOVE = 4;
+const OP_DORMANT = 5;
+const OP_BULK_SPAWN = 6;
+const NO_OP = 0xffffffff;
+
+/**
+ * `object` has no string index signature. A component partial is a plain record.
+ * This is the only cast on the deferred-add path.
+ */
+function copyOwnFields(data: object): Record<string, unknown> {
+  const record = data as Record<string, unknown>;
+  const copy: Record<string, unknown> = {};
+  for (const key in record) {
+    if (!Object.prototype.hasOwnProperty.call(record, key)) continue;
+    copy[key] = record[key];
+  }
+  return copy;
 }
 
 function readResolvedEntityId(results: readonly EntityId[], index: number): EntityId {
@@ -81,10 +107,60 @@ export class EngineEntities {
   private aliveEpoch = 0;
   /** One past the highest slot index this engine has allocated. */
   private slotSpan = 0;
+  /** Open chunk loops on this engine. Structural ops queue while this is above 0. */
+  private depth = 0;
+  private readonly mirror: EntityIdMirror;
+  private readonly loopHooks = {
+    enter: (): void => {
+      this.enterLoop();
+    },
+    leave: (): void => {
+      this.leaveLoop();
+    },
+  };
+  private opCapacity = 0;
+  private opCount = 0;
+  private opKinds = new Uint8Array(0);
+  private opIndexes = new Uint32Array(0);
+  private opGenerations = new Uint32Array(0);
+  private opTypes = new Uint32Array(0);
+  private opFlags = new Uint8Array(0);
+  /** Previous queued op for the same entity slot. `NO_OP` ends the list. */
+  private opPrev = new Uint32Array(0);
+  /** Last queued op for an entity slot. `NO_OP` means the list is empty. */
+  private slotHead = new Uint32Array(0);
+  private addDefs: (ComponentDefinition<ComponentSchema> | null)[] = [];
+  private addData: (Record<string, unknown> | null)[] = [];
+  private bulkPositions: (Float32Array | null)[] = [];
+  private bulkRotations: (Float32Array | null)[] = [];
+  private bulkIndices: (Uint32Array | null)[] = [];
+  private bulkGenerations: (Uint32Array | null)[] = [];
+  /** Component rows in the simulated state. Index is the entity slot. */
+  private rowCounts = new Uint16Array(0);
+  /** Key comparisons while walking one entity's queued ops. Read by the test seam. */
+  private structuralCompares = 0;
+  /** Above 0 while apply calls WASM, so those calls are not queued again. */
+  private wasmDirect = 0;
+  /** True while the outermost loop is applying the queue. */
+  private flushing = false;
 
   private readonly readStagingPtr = (): number => this.deps.bridge.componentStagingPtr();
 
-  constructor(private readonly deps: EngineEntitiesDeps) {}
+  constructor(private readonly deps: EngineEntitiesDeps) {
+    this.mirror = new EntityIdMirror(deps.maxEntities);
+    bindEntityTrace(deps.bridge, {
+      allocated: (index, generation) => {
+        this.mirror.noteAllocated(index, generation);
+      },
+      deallocated: (index, generation) => {
+        this.mirror.noteDeallocated(index, generation);
+      },
+      deferCreate: () => this.reserveCreate(),
+      deferDestroy: (index, generation) => this.reserveDestroy(index, generation),
+      deferBulkSpawn: (positions, rotations) => this.reserveBulkSpawn(positions, rotations),
+      deferBulkDestroy: (indices) => this.reserveBulkDestroy(indices),
+    });
+  }
 
   /** Alive entity ids. `getStats().entityCount` reads this. */
   count(): number {
@@ -98,6 +174,14 @@ export class EngineEntities {
    */
   createEntity(): EntityId {
     this.deps.assertState("createEntity");
+    if (this.depth === 0) return this.createNow();
+    const reserved = this.reserveCreate();
+    if (reserved === undefined) return this.createNow();
+    return createEntityId(reserved.index, reserved.generation);
+  }
+
+  /** WASM spawn. Used outside a chunk loop, and when the mirror is already full. */
+  private createNow(): EntityId {
     const created = this.deps.bridge.createEntity();
     if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
     this.aliveEpoch += 1;
@@ -118,11 +202,441 @@ export class EngineEntities {
     this.deps.assertState("destroyEntity");
     const index = entityIndex(id);
     const generation = entityGeneration(id);
+    if (this.depth === 0) return this.destroyNow(id, index, generation);
+    const deferred = this.reserveDestroy(index, generation);
+    if (deferred === undefined) return this.destroyNow(id, index, generation);
+    return deferred;
+  }
+
+  private destroyNow(id: EntityId, index: number, generation: number): boolean {
     if (!this.deps.bridge.deleteEntity(index, generation)) return false;
+    this.clearRows(index);
     this.membership += 1;
     this.aliveEpoch += 1;
     this.deps.emitDestroy(id);
     return true;
+  }
+
+  private enterLoop(): void {
+    this.depth += 1;
+  }
+
+  /**
+   * The outermost loop flushes. Depth stays above 0 for the whole flush so a
+   * destroy hook that spawns or destroys queues behind the op that fired it.
+   */
+  private leaveLoop(): void {
+    if (this.depth === 0) return;
+    this.depth -= 1;
+    if (this.depth > 0) return;
+    this.depth = 1;
+    this.flushing = true;
+    try {
+      this.flush();
+    } finally {
+      this.flushing = false;
+      this.clearOps();
+      this.depth = 0;
+    }
+  }
+
+  private flush(): void {
+    let failure: unknown;
+    let cursor = 0;
+    while (cursor < this.opCount) {
+      const kind = this.opKinds[cursor] ?? 0;
+      const index = this.opIndexes[cursor] ?? 0;
+      const generation = this.opGenerations[cursor] ?? 0;
+      const typeId = this.opTypes[cursor] ?? 0;
+      const flag = this.opFlags[cursor] ?? 0;
+      const slot = cursor;
+      cursor += 1;
+      if (kind === OP_CREATE) this.applyCreate(index, generation);
+      else if (kind === OP_DESTROY) {
+        const error = this.applyDestroy(index, generation);
+        if (failure === undefined && error !== undefined) failure = error;
+      } else if (kind === OP_ADD) this.applyAdd(slot, index, generation, typeId);
+      else if (kind === OP_REMOVE) this.applyRemove(index, generation, typeId);
+      else if (kind === OP_DORMANT) this.applyDormant(index, generation, flag === 1);
+      else if (kind === OP_BULK_SPAWN) this.applyBulkSpawn(slot);
+    }
+    if (failure !== undefined) throw failure;
+  }
+
+  private applyCreate(index: number, generation: number): void {
+    const created = this.callWasm(() => this.deps.bridge.createEntity());
+    if (created.index !== index || created.generation !== generation) this.faultCreate();
+    if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
+    this.aliveEpoch += 1;
+  }
+
+  private applyDestroy(index: number, generation: number): unknown {
+    const deleted = this.callWasm(() => this.deps.bridge.deleteEntity(index, generation));
+    if (!deleted) this.faultCreate();
+    this.membership += 1;
+    this.aliveEpoch += 1;
+    return this.deps.emitDestroy(createEntityId(index, generation));
+  }
+
+  private applyAdd(slot: number, index: number, generation: number, typeId: number): void {
+    const def = this.addDefs[slot];
+    const data = this.addData[slot];
+    if (def === undefined || def === null || data === undefined || data === null) return;
+    if (this.deps.bridge.hasComponent(index, generation, typeId)) {
+      const stored = this.storedLayout(def);
+      const view = componentStaging(this.deps.engine, this.readStagingPtr);
+      this.deps.bridge.readComponentStaged(index, generation, typeId);
+      stored.layout.patch(view, data, stringPoolFor(this.deps.engine));
+      this.deps.bridge.writeComponentStaged(index, generation, typeId);
+      return;
+    }
+    if (this.writeCold(def, data, index, generation, typeId)) this.membership += 1;
+  }
+
+  private applyRemove(index: number, generation: number, typeId: number): void {
+    if (this.deps.bridge.removeComponent(index, generation, typeId)) this.membership += 1;
+  }
+
+  private applyDormant(index: number, generation: number, dormant: boolean): void {
+    this.deps.bridge.setEntityDormant(index, generation, dormant);
+  }
+
+  private addDeferred<D extends ComponentDefinition<ComponentSchema>>(
+    def: D,
+    data: Partial<InferComponent<D>>,
+    index: number,
+    generation: number,
+    typeId: number,
+  ): void {
+    if (!this.mirror.isAlive(index, generation)) {
+      this.queueAdd(def, data, index, generation, typeId);
+      return;
+    }
+    const latest = this.latestComponentOp(index, generation, typeId);
+    const kind = latest >= 0 ? (this.opKinds[latest] ?? 0) : 0;
+    if (kind === OP_ADD) {
+      this.patchAdd(latest, data);
+      return;
+    }
+    if (kind === 0 && this.deps.bridge.hasComponent(index, generation, typeId)) {
+      this.writePresent(def, data, index, generation, typeId);
+      return;
+    }
+    this.bumpRows(index, 1);
+    this.queueAdd(def, data, index, generation, typeId);
+  }
+
+  private queueAdd(
+    def: ComponentDefinition<ComponentSchema>,
+    data: object,
+    index: number,
+    generation: number,
+    typeId: number,
+  ): void {
+    const slot = this.pushOp(OP_ADD, index, generation, typeId, 0);
+    this.addDefs[slot] = def;
+    this.addData[slot] = copyOwnFields(data);
+  }
+
+  private patchAdd(slot: number, data: object): void {
+    const target = this.addData[slot];
+    const from = copyOwnFields(data);
+    if (target === null || target === undefined) {
+      this.addData[slot] = from;
+      return;
+    }
+    for (const key of Object.keys(from)) target[key] = from[key];
+  }
+
+  /** Newest queued add, remove, or destroy for this slot and component. `-1` when none. */
+  private latestComponentOp(index: number, generation: number, typeId: number): number {
+    let slot = this.headOf(index);
+    while (slot !== NO_OP) {
+      this.structuralCompares += 1;
+      if ((this.opGenerations[slot] ?? 0) === generation) {
+        const kind = this.opKinds[slot] ?? 0;
+        if (kind === OP_DESTROY) return slot;
+        if ((kind === OP_ADD || kind === OP_REMOVE) && (this.opTypes[slot] ?? 0) === typeId) {
+          return slot;
+        }
+      }
+      slot = this.opPrev[slot] ?? NO_OP;
+    }
+    return -1;
+  }
+
+  private simulatedHas(index: number, generation: number, typeId: number): boolean {
+    if (!this.mirror.isAlive(index, generation)) return false;
+    const latest = this.latestComponentOp(index, generation, typeId);
+    if (latest >= 0) {
+      const kind = this.opKinds[latest] ?? 0;
+      if (kind === OP_DESTROY || kind === OP_REMOVE) return false;
+      if (kind === OP_ADD) return true;
+    }
+    return this.deps.bridge.hasComponent(index, generation, typeId);
+  }
+
+  private deferring(): boolean {
+    return this.depth > 0 && this.wasmDirect === 0;
+  }
+
+  private reserveCreate(): { index: number; generation: number } | undefined {
+    if (!this.deferring()) return undefined;
+    const reserved = this.mirror.tryAllocate();
+    if (reserved === null) {
+      throw new GwenWasmError(
+        CoreErrorCodes.ENTITY_LIMIT_REACHED,
+        `Entity limit reached: ${this.deps.maxEntities}`,
+        "create_entity",
+        undefined,
+      );
+    }
+    if (reserved.index >= this.slotSpan) this.slotSpan = reserved.index + 1;
+    this.pushOp(OP_CREATE, reserved.index, reserved.generation, 0, 0);
+    return reserved;
+  }
+
+  private reserveDestroy(index: number, generation: number): boolean | undefined {
+    if (!this.deferring()) return undefined;
+    if (!this.mirror.deallocate(index, generation)) return false;
+    this.clearRows(index);
+    this.pushOp(OP_DESTROY, index, generation, 0, 0);
+    return true;
+  }
+
+  private reserveBulkSpawn(
+    positions: Float32Array,
+    rotations: Float32Array,
+  ): Uint32Array | undefined {
+    if (!this.deferring()) return undefined;
+    if (positions.length % 2 !== 0) return undefined;
+    const count = positions.length / 2;
+    if (rotations.length !== count) return undefined;
+    if (count === 0) return new Uint32Array(0);
+    const reservedIndices = new Uint32Array(count);
+    const reservedGenerations = new Uint32Array(count);
+    for (let cursor = 0; cursor < count; cursor += 1) {
+      const reserved = this.mirror.tryAllocate();
+      if (reserved === null) {
+        for (let undo = 0; undo < cursor; undo += 1) {
+          this.mirror.deallocate(reservedIndices[undo] ?? 0, reservedGenerations[undo] ?? 0);
+        }
+        throw new GwenWasmError(
+          CoreErrorCodes.ENTITY_LIMIT_REACHED,
+          `Entity limit reached: ${this.deps.maxEntities}`,
+          "bulk_spawn_with_transforms",
+          undefined,
+        );
+      }
+      reservedIndices[cursor] = reserved.index;
+      reservedGenerations[cursor] = reserved.generation;
+      if (reserved.index >= this.slotSpan) this.slotSpan = reserved.index + 1;
+    }
+    const slot = this.pushOp(OP_BULK_SPAWN, 0, 0, 0, 0, false);
+    this.bulkPositions[slot] = new Float32Array(positions);
+    this.bulkRotations[slot] = new Float32Array(rotations);
+    this.bulkIndices[slot] = new Uint32Array(reservedIndices);
+    this.bulkGenerations[slot] = reservedGenerations;
+    return new Uint32Array(reservedIndices);
+  }
+
+  private reserveBulkDestroy(indices: Uint32Array): true | undefined {
+    if (!this.deferring()) return undefined;
+    for (let cursor = 0; cursor < indices.length; cursor += 1) {
+      const index = indices[cursor] ?? 0;
+      const generation = this.mirror.generationOf(index);
+      if (generation === null) continue;
+      this.reserveDestroy(index, generation);
+    }
+    return true;
+  }
+
+  private applyBulkSpawn(slot: number): void {
+    const positions = this.bulkPositions[slot];
+    const rotations = this.bulkRotations[slot];
+    const reserved = this.bulkIndices[slot];
+    const generations = this.bulkGenerations[slot];
+    if (
+      positions === undefined ||
+      positions === null ||
+      rotations === undefined ||
+      rotations === null ||
+      reserved === undefined ||
+      reserved === null ||
+      generations === undefined ||
+      generations === null
+    ) {
+      this.faultCreate();
+    }
+    const spawned = this.callWasm(() =>
+      this.deps.bridge.bulkSpawnWithTransforms(positions, rotations),
+    );
+    if (spawned.length !== reserved.length) this.faultCreate();
+    for (let cursor = 0; cursor < reserved.length; cursor += 1) {
+      const index = spawned[cursor] ?? 0;
+      if (index !== (reserved[cursor] ?? 0)) this.faultCreate();
+      const generation = this.deps.bridge.getEntityGeneration(index);
+      if (generation !== (generations[cursor] ?? 0)) this.faultCreate();
+      if (index >= this.slotSpan) this.slotSpan = index + 1;
+    }
+    this.aliveEpoch += spawned.length;
+  }
+
+  private callWasm<T>(run: () => T): T {
+    this.wasmDirect += 1;
+    try {
+      return run();
+    } finally {
+      this.wasmDirect -= 1;
+    }
+  }
+
+  private faultCreate(): never {
+    const error = new GwenWasmError(
+      CoreErrorCodes.STORAGE_INCONSISTENT,
+      "Storage inconsistent: site defer-create",
+      "create_entity",
+      undefined,
+    );
+    this.deps.reportInconsistent(error);
+    throw error;
+  }
+
+  private headOf(index: number): number {
+    if (index < 0 || index >= this.slotHead.length) return NO_OP;
+    return this.slotHead[index] ?? NO_OP;
+  }
+
+  private bumpRows(index: number, delta: number): void {
+    this.ensureRows(index);
+    const next = (this.rowCounts[index] ?? 0) + delta;
+    this.rowCounts[index] = next > 0 ? next : 0;
+  }
+
+  private clearRows(index: number): void {
+    if (index < this.rowCounts.length) this.rowCounts[index] = 0;
+  }
+
+  private rowCount(index: number): number {
+    if (index >= this.rowCounts.length) return 0;
+    return this.rowCounts[index] ?? 0;
+  }
+
+  private ensureRows(index: number): void {
+    if (index < this.rowCounts.length) return;
+    let next = this.rowCounts.length === 0 ? 8 : this.rowCounts.length;
+    while (next <= index) next *= 2;
+    const counts = new Uint16Array(next);
+    counts.set(this.rowCounts);
+    this.rowCounts = counts;
+  }
+
+  private pushOp(
+    kind: number,
+    index: number,
+    generation: number,
+    typeId: number,
+    flag: number,
+    link = true,
+  ): number {
+    const slot = this.opCount;
+    this.ensureOps(slot + 1);
+    this.opKinds[slot] = kind;
+    this.opIndexes[slot] = index;
+    this.opGenerations[slot] = generation;
+    this.opTypes[slot] = typeId;
+    this.opFlags[slot] = flag;
+    if (link) {
+      this.ensureHeads(index);
+      this.opPrev[slot] = this.slotHead[index] ?? NO_OP;
+      this.slotHead[index] = slot;
+    } else {
+      this.opPrev[slot] = NO_OP;
+    }
+    this.opCount = slot + 1;
+    return slot;
+  }
+
+  private ensureHeads(index: number): void {
+    if (index < this.slotHead.length) return;
+    let next = this.slotHead.length === 0 ? 8 : this.slotHead.length;
+    while (next <= index) next *= 2;
+    const heads = new Uint32Array(next);
+    heads.fill(NO_OP);
+    if (this.slotHead.length > 0) heads.set(this.slotHead);
+    this.slotHead = heads;
+  }
+
+  private ensureOps(needed: number): void {
+    if (needed <= this.opCapacity) return;
+    let next = this.opCapacity === 0 ? 8 : this.opCapacity;
+    while (next < needed) next *= 2;
+    const kinds = new Uint8Array(next);
+    const indexes = new Uint32Array(next);
+    const generations = new Uint32Array(next);
+    const types = new Uint32Array(next);
+    const flags = new Uint8Array(next);
+    const prev = new Uint32Array(next);
+    prev.fill(NO_OP);
+    if (this.opCapacity > 0) {
+      kinds.set(this.opKinds);
+      indexes.set(this.opIndexes);
+      generations.set(this.opGenerations);
+      types.set(this.opTypes);
+      flags.set(this.opFlags);
+      prev.set(this.opPrev);
+    }
+    const defs: (ComponentDefinition<ComponentSchema> | null)[] = [];
+    const data: (Record<string, unknown> | null)[] = [];
+    const positions: (Float32Array | null)[] = [];
+    const rotations: (Float32Array | null)[] = [];
+    const bulkIndices: (Uint32Array | null)[] = [];
+    const bulkGenerations: (Uint32Array | null)[] = [];
+    defs.length = next;
+    data.length = next;
+    positions.length = next;
+    rotations.length = next;
+    bulkIndices.length = next;
+    bulkGenerations.length = next;
+    for (let slot = 0; slot < this.opCount; slot += 1) {
+      defs[slot] = this.addDefs[slot] ?? null;
+      data[slot] = this.addData[slot] ?? null;
+      positions[slot] = this.bulkPositions[slot] ?? null;
+      rotations[slot] = this.bulkRotations[slot] ?? null;
+      bulkIndices[slot] = this.bulkIndices[slot] ?? null;
+      bulkGenerations[slot] = this.bulkGenerations[slot] ?? null;
+    }
+    this.opKinds = kinds;
+    this.opIndexes = indexes;
+    this.opGenerations = generations;
+    this.opTypes = types;
+    this.opFlags = flags;
+    this.opPrev = prev;
+    this.addDefs = defs;
+    this.addData = data;
+    this.bulkPositions = positions;
+    this.bulkRotations = rotations;
+    this.bulkIndices = bulkIndices;
+    this.bulkGenerations = bulkGenerations;
+    this.opCapacity = next;
+  }
+
+  private clearOps(): void {
+    const count = this.opCount;
+    const kinds = this.opKinds;
+    for (let slot = 0; slot < count; slot += 1) {
+      const index = this.opIndexes[slot] ?? 0;
+      if (index < this.slotHead.length) this.slotHead[index] = NO_OP;
+      if (kinds[slot] === OP_ADD) {
+        this.addDefs[slot] = null;
+        this.addData[slot] = null;
+      }
+      this.bulkPositions[slot] = null;
+      this.bulkRotations[slot] = null;
+      this.bulkIndices[slot] = null;
+      this.bulkGenerations[slot] = null;
+    }
+    this.opCount = 0;
   }
 
   /**
@@ -140,7 +654,12 @@ export class EngineEntities {
    * Returns false when `id` is not alive, without changing state.
    */
   setDormant(id: EntityId, dormant: boolean): boolean {
-    return this.deps.bridge.setEntityDormant(entityIndex(id), entityGeneration(id), dormant);
+    const index = entityIndex(id);
+    const generation = entityGeneration(id);
+    if (this.depth === 0) return this.deps.bridge.setEntityDormant(index, generation, dormant);
+    if (!this.mirror.isAlive(index, generation) || this.rowCount(index) === 0) return false;
+    this.pushOp(OP_DORMANT, index, generation, 0, dormant ? 1 : 0);
+    return true;
   }
 
   /**
@@ -156,11 +675,18 @@ export class EngineEntities {
     const typeId = componentRegistryFor(this.deps.engine).getOrRegister(def);
     const index = entityIndex(id);
     const generation = entityGeneration(id);
+    if (this.depth > 0) {
+      this.addDeferred(def, data, index, generation, typeId);
+      return;
+    }
     if (this.deps.bridge.hasComponent(index, generation, typeId)) {
       this.writePresent(def, data, index, generation, typeId);
       return;
     }
-    if (this.writeCold(def, data, index, generation, typeId)) this.membership += 1;
+    if (this.writeCold(def, data, index, generation, typeId)) {
+      this.membership += 1;
+      this.bumpRows(index, 1);
+    }
   }
 
   /** In-place lane write. Kept small so the call allocates nothing. */
@@ -181,7 +707,7 @@ export class EngineEntities {
   /** First insert of a component row. Returns false when the entity is dead. */
   private writeCold<D extends ComponentDefinition<ComponentSchema>>(
     def: D,
-    data: Partial<InferComponent<D>>,
+    data: object,
     index: number,
     generation: number,
     typeId: number,
@@ -231,8 +757,19 @@ export class EngineEntities {
     this.deps.assertState("removeComponent");
     const typeId = componentRegistryFor(this.deps.engine).get(def.name);
     if (typeId === undefined) return false;
-    const removed = this.deps.bridge.removeComponent(entityIndex(id), entityGeneration(id), typeId);
-    if (removed) this.membership += 1;
+    const index = entityIndex(id);
+    const generation = entityGeneration(id);
+    if (this.depth > 0) {
+      if (!this.simulatedHas(index, generation, typeId)) return false;
+      this.bumpRows(index, -1);
+      this.pushOp(OP_REMOVE, index, generation, typeId, 0);
+      return true;
+    }
+    const removed = this.deps.bridge.removeComponent(index, generation, typeId);
+    if (removed) {
+      this.membership += 1;
+      this.bumpRows(index, -1);
+    }
     return removed;
   }
 
@@ -251,8 +788,12 @@ export class EngineEntities {
     components: C,
     precomputedKey?: string,
   ): Query<C> {
-    const query = createChunkQuery(this.deps.engine, this.deps.bridge, components, () =>
-      this.createLiveQuery(components, precomputedKey),
+    const query = createChunkQuery(
+      this.deps.engine,
+      this.deps.bridge,
+      components,
+      () => this.createLiveQuery(components, precomputedKey),
+      this.loopHooks,
     );
     this.chunkQueries.push(query);
     return query;
@@ -335,8 +876,22 @@ export class EngineEntities {
     return cached.ids;
   }
 
+  /** Key comparisons made by the queued-op scans. @internal */
+  readStructuralCompares(): number {
+    return this.structuralCompares;
+  }
+
+  /** Open chunk loops. @internal */
+  readLoopDepth(): number {
+    return this.depth;
+  }
+
   /** Drop every component-query handle. Called from `engine:stop` while WASM is alive. */
   releaseQueries(): void {
+    if (!this.flushing) {
+      this.depth = 0;
+      this.clearOps();
+    }
     for (const query of this.chunkQueries) releaseChunkQuery(query);
     this.chunkQueries.length = 0;
     if (!this.deps.bridge.isActive()) {
@@ -438,7 +993,7 @@ export class EngineEntities {
   private fillScratch<D extends ComponentDefinition<ComponentSchema>>(
     scratch: Record<string, unknown>,
     def: D,
-    data: Partial<InferComponent<D>>,
+    data: object,
   ): void {
     const defaults = def.defaults ?? {};
     const patch = data as Record<string, unknown>;

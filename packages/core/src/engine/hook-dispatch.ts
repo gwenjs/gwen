@@ -87,7 +87,8 @@ export function emitEntityDestroy(
   hooks: Hookable<GwenRuntimeHooks>,
   reportFailure: (id: EntityId, error: unknown) => void,
   id: EntityId,
-): void {
+): unknown {
+  let failure: unknown;
   hooks.callHookWith(
     (hookList, args) => {
       for (const handler of hookList) {
@@ -101,6 +102,7 @@ export function emitEntityDestroy(
           }
         } catch (error) {
           reportFailure(id, error);
+          if (failure === undefined) failure = error;
         } finally {
           popEngine(engine, previous);
         }
@@ -109,4 +111,5 @@ export function emitEntityDestroy(
     "entity:destroy",
     [id],
   );
+  return failure;
 }

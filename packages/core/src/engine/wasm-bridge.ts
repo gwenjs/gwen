@@ -28,6 +28,15 @@ import {
   isCoreWasmErrorCode,
 } from "./engine-errors";
 import { engineContext, GwenContextError } from "./context";
+import {
+  deferBulkDestroy,
+  deferBulkSpawn,
+  deferEntityCreate,
+  deferEntityDestroy,
+  hasEntityTrace,
+  noteEntityAllocated,
+  noteEntityDeallocated,
+} from "./entity-trace.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -554,9 +563,13 @@ export class WasmBridgeImpl implements WasmBridge {
    *   The bridge stays usable after that throw.
    */
   createEntity(): WasmEntityId {
+    const reserved = deferEntityCreate(this);
+    if (reserved !== undefined) return reserved;
     const wasm = this._requireWasm();
     try {
-      return wasm.create_entity();
+      const created = wasm.create_entity();
+      noteEntityAllocated(this, created.index, created.generation);
+      return created;
     } catch (error: unknown) {
       throw this._mapWasmError(error, "create_entity");
     }
@@ -576,9 +589,16 @@ export class WasmBridgeImpl implements WasmBridge {
    *   capacity. No entity is created in that case. The bridge stays usable.
    */
   bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array {
+    const reserved = deferBulkSpawn(this, positions, rotations);
+    if (reserved !== undefined) return reserved;
     const wasm = this._requireWasm();
     try {
-      return wasm.bulk_spawn_with_transforms(positions, rotations);
+      const spawned = wasm.bulk_spawn_with_transforms(positions, rotations);
+      for (let index = 0; index < spawned.length; index += 1) {
+        const slot = spawned[index] ?? 0;
+        noteEntityAllocated(this, slot, this.getEntityGeneration(slot));
+      }
+      return spawned;
     } catch (error: unknown) {
       throw this._mapWasmError(error, "bulk_spawn_with_transforms");
     }
@@ -598,20 +618,41 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   deleteEntity(index: number, generation: number): boolean {
+    const deferred = deferEntityDestroy(this, index, generation);
+    if (deferred !== undefined) return deferred;
     const wasm = this._requireWasm();
     try {
-      return wasm.delete_entity(index, generation);
+      const deleted = wasm.delete_entity(index, generation);
+      if (deleted) noteEntityDeallocated(this, index, generation);
+      return deleted;
     } catch (error: unknown) {
       throw this._mapWasmError(error, "delete_entity");
     }
   }
 
   bulkDestroy(indices: Uint32Array): void {
+    if (deferBulkDestroy(this, indices) === true) return;
     const wasm = this._requireWasm();
+    const traced = hasEntityTrace(this);
+    const generations = traced ? new Uint32Array(indices.length) : null;
+    const live = traced ? new Uint8Array(indices.length) : null;
+    if (generations !== null && live !== null) {
+      for (let index = 0; index < indices.length; index += 1) {
+        const slot = indices[index] ?? 0;
+        const generation = this.getEntityGeneration(slot);
+        generations[index] = generation;
+        live[index] = this.isAlive(slot, generation) ? 1 : 0;
+      }
+    }
     try {
       wasm.bulk_destroy(indices);
     } catch (error: unknown) {
       throw this._mapWasmError(error, "bulk_destroy");
+    }
+    if (generations === null || live === null) return;
+    for (let index = 0; index < indices.length; index += 1) {
+      if (live[index] !== 1) continue;
+      noteEntityDeallocated(this, indices[index] ?? 0, generations[index] ?? 0);
     }
   }
 

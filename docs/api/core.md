@@ -188,7 +188,7 @@ export const moveSystem = defineSystem(function moveSystem() {
 function useQuery<const C extends readonly ComponentDef[]>(components: C): Query<C>
 ```
 
-**Description.** Creates a query that iterates chunks of entities with the specified components. The chunks update when entities match or unmatch. `each()` iterates one accessor per matching entity.
+**Description.** Creates a query that iterates chunks of entities with the specified components. A structural change made inside an open chunk loop (create, destroy, add, remove, or a dormancy toggle) applies when the outermost loop closes. Field writes, and an in-place add of a component the entity already has, apply at once. `each()` stays immediate and iterates one accessor per matching entity.
 
 Iteration skips dormant pooled entities (released by an actor pool and not yet acquired again). Their components stay attached.
 
