@@ -388,4 +388,8 @@ Tests live in `tests/` and cover defaults, merge logic, all validation rules, an
 
 Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `defaultOptions`, `resolveConfig`, `validateResolvedConfig`
 
-Types: `AutoImport`, `ComponentLifecycleHooks`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineLifecycleHooks`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorPayload`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenLogger`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenOptions`, `GwenPlugin`, `GwenRuntimeHooks`, `GwenScopeMeta`, `GwenScopeType`, `GwenTypeTemplate`, `HookBusBase`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `LogEntry`, `LogLevel`, `PluginDeclaration`, `PluginErrorContext`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `ComponentLifecycleHooks`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineLifecycleHooks`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenLogger`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenOptions`, `GwenPlugin`, `GwenRuntimeHooks`, `GwenScopeMeta`, `GwenScopeType`, `GwenTypeTemplate`, `HookBusBase`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `LogEntry`, `LogLevel`, `PluginDeclaration`, `PluginErrorContext`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`
+
+`GwenErrorOptions` — Options for a `GwenError`.
+
+`GwenErrorTarget` — Owner of a caught failure.
