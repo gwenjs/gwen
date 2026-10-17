@@ -1,0 +1,74 @@
+name: Alloc repro
+
+on:
+  push:
+    branches: [wave6/234-alloc-floor]
+  workflow_dispatch:
+
+jobs:
+  repro:
+    name: Archetype alloc x20
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: "1.99.0"
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: '. -> target'
+      - name: Install pinned wasm-pack
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmPack"])')
+          cargo install wasm-pack --version "$version" --locked
+      - name: Install pinned wasm-opt
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmOpt"])')
+          url=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["url"])')
+          sha=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["sha256"])')
+          case "$url" in
+            *"/version_${version}/binaryen-version_${version}-x86_64-linux.tar.gz") ;;
+            *) echo "binaryen url does not match wasm-opt ${version}" >&2; exit 1 ;;
+          esac
+          curl -fsSL -o /tmp/binaryen.tar.gz "$url"
+          echo "$sha  /tmp/binaryen.tar.gz" | sha256sum -c
+          dest="${RUNNER_TEMP}/binaryen"
+          mkdir -p "$dest"
+          tar -xzf /tmp/binaryen.tar.gz -C "$dest" --strip-components=1
+          echo "$dest/bin" >> "$GITHUB_PATH"
+          export PATH="$dest/bin:$PATH"
+          wasm-opt --version
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Build WASM
+        run: ./scripts/build-wasm.sh
+      - name: Run test:wasm twenty times
+        run: |
+          set +e
+          mkdir -p "$RUNNER_TEMP/alloc-repro"
+          summary="$RUNNER_TEMP/alloc-repro/summary.txt"
+          : > "$summary"
+          failed=0
+          for i in $(seq 1 20); do
+            alloc="$RUNNER_TEMP/alloc-repro/run-$i.txt"
+            log="$RUNNER_TEMP/alloc-repro/run-$i.log"
+            : > "$alloc"
+            GWEN_ALLOC_RUN="$i" GWEN_ALLOC_LOG="$alloc" pnpm --filter @gwenjs/core test:wasm >"$log" 2>&1
+            code=$?
+            echo "RUN $i exit=$code" | tee -a "$summary"
+            if [ -s "$alloc" ]; then
+              cat "$alloc" | tee -a "$summary"
+            else
+              echo "RUN $i has no ALLOC lines" | tee -a "$summary"
+            fi
+            if [ "$code" -ne 0 ]; then
+              failed=1
+              echo "FAIL RUN $i" | tee -a "$summary"
+              grep -n -E "AssertionError|expected|bytesPerOp|FAIL " "$log" | head -n 40 | tee -a "$summary"
+            fi
+          done
+          echo "----- TABLE -----"
+          cat "$summary"
+          echo "failed=$failed"
+          exit "$failed"
