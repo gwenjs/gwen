@@ -128,25 +128,26 @@ function perEntityMessage(api: PerEntityApi): string {
  * Does not throw, stop the engine, or mark the event fatal.
  */
 export function warnPerEntityPath(engine: GwenEngine, api: PerEntityApi): void {
-  if (!__GWEN_DEV__) return;
-  const phase = framePhases.get(engine);
-  if (phase === undefined) return;
-  if ((systemDepths.get(engine) ?? 0) === 0) return;
-  if ((suppressDepths.get(engine) ?? 0) > 0) return;
-  const seen = warnedApis.get(engine);
-  if (seen?.has(api) === true) return;
-  const next = seen ?? new Set<PerEntityApi>();
-  if (seen === undefined) warnedApis.set(engine, next);
-  next.add(api);
-  const context: Record<string, unknown> = {};
-  context.api = api;
-  context.phase = phase;
-  context.frame = engine.frameCount;
-  engine.errors.emit({
-    level: "warning",
-    code: CoreErrorCodes.QUERY_PER_ENTITY_PATH,
-    source: "core",
-    message: perEntityMessage(api),
-    context,
-  });
+  if (__GWEN_DEV__) {
+    const phase = framePhases.get(engine);
+    if (phase === undefined) return;
+    if ((systemDepths.get(engine) ?? 0) === 0) return;
+    if ((suppressDepths.get(engine) ?? 0) > 0) return;
+    const seen = warnedApis.get(engine);
+    if (seen?.has(api) === true) return;
+    const next = seen ?? new Set<PerEntityApi>();
+    if (seen === undefined) warnedApis.set(engine, next);
+    next.add(api);
+    const context: Record<string, unknown> = {};
+    context.api = api;
+    context.phase = phase;
+    context.frame = engine.frameCount;
+    engine.errors.emit({
+      level: "warning",
+      code: CoreErrorCodes.QUERY_PER_ENTITY_PATH,
+      source: "core",
+      message: perEntityMessage(api),
+      context,
+    });
+  }
 }
