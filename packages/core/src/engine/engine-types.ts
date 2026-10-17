@@ -468,18 +468,6 @@ export interface EngineStateChangePayload {
 }
 
 /**
- * @deprecated Use {@link GwenEngineState}. `paused` is removed.
- * `starting` and `stopping` are part of the lifecycle.
- */
-export type EngineState = GwenEngineState;
-
-/**
- * @deprecated Use {@link EngineStateChangePayload}.
- * `reason` is {@link GwenEngineStateChangeReason}, not an open string.
- */
-export type EngineStateChange = EngineStateChangePayload;
-
-/**
  * The GWEN engine instance returned by {@link createEngine}.
  *
  * @example Standalone (no framework)

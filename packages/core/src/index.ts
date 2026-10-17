@@ -57,8 +57,6 @@ export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-error
 export type { GwenDisposable } from "@gwenjs/schema";
 export type {
   GwenEngine,
-  EngineState,
-  EngineStateChange,
   EngineStateChangePayload,
   GwenEngineState,
   GwenEngineStateChangeReason,

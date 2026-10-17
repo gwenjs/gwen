@@ -53,8 +53,6 @@
       "EngineFrame",
       "EngineFramePhaseMs",
       "EngineLocal",
-      "EngineState",
-      "EngineStateChange",
       "EngineStateChangePayload",
       "EngineStats",
       "EntityId",
