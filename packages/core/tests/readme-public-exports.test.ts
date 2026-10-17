@@ -6,19 +6,6 @@ import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
-/**
- * EngineState and EngineStateChange are already re-exported from the core barrel.
- * Removing them changes public-api.snap.json and packages/core/src/public-api.fixture.ts,
- * which this PR does not do.
- */
-function isGrandfatheredDeprecated(packageName: string, subpath: string, name: string): boolean {
-  return (
-    packageName === "@gwenjs/core" &&
-    subpath === "." &&
-    (name === "EngineState" || name === "EngineStateChange")
-  );
-}
-
 interface SnapEntry {
   readonly values: readonly string[];
   readonly types: readonly string[];
@@ -128,12 +115,9 @@ function readReadme(pkgDir: string): string | null {
   }
 }
 
-function escapeRegExp(value: string): string {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function hasWholeWord(text: string, name: string): boolean {
-  return new RegExp(`\\b${escapeRegExp(name)}\\b`).test(text);
+/** A snapshot name counts only as its own code span, `` `Name` ``. */
+function hasCodeSpan(text: string, name: string): boolean {
+  return text.includes("`" + name + "`");
 }
 
 /** Missing snapshot names, one line per package. A missing README misses every name. */
@@ -148,7 +132,7 @@ function missingReadmeLines(): string[] {
       for (const name of [...entry.values, ...entry.types]) {
         if (seen.has(name)) continue;
         seen.add(name);
-        if (readme !== null && hasWholeWord(readme, name)) continue;
+        if (readme !== null && hasCodeSpan(readme, name)) continue;
         missing.push(name);
       }
     }
@@ -418,7 +402,6 @@ function deprecatedPublicExports(): string[] {
       if (filePath === null) continue;
       for (const item of exportedSymbols(filePath)) {
         if (isMember(item.node) || !hasDeprecatedTag(item.node)) continue;
-        if (isGrandfatheredDeprecated(packageName, subpath, item.name)) continue;
         const line = `${packageName} ${subpath} ${item.name}`;
         if (seen.has(line)) continue;
         seen.add(line);
@@ -430,8 +413,11 @@ function deprecatedPublicExports(): string[] {
 }
 
 describe("package README public exports", () => {
-  it("lists every snapshot export in the package README and rejects a new deprecated public export", () => {
+  it("lists every snapshot export in the package README", () => {
     expect(missingReadmeLines()).toEqual([]);
+  });
+
+  it("exports nothing deprecated from a public entry", () => {
     expect(deprecatedPublicExports()).toEqual([]);
   });
 });
