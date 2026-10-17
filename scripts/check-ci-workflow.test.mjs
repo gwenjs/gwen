@@ -1310,3 +1310,28 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
     assert.match(cargo, new RegExp(`^${lint}\\s*=\\s*"deny"`, "m"), lint);
   }
 });
+
+test("rust-miri-full runs only on a schedule or a manual dispatch", () => {
+  const yaml = readCi();
+  const on = onBlock(yaml);
+  assert.match(on, /schedule:/);
+  assert.match(on, /workflow_dispatch:/);
+  const full = jobBlock(yaml, "rust-miri-full");
+  assert.notEqual(full, "");
+  assert.match(full, /timeout-minutes:\s*\d+/);
+  assert.match(full, /github\.event_name == 'schedule'/);
+  assert.match(full, /github\.event_name == 'workflow_dispatch'/);
+  assert.doesNotMatch(jobBlock(yaml, "ci-status"), /rust-miri-full/);
+});
+
+test("rust-miri timeout is twice the cold wall in whole minutes", () => {
+  const job = jobBlock(readCi(), "rust-miri");
+  const found = job.match(/2 \* ceil\((\d+)\/60\) = (\d+)/);
+  assert.ok(found, "the comment is missing");
+  const seconds = Number(found[1]);
+  const minutes = Number(found[2]);
+  assert.equal(minutes, 2 * Math.ceil(seconds / 60));
+  const timeout = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeout);
+  assert.equal(Number(timeout[1]), minutes);
+});

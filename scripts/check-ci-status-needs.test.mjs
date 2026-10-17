@@ -57,3 +57,21 @@ test('the workflow lists every job', () => {
   assert.deepEqual(report.missing, []);
   assert.deepEqual(report.unread, []);
 });
+
+test('a schedule-only job stays out of ci-status.needs', () => {
+  const fixture = [
+    'jobs:',
+    '  lint:',
+    '    runs-on: ubuntu-latest',
+    '  rust-miri-full:',
+    '    if: github.event_name == \'schedule\' || github.event_name == \'workflow_dispatch\'',
+    '    runs-on: ubuntu-latest',
+    '  ci-status:',
+    '    needs: [lint]',
+    '    steps:',
+    '      - run: |',
+    '          echo "${{ needs.lint.result }}"',
+    '',
+  ].join('\n');
+  assert.deepEqual(evaluateCiStatus(fixture).missing, []);
+});
