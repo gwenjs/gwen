@@ -23,9 +23,7 @@ const query = useQuery([Position, Label, Big]);
 for (const chunk of query) {
   expectTypeOf(chunk.get(Position).x).toEqualTypeOf<Float32Array>();
   const label = chunk.get(Label);
-  // @ts-expect-error string field is not a column
-  void label.name;
+  expectTypeOf<"name" extends keyof typeof label ? true : false>().toEqualTypeOf<false>();
   const big = chunk.get(Big);
-  // @ts-expect-error i64 field is not a column
-  void big.n;
+  expectTypeOf<"n" extends keyof typeof big ? true : false>().toEqualTypeOf<false>();
 }
