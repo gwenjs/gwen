@@ -316,17 +316,8 @@ function play(
 function sequences(): Op[][] {
   const random = mulberry32(0x6502);
   const lists: Op[][] = [
-    [
-      { kind: "spawn", count: 2 },
-      { kind: "destroy" },
-      { kind: "create" },
-    ],
-    [
-      { kind: "create" },
-      { kind: "spawn", count: 2 },
-      { kind: "destroy" },
-      { kind: "create" },
-    ],
+    [{ kind: "spawn", count: 2 }, { kind: "destroy" }, { kind: "create" }],
+    [{ kind: "create" }, { kind: "spawn", count: 2 }, { kind: "destroy" }, { kind: "create" }],
   ];
   while (lists.length < 500) {
     const count = 1 + Math.floor(random() * 8);
@@ -390,7 +381,7 @@ describe("entity id parity", () => {
               ]
             : [],
         );
-        if (insideRun.spawnAlive !== null) spawnAlive = insideRun.spawnAlive;
+        if (played === 0 && insideRun.spawnAlive !== null) spawnAlive = insideRun.spawnAlive;
         const left = outsideRun.trace.join(" ");
         const right = insideRun.trace.join(" ");
         if (left !== right) {
