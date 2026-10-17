@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { defineComponent, Types } from "../../src/schema.js";
 import { useQuery } from "../../src/system/runtime/define-system.js";
+import { measureAllocations } from "./allocation.js";
 import { createRealEngine } from "./harness.js";
 
 const BulkPos = defineComponent({
@@ -134,6 +135,89 @@ describe("p65 bulk query", () => {
           expect(engine.getComponent(id, VecPos)?.p).toEqual({ x: 5, y: 2 });
         }
       }
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("entityId over 10000 rows allocates 0 bytes per op after warm-up", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 16_384 });
+    try {
+      const { engine } = handle;
+      for (let index = 0; index < 10_000; index += 1) {
+        const id = engine.createEntity();
+        engine.addComponent(id, BulkPos, { x: index, y: 0 });
+      }
+      const query = engine.run(() => useQuery([BulkPos]));
+      let sink = 0n;
+      const report = await measureAllocations(
+        () => {
+          let seen = 0;
+          for (const chunk of query) {
+            for (let row = 0; row < chunk.count; row += 1) {
+              sink = chunk.entityId(row);
+              seen += 1;
+            }
+          }
+          if (seen !== 10_000) throw new Error(`saw ${String(seen)} rows`);
+        },
+        { warmup: 4, ops: 10_000 },
+      );
+
+      expect(sink > 0n).toBe(true);
+      expect(report.bytesPerOp).toBeLessThan(1);
+      expect(report.gcCount).toBe(0);
+    } finally {
+      await handle.dispose();
+    }
+  }, 60_000);
+
+  it("entityId stays correct after memory.grow(1)", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
+    try {
+      const { engine, bridge } = handle;
+      const id = engine.createEntity();
+      engine.addComponent(id, BulkPos, { x: 4, y: 0 });
+      const query = engine.run(() => useQuery([BulkPos]));
+
+      let found: bigint | undefined;
+      for (const chunk of query) {
+        const memory = bridge.getLinearMemory();
+        if (memory === null) throw new Error("light wasm did not export memory");
+        memory.grow(1);
+        found = chunk.entityId(0);
+      }
+
+      expect(found).toBe(id);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("the chunk loop allocates 0 bytes per pass after warm-up", async () => {
+    const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
+    try {
+      const { engine } = handle;
+      const positionOnly = engine.createEntity();
+      engine.addComponent(positionOnly, BulkPos, { x: 1, y: 0 });
+      const withExtra = engine.createEntity();
+      engine.addComponent(withExtra, BulkPos, { x: 2, y: 0 });
+      engine.addComponent(withExtra, VecPos, { p: { x: 0, y: 0 } });
+      const query = engine.run(() => useQuery([BulkPos]));
+      const passes = 8_000;
+      let sink = 0;
+      const report = await measureAllocations(
+        () => {
+          for (let pass = 0; pass < passes; pass += 1) {
+            for (const chunk of query) sink = chunk.count;
+          }
+        },
+        { warmup: 4, ops: passes },
+      );
+
+      expect(sink > 0).toBe(true);
+      expect(report.gcCount).toBe(0);
+      expect(report.bytesPerOp).toBeLessThan(1);
     } finally {
       await handle.dispose();
     }

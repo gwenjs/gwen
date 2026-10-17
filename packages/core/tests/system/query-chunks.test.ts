@@ -175,6 +175,46 @@ describe("useQuery chunks", () => {
     });
   });
 
+  it("a chunk kept while the iterator advances throws CORE:QUERY_INVALID", async () => {
+    await withEngine(async (engine) => {
+      const positionOnly = engine.createEntity();
+      engine.addComponent(positionOnly, Position, { x: 1, y: 0 });
+      const withSpeed = engine.createEntity();
+      engine.addComponent(withSpeed, Position, { x: 2, y: 0 });
+      engine.addComponent(withSpeed, Speed, { v: 3 });
+      const query = engine.run(() => useQuery([Position]));
+      const iterator = query[Symbol.iterator]();
+      const first = iterator.next();
+      const second = iterator.next();
+
+      expect(first.done).toBe(false);
+      expect(second.done).toBe(false);
+      if (first.done !== false || second.done !== false) return;
+
+      const kept = first.value;
+      let caughtGet: unknown;
+      try {
+        kept.get(Position);
+      } catch (error: unknown) {
+        caughtGet = error;
+      }
+      let caughtId: unknown;
+      try {
+        kept.entityId(0);
+      } catch (error: unknown) {
+        caughtId = error;
+      }
+
+      expect(caughtGet).toBeInstanceOf(GwenError);
+      expect(caughtGet).toMatchObject({ code: CoreErrorCodes.QUERY_INVALID });
+      expect(caughtId).toBeInstanceOf(GwenError);
+      expect(caughtId).toMatchObject({ code: CoreErrorCodes.QUERY_INVALID });
+      expect(
+        second.value.entityId(0) === positionOnly || second.value.entityId(0) === withSpeed,
+      ).toBe(true);
+    });
+  });
+
   it("a chunk used after its loop step throws CORE:QUERY_INVALID", async () => {
     await withEngine(async (engine) => {
       const id = engine.createEntity();
