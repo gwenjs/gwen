@@ -149,19 +149,22 @@ describe("p65 bulk query", () => {
         engine.addComponent(id, BulkPos, { x: index, y: 0 });
       }
       const query = engine.run(() => useQuery([BulkPos]));
+      const passes = 8;
       let sink = 0n;
       const report = await measureAllocations(
         () => {
-          let seen = 0;
-          for (const chunk of query) {
-            for (let row = 0; row < chunk.count; row += 1) {
-              sink = chunk.entityId(row);
-              seen += 1;
+          for (let pass = 0; pass < passes; pass += 1) {
+            let seen = 0;
+            for (const chunk of query) {
+              for (let row = 0; row < chunk.count; row += 1) {
+                sink = chunk.entityId(row);
+                seen += 1;
+              }
             }
+            if (seen !== 10_000) throw new Error(`saw ${String(seen)} rows`);
           }
-          if (seen !== 10_000) throw new Error(`saw ${String(seen)} rows`);
         },
-        { warmup: 4, ops: 10_000 },
+        { warmup: 4, ops: 10_000 * passes },
       );
 
       expect(sink > 0n).toBe(true);
@@ -176,6 +179,8 @@ describe("p65 bulk query", () => {
     const handle = await createRealEngine({ variant: "light", maxEntities: 64 });
     try {
       const { engine, bridge } = handle;
+      // A detached id view reads as 0, so the entity under test must not be index 0.
+      engine.createEntity();
       const id = engine.createEntity();
       engine.addComponent(id, BulkPos, { x: 4, y: 0 });
       const query = engine.run(() => useQuery([BulkPos]));
@@ -204,7 +209,7 @@ describe("p65 bulk query", () => {
       engine.addComponent(withExtra, BulkPos, { x: 2, y: 0 });
       engine.addComponent(withExtra, VecPos, { p: { x: 0, y: 0 } });
       const query = engine.run(() => useQuery([BulkPos]));
-      const passes = 8_000;
+      const passes = 32_000;
       let sink = 0;
       const report = await measureAllocations(
         () => {

@@ -58,7 +58,7 @@ type ColumnOf<T> = T extends { readonly type: "f32" }
                     ? ColorCols
                     : never;
 
-/** One matching archetype chunk. Valid until the iterator steps past it. */
+/** One matching archetype chunk. Invalid once the iterator steps past it. */
 export interface QueryChunk<Defs extends readonly ComponentDef[]> {
   readonly count: number;
   get<D extends Defs[number]>(def: D): ChunkColumns<D>;
@@ -211,11 +211,10 @@ function planQuery(components: readonly ComponentDef[]): {
   return { plans, kinds };
 }
 
-class ChunkCursor<C extends readonly ComponentDef[]> implements QueryChunk<C> {
+class ChunkCursor<C extends readonly ComponentDef[]> {
+  epoch = 0;
   count = 0;
   private stale = true;
-  private indexPtr = 0;
-  private generationPtr = 0;
   private viewIndex = 0;
   private readonly columns: unknown[] = [];
   private readonly columnLanes: (readonly LaneArray[])[] = [];
@@ -228,14 +227,22 @@ class ChunkCursor<C extends readonly ComponentDef[]> implements QueryChunk<C> {
 
   close(): void {
     this.stale = true;
+    this.epoch += 1;
   }
 
-  bind(viewIndex: number, count: number, indexPtr: number, generationPtr: number): void {
+  bind(viewIndex: number, count: number): void {
     this.stale = false;
+    this.epoch += 1;
     this.viewIndex = viewIndex;
     this.count = count;
-    this.indexPtr = indexPtr;
-    this.generationPtr = generationPtr;
+  }
+
+  accepts(epoch: number): boolean {
+    return epoch === this.epoch && !this.stale && !this.owner.released;
+  }
+
+  buffer(): ArrayBufferLike {
+    return this.owner.buffer();
   }
 
   get<D extends C[number]>(def: D): ChunkColumns<D> {
@@ -248,7 +255,7 @@ class ChunkCursor<C extends readonly ComponentDef[]> implements QueryChunk<C> {
     const cached = this.columnLanes[defIndex];
     const record = this.columns[defIndex];
     if (record !== undefined && cached !== undefined && sameLaneSlice(cached, lanes, plan)) {
-      return record as ChunkColumns<D>;
+      return asChunkColumns<D>(record);
     }
     const built = buildColumns(plan, lanes);
     const slice: LaneArray[] = [];
@@ -258,21 +265,122 @@ class ChunkCursor<C extends readonly ComponentDef[]> implements QueryChunk<C> {
     }
     this.columnLanes[defIndex] = slice;
     this.columns[defIndex] = built;
-    return built as ChunkColumns<D>;
+    return asChunkColumns<D>(built);
   }
-
-  entityId = (row: number): EntityId => {
-    this.guard();
-    if (row < 0 || row >= this.count) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
-    const memory = this.owner.buffer();
-    const indexes = new Uint32Array(memory, this.indexPtr, this.count);
-    const generations = new Uint32Array(memory, this.generationPtr, this.count);
-    return createEntityId(indexes[row] ?? 0, generations[row] ?? 0);
-  };
 
   private guard(): void {
     if (this.stale || this.owner.released) {
       throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    }
+  }
+}
+
+class ChunkStep<C extends readonly ComponentDef[]> implements QueryChunk<C> {
+  private epoch = 0;
+  private rowCount = 0;
+  private indexPtr = 0;
+  private generationPtr = 0;
+  private idBuffer: ArrayBufferLike | null = null;
+  private indexes: Uint32Array | null = null;
+  private generations: Uint32Array | null = null;
+  private indexCopy = new Uint32Array(0);
+  private generationCopy = new Uint32Array(0);
+  private ids: EntityId[] = [];
+
+  constructor(private readonly cursor: ChunkCursor<C>) {}
+
+  capture(count: number, indexPtr: number, generationPtr: number): void {
+    this.epoch = this.cursor.epoch;
+    this.rowCount = count;
+    this.indexPtr = indexPtr;
+    this.generationPtr = generationPtr;
+    this.ensureLive();
+  }
+
+  get count(): number {
+    return this.rowCount;
+  }
+
+  get<D extends C[number]>(def: D): ChunkColumns<D> {
+    this.guard();
+    return this.cursor.get(def);
+  }
+
+  readonly entityId = (row: number): EntityId => {
+    this.guard();
+    if (row < 0 || row >= this.rowCount) throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    this.ensureLive();
+    const indexes = this.indexes;
+    const generations = this.generations;
+    if (indexes === null || generations === null) {
+      throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+    }
+    const index = indexes[row] ?? 0;
+    const generation = generations[row] ?? 0;
+    const cached = this.ids[row];
+    if (
+      cached !== undefined &&
+      this.indexCopy[row] === index &&
+      this.generationCopy[row] === generation
+    ) {
+      return cached;
+    }
+    if (this.indexCopy.length !== this.rowCount) {
+      this.indexCopy = new Uint32Array(this.rowCount);
+      this.generationCopy = new Uint32Array(this.rowCount);
+      this.ids.length = this.rowCount;
+    }
+    this.indexCopy[row] = index;
+    this.generationCopy[row] = generation;
+    const id = createEntityId(index, generation);
+    this.ids[row] = id;
+    return id;
+  };
+
+  private guard(): void {
+    if (!this.cursor.accepts(this.epoch))
+      throw new GwenError(CoreErrorCodes.QUERY_INVALID, INVALID);
+  }
+
+  private ensureLive(): void {
+    const memory = this.cursor.buffer();
+    const indexes = this.indexes;
+    const generations = this.generations;
+    if (
+      indexes !== null &&
+      generations !== null &&
+      this.idBuffer === memory &&
+      indexes.byteOffset === this.indexPtr &&
+      generations.byteOffset === this.generationPtr &&
+      indexes.length === this.rowCount &&
+      generations.length === this.rowCount
+    ) {
+      return;
+    }
+
+    this.idBuffer = memory;
+    const nextIndexes = new Uint32Array(memory, this.indexPtr, this.rowCount);
+    const nextGenerations = new Uint32Array(memory, this.generationPtr, this.rowCount);
+    this.indexes = nextIndexes;
+    this.generations = nextGenerations;
+    if (this.indexCopy.length !== this.rowCount) {
+      this.indexCopy = new Uint32Array(this.rowCount);
+      this.generationCopy = new Uint32Array(this.rowCount);
+      this.ids.length = this.rowCount;
+    }
+    for (let row = 0; row < this.rowCount; row += 1) {
+      const index = nextIndexes[row] ?? 0;
+      const generation = nextGenerations[row] ?? 0;
+      if (
+        this.ids[row] !== undefined &&
+        this.indexCopy[row] === index &&
+        this.generationCopy[row] === generation
+      ) {
+        continue;
+      }
+      this.indexCopy[row] = index;
+      this.generationCopy[row] = generation;
+      this.ids[row] = createEntityId(index, generation);
     }
   }
 }
@@ -287,6 +395,13 @@ function sameLaneSlice(
     if (cached[lane] !== lanes[plan.laneStart + lane]) return false;
   }
   return true;
+}
+
+function asChunkColumns<D extends ComponentDef>(record: unknown): ChunkColumns<D> {
+  // Field names are read from the schema at runtime, so the record has no
+  // static shape. buildColumns omits string and 64-bit fields, which is what
+  // ChunkColumns erases. This is the only cast on the chunk path.
+  return record as ChunkColumns<D>;
 }
 
 function buildColumns(plan: DefPlan, lanes: readonly LaneArray[]): Record<string, unknown> {
@@ -318,6 +433,11 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
   private running = false;
   private stride = 0;
   private readonly tableWords: number[] = [];
+  private readonly steps: ChunkStep<C>[] = [];
+  private headerView: Uint32Array | null = null;
+  private tableView: Uint32Array | null = null;
+  private tableBuffer: ArrayBufferLike | null = null;
+  private tablePtr = 0;
   /** Yield and return stay as two objects: `IteratorResult` is a union of distinct shapes. */
   private readonly yielded: IteratorYieldResult<QueryChunk<C>>;
   private readonly finished: IteratorReturnResult<undefined> = { done: true, value: undefined };
@@ -326,7 +446,7 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
     private readonly owner: ChunkQuery<C>,
     private readonly chunk: ChunkCursor<C>,
   ) {
-    this.yielded = { done: false, value: chunk };
+    this.yielded = { done: false, value: this.stepAt(0) };
   }
 
   get isRunning(): boolean {
@@ -354,13 +474,14 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
       return this.finished;
     }
     const base = this.position * 4;
-    this.chunk.bind(
-      this.position,
-      this.tableWords[base + 1] ?? 0,
-      this.tableWords[base + 2] ?? 0,
-      this.tableWords[base + 3] ?? 0,
-    );
+    const count = this.tableWords[base + 1] ?? 0;
+    const indexPtr = this.tableWords[base + 2] ?? 0;
+    const generationPtr = this.tableWords[base + 3] ?? 0;
+    this.chunk.bind(this.position, count);
+    const step = this.stepAt(this.position);
+    step.capture(count, indexPtr, generationPtr);
     this.position += 1;
+    this.yielded.value = step;
     return this.yielded;
   }
 
@@ -370,6 +491,14 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
     return this.finished;
   }
 
+  private stepAt(index: number): ChunkStep<C> {
+    const existing = this.steps[index];
+    if (existing !== undefined) return existing;
+    const created = new ChunkStep(this.chunk);
+    this.steps[index] = created;
+    return created;
+  }
+
   private load(): void {
     const ptr = this.owner.readTable();
     if (ptr === 0) {
@@ -377,7 +506,7 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
       return;
     }
     const memory = this.owner.buffer();
-    const header = new Uint32Array(memory, ptr, 4);
+    const header = this.headerAt(memory, ptr);
     this.chunkCount = header[0] ?? 0;
     this.stride = header[2] ?? 0;
     const words = this.tableWords;
@@ -386,7 +515,8 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
       this.chunkCount = 0;
       return;
     }
-    const table = new Uint32Array(memory, ptr, 4 + this.chunkCount * this.stride);
+    const tableLen = 4 + this.chunkCount * this.stride;
+    const table = this.tableAt(memory, ptr, tableLen);
     for (let index = 0; index < this.chunkCount; index += 1) {
       const src = 4 + index * this.stride;
       const dest = index * 4;
@@ -395,6 +525,39 @@ class ChunkIter<C extends readonly ComponentDef[]> implements Iterator<QueryChun
       words[dest + 2] = table[src + 2] ?? 0;
       words[dest + 3] = table[src + 3] ?? 0;
     }
+  }
+
+  private headerAt(memory: ArrayBufferLike, ptr: number): Uint32Array {
+    const header = this.headerView;
+    if (
+      header !== null &&
+      this.tableBuffer === memory &&
+      this.tablePtr === ptr &&
+      header.byteOffset === ptr
+    ) {
+      return header;
+    }
+    const created = new Uint32Array(memory, ptr, 4);
+    this.headerView = created;
+    this.tableBuffer = memory;
+    this.tablePtr = ptr;
+    this.tableView = null;
+    return created;
+  }
+
+  private tableAt(memory: ArrayBufferLike, ptr: number, tableLen: number): Uint32Array {
+    const table = this.tableView;
+    if (
+      table !== null &&
+      table.buffer === memory &&
+      table.byteOffset === ptr &&
+      table.length === tableLen
+    ) {
+      return table;
+    }
+    const created = new Uint32Array(memory, ptr, tableLen);
+    this.tableView = created;
+    return created;
   }
 }
 

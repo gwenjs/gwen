@@ -185,13 +185,13 @@ describe("useQuery chunks", () => {
       const query = engine.run(() => useQuery([Position]));
       const iterator = query[Symbol.iterator]();
       const first = iterator.next();
+      expect(first.done).toBe(false);
+      if (first.done !== false) return;
+      const kept = first.value;
       const second = iterator.next();
 
-      expect(first.done).toBe(false);
       expect(second.done).toBe(false);
-      if (first.done !== false || second.done !== false) return;
-
-      const kept = first.value;
+      if (second.done !== false) return;
       let caughtGet: unknown;
       try {
         kept.get(Position);
