@@ -25,8 +25,6 @@ type _0 = [
   Root.EngineErrorPayload,
   Root.EngineFrame,
   Root.EngineFramePhaseMs,
-  Root.EngineState,
-  Root.EngineStateChange,
   Root.EngineStateChangePayload,
   Root.GwenEngineState,
   Root.GwenEngineStateChangeReason,
