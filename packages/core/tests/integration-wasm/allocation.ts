@@ -1,13 +1,17 @@
 /// <reference types="node" />
 
+import { appendFileSync } from "node:fs";
 import v8 from "node:v8";
 import vm from "node:vm";
 
+import { expect } from "vitest";
+
 export interface AllocationReport {
   /**
-   * `new_space` bytes used after the run, minus the same counter after a
-   * forced GC before the run. The second read is inside the window, so the
-   * floor is a few KB. Code space and trusted space are not counted.
+   * `new_space` plus `new_large_object_space` (when that space exists) after
+   * the run, minus the same sum after a forced GC before the run. The second
+   * read is inside the window, so the floor is a few KB. Code space, trusted
+   * space, and `old_space` are not counted.
    */
   allocatedBytes: number;
   /** GCs observed during the run. Above zero, allocatedBytes is a lower bound. */
@@ -31,14 +35,28 @@ function collectGc(): () => void {
   return () => Reflect.apply(fromVm, undefined, []);
 }
 
-function newSpaceUsed(): number {
-  const found = v8.getHeapSpaceStatistics().find((space) => space.space_name === "new_space");
-  if (found === undefined) throw new Error("[GWEN] measureAllocations: new_space is missing");
-  return found.space_used_size;
+function countedBytes(): number {
+  const rows = v8.getHeapSpaceStatistics();
+  const young = rows.find((space) => space.space_name === "new_space");
+  if (young === undefined) throw new Error("[GWEN] measureAllocations: new_space is missing");
+  const large = rows.find((space) => space.space_name === "new_large_object_space");
+  return young.space_used_size + (large === undefined ? 0 : large.space_used_size);
+}
+
+function logAlloc(ops: number, allocatedBytes: number, gcCount: number): void {
+  const file = process.env.GWEN_ALLOC_LOG;
+  if (file === undefined || file.length === 0) return;
+  const name = expect.getState().currentTestName ?? "unknown";
+  const mode = __GWEN_DEV__ ? "dev" : "prod";
+  const run = process.env.GWEN_ALLOC_RUN ?? "-";
+  appendFileSync(
+    file,
+    `ALLOC run=${run} mode=${mode} test=${JSON.stringify(name)} bytesPerOp=${allocatedBytes / ops} gcCount=${gcCount}\n`,
+  );
 }
 
 /**
- * Count young-space bytes for one run. The profiler is stopped in `finally`.
+ * Count young-generation bytes for one run. The profiler is stopped in `finally`.
  * Test-only. Promoting this helper is #57.
  */
 export async function measureAllocations(
@@ -49,17 +67,18 @@ export async function measureAllocations(
   const gc = collectGc();
   for (let i = 0; i < opts.warmup; i += 1) await run();
   gc();
-  const youngBefore = newSpaceUsed();
+  const youngBefore = countedBytes();
   const before = process.memoryUsage().heapUsed;
   const profiler = new v8.GCProfiler();
   let profile: v8.GCProfilerResult | undefined;
   profiler.start();
   try {
     await run();
-    const allocatedBytes = newSpaceUsed() - youngBefore;
+    const allocatedBytes = countedBytes() - youngBefore;
     profile = profiler.stop();
     gc();
     const retainedBytes = process.memoryUsage().heapUsed - before;
+    logAlloc(opts.ops, allocatedBytes, profile.statistics.length);
     return {
       allocatedBytes,
       gcCount: profile.statistics.length,

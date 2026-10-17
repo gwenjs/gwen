@@ -166,27 +166,33 @@ describe("chunk column allocation", () => {
     }
   });
 
-  it("counts an object per op and ignores an empty call", async () => {
+  it("ignores an empty call", async () => {
     const ops = 8_000;
-    const empty = await measureAllocations(
+    const report = await measureAllocations(
       () => {
         for (let index = 0; index < ops; index += 1) void index;
       },
       { warmup: 4, ops },
     );
-    expect(empty.bytesPerOp).toBeLessThan(1);
-    expect(empty.gcCount).toBe(0);
+    expect(report.bytesPerOp).toBeLessThan(1);
+    expect(report.gcCount).toBe(0);
+  });
 
-    const leaked = await measureAllocations(
+  it("counts an object kept alive per op", async () => {
+    const ops = 8_000;
+    const report = await measureAllocations(
       () => {
+        const sink: Uint8Array[] = [];
         for (let index = 0; index < ops; index += 1) {
           const extra = new Uint8Array(1);
           extra[0] = 1;
+          sink.push(extra);
         }
+        if (sink.length !== ops || sink[0]?.[0] !== 1) throw new Error("sink dropped the object");
       },
       { warmup: 4, ops },
     );
-    expect(leaked.bytesPerOp >= 1 || leaked.gcCount > 0).toBe(true);
+    expect(report.bytesPerOp).toBeGreaterThanOrEqual(1);
   });
 
   it("counts a large array kept alive per op", async () => {
