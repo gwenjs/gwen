@@ -336,11 +336,11 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
-    # x86_64 run 39029841576 job 117388035614, cache prefix v1-miri-cold-2026-10-12.
-    # The kept commands finished. The new binaries were still compiling when a
-    # history rotation missed by 1 ulp at 490s, before archetype_storage.
-    # Ceiling so the next cold run can finish. 2 * ceil(900/60) = 30.
-    timeout-minutes: 30
+    # x86_64 run 39031186148 job 117391793389, sha d4265ddf.
+    # Cache prefix v1-miri-cold-2026-10-17. The cache step logged "No cache found."
+    # Job wall 707s, 2026-10-17T12:05:54Z to 2026-10-17T12:17:41Z.
+    # 2 * ceil(707/60) = 24.
+    timeout-minutes: 24
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
