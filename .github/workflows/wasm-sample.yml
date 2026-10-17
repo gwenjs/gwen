@@ -43,5 +43,22 @@ jobs:
       - uses: ./.github/actions/setup-node-pnpm
       - name: Build WASM
         run: ./scripts/build-wasm.sh
-      - name: Run test:wasm
-        run: pnpm --filter @gwenjs/core test:wasm
+      - name: Run the allocation tests thirty times
+        run: |
+          failed=0
+          for run in $(seq 1 30); do
+            if pnpm --filter @gwenjs/core exec vitest run --config vitest.wasm.config.ts \
+              tests/integration-wasm/archetype-alloc.test.ts \
+              tests/integration-wasm/p56-pool-allocation.test.ts \
+              tests/integration-wasm/p65-defer-alloc.test.ts \
+              tests/integration-wasm/p65-bulk-query.test.ts \
+              tests/integration-wasm/allocation-helper.test.ts > "run-${run}.log" 2>&1; then
+              echo "run ${run}: pass"
+            else
+              echo "run ${run}: FAIL"
+              grep -E "AssertionError|Error:|FAIL" "run-${run}.log" | head -5
+              failed=$((failed + 1))
+            fi
+          done
+          echo "failures: ${failed} of 30"
+          test "${failed}" -eq 0
