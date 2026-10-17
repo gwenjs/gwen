@@ -31,7 +31,7 @@ fn bulk_destroy_frees_all_provided_entities() {
     let b = engine.create_entity().expect("entity limit").index();
     let c = engine.create_entity().expect("entity limit").index();
 
-    engine.bulk_destroy(&[a, b, c]);
+    assert_eq!(engine.bulk_destroy(&[a, b, c]), Ok(()));
     // After destroying 3 entities, count should be 0
     assert_eq!(engine.count_entities(), 0);
 }
@@ -41,9 +41,9 @@ fn bulk_destroy_skips_already_dead_entities() {
     let mut engine = Engine::new(100).expect("max entities");
     let a = engine.create_entity().expect("entity limit").index();
     let gen = engine.get_entity_generation(a);
-    engine.delete_entity(a, gen);
+    assert_eq!(engine.delete_entity(a, gen), Ok(true));
     // Should not panic when bulk_destroy is called with a dead entity
-    engine.bulk_destroy(&[a]);
+    assert_eq!(engine.bulk_destroy(&[a]), Ok(()));
     assert_eq!(engine.count_entities(), 0);
 }
 
@@ -56,10 +56,10 @@ fn bulk_destroy_with_mixed_alive_and_dead() {
 
     // Delete b
     let gen_b = engine.get_entity_generation(b);
-    engine.delete_entity(b, gen_b);
+    assert_eq!(engine.delete_entity(b, gen_b), Ok(true));
 
     // Bulk destroy a and c (b is already dead, should be skipped)
-    engine.bulk_destroy(&[a, b, c]);
+    assert_eq!(engine.bulk_destroy(&[a, b, c]), Ok(()));
     assert_eq!(engine.count_entities(), 0);
 }
 
@@ -217,7 +217,7 @@ fn bulk_destroy_then_spawn_reuses_slots() {
     assert_eq!(initial_count, 5);
 
     // Destroy first 3
-    engine.bulk_destroy(&ids[0..3]);
+    assert_eq!(engine.bulk_destroy(&ids[0..3]), Ok(()));
     assert_eq!(engine.count_entities(), 2);
 
     // Spawn 3 new ones with transforms
@@ -262,7 +262,7 @@ fn bulk_destroy_large_batch() {
     assert_eq!(engine.count_entities(), 100);
 
     // Destroy all
-    engine.bulk_destroy(&ids);
+    assert_eq!(engine.bulk_destroy(&ids), Ok(()));
     assert_eq!(engine.count_entities(), 0);
 }
 

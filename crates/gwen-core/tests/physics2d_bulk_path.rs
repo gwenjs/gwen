@@ -183,7 +183,7 @@ fn sync_from_rapier_mismatch_is_not_an_empty_read() -> Result<(), CoreError> {
     );
     assert_eq!(
         other.get_component_raw(other_id.index(), other_id.generation(), other_type),
-        vec![5, 6, 7, 8]
+        Ok(vec![5, 6, 7, 8])
     );
     Ok(())
 }
@@ -251,7 +251,7 @@ fn sync_to_rapier_mismatch_leaves_the_component() -> Result<(), CoreError> {
     );
     assert_eq!(
         other.get_component_raw(other_id.index(), other_id.generation(), other_type),
-        vec![5, 6, 7, 8]
+        Ok(vec![5, 6, 7, 8])
     );
     Ok(())
 }
@@ -311,7 +311,7 @@ fn apply_impulse_mismatch_leaves_the_component() -> Result<(), CoreError> {
     );
     assert_eq!(
         other.get_component_raw(other_id.index(), other_id.generation(), other_type),
-        vec![5, 6, 7, 8]
+        Ok(vec![5, 6, 7, 8])
     );
     Ok(())
 }

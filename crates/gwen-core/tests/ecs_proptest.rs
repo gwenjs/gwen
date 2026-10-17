@@ -106,9 +106,12 @@ fn fresh_engine() -> (Engine, Model) {
         assert_eq!(added, true);
     }
     for &type_id in &type_ids {
-        assert!(engine.remove_component(index, generation, type_id));
+        assert_eq!(
+            engine.remove_component(index, generation, type_id),
+            Ok(true)
+        );
     }
-    assert!(engine.delete_entity(index, generation));
+    assert_eq!(engine.delete_entity(index, generation), Ok(true));
 
     let model = Model {
         slots: vec![Slot {
@@ -143,8 +146,9 @@ fn assert_invariants(engine: &mut Engine, model: &Model) {
             "stale generation accepted at {index}",
         );
         if !slot.alive {
-            assert!(
-                !engine.delete_entity(index, slot.generation),
+            assert_eq!(
+                engine.delete_entity(index, slot.generation),
+                Ok(false),
                 "stale delete accepted at {index}",
             );
             let stale_add = must_ok(engine.add_component(
@@ -165,7 +169,13 @@ fn assert_invariants(engine: &mut Engine, model: &Model) {
 
 fn assert_query(engine: &mut Engine, model: &Model, types: &[usize]) {
     let type_ids: Vec<u32> = types.iter().map(|&ty| model.type_ids[ty]).collect();
-    let mut actual = engine.query_entities(&type_ids);
+    let mut actual = match engine.query_entities(&type_ids) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     actual.sort_unstable();
 
     let mut expected: Vec<u32> = model
@@ -219,13 +229,13 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
             let slot = &mut model.slots[index as usize];
             let deleted = engine.delete_entity(index, slot.generation);
             if slot.alive {
-                assert!(deleted, "live entity was not deleted");
+                assert_eq!(deleted, Ok(true), "live entity was not deleted");
                 slot.alive = false;
                 slot.components = [false; TYPE_COUNT];
                 model.free.push(index);
                 model.live -= 1;
             } else {
-                assert!(!deleted, "delete of a dead id returned true");
+                assert_eq!(deleted, Ok(false), "delete of a dead id returned true");
             }
         }
         Op::DeleteStale(raw) => {
@@ -233,7 +243,7 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
                 return;
             };
             let stale = model.slots[index as usize].generation.wrapping_add(1);
-            assert!(!engine.delete_entity(index, stale));
+            assert_eq!(engine.delete_entity(index, stale), Ok(false));
             assert!(!engine.is_alive(index, stale));
             let stale_add =
                 must_ok(engine.add_component(index, stale, model.type_ids[0], &[1, 0, 0, 0]));
@@ -266,10 +276,18 @@ fn apply(engine: &mut Engine, model: &mut Model, op: Op) {
             let slot = &mut model.slots[index as usize];
             let removed = engine.remove_component(index, slot.generation, model.type_ids[ty]);
             if slot.alive && slot.components[ty] {
-                assert!(removed, "remove of a present component returned false");
+                assert_eq!(
+                    removed,
+                    Ok(true),
+                    "remove of a present component returned false"
+                );
                 slot.components[ty] = false;
             } else {
-                assert!(!removed, "remove of a missing component returned true");
+                assert_eq!(
+                    removed,
+                    Ok(false),
+                    "remove of a missing component returned true"
+                );
             }
         }
         Op::Query(mask) => {

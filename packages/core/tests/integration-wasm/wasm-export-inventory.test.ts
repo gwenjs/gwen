@@ -43,22 +43,16 @@ const ENGINE: Record<string, ExportRow> = {
   alloc_shared_buffer: infallible(
     "a zero length, a rejected layout, or a null alloc_zeroed each return 0 at bindings.rs:929-939",
   ),
-  bulk_destroy: infallible(
-    "an index past records fails is_alive at entity.rs:121-122 and is skipped at bindings.rs:3565-3566",
-  ),
+  bulk_destroy: result(),
   bulk_spawn_with_transforms: result(),
   component_staging_ptr: infallible(
     "returns the staging address as u32, or 0 when it does not fit, at bindings.rs:328-329",
   ),
   count_entities: infallible("returns the stored live count at bindings.rs:204-206; no argument"),
   create_entity: result(),
-  delete_entity: infallible(
-    "deallocate returns false when the index is past records at entity.rs:98-99; a stale generation returns false at entity.rs:105-106",
-  ),
+  delete_entity: result(),
   free_shared_buffer: result(),
-  get_component_raw: infallible(
-    "a dead entity returns an empty Vec at bindings.rs:286-290; get_location uses slice get at storage.rs:217-220; the column slice at archetype.rs:108-114 runs only for that stored row",
-  ),
+  get_component_raw: result(),
   get_components_bulk: result(),
   get_entity_generation: infallible(
     "records.get, then unwrap_or(u32::MAX) at bindings.rs:605-608 and entity.rs:145-146",
@@ -73,35 +67,25 @@ const ENGINE: Record<string, ExportRow> = {
     "returns the buffer length cast to u32 at bindings.rs:682-683; the cast truncates",
   ),
   get_query_result_ptr: infallible("returns Vec::as_ptr at bindings.rs:673-674; no index"),
-  has_component: infallible(
-    "a dead entity returns false at bindings.rs:276-281; the store answers the live row at bindings.rs:283",
-  ),
+  has_component: result(),
   has_entity_parent: infallible("HashMap get, then unwrap_or(false) at bindings.rs:877-882"),
   is_alive: infallible("an index past records returns false at entity.rs:121-122"),
-  is_entity_dormant: infallible(
-    "a dead entity returns false at bindings.rs:392-398; a missing row is false at bindings.rs:399",
-  ),
+  is_entity_dormant: result(),
   mark_entity_teleport: infallible(
     "get_entity_generation then mark_pending_snap at bindings.rs:1057-1059; a missing node is a no-op at transform.rs:417-420",
   ),
   query_chunks: result(),
-  query_entities: infallible(
-    "count_awake then write_awake copy the awake slots at bindings.rs:682-690",
-  ),
+  query_entities: result(),
   query_entities_to_buffer: result(),
   query_read_bulk: result(),
   query_write_bulk: result(),
-  read_component_staged: infallible(
-    "a dead entity returns false at bindings.rs:355-361; a missing component returns false and leaves the staging bytes unchanged",
-  ),
+  read_component_staged: result(),
   register_component: result(),
   register_query: result(),
   release_query: infallible(
     "forwards the handle at bindings.rs:427-428; an unknown handle does nothing",
   ),
-  remove_component: infallible(
-    "a dead entity returns false at bindings.rs:264-268; a store error becomes false at bindings.rs:270-272 and the row stays",
-  ),
+  remove_component: result(),
   remove_entity_from_query: infallible(
     "the body ignores the index at bindings.rs:667-669; deleting the entity drops its row",
   ),
@@ -232,17 +216,25 @@ describe("WASM export inventory", () => {
       .sort();
     expect(resultExports).toEqual([
       "add_component",
+      "bulk_destroy",
       "bulk_spawn_with_transforms",
       "constructor",
       "create_entity",
+      "delete_entity",
       "free_shared_buffer",
+      "get_component_raw",
       "get_components_bulk",
+      "has_component",
+      "is_entity_dormant",
       "query_chunks",
+      "query_entities",
       "query_entities_to_buffer",
       "query_read_bulk",
       "query_write_bulk",
+      "read_component_staged",
       "register_component",
       "register_query",
+      "remove_component",
       "set_components_bulk",
       "set_entity_dormant",
       "set_entity_parent",

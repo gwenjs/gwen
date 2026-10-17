@@ -140,6 +140,16 @@ describe("WasmBridge — with injected mock", () => {
     expect(poison).toHaveBeenCalledWith(trap);
   });
 
+  it("maps CORE:STORAGE_INCONSISTENT onto GwenWasmError", () => {
+    const poison = (): void => {};
+    const code = CoreErrorCodes.STORAGE_INCONSISTENT;
+    const cause = new Error("Storage inconsistent: site 1");
+    (cause as Error & { code: string }).code = code;
+    const mapped = toGwenWasmError(cause, "has_component", poison);
+    expect(mapped).toBeInstanceOf(GwenWasmError);
+    expect(mapped).toMatchObject({ code, exportName: "has_component", cause });
+  });
+
   it("maps the chunk-store core codes onto GwenWasmError", () => {
     const poison = (): void => {};
     const codes = [

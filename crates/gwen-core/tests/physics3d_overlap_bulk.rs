@@ -268,7 +268,7 @@ fn sync_to_rapier_propagates_a_length_mismatch_and_writes_nothing() -> Result<()
     );
     assert_eq!(
         e.get_component_raw(index, generation, type_id),
-        vec![9, 9, 9, 9]
+        Ok(vec![9, 9, 9, 9])
     );
     Ok(())
 }
@@ -302,7 +302,7 @@ fn apply_impulse_propagates_a_length_mismatch_and_writes_nothing() -> Result<(),
     );
     assert_eq!(
         e.get_component_raw(index, generation, type_id),
-        vec![1, 1, 1, 1]
+        Ok(vec![1, 1, 1, 1])
     );
     Ok(())
 }

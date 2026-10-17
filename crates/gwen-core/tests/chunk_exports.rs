@@ -26,7 +26,7 @@ fn register_component_rejects_a_short_row_and_leaves_generation() -> Result<(), 
     assert_eq!(engine.storage_generation(), generation);
     assert_eq!(
         engine.get_component_raw(id.index(), id.generation(), position),
-        Vec::<u8>::new()
+        Ok(Vec::<u8>::new())
     );
     Ok(())
 }
@@ -49,7 +49,7 @@ fn in_place_write_keeps_storage_generation_and_a_second_type_bumps_it() -> Resul
     assert_eq!(engine.storage_generation(), after_add);
     assert_eq!(
         engine.get_component_raw(id.index(), id.generation(), position),
-        4u32.to_le_bytes().to_vec()
+        Ok(4u32.to_le_bytes().to_vec())
     );
     assert_eq!(
         engine.add_component(id.index(), id.generation(), velocity, &2u32.to_le_bytes()),
@@ -69,8 +69,8 @@ fn set_entity_dormant_is_false_without_a_row_and_for_a_stale_generation() -> Res
         Ok(false)
     );
     assert_eq!(
-        Some(engine.is_entity_dormant(id.index(), id.generation())),
-        Some(false)
+        engine.is_entity_dormant(id.index(), id.generation()),
+        Ok(false)
     );
     assert_eq!(
         engine.add_component(id.index(), id.generation(), position, &1u32.to_le_bytes()),
@@ -81,16 +81,16 @@ fn set_entity_dormant_is_false_without_a_row_and_for_a_stale_generation() -> Res
         Ok(true)
     );
     assert_eq!(
-        Some(engine.is_entity_dormant(id.index(), id.generation())),
-        Some(true)
+        engine.is_entity_dormant(id.index(), id.generation()),
+        Ok(true)
     );
     assert_eq!(
         engine.set_entity_dormant(id.index(), id.generation().wrapping_add(1), false),
         Ok(false)
     );
     assert_eq!(
-        Some(engine.is_entity_dormant(id.index(), id.generation())),
-        Some(true)
+        engine.is_entity_dormant(id.index(), id.generation()),
+        Ok(true)
     );
     Ok(())
 }
