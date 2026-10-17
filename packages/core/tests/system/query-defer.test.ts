@@ -42,14 +42,16 @@ describe("chunk loop defers structural changes", () => {
       const query = engine.run(() => useQuery([Position]));
 
       let aliveInLoop: boolean | undefined;
+      let hooksInLoop = -1;
       for (const _chunk of query) {
         engine.destroyEntity(id);
         aliveInLoop = engine.isAlive(id);
+        hooksInLoop = seen.length;
         break;
       }
 
       expect(aliveInLoop).toBe(true);
-      expect(seen).toEqual([]);
+      expect(hooksInLoop).toBe(0);
       expect(engine.isAlive(id)).toBe(false);
       expect(seen).toEqual([id]);
     });
