@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -1311,17 +1311,20 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   }
 });
 
-test("rust-miri-full runs only on a schedule or a manual dispatch", () => {
-  const yaml = readCi();
-  const on = onBlock(yaml);
-  assert.match(on, /schedule:/);
-  assert.match(on, /workflow_dispatch:/);
-  const full = jobBlock(yaml, "rust-miri-full");
-  assert.notEqual(full, "");
+test("miri-full.yml runs on a weekly schedule or a manual dispatch", () => {
+  const path = join(root, ".github/workflows/miri-full.yml");
+  assert.equal(existsSync(path), true);
+  const full = readFileSync(path, "utf8");
+  const on = onBlock(full);
+  assert.match(on, /schedule:\n {4}- cron: "0 6 \* \* 1"/);
+  assert.match(on, /workflow_dispatch:\n/);
+  assert.doesNotMatch(on, /^\s+push:/m);
+  assert.doesNotMatch(on, /^\s+pull_request:/m);
   assert.match(full, /timeout-minutes:\s*\d+/);
-  assert.match(full, /github\.event_name == 'schedule'/);
-  assert.match(full, /github\.event_name == 'workflow_dispatch'/);
-  assert.doesNotMatch(jobBlock(yaml, "ci-status"), /rust-miri-full/);
+  const ci = readCi();
+  assert.doesNotMatch(ci, /rust-miri-full/);
+  assert.doesNotMatch(onBlock(ci), /schedule:/);
+  assert.doesNotMatch(onBlock(ci), /workflow_dispatch:/);
 });
 
 test("rust-miri timeout is twice the cold wall in whole minutes", () => {
