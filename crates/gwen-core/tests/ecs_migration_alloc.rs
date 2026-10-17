@@ -88,7 +88,8 @@ fn allocations_on_other_threads_are_not_counted() {
         });
         let measured = allocs_during(|| {
             let mut sum = 0u64;
-            for n in 0..20_000_000u64 {
+            let spins = if cfg!(miri) { 1_000 } else { 20_000_000 };
+            for n in 0..spins {
                 sum = sum.wrapping_add(n);
             }
             std::hint::black_box(sum);

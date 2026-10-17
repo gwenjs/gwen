@@ -321,7 +321,7 @@ fn invalid_parent_leaves_the_hierarchy_unchanged() {
 
 #[test]
 fn deep_chain_self_and_cycle_do_not_overflow() {
-    const N: u32 = 100_000;
+    const N: u32 = if cfg!(miri) { 1_001 } else { 100_000 };
     let mut engine = engine(N);
     for i in 0..N {
         let id = engine.create_entity().expect("slot");

@@ -458,7 +458,8 @@ fn the_129th_component_type_is_refused() -> Result<(), CoreError> {
 
 #[test]
 fn lane_pointers_stay_put_over_10_000_inserts() -> Result<(), CoreError> {
-    let mut store = open(10_000)?;
+    const INSERTS: u32 = if cfg!(miri) { 1_025 } else { 10_000 };
+    let mut store = open(INSERTS)?;
     let kind = store.register(&[0])?;
     assert_eq!(store.add(0, 0, kind, &le4(1)), Ok(true));
     let lane = store.lane_ptr(0, 0);
@@ -472,7 +473,7 @@ fn lane_pointers_stay_put_over_10_000_inserts() -> Result<(), CoreError> {
         return Ok(());
     };
     assert_eq!(lane % 8, 0);
-    for index in 1..10_000 {
+    for index in 1..INSERTS {
         assert_eq!(store.add(index, 0, kind, &le4(index)), Ok(true));
     }
     assert_eq!(store.lane_ptr(0, 0), Some(lane));

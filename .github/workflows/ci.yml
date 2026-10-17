@@ -4,6 +4,9 @@ on:
   push:
     branches: [main, v1-alpha, "hardening/**"]
   pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -336,9 +339,12 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
-    # Cold run 38290952283 job 114950634994: no cache, wall 136s.
-    # Twice that, in whole minutes, is 6. The warm run was 91s.
-    timeout-minutes: 6
+    # Kept commands: cold run 38290952283 job 114950634994, no cache, wall 136s.
+    # Added commands, local warm aarch64, nightly-2026-10-01, default threads,
+    # 2026-10-17: --lib chunk_store 3s, six targets 228s, archetype_storage
+    # skipping the 4096 walk and the max-entities constructor 19s.
+    # 136 + 249 = 385. 2 * ceil(385/60) = 14.
+    timeout-minutes: 14
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
     steps:
@@ -363,6 +369,41 @@ jobs:
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test unsafe_sites
       - name: Miri gwen-core lib unsafe_site tests
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib unsafe_site_
+      - name: Miri gwen-wasm-utils
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
+      - name: Miri chunk store
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib chunk_store
+      - name: Miri chunk exports, history, bulk layout, bitset, errors, alloc
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --test chunk_exports --test transform_history --test bulk_ops_layout --test bitset_total --test core_errors --test ecs_migration_alloc
+      - name: Miri archetype storage without the two long tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --test archetype_storage -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
+
+  rust-miri-full:
+    name: Miri full
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Local warm aarch64, nightly-2026-10-01, default threads, 2026-10-17.
+    # --lib --tests until proptest aborted on getcwd: 1517s (12:49:44 to 13:15:01).
+    # Proptest with no failure file and 4 cases: 28s. Later files before the
+    # storage scene: 15s. Shrunk storage scene and the last files: 6s.
+    # gwen-wasm-utils: 5s. 1517 + 28 + 15 + 6 + 5 = 1571.
+    # 2 * ceil(1571/60) = 54.
+    timeout-minutes: 54
+    env:
+      MIRI_TOOLCHAIN: nightly-2026-10-01
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: ${{ env.MIRI_TOOLCHAIN }}
+          components: miri, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          prefix-key: v1-miri-full-2026-10-17
+          workspaces: '. -> target'
+          cache-on-failure: true
+      - name: Miri gwen-core lib and integration tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib --tests
       - name: Miri gwen-wasm-utils
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
 
