@@ -1,0 +1,38 @@
+name: Miri full
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: miri-full-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rust-miri-full:
+    name: Miri full
+    runs-on: ubuntu-latest
+    # Ceiling until the workflow_dispatch run of this file is measured.
+    # 2 * ceil(3600/60) = 120.
+    timeout-minutes: 120
+    env:
+      MIRI_TOOLCHAIN: nightly-2026-10-01
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: ${{ env.MIRI_TOOLCHAIN }}
+          components: miri, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          prefix-key: v1-miri-full-2026-10-17
+          workspaces: '. -> target'
+          cache-on-failure: true
+      - name: Miri gwen-core lib and integration tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib --tests
+      - name: Miri gwen-wasm-utils
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
