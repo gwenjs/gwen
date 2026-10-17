@@ -140,7 +140,7 @@ pub enum CoreError {
     /// | 15 | dormancy of a live row: the row is past `len` |
     /// | 16 | dormancy of a live row: `awake` is past `len` |
     /// | 17 | add onto a new mask: the archetype record is missing |
-    /// | 18 | in-place write: a lane cell is missing |
+    /// | 18 | in-place write: the lane write fails |
     /// | 19 | `set_dormant`: the slot row is past `len` |
     /// | 20 | `set_dormant`: `awake` is past `len` |
     /// | 21 | `set_dormant`: the swapped entity has no slot |

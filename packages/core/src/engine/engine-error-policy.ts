@@ -10,7 +10,7 @@ import type { EntityId } from "./engine-api.js";
 import type { EngineErrorBus } from "./engine-types.js";
 import type { EngineErrorPayload, GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { EngineStateMachine } from "./engine-state.js";
-import { CoreErrorCodes, GwenWasmPanicError } from "./engine-errors.js";
+import { CoreErrorCodes, GwenWasmError, GwenWasmPanicError } from "./engine-errors.js";
 import {
   forgetTarget,
   isolateTarget,
@@ -219,6 +219,19 @@ export class EngineErrorPolicy {
     const isTrap = err instanceof WebAssembly.RuntimeError || err instanceof GwenWasmPanicError;
     const target = forced?.target;
     const frame = this.deps.frame();
+
+    if (err instanceof GwenWasmError && err.code === CoreErrorCodes.STORAGE_INCONSISTENT) {
+      this.publish({
+        level: "fatal",
+        code: CoreErrorCodes.STORAGE_INCONSISTENT,
+        message,
+        source: forced?.source ?? "@gwenjs/core",
+        error: err,
+        ...(target !== undefined ? { target } : {}),
+        context: { frame, hook },
+      });
+      return;
+    }
 
     if (forced?.target?.kind === "wasm-module") {
       this.publish({

@@ -86,7 +86,7 @@ CoreErrorCodes.WASM_PANIC           // Rust panic propagated from WASM
 CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() before the bridge is active
 ```
 
-`CORE:STORAGE_INCONSISTENT` means the component store broke an invariant a normal call cannot build (a slot pointing at a missing chunk or row, a lane that disappeared, a count above the row length, a moved entity with no slot). A dead entity, a stale generation, and an absent component are not this code. Treat it as a bug in the engine and report it. The Rust error carries a stable `site` number.
+`CORE:STORAGE_INCONSISTENT` means the component store broke an invariant a normal call cannot build (a slot pointing at a missing chunk or row, a lane that disappeared, a count above the row length, a moved entity with no slot). A dead entity, a stale generation, and an absent component are not this code. Treat it as a bug in the engine and report it. The Rust error carries a stable `site` number. A running engine moves to `faulted`.
 
 Plugins define their own error codes following the same pattern: `'PLUGIN_NAME:ERROR_TYPE'`.
 

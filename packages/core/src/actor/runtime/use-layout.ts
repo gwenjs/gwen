@@ -16,6 +16,7 @@
 
 import { useEngine } from "../../engine/context";
 import { popEngine, pushEngine } from "../../engine/engine-local";
+import { toGwenWasmError } from "../../engine/wasm-bridge";
 import { _withLayoutContext } from "./place";
 import { entityIndex } from "../../engine/engine-api";
 import type { EntityId } from "../../engine/engine-api";
@@ -90,7 +91,16 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
       const bridge = engine.getPlacementBridge();
       if (bridge?.bulk_destroy) {
         const indices = new Uint32Array(_entityIds.map((id) => entityIndex(id as EntityId)));
-        bridge.bulk_destroy(indices);
+        const impl = engine.tryInject("wasm:bridge");
+        if (impl) {
+          impl.bulkDestroy(indices);
+        } else {
+          try {
+            bridge.bulk_destroy(indices);
+          } catch (error: unknown) {
+            throw toGwenWasmError(error, "bulk_destroy", () => undefined);
+          }
+        }
       } else {
         // Fallback: destroy entities one-by-one if bulk_destroy is not available
         for (const id of _entityIds) {

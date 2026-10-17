@@ -598,11 +598,21 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   deleteEntity(index: number, generation: number): boolean {
-    return this._requireWasm().delete_entity(index, generation);
+    const wasm = this._requireWasm();
+    try {
+      return wasm.delete_entity(index, generation);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "delete_entity");
+    }
   }
 
   bulkDestroy(indices: Uint32Array): void {
-    this._requireWasm().bulk_destroy(indices);
+    const wasm = this._requireWasm();
+    try {
+      wasm.bulk_destroy(indices);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "bulk_destroy");
+    }
   }
 
   isAlive(index: number, generation: number): boolean {
@@ -638,7 +648,12 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   readComponentStaged(index: number, generation: number, typeId: number): boolean {
-    return this._wasmForRead().read_component_staged(index, generation, typeId);
+    const wasm = this._wasmForRead();
+    try {
+      return wasm.read_component_staged(index, generation, typeId);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "read_component_staged");
+    }
   }
 
   setEntityDormant(index: number, generation: number, dormant: boolean): boolean {
@@ -651,7 +666,12 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   isEntityDormant(index: number, generation: number): boolean {
-    return this._wasmForRead().is_entity_dormant(index, generation);
+    const wasm = this._wasmForRead();
+    try {
+      return wasm.is_entity_dormant(index, generation);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "is_entity_dormant");
+    }
   }
 
   registerQuery(typeIds: Uint32Array): number {
@@ -690,11 +710,21 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   removeComponent(index: number, generation: number, typeId: number): boolean {
-    return this._requireWasm().remove_component(index, generation, typeId);
+    const wasm = this._requireWasm();
+    try {
+      return wasm.remove_component(index, generation, typeId);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "remove_component");
+    }
   }
 
   hasComponent(index: number, generation: number, typeId: number): boolean {
-    return this._wasmForRead().has_component(index, generation, typeId);
+    const wasm = this._wasmForRead();
+    try {
+      return wasm.has_component(index, generation, typeId);
+    } catch (error: unknown) {
+      throw this._mapWasmError(error, "has_component");
+    }
   }
 
   getComponentRaw(index: number, generation: number, typeId: number): Uint8Array {
