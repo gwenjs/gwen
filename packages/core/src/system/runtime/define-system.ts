@@ -322,7 +322,8 @@ export function defineSystem<Args extends unknown[]>(
 /**
  * Provides read access to a single entity's components during query iteration.
  *
- * Returned by {@link useQuery} on each iteration step. The accessor is valid only
+ * Returned by {@link Query.each} or `createLiveQuery` on each iteration step.
+ * {@link useQuery} yields chunks, not accessors. The accessor is valid only
  * for the duration of the current iteration — do not cache it across frames.
  *
  * @example
@@ -349,8 +350,8 @@ export interface EntityAccessor<C extends readonly ComponentDef[]> {
 }
 
 /**
- * A live query result — an iterable of entity accessors.
- * Returned by {@link useQuery} inside a {@link defineSystem} setup callback.
+ * Iterable of entity accessors from {@link Query.each} or `createLiveQuery`.
+ * {@link useQuery} returns a {@link Query}, not this type.
  *
  * The iterable is re-evaluated each time you iterate, reflecting the current
  * ECS state at that moment.

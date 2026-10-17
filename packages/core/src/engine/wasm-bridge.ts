@@ -967,12 +967,9 @@ export class WasmBridgeImpl implements WasmBridge {
 
   queryEntitiesRaw(typeIds: number[]): number {
     const count = typeIds.length;
-    // Copy type IDs into the dynamic buffer
-    for (let i = 0; i < count; i++) {
-      this._typeIdBuffer[i] = typeIds[i] ?? 0;
-    }
-    // Get a view sized to the actual count, growing the buffer if needed
+    // Grow first. Writing the 16-slot buffer before `_getTypeIdView` drops ids past 16.
     const view = this._getTypeIdView(count);
+    for (let i = 0; i < count; i++) view[i] = typeIds[i] ?? 0;
     const wasm = this._requireWasm();
     try {
       return wasm.query_entities_to_buffer(view);

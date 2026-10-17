@@ -1,38 +1,43 @@
 import { useEngine } from "../../engine/context";
 import type { GwenEngine } from "../../engine/engine-types";
 import type { EntityId } from "../../engine/engine-api";
+import { warnPerEntityPath } from "../../engine/engine-internals";
 import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "./define-system";
 
+type ComponentProxy<D extends ComponentDef> = InferComponent<D> & {
+  $set(patch: Partial<InferComponent<D>>): void;
+};
+
 /**
- * Returns a mutable proxy for a component on a specific entity, for use inside
- * a {@link defineSystem} setup callback.
+ * Returns a mutable proxy for one component on one entity.
  *
- * Reading a field (`proxy.x`) returns the current value from ECS storage.
- * Writing a field (`proxy.x = value`) calls `addComponent` to persist the change.
- * Use `proxy.$set({ ... })` to update multiple fields in a single ECS write.
+ * Reading a field returns the current value from ECS storage.
+ * Writing a field calls `addComponent`. `proxy.$set({ ... })` writes several
+ * fields in one call.
  *
- * The GWEN Vite optimizer detects this pattern inside `for...of` loops and
- * rewrites it to bulk WASM calls (`queryReadBulk` / `queryWriteBulk`), eliminating
- * per-entity overhead at build time.
+ * @deprecated During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate`, iterate
+ * the query by chunk (`for (const chunk of query)`) instead of reading one entity
+ * at a time.
  *
- * Must be called inside a `defineSystem` setup callback (active engine context).
- *
- * @param entityId - The entity to read/write.
- * @param def      - The component definition.
+ * @param entityId - The entity to read or write.
+ * @param def - The component definition.
+ * @param engine - Engine that owns the entity. Defaults to the active engine.
  * @returns A mutable proxy backed by ECS storage, plus a `$set` helper.
  *
  * @example
  * ```ts
  * export const MovementSystem = defineSystem(() => {
- *   const entities = useQuery([Position, Velocity])
+ *   const motion = useQuery([Position, Velocity])
  *
  *   onUpdate((dt) => {
- *     for (const entity of entities) {
- *       const pos = useComponentFor(entity.id, Position)
- *       const vel = useComponentFor(entity.id, Velocity)
- *       pos.x += vel.x * dt
- *       pos.y += vel.y * dt
+ *     for (const chunk of motion) {
+ *       const pos = chunk.get(Position)
+ *       const vel = chunk.get(Velocity)
+ *       for (let row = 0; row < chunk.count; row++) {
+ *         pos.x[row] += vel.x[row] * dt
+ *         pos.y[row] += vel.y[row] * dt
+ *       }
  *     }
  *   })
  * })
@@ -40,19 +45,16 @@ import type { ComponentDef } from "./define-system";
  *
  * @example
  * ```ts
- * // Batch write — one ECS call regardless of field count:
- * pos.$set({ x: pos.x + vel.x * dt, y: pos.y + vel.y * dt })
+ * const pos = useComponentFor(id, Position)
+ * pos.$set({ x: pos.x + 1, y: pos.y })
  * ```
  */
-type ComponentProxy<D extends ComponentDef> = InferComponent<D> & {
-  $set(patch: Partial<InferComponent<D>>): void;
-};
-
 export function useComponentFor<D extends ComponentDef>(
   entityId: EntityId,
   def: D,
   engine: GwenEngine = useEngine(),
 ): ComponentProxy<D> {
+  warnPerEntityPath(engine, "useComponentFor");
   return new Proxy({} as ComponentProxy<D>, {
     get(_target, prop: string | symbol): unknown {
       if (prop === "$set") {

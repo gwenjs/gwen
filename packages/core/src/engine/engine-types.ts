@@ -578,6 +578,10 @@ export interface GwenEngine extends GwenEngineBase {
     components: C,
     _precomputedKey?: string,
   ): Query<C>;
+  /**
+   * @deprecated For systems, use {@link createQuery} and iterate by chunk.
+   * The signature is unchanged. This method does not warn.
+   */
   createLiveQuery<const C extends readonly ComponentDef[]>(
     components: C,
     _precomputedKey?: string,

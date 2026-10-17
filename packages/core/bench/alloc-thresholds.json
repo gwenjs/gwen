@@ -13,7 +13,7 @@
   },
   "paths": {
     "frame.empty": { "bytesPerFrame": 4056, "bytesPerEntityFrame": -0.2 },
-    "update.system": { "bytesPerFrame": 181536, "bytesPerEntityFrame": 176.1 },
+    "update.system": { "bytesPerFrame": 4024, "bytesPerEntityFrame": 0 },
     "update.actor": { "bytesPerFrame": 108666, "bytesPerEntityFrame": 103.9 },
     "query.raw": { "bytesPerFrame": 4070, "bytesPerEntityFrame": 0 },
     "query.entities": { "bytesPerFrame": 165829, "bytesPerEntityFrame": 146.1 },
