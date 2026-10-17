@@ -590,3 +590,123 @@ describe("WasmBridge — dynamic _typeIdBuffer", () => {
     expect(view4.length).toBe(4);
   });
 });
+
+describe("WasmBridge — storage inconsistent exports", () => {
+  const message = "Storage inconsistent: site 1";
+
+  function storageCause(): Error {
+    const error = new Error(message);
+    (error as Error & { code: string }).code = CoreErrorCodes.STORAGE_INCONSISTENT;
+    return error;
+  }
+
+  function expectStorage(thrown: unknown, exportName: string): void {
+    expect(thrown).toBeInstanceOf(GwenWasmError);
+    expect(thrown).toMatchObject({
+      code: CoreErrorCodes.STORAGE_INCONSISTENT,
+      message,
+      exportName,
+    });
+  }
+
+  function throwingBridge(
+    install: (mock: ReturnType<typeof createMockWasmEngine>, error: Error) => void,
+  ): WasmBridgeImpl {
+    const impl = new WasmBridgeImpl();
+    const mock = createMockWasmEngine();
+    const error = storageCause();
+    install(mock, error);
+    impl._injectMock(mock);
+    return impl;
+  }
+
+  it("deleteEntity maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.delete_entity = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.deleteEntity(1, 2);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "delete_entity");
+  });
+
+  it("removeComponent maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.remove_component = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.removeComponent(1, 2, 3);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "remove_component");
+  });
+
+  it("hasComponent maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.has_component = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.hasComponent(1, 2, 3);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "has_component");
+  });
+
+  it("readComponentStaged maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.read_component_staged = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.readComponentStaged(1, 2, 3);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "read_component_staged");
+  });
+
+  it("isEntityDormant maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.is_entity_dormant = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.isEntityDormant(1, 2);
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "is_entity_dormant");
+  });
+
+  it("bulkDestroy maps CORE:STORAGE_INCONSISTENT", () => {
+    const impl = throwingBridge((mock, error) => {
+      mock.bulk_destroy = () => {
+        throw error;
+      };
+    });
+    let thrown: unknown;
+    try {
+      impl.bulkDestroy(new Uint32Array([1]));
+    } catch (error: unknown) {
+      thrown = error;
+    }
+    expectStorage(thrown, "bulk_destroy");
+  });
+});
