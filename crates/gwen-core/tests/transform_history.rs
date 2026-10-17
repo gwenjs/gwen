@@ -66,7 +66,16 @@ fn commit_packs_world_values_and_alternates_buffers() -> Result<(), CoreError> {
     let child_slot = slot(&engine, first, child.index());
     assert_eq!(f32_at(&child_slot, 0), 15.0);
     assert_eq!(f32_at(&child_slot, 4), 0.0);
-    assert_eq!(f32_at(&child_slot, 8), 0.4);
+    // Native atan2 returns 0.4. x86_64 Miri returns the next f32, 0.40000004.
+    let rotation = f32_at(&child_slot, 8);
+    let extra = if cfg!(miri) { 1 } else { 0 };
+    assert_eq!(
+        rotation
+            .to_bits()
+            .abs_diff(0.4f32.to_bits())
+            .saturating_sub(extra),
+        0
+    );
     assert_eq!((f32_at(&child_slot, 12) * 100_000.0).round(), 200_000.0);
     assert_eq!((f32_at(&child_slot, 16) * 100_000.0).round(), 300_000.0);
 
