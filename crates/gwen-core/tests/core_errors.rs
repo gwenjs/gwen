@@ -74,6 +74,9 @@ fn assert_known_code(err: &CoreError) {
         CoreError::QueryInvalid { .. } => {
             assert_eq!(err.code(), "CORE:QUERY_INVALID");
         }
+        CoreError::StorageInconsistent { .. } => {
+            assert_eq!(err.code(), "CORE:STORAGE_INCONSISTENT");
+        }
     }
 }
 
@@ -198,7 +201,10 @@ fn component_type_limit_is_raised_before_any_write() {
             .add_component(id.index(), id.generation(), type_id, &[1, 2, 3, 4])
             .expect("component");
     }
-    assert!(engine.has_component(id.index(), id.generation(), 127));
+    assert_eq!(
+        engine.has_component(id.index(), id.generation(), 127),
+        Ok(true)
+    );
     let err = engine
         .register_component(&[0])
         .map_or_else(|err| err, |_| panic!("expected an error"));
@@ -207,13 +213,16 @@ fn component_type_limit_is_raised_before_any_write() {
         CoreError::ComponentTypeLimitReached { max: 128 }
     ));
     assert_known_code(&err);
-    assert!(!engine.has_component(id.index(), id.generation(), 128));
+    assert_eq!(
+        engine.has_component(id.index(), id.generation(), 128),
+        Ok(false)
+    );
     engine
         .add_component(id.index(), id.generation(), 127, &[4, 3, 2, 1])
         .expect("existing type");
     assert_eq!(
         engine.get_component_raw(id.index(), id.generation(), 127),
-        vec![4, 3, 2, 1]
+        Ok(vec![4, 3, 2, 1])
     );
     assert_eq!(engine.count_entities(), 1);
 }
@@ -232,8 +241,8 @@ fn transform_fits_beside_127_user_types() {
         assert_eq!(engine.register_component(&[0]), Ok(type_id));
         assert_eq!(engine.add_component(0, 0, type_id, &[1, 2, 3, 4]), Ok(true));
     }
-    assert_eq!(engine.get_component_raw(0, 0, 127), vec![1, 2, 3, 4]);
-    assert_eq!(engine.get_component_raw(0, 0, 0), vec![1, 2, 3, 4]);
+    assert_eq!(engine.get_component_raw(0, 0, 127), Ok(vec![1, 2, 3, 4]));
+    assert_eq!(engine.get_component_raw(0, 0, 0), Ok(vec![1, 2, 3, 4]));
 }
 
 /// The 129th layout returns `ComponentTypeLimitReached { max: 128 }` and stores nothing.
@@ -259,8 +268,8 @@ fn transform_is_refused_after_128_user_types() {
         engine.register_component(&[0]),
         Err(CoreError::ComponentTypeLimitReached { max: 128 })
     );
-    assert_eq!(engine.has_component(0, 0, 128), false);
-    assert_eq!(engine.get_component_raw(0, 0, 127), vec![1, 2, 3, 4]);
+    assert_eq!(engine.has_component(0, 0, 128), Ok(false));
+    assert_eq!(engine.get_component_raw(0, 0, 127), Ok(vec![1, 2, 3, 4]));
 }
 
 #[test]
@@ -322,7 +331,7 @@ fn deep_chain_self_and_cycle_do_not_overflow() {
         }
     }
     engine.update_transforms();
-    engine.bulk_destroy(&[N - 1]);
+    assert_eq!(engine.bulk_destroy(&[N - 1]), Ok(()));
 
     let self_parent = must_err(engine.set_entity_parent(10, 10, false));
     assert_eq!(self_parent.code(), "CORE:INVALID_PARENT");
@@ -560,7 +569,13 @@ fn query_read_bulk_rejects_mismatched_output_slot_and_generation_lengths() {
         &mut read_buf,
     );
     assert_eq!(result, Ok(vec![1, 4]));
-    let filled = engine.get_component_raw(read_slots[0], read_gens[0], type_id);
+    let filled = match engine.get_component_raw(read_slots[0], read_gens[0], type_id) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(&read_buf[..4], filled.as_slice());
     assert_eq!(&read_buf[4..], &[9, 9, 9, 9]);
 }
@@ -632,7 +647,13 @@ fn query_read_bulk_rejects_a_longer_generation_list() {
         &mut read_buf,
     );
     assert_eq!(result, Ok(vec![1, 4]));
-    let filled = engine.get_component_raw(read_slots[0], read_gens[0], type_id);
+    let filled = match engine.get_component_raw(read_slots[0], read_gens[0], type_id) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(&read_buf[..4], filled.as_slice());
     assert_eq!(&read_buf[4..], &[9, 9, 9, 9]);
 }
@@ -705,7 +726,13 @@ fn query_read_bulk_truncates_to_the_shared_output_length() {
     );
 
     assert_eq!(result, Ok(vec![1, 4]));
-    let filled = engine.get_component_raw(out_slots[0], out_gens[0], type_id);
+    let filled = match engine.get_component_raw(out_slots[0], out_gens[0], type_id) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(&out_buf[..filled.len()], filled.as_slice());
     assert_eq!(&out_buf[4..], &[9, 9, 9, 9]);
 }

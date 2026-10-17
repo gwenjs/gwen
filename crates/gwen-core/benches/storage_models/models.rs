@@ -167,7 +167,7 @@ impl ModelAProd {
 
     fn read_pair_of(&self, entity: u32, type_id: u32) -> Option<[f32; 2]> {
         let mut bytes = [0u8; 8];
-        if self.storage.copy_row(entity, 0, type_id, &mut bytes) {
+        if must(self.storage.copy_row(entity, 0, type_id, &mut bytes)) {
             Some(read_pair(&bytes, 0))
         } else {
             None
@@ -211,7 +211,7 @@ impl StorageModel for ModelAProd {
     }
 
     fn add_health(&mut self, entity: u32) {
-        if self.storage.has(entity, 0, self.health) {
+        if must(self.storage.has(entity, 0, self.health)) {
             return;
         }
         self.write_pair_of(entity, self.health, spawned_health());
@@ -227,7 +227,7 @@ impl StorageModel for ModelAProd {
         for entity in 0..self.entity_count as u32 {
             let mut any = false;
             for type_id in ids {
-                if !self.storage.has(entity, 0, type_id) {
+                if !must(self.storage.has(entity, 0, type_id)) {
                     continue;
                 }
                 let width = self
@@ -258,7 +258,7 @@ impl StorageModel for ModelAProd {
     }
 
     fn has_enemy(&self, entity: u32) -> bool {
-        self.storage.has(entity, 0, self.enemy)
+        must(self.storage.has(entity, 0, self.enemy))
     }
 }
 

@@ -115,6 +115,41 @@ pub enum CoreError {
         /// Handle the caller passed, or 0 when the type list was empty.
         query: u32,
     },
+    /// The chunk store broke an invariant that a public call cannot build.
+    ///
+    /// A dead entity, a stale generation, and an absent component stay a
+    /// `false` or `None`. This variant is a bug in the store. Report it with
+    /// `site`.
+    ///
+    /// | site | branch |
+    /// | --- | --- |
+    /// | 1 | a slot names a chunk that is not live |
+    /// | 2 | dormancy read: that chunk is not live |
+    /// | 3 | dormancy read: the slot row is past `len` |
+    /// | 4 | dormancy read: `awake` is past `len` |
+    /// | 5 | `has`: the chunk is not live |
+    /// | 6 | `has`: the slot row is past `len` |
+    /// | 7 | `has`: `awake` is past `len` |
+    /// | 8 | row copy: the chunk is not live |
+    /// | 9 | row copy: the slot row is past `len` |
+    /// | 10 | row copy: `awake` is past `len` |
+    /// | 11 | row copy: a lane cell is missing |
+    /// | 12 | archetype read: the chunk is not live |
+    /// | 13 | delete: the row cannot be filled |
+    /// | 14 | remove of the last component: the row cannot be filled |
+    /// | 15 | dormancy of a live row: the row is past `len` |
+    /// | 16 | dormancy of a live row: `awake` is past `len` |
+    /// | 17 | add onto a new mask: the archetype record is missing |
+    /// | 18 | in-place write: a lane cell is missing |
+    /// | 19 | `set_dormant`: the slot row is past `len` |
+    /// | 20 | `set_dormant`: `awake` is past `len` |
+    /// | 21 | `set_dormant`: the swapped entity has no slot |
+    /// | 22 | an archetype lists a chunk that is not live |
+    /// | 23 | a listed chunk has `awake` past `len` |
+    StorageInconsistent {
+        /// Which broken branch reported. See the table above.
+        site: u32,
+    },
 }
 
 impl CoreError {
@@ -133,6 +168,7 @@ impl CoreError {
             Self::ComponentLayoutInvalid { .. } => "CORE:COMPONENT_LAYOUT_INVALID",
             Self::ArchetypeLimitReached { .. } => "CORE:ARCHETYPE_LIMIT_REACHED",
             Self::QueryInvalid { .. } => "CORE:QUERY_INVALID",
+            Self::StorageInconsistent { .. } => "CORE:STORAGE_INCONSISTENT",
         }
     }
 }
@@ -204,6 +240,7 @@ impl fmt::Display for CoreError {
                 write!(f, "Archetype limit reached: {max}")
             }
             Self::QueryInvalid { query } => write!(f, "Query invalid: {query}"),
+            Self::StorageInconsistent { site } => write!(f, "Storage inconsistent: site {site}"),
         }
     }
 }

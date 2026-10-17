@@ -73,14 +73,14 @@ fn wasm_is_alive_true_for_live_entity() {
 fn wasm_delete_entity_returns_true() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    assert!(engine.delete_entity(id.index(), id.generation()));
+    assert_eq!(engine.delete_entity(id.index(), id.generation()), Ok(true));
 }
 
 #[wasm_bindgen_test]
 fn wasm_is_alive_false_after_delete() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    engine.delete_entity(id.index(), id.generation());
+    assert_eq!(engine.delete_entity(id.index(), id.generation()), Ok(true));
     assert!(!engine.is_alive(id.index(), id.generation()));
 }
 
@@ -88,8 +88,8 @@ fn wasm_is_alive_false_after_delete() {
 fn wasm_delete_same_entity_twice_returns_false() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
-    assert!(engine.delete_entity(id.index(), id.generation()));
-    assert!(!engine.delete_entity(id.index(), id.generation()));
+    assert_eq!(engine.delete_entity(id.index(), id.generation()), Ok(true));
+    assert_eq!(engine.delete_entity(id.index(), id.generation()), Ok(false));
 }
 
 // ─── Stale-ID protection ──────────────────────────────────────────────────────
@@ -100,7 +100,10 @@ fn wasm_stale_id_rejected_after_slot_reuse() {
 
     // Create and delete entity at slot 0, generation 0
     let old_id = engine.create_entity().expect("entity limit");
-    engine.delete_entity(old_id.index(), old_id.generation());
+    assert_eq!(
+        engine.delete_entity(old_id.index(), old_id.generation()),
+        Ok(true)
+    );
 
     // Slot 0 is now reused — new entity gets generation 1
     let new_id = engine.create_entity().expect("entity limit");
@@ -119,7 +122,7 @@ fn wasm_delete_with_wrong_generation_rejected() {
     let id = engine.create_entity().expect("entity limit");
     // Pass a wrong generation — must be rejected without deleting
     let deleted = engine.delete_entity(id.index(), id.generation() + 1);
-    assert!(!deleted);
+    assert_eq!(deleted, Ok(false));
     // Entity should still be alive
     assert!(engine.is_alive(id.index(), id.generation()));
 }
@@ -145,7 +148,10 @@ fn wasm_add_component_and_has_component() {
     assert!(engine
         .add_component(id.index(), id.generation(), type_id, data)
         .expect("component"));
-    assert!(engine.has_component(id.index(), id.generation(), type_id));
+    assert_eq!(
+        engine.has_component(id.index(), id.generation(), type_id),
+        Ok(true)
+    );
 }
 
 #[wasm_bindgen_test]
@@ -153,7 +159,7 @@ fn wasm_add_component_stale_id_rejected() {
     let mut engine = make_engine();
     let id = engine.create_entity().expect("entity limit");
     let type_id = must_ok(engine.register_component(&[0]));
-    engine.delete_entity(id.index(), id.generation());
+    assert_eq!(engine.delete_entity(id.index(), id.generation()), Ok(true));
 
     // Stale handle — should refuse to add component
     let data: &[u8] = &[1u8, 0, 0, 0];
@@ -173,7 +179,13 @@ fn wasm_get_component_raw_returns_bytes() {
     engine
         .add_component(id.index(), id.generation(), type_id, &data[..])
         .expect("component");
-    let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
+    let raw = match engine.get_component_raw(id.index(), id.generation(), type_id) {
+        Ok(bytes) => bytes,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(raw.len(), 4);
     assert_eq!(u32::from_le_bytes([raw[0], raw[1], raw[2], raw[3]]), value);
 }
@@ -184,8 +196,10 @@ fn wasm_get_component_raw_empty_for_missing() {
     let id = engine.create_entity().expect("entity limit");
     let type_id = must_ok(engine.register_component(&[0]));
 
-    let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
-    assert!(raw.is_empty());
+    assert_eq!(
+        engine.get_component_raw(id.index(), id.generation(), type_id),
+        Ok(Vec::<u8>::new())
+    );
 }
 
 #[wasm_bindgen_test]
@@ -201,8 +215,14 @@ fn wasm_remove_component() {
     engine
         .add_component(id.index(), id.generation(), type_id, &data)
         .expect("component");
-    assert!(engine.remove_component(id.index(), id.generation(), type_id));
-    assert!(!engine.has_component(id.index(), id.generation(), type_id));
+    assert_eq!(
+        engine.remove_component(id.index(), id.generation(), type_id),
+        Ok(true)
+    );
+    assert_eq!(
+        engine.has_component(id.index(), id.generation(), type_id),
+        Ok(false)
+    );
 }
 
 // ─── Query API ────────────────────────────────────────────────────────────────
@@ -232,13 +252,31 @@ fn wasm_query_entities_returns_correct_set() {
     engine
         .add_component(e2.index(), e2.generation(), t1, &[0, 0, 0, 0])
         .expect("component");
-    let results_t0 = engine.query_entities(&[t0]);
+    let results_t0 = match engine.query_entities(&[t0]) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(results_t0.len(), 2); // e0 and e1
 
-    let results_t1 = engine.query_entities(&[t1]);
+    let results_t1 = match engine.query_entities(&[t1]) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(results_t1.len(), 2); // e0 and e2
 
-    let results_both = engine.query_entities(&[t0, t1]);
+    let results_both = match engine.query_entities(&[t0, t1]) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert_eq!(results_both.len(), 1); // e0 only
 }
 
@@ -246,7 +284,13 @@ fn wasm_query_entities_returns_correct_set() {
 fn wasm_query_empty_when_no_entities() {
     let mut engine = make_engine();
     let t0 = must_ok(engine.register_component(&[0]));
-    let results = engine.query_entities(&[t0]);
+    let results = match engine.query_entities(&[t0]) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     assert!(results.is_empty());
 }
 
@@ -289,7 +333,7 @@ fn register_component_round_trips_four_bytes() -> Result<(), CoreError> {
     let added = engine.add_component(id.index(), id.generation(), type_id, &[7, 0, 0, 0])?;
     assert_eq!(Some(added), Some(true));
     let raw = engine.get_component_raw(id.index(), id.generation(), type_id);
-    assert_eq!(raw, vec![7, 0, 0, 0]);
+    assert_eq!(raw, Ok(vec![7, 0, 0, 0]));
     Ok(())
 }
 

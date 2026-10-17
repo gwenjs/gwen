@@ -118,9 +118,9 @@ fn chunk_store_add_remove_allocates_nothing_after_warmup() -> Result<(), CoreErr
     });
     assert_eq!(allocations, 0);
     let mut kept = [0u8; 4];
-    assert_eq!(Some(store.copy_row(1, 0, position, &mut kept)), Some(true));
+    assert_eq!(store.copy_row(1, 0, position, &mut kept), Ok(true));
     assert_eq!(kept, [2, 0, 0, 0]);
-    assert_eq!(Some(store.copy_row(0, 0, velocity, &mut kept)), Some(false));
+    assert_eq!(store.copy_row(0, 0, velocity, &mut kept), Ok(false));
     Ok(())
 }
 
@@ -133,11 +133,11 @@ fn chunk_store_delete_allocates_nothing_after_warmup() -> Result<(), CoreError> 
     assert_eq!(store.add(1, 0, position, &[2, 0, 0, 0]), Ok(true));
     let allocations = allocs_during(|| {
         let deleted = store.delete_entity(1, 0);
-        assert_eq!(Some(deleted), Some(true));
+        assert_eq!(deleted, Ok(true));
     });
     assert_eq!(allocations, 0);
     let mut kept = [0u8; 4];
-    assert_eq!(Some(store.copy_row(0, 0, position, &mut kept)), Some(true));
+    assert_eq!(store.copy_row(0, 0, position, &mut kept), Ok(true));
     assert_eq!(kept, [1, 0, 0, 0]);
     assert_eq!(store.location(1), None);
     Ok(())
@@ -157,7 +157,7 @@ fn chunk_store_in_place_write_allocates_nothing_after_warmup() -> Result<(), Cor
     assert_eq!(allocations, 0);
     assert_eq!(store.generation(), generation);
     let mut kept = [0u8; 4];
-    assert_eq!(Some(store.copy_row(0, 0, position, &mut kept)), Some(true));
+    assert_eq!(store.copy_row(0, 0, position, &mut kept), Ok(true));
     assert_eq!(kept, [9, 0, 0, 0]);
     Ok(())
 }
@@ -175,7 +175,7 @@ fn chunk_store_staged_read_and_write_allocate_nothing_after_warmup() -> Result<(
         assert_eq!(written, Ok(true));
         store.staging_mut()[..4].fill(0);
         let read = store.read_staged(0, 0, position);
-        assert_eq!(Some(read), Some(true));
+        assert_eq!(read, Ok(true));
     });
     assert_eq!(allocations, 0);
     assert_eq!(store.generation(), generation);
@@ -193,7 +193,7 @@ fn chunk_store_boundary_add_remove_allocates_nothing_after_warmup() -> Result<()
     for index in 0..boundary + 1 {
         assert_eq!(store.add(index, 0, position, &bytes), Ok(true));
     }
-    assert_eq!(Some(store.delete_entity(boundary, 0)), Some(true));
+    assert_eq!(store.delete_entity(boundary, 0), Ok(true));
     let mut generation = 1u32;
     let allocations = allocs_during(|| {
         for _ in 0..4 {
@@ -201,10 +201,10 @@ fn chunk_store_boundary_add_remove_allocates_nothing_after_warmup() -> Result<()
             assert_eq!(added, Ok(true));
             let mut kept = [0u8; 4];
             let copied = store.copy_row(boundary, generation, position, &mut kept);
-            assert_eq!(Some(copied), Some(true));
+            assert_eq!(copied, Ok(true));
             assert_eq!(kept, bytes);
             let deleted = store.delete_entity(boundary, generation);
-            assert_eq!(Some(deleted), Some(true));
+            assert_eq!(deleted, Ok(true));
             generation = generation.wrapping_add(1);
         }
     });

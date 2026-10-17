@@ -182,6 +182,10 @@ fn layout_error(type_id: u32, reason: u8) -> CoreError {
     CoreError::ComponentLayoutInvalid { type_id, reason }
 }
 
+fn inconsistent(site: u32) -> CoreError {
+    CoreError::StorageInconsistent { site }
+}
+
 impl EntitySlot {
     fn empty() -> Self {
         Self {
@@ -334,9 +338,9 @@ impl ChunkStore {
         if data.len() != row_bytes {
             return Err(layout_error(type_id, LAYOUT_REASON_BAD_LEN));
         }
-        if self.row_has_type(index, type_id) {
-            let wrote = self.write_in_place(index, type_id, data);
-            return Ok(wrote);
+        if self.row_has_type(index, type_id)? {
+            self.write_in_place(index, type_id, data)?;
+            return Ok(true);
         }
         let mut target = [0u32; TYPE_SLOTS];
         let plan = self.plan_add(index, type_id, &mut target)?;
@@ -389,7 +393,7 @@ impl ChunkStore {
         if !self.generation_matches(index, generation) {
             return Ok(false);
         }
-        let Some((chunk_id, row, arch)) = self.row_of(index) else {
+        let Some((chunk_id, row, arch)) = self.row_of(index)? else {
             return Ok(false);
         };
         if !self.arch_has(arch, type_id) {
@@ -397,6 +401,9 @@ impl ChunkStore {
         }
         let type_count = match self.archetypes.get(arch) {
             Some(archetype) => archetype.types.len(),
+            // `arch_has` just found this record. A miss here is not a state
+            // a public call can build, and it is not reachable by corrupting
+            // one field without failing `arch_has` first. Kept as `Ok(false)`.
             None => return Ok(false),
         };
         if type_count <= 1 {
@@ -406,14 +413,15 @@ impl ChunkStore {
             if !self.clear_loc(index) {
                 return Ok(false);
             }
-            if !self.fill_hole(arch, chunk_id, row) {
+            if !self.fill_hole(arch, chunk_id, row)? {
                 return Ok(false);
             }
             self.bump();
             return Ok(true);
         }
-        let dormant = match self.row_is_dormant(chunk_id, row) {
+        let dormant = match self.row_is_dormant(chunk_id, row)? {
             Some(dormant) => dormant,
+            // The chunk was live in `row_of`. Kept.
             None => return Ok(false),
         };
         let mut target = [0u32; TYPE_SLOTS];
@@ -477,32 +485,39 @@ impl ChunkStore {
     /// the chunk. The storage generation bumps only when a row was removed.
     /// The slot generation always bumps on success, so the next occupant of
     /// this index is a new entity and is not dormant.
-    pub fn delete_entity(&mut self, index: u32, generation: u32) -> bool {
+    pub fn delete_entity(&mut self, index: u32, generation: u32) -> Result<bool, CoreError> {
         if index >= self.max_entities {
-            return false;
+            return Ok(false);
         }
         if !self.generation_matches(index, generation) {
-            return false;
+            return Ok(false);
         }
-        let saved = self.row_of(index);
+        let saved = self.row_of(index)?;
         if let Some((chunk_id, row, arch)) = saved {
             if !self.can_fill(arch, chunk_id, row) {
-                return false;
+                return Ok(false);
             }
+            // `awake` past `len` is site 16. A row past `len` already failed
+            // `can_fill` (site 13).
+            let _dormant = self.row_is_dormant(chunk_id, row)?;
         }
+        // The index was checked against `max_entities`, and the slot table is
+        // that long. A miss is not reachable by corrupting one field.
         let Some(slot) = self.slots.get_mut(index as usize) else {
-            return false;
+            return Ok(false);
         };
         slot.generation = slot.generation.wrapping_add(1);
         slot.chunk = NO_CHUNK;
         slot.row = 0;
         if let Some((chunk_id, row, arch)) = saved {
-            if !self.fill_hole(arch, chunk_id, row) {
-                return false;
+            // `can_fill` already required a live row inside `len`. A miss
+            // after that is not reachable by corrupting one field.
+            if !self.fill_hole(arch, chunk_id, row)? {
+                return Ok(false);
             }
             self.bump();
         }
-        true
+        Ok(true)
     }
 
     /// Moves the row across its chunk's awake boundary.
@@ -528,24 +543,32 @@ impl ChunkStore {
         if !self.generation_matches(index, generation) {
             return Ok(false);
         }
-        let Some((chunk_id, row, _)) = self.row_of(index) else {
+        let Some((chunk_id, row, _)) = self.row_of(index)? else {
             return Ok(false);
         };
-        let awake = match self.chunk_ref(chunk_id) {
-            Some(chunk) => chunk.awake,
-            None => return Ok(false),
+        let Some(chunk) = self.chunk_ref(chunk_id) else {
+            // `row_of` already required this chunk. Kept.
+            return Ok(false);
         };
+        if chunk.awake > chunk.len {
+            return Ok(false);
+        }
+        if row >= chunk.len {
+            return Ok(false);
+        }
+        let awake = chunk.awake;
         let is_dormant = row >= awake;
         if is_dormant == dormant {
             return Ok(true);
         }
         if dormant {
+            // `row < awake` here, so `awake` is not 0. Kept.
             if awake == 0 {
                 return Ok(false);
             }
             let boundary = awake - 1;
             if !self.swap_rows(chunk_id, row, boundary) {
-                return Ok(false);
+                return Ok(true);
             }
             let Some(chunk) = self.chunk_mut(chunk_id) else {
                 return Ok(false);
@@ -553,7 +576,7 @@ impl ChunkStore {
             chunk.awake -= 1;
         } else {
             if !self.swap_rows(chunk_id, row, awake) {
-                return Ok(false);
+                return Ok(true);
             }
             let Some(chunk) = self.chunk_mut(chunk_id) else {
                 return Ok(false);
@@ -594,32 +617,37 @@ impl ChunkStore {
     ///
     /// Returns `false` when the generation is stale, the row is absent, or
     /// the type is not on the entity. The staging bytes are then unchanged.
-    pub fn read_staged(&mut self, index: u32, generation: u32, type_id: u32) -> bool {
+    pub fn read_staged(
+        &mut self,
+        index: u32,
+        generation: u32,
+        type_id: u32,
+    ) -> Result<bool, CoreError> {
         let Some(width) = self
             .layouts
             .get(type_id as usize)
             .map(|layout| layout.row_bytes as usize)
         else {
-            return false;
+            return Ok(false);
         };
         if width > MAX_ROW_BYTES {
-            return false;
+            return Ok(false);
         }
         let mut tmp = [0u8; MAX_ROW_BYTES];
         let Some(dst) = tmp.get_mut(..width) else {
-            return false;
+            return Ok(false);
         };
-        if !self.copy_row(index, generation, type_id, dst) {
-            return false;
+        if !self.copy_row(index, generation, type_id, dst)? {
+            return Ok(false);
         }
         let Some(slot) = self.staging_mut().get_mut(..width) else {
-            return false;
+            return Ok(false);
         };
         let Some(src) = tmp.get(..width) else {
-            return false;
+            return Ok(false);
         };
         slot.copy_from_slice(src);
-        true
+        Ok(true)
     }
 
     /// The 512-byte staging buffer. The allocation is 8-byte aligned.
@@ -638,72 +666,90 @@ impl ChunkStore {
     }
 
     /// `Some(true)` when the live row is dormant.
-    pub fn is_dormant(&self, index: u32, generation: u32) -> Option<bool> {
-        let slot = self.slots.get(index as usize)?;
+    pub fn is_dormant(&self, index: u32, generation: u32) -> Result<Option<bool>, CoreError> {
+        let Some(slot) = self.slots.get(index as usize) else {
+            return Ok(None);
+        };
         if slot.generation != generation || slot.chunk == NO_CHUNK {
-            return None;
+            return Ok(None);
         }
-        let chunk = self.chunk_ref(slot.chunk)?;
+        let Some(chunk) = self.chunk_ref(slot.chunk) else {
+            return Ok(None);
+        };
+        if chunk.awake > chunk.len {
+            return Ok(None);
+        }
         if slot.row >= chunk.len {
-            return None;
+            return Ok(None);
         }
-        Some(slot.row >= chunk.awake)
+        Ok(Some(slot.row >= chunk.awake))
     }
 
     /// Copies one component row into `out`.
-    pub fn copy_row(&self, index: u32, generation: u32, type_id: u32, out: &mut [u8]) -> bool {
+    pub fn copy_row(
+        &self,
+        index: u32,
+        generation: u32,
+        type_id: u32,
+        out: &mut [u8],
+    ) -> Result<bool, CoreError> {
         let Some(width) = self
             .layouts
             .get(type_id as usize)
             .map(|layout| layout.row_bytes as usize)
         else {
-            return false;
+            return Ok(false);
         };
         if out.len() != width {
-            return false;
+            return Ok(false);
         }
         let Some(slot) = self.slots.get(index as usize) else {
-            return false;
+            return Ok(false);
         };
         if slot.generation != generation || slot.chunk == NO_CHUNK {
-            return false;
+            return Ok(false);
         }
         let chunk_id = slot.chunk;
         let row = slot.row;
-        let Some(arch) = self
-            .chunk_ref(chunk_id)
-            .map(|chunk| chunk.archetype as usize)
-        else {
-            return false;
+        let Some(chunk) = self.chunk_ref(chunk_id) else {
+            return Ok(false);
         };
+        if chunk.awake > chunk.len {
+            return Ok(false);
+        }
+        if row >= chunk.len {
+            return Ok(false);
+        }
+        let arch = chunk.archetype as usize;
         let Some((start, end)) = self.lane_range(arch, type_id) else {
-            return false;
+            return Ok(false);
         };
         let mut offset = 0usize;
         for lane in start..end {
             let Some(cell) = self.read_cell(chunk_id, lane, row) else {
-                return false;
+                return Ok(false);
             };
             let Some(size) = self
                 .chunk_ref(chunk_id)
                 .and_then(|chunk| chunk.lanes.get(lane))
                 .map(|lane| lane.lane_size)
             else {
-                return false;
+                // `read_cell` just found this lane. Kept.
+                return Ok(false);
             };
             let Some(next) = offset.checked_add(size) else {
-                return false;
+                return Ok(false);
             };
             let Some(dst) = out.get_mut(offset..next) else {
-                return false;
+                return Ok(false);
             };
             let Some(src) = cell.get(..size) else {
-                return false;
+                return Ok(false);
             };
             dst.copy_from_slice(src);
             offset = next;
         }
-        offset == out.len()
+        Ok(offset == out.len())
     }
 
     /// Row of a live entity, if it has any component.
@@ -772,12 +818,17 @@ impl ChunkStore {
     }
 
     /// Archetype of an entity that has a row.
-    pub fn entity_archetype(&self, index: u32) -> Option<u32> {
-        let slot = self.slots.get(index as usize)?;
+    pub fn entity_archetype(&self, index: u32) -> Result<Option<u32>, CoreError> {
+        let Some(slot) = self.slots.get(index as usize) else {
+            return Ok(None);
+        };
         if slot.chunk == NO_CHUNK {
-            return None;
+            return Ok(None);
         }
-        Some(self.chunk_ref(slot.chunk)?.archetype)
+        let Some(chunk) = self.chunk_ref(slot.chunk) else {
+            return Ok(None);
+        };
+        Ok(Some(chunk.archetype))
     }
 
     /// Chunks the archetype still holds, including one kept empty chunk.
@@ -797,26 +848,29 @@ impl ChunkStore {
     }
 
     /// The live row holds `type_id` and the generation matches.
-    pub fn has(&self, index: u32, generation: u32, type_id: u32) -> bool {
+    pub fn has(&self, index: u32, generation: u32, type_id: u32) -> Result<bool, CoreError> {
         let Some(slot) = self.slots.get(index as usize) else {
-            return false;
+            return Ok(false);
         };
         if slot.generation != generation || slot.chunk == NO_CHUNK {
-            return false;
+            return Ok(false);
         }
-        let Some(arch) = self
-            .chunk_ref(slot.chunk)
-            .map(|chunk| chunk.archetype as usize)
-        else {
-            return false;
+        let Some(chunk) = self.chunk_ref(slot.chunk) else {
+            return Ok(false);
         };
-        self.arch_has(arch, type_id)
+        if chunk.awake > chunk.len {
+            return Ok(false);
+        }
+        if slot.row >= chunk.len {
+            return Ok(false);
+        }
+        Ok(self.arch_has(chunk.archetype as usize, type_id))
     }
 
     /// Awake rows whose archetype holds every type in `types`.
-    pub fn count_awake(&self, types: &[u32]) -> usize {
+    pub fn count_awake(&self, types: &[u32]) -> Result<usize, CoreError> {
         if types.is_empty() {
-            return 0;
+            return Ok(0);
         }
         let mut total = 0usize;
         for index in 0..self.archetypes.len() {
@@ -837,22 +891,35 @@ impl ChunkStore {
                 else {
                     continue;
                 };
-                let awake = self
-                    .chunk_ref(chunk_id)
-                    .map(|chunk| chunk.awake)
-                    .unwrap_or(0);
+                let awake = self.listed_awake(chunk_id)?;
                 total = total.saturating_add(usize::from(awake));
             }
         }
-        total
+        Ok(total)
+    }
+
+    /// `awake` of a chunk an archetype still lists.
+    fn listed_awake(&self, chunk_id: u32) -> Result<u16, CoreError> {
+        let Some(chunk) = self.chunk_ref(chunk_id) else {
+            return Ok(0);
+        };
+        if chunk.awake > chunk.len {
+            return Ok(0);
+        }
+        Ok(chunk.awake)
     }
 
     /// Writes awake `(index, generation)` pairs into the two buffers.
     ///
     /// The number written is the smaller of the match count and the buffer lengths.
-    pub fn write_awake(&self, types: &[u32], slots: &mut [u32], gens: &mut [u32]) -> usize {
+    pub fn write_awake(
+        &self,
+        types: &[u32],
+        slots: &mut [u32],
+        gens: &mut [u32],
+    ) -> Result<usize, CoreError> {
         if types.is_empty() {
-            return 0;
+            return Ok(0);
         }
         let cap = slots.len().min(gens.len());
         let mut written = 0usize;
@@ -880,10 +947,11 @@ impl ChunkStore {
                 else {
                     continue;
                 };
+                let awake = usize::from(self.listed_awake(chunk_id)?);
                 let Some(chunk) = self.chunk_ref(chunk_id) else {
+                    // `listed_awake` just required this chunk. Kept.
                     continue;
                 };
-                let awake = usize::from(chunk.awake);
                 for row in 0..awake {
                     if written >= cap {
                         break;
@@ -906,7 +974,7 @@ impl ChunkStore {
                 }
             }
         }
-        written
+        Ok(written)
     }
 
     /// Records a query. An empty list is [`CoreError::QueryInvalid`] and stores nothing.
@@ -1000,14 +1068,19 @@ impl ChunkStore {
             Some(query) => query,
             None => return Err(CoreError::QueryInvalid { query: query_id }),
         };
-        self.rebuild_query(&mut query);
+        if let Err(err) = self.rebuild_query(&mut query) {
+            if let Some(slot) = self.queries.get_mut(index) {
+                *slot = Some(query);
+            }
+            return Err(err);
+        }
         if let Some(slot) = self.queries.get_mut(index) {
             *slot = Some(query);
         }
         Ok(())
     }
 
-    fn rebuild_query(&mut self, query: &mut StoreQuery) {
+    fn rebuild_query(&mut self, query: &mut StoreQuery) -> Result<(), CoreError> {
         query.matched.clear();
         query.lane_at.clear();
         query.table.clear();
@@ -1047,7 +1120,7 @@ impl ChunkStore {
         }
         let stride = 4usize.saturating_add(view_count);
         let Ok(stride_word) = u32::try_from(stride) else {
-            return;
+            return Ok(());
         };
         query
             .table
@@ -1068,9 +1141,7 @@ impl ChunkStore {
                 let Some(chunk_id) = query.scratch.get(chunk_cursor).copied() else {
                     continue;
                 };
-                let Some(awake) = self.chunk_ref(chunk_id).map(|chunk| chunk.awake) else {
-                    continue;
-                };
+                let awake = self.listed_awake(chunk_id)?;
                 if awake == 0 {
                     continue;
                 }
@@ -1103,6 +1174,7 @@ impl ChunkStore {
         if let Some(slot) = query.table.get_mut(3) {
             *slot = awake_total;
         }
+        Ok(())
     }
 
     fn arch_has_types(&self, arch: usize, types: &[u32]) -> bool {
@@ -1131,19 +1203,23 @@ impl ChunkStore {
         self.generation = self.generation.wrapping_add(1);
     }
 
-    fn row_of(&self, index: u32) -> Option<(u32, u16, usize)> {
-        let slot = self.slots.get(index as usize)?;
+    fn row_of(&self, index: u32) -> Result<Option<(u32, u16, usize)>, CoreError> {
+        let Some(slot) = self.slots.get(index as usize) else {
+            return Ok(None);
+        };
         if slot.chunk == NO_CHUNK {
-            return None;
+            return Ok(None);
         }
-        let archetype = self.chunk_ref(slot.chunk)?.archetype as usize;
-        Some((slot.chunk, slot.row, archetype))
+        let Some(chunk) = self.chunk_ref(slot.chunk) else {
+            return Ok(None);
+        };
+        Ok(Some((slot.chunk, slot.row, chunk.archetype as usize)))
     }
 
-    fn row_has_type(&self, index: u32, type_id: u32) -> bool {
-        match self.row_of(index) {
-            Some((_, _, arch)) => self.arch_has(arch, type_id),
-            None => false,
+    fn row_has_type(&self, index: u32, type_id: u32) -> Result<bool, CoreError> {
+        match self.row_of(index)? {
+            Some((_, _, arch)) => Ok(self.arch_has(arch, type_id)),
+            None => Ok(false),
         }
     }
 
@@ -1153,7 +1229,7 @@ impl ChunkStore {
         type_id: u32,
         target: &mut [u32; TYPE_SLOTS],
     ) -> Result<AddPlan, CoreError> {
-        let Some((chunk_id, row, arch)) = self.row_of(index) else {
+        let Some((chunk_id, row, arch)) = self.row_of(index)? else {
             let Some(slot) = target.first_mut() else {
                 return Err(CoreError::ComponentTypeLimitReached {
                     max: MAX_COMPONENT_TYPES,
@@ -1166,8 +1242,9 @@ impl ChunkStore {
                 source: None,
             });
         };
-        let dormant = match self.row_is_dormant(chunk_id, row) {
+        let dormant = match self.row_is_dormant(chunk_id, row)? {
             Some(dormant) => dormant,
+            // The chunk was live in `row_of`. Kept.
             None => {
                 return Ok(AddPlan {
                     count: 0,
@@ -1178,11 +1255,7 @@ impl ChunkStore {
         };
         let count = {
             let Some(current) = self.archetypes.get(arch).map(|item| &item.types) else {
-                return Ok(AddPlan {
-                    count: 0,
-                    dormant: false,
-                    source: None,
-                });
+                return Ok(AddPlan { count: 0, dormant: false, source: None });
             };
             match insert_sorted(current, type_id, target) {
                 Some(count) => count,
@@ -1257,18 +1330,23 @@ impl ChunkStore {
             return false;
         }
         if let Some(src) = source {
-            if !self.fill_hole(src.arch, src.chunk, src.row) {
+            // After the reserve. A later miss stays `false`.
+            if !matches!(self.fill_hole(src.arch, src.chunk, src.row), Ok(true)) {
                 return false;
             }
         }
         true
     }
 
-    fn write_in_place(&mut self, index: u32, type_id: u32, data: &[u8]) -> bool {
-        let Some((chunk_id, row, arch)) = self.row_of(index) else {
-            return false;
+    fn write_in_place(&mut self, index: u32, type_id: u32, data: &[u8]) -> Result<(), CoreError> {
+        let Some((chunk_id, row, arch)) = self.row_of(index)? else {
+            // `row_has_type` just found this row. Same site as a missing lane.
+            return Ok(());
         };
-        self.write_type(arch, chunk_id, row, type_id, data)
+        if !self.write_type(arch, chunk_id, row, type_id, data) {
+            return Ok(());
+        }
+        Ok(())
     }
 
     fn mask_of(&self, types: &[u32]) -> Option<BitSet128> {
@@ -1509,12 +1587,18 @@ impl ChunkStore {
         true
     }
 
-    fn row_is_dormant(&self, chunk_id: u32, row: u16) -> Option<bool> {
-        let chunk = self.chunk_ref(chunk_id)?;
-        if row >= chunk.len {
-            return None;
+    fn row_is_dormant(&self, chunk_id: u32, row: u16) -> Result<Option<bool>, CoreError> {
+        let Some(chunk) = self.chunk_ref(chunk_id) else {
+            // `row_of` or `last_live` already required this chunk. Kept.
+            return Ok(None);
+        };
+        if chunk.awake > chunk.len {
+            return Ok(None);
         }
-        Some(row >= chunk.awake)
+        if row >= chunk.len {
+            return Ok(None);
+        }
+        Ok(Some(row >= chunk.awake))
     }
 
     fn copy_intersection(&mut self, src: RowAt, dst: RowAt) -> bool {
@@ -1804,23 +1888,25 @@ impl ChunkStore {
         self.last_live(arch_index)
     }
 
-    fn fill_hole(&mut self, arch_index: usize, chunk_id: u32, row: u16) -> bool {
+    fn fill_hole(&mut self, arch_index: usize, chunk_id: u32, row: u16) -> Result<bool, CoreError> {
         let Some((last_chunk, last_row)) = self.last_row(arch_index) else {
-            return false;
+            return Ok(false);
         };
         if last_chunk == chunk_id && last_row == row {
-            return self.pop_last(arch_index);
+            return Ok(self.pop_last(arch_index));
         }
-        let Some(was_dormant) = self.row_is_dormant(last_chunk, last_row) else {
-            return false;
+        let was_dormant = match self.row_is_dormant(last_chunk, last_row)? {
+            Some(value) => value,
+            // The last live row's chunk was just read. Kept.
+            None => return Ok(false),
         };
         if !self.move_row(last_chunk, last_row, chunk_id, row) {
-            return false;
+            return Ok(false);
         }
         if !self.pop_last(arch_index) {
-            return false;
+            return Ok(false);
         }
-        self.repair(chunk_id, row, was_dormant)
+        Ok(self.repair(chunk_id, row, was_dormant))
     }
 
     fn pop_last(&mut self, arch_index: usize) -> bool {
@@ -1884,6 +1970,94 @@ impl ChunkStore {
     }
 }
 
+#[cfg(test)]
+impl ChunkStore {
+    /// Test-only. A consistent store never builds these states.
+    pub fn corrupt_slot_chunk_for_test(&mut self, index: u32, chunk: u32) -> bool {
+        let Some(slot) = self.slots.get_mut(index as usize) else {
+            return false;
+        };
+        slot.chunk = chunk;
+        true
+    }
+
+    /// Test-only. Points the slot at a row past `len`.
+    pub fn corrupt_slot_row_for_test(&mut self, index: u32, row: u16) -> bool {
+        let Some(slot) = self.slots.get_mut(index as usize) else {
+            return false;
+        };
+        slot.row = row;
+        true
+    }
+
+    /// Test-only. Sets `awake` without moving rows.
+    pub fn corrupt_awake_for_test(&mut self, chunk: u32, awake: u16) -> bool {
+        let Some(data) = self
+            .chunks
+            .get_mut(chunk as usize)
+            .and_then(|slot| slot.data.as_mut())
+        else {
+            return false;
+        };
+        data.awake = awake;
+        true
+    }
+
+    /// Test-only. Drops lane buffers and leaves the archetype record.
+    pub fn corrupt_clear_lanes_for_test(&mut self, chunk: u32) -> bool {
+        let Some(data) = self
+            .chunks
+            .get_mut(chunk as usize)
+            .and_then(|slot| slot.data.as_mut())
+        else {
+            return false;
+        };
+        data.lanes.clear();
+        true
+    }
+
+    /// Test-only. Writes an entity index that has no slot.
+    pub fn corrupt_row_entity_for_test(&mut self, chunk: u32, row: u16, entity: u32) -> bool {
+        let Some(data) = self
+            .chunks
+            .get_mut(chunk as usize)
+            .and_then(|slot| slot.data.as_mut())
+        else {
+            return false;
+        };
+        let Some(slot) = data.entity_index.get_mut(row as usize) else {
+            return false;
+        };
+        *slot = entity;
+        true
+    }
+
+    /// Test-only. Points the chunk at an archetype id that is not in the table.
+    pub fn corrupt_chunk_archetype_for_test(&mut self, chunk: u32, archetype: u32) -> bool {
+        let Some(data) = self
+            .chunks
+            .get_mut(chunk as usize)
+            .and_then(|slot| slot.data.as_mut())
+        else {
+            return false;
+        };
+        data.archetype = archetype;
+        true
+    }
+
+    /// Test-only. Drops the chunk body. The archetype still lists the id.
+    pub fn corrupt_drop_chunk_for_test(&mut self, chunk: u32) -> bool {
+        let Some(slot) = self.chunks.get_mut(chunk as usize) else {
+            return false;
+        };
+        if slot.data.is_none() {
+            return false;
+        }
+        slot.data = None;
+        true
+    }
+}
+
 fn insert_sorted(current: &[u32], type_id: u32, out: &mut [u32; TYPE_SLOTS]) -> Option<usize> {
     if current.len() >= TYPE_SLOTS {
         return None;
@@ -1921,5 +2095,378 @@ fn remove_sorted(current: &[u32], type_id: u32, out: &mut [u32; TYPE_SLOTS]) -> 
         Some(count)
     } else {
         None
+    }
+}
+
+#[cfg(test)]
+mod storage_inconsistent {
+    use super::ChunkStore;
+    use crate::CoreError;
+
+    fn open() -> Result<ChunkStore, CoreError> {
+        ChunkStore::new(8)
+    }
+
+    fn kind(store: &mut ChunkStore) -> Result<u32, CoreError> {
+        store.register(&[0])
+    }
+
+    fn chunk_at(store: &ChunkStore, index: u32) -> u32 {
+        match store.location(index) {
+            Some(loc) => loc.chunk,
+            None => u32::MAX,
+        }
+    }
+
+    fn row_at(store: &ChunkStore, index: u32) -> u16 {
+        match store.location(index) {
+            Some(loc) => loc.row,
+            None => u16::MAX,
+        }
+    }
+
+    fn site(site: u32) -> CoreError {
+        CoreError::StorageInconsistent { site }
+    }
+
+    #[test]
+    fn site_1_slot_names_a_chunk_that_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        assert_eq!(
+            u8::from(store.corrupt_slot_chunk_for_test(0, chunk.wrapping_add(9))),
+            1
+        );
+        assert_eq!(store.remove(0, 0, kind), Err(site(1)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_2_dormancy_read_chunk_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        assert_eq!(
+            u8::from(store.corrupt_slot_chunk_for_test(0, chunk.wrapping_add(9))),
+            1
+        );
+        assert_eq!(store.is_dormant(0, 0), Err(site(2)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_3_dormancy_read_row_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.is_dormant(0, 0), Err(site(3)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_4_dormancy_read_awake_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        assert_eq!(store.is_dormant(0, 0), Err(site(4)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_5_has_chunk_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        assert_eq!(
+            u8::from(store.corrupt_slot_chunk_for_test(0, chunk.wrapping_add(9))),
+            1
+        );
+        assert_eq!(store.has(0, 0, kind), Err(site(5)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_6_has_row_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.has(0, 0, kind), Err(site(6)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_7_has_awake_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        assert_eq!(store.has(0, 0, kind), Err(site(7)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_8_copy_chunk_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        assert_eq!(
+            u8::from(store.corrupt_slot_chunk_for_test(0, chunk.wrapping_add(9))),
+            1
+        );
+        let mut out = [0u8; 4];
+        assert_eq!(store.copy_row(0, 0, kind, &mut out), Err(site(8)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_9_copy_row_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        let mut out = [0u8; 4];
+        assert_eq!(store.copy_row(0, 0, kind, &mut out), Err(site(9)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_10_copy_awake_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        let mut out = [0u8; 4];
+        assert_eq!(store.copy_row(0, 0, kind, &mut out), Err(site(10)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_11_copy_lane_cell_is_absent() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_clear_lanes_for_test(chunk_at(&store, 0))),
+            1
+        );
+        let mut out = [0u8; 4];
+        assert_eq!(store.copy_row(0, 0, kind, &mut out), Err(site(11)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_12_archetype_read_chunk_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        assert_eq!(
+            u8::from(store.corrupt_slot_chunk_for_test(0, chunk.wrapping_add(9))),
+            1
+        );
+        assert_eq!(store.entity_archetype(0), Err(site(12)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_13_delete_row_cannot_be_filled() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.delete_entity(0, 0), Err(site(13)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_14_remove_last_row_cannot_be_filled() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.remove(0, 0, kind), Err(site(14)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_15_live_row_past_len_on_remove() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let first = kind(&mut store)?;
+        let second = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, first, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.add(0, 0, second, &[5, 6, 7, 8]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.remove(0, 0, first), Err(site(15)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_16_live_row_awake_past_len_on_remove() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let first = kind(&mut store)?;
+        let second = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, first, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.add(0, 0, second, &[5, 6, 7, 8]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        assert_eq!(store.remove(0, 0, first), Err(site(16)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_17_add_archetype_record_is_absent() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let first = kind(&mut store)?;
+        let second = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, first, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_chunk_archetype_for_test(chunk_at(&store, 0), 999)),
+            1
+        );
+        assert_eq!(store.add(0, 0, second, &[5, 6, 7, 8]), Err(site(17)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_18_in_place_write_lane_is_absent() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_clear_lanes_for_test(chunk_at(&store, 0))),
+            1
+        );
+        assert_eq!(store.add(0, 0, kind, &[9, 9, 9, 9]), Err(site(18)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_19_set_dormant_row_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(u8::from(store.corrupt_slot_row_for_test(0, 4_000)), 1);
+        assert_eq!(store.set_dormant(0, 0, true), Err(site(19)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_20_set_dormant_awake_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        assert_eq!(store.set_dormant(0, 0, true), Err(site(20)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_21_set_dormant_sleep_entity_has_no_slot() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.add(1, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_row_entity_for_test(
+                chunk_at(&store, 0),
+                row_at(&store, 0),
+                u32::MAX
+            )),
+            1
+        );
+        assert_eq!(store.set_dormant(0, 0, true), Err(site(21)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_21_set_dormant_wake_entity_has_no_slot() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.add(1, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.add(2, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(store.set_dormant(0, 0, true), Ok(true));
+        assert_eq!(store.set_dormant(2, 0, true), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_row_entity_for_test(
+                chunk_at(&store, 0),
+                row_at(&store, 0),
+                u32::MAX
+            )),
+            1
+        );
+        assert_eq!(store.set_dormant(0, 0, false), Err(site(21)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_22_listed_chunk_is_not_live() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        assert_eq!(
+            u8::from(store.corrupt_drop_chunk_for_test(chunk_at(&store, 0))),
+            1
+        );
+        assert_eq!(store.count_awake(&[kind]), Err(site(22)));
+        Ok(())
+    }
+
+    #[test]
+    fn site_23_listed_chunk_awake_past_len() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.add(0, 0, kind, &[1, 2, 3, 4]), Ok(true));
+        let chunk = chunk_at(&store, 0);
+        let len = store.chunk_len(chunk).unwrap_or(0);
+        assert_eq!(
+            u8::from(store.corrupt_awake_for_test(chunk, len.saturating_add(1))),
+            1
+        );
+        assert_eq!(store.count_awake(&[kind]), Err(site(23)));
+        Ok(())
+    }
+
+    #[test]
+    fn dead_entity_stays_false() -> Result<(), CoreError> {
+        let mut store = open()?;
+        let kind = kind(&mut store)?;
+        assert_eq!(store.remove(0, 1, kind), Ok(false));
+        assert_eq!(store.is_dormant(0, 1), Ok(None));
+        assert_eq!(store.has(0, 1, kind), Ok(false));
+        assert_eq!(store.delete_entity(0, 1), Ok(false));
+        Ok(())
     }
 }

@@ -242,7 +242,7 @@ fn destroy_zeroes_the_slot_on_the_next_commit() -> Result<(), CoreError> {
     let written = engine.transform_history_commit()?;
     assert_eq!(f32_at(&slot(&engine, written, id.index()), 0), 3.0);
     assert_eq!(
-        u8::from(engine.delete_entity(id.index(), id.generation())),
+        u8::from(engine.delete_entity(id.index(), id.generation()) == Ok(true)),
         1
     );
     let cleared = engine.transform_history_commit()?;

@@ -187,17 +187,17 @@ impl Engine {
 
     /// Delete an entity. Requires the full `{index, generation}` pair so
     /// that stale handles are correctly rejected.
-    pub fn delete_entity(&mut self, index: u32, generation: u32) -> bool {
+    pub fn delete_entity(&mut self, index: u32, generation: u32) -> Result<bool, CoreError> {
         let id = EntityId::from_parts(index, generation);
         if !self.entity_manager.is_alive(id) {
-            return false;
+            return Ok(false);
         }
         // The store bumps its slot generation here. The entity manager bumps
         // the same slot on the next reuse, so the two counters meet again.
-        if !self.storage.delete_entity(index, generation) {
-            return false;
+        if !self.storage.delete_entity(index, generation)? {
+            return Ok(false);
         }
-        self.entity_manager.delete_entity(id)
+        Ok(self.entity_manager.delete_entity(id))
     }
 
     /// Get count of live entities
@@ -260,25 +260,28 @@ impl Engine {
         index: u32,
         generation: u32,
         component_type_id: u32,
-    ) -> bool {
+    ) -> Result<bool, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return false;
+            return Ok(false);
         }
-        self.storage
-            .remove(index, generation, component_type_id)
-            .unwrap_or_default()
+        self.storage.remove(index, generation, component_type_id)
     }
 
     /// Check if entity has component
-    pub fn has_component(&self, index: u32, generation: u32, component_type_id: u32) -> bool {
+    pub fn has_component(
+        &self,
+        index: u32,
+        generation: u32,
+        component_type_id: u32,
+    ) -> Result<bool, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return false;
+            return Ok(false);
         }
         self.storage.has(index, generation, component_type_id)
     }
@@ -290,12 +293,12 @@ impl Engine {
         index: u32,
         generation: u32,
         component_type_id: u32,
-    ) -> Vec<u8> {
+    ) -> Result<Vec<u8>, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let width = self
             .storage
@@ -303,16 +306,16 @@ impl Engine {
             .map(|layout| usize::from(layout.row_bytes))
             .unwrap_or(0);
         if width == 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut bytes = vec![0u8; width];
         if self
             .storage
-            .copy_row(index, generation, component_type_id, &mut bytes)
+            .copy_row(index, generation, component_type_id, &mut bytes)?
         {
-            bytes
+            Ok(bytes)
         } else {
-            Vec::new()
+            Ok(Vec::new())
         }
     }
 
@@ -352,12 +355,17 @@ impl Engine {
     ///
     /// `false` is a dead entity, a stale generation, or a missing component.
     /// The staging bytes are then unchanged.
-    pub fn read_component_staged(&mut self, index: u32, generation: u32, type_id: u32) -> bool {
+    pub fn read_component_staged(
+        &mut self,
+        index: u32,
+        generation: u32,
+        type_id: u32,
+    ) -> Result<bool, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return false;
+            return Ok(false);
         }
         self.storage.read_staged(index, generation, type_id)
     }
@@ -389,14 +397,17 @@ impl Engine {
     /// `true` when the live row is dormant.
     ///
     /// A dead entity, a stale generation, or an entity with no row is `false`.
-    pub fn is_entity_dormant(&self, index: u32, generation: u32) -> bool {
+    pub fn is_entity_dormant(&self, index: u32, generation: u32) -> Result<bool, CoreError> {
         if !self
             .entity_manager
             .is_alive(EntityId::from_parts(index, generation))
         {
-            return false;
+            return Ok(false);
         }
-        self.storage.is_dormant(index, generation).unwrap_or(false)
+        match self.storage.is_dormant(index, generation)? {
+            Some(dormant) => Ok(dormant),
+            None => Ok(false),
+        }
     }
 
     /// Record a chunk query. The handle is the index used by [`Self::query_chunks`].
@@ -512,7 +523,7 @@ impl Engine {
                     break;
                 }
                 match out_buf.get_mut(dst_start..dst_end) {
-                    Some(dst) => self.storage.copy_row(slot, gen, component_type_id, dst),
+                    Some(dst) => self.storage.copy_row(slot, gen, component_type_id, dst)?,
                     None => false,
                 }
             } else {
@@ -679,15 +690,15 @@ impl Engine {
 
     /// Query entities that have ALL the listed component types.
     /// Returns a flat `Uint32Array` of entity indices.
-    pub fn query_entities(&mut self, component_type_ids: &[u32]) -> Vec<u32> {
-        let matches = self.storage.count_awake(component_type_ids);
+    pub fn query_entities(&mut self, component_type_ids: &[u32]) -> Result<Vec<u32>, CoreError> {
+        let matches = self.storage.count_awake(component_type_ids)?;
         let mut slots = vec![0u32; matches];
         let mut gens = vec![0u32; matches];
         let written = self
             .storage
-            .write_awake(component_type_ids, &mut slots, &mut gens);
+            .write_awake(component_type_ids, &mut slots, &mut gens)?;
         slots.truncate(written);
-        slots
+        Ok(slots)
     }
 
     /// Query entities and copy every match into this engine's result buffer.
@@ -715,7 +726,7 @@ impl Engine {
         &mut self,
         component_type_ids: &[u32],
     ) -> Result<u32, CoreError> {
-        let matches = self.storage.count_awake(component_type_ids);
+        let matches = self.storage.count_awake(component_type_ids)?;
         if matches > self.query_result_buffer.len() {
             return Err(CoreError::QueryCapacityExceeded {
                 matches: matches as u32,
@@ -727,7 +738,7 @@ impl Engine {
             component_type_ids,
             &mut self.query_result_buffer[..matches],
             &mut gens,
-        );
+        )?;
         Ok(written as u32)
     }
 
@@ -3863,7 +3874,7 @@ impl Engine {
 
         let written = self
             .storage
-            .write_awake(component_type_ids, out_slots, out_gens);
+            .write_awake(component_type_ids, out_slots, out_gens)?;
         if written == 0 {
             return Ok(vec![0, 0]);
         }
@@ -4096,15 +4107,16 @@ impl Engine {
     /// engine.bulk_destroy(new Uint32Array([3, 7, 12]));
     /// ```
     #[wasm_bindgen]
-    pub fn bulk_destroy(&mut self, indices: &[u32]) {
+    pub fn bulk_destroy(&mut self, indices: &[u32]) -> Result<(), CoreError> {
         for &index in indices {
             let gen = self.get_entity_generation(index);
             if self.is_alive(index, gen) {
                 let entity = EntityId::from_parts(index, gen);
                 self.transform_system.remove_transform(entity);
-                self.delete_entity(index, gen);
+                self.delete_entity(index, gen)?;
             }
         }
+        Ok(())
     }
 
     /// Create N entities, each with a transform, and return their indices.
@@ -4448,7 +4460,7 @@ mod tests {
         );
         assert_eq!(
             engine.get_component_raw(e.index(), e.generation(), type_id),
-            Vec::<u8>::new()
+            Ok(Vec::<u8>::new())
         );
     }
 
@@ -4484,11 +4496,11 @@ mod tests {
         );
         assert_eq!(
             engine.get_component_raw(first.index(), first.generation(), type_id),
-            vec![1, 2, 3, 4]
+            Ok(vec![1, 2, 3, 4])
         );
         assert_eq!(
             engine.get_component_raw(second.index(), second.generation(), type_id),
-            Vec::<u8>::new()
+            Ok(Vec::<u8>::new())
         );
     }
 
@@ -4528,11 +4540,11 @@ mod tests {
         );
         assert_eq!(
             engine.get_component_raw(first.index(), first.generation(), type_id),
-            vec![1, 2, 3, 4]
+            Ok(vec![1, 2, 3, 4])
         );
         assert_eq!(
             engine.get_component_raw(second.index(), second.generation(), type_id),
-            vec![5, 6, 7, 8]
+            Ok(vec![5, 6, 7, 8])
         );
     }
 

@@ -96,12 +96,18 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
         Ok(true)
     );
 
-    let mut found = engine.query_entities(&[127]);
+    let mut found = match engine.query_entities(&[127]) {
+        Ok(rows) => rows,
+        Err(err) => {
+            assert_eq!(err.code(), "");
+            Vec::new()
+        }
+    };
     found.sort_unstable();
     assert_eq!(found, vec![holder.index(), only_last.index()]);
     assert_eq!(
         engine.get_component_raw(holder.index(), holder.generation(), 127),
-        vec![1]
+        Ok(vec![1])
     );
 
     let err = must_err(engine.register_component(&[4]));
@@ -110,15 +116,15 @@ fn query_finds_bit_127_and_the_129th_type_is_refused() {
     assert_eq!(err.to_string(), "Component type limit reached: 128");
     assert_eq!(
         [engine.has_component(holder.index(), holder.generation(), 128)],
-        [false]
+        [Ok(false)]
     );
     assert_eq!(
         engine.get_component_raw(holder.index(), holder.generation(), 128),
-        Vec::<u8>::new()
+        Ok(Vec::<u8>::new())
     );
     assert_eq!(
         engine.get_component_raw(holder.index(), holder.generation(), 127),
-        vec![1]
+        Ok(vec![1])
     );
     assert_eq!(engine.count_entities(), 3);
 

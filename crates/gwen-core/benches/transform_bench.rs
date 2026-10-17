@@ -121,7 +121,7 @@ fn bench_bulk_ops(c: &mut Criterion) {
             let ids: Vec<u32> = (0..1_000)
                 .map(|_| engine.create_entity().expect("entity limit").index())
                 .collect();
-            engine.bulk_destroy(&ids);
+            let _destroyed = engine.bulk_destroy(&ids);
         })
     });
 
