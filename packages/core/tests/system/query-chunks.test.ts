@@ -497,6 +497,7 @@ describe("per-entity query path", () => {
         expect(secondFrame).toBeGreaterThan(0);
       } else {
         expect(perEntityEvents(events)).toHaveLength(0);
+        expect("QUERY_PER_ENTITY_PATH" in CoreErrorCodes).toBe(true);
         expect(secondFrame).toBeGreaterThan(0);
       }
       expect(sink).toBeGreaterThan(0);
@@ -540,6 +541,7 @@ describe("per-entity query path", () => {
         }
       } else {
         expect(perEntityEvents(events)).toHaveLength(0);
+        expect("QUERY_PER_ENTITY_PATH" in CoreErrorCodes).toBe(true);
       }
       expect(seen).toBeGreaterThan(0);
     });
@@ -621,6 +623,7 @@ function expectPhase(events: readonly GwenErrorPayload[], phase: string): void {
   const warnings = perEntityEvents(events);
   if (!__GWEN_DEV__) {
     expect(warnings).toHaveLength(0);
+    expect("QUERY_PER_ENTITY_PATH" in CoreErrorCodes).toBe(true);
     return;
   }
   expect(warnings).toHaveLength(1);
