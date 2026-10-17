@@ -36,10 +36,22 @@ export class EntityIdMirror {
     return { index, generation: 0 };
   }
 
-  /** A WASM spawn already happened. Ignore it when this slot was reserved. */
+  /** A WASM spawn already happened. Record that exact slot. */
   noteAllocated(index: number, generation: number): void {
     if (this.isAlive(index, generation)) return;
-    this.tryAllocate();
+    if (index < 0 || index >= this.maxEntities) return;
+    this.ensureSlot(index);
+    this.removeFree(index);
+    this.generations[index] = generation;
+    this.alive[index] = 1;
+    if (index >= this.recordCount) this.recordCount = index + 1;
+  }
+
+  /** Generation of a live slot, or null when that slot is free. */
+  generationOf(index: number): number | null {
+    if (index < 0 || index >= this.recordCount) return null;
+    if (this.alive[index] !== 1) return null;
+    return this.generations[index] ?? 0;
   }
 
   deallocate(index: number, generation: number): boolean {
@@ -83,5 +95,16 @@ export class EntityIdMirror {
     }
     this.freeList[this.freeCount] = index;
     this.freeCount += 1;
+  }
+
+  private removeFree(index: number): void {
+    let write = 0;
+    for (let cursor = 0; cursor < this.freeCount; cursor += 1) {
+      const slot = this.freeList[cursor] ?? 0;
+      if (slot === index) continue;
+      this.freeList[write] = slot;
+      write += 1;
+    }
+    this.freeCount = write;
   }
 }

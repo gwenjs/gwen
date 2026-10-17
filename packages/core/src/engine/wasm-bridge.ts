@@ -28,7 +28,15 @@ import {
   isCoreWasmErrorCode,
 } from "./engine-errors";
 import { engineContext, GwenContextError } from "./context";
-import { hasEntityTrace, noteEntityAllocated, noteEntityDeallocated } from "./entity-trace.js";
+import {
+  deferBulkDestroy,
+  deferBulkSpawn,
+  deferEntityCreate,
+  deferEntityDestroy,
+  hasEntityTrace,
+  noteEntityAllocated,
+  noteEntityDeallocated,
+} from "./entity-trace.js";
 
 // ─── Re-exports from the type module ────────────────────────────────────────
 // Public types live in ./wasm-bridge-types.ts. Re-export them so
@@ -555,6 +563,8 @@ export class WasmBridgeImpl implements WasmBridge {
    *   The bridge stays usable after that throw.
    */
   createEntity(): WasmEntityId {
+    const reserved = deferEntityCreate(this);
+    if (reserved !== undefined) return reserved;
     const wasm = this._requireWasm();
     try {
       const created = wasm.create_entity();
@@ -579,6 +589,8 @@ export class WasmBridgeImpl implements WasmBridge {
    *   capacity. No entity is created in that case. The bridge stays usable.
    */
   bulkSpawnWithTransforms(positions: Float32Array, rotations: Float32Array): Uint32Array {
+    const reserved = deferBulkSpawn(this, positions, rotations);
+    if (reserved !== undefined) return reserved;
     const wasm = this._requireWasm();
     try {
       const spawned = wasm.bulk_spawn_with_transforms(positions, rotations);
@@ -606,6 +618,8 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   deleteEntity(index: number, generation: number): boolean {
+    const deferred = deferEntityDestroy(this, index, generation);
+    if (deferred !== undefined) return deferred;
     const wasm = this._requireWasm();
     try {
       const deleted = wasm.delete_entity(index, generation);
@@ -617,6 +631,7 @@ export class WasmBridgeImpl implements WasmBridge {
   }
 
   bulkDestroy(indices: Uint32Array): void {
+    if (deferBulkDestroy(this, indices) === true) return;
     const wasm = this._requireWasm();
     const traced = hasEntityTrace(this);
     const generations = traced ? new Uint32Array(indices.length) : null;

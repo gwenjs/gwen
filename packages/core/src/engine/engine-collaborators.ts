@@ -102,6 +102,9 @@ export abstract class EngineCollaborators {
       maxEntities: this.maxEntities,
       assertState: (method) => this._stateMachine.assert(method),
       emitDestroy: (id) => emitEntityDestroy(engine, this.hooks, reportDestroyFailure, id),
+      reportInconsistent: (error) => {
+        this._policy.reportCaught(error, "defer-create");
+      },
       engine,
       bridge: this._bridge,
     });
