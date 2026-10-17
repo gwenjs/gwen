@@ -22,7 +22,7 @@ describe("chunk column allocation", () => {
       const memory = bridge.getLinearMemory();
       if (memory === null) throw new Error("light wasm did not export memory");
       const bytes = memory.buffer.byteLength;
-      // The helper's heap floor is a few KB, so 1000 ops cannot show < 1 byte.
+      // The helper's young-space floor is a few KB, so 1000 ops cannot show < 1 byte.
       const ops = 8_000;
       const report = await measureAllocations(
         () => {
@@ -164,5 +164,28 @@ describe("chunk column allocation", () => {
     } finally {
       await handle.dispose();
     }
+  });
+
+  it("counts an object per op and ignores an empty call", async () => {
+    const ops = 8_000;
+    const empty = await measureAllocations(
+      () => {
+        for (let index = 0; index < ops; index += 1) void index;
+      },
+      { warmup: 4, ops },
+    );
+    expect(empty.bytesPerOp).toBeLessThan(1);
+    expect(empty.gcCount).toBe(0);
+
+    const leaked = await measureAllocations(
+      () => {
+        for (let index = 0; index < ops; index += 1) {
+          const extra = new Uint8Array(1);
+          extra[0] = 1;
+        }
+      },
+      { warmup: 4, ops },
+    );
+    expect(leaked.bytesPerOp >= 1 || leaked.gcCount > 0).toBe(true);
   });
 });

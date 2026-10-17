@@ -4,7 +4,11 @@ import v8 from "node:v8";
 import vm from "node:vm";
 
 export interface AllocationReport {
-  /** heapUsed after the run, minus heapUsed after a forced GC before the run. */
+  /**
+   * `new_space` bytes used after the run, minus the same counter after a
+   * forced GC before the run. The second read is inside the window, so the
+   * floor is a few KB. Code space and trusted space are not counted.
+   */
   allocatedBytes: number;
   /** GCs observed during the run. Above zero, allocatedBytes is a lower bound. */
   gcCount: number;
@@ -27,8 +31,14 @@ function collectGc(): () => void {
   return () => Reflect.apply(fromVm, undefined, []);
 }
 
+function newSpaceUsed(): number {
+  const found = v8.getHeapSpaceStatistics().find((space) => space.space_name === "new_space");
+  if (found === undefined) throw new Error("[GWEN] measureAllocations: new_space is missing");
+  return found.space_used_size;
+}
+
 /**
- * Count heap bytes for one run. The profiler is stopped in `finally`.
+ * Count young-space bytes for one run. The profiler is stopped in `finally`.
  * Test-only. Promoting this helper is #57.
  */
 export async function measureAllocations(
@@ -39,13 +49,14 @@ export async function measureAllocations(
   const gc = collectGc();
   for (let i = 0; i < opts.warmup; i += 1) await run();
   gc();
+  const youngBefore = newSpaceUsed();
   const before = process.memoryUsage().heapUsed;
   const profiler = new v8.GCProfiler();
   let profile: v8.GCProfilerResult | undefined;
   profiler.start();
   try {
     await run();
-    const allocatedBytes = process.memoryUsage().heapUsed - before;
+    const allocatedBytes = newSpaceUsed() - youngBefore;
     profile = profiler.stop();
     gc();
     const retainedBytes = process.memoryUsage().heapUsed - before;
