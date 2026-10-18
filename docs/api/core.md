@@ -411,7 +411,7 @@ defineSystem(() => {
 | `def` | `ActorDefinition<P, A>` | Actor definition produced by `defineActor` |
 | `query` | `Iterable<{ readonly id: EntityId }>` | Any iterable exposing entity IDs — typically `query.each()` from `useQuery` |
 
-**Returns:** `Iterable<A>` — lazy, zero-allocation. Entities in `query` with no live actor instance are silently skipped.
+**Returns:** `Iterable<A>` — lazy. Entities in `query` with no live actor instance are silently skipped.
 
 ::: tip Why does it accept a query instead of component definitions?
 `useActorQuery` lives in `@gwenjs/core/actor` and does not depend on the system layer. Accepting `query.each()` keeps the two layers decoupled and makes the function composable with any iterable that exposes an `id`.

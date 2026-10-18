@@ -203,7 +203,7 @@ assert.equal(aliveDuring, true);
 assert.equal(engine.isAlive(id), false);
 ```
 
-`query.each()` and `useComponentFor` are the per-entity path. During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate` they log code `CORE:QUERY_PER_ENTITY_PATH`. The message names the API and says to iterate the query by chunk. Deprecated: `useComponentFor` and `createLiveQuery`. `createLiveQuery` does not log that warning.
+`query.each()` is the per-entity path. During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate` it logs code `CORE:QUERY_PER_ENTITY_PATH`. The message names the API and says to iterate the query by chunk. Deprecated: `useComponentFor` is the other per-entity call and logs the same code. `createLiveQuery` does not log that warning.
 
 ## API Summary
 

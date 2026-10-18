@@ -193,7 +193,7 @@ The `contact` object has:
 - `entityB` — Entity ID of the second participant
 - `started` — `true` when the contact started this frame
 
-The WASM collision record is 20 bytes: four `u32` fields and a flags byte. It has no contact point, normal, or relative velocity. `started` is bit 0 of that flags byte.
+The WASM collision record is `20` bytes: four `u32` fields and a flags byte. It has no contact point, normal, or relative velocity. `started` is bit 0 of that flags byte.
 
 ### Sensor Events
 

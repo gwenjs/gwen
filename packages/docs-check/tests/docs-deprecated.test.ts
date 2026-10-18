@@ -341,7 +341,6 @@ function deprecatedPublicExports(): string[] {
   return hits;
 }
 
-
 const SKIP_DIR = new Set(["superpowers", "node_modules", ".vitepress"]);
 
 function walkDocs(dir: string, out: string[]): void {

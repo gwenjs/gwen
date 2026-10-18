@@ -7,7 +7,7 @@ description: Pure math helpers for game development — vectors, quaternions, co
 
 `pnpm add @gwenjs/math`
 
-Pure, allocation-free math utilities for game development. All functions are tree-shakeable — import only what you use.
+Pure math utilities for game development. All functions are tree-shakeable — import only what you use.
 
 ```ts
 import { lerp, clamp, vec3Add, quatSlerp, damp, stepSpring1D } from '@gwenjs/math'
