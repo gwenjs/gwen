@@ -69,6 +69,17 @@ describe("engine page run fences", () => {
     expect(asserted(file, "engine.state")).toBe('"idle"');
   });
 
+  it("timeScale 0 on a started engine keeps the state running and deltaTime 0", async () => {
+    const file = "docs/essentials/engine.md";
+    const fence = markedRun(file, "await engine.startExternal()");
+    expect(fence).toBeDefined();
+    if (!fence) return;
+    expect(checkFence(fence)).toBeNull();
+    await runSnippet(fence.code, fence.file, fence.line);
+    expect(asserted(file, "scaled")).toBe("0");
+    expect(asserted(file, "startedState")).toBe('"running"');
+  });
+
   it("destroyEntity emits entity:destroy with that id", async () => {
     const file = "docs/essentials/hooks.md";
     await runMarked(file, "assert.equal(seen, id)");
