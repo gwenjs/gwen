@@ -5,7 +5,7 @@ description: Visualize engine state, colliders, and phase timings.
 
 # Debug Mode
 
-Debug mode enables visual and console diagnostics to understand what's happening inside the engine. When enabled, GWEN displays collider wireframes and structured logging. Phase timings are numbers on `engine.getStats()`, not a per-system overlay.
+Debug mode enables visual and console diagnostics to understand what's happening inside the engine. When enabled, GWEN displays collider wireframes and structured logging. Phase timings are numbers on `engine.getStats()`. They are not broken down per system.
 
 ## Enabling Debug Mode
 
@@ -226,7 +226,7 @@ You've noticed frame rate drops. Debug mode helps:
    debug: true
    ```
 
-2. **Run the game and observe the timing overlay.** Notice `PhysicsSystem` spikes to 8ms when lots of enemies are on screen.
+2. **Read `engine.getStats().phaseMs`.** With `debug` on, the fields are `tick`, `plugins`, `wasm`, `update`, `render`, `afterTick`, and `total`.
 
 3. **Check the system's logging:**
    ```ts
@@ -283,7 +283,6 @@ describe('MySystem', () => {
 
 Debug mode has measurable overhead:
 - Collider rendering: ~1–2ms per frame
-- Timing overlay: <0.1ms
 - Structured logging: Negligible if filtered at runtime
 
 Production builds (`__GWEN_DEV__ === false`) remove dev-only warnings and the per-frame instrumentation, even when `debug` is `true`. Logger `debug` and `info` still follow `engine.debug`.

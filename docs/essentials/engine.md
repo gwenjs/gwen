@@ -231,7 +231,7 @@ assert.equal(engine.state, "idle");
 ```
 
 ::: info Determinism
-`physicsHz` gives each fixed step the same `dt` (`1 / physicsHz`, then scaled by `timeScale`). It does not make the simulation deterministic. GWEN 1.0 makes no determinism guarantee, including for the variable-dt loop (`physicsHz: 0`). There is no built-in world snapshot or save/restore. #84 is still open.
+With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs reach the same world state when every fixed step receives the same inputs in the same order, starting from the same configuration, on the same GWEN version, WASM variant and browser or runtime. To control steps exactly, drive the loop yourself with `engine.advance(1 / physicsHz)`. GWEN 1.0 makes no determinism guarantee across browsers, operating systems or CPUs, and none for the variable-dt loop (`physicsHz: 0`). Reading `performance.now()`, `Date.now()` or `Math.random()` inside a system breaks reproducibility. GWEN 1.0 has no built-in world snapshot or save/restore.
 :::
 
 ::: info Multiplayer (1.0)

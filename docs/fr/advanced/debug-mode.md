@@ -241,7 +241,7 @@ Vous avez remarqué des baisses de fréquence d'images. Le mode debug aide :
    debug: true
    ```
 
-2. **Exécutez le jeu et observez la superposition de minutage.** Remarquez que `PhysicsSystem` monte à 8ms quand beaucoup d'ennemis sont à l'écran.
+2. **Lisez `engine.getStats().phaseMs`.** Avec `debug` activé, les champs sont `tick`, `plugins`, `wasm`, `update`, `render`, `afterTick` et `total`.
 
 3. **Vérifiez la journalisation du système :**
    ```ts
