@@ -415,6 +415,7 @@ export function deprecatedMentions(): string[] {
 
 describe("deprecated public exports in docs", () => {
   it("a deprecated public export is only named in a sentence that begins Deprecated:", () => {
+    expect(deprecatedNames()).toEqual(["useComponentFor"]);
     expect(deprecatedMentions()).toEqual([]);
   });
 });
