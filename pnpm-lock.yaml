@@ -146,6 +146,9 @@ importers:
       '@gwenjs/core':
         specifier: workspace:*
         version: link:../core
+      '@gwenjs/schema':
+        specifier: workspace:*
+        version: link:../schema
       '@types/node':
         specifier: ^25.6.0
         version: 25.6.0

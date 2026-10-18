@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 import { createRealEngine } from "@gwenjs/core/testing";
 import type { GwenEngine } from "@gwenjs/core";
+import { GwenError } from "@gwenjs/schema";
 
 const ENGINE = "__GWEN_DOCS_ENGINE__";
 
@@ -37,7 +38,10 @@ export async function runSnippet(
   try {
     await execute(code, handle.engine);
     if (handle.engine.state === "stopped") {
-      failure = new Error(`${file}:${line} the block stopped the engine`);
+      failure = new GwenError(
+        "DOCS:BLOCK_STOPPED_ENGINE",
+        `${file}:${line} the block stopped the engine`,
+      );
     }
   } catch (error) {
     failure = error;
