@@ -69,6 +69,11 @@ export interface Physics2DAPI {
       initialVelocity?: { vx: number; vy: number };
       ccdEnabled?: boolean;
       additionalSolverIterations?: number;
+      /**
+       * Lock rotation. `true` calls `physics_set_fixed_rotation` after the body is created.
+       * @default false
+       */
+      fixedRotation?: boolean;
     },
   ): number;
   addBoxCollider(bodyHandle: number, hw: number, hh: number, opts?: ColliderOptions): void;

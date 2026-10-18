@@ -388,6 +388,8 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
     ccd?: number,
     solverIterations?: number,
   ): number;
+  /** Lock or unlock rotation for the body in this slot. */
+  physics_set_fixed_rotation(slot: number, fixed: boolean): void;
   /** Add a box collider. */
   physics_add_box_collider(
     bodyHandle: number,

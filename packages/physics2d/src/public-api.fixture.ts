@@ -5,6 +5,9 @@ import type * as T_tilemap from "@gwenjs/physics2d/tilemap";
 import type * as T_debug from "@gwenjs/physics2d/debug";
 import type * as T_internal from "@gwenjs/physics2d/internal";
 
+type AddBodyOpts = NonNullable<Parameters<Root.Physics2DAPI["addRigidBody"]>[4]>;
+const _fixedRotationAccepted: "fixedRotation" extends keyof AddBodyOpts ? true : never = true;
+
 type _0 = [
   Root.BoxColliderHandle,
   Root.BoxColliderOptions,

@@ -240,6 +240,29 @@ fn set_kinematic_position_on_a_missing_slot_leaves_the_other_body() -> Result<()
 }
 
 #[test]
+fn fixed_rotation_without_a_world_is_not_initialized() -> Result<(), Physics2DError> {
+    let mut engine = engine()?;
+    assert_eq!(
+        code(engine.physics_set_fixed_rotation(1, true)),
+        "PHYSICS2D:NOT_INITIALIZED"
+    );
+    Ok(())
+}
+
+#[test]
+fn fixed_rotation_of_an_unknown_slot_is_body_not_found() -> Result<(), Physics2DError> {
+    let mut engine = engine()?;
+    init(&mut engine);
+    let _handle = add(&mut engine, 1, 0.0, 0.0, 1)?;
+    assert_eq!(
+        code(engine.physics_set_fixed_rotation(9, true)),
+        "PHYSICS2D:BODY_NOT_FOUND"
+    );
+    assert_eq!(engine.physics_get_position(1)?, vec![0.0, 0.0, 0.0]);
+    Ok(())
+}
+
+#[test]
 fn queries_without_a_world_return_not_initialized() -> Result<(), Physics2DError> {
     let engine = engine()?;
     assert_eq!(
