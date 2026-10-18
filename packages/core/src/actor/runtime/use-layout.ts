@@ -112,6 +112,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
       let next = 0;
       const stop = (): void => {
         unhook();
+        unhookStop();
         _cancel = undefined;
         _pending = undefined;
       };
@@ -137,6 +138,8 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         stop();
         resolve();
       });
+      // A stopped engine runs no more frames: settle like dispose().
+      const unhookStop = engine.hooks.hook("engine:stop", () => dispose());
       _cancel = () => {
         stop();
         resolve();
@@ -149,8 +152,8 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
    *
    * Without `chunkSize`: one pass, entities are alive when the returned promise resolves.
    * With `chunkSize`: the promise resolves once the last chunk has spawned. A second call
-   * while loading returns the same promise. `dispose()` during the load resolves it with
-   * the layout inactive.
+   * while loading returns the same promise. `dispose()` or `engine.stop()` during the load
+   * resolves it with the layout inactive.
    * Re-establishes the engine context even if called outside the original engine.run()
    */
   function load(): Promise<void> {
@@ -161,8 +164,10 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         loadOnePass();
         return Promise.resolve();
       }
-      _pending = loadProgressive(chunkSize);
-      return _pending;
+      const loading = loadProgressive(chunkSize);
+      // Only a load that subscribed to the frame hook is still pending.
+      if (_cancel !== undefined) _pending = loading;
+      return loading;
     } catch (error: unknown) {
       return Promise.reject(error);
     }

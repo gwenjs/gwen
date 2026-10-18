@@ -244,8 +244,8 @@ export interface LayoutHandle<Refs> {
    * Spawn all entities declared in the layout factory.
    * Resolves when all entities are alive: at once, or after `ceil(m / chunkSize)` frames
    * with `chunkSize`. A second call while loading returns the same promise.
-   * If `dispose()` runs during a progressive load, the promise resolves and `active`
-   * stays `false`. If a spawn throws, the promise rejects and the entities already
+   * If `dispose()` or `engine.stop()` runs during a progressive load, the promise
+   * resolves and `active` stays `false`. If a spawn throws, the promise rejects and the entities already
    * spawned are destroyed.
    */
   load(): Promise<void>;
