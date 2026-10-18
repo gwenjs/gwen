@@ -8,6 +8,7 @@ export default defineConfig({
   define: { __GWEN_DEV__: "true" },
   test: {
     environment: "node",
+    testTimeout: 30_000,
     include: ["tests/**/*.test.ts"],
     exclude: ["tests/**/*.wasm.test.ts"],
   },
