@@ -7,7 +7,7 @@ description: Utilitaires mathématiques purs pour le développement de jeux — 
 
 `pnpm add @gwenjs/math`
 
-Utilitaires mathématiques purs et sans allocations pour le développement de jeux. Toutes les fonctions sont tree-shakeable — importez uniquement ce dont vous avez besoin.
+Utilitaires mathématiques purs pour le développement de jeux. Toutes les fonctions sont tree-shakeable — importez uniquement ce dont vous avez besoin.
 
 ```ts
 import { lerp, clamp, vec3Add, quatSlerp, damp, stepSpring1D } from '@gwenjs/math'

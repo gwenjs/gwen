@@ -88,7 +88,7 @@ CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() avant que le bridge soit a
 
 `CORE:STORAGE_INCONSISTENT` signifie que le stockage des composants a cassé un invariant qu'un appel normal ne peut pas construire (un slot qui vise un chunk ou une ligne absente, une lane disparue, un compte au-dessus de la longueur, une entité déplacée sans slot). Une entité morte, une génération périmée et un composant absent ne sont pas ce code. C'est un bug du moteur : signalez-le. L'erreur Rust porte un numéro `site` stable. Un moteur en cours d'exécution passe à `faulted`.
 
-`CORE:QUERY_PER_ENTITY_PATH` est un avertissement réservé au développement, émis sur `engine.errors`. Il n'est ni levé, ni fatal. Il est émis une fois par moteur et par api pendant `engine:before-update`, `engine:update` ou `engine:after-update`. Deprecated: `useComponentFor` est l'une de ces api, avec `Query.each`.
+`CORE:QUERY_PER_ENTITY_PATH` est un avertissement réservé au développement, émis sur `engine.errors`. Il n'est ni levé, ni fatal. Il est émis une fois par moteur et par api pendant `engine:before-update`, `engine:update` ou `engine:after-update`. Deprecated: `useComponentFor`. C'est la seconde api, à côté de `Query.each`.
 
 `CORE:QUERY_INVALID` a deux origines et reste un seul code. Rust : le stockage des chunks a rejeté une liste de types vide ou un handle inconnu. TypeScript : une query utilisée après libération ou après l'arrêt du moteur, un chunk utilisé après son pas de boucle, ou `entityId(row)` en dehors de `[0, count)`.
 
