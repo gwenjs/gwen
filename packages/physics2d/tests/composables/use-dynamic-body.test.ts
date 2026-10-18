@@ -83,6 +83,34 @@ describe("useDynamicBody", () => {
     expect(h.velocity).toEqual({ x: 0, y: 0 });
   });
 
+  it("passes fixedRotation on create and again after disable and enable", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      const body = useDynamicBody({ fixedRotation: true });
+      expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
+        expect.anything(),
+        "dynamic",
+        0,
+        0,
+        expect.objectContaining({ fixedRotation: true }),
+      );
+      body.disable();
+      body.enable();
+      expect(mockPhysics.addRigidBody).toHaveBeenLastCalledWith(
+        expect.anything(),
+        "dynamic",
+        0,
+        0,
+        expect.objectContaining({ fixedRotation: true }),
+      );
+      expect(warn.mock.calls.map((call) => String(call[0])).join("\n")).not.toContain(
+        "not yet supported",
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
   it("passes mass and linearDamping options to addRigidBody", () => {
     useDynamicBody({ mass: 5, linearDamping: 0.1 });
     expect(mockPhysics.addRigidBody).toHaveBeenCalledWith(
