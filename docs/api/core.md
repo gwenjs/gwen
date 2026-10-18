@@ -660,40 +660,65 @@ emit('player-hit', { damage: 10 });
 
 ### UI & Layout
 
-#### defineLayout(name, setup)
+#### defineLayout(factory)
 
 **Signature:**
 ```ts
-function defineLayout(name: string, setup: (ctx: LayoutContext) => void): LayoutDef
+function defineLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
+  factory: () => Refs,
+): LayoutDefinition<Refs>
 ```
 
-**Description.** Defines a persistent UI layer that overlays the game.
+**Description.** Declares a layout: a factory that places entities with `placeActor`, `placePrefab` and `placeGroup` and returns named handles. The factory runs when `useLayout().load()` is called, not before.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| name | `string` | Unique layout name |
-| setup | `function` | Setup function for UI initialization |
+| factory | `() => Refs` | Synchronous function that places entities and returns their handles |
 
-**Returns:** `LayoutDef`
+**Returns:** `LayoutDefinition<Refs>`
 
 **Example:**
 ```ts
-const HUD = defineLayout('HUD', (setup) => {
-  // Initialize UI elements
+const HUD = defineLayout(() => {
+  const hud = placeActor(HUDActor, { at: [0, 0] });
+  return { hud };
 });
 ```
 
-#### useLayout()
+#### useLayout(layoutDef, options?)
 
 **Signature:**
 ```ts
-function useLayout(): Layout
+function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
+  layoutDef: LayoutDefinition<Refs>,
+  options?: UseLayoutOptions,
+): LayoutHandle<Refs>
 ```
 
-**Description.** Returns the current layout context. Use to add/remove UI elements.
+**Description.** Returns a handle that loads and disposes one instance of a layout. Call it inside an active engine context. Without `lazy: true` it starts loading at once.
 
-**Returns:** `Layout`
+**Parameters:**
+| Param | Type | Description |
+|---|---|---|
+| layoutDef | `LayoutDefinition<Refs>` | Layout produced by `defineLayout()` |
+| options.lazy | `boolean` | Defer loading until `load()` is called. Default `false` |
+| options.chunkSize | `number` | Spawn at most this many entities per frame. Positive integer. Default: spawn all in one pass |
+
+**Returns:** `LayoutHandle<Refs>` with `load()`, `dispose()`, `refs` and `active`.
+
+**Throws:** `GwenComposableError` with code `COMPOSABLE:INVALID_CHUNK_SIZE` if `chunkSize` is not a positive integer. The message names the value.
+
+**`chunkSize` behaviour.** The factory runs once. Each `place*` call records its spawn. `load()` spawns the recorded entities in call order, at most `chunkSize` per frame, on `engine:before-update`. It resolves when the last one is alive, after `ceil(m / chunkSize)` frames for `m` entities. `refs` is `{}` until then. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle inside the factory throws `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`. A handle passed as `parent` is read at spawn time, so place the parent first. A second `load()` while loading returns the same promise. `dispose()` during the load stops the spawns, destroys what exists, and resolves the pending `load()` with `active` still `false`. If a spawn throws, `load()` rejects and the entities already spawned are destroyed. See [Layouts](/essentials/layouts#progressive-spawn-with-chunksize).
+
+**Example:**
+```ts
+const world = useLayout(TownLayout, { lazy: true, chunkSize: 2 });
+const loading = world.load();
+await engine.advance(1 / 60); // two entities alive
+await engine.advance(1 / 60); // ...
+await loading;                // every entity alive
+```
 
 #### useEntityId()
 
