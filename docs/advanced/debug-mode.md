@@ -1,11 +1,11 @@
 ---
 title: Debug Mode
-description: Visualize engine state, colliders, and system timing.
+description: Visualize engine state, colliders, and phase timings.
 ---
 
 # Debug Mode
 
-Debug mode enables visual and console diagnostics to understand what's happening inside the engine. When enabled, GWEN displays collider wireframes, system timing overlays, and structured logging—helping you diagnose performance issues and validate logic.
+Debug mode enables visual and console diagnostics to understand what's happening inside the engine. When enabled, GWEN displays collider wireframes and structured logging. Phase timings are numbers on `engine.getStats()`, not a per-system overlay.
 
 ## Enabling Debug Mode
 
@@ -54,7 +54,6 @@ export default defineConfig({
 
 When `debug: true`:
 - Physics colliders render as colored wireframes
-- System timing appears on screen
 - Verbose logging is active
 - The WASM memory sentinel is checked only when `__GWEN_DEV__` is also true. Component arrays are not bounds-checked, and entity IDs are not verified.
 
@@ -75,21 +74,6 @@ Colors indicate body type:
 - **Green** — Dynamic bodies
 - **Yellow** — Kinematic bodies (player-controlled)
 - **Red** — Sleeping bodies
-
-### System Timing Overlay
-
-GWEN displays per-system execution time in milliseconds:
-
-```
-[FRAME 1248] (dt: 16.7ms)
-├─ MovementSystem        2.1ms
-├─ PhysicsSystem         4.8ms
-├─ CollisionSystem       1.3ms
-├─ RenderSystem         11.2ms
-└─ Total                19.4ms (16% over budget)
-```
-
-This helps identify bottlenecks. If a system consistently exceeds its budget (e.g., physics taking 5ms on a 16ms frame), you've found a performance issue.
 
 ## Engine Stats
 
@@ -123,6 +107,15 @@ if (p) {
 With `physicsHz > 0`, one display frame can run several simulation steps. `getStats()` adds those steps into each `phaseMs` field. `total` covers the steps and the render pass. `frameCount` counts the steps. `engine:render` runs once per display frame, so `phaseMs.render` includes that single pass.
 
 > **Note:** Use `engine.getStats()` — not `engine.stats`. It is a method call.
+
+`phaseMs` is omitted when `debug` is off. There is no `physics` field. The fields are `tick`, `plugins`, `wasm`, `update`, `render`, `afterTick`, and `total`.
+
+```ts run
+import assert from "node:assert/strict";
+
+const hasPhases = "phaseMs" in engine.getStats();
+assert.equal(hasPhases, false);
+```
 
 ## Structured Logging
 

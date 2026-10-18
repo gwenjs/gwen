@@ -1,11 +1,11 @@
 ---
 title: Mode debug
-description: Visualiser l'état du moteur, les colliseurs et le minutage du système.
+description: Visualiser l'état du moteur et les colliseurs.
 ---
 
 # Mode debug
 
-Le mode debug active les diagnostics visuels et console pour comprendre ce qui se passe à l'intérieur du moteur. Lorsqu'il est activé, GWEN affiche les wireframes de colliseurs, les superpositions de minutage du système et la journalisation structurée—vous aidant à diagnostiquer les problèmes de performance et à valider la logique.
+Le mode debug active les diagnostics visuels et console pour comprendre ce qui se passe à l'intérieur du moteur. Lorsqu'il est activé, GWEN affiche les wireframes de colliseurs et la journalisation structurée.
 
 ## Activer le mode debug
 
@@ -54,7 +54,6 @@ export default defineConfig({
 
 Quand `debug: true` :
 - Les colliseurs de physique s'affichent comme des wireframes colorés
-- Le minutage du système apparaît à l'écran
 - La journalisation détaillée est active
 - La sentinelle de mémoire WASM n'est vérifiée que si `__GWEN_DEV__` est aussi vrai. Les tableaux de composants ne sont pas vérifiés aux bornes, et les ID d'entités ne sont pas vérifiés.
 
@@ -75,21 +74,6 @@ Les couleurs indiquent le type de corps :
 - **Vert** — Corps dynamiques
 - **Jaune** — Corps cinématiques (contrôlés par le joueur)
 - **Rouge** — Corps en sommeil
-
-### Superposition de minutage du système
-
-GWEN affiche le temps d'exécution par système en millisecondes :
-
-```
-[FRAME 1248] (dt: 16.7ms)
-├─ MovementSystem        2.1ms
-├─ PhysicsSystem         4.8ms
-├─ CollisionSystem       1.3ms
-├─ RenderSystem         11.2ms
-└─ Total                19.4ms (16% over budget)
-```
-
-Cela aide à identifier les goulots d'étranglement. Si un système dépasse régulièrement son budget (par exemple, la physique prenant 5ms sur une image de 16ms), vous avez trouvé un problème de performance.
 
 ## Statistiques du moteur
 

@@ -114,14 +114,14 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `engine:start` | — | Once, when frame loop begins |
 | `engine:stop` | — | Once, on engine teardown |
 | `engine:state-change` | `{ from, to, reason }` | Once per real lifecycle transition |
-| `engine:tick` | `dt: number` | Every frame start |
+| `engine:tick` | `dt: number` | Every frame start. `dt` is in seconds |
 | `engine:afterTick` | `dt: number` | After each simulation step |
 | `engine:before-update` | `dt: number` | Before physics |
 | `engine:update` | `dt: number` | Main update phase |
 | `engine:after-update` | `dt: number` | After update phase |
 | `engine:render` | `alpha: number` | Once per display frame |
-| `entity:spawn` | `id: EntityId` | Entity created |
-| `entity:destroy` | `id: EntityId` | Entity destroyed |
+| `engine:memory-grow` | `{ epoch, byteLength, frame }` | Linear memory grew, before the next phase |
+| `entity:destroy` | `id: EntityId` | `destroyEntity` destroyed that id |
 | `scene:enter` | `name, params?` | Scene activated |
 | `scene:beforeLeave` | `name` | Before scene deactivation |
 | `scene:leave` | `name` | Scene deactivated |
@@ -130,6 +130,20 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `actor:enable` | `entityId` | Actor scope resumed |
 | `actor:disable` | `entityId` | Actor scope paused |
 | `engine:error` | `EngineErrorPayload` | Unhandled frame error |
+
+There is no `entity:spawn` event. `destroyEntity` emits `entity:destroy` with that id.
+
+```ts run
+import assert from "node:assert/strict";
+
+const id = engine.createEntity();
+let seen = -1n;
+engine.hooks.hook("entity:destroy", (destroyed) => {
+  seen = destroyed;
+});
+engine.destroyEntity(id);
+assert.equal(seen, id);
+```
 
 ## API Summary
 

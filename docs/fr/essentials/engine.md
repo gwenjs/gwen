@@ -206,7 +206,7 @@ Le callback `renderViews` d'un renderer surface reçoit toujours `1`. Cette page
 `engine.timeScale` ne multiplie que le `dt` du pas. Un `timeScale` de `0.5` divise par deux la vitesse de simulation et laisse `alpha` inchangé.
 
 ::: info Déterminisme
-Avec `physicsHz > 0`, chaque pas de simulation s'exécute avec le même `dt`. Deux exécutions atteignent le même état du monde lorsque chaque pas fixe reçoit les mêmes entrées dans le même ordre, en partant de la même configuration, sur la même version de GWEN, la même variante WASM et le même navigateur ou runtime. Pour contrôler les pas exactement, pilotez la boucle vous-même avec `engine.advance(1 / physicsHz)`. GWEN 1.0 ne garantit pas le déterminisme entre navigateurs, systèmes d'exploitation ou processeurs, et n'en donne aucune pour la boucle à delta variable (`physicsHz: 0`). Lire `performance.now()`, `Date.now()` ou `Math.random()` dans un système casse la reproductibilité. GWEN 1.0 n'a pas de snapshot du monde ni de sauvegarde/restauration intégrés.
+GWEN 1.0 ne garantit pas le déterminisme entre navigateurs, systèmes d'exploitation ou processeurs, et n'en donne aucune pour la boucle à delta variable (`physicsHz: 0`). GWEN 1.0 n'a pas de snapshot du monde ni de sauvegarde/restauration intégrés.
 :::
 
 ::: info Multijoueur (1.0)
@@ -220,8 +220,7 @@ Ce sont des cibles 1.0. Une ligne marquée Cible n'est pas vraie dans le code ac
 4. Cible (#59) : plusieurs moteurs dans un même processus ne partagent pas d'état d'exécution, et `stop()` sur un moteur laisse les autres tourner. Jusqu'à #59, `stop()` efface chaque clé `__gwenGlue_*` de `globalThis`.
 5. Une erreur fatale ne fait passer que ce moteur à `faulted`.
 6. Les gestionnaires d'erreur globaux sont optionnels. Le cœur n'en installe aucun sauf si `window` existe.
-7. La reproductibilité des pas fixes est la note Déterminisme de cette section (#84).
-8. Dépasser la capacité d'entités lève `GwenWasmError` avec le code `CORE:ENTITY_LIMIT_REACHED`. Le pont reste utilisable. Le module WASM ne piège pas.
+7. Dépasser la capacité d'entités lève `GwenWasmError` avec le code `CORE:ENTITY_LIMIT_REACHED`. Le pont reste utilisable. Le module WASM ne piège pas.
 
 La 1.0 ne fournit ni lockstep, ni rollback, ni snapshot du monde, ni entrée indexée par tick, ni surcharge `advance(dt, inputs)`. Deux pairs sur des plateformes différentes peuvent diverger.
 :::

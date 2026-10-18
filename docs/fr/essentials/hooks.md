@@ -120,7 +120,6 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 | `engine:update` | `dt: number` | Phase de mise à jour principale |
 | `engine:after-update` | `dt: number` | Après la phase de mise à jour |
 | `engine:render` | `alpha: number` | Une fois par frame d'affichage |
-| `entity:spawn` | `id: EntityId` | Entité créée |
 | `entity:destroy` | `id: EntityId` | Entité détruite |
 | `scene:enter` | `name, params?` | Scène activée |
 | `scene:beforeLeave` | `name` | Avant la désactivation de la scène |
