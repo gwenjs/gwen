@@ -43,7 +43,6 @@ const GameScene = defineScene('game', () => {
   onEnter(async () => {
     await loadAssets()         // ← transform instruments this await
     useHTML().mount('hud')     // ✅ context restored automatically
-    usePhysics2D().resume()    // ✅ same
   })
 
   onExit(async () => {

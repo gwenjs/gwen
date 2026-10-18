@@ -5,11 +5,11 @@ description: S'abonner aux événements du cycle de vie du moteur et aux événe
 
 # Hooks et événements
 
-Les hooks sont un moyen de réagir à des moments spécifiques dans la vie de votre jeu — quand le moteur démarre, quand une entité apparaît, quand un événement de jeu personnalisé se déclenche. N'importe quelle partie de votre code peut s'abonner à ces moments sans couplage étroit, et les abonnements se nettoient automatiquement quand votre acteur ou système se termine.
+Les hooks sont un moyen de réagir à des moments spécifiques dans la vie de votre jeu — quand le moteur démarre, quand un événement de jeu personnalisé se déclenche. N'importe quelle partie de votre code peut s'abonner à ces moments sans couplage étroit, et les abonnements se nettoient automatiquement quand votre acteur ou système se termine.
 
 ## Pourquoi les hooks ?
 
-Les systèmes traitent les données chaque frame. Mais parfois, vous devez réagir à un *moment spécifique* plutôt que de vérifier une condition à chaque tick. Une entité vient-elle d'apparaître ? Le joueur a-t-il perdu ? Un plugin s'est-il enregistré ?
+Les systèmes traitent les données chaque frame. Mais parfois, vous devez réagir à un *moment spécifique* plutôt que de vérifier une condition à chaque tick. Le joueur a-t-il perdu ? Un plugin s'est-il enregistré ?
 
 Les hooks découplent ces réactions. Au lieu de coder en dur « quand le jeu démarre, faire X », vous déclarez « je veux écouter engine:start et faire X » — et si l'écouteur est supprimé, l'abonnement disparaît automatiquement. Pas de nettoyage manuel. Pas de références qui traînent.
 
@@ -25,14 +25,10 @@ export const LoggingSystem = defineSystem(() => {
   useHook('engine:start', () => {
     console.log('Game started!')
   })
-
-  useHook('entity:spawn', (id) => {
-    console.log('Entity spawned:', id)
-  })
 })
 ```
 
-Le handler reçoit des arguments correspondant à la signature de l'événement. Pour `entity:spawn`, l'ID d'entité. Pour `engine:tick`, le delta time.
+Le handler reçoit des arguments correspondant à la signature de l'événement. Pour `engine:tick`, le delta time.
 
 ### Nettoyage automatique
 
@@ -65,10 +61,6 @@ import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const TrackingSystem = defineSystem(() => {
-  useHook('entity:spawn', (id) => {
-    console.log('New entity:', id)
-  })
-
   // Automatically cleaned up when the engine stops
 })
 ```
@@ -123,10 +115,9 @@ Ce sont les événements du cycle de vie du moteur auxquels vous pouvez vous abo
 | `engine:init` | `() => void` | La configuration du moteur se termine, avant le début de la boucle RAF |
 | `engine:start` | `() => void` | `engine.start()` appelé ; la boucle RAF commence |
 | `engine:stop` | `() => void` | `engine.stop()` appelé ; le nettoyage commence |
-| `engine:tick` | `(dt: number) => void` | Chaque frame commence (dt en millisecondes) |
+| `engine:tick` | `(dt: number) => void` | Chaque frame commence (dt en secondes) |
 | `engine:afterTick` | `(dt: number) => void` | Après chaque pas de simulation. Après le rendu quand `physicsHz` vaut 0. Avant le rendu d'affichage en mode fixe. |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | La boucle de frames capture une erreur non gérée |
-| `entity:spawn` | `(id: EntityId) => void` | Entité créée |
 | `entity:destroy` | `(id: EntityId) => void` | Entité supprimée |
 | `plugin:registered` | `(pluginName: string) => void` | La configuration du plugin se termine et s'enregistre |
 | `plugin:error` | `(payload: PluginErrorPayload) => void` | Le hook de cycle de vie du plugin lance et n'est pas récupéré |

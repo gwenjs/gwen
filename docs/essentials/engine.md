@@ -109,6 +109,20 @@ export const DebugSystem = defineSystem(() => {
 | `phaseMs` | `object` | Per-phase timings in ms. Present only when `__GWEN_DEV__` and `debug` are both true |
 | `overBudget` | `boolean` | Present only with `phaseMs`. `true` when `phaseMs.total` exceeds `budgetMs` |
 
+`deltaTime` is in seconds. A fresh engine reports `frameCount` `0`. One `advance(1 / 60)` reports that step as `deltaTime`.
+
+```ts run
+import assert from "node:assert/strict";
+
+const before = engine.getStats().frameCount;
+await engine.advance(1 / 60);
+const stepped = engine.getStats().deltaTime;
+const after = engine.getStats().frameCount;
+assert.equal(before, 0);
+assert.equal(stepped, 1 / 60);
+assert.equal(after, 1);
+```
+
 For external loop mode (`engine.loop: 'external'`), advance frames manually with `engine.advance(delta)`:
 
 ```ts
@@ -203,10 +217,21 @@ The sample stored on a step does not include the `engine:update` writes of that 
 
 A surface renderer `renderViews` callback still receives `1`. This page does not change that call.
 
-`engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged.
+`engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0` and leaves the state `idle`.
+
+```ts run
+import assert from "node:assert/strict";
+
+assert.equal(engine.state, "idle");
+engine.timeScale = 0;
+await engine.advance(1 / 60);
+const frozen = engine.getStats().deltaTime;
+assert.equal(frozen, 0);
+assert.equal(engine.state, "idle");
+```
 
 ::: info Determinism
-With `physicsHz > 0`, every simulation step runs with the same `dt`. Two runs reach the same world state when every fixed step receives the same inputs in the same order, starting from the same configuration, on the same GWEN version, WASM variant and browser or runtime. To control steps exactly, drive the loop yourself with `engine.advance(1 / physicsHz)`. GWEN 1.0 makes no determinism guarantee across browsers, operating systems or CPUs, and none for the variable-dt loop (`physicsHz: 0`). Reading `performance.now()`, `Date.now()` or `Math.random()` inside a system breaks reproducibility. GWEN 1.0 has no built-in world snapshot or save/restore.
+`physicsHz` gives each fixed step the same `dt` (`1 / physicsHz`, then scaled by `timeScale`). It does not make the simulation deterministic. GWEN 1.0 makes no determinism guarantee, including for the variable-dt loop (`physicsHz: 0`). There is no built-in world snapshot or save/restore. #84 is still open.
 :::
 
 ::: info Multiplayer (1.0)
@@ -220,7 +245,7 @@ These are 1.0 targets. A line marked Target is not true on this tree.
 4. Target (#59): several engines in one process share no runtime state, and `stop()` on one engine leaves the others running. Until #59, `stop()` deletes every `__gwenGlue_*` key on `globalThis`.
 5. A fatal error moves only that engine to `faulted`.
 6. Global error handlers are optional. Core installs none unless `window` exists.
-7. Fixed-step reproducibility is the Determinism note in this section (#84).
+7. Determinism is not guaranteed. The Determinism note on this page says so (#84).
 8. Running out of entity capacity throws `GwenWasmError` with code `CORE:ENTITY_LIMIT_REACHED`. The bridge stays usable. The WASM module does not trap.
 
 1.0 does not provide lockstep, rollback, a world snapshot, tick-indexed input, or an `advance(dt, inputs)` overload. Two peers on different platforms may diverge.

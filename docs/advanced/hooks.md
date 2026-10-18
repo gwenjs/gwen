@@ -5,11 +5,11 @@ description: Subscribe to engine lifecycle events and game events with automatic
 
 # Hooks & Events
 
-Hooks are a way to react to specific moments in your game's lifetime—when the engine starts, when an entity spawns, when a custom game event fires. Any part of your code can subscribe to these moments without tight coupling, and subscriptions automatically clean up when your actor or system ends.
+Hooks are a way to react to specific moments in your game's lifetime—when the engine starts, when an entity is destroyed, when a custom game event fires. Any part of your code can subscribe to these moments without tight coupling, and subscriptions automatically clean up when your actor or system ends.
 
 ## Why Hooks?
 
-Systems process data each frame. But sometimes you need to react to a *specific moment* rather than checking a condition every tick. Did an entity just spawn? Did the player lose? Did a plugin register?
+Systems process data each frame. But sometimes you need to react to a *specific moment* rather than checking a condition every tick. Did an entity just get destroyed? Did the player lose? Did a plugin register?
 
 Hooks decouple these reactions. Instead of hardcoding "when the game starts, do X," you declare "I want to listen for engine:start and do X"—and if the listener gets removed, the subscription disappears automatically. No manual cleanup. No dangling references.
 
@@ -26,13 +26,13 @@ export const LoggingSystem = defineSystem(() => {
     console.log('Game started!')
   })
 
-  useHook('entity:spawn', (id) => {
-    console.log('Entity spawned:', id)
+  useHook('entity:destroy', (id) => {
+    console.log('Entity destroyed:', id)
   })
 })
 ```
 
-The handler receives arguments matching the event signature. For `entity:spawn`, the entity ID. For `engine:tick`, the delta time.
+The handler receives arguments matching the event signature. For `entity:destroy`, the entity ID. For `engine:tick`, the delta time in seconds.
 
 ### Auto-Cleanup
 
@@ -66,8 +66,8 @@ import { defineSystem } from '@gwenjs/core/system'
 import { useHook } from '@gwenjs/core'
 
 export const TrackingSystem = defineSystem(() => {
-  useHook('entity:spawn', (id) => {
-    console.log('New entity:', id)
+  useHook('entity:destroy', (id) => {
+    console.log('Destroyed entity:', id)
   })
 
   // Automatically cleaned up when the engine stops
@@ -124,14 +124,47 @@ These are the engine lifecycle events you can subscribe to. All fire automatical
 | `engine:init` | `() => void` | Engine setup completes, before the RAF loop starts |
 | `engine:start` | `() => void` | `engine.start()` called; RAF loop begins |
 | `engine:stop` | `() => void` | `engine.stop()` called; cleanup begins |
-| `engine:tick` | `(dt: number) => void` | Each frame begins (dt in milliseconds) |
+| `engine:state-change` | `(payload: { from, to, reason }) => void` | Once per real lifecycle transition |
+| `engine:tick` | `(dt: number) => void` | Each frame begins. `dt` is in seconds |
+| `engine:before-update` | `(dt: number) => void` | Before physics |
+| `engine:update` | `(dt: number) => void` | Main update phase |
+| `engine:after-update` | `(dt: number) => void` | After the update phase |
+| `engine:render` | `(alpha: number) => void` | Once per display frame |
 | `engine:afterTick` | `(dt: number) => void` | After each simulation step. After render when `physicsHz` is 0. Before the display render in fixed mode. |
+| `engine:memory-grow` | `(info: { epoch, byteLength, frame }) => void` | Linear memory grew, before the next phase |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | Frame loop catches an unhandled error |
-| `entity:spawn` | `(id: EntityId) => void` | Entity created |
-| `entity:destroy` | `(id: EntityId) => void` | Entity removed |
+| `entity:destroy` | `(id: EntityId) => void` | `destroyEntity` removed that id |
 | `plugin:registered` | `(pluginName: string) => void` | Plugin setup completes and registers |
 | `plugin:error` | `(payload: PluginErrorPayload) => void` | Plugin lifecycle hook throws and isn't recovered |
 | `prefab:instantiate` | `(entityId: EntityId, extensions: GwenPrefabExtensions) => void` | Entity created from a prefab (used internally by plugins like Physics2D) |
+
+With `physicsHz` at 0, one `advance` runs `engine:tick`, `engine:before-update`, `engine:update`, `engine:after-update`, `engine:render`, then `engine:afterTick`.
+
+```ts run
+import assert from "node:assert/strict";
+
+const order: string[] = [];
+engine.hooks.hook("engine:tick", () => {
+  order.push("tick");
+});
+engine.hooks.hook("engine:before-update", () => {
+  order.push("before-update");
+});
+engine.hooks.hook("engine:update", () => {
+  order.push("update");
+});
+engine.hooks.hook("engine:after-update", () => {
+  order.push("after-update");
+});
+engine.hooks.hook("engine:render", () => {
+  order.push("render");
+});
+engine.hooks.hook("engine:afterTick", () => {
+  order.push("afterTick");
+});
+await engine.advance(1 / 60);
+assert.equal(order.join(","), "tick,before-update,update,after-update,render,afterTick");
+```
 
 ## onCleanup()
 

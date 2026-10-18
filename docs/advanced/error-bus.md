@@ -243,6 +243,29 @@ engine.errors.on((event) => {
 - **`error`** — A problem that needs attention
 - **`fatal`** — The engine enters `faulted` and the loop stops. `stop()` is not called. Create a new engine.
 
+| Case | What happens |
+|---|---|
+| level `fatal` | The engine enters `faulted`. `stop()` is not called |
+| a handler throws | Logged as `CORE:ERROR_HANDLER_FAILED`. The throw does not escape `emit` |
+| `engine.isolated()` | The `GwenErrorTarget` values skipped after an error (`kind`, `id`, `name`) |
+| `engine.reenable(id)` | Clears that id. Returns `false` when the id is not isolated. A system `resume()` does not clear isolation |
+| dead physics2d entity | The call throws `Physics2DStaleEntityError` with code `PHYSICS2D:STALE_ENTITY` |
+
+```ts check
+import { Physics2DStaleEntityError } from "@gwenjs/physics2d";
+
+export function staleCode(error: Physics2DStaleEntityError): string {
+  return error.code;
+}
+```
+
+```ts run
+import assert from "node:assert/strict";
+
+assert.equal(engine.reenable("missing"), false);
+assert.equal(engine.state, "idle");
+```
+
 ### Fatal Error Handler
 
 Register a callback that runs after every `on` handler when the event level is `fatal`:
