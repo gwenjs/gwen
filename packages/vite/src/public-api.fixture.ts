@@ -14,6 +14,16 @@ type _0 = [
   Root.WasmVariant,
 ];
 
+type Physics3DOptimizerMode = NonNullable<Root.GwenPhysics3DOptimizerOptions["mode"]>;
+
+const _transformIsNotAPhysics3DOptimizerMode: "transform" extends Physics3DOptimizerMode
+  ? never
+  : true = true;
+
+const _warnIsAPhysics3DOptimizerMode: "warn" extends Physics3DOptimizerMode ? true : never = true;
+
+const _omittedPhysics3DOptimizerOptions: Root.GwenPhysics3DOptimizerOptions = {};
+
 // @ts-expect-error TS2305 — removed from @gwenjs/vite
 import { generateEntryModule } from "@gwenjs/vite";
 
