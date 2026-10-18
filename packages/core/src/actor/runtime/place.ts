@@ -36,16 +36,31 @@ import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-e
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
-const _layoutCtx = new ContextSlot<EntityId[]>();
+/** State of the layout being built. `queue` is set only for a deferred (progressive) load. */
+interface LayoutContext {
+  readonly entities: EntityId[];
+  readonly queue: Array<() => void> | undefined;
+}
+
+const _layoutCtx = new ContextSlot<LayoutContext>();
 
 /**
  * Run `fn` inside an active layout context.
- * @internal Used by `defineLayout`.
+ *
+ * Immediate (default): each `place*` call spawns at once and its entity id lands in `entities`.
+ * Deferred: each `place*` call records its spawn in `queue` (call order) and returns a handle
+ * that is usable once that spawn has run. `entities` fills as the queued spawns run.
+ *
+ * @internal Used by `useLayout`.
  */
-export function _withLayoutContext<T>(fn: () => T): { result: T; entities: EntityId[] } {
+export function _withLayoutContext<T>(
+  fn: () => T,
+  options: { deferred?: boolean } = {},
+): { result: T; entities: EntityId[]; queue: Array<() => void> } {
   const entities: EntityId[] = [];
-  const result = _layoutCtx.run(entities, fn);
-  return { result, entities };
+  const queue: Array<() => void> = [];
+  const result = _layoutCtx.run({ entities, queue: options.deferred ? queue : undefined }, fn);
+  return { result, entities, queue };
 }
 
 /**
@@ -56,8 +71,52 @@ export function _isInLayoutContext(): boolean {
   return _layoutCtx.isActive();
 }
 
-function _register(entityId: EntityId): void {
-  _layoutCtx.get()!.push(entityId);
+/**
+ * Spawn now (immediate layout) or record the spawn (deferred layout).
+ *
+ * A deferred handle throws a coded error when read before its spawn has run.
+ */
+function _place<API>(build: () => PlaceHandle<API>): PlaceHandle<API> {
+  const ctx = _layoutCtx.get()!;
+  const queue = ctx.queue;
+  if (queue === undefined) {
+    const built = build();
+    ctx.entities.push(built.entityId);
+    return built;
+  }
+
+  let spawned: PlaceHandle<API> | undefined;
+  const spawnedHandle = (member: string): PlaceHandle<API> => {
+    if (spawned === undefined) {
+      throw new GwenComposableError(
+        ComposableErrorCodes.LAYOUT_HANDLE_NOT_SPAWNED,
+        `[GWEN] "${member}" of a layout handle was read before its entity was spawned. ` +
+          "With useLayout({ chunkSize }) entities spawn one chunk per frame, after the layout " +
+          "factory returns. Read handles after load() resolves, or pass them only as `parent` " +
+          "to entities placed after them.",
+      );
+    }
+    return spawned;
+  };
+  queue.push(() => {
+    const built = build();
+    ctx.entities.push(built.entityId);
+    spawned = built;
+  });
+  return {
+    get entityId() {
+      return spawnedHandle("entityId").entityId;
+    },
+    get api() {
+      return spawnedHandle("api").api;
+    },
+    moveTo(pos) {
+      spawnedHandle("moveTo()").moveTo(pos);
+    },
+    despawn() {
+      spawnedHandle("despawn()").despawn();
+    },
+  };
 }
 
 // ─── WASM transform helpers ───────────────────────────────────────────────────
@@ -136,24 +195,22 @@ export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): 
   }
 
   const engine = useEngine();
-  const bridge = engine.getPlacementBridge();
-  const entityId = engine.createEntity();
-  _applyTransformOpts(bridge, entityId, options);
-  _register(entityId);
-
-  const handle: PlaceHandle<void> = {
-    entityId: entityId,
-    api: undefined,
-    moveTo(pos) {
-      const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(entityIndex(entityId), x, y);
-    },
-    despawn() {
-      engine.destroyEntity(entityId);
-    },
-  };
-
-  return handle;
+  return _place<void>(() => {
+    const bridge = engine.getPlacementBridge();
+    const entityId = engine.createEntity();
+    _applyTransformOpts(bridge, entityId, options);
+    return {
+      entityId,
+      api: undefined,
+      moveTo(pos) {
+        const [x = 0, y = 0] = pos;
+        bridge.set_entity_local_position(entityIndex(entityId), x, y);
+      },
+      despawn() {
+        engine.destroyEntity(entityId);
+      },
+    };
+  });
 }
 
 // ─── placeActor ───────────────────────────────────────────────────────────────
@@ -182,26 +239,26 @@ export function placeActor<Props, API>(
     );
   }
 
-  const entityId = spawnActor(actorDef._plugin, options.props);
-  const bridge = useEngine().getPlacementBridge();
-  _applyTransformOpts(bridge, entityId, options);
-  _register(entityId);
+  const engine = useEngine();
+  return _place<API>(() => {
+    const entityId = spawnActor(actorDef._plugin, options.props);
+    const bridge = engine.getPlacementBridge();
+    _applyTransformOpts(bridge, entityId, options);
 
-  const instance = actorDef._instances?.get(entityId);
+    const instance = actorDef._instances?.get(entityId);
 
-  const handle: PlaceHandle<API> = {
-    entityId,
-    api: instance?.api as API,
-    moveTo(pos) {
-      const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(entityIndex(entityId), x, y);
-    },
-    despawn() {
-      actorDef._plugin.despawn(entityId);
-    },
-  };
-
-  return handle;
+    return {
+      entityId,
+      api: instance?.api as API,
+      moveTo(pos) {
+        const [x = 0, y = 0] = pos;
+        bridge.set_entity_local_position(entityIndex(entityId), x, y);
+      },
+      despawn() {
+        actorDef._plugin.despawn(entityId);
+      },
+    };
+  });
 }
 
 // ─── placePrefab ──────────────────────────────────────────────────────────────
@@ -231,28 +288,26 @@ export function placePrefab<E extends readonly ComponentDef[]>(
   }
 
   const engine = useEngine();
-  const bridge = engine.getPlacementBridge();
-  const id = engine.createEntity();
+  return _place<void>(() => {
+    const bridge = engine.getPlacementBridge();
+    const entityId = engine.createEntity();
 
-  for (const entry of prefabDef.components) {
-    engine.addComponent(id, entry.def, { ...entry.defaults, ...options.props });
-  }
+    for (const entry of prefabDef.components) {
+      engine.addComponent(entityId, entry.def, { ...entry.defaults, ...options.props });
+    }
 
-  const entityId = id;
-  _applyTransformOpts(bridge, entityId, options);
-  _register(entityId);
+    _applyTransformOpts(bridge, entityId, options);
 
-  const handle: PlaceHandle<void> = {
-    entityId,
-    api: undefined,
-    moveTo(pos) {
-      const [x = 0, y = 0] = pos;
-      bridge.set_entity_local_position(entityIndex(entityId), x, y);
-    },
-    despawn() {
-      engine.destroyEntity(id);
-    },
-  };
-
-  return handle;
+    return {
+      entityId,
+      api: undefined,
+      moveTo(pos) {
+        const [x = 0, y = 0] = pos;
+        bridge.set_entity_local_position(entityIndex(entityId), x, y);
+      },
+      despawn() {
+        engine.destroyEntity(entityId);
+      },
+    };
+  });
 }

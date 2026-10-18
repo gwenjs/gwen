@@ -282,6 +282,13 @@ export const ComposableErrorCodes = {
   OUTSIDE_ENGINE_CONTEXT: "COMPOSABLE:OUTSIDE_ENGINE_CONTEXT",
   /** Composable called outside a `defineLayout()` factory. */
   OUTSIDE_LAYOUT_CONTEXT: "COMPOSABLE:OUTSIDE_LAYOUT_CONTEXT",
+  /** `useLayout()` received a `chunkSize` that is not a positive integer. */
+  INVALID_CHUNK_SIZE: "COMPOSABLE:INVALID_CHUNK_SIZE",
+  /**
+   * A layout handle was read (`entityId`, `api`, `moveTo`, `despawn`) before its
+   * entity was spawned. Only possible with `useLayout({ chunkSize })`.
+   */
+  LAYOUT_HANDLE_NOT_SPAWNED: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
 } as const;
 
 /**
