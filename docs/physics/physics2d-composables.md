@@ -312,9 +312,9 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 **Dynamic body options:**
 - `mass?: number` — Mass in kg (default: 1)
 - `gravityScale?: number` — Gravity multiplier (default: 1)
-- `linearDamping?: number` — Linear velocity damping (default: 0.1)
-- `angularDamping?: number` — Angular velocity damping (default: 0.1)
-- `fixedRotation?: boolean` — Prevent rotation (warning: not yet supported)
+- `linearDamping?: number` — Linear velocity damping (default: 0)
+- `angularDamping?: number` — Angular velocity damping (default: 0)
+- `fixedRotation?: boolean` — Lock rotation (default: false)
 
 **Kinematic body options:**
 - `layer?: number` — Membership layer (for interactions with dynamic bodies)
@@ -420,7 +420,7 @@ onUpdate(() => {
 
 Tree-shakable helper functions for common physics operations. Import only what you need.
 
-> All helpers require a `physics: Physics2DAPI` instance as their first argument. Obtain it via `api.services.get('physics')` inside a system, or `usePhysics2D()` inside a composable.
+> All helpers require a `physics: Physics2DAPI` instance as their first argument. Obtain it with `usePhysics2D()` from `@gwenjs/physics2d`. The service key is `physics2d`.
 
 ### Movement
 

@@ -183,27 +183,22 @@ export default defineConfig({
 
 ### With Scene Auto-Discovery
 
-```typescript
+```typescript check
 // src/scenes/GameScene.ts
-import { defineScene } from "@gwenjs/core/scene";
+import { defineScene, onEnter } from "@gwenjs/core/scene";
 
-export const GameScene = defineScene("game", () => ({
-  onInit(api) {
+export const GameScene = defineScene("game", () => {
+  onEnter(() => {
     console.log("Game started!");
-  },
-  onUpdate(_api, delta) {
-    // Game logic
-  },
-}));
+  });
+});
 
 // src/scenes/MenuScene.ts
-export const MenuScene = defineScene("menu", () => ({
-  onInit(api) {
+export const MenuScene = defineScene("menu", () => {
+  onEnter(() => {
     console.log("Menu opened!");
-  },
-}));
-
-// Scenes are auto-discovered and registered ✨
+  });
+});
 ```
 
 ## Virtual Modules

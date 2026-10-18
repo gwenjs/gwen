@@ -5,7 +5,7 @@ description: Learn how to create and use GWEN modules for build-time configurati
 
 # Writing a Custom Module
 
-A **module** is a build-time extension defined using `defineGwenModule()` from `@gwenjs/kit`. While plugins handle runtime behavior, modules configure your GWEN project during the build process (`gwen dev`, `gwen build`, `gwen prepare`).
+A **module** is a build-time extension defined using `defineGwenModule()` from `@gwenjs/kit/module`. While plugins handle runtime behavior, modules configure your GWEN project during the build process (`gwen dev`, `gwen build`, `gwen prepare`).
 
 ## The Basics
 

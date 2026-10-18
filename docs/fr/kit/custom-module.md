@@ -5,7 +5,7 @@ description: Apprenez à créer et utiliser des modules GWEN pour la configurati
 
 # Créer un module personnalisé
 
-Un **module** est une extension à la compilation définie en utilisant `defineGwenModule()` depuis `@gwenjs/kit`. Tandis que les plugins gèrent le comportement runtime, les modules configurent votre projet GWEN pendant le processus de compilation (`gwen dev`, `gwen build`, `gwen prepare`).
+Un **module** est une extension à la compilation définie en utilisant `defineGwenModule()` depuis `@gwenjs/kit/module`. Tandis que les plugins gèrent le comportement runtime, les modules configurent votre projet GWEN pendant le processus de compilation (`gwen dev`, `gwen build`, `gwen prepare`).
 
 ## Les bases
 

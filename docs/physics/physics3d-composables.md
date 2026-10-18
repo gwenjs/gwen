@@ -419,8 +419,8 @@ const TerrainActor = defineActor(TerrainPrefab, () => {
 **Dynamic body:**
 - `mass?: number` — Mass in kg (default: 1)
 - `gravityScale?: number` — Gravity multiplier (default: 1)
-- `linearDamping?: number` — Velocity damping (default: 0.1)
-- `angularDamping?: number` — Rotation damping (default: 0.1)
+- `linearDamping?: number` — Velocity damping (default: 0)
+- `angularDamping?: number` — Rotation damping (default: 0)
 - `ccdEnabled?: boolean` — Continuous collision detection (default: false)
 - `fixedRotation?: boolean` — Lock rotation (default: false)
 - `initialPosition?: Vec3` — Starting position
