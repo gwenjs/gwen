@@ -125,14 +125,17 @@ smoothstep(0, 1, 0.5)         // 0.5
 
 Frame-rate-independent smoothing. Prefer `damp` over `lerp` in `onUpdate` — `lerp` is not framerate-independent.
 
-```ts
-import { damp, dampVec3Mut } from '@gwenjs/math'
+```ts check
+import { damp } from "@gwenjs/math";
+import { defineSystem, onUpdate } from "@gwenjs/core/system";
 
-onUpdate((dt) => {
-  // dt in GWEN is milliseconds — convert to seconds
-  const s = dt / 1000
-  cameraX = damp(cameraX, targetX, 8, s)
-})
+export const CameraDamp = defineSystem(() => {
+  let cameraX = 0;
+  const targetX = 10;
+  onUpdate((dt) => {
+    cameraX = damp(cameraX, targetX, 8, dt);
+  });
+});
 ```
 
 | Function | Description |
@@ -159,8 +162,7 @@ const opts  = criticalOpts(200) // stiffness=200, no overshoot
 const state = makeSpring1D(0)   // starts at 0
 
 onUpdate((dt) => {
-  const s = dt / 1000
-  stepSpring1D(state, 100, opts, s) // animate towards 100
+  stepSpring1D(state, 100, opts, dt) // animate towards 100
   transform.setPosition(state.value, 0, 0)
 })
 ```
@@ -204,7 +206,7 @@ const sluggish = sluggishOpts(50)     // ~150% critical
 ```
 
 ::: tip dt in seconds
-`damp` and `stepSpring*` expect `dt` in **seconds**. GWEN's `onUpdate(dt)` provides `dt` in **milliseconds** — divide by 1000.
+`damp` and `stepSpring*` expect `dt` in **seconds**. GWEN's `onUpdate(dt)` provides `dt` in **seconds**.
 :::
 
 ---

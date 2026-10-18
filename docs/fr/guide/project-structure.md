@@ -81,20 +81,33 @@ export * from './Health'
 Les systèmes sont la couche logique. Ils interrogent les entités et modifient leurs composants à chaque frame.
 
 **src/systems/Movement.ts**
-```typescript
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
-import { Position, Velocity } from '../components'
+```typescript check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "GuideFrStructurePos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Velocity = defineComponent({
+  name: "GuideFrStructureVel",
+  schema: { x: Types.f32, y: Types.f32 },
+});
 
 export const MovementSystem = defineSystem(() => {
-  const query = useQuery([Position, Velocity])
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of query.each()) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
 ### `src/scenes/` — Définitions de scènes
@@ -118,26 +131,35 @@ export const GameScene = defineScene('game', () => {
 Les acteurs sont des entités nommées, de type singleton, définies avec `defineActor()`. Utilisez-les pour les éléments qui existent une seule fois par scène — le joueur, un boss, une caméra. Chaque acteur a son propre cycle de vie (`onStart`, `onDestroy`) et peut utiliser des composables physiques.
 
 **src/actors/Player.ts**
-```typescript
-import { defineActor, definePrefab, onStart, onDestroy, useEntityId } from '@gwenjs/core/actor'
-import { useDynamicBody, useBoxCollider } from '@gwenjs/physics2d'
-import { Position, Health } from '../components'
+```typescript check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
+import { useBoxCollider, useDynamicBody } from "@gwenjs/physics2d";
+
+const Position = defineComponent({
+  name: "GuideFrStructureActorPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Health = defineComponent({
+  name: "GuideFrStructureActorHealth",
+  schema: { hp: Types.f32 },
+});
 
 const PlayerPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Health,   defaults: { hp: 100 } },
-])
+  { def: Health, defaults: { hp: 100 } },
+]);
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const entityId = useEntityId()
-  useDynamicBody({ gravityScale: 1 })
-  useBoxCollider({ width: 1, height: 2 })
+  const pos = useComponent(Position);
+  useDynamicBody({ gravityScale: 1 });
+  useBoxCollider({ width: 1, height: 2 });
 
   onStart(() => {
-    Position.x[entityId] = 100
-    Position.y[entityId] = 100
-  })
-})
+    pos.x = 100;
+    pos.y = 100;
+  });
+});
 ```
 
 ### `src/prefabs/` — Modèles d'entités réutilisables
