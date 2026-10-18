@@ -18,7 +18,7 @@ Ensemble, ils vous permettent d'étendre GWEN avec des capacités personnalisée
 
 | Aspect | Plugin | Module |
 |--------|--------|--------|
-| Défini avec | `definePlugin()` depuis `@gwenjs/kit` | `defineGwenModule()` depuis `@gwenjs/kit` |
+| Défini avec | `definePlugin()` depuis `@gwenjs/kit` | `defineGwenModule()` depuis `@gwenjs/kit/module` |
 | Enregistré dans | `src/plugins/` (auto-découvert) ou `gwen.addPlugin()` dans un module | `src/modules/` (auto-découvert) ou clé `modules` dans `gwen.config.ts` |
 | Contexte d'exécution | Runtime (navigateur) | Compile-time (Node.js: `gwen dev`, `gwen build`, `gwen prepare`) |
 | Portée | Cycle de vie moteur | Configuration des fonctionnalités, génération de code |

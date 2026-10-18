@@ -44,7 +44,7 @@ export default defineConfig({
 
 ## Module system
 
-GWEN modules (from `@gwenjs/kit`'s `defineGwenModule`) can be registered in the config and are resolved before the app starts:
+GWEN modules (from `@gwenjs/kit/module`'s `defineGwenModule`) can be registered in the config and are resolved before the app starts:
 
 ```typescript
 export default defineConfig({

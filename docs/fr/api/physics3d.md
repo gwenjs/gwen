@@ -395,10 +395,6 @@ Lorsque l'intégration des calques est active, le plugin Vite émet un avertisse
 Activez `bvhPrebake: true` (via `vite.bvhPrebake` dans la configuration du module) pour les grands maillages de terrain. Le BVH est compilé une seule fois au moment du build et servi sous forme d'asset binaire, de sorte que l'initialisation du raycast à l'exécution est quasi instantanée — sans coût de reconstruction BVH par frame.
 :::
 
-:::warning Supprimé
-`createGwenPhysics3DPlugin()` est supprimé. Remplacez par `physics3dVitePlugin({ bvhPrebake: true })` si vous avez besoin d'enregistrer le plugin Vite manuellement.
-:::
-
 ## Définitions de type
 
 ### Physics3DConfig

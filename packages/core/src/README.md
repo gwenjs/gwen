@@ -42,7 +42,7 @@ src/
 │   │                              # - start(), stop() delegators
 │   └── wasm-bridge.ts             # WASM integration (361L)
 │                                  # - WasmBridge interface
-│                                  # - initWasm(), getWasmBridge()
+│                                  # - setupGwen(), getWasmBridge()
 │
 ├── api/                           # High-Level APIs
 │   ├── api.ts                     # ServiceLocator, EngineAPI

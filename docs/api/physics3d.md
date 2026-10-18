@@ -395,10 +395,6 @@ When layer inlining is active, the Vite plugin emits a build warning for any lay
 Enable `bvhPrebake: true` (via `vite.bvhPrebake` in module config) for large terrain meshes. The BVH is compiled once at build time and served as a binary asset, so raycast initialisation at runtime is nearly instant — no per-frame BVH rebuild cost.
 :::
 
-:::warning Removed
-`createGwenPhysics3DPlugin()` is removed. Replace with `physics3dVitePlugin({ bvhPrebake: true })` if you need manual Vite plugin registration.
-:::
-
 ## Type Definitions
 
 ### Physics3DConfig

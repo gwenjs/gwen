@@ -241,10 +241,6 @@ export default defineConfig({
 | `debug` | `boolean` | `false` | Log each layer substitution and BVH prebake operation. |
 | `bvhPrebake` | `boolean` | `false` | Pre-compile BVH structures for mesh colliders at build time. |
 
-:::warning Removed
-`createGwenPhysics3DPlugin()` is removed. Replace all usages with `physics3dVitePlugin()`.
-:::
-
 ---
 
 ## Type Definitions
