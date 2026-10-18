@@ -159,6 +159,7 @@ function installGwenDist(dir: string): void {
     if (!existsSync(manifestPath)) continue;
     const pkg = JSON.parse(readFileSync(manifestPath, "utf8")) as {
       name?: string;
+      private?: boolean;
       type?: string;
       exports?: unknown;
       main?: string;
@@ -166,6 +167,7 @@ function installGwenDist(dir: string): void {
       publishConfig?: { exports?: unknown; main?: string; types?: string };
     };
     if (!pkg.name?.startsWith("@gwenjs/")) continue;
+    if (pkg.private === true) continue;
     const distDir = join(pkgDir, "dist");
     if (!existsSync(distDir)) {
       throw new Error(`missing dist for ${pkg.name}. Run pnpm build:ts.`);
