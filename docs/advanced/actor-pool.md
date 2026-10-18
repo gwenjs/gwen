@@ -334,7 +334,7 @@ onEnter(async () => {
   // Pre-fill the pool before gameplay starts to avoid hitches
   const ids = Array.from({ length: 50 }, () => bulletPool.acquire())
   for (const id of ids) bulletPool.release(id)
-  await engine.advance(16) // flush the releases
+  await engine.advance(1 / 60) // flush the releases
 })
 ```
 

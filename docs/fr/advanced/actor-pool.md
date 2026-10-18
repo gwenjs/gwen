@@ -152,13 +152,17 @@ onEnter(() => {
 Ajoutez `onRelease` et `onReset` à côté de vos hooks lifecycle existants :
 
 ```ts
-import { defineActor, onStart, onUpdate, onDestroy, onRelease, onReset } from '@gwenjs/core/actor'
+import { defineActor, onStart, onUpdate, onDestroy, onRelease, onReset, useComponent } from '@gwenjs/core/actor'
 
 export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
   const id = useEntityId()
+  const position = useComponent(Position)
+  const velocity = useComponent(Velocity)
 
   onStart(() => {
     // Appelé une fois au premier spawn — état initial
+    position.x = props.x
+    velocity.vx = props.speed * Math.cos(props.direction)
   })
 
   onRelease(() => {
@@ -171,6 +175,8 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
     // Appelé à chaque réutilisation — reset avec les nouvelles props.
     // Les defaults du composant, puis ceux du prefab, sont déjà réécrits dans les composants existants.
     // Un composant du prefab retiré pendant la vie précédente n'est pas rajouté.
+    position.x = newProps.x
+    velocity.vx = newProps.speed * Math.cos(newProps.direction)
     physics.addBody(id, { ... })
   })
 
@@ -196,9 +202,12 @@ depuis un callback `onUpdate` :
 ```ts
 export const BulletActor = defineActor(BulletPrefab, (props: { pool: ActorPool<BulletProps, void> }) => {
   const id = useEntityId()
+  const position = useComponent(Position)
 
   onUpdate(() => {
-    props.pool.release(id)
+    if (position.y < 0) {
+      props.pool.release(id)
+    }
   })
 })
 ```
@@ -213,12 +222,15 @@ retiriez explicitement. Utilisez `onRelease` et `onReset` pour le gérer :
 export const EnemyActor = defineActor(EnemyPrefab, () => {
   const physics = usePhysics2D()
   const id = useEntityId()
+  const position = useComponent(Position)
 
   onRelease(() => {
     physics.removeBody(id)  // retirer du monde physique
   })
 
   onReset((props: EnemyProps) => {
+    position.x = props.x
+    position.y = props.y
     physics.addBody(id, { type: 'dynamic' })  // réintégrer dans le monde physique
   })
 })
@@ -323,7 +335,7 @@ onEnter(async () => {
   // Pré-remplir le pool avant le gameplay pour éviter les ralentissements
   const ids = Array.from({ length: 50 }, () => bulletPool.acquire())
   for (const id of ids) bulletPool.release(id)
-  await engine.advance(16) // vider la file de releases
+  await engine.advance(1 / 60) // vider la file de releases
 })
 ```
 

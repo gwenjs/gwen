@@ -13,42 +13,77 @@ Use an actor for one named object. Use a system chunk loop when the same logic a
 
 An actor `onUpdate` runs once per instance. Many actors means many callbacks.
 
-```ts
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onUpdate, useTransform } from "@gwenjs/core/actor";
+
+const Marker = defineComponent({
+  name: "EnemyMarker",
+  schema: { speed: Types.f32 },
+  defaults: { speed: 1 },
+});
+
+const EnemyPrefab = definePrefab([{ def: Marker, defaults: { speed: 1 } }]);
+
 export const EnemyActor = defineActor(EnemyPrefab, () => {
-  const transform = useTransform()
+  const transform = useTransform();
+  const speed = 1;
 
   onUpdate((dt) => {
-    transform.x += speed * dt
-  })
-})
+    transform.translate(speed * dt, 0);
+  });
+});
 ```
 
 ### The pattern
 
 The actor owns the entity and the public API. `useComponent(def)` takes the component definition and is called in the actor factory. The system walks chunks.
 
-```ts
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32 },
+  defaults: { x: 0 },
+});
+
+const Enemy = defineComponent({
+  name: "Enemy",
+  schema: { speed: Types.f32 },
+  defaults: { speed: 0 },
+});
+
+const EnemyPrefab = definePrefab([
+  { def: Position, defaults: { x: 0 } },
+  { def: Enemy, defaults: { speed: 0 } },
+]);
+
 export const EnemyActor = defineActor(EnemyPrefab, () => {
-  const enemy = useComponent(Enemy)
+  const enemy = useComponent(Enemy);
 
   return {
-    setSpeed(v: number) { enemy.speed = v },
-  }
-})
+    setSpeed(v: number) {
+      enemy.speed = v;
+    },
+  };
+});
 
 export const EnemyMovementSystem = defineSystem(() => {
-  const query = useQuery([Position, Enemy])
+  const query = useQuery([Position, Enemy]);
 
   onUpdate((dt) => {
     for (const chunk of query) {
-      const pos = chunk.get(Position)
-      const enemy = chunk.get(Enemy)
+      const pos = chunk.get(Position);
+      const enemy = chunk.get(Enemy);
       for (let row = 0; row < chunk.count; row += 1) {
-        pos.x[row] = (pos.x[row] ?? 0) + (enemy.speed[row] ?? 0) * dt
+        pos.x[row] = (pos.x[row] ?? 0) + (enemy.speed[row] ?? 0) * dt;
       }
     }
-  })
-})
+  });
+});
 ```
 
 | Use an actor when | Use a system when |
@@ -61,12 +96,13 @@ export const EnemyMovementSystem = defineSystem(() => {
 
 ```ts
 export const GameScene = defineScene('game', () => {
-  useSystem(EnemyMovementSystem)
+  useSystem(EnemyMovementSystem())
 
   const enemies = useActor(EnemyActor)
   onEnter(() => {
     enemies.spawn()
   })
+  ...
 })
 ```
 
@@ -76,44 +112,93 @@ The system walks the entities. The actor spawns them.
 
 ### Pattern A — pure functions
 
-```ts
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Stats = defineComponent({
+  name: "Stats",
+  schema: { attack: Types.f32, armor: Types.f32, hp: Types.f32 },
+  defaults: { attack: 0, armor: 0, hp: 0 },
+});
+
 export function computeDamage(base: number, multiplier: number, armor: number): number {
-  return Math.max(0, base * multiplier - armor)
+  return Math.max(0, base * multiplier - armor);
 }
 
-onUpdate(() => {
-  for (const chunk of query) {
-    const stats = chunk.get(Stats)
-    for (let row = 0; row < chunk.count; row += 1) {
-      const next = computeDamage(stats.attack[row] ?? 0, 1.2, stats.armor[row] ?? 0)
-      stats.hp[row] = (stats.hp[row] ?? 0) - next
-    }
-  }
-})
+export const DamageSystem = defineSystem(() => {
+  const query = useQuery([Stats]);
 
-const damage = computeDamage(myStats.attack, comboMultiplier, targetArmor)
+  onUpdate(() => {
+    for (const chunk of query) {
+      const stats = chunk.get(Stats);
+      for (let row = 0; row < chunk.count; row += 1) {
+        const next = computeDamage(stats.attack[row] ?? 0, 1.2, stats.armor[row] ?? 0);
+        stats.hp[row] = (stats.hp[row] ?? 0) - next;
+      }
+    }
+  });
+});
+
+const myStats = { attack: 10 };
+const comboMultiplier = 1.2;
+const targetArmor = 3;
+const damage = computeDamage(myStats.attack, comboMultiplier, targetArmor);
 ```
 
 ### Pattern B — `useService`
 
 Call `useService` in the factory. It returns the value registered with `engine.provide`.
 
-```ts
-definePlugin({
-  setup(engine) {
-    engine.provide('scoreBoard', createScoreBoard())
+```ts check
+import type { GwenEngineBase } from "@gwenjs/schema";
+import { definePlugin } from "@gwenjs/kit/plugin";
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab } from "@gwenjs/core/actor";
+import { defineSystem, onUpdate, useService } from "@gwenjs/core/system";
+
+declare module "@gwenjs/core" {
+  interface GwenProvides {
+    scoreBoard: { total: number };
   }
-})
+}
+
+function createScoreBoard(): { total: number } {
+  return { total: 0 };
+}
+
+function renderScore(total: number): string {
+  return String(total);
+}
+
+const HUD = defineComponent({
+  name: "HudMarker",
+  schema: { shown: Types.f32 },
+  defaults: { shown: 0 },
+});
+
+const HUDPrefab = definePrefab([{ def: HUD, defaults: { shown: 1 } }]);
+
+definePlugin(() => ({
+  name: "score-board",
+  setup(engine: GwenEngineBase) {
+    engine.provide("scoreBoard", createScoreBoard());
+  },
+}));
 
 export const ScoreSystem = defineSystem(() => {
-  const board = useService('scoreBoard')
-  onUpdate(() => { /* read entity columns, then update board */ })
-})
+  const board = useService("scoreBoard");
+  onUpdate(() => {
+    board.total += 0;
+  });
+});
 
 export const HUDActor = defineActor(HUDPrefab, () => {
-  const board = useService('scoreBoard')
-  onUpdate(() => { renderScore(board.total) })
-})
+  const board = useService("scoreBoard");
+  onUpdate(() => {
+    renderScore(board.total);
+  });
+});
 ```
 
 ## 3. The chunk loop
