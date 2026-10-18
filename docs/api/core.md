@@ -77,14 +77,14 @@ Global time multiplier applied to every frame's delta time before it reaches sys
 | Value | Effect |
 |---|---|
 | `1` | Normal speed (default) |
-| `0` | Paused — all systems receive `dt = 0` |
+| `0` | The step `dt` is `0`. The state stays `idle`. |
 | `0.5` | Half speed (slow motion) |
 | `2` | Double speed |
 
 Clamped to `[0, 100]` at runtime. Applied after the `maxDeltaSeconds` safety cap — time dilation never causes physics instability.
 
 ```ts
-// Pause the simulation
+// The step dt becomes 0. The state stays idle.
 engine.timeScale = 0
 
 // Bullet time
@@ -93,12 +93,12 @@ engine.timeScale = 0.2
 // SimCity fast-forward
 engine.timeScale = 4
 
-// Resume
+// Normal speed
 engine.timeScale = 1
 ```
 
-::: tip Pause vs freeze
-`timeScale = 0` pauses all systems by delivering `dt = 0` — hooks still fire. To skip frame processing entirely, stop the loop with `engine.stop()`.
+::: tip Step dt
+`engine.timeScale` scales the step `dt` only. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0` and leaves the state `idle`.
 :::
 
 ### useTween(options)
@@ -168,17 +168,33 @@ function defineSystem(setup: () => void): GwenPlugin
 **Returns:** `GwenPlugin` — plugin for scene registration.
 
 **Example:**
-```ts
-export const moveSystem = defineSystem(function moveSystem() {
-  const query = useQuery([Position, Velocity])
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "DocsApiMovePos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Velocity = defineComponent({
+  name: "DocsApiMoveVel",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+export const moveSystem = defineSystem(() => {
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of query.each()) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
 #### useQuery(components)
@@ -200,14 +216,31 @@ Iteration skips dormant pooled entities (released by an actor pool and not yet a
 **Returns:** `Query` — an iterable of chunks. `each()` returns the matching entities.
 
 **Example:**
-```ts
-const enemies = useQuery([Position, EnemyTag])
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
 
-onUpdate(() => {
-  for (const entity of enemies.each()) {
-    Position.x[entity.id] += 1
-  }
-})
+const Position = defineComponent({
+  name: "DocsApiEnemyPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const EnemyTag = defineComponent({
+  name: "DocsApiEnemyTag",
+  schema: { tag: Types.u8 },
+});
+
+export const NudgeEnemies = defineSystem(() => {
+  const enemies = useQuery([Position, EnemyTag]);
+
+  onUpdate(() => {
+    for (const chunk of enemies) {
+      const pos = chunk.get(Position);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + 1;
+      }
+    }
+  });
+});
 ```
 
 #### useService(name)
@@ -291,37 +324,41 @@ function defineActor<Props = void>(
 **Returns:** `ActorDef` — use `ActorDef._plugin` to spawn and despawn instances.
 
 **Example:**
-```ts
-import { defineActor, definePrefab, onStart, onDestroy, useEntityId } from '@gwenjs/core/actor'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onDestroy, onStart, useComponent } from "@gwenjs/core/actor";
+
+const Position = defineComponent({
+  name: "DocsApiActorPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Health = defineComponent({
+  name: "DocsApiActorHealth",
+  schema: { hp: Types.f32 },
+});
 
 const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Health,   defaults: { hp: 100 } },
-])
+  { def: Health, defaults: { hp: 100 } },
+]);
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  const entityId = useEntityId()
+  const health = useComponent(Health);
   onStart(() => {
-    Health.hp[entityId] = props.hp
-  })
+    health.hp = props.hp;
+  });
   onDestroy(() => {
-    console.log('Enemy destroyed')
-  })
+    console.log("Enemy destroyed");
+  });
   return {
-    takeDamage: (n: number) => { Health.hp[entityId] -= n },
-  }
-})
-
-// Register at startup
-await engine.use(EnemyActor._plugin)
-
-// Spawn and despawn via useActor() inside a system or actor:
-const SpawnerSystem = defineSystem(() => {
-  const enemies = useActor(EnemyActor)
-  const id = enemies.spawn({ hp: 50 })
-  enemies.despawn(id)
-})
+    takeDamage: (n: number) => {
+      health.hp -= n;
+    },
+  };
+});
 ```
+
+Register the actor with `engine.use(EnemyActor._plugin)`. Spawn with `useActor(EnemyActor)` inside a scene.
 
 #### useActor(ActorDef)
 

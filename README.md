@@ -75,38 +75,44 @@ No Rust toolchain needed — WASM ships pre-compiled.
 └────────────────────────────────────────────────────┘
 ```
 
-Component data lives in **Structure-of-Arrays** layout inside WASM linear memory. Systems access it directly with entity IDs — no boxing, no garbage collection pressure.
+Component data lives in WASM linear memory, one chunk at a time. A system reads a field with `chunk.get(Def)` inside a chunk loop.
 
 ---
 
 ## Example
 
-```ts
-import { defineComponent, Types } from '@gwenjs/core'
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
-import { defineScene } from '@gwenjs/core/scene'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { defineScene, useSystem } from "@gwenjs/core/scene";
 
-// 1 — Components
-const Position = defineComponent({ name: 'Position', schema: { x: Types.f32, y: Types.f32 } })
-const Velocity = defineComponent({ name: 'Velocity', schema: { vx: Types.f32, vy: Types.f32 } })
+const Position = defineComponent({
+  name: "ReadmePos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Velocity = defineComponent({
+  name: "ReadmeVel",
+  schema: { x: Types.f32, y: Types.f32 },
+});
 
-// 2 — System
 export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const id of entities) {
-      Position.x[id] += Velocity.vx[id] * dt
-      Position.y[id] += Velocity.vy[id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 
-// 3 — Scene
-export const GameScene = defineScene({
-  name: 'game',
-  systems: [MovementSystem],
-})
+export const GameScene = defineScene("game", () => {
+  useSystem(MovementSystem());
+});
 ```
 
 ---

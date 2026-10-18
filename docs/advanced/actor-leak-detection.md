@@ -108,7 +108,7 @@ stop()
 ```
 
 ::: tip Tree-shaking
-Wrap the call in `if (__GWEN_DEV__)` so production builds remove it. At runtime, `setInterval` is the only overhead — zero cost in production.
+Wrap the call in `if (__GWEN_DEV__)` so production builds remove it. The `setInterval` runs only in that dev build.
 :::
 
 ## Fixing the Leaks

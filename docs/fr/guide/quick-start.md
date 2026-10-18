@@ -86,21 +86,28 @@ export const Position = defineComponent({
 Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 
 **src/systems/Movement.ts**
-```typescript
-import { defineSystem, useQuery, onUpdate } from '@gwenjs/core/system'
-import { Position } from '../components/Position'
+```typescript check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
 
-export const MovementSystem = defineSystem(function MovementSystem() {
-  const query = useQuery([Position])
+const Position = defineComponent({
+  name: "GuideFrQuickPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+export const MovementSystem = defineSystem(() => {
+  const query = useQuery([Position]);
 
   onUpdate((dt) => {
-    for (const entity of query.each()) {
-      Position.x[entity.id] += 0.5
-      Position.y[entity.id] += 0.1
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + 0.5 * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + 0.1 * dt;
+      }
     }
-  })
-})
-})
+  });
+});
 ```
 
 ## Votre première scène

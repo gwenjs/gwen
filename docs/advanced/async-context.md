@@ -58,7 +58,7 @@ No imports, no wrappers, no configuration beyond `gwenVitePlugin()`.
 
 ## Actors — the capture pattern
 
-For actors, the recommended approach is to capture composable handles during the **synchronous factory phase**, then use those handles inside async callbacks. This is identical to the Vue `setup()` convention and has zero overhead.
+For actors, the recommended approach is to capture composable handles during the **synchronous factory phase**, then use those handles inside async callbacks. This is identical to the Vue `setup()` convention. The callback closes over those handles.
 
 ```ts
 const PlayerActor = defineActor(PlayerPrefab, () => {

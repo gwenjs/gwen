@@ -8,19 +8,36 @@ description: Access pixel dimensions, DPR, and world-space bounds for any named 
 `useScreen()` gives your game code direct access to a viewport's pixel dimensions and
 world-space bounds — without coupling to `window.*` or browser APIs.
 
-```ts
-const screen = useScreen('main')
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onUpdate, useComponent } from "@gwenjs/core/actor";
+import { useScreen } from "@gwenjs/renderer-core";
 
-onUpdate(() => {
-  // Constrain player to visible world bounds
-  if (screen.bounds) {
-    Position.x[id] = Math.max(screen.bounds.minX, Math.min(screen.bounds.maxX, Position.x[id]))
-    Position.y[id] = Math.max(screen.bounds.minY, Math.min(screen.bounds.maxY, Position.y[id]))
-  }
+const Position = defineComponent({
+  name: "DocsScreenPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const UIBox = defineComponent({
+  name: "DocsScreenUi",
+  schema: { x: Types.f32 },
+});
+const PlayerPrefab = definePrefab([
+  { def: Position, defaults: { x: 0, y: 0 } },
+  { def: UIBox, defaults: { x: 0 } },
+]);
 
-  // Center a UI element
-  UIBox.x[uiId] = screen.pixels.width / 2
-})
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const screen = useScreen("main");
+  const pos = useComponent(Position);
+  const ui = useComponent(UIBox);
+  onUpdate(() => {
+    if (screen.bounds) {
+      pos.x = Math.max(screen.bounds.minX, Math.min(screen.bounds.maxX, pos.x));
+      pos.y = Math.max(screen.bounds.minY, Math.min(screen.bounds.maxY, pos.y));
+    }
+    ui.x = screen.pixels.width / 2;
+  });
+});
 ```
 
 ## Zero-config setup
@@ -91,17 +108,32 @@ export default defineConfig({
     p2: { x: 0.5, y: 0, width: 0.5, height: 1 },
   },
 })
+```
 
-// In a system
-const Player1System = defineSystem('Player1System', () => {
-  const screen = useScreen('p1')
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+import { useScreen } from "@gwenjs/renderer-core";
 
+const Position = defineComponent({
+  name: "DocsScreenP1Pos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+export const Player1System = defineSystem(() => {
+  const screen = useScreen("p1");
+  const players = useQuery([Position]);
   onUpdate(() => {
-    if (screen.bounds) {
-      Position.x[p1Id] = Math.max(screen.bounds.minX, Position.x[p1Id])
+    if (!screen.bounds) return;
+    const minX = screen.bounds.minX;
+    for (const chunk of players) {
+      const pos = chunk.get(Position);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = Math.max(minX, pos.x[row] ?? 0);
+      }
     }
-  })
-})
+  });
+});
 ```
 
 ## Node.js / server
@@ -149,15 +181,24 @@ The `subscribe` function must return a cleanup function — GWEN calls it automa
 `useScreen()` follows the same async-context rules as all GWEN composables.
 **Call it during the synchronous setup phase** — the returned reference works anywhere:
 
-```ts
-const PlayerActor = defineActor(PlayerPrefab, () => {
-  const screen = useScreen('main')  // ✅ sync setup
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
+import { useScreen } from "@gwenjs/renderer-core";
 
+const Position = defineComponent({
+  name: "DocsScreenStartPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
+
+export const PlayerActor = defineActor(PlayerPrefab, () => {
+  const screen = useScreen("main");
+  const pos = useComponent(Position);
   onStart(async () => {
-    await loadAssets()
-    Position.x[id] = screen.pixels.width / 2   // ✅ stable reference
-  })
-})
+    pos.x = screen.pixels.width / 2;
+  });
+});
 ```
 
 See [Async Context](/advanced/async-context) for details.

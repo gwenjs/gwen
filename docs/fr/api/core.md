@@ -67,14 +67,14 @@ Multiplicateur de temps global appliqué au delta time de chaque frame avant qu'
 | Valeur | Effet |
 |---|---|
 | `1` | Vitesse normale (défaut) |
-| `0` | Pause — tous les systèmes reçoivent `dt = 0` |
+| `0` | Le `dt` du pas est `0`. L'état reste `idle`. |
 | `0.5` | Demi-vitesse (slow motion) |
 | `2` | Vitesse double |
 
 Limité à `[0, 100]` à l'exécution. Appliqué après le cap de sécurité `maxDeltaSeconds` — la dilatation temporelle ne cause jamais d'instabilité physique.
 
 ```ts
-// Mettre en pause
+// Le dt du pas devient 0. L'état reste idle.
 engine.timeScale = 0
 
 // Bullet time
@@ -83,12 +83,12 @@ engine.timeScale = 0.2
 // Avance rapide SimCity
 engine.timeScale = 4
 
-// Reprendre
+// Vitesse normale
 engine.timeScale = 1
 ```
 
-::: tip Pause vs arrêt complet
-`timeScale = 0` met en pause tous les systèmes en envoyant `dt = 0` — les hooks continuent de s'exécuter. Pour stopper entièrement le traitement des frames, utiliser `engine.stop()`.
+::: tip dt du pas
+`engine.timeScale` ne multiplie que le `dt` du pas. Il n'y a pas de `pause()` ni d'état `paused`. Un `timeScale` de `0` rend le `dt` du pas égal à `0` et laisse l'état `idle`.
 :::
 
 ## Composants
@@ -196,15 +196,31 @@ function defineSystem(name: string, setup: () => void): GwenPlugin
 **Retourne:** `GwenPlugin` — plugin à enregistrer dans une scène ou la config.
 
 **Exemple:**
-```ts
-export const MovementSystem = defineSystem('MovementSystem', () => {
-  const entities = useQuery([Transform, Velocity])
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Transform = defineComponent({
+  name: "DocsFrApiMovePos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Velocity = defineComponent({
+  name: "DocsFrApiMoveVel",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+export const MovementSystem = defineSystem(() => {
+  const query = useQuery([Transform, Velocity]);
   onUpdate((dt) => {
-    for (const entity of entities.each()) {
-      Transform.x[entity.id] += Velocity.x[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Transform);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
 ### useQuery(components)
@@ -466,37 +482,41 @@ function defineActor<Props = void>(
 **Retourne:** `ActorDef` — utilisez `ActorDef._plugin` pour spawner et despawner des instances.
 
 **Exemple:**
-```ts
-import { defineActor, definePrefab, onStart, onDestroy, useEntityId } from '@gwenjs/core/actor'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, onDestroy, onStart, useComponent } from "@gwenjs/core/actor";
+
+const Position = defineComponent({
+  name: "DocsFrApiActorPos",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+const Health = defineComponent({
+  name: "DocsFrApiActorHealth",
+  schema: { hp: Types.f32 },
+});
 
 const EnemyPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },
-  { def: Health,   defaults: { hp: 100 } },
-])
+  { def: Health, defaults: { hp: 100 } },
+]);
 
 export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
-  const entityId = useEntityId()
+  const health = useComponent(Health);
   onStart(() => {
-    Health.hp[entityId] = props.hp
-  })
+    health.hp = props.hp;
+  });
   onDestroy(() => {
-    console.log('Enemy détruit')
-  })
+    console.log("Enemy détruit");
+  });
   return {
-    takeDamage: (n: number) => { Health.hp[entityId] -= n },
-  }
-})
-
-// Enregistrer au démarrage
-await engine.use(EnemyActor._plugin)
-
-// Spawn et despawn via useActor() dans un système ou acteur :
-const SpawnerSystem = defineSystem(() => {
-  const enemies = useActor(EnemyActor)
-  const id = enemies.spawn({ hp: 50 })
-  enemies.despawn(id)
-})
+    takeDamage: (n: number) => {
+      health.hp -= n;
+    },
+  };
+});
 ```
+
+Enregistrez l'acteur avec `engine.use(EnemyActor._plugin)`. Faites le spawn avec `useActor(EnemyActor)` dans une scène.
 
 ### useActor(ActorDef)
 
