@@ -22,7 +22,6 @@ function makeMockWasmPlugin() {
     physics_load_tilemap_chunk_body: vi.fn().mockReturnValue(777),
     physics_unload_tilemap_chunk_body: vi.fn(),
     physics_apply_impulse: vi.fn(),
-    physics_set_fixed_rotation: vi.fn(),
     physics_set_linear_velocity: vi.fn(),
     physics_set_kinematic_position: vi.fn(),
     physics_set_event_coalescing: vi.fn(),
@@ -271,6 +270,12 @@ describe("Physics2DPlugin", () => {
   // ── Physics2DAPI — addRigidBody ───────────────────────────────────────────
 
   it("calls physics_set_fixed_rotation only when fixedRotation is true", async () => {
+    const lockCalls: unknown[][] = [];
+    (
+      mockWasmPlugin as { physics_set_fixed_rotation?: (...args: unknown[]) => void }
+    ).physics_set_fixed_rotation = (...args: unknown[]) => {
+      lockCalls.push(args);
+    };
     const plugin = Physics2DPlugin();
     await initPlugin(plugin, mockBridge, mockEngine);
     const physics = mockEngine._provided["physics2d"] as {
@@ -283,10 +288,9 @@ describe("Physics2DPlugin", () => {
       ) => unknown;
     };
     physics.addRigidBody(slotId(4), "dynamic", 0, 0, { fixedRotation: false });
-    expect(mockWasmPlugin.physics_set_fixed_rotation).not.toHaveBeenCalled();
+    expect(lockCalls).toEqual([]);
     physics.addRigidBody(slotId(5), "dynamic", 0, 0, { fixedRotation: true });
-    expect(mockWasmPlugin.physics_set_fixed_rotation).toHaveBeenCalledTimes(1);
-    expect(mockWasmPlugin.physics_set_fixed_rotation).toHaveBeenCalledWith(5, true);
+    expect(lockCalls).toEqual([[5, true]]);
   });
 
   it("addRigidBody delegates to wasm with encoded bodyType (dynamic=1)", async () => {
