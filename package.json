@@ -46,6 +46,8 @@
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
+    "docs:check": "pnpm --filter @gwenjs/docs-check test",
+    "docs:check:wasm": "pnpm --filter @gwenjs/docs-check test:wasm",
     "verdaccio:start": "verdaccio --config ./verdaccio.yaml",
     "verdaccio:publish": "./scripts/verdaccio-publish.sh"
   },
