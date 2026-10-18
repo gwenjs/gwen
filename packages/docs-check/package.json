@@ -1,0 +1,19 @@
+{
+  "name": "@gwenjs/docs-check",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Checks tagged documentation fences against the GWEN source.",
+  "license": "MPL-2.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:wasm": "vitest run --config vitest.wasm.config.ts"
+  },
+  "devDependencies": {
+    "@gwenjs/core": "workspace:*",
+    "@types/node": "^25.6.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}
