@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { gwenPhysics3DOptimizerPlugin } from "../src/plugins/physics3d-optimizer";
 import type { GwenPhysics3DOptimizerOptions } from "../src/plugins/physics3d-optimizer";
 
@@ -111,17 +111,5 @@ describe("gwenPhysics3DOptimizerPlugin", () => {
     );
     expect(result).toBeNull();
     expect(warns.length).toBeGreaterThan(0);
-  });
-
-  it('logs a fallback warning when mode is "transform" (not yet implemented)', () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    try {
-      gwenPhysics3DOptimizerPlugin({ mode: "transform" });
-      expect(warnSpy).toHaveBeenCalledOnce();
-      expect(warnSpy.mock.calls[0]![0]).toContain('mode: "transform" is not yet implemented');
-      expect(warnSpy.mock.calls[0]![0]).toContain('Falling back to mode: "warn"');
-    } finally {
-      warnSpy.mockRestore();
-    }
   });
 });

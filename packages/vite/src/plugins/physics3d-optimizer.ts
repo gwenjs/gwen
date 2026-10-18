@@ -20,14 +20,12 @@ export interface GwenPhysics3DOptimizerOptions {
   /**
    * Plugin operating mode.
    *
-   * - `'warn'` (default, Phase 1): emit Vite warnings for detected anti-patterns
-   *   without modifying source code.
-   * - `'transform'` (Phase 2, not yet implemented): rewrite imperative calls to
-   *   composable equivalents.
+   * `'warn'` emits Vite warnings for detected anti-patterns and does not
+   * modify source code.
    *
    * @default 'warn'
    */
-  mode?: "warn" | "transform";
+  mode?: "warn";
 
   /**
    * Enable verbose logging of detected patterns to the console.
@@ -85,15 +83,7 @@ const METHOD_TO_COMPOSABLE: Record<PhysicsMethod, string> = {
  * @returns A Vite plugin instance.
  */
 export function gwenPhysics3DOptimizerPlugin(options: GwenPhysics3DOptimizerOptions = {}): Plugin {
-  const { mode = "warn", debug = false, extensions = [".ts", ".tsx"] } = options;
-
-  if (mode === "transform") {
-    // eslint-disable-next-line no-console
-    console.warn(
-      '[gwen:physics3d-optimizer] mode: "transform" is not yet implemented. ' +
-        'Falling back to mode: "warn".',
-    );
-  }
+  const { debug = false, extensions = [".ts", ".tsx"] } = options;
 
   return {
     name: "gwen:physics3d-optimizer",
