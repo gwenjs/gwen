@@ -67,19 +67,16 @@ function strike(engine: RealEngineHandle["engine"], physics: Physics2DAPI, id: E
   return bullet;
 }
 
-async function boot(): Promise<{
-  handle: RealEngineHandle;
-  physics: Physics2DAPI;
-}> {
-  const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32, physicsHz: 60 });
+async function openPhysics(handle: RealEngineHandle): Promise<Physics2DAPI> {
   await handle.engine.use(Physics2DPlugin({ gravity: 0, maxEntities: 32 }));
-  return { handle, physics: handle.engine.inject("physics2d") };
+  return handle.engine.inject("physics2d");
 }
 
 describe("dynamic fixedRotation", () => {
   it("keeps a locked angle at 0 and lets an unlocked body turn after an off-centre hit", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32, physicsHz: 60 });
     try {
+      const physics = await openPhysics(handle);
       const { engine, advance } = handle;
       const lockedActor = actor(true);
       await engine.use(lockedActor._plugin);
@@ -103,13 +100,14 @@ describe("dynamic fixedRotation", () => {
   });
 
   it("does not warn when fixedRotation is true", async () => {
-    const { handle } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32, physicsHz: 60 });
     const previous = console.warn;
     const messages: string[] = [];
     console.warn = (...args: unknown[]) => {
       messages.push(args.map((arg) => String(arg)).join(" "));
     };
     try {
+      await openPhysics(handle);
       const lockedActor = actor(true);
       await handle.engine.use(lockedActor._plugin);
       lockedActor._plugin.spawn();
@@ -121,8 +119,9 @@ describe("dynamic fixedRotation", () => {
   });
 
   it("keeps the lock when the body is disabled and enabled again", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32, physicsHz: 60 });
     try {
+      const physics = await openPhysics(handle);
       const { engine, advance } = handle;
       const lockedActor = actor(true);
       await engine.use(lockedActor._plugin);
@@ -145,8 +144,9 @@ describe("dynamic fixedRotation", () => {
   });
 
   it("rotates again after removeBody and addRigidBody without fixedRotation", async () => {
-    const { handle, physics } = await boot();
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32, physicsHz: 60 });
     try {
+      const physics = await openPhysics(handle);
       const { engine, advance } = handle;
       const lockedActor = actor(true);
       await engine.use(lockedActor._plugin);
