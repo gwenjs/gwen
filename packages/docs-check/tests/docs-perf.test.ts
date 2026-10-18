@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { extractFences, type Fence } from "../src/fences.js";
 import { runSnippet } from "../src/run.js";
-import { checkFence } from "../src/snippets.js";
+import { checkFence, checkFences } from "../src/snippets.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -73,6 +73,16 @@ describe("performance pages", () => {
       expect(text, page).not.toContain("near-zero cost");
       expect(text, page).not.toContain("quasi-gratuits");
     }
+  });
+
+  it("tagged performance examples type-check", () => {
+    const file = "docs/advanced/performance.md";
+    const tagged = extractFences(pageText(file), file).filter(
+      (fence) => fence.tag === "check" || fence.tag === "run",
+    );
+    const checks = tagged.filter((fence) => fence.tag === "check");
+    expect(checks.length).toBeGreaterThan(0);
+    expect(checkFences(tagged)).toEqual([]);
   });
 
   it("tween pages drop the no-allocation and unbenched speed claims", () => {
