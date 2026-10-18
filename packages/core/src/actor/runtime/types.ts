@@ -211,8 +211,17 @@ export interface UseLayoutOptions {
    * Maximum number of entities to spawn per frame when loading.
    * Prevents frame drops for layouts with >100 entities.
    *
-   * @todo Progressive chunked spawn still loads every entity in one pass.
-   *       Passing this option emits a console.warn and loads all entities at once.
+   * Must be a positive integer; `useLayout()` throws `COMPOSABLE:INVALID_CHUNK_SIZE`
+   * otherwise. When set, the layout factory runs once and its `placeActor`,
+   * `placePrefab` and `placeGroup` calls only record their spawn. `load()` then spawns
+   * at most `chunkSize` of them per frame, in call order, on `engine:before-update`,
+   * and resolves when the last one is alive. `refs` stays `{}` until then.
+   *
+   * Inside the factory, a returned handle is not spawned yet: reading its `entityId`,
+   * `api`, `moveTo` or `despawn` throws `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`. Passing
+   * a handle as `parent` works when it was placed earlier (it is spawned first).
+   *
+   * Without this option, `load()` spawns everything in one pass.
    */
   chunkSize?: number;
 }
@@ -225,14 +234,19 @@ export interface UseLayoutOptions {
 export interface LayoutHandle<Refs> {
   /**
    * The handles returned by the layout factory, typed automatically.
-   * Only available after `load()` resolves.
+   * `{}` until `load()` resolves (with `chunkSize`, until the last chunk has spawned),
+   * and again after `dispose()`.
    */
   readonly refs: Refs;
   /** `true` if the layout is currently loaded (entities are alive). */
   readonly active: boolean;
   /**
    * Spawn all entities declared in the layout factory.
-   * Resolves when all entities are alive.
+   * Resolves when all entities are alive: at once, or after `ceil(m / chunkSize)` frames
+   * with `chunkSize`. A second call while loading returns the same promise.
+   * If `dispose()` runs during a progressive load, the promise resolves and `active`
+   * stays `false`. If a spawn throws, the promise rejects and the entities already
+   * spawned are destroyed.
    */
   load(): Promise<void>;
   /**
