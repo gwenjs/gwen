@@ -6,6 +6,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { extractFences } from "../src/fences.js";
+import { checkFences } from "../src/snippets.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 
@@ -107,5 +109,16 @@ describe("deferred access pages", () => {
     const asyncPage = pageText("docs/advanced/async-context.md");
     expect(asyncPage).toContain("synchronous factory phase");
     expect(asyncPage).not.toContain("zero overhead");
+  });
+
+  it("type-checks the rewritten access fences", () => {
+    const pages = [...INDEXED, "docs/api/math.md", "docs/fr/api/math.md"];
+    const tagged = pages.flatMap((file) =>
+      extractFences(pageText(file), file).filter(
+        (fence) => fence.tag === "check" || fence.tag === "run",
+      ),
+    );
+    expect(tagged.length).toBeGreaterThan(0);
+    expect(checkFences(tagged)).toEqual([]);
   });
 });
