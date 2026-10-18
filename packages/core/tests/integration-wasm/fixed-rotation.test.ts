@@ -2,7 +2,7 @@
  * `fixedRotation: true` keeps a dynamic body's angle at 0 under an off-centre hit.
  * The hit is a real body, so the contact impulse is not applied at the centre of mass.
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import { defineActor, definePrefab, useEntityId } from "../../src/actor/index.js";
 import { defineComponent, Types, type EntityId } from "../../src/index.js";
@@ -104,15 +104,18 @@ describe("dynamic fixedRotation", () => {
 
   it("does not warn when fixedRotation is true", async () => {
     const { handle } = await boot();
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const previous = console.warn;
+    const messages: string[] = [];
+    console.warn = (...args: unknown[]) => {
+      messages.push(args.map((arg) => String(arg)).join(" "));
+    };
     try {
       const lockedActor = actor(true);
       await handle.engine.use(lockedActor._plugin);
       lockedActor._plugin.spawn();
-      const text = warn.mock.calls.map((call) => String(call[0])).join("\n");
-      expect(text).not.toContain("fixedRotation");
+      expect(messages.join("\n")).not.toContain("fixedRotation");
     } finally {
-      warn.mockRestore();
+      console.warn = previous;
       await handle.dispose();
     }
   });
@@ -124,7 +127,7 @@ describe("dynamic fixedRotation", () => {
       const lockedActor = actor(true);
       await engine.use(lockedActor._plugin);
       const id = lockedActor._plugin.spawn();
-      const body = lockedActor._instances.get(id);
+      const body = lockedActor._instances.get(id)?.api;
       if (body === undefined) throw new Error("expected the actor instance");
       const first = strike(engine, physics, id);
       await advance(45, 1 / 60);
@@ -148,7 +151,7 @@ describe("dynamic fixedRotation", () => {
       const lockedActor = actor(true);
       await engine.use(lockedActor._plugin);
       const id = lockedActor._plugin.spawn();
-      const body = lockedActor._instances.get(id);
+      const body = lockedActor._instances.get(id)?.api;
       if (body === undefined) throw new Error("expected the actor instance");
       const first = strike(engine, physics, id);
       await advance(45, 1 / 60);
