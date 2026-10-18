@@ -226,7 +226,7 @@ const Position = defineComponent({
 });
 const EnemyTag = defineComponent({
   name: "DocsApiEnemyTag",
-  schema: { tag: Types.u8 },
+  schema: { tag: Types.u32 },
 });
 
 export const NudgeEnemies = defineSystem(() => {

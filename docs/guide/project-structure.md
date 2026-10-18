@@ -153,7 +153,7 @@ const PlayerPrefab = definePrefab([
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const pos = useComponent(Position);
   useDynamicBody({ gravityScale: 1 });
-  useBoxCollider({ width: 1, height: 2 });
+  useBoxCollider({ w: 1, h: 2 });
 
   onStart(() => {
     pos.x = 100;
