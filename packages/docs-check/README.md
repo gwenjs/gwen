@@ -39,4 +39,4 @@ Untagged fences are examples. They are not type-checked. An `@gwenjs/*` import i
 
 A tagged block imports every name it uses. The harness injects no Gwen globals.
 
-A `run` block may use one pre-bound `engine`. The harness creates it with `createRealEngine`, passes it in, and disposes it in a `finally` block. The block must not call `engine.stop()`. Assertions use `import assert from "node:assert/strict"`. Nothing else is injected.
+A `run` block may use one pre-bound `engine`. The harness creates it with `createRealEngine({ variant: "light", maxEntities: 1024 })`, passes it in, and disposes it in a `finally` block. The `light` variant has no physics. Pages about physics use `ts check` only. The block must not call `engine.stop()`. Assertions use `import assert from "node:assert/strict"`. Nothing else is injected.
