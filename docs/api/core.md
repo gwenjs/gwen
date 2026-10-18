@@ -77,14 +77,14 @@ Global time multiplier applied to every frame's delta time before it reaches sys
 | Value | Effect |
 |---|---|
 | `1` | Normal speed (default) |
-| `0` | The step `dt` is `0`. The state stays `idle`. |
+| `0` | The step `dt` is `0`. The state does not change. |
 | `0.5` | Half speed (slow motion) |
 | `2` | Double speed |
 
 Clamped to `[0, 100]` at runtime. Applied after the `maxDeltaSeconds` safety cap — time dilation never causes physics instability.
 
 ```ts
-// The step dt becomes 0. The state stays idle.
+// The step dt becomes 0. The state does not change.
 engine.timeScale = 0
 
 // Bullet time
@@ -98,7 +98,7 @@ engine.timeScale = 1
 ```
 
 ::: tip Step dt
-`engine.timeScale` scales the step `dt` only. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0` and leaves the state `idle`.
+`engine.timeScale` scales the step `dt` only. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0`. The state does not change.
 :::
 
 ### useTween(options)
@@ -326,7 +326,8 @@ function defineActor<Props = void>(
 **Example:**
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onDestroy, onStart, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onDestroy, onStart, useActor, useComponent } from "@gwenjs/core/actor";
+import { defineSystem } from "@gwenjs/core/system";
 
 const Position = defineComponent({
   name: "DocsApiActorPos",
@@ -356,9 +357,15 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
     },
   };
 });
+
+export const SpawnSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor);
+  const id = enemies.spawn({ hp: 50 });
+  enemies.despawn(id);
+});
 ```
 
-Register the actor with `engine.use(EnemyActor._plugin)`. Spawn with `useActor(EnemyActor)` inside a scene.
+Register the actor with `engine.use(EnemyActor._plugin)` before the scene runs. `spawn()` inside a `defineScene()` factory throws `ACTOR:PLUGIN_NOT_READY`. The system above is the call that type-checks.
 
 #### useActor(ActorDef)
 

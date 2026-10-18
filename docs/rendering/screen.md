@@ -195,7 +195,11 @@ const PlayerPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }])
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const screen = useScreen("main");
   const pos = useComponent(Position);
+  async function loadAssets(): Promise<void> {
+    await Promise.resolve();
+  }
   onStart(async () => {
+    await loadAssets();
     pos.x = screen.pixels.width / 2;
   });
 });

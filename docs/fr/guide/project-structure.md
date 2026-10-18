@@ -68,6 +68,31 @@ export const Position = defineComponent({
 })
 ```
 
+**src/components/Velocity.ts**
+```typescript
+import { defineComponent, Types } from '@gwenjs/core'
+
+export const Velocity = defineComponent({
+  name: 'Velocity',
+  schema: {
+    x: Types.f32,
+    y: Types.f32,
+  },
+})
+```
+
+**src/components/Health.ts**
+```typescript
+import { defineComponent, Types } from '@gwenjs/core'
+
+export const Health = defineComponent({
+  name: 'Health',
+  schema: {
+    hp: Types.f32,
+  },
+})
+```
+
 Utilisez `src/components/index.ts` pour réexporter tout :
 
 ```typescript
@@ -81,18 +106,9 @@ export * from './Health'
 Les systèmes sont la couche logique. Ils interrogent les entités et modifient leurs composants à chaque frame.
 
 **src/systems/Movement.ts**
-```typescript check
-import { defineComponent, Types } from "@gwenjs/core";
+```typescript
+import { Position, Velocity } from "../components";
 import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
-
-const Position = defineComponent({
-  name: "GuideFrStructurePos",
-  schema: { x: Types.f32, y: Types.f32 },
-});
-const Velocity = defineComponent({
-  name: "GuideFrStructureVel",
-  schema: { x: Types.f32, y: Types.f32 },
-});
 
 export const MovementSystem = defineSystem(() => {
   const query = useQuery([Position, Velocity]);
@@ -131,19 +147,10 @@ export const GameScene = defineScene('game', () => {
 Les acteurs sont des entités nommées, de type singleton, définies avec `defineActor()`. Utilisez-les pour les éléments qui existent une seule fois par scène — le joueur, un boss, une caméra. Chaque acteur a son propre cycle de vie (`onStart`, `onDestroy`) et peut utiliser des composables physiques.
 
 **src/actors/Player.ts**
-```typescript check
-import { defineComponent, Types } from "@gwenjs/core";
+```typescript
 import { defineActor, definePrefab, onStart, useComponent } from "@gwenjs/core/actor";
 import { useBoxCollider, useDynamicBody } from "@gwenjs/physics2d";
-
-const Position = defineComponent({
-  name: "GuideFrStructureActorPos",
-  schema: { x: Types.f32, y: Types.f32 },
-});
-const Health = defineComponent({
-  name: "GuideFrStructureActorHealth",
-  schema: { hp: Types.f32 },
-});
+import { Position, Health } from "../components";
 
 const PlayerPrefab = definePrefab([
   { def: Position, defaults: { x: 0, y: 0 } },

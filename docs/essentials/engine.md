@@ -217,7 +217,9 @@ The sample stored on a step does not include the `engine:update` writes of that 
 
 A surface renderer `renderViews` callback still receives `1`. This page does not change that call.
 
-`engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0` and leaves the state `idle`.
+`engine.timeScale` scales the step `dt` only. A `timeScale` of `0.5` halves simulation speed and leaves `alpha` unchanged. There is no `pause()` and no `paused` state. `timeScale` of `0` makes the step `dt` `0`. The state does not change.
+
+A never-started engine is already `idle`. After `startExternal()`, the state is `running`. Neither step changes it.
 
 ```ts run
 import assert from "node:assert/strict";
@@ -228,6 +230,18 @@ await engine.advance(1 / 60);
 const frozen = engine.getStats().deltaTime;
 assert.equal(frozen, 0);
 assert.equal(engine.state, "idle");
+```
+
+```ts run
+import assert from "node:assert/strict";
+
+await engine.startExternal();
+engine.timeScale = 0;
+await engine.advance(1 / 60);
+const scaled = engine.getStats().deltaTime;
+assert.equal(scaled, 0);
+const startedState = engine.state;
+assert.equal(startedState, "running");
 ```
 
 ::: info Determinism

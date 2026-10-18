@@ -67,14 +67,14 @@ Multiplicateur de temps global appliqué au delta time de chaque frame avant qu'
 | Valeur | Effet |
 |---|---|
 | `1` | Vitesse normale (défaut) |
-| `0` | Le `dt` du pas est `0`. L'état reste `idle`. |
+| `0` | Le `dt` du pas est `0`. L'état ne change pas. |
 | `0.5` | Demi-vitesse (slow motion) |
 | `2` | Vitesse double |
 
 Limité à `[0, 100]` à l'exécution. Appliqué après le cap de sécurité `maxDeltaSeconds` — la dilatation temporelle ne cause jamais d'instabilité physique.
 
 ```ts
-// Le dt du pas devient 0. L'état reste idle.
+// Le dt du pas devient 0. L'état ne change pas.
 engine.timeScale = 0
 
 // Bullet time
@@ -88,7 +88,7 @@ engine.timeScale = 1
 ```
 
 ::: tip dt du pas
-`engine.timeScale` ne multiplie que le `dt` du pas. Il n'y a pas de `pause()` ni d'état `paused`. Un `timeScale` de `0` rend le `dt` du pas égal à `0` et laisse l'état `idle`.
+`engine.timeScale` ne multiplie que le `dt` du pas. Il n'y a pas de `pause()` ni d'état `paused`. Un `timeScale` de `0` rend le `dt` du pas égal à `0`. L'état ne change pas.
 :::
 
 ## Composants
@@ -484,7 +484,8 @@ function defineActor<Props = void>(
 **Exemple:**
 ```ts check
 import { defineComponent, Types } from "@gwenjs/core";
-import { defineActor, definePrefab, onDestroy, onStart, useComponent } from "@gwenjs/core/actor";
+import { defineActor, definePrefab, onDestroy, onStart, useActor, useComponent } from "@gwenjs/core/actor";
+import { defineSystem } from "@gwenjs/core/system";
 
 const Position = defineComponent({
   name: "DocsFrApiActorPos",
@@ -514,9 +515,15 @@ export const EnemyActor = defineActor(EnemyPrefab, (props: { hp: number }) => {
     },
   };
 });
+
+export const SpawnSystem = defineSystem(() => {
+  const enemies = useActor(EnemyActor);
+  const id = enemies.spawn({ hp: 50 });
+  enemies.despawn(id);
+});
 ```
 
-Enregistrez l'acteur avec `engine.use(EnemyActor._plugin)`. Faites le spawn avec `useActor(EnemyActor)` dans une scène.
+Enregistrez l'acteur avec `engine.use(EnemyActor._plugin)` avant la scène. `spawn()` dans une factory `defineScene()` lève `ACTOR:PLUGIN_NOT_READY`. Le système ci-dessus est l'appel qui passe le contrôle de types.
 
 ### useActor(ActorDef)
 
