@@ -569,7 +569,7 @@ defineSystem(() => {
 | `def` | `ActorDefinition<P, A>` | Définition d'acteur produite par `defineActor` |
 | `query` | `Iterable<{ readonly id: EntityId }>` | Tout itérable exposant des IDs d'entité — typiquement `query.each()` de `useQuery` |
 
-**Retourne:** `Iterable<A>` — paresseux, zéro allocation. Les entités présentes dans `query` sans instance d'acteur vivante sont silencieusement ignorées.
+**Retourne:** `Iterable<A>` — paresseux. Les entités présentes dans `query` sans instance d'acteur vivante sont silencieusement ignorées.
 
 ::: tip Pourquoi accepter une query plutôt que des définitions de composants ?
 `useActorQuery` appartient à `@gwenjs/core/actor` et ne dépend pas de la couche système. Accepter `query.each()` découple les deux couches et rend la fonction composable avec tout itérable exposant un `id`.
