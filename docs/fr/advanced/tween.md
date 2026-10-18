@@ -189,20 +189,23 @@ Les ennemis changent d'échelle de 0 à 1 en 0,2 secondes lorsqu'ils sont géné
 
 ```ts
 import { usePrefab } from '@gwenjs/core/actor'
-import { useTween } from '@gwenjs/core'
+import { useEngine, useTween } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
+import { Scale } from './components'
 import { EnemyPrefab } from './prefabs'
 
 export const EnemySpawnSystem = defineSystem(() => {
+  const engine = useEngine()
   const scale = useTween<number>({ duration: 0.2, easing: 'easeOut' })
   const enemies = usePrefab(EnemyPrefab)
 
   onUpdate(() => {
     if (shouldSpawns) {
-      enemies.spawn({ x: 100, y: 100 })
+      const id = enemies.spawn({ x: 100, y: 100 })
       if (!scale.playing) {
         scale.play({ from: 0, to: 1 })
       }
+      engine.addComponent(id, Scale, { x: scale.value, y: scale.value })
     }
   })
 })
