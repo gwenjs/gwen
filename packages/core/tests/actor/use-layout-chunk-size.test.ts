@@ -395,4 +395,61 @@ describe("useLayout chunkSize — progressive spawn", () => {
       await b.dispose();
     });
   });
+  it("an empty progressive load can be disposed and loaded again: the factory runs again and spawns by chunks", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    await engine.run(async () => {
+      let runs = 0;
+      const layout = defineLayout(() => {
+        runs += 1;
+        const refs: Record<string, PlaceHandle<void>> = {};
+        if (runs > 1) for (let i = 0; i < 3; i++) refs[`g${i}`] = placeGroup({ at: [i, 0] });
+        return refs;
+      });
+      const handle = useLayout(layout, { lazy: true, chunkSize: 2 });
+      await handle.load();
+      expect(handle.active).toBe(true);
+      await handle.dispose();
+      expect(handle.active).toBe(false);
+
+      const reloading = handle.load();
+      const done = track(reloading);
+      await flush();
+      expect(runs).toBe(2);
+      expect(engine.getStats().entityCount - base).toBe(0);
+      await engine.advance(FRAME);
+      await flush();
+      expect(engine.getStats().entityCount - base).toBe(2);
+      expect(done.settled).toBe(false);
+      await engine.advance(FRAME);
+      await reloading;
+      expect(engine.getStats().entityCount - base).toBe(3);
+      expect(handle.active).toBe(true);
+      await handle.dispose();
+    });
+  });
+
+  it("engine.stop() during a progressive load settles load() with the layout inactive and stops spawning", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    let handle: ReturnType<typeof useLayout<Record<string, PlaceHandle<void>>>> | undefined;
+    await engine.run(async () => {
+      handle = useLayout(groupsLayout(10), { lazy: true, chunkSize: 3 });
+    });
+    const loading = handle?.load();
+    expect(loading).toBeDefined();
+    if (!loading || !handle) return;
+    const done = track(loading);
+    await engine.advance(FRAME);
+    await flush();
+    expect(engine.getStats().entityCount - base).toBe(3);
+    expect(done.settled).toBe(false);
+
+    await engine.stop();
+    await flush();
+    expect(done.settled).toBe(true);
+    await loading;
+    expect(handle.active).toBe(false);
+    expect(handle.refs).toEqual({});
+  });
 });
