@@ -86,14 +86,9 @@ export const Position = defineComponent({
 Les systèmes itèrent sur les entités et les mettent à jour à chaque frame.
 
 **src/systems/Movement.ts**
-```typescript check
-import { defineComponent, Types } from "@gwenjs/core";
+```typescript
+import { Position } from "../components/Position";
 import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
-
-const Position = defineComponent({
-  name: "GuideFrQuickPos",
-  schema: { x: Types.f32, y: Types.f32 },
-});
 
 export const MovementSystem = defineSystem(() => {
   const query = useQuery([Position]);
