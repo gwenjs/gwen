@@ -12,7 +12,7 @@ const PHRASES = [
   "no allocations",
   "near-zero cost",
   "allocation-free",
-] as const;
+];
 
 const ALWAYS = new Set([
   "ms",
@@ -32,8 +32,13 @@ const ALWAYS = new Set([
 const PERCENT_AFTER = new Set(["faster", "slower", "less", "more", "overhead", "saving"]);
 const X_WITH = new Set(["faster", "slower", "speedup"]);
 
-interface CiBench {
-  file: string;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isCiBench(entry: unknown): entry is { file: string } {
+  if (!isRecord(entry)) return false;
+  return typeof entry["file"] === "string";
 }
 
 function benchFiles(): readonly string[] {
@@ -42,9 +47,8 @@ function benchFiles(): readonly string[] {
   if (!Array.isArray(parsed)) return [];
   const files: string[] = [];
   for (const entry of parsed) {
-    if (typeof entry !== "object" || entry === null) continue;
-    const row = entry as CiBench;
-    if (typeof row.file === "string") files.push(row.file);
+    if (!isCiBench(entry)) continue;
+    files.push(entry.file);
   }
   return files;
 }
