@@ -147,9 +147,9 @@ const GridLayout = defineLayout(() => {
 
 If a `parent` is placed after its child, the child's spawn throws the same error and `load()` rejects. The entities already spawned are destroyed.
 
-### Disposing while loading
+### Disposing or stopping while loading
 
-`dispose()` during a progressive load stops the remaining spawns and destroys the entities that already exist. The pending `load()` promise resolves, and `layout.active` stays `false`.
+`engine.stop()` during a progressive load does the same as `dispose()`, so `load()` never hangs. `dispose()` during a progressive load stops the remaining spawns and destroys the entities that already exist. The pending `load()` promise resolves, and `layout.active` stays `false`.
 
 ## Layouts and Scene Lifecycle
 
