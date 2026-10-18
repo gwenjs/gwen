@@ -5,6 +5,7 @@ const alias = gwenSourceAliases();
 
 export default defineConfig({
   resolve: { alias },
+  define: { __GWEN_DEV__: "true" },
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
