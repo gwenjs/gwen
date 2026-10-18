@@ -67,12 +67,11 @@ async function execute(code: string, engine: GwenEngine): Promise<void> {
   const dir = mkdtempSync(path.join(tmpdir(), "gwen-docs-"));
   const modulePath = path.join(dir, "snippet.mjs");
   writeFileSync(modulePath, source);
-  const slot = globalThis as unknown as Record<string, GwenEngine>;
-  slot[ENGINE] = engine;
+  Reflect.set(globalThis, ENGINE, engine);
   try {
     await import(pathToFileURL(modulePath).href);
   } finally {
-    delete slot[ENGINE];
+    Reflect.deleteProperty(globalThis, ENGINE);
     rmSync(dir, { recursive: true, force: true });
   }
 }
