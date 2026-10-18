@@ -172,7 +172,7 @@ export * from './Health'
 
 A chunk is one archetype. Every entity in that chunk has the same components, and those components share the row index. Row order is not the entity id.
 
-`chunk.get(Def)` returns the live columns for that component in that chunk. `f32` is a `Float32Array`, `f64` a `Float64Array`, `i32` an `Int32Array`, `u32` a `Uint32Array`, and `bool` a `Uint8Array`. `vec2`, `vec3`, `vec4`, `quat`, and `color` are nested `{ x, y, ... }` arrays. `Types.string`, `Types.i64`, and `Types.u64` are absent: reading them on the chunk is a type error. `engine.getComponent` still returns those fields in a snapshot.
+`chunk.get(Def)` returns the live columns for that component in that chunk. `f32` is a `Float32Array`, `f64` a `Float64Array`, `i32` an `Int32Array`, `u32` a `Uint32Array`, and `bool` a `Uint8Array`. `vec2` is `{ x, y }`, `vec3` is `{ x, y, z }`, `vec4` and `quat` are `{ x, y, z, w }`, and `color` is `{ r, g, b, a }`. `Types.string`, `Types.i64`, and `Types.u64` are absent: reading them on the chunk is a type error. `engine.getComponent` still returns those fields in a snapshot.
 
 `chunk.entityId(row)` is the entity at that row. `chunk.count` is the row count. The chunk handle is invalid once the iterator moves on.
 
