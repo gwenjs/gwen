@@ -126,9 +126,9 @@ const GridLayout = defineLayout(() => {
 
 Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même erreur et `load()` est rejeté. Les entités déjà spawnées sont détruites.
 
-### Disposer pendant le chargement
+### Disposer ou arrêter pendant le chargement
 
-`dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. La promesse de `load()` en attente est résolue, et `layout.active` reste `false`.
+`engine.stop()` pendant un chargement progressif fait la même chose que `dispose()` : `load()` ne reste jamais bloqué. `dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. La promesse de `load()` en attente est résolue, et `layout.active` reste `false`.
 
 ## Layouts et cycle de vie des scènes
 
