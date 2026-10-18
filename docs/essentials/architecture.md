@@ -33,7 +33,7 @@ The TypeScript layer calls into WASM to query entities, read component data, and
 
 ## The WASM Bridge
 
-Communication between TypeScript and WASM happens through function calls. There is no `SharedArrayBuffer` in v1. Chunk columns are typed-array views over the module's `WebAssembly.Memory`. `engine.memory` is always present and is the same object as `engine.inject("memory")`.
+Communication between TypeScript and WASM happens through function calls. Chunk columns are typed-array views over the module's `WebAssembly.Memory`. v1 does not share that memory across threads. `engine.memory` is always present and is the same object as `engine.inject("memory")`.
 
 `WasmModuleOptions.transformRegion` names a `memory.regions` entry. That region receives the per-frame transform copy. When the option is absent, there is no copy, and `transform_buffer_ptr()` returns 0.
 
