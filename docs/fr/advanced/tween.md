@@ -191,7 +191,6 @@ Les ennemis changent d'échelle de 0 à 1 en 0,2 secondes lorsqu'ils sont géné
 import { usePrefab } from '@gwenjs/core/actor'
 import { useTween } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { Position, Scale } from './components'
 import { EnemyPrefab } from './prefabs'
 
 export const EnemySpawnSystem = defineSystem(() => {
@@ -200,17 +199,10 @@ export const EnemySpawnSystem = defineSystem(() => {
 
   onUpdate(() => {
     if (shouldSpawns) {
-      const id = enemies.spawn({ x: 100, y: 100 })
-      Scale.x[id] = 0
-      Scale.y[id] = 0
-      
+      enemies.spawn({ x: 100, y: 100 })
       if (!scale.playing) {
         scale.play({ from: 0, to: 1 })
       }
-      
-      // Mettre à jour l'échelle à chaque image
-      Scale.x[id] = scale.value
-      Scale.y[id] = scale.value
     }
   })
 })
@@ -238,19 +230,6 @@ export const DialogSystem = defineSystem(() => {
 ```
 
 ## Sous le capot
-
-### Pool de tweens
-
-Le moteur gère les tweens dans un pool pour éviter la pression d'allocation. Chaque tween occupe une fente, et la fente est réutilisée lorsque le tween se termine. Si vous créez des tweens dynamiquement (par exemple, un par ennemi), le pool garantit qu'aucune allocation ne se produit pendant le gameplay.
-
-### Performance
-
-Les tweens sont extrêmement efficaces :
-- À chaque image, seul le temps actuel est avancé.
-- Les fonctions de facilitation sont des opérations mathématiques légères.
-- L'interpolation se fait côté client ; aucun trafic réseau.
-
-Avec des centaines de tweens simultanés, les performances restent fluides.
 
 ### Annulation
 

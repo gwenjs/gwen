@@ -1,0 +1,7 @@
+[
+  {
+    "file": "packages/core/bench/storage-models.bench.ts",
+    "job": "Storage bench",
+    "step": "TS storage models"
+  }
+]

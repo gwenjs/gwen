@@ -159,8 +159,6 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
 
   onStart(() => {
     // Appelé une fois au premier spawn — état initial
-    Position.x[id] = props.x
-    Velocity.vx[id] = props.speed * Math.cos(props.direction)
   })
 
   onRelease(() => {
@@ -173,8 +171,6 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
     // Appelé à chaque réutilisation — reset avec les nouvelles props.
     // Les defaults du composant, puis ceux du prefab, sont déjà réécrits dans les composants existants.
     // Un composant du prefab retiré pendant la vie précédente n'est pas rajouté.
-    Position.x[id] = newProps.x
-    Velocity.vx[id] = newProps.speed * Math.cos(newProps.direction)
     physics.addBody(id, { ... })
   })
 
@@ -202,9 +198,7 @@ export const BulletActor = defineActor(BulletPrefab, (props: { pool: ActorPool<B
   const id = useEntityId()
 
   onUpdate(() => {
-    if (Position.y[id] < 0) {
-      props.pool.release(id)
-    }
+    props.pool.release(id)
   })
 })
 ```
@@ -225,8 +219,6 @@ export const EnemyActor = defineActor(EnemyPrefab, () => {
   })
 
   onReset((props: EnemyProps) => {
-    Position.x[id] = props.x
-    Position.y[id] = props.y
     physics.addBody(id, { type: 'dynamic' })  // réintégrer dans le monde physique
   })
 })
@@ -321,9 +313,7 @@ qu'un appel `release()` est manquant quelque part.
 Les entités sont allouées à la demande — les `size` premiers appels à `acquire()` créent chacun
 une nouvelle entité. Les appels suivants réutilisent des slots dormants. Cela signifie :
 
-- Aucun coût au démarrage : rien n'est alloué avant le premier `acquire()`.
 - Les N premiers spawns ont un coût d'allocation complet (factory + création d'entité ECS).
-- Tous les spawns suivants une fois le pool rempli sont quasi-gratuits.
 
 Si votre jeu spawne un grand nombre d'acteurs d'un coup au début d'un niveau, envisagez un
 préchauffage manuel dans `onEnter` :
