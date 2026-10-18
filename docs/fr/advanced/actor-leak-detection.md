@@ -213,6 +213,6 @@ Chaque appel à `useTransform()` crée un `TransformHandle` avec ces méthodes. 
 
 ## Prochaines étapes
 
-- **[Mode debug](/fr/advanced/debug-mode)** — Flags de debug globaux, journalisation et overlays de timing.
+- **[Mode debug](/fr/advanced/debug-mode)** — Flags de debug globaux et journalisation.
 - **[Acteurs](/fr/essentials/actors)** — Cycle de vie des acteurs : spawn, despawn et API publique.
 - **[Scènes](/fr/essentials/scenes)** — Comment `onEnter` et `onExit` s'intègrent dans les transitions de scène.

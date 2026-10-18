@@ -276,6 +276,6 @@ Un bus personnalisé passé via `errorBus` doit implémenter `on()` et `onFatal(
 
 ## Prochaines étapes
 
-- **[Mode debug](/fr/advanced/debug-mode)** — Voir et filtrer les erreurs dans la superposition de débogage.
+- **[Mode debug](/fr/advanced/debug-mode)** — Drapeau de debug du moteur et journalisation.
 - **[Journalisation](/fr/advanced/debug-mode)** — Utilisez la journalisation structurée aux côtés du signalement d'erreurs.
 - **[Architecture](/fr/essentials/architecture)** — Comprendre comment la récupération d'erreurs s'intègre dans la conception du système.

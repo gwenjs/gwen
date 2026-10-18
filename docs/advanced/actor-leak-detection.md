@@ -221,6 +221,6 @@ Each `useTransform()` call creates one `TransformHandle` with these methods. A c
 
 ## Next Steps
 
-- **[Debug Mode](/advanced/debug-mode)** — Engine-wide debug flags, logging, and timing overlays.
+- **[Debug Mode](/advanced/debug-mode)** — Engine-wide debug flags and logging.
 - **[Actors](/essentials/actors)** — Actor lifecycle: spawn, despawn, and public API.
 - **[Scenes](/essentials/scenes)** — How `onEnter` and `onExit` fit into scene transitions.

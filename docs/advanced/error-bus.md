@@ -299,6 +299,6 @@ A custom bus passed as `errorBus` must implement `on()` and `onFatal()`. The eng
 
 ## Next Steps
 
-- **[Debug Mode](/advanced/debug-mode)** — View and filter errors in the debug overlay.
+- **[Debug Mode](/advanced/debug-mode)** — Engine-wide debug flags and logging.
 - **[Logging](/advanced/debug-mode)** — Use structured logging alongside error reporting.
 - **[Architecture](/essentials/architecture)** — Understand how error recovery fits into system design.
