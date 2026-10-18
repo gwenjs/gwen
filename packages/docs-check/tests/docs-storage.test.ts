@@ -50,40 +50,40 @@ describe("storage page run fences", () => {
     );
     expect(tagged.length).toBeGreaterThan(0);
     expect(checkFences(tagged)).toEqual([]);
-  }, 30_000);
+  });
 
   it("a later system reads 7 from a chunk write in the same frame", async () => {
     const file = "docs/essentials/systems.md";
     const marker = "assert.equal(readBack, 7)";
     await runMarked(file, marker);
     expect(asserted(file, "readBack")).toBe("7");
-  }, 30_000);
+  });
 
   it("a destroy inside a chunk loop is alive during the loop and dead after it", async () => {
     const file = "docs/essentials/components.md";
     await runMarked(file, "assert.equal(aliveDuring, true)");
     expect(asserted(file, "aliveDuring")).toBe("true");
     expect(asserted(file, "engine.isAlive(id)")).toBe("false");
-  }, 30_000);
+  });
 
   it("engine.memory.epoch is 0 on the light engine", async () => {
     const file = "docs/essentials/architecture.md";
     const marker = "assert.equal(engine.memory.epoch, 0)";
     await runMarked(file, marker);
     expect(asserted(file, "engine.memory.epoch")).toBe("0");
-  }, 30_000);
+  });
 
   it("an actor useComponent reads the prefab value 40", async () => {
     const file = "docs/essentials/actors.md";
     const marker = "assert.equal(seen, 40)";
     await runMarked(file, marker);
     expect(asserted(file, "seen")).toBe("40");
-  }, 30_000);
+  });
 
   it("a chunk column write is visible to getComponent as 7", async () => {
     const file = "CLAUDE.md";
     const marker = "assert.equal(engine.getComponent(id, Position)?.x, 7)";
     await runMarked(file, marker);
     expect(asserted(file, "engine.getComponent(id, Position)?.x")).toBe("7");
-  }, 30_000);
+  });
 });
