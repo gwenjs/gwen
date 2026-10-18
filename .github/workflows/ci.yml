@@ -209,12 +209,20 @@ jobs:
         run: |
           set -euo pipefail
           for dir in packages/*; do
+            private=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).private === true' "$dir/package.json")
+            if [ "$private" = "true" ]; then
+              continue
+            fi
             pnpm exec publint run --strict "$dir"
           done
       - name: attw
         run: |
           set -euo pipefail
           for dir in packages/*; do
+            private=$(node -p 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).private === true' "$dir/package.json")
+            if [ "$private" = "true" ]; then
+              continue
+            fi
             pnpm exec attw --pack --profile esm-only "$dir"
           done
       - name: Public type snapshots
