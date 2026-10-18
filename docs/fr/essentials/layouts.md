@@ -77,6 +77,59 @@ export const GameLayout = defineLayout(() => {
 })
 ```
 
+## Spawn progressif avec `chunkSize`
+
+Par défaut, `load()` spawne toutes les entités placées en une seule passe. Un layout avec beaucoup d'entités peut ralentir cette frame. Passez `chunkSize` pour répartir le spawn sur plusieurs frames :
+
+```ts
+const Tiles = defineLayout(() => ({
+  a: placeGroup({ at: [0, 0] }),
+  b: placeGroup({ at: [1, 0] }),
+  c: placeGroup({ at: [2, 0] }),
+  d: placeGroup({ at: [3, 0] }),
+  e: placeGroup({ at: [4, 0] }),
+}))
+
+const layout = useLayout(Tiles, { lazy: true, chunkSize: 2 })
+const loading = layout.load()
+
+await engine.advance(1 / 60) // deux entités vivantes
+await engine.advance(1 / 60) // quatre entités vivantes
+await engine.advance(1 / 60) // les cinq entités sont vivantes
+await loading                // load() est résolu
+```
+
+Cinq entités avec `chunkSize: 2` demandent trois frames : deux, puis deux, puis une. En général, un layout de `m` entités se charge en `ceil(m / chunkSize)` frames.
+
+Fonctionnement :
+
+- `chunkSize` doit être un entier strictement positif. Sinon `useLayout()` lève une `GwenComposableError` de code `COMPOSABLE:INVALID_CHUNK_SIZE`, et le message nomme la valeur.
+- La factory s'exécute une seule fois, à l'appel de `load()`. Chaque appel à `placeActor`, `placePrefab` ou `placeGroup` enregistre seulement son spawn.
+- Les spawns enregistrés s'exécutent dans l'ordre des appels, au plus `chunkSize` par frame, dans la phase `engine:before-update`. Le moteur doit avancer pour que le chargement se termine.
+- `load()` est résolu quand la dernière entité est vivante. Jusque-là, `layout.refs` vaut `{}` et `layout.active` vaut `false`.
+- Un second `load()` pendant le chargement retourne la même promesse. Il ne spawne pas deux fois.
+- Sans `chunkSize`, rien ne change : une seule passe, même ordre des entités.
+
+### Les handles dans la factory
+
+Pendant que la factory s'exécute, aucune entité n'existe encore. Lire `entityId`, `api`, `moveTo` ou `despawn` sur un handle à cet endroit lève une `GwenComposableError` de code `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`.
+
+Vous pouvez quand même passer un handle en `parent`. Le parent est lu au moment où l'enfant spawne, et les spawns suivent l'ordre des appels. Placez le parent en premier :
+
+```ts
+const GridLayout = defineLayout(() => {
+  const grid = placeGroup({ at: [0, 0] })
+  const tile = placeGroup({ at: [8, 8], parent: grid }) // grid spawne en premier
+  return { grid, tile }
+})
+```
+
+Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même erreur et `load()` est rejeté. Les entités déjà spawnées sont détruites.
+
+### Disposer pendant le chargement
+
+`dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. La promesse de `load()` en attente est résolue, et `layout.active` reste `false`.
+
 ## Layouts et cycle de vie des scènes
 
 La factory `defineScene` s'exécute **une seule fois au bootstrap** — pas à chaque navigation. `useLayout` appelé dans la factory crée le handle et le capture dans une closure, mais ne charge pas encore le layout. `onEnter` et `onExit` s'exécutent à chaque navigation et c'est là que vous chargez et disposez :
@@ -113,10 +166,10 @@ API `LayoutHandle` :
 
 | | |
 |---|---|
-| `layout.load()` | Activer — spawne tous les acteurs placés. Retourne `Promise<void>` |
+| `layout.load()` | Activer — spawne tous les acteurs placés. Retourne `Promise<void>`, résolu quand toutes les entités sont vivantes |
 | `layout.dispose()` | Désactiver — despawne tous les acteurs placés. Retourne `Promise<void>` |
 | `layout.active` | `true` si le layout est chargé |
-| `layout.refs` | Record typé de valeurs `PlaceHandle` |
+| `layout.refs` | Record typé de valeurs `PlaceHandle`. `{}` jusqu'à la résolution de `load()` |
 
 ## Exemple complet — HUD de jeu
 
@@ -179,7 +232,7 @@ layout.refs.hud.api.setScore(newScore)
 | `placeActor(def, options?)` | Placer un acteur — retourne `PlaceHandle<API>` |
 | `placeGroup(options?)` | Créer une entité d'ancrage transform uniquement — retourne `PlaceHandle<void>` |
 | `placePrefab(def, options?)` | Placer une entité prefab — retourne `PlaceHandle<void>` |
-| `useLayout(def, options?)` | Obtenir le handle de contrôle du layout (`{ lazy }` pour différer le chargement) |
+| `useLayout(def, options?)` | Obtenir le handle de contrôle du layout (`{ lazy }` pour différer le chargement, `{ chunkSize }` pour spawner progressivement) |
 | `layout.load()` | Activer le layout (`Promise<void>`) |
 | `layout.dispose()` | Désactiver le layout (`Promise<void>`) |
 | `layout.active` | `true` si le layout est chargé |

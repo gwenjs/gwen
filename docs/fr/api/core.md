@@ -669,40 +669,65 @@ const BulletPrefab = definePrefab([
 
 ## Interface utilisateur et mise en page
 
-### defineLayout(name, setup)
+### defineLayout(factory)
 
 **Signature:**
 ```ts
-function defineLayout(name: string, setup: (ctx: LayoutContext) => void): LayoutDef
+function defineLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
+  factory: () => Refs,
+): LayoutDefinition<Refs>
 ```
 
-**Description.** Définit une couche d'interface utilisateur persistante qui superpose le jeu.
+**Description.** Déclare un layout : une factory qui place des entités avec `placeActor`, `placePrefab` et `placeGroup` et retourne des handles nommés. La factory s'exécute à l'appel de `useLayout().load()`, pas avant.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom de mise en page unique |
-| setup | `function` | Fonction de setup pour l'initialisation de l'interface utilisateur |
+| factory | `() => Refs` | Fonction synchrone qui place des entités et retourne leurs handles |
 
-**Retourne:** `LayoutDef`
+**Retourne:** `LayoutDefinition<Refs>`
 
 **Exemple:**
 ```ts
-const HUD = defineLayout('HUD', (setup) => {
-  // Initialiser les éléments UI
+const HUD = defineLayout(() => {
+  const hud = placeActor(HUDActor, { at: [0, 0] });
+  return { hud };
 });
 ```
 
-### useLayout()
+### useLayout(layoutDef, options?)
 
 **Signature:**
 ```ts
-function useLayout(): Layout
+function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
+  layoutDef: LayoutDefinition<Refs>,
+  options?: UseLayoutOptions,
+): LayoutHandle<Refs>
 ```
 
-**Description.** Retourne le contexte de mise en page courant. À utiliser pour ajouter/retirer des éléments d'interface utilisateur.
+**Description.** Retourne un handle qui charge et libère une instance d'un layout. À appeler dans un contexte moteur actif. Sans `lazy: true`, le chargement démarre aussitôt.
 
-**Retourne:** `Layout`
+**Paramètres:**
+| Paramètre | Type | Description |
+|---|---|---|
+| layoutDef | `LayoutDefinition<Refs>` | Layout produit par `defineLayout()` |
+| options.lazy | `boolean` | Différer le chargement jusqu'à l'appel de `load()`. Défaut `false` |
+| options.chunkSize | `number` | Spawner au plus ce nombre d'entités par frame. Entier strictement positif. Défaut : tout spawner en une passe |
+
+**Retourne:** `LayoutHandle<Refs>` avec `load()`, `dispose()`, `refs` et `active`.
+
+**Lève une exception:** `GwenComposableError` de code `COMPOSABLE:INVALID_CHUNK_SIZE` si `chunkSize` n'est pas un entier strictement positif. Le message nomme la valeur.
+
+**Comportement de `chunkSize`.** La factory s'exécute une seule fois. Chaque appel `place*` enregistre son spawn. `load()` spawne les entités enregistrées dans l'ordre des appels, au plus `chunkSize` par frame, sur `engine:before-update`. Il est résolu quand la dernière est vivante, après `ceil(m / chunkSize)` frames pour `m` entités. `refs` vaut `{}` jusque-là. Lire `entityId`, `api`, `moveTo` ou `despawn` sur un handle dans la factory lève `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`. Un handle passé en `parent` est lu au moment du spawn : placez le parent en premier. Un second `load()` pendant le chargement retourne la même promesse. `dispose()` pendant le chargement arrête les spawns, détruit ce qui existe, et résout le `load()` en attente avec `active` toujours à `false`. Si un spawn lève une erreur, `load()` est rejeté et les entités déjà spawnées sont détruites. Voir [Layouts](/fr/essentials/layouts#spawn-progressif-avec-chunksize).
+
+**Exemple:**
+```ts
+const world = useLayout(TownLayout, { lazy: true, chunkSize: 2 });
+const loading = world.load();
+await engine.advance(1 / 60); // deux entités vivantes
+await engine.advance(1 / 60); // ...
+await loading;                // toutes les entités sont vivantes
+```
 
 ### useEntityId()
 

@@ -77,6 +77,80 @@ export const GameLayout = defineLayout(() => {
 })
 ```
 
+## Progressive spawn with `chunkSize`
+
+By default `load()` spawns every placed entity in one pass. A layout with many entities can make that frame slow. Pass `chunkSize` to spread the spawn over several frames:
+
+```ts run
+import assert from "node:assert/strict";
+import { defineLayout, placeGroup, useLayout } from "@gwenjs/core/actor";
+
+const Tiles = defineLayout(() => ({
+  a: placeGroup({ at: [0, 0] }),
+  b: placeGroup({ at: [1, 0] }),
+  c: placeGroup({ at: [2, 0] }),
+  d: placeGroup({ at: [3, 0] }),
+  e: placeGroup({ at: [4, 0] }),
+}));
+
+const alive = () => engine.getStats().entityCount;
+const base = alive();
+const layout = await engine.run(() => useLayout(Tiles, { lazy: true, chunkSize: 2 }));
+
+let loaded = false;
+const loading = layout.load().then(() => {
+  loaded = true;
+});
+assert.equal(alive() - base, 0);
+assert.deepEqual(layout.refs, {});
+
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 2);
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 4);
+await Promise.resolve();
+assert.equal(loaded, false);
+
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 5);
+await loading;
+assert.equal(loaded, true);
+assert.deepEqual(Object.keys(layout.refs), ["a", "b", "c", "d", "e"]);
+
+await layout.dispose();
+```
+
+Five entities with `chunkSize: 2` take three frames: two, then two, then one. In general a layout of `m` entities loads in `ceil(m / chunkSize)` frames.
+
+How it works:
+
+- `chunkSize` must be a positive integer. Otherwise `useLayout()` throws a `GwenComposableError` with code `COMPOSABLE:INVALID_CHUNK_SIZE`, and the message names the value.
+- The factory runs once, when you call `load()`. Each `placeActor`, `placePrefab` and `placeGroup` call only records its spawn.
+- The recorded spawns run in call order, at most `chunkSize` per frame, in the `engine:before-update` phase. The engine must advance for the load to finish.
+- `load()` resolves when the last entity is alive. Until then `layout.refs` is `{}` and `layout.active` is `false`.
+- A second `load()` while loading returns the same promise. It does not spawn twice.
+- Without `chunkSize`, nothing changes: one pass, same entity order.
+
+### Handles inside the factory
+
+While the factory runs, no entity exists yet. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle there throws a `GwenComposableError` with code `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`.
+
+You can still pass a handle as `parent`. The parent is read when the child spawns, and spawns run in call order. Place the parent first:
+
+```ts
+const GridLayout = defineLayout(() => {
+  const grid = placeGroup({ at: [0, 0] })
+  const tile = placeGroup({ at: [8, 8], parent: grid }) // grid spawns first
+  return { grid, tile }
+})
+```
+
+If a `parent` is placed after its child, the child's spawn throws the same error and `load()` rejects. The entities already spawned are destroyed.
+
+### Disposing while loading
+
+`dispose()` during a progressive load stops the remaining spawns and destroys the entities that already exist. The pending `load()` promise resolves, and `layout.active` stays `false`.
+
 ## Layouts and Scene Lifecycle
 
 The `defineScene` factory runs **once at bootstrap** — not on every scene navigation. `useLayout` called in the factory body creates the handle and captures it in a closure, but does not load the layout yet. `onEnter` and `onExit` run on every navigation and are where you load and dispose:
@@ -113,10 +187,10 @@ Without `{ lazy: true }`, `useLayout` calls `load()` immediately during the fact
 
 | | |
 |---|---|
-| `layout.load()` | Activate — spawns all placed actors. Returns `Promise<void>` |
+| `layout.load()` | Activate — spawns all placed actors. Returns `Promise<void>`, resolved when every entity is alive |
 | `layout.dispose()` | Deactivate — despawns all placed actors. Returns `Promise<void>` |
 | `layout.active` | `true` if the layout is currently loaded |
-| `layout.refs` | Typed record of `PlaceHandle` values |
+| `layout.refs` | Typed record of `PlaceHandle` values. `{}` until `load()` resolves |
 
 ## Full Example — Game HUD
 
@@ -179,7 +253,7 @@ layout.refs.hud.api.setScore(newScore)
 | `placeActor(def, options?)` | Place an actor — returns `PlaceHandle<API>` |
 | `placeGroup(options?)` | Create a transform-only anchor entity — returns `PlaceHandle<void>` |
 | `placePrefab(def, options?)` | Place a prefab entity — returns `PlaceHandle<void>` |
-| `useLayout(def, options?)` | Get layout control handle (`{ lazy }` to defer load) |
+| `useLayout(def, options?)` | Get layout control handle (`{ lazy }` to defer load, `{ chunkSize }` to spawn progressively) |
 | `layout.load()` | Activate the layout (`Promise<void>`) |
 | `layout.dispose()` | Deactivate the layout (`Promise<void>`) |
 | `layout.active` | `true` if layout is loaded |
