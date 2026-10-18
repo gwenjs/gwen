@@ -109,13 +109,15 @@ onStart(async () => {
 })
 ```
 
-### ECS — Structure of Arrays (SoA)
+### ECS — chunk columns
 
-Decision: archetype tables with one typed array per field inside each chunk (model C).
-Status: to be implemented by #113/#65. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
+Components live in the WASM chunk store. Record: [ADR-0001](internals-docs/adr/0001-component-storage.md).
 
 A chunk is one archetype. Every component in that chunk shares the row index. Row order is
-not stable, so a field is never indexed by entity id. The only system form is:
+not stable, so a field is never indexed by entity id. `chunk.get(Def)` returns live typed
+arrays for numeric fields other than `i64` and `u64`. Strings are absent from those columns.
+`engine.getComponent` returns a snapshot. After WASM memory grows, call `chunk.get` again.
+Field views are tracked in #74.
 
 ```ts
 const query = useQuery([Position, Velocity])
@@ -123,7 +125,7 @@ onUpdate((dt) => {
   for (const chunk of query) {
     const pos = chunk.get(Position)
     const vel = chunk.get(Velocity)
-    for (let i = 0; i < chunk.count; i++) pos.x[i] += vel.vx[i] * dt
+    for (let i = 0; i < chunk.count; i++) pos.x[i] += vel.x[i] * dt
   }
 })
 ```
@@ -131,12 +133,32 @@ onUpdate((dt) => {
 `Position.x[entityId]` and `chunk.x[i]` are not APIs. `ComponentDefinition` has no field arrays.
 Identity comes from `chunk.entityId(row)`.
 
-Today the TypeScript registry is still a `Map` per component type, and the Rust columns are
-still packed rows. #113/#65 replace that. Until they land, do not write the chunk loop against
-this tree and expect it to run.
+Adding or removing a component moves the row to another chunk. A cold add writes defaults,
+then the given keys. An in-place add patches only those keys. Inside an open chunk loop,
+add, remove, and destroy wait until the loop closes. `query.each()` and `useComponentFor`
+are the per-entity path. During an update phase they log `CORE:QUERY_PER_ENTITY_PATH`.
+Deprecated: `useComponentFor` and `createLiveQuery`.
 
-Adding or removing a component will be an archetype migration: each kept column is moved once
-(#113). Do that for state changes, not inside `onUpdate`.
+```ts run
+import assert from "node:assert/strict";
+import { defineComponent, Types } from "@gwenjs/core";
+import { useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "DocsStorageClaudePos",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+const id = engine.createEntity();
+engine.addComponent(id, Position, { x: 1, y: 0 });
+const query = engine.run(() => useQuery([Position]));
+for (const chunk of query) {
+  const pos = chunk.get(Position);
+  pos.x[0] = 7;
+}
+assert.equal(engine.getComponent(id, Position)?.x, 7);
+```
 
 Systems query matching entities (`useQuery`). Actors own one entity. A prefab is a component
 template; an actor wraps a prefab with lifecycle hooks and a public API. Entity IDs are `bigint`.

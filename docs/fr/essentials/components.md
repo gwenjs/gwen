@@ -38,14 +38,6 @@ export const Health = defineComponent({
 })
 ```
 
-Chaque champ est stocké sous forme de tableau typé contigu en mémoire WASM. Les entités servent d'index :
-
-```ts
-// Dans un système — entity.id est un bigint
-Position.x[entity.id] = 100
-Position.y[entity.id] = 200
-```
-
 `defineComponent` lève `GwenError` avec le code `CORE:COMPONENT_TYPE_LIMIT_REACHED` quand un nouveau nom dépasserait la limite. La limite est de 128 noms utilisateur distincts. La limite compte les noms distincts définis dans le processus. Définir à nouveau le même nom avec les mêmes champs est accepté (hot reload) et garde l'id de type dans chaque moteur. Les ids de type sont propres à chaque moteur : chaque moteur en attribue un la première fois qu'il voit un nom, donc deux moteurs peuvent donner des ids différents au même composant. Avec d'autres champs, un autre ordre ou d'autres types, il lève `GwenError` avec le code `CORE:INVALID_COMPONENT_SCHEMA`. La vérification a lieu à la définition et n'appelle pas WASM. Un seul layout par nom de composant dans tout le processus : deux moteurs d'une même page ne peuvent pas définir le même nom avec des champs différents, et un hot reload qui change les champs lève `CORE:INVALID_COMPONENT_SCHEMA`.
 
 ## Types disponibles
@@ -103,35 +95,6 @@ export const Health = defineComponent({
 Quand un prefab déclare ses propres `defaults`, ils remplacent les `defaults` du composant. Les deux sont remplacés par les valeurs passées à `spawn()`.
 :::
 
-## Lire les données dans un système
-
-Les systèmes itèrent sur un `LiveQuery<EntityAccessor>`. Chaque entité a un `.id` (bigint) pour l'accès direct aux tableaux SoA :
-
-```ts
-import { Position, Velocity } from './components'
-
-export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
-
-  onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
-    }
-  })
-})
-```
-
-Vous pouvez également lire un composant comme un objet simple avec `entity.get(def)` :
-
-```ts
-onUpdate(() => {
-  for (const entity of entities) {
-    const pos = entity.get(Position) // { x: number, y: number } | undefined
-  }
-})
-```
-
 ## Lire les données dans un acteur
 
 Dans une factory `defineActor`, utilisez `useComponent()` pour obtenir un proxy réactif en direct :
@@ -151,7 +114,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```
 
 ::: warning Contexte acteur uniquement
-`useComponent()` ne fonctionne que dans `defineActor`. Dans les systèmes, utilisez `entity.get(def)` ou l'accès direct aux tableaux SoA (`Component.field[entity.id]`) à la place.
+`useComponent()` ne fonctionne que dans `defineActor`.
 :::
 
 Voir [Acteurs](/fr/essentials/actors) pour la documentation complète de `useComponent`.
@@ -167,26 +130,12 @@ export * from './Velocity'
 export * from './Health'
 ```
 
-## Disposition Structure-of-Arrays
-
-GWEN stocke les composants au format **Structure-of-Arrays** (SoA) en mémoire WASM :
-
-```
-Position.x:  [10, 30, 50, ...]    ← Float32Array contigu
-Position.y:  [20, 40, 60, ...]
-Velocity.x:  [1,  2,  1,  ...]
-Health.current: [100, 80, 60, ...]
-```
-
-Quand un système itère et lit `Position.x[entity.id]`, le CPU charge plusieurs valeurs à la fois depuis un tableau contigu. C'est pourquoi l'ECS est plus rapide que le stockage d'objets par entité.
-
 ## Résumé de l'API
 
 | | |
 |---|---|
 | `defineComponent({ name, schema, defaults? })` | Déclare un type de composant |
 | `Types.f32 / f64 / i32 / i64 / u32 / u64 / bool / string` | Descripteurs de type de champ |
-| `Component.field[entity.id]` | Lire ou écrire un champ de composant (dans un système) |
 | `useComponent(def)` | Proxy réactif de composant dans `defineActor` |
 
 ## Étapes suivantes

@@ -20,20 +20,33 @@ import { useHook, emit } from '@gwenjs/core'  // event system
 
 The `defineSystem` factory body runs **once** when the system is installed — this is the *setup phase*. Frame callbacks (`onUpdate`, etc.) run every frame — this is the *runtime phase*.
 
-```ts
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+const Velocity = defineComponent({
+  name: "Velocity",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
 export const MovementSystem = defineSystem(() => {
+  const query = useQuery([Position, Velocity]);
 
-  // ── Setup phase (once at install) ──────────────────────────────
-  const entities = useQuery([Position, Velocity])  // live query, updates automatically
-  const audio    = useService('audio')             // resolved once
-
-  // ── Runtime phase (every frame) ────────────────────────────────
   onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
 `defineSystem()` returns a **factory function** — call it to produce a plugin, then pass that to `useSystem()` inside a scene:
@@ -45,59 +58,89 @@ useSystem(MovementSystem())
 
 ## Querying Entities
 
-Use `useQuery()` to get a live collection of entities that have a specific set of components. The query updates automatically as entities are spawned and despawned.
+`useQuery()` returns a `Query` of the entities that have every listed component. The rows change as entities gain or lose those components.
 
-```ts
-import { Position, Velocity } from './components'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+const Velocity = defineComponent({
+  name: "Velocity",
+  schema: { x: Types.f32, y: Types.f32 },
+});
 
 export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
-`entity.id` is a `bigint` used to index the component's typed arrays directly. For reading a component as a plain object, use `entity.get(def)`:
+`chunk.entityId(row)` is the `bigint` id of that row. `query.each()` and `entity.get(Def)` are the per-entity path. `entity.get` returns a snapshot.
 
-```ts
-onUpdate(() => {
-  for (const entity of entities) {
-    const pos = entity.get(Position) // { x: number, y: number } | undefined
-  }
-})
+A write in one system's chunk loop is visible to a later system in the same frame:
+
+```ts run
+import assert from "node:assert/strict";
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "DocsStorageSystemsPos",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+const id = engine.createEntity();
+engine.addComponent(id, Position, { x: 1, y: 0 });
+
+await engine.use(
+  defineSystem("docs-storage-writer", () => {
+    const query = useQuery([Position]);
+    onUpdate(() => {
+      for (const chunk of query) {
+        const pos = chunk.get(Position);
+        for (let row = 0; row < chunk.count; row += 1) pos.x[row] = 7;
+      }
+    });
+  })(),
+);
+
+let readBack = 0;
+await engine.use(
+  defineSystem("docs-storage-reader", () => {
+    const query = useQuery([Position]);
+    onUpdate(() => {
+      for (const chunk of query) {
+        const pos = chunk.get(Position);
+        readBack = pos.x[0] ?? 0;
+      }
+    });
+  })(),
+);
+
+await engine.startExternal();
+await engine.advance(0.016);
+assert.equal(readBack, 7);
 ```
 
-## Reading and Writing a Single Component
+## Reading one entity
 
-`useComponentFor(entityId, Def)` returns a mutable proxy for a specific entity's component. Reading a field fetches from ECS storage; writing a field calls `addComponent` to persist the change. Use `$set({ ... })` to batch multiple fields in a single write.
-
-```ts
-export const InputSystem = defineSystem(() => {
-  const players = useQuery([Position, Velocity, PlayerTag])
-
-  onUpdate((dt) => {
-    for (const entity of players) {
-      const pos = useComponentFor(entity.id, Position)
-      const vel = useComponentFor(entity.id, Velocity)
-
-      vel.vx = kb.isPressed(Keys.Left) ? -200 : kb.isPressed(Keys.Right) ? 200 : 0
-      pos.x = Math.max(0, Math.min(800, pos.x + vel.vx * dt))
-
-      // Batch write — one ECS call for both fields:
-      pos.$set({ x: pos.x + vel.vx * dt, y: pos.y + vel.vy * dt })
-    }
-  })
-})
-```
-
-::: tip Optimizer
-`useComponentFor` inside a `for...of` query loop is detected by the GWEN Vite optimizer and rewritten to bulk WASM calls automatically. Write clear code — the optimizer handles the performance.
-:::
+The chunk loop is the default. `query.each()` and `useComponentFor` read one entity. During an update phase they log code `CORE:QUERY_PER_ENTITY_PATH`. Deprecated: `useComponentFor` and `createLiveQuery`.
 
 ## Frame Phases
 
@@ -244,10 +287,10 @@ If a scene overlay (e.g. a pause menu) freezes the underlying scene, systems are
 | | |
 |---|---|
 | `defineSystem(factory)` | Declare a system |
-| `useQuery([...defs])` | Live entity collection matching given components |
-| `entity.id` | Entity ID (`bigint`) for SoA array access |
-| `entity.get(def)` | Read component as plain object |
-| `useComponentFor(id, Def)` | Mutable proxy for a single entity's component; `.field` reads, `.field = v` writes, `.$set({...})` batches |
+| `useQuery([...defs])` | Chunk query for entities that have every component |
+| `chunk.get(Def).field[row]` | Live column for one row |
+| `chunk.entityId(row)` | Entity id (`bigint`) at that row |
+| `entity.get(def)` | Per-entity snapshot from `query.each()` |
 | `onBeforeUpdate(fn)` | Before-update frame callback |
 | `onUpdate(fn)` | Main update frame callback |
 | `onAfterUpdate(fn)` | After-update frame callback |

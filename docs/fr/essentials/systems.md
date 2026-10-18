@@ -20,22 +20,6 @@ import { useHook, emit } from '@gwenjs/core'  // système d'événements
 
 Le corps de la factory de `defineSystem` s'exécute **une seule fois** à l'installation du système — c'est la *phase de setup*. Les callbacks de frame (`onUpdate`, etc.) s'exécutent à chaque frame — c'est la *phase d'exécution*.
 
-```ts
-export const MovementSystem = defineSystem(() => {
-
-  // ── Phase de setup (une fois à l'installation) ──────────────────
-  const entities = useQuery([Position, Velocity])  // requête live, mise à jour automatique
-  const audio    = useService('audio')             // résolu une seule fois
-
-  // ── Phase d'exécution (chaque frame) ────────────────────────────
-  onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-    }
-  })
-})
-```
-
 `defineSystem()` retourne une **fonction factory** — appelez-la pour produire un plugin, puis passez-le à `useSystem()` dans une scène :
 
 ```ts
@@ -46,58 +30,6 @@ useSystem(MovementSystem())
 ## Interroger des entités
 
 Utilisez `useQuery()` pour obtenir une collection live d'entités ayant un ensemble spécifique de composants. La requête se met à jour automatiquement lorsque des entités sont créées ou détruites.
-
-```ts
-import { Position, Velocity } from './components'
-
-export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
-
-  onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
-    }
-  })
-})
-```
-
-`entity.id` est un `bigint` utilisé pour indexer directement les tableaux typés du composant. Pour lire un composant comme un objet simple, utilisez `entity.get(def)` :
-
-```ts
-onUpdate(() => {
-  for (const entity of entities) {
-    const pos = entity.get(Position) // { x: number, y: number } | undefined
-  }
-})
-```
-
-## Lire et écrire un composant individuel
-
-`useComponentFor(entityId, Def)` retourne un proxy mutable pour le composant d'une entité spécifique. Lire un champ lit depuis le stockage ECS ; écrire un champ appelle `addComponent` pour persister le changement. Utilisez `$set({ ... })` pour grouper plusieurs champs en une seule écriture.
-
-```ts
-export const InputSystem = defineSystem(() => {
-  const players = useQuery([Position, Velocity, PlayerTag])
-
-  onUpdate((dt) => {
-    for (const entity of players) {
-      const pos = useComponentFor(entity.id, Position)
-      const vel = useComponentFor(entity.id, Velocity)
-
-      vel.vx = kb.isPressed(Keys.Left) ? -200 : kb.isPressed(Keys.Right) ? 200 : 0
-      pos.x = Math.max(0, Math.min(800, pos.x + vel.vx * dt))
-
-      // Écriture groupée — un seul appel ECS pour les deux champs :
-      pos.$set({ x: pos.x + vel.vx * dt, y: pos.y + vel.vy * dt })
-    }
-  })
-})
-```
-
-::: tip Optimizer
-`useComponentFor` dans une boucle `for...of` sur un query est détecté par l'optimizer Vite de GWEN et réécrit automatiquement en appels WASM groupés. Écrivez du code clair — l'optimizer gère la performance.
-:::
 
 ## Phases de frame
 
@@ -245,9 +177,7 @@ Si une superposition de scène (ex : un menu pause) fige la scène sous-jacente,
 |---|---|
 | `defineSystem(factory)` | Déclare un système |
 | `useQuery([...defs])` | Collection live d'entités correspondant aux composants donnés |
-| `entity.id` | ID d'entité (`bigint`) pour l'accès aux tableaux SoA |
 | `entity.get(def)` | Lire un composant comme un objet simple |
-| `useComponentFor(id, Def)` | Proxy mutable pour le composant d'une entité ; `.field` lit, `.field = v` écrit, `.$set({...})` groupe |
 | `onBeforeUpdate(fn)` | Callback de frame avant la mise à jour |
 | `onUpdate(fn)` | Callback de frame de mise à jour principale |
 | `onAfterUpdate(fn)` | Callback de frame après la mise à jour |
