@@ -19,7 +19,9 @@ function readEntries(): CiBench[] {
   return parsed.filter((entry): entry is CiBench => {
     if (typeof entry !== "object" || entry === null) return false;
     const row = entry as Record<string, unknown>;
-    return typeof row.file === "string" && typeof row.job === "string" && typeof row.step === "string";
+    return (
+      typeof row.file === "string" && typeof row.job === "string" && typeof row.step === "string"
+    );
   });
 }
 

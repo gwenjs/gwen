@@ -151,15 +151,17 @@ onEnter(() => {
 Add `onRelease` and `onReset` alongside your existing lifecycle hooks:
 
 ```ts
-import { defineActor, onStart, onUpdate, onDestroy, onRelease, onReset } from '@gwenjs/core/actor'
+import { defineActor, onStart, onUpdate, onDestroy, onRelease, onReset, useComponent } from '@gwenjs/core/actor'
 
 export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
   const id = useEntityId()
+  const position = useComponent(Position)
+  const velocity = useComponent(Velocity)
 
   onStart(() => {
     // Called once on first spawn — set up initial state
-    Position.x[id] = props.x
-    Velocity.vx[id] = props.speed * Math.cos(props.direction)
+    position.x = props.x
+    velocity.vx = props.speed * Math.cos(props.direction)
   })
 
   onRelease(() => {
@@ -172,8 +174,8 @@ export const BulletActor = defineActor(BulletPrefab, (props: BulletProps) => {
     // Called on every reuse — reset to new props.
     // Component defaults, then prefab defaults, are already written into the existing components.
     // A prefab component removed during the previous life is not re-added.
-    Position.x[id] = newProps.x
-    Velocity.vx[id] = newProps.speed * Math.cos(newProps.direction)
+    position.x = newProps.x
+    velocity.vx = newProps.speed * Math.cos(newProps.direction)
     physics.addBody(id, { ... })
   })
 
@@ -199,9 +201,10 @@ from inside an `onUpdate` callback:
 ```ts
 export const BulletActor = defineActor(BulletPrefab, (props: { pool: ActorPool<BulletProps, void> }) => {
   const id = useEntityId()
+  const position = useComponent(Position)
 
   onUpdate(() => {
-    if (Position.y[id] < 0) {
+    if (position.y < 0) {
       props.pool.release(id)
     }
   })
@@ -218,14 +221,15 @@ Use `onRelease` and `onReset` to manage it:
 export const EnemyActor = defineActor(EnemyPrefab, () => {
   const physics = usePhysics2D()
   const id = useEntityId()
+  const position = useComponent(Position)
 
   onRelease(() => {
     physics.removeBody(id)  // remove from physics world
   })
 
   onReset((props: EnemyProps) => {
-    Position.x[id] = props.x
-    Position.y[id] = props.y
+    position.x = props.x
+    position.y = props.y
     physics.addBody(id, { type: 'dynamic' })  // re-enter physics world
   })
 })
@@ -320,9 +324,7 @@ lower than `size`, shrink it. Frequent `pool:warn` events that don't resolve sug
 Entities are allocated on demand — the first `size` calls to `acquire()` each create a new
 entity. Subsequent calls reuse dormant slots. This means:
 
-- No startup cost: nothing is allocated until `acquire()` is called.
 - First N spawns have full allocation cost (factory + ECS entity creation).
-- All subsequent spawns after the pool is warmed up are near-zero cost.
 
 If your game spawns a large burst of actors at the very start of a level, consider a manual
 warm-up via a quick loop in `onEnter`:

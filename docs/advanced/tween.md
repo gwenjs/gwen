@@ -189,28 +189,23 @@ Enemies scale from 0 to 1 over 0.2 seconds when spawned:
 
 ```ts
 import { usePrefab } from '@gwenjs/core/actor'
-import { useTween } from '@gwenjs/core'
+import { useEngine, useTween } from '@gwenjs/core'
 import { defineSystem, onUpdate } from '@gwenjs/core/system'
-import { Position, Scale } from './components'
+import { Scale } from './components'
 import { EnemyPrefab } from './prefabs'
 
 export const EnemySpawnSystem = defineSystem(() => {
+  const engine = useEngine()
   const scale = useTween<number>({ duration: 0.2, easing: 'easeOut' })
   const enemies = usePrefab(EnemyPrefab)
 
   onUpdate(() => {
     if (shouldSpawns) {
       const id = enemies.spawn({ x: 100, y: 100 })
-      Scale.x[id] = 0
-      Scale.y[id] = 0
-      
       if (!scale.playing) {
         scale.play({ from: 0, to: 1 })
       }
-      
-      // Update scale each frame
-      Scale.x[id] = scale.value
-      Scale.y[id] = scale.value
+      engine.addComponent(id, Scale, { x: scale.value, y: scale.value })
     }
   })
 })
@@ -239,18 +234,9 @@ export const DialogSystem = defineSystem(() => {
 
 ## Deep Dive
 
-### Tween Pool
+### Tween pool
 
-The engine manages tweens in a pool to avoid allocation pressure. Each tween occupies a slot, and the slot is reused when the tween completes. If you create tweens dynamically (e.g., one per enemy), the pool ensures no allocations happen during gameplay.
-
-### Performance
-
-Tweens are extremely efficient:
-- Each frame, only the current time is advanced.
-- Easing functions are lightweight math operations.
-- Interpolation happens client-side; no network traffic.
-
-With hundreds of concurrent tweens, performance remains smooth.
+A tween occupies a slot. When it finishes, the slot can be reused. The default exhaustion policy is `grow`, which allocates more slots when every slot is already claimed.
 
 ### Cancellation
 

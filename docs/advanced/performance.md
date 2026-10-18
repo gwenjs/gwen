@@ -1,69 +1,60 @@
 ---
 title: Performance Patterns
-description: Three critical patterns for writing performant GWEN games — hybrid actor/system architecture, shared code, and the build-time ECS optimizer.
+description: Chunk loops for bulk work, shared functions, and the optimizer the framework installs.
 ---
 
 # Performance Patterns
 
-GWEN is designed so that **idiomatic code is fast code**. The build-time Vite optimizer and the
-ECS architecture handle the heavy lifting. But three patterns determine whether your game scales
-or stalls at 100+ entities.
+Use an actor for one named object. Use a system chunk loop when the same logic applies to many entities. The framework owns the Vite config and installs the optimizer.
 
-## 1. Hybrid Actor / System Architecture
+## 1. Hybrid actor / system architecture
 
 ### The trap
 
-Coming from React or Vue, the instinct is to put all logic inside actors — they look like
-`<script setup>` and feel natural. For unique objects (player, boss, HUD) that is the right
-call. For bulk entities it is not.
+An actor `onUpdate` runs once per instance. Many actors means many callbacks.
 
 ```ts
-// ❌ 500 enemies — 500 separate onUpdate callbacks, no ECS gain
 export const EnemyActor = defineActor(EnemyPrefab, () => {
   const transform = useTransform()
 
   onUpdate((dt) => {
-    transform.x += 100 * dt   // one callback per entity, cache-unfriendly
+    transform.x += speed * dt
   })
 })
 ```
 
-Each actor runs its own `onUpdate`. Five hundred enemies means five hundred independent
-callbacks — the engine cannot batch them, and cache locality is lost.
-
 ### The pattern
 
-Use actors for **identity** (spawn, configuration, public API). Use systems for **bulk logic**
-(movement, AI sweeps, collision response).
+The actor owns the entity and the public API. `useComponent(def)` takes the component definition and is called in the actor factory. The system walks chunks.
 
 ```ts
-// ✅ Actor — owns the entity and exposes the API
 export const EnemyActor = defineActor(EnemyPrefab, () => {
-  const speed = useComponent(self.id, Enemy)
+  const enemy = useComponent(Enemy)
 
   return {
-    setSpeed(v: number) { speed.value = v },
+    setSpeed(v: number) { enemy.speed = v },
   }
 })
 
-// ✅ System — processes all enemies in one pass
 export const EnemyMovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Enemy])
+  const query = useQuery([Position, Enemy])
 
   onUpdate((dt) => {
-    for (const entity of entities.each()) {
-      const pos = useComponent(entity.id, Position)
-      const enemy = useComponent(entity.id, Enemy)
-      pos.x += enemy.speed * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position)
+      const enemy = chunk.get(Enemy)
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (enemy.speed[row] ?? 0) * dt
+      }
     }
   })
 })
 ```
 
-| Use actor when | Use system when |
+| Use an actor when | Use a system when |
 |---|---|
 | One unique object (player, camera, HUD) | Many identical objects (enemies, bullets, particles) |
-| You need a named public API | You need a single pass over N entities |
+| You need a named public API | You need one pass over the entities |
 | State is instance-specific | Logic is the same for every entity |
 
 ### Wiring them in a scene
@@ -74,198 +65,138 @@ export const GameScene = defineScene('game', () => {
 
   const enemies = useActor(EnemyActor)
   onEnter(() => {
-    for (let i = 0; i < 500; i++) enemies.spawn()
+    enemies.spawn()
   })
 })
 ```
 
-The system iterates all entities in one contiguous pass. Actors spawn/despawn them. Neither
-knows about the other.
+The system walks the entities. The actor spawns them.
 
----
+## 2. Shared code between a system and an actor
 
-## 2. Shared Code Between System and Actor
-
-### The trap
-
-A system processes entities in bulk; an actor owns one. When both need the same logic (e.g.
-computing a damage value), the reflex is to duplicate the code or reach for a class hierarchy.
-
-### Pattern A — Pure functions
-
-Extract the logic into a plain function with no ECS dependency. Both the actor and the system
-call it.
+### Pattern A — pure functions
 
 ```ts
-// shared/damage.ts — no ECS, no composables, just data in data out
 export function computeDamage(base: number, multiplier: number, armor: number): number {
   return Math.max(0, base * multiplier - armor)
 }
 
-// In system — bulk pass
 onUpdate(() => {
-  for (const entity of entities.each()) {
-    const stats = useComponent(entity.id, Stats)
-    stats.hp -= computeDamage(stats.attack, 1.2, stats.armor)
+  for (const chunk of query) {
+    const stats = chunk.get(Stats)
+    for (let row = 0; row < chunk.count; row += 1) {
+      const next = computeDamage(stats.attack[row] ?? 0, 1.2, stats.armor[row] ?? 0)
+      stats.hp[row] = (stats.hp[row] ?? 0) - next
+    }
   }
 })
 
-// In actor — single entity
 const damage = computeDamage(myStats.attack, comboMultiplier, targetArmor)
 ```
 
-Pure functions are cache-friendly, trivially testable, and have zero GWEN dependency.
+### Pattern B — `useService`
 
-### Pattern B — Shared service via `useService`
-
-When the shared state is runtime (not pure computation), register it as a service in a plugin
-and consume it from both sides.
+Call `useService` in the factory. It returns the value registered with `engine.provide`.
 
 ```ts
-// Plugin registers the service
 definePlugin({
   setup(engine) {
-    const scoreBoard = createScoreBoard()
-    engine.provide('scoreBoard', scoreBoard)
+    engine.provide('scoreBoard', createScoreBoard())
   }
 })
 
-// System reads it
 export const ScoreSystem = defineSystem(() => {
   const board = useService('scoreBoard')
-  onUpdate(() => { /* update board from entity data */ })
+  onUpdate(() => { /* read entity columns, then update board */ })
 })
 
-// Actor reads it too
 export const HUDActor = defineActor(HUDPrefab, () => {
   const board = useService('scoreBoard')
   onUpdate(() => { renderScore(board.total) })
 })
 ```
 
-`useService` resolves once at setup time — zero overhead in `onUpdate`.
+## 3. The chunk loop
 
----
+`useQuery` returns a `Query`. `for (const chunk of query)` yields one archetype at a time. `chunk.get(Def)` returns the live columns for that chunk. The index is the row, not the entity id. `Types.string`, `Types.i64`, and `Types.u64` are absent from those columns.
 
-## 3. Build-Time ECS Optimizer
+Adding a component that is not already on the entity writes the defaults, then the keys you pass. Adding it again patches only those keys. Removing it drops that component's row. Inside an open chunk loop, add, remove, and destroy wait until the loop closes.
 
-### How it works
+`query.each()` is the per-entity path. During an update phase it logs `CORE:QUERY_PER_ENTITY_PATH`.
 
-GWEN's Vite plugin scans your systems at build time and transforms the ergonomic
-`useComponent` proxy pattern into bulk WASM calls — automatically, without any change to
-your code.
+A write in one system's chunk loop is visible to a later system in the same frame:
 
-The samples in this section are the shape the optimizer still matches.
-A `useQuery` loop that runs uses `each()` or a chunk. The optimizer update is a separate change.
+```ts run
+import assert from "node:assert/strict";
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
 
-**You write:**
+const Position = defineComponent({
+  name: "DocsPerfChunkPos",
+  schema: { x: Types.f32 },
+  defaults: { x: 0 },
+});
 
-```ts
-export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+const id = engine.createEntity();
+engine.addComponent(id, Position, { x: 1 });
 
-  onUpdate((dt) => {
-    for (const entity of entities) {
-      const pos = useComponent(entity.id, Position)
-      const vel = useComponent(entity.id, Velocity)
-      pos.x += vel.x * dt
-      pos.y += vel.y * dt
-    }
-  })
-})
+await engine.use(
+  defineSystem("docs-perf-writer", () => {
+    const query = useQuery([Position]);
+    onUpdate(() => {
+      for (const chunk of query) {
+        const pos = chunk.get(Position);
+        for (let row = 0; row < chunk.count; row += 1) pos.x[row] = 11;
+      }
+    });
+  })(),
+);
+
+let readBack = 0;
+await engine.use(
+  defineSystem("docs-perf-reader", () => {
+    const query = useQuery([Position]);
+    onUpdate(() => {
+      for (const chunk of query) {
+        const pos = chunk.get(Position);
+        readBack = pos.x[0] ?? 0;
+      }
+    });
+  })(),
+);
+
+await engine.startExternal();
+await engine.advance(0.016);
+assert.equal(readBack, 11);
 ```
 
-**The optimizer produces:**
+## 4. The optimizer the framework installs
 
-```ts
-// queryReadBulk: one WASM call to load all Position + Velocity data into typed arrays
-const { entityCount: _count_position, data: _position, slots: _slots, gens: _gens } =
-  __gwen_bridge__.queryReadBulk([1, 2], 1, 2);
-const { data: _velocity } =
-  __gwen_bridge__.queryReadBulk([1, 2], 2, 2);
+A game does not ship a `vite` config file and does not call the optimizer plugin itself. `gwenVitePlugin` always installs it. The `optimizer` option maps to `mode`:
 
-for (let _i = 0; _i < _count_position; _i++) {
-  _position[_i * 2 + 0] += _velocity[_i * 2 + 0] * dt   // pos.x += vel.x * dt
-  _position[_i * 2 + 1] += _velocity[_i * 2 + 1] * dt   // pos.y += vel.y * dt
-}
-
-// queryWriteBulk: one WASM call to flush all mutations back
-__gwen_bridge__.queryWriteBulk(_slots, _gens, 1, _position);
-```
-
-N entities, 2 fields each → **2 WASM calls total** instead of N × field-count individual calls.
-The gain becomes measurable at ~100+ entities.
-
-### What the optimizer detects
-
-The optimizer recognises this exact shape inside a `defineSystem` factory:
-
-```ts
-const entities = useQuery([ComponentA, ComponentB])   // literal array of identifiers
-
-onUpdate((dt) => {
-  for (const entity of entities) {
-    const a = useComponent(entity.id, ComponentA)     // 2-arg read
-    const b = useComponent(entity.id, ComponentB)     // 2-arg read
-    a.field += b.field * dt                           // proxy mutation → write target
-  }
-})
-```
-
-Constraints — the optimizer skips a pattern when:
-
-| Constraint | Reason |
+| `optimizer` | Result |
 |---|---|
-| All component fields must be numeric (`f32`, `i32`, `u32`, …) | Bulk WASM buffers are typed arrays |
-| Only one `for-of` loop per `onUpdate` | Multi-loop systems are not yet merged |
-| All components must be in the build-time manifest | The scanner reads `defineComponent` from `src/` |
-| `useQuery` array must be a literal of identifiers | Dynamic arrays cannot be pre-computed |
+| omitted or `false` | `{ mode: "detect" }` |
+| `true` | `{ mode: "transform" }` |
+| an options object | `{ mode: "transform" }`, plus `componentsDir`, `tier`, and `debug` when set |
 
-### Enabling the optimizer
+Deprecated: `useComponentFor` is the call the optimizer matches. Write the chunk loop in section 3. Rewriting that loop is a separate change.
 
-```ts
-// vite.config.ts  (or gwen.config.ts → vite field)
-import { gwenVitePlugin, gwenOptimizerPlugin } from '@gwenjs/vite'
+## Hot path
 
-export default {
-  plugins: [
-    gwenVitePlugin(),
-    gwenOptimizerPlugin({ mode: 'transform' }),  // 'detect' to audit, 'transform' to rewrite
-  ]
-}
-```
+Inside `onUpdate`:
 
-Use `mode: 'detect'` first to see which systems are optimizable before enabling rewrites.
-
-### Hot path rules
-
-Regardless of whether the optimizer applies, follow these rules inside `onUpdate`:
-
-```ts
-onUpdate((dt) => {
-  for (const entity of entities.each()) {
-    // ✅ useComponent proxy — ergonomic and optimizable
-    const pos = useComponent(entity.id, Position)
-    pos.x += vel.x * dt
-
-    // ❌ addComponent / removeComponent — archetype change, buffer reallocation
-    // engine.addComponent(entity.id, NewTag, {})
-
-    // ❌ async — engine context is lost after await, onUpdate is synchronous
-    // await fetch('/api/state')
-
-    // ❌ new object allocations per entity — GC pressure
-    // const v = new Vec2(pos.x, pos.y)   use @gwenjs/math allocation-free helpers instead
-  }
-})
-```
+- Read and write columns in the chunk loop.
+- Do not `await`. The callback is synchronous.
+- Structural add, remove, and destroy inside an open chunk loop wait until the loop closes.
+- Do not construct an object on each row.
 
 ## Summary
 
 | Pattern | Rule |
 |---|---|
-| Many entities | System, not actor |
-| Shared pure logic | Plain function, no ECS dependency |
-| Shared runtime state | `engine.provide` / `useService` |
-| Bulk iteration | `useComponent(entity.id, Def)` proxy — optimizer handles the rest |
-| In `onUpdate` | No `addComponent`, no `async`, no `new` allocations |
+| Many entities | A system chunk loop |
+| Shared pure logic | A plain function |
+| Shared runtime state | `engine.provide` and `useService` in the factory |
+| Bulk iteration | `for (const chunk of query)` and `chunk.get(Def)` |
+| In `onUpdate` | No `await`. Structural changes in an open chunk loop wait until it closes. |
