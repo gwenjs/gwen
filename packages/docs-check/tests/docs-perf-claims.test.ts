@@ -189,7 +189,9 @@ function isOptionTable(header: string): boolean {
     .split("|")
     .map((cell) => cell.trim().toLowerCase());
   return cells.some((cell) =>
-    /^(option|options|default|defaults|type|param|parameter|field|config|configuration)$/.test(cell),
+    /^(option|options|default|defaults|type|param|parameter|field|config|configuration)$/.test(
+      cell,
+    ),
   );
 }
 

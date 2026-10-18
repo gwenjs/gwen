@@ -550,7 +550,7 @@ The offset is the export `gwen_<name>_ptr()` when the module provides it, otherw
 
 When that export exists, the engine instantiates the module twice. The first instance reads the offset. The second is the handle the game keeps. The `start` function runs on both instances. The second `start` sees the offset the first export returned. The plugin API version is checked before that offset is accepted. A probe offset that differs from the second instance is `CORE:WASM_MODULE_REGION_INVALID`.
 
-Import `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32), `gwen.max_entities`, and `gwen.abi_version`. `abi_version` returns `2_000_000` and stays constant for the life of the module. Layout is little-endian, 32 bytes per entity index:
+Import `gwen.transform_buffer_ptr`, `gwen.transform_stride` (`32`), `gwen.max_entities`, and `gwen.abi_version`. `abi_version` returns `2_000_000` and stays constant for the life of the module. Layout is little-endian, `32` bytes per entity index:
 
 | Offset | Type | Meaning |
 |---|---|---|
@@ -562,7 +562,7 @@ Import `gwen.transform_buffer_ptr`, `gwen.transform_stride` (32), `gwen.max_enti
 | 20 | u32 | bit 0 = the slot has a transform; every other bit is 0 |
 | 24 | 8 bytes | reserved, zeros |
 
-A slot with no transform is 32 zero bytes. Bytes past `maxEntities * 32` are left untouched.
+A slot with no transform is `32` zero bytes. Bytes past `maxEntities * 32` are left untouched.
 
 ### WasmRegionView
 

@@ -88,7 +88,7 @@ CoreErrorCodes.WASM_NOT_INITIALIZED // engine.start() before the bridge is activ
 
 `CORE:STORAGE_INCONSISTENT` means the component store broke an invariant a normal call cannot build (a slot pointing at a missing chunk or row, a lane that disappeared, a count above the row length, a moved entity with no slot). A dead entity, a stale generation, and an absent component are not this code. Treat it as a bug in the engine and report it. The Rust error carries a stable `site` number. A running engine moves to `faulted`.
 
-`CORE:QUERY_PER_ENTITY_PATH` is a dev-only warning on `engine.errors`. It is not thrown and it is not fatal. It fires once per engine per api (`Query.each` or `useComponentFor`) during `engine:before-update`, `engine:update`, or `engine:after-update`.
+`CORE:QUERY_PER_ENTITY_PATH` is a dev-only warning on `engine.errors`. It is not thrown and it is not fatal. It fires once per engine per api during `engine:before-update`, `engine:update`, or `engine:after-update`. Deprecated: `useComponentFor` is one api, and `Query.each` is the other.
 
 `CORE:QUERY_INVALID` has two origins and stays one code. Rust: the chunk store rejected an empty type list or an unknown handle. TypeScript: a query used after release or engine stop, a chunk used after its loop step, or `entityId(row)` outside `[0, count)`.
 
@@ -238,7 +238,7 @@ engine.errors.on((event) => {
 ### Error Levels
 
 - **`verbose`** — Extremely detailed diagnostics (only in debug builds)
-- **`info`** — Informational events (e.g., "Physics initialized with 42 bodies")
+- **`info`** — Informational events (e.g., "Physics initialized")
 - **`warning`** — Something unexpected but recoverable
 - **`error`** — A problem that needs attention
 - **`fatal`** — The engine enters `faulted` and the loop stops. `stop()` is not called. Create a new engine.

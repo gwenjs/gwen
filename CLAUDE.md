@@ -135,9 +135,9 @@ Identity comes from `chunk.entityId(row)`.
 
 Adding or removing a component moves the row to another chunk. A cold add writes defaults,
 then the given keys. An in-place add patches only those keys. Inside an open chunk loop,
-add, remove, and destroy wait until the loop closes. `query.each()` and `useComponentFor`
-are the per-entity path. During an update phase they log `CORE:QUERY_PER_ENTITY_PATH`.
-Deprecated: `useComponentFor` and `createLiveQuery`.
+add, remove, and destroy wait until the loop closes. `query.each()`
+is the per-entity path. During an update phase it logs `CORE:QUERY_PER_ENTITY_PATH`.
+Deprecated: `useComponentFor` is the other per-entity call and logs the same code. `createLiveQuery` does not log it.
 
 ```ts run
 import assert from "node:assert/strict";
@@ -268,7 +268,7 @@ src/
 | What | From |
 |---|---|
 | `createEngine` `useEngine` `defineComponent` `Types` `createLogger` `setupGwen` `useHook` `onCleanup` `emit` `defineHooks` | `@gwenjs/core` |
-| `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` `useComponentFor` | `@gwenjs/core/system` |
+| `defineSystem` `onUpdate` `onBeforeUpdate` `onAfterUpdate` `onRender` `useQuery` `useService` `useWasmModule` | `@gwenjs/core/system` |
 | `defineActor` `onStart` `onDestroy` `definePrefab` `useActor` `useComponent` `useEntityId` `usePrefab` `useTransform` `defineLayout` `useLayout` `placeActor` `placeGroup` `placePrefab` `defineActorPool` `useActorPool` | `@gwenjs/core/actor` |
 | `defineScene` `defineSceneRouter` `useSceneRouter` `useSystem` `onEnter` `onExit` | `@gwenjs/core/scene` |
 | `definePlugin` | `@gwenjs/kit/plugin` |

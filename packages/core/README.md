@@ -303,7 +303,9 @@ Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `Co
 
 ### `./system`
 
-Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useComponentFor`, `useQuery`, `useService`, `useWasmModule`
+Values: `defineSystem`, `onAfterUpdate`, `onBeforeUpdate`, `onRender`, `onUpdate`, `useQuery`, `useService`, `useWasmModule`.
+
+Deprecated: `useComponentFor`.
 
 Types: `ChunkColumns`, `ComponentDef`, `DiscoverablePlugin`, `EntityAccessor`, `LiveQuery`, `Query`, `QueryChunk`
 
