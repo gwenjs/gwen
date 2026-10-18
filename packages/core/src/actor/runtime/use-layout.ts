@@ -61,7 +61,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     if (options?.chunkSize !== undefined) {
       // eslint-disable-next-line no-console
       console.warn(
-        "[GWEN] useLayout: chunkSize is not yet implemented — all entities will be spawned at once.",
+        "[GWEN] useLayout: chunkSize does not split the spawn — all entities will be spawned at once.",
       );
     }
 

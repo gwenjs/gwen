@@ -44,7 +44,7 @@ const _noopLogger: IGwenLogger = {
 function _getLogger(): IGwenLogger {
   try {
     // Try to get logger from engine context if available
-    // For now, return noop since GwenScope (Groupe C) is not yet implemented
+    // Return the noop logger. This function does not read an engine context.
     // This will be enhanced when engine context is available
     return _noopLogger;
   } catch {

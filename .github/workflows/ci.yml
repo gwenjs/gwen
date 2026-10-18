@@ -440,10 +440,44 @@ jobs:
       - name: cargo deny
         run: cargo deny --all-features --locked check licenses advisories bans sources
 
+  docs-check:
+    name: Docs check
+    runs-on: ubuntu-latest
+    needs: [rust]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Download build-tools artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: physics3d-build-tools
+          path: packages/physics3d/build-tools/
+      - name: Download physics3d wasm/bvh artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: physics3d-wasm-bvh
+          path: packages/physics3d/wasm/bvh/
+      - name: Download physics3d-fracture wasm artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: physics3d-fracture-wasm
+          path: packages/physics3d-fracture/wasm/
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
+      - name: Check docs
+        run: pnpm docs:check
+      - name: Check doc run blocks
+        run: pnpm docs:check:wasm
+      - name: Build docs
+        run: pnpm docs:build
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny]
+    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny, docs-check]
     if: always()
     steps:
       - name: Check all jobs
@@ -460,7 +494,8 @@ jobs:
              [ "${{ needs['verify-red'].result }}" != "success" ] || \
              [ "${{ needs['rust-miri'].result }}" != "success" ] || \
              [ "${{ needs['wasm-size'].result }}" != "success" ] || \
-             [ "${{ needs['rust-deny'].result }}" != "success" ]; then
+             [ "${{ needs['rust-deny'].result }}" != "success" ] || \
+             [ "${{ needs['docs-check'].result }}" != "success" ]; then
             echo "❌ CI failed"
             exit 1
           fi

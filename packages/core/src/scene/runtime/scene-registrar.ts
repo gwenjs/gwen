@@ -29,7 +29,7 @@ export interface SceneRegistrar {
   /**
    * Register a plugin with the current scene context.
    *
-   * Idempotent — registering the same plugin object twice has no effect.
+   * Idempotent — registering the same plugin object twice changes nothing.
    * Safe to call from inside a `defineScene()` factory or during the
    * `_discover()` pass of a `defineSystem()`.
    *

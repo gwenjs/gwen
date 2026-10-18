@@ -211,7 +211,7 @@ export interface UseLayoutOptions {
    * Maximum number of entities to spawn per frame when loading.
    * Prevents frame drops for layouts with >100 entities.
    *
-   * @todo Progressive chunked spawn is not yet implemented.
+   * @todo Progressive chunked spawn still loads every entity in one pass.
    *       Passing this option emits a console.warn and loads all entities at once.
    */
   chunkSize?: number;
