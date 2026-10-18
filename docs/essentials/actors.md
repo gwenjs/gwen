@@ -364,7 +364,7 @@ export const BulletActor = defineActor(BulletPrefab, () => {
 })
 ```
 
-See [Actor Pools](/advanced/actor-pools) for the full guide.
+See [Actor Pools](/advanced/actor-pool) for the full guide.
 
 ## Async Composables
 
