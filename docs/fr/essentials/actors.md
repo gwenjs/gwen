@@ -277,15 +277,9 @@ indépendamment.
 Utilisez `useEntityId()` pour obtenir l'ID stable `bigint` de cette instance d'acteur :
 
 ```ts
-import { Position } from './components'
-
 export const PlayerActor = defineActor(PlayerPrefab, () => {
   const entityId = useEntityId()
-
-  onUpdate((dt) => {
-    // Accès SoA direct — chemin le plus rapide
-    Position.x[entityId] += Velocity.x[entityId] * dt
-  })
+  void entityId
 })
 ```
 

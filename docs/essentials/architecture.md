@@ -14,7 +14,7 @@ GWEN's architecture is built on a fundamental split: **TypeScript for game logic
 The heart of GWEN is a pre-compiled WebAssembly module (`gwen_core.wasm`) written in Rust. This layer handles everything that must be fast:
 
 - **ECS Engine** — Stores entities, components, and manages queries efficiently
-- **Component Arrays** — Component data lives in WASM linear memory in Structure-of-Arrays (SoA) layout for cache efficiency
+- **Component columns** — Each numeric field of a chunk is its own typed array in WASM linear memory
 - **Physics** — Physics simulation (via Rapier) runs in WASM
 - **Math Primitives** — Vector, matrix, and quaternion math for the hot path
 
@@ -33,31 +33,51 @@ The TypeScript layer calls into WASM to query entities, read component data, and
 
 ## The WASM Bridge
 
-Communication between TypeScript and WASM happens through function calls. There is no serialization. WASM linear memory is exposed to TypeScript as typed-array views over `WebAssembly.Memory`.
+Communication between TypeScript and WASM happens through function calls. There is no `SharedArrayBuffer` in v1. Chunk columns are typed-array views over the module's `WebAssembly.Memory`. `engine.memory` is always present and is the same object as `engine.inject("memory")`.
+
+`WasmModuleOptions.transformRegion` names a `memory.regions` entry. That region receives the per-frame transform copy. When the option is absent, there is no copy, and `transform_buffer_ptr()` returns 0.
 
 Cross-origin isolation is optional. Set it through Vite `server.headers` and `preview.headers` when you need it.
+
+```ts check
+import type { WasmModuleOptions } from "@gwenjs/core";
+
+const options: WasmModuleOptions = {
+  name: "demo",
+  url: "./demo.wasm",
+  transformRegion: "transforms",
+};
+void options;
+```
 
 ```
 ┌──────────────────────────────────────┐
 │ TypeScript Code                      │
 │ - defineSystem()                     │
 │ - useQuery()                         │
-│ - Position.x[entityId] = 10          │
+│ - chunk.get(Position).x[row] = 10    │
 └──────────────┬───────────────────────┘
-               │ Direct memory access (no copying)
+               │ column views
 ┌──────────────┴───────────────────────┐
-│ WebAssembly.Memory                   │
+│ engine.memory / WebAssembly.Memory   │
 │ ┌────────────────────────────────┐   │
-│ │ WASM Linear Memory             │   │
+│ │ one chunk                      │   │
 │ │ ┌──────────────────────────┐   │   │
-│ │ │ Position.x: [1, 2, 3]    │   │   │
-│ │ │ Position.y: [4, 5, 6]    │   │   │
+│ │ │ pos.x: Float32Array      │   │   │
+│ │ │ pos.y: Float32Array      │   │   │
 │ │ └──────────────────────────┘   │   │
 │ └────────────────────────────────┘   │
 └──────────────────────────────────────┘
 ```
 
-When you write `Position.x[entityId] = 10` in a system, you're writing directly to WASM memory with zero overhead. No marshaling, no allocations, no garbage collection.
+A column write changes the WASM row. `engine.getComponent` reads that row back as a snapshot. After WASM memory grows, old typed-array views are detached. Call `chunk.get` again.
+
+```ts run
+import assert from "node:assert/strict";
+
+assert.equal(engine.memory.epoch, 0);
+assert.equal(engine.memory, engine.inject("memory"));
+```
 
 ## ECS Overview
 
@@ -91,28 +111,43 @@ Multiple components attach to the same entity to describe it. A player might hav
 
 A **system** is a function that runs each frame over all entities matching a query. Systems read and write component data.
 
-```ts
-import { Position, Velocity } from './components'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+const Velocity = defineComponent({
+  name: "Velocity",
+  schema: { x: Types.f32, y: Types.f32 },
+});
 
 export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
-`useQuery` returns a live collection of `EntityAccessor` values. Each has an `.id` (bigint) for direct SoA array access, and a `.get(def)` method for reading a component as a plain object.
+`useQuery` returns a `Query`. `chunk.get(Def)` is the live columns. `query.each()` yields one accessor per entity, and `entity.get(Def)` returns a snapshot.
 
 ### Why ECS?
 
 No inheritance, no polymorphism headaches. Just data + logic. This makes GWEN:
 
-- **Fast** — Cache-efficient memory layout (SoA) and data-parallel execution
+- **Columnar** — One typed array per numeric field inside a chunk
 - **Flexible** — Compose any combination of components; add new systems anytime
 - **Testable** — Systems don't depend on a class hierarchy; they're just functions
 

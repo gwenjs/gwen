@@ -271,19 +271,54 @@ lifecycle (who gets despawned with whom). Transform parenting governs spatial po
 
 ## Entity ID
 
-Use `useEntityId()` to get the stable `bigint` ID of this actor instance:
+Use `useEntityId()` during the factory to read this actor's `bigint` id. That id is not a column index. Read the actor's own fields with `useComponent`.
 
-```ts
-import { Position } from './components'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+
+const Health = defineComponent({
+  name: "Health",
+  schema: { current: Types.i32 },
+  defaults: { current: 40 },
+});
+
+const PlayerPrefab = definePrefab([{ def: Health, defaults: { current: 40 } }]);
 
 export const PlayerActor = defineActor(PlayerPrefab, () => {
-  const entityId = useEntityId()
+  const health = useComponent(Health);
 
-  onUpdate((dt) => {
-    // Direct SoA access — fastest path
-    Position.x[entityId] += Velocity.x[entityId] * dt
-  })
-})
+  return {
+    hurt(amount: number) {
+      health.current -= amount;
+    },
+  };
+});
+```
+
+```ts run
+import assert from "node:assert/strict";
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
+
+const Health = defineComponent({
+  name: "DocsStorageActorHealth",
+  schema: { current: Types.i32 },
+  defaults: { current: 40 },
+});
+
+const Prefab = definePrefab([{ def: Health, defaults: { current: 40 } }]);
+let seen = 0;
+const Actor = defineActor(Prefab, () => {
+  const health = useComponent(Health);
+  seen = health.current;
+});
+
+await engine.use(Actor._plugin);
+engine.run(() => {
+  Actor._plugin.spawn();
+});
+assert.equal(seen, 40);
 ```
 
 ::: info Setup-time only

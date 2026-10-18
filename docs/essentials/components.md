@@ -38,13 +38,7 @@ export const Health = defineComponent({
 })
 ```
 
-Each field is stored as a contiguous typed array in WASM memory. Entities are the index:
-
-```ts
-// Inside a system — entity.id is a bigint
-Position.x[entity.id] = 100
-Position.y[entity.id] = 200
-```
+Numeric fields are contiguous typed arrays inside one chunk. The index is the row in that chunk, not the entity id. See [Storage model](#storage-model).
 
 `defineComponent` throws `GwenError` with code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when a new name would pass the limit. The limit is 128 distinct user names. The limit counts distinct names defined in the process. Defining the same name again with the same fields is accepted (hot reload) and keeps the type id in each engine. Type ids are per engine: each engine assigns one the first time it sees a name, so two engines can give the same component different ids. With other fields, field order or field types it throws `GwenError` with code `CORE:INVALID_COMPONENT_SCHEMA`. The check runs at definition time and does not call WASM. One layout per component name in the whole process: two engines in one page cannot define the same name with different fields, and a hot reload that changes the fields throws `CORE:INVALID_COMPONENT_SCHEMA`.
 
@@ -105,32 +99,39 @@ When a prefab declares its own `defaults`, they override the component's `defaul
 
 ## Reading Component Data in a System
 
-Systems iterate over a `LiveQuery<EntityAccessor>`. Each entity has `.id` (bigint) for direct SoA access:
+`useQuery` returns a `Query`. Iterate chunks, then rows:
 
-```ts
-import { Position, Velocity } from './components'
+```ts check
+import { defineComponent, Types } from "@gwenjs/core";
+import { defineSystem, onUpdate, useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "Position",
+  schema: { x: Types.f32, y: Types.f32 },
+});
+
+const Velocity = defineComponent({
+  name: "Velocity",
+  schema: { x: Types.f32, y: Types.f32 },
+});
 
 export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
+  const query = useQuery([Position, Velocity]);
 
   onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
+    for (const chunk of query) {
+      const pos = chunk.get(Position);
+      const vel = chunk.get(Velocity);
+      for (let row = 0; row < chunk.count; row += 1) {
+        pos.x[row] = (pos.x[row] ?? 0) + (vel.x[row] ?? 0) * dt;
+        pos.y[row] = (pos.y[row] ?? 0) + (vel.y[row] ?? 0) * dt;
+      }
     }
-  })
-})
+  });
+});
 ```
 
-You can also read a component as a plain object using `entity.get(def)`:
-
-```ts
-onUpdate(() => {
-  for (const entity of entities) {
-    const pos = entity.get(Position) // { x: number, y: number } | undefined
-  }
-})
-```
+`query.each()` walks one entity at a time. `entity.get(Def)` returns a snapshot. That path is for single-entity work. During an update phase it logs code `CORE:QUERY_PER_ENTITY_PATH`.
 
 ## Reading Component Data in an Actor
 
@@ -151,7 +152,7 @@ export const PlayerActor = defineActor(PlayerPrefab, () => {
 ```
 
 ::: warning Actor context only
-`useComponent()` only works inside `defineActor`. In systems, use `entity.get(def)` or direct SoA access (`Component.field[entity.id]`) instead.
+`useComponent()` only works inside `defineActor`. In systems, iterate the query by chunk.
 :::
 
 See [Actors](/essentials/actors) for full documentation of `useComponent`.
@@ -167,18 +168,42 @@ export * from './Velocity'
 export * from './Health'
 ```
 
-## Structure-of-Arrays Layout
+## Storage model
 
-GWEN stores components in **Structure-of-Arrays** (SoA) format in WASM memory:
+A chunk is one archetype. Every entity in that chunk has the same components, and those components share the row index. Row order is not the entity id.
 
+`chunk.get(Def)` returns the live columns for that component in that chunk. `f32` is a `Float32Array`, `f64` a `Float64Array`, `i32` an `Int32Array`, `u32` a `Uint32Array`, and `bool` a `Uint8Array`. `vec2`, `vec3`, `vec4`, `quat`, and `color` are nested `{ x, y, ... }` arrays. `Types.string`, `Types.i64`, and `Types.u64` are absent: reading them on the chunk is a type error. `engine.getComponent` still returns those fields in a snapshot.
+
+`chunk.entityId(row)` is the entity at that row. `chunk.count` is the row count. The chunk handle is invalid once the iterator moves on.
+
+After WASM memory grows, a typed-array view taken earlier is detached. Call `chunk.get(Def)` again. Field views are tracked in #74.
+
+Adding a component that is not already on the entity writes the defaults, then the keys you pass. Adding it again patches only those keys. Removing it drops that component's row. Inside an open `for (const chunk of query)` loop, add, remove, and destroy wait until that loop closes.
+
+```ts run
+import assert from "node:assert/strict";
+import { defineComponent, Types } from "@gwenjs/core";
+import { useQuery } from "@gwenjs/core/system";
+
+const Position = defineComponent({
+  name: "DocsStorageDestroyPos",
+  schema: { x: Types.f32 },
+  defaults: { x: 1 },
+});
+
+const id = engine.createEntity();
+engine.addComponent(id, Position, { x: 1 });
+const query = engine.run(() => useQuery([Position]));
+let aliveDuring = false;
+for (const _chunk of query) {
+  engine.destroyEntity(id);
+  aliveDuring = engine.isAlive(id);
+}
+assert.equal(aliveDuring, true);
+assert.equal(engine.isAlive(id), false);
 ```
-Position.x:  [10, 30, 50, ...]    ← contiguous Float32Array
-Position.y:  [20, 40, 60, ...]
-Velocity.x:  [1,  2,  1,  ...]
-Health.current: [100, 80, 60, ...]
-```
 
-When a system iterates and reads `Position.x[entity.id]`, the CPU loads several values at once from a contiguous array. This is why ECS is faster than storing objects per entity.
+`query.each()` and `useComponentFor` are the per-entity path. During `onBeforeUpdate`, `onUpdate`, and `onAfterUpdate` they log code `CORE:QUERY_PER_ENTITY_PATH`. The message names the API and says to iterate the query by chunk. Deprecated: `useComponentFor` and `createLiveQuery`. `createLiveQuery` does not log that warning.
 
 ## API Summary
 
@@ -186,8 +211,8 @@ When a system iterates and reads `Position.x[entity.id]`, the CPU loads several 
 |---|---|
 | `defineComponent({ name, schema, defaults? })` | Declare a component type |
 | `Types.f32 / f64 / i32 / i64 / u32 / u64 / bool / string` | Field type descriptors |
-| `Component.field[entity.id]` | Read or write a component field (in a system) |
-| `useComponent(def)` | Reactive component proxy inside `defineActor` |
+| `chunk.get(Def).field[row]` | Live column inside a chunk loop |
+| `useComponent(def)` | Component proxy inside `defineActor` |
 
 ## Next Steps
 

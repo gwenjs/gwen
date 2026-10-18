@@ -14,7 +14,7 @@ L'architecture de GWEN repose sur une séparation fondamentale : **TypeScript po
 Le cœur de GWEN est un module WebAssembly précompilé (`gwen_core.wasm`) écrit en Rust. Cette couche gère tout ce qui doit être rapide :
 
 - **Moteur ECS** — Stocke les entités, les composants et gère efficacement les requêtes
-- **Tableaux de composants** — Les données de composants résident dans la mémoire linéaire WASM en Structure-of-Arrays (SoA) pour l'efficacité du cache
+
 - **Physique** — La simulation physique (via Rapier) s'exécute en WASM
 - **Primitives mathématiques** — Vecteurs, matrices et quaternions pour le chemin critique
 
@@ -36,28 +36,6 @@ La couche TypeScript appelle WASM pour interroger les entités, lire les donnée
 La communication entre TypeScript et WASM s'effectue via des appels de fonctions. Il n'y a pas de sérialisation. La mémoire linéaire WASM est exposée à TypeScript sous forme de vues de tableaux typés sur `WebAssembly.Memory`.
 
 L'isolation cross-origin est facultative. Définissez-la via les en-têtes Vite `server.headers` et `preview.headers` si vous en avez besoin.
-
-```
-┌──────────────────────────────────────┐
-│ Code TypeScript                      │
-│ - defineSystem()                     │
-│ - useQuery()                         │
-│ - Position.x[entityId] = 10          │
-└──────────────┬───────────────────────┘
-               │ Accès direct à la mémoire (sans copie)
-┌──────────────┴───────────────────────┐
-│ WebAssembly.Memory                   │
-│ ┌────────────────────────────────┐   │
-│ │ Mémoire linéaire WASM          │   │
-│ │ ┌──────────────────────────┐   │   │
-│ │ │ Position.x: [1, 2, 3]    │   │   │
-│ │ │ Position.y: [4, 5, 6]    │   │   │
-│ │ └──────────────────────────┘   │   │
-│ └────────────────────────────────┘   │
-└──────────────────────────────────────┘
-```
-
-Quand vous écrivez `Position.x[entityId] = 10` dans un système, vous écrivez directement dans la mémoire WASM sans aucun surcoût. Pas de marshaling, pas d'allocation, pas de garbage collection.
 
 ## Aperçu de l'ECS
 
@@ -91,28 +69,12 @@ Plusieurs composants s'attachent à la même entité pour la décrire complètem
 
 Un **système** est une fonction qui s'exécute à chaque frame sur toutes les entités correspondant à une requête. Les systèmes lisent et écrivent les données des composants.
 
-```ts
-import { Position, Velocity } from './components'
 
-export const MovementSystem = defineSystem(() => {
-  const entities = useQuery([Position, Velocity])
-
-  onUpdate((dt) => {
-    for (const entity of entities) {
-      Position.x[entity.id] += Velocity.x[entity.id] * dt
-      Position.y[entity.id] += Velocity.y[entity.id] * dt
-    }
-  })
-})
-```
-
-`useQuery` retourne une collection live de valeurs `EntityAccessor`. Chaque élément a un `.id` (bigint) pour l'accès direct aux tableaux SoA, et une méthode `.get(def)` pour lire un composant comme un objet simple.
 
 ### Pourquoi l'ECS ?
 
 Pas d'héritage, pas de problèmes de polymorphisme. Juste des données et de la logique. Cela rend GWEN :
 
-- **Rapide** — Disposition mémoire efficace pour le cache (SoA) et exécution parallèle des données
 - **Flexible** — Composez n'importe quelle combinaison de composants ; ajoutez de nouveaux systèmes à tout moment
 - **Testable** — Les systèmes ne dépendent pas d'une hiérarchie de classes ; ce sont juste des fonctions
 
