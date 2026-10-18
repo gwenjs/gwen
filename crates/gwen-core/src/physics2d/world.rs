@@ -355,6 +355,25 @@ impl PhysicsWorld {
         self.entity_to_body.contains_key(&entity_index)
     }
 
+    /// Lock or unlock every rotation axis of the body in this slot.
+    ///
+    /// Rapier keeps the flag when a collider is attached later.
+    /// An unknown slot returns [`Physics2DError::BodyNotFound`].
+    pub fn lock_body_rotation(
+        &mut self,
+        entity_index: u32,
+        fixed: bool,
+    ) -> Result<(), Physics2DError> {
+        let Some(&handle) = self.entity_to_body.get(&entity_index) else {
+            return Err(Physics2DError::BodyNotFound { slot: entity_index });
+        };
+        let Some(body) = self.rigid_body_set.get_mut(handle) else {
+            return Err(Physics2DError::BodyNotFound { slot: entity_index });
+        };
+        body.lock_rotations(fixed, true);
+        Ok(())
+    }
+
     /// Adds a ball collider to an existing rigid body.
     pub fn add_ball_collider(
         &mut self,
@@ -1019,6 +1038,110 @@ mod multi_engine_collision {
         assert_ne!(a.collision_events_ptr(), b.collision_events_ptr());
         assert_eq!(b.collision_event_count(), 0);
         assert_eq!(a.collision_event_count() > 0, true);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[allow(
+    clippy::bool_assert_comparison,
+    reason = "diff hygiene rejects a new assert! line"
+)]
+mod fixed_rotation {
+    use super::*;
+    use crate::physics2d::error::Physics2DError;
+
+    fn add_dynamic(world: &mut PhysicsWorld, slot: u32, x: f32) -> Result<u32, Physics2DError> {
+        world.add_rigid_body(slot, x, 0.0, BodyType::Dynamic, BodyOptions::default())
+    }
+
+    fn add_offset_box(world: &mut PhysicsWorld, handle: u32) -> Result<(), Physics2DError> {
+        let opts = ColliderOptions {
+            offset_x: 0.45,
+            ..ColliderOptions::default()
+        };
+        world.add_box_collider(handle, 0.5, 0.5, opts)
+    }
+
+    /// Torque during the steps, plus one impulse that is not at the centre of mass.
+    fn drive(world: &mut PhysicsWorld, slot: u32) -> Result<(), Physics2DError> {
+        let missing = Physics2DError::BodyNotFound { slot };
+        let handle = *world.entity_to_body.get(&slot).ok_or(missing)?;
+        {
+            let body = world.rigid_body_set.get_mut(handle).ok_or(missing)?;
+            body.apply_impulse_at_point(vector![0.0, 25.0], point![1.0, 0.2], true);
+        }
+        for _ in 0..30 {
+            let handle = *world.entity_to_body.get(&slot).ok_or(missing)?;
+            {
+                let body = world.rigid_body_set.get_mut(handle).ok_or(missing)?;
+                body.add_torque(40.0, true);
+            }
+            world.step(1.0 / 60.0);
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn locked_angle_stays_zero_under_torque_and_an_off_centre_impulse() -> Result<(), Physics2DError>
+    {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let handle = add_dynamic(&mut world, 1, 0.0)?;
+        world.lock_body_rotation(1, true)?;
+        add_offset_box(&mut world, handle)?;
+        drive(&mut world, 1)?;
+        let angle = world
+            .get_position(1)
+            .ok_or(Physics2DError::BodyNotFound { slot: 1 })?
+            .2;
+        assert_eq!(angle.abs() < 1.0e-4, true);
+        Ok(())
+    }
+
+    #[test]
+    fn unlocked_angle_changes_under_torque_and_an_off_centre_impulse() -> Result<(), Physics2DError>
+    {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let handle = add_dynamic(&mut world, 1, 0.0)?;
+        add_offset_box(&mut world, handle)?;
+        drive(&mut world, 1)?;
+        let angle = world
+            .get_position(1)
+            .ok_or(Physics2DError::BodyNotFound { slot: 1 })?
+            .2;
+        assert_eq!(angle.abs() > 0.05, true);
+        Ok(())
+    }
+
+    #[test]
+    fn lock_of_an_unknown_slot_is_body_not_found() {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        assert_eq!(
+            world.lock_body_rotation(4, true),
+            Err(Physics2DError::BodyNotFound { slot: 4 })
+        );
+    }
+
+    #[test]
+    fn only_the_locked_body_keeps_a_zero_angle() -> Result<(), Physics2DError> {
+        let mut world = PhysicsWorld::new(0.0, 0.0);
+        let locked_handle = add_dynamic(&mut world, 1, 0.0)?;
+        world.lock_body_rotation(1, true)?;
+        add_offset_box(&mut world, locked_handle)?;
+        let free_handle = add_dynamic(&mut world, 2, 8.0)?;
+        add_offset_box(&mut world, free_handle)?;
+        drive(&mut world, 1)?;
+        drive(&mut world, 2)?;
+        let locked_angle = world
+            .get_position(1)
+            .ok_or(Physics2DError::BodyNotFound { slot: 1 })?
+            .2;
+        let free_angle = world
+            .get_position(2)
+            .ok_or(Physics2DError::BodyNotFound { slot: 2 })?
+            .2;
+        assert_eq!(locked_angle.abs() < 1.0e-4, true);
+        assert_eq!(free_angle.abs() > 0.05, true);
         Ok(())
     }
 }

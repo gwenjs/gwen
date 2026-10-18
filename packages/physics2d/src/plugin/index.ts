@@ -409,6 +409,11 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
             opts.additionalSolverIterations,
           ),
         );
+        if (opts.fixedRotation === true) {
+          callPhysicsExport("physics_set_fixed_rotation", () =>
+            pb.physics_set_fixed_rotation(s, true),
+          );
+        }
         if (cfg.debug)
           st.log.debug(
             `addRigidBody entity=${s} type=${type} x=${x.toFixed(3)} y=${y.toFixed(3)} -> handle=${handle}`,

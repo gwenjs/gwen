@@ -64,6 +64,7 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics_query_rect: knownPanic(ISSUE),
   physics_remove_rigid_body: result(),
   physics_set_event_coalescing: infallible("the body ignores the argument"),
+  physics_set_fixed_rotation: result(),
   physics_set_global_ccd_enabled: infallible("the body ignores the argument"),
   physics_set_kinematic_position: result(),
   physics_set_linear_damping: result(),

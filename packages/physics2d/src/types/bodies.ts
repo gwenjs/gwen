@@ -84,14 +84,8 @@ export interface DynamicBodyOptions {
   /** Angular damping factor. @default 0 */
   angularDamping?: number;
   /**
-   * Prevent the body from rotating.
-   *
-   * NOTE: `fixedRotation` is accepted in options but cannot be passed to
-   * `Physics2DAPI.addRigidBody` at this time — the underlying API does not
-   * expose this parameter.
-   *
-   * TODO: Track at https://github.com/... once the API exposes the parameter.
-   *
+   * Lock the body's rotation.
+   * Passed through to `Physics2DAPI.addRigidBody`, including when `enable()` rebuilds the body.
    * @default false
    */
   fixedRotation?: boolean;

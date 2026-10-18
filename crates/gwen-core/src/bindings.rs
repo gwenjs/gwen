@@ -1344,6 +1344,22 @@ impl Engine {
         world.add_rigid_body(slot, x, y, b_type, opts)
     }
 
+    /// Lock or unlock rotation for the body in `slot`.
+    ///
+    /// `WorldNotInitialized` when `physics_init` has not run.
+    /// `BodyNotFound` when the slot has no rigid body.
+    #[cfg(feature = "physics2d")]
+    pub fn physics_set_fixed_rotation(
+        &mut self,
+        slot: u32,
+        fixed: bool,
+    ) -> Result<(), Physics2DError> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Err(Physics2DError::WorldNotInitialized);
+        };
+        world.lock_body_rotation(slot, fixed)
+    }
+
     #[cfg(feature = "physics2d")]
     pub fn physics_remove_rigid_body(&mut self, slot: u32) -> Result<(), Physics2DError> {
         let Some(world) = self.physics_world.as_mut() else {

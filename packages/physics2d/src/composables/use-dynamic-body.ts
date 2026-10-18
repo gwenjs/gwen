@@ -30,19 +30,13 @@ export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHan
   const physics = usePhysics2D();
   const entityId = _getActorEntityId();
 
-  if (options.fixedRotation) {
-    // eslint-disable-next-line no-console
-    console.warn(
-      "[gwen:physics2d] fixedRotation is not yet supported by Physics2DAPI. The option is accepted but has no effect.",
-    );
-  }
-
   // Stored creation options so enable() can re-register the body after disable().
   const rigidBodyOpts = {
     ...(options.mass !== undefined ? { mass: options.mass } : {}),
     ...(options.linearDamping !== undefined ? { linearDamping: options.linearDamping } : {}),
     ...(options.angularDamping !== undefined ? { angularDamping: options.angularDamping } : {}),
     ...(options.gravityScale !== undefined ? { gravityScale: options.gravityScale } : {}),
+    ...(options.fixedRotation !== undefined ? { fixedRotation: options.fixedRotation } : {}),
   };
 
   const colliderOpts: ColliderOptions = {
