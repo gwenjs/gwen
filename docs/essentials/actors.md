@@ -304,7 +304,7 @@ import { defineActor, definePrefab, useComponent } from "@gwenjs/core/actor";
 const Health = defineComponent({
   name: "DocsStorageActorHealth",
   schema: { current: Types.i32 },
-  defaults: { current: 40 },
+  defaults: { current: 0 },
 });
 
 const Prefab = definePrefab([{ def: Health, defaults: { current: 40 } }]);

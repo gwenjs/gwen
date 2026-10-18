@@ -14,7 +14,6 @@ L'architecture de GWEN repose sur une séparation fondamentale : **TypeScript po
 Le cœur de GWEN est un module WebAssembly précompilé (`gwen_core.wasm`) écrit en Rust. Cette couche gère tout ce qui doit être rapide :
 
 - **Moteur ECS** — Stocke les entités, les composants et gère efficacement les requêtes
-
 - **Physique** — La simulation physique (via Rapier) s'exécute en WASM
 - **Primitives mathématiques** — Vecteurs, matrices et quaternions pour le chemin critique
 
