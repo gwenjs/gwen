@@ -33,7 +33,7 @@ export async function runSnippet(
   hooks?: RunHooks,
 ): Promise<void> {
   ensureLoader();
-  const handle = await createRealEngine({ variant: "light", maxEntities: 8 });
+  const handle = await createRealEngine({ variant: "light", maxEntities: 1024 });
   let failure: unknown;
   try {
     await execute(code, handle.engine);

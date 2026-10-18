@@ -18,7 +18,14 @@ const packageRoot = path.join(repoRoot, "packages/docs-check");
  * `run` fences see the pre-bound `engine`. Nothing else is declared.
  */
 export function checkFence(fence: Fence): SnippetFailure | null {
-  if (fence.tag !== "check" && fence.tag !== "run") return null;
+  return typecheck(fence).failure;
+}
+
+function typecheck(
+  fence: Fence,
+  oldProgram?: ts.Program,
+): { failure: SnippetFailure | null; program?: ts.Program } {
+  if (fence.tag !== "check" && fence.tag !== "run") return { failure: null };
   const sourceText = `${fence.code}\n`;
   const snippetName = path.join(packageRoot, "__docs_snippet__.ts");
   const engineName = path.join(packageRoot, "__docs_engine__.d.ts");
@@ -55,26 +62,33 @@ export function checkFence(fence: Fence): SnippetFailure | null {
     return resolved === snippetName || resolved === engineName || exists(fileName);
   };
   const roots = fence.tag === "run" ? [snippetName, engineName] : [snippetName];
-  const program = ts.createProgram(roots, options, host);
+  const program = ts.createProgram(roots, options, host, oldProgram);
   const diagnostics = ts.getPreEmitDiagnostics(program).filter((diagnostic) => {
     const name = diagnostic.file?.fileName;
     return name !== undefined && path.resolve(name) === snippetName;
   });
   const first = diagnostics[0];
-  if (!first) return null;
+  if (!first) return { failure: null, program };
   const start = first.start ?? 0;
   const position = first.file?.getLineAndCharacterOfPosition(start);
   const tscLine = (position?.line ?? 0) + 1;
   const line = fence.line + tscLine;
   const text = ts.flattenDiagnosticMessageText(first.messageText, "\n");
-  return { file: fence.file, line, message: `${fence.file}:${line} ${text}` };
+  return {
+    failure: { file: fence.file, line, message: `${fence.file}:${line} ${text}` },
+    program,
+  };
 }
 
 export function checkFences(fences: Fence[]): SnippetFailure[] {
-  return fences.flatMap((fence) => {
-    const failure = checkFence(fence);
-    return failure === null ? [] : [failure];
-  });
+  const failures: SnippetFailure[] = [];
+  let previous: ts.Program | undefined;
+  for (const fence of fences) {
+    const result = typecheck(fence, previous);
+    if (result.program) previous = result.program;
+    if (result.failure) failures.push(result.failure);
+  }
+  return failures;
 }
 
 function aliasPaths(): Record<string, string[]> {
