@@ -7,21 +7,21 @@ import { runSnippet } from "../src/run.js";
 import { checkFences } from "../src/snippets.js";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const PAGE = "docs/essentials/layouts.md";
+const PAGES = ["docs/essentials/layouts.md", "docs/fr/essentials/layouts.md"];
 
-function pageFences() {
-  return extractFences(readFileSync(path.join(repoRoot, PAGE), "utf8"), PAGE);
+function pageFences(page: string) {
+  return extractFences(readFileSync(path.join(repoRoot, page), "utf8"), page);
 }
 
-describe("layouts page run fences", () => {
+describe.each(PAGES)("%s run fences", (page) => {
   it("tagged fences type-check", () => {
-    const tagged = pageFences().filter((fence) => fence.tag === "check" || fence.tag === "run");
+    const tagged = pageFences(page).filter((fence) => fence.tag === "check" || fence.tag === "run");
     expect(tagged.length).toBeGreaterThan(0);
     expect(checkFences(tagged)).toEqual([]);
   });
 
   it("the chunkSize fence spawns two, four, then five entities over three frames", async () => {
-    const fence = pageFences().find(
+    const fence = pageFences(page).find(
       (candidate) => candidate.tag === "run" && candidate.code.includes("chunkSize: 2"),
     );
     expect(fence).toBeDefined();
