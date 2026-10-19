@@ -50,10 +50,8 @@ log_error() {
   echo -e "${RED}✗${NC} $*"
 }
 
-read_pin() {
-  python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["toolchain"][sys.argv[2]])' \
-    "$PROJECT_ROOT/wasm-size.json" "$1"
-}
+# shellcheck source=lib-wasm-pin.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-wasm-pin.sh"
 
 # Official archives print "wasm-opt version 133 (version_133)".
 # A source build of tag version_133, including Homebrew, prints "wasm-opt version 133".

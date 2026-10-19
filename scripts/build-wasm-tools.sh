@@ -13,9 +13,19 @@ PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CRATE_DIR="$PROJECT_ROOT/crates/gwen-core"
 OUT_DIR="$PROJECT_ROOT/packages/physics3d/build-tools"
 
+# shellcheck source=lib-wasm-pin.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-wasm-pin.sh"
+
 if ! command -v wasm-pack &> /dev/null; then
   echo "❌ wasm-pack is not installed."
-  echo "   Install with: cargo install wasm-pack"
+  echo "   Install with: cargo install wasm-pack --version $(read_pin wasmPack) --locked"
+  exit 1
+fi
+
+pack_pin="$(read_pin wasmPack)"
+pack_got="$(wasm-pack --version | awk '{print $2}')"
+if [ "$pack_got" != "$pack_pin" ]; then
+  echo "wasm-pack ${pack_got} != wasm-size.json toolchain.wasmPack ${pack_pin}"
   exit 1
 fi
 
