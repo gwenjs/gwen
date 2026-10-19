@@ -4,7 +4,7 @@
  *
  * Pipeline per frame (onAfterUpdate):
  *   1. clearFrame() on CameraManager so stale states don't persist
- *   2. For each active camera entity:
+ *   2. For each active camera entity (ids collected from a `useQuery([Camera])` chunk loop):
  *      a. Apply FollowTarget (lerp toward target)  — or —
  *         Advance CameraPath (interpolate waypoints)
  *      b. Clamp to CameraBounds
@@ -13,7 +13,12 @@
  *   3. Detect semantic changes per viewport and emit camera:* hooks
  */
 
-import { defineSystem, onAfterUpdate, type DiscoverablePlugin } from "@gwenjs/core/system";
+import {
+  defineSystem,
+  onAfterUpdate,
+  useQuery,
+  type DiscoverablePlugin,
+} from "@gwenjs/core/system";
 import { useEngine, emit } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
@@ -32,7 +37,19 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
   const cameras = useCameraManager();
   const _viewports = useViewportManager();
 
-  const cameraQuery = engine.createLiveQuery([Camera]);
+  // Chunk query over Camera. The loops below read and write through `engine`, and a write may
+  // change structure (CameraPath is removed when a path ends). So a chunk loop only collects
+  // the ids into a reused array, and the work runs after the loop has closed.
+  const cameraQuery = useQuery([Camera]);
+  const cameraIds: EntityId[] = [];
+
+  function collectCameraIds(): readonly EntityId[] {
+    cameraIds.length = 0;
+    for (const chunk of cameraQuery) {
+      for (let row = 0; row < chunk.count; row += 1) cameraIds.push(chunk.entityId(row));
+    }
+    return cameraIds;
+  }
 
   // per-viewport tracking for semantic hook emission
   const activeEntityPerViewport = new Map<string, EntityId>(); // viewportId → entityId
@@ -45,8 +62,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
 
     cameras.clearFrame();
 
-    for (const entity of cameraQuery) {
-      const id = entity.id;
+    for (const id of collectCameraIds()) {
       const cam = engine.getComponent(id, Camera);
       if (!cam || cam.active !== 1) continue;
       if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
@@ -181,8 +197,7 @@ export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem
 
     const currentActivePerViewport = new Map<string, EntityId>();
 
-    for (const entity of cameraQuery) {
-      const id = entity.id;
+    for (const id of collectCameraIds()) {
       const cam = engine.getComponent(id, Camera);
       if (!cam || cam.active !== 1) continue;
       if (cam.projectionType === 2) continue; // XR cameras — managed by XR renderer plugin
