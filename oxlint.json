@@ -28,7 +28,8 @@
     {
       "files": [
         "packages/core/src/engine/gwen-engine.ts",
-        "packages/core/src/engine/engine-loop.ts"
+        "packages/core/src/engine/engine-loop.ts",
+        "packages/core/src/engine/engine-collaborators.ts"
       ],
       "rules": {
         "max-lines": ["error", { "max": 400, "skipBlankLines": true, "skipComments": true }]
