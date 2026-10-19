@@ -290,10 +290,15 @@ export const ComposableErrorCodes = {
    */
   LAYOUT_HANDLE_NOT_SPAWNED: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
   /**
-   * A non-lazy `useLayout({ chunkSize })` load failed. Nobody awaits that load, so the
+   * A non-lazy `useLayout()` load failed. Nobody awaits that load, so the
    * failure is emitted on the engine error bus with the original error in `error`.
    */
   LAYOUT_LOAD_FAILED: "COMPOSABLE:LAYOUT_LOAD_FAILED",
+  /**
+   * Destroying a layout's entities failed where no caller can receive the error: a frame
+   * hook of a progressive load, or `engine.stop()`. Emitted on the engine error bus.
+   */
+  LAYOUT_DISPOSE_FAILED: "COMPOSABLE:LAYOUT_DISPOSE_FAILED",
 } as const;
 
 /**
