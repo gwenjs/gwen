@@ -8,10 +8,13 @@ import { useLayout } from "../../src/actor/runtime/use-layout";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
 import { placeActor, placeGroup, placePrefab } from "../../src/actor/runtime/place";
-import type { PlaceHandle } from "../../src/actor/runtime/types";
+import type { LayoutHandle, PlaceHandle } from "../../src/actor/runtime/types";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
 import { GwenComposableError } from "../../src/engine/engine-errors";
 import { createMockWasmEngine, mockEntitySurface } from "../helpers/mock-wasm-engine";
+
+/** Test switch: makes the mock `bulk_destroy` throw. Reset in `afterEach`. */
+const bulkDestroyFault = { fail: false };
 
 /** Placement mock whose entity table is real: `bulk_destroy` removes what `create_entity` added. */
 function makePlacementMock() {
@@ -35,6 +38,7 @@ function makePlacementMock() {
       set_entity_parent: () => {},
       set_entity_local_position: () => {},
       bulk_destroy: (indices: Uint32Array) => {
+        if (bulkDestroyFault.fail) throw new Error("bulk_destroy fault");
         for (const index of indices) live.delete(index);
       },
       add_component: () => true,
@@ -71,6 +75,7 @@ async function newEngine(): Promise<GwenEngine> {
 }
 
 afterEach(async () => {
+  bulkDestroyFault.fail = false;
   while (engines.length > 0) {
     await engines.pop()?.stop();
   }
@@ -451,5 +456,259 @@ describe("useLayout chunkSize — progressive spawn", () => {
     await loading;
     expect(handle.active).toBe(false);
     expect(handle.refs).toEqual({});
+  });
+  it("a disposer hook running before the layout hook in the same frame stops the spawn", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    await engine.run(async () => {
+      const handle = useLayout(groupsLayout(10), { lazy: true, chunkSize: 3 });
+      engine.hooks.hook("engine:before-update", () => {
+        void handle.dispose();
+      });
+      // The layout hook is registered after the disposer, so the disposer runs first.
+      const loading = handle.load();
+      const done = track(loading);
+      expect(engine.getStats().entityCount - base).toBe(0);
+      await engine.advance(FRAME);
+      await flush();
+      expect(engine.getStats().entityCount - base).toBe(0);
+      await engine.advance(FRAME);
+      await loading;
+      expect(done.settled).toBe(true);
+      expect(engine.getStats().entityCount - base).toBe(0);
+      expect(handle.active).toBe(false);
+    });
+  });
+
+  it("dispose() called from inside a spawn stops the loop and leaves nothing alive", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    await engine.run(async () => {
+      const slot: { self?: LayoutHandle<Record<string, PlaceHandle<void>>> } = {};
+      const layout = defineLayout(() => ({
+        a: placeGroup({}),
+        b: placeGroup({
+          get at(): [number, number] {
+            void slot.self?.dispose();
+            return [1, 0];
+          },
+        }),
+        c: placeGroup({}),
+      }));
+      const self = useLayout(layout, { lazy: true, chunkSize: 5 });
+      slot.self = self;
+      const loading = self.load();
+      const done = track(loading);
+      await engine.advance(FRAME);
+      await flush();
+      expect(engine.getStats().entityCount - base).toBe(0);
+      expect(done.settled).toBe(true);
+      await loading;
+      expect(self.active).toBe(false);
+      expect(self.refs).toEqual({});
+      await engine.advance(FRAME);
+      expect(engine.getStats().entityCount - base).toBe(0);
+    });
+  });
+
+  /** A layout whose entity `fail` is placed with a parent that spawns after it. */
+  function failingLayout(okBefore: number) {
+    return defineLayout(() => {
+      const slot: { late?: PlaceHandle<void> } = {};
+      const refs: Record<string, PlaceHandle<void>> = {};
+      for (let i = 0; i < okBefore; i++) refs[`ok${i}`] = placeGroup({ at: [i, 0] });
+      refs.fail = placeGroup({
+        get parent(): PlaceHandle<void> {
+          if (slot.late === undefined) throw new Error("late handle not set");
+          return slot.late;
+        },
+      });
+      slot.late = placeGroup({});
+      refs.late = slot.late;
+      return refs;
+    });
+  }
+
+  it.each([
+    { name: "after a successful spawn in the same slice", chunk: 5, frames: 1 },
+    { name: "after a successful earlier slice", chunk: 2, frames: 2 },
+  ])(
+    "a spawn that throws $name rejects load() and destroys what was spawned",
+    async ({ chunk, frames }) => {
+      const engine = await newEngine();
+      const base = engine.getStats().entityCount;
+      await engine.run(async () => {
+        const handle = useLayout(failingLayout(3), { lazy: true, chunkSize: chunk });
+        const outcome = handle.load().then(
+          () => undefined,
+          (rejection: unknown) => rejection,
+        );
+        for (let frame = 0; frame < frames; frame++) await engine.advance(FRAME);
+        const error = await outcome;
+        expect(error).toBeInstanceOf(GwenComposableError);
+        expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+        expect(engine.getStats().entityCount - base).toBe(0);
+        expect(handle.active).toBe(false);
+        expect(handle.refs).toEqual({});
+      });
+    },
+  );
+
+  it("a half-built entity (transform options threw after createEntity) is destroyed too", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    await engine.run(async () => {
+      const layout = defineLayout(() => ({
+        ok: placeGroup({}),
+        bad: placeGroup({
+          get at(): [number, number] {
+            throw new Error("bad at");
+          },
+        }),
+      }));
+      const handle = useLayout(layout, { lazy: true, chunkSize: 5 });
+      const outcome = handle.load().then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+      await engine.advance(FRAME);
+      expect(await outcome).toMatchObject({ message: "bad at" });
+      expect(engine.getStats().entityCount - base).toBe(0);
+    });
+  });
+
+  it("load() still rejects with the first error when destroying the spawned entities throws", async () => {
+    const engine = await newEngine();
+    await engine.run(async () => {
+      const handle = useLayout(failingLayout(2), { lazy: true, chunkSize: 5 });
+      const outcome = handle.load().then(
+        () => undefined,
+        (rejection: unknown) => rejection,
+      );
+      bulkDestroyFault.fail = true;
+      await engine.advance(FRAME);
+      bulkDestroyFault.fail = false;
+      const error = await outcome;
+      expect(error).toBeInstanceOf(GwenComposableError);
+      expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+      expect(handle.active).toBe(false);
+    });
+  });
+
+  it("lazy:false with chunkSize loads over frames without calling load()", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    await engine.run(async () => {
+      const handle = useLayout(groupsLayout(4), { chunkSize: 2 });
+      expect(handle.active).toBe(false);
+      await engine.advance(FRAME);
+      expect(engine.getStats().entityCount - base).toBe(2);
+      await engine.advance(FRAME);
+      await flush();
+      expect(engine.getStats().entityCount - base).toBe(4);
+      expect(handle.active).toBe(true);
+      await handle.dispose();
+    });
+  });
+
+  it("lazy:false with chunkSize reports a failed spawn on the engine error bus", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    const events: Array<{ code: string; level: string; error?: unknown }> = [];
+    engine.errors.on((event) => {
+      events.push({ code: event.code, level: event.level, error: event.error });
+    });
+    await engine.run(async () => {
+      const handle = useLayout(failingLayout(1), { chunkSize: 5 });
+      await engine.advance(FRAME);
+      await flush();
+      expect(events.map((event) => event.code)).toEqual(["COMPOSABLE:LAYOUT_LOAD_FAILED"]);
+      expect(events[0]?.level).toBe("error");
+      expect(events[0]?.error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+      expect(engine.getStats().entityCount - base).toBe(0);
+      expect(handle.active).toBe(false);
+    });
+  });
+
+  it.each(["moveTo", "despawn"] as const)(
+    "%s() on a handle before its spawn throws the coded error",
+    async (member) => {
+      const engine = await newEngine();
+      await engine.run(async () => {
+        const layout = defineLayout(() => {
+          const g = placeGroup({});
+          if (member === "moveTo") g.moveTo([1, 1]);
+          else g.despawn();
+          return { g };
+        });
+        const handle = useLayout(layout, { lazy: true, chunkSize: 2 });
+        const outcome = handle.load().then(
+          () => undefined,
+          (rejection: unknown) => rejection,
+        );
+        await engine.advance(FRAME);
+        const error = await outcome;
+        expect(error).toBeInstanceOf(GwenComposableError);
+        expect(error).toMatchObject({
+          code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
+          message: expect.stringContaining(`${member}()`),
+        });
+      });
+    },
+  );
+  it("a disposer hook running first in the frame stops the spawn before any actor setup runs", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    let setups = 0;
+    const Actor = defineActor(SimplePrefab, () => {
+      setups += 1;
+      return {};
+    });
+    await engine.use(Actor._plugin);
+    await engine.run(async () => {
+      const layout = defineLayout(() => ({
+        a: placeActor(Actor, {}),
+        b: placeActor(Actor, {}),
+        c: placeActor(Actor, {}),
+      }));
+      const handle = useLayout(layout, { lazy: true, chunkSize: 3 });
+      engine.hooks.hook("engine:before-update", () => {
+        void handle.dispose();
+      });
+      const loading = handle.load();
+      await engine.advance(FRAME);
+      await loading;
+      expect(setups).toBe(0);
+      expect(engine.getStats().entityCount - base).toBe(0);
+    });
+  });
+
+  it("dispose() inside an actor setup stops the remaining spawns and destroys the entity being built", async () => {
+    const engine = await newEngine();
+    const base = engine.getStats().entityCount;
+    const slot: { self?: LayoutHandle<Record<string, PlaceHandle<unknown>>> } = {};
+    let setups = 0;
+    const Actor = defineActor(SimplePrefab, () => {
+      setups += 1;
+      if (setups === 2) void slot.self?.dispose();
+      return {};
+    });
+    await engine.use(Actor._plugin);
+    await engine.run(async () => {
+      const layout = defineLayout(() => ({
+        a: placeActor(Actor, {}),
+        b: placeActor(Actor, {}),
+        c: placeActor(Actor, {}),
+      }));
+      const self = useLayout(layout, { lazy: true, chunkSize: 5 });
+      slot.self = self;
+      const loading = self.load();
+      await engine.advance(FRAME);
+      await loading;
+      expect(setups).toBe(2);
+      expect(engine.getStats().entityCount - base).toBe(0);
+      expect(self.active).toBe(false);
+      expect(self.refs).toEqual({});
+    });
   });
 });
