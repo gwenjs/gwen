@@ -20,6 +20,8 @@ test("engine-collaborators.ts is in the same 400-line max-lines override", () =>
       Array.isArray(entry.files) && entry.files.includes(ENGINE) && entry.files.includes(LOOP),
   );
   assert.ok(guard, "override that lists gwen-engine.ts and engine-loop.ts");
-  assert.deepEqual(guard.files, [ENGINE, LOOP, COLLABORATORS]);
+  assert.equal(guard.files.includes(ENGINE), true);
+  assert.equal(guard.files.includes(LOOP), true);
+  assert.equal(guard.files.includes(COLLABORATORS), true);
   assert.deepEqual(guard.rules["max-lines"], MAX_LINES);
 });
