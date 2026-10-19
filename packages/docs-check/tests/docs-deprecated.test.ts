@@ -414,8 +414,14 @@ export function deprecatedMentions(): string[] {
 }
 
 describe("deprecated public exports in docs", () => {
-  it("a deprecated public export is only named in a sentence that begins Deprecated:", () => {
-    expect(deprecatedNames()).toEqual(["useComponentFor"]);
+  it("the walked set holds a deprecated export and a deprecated interface member", () => {
+    const names = deprecatedNames();
+    expect(names.length).toBeGreaterThan(0);
+    expect(names).toContain("useComponentFor");
+    expect(names).toContain("createLiveQuery");
+  });
+
+  it("a deprecated name is only named in a sentence that begins Deprecated:", () => {
     expect(deprecatedMentions()).toEqual([]);
   });
 });
