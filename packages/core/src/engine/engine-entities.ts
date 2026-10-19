@@ -1027,12 +1027,12 @@ export class EngineEntities {
     data: object,
   ): void {
     const defaults = def.defaults ?? {};
-    const patch = data as Record<string, unknown>;
     for (const key of Object.keys(def.schema)) {
-      if (Object.prototype.hasOwnProperty.call(patch, key) && patch[key] !== undefined) {
-        scratch[key] = patch[key];
+      const provided = Reflect.get(data, key);
+      if (Object.prototype.hasOwnProperty.call(data, key) && provided !== undefined) {
+        scratch[key] = provided;
       } else {
-        scratch[key] = (defaults as Record<string, unknown>)[key];
+        scratch[key] = Reflect.get(defaults, key);
       }
     }
   }
