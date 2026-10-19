@@ -381,3 +381,20 @@ export function deprecatedPublicMembers(): string[] {
   }
   return hits;
 }
+
+/**
+ * Names a doc may use for a deprecated public API: exports by name, members by member name
+ * (`Owner.member` is written `member` or `engine.member` in prose). No duplicates.
+ */
+export function deprecatedNames(): readonly string[] {
+  const names: string[] = [];
+  for (const line of deprecatedPublicExports()) {
+    const name = line.split(" ").at(-1);
+    if (name !== undefined && name.length > 0 && !names.includes(name)) names.push(name);
+  }
+  for (const line of deprecatedPublicMembers()) {
+    const name = line.split(" ").at(-1)?.split(".").at(-1);
+    if (name !== undefined && name.length > 0 && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
