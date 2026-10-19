@@ -81,22 +81,43 @@ export const GameLayout = defineLayout(() => {
 
 Par défaut, `load()` spawne toutes les entités placées en une seule passe. Un layout avec beaucoup d'entités peut ralentir cette frame. Passez `chunkSize` pour répartir le spawn sur plusieurs frames :
 
-```ts
+```ts run
+import assert from "node:assert/strict";
+import { defineLayout, placeGroup, useLayout } from "@gwenjs/core/actor";
+
 const Tiles = defineLayout(() => ({
   a: placeGroup({ at: [0, 0] }),
   b: placeGroup({ at: [1, 0] }),
   c: placeGroup({ at: [2, 0] }),
   d: placeGroup({ at: [3, 0] }),
   e: placeGroup({ at: [4, 0] }),
-}))
+}));
 
-const layout = useLayout(Tiles, { lazy: true, chunkSize: 2 })
-const loading = layout.load()
+const alive = () => engine.getStats().entityCount;
+const base = alive();
+const layout = await engine.run(() => useLayout(Tiles, { lazy: true, chunkSize: 2 }));
 
-await engine.advance(1 / 60) // deux entités vivantes
-await engine.advance(1 / 60) // quatre entités vivantes
-await engine.advance(1 / 60) // les cinq entités sont vivantes
-await loading                // load() est résolu
+let loaded = false;
+const loading = layout.load().then(() => {
+  loaded = true;
+});
+assert.equal(alive() - base, 0);
+assert.deepEqual(layout.refs, {});
+
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 2);
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 4);
+await Promise.resolve();
+assert.equal(loaded, false);
+
+await engine.advance(1 / 60);
+assert.equal(alive() - base, 5);
+await loading;
+assert.equal(loaded, true);
+assert.deepEqual(Object.keys(layout.refs), ["a", "b", "c", "d", "e"]);
+
+await layout.dispose();
 ```
 
 Cinq entités avec `chunkSize: 2` demandent trois frames : deux, puis deux, puis une. En général, un layout de `m` entités se charge en `ceil(m / chunkSize)` frames.
@@ -124,11 +145,17 @@ const GridLayout = defineLayout(() => {
 })
 ```
 
-Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même erreur et `load()` est rejeté. Les entités déjà spawnées sont détruites.
+Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même erreur et `load()` est rejeté. Voir [Quand un spawn échoue](#quand-un-spawn-echoue).
 
 ### Disposer ou arrêter pendant le chargement
 
-`engine.stop()` pendant un chargement progressif fait la même chose que `dispose()` : `load()` ne reste jamais bloqué. `dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. La promesse de `load()` en attente est résolue, et `layout.active` reste `false`.
+`engine.stop()` pendant un chargement progressif fait la même chose que `dispose()` : `load()` ne reste jamais bloqué. `dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. Cela vaut d'où que `dispose()` soit appelé : entre deux frames, depuis un autre hook `engine:before-update` de la même frame, ou depuis un spawn en cours (par exemple le setup d'un acteur). Dans ce dernier cas, l'entité en construction est détruite aussi. La promesse de `load()` en attente est résolue, `layout.refs` reste `{}` et `layout.active` reste `false`.
+
+### Quand un spawn échoue
+
+Si un spawn lève une erreur, le chargement progressif s'arrête, toutes les entités créées par le layout sont détruites (y compris celle qui était à moitié construite au moment de l'erreur), et `load()` est rejeté avec cette erreur. Si la destruction échoue aussi, `load()` est quand même rejeté avec l'erreur du spawn. Seuls les chargements progressifs nettoient ainsi : un chargement en une passe sans `chunkSize` ne change pas.
+
+Avec `lazy: false` et `chunkSize`, personne n'attend `load()`. L'échec est émis sur le bus d'erreurs du moteur (`engine.errors`) avec le niveau `error`, le code `COMPOSABLE:LAYOUT_LOAD_FAILED` et l'erreur d'origine dans `error`. Utilisez `lazy: true` et attendez `load()` si vous voulez la gérer vous-même.
 
 ## Layouts et cycle de vie des scènes
 

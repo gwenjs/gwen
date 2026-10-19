@@ -245,8 +245,14 @@ export interface LayoutHandle<Refs> {
    * Resolves when all entities are alive: at once, or after `ceil(m / chunkSize)` frames
    * with `chunkSize`. A second call while loading returns the same promise.
    * If `dispose()` or `engine.stop()` runs during a progressive load, the promise
-   * resolves and `active` stays `false`. If a spawn throws, the promise rejects and the entities already
-   * spawned are destroyed.
+   * resolves and `active` stays `false`, whoever called `dispose()` (another frame hook, or
+   * a spawn in progress), and everything spawned, including the entity being built, is
+   * destroyed. If a spawn throws, the promise rejects with that error and every entity the
+   * layout created, including the half-built one, is destroyed; a failure while destroying
+   * does not replace the spawn error. This cleanup applies to progressive loads only. With
+   * `lazy: false` and `chunkSize`, nobody awaits `load()`, so the failure is emitted on the
+   * engine error bus (`engine.errors`) with code `COMPOSABLE:LAYOUT_LOAD_FAILED` and the
+   * original error in `error`.
    */
   load(): Promise<void>;
   /**
