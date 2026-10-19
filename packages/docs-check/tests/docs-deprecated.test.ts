@@ -1,13 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  deprecatedPublicExports,
-  deprecatedPublicMembers,
-  isDirectory,
-  isFile,
-  repoRoot,
-} from "../src/deprecated-walker.js";
+import { deprecatedNames, isDirectory, isFile, repoRoot } from "../src/deprecated-walker.js";
 
 const SKIP_DIR = new Set(["superpowers", "node_modules", ".vitepress"]);
 
@@ -32,20 +26,6 @@ function mentionFiles(): string[] {
     if (isFile(readme)) out.push(readme);
   }
   return out;
-}
-
-function deprecatedNames(): readonly string[] {
-  const names: string[] = [];
-  for (const line of deprecatedPublicExports()) {
-    const name = line.split(" ").at(-1);
-    if (name !== undefined && name.length > 0 && !names.includes(name)) names.push(name);
-  }
-  // `<package> <subpath> Owner.member`: a doc names the member, as `engine.member` or `member`.
-  for (const line of deprecatedPublicMembers()) {
-    const name = line.split(" ").at(-1)?.split(".").at(-1);
-    if (name !== undefined && name.length > 0 && !names.includes(name)) names.push(name);
-  }
-  return names;
 }
 
 /** True when the sentence that contains `index` begins with `Deprecated:`. */
