@@ -1,12 +1,3 @@
-#![allow(
-    clippy::unwrap_used,
-    clippy::expect_used,
-    clippy::panic,
-    clippy::unreachable,
-    clippy::todo,
-    clippy::unimplemented,
-    reason = "bench harness, not a wasm export (#183)"
-)]
 use gwen_core::physics2d::components::{BodyOptions, BodyType, ColliderOptions};
 use gwen_core::physics2d::error::Physics2DError;
 use gwen_core::physics2d::world::{PhysicsQualityPreset, PhysicsWorld};
@@ -122,7 +113,13 @@ fn setup_stack_world(run: PresetRun) -> PhysicsWorld {
 
 fn percentile_ms(samples_ms: &[f64], percentile: f64) -> f64 {
     let mut sorted = samples_ms.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| match a.partial_cmp(b) {
+        Some(order) => order,
+        None => {
+            eprintln!("non-finite bench sample");
+            std::process::exit(1);
+        }
+    });
     let idx = ((sorted.len().saturating_sub(1)) as f64 * percentile).round() as usize;
     sorted[idx]
 }
