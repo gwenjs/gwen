@@ -72,17 +72,23 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   /** One pass: run the factory, every `place*` call spawns at once. */
   function loadOnePass(): void {
     const previous = pushEngine(engine);
+    // Owned from the first entity on, so a throwing factory or `place*` call can clean up.
+    const entities: EntityId[] = [];
+    _entityIds = entities;
     let result: Refs | undefined;
-    let entities: EntityId[] = [];
     try {
-      const loaded = _withLayoutContext(() => layoutDef._factory());
-      result = loaded.result;
-      entities = loaded.entities;
+      result = _withLayoutContext(() => layoutDef._factory(), { entities }).result;
+    } catch (error: unknown) {
+      try {
+        destroyIds(entities);
+      } catch {
+        /* keep the load error: it is the first failure */
+      }
+      throw error;
     } finally {
       popEngine(engine, previous);
     }
     if (result !== undefined) _refs = result;
-    _entityIds = entities;
     _active = true;
   }
 
@@ -99,7 +105,8 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     } finally {
       popEngine(engine, previous);
     }
-    const { result, entities, queue } = loaded;
+    const { result, entities } = loaded;
+    const queue = loaded.queue ?? [];
     _entityIds = entities;
 
     if (queue.length === 0) {
@@ -147,7 +154,12 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         }
         if (cancelled) {
           // dispose() ran inside a spawn: the entity it was building is registered only now.
-          destroyIds(entities);
+          // A frame hook must not throw: report a failed cleanup on the error bus instead.
+          try {
+            destroyIds(entities);
+          } catch (error: unknown) {
+            reportDisposeFailure(error);
+          }
           return;
         }
         if (next < queue.length) return;
@@ -157,7 +169,10 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         resolve();
       });
       // A stopped engine runs no more frames: settle like dispose().
-      const unhookStop = engine.hooks.hook("engine:stop", () => dispose());
+      // engine.stop() must not reject because a layout failed to clean up.
+      const unhookStop = engine.hooks.hook("engine:stop", () =>
+        dispose().catch((error: unknown) => reportDisposeFailure(error)),
+      );
       _cancel = () => {
         stop();
         resolve();
@@ -189,6 +204,17 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     } catch (error: unknown) {
       return Promise.reject(error);
     }
+  }
+
+  /** Report a cleanup failure that nobody awaits (frame hook, engine stop). */
+  function reportDisposeFailure(error: unknown): void {
+    engine.errors.emit({
+      level: "error",
+      code: ComposableErrorCodes.LAYOUT_DISPOSE_FAILED,
+      message: "[GWEN] useLayout: destroying the layout entities failed.",
+      source: "useLayout",
+      error,
+    });
   }
 
   /** Bulk-destroy every entity spawned so far and forget them. */
@@ -262,21 +288,16 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   };
 
   if (!options.lazy) {
-    const loading = load();
-    if (chunkSize === undefined) {
-      void loading;
-    } else {
-      // Nobody awaits a non-lazy load: report a failed spawn on the engine error bus.
-      loading.catch((error: unknown) => {
-        engine.errors.emit({
-          level: "error",
-          code: ComposableErrorCodes.LAYOUT_LOAD_FAILED,
-          message: "[GWEN] useLayout: the progressive layout load failed.",
-          source: "useLayout",
-          error,
-        });
+    // Nobody awaits a non-lazy load: report a failure on the engine error bus.
+    load().catch((error: unknown) => {
+      engine.errors.emit({
+        level: "error",
+        code: ComposableErrorCodes.LAYOUT_LOAD_FAILED,
+        message: "[GWEN] useLayout: the layout load failed.",
+        source: "useLayout",
+        error,
       });
-    }
+    });
   }
 
   return handle;

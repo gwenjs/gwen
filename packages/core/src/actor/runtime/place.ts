@@ -40,6 +40,8 @@ import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-e
 interface LayoutContext {
   readonly entities: EntityId[];
   readonly queue: Array<() => void> | undefined;
+  /** Records an entity id as soon as it exists. Built once per layout, not per `place*` call. */
+  readonly register: (entityId: EntityId) => void;
 }
 
 const _layoutCtx = new ContextSlot<LayoutContext>();
@@ -55,11 +57,15 @@ const _layoutCtx = new ContextSlot<LayoutContext>();
  */
 export function _withLayoutContext<T>(
   fn: () => T,
-  options: { deferred?: boolean } = {},
-): { result: T; entities: EntityId[]; queue: Array<() => void> } {
-  const entities: EntityId[] = [];
-  const queue: Array<() => void> = [];
-  const result = _layoutCtx.run({ entities, queue: options.deferred ? queue : undefined }, fn);
+  options: { deferred?: boolean; entities?: EntityId[] } = {},
+): { result: T; entities: EntityId[]; queue: Array<() => void> | undefined } {
+  // The caller may pass `entities` so it still owns them when `fn` throws.
+  const entities: EntityId[] = options.entities ?? [];
+  const queue: Array<() => void> | undefined = options.deferred ? [] : undefined;
+  const register = (entityId: EntityId): void => {
+    entities.push(entityId);
+  };
+  const result = _layoutCtx.run({ entities, queue, register }, fn);
   return { result, entities, queue };
 }
 
@@ -85,7 +91,7 @@ function _place<API>(
   const ctx = _layoutCtx.get()!;
   const queue = ctx.queue;
   if (queue === undefined) {
-    return build((entityId) => ctx.entities.push(entityId));
+    return build(ctx.register);
   }
 
   let spawned: PlaceHandle<API> | undefined;
@@ -102,7 +108,7 @@ function _place<API>(
     return spawned;
   };
   queue.push(() => {
-    spawned = build((entityId) => ctx.entities.push(entityId));
+    spawned = build(ctx.register);
   });
   return {
     get entityId() {
