@@ -665,6 +665,7 @@ function runBuildProbe(wasmOptText, env) {
   const root = mkdtempSync(path.join(tmpdir(), 'gwen-wasm-build-'));
   mkdirSync(path.join(root, 'scripts'));
   cpSync(path.join(repoRoot, 'scripts/build-wasm.sh'), path.join(root, 'scripts/build-wasm.sh'));
+  cpSync(path.join(repoRoot, 'scripts/lib-wasm-pin.sh'), path.join(root, 'scripts/lib-wasm-pin.sh'));
   writeFileSync(
     path.join(root, 'wasm-size.json'),
     `${JSON.stringify({ toolchain: { rust: '1.99.0', wasmPack: '0.13.1', wasmOpt: '133' } })}\n`,
