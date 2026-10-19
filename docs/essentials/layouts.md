@@ -149,13 +149,15 @@ If a `parent` is placed after its child, the child's spawn throws the same error
 
 ### Disposing or stopping while loading
 
-`engine.stop()` during a progressive load does the same as `dispose()`, so `load()` never hangs. `dispose()` during a progressive load stops the remaining spawns and destroys the entities that already exist. This holds wherever `dispose()` is called from: between frames, from another `engine:before-update` hook in the same frame, or from inside a spawn (for example an actor setup). In that last case the entity being built is destroyed too. The pending `load()` promise resolves, `layout.refs` stays `{}` and `layout.active` stays `false`.
+`engine.stop()` during a progressive load does the same as `dispose()`, so `load()` never hangs and `engine.stop()` never rejects because of the layout. `dispose()` during a progressive load stops the remaining spawns and destroys the entities that already exist. This holds wherever `dispose()` is called from: between frames, from another `engine:before-update` hook in the same frame, or from inside a spawn (for example an actor setup). In that last case the entity being built is destroyed too. The pending `load()` promise resolves, `layout.refs` stays `{}` and `layout.active` stays `false`.
 
 ### When a spawn fails
 
-If a spawn throws, the progressive load stops, every entity the layout created is destroyed (including the one that was half built when the error was thrown), and `load()` rejects with that error. If destroying also fails, `load()` still rejects with the spawn error. Only progressive loads clean up this way: a one-pass load without `chunkSize` is unchanged.
+If a `place*` call or the factory throws, the load stops, every entity the layout created is destroyed (including the one that was half built when the error was thrown), and `load()` rejects with that error. This holds with and without `chunkSize`. If destroying also fails, `load()` still rejects with the original error. After a failed load `layout.active` is `false`, `layout.refs` is `{}`, and a later `load()` runs the factory again.
 
-With `lazy: false` and `chunkSize`, nothing awaits `load()`. The failure is emitted on the engine error bus (`engine.errors`) with level `error`, code `COMPOSABLE:LAYOUT_LOAD_FAILED`, and the original error in `error`. Use `lazy: true` and await `load()` if you want to handle it yourself.
+With `lazy: false`, nothing awaits `load()`. A failure, chunked or not, is emitted on the engine error bus (`engine.errors`) with level `error`, code `COMPOSABLE:LAYOUT_LOAD_FAILED`, and the original error in `error`. Use `lazy: true` and await `load()` if you want to handle it yourself.
+
+When nobody can receive the error of a cleanup, it goes to the error bus too, with code `COMPOSABLE:LAYOUT_DISPOSE_FAILED`. This happens when the cleanup runs in a frame hook (a `dispose()` from inside a spawn) or in `engine.stop()`. `engine.stop()` never rejects because of a layout.
 
 ## Layouts and Scene Lifecycle
 

@@ -247,12 +247,14 @@ export interface LayoutHandle<Refs> {
    * If `dispose()` or `engine.stop()` runs during a progressive load, the promise
    * resolves and `active` stays `false`, whoever called `dispose()` (another frame hook, or
    * a spawn in progress), and everything spawned, including the entity being built, is
-   * destroyed. If a spawn throws, the promise rejects with that error and every entity the
-   * layout created, including the half-built one, is destroyed; a failure while destroying
-   * does not replace the spawn error. This cleanup applies to progressive loads only. With
-   * `lazy: false` and `chunkSize`, nobody awaits `load()`, so the failure is emitted on the
-   * engine error bus (`engine.errors`) with code `COMPOSABLE:LAYOUT_LOAD_FAILED` and the
-   * original error in `error`.
+   * destroyed. If the factory or a `place*` call throws (with or without `chunkSize`), the promise rejects
+   * with that error and every entity the layout created, including a half-built one, is destroyed;
+   * a failure while destroying does not replace the original error. `active` stays `false`,
+   * `refs` stays `{}` and a later `load()` runs the factory again. With `lazy: false` nobody awaits
+   * `load()`, so a failure is emitted on the engine error bus (`engine.errors`) with code
+   * `COMPOSABLE:LAYOUT_LOAD_FAILED` and the original error in `error`. `engine.stop()` never
+   * rejects because of a layout: a cleanup failure there, or in a frame hook, is emitted with code
+   * `COMPOSABLE:LAYOUT_DISPOSE_FAILED`.
    */
   load(): Promise<void>;
   /**
