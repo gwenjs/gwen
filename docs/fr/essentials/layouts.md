@@ -149,13 +149,15 @@ Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même
 
 ### Disposer ou arrêter pendant le chargement
 
-`engine.stop()` pendant un chargement progressif fait la même chose que `dispose()` : `load()` ne reste jamais bloqué. `dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. Cela vaut d'où que `dispose()` soit appelé : entre deux frames, depuis un autre hook `engine:before-update` de la même frame, ou depuis un spawn en cours (par exemple le setup d'un acteur). Dans ce dernier cas, l'entité en construction est détruite aussi. La promesse de `load()` en attente est résolue, `layout.refs` reste `{}` et `layout.active` reste `false`.
+`engine.stop()` pendant un chargement progressif fait la même chose que `dispose()` : `load()` ne reste jamais bloqué et `engine.stop()` n'est jamais rejeté à cause du layout. `dispose()` pendant un chargement progressif arrête les spawns restants et détruit les entités déjà vivantes. Cela vaut d'où que `dispose()` soit appelé : entre deux frames, depuis un autre hook `engine:before-update` de la même frame, ou depuis un spawn en cours (par exemple le setup d'un acteur). Dans ce dernier cas, l'entité en construction est détruite aussi. La promesse de `load()` en attente est résolue, `layout.refs` reste `{}` et `layout.active` reste `false`.
 
 ### Quand un spawn échoue
 
-Si un spawn lève une erreur, le chargement progressif s'arrête, toutes les entités créées par le layout sont détruites (y compris celle qui était à moitié construite au moment de l'erreur), et `load()` est rejeté avec cette erreur. Si la destruction échoue aussi, `load()` est quand même rejeté avec l'erreur du spawn. Seuls les chargements progressifs nettoient ainsi : un chargement en une passe sans `chunkSize` ne change pas.
+Si un appel `place*` ou la factory lève une erreur, le chargement s'arrête, toutes les entités créées par le layout sont détruites (y compris celle qui était à moitié construite au moment de l'erreur), et `load()` est rejeté avec cette erreur. Cela vaut avec et sans `chunkSize`. Si la destruction échoue aussi, `load()` est quand même rejeté avec l'erreur d'origine. Après un chargement en échec, `layout.active` vaut `false`, `layout.refs` vaut `{}`, et un `load()` ultérieur relance la factory.
 
-Avec `lazy: false` et `chunkSize`, personne n'attend `load()`. L'échec est émis sur le bus d'erreurs du moteur (`engine.errors`) avec le niveau `error`, le code `COMPOSABLE:LAYOUT_LOAD_FAILED` et l'erreur d'origine dans `error`. Utilisez `lazy: true` et attendez `load()` si vous voulez la gérer vous-même.
+Avec `lazy: false`, personne n'attend `load()`. Un échec, progressif ou non, est émis sur le bus d'erreurs du moteur (`engine.errors`) avec le niveau `error`, le code `COMPOSABLE:LAYOUT_LOAD_FAILED` et l'erreur d'origine dans `error`. Utilisez `lazy: true` et attendez `load()` si vous voulez la gérer vous-même.
+
+Quand personne ne peut recevoir l'erreur d'un nettoyage, elle va aussi sur le bus d'erreurs, avec le code `COMPOSABLE:LAYOUT_DISPOSE_FAILED`. Cela arrive quand le nettoyage s'exécute dans un hook de frame (un `dispose()` appelé depuis un spawn) ou dans `engine.stop()`. `engine.stop()` n'est jamais rejeté à cause d'un layout.
 
 ## Layouts et cycle de vie des scènes
 
