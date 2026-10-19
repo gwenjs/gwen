@@ -289,6 +289,11 @@ export const ComposableErrorCodes = {
    * entity was spawned. Only possible with `useLayout({ chunkSize })`.
    */
   LAYOUT_HANDLE_NOT_SPAWNED: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
+  /**
+   * A non-lazy `useLayout({ chunkSize })` load failed. Nobody awaits that load, so the
+   * failure is emitted on the engine error bus with the original error in `error`.
+   */
+  LAYOUT_LOAD_FAILED: "COMPOSABLE:LAYOUT_LOAD_FAILED",
 } as const;
 
 /**
