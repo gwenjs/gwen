@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { describe, expect, it } from "vitest";
 import { createEngine, defineComponent, Types } from "../../src/index.js";
 
@@ -9,23 +10,47 @@ const entitiesPath = join(
   "../../src/engine/engine-entities.ts",
 );
 
-/** Body of `fillScratch`, from the opening brace through its match. */
-function fillScratchBody(source: string): string {
-  const start = source.indexOf("private fillScratch");
-  if (start < 0) {
-    throw new Error("private fillScratch not found");
-  }
-  const open = source.indexOf("{", start);
-  let depth = 0;
-  for (let index = open; index < source.length; index += 1) {
-    const char = source[index];
-    if (char === "{") depth += 1;
-    if (char === "}") {
-      depth -= 1;
-      if (depth === 0) return source.slice(open, index + 1);
+const CAST_KINDS = new Set<ts.SyntaxKind>([
+  ts.SyntaxKind.AsExpression,
+  ts.SyntaxKind.TypeAssertionExpression,
+  ts.SyntaxKind.NonNullExpression,
+]);
+
+function fillScratchBody(source: ts.SourceFile): ts.Node {
+  const bodies: ts.Node[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isMethodDeclaration(node) &&
+      ts.isIdentifier(node.name) &&
+      node.name.text === "fillScratch" &&
+      node.body !== undefined
+    ) {
+      bodies.push(node.body);
     }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  const body = bodies[0];
+  if (bodies.length !== 1 || body === undefined) {
+    throw new Error(`expected one fillScratch method, found ${bodies.length}`);
   }
-  throw new Error("fillScratch body did not close");
+  return body;
+}
+
+/** Line sites of `as`, `<T>expr`, and `expr!` inside the fillScratch body. */
+function castSites(body: ts.Node, source: ts.SourceFile): string[] {
+  const sites: string[] = [];
+  const visit = (node: ts.Node): void => {
+    if (CAST_KINDS.has(node.kind)) {
+      const pos = source.getLineAndCharacterOfPosition(node.getStart(source));
+      sites.push(
+        `${pos.line + 1}:${pos.character + 1} ${ts.SyntaxKind[node.kind]} ${node.getText(source)}`,
+      );
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(body);
+  return sites;
 }
 
 /**
@@ -50,41 +75,43 @@ const Marker = defineComponent({
 
 describe("fillScratch", () => {
   it("applies schema defaults for a missing key and an undefined value", async () => {
-    const first = await createEngine({ maxEntities: 4 });
+    const engine = await createEngine({ maxEntities: 4 });
     try {
-      const second = await createEngine({ maxEntities: 4 });
-      try {
-        const partial = first.createEntity();
-        const empty = first.createEntity();
-        first.addComponent(partial, Marker, withUndefined({ kept: 77 }, "blank"));
-        first.addComponent(empty, Marker, {});
+      const partial = engine.createEntity();
+      const empty = engine.createEntity();
+      const zero = engine.createEntity();
+      engine.addComponent(partial, Marker, withUndefined({ kept: 77 }, "blank"));
+      engine.addComponent(empty, Marker, {});
+      engine.addComponent(zero, Marker, { kept: 0, missing: 0, blank: 0 });
 
-        expect(first.getComponent(partial, Marker)).toEqual({
-          kept: 77,
-          missing: 9,
-          blank: 4,
-        });
-        expect(first.getComponent(empty, Marker)).toEqual({
-          kept: 1,
-          missing: 9,
-          blank: 4,
-        });
-
-        const zero = second.createEntity();
-        second.addComponent(zero, Marker, { kept: 0, missing: 0, blank: 0 });
-        expect(second.getComponent(zero, Marker)).toEqual({
-          kept: 0,
-          missing: 0,
-          blank: 0,
-        });
-
-        const body = fillScratchBody(readFileSync(entitiesPath, "utf8"));
-        expect(body.includes(" as ")).toBe(false);
-      } finally {
-        await second.stop();
-      }
+      expect(engine.getComponent(partial, Marker)).toEqual({
+        kept: 77,
+        missing: 9,
+        blank: 4,
+      });
+      expect(engine.getComponent(empty, Marker)).toEqual({
+        kept: 1,
+        missing: 9,
+        blank: 4,
+      });
+      expect(engine.getComponent(zero, Marker)).toEqual({
+        kept: 0,
+        missing: 0,
+        blank: 0,
+      });
     } finally {
-      await first.stop();
+      await engine.stop();
     }
+  });
+
+  it("fillScratch contains no cast", () => {
+    const source = ts.createSourceFile(
+      entitiesPath,
+      readFileSync(entitiesPath, "utf8"),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    expect(castSites(fillScratchBody(source), source)).toEqual([]);
   });
 });
