@@ -21,11 +21,11 @@ function fakeWasmPack(version, buildStatus) {
   writeFileSync(
     bin,
     `#!/bin/sh
+printf '%s\\n' "$*" >> ${JSON.stringify(log)}
 if [ "$1" = "--version" ]; then
   echo "wasm-pack ${version}"
   exit 0
 fi
-printf '%s\\n' "$*" >> ${JSON.stringify(log)}
 exit ${buildStatus}
 `,
   );
@@ -62,8 +62,13 @@ test("build-wasm-tools.sh reaches wasm-pack build with the pinned version", () =
   const matched = fakeWasmPack(pin, 42);
   try {
     const reached = runTools(matched.dir);
+    const lines = readFileSync(matched.log, "utf8").trim().split("\n");
+    assert.equal(lines[0], "--version");
     assert.equal(reached.status, 42, `${reached.stdout}\n${reached.stderr}`);
-    assert.equal(readFileSync(matched.log, "utf8").includes("build"), true);
+    assert.equal(
+      lines.some((line) => line.startsWith("build")),
+      true,
+    );
   } finally {
     rmSync(matched.dir, { recursive: true, force: true });
   }
