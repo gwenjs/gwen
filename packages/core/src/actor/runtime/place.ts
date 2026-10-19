@@ -74,15 +74,18 @@ export function _isInLayoutContext(): boolean {
 /**
  * Spawn now (immediate layout) or record the spawn (deferred layout).
  *
+ * `build` calls `register` as soon as the entity exists, so an entity whose later setup
+ * throws is already owned by the layout and gets destroyed with it.
+ *
  * A deferred handle throws a coded error when read before its spawn has run.
  */
-function _place<API>(build: () => PlaceHandle<API>): PlaceHandle<API> {
+function _place<API>(
+  build: (register: (entityId: EntityId) => void) => PlaceHandle<API>,
+): PlaceHandle<API> {
   const ctx = _layoutCtx.get()!;
   const queue = ctx.queue;
   if (queue === undefined) {
-    const built = build();
-    ctx.entities.push(built.entityId);
-    return built;
+    return build((entityId) => ctx.entities.push(entityId));
   }
 
   let spawned: PlaceHandle<API> | undefined;
@@ -99,9 +102,7 @@ function _place<API>(build: () => PlaceHandle<API>): PlaceHandle<API> {
     return spawned;
   };
   queue.push(() => {
-    const built = build();
-    ctx.entities.push(built.entityId);
-    spawned = built;
+    spawned = build((entityId) => ctx.entities.push(entityId));
   });
   return {
     get entityId() {
@@ -195,9 +196,10 @@ export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): 
   }
 
   const engine = useEngine();
-  return _place<void>(() => {
+  return _place<void>((register) => {
     const bridge = engine.getPlacementBridge();
     const entityId = engine.createEntity();
+    register(entityId);
     _applyTransformOpts(bridge, entityId, options);
     return {
       entityId,
@@ -240,8 +242,9 @@ export function placeActor<Props, API>(
   }
 
   const engine = useEngine();
-  return _place<API>(() => {
+  return _place<API>((register) => {
     const entityId = spawnActor(actorDef._plugin, options.props);
+    register(entityId);
     const bridge = engine.getPlacementBridge();
     _applyTransformOpts(bridge, entityId, options);
 
@@ -288,9 +291,10 @@ export function placePrefab<E extends readonly ComponentDef[]>(
   }
 
   const engine = useEngine();
-  return _place<void>(() => {
+  return _place<void>((register) => {
     const bridge = engine.getPlacementBridge();
     const entityId = engine.createEntity();
+    register(entityId);
 
     for (const entry of prefabDef.components) {
       engine.addComponent(entityId, entry.def, { ...entry.defaults, ...options.props });

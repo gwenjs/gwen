@@ -110,27 +110,45 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
 
     return new Promise<void>((resolve, reject) => {
       let next = 0;
+      /**
+       * Set by dispose(), engine.stop() or a failed spawn. The hook chain of a frame is built
+       * before it runs, so a hook that was already unsubscribed can still fire once: it must
+       * check this flag.
+       */
+      let cancelled = false;
       const stop = (): void => {
+        cancelled = true;
         unhook();
         unhookStop();
         _cancel = undefined;
         _pending = undefined;
       };
       const unhook = engine.hooks.hook("engine:before-update", () => {
+        if (cancelled) return;
         const slice = queue.slice(next, next + size);
         const frameEngine = pushEngine(engine);
         try {
           for (const spawn of slice) {
             spawn();
             next += 1;
+            if (cancelled) break;
           }
         } catch (error: unknown) {
           stop();
-          destroyOwned();
+          try {
+            destroyIds(entities);
+          } catch {
+            /* keep the spawn error: it is the first failure */
+          }
           reject(error);
           return;
         } finally {
           popEngine(engine, frameEngine);
+        }
+        if (cancelled) {
+          // dispose() ran inside a spawn: the entity it was building is registered only now.
+          destroyIds(entities);
+          return;
         }
         if (next < queue.length) return;
         if (result !== undefined) _refs = result;
@@ -175,10 +193,23 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
 
   /** Bulk-destroy every entity spawned so far and forget them. */
   function destroyOwned(): void {
-    if (_entityIds.length > 0) {
+    destroyIds(_entityIds);
+  }
+
+  /** Bulk-destroy `ids` and empty the array in place, even if destroying throws. */
+  function destroyIds(ids: bigint[]): void {
+    try {
+      destroyList(ids);
+    } finally {
+      ids.length = 0;
+    }
+  }
+
+  function destroyList(ids: bigint[]): void {
+    if (ids.length > 0) {
       const bridge = engine.getPlacementBridge();
       if (bridge?.bulk_destroy) {
-        const indices = new Uint32Array(_entityIds.map((id) => entityIndex(id as EntityId)));
+        const indices = new Uint32Array(ids.map((id) => entityIndex(id as EntityId)));
         const impl = engine.tryInject("wasm:bridge");
         if (impl) {
           impl.bulkDestroy(indices);
@@ -191,7 +222,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         }
       } else {
         // Fallback: destroy entities one-by-one if bulk_destroy is not available
-        for (const id of _entityIds) {
+        for (const id of ids) {
           try {
             engine.destroyEntity(id as never);
           } catch {
@@ -200,8 +231,6 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
         }
       }
     }
-
-    _entityIds = [];
   }
 
   /**
@@ -213,9 +242,12 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   async function dispose(): Promise<void> {
     if (!_active && _cancel === undefined) return;
     _cancel?.();
-    destroyOwned();
-    _refs = {} as Refs;
-    _active = false;
+    try {
+      destroyOwned();
+    } finally {
+      _refs = {} as Refs;
+      _active = false;
+    }
   }
 
   const handle: LayoutHandle<Refs> = {
@@ -230,7 +262,21 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   };
 
   if (!options.lazy) {
-    void load();
+    const loading = load();
+    if (chunkSize === undefined) {
+      void loading;
+    } else {
+      // Nobody awaits a non-lazy load: report a failed spawn on the engine error bus.
+      loading.catch((error: unknown) => {
+        engine.errors.emit({
+          level: "error",
+          code: ComposableErrorCodes.LAYOUT_LOAD_FAILED,
+          message: "[GWEN] useLayout: the progressive layout load failed.",
+          source: "useLayout",
+          error,
+        });
+      });
+    }
   }
 
   return handle;
