@@ -1,5 +1,5 @@
 // packages/camera-core/tests/camera-system-query.test.ts
-import { describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core";
 import type { EntityId, GwenEngine } from "@gwenjs/core";
 import { getOrCreateCameraManager, getOrCreateViewportManager } from "@gwenjs/renderer-core";
@@ -7,9 +7,16 @@ import { Camera, CameraBounds } from "../src/components.js";
 import { getCameraStores } from "../src/camera-stores.js";
 import { CameraSystem } from "../src/camera-system.js";
 
-/** The real engine, with a pass-through spy on the deprecated `createLiveQuery`. */
+const openEngines: GwenEngine[] = [];
+
+afterEach(async () => {
+  while (openEngines.length > 0) await openEngines.pop()?.stop();
+});
+
+/** The real engine, released in `afterEach`, with a pass-through spy on the deprecated `createLiveQuery`. */
 async function makeEngine(): Promise<GwenEngine> {
   const engine = await createEngine({ maxEntities: 100 });
+  openEngines.push(engine);
   liveQuerySpy.current = vi.spyOn(engine, "createLiveQuery");
   getOrCreateCameraManager(engine);
   getOrCreateViewportManager(engine);
