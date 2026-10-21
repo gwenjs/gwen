@@ -515,10 +515,28 @@ jobs:
           path: packages/core/test-results
           retention-days: 1
 
+  glue-shape:
+    name: Glue shape
+    runs-on: ubuntu-latest
+    needs: [rust]
+    # No CI run yet: this branch was not pushed.
+    # Ceiling is 10 until a CI run replaces this comment with its run id.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: ./.github/actions/setup-node-pnpm
+      - name: Download core wasm artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: core-wasm
+          path: packages/core/wasm/
+      - name: Check glue shape
+        run: node scripts/wasm-factory-golden.mjs --check
+
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny, docs-check, browser-wasm]
+    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape]
     if: always()
     steps:
       - name: Check all jobs
@@ -537,6 +555,7 @@ jobs:
              [ "${{ needs['wasm-size'].result }}" != "success" ] || \
              [ "${{ needs['rust-deny'].result }}" != "success" ] || \
              [ "${{ needs['browser-wasm'].result }}" != "success" ] || \
+             [ "${{ needs['glue-shape'].result }}" != "success" ] || \
              [ "${{ needs['docs-check'].result }}" != "success" ]; then
             echo "❌ CI failed"
             exit 1

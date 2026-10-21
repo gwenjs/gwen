@@ -7,7 +7,8 @@
     "dist",
     "wasm",
     "!wasm/toolchain.json",
-    "LICENSE"
+    "LICENSE",
+    "THIRD-PARTY-NOTICES"
   ],
   "type": "module",
   "main": "./dist/index.js",
