@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
@@ -224,6 +225,51 @@ test("the bvh and build-tools outputs are refused", () => {
       true,
       `status=${String(result.status)} stderr=${stderr}`,
     );
+  }
+
+  const script = join(repoRoot, "scripts/wasm-factory.mjs");
+  const physics3d = join(repoRoot, "packages/physics3d");
+
+  /**
+   * @param {string} outDir
+   * @param {string} [cwd]
+   */
+  const assertRefused = (outDir, cwd = repoRoot) => {
+    const result = spawnSync(process.execPath, [script, outDir], {
+      cwd,
+      encoding: "utf8",
+    });
+    const stderr = `${result.stderr ?? ""}`;
+    assert.equal(
+      result.status === 1 && stderr.includes("[wasm-factory]") && stderr.includes(outDir),
+      true,
+      `status=${String(result.status)} stderr=${stderr}`,
+    );
+  };
+
+  assertRefused("packages/physics3d/wasm/../wasm/bvh");
+  assertRefused("packages/physics3d//wasm/bvh");
+  assertRefused("packages/physics3d/build-tools/");
+  for (const marker of REFUSED_DIRS) {
+    assertRefused(join(repoRoot, marker));
+    assertRefused(`${marker}/sub`);
+  }
+  assertRefused("wasm/bvh", physics3d);
+  assertRefused("build-tools", physics3d);
+
+  const accepted = mkdtempSync(join(tmpdir(), "wasm-factory-out-"));
+  try {
+    const result = spawnSync(process.execPath, [script, accepted], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+    const stderr = `${result.stderr ?? ""}`;
+    assert.equal(result.status, 1, stderr);
+    assert.equal(stderr.includes("refused"), false, stderr);
+    assert.equal(stderr.includes("gwen_core.js"), true, stderr);
+    assert.equal(stderr.includes("no such file or directory"), true, stderr);
+  } finally {
+    rmSync(accepted, { recursive: true, force: true });
   }
 });
 

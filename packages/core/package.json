@@ -65,13 +65,25 @@
       "types": "./wasm/light/gwen_core.d.ts",
       "import": "./wasm/light/gwen_core.js"
     },
+    "./wasm/light/factory": {
+      "types": "./wasm/light/gwen_core_factory.d.ts",
+      "import": "./wasm/light/gwen_core_factory.js"
+    },
     "./wasm/physics2d": {
       "types": "./wasm/physics2d/gwen_core.d.ts",
       "import": "./wasm/physics2d/gwen_core.js"
     },
+    "./wasm/physics2d/factory": {
+      "types": "./wasm/physics2d/gwen_core_factory.d.ts",
+      "import": "./wasm/physics2d/gwen_core_factory.js"
+    },
     "./wasm/physics3d": {
       "types": "./wasm/physics3d/gwen_core.d.ts",
       "import": "./wasm/physics3d/gwen_core.js"
+    },
+    "./wasm/physics3d/factory": {
+      "types": "./wasm/physics3d/gwen_core_factory.d.ts",
+      "import": "./wasm/physics3d/gwen_core_factory.js"
     },
     "./package.json": "./package.json"
   },

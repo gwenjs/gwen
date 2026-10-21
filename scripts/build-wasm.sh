@@ -195,6 +195,9 @@ build_variant() {
 
   optimize_wasm "$out_dir/gwen_core_bg.wasm" "$variant"
 
+  # Per-instance glue. Only build_variant calls this, so BVH and build-tools stay raw.
+  node "$PROJECT_ROOT/scripts/wasm-factory.mjs" "$out_dir"
+
   log_success "Built $variant variant"
   ls -lh "$out_dir" | awk '{print "    - " $9 " (" $5 ")"}'
 }

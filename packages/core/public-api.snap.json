@@ -345,5 +345,17 @@
       "initSync"
     ],
     "types": ["InitInput", "InitOutput", "SyncInitInput"]
+  },
+  "./wasm/light/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
+  },
+  "./wasm/physics2d/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
+  },
+  "./wasm/physics3d/factory": {
+    "values": ["CONTRACT", "createGlue", "wasmUrl"],
+    "types": ["GwenCoreGlueInstance"]
   }
 }

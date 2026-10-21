@@ -400,3 +400,21 @@ Types: `InitInput`, `InitOutput`, `SyncInitInput`
 Values: `Engine`, `JsEntityId`, `default`, `find_path_3d`, `get_path_buffer_ptr_3d`, `initSync`
 
 Types: `InitInput`, `InitOutput`, `SyncInitInput`
+
+### `./wasm/light/factory`
+
+Values: `CONTRACT`, `createGlue`, `wasmUrl`
+
+Types: `GwenCoreGlueInstance`
+
+### `./wasm/physics2d/factory`
+
+Values: `CONTRACT`, `createGlue`, `wasmUrl`
+
+Types: `GwenCoreGlueInstance`
+
+### `./wasm/physics3d/factory`
+
+Values: `CONTRACT`, `createGlue`, `wasmUrl`
+
+Types: `GwenCoreGlueInstance`
