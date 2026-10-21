@@ -93,19 +93,6 @@ const _pkgWasmBase: string | null = (() => {
 
 // InitWasmOptions — extracted to ./wasm-bridge-types.ts
 
-// ── Internal types for DOM-based glue loading ─────────────────────────────────
-
-/**
- * Extended `Window` interface that allows dynamic property access.
- * Used to cache loaded WASM glue modules on the global object.
- */
-interface GwenWindow extends Window {
-  [key: string]: unknown;
-}
-
-// eslint-disable-next-line no-unused-vars
-declare const window: GwenWindow;
-
 /**
  * Shape of a wasm-bindgen generated ES glue module.
  * The exact exports depend on the wasm-bindgen version and init mode.
@@ -138,20 +125,20 @@ function bytesFromDataUrl(url: string): Uint8Array<ArrayBuffer> {
 }
 
 /**
- * Load a WASM ES glue module, with two code paths:
+ * Load a WASM ES glue module with `import()` on every thread.
  *
- * - **Main thread** (DOM available): injects a `<script type="module">` into the document
- *   to work around Vite's restriction on dynamic `import()` for `/public` assets.
- * - **Web Worker** (no DOM): falls back to a dynamic `import()` which is natively
- *   supported in module workers (`new Worker(url, { type: 'module' })`).
- * - **Node** (including a test DOM): loads the glue with `import()`.
+ * The same path runs on the main thread, in a worker, and in Node. The glue
+ * URL is imported as a module. Nothing is built from that URL, so a page does
+ * not need `blob:` in `script-src`.
  *
  * The loaded module is cached on `globalThis` under a deterministic key so repeated
  * calls for the same URL are free (no extra network round-trips).
  *
+ * A URL that does not parse, or an `import()` that rejects, throws
+ * {@link GwenError} `CORE:WASM_LOAD_ERROR`. The message names `jsUrl`.
+ *
  * @param jsUrl Absolute or root-relative URL to the wasm-bindgen JS glue file.
  */
-
 async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
   const key = `__gwenGlue_${jsUrl.replace(/\W/g, "_")}`;
   const ctx = globalThis as Record<string, unknown>;
@@ -161,64 +148,34 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
 
   // Resolve to an absolute URL. `globalThis.location` is available in both
   // the main thread (window.location) and module workers (self.location).
+  // Node has no `location`, so the glue URL is its own base.
   const base = (globalThis as { location?: { href: string } }).location?.href ?? jsUrl;
-  const absoluteUrl = new URL(jsUrl, base).href;
-
-  // Node keeps `document` under happy-dom. The blob script below never loads there.
-  const nodeVersion = (globalThis as { process?: { versions?: { node?: string } } }).process
-    ?.versions?.node;
-  if (typeof nodeVersion === "string") {
-    const glue = (await import(/* @vite-ignore */ absoluteUrl)) as WasmGlueModule;
-    ctx[key] = glue;
-    return glue;
-  }
-
-  // ── Worker path: no DOM, use dynamic import() ─────────────────────────────
-  if (typeof document === "undefined") {
-    const glue = (await import(/* @vite-ignore */ absoluteUrl)) as WasmGlueModule;
-    ctx[key] = glue;
-    return glue;
-  }
-
-  // ── Main thread path: script injection (preserves Vite /public compat) ────
-  return new Promise<WasmGlueModule>((resolve, reject) => {
-    const blob = new Blob(
-      [
-        `import * as glue from '${absoluteUrl}';`,
-        `globalThis['${key}'] = glue;`,
-        `globalThis['${key}__resolve']?.();`,
-      ],
-      { type: "text/javascript" },
+  let absoluteUrl: string;
+  try {
+    absoluteUrl = new URL(jsUrl, base).href;
+  } catch (cause) {
+    throw new GwenError(
+      CoreErrorCodes.WASM_LOAD_ERROR,
+      `[GWEN] Unable to load WASM glue: ${jsUrl}`,
+      {
+        cause,
+      },
     );
+  }
 
-    const blobUrl = URL.createObjectURL(blob);
-
-    ctx[`${key}__resolve`] = () => {
-      // Delete the resolver reference so it doesn't linger on globalThis.
-      delete ctx[`${key}__resolve`];
-      URL.revokeObjectURL(blobUrl);
-      script.remove();
-      resolve(ctx[key] as WasmGlueModule);
-    };
-
-    const script = document.createElement("script");
-    script.type = "module";
-    script.src = blobUrl;
-    script.onerror = (e) => {
-      // Delete the resolver reference that was set before the script ran.
-      delete ctx[`${key}__resolve`];
-      URL.revokeObjectURL(blobUrl);
-      script.remove();
-      reject(
-        new GwenError(
-          CoreErrorCodes.WASM_LOAD_ERROR,
-          `[GWEN] Unable to load WASM glue: ${jsUrl}\n${e}`,
-        ),
-      );
-    };
-
-    document.head.appendChild(script);
-  });
+  try {
+    const glue = (await import(/* @vite-ignore */ absoluteUrl)) as WasmGlueModule;
+    ctx[key] = glue;
+    return glue;
+  } catch (cause) {
+    throw new GwenError(
+      CoreErrorCodes.WASM_LOAD_ERROR,
+      `[GWEN] Unable to load WASM glue: ${jsUrl}`,
+      {
+        cause,
+      },
+    );
+  }
 }
 
 // #endregion
