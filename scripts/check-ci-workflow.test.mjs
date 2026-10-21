@@ -1338,3 +1338,15 @@ test("rust-miri timeout is twice the cold wall in whole minutes", () => {
   assert.ok(timeout);
   assert.equal(Number(timeout[1]), minutes);
 });
+
+test("glue-shape job runs the golden check on the core-wasm artifact", () => {
+  const yaml = readCi();
+  const job = jobBlock(yaml, "glue-shape");
+  assert.notEqual(job, "", "glue-shape job is missing");
+  assert.match(job, /needs: \[rust\]/);
+  assert.match(job, /name: core-wasm\n\s+path: packages\/core\/wasm\//);
+  assert.match(job, /node scripts\/wasm-factory-golden\.mjs --check/);
+  assert.match(job, /timeout-minutes:/);
+  const status = jobBlock(yaml, "ci-status");
+  assert.match(status, /needs\['glue-shape'\]\.result/);
+});

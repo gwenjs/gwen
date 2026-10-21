@@ -1,0 +1,6 @@
+{
+  "toolchain": {
+    "rust": "1.0.0-fixture",
+    "wasmPack": "0.0.1-fixture"
+  }
+}
