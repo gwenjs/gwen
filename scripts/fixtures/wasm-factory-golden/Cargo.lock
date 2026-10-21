@@ -1,0 +1,12 @@
+# Fixture lock. wasm-bindgen-macro is listed first, with a different version.
+version = 3
+
+[[package]]
+name = "wasm-bindgen-macro"
+version = "0.2.100"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+
+[[package]]
+name = "wasm-bindgen"
+version = "0.2.200"
+source = "registry+https://github.com/rust-lang/crates.io-index"

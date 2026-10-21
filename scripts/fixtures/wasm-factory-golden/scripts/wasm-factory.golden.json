@@ -1,0 +1,38 @@
+{
+  "wasmBindgen": "0.2.200",
+  "variants": {
+    "light": {
+      "names": [
+        "Engine"
+      ],
+      "rawExports": [
+        "engine_new"
+      ],
+      "imports": [
+        "__wbindgen_throw"
+      ]
+    },
+    "physics2d": {
+      "names": [
+        "World2d"
+      ],
+      "rawExports": [
+        "world2d_new"
+      ],
+      "imports": [
+        "__wbindgen_throw"
+      ]
+    },
+    "physics3d": {
+      "names": [
+        "World3d"
+      ],
+      "rawExports": [
+        "world3d_new"
+      ],
+      "imports": [
+        "__wbindgen_throw"
+      ]
+    }
+  }
+}
