@@ -8,6 +8,7 @@ const enSidebar = [
       { text: 'Quick Start', link: '/guide/quick-start' },
       { text: 'Installation', link: '/guide/installation' },
       { text: 'Project Structure', link: '/guide/project-structure' },
+      { text: 'Browser Support', link: '/guide/browser-support' },
     ],
   },
   {
@@ -89,6 +90,7 @@ const frSidebar = [
       { text: 'Démarrage rapide', link: '/fr/guide/quick-start' },
       { text: 'Installation', link: '/fr/guide/installation' },
       { text: 'Structure du projet', link: '/fr/guide/project-structure' },
+      { text: 'Support navigateur', link: '/fr/guide/browser-support' },
     ],
   },
   {
