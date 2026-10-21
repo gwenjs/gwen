@@ -68,3 +68,8 @@ notes/
 
 # Leftover dev-strip fixtures if a test crashes before cleanup
 .tmp-dev-strip-*
+
+# Browser test fixture bundles (built by packages/core/tests/browser/build-site.mjs)
+packages/core/tests/browser/site/**/entry.js
+packages/core/test-results/
+packages/core/playwright-report/
