@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const releaseGlue = readFileSync(
@@ -213,62 +213,100 @@ test("a different tail fails", async () => {
   assert.match(message, /tail/);
 });
 
-test("the bvh and build-tools outputs are refused", () => {
-  for (const outDir of REFUSED_DIRS) {
-    const result = spawnSync(process.execPath, ["scripts/wasm-factory.mjs", outDir], {
-      cwd: repoRoot,
-      encoding: "utf8",
-    });
-    const stderr = `${result.stderr ?? ""}`;
-    assert.equal(
-      result.status === 1 && stderr.includes("[wasm-factory]") && stderr.includes(outDir),
-      true,
-      `status=${String(result.status)} stderr=${stderr}`,
-    );
-  }
-
-  const script = join(repoRoot, "scripts/wasm-factory.mjs");
-  const physics3d = join(repoRoot, "packages/physics3d");
-
-  /**
-   * @param {string} outDir
-   * @param {string} [cwd]
-   */
-  const assertRefused = (outDir, cwd = repoRoot) => {
-    const result = spawnSync(process.execPath, [script, outDir], {
-      cwd,
-      encoding: "utf8",
-    });
-    const stderr = `${result.stderr ?? ""}`;
-    assert.equal(
-      result.status === 1 && stderr.includes("[wasm-factory]") && stderr.includes(outDir),
-      true,
-      `status=${String(result.status)} stderr=${stderr}`,
-    );
-  };
-
-  assertRefused("packages/physics3d/wasm/../wasm/bvh");
-  assertRefused("packages/physics3d//wasm/bvh");
-  assertRefused("packages/physics3d/build-tools/");
-  for (const marker of REFUSED_DIRS) {
-    assertRefused(join(repoRoot, marker));
-    assertRefused(`${marker}/sub`);
-  }
-  assertRefused("wasm/bvh", physics3d);
-  assertRefused("build-tools", physics3d);
-
+test("the bvh and build-tools outputs are refused", async () => {
+  // The CLI runs a copy under tmp. A missed refusal must not write the real tree.
+  const sandbox = mkdtempSync(join(tmpdir(), "wasm-factory-sandbox-"));
   const accepted = mkdtempSync(join(tmpdir(), "wasm-factory-out-"));
+  const linkDir = mkdtempSync(join(tmpdir(), "wasm-factory-link-"));
+  const link = join(linkDir, "bvh");
+  const started = process.cwd();
   try {
-    const result = spawnSync(process.execPath, [script, accepted], {
-      cwd: repoRoot,
+    mkdirSync(join(sandbox, "scripts"), { recursive: true });
+    for (const marker of REFUSED_DIRS) {
+      mkdirSync(join(sandbox, marker), { recursive: true });
+    }
+    const script = join(sandbox, "scripts", "wasm-factory.mjs");
+    copyFileSync(join(repoRoot, "scripts", "wasm-factory.mjs"), script);
+    const physics3d = join(sandbox, "packages", "physics3d");
+
+    /**
+     * @param {string} outDir
+     * @param {string} [cwd]
+     */
+    const assertRefused = (outDir, cwd = sandbox) => {
+      const result = spawnSync(process.execPath, [script, outDir], {
+        cwd,
+        encoding: "utf8",
+      });
+      const stderr = `${result.stderr ?? ""}`;
+      assert.equal(
+        result.status === 1 && stderr.includes("[wasm-factory]") && stderr.includes(outDir),
+        true,
+        `outDir=${outDir} cwd=${cwd} status=${String(result.status)} stderr=${stderr}`,
+      );
+    };
+
+    for (const outDir of REFUSED_DIRS) {
+      assertRefused(outDir);
+    }
+    assertRefused("packages/physics3d/wasm/../wasm/bvh");
+    assertRefused("packages/physics3d//wasm/bvh");
+    assertRefused("packages/physics3d/build-tools/");
+    for (const marker of REFUSED_DIRS) {
+      assertRefused(join(sandbox, marker));
+      assertRefused(`${marker}/sub`);
+    }
+    assertRefused("wasm/bvh", physics3d);
+    assertRefused("build-tools", physics3d);
+
+    const acceptedRun = spawnSync(process.execPath, [script, accepted], {
+      cwd: sandbox,
       encoding: "utf8",
     });
-    const stderr = `${result.stderr ?? ""}`;
-    assert.equal(result.status, 1, stderr);
-    assert.equal(stderr.includes("refused"), false, stderr);
-    assert.equal(stderr.includes("gwen_core.js"), true, stderr);
-    assert.equal(stderr.includes("no such file or directory"), true, stderr);
+    const acceptedErr = `${acceptedRun.stderr ?? ""}`;
+    assert.equal(acceptedRun.status, 1, acceptedErr);
+    assert.equal(acceptedErr.includes("refused"), false, acceptedErr);
+    assert.equal(acceptedErr.includes("gwen_core.js"), true, acceptedErr);
+    assert.equal(acceptedErr.includes("no such file or directory"), true, acceptedErr);
+
+    // The sandbox copy's ROOT is the sandbox, so nothing git-ignored is required.
+    const { isRefusedOutDir } = await import(pathToFileURL(script).href);
+    assert.equal(
+      typeof isRefusedOutDir,
+      "function",
+      "scripts/wasm-factory.mjs must export isRefusedOutDir",
+    );
+
+    try {
+      process.chdir(sandbox);
+      assert.equal(isRefusedOutDir("packages/physics3d/wasm/../wasm/bvh"), true);
+      assert.equal(isRefusedOutDir("packages/physics3d//wasm/bvh"), true);
+      assert.equal(isRefusedOutDir("packages/physics3d/build-tools/"), true);
+      for (const marker of REFUSED_DIRS) {
+        assert.equal(isRefusedOutDir(join(sandbox, marker)), true);
+        assert.equal(isRefusedOutDir(`${marker}/sub`), true);
+        assert.equal(isRefusedOutDir(`./${marker}/.`), true);
+      }
+      assert.equal(isRefusedOutDir("packages/physics3d/wasm/bvh-other"), false);
+      assert.equal(isRefusedOutDir("packages/physics3d/build-tools-x"), false);
+      assert.equal(isRefusedOutDir("packages/core/wasm/light"), false);
+      assert.equal(isRefusedOutDir("packages/physics3d/wasm"), false);
+      assert.equal(isRefusedOutDir(accepted), false);
+
+      symlinkSync(join(sandbox, "packages/physics3d/wasm/bvh"), link);
+      assert.equal(isRefusedOutDir(link), true);
+      assert.equal(isRefusedOutDir(join(link, "new", "deeper")), true);
+
+      process.chdir(physics3d);
+      assert.equal(isRefusedOutDir("wasm/bvh"), true);
+      assert.equal(isRefusedOutDir("build-tools"), true);
+    } finally {
+      process.chdir(started);
+    }
   } finally {
+    process.chdir(started);
+    rmSync(linkDir, { recursive: true, force: true });
+    rmSync(sandbox, { recursive: true, force: true });
     rmSync(accepted, { recursive: true, force: true });
   }
 });
