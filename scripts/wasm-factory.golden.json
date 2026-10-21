@@ -3,7 +3,7 @@
   "variants": {
     "light": {
       "names": [
-        "EngineX",
+        "Engine",
         "JsEntityId"
       ],
       "rawExports": [
