@@ -15,6 +15,8 @@ const shared = {
     "tests/integration-wasm/**",
     "bench/**",
     "tests/alloc-gate/measure.test.ts",
+    // Playwright files (`*.pw.ts`). `pnpm test` must not collect them.
+    "tests/browser/**",
   ],
 };
 
