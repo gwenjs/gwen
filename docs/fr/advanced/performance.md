@@ -285,3 +285,11 @@ Dans `onUpdate` :
 | État runtime partagé | `engine.provide` et `useService` dans la factory |
 | Itération en masse | `for (const chunk of query)` et `chunk.get(Def)` |
 | Dans `onUpdate` | Pas de `await`. Les changements structurels dans une boucle de chunks ouverte attendent sa fermeture. |
+
+## Capacité d'instances Node
+
+Avec le gestionnaire de traps de V8, chaque instance WASM réserve environ 10 GiB d'espace d'adressage virtuel. Les mesures Linux arm64 (Node v22.23.3) donnent un `vm_per_inst_gib` de 10. Cette exécution échoue à l'instance 24147 après en avoir tenu 24146.
+
+Sous `ulimit -v` de L GiB, la création d'une instance échoue à l'instance `floor((L - base_vm_gib) / 10) + 1` ± 1. `base_vm_gib` est la mémoire virtuelle du processus en GiB avant la première instance. L'erreur est `RangeError: WebAssembly.Instance(): Out of memory: Cannot allocate Wasm memory for new instance`.
+
+`--disable-wasm-trap-handler` combiné à cette limite interrompt le processus. Le code de sortie enregistré sur Linux arm64 est 134 (tas V8 fatal à court de mémoire). Cette combinaison n'est pas prise en charge.
