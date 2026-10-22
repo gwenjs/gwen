@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -99,6 +99,35 @@ function killListeners(url) {
 /**
  * @param {string} messagePrefix
  */
+/**
+ * @param {string} dir
+ * @param {string[]} args
+ * @returns {string}
+ */
+function gitClean(dir, args) {
+  const env = { ...process.env };
+  for (const key of Object.keys(env)) {
+    if (key.startsWith("GIT_")) delete env[key];
+  }
+  env.GIT_TERMINAL_PROMPT = "0";
+  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8", env });
+  if (result.status !== 0) {
+    throw new Error((result.stderr || result.stdout || "git failed").trim());
+  }
+  return (result.stdout || "").trim();
+}
+
+/**
+ * @param {Record<string, string | undefined>} saved
+ */
+function restoreEnv(saved) {
+  for (const key of Object.keys(saved)) {
+    const value = saved[key];
+    if (value === undefined) delete process.env[key];
+    else process.env[key] = value;
+  }
+}
+
 function startsWith(messagePrefix) {
   return (error) => {
     assert.equal(error instanceof Error, true);
@@ -463,6 +492,40 @@ test("withRepoCheckout does not treat a dashed repository as a git option", asyn
     assert.equal(existsSync(marker), false);
   } finally {
     rmSync(marker, { force: true });
+  }
+});
+
+test("withRepoCheckout ignores a GIT_DIR inherited from a git hook", async () => {
+  const source = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const decoy = mkdtempSync(join(tmpdir(), "gwen-stack-decoy-"));
+  const saved = {
+    GIT_DIR: process.env.GIT_DIR,
+    GIT_INDEX_FILE: process.env.GIT_INDEX_FILE,
+  };
+  try {
+    gitClean(source, ["init", "-b", "main"]);
+    gitClean(source, ["config", "user.email", "stack@example.com"]);
+    gitClean(source, ["config", "user.name", "stack"]);
+    writeFileSync(join(source, "marker.txt"), "main\n");
+    gitClean(source, ["add", "marker.txt"]);
+    gitClean(source, ["commit", "-m", "main"]);
+    gitClean(source, ["checkout", "-b", "integration/hooks"]);
+    writeFileSync(join(source, "marker.txt"), "hooks\n");
+    gitClean(source, ["add", "marker.txt"]);
+    gitClean(source, ["commit", "-m", "hooks"]);
+    gitClean(source, ["checkout", "main"]);
+    process.env.GIT_DIR = decoy;
+    process.env.GIT_INDEX_FILE = join(decoy, "index");
+    let marker = "";
+    await withRepoCheckout({ repo: source, branch: "integration/hooks" }, (dir) => {
+      marker = readFileSync(join(dir, "marker.txt"), "utf8");
+    });
+    assert.equal(marker, "hooks\n");
+    assert.deepEqual(readdirSync(decoy), []);
+  } finally {
+    restoreEnv(saved);
+    rmSync(source, { recursive: true, force: true });
+    rmSync(decoy, { recursive: true, force: true });
   }
 });
 
