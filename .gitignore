@@ -63,6 +63,9 @@ coverage/
 .npmrc
 .verdaccio/
 
+# Sortie locale de scripts/stack/pack.mjs (scripts/stack/ reste versionné)
+/stack/
+
 # Notes & analyses locales (non commitées)
 notes/
 

@@ -211,14 +211,19 @@ async function waitForPing(url, child, logPath) {
 /**
  * Verdaccio does not accept an arbitrary bearer token. Register a throw-away htpasswd user and keep the returned token.
  * @param {string} url
+ * @param {string} [user]
+ * @param {string} [password]
  * @returns {Promise<string>}
  */
-async function registerStackUser(url) {
-  const password = `pw-${randomBytes(16).toString("hex")}`;
-  const response = await fetch(`${url}-/user/org.couchdb.user:stack`, {
+async function registerStackUser(
+  url,
+  user = "stack",
+  password = `pw-${randomBytes(16).toString("hex")}`,
+) {
+  const response = await fetch(`${url}-/user/org.couchdb.user:${user}`, {
     method: "PUT",
     headers: { "content-type": "application/json", accept: "application/json" },
-    body: JSON.stringify({ name: "stack", password, email: "stack@example.com" }),
+    body: JSON.stringify({ name: user, password, email: "stack@example.com" }),
   });
   const text = await response.text();
   if (!response.ok) throw new Error(`STACK:REGISTRY_AUTH: ${response.status} ${text}`);
@@ -594,10 +599,63 @@ function interruptedExitCode(error) {
   return undefined;
 }
 
+/**
+ * @param {string[]} argv
+ * @returns {{ out: string, registry: string }}
+ */
+function parsePublishArgs(argv) {
+  /** @type {{ out?: string, registry: string }} */
+  const parsed = { registry: "http://localhost:4873/" };
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index];
+    const next = argv[index + 1];
+    if (next === undefined) throw new Error(`STACK:INVALID_ARG: ${arg}`);
+    if (arg === "--out") parsed.out = next;
+    else if (arg === "--registry") parsed.registry = next;
+    else throw new Error(`STACK:INVALID_ARG: ${arg}`);
+    index += 1;
+  }
+  if (!parsed.out) throw new Error("STACK:INVALID_ARG: --out");
+  return { out: parsed.out, registry: parsed.registry };
+}
+
+/**
+ * @param {string} url
+ * @param {string} token
+ * @returns {string}
+ */
+function registryNpmrc(url, token) {
+  const host = new URL(withSlash(url)).host;
+  return `//${host}/:_authToken=${token}\n`;
+}
+
+/**
+ * @param {string[]} argv
+ */
+async function publishCli(argv) {
+  const parsed = parsePublishArgs(argv);
+  const manifest = JSON.parse(readFileSync(path.join(parsed.out, "stack-manifest.json"), "utf8"));
+  const tarballs = manifest.packages.map((pkg) => path.join(parsed.out, "tarballs", pkg.file));
+  const registry = withSlash(parsed.registry);
+  // Each run adds one throw-away user to the registry's htpasswd.
+  const user = `stack-${randomBytes(4).toString("hex")}`;
+  const token = (await registerStackUser(registry, user)).replace(/\s+/g, "");
+  const tempDir = mkdtempSync(path.join(tmpdir(), "gwen-stack-publish-"));
+  try {
+    const npmrc = path.join(tempDir, "npmrc");
+    writeFileSync(npmrc, registryNpmrc(registry, token));
+    publishTarballs({ url: registry, npmrc, tarballs });
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+}
+
 async function main() {
   installSignalHandlers();
   try {
-    await runCli(process.argv.slice(2));
+    const argv = process.argv.slice(2);
+    if (argv[0] === "publish") await publishCli(argv.slice(1));
+    else await runCli(argv);
   } catch (error) {
     const code = interruptedExitCode(error);
     if (code !== undefined) process.exit(code);
