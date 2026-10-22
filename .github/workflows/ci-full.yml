@@ -1,0 +1,13 @@
+name: CI Full
+
+# Runs the whole CI on demand: gh workflow run ci-full.yml --ref <branch>
+# ci.yml sees a workflow_dispatch event, so every job runs (benches included).
+on:
+  workflow_dispatch:
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      pull-requests: read
