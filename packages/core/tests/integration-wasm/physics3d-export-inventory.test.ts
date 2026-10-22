@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { Physics3DErrorCodes } from "@gwenjs/physics3d";
@@ -120,8 +121,14 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_set_joint_motor_velocity: result(),
   physics3d_set_kinematic_position: result(),
   physics3d_set_linear_velocity: result(),
+  physics3d_set_max_linear_velocity: infallible(
+    "returns 0 or 1 from a float compare and has no Result (stub in the red commit)",
+  ),
   physics3d_set_quality: result(),
   physics3d_step: knownPanic(ISSUE),
+  physics3d_take_disabled_slots: infallible(
+    "returns an empty Vec and has no Result (stub in the red commit)",
+  ),
   physics3d_update_heightfield_collider: result(),
   physics3d_update_sensor_state: result(),
   physics3d_wake_all: result(),
@@ -230,5 +237,128 @@ describe("physics3d export inventory", () => {
         expect(throws, `${name} throws in the glue: flip its row to result`).toBe(false);
       }
     }
+
+    expect(errorCode("INVALID_QUERY")).toBe("PHYSICS3D:INVALID_QUERY");
+    expect(errorCode("INVALID_STEP_DELTA")).toBe("PHYSICS3D:INVALID_STEP_DELTA");
+  });
+
+  it("has no known-panic row", async () => {
+    const knownPanic = Object.values(PHYSICS3D).filter((row) => row.kind === "known-panic");
+    expect(knownPanic).toEqual([]);
+    expect(errorCode("INVALID_QUERY")).toBe("PHYSICS3D:INVALID_QUERY");
+    expect(errorCode("INVALID_STEP_DELTA")).toBe("PHYSICS3D:INVALID_STEP_DELTA");
+
+    const glue = await loadPhysics3dGlue();
+    glue.initSync({ module: physics3dWasmBytes() });
+    const engine = openPhysics3dEngine(glue, 32);
+    try {
+      engine.physics3d_init(0, -9.81, 0, 32);
+      expect(
+        thrownWasmCode(() => engine.physics3d_cast_ray(Number.NaN, 0, 0, 0, -1, 0, 10, 0, 0, true)),
+      ).toBe("PHYSICS3D:INVALID_QUERY");
+      expect(
+        thrownWasmCode(() => engine.physics3d_project_point(Number.NaN, 0, 0, 0, 0, true)),
+      ).toBe("PHYSICS3D:INVALID_QUERY");
+      expect(thrownWasmCode(() => engine.physics3d_step(Number.NaN))).toBe(
+        "PHYSICS3D:INVALID_STEP_DELTA",
+      );
+    } finally {
+      engine.free();
+    }
   });
 });
+
+function errorCode(key: string): unknown {
+  if (!Object.hasOwn(Physics3DErrorCodes, key)) return undefined;
+  const value: unknown = Reflect.get(Physics3DErrorCodes, key);
+  return value;
+}
+
+function thrownWasmCode(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (err: unknown) {
+    if (typeof err !== "object" || err === null) return undefined;
+    return Reflect.get(err, "code");
+  }
+  return undefined;
+}
+
+interface Physics3dGlue {
+  Engine: WasmCtor;
+  initSync(opts: { module: Uint8Array }): unknown;
+}
+
+interface Physics3dEngine {
+  free(): void;
+  physics3d_init(gx: number, gy: number, gz: number, maxEntities: number): void;
+  physics3d_cast_ray(
+    ox: number,
+    oy: number,
+    oz: number,
+    dx: number,
+    dy: number,
+    dz: number,
+    maxDist: number,
+    layers: number,
+    mask: number,
+    solid: boolean,
+  ): Float32Array;
+  physics3d_project_point(
+    px: number,
+    py: number,
+    pz: number,
+    layers: number,
+    mask: number,
+    solid: boolean,
+  ): Float32Array;
+  physics3d_step(delta: number): void;
+}
+
+async function loadPhysics3dGlue(): Promise<Physics3dGlue> {
+  const jsPath = fileURLToPath(new URL("../../wasm/physics3d/gwen_core.js", import.meta.url));
+  const loaded: unknown = await import(pathToFileURL(jsPath).href);
+  if (!isPhysics3dGlue(loaded)) {
+    throw new Error("physics3d glue is missing Engine");
+  }
+  return loaded;
+}
+
+function isPhysics3dGlue(value: unknown): value is Physics3dGlue {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    typeof Reflect.get(value, "Engine") === "function" &&
+    typeof Reflect.get(value, "initSync") === "function"
+  );
+}
+
+function physics3dWasmBytes(): Uint8Array<ArrayBuffer> {
+  const wasmPath = fileURLToPath(
+    new URL("../../wasm/physics3d/gwen_core_bg.wasm", import.meta.url),
+  );
+  const file = readFileSync(wasmPath);
+  const bytes = new Uint8Array(file.byteLength);
+  bytes.set(file);
+  return bytes;
+}
+
+function openPhysics3dEngine(glue: Physics3dGlue, maxEntities: number): Physics3dEngine {
+  const ctor: unknown = glue.Engine;
+  if (!isPhysics3dEngineCtor(ctor)) {
+    throw new Error("physics3d glue Engine cannot build a query engine");
+  }
+  return new ctor(maxEntities);
+}
+
+function isPhysics3dEngineCtor(value: unknown): value is new (maxEntities: number) => Physics3dEngine {
+  if (typeof value !== "function") return false;
+  const proto: unknown = Reflect.get(value, "prototype");
+  if (typeof proto !== "object" || proto === null) return false;
+  return (
+    typeof Reflect.get(proto, "free") === "function" &&
+    typeof Reflect.get(proto, "physics3d_init") === "function" &&
+    typeof Reflect.get(proto, "physics3d_cast_ray") === "function" &&
+    typeof Reflect.get(proto, "physics3d_project_point") === "function" &&
+    typeof Reflect.get(proto, "physics3d_step") === "function"
+  );
+}

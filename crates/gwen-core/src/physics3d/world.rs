@@ -748,6 +748,27 @@ impl PhysicsWorld3D {
 
     // ── Simulation step ───────────────────────────────────────────────────────
 
+    /// Whether the rigid body in `slot` is enabled.
+    ///
+    /// A missing slot is `false`. Reads Rapier `RigidBody::is_enabled` and
+    /// does not change the body.
+    pub fn is_body_enabled(&self, slot: u32) -> bool {
+        let Some(&handle) = self.entity_handles.get(&slot) else {
+            return false;
+        };
+        let Some(body) = self.rigid_body_set.get(handle) else {
+            return false;
+        };
+        body.is_enabled()
+    }
+
+    /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
+    ///
+    /// Nothing is recorded, so the vec is empty and does not allocate.
+    pub fn take_disabled_slots(&mut self) -> Vec<u32> {
+        Vec::new()
+    }
+
     /// Advance the simulation by `delta` seconds.
     ///
     /// Drains Rapier collision events into the static ring buffer defined in

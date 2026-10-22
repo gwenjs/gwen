@@ -1909,6 +1909,29 @@ impl Engine {
         Ok(())
     }
 
+    /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
+    ///
+    /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
+    /// `PhysicsWorld3D::take_disabled_slots` records nothing, so this is empty.
+    #[cfg(feature = "physics3d")]
+    pub fn physics3d_take_disabled_slots(&mut self) -> Vec<u32> {
+        let Ok(world) = self.world3d_mut() else {
+            return Vec::new();
+        };
+        world.take_disabled_slots()
+    }
+
+    /// Sets the linear-speed cap in metres per second.
+    ///
+    /// Stub: a live world returns `1` and the value is ignored. No world returns `0`.
+    #[cfg(feature = "physics3d")]
+    pub fn physics3d_set_max_linear_velocity(&mut self, _value: f32) -> u32 {
+        let Ok(_world) = self.world3d_mut() else {
+            return 0;
+        };
+        1
+    }
+
     /// Register a new 3D rigid body for the given entity index.
     ///
     /// Returns `Ok(true)` once the body is registered.
@@ -4264,6 +4287,19 @@ impl Engine {
     /// Not a `#[wasm_bindgen]` export. A missing world or slot is `false`.
     pub fn is_body_enabled(&self, slot: u32) -> bool {
         let Some(world) = self.physics_world.as_ref() else {
+            return false;
+        };
+        world.is_body_enabled(slot)
+    }
+}
+
+#[cfg(feature = "physics3d")]
+impl Engine {
+    /// Reads Rapier `is_enabled` for the body in `slot`.
+    ///
+    /// Not a `#[wasm_bindgen]` export. A missing world or slot is `false`.
+    pub fn physics3d_is_body_enabled(&self, slot: u32) -> bool {
+        let Ok(world) = self.world3d() else {
             return false;
         };
         world.is_body_enabled(slot)

@@ -65,6 +65,10 @@ export interface Physics3DConfig {
    */
   coalesceEvents?: boolean;
   /**
+   * Upper bound on a dynamic body's linear speed, in m/s.
+   */
+  maxLinearVelocity?: number;
+  /**
    * Named collision layer definitions. Each entry maps a layer name to a bit
    * position (0-based). Maximum 32 layers.
    *
