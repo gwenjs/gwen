@@ -138,6 +138,12 @@ pub struct TransformNode {
     dirty: bool,
     /// The next stored history slot sets [`FLAG_TELEPORT`], then this clears.
     pending_snap: bool,
+    /// This node's world matrix changed since its children last read it: it was
+    /// recomputed in the current `update` pass, or by `refresh_root` before it.
+    world_changed: bool,
+    /// `refresh_root` recomputed this root outside `update`; its children must
+    /// follow in the next `update`.
+    children_sync_pending: bool,
 }
 
 impl TransformNode {
@@ -153,6 +159,8 @@ impl TransformNode {
             children: Vec::new(),
             dirty: true,
             pending_snap: true,
+            world_changed: false,
+            children_sync_pending: false,
         }
     }
 
@@ -224,6 +232,12 @@ impl TransformNode {
         self.dirty
     }
 
+    /// True when this node's world matrix changed since its children last read it
+    /// (recomputed in the current `update` pass, or by `refresh_root` before it).
+    pub(crate) fn world_changed(&self) -> bool {
+        self.world_changed
+    }
+
     /// Mark dirty
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
@@ -252,10 +266,17 @@ impl TransformNode {
         }
     }
 
-    /// Update world transform from parent
-    pub(crate) fn update_from_parent(&mut self, parent_matrix: &Mat3) {
-        if !self.dirty {
-            return;
+    /// Update world transform from parent.
+    ///
+    /// Returns `true` when the world matrix was recomputed. Returns `false` when
+    /// the node was clean and `parent_changed` is false.
+    pub(crate) fn update_from_parent(
+        &mut self,
+        parent_matrix: &Mat3,
+        parent_changed: bool,
+    ) -> bool {
+        if !(self.dirty || parent_changed) {
+            return false;
         }
 
         // Calculate local matrix
@@ -280,12 +301,15 @@ impl TransformNode {
         );
 
         self.dirty = false;
+        true
     }
 
-    /// Update as root transform
-    pub(crate) fn update_as_root(&mut self) {
+    /// Update as root transform.
+    ///
+    /// Returns `true` when the world matrix was recomputed, `false` when the node was clean.
+    pub(crate) fn update_as_root(&mut self) -> bool {
         if !self.dirty {
-            return;
+            return false;
         }
 
         self.world_matrix =
@@ -294,6 +318,7 @@ impl TransformNode {
         self.world_rotation = self.local.rotation;
         self.world_scale = self.local.scale;
         self.dirty = false;
+        true
     }
 }
 
@@ -499,7 +524,12 @@ impl TransformSystem {
         false
     }
 
-    /// Update all transforms
+    /// Update all transforms.
+    ///
+    /// A node whose world matrix was recomputed in this pass, or by `refresh_root`
+    /// before it, sets `world_changed`.
+    /// `update_order` is preorder, so a child reads that flag from the parent
+    /// lookup in the same pass. That reaches every depth. Children are not marked dirty.
     pub fn update(&mut self) {
         if self.order_dirty {
             self.rebuild_update_order();
@@ -517,24 +547,48 @@ impl TransformSystem {
             };
 
             if let Some(parent) = parent {
-                // Get parent's world matrix
-                let parent_matrix = {
+                // Parent world matrix and this pass's recompute flag, one lookup.
+                let (parent_matrix, parent_changed) = {
                     if let Some(parent_transform) = self.transforms.get(&parent) {
-                        *parent_transform.world_matrix()
+                        (
+                            *parent_transform.world_matrix(),
+                            parent_transform.world_changed(),
+                        )
                     } else {
-                        Mat3::identity()
+                        (Mat3::identity(), false)
                     }
                 };
 
                 // Update child from parent
                 if let Some(transform) = self.transforms.get_mut(&entity) {
-                    transform.update_from_parent(&parent_matrix);
+                    let recomputed = transform.update_from_parent(&parent_matrix, parent_changed);
+                    transform.world_changed = recomputed || transform.children_sync_pending;
+                    transform.children_sync_pending = false;
                 }
             } else {
                 // Update as root
                 if let Some(transform) = self.transforms.get_mut(&entity) {
-                    transform.update_as_root();
+                    let recomputed = transform.update_as_root();
+                    transform.world_changed = recomputed || transform.children_sync_pending;
+                    transform.children_sync_pending = false;
                 }
+            }
+        }
+    }
+
+    /// Recompute `entity` from its local pose when `node.parent()` is `None`.
+    ///
+    /// When `node.parent().is_some()` the node is not recomputed: its world pose
+    /// stays under the parent. When the world matrix was recomputed, the node
+    /// records `children_sync_pending` so the next [`Self::update`] moves each
+    /// descendant with this node. Children are not marked dirty.
+    pub fn refresh_root(&mut self, entity: EntityId) {
+        if let Some(node) = self.transforms.get_mut(&entity) {
+            if node.parent().is_some() {
+                return;
+            }
+            if node.update_as_root() {
+                node.children_sync_pending = true;
             }
         }
     }

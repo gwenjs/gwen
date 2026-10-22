@@ -1279,7 +1279,7 @@ impl Engine {
             node.set_position(Vec2::new(*x, *y));
             node.set_rotation(*rotation);
             if rooted {
-                node.update_as_root();
+                self.transform_system.refresh_root(entity);
             }
         }
         if let Some(world) = self.physics_world.as_mut() {
