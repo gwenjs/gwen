@@ -6,6 +6,8 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { evaluateCiStatus } from "./check-ci-status-needs.mjs";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 // A git hook exports these. Fixture git must use `cwd`, not the parent repo.
@@ -1350,4 +1352,62 @@ test("glue-shape job runs the golden check on the core-wasm artifact", () => {
   assert.match(job, /timeout-minutes:/);
   const status = jobBlock(yaml, "ci-status");
   assert.match(status, /needs\['glue-shape'\]\.result/);
+});
+
+test("stack-pack runs after rust on code changes, packs and uploads stack-tarballs", () => {
+  const job = jobBlock(readCi(), "stack-pack");
+  assert.match(job, /needs: \[[^\]]*\bchanges\b[^\]]*\]/);
+  assert.match(job, /needs: \[[^\]]*\brust\b[^\]]*\]/);
+  assert.match(job, /if: needs\.changes\.outputs\.code == 'true'/);
+  assert.match(job, /run: node scripts\/stack\/pack\.mjs --out stack/);
+  assert.match(job, /uses: actions\/upload-artifact@/);
+  assert.match(job, /name: stack-tarballs\n/);
+});
+
+test("stack-pack has a timeout-minutes", () => {
+  const job = jobBlock(readCi(), "stack-pack");
+  const found = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(found);
+  const minutes = Number(found[1]);
+  assert.equal(Number.isInteger(minutes) && minutes > 0, true);
+});
+
+test("ci-status needs and reads stack-pack", () => {
+  const report = evaluateCiStatus(readCi());
+  assert.deepEqual(report.missing, []);
+  assert.deepEqual(report.unread, []);
+  assert.equal(report.jobs.includes("stack-pack"), true);
+});
+
+// The script name is split so this file does not contain it.
+const deletedPublishScript = "verdaccio-publish" + ".sh";
+
+test(`${deletedPublishScript} is deleted and verdaccio:publish runs the stack scripts`, () => {
+  const scriptPath = join(root, "scripts", deletedPublishScript);
+  assert.equal(existsSync(scriptPath), false);
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const command = pkg.scripts?.["verdaccio:publish"];
+  assert.equal(typeof command, "string");
+  assert.equal(command.includes("scripts/stack/pack.mjs"), true);
+  assert.equal(command.includes("registry.mjs publish"), true);
+  const grep = spawnSync("git", ["grep", "-n", "-F", "--", deletedPublishScript], {
+    cwd: root,
+    encoding: "utf8",
+    env: withoutGitHookEnv({ ...process.env }),
+  });
+  assert.equal(grep.status, 1, grep.stdout);
+  assert.equal(grep.stdout, "");
+  const control = spawnSync("git", ["grep", "-l", "-F", "--", "verdaccio:publish"], {
+    cwd: root,
+    encoding: "utf8",
+    env: withoutGitHookEnv({ ...process.env }),
+  });
+  assert.equal(control.status, 0, control.stderr);
+  assert.match(control.stdout, /package\.json/);
+});
+
+test("verdaccio.yaml does not claim the registry is never used in CI", () => {
+  const text = readFileSync(join(root, "verdaccio.yaml"), "utf8");
+  assert.equal(text.includes("jamais utilisé en CI"), false);
+  assert.equal(text.includes("scripts/stack/"), true);
 });
