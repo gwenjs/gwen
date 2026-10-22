@@ -28,11 +28,6 @@ import { GwenError } from "@gwenjs/schema";
 
 import { CoreErrorCodes } from "./engine/engine-errors";
 
-/** Distinct component types the Rust bitset can hold. Every slot is a user name. */
-const MAX_COMPONENT_TYPES = 128;
-
-const MAX_USER_COMPONENT_TYPES = MAX_COMPONENT_TYPES;
-
 // Supported scalar types for WASM memory layout
 export const Types = {
   f32: {
@@ -457,56 +452,6 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
 }
 
 /**
- * Process-wide definition metadata: component name → schema layout. Holds no
- * WASM type id. Ids are per engine (`getOrRegisterComponent`, #59). This map
- * only detects a redefinition with another layout and counts distinct names
- * for the definition-time budget (#52).
- */
-const _definedLayouts = new Map<string, string>();
-
-/**
- * Field names, order and types. Defaults are not part of the layout.
- * `Types.persistentString` is written `persistentString`: it shares `type: "string"`
- * with `Types.string` but uses another string pool.
- */
-function _schemaLayout(schema: ComponentSchema): string {
-  return Object.entries(schema)
-    .map(([field, schemaType]) => {
-      const persistent = "isPersistent" in schemaType && schemaType.isPersistent === true;
-      return `${field}:${persistent ? "persistentString" : schemaType.type}`;
-    })
-    .join(",");
-}
-
-/**
- * Record the layout of `name`, or check it against the recorded one.
- * Throws before any WASM call: `CORE:INVALID_COMPONENT_SCHEMA` for another
- * layout, `CORE:COMPONENT_TYPE_LIMIT_REACHED` for the 129th distinct name.
- */
-function _checkDefinition(name: string, schema: ComponentSchema): void {
-  const layout = _schemaLayout(schema);
-  const existing = _definedLayouts.get(name);
-  if (existing !== undefined) {
-    if (existing !== layout) {
-      throw new GwenError(
-        CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
-        `[GWEN] defineComponent('${name}'): this name is already defined with schema ` +
-          `{ ${existing} }, not { ${layout} }. One name has one layout. ` +
-          `Use another name or the same schema.`,
-      );
-    }
-    return;
-  }
-  if (_definedLayouts.size >= MAX_USER_COMPONENT_TYPES) {
-    throw new GwenError(
-      CoreErrorCodes.COMPONENT_TYPE_LIMIT_REACHED,
-      `Component type limit reached: ${MAX_USER_COMPONENT_TYPES} user types fit.`,
-    );
-  }
-  _definedLayouts.set(name, layout);
-}
-
-/**
  * Definition of an ECS component with a typed schema and optional default values.
  *
  * @typeParam S - The component schema mapping field names to `SchemaType` descriptors.
@@ -597,14 +542,16 @@ export type ComponentBody<S extends ComponentSchema> = Omit<
  *
  * @param nameOrConfig Either a string name or a full ComponentDefinition
  * @param factory Optional factory function (required for Form 2)
- * @returns The component definition with schema and name
- * @throws {GwenError} code `CORE:COMPONENT_TYPE_LIMIT_REACHED` when this call
- *   would define a new name past 128 distinct user names. Defining the same
- *   name again is accepted and counts once. The budget counts names in the
- *   whole process. The check runs here, before any WASM call.
- * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when the name is
- *   already defined with other fields, field order or field types. Defaults
- *   may differ.
+ * @returns The component definition with schema and name.
+ *   The same name may be defined again, with the same fields or different ones.
+ *   The 129th name does not throw here. Each engine assigns the id and checks
+ *   the 128-name budget the first time it uses a name; a later use with other
+ *   lane bytes throws `CORE:COMPONENT_LAYOUT_INVALID`. Same lanes reuse the id
+ *   and keep the bytes from the first use: a reordered field does not swap
+ *   stored values, and `Types.persistentString` after `Types.string` still
+ *   writes the string id into the scene pool.
+ * @throws {GwenError} code `CORE:INVALID_COMPONENT_SCHEMA` when a field value
+ *   is not a `SchemaType`.
  *
  * @example
  * ```ts
@@ -639,7 +586,6 @@ export function defineComponent<S extends ComponentSchema>(
 
   _validateComponentSchema(config.name, config.schema);
 
-  _checkDefinition(config.name, config.schema);
   const _typeId = 0;
 
   let byteOffset = 0;

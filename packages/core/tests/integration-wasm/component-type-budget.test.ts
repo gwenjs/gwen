@@ -8,10 +8,10 @@ import { defineComponent, Types } from "../../src/schema";
 import { createRealEngine } from "./harness.js";
 
 describe("component type budget", () => {
-  it("128 user types accept writes in WASM and the 129th name throws in defineComponent", async () => {
+  it("128 user types accept writes in WASM and the 129th name is refused at first use", async () => {
     let defined = 0;
     const defs = [];
-    for (let i = 1; i <= 128; i += 1) {
+    for (let i = 1; i <= 129; i += 1) {
       try {
         defs.push(
           defineComponent({
@@ -24,21 +24,26 @@ describe("component type budget", () => {
         break;
       }
     }
-    expect(defined).toBe(128);
+    expect(defined).toBe(129);
 
     const handle = await createRealEngine({ variant: "light", maxEntities: 4 });
     let caught: unknown;
     try {
-      const entity = handle.bridge.createEntity();
-      const bytes = new Uint8Array([1, 0, 0, 0]);
-      for (const def of defs) {
-        const typeId = handle.engine.getOrRegisterComponent(def.name);
-        expect(handle.bridge.addComponent(entity.index, entity.generation, typeId, bytes)).toBe(
-          true,
-        );
+      const entity = handle.engine.createEntity();
+      for (let i = 0; i < 128; i += 1) {
+        const def = defs[i];
+        if (def === undefined) {
+          throw new Error("expected a definition");
+        }
+        handle.engine.addComponent(entity, def, { v: i + 1 });
+        expect(handle.engine.getComponent(entity, def)?.v).toBe(i + 1);
+      }
+      const past = defs[128];
+      if (past === undefined) {
+        throw new Error("expected a definition");
       }
       try {
-        defineComponent({ name: "UserType129", schema: { v: Types.f32 } });
+        handle.engine.addComponent(entity, past, { v: 129 });
       } catch (error: unknown) {
         caught = error;
       }
