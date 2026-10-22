@@ -13,8 +13,18 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
 const DT = 1 / 60;
 const BLOWUP_STEPS = 200;
 
-async function startPhysics(handle: RealEngineHandle): Promise<Physics2DAPI> {
-  await handle.engine.use(Physics2DPlugin({ gravity: -9.81, maxEntities: 32 }));
+async function startPhysics(
+  handle: RealEngineHandle,
+  gravity = -9.81,
+  maxLinearVelocity?: number,
+): Promise<Physics2DAPI> {
+  await handle.engine.use(
+    Physics2DPlugin({
+      gravity,
+      maxEntities: 32,
+      ...(maxLinearVelocity === undefined ? {} : { maxLinearVelocity }),
+    }),
+  );
   return handle.engine.inject("physics2d");
 }
 
@@ -65,16 +75,80 @@ describe("physics2d panic-free", () => {
       if (before === undefined) {
         throw new Error("expected the other body");
       }
+      let advanceError: unknown;
       try {
-        await handle.advance(BLOWUP_STEPS, DT);
+        for (let step = 0; step < BLOWUP_STEPS; step += 1) {
+          await handle.advance(1, DT);
+          if (seen.length > 0) break;
+        }
       } catch (err: unknown) {
         // A wasm abort faults the engine (`packages/core/src/engine/engine-loop.ts:179`). The hook assertion is the result.
-        void err;
+        advanceError = err;
       }
       expect(seen).toEqual([{ entity: offender, reason: "out-of-bounds" }]);
-      const after = physics.getPosition(other)?.y;
-      expect(after).not.toBe(before);
+      expect(advanceError).toBeUndefined();
+      const atDisable = physics.getPosition(other)?.y;
+      expect(atDisable).not.toBe(before);
+      await handle.advance(1, DT);
+      expect(physics.getPosition(other)?.y).not.toBe(atDisable);
       expect(handle.bridge.countEntities()).toBe(3);
+    } finally {
+      unhook();
+      await handle.dispose();
+    }
+  });
+
+  it("a configured cap of 50 slows a body whose speed is 100", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    try {
+      const physics = await startPhysics(handle, 0, 50);
+      const id = handle.engine.createEntity();
+      const body = physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.setLinearVelocity(id, 100, 0);
+      await handle.advance(1, DT);
+      const velocity = physics.getLinearVelocity(id);
+      const speed = velocity === null ? undefined : Math.hypot(velocity.x, velocity.y);
+      expect(speed).toBe(50);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("a NaN velocity disables the body with reason non-finite", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    const seen: Array<{ entity: EntityId; reason: string }> = [];
+    const unhook = handle.engine.hooks.hook("physics2d:body-disabled", (payload) => {
+      seen.push({ entity: payload.entity, reason: payload.reason });
+    });
+    try {
+      const physics = await startPhysics(handle, 0);
+      const id = handle.engine.createEntity();
+      const body = physics.addRigidBody(id, "dynamic", 0, 1, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.setLinearVelocity(id, Number.NaN, 0);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: id, reason: "non-finite" }]);
+    } finally {
+      unhook();
+      await handle.dispose();
+    }
+  });
+
+  it("a velocity that would leave the world disables the body with reason velocity", async () => {
+    const handle = await createRealEngine({ variant: "physics2d", maxEntities: 32 });
+    const seen: Array<{ entity: EntityId; reason: string }> = [];
+    const unhook = handle.engine.hooks.hook("physics2d:body-disabled", (payload) => {
+      seen.push({ entity: payload.entity, reason: payload.reason });
+    });
+    try {
+      const physics = await startPhysics(handle, 0);
+      const id = handle.engine.createEntity();
+      const body = physics.addRigidBody(id, "dynamic", 1e7, 0, { gravityScale: 0, mass: 1 });
+      physics.addBoxCollider(body, 0.5, 0.5);
+      physics.setLinearVelocity(id, 400, 0);
+      await handle.advance(1, DT);
+      expect(seen).toEqual([{ entity: id, reason: "velocity" }]);
     } finally {
       unhook();
       await handle.dispose();

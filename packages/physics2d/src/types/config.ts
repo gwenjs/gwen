@@ -18,6 +18,13 @@ export interface Physics2DConfig {
    */
   gravity?: number;
   /**
+   * Linear speed cap in metres per second.
+   * A faster dynamic body is scaled to this speed and stays enabled.
+   * A non-finite or non-positive value throws `GwenConfigError` (`GWEN_CONFIG_ERROR`).
+   * @default 400
+   */
+  maxLinearVelocity?: number;
+  /**
    * Gravity on the X axis in m/s².
    * @default 0
    */

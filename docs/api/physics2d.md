@@ -179,6 +179,22 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 
 ## Events
 
+### physics2d:body-disabled
+
+The plugin emits this hook after a step that disabled a dynamic body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getPosition` still answers.
+
+```ts
+engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
+  // reason is "non-finite", "out-of-bounds", or "velocity"
+  void entity;
+  void reason;
+});
+```
+
+`non-finite` means the translation or the linear velocity is not finite. `out-of-bounds` means the position sits outside ±1e7. `velocity` means the position after the clamp would pass ±1e7.
+
+The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s is refused with `PHYSICS2D:INVALID_STEP_DELTA`.
+
 ### onContact(handler)
 
 **Signature:**
@@ -500,6 +516,7 @@ function physics2dVitePlugin(options?: Physics2DVitePluginOptions): VitePlugin
 >   modules: ['@gwenjs/physics2d'],
 >   physics2d: {
 >     gravity: -9.81,
+>     maxLinearVelocity: 400, // metres per second; the default cap slows faster bodies
 >     vite: { debug: true },  // Vite plugin options (build-time only)
 >   },
 > })

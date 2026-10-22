@@ -104,6 +104,13 @@ export {
 const EVENT_STRIDE = PHYSICS2D_WASM_EVENT_STRIDE;
 const MAX_EVENTS = 512;
 
+function disabledBodyReason(code: number): "non-finite" | "out-of-bounds" | "velocity" | undefined {
+  if (code === 0) return "non-finite";
+  if (code === 1) return "out-of-bounds";
+  if (code === 2) return "velocity";
+  return undefined;
+}
+
 function processSensorId(
   activeSensors: Map<number, Set<number>>,
   slot: number,
@@ -260,6 +267,27 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       return run();
     } catch (err) {
       throw toGwenWasmError(err, exportName, poisonPhysicsBridge, isPhysics2DWasmCode);
+    }
+  }
+
+  function emitDisabledBodies(stepBridge: WasmEnginePhysics2D): void {
+    const bridge = st.bridge;
+    if (bridge === null) return;
+    const raw = stepBridge.physics_take_disabled_slots();
+    for (let index = 0; index + 1 < raw.length; index += 2) {
+      const slot = raw[index];
+      const code = raw[index + 1];
+      if (slot === undefined || code === undefined) continue;
+      const reason = disabledBodyReason(code);
+      if (reason === undefined) continue;
+      const entity = st.ownerBySlot.get(slot);
+      if (entity === undefined) continue;
+      reportRejectedHook(
+        st.currentEngine,
+        "@gwenjs/physics2d",
+        "physics2d:body-disabled",
+        st.currentEngine?.hooks.callHook("physics2d:body-disabled", { entity, reason }),
+      );
     }
   }
 
@@ -729,6 +757,12 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
       st.currentEngine = useEngine();
       const pb = st.bridge.getPhysicsBridge() as WasmEnginePhysics2D;
       pb.physics_init(cfg.gravityX, cfg.gravity, cfg.maxEntities);
+      const accepted = pb.physics_set_max_linear_velocity(cfg.maxLinearVelocity);
+      if (accepted === 0) {
+        st.log.warn("[Physics2D] maxLinearVelocity was refused; the previous cap stays", {
+          maxLinearVelocity: cfg.maxLinearVelocity,
+        });
+      }
       callPhysicsExport("physics_set_quality", () =>
         pb.physics_set_quality(PHYSICS_QUALITY_PRESET_CODE[cfg.qualityPreset]),
       );
@@ -817,6 +851,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
           const stepBridge = st.bridge?.getPhysicsBridge() as WasmEnginePhysics2D | undefined;
           if (stepBridge !== undefined) {
             callPhysicsExport("physics_step", () => stepBridge.physics_step(deltaTime));
+            emitDisabledBodies(stepBridge);
           }
           st.ownerChangedSinceStep.clear();
         }),

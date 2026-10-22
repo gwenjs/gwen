@@ -33,7 +33,7 @@ export default defineConfig({
 ## What the plugin provides
 
 - `physics` service (runtime API): bodies, colliders, velocity, impulses, collision batches.
-- Global hooks: `physics:collision`, `physics:collision:batch`, `physics:sensor:changed`.
+- Global hooks: `physics:collision`, `physics:collision:batch`, `physics:sensor:changed`, `physics2d:body-disabled`.
 - Prefab extension `extensions.physics` with legacy bridge + vNext `colliders[]`.
 - Material presets: `default`, `ice`, `rubber`.
 - Tilemap helpers and chunk streaming runtime.
@@ -70,6 +70,7 @@ import { createTilemapChunkOrchestrator } from "@gwenjs/physics2d/helpers/orches
 ## Key config options
 
 - `qualityPreset?: 'low' | 'medium' | 'high' | 'esport'`
+- `maxLinearVelocity?: number` (default `400`, metres per second)
 - `ccdEnabled?: boolean` (global fallback)
 - `coalesceEvents?: boolean`
 - `eventMode?: 'pull' | 'hybrid'`

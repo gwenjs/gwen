@@ -27,6 +27,7 @@ export default defineConfig({
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `gravity` | `number` | `-9.81` | Vertical gravity (Y axis, m/s²) |
+| `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). A faster dynamic body is scaled and stays enabled |
 | `gravityX` | `number` | `0` | Horizontal gravity (X axis, m/s²) |
 | `maxEntities` | `number` | `10_000` | Max physics entities |
 | `qualityPreset` | `'low' \| 'medium' \| 'high' \| 'esport'` | `'medium'` | Physics quality preset |
