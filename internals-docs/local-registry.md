@@ -84,7 +84,7 @@ A `0.x` range does not select this stamp.
 
 **`scripts/stack/pack.mjs`** writes `stack/stack-manifest.json` and the tarballs. **`scripts/stack/registry.mjs`** `publish` sends those tarballs to the local registry. This command does not clear registry storage.
 
-**Storage** defaults to `~/.local/share/verdaccio/storage`. Override with the `VERDACCIO_STORAGE` environment variable if needed.
+**Storage** defaults to `~/.local/share/verdaccio/storage`. Override with the `VERDACCIO_STORAGE_PATH` environment variable if needed.
 
 ---
 
@@ -105,4 +105,4 @@ That's it. Once Verdaccio is running and `pnpm verdaccio:publish` has been run, 
 
 ## CI
 
-CI never uses Verdaccio. The job `stack-pack` packs the framework into the `stack-tarballs` artifact. It does not publish to a registry and it does not run satellites. Each repo's CI resolves `@gwenjs/*` from the public npm registry. Consumer repos should not be pushed until their `@gwenjs/*` dependencies are published on npm.
+CI never uses Verdaccio. The job `stack-pack` packs the framework into the `stack-tarballs` artifact. It runs only when the change is under `packages/**`, `crates/**`, `scripts/stack/**`, `scripts/fix-dts-extensions.mjs`, `scripts/build-wasm.sh`, `pnpm-lock.yaml`, `pnpm-workspace.yaml`, `package.json`, `.github/workflows/ci.yml` or `.github/actions/**`, and the path is not `**/*.md` and not under `docs/**`. It does not publish to a registry and it does not run satellites. Each repo's CI resolves `@gwenjs/*` from the public npm registry. Consumer repos should not be pushed until their `@gwenjs/*` dependencies are published on npm.

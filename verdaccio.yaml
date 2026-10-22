@@ -11,7 +11,7 @@
 ################################################################################
 
 # Stockage des packages — utilise le storage global Verdaccio
-# Surcharger avec VERDACCIO_STORAGE si besoin
+# Surcharger avec VERDACCIO_STORAGE_PATH si besoin
 storage: ~/.local/share/verdaccio/storage
 
 # Pas de plugins externes
