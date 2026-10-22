@@ -560,10 +560,9 @@ jobs:
           - os: ubuntu-24.04-arm
             arch: arm64
     runs-on: ${{ matrix.os }}
-    # No GitHub run id: this branch was not pushed.
-    # The gate needs Linux (/proc, ulimit -v) and has no measured wall time.
-    # Provisional ceiling is 30 until a CI run replaces this comment with its run id.
-    timeout-minutes: 30
+    # Run 39769490196: the slower leg (x64) took 5m24s (2026-10-22T11:19:32Z
+    # to 2026-10-22T11:24:56Z), arm64 4m10s. 2 * ceil(324/60) = 12.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
