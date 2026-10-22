@@ -1,12 +1,13 @@
 ---
 title: '@gwenjs/camera-core'
-description: Système de caméra ECS — composants, pipeline CameraSystem, stores annexes et hooks moteur.
+description: Système de caméra ECS — composants, pipeline CameraSystem, verbes moteur, stores annexes et hooks moteur.
 ---
 
 # `@gwenjs/camera-core`
 
 Système de caméra ECS bas niveau partagé par `@gwenjs/camera2d` et `@gwenjs/camera3d`. Fournit
-les composants, l'orchestrateur `CameraSystem`, les stores annexes et `CameraCorePlugin`.
+les composants, l'orchestrateur `CameraSystem`, les verbes caméra par moteur, les stores annexes
+et `CameraCorePlugin`.
 
 > **Note** — Ce package ne s'installe normalement pas directement. Utilisez `@gwenjs/camera2d` ou
 > `@gwenjs/camera3d` à la place — ils enregistrent `CameraCorePlugin` automatiquement.
@@ -17,16 +18,13 @@ pnpm add @gwenjs/camera-core
 
 ## Démarrage rapide
 
-`getCameraStores` vient de `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver. Chaque moteur a ses propres maps.
-
 ```ts
 // gwen.config.ts
 import { defineConfig } from '@gwenjs/app'
 import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
-import { getCameraStores } from '@gwenjs/camera-core/internal'
+import { CameraCorePlugin, Camera, setCameraViewport } from '@gwenjs/camera-core'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -46,7 +44,7 @@ const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
     near: -1000,
     far: 1000,
   })
-  getCameraStores(engine).viewports.set(camId, 'main')
+  setCameraViewport(engine, camId, 'main')
 })
 
 export default defineConfig({
@@ -106,20 +104,19 @@ export default defineConfig({
 }
 ```
 
-## Stores annexes
+## Verbes moteur
 
-`getCameraStores(engine)` renvoie les maps de ce moteur (`viewports`, `paths`, `matrices`).
-Les chaînes et objets complexes ne peuvent pas être stockés dans les buffers SoA.
-L'entrée est exposée par `@gwenjs/camera-core/internal`, sans garantie semver.
+`setCameraViewport`, `getCameraViewport`, `setCameraPath`, `getCameraPath` et `clearCameraPath` sont sur la racine du package. Chacun prend le moteur et l'id d'entité caméra, et lit ou écrit les stores de ce moteur via `getCameraStores`. `CameraSystem` et `useCamera` utilisent ces mêmes stores. `getCameraPath` renvoie l'objet stocké. `CameraSystem` ajoute à `elapsed` dessus. `setCameraPath` lève `CameraEmptyPathError` (`CAMERA:EMPTY_PATH`) quand `waypoints` est vide. `setCameraViewport` ne fait qu'enregistrer l'id. Il ne vérifie pas que le viewport existe, comme `setViewport`.
 
 ```ts
-import type { CameraPathData } from '@gwenjs/camera-core'
-import { getCameraStores } from '@gwenjs/camera-core/internal'
+import {
+  setCameraViewport,
+  setCameraPath,
+  getCameraPath,
+  clearCameraPath,
+  type CameraPathData,
+} from '@gwenjs/camera-core'
 
-// Associer une caméra à un viewport
-getCameraStores(engine).viewports.set(camId, 'main')
-
-// Démarrer un chemin
 const pathData: CameraPathData = {
   waypoints: [
     { position: { x: 200, y: 0, z: 0 }, duration: 1.5, easing: 'easeInOut' },
@@ -128,9 +125,18 @@ const pathData: CameraPathData = {
   opts: { loop: false, onComplete: () => console.log('terminé') },
   elapsed: 0,
 }
+
+setCameraViewport(engine, camId, 'main')
+setCameraPath(engine, camId, pathData)
 engine.addComponent(camId, CameraPath, { index: 0, progress: 0 })
-getCameraStores(engine).paths.set(camId, pathData)
+
+getCameraPath(engine, camId) // le même objet pathData
+clearCameraPath(engine, camId)
 ```
+
+## Stores annexes
+
+Les chaînes et les objets complexes ne peuvent pas être stockés dans les buffers SoA. Les maps (`viewports`, `paths`, `matrices`) restent sur le moteur. `@gwenjs/camera-core/internal` expose `getCameraStores` sans garantie semver. Sur l'entrée publique, les données de viewport et de chemin passent par les verbes ci-dessus.
 
 ## Hooks moteur
 

@@ -41,6 +41,14 @@ export { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./c
 export { CameraSystem } from "./camera-system";
 export { CameraCorePlugin } from "./camera-core-plugin";
 
+export {
+  setCameraViewport,
+  getCameraViewport,
+  setCameraPath,
+  getCameraPath,
+  clearCameraPath,
+} from "./engine-verbs";
+
 export { OrthographicCameraPrefab, PerspectiveCameraPrefab } from "./camera-prefabs";
 export { useCamera } from "./use-camera";
 export type { Camera2DOpts, Camera3DOpts } from "./use-camera";
