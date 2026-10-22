@@ -820,3 +820,80 @@ test("the CLI tears the registry down on SIGINT and exits 130", live, async () =
     rmSync(satellite, { recursive: true, force: true });
   }
 });
+
+/**
+ * @param {string[]} args
+ */
+function spawnRegistry(args) {
+  return spawnSync(process.execPath, [registryScript, ...args], {
+    encoding: "utf8",
+    env: process.env,
+  });
+}
+
+/**
+ * @param {string} url
+ * @param {string} name
+ */
+async function packageDocument(url, name) {
+  const response = await fetch(registryPath(url, name.replace("/", "%2f")), {
+    headers: { accept: "application/json" },
+  });
+  assert.equal(response.status, 200, name);
+  return response.json();
+}
+
+test("publish sends every packed tarball to the registry named by --registry", live, async () => {
+  const root = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const out = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  try {
+    writeWorkspace(root, [
+      { dir: "core", name: "@gwenjs/stack-fixture-core" },
+      { dir: "kit", name: "@gwenjs/stack-fixture-kit" },
+    ]);
+    packFramework({ root, out, version: stamp });
+    const manifest = JSON.parse(readFileSync(join(out, "stack-manifest.json"), "utf8"));
+    await withRegistry({ bin }, async (ctx) => {
+      const result = spawnRegistry(["publish", "--out", out, "--registry", ctx.url]);
+      assert.equal(result.status, 0, `${result.stderr}${result.stdout}`);
+      for (const pkg of manifest.packages) {
+        const body = await packageDocument(ctx.url, pkg.name);
+        assert.equal(body.versions?.[stamp]?.version, stamp, pkg.name);
+      }
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(out, { recursive: true, force: true });
+  }
+});
+
+test("publish without --out exits 1 with STACK:INVALID_ARG: --out", () => {
+  const result = spawnRegistry(["publish"]);
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr.includes("STACK:INVALID_ARG: --out"), true);
+});
+
+test("publish twice to the same registry succeeds", live, async () => {
+  const root = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const firstOut = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const secondOut = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const second = "1.0.0-integration.20260102030406.gabc1235";
+  try {
+    writeWorkspace(root, [{ dir: "core", name: "@gwenjs/stack-fixture-core" }]);
+    packFramework({ root, out: firstOut, version: stamp });
+    packFramework({ root, out: secondOut, version: second });
+    await withRegistry({ bin }, async (ctx) => {
+      const first = spawnRegistry(["publish", "--out", firstOut, "--registry", ctx.url]);
+      assert.equal(first.status, 0, `${first.stderr}${first.stdout}`);
+      const again = spawnRegistry(["publish", "--out", secondOut, "--registry", ctx.url]);
+      assert.equal(again.status, 0, `${again.stderr}${again.stdout}`);
+      const body = await packageDocument(ctx.url, "@gwenjs/stack-fixture-core");
+      assert.equal(body.versions?.[stamp]?.version, stamp);
+      assert.equal(body.versions?.[second]?.version, second);
+    });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(firstOut, { recursive: true, force: true });
+    rmSync(secondOut, { recursive: true, force: true });
+  }
+});
