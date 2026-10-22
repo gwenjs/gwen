@@ -23,8 +23,18 @@ export type InternalCollisionEvent3D = {
 export interface Physics3DWasmBridge {
   // World lifecycle
   physics3d_init?: (gx: number, gy: number, gz: number, maxEntities: number) => void;
-  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. */
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. Throws `PHYSICS3D:INVALID_STEP_DELTA` when `delta` is not finite or sits outside 0 to 1. */
   physics3d_step?: (delta: number) => void;
+  /**
+   * Drains bodies disabled during the last step.
+   * Interleaved `[slot, code]` pairs: `0` non-finite, `1` out-of-bounds, `2` velocity.
+   */
+  physics3d_take_disabled_slots?: () => Uint32Array;
+  /**
+   * Sets the linear-speed cap in metres per second.
+   * Returns `1` when the value is stored, `0` when it is refused.
+   */
+  physics3d_set_max_linear_velocity?: (value: number) => number;
   physics3d_set_quality?: (preset: number) => void;
   physics3d_set_event_coalescing?: (enabled: boolean) => void;
   /**
@@ -510,6 +520,8 @@ export interface Physics3DWasmBridge {
    * Cast a ray. Returns a Float32Array:
    * `[hit, entityIndex, distance, nx, ny, nz, px, py, pz]`.
    * `result[0] === 0` means no hit. A miss is `[0]`.
+   * Throws `PHYSICS3D:INVALID_QUERY` when the origin is not finite or sits outside ±1e7,
+   * the direction is not finite or is zero, or `maxDist` is not finite or is negative.
    */
   physics3d_cast_ray?: (
     originX: number,
@@ -528,6 +540,8 @@ export interface Physics3DWasmBridge {
    * Cast a convex shape. Returns a 15-float Float32Array:
    * `[hit, entityIndex, toi, nx, ny, nz, px, py, pz, waAx, waAy, waAz, waBx, waBy, waBz]`.
    * `result[0] === 0` means no hit.
+   * Throws `PHYSICS3D:INVALID_COLLIDER` when the pose or a box, ball or capsule size is refused.
+   * Throws `PHYSICS3D:INVALID_QUERY` when the direction or `maxDist` is refused.
    */
   physics3d_cast_shape?: (
     posX: number,
@@ -579,6 +593,15 @@ export interface Physics3DWasmBridge {
    * Returns a 6-float Float32Array:
    * `[hit, entityIndex, projX, projY, projZ, isInside]`.
    * `result[0] === 0` means no hit.
+   * Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7.
+   * That query-point cap is a separate input guard. `trimesh_builder` refuses a vertex
+   * above 1e9 (`world.rs:545-547`). `decoded_mesh_is_valid` applies that cap on
+   * `load_bvh_collider` (`world.rs:624-627`). parry3d-0.17.6
+   * `query/point/point_composite_shape.rs:152` unwraps a missing projection.
+   * Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
+   * `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
+   * `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
+   * `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic.
    */
   physics3d_project_point?: (
     pointX: number,

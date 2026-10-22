@@ -23,6 +23,7 @@ export default defineConfig({
     qualityPreset: 'medium',
     debug: false,
     coalesceEvents: true,
+    maxLinearVelocity: 400,
     layers: ['default', 'player', 'enemy'],
     vite: {
       bvhPrebake: false,
@@ -41,6 +42,7 @@ export default defineConfig({
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Solver quality: `'low'`, `'medium'`, `'high'`, or `'esport'` |
 | `debug` | `boolean` | `false` | Enable runtime physics debug logs |
 | `coalesceEvents` | `boolean` | `true` | Merge duplicate contact events within a frame |
+| `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). A faster dynamic body is scaled and stays enabled |
 | `layers` | `string[]` | `['default']` | Named collision layer list (max 32) |
 | `vite` | `object` | — | Build-time Vite plugin options (see below) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pre-bake BVH for `useMeshCollider('./x.glb')` at build time |
@@ -321,6 +323,24 @@ const hit = physics.castRay(
 const isGrounded = hit !== null
 ```
 
+## Events
+
+### physics3d:body-disabled
+
+The plugin emits this hook after a step that disabled a dynamic body. The payload is `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. The body stays registered. A query or `getBodyState` still answers.
+
+```ts
+engine.hooks.hook("physics3d:body-disabled", ({ entity, reason }) => {
+  // reason is "non-finite", "out-of-bounds", or "velocity"
+  void entity;
+  void reason;
+});
+```
+
+`non-finite` means the translation or the linear velocity is not finite. `out-of-bounds` means the position sits outside ±1e7. `velocity` means the position after the clamp would pass ±1e7.
+
+The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s is refused with `PHYSICS3D:INVALID_STEP_DELTA`.
+
 ## Errors
 
 A rejected `@gwenjs/physics3d` WASM call throws a `GwenWasmError`. `code` starts with `PHYSICS3D:` and `exportName` is the WASM export. `cause` is the original error. A trap throws `GwenWasmPanicError` and poisons the bridge. These errors are not emitted on the [error bus](/advanced/error-bus).
@@ -358,6 +378,8 @@ try {
 | `NAVGRID_NOT_INITIALIZED` | A path query ran before the navigation grid was uploaded |
 | `INVALID_NAVGRID` | A grid dimension is zero, the cell count overflows, or the grid is above 64 cubed |
 | `INVALID_PATH_REQUEST` | A path coordinate is not finite or is past the accepted bound |
+| `INVALID_QUERY` | A ray or point coordinate is not finite or sits outside ±1e7, a direction is not finite or is zero, or a max distance is not finite or is negative |
+| `INVALID_STEP_DELTA` | A step `delta` is not finite or sits outside 0 to 1. The world is unchanged |
 
 `findPath3D` is the one exception: with no navigation grid uploaded it returns an empty array instead of throwing `NAVGRID_NOT_INITIALIZED`.
 

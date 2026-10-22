@@ -53,6 +53,10 @@ export const Physics3DErrorCodes = {
   INVALID_COLLIDER: "PHYSICS3D:INVALID_COLLIDER",
   /** A joint anchor, axis, spring value, motor value or joint limit is NaN or infinite. */
   INVALID_JOINT: "PHYSICS3D:INVALID_JOINT",
+  /** A query coordinate, direction or max distance the export refused before Rapier. */
+  INVALID_QUERY: "PHYSICS3D:INVALID_QUERY",
+  /** A step delta is not finite, or sits outside 0 to 1. */
+  INVALID_STEP_DELTA: "PHYSICS3D:INVALID_STEP_DELTA",
 } as const;
 
 /** Type of a Physics3D error code string. */

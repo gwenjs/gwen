@@ -41,6 +41,8 @@ Le plugin fait automatiquement :
 - Gère les raycasts, les shape casts et les chevauchements par image
 - Nettoie quand l'acteur disparaît
 
+`maxLinearVelocity` (défaut `400` m/s) ramène un corps dynamique plus rapide à ce plafond. Le corps reste actif. Après un pas qui désactive un corps dynamique, le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`. Une coordonnée de requête hors de ±1e7 est refusée avec `PHYSICS3D:INVALID_QUERY`.
+
 ## Corps
 
 Chaque acteur a besoin d'exactement un composable de corps :

@@ -23,6 +23,7 @@ export default defineConfig({
     qualityPreset: 'medium',
     debug: false,
     coalesceEvents: true,
+    maxLinearVelocity: 400,
     layers: ['default', 'player', 'enemy'],
     vite: {
       bvhPrebake: false,
@@ -41,6 +42,7 @@ export default defineConfig({
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Qualité du solveur : `'low'`, `'medium'`, `'high'` ou `'esport'` |
 | `debug` | `boolean` | `false` | Active les journaux de débogage physique à l'exécution |
 | `coalesceEvents` | `boolean` | `true` | Fusionne les événements de contact dupliqués dans une frame |
+| `maxLinearVelocity` | `number` | `400` | Plafond de vitesse linéaire (m/s). Un corps dynamique plus rapide est ramené à ce plafond et reste actif |
 | `layers` | `string[]` | `['default']` | Liste de calques de collision nommés (max 32) |
 | `vite` | `object` | — | Options du plugin Vite au moment du build (voir ci-dessous) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pré-compile le BVH pour `useMeshCollider('./x.glb')` au moment du build |
@@ -321,6 +323,24 @@ const hit = physics.castRay(
 const isGrounded = hit !== null
 ```
 
+## Événements
+
+### physics3d:body-disabled
+
+Le plugin émet ce hook après un pas qui a désactivé un corps dynamique. La charge est `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Le corps reste enregistré. Une requête ou `getBodyState` répond encore.
+
+```ts
+engine.hooks.hook("physics3d:body-disabled", ({ entity, reason }) => {
+  // reason vaut "non-finite", "out-of-bounds" ou "velocity"
+  void entity;
+  void reason;
+});
+```
+
+`non-finite` signifie que la translation ou la vitesse linéaire n'est pas finie. `out-of-bounds` signifie que la position sort de ±1e7. `velocity` signifie que la position après le plafond de vitesse sortirait de ±1e7.
+
+Le plafond par défaut de 400 m/s ralentit un corps dynamique plus rapide. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`.
+
 ## Erreurs
 
 Un appel WASM `@gwenjs/physics3d` refusé lève un `GwenWasmError`. `code` commence par `PHYSICS3D:` et `exportName` est l'export WASM. `cause` est l'erreur d'origine. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Ces erreurs ne sont pas émises sur le [bus d'erreurs](/fr/advanced/error-bus).
@@ -358,6 +378,8 @@ try {
 | `NAVGRID_NOT_INITIALIZED` | Une requête de chemin a eu lieu avant l'envoi de la grille de navigation |
 | `INVALID_NAVGRID` | Une dimension de la grille est nulle, le nombre de cellules déborde, ou la grille dépasse 64 au cube |
 | `INVALID_PATH_REQUEST` | Une coordonnée de chemin n'est pas finie ou dépasse la borne acceptée |
+| `INVALID_QUERY` | Une coordonnée de rayon ou de point n'est pas finie ou sort de ±1e7, une direction n'est pas finie ou est nulle, ou une distance max n'est pas finie ou est négative |
+| `INVALID_STEP_DELTA` | Un `delta` de pas n'est pas fini ou sort de 0 à 1. Le monde ne change pas |
 
 `findPath3D` fait exception : sans grille de navigation envoyée, elle renvoie un tableau vide au lieu de lever `NAVGRID_NOT_INITIALIZED`.
 

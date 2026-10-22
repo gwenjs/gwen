@@ -3,6 +3,7 @@
  */
 
 import type { Physics3DConfig, ResolvedPhysics3DConfig, Physics3DQualityPreset } from "./types";
+import { GwenConfigError } from "@gwenjs/core";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "./errors/codes";
 
@@ -15,6 +16,7 @@ export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
   qualityPreset: "medium",
   debug: false,
   coalesceEvents: true,
+  maxLinearVelocity: 400,
   layers: [],
 };
 
@@ -27,11 +29,23 @@ export const DEFAULT_PHYSICS3D_CONFIG: ResolvedPhysics3DConfig = {
  *
  * @param config - Partial configuration from the plugin constructor.
  * @returns A fully-resolved configuration object.
+ * @throws {GwenConfigError} If `maxLinearVelocity` is not finite or not positive.
  */
 export function normalizePhysics3DConfig(config: Physics3DConfig = {}): ResolvedPhysics3DConfig {
   const qualityPreset: Physics3DQualityPreset =
     (config.qualityPreset as Physics3DQualityPreset | undefined) ??
     DEFAULT_PHYSICS3D_CONFIG.qualityPreset;
+
+  if (
+    config.maxLinearVelocity !== undefined &&
+    (!Number.isFinite(config.maxLinearVelocity) || config.maxLinearVelocity <= 0)
+  ) {
+    throw new GwenConfigError(
+      "maxLinearVelocity",
+      config.maxLinearVelocity,
+      "Must be finite and greater than 0. The default is 400.",
+    );
+  }
 
   return {
     gravity: {
@@ -43,6 +57,7 @@ export function normalizePhysics3DConfig(config: Physics3DConfig = {}): Resolved
     qualityPreset,
     debug: config.debug ?? DEFAULT_PHYSICS3D_CONFIG.debug,
     coalesceEvents: config.coalesceEvents ?? DEFAULT_PHYSICS3D_CONFIG.coalesceEvents,
+    maxLinearVelocity: config.maxLinearVelocity ?? DEFAULT_PHYSICS3D_CONFIG.maxLinearVelocity,
     layers: config.layers ?? DEFAULT_PHYSICS3D_CONFIG.layers,
   };
 }

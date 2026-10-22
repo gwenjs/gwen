@@ -41,6 +41,8 @@ The plugin automatically:
 - Manages raycasts, shape casts, and overlaps per-frame
 - Cleans up when the actor is despawned
 
+`maxLinearVelocity` (default `400` m/s) scales a faster dynamic body. The body stays enabled. After a step that disables a dynamic body, the plugin emits `physics3d:body-disabled` with `{ entity, reason }`. `reason` is `non-finite`, `out-of-bounds`, or `velocity`. A step delta above 1 s is refused with `PHYSICS3D:INVALID_STEP_DELTA`. A query coordinate outside ±1e7 is refused with `PHYSICS3D:INVALID_QUERY`.
+
 ## Bodies
 
 Each actor needs exactly one body composable:
