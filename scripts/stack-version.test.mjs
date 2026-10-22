@@ -5,10 +5,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import semver from "semver";
-
 import { currentStamp, stampVersion } from "./stack/version.mjs";
-import { git, initRepo } from "./stack/test-support.mjs";
+import { git, initRepo, isValidSemver, satisfiesCaret } from "./stack/test-support.mjs";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const versionScript = join(repoRoot, "scripts/stack/version.mjs");
@@ -45,15 +43,33 @@ function restoreEnv(saved) {
 test("the stamp is valid semver and satisfies ^1.0.0-alpha.0", () => {
   const stamp = stampVersion("abcdef0123456", new Date(Date.UTC(2026, 9, 22, 3, 15, 30)));
   assert.equal(stamp, "1.0.0-integration.20261022031530.gabcdef0");
-  assert.equal(Boolean(semver.valid(stamp)), true);
-  assert.equal(semver.satisfies(stamp, "^1.0.0-alpha.0"), true);
+  assert.equal(isValidSemver(stamp), true);
+  assert.equal(satisfiesCaret(stamp, "1.0.0-alpha.0"), true);
 });
 
 test("an all-digit sha with a leading zero would be invalid without the g prefix", () => {
   const date = new Date(Date.UTC(2026, 9, 22, 3, 15, 30));
-  assert.equal(semver.valid("1.0.0-integration.0123456"), null);
+  assert.equal(isValidSemver("1.0.0-integration.0123456"), false);
   const stamp = stampVersion("0123456", date);
-  assert.equal(Boolean(semver.valid(stamp)), true);
+  assert.equal(isValidSemver(stamp), true);
+});
+
+test("semver helpers follow the semver.org precedence rules", () => {
+  assert.equal(isValidSemver("1.0.0-integration.0123456"), false);
+  assert.equal(isValidSemver("01.0.0"), false);
+  assert.equal(isValidSemver("1.0"), false);
+  assert.equal(isValidSemver("1.0.0-"), false);
+  assert.equal(isValidSemver("1.0.0-alpha.0"), true);
+  assert.equal(isValidSemver("1.0.0-integration.20261022031530.gabcdef0"), true);
+  const base = "1.0.0-alpha.0";
+  assert.equal(satisfiesCaret("1.0.0-integration.20261022031530.gabcdef0", base), true);
+  assert.equal(satisfiesCaret("1.0.0-alpha.0", base), true);
+  assert.equal(satisfiesCaret("1.0.0-alpha.1", base), true);
+  assert.equal(satisfiesCaret("1.0.0", base), true);
+  assert.equal(satisfiesCaret("1.0.0-aaa", base), false);
+  assert.equal(satisfiesCaret("2.0.0-alpha.0", base), false);
+  assert.equal(satisfiesCaret("1.1.0-alpha.0", base), false);
+  assert.equal(satisfiesCaret("0.9.0", base), false);
 });
 
 test("the CLI prints the stamp in UTC whatever TZ is", () => {
