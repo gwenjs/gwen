@@ -8,7 +8,7 @@
 #![cfg(feature = "physics3d")]
 
 use gwen_core::bindings::Engine;
-use gwen_core::physics3d::world::MAX_COLLIDER_MAGNITUDE;
+use gwen_core::physics3d::world::{PhysicsWorld3D, MAX_COLLIDER_MAGNITUDE};
 use gwen_core::physics3d::Physics3DError;
 use rapier3d::na::{Point3, Vector3};
 use rapier3d::parry::query::{PointQuery, Ray, RayCast};
@@ -130,28 +130,46 @@ fn ray_cast_on_a_large_mesh_does_not_panic_below_the_known_edge() {
     );
 }
 
-/// Ground box of half extent `m` (slot 0) with a dynamic ball above it (slot 1): the ball's
-/// state after 120 steps and a ray cast at the ground.
-fn engine_run(m: f32) -> Result<(Vec<f32>, Vec<f32>), Physics3DError> {
+/// Fixed ground box of half extent `m` centered at `y = -m`, so its top is `y = 0`.
+/// The dynamic ball starts at `y = 3`, inside ±1e7. Returns the ball state after 120 steps,
+/// whether that ball is still enabled, and a downward ray from `(5, 256, 0)`.
+///
+/// `f32` spacing at `1e9` is 64 (`f32_spacing_at_the_bound_is_64`). A ray origin only 10 above
+/// the top collapses onto the face in local space and reports a hit at distance 0. 256 is four
+/// steps of that spacing, so the hit distance stays 256.
+fn engine_run(m: f32) -> Result<(Vec<f32>, bool, Vec<f32>), Physics3DError> {
     let mut e = Engine::new(16).map_err(Physics3DError::Core)?;
     e.physics3d_init(0.0, -9.81, 0.0, 16);
-    e.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0)?;
+    e.physics3d_add_body(0, 0.0, -m, 0.0, 0, 1.0, 0.0, 0.0)?;
     e.physics3d_add_box_collider(0, m, m, m, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1)?;
-    e.physics3d_add_body(1, 0.0, m + 3.0, 0.0, 1, 1.0, 0.0, 0.0)?;
+    e.physics3d_add_body(1, 0.0, 3.0, 0.0, 1, 1.0, 0.0, 0.0)?;
     e.physics3d_add_sphere_collider(1, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 2)?;
     for _ in 0..120 {
         e.physics3d_step(1.0 / 60.0)?;
     }
     let state = e.physics3d_get_body_state(1)?;
-    let ray = e.physics3d_cast_ray(0.0, m + 5.0, 0.0, 0.0, -1.0, 0.0, 10.0 * m, ALL, ALL, true)?;
-    Ok((state, ray))
+    let ground = e.physics3d_get_body_state(0)?;
+    assert_eq!(
+        ground.get(1).copied(),
+        Some(-m),
+        "ground {ground:?} ball {state:?}"
+    );
+    let enabled = e.physics3d_is_body_enabled(1);
+    // x = 5 misses the ball. 256 is the distance down to the top at y = 0.
+    let ray = e.physics3d_cast_ray(5.0, 256.0, 0.0, 0.0, -1.0, 0.0, 1000.0, ALL, ALL, true)?;
+    Ok((state, enabled, ray))
 }
 
 #[test]
 fn bodies_and_queries_at_the_bound_stay_finite() -> Outcome {
-    let (state, ray) = engine_run(MAX_COLLIDER_MAGNITUDE)?;
+    let (state, enabled, ray) = engine_run(MAX_COLLIDER_MAGNITUDE)?;
     assert_eq!(non_finite(&state), Vec::<usize>::new(), "state {state:?}");
-    assert_eq!(non_finite(&ray), Vec::<usize>::new(), "ray {ray:?}");
+    assert_eq!(
+        enabled, true,
+        "the guard disabled the ball; state {state:?}"
+    );
+    assert_eq!(ray.first().copied(), Some(1.0), "ray {ray:?}");
+    assert_eq!(ray.get(2).copied(), Some(256.0), "ray {ray:?}");
     Ok(())
 }
 
@@ -301,50 +319,92 @@ fn flag(did_panic: bool) -> &'static str {
     }
 }
 
-/// One step of a dynamic box at `y = m` above a unit floor, through the exports.
-fn step_at(m: f32) {
-    let Ok(mut engine) = Engine::new(8).map_err(Physics3DError::Core) else {
-        return;
-    };
-    engine.physics3d_init(0.0, -9.81, 0.0, 8);
-    let _ = engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
-    let _ = engine.physics3d_add_box_collider(
-        0, 2.0, 0.5, 2.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+/// One Rapier step of a dynamic box at `y = m` above a unit floor.
+///
+/// `PhysicsWorld3D::step` runs the extent guard and would disable this body past ±1e7,
+/// so the step row calls `PhysicsPipeline::step` and never that guard.
+fn raw_step_at(m: f32) {
+    use rapier3d::prelude::*;
+    let mut bodies = RigidBodySet::new();
+    let mut colliders = ColliderSet::new();
+    let ground = bodies.insert(RigidBodyBuilder::fixed().build());
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(2.0, 0.5, 2.0).build(),
+        ground,
+        &mut bodies,
     );
-    let _ = engine.physics3d_add_body(1, 0.0, m, 0.0, 1, 1.0, 0.0, 0.0);
-    let _ = engine.physics3d_add_box_collider(
-        1, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 2,
+    let box_body = bodies.insert(
+        RigidBodyBuilder::dynamic()
+            .translation(vector![0.0, m, 0.0])
+            .build(),
     );
-    let _ = engine.physics3d_step(1.0 / 60.0);
+    colliders.insert_with_parent(
+        ColliderBuilder::cuboid(0.5, 0.5, 0.5).build(),
+        box_body,
+        &mut bodies,
+    );
+    let mut pipeline = PhysicsPipeline::new();
+    let mut islands = IslandManager::new();
+    let mut broad_phase = DefaultBroadPhase::new();
+    let mut narrow_phase = NarrowPhase::new();
+    let mut impulse_joints = ImpulseJointSet::new();
+    let mut multibody_joints = MultibodyJointSet::new();
+    let mut ccd = CCDSolver::new();
+    let params = IntegrationParameters::default();
+    pipeline.step(
+        &vector![0.0, -9.81, 0.0],
+        &params,
+        &mut islands,
+        &mut broad_phase,
+        &mut narrow_phase,
+        &mut bodies,
+        &mut colliders,
+        &mut impulse_joints,
+        &mut multibody_joints,
+        &mut ccd,
+        None,
+        &(),
+        &(),
+    );
 }
 
-/// Queries aimed at a unit floor, with the query pose at `y = m`.
-fn query_world() -> Option<Engine> {
-    let Ok(mut engine) = Engine::new(8).map_err(Physics3DError::Core) else {
-        return None;
-    };
-    engine.physics3d_init(0.0, 0.0, 0.0, 8);
-    let _ = engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
-    let _ = engine.physics3d_add_box_collider(
-        0, 2.0, 0.5, 2.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
-    );
-    let _ = engine.physics3d_step(1.0 / 60.0);
-    Some(engine)
+/// Unit floor whose query pipeline has been stepped once.
+///
+/// Callers use `PhysicsWorld3D::{cast_ray, project_point, cast_shape}`. Those methods do not
+/// run `reject_cast_ray`, `reject_project_point` or `reject_cast_shape`.
+fn direct_query_world() -> Result<PhysicsWorld3D, &'static str> {
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    if !world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0) {
+        return Err("floor body");
+    }
+    world
+        .add_box_collider(
+            0, 2.0, 0.5, 2.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+        )
+        .map_err(|_| "floor box")?;
+    world.step(1.0 / 60.0).map_err(|_| "step")?;
+    Ok(world)
 }
 
 fn scan_magnitude(m: f32) -> [bool; 4] {
-    let step = panicked(|| step_at(m));
+    let step = panicked(|| raw_step_at(m));
     let ray = panicked(|| {
-        let Some(engine) = query_world() else { return };
-        let _ = engine.physics3d_cast_ray(0.0, m, 0.0, 0.0, -1.0, 0.0, 100.0, ALL, ALL, true);
+        let Ok(world) = direct_query_world() else {
+            return;
+        };
+        let _ = world.cast_ray(0.0, m, 0.0, 0.0, -1.0, 0.0, 100.0, ALL, ALL, true);
     });
     let project = panicked(|| {
-        let Some(engine) = query_world() else { return };
-        let _ = engine.physics3d_project_point(0.0, m, 0.0, ALL, ALL, true);
+        let Ok(world) = direct_query_world() else {
+            return;
+        };
+        let _ = world.project_point(0.0, m, 0.0, ALL, ALL, true);
     });
     let shape = panicked(|| {
-        let Some(engine) = query_world() else { return };
-        let _ = engine.physics3d_cast_shape(
+        let Ok(world) = direct_query_world() else {
+            return;
+        };
+        let _ = world.cast_shape(
             0.0, m, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0, 0.5, 0.5, 0.5, 100.0, ALL, ALL,
         );
     });
@@ -419,4 +479,93 @@ fn restitution_1e9_through_the_exports_does_not_panic() {
     });
     let outcome = if did_panic { "panicked" } else { "returned" };
     assert_eq!(outcome, "returned");
+}
+
+/// Floor box plus a mesh, stepped once so the query pipeline sees both.
+///
+/// `PhysicsWorld3D::cast_ray` and `cast_shape` are called directly. The export
+/// guard is not on this path, so a large direction reaches Rapier.
+fn floor_and_mesh() -> Result<PhysicsWorld3D, &'static str> {
+    let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
+    if !world.add_body(0, 0.0, -0.5, 0.0, 0, 1.0, 0.0, 0.0) {
+        return Err("floor body");
+    }
+    world
+        .add_box_collider(
+            0, 10.0, 0.5, 10.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+        )
+        .map_err(|_| "floor box")?;
+    if !world.add_body(1, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0) {
+        return Err("mesh body");
+    }
+    let vertices = [1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, 2.0, 0.0];
+    world
+        .add_mesh_collider(
+            1,
+            &vertices,
+            &[0, 1, 2],
+            0.0,
+            0.0,
+            0.0,
+            false,
+            0.5,
+            0.0,
+            ALL,
+            ALL,
+            2,
+        )
+        .map_err(|_| "mesh")?;
+    world.step(1.0 / 60.0).map_err(|_| "step")?;
+    Ok(world)
+}
+
+fn direction_outcome(kind: &'static str, dir: [f32; 3]) -> &'static str {
+    let Ok(world) = floor_and_mesh() else {
+        return "unbuilt";
+    };
+    let did_panic = panicked(move || {
+        if kind == "ray" {
+            let _ = world.cast_ray(0.0, 1.0, 0.0, dir[0], dir[1], dir[2], 100.0, ALL, ALL, true);
+        } else {
+            let _ = world.cast_shape(
+                0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, dir[0], dir[1], dir[2], 0, 0.5, 0.5, 0.5, 100.0,
+                ALL, ALL,
+            );
+        }
+    });
+    if did_panic {
+        "panic"
+    } else {
+        "ok"
+    }
+}
+
+/// Large finite directions against a floor and a mesh. Direct world calls, so
+/// `reject_query_direction` cannot hide a Rapier panic.
+#[test]
+fn large_finite_directions_do_not_panic() {
+    let dirs: [(&str, [f32; 3]); 5] = [
+        ("1e8", [1.0e8, 0.0, 0.0]),
+        ("1e20", [1.0e20, 0.0, 0.0]),
+        ("1e30", [1.0e30, 0.0, 0.0]),
+        ("max", [f32::MAX, 0.0, 0.0]),
+        ("max-max-0", [f32::MAX, f32::MAX, 0.0]),
+    ];
+    let mut report = Vec::new();
+    for (label, dir) in dirs {
+        let ray = direction_outcome("ray", dir);
+        let shape = direction_outcome("shape", dir);
+        report.push(format!("{label} ray={ray} shape={shape}"));
+    }
+    assert_eq!(
+        report,
+        vec![
+            "1e8 ray=ok shape=ok".to_string(),
+            "1e20 ray=ok shape=ok".to_string(),
+            "1e30 ray=ok shape=ok".to_string(),
+            "max ray=ok shape=ok".to_string(),
+            "max-max-0 ray=ok shape=ok".to_string(),
+        ],
+        "direction scan"
+    );
 }

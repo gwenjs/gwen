@@ -490,7 +490,7 @@ fn overlap_world() -> Result<PhysicsWorld3D, &'static str> {
             0, 20.0, 20.0, 20.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
         )
         .map_err(|_| "floor box")?;
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0).map_err(|_| "step")?;
     Ok(world)
 }
 

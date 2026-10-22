@@ -82,7 +82,10 @@ pub enum PathRequestReject {
 }
 
 /// Failure returned by a fallible physics3d export.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Eq` is omitted: [`Self::InvalidQuery`] and [`Self::InvalidStepDelta`] carry
+/// an `f32`, and `f32` is not `Eq`.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Physics3DError {
     /// The export touched the world before `physics3d_init`.
     WorldNotInitialized,
@@ -186,6 +189,18 @@ pub enum Physics3DError {
         /// Which check refused the parameter.
         reason: InvalidJointReason,
     },
+    /// A query argument is not finite, is negative where a length is required, or is past the world extent.
+    InvalidQuery {
+        /// `ox`, `oy`, `oz`, `px`, `py`, `pz`, `dx`, `dy`, `dz`, `direction`, or `max_dist`.
+        field: &'static str,
+        /// The value the caller passed.
+        value: f32,
+    },
+    /// `physics3d_step` was given a delta that is not finite or is outside `0..=1`.
+    InvalidStepDelta {
+        /// The refused delta, in seconds.
+        delta: f32,
+    },
     /// A physics3d bulk export is forwarding a core bulk failure.
     Core(CoreError),
 }
@@ -215,6 +230,8 @@ impl Physics3DError {
             Self::InvalidPathRequest { .. } => "PHYSICS3D:INVALID_PATH_REQUEST",
             Self::InvalidCollider { .. } => "PHYSICS3D:INVALID_COLLIDER",
             Self::InvalidJoint { .. } => "PHYSICS3D:INVALID_JOINT",
+            Self::InvalidQuery { .. } => "PHYSICS3D:INVALID_QUERY",
+            Self::InvalidStepDelta { .. } => "PHYSICS3D:INVALID_STEP_DELTA",
             Self::Core(inner) => inner.code(),
         }
     }
@@ -335,6 +352,14 @@ impl fmt::Display for Physics3DError {
                     write!(f, "joint refused: a value is not finite")
                 }
             },
+            Self::InvalidQuery { field, value } => write!(
+                f,
+                "physics3d query field {field} is {value}; it must be finite and within ±MAX_WORLD_EXTENT"
+            ),
+            Self::InvalidStepDelta { delta } => write!(
+                f,
+                "physics3d step delta is {delta}; it must be finite and within 0..=1"
+            ),
             Self::Core(inner) => write!(f, "{inner}"),
         }
     }
