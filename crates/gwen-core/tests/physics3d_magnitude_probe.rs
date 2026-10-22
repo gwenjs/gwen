@@ -165,7 +165,8 @@ fn bodies_and_queries_at_the_bound_stay_finite() -> Outcome {
     let (state, enabled, ray) = engine_run(MAX_COLLIDER_MAGNITUDE)?;
     assert_eq!(non_finite(&state), Vec::<usize>::new(), "state {state:?}");
     assert_eq!(
-        enabled, true,
+        enabled.then_some("enabled"),
+        Some("enabled"),
         "the guard disabled the ball; state {state:?}"
     );
     assert_eq!(ray.first().copied(), Some(1.0), "ray {ray:?}");

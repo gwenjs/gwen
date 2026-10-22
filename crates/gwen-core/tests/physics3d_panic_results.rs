@@ -30,14 +30,12 @@ fn engine(gravity_y: f32) -> Result<Engine, Physics3DError> {
 fn add_box(
     engine: &mut Engine,
     slot: u32,
-    x: f32,
-    y: f32,
-    z: f32,
+    at: [f32; 3],
     kind: u8,
     half: (f32, f32, f32),
     restitution: f32,
 ) -> Result<(), Physics3DError> {
-    engine.physics3d_add_body(slot, x, y, z, kind, 1.0, 0.0, 0.0)?;
+    engine.physics3d_add_body(slot, at[0], at[1], at[2], kind, 1.0, 0.0, 0.0)?;
     engine.physics3d_add_box_collider(
         slot,
         half.0,
@@ -58,7 +56,7 @@ fn add_box(
 
 fn with_body() -> Result<Engine, Physics3DError> {
     let mut engine = engine(0.0)?;
-    add_box(&mut engine, 0, 0.0, 0.0, 0.0, 1, (0.5, 0.5, 0.5), 0.0)?;
+    add_box(&mut engine, 0, [0.0, 0.0, 0.0], 1, (0.5, 0.5, 0.5), 0.0)?;
     Ok(engine)
 }
 
@@ -142,15 +140,13 @@ fn measured_speed(engine: &mut Engine, vx: f32) -> Result<f32, Physics3DError> {
 
 fn cast_ray(
     engine: &Engine,
-    ox: f32,
-    oy: f32,
-    oz: f32,
-    dx: f32,
-    dy: f32,
-    dz: f32,
+    origin: [f32; 3],
+    dir: [f32; 3],
     max_dist: f32,
 ) -> Result<Vec<f32>, Physics3DError> {
-    engine.physics3d_cast_ray(ox, oy, oz, dx, dy, dz, max_dist, ALL, ALL, true)
+    engine.physics3d_cast_ray(
+        origin[0], origin[1], origin[2], dir[0], dir[1], dir[2], max_dist, ALL, ALL, true,
+    )
 }
 
 fn cast_box(
@@ -169,7 +165,7 @@ fn cast_box(
 #[test]
 fn cast_ray_nan_returns_invalid_query() -> Result<(), Physics3DError> {
     let engine = with_body()?;
-    let result = cast_ray(&engine, f32::NAN, 0.0, 0.0, 0.0, -1.0, 0.0, 100.0);
+    let result = cast_ray(&engine, [f32::NAN, 0.0, 0.0], [0.0, -1.0, 0.0], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("ox", f32::NAN));
     Ok(())
@@ -181,7 +177,7 @@ fn cast_ray_nan_leaves_the_body_unmoved() -> Result<(), Physics3DError> {
     engine.physics3d_set_linear_velocity(0, 10.0, 0.0, 0.0)?;
     let before_x = position_x(&engine, 0)?;
     let before_y = position_y(&engine, 0)?;
-    let result = cast_ray(&engine, f32::NAN, 0.0, 0.0, 0.0, -1.0, 0.0, 100.0);
+    let result = cast_ray(&engine, [f32::NAN, 0.0, 0.0], [0.0, -1.0, 0.0], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("ox", f32::NAN));
     assert_eq!(position_x(&engine, 0)?, before_x);
@@ -192,7 +188,7 @@ fn cast_ray_nan_leaves_the_body_unmoved() -> Result<(), Physics3DError> {
 #[test]
 fn cast_ray_zero_direction_returns_invalid_query() -> Result<(), Physics3DError> {
     let engine = with_body()?;
-    let result = cast_ray(&engine, 0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 100.0);
+    let result = cast_ray(&engine, [0.0, 5.0, 0.0], [0.0, 0.0, 0.0], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("direction", 0.0));
     Ok(())
@@ -200,7 +196,7 @@ fn cast_ray_zero_direction_returns_invalid_query() -> Result<(), Physics3DError>
 
 fn floor_and_mesh() -> Result<Engine, Physics3DError> {
     let mut engine = engine(-9.81)?;
-    add_box(&mut engine, 0, 0.0, -0.5, 0.0, 0, (10.0, 0.5, 10.0), 0.0)?;
+    add_box(&mut engine, 0, [0.0, -0.5, 0.0], 0, (10.0, 0.5, 10.0), 0.0)?;
     engine.physics3d_add_body(1, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0)?;
     let vertices = [1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, 2.0, 0.0];
     engine.physics3d_add_mesh_collider(
@@ -236,16 +232,16 @@ fn large_directions() -> [(f32, f32, f32); 6] {
 fn cast_ray_large_finite_direction_is_accepted() -> Result<(), Physics3DError> {
     let engine = floor_and_mesh()?;
     for (dx, dy, dz) in large_directions() {
-        let result = cast_ray(&engine, 0.0, 1.0, 0.0, dx, dy, dz, 100.0);
+        let result = cast_ray(&engine, [0.0, 1.0, 0.0], [dx, dy, dz], 100.0);
         assert_eq!(
             code_of(&result),
             "",
             "direction ({dx}, {dy}, {dz}) {result:?}"
         );
     }
-    let along_y = cast_ray(&engine, 0.0, 1.0, 0.0, 0.0, 1.0e8, 0.0, 100.0);
+    let along_y = cast_ray(&engine, [0.0, 1.0, 0.0], [0.0, 1.0e8, 0.0], 100.0);
     assert_eq!(code_of(&along_y), "", "{along_y:?}");
-    let along_z = cast_ray(&engine, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0e8, 100.0);
+    let along_z = cast_ray(&engine, [0.0, 1.0, 0.0], [0.0, 0.0, 1.0e8], 100.0);
     assert_eq!(code_of(&along_z), "", "{along_z:?}");
     Ok(())
 }
@@ -289,7 +285,7 @@ fn cast_shape_large_finite_direction_is_accepted() -> Result<(), Physics3DError>
 #[test]
 fn cast_ray_nan_dy_returns_invalid_query() -> Result<(), Physics3DError> {
     let engine = with_body()?;
-    let result = cast_ray(&engine, 0.0, 5.0, 0.0, 0.0, f32::NAN, 0.0, 100.0);
+    let result = cast_ray(&engine, [0.0, 5.0, 0.0], [0.0, f32::NAN, 0.0], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("dy", f32::NAN));
     Ok(())
@@ -298,7 +294,7 @@ fn cast_ray_nan_dy_returns_invalid_query() -> Result<(), Physics3DError> {
 #[test]
 fn cast_ray_nan_dz_returns_invalid_query() -> Result<(), Physics3DError> {
     let engine = with_body()?;
-    let result = cast_ray(&engine, 0.0, 5.0, 0.0, 0.0, -1.0, f32::NAN, 100.0);
+    let result = cast_ray(&engine, [0.0, 5.0, 0.0], [0.0, -1.0, f32::NAN], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("dz", f32::NAN));
     Ok(())
@@ -309,12 +305,8 @@ fn cast_ray_at_exactly_max_extent_is_accepted() -> Result<(), Physics3DError> {
     let engine = with_body()?;
     let result = cast_ray(
         &engine,
-        MAX_WORLD_EXTENT,
-        -MAX_WORLD_EXTENT,
-        0.0,
-        0.0,
-        -1.0,
-        0.0,
+        [MAX_WORLD_EXTENT, -MAX_WORLD_EXTENT, 0.0],
+        [0.0, -1.0, 0.0],
         100.0,
     );
     assert_eq!(
@@ -329,7 +321,7 @@ fn cast_ray_at_exactly_max_extent_is_accepted() -> Result<(), Physics3DError> {
 fn cast_ray_one_ulp_above_is_refused() -> Result<(), Physics3DError> {
     let engine = with_body()?;
     let above = MAX_WORLD_EXTENT.next_up();
-    let result = cast_ray(&engine, above, 0.0, 0.0, 0.0, -1.0, 0.0, 100.0);
+    let result = cast_ray(&engine, [above, 0.0, 0.0], [0.0, -1.0, 0.0], 100.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("ox", above));
     Ok(())
@@ -338,7 +330,7 @@ fn cast_ray_one_ulp_above_is_refused() -> Result<(), Physics3DError> {
 #[test]
 fn cast_ray_negative_max_dist_returns_invalid_query() -> Result<(), Physics3DError> {
     let engine = with_body()?;
-    let result = cast_ray(&engine, 0.0, 5.0, 0.0, 0.0, -1.0, 0.0, -1.0);
+    let result = cast_ray(&engine, [0.0, 5.0, 0.0], [0.0, -1.0, 0.0], -1.0);
     assert_eq!(code_of(&result), "PHYSICS3D:INVALID_QUERY", "{result:?}");
     assert_eq!(message_of(&result), query_message("max_dist", -1.0));
     Ok(())
@@ -627,9 +619,7 @@ fn step_after_restitution_1e9_disables_the_body_and_keeps_stepping() -> Result<(
     add_box(
         &mut engine,
         GROUND,
-        0.0,
-        0.0,
-        0.0,
+        [0.0, 0.0, 0.0],
         0,
         (20.0, 0.5, 20.0),
         1.0e9,
@@ -637,14 +627,19 @@ fn step_after_restitution_1e9_disables_the_body_and_keeps_stepping() -> Result<(
     add_box(
         &mut engine,
         OFFENDER,
-        0.0,
-        2.0,
-        0.0,
+        [0.0, 2.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         1.0e9,
     )?;
-    add_box(&mut engine, OTHER, 40.0, 8.0, 0.0, 1, (0.5, 0.5, 0.5), 0.0)?;
+    add_box(
+        &mut engine,
+        OTHER,
+        [40.0, 8.0, 0.0],
+        1,
+        (0.5, 0.5, 0.5),
+        0.0,
+    )?;
     let before = position_y(&engine, OTHER)?;
 
     let caught = catch_unwind(AssertUnwindSafe(|| {
@@ -658,10 +653,7 @@ fn step_after_restitution_1e9_disables_the_body_and_keeps_stepping() -> Result<(
         }
         "enabled"
     }));
-    let state = match caught {
-        Ok(state) => state,
-        Err(_) => "panicked",
-    };
+    let state = caught.unwrap_or("panicked");
     assert_eq!(state, "disabled", "offender is_enabled() stayed true");
     assert_eq!(
         drained_reasons(&engine.physics3d_take_disabled_slots()),
@@ -695,8 +687,8 @@ fn non_finite_velocity_disables_the_body() -> Result<(), Physics3DError> {
 fn fixed_and_kinematic_bodies_past_the_extent_are_not_disabled() -> Result<(), Physics3DError> {
     let mut engine = engine(0.0)?;
     let above = MAX_WORLD_EXTENT.next_up();
-    add_box(&mut engine, 0, above, 0.0, 0.0, 0, (0.5, 0.5, 0.5), 0.0)?;
-    add_box(&mut engine, 1, above, 0.0, 0.0, 2, (0.5, 0.5, 0.5), 0.0)?;
+    add_box(&mut engine, 0, [above, 0.0, 0.0], 0, (0.5, 0.5, 0.5), 0.0)?;
+    add_box(&mut engine, 1, [above, 0.0, 0.0], 2, (0.5, 0.5, 0.5), 0.0)?;
     engine.physics3d_step(DT)?;
     assert_eq!(
         enabled_label(&engine, 0),
@@ -718,9 +710,7 @@ fn position_past_max_extent_disables_the_body() -> Result<(), Physics3DError> {
     add_box(
         &mut engine,
         0,
-        MAX_WORLD_EXTENT.next_up(),
-        0.0,
-        0.0,
+        [MAX_WORLD_EXTENT.next_up(), 0.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -744,9 +734,7 @@ fn velocity_that_would_leave_the_world_disables_the_body() -> Result<(), Physics
     add_box(
         &mut engine,
         0,
-        MAX_WORLD_EXTENT,
-        0.0,
-        0.0,
+        [MAX_WORLD_EXTENT, 0.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -771,9 +759,7 @@ fn disabled_body_stays_registered_and_is_not_reported_twice() -> Result<(), Phys
     add_box(
         &mut engine,
         0,
-        MAX_WORLD_EXTENT.next_up(),
-        0.0,
-        0.0,
+        [MAX_WORLD_EXTENT.next_up(), 0.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -802,9 +788,7 @@ fn disable_three_out_of_bounds(
     add_box(
         engine,
         2,
-        MAX_WORLD_EXTENT.next_up(),
-        0.0,
-        0.0,
+        [MAX_WORLD_EXTENT.next_up(), 0.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -812,9 +796,7 @@ fn disable_three_out_of_bounds(
     add_box(
         engine,
         0,
-        MAX_WORLD_EXTENT.next_up(),
-        5.0,
-        0.0,
+        [MAX_WORLD_EXTENT.next_up(), 5.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -822,9 +804,7 @@ fn disable_three_out_of_bounds(
     add_box(
         engine,
         1,
-        -MAX_WORLD_EXTENT.next_up(),
-        0.0,
-        0.0,
+        [-MAX_WORLD_EXTENT.next_up(), 0.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         0.0,
@@ -856,9 +836,7 @@ fn two_engines_do_not_share_a_disabled_body() -> Result<(), Physics3DError> {
     add_box(
         &mut blown,
         GROUND,
-        0.0,
-        0.0,
-        0.0,
+        [0.0, 0.0, 0.0],
         0,
         (20.0, 0.5, 20.0),
         1.0e9,
@@ -866,14 +844,12 @@ fn two_engines_do_not_share_a_disabled_body() -> Result<(), Physics3DError> {
     add_box(
         &mut blown,
         OFFENDER,
-        0.0,
-        2.0,
-        0.0,
+        [0.0, 2.0, 0.0],
         1,
         (0.5, 0.5, 0.5),
         1.0e9,
     )?;
-    add_box(&mut other, 0, 0.0, 8.0, 0.0, 1, (0.5, 0.5, 0.5), 0.0)?;
+    add_box(&mut other, 0, [0.0, 8.0, 0.0], 1, (0.5, 0.5, 0.5), 0.0)?;
     let before = position_y(&other, 0)?;
     let caught = catch_unwind(AssertUnwindSafe(|| {
         for _ in 0..200 {
@@ -886,10 +862,7 @@ fn two_engines_do_not_share_a_disabled_body() -> Result<(), Physics3DError> {
         }
         "enabled"
     }));
-    let state = match caught {
-        Ok(state) => state,
-        Err(_) => "panicked",
-    };
+    let state = caught.unwrap_or("panicked");
     assert_eq!(state, "disabled", "offender is_enabled() stayed true");
     other.physics3d_step(DT)?;
     assert_ne!(
