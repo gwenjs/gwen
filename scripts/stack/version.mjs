@@ -34,11 +34,30 @@ export function stampVersion(sha, date) {
 }
 
 /**
+ * Copy `env` without `GIT_*`, then set `GIT_TERMINAL_PROMPT` to `0`.
+ * @param {NodeJS.ProcessEnv} [env]
+ * @returns {NodeJS.ProcessEnv}
+ */
+export function cleanGitEnv(env = process.env) {
+  /** @type {NodeJS.ProcessEnv} */
+  const copy = { ...env };
+  for (const key of Object.keys(copy)) {
+    if (key.startsWith("GIT_")) delete copy[key];
+  }
+  copy.GIT_TERMINAL_PROMPT = "0";
+  return copy;
+}
+
+/**
  * @param {{ cwd: string, now: Date }} options
  * @returns {string}
  */
 export function currentStamp({ cwd, now }) {
-  const result = spawnSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" });
+  const result = spawnSync("git", ["rev-parse", "HEAD"], {
+    cwd,
+    encoding: "utf8",
+    env: cleanGitEnv(),
+  });
   if (result.status !== 0) {
     const reason = (result.stderr || result.stdout || "git rev-parse failed").trim();
     throw new Error(`STACK:GIT_FAILED: ${reason}`);

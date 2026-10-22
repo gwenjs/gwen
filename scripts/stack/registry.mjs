@@ -18,6 +18,7 @@ import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { cleanGitEnv } from "./version.mjs";
 
 /**
  * @param {string} pattern
@@ -361,7 +362,7 @@ export function publishTarballs({ url, npmrc, tarballs }) {
     const result = spawnSync(
       "npm",
       ["publish", tarball, "--registry", url, "--userconfig", npmrc, "--tag", "integration"],
-      { encoding: "utf8", env: { ...process.env, CI: process.env.CI || "1" } },
+      { encoding: "utf8", env: { ...cleanGitEnv(), CI: process.env.CI || "1" } },
     );
     if (result.status !== 0) {
       const reason = `${result.stderr || ""}${result.stdout || ""}`.trim();
@@ -457,7 +458,7 @@ export async function installSatellite({ dir, url, version, command }) {
   }
   writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
   const env = {
-    ...process.env,
+    ...cleanGitEnv(),
     CI: process.env.CI || "1",
     "npm_config_@gwenjs:registry": registry,
   };
@@ -484,7 +485,7 @@ export async function withRepoCheckout({ repo, branch }, fn) {
     const clone = spawnSync(
       "git",
       ["clone", "--branch", branch, "--single-branch", "--", repo, dir],
-      { encoding: "utf8" },
+      { encoding: "utf8", env: cleanGitEnv() },
     );
     if (clone.status !== 0) {
       throw new Error(`STACK:CLONE_FAILED: ${(clone.stderr || clone.stdout || "").trim()}`);
