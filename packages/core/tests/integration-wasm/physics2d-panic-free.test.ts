@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { GwenWasmError, type EntityId } from "../../src/index.js";
 import "../../../physics2d/src/augment";
+import { Physics2DErrorCodes } from "../../../physics2d/src/errors";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import type { Physics2DAPI } from "../../../physics2d/src/types";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
@@ -43,7 +44,8 @@ describe("physics2d panic-free", () => {
         caught = err;
       }
       const code = caught instanceof GwenWasmError ? caught.code : undefined;
-      expect(code).toBe("PHYSICS2D:INVALID_QUERY");
+      expect(Physics2DErrorCodes.INVALID_QUERY).toBe("PHYSICS2D:INVALID_QUERY");
+      expect(code).toBe(Physics2DErrorCodes.INVALID_QUERY);
       expect(handle.bridge.countEntities()).toBe(1);
     } finally {
       await handle.dispose();
