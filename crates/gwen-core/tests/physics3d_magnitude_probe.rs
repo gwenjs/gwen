@@ -286,3 +286,137 @@ fn raw_rapier_steps_at_1e12_without_panicking_and_with_finite_positions() {
     assert_eq!(outcome, "returned");
     assert_eq!(non_finite(&position), Vec::<usize>::new(), "{position:?}");
 }
+
+/// Magnitudes for one dynamic step and for ray, point and shape queries.
+/// `1.0e7` is the locked world extent. Nothing at or below it may panic.
+const SCAN_MAGNITUDES: [f32; 9] = [
+    1.0e6, 1.0e7, 1.0e8, 4.9e8, 8.4e8, 1.0e9, 1.2e9, 2.0e9, 2.5e9,
+];
+
+fn flag(did_panic: bool) -> &'static str {
+    if did_panic {
+        "panic"
+    } else {
+        "ok"
+    }
+}
+
+/// One step of a dynamic box at `y = m` above a unit floor, through the exports.
+fn step_at(m: f32) {
+    let Ok(mut engine) = Engine::new(8).map_err(Physics3DError::Core) else {
+        return;
+    };
+    engine.physics3d_init(0.0, -9.81, 0.0, 8);
+    let _ = engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
+    let _ = engine.physics3d_add_box_collider(
+        0, 2.0, 0.5, 2.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+    );
+    let _ = engine.physics3d_add_body(1, 0.0, m, 0.0, 1, 1.0, 0.0, 0.0);
+    let _ = engine.physics3d_add_box_collider(
+        1, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 2,
+    );
+    let _ = engine.physics3d_step(1.0 / 60.0);
+}
+
+/// Queries aimed at a unit floor, with the query pose at `y = m`.
+fn query_world() -> Option<Engine> {
+    let Ok(mut engine) = Engine::new(8).map_err(Physics3DError::Core) else {
+        return None;
+    };
+    engine.physics3d_init(0.0, 0.0, 0.0, 8);
+    let _ = engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
+    let _ = engine.physics3d_add_box_collider(
+        0, 2.0, 0.5, 2.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+    );
+    let _ = engine.physics3d_step(1.0 / 60.0);
+    Some(engine)
+}
+
+fn scan_magnitude(m: f32) -> [bool; 4] {
+    let step = panicked(|| step_at(m));
+    let ray = panicked(|| {
+        let Some(engine) = query_world() else { return };
+        let _ = engine.physics3d_cast_ray(0.0, m, 0.0, 0.0, -1.0, 0.0, 100.0, ALL, ALL, true);
+    });
+    let project = panicked(|| {
+        let Some(engine) = query_world() else { return };
+        let _ = engine.physics3d_project_point(0.0, m, 0.0, ALL, ALL, true);
+    });
+    let shape = panicked(|| {
+        let Some(engine) = query_world() else { return };
+        let _ = engine.physics3d_cast_shape(
+            0.0, m, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0, 0.5, 0.5, 0.5, 100.0, ALL, ALL,
+        );
+    });
+    [step, ray, project, shape]
+}
+
+#[test]
+fn broad_phase_extent_scan() {
+    let measured: Vec<(f32, [bool; 4])> = SCAN_MAGNITUDES
+        .into_iter()
+        .map(|m| (m, scan_magnitude(m)))
+        .collect();
+    let report: Vec<String> = measured
+        .iter()
+        .map(|(m, flags)| {
+            format!(
+                "{m:.1e} step={} ray={} project={} shape={}",
+                flag(flags[0]),
+                flag(flags[1]),
+                flag(flags[2]),
+                flag(flags[3])
+            )
+        })
+        .collect();
+    let at_or_below: Vec<String> = measured
+        .iter()
+        .zip(report.iter())
+        .filter(|((m, flags), _)| *m <= 1.0e7 && flags.iter().any(|panicked| *panicked))
+        .map(|(_, line)| line.clone())
+        .collect();
+    assert_eq!(
+        at_or_below,
+        Vec::<String>::new(),
+        "panic at or below 1e7; full scan {report:?}"
+    );
+    assert_eq!(
+        report,
+        vec![
+            "1.0e6 step=ok ray=ok project=ok shape=ok".to_string(),
+            "1.0e7 step=ok ray=ok project=ok shape=ok".to_string(),
+            "1.0e8 step=ok ray=ok project=ok shape=ok".to_string(),
+            "4.9e8 step=ok ray=ok project=ok shape=ok".to_string(),
+            "8.4e8 step=ok ray=ok project=ok shape=ok".to_string(),
+            "1.0e9 step=ok ray=ok project=ok shape=ok".to_string(),
+            "1.2e9 step=ok ray=ok project=ok shape=ok".to_string(),
+            "2.0e9 step=ok ray=ok project=ok shape=ok".to_string(),
+            "2.5e9 step=ok ray=ok project=ok shape=ok".to_string(),
+        ],
+        "full scan"
+    );
+}
+
+/// Restitution `1e9` through `physics3d_step`. A panic here is the export path, not raw rapier.
+#[test]
+fn restitution_1e9_through_the_exports_does_not_panic() {
+    let did_panic = panicked(|| {
+        let Ok(mut engine) = Engine::new(8).map_err(Physics3DError::Core) else {
+            return;
+        };
+        engine.physics3d_init(0.0, -9.81, 0.0, 8);
+        let _ = engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
+        let _ = engine.physics3d_add_box_collider(
+            0, 20.0, 0.5, 20.0, 0.0, 0.0, 0.0, false, 0.0, 1.0e9, ALL, ALL, 1,
+        );
+        let _ = engine.physics3d_add_body(1, 0.0, 2.0, 0.0, 1, 1.0, 0.0, 0.0);
+        let _ = engine.physics3d_add_box_collider(
+            1, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.0, 1.0e9, ALL, ALL, 2,
+        );
+        for _ in 0..200 {
+            let _ = engine.physics3d_step(1.0 / 60.0);
+        }
+    });
+    let outcome = if did_panic { "panicked" } else { "returned" };
+    assert_eq!(outcome, "returned");
+}

@@ -55,11 +55,26 @@ export interface Physics3DPrefabExtension {
 // ─── Plugin hooks ──────────────────────────────────────────────────────────────
 
 /**
+ * `physics3d:body-disabled` payload.
+ * The plugin emits this after a step that disabled a dynamic body.
+ */
+export interface Physics3DBodyDisabled {
+  readonly entity: EntityId;
+  readonly reason: "non-finite" | "out-of-bounds" | "velocity";
+}
+
+/**
  * Hooks emitted by the Physics3D plugin.
  *
  * Register via `api.hooks.hook('physics3d:collision', ...)`.
  */
 export interface Physics3DPluginHooks {
+  /**
+   * Fired when a step disables a dynamic body that left the accepted world.
+   * `reason` is `non-finite`, `out-of-bounds` or `velocity`.
+   */
+  "physics3d:body-disabled": (payload: Physics3DBodyDisabled) => void;
+
   /**
    * Fired once per frame during `engine:update` with all resolved collision contacts.
    * The array is read-only and ephemeral — do not retain across frames.

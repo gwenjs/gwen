@@ -5,15 +5,16 @@
 #![cfg(feature = "physics3d")]
 
 use gwen_core::bindings::Engine;
+use gwen_core::physics3d::world::{PhysicsWorld3D, MAX_COLLIDER_MAGNITUDE};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 const NAN: f32 = f32::NAN;
 const INF: f32 = f32::INFINITY;
 const ALL: u32 = 0xFFFF_FFFF;
 
 /// Number of probe cases built by `cases()`. Update together with the case list.
-const CASE_COUNT: usize = 141;
+const CASE_COUNT: usize = 443;
 
 /// Serialises tests that swap the process-wide panic hook.
 static HOOK_LOCK: Mutex<()> = Mutex::new(());
@@ -29,30 +30,7 @@ type Shape = (
     [f32; 3],
     f32,
 );
-type PanicHook = Box<dyn Fn(&std::panic::PanicHookInfo<'_>) + Sync + Send + 'static>;
-
 type Case = (String, Box<dyn FnOnce()>);
-
-/// Silences panic output while alive and restores the previous hook on drop.
-struct HookGuard {
-    prev: Option<PanicHook>,
-}
-
-impl HookGuard {
-    fn silence() -> Self {
-        let prev = std::panic::take_hook();
-        std::panic::set_hook(Box::new(|_| {}));
-        Self { prev: Some(prev) }
-    }
-}
-
-impl Drop for HookGuard {
-    fn drop(&mut self) {
-        if let Some(prev) = self.prev.take() {
-            std::panic::set_hook(prev);
-        }
-    }
-}
 
 /// Builds the standard world, or `None` if the engine cannot be created.
 fn world() -> Option<Engine> {
@@ -288,14 +266,445 @@ fn cases() -> Vec<Case> {
             }),
         ));
     }
+    push_extent_matrix(&mut v);
+    push_blowups(&mut v);
+    push_large_directions(&mut v);
+    push_mesh_pose_cases(&mut v);
     v
+}
+
+fn hostile_matrix_values() -> [(&'static str, f32); 8] {
+    [
+        ("NaN", NAN),
+        ("+inf", INF),
+        ("-inf", -INF),
+        ("-0", -0.0),
+        ("1e-38", 1e-38),
+        ("max", 1.0e7),
+        ("max+ulp", 1.0e7_f32.next_up()),
+        ("1e20", 1e20),
+    ]
+}
+
+/// One case per float argument of `step`, `cast_ray`, `cast_shape` and `project_point`.
+fn push_extent_matrix(v: &mut Vec<Case>) {
+    for (label, value) in hostile_matrix_values() {
+        v.push((
+            format!("matrix step delta={label}"),
+            Box::new(move || {
+                let Some(mut e) = world() else { return };
+                let _ = e.physics3d_step(value);
+            }),
+        ));
+        for (axis, origin) in [
+            ("ox", [value, 5.0, 0.0]),
+            ("oy", [0.0, value, 0.0]),
+            ("oz", [0.0, 5.0, value]),
+        ] {
+            v.push((
+                format!("matrix ray {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_ray(
+                        origin[0], origin[1], origin[2], 0.0, -1.0, 0.0, 100.0, ALL, ALL, true,
+                    );
+                }),
+            ));
+        }
+        for (axis, dir) in [
+            ("dx", [value, -1.0, 0.0]),
+            ("dy", [0.0, value, 0.0]),
+            ("dz", [0.0, -1.0, value]),
+        ] {
+            v.push((
+                format!("matrix ray {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_ray(
+                        0.0, 5.0, 0.0, dir[0], dir[1], dir[2], 100.0, ALL, ALL, true,
+                    );
+                }),
+            ));
+        }
+        v.push((
+            format!("matrix ray max_dist={label}"),
+            Box::new(move || {
+                let Some(e) = world() else { return };
+                let _ = e.physics3d_cast_ray(0.0, 5.0, 0.0, 0.0, -1.0, 0.0, value, ALL, ALL, true);
+            }),
+        ));
+        for (axis, point) in [
+            ("px", [value, 0.0, 0.0]),
+            ("py", [0.0, value, 0.0]),
+            ("pz", [0.0, 0.0, value]),
+        ] {
+            v.push((
+                format!("matrix project {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_project_point(point[0], point[1], point[2], ALL, ALL, true);
+                }),
+            ));
+        }
+        for (axis, pos) in [
+            ("pos_x", [value, 5.0, 0.0]),
+            ("pos_y", [0.0, value, 0.0]),
+            ("pos_z", [0.0, 5.0, value]),
+        ] {
+            v.push((
+                format!("matrix cast_shape {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_shape(
+                        pos[0], pos[1], pos[2], 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0, 0.5, 0.5,
+                        0.5, 100.0, ALL, ALL,
+                    );
+                }),
+            ));
+        }
+        for (axis, rot) in [
+            ("rot_x", [value, 0.0, 0.0, 1.0]),
+            ("rot_y", [0.0, value, 0.0, 1.0]),
+            ("rot_z", [0.0, 0.0, value, 1.0]),
+            ("rot_w", [0.0, 0.0, 0.0, value]),
+        ] {
+            v.push((
+                format!("matrix cast_shape {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_shape(
+                        0.0, 5.0, 0.0, rot[0], rot[1], rot[2], rot[3], 0.0, -1.0, 0.0, 0, 0.5, 0.5,
+                        0.5, 100.0, ALL, ALL,
+                    );
+                }),
+            ));
+        }
+        for (axis, dir) in [
+            ("dir_x", [value, -1.0, 0.0]),
+            ("dir_y", [0.0, value, 0.0]),
+            ("dir_z", [0.0, -1.0, value]),
+        ] {
+            v.push((
+                format!("matrix cast_shape {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_shape(
+                        0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, dir[0], dir[1], dir[2], 0, 0.5, 0.5,
+                        0.5, 100.0, ALL, ALL,
+                    );
+                }),
+            ));
+        }
+        for (axis, params) in [
+            ("p0", [value, 0.5, 0.5]),
+            ("p1", [0.5, value, 0.5]),
+            ("p2", [0.5, 0.5, value]),
+        ] {
+            v.push((
+                format!("matrix cast_shape {axis}={label}"),
+                Box::new(move || {
+                    let Some(e) = world() else { return };
+                    let _ = e.physics3d_cast_shape(
+                        0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0, params[0], params[1],
+                        params[2], 100.0, ALL, ALL,
+                    );
+                }),
+            ));
+        }
+        v.push((
+            format!("matrix cast_shape max_dist={label}"),
+            Box::new(move || {
+                let Some(e) = world() else { return };
+                let _ = e.physics3d_cast_shape(
+                    0.0, 5.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, -1.0, 0.0, 0, 0.5, 0.5, 0.5, value,
+                    ALL, ALL,
+                );
+            }),
+        ));
+        for (axis, pos) in [
+            ("pos_x", [value, 5.0, 0.0]),
+            ("pos_y", [0.0, value, 0.0]),
+            ("pos_z", [0.0, 5.0, value]),
+        ] {
+            v.push((
+                format!("matrix overlap {axis}={label}"),
+                Box::new(move || overlap_shape_case(pos, [0.0, 0.0, 0.0, 1.0], [0.5, 0.5, 0.5])),
+            ));
+        }
+        for (axis, rot) in [
+            ("rot_x", [value, 0.0, 0.0, 1.0]),
+            ("rot_y", [0.0, value, 0.0, 1.0]),
+            ("rot_z", [0.0, 0.0, value, 1.0]),
+            ("rot_w", [0.0, 0.0, 0.0, value]),
+        ] {
+            v.push((
+                format!("matrix overlap {axis}={label}"),
+                Box::new(move || overlap_shape_case([0.0, 5.0, 0.0], rot, [0.5, 0.5, 0.5])),
+            ));
+        }
+        for (axis, params) in [
+            ("p0", [value, 0.5, 0.5]),
+            ("p1", [0.5, value, 0.5]),
+            ("p2", [0.5, 0.5, value]),
+        ] {
+            v.push((
+                format!("matrix overlap {axis}={label}"),
+                Box::new(move || overlap_shape_case([0.0, 5.0, 0.0], [0.0, 0.0, 0.0, 1.0], params)),
+            ));
+        }
+    }
+}
+
+/// One overlap of a box. The export is used when `alloc_shared_buffer` fits in a `u32`.
+/// The same floats always reach `PhysicsWorld3D::overlap_shape`, which is what the export
+/// calls after its pointer check. A 64-bit host pointer does not fit in that `u32`.
+fn overlap_shape_case(pos: [f32; 3], rot: [f32; 4], params: [f32; 3]) {
+    if let Some(mut engine) = world() {
+        let ptr = engine.alloc_shared_buffer(16);
+        if let Ok(out_ptr) = u32::try_from(ptr) {
+            let _ = engine.physics3d_overlap_shape(
+                pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3], 0, params[0], params[1],
+                params[2], ALL, ALL, out_ptr, 4,
+            );
+        }
+        let _ = engine.free_shared_buffer(ptr, 16);
+    }
+    let built = overlap_world();
+    assert_eq!(built.as_ref().err().copied(), None, "overlap world");
+    let Ok(world) = built else { return };
+    let mut out = [0u32; 4];
+    let _ = world.overlap_shape(
+        pos[0], pos[1], pos[2], rot[0], rot[1], rot[2], rot[3], 0, params[0], params[1], params[2],
+        ALL, ALL, &mut out,
+    );
+}
+
+/// Fixed floor large enough that a query box near the origin overlaps it.
+fn overlap_world() -> Result<PhysicsWorld3D, &'static str> {
+    let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
+    if !world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0) {
+        return Err("floor body");
+    }
+    world
+        .add_box_collider(
+            0, 20.0, 20.0, 20.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+        )
+        .map_err(|_| "floor box")?;
+    world.step(1.0 / 60.0);
+    Ok(world)
+}
+
+/// Floor box plus a standing mesh. Large directions are cast at both.
+fn floor_and_mesh() -> Option<Engine> {
+    let mut e = Engine::new(16).ok()?;
+    e.physics3d_init(0.0, -9.81, 0.0, 16);
+    let _ = e.physics3d_add_body(0, 0.0, -0.5, 0.0, 0, 1.0, 0.0, 0.0);
+    let _ = e.physics3d_add_box_collider(
+        0, 10.0, 0.5, 10.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+    );
+    let _ = e.physics3d_add_body(1, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0);
+    let vertices = [1.0, -1.0, -1.0, 1.0, -1.0, 1.0, 1.0, 2.0, 0.0];
+    let _ = e.physics3d_add_mesh_collider(
+        1,
+        &vertices,
+        &[0, 1, 2],
+        0.0,
+        0.0,
+        0.0,
+        false,
+        0.5,
+        0.0,
+        ALL,
+        ALL,
+        2,
+    );
+    let _ = e.physics3d_step(0.016);
+    Some(e)
+}
+
+/// `1e8`, `1e20`, `1e30`, `f32::MAX`, and `(f32::MAX, f32::MAX, 0)` on cast ray and cast shape.
+fn push_large_directions(v: &mut Vec<Case>) {
+    let dirs: [(&str, [f32; 3]); 5] = [
+        ("1e8", [1.0e8, 0.0, 0.0]),
+        ("1e20", [1.0e20, 0.0, 0.0]),
+        ("1e30", [1.0e30, 0.0, 0.0]),
+        ("max", [f32::MAX, 0.0, 0.0]),
+        ("max-max-0", [f32::MAX, f32::MAX, 0.0]),
+    ];
+    for (label, dir) in dirs {
+        v.push((
+            format!("large dir ray {label}"),
+            Box::new(move || {
+                let Some(e) = floor_and_mesh() else { return };
+                let _ = e.physics3d_cast_ray(
+                    0.0, 1.0, 0.0, dir[0], dir[1], dir[2], 100.0, ALL, ALL, true,
+                );
+            }),
+        ));
+        v.push((
+            format!("large dir shape {label}"),
+            Box::new(move || {
+                let Some(e) = floor_and_mesh() else { return };
+                let _ = e.physics3d_cast_shape(
+                    0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, dir[0], dir[1], dir[2], 0, 0.5, 0.5, 0.5,
+                    100.0, ALL, ALL,
+                );
+            }),
+        ));
+    }
+}
+
+fn push_blowups(v: &mut Vec<Case>) {
+    v.push((
+        "restitution 1e9 then step x120".to_string(),
+        Box::new(|| {
+            let Ok(mut e) = (|| -> Result<Engine, gwen_core::physics3d::Physics3DError> {
+                let mut e = Engine::new(16).map_err(gwen_core::physics3d::Physics3DError::Core)?;
+                e.physics3d_init(0.0, -9.81, 0.0, 16);
+                e.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0)?;
+                e.physics3d_add_box_collider(
+                    0, 20.0, 0.5, 20.0, 0.0, 0.0, 0.0, false, 0.0, 1.0e9, ALL, ALL, 1,
+                )?;
+                e.physics3d_add_body(1, 0.0, 2.0, 0.0, 1, 1.0, 0.0, 0.0)?;
+                e.physics3d_add_box_collider(
+                    1, 0.5, 0.5, 0.5, 0.0, 0.0, 0.0, false, 0.0, 1.0e9, ALL, ALL, 2,
+                )?;
+                Ok(e)
+            })() else {
+                return;
+            };
+            for _ in 0..120 {
+                let _ = e.physics3d_step(1.0 / 60.0);
+            }
+        }),
+    ));
+    v.push((
+        "velocity 1e12 then step x120".to_string(),
+        Box::new(|| {
+            let Some(mut e) = world() else { return };
+            let _ = e.physics3d_set_linear_velocity(1, 0.0, 1.0e12, 0.0);
+            for _ in 0..120 {
+                let _ = e.physics3d_step(1.0 / 60.0);
+            }
+        }),
+    ));
+    v.push((
+        "impulse 1e12 then step x120".to_string(),
+        Box::new(|| {
+            let Some(mut e) = world() else { return };
+            let _ = e.physics3d_apply_impulse(1, 0.0, 1.0e12, 0.0);
+            for _ in 0..120 {
+                let _ = e.physics3d_step(1.0 / 60.0);
+            }
+        }),
+    ));
+    v.push((
+        "kinematic 1e20 then step x120".to_string(),
+        Box::new(|| {
+            let Some(mut e) = world() else { return };
+            let _ = e.physics3d_set_body_kind(1, 2);
+            let _ = e.physics3d_set_kinematic_position(1, 1.0e20, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+            for _ in 0..120 {
+                let _ = e.physics3d_step(1.0 / 60.0);
+            }
+        }),
+    ));
+}
+
+/// Fixed body at `x`, or a kinematic body moved there by `physics3d_set_kinematic_position`.
+/// Each pose carries a 1 m triangle and a triangle whose corners sit on the 1e9 vertex cap.
+/// Both queries go through the exports.
+fn push_mesh_pose_cases(v: &mut Vec<Case>) {
+    let m = MAX_COLLIDER_MAGNITUDE;
+    let meshes: [(&str, [f32; 9]); 2] = [
+        ("1m", [0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0]),
+        ("cap", [-m, -m, -m, m, -m, -m, -m, m, m]),
+    ];
+    let poses: [(&str, f32, u8, bool); 4] = [
+        ("fixed 1e19", 1.0e19, 0, false),
+        ("fixed 1e30", 1.0e30, 0, false),
+        ("fixed max", f32::MAX, 0, false),
+        ("kinematic 1e19", 1.0e19, 2, true),
+    ];
+    for (pose_name, x, kind, kinematic) in poses {
+        for (mesh_name, vertices) in meshes {
+            v.push((
+                format!("mesh pose {pose_name} {mesh_name}"),
+                Box::new(move || mesh_pose_case(x, kind, kinematic, vertices)),
+            ));
+        }
+    }
+}
+
+fn mesh_pose_case(x: f32, kind: u8, kinematic: bool, vertices: [f32; 9]) {
+    let Ok(mut engine) = Engine::new(8) else {
+        return;
+    };
+    engine.physics3d_init(0.0, 0.0, 0.0, 8);
+    let start_x = if kinematic { 0.0 } else { x };
+    let _ = engine.physics3d_add_body(0, start_x, 0.0, 0.0, kind, 1.0, 0.0, 0.0);
+    let _ = engine.physics3d_add_mesh_collider(
+        0,
+        &vertices,
+        &[0, 1, 2],
+        0.0,
+        0.0,
+        0.0,
+        false,
+        0.5,
+        0.0,
+        ALL,
+        ALL,
+        1,
+    );
+    if kinematic {
+        let _ = engine.physics3d_set_kinematic_position(0, x, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
+    }
+    let _ = engine.physics3d_step(1.0 / 60.0);
+    let state = match engine.physics3d_get_body_state(0) {
+        Ok(state) => state,
+        Err(_) => Vec::new(),
+    };
+    assert_eq!(state.first().copied(), Some(x), "pose {state:?}");
+    let _ = engine.physics3d_project_point(0.0, 0.0, 0.0, ALL, ALL, true);
+    let _ = engine.physics3d_cast_ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 100.0, ALL, ALL, true);
 }
 
 /// Runs `f` under `catch_unwind` with the panic hook silenced; true when it panicked.
 fn panicked(f: impl FnOnce()) -> bool {
+    panic_report(f).is_some()
+}
+
+/// Panic message and source location, or `None` when `f` returns.
+fn panic_report(f: impl FnOnce()) -> Option<String> {
     let _lock = HOOK_LOCK.lock().unwrap_or_else(|p| p.into_inner());
-    let _guard = HookGuard::silence();
-    catch_unwind(AssertUnwindSafe(f)).is_err()
+    let prev = std::panic::take_hook();
+    let slot = Arc::new(Mutex::new(String::new()));
+    let hook_slot = Arc::clone(&slot);
+    std::panic::set_hook(Box::new(move |info| {
+        let message = match info.payload().downcast_ref::<&str>() {
+            Some(text) => (*text).to_string(),
+            None => match info.payload().downcast_ref::<String>() {
+                Some(text) => text.clone(),
+                None => "non-string panic".to_string(),
+            },
+        };
+        let location = match info.location() {
+            Some(loc) => format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+            None => "unknown location".to_string(),
+        };
+        let mut stored = hook_slot.lock().unwrap_or_else(|p| p.into_inner());
+        *stored = format!("{message} at {location}");
+    }));
+    let result = catch_unwind(AssertUnwindSafe(f));
+    std::panic::set_hook(prev);
+    match result {
+        Ok(()) => None,
+        Err(_) => Some(match slot.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }),
+    }
 }
 
 /// Builds a heightfield straight through rapier. The export refuses a grid below 2x2, so the
@@ -316,7 +725,7 @@ fn world_fixture_builds() {
 fn hostile_floats_never_panic() {
     let failed: Vec<String> = cases()
         .into_iter()
-        .filter_map(|(name, f)| panicked(f).then_some(name))
+        .filter_map(|(name, f)| panic_report(f).map(|detail| format!("{name}: {detail}")))
         .collect();
     assert_eq!(failed, Vec::<String>::new(), "cases that panicked");
 }
@@ -331,6 +740,32 @@ fn control_one_by_one_heightfield_panics() {
     assert_eq!(
         outcome, "panicked",
         "1x1 heightfield did not panic: probe cannot detect"
+    );
+}
+
+/// An index past the vertex list is read by `TriMesh::rebuild_qbvh`
+/// (parry3d-0.17.6 `shape/trimesh.rs:489-493`).
+fn out_of_range_trimesh_index() {
+    use rapier3d::na::Point3;
+    use rapier3d::parry::shape::TriMesh;
+    let vertices = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
+        Point3::new(0.0, 1.0, 0.0),
+    ];
+    let _ = TriMesh::new(vertices, vec![[0, 1, 99]]);
+}
+
+#[test]
+fn control_out_of_range_trimesh_index_panics() {
+    let outcome = if panicked(out_of_range_trimesh_index) {
+        "panicked"
+    } else {
+        "returned"
+    };
+    assert_eq!(
+        outcome, "panicked",
+        "out-of-range trimesh index did not panic"
     );
 }
 

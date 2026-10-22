@@ -28,6 +28,11 @@ declare module "@gwenjs/schema" {
   /**
    * Physics 3D runtime hooks augmenting the engine hook bus.
    * Includes lifecycle hooks and all physics3d plugin hooks.
+   *
+   * @example
+   * ```typescript
+   * engine.hooks.hook('physics3d:body-disabled', ({ entity, reason }) => { … })
+   * ```
    */
   interface GwenRuntimeHooks extends Physics3DPluginHooks {
     /** Fired after the physics step completes. */
