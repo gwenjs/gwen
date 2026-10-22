@@ -1902,17 +1902,19 @@ impl Engine {
     ///
     /// # Errors
     /// `WorldNotInitialized` when `physics3d_init` has not run.
+    /// `InvalidStepDelta` when `delta` is not finite or is outside `0..=1`.
+    /// The world is not stepped.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_step(&mut self, delta: f32) -> Result<(), Physics3DError> {
         let world = self.world3d_mut()?;
-        world.step(delta);
+        world.step(delta)?;
         Ok(())
     }
 
     /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
     ///
     /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
-    /// `PhysicsWorld3D::take_disabled_slots` records nothing, so this is empty.
+    /// An empty list returns `Vec::new`. No world returns an empty list.
     #[cfg(feature = "physics3d")]
     pub fn physics3d_take_disabled_slots(&mut self) -> Vec<u32> {
         let Ok(world) = self.world3d_mut() else {
@@ -1923,13 +1925,15 @@ impl Engine {
 
     /// Sets the linear-speed cap in metres per second.
     ///
-    /// Stub: a live world returns `1` and the value is ignored. No world returns `0`.
+    /// Returns `1` when `value` is finite and greater than zero.
+    /// Returns `0` and keeps the previous cap when the value is refused,
+    /// or when `physics3d_init` has not run.
     #[cfg(feature = "physics3d")]
-    pub fn physics3d_set_max_linear_velocity(&mut self, _value: f32) -> u32 {
-        let Ok(_world) = self.world3d_mut() else {
+    pub fn physics3d_set_max_linear_velocity(&mut self, value: f32) -> u32 {
+        let Ok(world) = self.world3d_mut() else {
             return 0;
         };
-        1
+        u32::from(world.set_max_linear_velocity(value))
     }
 
     /// Register a new 3D rigid body for the given entity index.
@@ -3214,6 +3218,7 @@ impl Engine {
         solid: bool,
     ) -> Result<Vec<f32>, Physics3DError> {
         let world = self.world3d()?;
+        PhysicsWorld3D::reject_cast_ray(ox, oy, oz, dx, dy, dz, max_dist)?;
         Ok(world.cast_ray(ox, oy, oz, dx, dy, dz, max_dist, layers, mask, solid))
     }
 
@@ -3247,6 +3252,9 @@ impl Engine {
         mask: u32,
     ) -> Result<Vec<f32>, Physics3DError> {
         let world = self.world3d()?;
+        PhysicsWorld3D::reject_cast_shape(
+            pos_x, pos_y, pos_z, dir_x, dir_y, dir_z, shape_type, p0, p1, p2, max_dist,
+        )?;
         Ok(world.cast_shape(
             pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, dir_x, dir_y, dir_z, shape_type, p0,
             p1, p2, max_dist, layers, mask,
@@ -3319,6 +3327,7 @@ impl Engine {
         solid: bool,
     ) -> Result<Vec<f32>, Physics3DError> {
         let world = self.world3d()?;
+        PhysicsWorld3D::reject_project_point(px, py, pz)?;
         Ok(world.project_point(px, py, pz, layers, mask, solid))
     }
 

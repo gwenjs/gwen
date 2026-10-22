@@ -246,14 +246,16 @@ fn first_pair_3d(world: &gwen_core::physics3d::PhysicsWorld3D) -> [u32; 2] {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u010_step_records_a_collision() {
+fn unsafe_site_u010_step_records_a_collision() -> Result<(), gwen_core::physics3d::Physics3DError> {
     let mut world = overlapping_pair_3d();
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     if world.get_collision_event_count() == 0 {
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
     }
     assert_ne!(world.get_collision_event_count(), 0);
     assert_eq!(first_pair_3d(&world), [1, 2]);
+
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]
@@ -262,20 +264,22 @@ fn unsafe_site_u010_step_records_a_collision() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u011_two_worlds_do_not_share_events() {
+fn unsafe_site_u011_two_worlds_do_not_share_events(
+) -> Result<(), gwen_core::physics3d::Physics3DError> {
     let mut crowded = overlapping_pair_3d();
     let mut quiet = separated_pair_3d();
-    crowded.step(1.0 / 60.0);
+    crowded.step(1.0 / 60.0)?;
     if crowded.get_collision_event_count() == 0 {
-        crowded.step(1.0 / 60.0);
+        crowded.step(1.0 / 60.0)?;
     }
-    quiet.step(1.0 / 60.0);
+    quiet.step(1.0 / 60.0)?;
     assert_ne!(crowded.get_collision_event_count(), 0);
     assert_eq!(quiet.get_collision_event_count(), 0);
     assert_ne!(
         crowded.get_collision_events_ptr(),
         quiet.get_collision_events_ptr()
     );
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]
@@ -284,7 +288,8 @@ fn unsafe_site_u011_two_worlds_do_not_share_events() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u012_event_buffer_fills_then_clears() {
+fn unsafe_site_u012_event_buffer_fills_then_clears(
+) -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::events::MAX_COLLISION_EVENTS_3D;
     use gwen_core::physics3d::PhysicsWorld3D;
 
@@ -292,9 +297,9 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
     for entity in 0..46 {
         add_dynamic_box(&mut world, entity, 0.0);
     }
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     if world.get_collision_event_count() == 0 {
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
     }
     assert_eq!(
         world.get_collision_event_count(),
@@ -303,8 +308,10 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
     for entity in 0..46 {
         assert_eq!(u8::from(world.remove_body(entity)), 1);
     }
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_eq!(world.get_collision_event_count(), 0);
+
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]
@@ -313,12 +320,13 @@ fn unsafe_site_u012_event_buffer_fills_then_clears() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u013_overlap_writes_the_entity() {
+fn unsafe_site_u013_overlap_writes_the_entity() -> Result<(), gwen_core::physics3d::Physics3DError>
+{
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
     add_dynamic_box(&mut world, 4, 0.0);
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     let mut buf = [0u32; 16];
     let count = world.overlap_shape(
         0.0,
@@ -338,6 +346,8 @@ fn unsafe_site_u013_overlap_writes_the_entity() {
     );
     assert_eq!(count, 1);
     assert_eq!(buf[0], 4);
+
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]
@@ -388,7 +398,8 @@ fn body_without_collider_writes_no_hit() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn unsafe_site_u022_grounded_move_writes_contact() {
+fn unsafe_site_u022_grounded_move_writes_contact(
+) -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -440,7 +451,7 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
         world.add_character_controller(0, 0.3, 50.0, 0.01, 0.5, true, false),
         Ok(0)
     );
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_eq!(
         world.character_controller_move(0, 0.0, -20.0, 0.0, 1.0 / 60.0),
         Ok(())
@@ -450,6 +461,8 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
     assert_eq!(slot[1], 0.0f32.to_bits());
     assert_eq!(slot[2], (-1.0f32).to_bits());
     assert_eq!(slot[3], 0.0f32.to_bits());
+
+    Ok(())
 }
 
 #[cfg(feature = "physics3d")]
@@ -458,7 +471,7 @@ fn unsafe_site_u022_grounded_move_writes_contact() {
     ignore = "x86_64: Miri cannot execute `llvm.x86.sse.stmxcsr` inside Rapier's `flush_denormal_to_zero`. aarch64 Stacked Borrows: `trying to retag ... Unique ... does not exist in the borrow stack` at rapier2d-0.22.0/src/utils.rs:632 (`IndexMut2::index_mut2`). issue #184"
 )]
 #[test]
-fn air_move_writes_no_hit() {
+fn air_move_writes_no_hit() -> Result<(), gwen_core::physics3d::Physics3DError> {
     use gwen_core::physics3d::PhysicsWorld3D;
 
     let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
@@ -488,10 +501,12 @@ fn air_move_writes_no_hit() {
         world.add_character_controller(0, 0.2, 45.0, 0.02, 0.0, false, false),
         Ok(0)
     );
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_eq!(
         world.character_controller_move(0, 0.0, 1.0, 0.0, 1.0 / 60.0),
         Ok(())
     );
     assert_eq!(cc_slot_bits(&world), no_hit_bits());
+
+    Ok(())
 }

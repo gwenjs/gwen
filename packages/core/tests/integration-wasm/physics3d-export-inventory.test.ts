@@ -8,10 +8,18 @@ import { describe, expect, it } from "vitest";
  * Physics3d glue classification.
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
- * `known-panic` is issue 217: a TypeScript input can reach a Rust panic, or the
- * path was not proven. `physics3d_step` and the three queries return a `Result`
- * for a missing world and stay `known-panic` for the Rapier and parry call.
- * A later PR flips a row to `result` when it converts the export.
+ * `known-panic` is a row that can still abort the instance. Issue 217 moves
+ * `physics3d_step` and the three queries to `result` (`PHYSICS3D:INVALID_QUERY`,
+ * `PHYSICS3D:INVALID_STEP_DELTA`).
+ * `trimesh_builder` refuses each vertex above `1e9` (`check_collider_coordinate`,
+ * `world.rs:545-547`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider`
+ * (`world.rs:624-627`). parry3d-0.17.6 `query/point/point_composite_shape.rs:152`
+ * unwraps a missing projection. Probe cases `mesh pose fixed 1e19 1m`,
+ * `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`,
+ * `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m`
+ * and `mesh pose kinematic 1e19 cap` (`physics3d_float_probe.rs`) use a pose up to
+ * `f32::MAX` and do not panic. The query-point cap `MAX_WORLD_EXTENT` is a separate
+ * input guard.
  * An export matching the physics3d name rule that is missing from the table fails.
  * A `result` row whose glue does not throw fails.
  * An `infallible` row whose glue throws fails.
@@ -25,15 +33,9 @@ function infallible(why: string): { kind: "infallible"; why: string } {
   return { kind: "infallible", why };
 }
 
-function knownPanic(issue: number): { kind: "known-panic"; issue: number } {
-  return { kind: "known-panic", issue };
-}
-
 function result(): { kind: "result" } {
   return { kind: "result" };
 }
-
-const ISSUE = 217;
 
 const PHYSICS3D: Record<string, ExportRow> = {
   find_path_3d: infallible(
@@ -67,8 +69,8 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_bulk_step_kinematics: result(),
   physics3d_bulk_sync_from_rapier: result(),
   physics3d_bulk_sync_to_rapier: result(),
-  physics3d_cast_ray: knownPanic(ISSUE),
-  physics3d_cast_shape: knownPanic(ISSUE),
+  physics3d_cast_ray: result(),
+  physics3d_cast_shape: result(),
   physics3d_character_controller_move: result(),
   physics3d_consume_events: result(),
   physics3d_find_path_3d: result(),
@@ -103,7 +105,11 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_lock_rotations: result(),
   physics3d_lock_translations: result(),
   physics3d_overlap_shape: result(),
-  physics3d_project_point: knownPanic(ISSUE),
+  // Vertex cap 1e9 at world.rs:545-547. decoded_mesh_is_valid applies it at world.rs:624-627.
+  // Probe cases mesh pose fixed 1e19 1m, mesh pose fixed 1e19 cap, mesh pose fixed 1e30 1m,
+  // mesh pose fixed 1e30 cap, mesh pose fixed max 1m, mesh pose fixed max cap,
+  // mesh pose kinematic 1e19 1m and mesh pose kinematic 1e19 cap: pose up to f32::MAX, no panic.
+  physics3d_project_point: result(),
   physics3d_rebuild_mesh_collider: result(),
   physics3d_remove_body: result(),
   physics3d_remove_character_controller: result(),
@@ -122,12 +128,12 @@ const PHYSICS3D: Record<string, ExportRow> = {
   physics3d_set_kinematic_position: result(),
   physics3d_set_linear_velocity: result(),
   physics3d_set_max_linear_velocity: infallible(
-    "returns 0 or 1 from a float compare and has no Result (stub in the red commit)",
+    "bindings.rs:1932-1937 returns 0 or 1 and has no Result; world.rs:810-816 compares the float and does not index",
   ),
   physics3d_set_quality: result(),
-  physics3d_step: knownPanic(ISSUE),
+  physics3d_step: result(),
   physics3d_take_disabled_slots: infallible(
-    "returns an empty Vec and has no Result (stub in the red commit)",
+    "bindings.rs:1919-1924 returns a Vec and has no Result; world.rs:797-805 replaces the buffer with mem::replace and does not index it",
   ),
   physics3d_update_heightfield_collider: result(),
   physics3d_update_sensor_state: result(),
@@ -350,7 +356,9 @@ function openPhysics3dEngine(glue: Physics3dGlue, maxEntities: number): Physics3
   return new ctor(maxEntities);
 }
 
-function isPhysics3dEngineCtor(value: unknown): value is new (maxEntities: number) => Physics3dEngine {
+function isPhysics3dEngineCtor(
+  value: unknown,
+): value is new (maxEntities: number) => Physics3dEngine {
   if (typeof value !== "function") return false;
   const proto: unknown = Reflect.get(value, "prototype");
   if (typeof proto !== "object" || proto === null) return false;

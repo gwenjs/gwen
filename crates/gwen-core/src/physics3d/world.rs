@@ -305,6 +305,10 @@ pub struct PhysicsWorld3D {
     collision_events: CollisionEventBuffer3D,
     cc_state: [f32; MAX_CC_ENTITIES * CC_STATE_STRIDE],
     nav_grid: Option<NavGrid3D>,
+    /// Linear-speed cap in metres per second. A faster dynamic body is scaled, not disabled.
+    max_linear_velocity: f32,
+    /// Interleaved `[slot, reason]` pairs recorded by [`Self::guard_dynamic_bodies`].
+    disabled_slots: Vec<u32>,
 }
 
 // ─── Shape type constants for the compound batch buffer ─────────────────────
@@ -330,14 +334,36 @@ const COMPOUND_SHAPE_CAPSULE: u32 = 2;
 /// - `f32` has a 24-bit mantissa: the gap between neighbouring values is `64` at `1e9` and
 ///   `65536` at `1e12`, against `f32::EPSILON` (about `1.2e-7`) at `1.0`. At the bound a
 ///   position resolves to 64 metres, which is coarse but finite.
-/// - A ground box with half extents `1e9` and a dynamic ball above it keeps finite body states
-///   and ray hits after 120 steps, and a mesh with corners at `+-1e9` can be stepped and queried
-///   through the exports without a panic. A raw rapier step with a `1e12` ground cuboid also
-///   gives finite positions and no panic (all three are tests in the probe file), so the
-///   step itself is not what sets the bound; the trimesh projection above is.
+/// - A fixed ground box with half extents `1e9`, centered at `y = -1e9` so its top is `y = 0`
+///   (inside ±[`MAX_WORLD_EXTENT`]), and a dynamic ball at `y = 3` (also inside that extent)
+///   keep a finite ball state after 120 steps, and the ball stays enabled. A ray from
+///   `(5, 256, 0)` along `-Y` hits that box at distance `256`
+///   (`bodies_and_queries_at_the_bound_stay_finite`). A mesh with corners at `+-1e9` can be
+///   stepped and queried through the exports without a panic. A raw rapier step with a `1e12`
+///   ground cuboid also gives finite positions and no panic. The step itself is not what sets
+///   the bound; the trimesh projection above is.
 ///
 /// A tighter bound such as `1e8` would leave a factor of about 25 below the measured edge.
 pub const MAX_COLLIDER_MAGNITUDE: f32 = 1.0e9;
+
+/// Largest absolute coordinate a query accepts, and the position past which a dynamic body is disabled.
+///
+/// `broad_phase_extent_scan` in `tests/physics3d_magnitude_probe.rs` ran one
+/// `PhysicsPipeline::step` of a dynamic box at `y = m` (not [`PhysicsWorld3D::step`], which
+/// disables a dynamic body past this bound) and called
+/// [`PhysicsWorld3D::cast_ray`], [`PhysicsWorld3D::project_point`] and [`PhysicsWorld3D::cast_shape`]
+/// on a unit floor, with no export guard, at every magnitude from `1e6` through `2.5e9`.
+/// None of those calls panicked. The value stays `1e7` because it is locked.
+pub const MAX_WORLD_EXTENT: f32 = 1.0e7;
+
+/// Default linear-speed cap, in metres per second.
+pub const DEFAULT_MAX_LINEAR_VELOCITY: f32 = 400.0;
+
+const REASON_NON_FINITE: u32 = 0;
+const REASON_OUT_OF_BOUNDS: u32 = 1;
+const REASON_VELOCITY: u32 = 2;
+/// Room for 16 `[slot, reason]` pairs. `step` does not grow this buffer when nothing is disabled.
+const DISABLED_SLOT_CAPACITY: usize = 32;
 
 /// Refuse a joint value that is NaN or infinite. Measured on rapier3d 0.22: a NaN or infinite
 /// anchor, axis, spring value or motor velocity makes body states NaN after a few steps.
@@ -696,6 +722,8 @@ impl PhysicsWorld3D {
             collision_events: CollisionEventBuffer3D::new(),
             cc_state: [0.0; MAX_CC_ENTITIES * CC_STATE_STRIDE],
             nav_grid: None,
+            max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,
+            disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
         // Apply the default quality preset so solver parameters are consistent.
         world.apply_quality_config(quality_solver_config_3d(PhysicsQualityPreset3D::Medium));
@@ -764,20 +792,124 @@ impl PhysicsWorld3D {
 
     /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
     ///
-    /// Nothing is recorded, so the vec is empty and does not allocate.
+    /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
+    /// An empty list returns `Vec::new` and keeps this world's spare capacity.
     pub fn take_disabled_slots(&mut self) -> Vec<u32> {
-        Vec::new()
+        if self.disabled_slots.is_empty() {
+            return Vec::new();
+        }
+        std::mem::replace(
+            &mut self.disabled_slots,
+            Vec::with_capacity(DISABLED_SLOT_CAPACITY),
+        )
+    }
+
+    /// Stores `value` when it is finite and greater than zero.
+    ///
+    /// Returns `false` and keeps the previous cap otherwise.
+    pub fn set_max_linear_velocity(&mut self, value: f32) -> bool {
+        if !value.is_finite() || value <= 0.0 {
+            return false;
+        }
+        self.max_linear_velocity = value;
+        true
+    }
+
+    /// Refuse a ray whose origin, direction or `max_dist` cannot be sent to Rapier.
+    ///
+    /// Origin axes are checked `ox`, then `oy`, then `oz`. Direction components are
+    /// checked `dx`, then `dy`, then `dz`, then the all-zero direction. A direction
+    /// has no extent bound. `max_dist` must be finite and `>= 0`. The world is not touched.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
+    pub fn reject_cast_ray(
+        ox: f32,
+        oy: f32,
+        oz: f32,
+        dx: f32,
+        dy: f32,
+        dz: f32,
+        max_dist: f32,
+    ) -> Result<(), Physics3DError> {
+        reject_query_coordinate("ox", ox)?;
+        reject_query_coordinate("oy", oy)?;
+        reject_query_coordinate("oz", oz)?;
+        reject_query_direction(dx, dy, dz)?;
+        reject_query_max_dist(max_dist)?;
+        Ok(())
+    }
+
+    /// Refuse a point that is not finite or sits outside [`MAX_WORLD_EXTENT`].
+    ///
+    /// `px` is checked before `py`, then `pz`. The world is not touched.
+    ///
+    /// This is an input guard on the query point. It is not what keeps parry from
+    /// unwrapping. `trimesh_builder` runs `check_collider_coordinate` on every vertex
+    /// (`world.rs:545-547`, cap `1e9`). `decoded_mesh_is_valid` applies that cap on the
+    /// `load_bvh_collider` path (`world.rs:624-627`). parry3d-0.17.6
+    /// `query/point/point_composite_shape.rs:152` unwraps a missing projection.
+    /// Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
+    /// `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
+    /// `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
+    /// `mesh pose kinematic 1e19 cap` (`tests/physics3d_float_probe.rs`) use a pose up to
+    /// `f32::MAX` and do not panic.
+    pub fn reject_project_point(px: f32, py: f32, pz: f32) -> Result<(), Physics3DError> {
+        reject_query_coordinate("px", px)?;
+        reject_query_coordinate("py", py)?;
+        reject_query_coordinate("pz", pz)?;
+        Ok(())
+    }
+
+    /// Refuse a shape cast before Rapier sees it.
+    ///
+    /// Pose `x`, `y`, `z` go through `check_collider_coordinate`. For shape types
+    /// `0` (box), `1` (ball) and `2` (capsule), `p0`, `p1` and `p2` go through
+    /// `check_collider_size`. Any other type leaves the sizes alone. Direction and
+    /// `max_dist` use the ray rule. Rotation is not checked: the float probe does not
+    /// panic on a hostile quaternion.
+    #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
+    pub fn reject_cast_shape(
+        pos_x: f32,
+        pos_y: f32,
+        pos_z: f32,
+        dir_x: f32,
+        dir_y: f32,
+        dir_z: f32,
+        shape_type: u32,
+        p0: f32,
+        p1: f32,
+        p2: f32,
+        max_dist: f32,
+    ) -> Result<(), Physics3DError> {
+        check_collider_coordinate(pos_x)?;
+        check_collider_coordinate(pos_y)?;
+        check_collider_coordinate(pos_z)?;
+        if shape_type == 0 || shape_type == 1 || shape_type == 2 {
+            check_collider_size(p0)?;
+            check_collider_size(p1)?;
+            check_collider_size(p2)?;
+        }
+        reject_query_direction(dir_x, dir_y, dir_z)?;
+        reject_query_max_dist(max_dist)?;
+        Ok(())
     }
 
     /// Advance the simulation by `delta` seconds.
+    ///
+    /// A delta that is not finite, or is outside `0..=1`, is refused and the
+    /// world is not stepped. Dynamic bodies that are non-finite or past
+    /// [`MAX_WORLD_EXTENT`] are disabled and recorded. A faster body is scaled
+    /// to [`Self::set_max_linear_velocity`]'s cap and is not disabled for that
+    /// alone. The other bodies still step.
     ///
     /// Drains Rapier collision events into the static ring buffer defined in
     /// [`crate::physics3d::events`] and updates sensor states from
     /// started/stopped contact events.
     ///
-    /// # Arguments
-    /// * `delta` — Elapsed time in seconds (e.g. `0.016` for 60 Hz).
-    pub fn step(&mut self, delta: f32) {
+    /// # Errors
+    /// Returns [`Physics3DError::InvalidStepDelta`] when `delta` is refused.
+    pub fn step(&mut self, delta: f32) -> Result<(), Physics3DError> {
+        reject_step_delta(delta)?;
+        self.guard_dynamic_bodies(delta);
         self.integration_params.dt = delta;
         self.collision_events.clear();
         let buf = CollisionBufPtr3D(std::ptr::addr_of_mut!(self.collision_events));
@@ -806,6 +938,84 @@ impl PhysicsWorld3D {
         // Rebuild the spatial query BVH so castRay / castShape / overlapShape
         // / projectPoint reflect the new collider positions this frame.
         self.query_pipeline.update(&self.collider_set);
+        Ok(())
+    }
+
+    /// Disable or clamp dynamic bodies before the broad phase.
+    ///
+    /// A disabled body is skipped before its pose is read. A push into
+    /// `disabled_slots` happens only when a body is disabled. Pairs appended
+    /// during this step are then ordered by slot.
+    fn guard_dynamic_bodies(&mut self, delta: f32) {
+        let max_speed = self.max_linear_velocity;
+        let recorded = self.disabled_slots.len();
+        let PhysicsWorld3D {
+            entity_handles,
+            rigid_body_set,
+            disabled_slots,
+            ..
+        } = self;
+        for (&slot, &handle) in entity_handles.iter() {
+            let Some(body) = rigid_body_set.get(handle) else {
+                continue;
+            };
+            if !body.is_dynamic() {
+                continue;
+            }
+            if !body.is_enabled() {
+                continue;
+            }
+            let tx = body.translation().x;
+            let ty = body.translation().y;
+            let tz = body.translation().z;
+            let mut vx = body.linvel().x;
+            let mut vy = body.linvel().y;
+            let mut vz = body.linvel().z;
+            if linear_state_is_non_finite(tx, ty, tz, vx, vy, vz) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_NON_FINITE,
+                );
+                continue;
+            }
+            if translation_leaves_world(tx, ty, tz) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_OUT_OF_BOUNDS,
+                );
+                continue;
+            }
+            if linear_speed_exceeds(vx, vy, vz, max_speed) {
+                let scaled = scale_linvel(vx, vy, vz, max_speed);
+                vx = scaled.0;
+                vy = scaled.1;
+                vz = scaled.2;
+                if let Some(body) = rigid_body_set.get_mut(handle) {
+                    body.set_linvel(vector![vx, vy, vz], true);
+                }
+            }
+            let next_x = tx + vx * delta;
+            let next_y = ty + vy * delta;
+            let next_z = tz + vz * delta;
+            if predicted_position_leaves_world(next_x, next_y, next_z) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_VELOCITY,
+                );
+            }
+        }
+        if disabled_slots.len() > recorded {
+            sort_disabled_pairs_by_slot(disabled_slots, recorded);
+        }
     }
 
     /// Scan the current ring buffer and update `sensor_states` for any sensor
@@ -2803,6 +3013,17 @@ impl PhysicsWorld3D {
 
     /// Project a world-space point onto the nearest collider.
     ///
+    /// Query points outside [`MAX_WORLD_EXTENT`] are refused. That guard does not
+    /// prevent the parry unwrap. `trimesh_builder` refuses each vertex above `1e9`
+    /// (`world.rs:545-547`, `check_collider_coordinate`). `decoded_mesh_is_valid` applies
+    /// that cap on the `load_bvh_collider` path (`world.rs:624-627`). parry3d-0.17.6
+    /// `query/point/point_composite_shape.rs:152` unwraps a missing projection.
+    /// Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`,
+    /// `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`,
+    /// `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and
+    /// `mesh pose kinematic 1e19 cap` (`tests/physics3d_float_probe.rs`) use a pose up to
+    /// `f32::MAX` and do not panic.
+    ///
     /// # Arguments
     /// * `px/py/pz`        — Point to project.
     /// * `layers` / `mask` — Collision filter.
@@ -3528,6 +3749,158 @@ pub fn max_cc_entities() -> u32 {
     MAX_CC_ENTITIES as u32
 }
 
+fn reject_step_delta(delta: f32) -> Result<(), Physics3DError> {
+    if delta.is_nan() {
+        return Err(Physics3DError::InvalidStepDelta { delta });
+    }
+    if delta.is_infinite() || delta < 0.0 || delta > 1.0 {
+        return Err(Physics3DError::InvalidStepDelta { delta });
+    }
+    Ok(())
+}
+
+fn reject_query_coordinate(field: &'static str, value: f32) -> Result<(), Physics3DError> {
+    if !value.is_finite() {
+        return Err(Physics3DError::InvalidQuery { field, value });
+    }
+    if value.abs() > MAX_WORLD_EXTENT {
+        return Err(Physics3DError::InvalidQuery { field, value });
+    }
+    Ok(())
+}
+
+/// A direction is unit-less. Each component must be finite, and the three
+/// together must not be zero. There is no [`MAX_WORLD_EXTENT`] bound.
+///
+/// `large_finite_directions_do_not_panic` sent `1e8`, `1e20`, `1e30`,
+/// `f32::MAX` and `(f32::MAX, f32::MAX, 0)` through `cast_ray` and `cast_shape`
+/// on a floor plus a mesh. None panicked.
+fn reject_query_direction(dx: f32, dy: f32, dz: f32) -> Result<(), Physics3DError> {
+    if !dx.is_finite() {
+        return Err(Physics3DError::InvalidQuery {
+            field: "dx",
+            value: dx,
+        });
+    }
+    if !dy.is_finite() {
+        return Err(Physics3DError::InvalidQuery {
+            field: "dy",
+            value: dy,
+        });
+    }
+    if !dz.is_finite() {
+        return Err(Physics3DError::InvalidQuery {
+            field: "dz",
+            value: dz,
+        });
+    }
+    if dx == 0.0 && dy == 0.0 && dz == 0.0 {
+        return Err(Physics3DError::InvalidQuery {
+            field: "direction",
+            value: 0.0,
+        });
+    }
+    Ok(())
+}
+
+fn reject_query_max_dist(max_dist: f32) -> Result<(), Physics3DError> {
+    if !max_dist.is_finite() || max_dist < 0.0 {
+        return Err(Physics3DError::InvalidQuery {
+            field: "max_dist",
+            value: max_dist,
+        });
+    }
+    Ok(())
+}
+
+fn linear_state_is_non_finite(tx: f32, ty: f32, tz: f32, vx: f32, vy: f32, vz: f32) -> bool {
+    !tx.is_finite()
+        || !ty.is_finite()
+        || !tz.is_finite()
+        || !vx.is_finite()
+        || !vy.is_finite()
+        || !vz.is_finite()
+}
+
+fn translation_leaves_world(x: f32, y: f32, z: f32) -> bool {
+    x.abs() > MAX_WORLD_EXTENT || y.abs() > MAX_WORLD_EXTENT || z.abs() > MAX_WORLD_EXTENT
+}
+
+fn predicted_position_leaves_world(x: f32, y: f32, z: f32) -> bool {
+    translation_leaves_world(x, y, z)
+}
+
+fn axis_is_zero(value: f32) -> bool {
+    value.to_bits() == 0 || value.to_bits() == (-0.0f32).to_bits()
+}
+
+fn component_over_largest(value: f32, largest: f32) -> f32 {
+    if axis_is_zero(value) {
+        0.0
+    } else {
+        value / largest
+    }
+}
+
+fn linear_speed_exceeds(vx: f32, vy: f32, vz: f32, max_speed: f32) -> bool {
+    let largest = vx.abs().max(vy.abs()).max(vz.abs());
+    if axis_is_zero(largest) {
+        return false;
+    }
+    let nx = component_over_largest(vx, largest);
+    let ny = component_over_largest(vy, largest);
+    let nz = component_over_largest(vz, largest);
+    let norm = (nx * nx + ny * ny + nz * nz).sqrt();
+    largest * norm > max_speed
+}
+
+/// Scales `(vx, vy, vz)` onto the sphere of radius `max_speed`.
+///
+/// The larger component divides every axis first, so a huge finite triple does
+/// not overflow to infinity and collapse to zero.
+fn scale_linvel(vx: f32, vy: f32, vz: f32, max_speed: f32) -> (f32, f32, f32) {
+    let largest = vx.abs().max(vy.abs()).max(vz.abs());
+    if axis_is_zero(largest) {
+        return (0.0, 0.0, 0.0);
+    }
+    let nx = component_over_largest(vx, largest);
+    let ny = component_over_largest(vy, largest);
+    let nz = component_over_largest(vz, largest);
+    let norm = (nx * nx + ny * ny + nz * nz).sqrt();
+    let scaled = max_speed / norm;
+    (nx * scaled, ny * scaled, nz * scaled)
+}
+
+/// Orders the `[slot, reason]` pairs appended since `start` by ascending slot.
+///
+/// Insertion sort. No allocation. Called only when this step disabled a body.
+fn sort_disabled_pairs_by_slot(slots: &mut [u32], start: usize) {
+    let mut index = start.saturating_add(2);
+    while index + 1 < slots.len() {
+        let mut cursor = index;
+        while cursor >= start + 2 && slots[cursor] < slots[cursor - 2] {
+            slots.swap(cursor - 2, cursor);
+            slots.swap(cursor - 1, cursor + 1);
+            cursor -= 2;
+        }
+        index += 2;
+    }
+}
+
+fn disable_recorded(
+    rigid_body_set: &mut RigidBodySet,
+    disabled_slots: &mut Vec<u32>,
+    handle: RigidBodyHandle,
+    slot: u32,
+    reason: u32,
+) {
+    if let Some(body) = rigid_body_set.get_mut(handle) {
+        body.set_enabled(false);
+    }
+    disabled_slots.push(slot);
+    disabled_slots.push(reason);
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -3561,9 +3934,11 @@ mod tests {
     }
 
     #[test]
-    fn test_physics3d_step_executes() {
+    fn test_physics3d_step_executes() -> Result<(), Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        world.step(0.016);
+        world.step(0.016)?;
+
+        Ok(())
     }
 
     // ── T1: add / remove / has ────────────────────────────────────────────────
@@ -3698,7 +4073,7 @@ mod tests {
     // ── T1: apply impulse ─────────────────────────────────────────────────────
 
     #[test]
-    fn test_physics3d_apply_impulse_changes_velocity() {
+    fn test_physics3d_apply_impulse_changes_velocity() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
 
         // Rapier defers mass-property recomputation until the first step — the
@@ -3706,7 +4081,7 @@ mod tests {
         // builder is only processed by the pipeline's `user_changes` pass.
         // A single step here causes that pass to run, giving the body a
         // non-zero `effective_inv_mass` before we apply the impulse.
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         // Zero linear velocity on X before the impulse (gravity only affects Y)
         let lv_before = world.get_linear_velocity(0);
@@ -3716,6 +4091,8 @@ mod tests {
         let lv_after = world.get_linear_velocity(0);
         // With mass=1 kg and impulse=10 N·s, vx must be positive.
         assert!(lv_after[0] > 0.0, "impulse should increase vx");
+
+        Ok(())
     }
 
     #[test]
@@ -3755,18 +4132,20 @@ mod tests {
     // ── T1: gravity interaction ───────────────────────────────────────────────
 
     #[test]
-    fn test_physics3d_dynamic_body_falls_under_gravity() {
+    fn test_physics3d_dynamic_body_falls_under_gravity() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
         let initial_state = world.get_body_state(0);
         let initial_y = initial_state[1];
 
         // Step enough frames to see measurable fall
         for _ in 0..60 {
-            world.step(1.0 / 60.0);
+            world.step(1.0 / 60.0)?;
         }
 
         let final_state = world.get_body_state(0);
         assert!(final_state[1] < initial_y, "body should fall under gravity");
+
+        Ok(())
     }
 
     // ── Collider add/remove cycle ─────────────────────────────────────────────
@@ -4112,19 +4491,23 @@ mod tests {
     // ── Collision event buffer ────────────────────────────────────────────────
 
     #[test]
-    fn test_physics3d_event_count_zero_after_step_no_bodies() {
+    fn test_physics3d_event_count_zero_after_step_no_bodies() -> Result<(), Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
         // No bodies → no events.
         assert_eq!(world.get_collision_event_count(), 0);
+
+        Ok(())
     }
 
     #[test]
-    fn test_physics3d_consume_events_clears_count() {
+    fn test_physics3d_consume_events_clears_count() -> Result<(), Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
         world.consume_events();
         assert_eq!(world.get_collision_event_count(), 0);
+
+        Ok(())
     }
 
     #[test]
@@ -4158,7 +4541,8 @@ mod tests {
     }
 
     #[test]
-    fn test_physics3d_apply_angular_impulse_changes_angular_velocity() {
+    fn test_physics3d_apply_angular_impulse_changes_angular_velocity() -> Result<(), Physics3DError>
+    {
         let mut world = world_with_one_dynamic();
         // A box collider is required so Rapier can derive a non-zero inertia
         // tensor; without a shape, additional_mass() only sets translational
@@ -4182,7 +4566,7 @@ mod tests {
             Ok(())
         );
         // Step once to initialise mass properties (same requirement as linear impulse).
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let av_before = world.get_angular_velocity(0);
         assert!(
@@ -4196,6 +4580,8 @@ mod tests {
             av_after[1] > 0.0,
             "angular impulse should increase angular vy"
         );
+
+        Ok(())
     }
 
     #[test]
@@ -5100,7 +5486,7 @@ mod tests {
     // ── T2: bulk kinematic integration ──────────────────────────────────────────
 
     #[test]
-    fn test_bulk_step_kinematics_3d_integrates_positions() {
+    fn test_bulk_step_kinematics_3d_integrates_positions() -> Result<(), Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         assert!(world.add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
         assert!(world.add_body(1, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
@@ -5112,7 +5498,7 @@ mod tests {
         assert_eq!(n, Ok(2));
 
         // Verify positions changed after simulation step
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
         let state0 = world.get_body_state(0);
         let state1 = world.get_body_state(1);
 
@@ -5127,10 +5513,13 @@ mod tests {
             (state1[1] - 2.0).abs() < 1e-4,
             "entity 1 should move 2.0 on Y"
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_bulk_step_kinematic_rotations_3d_integrates_orientations() {
+    fn test_bulk_step_kinematic_rotations_3d_integrates_orientations() -> Result<(), Physics3DError>
+    {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         assert!(world.add_body(0, 0.0, 0.0, 0.0, 2, 0.0, 0.0, 0.0));
 
@@ -5146,7 +5535,7 @@ mod tests {
         assert_eq!(n, Ok(1));
 
         // Verify quaternion changed after simulation step
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
         let state_after = world.get_body_state(0);
         let qw_after = state_after[6];
 
@@ -5155,6 +5544,8 @@ mod tests {
             (qw_after - qw_before).abs() > 1e-5,
             "quaternion w component should change with rotation"
         );
+
+        Ok(())
     }
 
     #[test]
@@ -5194,23 +5585,25 @@ mod tests {
     // ── RFC-09: forces, torques, gravity scale, axis locks, sleep ─────────────
 
     #[test]
-    fn test_rfc09_add_force_changes_linear_velocity() {
+    fn test_rfc09_add_force_changes_linear_velocity() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
         // Step once so Rapier initialises mass properties from the builder flags.
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let vx_before = world.get_linear_velocity(0)[0];
         assert!(vx_before.abs() < 1e-5, "initial vx should be ~zero");
 
         assert!(world.add_force(0, 1000.0, 0.0, 0.0));
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let vx_after = world.get_linear_velocity(0)[0];
         assert!(vx_after > 0.0, "add_force should accelerate body along X");
+
+        Ok(())
     }
 
     #[test]
-    fn test_rfc09_add_torque_changes_angular_velocity() {
+    fn test_rfc09_add_torque_changes_angular_velocity() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
         // A collider is needed for Rapier to derive a non-zero inertia tensor.
         assert_eq!(
@@ -5231,19 +5624,21 @@ mod tests {
             ),
             Ok(())
         );
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let ay_before = world.get_angular_velocity(0)[1];
         assert!(ay_before.abs() < 1e-5, "initial angular vy should be ~zero");
 
         assert!(world.add_torque(0, 0.0, 1000.0, 0.0));
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let ay_after = world.get_angular_velocity(0)[1];
         assert!(
             ay_after > 0.0,
             "add_torque should increase angular velocity about Y"
         );
+
+        Ok(())
     }
 
     #[test]
@@ -5270,24 +5665,26 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc09_lock_translations_x_prevents_x_movement() {
+    fn test_rfc09_lock_translations_x_prevents_x_movement() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         assert!(world.lock_translations(0, true, false, false));
         // Apply a strong force along X and step.
         assert!(world.add_force(0, 10_000.0, 0.0, 0.0));
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let vx = world.get_linear_velocity(0)[0];
         assert!(
             vx.abs() < 1e-4,
             "locked X translation should keep vx ~zero, got {vx}"
         );
+
+        Ok(())
     }
 
     #[test]
-    fn test_rfc09_lock_rotations_y_prevents_y_rotation() {
+    fn test_rfc09_lock_rotations_y_prevents_y_rotation() -> Result<(), Physics3DError> {
         let mut world = world_with_one_dynamic();
         assert_eq!(
             world.add_box_collider(
@@ -5307,17 +5704,19 @@ mod tests {
             ),
             Ok(())
         );
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         assert!(world.lock_rotations(0, false, true, false));
         assert!(world.add_torque(0, 0.0, 10_000.0, 0.0));
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         let ay = world.get_angular_velocity(0)[1];
         assert!(
             ay.abs() < 1e-4,
             "locked Y rotation should keep angular vy ~zero, got {ay}"
         );
+
+        Ok(())
     }
 
     #[test]
@@ -5471,7 +5870,7 @@ mod tests {
     // ── RFC-07: Spatial queries ───────────────────────────────────────────────
 
     /// Helper: build a world with a fixed body and box collider at origin.
-    fn world_with_box_at_origin() -> PhysicsWorld3D {
+    fn world_with_box_at_origin() -> Result<PhysicsWorld3D, Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, 0.0, 0.0);
         world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0); // Fixed
         assert_eq!(
@@ -5492,13 +5891,13 @@ mod tests {
             ),
             Ok(())
         );
-        world.step(1.0 / 60.0); // populates query_pipeline
-        world
+        world.step(1.0 / 60.0)?; // populates query_pipeline
+        Ok(world)
     }
 
     #[test]
-    fn test_rfc07_cast_ray_hits_box_collider() {
-        let world = world_with_box_at_origin();
+    fn test_rfc07_cast_ray_hits_box_collider() -> Result<(), Physics3DError> {
+        let world = world_with_box_at_origin()?;
         // Ray from (0, 5, 0) aimed downward at the box at origin.
         let result = world.cast_ray(
             0.0,
@@ -5521,11 +5920,12 @@ mod tests {
             "toi should be ~4.5, got {}",
             result[2]
         );
+        Ok(())
     }
 
     #[test]
-    fn test_rfc07_cast_ray_misses_returns_zero() {
-        let world = world_with_box_at_origin();
+    fn test_rfc07_cast_ray_misses_returns_zero() -> Result<(), Physics3DError> {
+        let world = world_with_box_at_origin()?;
         // Ray aimed away from all bodies.
         let result = world.cast_ray(
             0.0,
@@ -5540,6 +5940,7 @@ mod tests {
             true,
         );
         assert_eq!(result, vec![0.0], "miss should return [0.0]");
+        Ok(())
     }
 
     #[test]
@@ -5586,8 +5987,8 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc07_project_point_onto_box() {
-        let world = world_with_box_at_origin();
+    fn test_rfc07_project_point_onto_box() -> Result<(), Physics3DError> {
+        let world = world_with_box_at_origin()?;
         // Point just above the top face of the box (top face at y=0.5).
         let result = world.project_point(0.0, 2.0, 0.0, 0xFFFF_FFFF, 0xFFFF_FFFF, false);
         assert_eq!(result.len(), 6, "hit should produce 6 floats");
@@ -5600,6 +6001,7 @@ mod tests {
             result[3]
         );
         assert_eq!(result[5], 0.0, "point above box is not inside");
+        Ok(())
     }
 
     #[test]
@@ -5610,8 +6012,8 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc07_cast_shape_hits_box() {
-        let world = world_with_box_at_origin();
+    fn test_rfc07_cast_shape_hits_box() -> Result<(), Physics3DError> {
+        let world = world_with_box_at_origin()?;
         // Cast a ball (r=0.1) from (0,5,0) downward toward the box at origin.
         let result = world.cast_shape(
             0.0,
@@ -5637,6 +6039,7 @@ mod tests {
         assert_eq!(result[1], 0.0, "entity_index should be 0");
         // toi: distance from y=5 to y=0.5+0.1=0.6 is 4.4
         assert!(result[2] > 0.0, "toi should be positive, got {}", result[2]);
+        Ok(())
     }
 
     #[test]
@@ -5763,7 +6166,7 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc09d_character_controller_move_applies_translation() {
+    fn test_rfc09d_character_controller_move_applies_translation() -> Result<(), Physics3DError> {
         let mut world = world_with_kinematic_body();
         assert_eq!(
             world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
@@ -5771,7 +6174,7 @@ mod tests {
         );
 
         // Step once to populate the query pipeline.
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         // Record initial y position.
         let handle = *world.entity_handles.get(&0).unwrap();
@@ -5798,6 +6201,8 @@ mod tests {
             next_y < initial_y,
             "next_y ({next_y}) should be below initial_y ({initial_y}) after downward move"
         );
+
+        Ok(())
     }
 
     // ── Gap 2: set_body_solver_iterations ────────────────────────────────────
@@ -5835,13 +6240,14 @@ mod tests {
     }
 
     #[test]
-    fn test_rfc_character_controller_move_writes_no_hit_sentinel_to_sab() {
+    fn test_rfc_character_controller_move_writes_no_hit_sentinel_to_sab(
+    ) -> Result<(), Physics3DError> {
         let mut world = world_with_kinematic_body();
         assert_eq!(
             world.add_character_controller(0, 0.35, 45.0, 0.02, 0.2, true, true),
             Ok(0)
         );
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
         // Move in empty scene — no floor, so not grounded.
         assert_eq!(
             world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0),
@@ -5850,10 +6256,12 @@ mod tests {
         // Slot 0: grounded flag must be 0.0
         let grounded = world.cc_state[0];
         assert_eq!(grounded, 0.0_f32, "no-hit sentinel must set grounded=0.0");
+
+        Ok(())
     }
 
     #[test]
-    fn test_rfc_character_controller_move_grounded_flag() {
+    fn test_rfc_character_controller_move_grounded_flag() -> Result<(), Physics3DError> {
         let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
 
         // Add a kinematic body for the character (kind 3 = KinematicPositionBased).
@@ -5875,7 +6283,7 @@ mod tests {
         world.collider_set.insert(floor);
 
         // Warm up the query pipeline.
-        world.step(1.0 / 60.0);
+        world.step(1.0 / 60.0)?;
 
         // Drive the character downward for up to 120 frames; verify no panic.
         for _ in 0..120 {
@@ -5883,7 +6291,7 @@ mod tests {
                 world.character_controller_move(0, 0.0, -5.0, 0.0, 1.0 / 60.0),
                 Ok(())
             );
-            world.step(1.0 / 60.0);
+            world.step(1.0 / 60.0)?;
         }
         // Grounded flag is 0.0 or 1.0 — just verify no panic and valid float.
         let grounded = world.cc_state[0];
@@ -5891,6 +6299,8 @@ mod tests {
             grounded == 0.0 || grounded == 1.0,
             "grounded must be 0.0 or 1.0"
         );
+
+        Ok(())
     }
 }
 
