@@ -337,7 +337,8 @@ fn deep_chain_self_and_cycle_do_not_overflow() {
     assert_eq!(self_parent.code(), "CORE:INVALID_PARENT");
     assert!(engine.has_entity_parent(10));
 
-    let cycle = must_err(engine.set_entity_parent(0, 1_000, false));
+    // The last entity is destroyed above: the deepest live descendant is N - 2.
+    let cycle = must_err(engine.set_entity_parent(0, N - 2, false));
     assert_eq!(cycle.code(), "CORE:INVALID_PARENT");
     assert!(!engine.has_entity_parent(0));
     assert_eq!(engine.count_entities(), N - 1);
