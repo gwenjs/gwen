@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const TEST_SCRIPTS = "node --test scripts/*.test.mjs";
+const TEST_SCRIPTS = "node --test scripts/*.test.mjs scripts/wasm-capacity/*.test.mjs";
 const RUST_LINT_SCRIPTS = "pnpm check:unsafe && pnpm test:scripts";
 
 function readJson(file) {
