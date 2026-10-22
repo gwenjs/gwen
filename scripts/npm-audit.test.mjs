@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { judgeAudit, runAudit } from "./npm-audit.mjs";
+import { AUDIT_ARGS, judgeAudit, runAudit } from "./npm-audit.mjs";
 
 const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), "fixtures", "npm-audit");
 
@@ -152,4 +152,73 @@ test("high is not masked by critical-only counting", () => {
     metadata: { vulnerabilities: { high: 1, critical: 0, moderate: 0 } },
   });
   assert.equal(verdict.fail, true);
+});
+
+test("a count that is not a number is unusable and exits 2", async () => {
+  const cases = [
+    {},
+    { high: "1", critical: 0, moderate: 0 },
+    { high: 1, critical: null, moderate: 0 },
+    { high: -1, critical: 1, moderate: 0 },
+    { high: 1.5, critical: 0, moderate: 0 },
+  ];
+  for (const vulnerabilities of cases) {
+    const json = { metadata: { vulnerabilities } };
+    assert.throws(
+      () => judgeAudit(json),
+      (error) => {
+        assert.ok(error instanceof Error);
+        assert.equal(error.message.startsWith("[npm-audit] unusable audit output"), true);
+        return true;
+      },
+    );
+    let calls = 0;
+    const { code, slept } = await audit(() => {
+      calls += 1;
+      return { stdout: JSON.stringify(json), stderr: "", status: 1 };
+    });
+    assert.equal(calls, 2);
+    assert.deepEqual(slept, [10000]);
+    assert.equal(code, 2);
+  }
+});
+
+test("the audit command excludes devDependencies and asks for JSON", () => {
+  assert.deepEqual(AUDIT_ARGS, ["audit", "--prod", "--json"]);
+});
+
+test("advisory lines are listed critical first, then high, then moderate", () => {
+  const verdict = judgeAudit({
+    metadata: { vulnerabilities: { high: 1, critical: 1, moderate: 1 } },
+    advisories: {
+      moderate: { severity: "moderate", module_name: "word-wrap", url: "https://example.test/m" },
+      critical: { severity: "critical", module_name: "minimist", url: "https://example.test/c" },
+      high: { severity: "high", module_name: "lodash", url: "https://example.test/h" },
+    },
+  });
+  assert.deepEqual(verdict.lines, [
+    "[npm-audit] high=1 critical=1 moderate=1",
+    "[npm-audit] critical minimist https://example.test/c",
+    "[npm-audit] high lodash https://example.test/h",
+    "[npm-audit] moderate word-wrap https://example.test/m",
+  ]);
+});
+
+test("an empty stderr falls back to the spawn error message", async () => {
+  const spawned = await audit(() => ({
+    stdout: "",
+    stderr: "",
+    status: null,
+    error: new Error("spawnSync pnpm ENOENT\nextra"),
+  }));
+  assert.deepEqual(spawned.errors, ["[npm-audit] registry unreachable: spawnSync pnpm ENOENT"]);
+  assert.equal(spawned.code, 2);
+
+  const silent = await audit(() => ({
+    stdout: "",
+    stderr: "",
+    status: null,
+  }));
+  assert.deepEqual(silent.errors, ["[npm-audit] registry unreachable: no error output"]);
+  assert.equal(silent.code, 2);
 });
