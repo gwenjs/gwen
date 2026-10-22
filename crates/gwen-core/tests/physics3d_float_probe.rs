@@ -661,10 +661,7 @@ fn mesh_pose_case(x: f32, kind: u8, kinematic: bool, vertices: [f32; 9]) {
         let _ = engine.physics3d_set_kinematic_position(0, x, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0);
     }
     let _ = engine.physics3d_step(1.0 / 60.0);
-    let state = match engine.physics3d_get_body_state(0) {
-        Ok(state) => state,
-        Err(_) => Vec::new(),
-    };
+    let state: Vec<f32> = engine.physics3d_get_body_state(0).unwrap_or_default();
     assert_eq!(state.first().copied(), Some(x), "pose {state:?}");
     let _ = engine.physics3d_project_point(0.0, 0.0, 0.0, ALL, ALL, true);
     let _ = engine.physics3d_cast_ray(0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 100.0, ALL, ALL, true);
