@@ -26,6 +26,8 @@ function makeMockWasmPlugin() {
     physics_set_kinematic_position: vi.fn(),
     physics_set_event_coalescing: vi.fn(),
     physics_set_quality: vi.fn(),
+    physics_set_max_linear_velocity: () => 1,
+    physics_take_disabled_slots: () => new Uint32Array(),
     physics_set_global_ccd_enabled: vi.fn(),
     physics_consume_event_metrics: vi.fn().mockReturnValue([1, 0, 0, 1]),
     physics_get_linear_velocity: vi.fn().mockReturnValue([]),
@@ -110,7 +112,7 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
   return { ...original, getWasmBridge: vi.fn() };
 });
 
-import { createEntityId } from "@gwenjs/core";
+import { createEntityId, createLogger } from "@gwenjs/core";
 import { engineContext, getWasmBridge } from "@gwenjs/core/internal";
 import { Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
@@ -243,6 +245,19 @@ describe("Physics2DPlugin", () => {
     const plugin = Physics2DPlugin({ qualityPreset: "high" });
     await initPlugin(plugin, mockBridge, mockEngine);
     expect(mockWasmPlugin.physics_set_global_ccd_enabled).toHaveBeenCalledWith(1);
+  });
+
+  it("warns when the speed cap setter returns 0", async () => {
+    mockWasmPlugin.physics_set_max_linear_velocity = () => 0;
+    const warnings: string[] = [];
+    const logger = createLogger("test", false);
+    logger.setSink((entry) => {
+      warnings.push(entry.message);
+    });
+    Object.assign(mockEngine, { logger });
+    const plugin = Physics2DPlugin({ maxLinearVelocity: 50 });
+    await initPlugin(plugin, mockBridge, mockEngine);
+    expect(warnings).toContain("[Physics2D] maxLinearVelocity was refused; the previous cap stays");
   });
 
   it("setup respects explicit ccdEnabled override", async () => {

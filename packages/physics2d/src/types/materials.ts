@@ -7,7 +7,8 @@ import type { EntityId } from "@gwenjs/core";
 import type { CollisionContact, SensorState, CollisionEventsBatch } from "./events";
 
 /**
- * `physics2d:body-disabled` payload. The plugin does not emit this hook yet.
+ * `physics2d:body-disabled` payload.
+ * The plugin emits this after a step that disabled a dynamic body.
  */
 export interface Physics2DBodyDisabled {
   readonly entity: EntityId;

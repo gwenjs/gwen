@@ -27,6 +27,7 @@ export default defineConfig({
 | Option | Type | Défaut | Description |
 |---|---|---|---|
 | `gravity` | `number` | `-9.81` | Gravité verticale (axe Y, m/s²) |
+| `maxLinearVelocity` | `number` | `400` | Plafond de vitesse linéaire (m/s). Un corps dynamique plus rapide est ramené à ce plafond et reste actif |
 | `gravityX` | `number` | `0` | Gravité horizontale (axe X, m/s²) |
 | `maxEntities` | `number` | `10_000` | Nombre max d'entités physiques |
 | `qualityPreset` | `'low' \| 'medium' \| 'high' \| 'esport'` | `'medium'` | Préréglage de qualité physique |

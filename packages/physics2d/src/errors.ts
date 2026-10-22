@@ -30,6 +30,10 @@ export const Physics2DErrorCodes = {
   TILEMAP_CHUNK_NOT_LOADED: "PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED",
   /** A path coordinate or distance is outside the accepted bounds. */
   INVALID_PATH_REQUEST: "PHYSICS2D:INVALID_PATH_REQUEST",
+  /** A coordinate that is not finite or outside ±1e7, or a half-extent/radius that is not finite, negative, or above 1e7. */
+  INVALID_QUERY: "PHYSICS2D:INVALID_QUERY",
+  /** A step delta is not finite, or sits outside 0 to 1. */
+  INVALID_STEP_DELTA: "PHYSICS2D:INVALID_STEP_DELTA",
 } as const;
 
 export type Physics2DErrorCode = (typeof Physics2DErrorCodes)[keyof typeof Physics2DErrorCodes];

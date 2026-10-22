@@ -173,6 +173,8 @@ export const PathSystem = defineSystem(() => {
 
 A trap is `GwenWasmPanicError`. The bridge is poisoned. The bus event `code` is `CORE:WASM_PANIC`.
 
+`PHYSICS2D:INVALID_QUERY` is a coordinate that is not finite or outside ±1e7, or a half-extent/radius that is not finite, negative, or above 1e7. `PHYSICS2D:INVALID_STEP_DELTA` is a step `delta` that is not finite or sits outside 0 to 1. The world is unchanged. A body that leaves the world during play is not one of these errors. The plugin emits `physics2d:body-disabled` with `{ entity, reason }` where `reason` is `non-finite`, `out-of-bounds`, or `velocity`.
+
 ```ts
 engine.errors.on((event) => {
   if (event.context?.hook !== 'engine:before-update') return

@@ -1,4 +1,5 @@
 import type { Physics2DConfig, PhysicsQualityPreset } from "./types";
+import { GwenConfigError } from "@gwenjs/core";
 import { GwenError } from "@gwenjs/schema";
 import { Physics2DErrorCodes } from "./errors";
 
@@ -15,6 +16,7 @@ export const LAYER_ALL = 0xffffffff;
 export type NormalizedPhysics2DConfig = {
   gravity: number;
   gravityX: number;
+  maxLinearVelocity: number;
   maxEntities: number;
   qualityPreset: PhysicsQualityPreset;
   eventMode: "pull" | "hybrid";
@@ -27,6 +29,7 @@ export type NormalizedPhysics2DConfig = {
 /**
  * Validates and normalizes user-provided configuration.
  * @throws {GwenError} If layer configuration is invalid.
+ * @throws {GwenConfigError} If `maxLinearVelocity` is not finite or not positive.
  */
 export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DConfig {
   const layers: Record<string, number> = {};
@@ -41,9 +44,20 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
       layers[name] = bit;
     }
   }
+  if (
+    config.maxLinearVelocity !== undefined &&
+    (!Number.isFinite(config.maxLinearVelocity) || config.maxLinearVelocity <= 0)
+  ) {
+    throw new GwenConfigError(
+      "maxLinearVelocity",
+      config.maxLinearVelocity,
+      "Must be finite and greater than 0. The default is 400.",
+    );
+  }
   return {
     gravity: config.gravity ?? -9.81,
     gravityX: config.gravityX ?? 0,
+    maxLinearVelocity: config.maxLinearVelocity ?? 400,
     maxEntities: config.maxEntities ?? 10_000,
     qualityPreset: config.qualityPreset ?? "medium",
     eventMode: config.eventMode ?? "pull",

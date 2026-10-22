@@ -80,6 +80,8 @@ export default defineGwenModule<Physics2DConfig>({
             "physics:collision:batch": "(batch: Readonly<CollisionEventsBatch>) => void",
             "physics:sensor:changed":
               "(entityId: EntityId, sensorId: number, state: SensorState) => void",
+            "physics2d:body-disabled":
+              "(payload: { readonly entity: EntityId; readonly reason: 'non-finite' | 'out-of-bounds' | 'velocity' }) => void",
           },
         }),
     });

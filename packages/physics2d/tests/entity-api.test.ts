@@ -149,6 +149,8 @@ function mockPhysicsWasm() {
     physics_get_position: vi.fn().mockReturnValue([0, 0, 0]),
     physics_set_linear_damping: vi.fn(),
     physics_set_quality: vi.fn(),
+    physics_set_max_linear_velocity: () => 1,
+    physics_take_disabled_slots: () => new Uint32Array(),
     physics_set_event_coalescing: vi.fn(),
     physics_set_global_ccd_enabled: vi.fn(),
     physics_step: vi.fn(),

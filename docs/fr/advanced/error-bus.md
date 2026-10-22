@@ -173,6 +173,8 @@ export const PathSystem = defineSystem(() => {
 
 Un piège est un `GwenWasmPanicError`. Le pont est empoisonné. Le `code` sur le bus est `CORE:WASM_PANIC`.
 
+`PHYSICS2D:INVALID_QUERY` est une coordonnée qui n'est pas finie ou qui est en dehors de ±1e7, ou une demi-étendue ou un rayon qui n'est pas fini, négatif, ou au-dessus de 1e7. `PHYSICS2D:INVALID_STEP_DELTA` est un `delta` de pas qui n'est pas fini, ou qui sort de 0 à 1. Le monde ne change pas. Un corps qui quitte le monde pendant le jeu n'est pas une de ces erreurs. Le plugin émet `physics2d:body-disabled` avec `{ entity, reason }`, où `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`.
+
 ```ts
 engine.errors.on((event) => {
   if (event.context?.hook !== 'engine:before-update') return

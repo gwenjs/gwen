@@ -366,6 +366,16 @@ export interface WasmEnginePhysics2D extends WasmEngineBase {
   physics_init(gx: number, gy: number, maxEntities: number): void;
   /** Advance physics simulation. */
   physics_step(delta: number): void;
+  /**
+   * Drains bodies disabled during the last step.
+   * Interleaved `[slot, code]` pairs: `0` non-finite, `1` out-of-bounds, `2` velocity.
+   */
+  physics_take_disabled_slots(): Uint32Array;
+  /**
+   * Sets the linear-speed cap in metres per second.
+   * Returns `1` when the value is stored, `0` when it is refused.
+   */
+  physics_set_max_linear_velocity(value: number): number;
   /** Set physics quality preset (0=low, 1=medium, 2=high, 3=esport). */
   physics_set_quality(preset: number): void;
   /** Enable/disable global CCD. */
