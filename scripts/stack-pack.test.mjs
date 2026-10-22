@@ -350,3 +350,48 @@ test("a second pack with another stamp leaves only the new tarballs", () => {
     rmSync(out, { recursive: true, force: true });
   }
 });
+
+test("pack with a relative --out writes the tarballs under that directory", () => {
+  const root = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  const cwd = mkdtempSync(join(tmpdir(), "gwen-stack-"));
+  try {
+    writeWorkspace(root, [
+      { dir: "a", name: "@gwenjs/stack-fixture-a" },
+      { dir: "b", name: "@gwenjs/stack-fixture-b" },
+    ]);
+    const result = spawnSync(
+      process.execPath,
+      [
+        packScript,
+        "--root",
+        root,
+        "--out",
+        "stack",
+        "--sha",
+        "abc1234",
+        "--now",
+        "2026-01-02T03:04:05Z",
+      ],
+      { cwd, encoding: "utf8" },
+    );
+    const manifestPath = join(cwd, "stack", "stack-manifest.json");
+    assert.equal(existsSync(manifestPath), true, result.stderr);
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+    assert.equal(Array.isArray(manifest.packages) && manifest.packages.length > 0, true);
+    for (const packed of manifest.packages) {
+      assert.equal(typeof packed.file, "string");
+      assert.equal(existsSync(join(cwd, "stack", "tarballs", packed.file)), true, packed.file);
+    }
+    for (const entry of readdirSync(join(root, "packages"), { withFileTypes: true })) {
+      if (!entry.isDirectory()) continue;
+      const pkgDir = join(root, "packages", entry.name);
+      assert.equal(existsSync(join(pkgDir, "stack")), false, pkgDir);
+      for (const name of readdirSync(pkgDir)) {
+        assert.equal(name.endsWith(".tgz"), false, join(pkgDir, name));
+      }
+    }
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});
