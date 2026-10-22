@@ -32,6 +32,7 @@ declare module "@gwenjs/schema" {
    * ```typescript
    * engine.hooks.hook('physics:collision', (contacts) => { … })
    * engine.hooks.hook('physics:sensor:changed', (entityId, sensorId, state) => { … })
+   * engine.hooks.hook('physics2d:body-disabled', ({ entity, reason }) => { … })
    * ```
    */
   interface GwenRuntimeHooks extends Physics2DPluginHooks {}

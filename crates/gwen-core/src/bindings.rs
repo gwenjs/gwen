@@ -1288,6 +1288,18 @@ impl Engine {
         Ok(())
     }
 
+    /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
+    ///
+    /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
+    /// `PhysicsWorld::take_disabled_slots` records nothing, so this is empty.
+    #[cfg(feature = "physics2d")]
+    pub fn physics_take_disabled_slots(&mut self) -> Vec<u32> {
+        let Some(world) = self.physics_world.as_mut() else {
+            return Vec::new();
+        };
+        world.take_disabled_slots()
+    }
+
     #[cfg(feature = "physics2d")]
     pub fn physics_set_quality(&mut self, preset: u8) -> Result<(), Physics2DError> {
         if let Some(ref mut world) = self.physics_world {
@@ -4226,6 +4238,19 @@ impl Engine {
         }
 
         Ok(indices)
+    }
+}
+
+#[cfg(feature = "physics2d")]
+impl Engine {
+    /// Reads Rapier `is_enabled` for the body in `slot`.
+    ///
+    /// Not a `#[wasm_bindgen]` export. A missing world or slot is `false`.
+    pub fn is_body_enabled(&self, slot: u32) -> bool {
+        let Some(world) = self.physics_world.as_ref() else {
+            return false;
+        };
+        world.is_body_enabled(slot)
     }
 }
 

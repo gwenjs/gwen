@@ -101,6 +101,7 @@ export const PHYSICS2D_JS_EXTRA = [
   "physics_set_linear_velocity(slot, vx, vy)",
   "physics_set_quality(preset)",
   "physics_step(delta)",
+  "physics_take_disabled_slots()",
   "physics_unload_tilemap_chunk_body(chunk_id)",
   "physics_update_sensor_state(_slot, _collider_id, _active)",
 ] as const;
@@ -269,6 +270,7 @@ export const PHYSICS2D_WASM_EXTRA = [
   "engine_physics_set_linear_velocity (i32,i32,i32,f32,f32)->()",
   "engine_physics_set_quality (i32,i32,i32)->()",
   "engine_physics_step (i32,i32,f32)->()",
+  "engine_physics_take_disabled_slots (i32,i32)->()",
   "engine_physics_unload_tilemap_chunk_body (i32,i32,i32)->()",
   "engine_physics_update_sensor_state (i32,i32,i32,i32)->()",
 ] as const;
@@ -471,6 +473,7 @@ export const PHYSICS2D_DTS_EXTRA = [
   "Engine.physics_set_linear_velocity(slot: number, vx: number, vy: number): number;",
   "Engine.physics_set_quality(preset: number): void;",
   "Engine.physics_step(delta: number): void;",
+  "Engine.physics_take_disabled_slots(): Uint32Array;",
   "Engine.physics_unload_tilemap_chunk_body(chunk_id: number): void;",
   "Engine.physics_update_sensor_state(_slot: number, _collider_id: number, _active: number): void;",
   "find_path_2d(start_x: number, start_y: number, end_x: number, end_y: number): number;",

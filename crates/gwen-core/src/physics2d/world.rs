@@ -730,6 +730,27 @@ impl PhysicsWorld {
         self.collision_events.len() as u32
     }
 
+    /// Whether the rigid body in `slot` is enabled.
+    ///
+    /// A missing slot is `false`. Reads Rapier `RigidBody::is_enabled` and
+    /// does not change the body.
+    pub fn is_body_enabled(&self, slot: u32) -> bool {
+        let Some(&handle) = self.entity_to_body.get(&slot) else {
+            return false;
+        };
+        let Some(body) = self.rigid_body_set.get(handle) else {
+            return false;
+        };
+        body.is_enabled()
+    }
+
+    /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
+    ///
+    /// Nothing is recorded, so the vec is empty and does not allocate.
+    pub fn take_disabled_slots(&mut self) -> Vec<u32> {
+        Vec::new()
+    }
+
     /// Advances the simulation by `delta` seconds.
     pub fn step(&mut self, delta: f32) {
         self.integration_params.dt = delta;
