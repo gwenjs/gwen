@@ -285,3 +285,11 @@ Inside `onUpdate`:
 | Shared runtime state | `engine.provide` and `useService` in the factory |
 | Bulk iteration | `for (const chunk of query)` and `chunk.get(Def)` |
 | In `onUpdate` | No `await`. Structural changes in an open chunk loop wait until it closes. |
+
+## Node instance capacity
+
+With the V8 trap handler, each WASM instance reserves about 10 GiB of virtual address space. Linux arm64 samples (Node v22.23.3) record `vm_per_inst_gib` of 10. That run failed at instance 24147 while holding 24146.
+
+Under `ulimit -v` of L GiB, instance creation fails at instance `floor((L - base_vm_gib) / 10) + 1` ± 1. `base_vm_gib` is the process virtual memory in GiB before the first instance. The error is `RangeError: WebAssembly.Instance(): Out of memory: Cannot allocate Wasm memory for new instance`.
+
+`--disable-wasm-trap-handler` combined with that limit aborts the process. The recorded exit code on Linux arm64 is 134 (V8 fatal heap out of memory). That combination is unsupported.
