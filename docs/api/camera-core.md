@@ -1,12 +1,13 @@
 ---
 title: '@gwenjs/camera-core'
-description: ECS camera system — components, CameraSystem pipeline, side-car stores, and engine hooks.
+description: ECS camera system — components, CameraSystem pipeline, engine verbs, side-car stores, and engine hooks.
 ---
 
 # `@gwenjs/camera-core`
 
 Low-level ECS camera system shared by `@gwenjs/camera2d` and `@gwenjs/camera3d`. Provides
-components, the `CameraSystem` orchestrator, side-car stores, and `CameraCorePlugin`.
+components, the `CameraSystem` orchestrator, per-engine camera verbs, side-car stores, and
+`CameraCorePlugin`.
 
 > **Note** — You normally do not install this package directly. Use `@gwenjs/camera2d` or
 > `@gwenjs/camera3d` instead — they register `CameraCorePlugin` automatically.
@@ -23,7 +24,7 @@ import { defineConfig } from '@gwenjs/app'
 import { defineSystem } from '@gwenjs/core/system'
 import { useEngine } from '@gwenjs/core'
 import { useViewportManager } from '@gwenjs/renderer-core'
-import { CameraCorePlugin, Camera } from '@gwenjs/camera-core'
+import { CameraCorePlugin, Camera, setCameraViewport } from '@gwenjs/camera-core'
 
 const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   const engine = useEngine()
@@ -43,6 +44,7 @@ const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
     near: -1000,
     far: 1000,
   })
+  setCameraViewport(engine, camId, 'main')
 })
 
 export default defineConfig({
@@ -102,12 +104,18 @@ export default defineConfig({
 }
 ```
 
-## Side-car stores
+## Engine verbs
 
-Viewport and path data are not on the public entry. Strings and complex objects cannot be stored in SoA buffers.
+`setCameraViewport`, `getCameraViewport`, `setCameraPath`, `getCameraPath`, and `clearCameraPath` live on the package root. Each one takes the engine and the camera entity id, and reads or writes that engine's stores from `getCameraStores`. `CameraSystem` and `useCamera` use those same stores. `getCameraPath` returns the stored object. `CameraSystem` adds to `elapsed` on it. `setCameraPath` throws `CameraEmptyPathError` (`CAMERA:EMPTY_PATH`) when `waypoints` is empty. `setCameraViewport` only stores the id. It does not check that the viewport exists, same as `setViewport`.
 
 ```ts
-import type { CameraPathData } from '@gwenjs/camera-core'
+import {
+  setCameraViewport,
+  setCameraPath,
+  getCameraPath,
+  clearCameraPath,
+  type CameraPathData,
+} from '@gwenjs/camera-core'
 
 const pathData: CameraPathData = {
   waypoints: [
@@ -117,8 +125,18 @@ const pathData: CameraPathData = {
   opts: { loop: false, onComplete: () => console.log('done') },
   elapsed: 0,
 }
+
+setCameraViewport(engine, camId, 'main')
+setCameraPath(engine, camId, pathData)
 engine.addComponent(camId, CameraPath, { index: 0, progress: 0 })
+
+getCameraPath(engine, camId) // the same pathData object
+clearCameraPath(engine, camId)
 ```
+
+## Side-car stores
+
+Strings and complex objects cannot be stored in SoA buffers. The maps (`viewports`, `paths`, `matrices`) stay on the engine. `@gwenjs/camera-core/internal` exposes `getCameraStores` with no semver guarantee. Viewport and path data on the public entry go through the verbs above.
 
 ## Engine hooks
 

@@ -43,7 +43,7 @@ export class CameraViewportNotFoundError extends GwenError {
 }
 
 /**
- * Thrown by `Camera*Handle.playPath()` when the waypoints array is empty.
+ * Thrown by `Camera*Handle.playPath()` and `setCameraPath()` when the waypoints array is empty.
  *
  * @example
  * ```ts

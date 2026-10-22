@@ -1,40 +1,45 @@
 /**
- * STUB. One module-global map pair. The engine argument is ignored.
+ * Public per-engine camera verbs.
+ * Each call reads or writes the stores from `getCameraStores`.
+ * `CameraSystem` and `useCamera` use those same stores.
  */
 
 import type { EntityId, GwenEngine } from "@gwenjs/core";
+import { getCameraStores } from "./camera-stores.js";
 import { CameraEmptyPathError } from "./errors.js";
 import type { CameraPathData } from "./types.js";
 
-const viewports = new Map<EntityId, string>();
-const paths = new Map<EntityId, CameraPathData>();
-
+/** Bind `cameraId` to `viewportId` on `engine`. Does not check that the viewport exists. */
 export function setCameraViewport(
-  _engine: GwenEngine,
+  engine: GwenEngine,
   cameraId: EntityId,
   viewportId: string,
 ): void {
-  viewports.set(cameraId, viewportId);
+  getCameraStores(engine).viewports.set(cameraId, viewportId);
 }
 
-export function getCameraViewport(_engine: GwenEngine, cameraId: EntityId): string | undefined {
-  return viewports.get(cameraId);
+/** Viewport id bound to `cameraId` on `engine`, or `undefined` when none is bound. */
+export function getCameraViewport(engine: GwenEngine, cameraId: EntityId): string | undefined {
+  return getCameraStores(engine).viewports.get(cameraId);
 }
 
-export function setCameraPath(_engine: GwenEngine, cameraId: EntityId, path: CameraPathData): void {
+/**
+ * Store `path` on `engine` for `cameraId`, by reference.
+ * Throws `CameraEmptyPathError` when `path.waypoints` is empty.
+ */
+export function setCameraPath(engine: GwenEngine, cameraId: EntityId, path: CameraPathData): void {
   if (path.waypoints.length === 0) {
     throw new CameraEmptyPathError();
   }
-  paths.set(cameraId, path);
+  getCameraStores(engine).paths.set(cameraId, path);
 }
 
-export function getCameraPath(
-  _engine: GwenEngine,
-  cameraId: EntityId,
-): CameraPathData | undefined {
-  return paths.get(cameraId);
+/** Path stored for `cameraId` on `engine`, or `undefined` when none is set. */
+export function getCameraPath(engine: GwenEngine, cameraId: EntityId): CameraPathData | undefined {
+  return getCameraStores(engine).paths.get(cameraId);
 }
 
-export function clearCameraPath(_engine: GwenEngine, cameraId: EntityId): void {
-  paths.delete(cameraId);
+/** Drop the path stored for `cameraId` on `engine`. No path is a no-op. */
+export function clearCameraPath(engine: GwenEngine, cameraId: EntityId): void {
+  getCameraStores(engine).paths.delete(cameraId);
 }

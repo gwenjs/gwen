@@ -146,11 +146,10 @@ export const ViewportListenerSystem = defineSystem('ViewportListenerSystem', () 
 
 ## Associer une caméra à un viewport
 
-Un viewport est simplement une région d'écran — il n'a pas de caméra par lui-même. Associez une entité caméra à un viewport via `getCameraStores(engine).viewports` depuis `@gwenjs/camera-core/internal`. Cette entrée n'a pas de garantie semver. Chaque moteur a sa propre map.
+Un viewport est simplement une région d'écran — il n'a pas de caméra par lui-même. Associez une entité caméra avec `setCameraViewport(engine, camId, 'main')` depuis `@gwenjs/camera-core`. Chaque moteur a sa propre map.
 
 ```ts
-import { Camera } from '@gwenjs/camera-core'
-import { getCameraStores } from '@gwenjs/camera-core/internal'
+import { Camera, setCameraViewport } from '@gwenjs/camera-core'
 import { useEngine } from '@gwenjs/core'
 import { defineSystem } from '@gwenjs/core/system'
 
@@ -171,7 +170,7 @@ export const CameraSetupSystem = defineSystem('CameraSetupSystem', () => {
   })
 
   // Associe la caméra au viewport 'main'
-  getCameraStores(engine).viewports.set(camId, 'main')
+  setCameraViewport(engine, camId, 'main')
 })
 ```
 
