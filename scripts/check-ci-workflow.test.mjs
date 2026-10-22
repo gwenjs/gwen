@@ -1159,7 +1159,8 @@ test("verify-red installs the same pinned Rust toolchain as the rust job", () =>
     const out = [(lines[start] ?? "").trim()];
     for (let i = start + 1; i < lines.length && !/^\s*- /.test(lines[i] ?? ""); i++)
       out.push((lines[i] ?? "").trim());
-    return out.filter((line) => line !== "").join("\n");
+    // An `if:` gate is not part of the pin.
+    return out.filter((line) => line !== "" && !line.startsWith("if:")).join("\n");
   };
   const rust = toolchain("rust");
   assert.ok(rust, "rust job has no toolchain step");
@@ -1343,7 +1344,7 @@ test("glue-shape job runs the golden check on the core-wasm artifact", () => {
   const yaml = readCi();
   const job = jobBlock(yaml, "glue-shape");
   assert.notEqual(job, "", "glue-shape job is missing");
-  assert.match(job, /needs: \[rust\]/);
+  assert.match(job, /needs: \[(?:changes, )?rust\]/);
   assert.match(job, /name: core-wasm\n\s+path: packages\/core\/wasm\//);
   assert.match(job, /node scripts\/wasm-factory-golden\.mjs --check/);
   assert.match(job, /timeout-minutes:/);

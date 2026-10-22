@@ -4,15 +4,80 @@ on:
   push:
     branches: [main, v1-alpha, "hardening/**"]
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  # Called by ci-full.yml for a full run on demand.
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Decides what a run needs. A draft PR stops here and every job below is skipped.
+  # push and ci-full.yml (workflow_dispatch) run everything ("full"). A PR runs what its diff touches.
+  changes:
+    name: Changes
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft != true
+    outputs:
+      full: ${{ steps.mode.outputs.full }}
+      code: ${{ steps.mode.outputs.code }}
+      rust: ${{ steps.mode.outputs.rust }}
+      root: ${{ steps.mode.outputs.root }}
+    steps:
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: every
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+              - '!notes/**'
+              - '!internals-docs/**'
+            rust:
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'deny.toml'
+              - 'wasm-size.json'
+              - 'scripts/**'
+              - '.github/workflows/ci.yml'
+            root:
+              - 'pnpm-lock.yaml'
+              - 'pnpm-workspace.yaml'
+              - 'package.json'
+              - 'tsconfig*.json'
+              - 'oxlint.json'
+              - '.oxfmtrc.json'
+              - 'scripts/**'
+              - '.github/**'
+      - name: Resolve mode
+        id: mode
+        env:
+          EVENT: ${{ github.event_name }}
+          CODE: ${{ steps.filter.outputs.code }}
+          RUST: ${{ steps.filter.outputs.rust }}
+          ROOT: ${{ steps.filter.outputs.root }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            echo "rust=true" >> "$GITHUB_OUTPUT"
+            echo "root=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            echo "code=$CODE" >> "$GITHUB_OUTPUT"
+            echo "rust=$RUST" >> "$GITHUB_OUTPUT"
+            echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+          fi
   lint:
     name: Lint & Format
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
@@ -23,37 +88,62 @@ jobs:
   rust:
     name: Rust tests + WASM build
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      # The WASM build is a pure function of these files. A hit skips the build, the
+      # artifacts below are still uploaded for the jobs that need them and for release.yml.
+      - name: Restore WASM build
+        id: wasm-cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4
+        with:
+          path: |
+            packages/core/wasm
+            packages/physics3d/build-tools
+            packages/physics3d/wasm/bvh
+            packages/physics3d-fracture/wasm
+          key: wasm-${{ runner.os }}-${{ hashFiles('crates/**', 'Cargo.toml', 'Cargo.lock', 'scripts/build-wasm*.sh', 'scripts/lib-wasm-pin.sh', 'scripts/wasm-factory.mjs', 'scripts/check-wasm-size.mjs', 'wasm-size.json') }}
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        if: steps.wasm-cache.outputs.cache-hit != 'true' || needs.changes.outputs.rust == 'true'
         with:
           toolchain: "1.99.0"
           components: rustfmt, clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        if: steps.wasm-cache.outputs.cache-hit != 'true' || needs.changes.outputs.rust == 'true'
         with:
           workspaces: '. -> target'
       - name: Install pinned wasm-pack
+        if: steps.wasm-cache.outputs.cache-hit != 'true' || needs.changes.outputs.rust == 'true'
         run: |
           version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmPack"])')
           cargo install wasm-pack --version "$version" --locked
       - name: Rust tests — gwen-core
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test -p gwen-core
       - name: Rust tests — gwen-wasm-utils
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test -p gwen-wasm-utils
       - name: Rust tests — gwen-core build-tools
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test -p gwen-core --features build-tools --test build_tools_test
       - name: Rust tests — gwen-core physics2d
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test -p gwen-core --features physics2d
       - name: Rust tests — gwen-core physics3d
+        if: needs.changes.outputs.rust == 'true'
         run: cargo test -p gwen-core --features physics3d
       - name: Clippy disallowed methods — gwen-core
+        if: needs.changes.outputs.rust == 'true'
         run: |
           cargo clippy -p gwen-core -- -A clippy::all -D clippy::disallowed_methods
           cargo clippy -p gwen-core --features physics2d --bin bench_solver_presets -- -A clippy::all -D clippy::disallowed_methods
       - name: WASM tests — gwen-core
+        if: needs.changes.outputs.rust == 'true'
         run: wasm-pack test --node crates/gwen-core
       - name: Install pinned wasm-opt
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         run: |
           version=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["toolchain"]["wasmOpt"])')
           url=$(python3 -c 'import json; print(json.load(open("wasm-size.json"))["binaryen"]["linux-x86_64"]["url"])')
@@ -71,9 +161,11 @@ jobs:
           export PATH="$dest/bin:$PATH"
           wasm-opt --version
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         with:
           node-version: 22
       - name: Build WASM (all variants)
+        if: steps.wasm-cache.outputs.cache-hit != 'true'
         run: ./scripts/build-wasm.sh
       - name: Upload build-tools artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -103,9 +195,12 @@ jobs:
   typescript:
     name: TypeScript
     runs-on: ubuntu-latest
-    needs: [lint, rust]
+    needs: [changes, lint, rust]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
       - uses: ./.github/actions/setup-node-pnpm
       - name: Download build-tools artifact
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -129,17 +224,50 @@ jobs:
           path: packages/core/wasm/
       - name: Build packages
         run: pnpm build:ts
+      # On a PR: typecheck and test the packages the diff touches and their dependents.
+      # Full run on push, workflow_dispatch, or a root-level change (lockfile, tsconfig, scripts).
+      - name: Select packages
+        id: select
+        env:
+          FULL: ${{ needs.changes.outputs.full }}
+          ROOT: ${{ needs.changes.outputs.root }}
+          RUST: ${{ needs.changes.outputs.rust }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          if [ "$FULL" = "true" ] || [ "$ROOT" = "true" ]; then
+            echo "full=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git fetch --no-tags origin "$BASE"
+          filters="--filter ...[origin/$BASE...HEAD]"
+          # crates/** belongs to no pnpm package, but core and its dependents consume it.
+          if [ "$RUST" = "true" ]; then filters="$filters --filter ...@gwenjs/core"; fi
+          echo "full=false" >> "$GITHUB_OUTPUT"
+          echo "filters=$filters" >> "$GITHUB_OUTPUT"
+          if [ -n "$(git diff --name-only "origin/$BASE...HEAD" -- packages/core)" ]; then
+            echo "core=true" >> "$GITHUB_OUTPUT"
+          fi
       - name: Typecheck
-        run: pnpm typecheck
+        env:
+          FULL: ${{ steps.select.outputs.full }}
+          FILTERS: ${{ steps.select.outputs.filters }}
+        run: |
+          if [ "$FULL" = "true" ]; then pnpm typecheck; else pnpm $FILTERS exec tsc --noEmit; fi
       - name: Test packages
-        run: pnpm test:ts
+        env:
+          FULL: ${{ steps.select.outputs.full }}
+          FILTERS: ${{ steps.select.outputs.filters }}
+        run: |
+          if [ "$FULL" = "true" ]; then pnpm test:ts; else pnpm $FILTERS --if-present test; fi
       - name: Test WASM
+        if: steps.select.outputs.full == 'true' || steps.select.outputs.core == 'true' || needs.changes.outputs.rust == 'true'
         run: pnpm test:wasm
 
   bench:
     name: Benchmarks
     runs-on: ubuntu-latest
-    needs: [typescript]
+    needs: [changes, typescript]
+    if: needs.changes.outputs.full == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -177,7 +305,8 @@ jobs:
   api-surface:
     name: API surface
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
@@ -231,7 +360,8 @@ jobs:
   storage-bench:
     name: Storage bench
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.full == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -282,7 +412,8 @@ jobs:
   alloc-gate:
     name: Allocation gate
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.rust == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
@@ -311,6 +442,8 @@ jobs:
   rust-lint:
     name: Rust lint
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.rust == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -344,6 +477,8 @@ jobs:
   rust-miri:
     name: Miri
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.rust == 'true'
     # x86_64 run 39031186148 job 117391793389, sha d4265ddf.
     # Cache prefix v1-miri-cold-2026-10-17. The cache step logged "No cache found."
     # Job wall 707s, 2026-10-17T12:05:54Z to 2026-10-17T12:17:41Z.
@@ -386,7 +521,8 @@ jobs:
     name: WASM size budget
     runs-on: ubuntu-latest
     timeout-minutes: 2
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.rust == 'true'
     permissions:
       contents: read
       pull-requests: read
@@ -424,6 +560,8 @@ jobs:
   rust-deny:
     name: cargo-deny
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.rust == 'true'
     # Cold advisory fetch on this machine, 2026-10-13: 1.08s.
     # Rust lint on run 38357504232 installed this toolchain in 32s
     # (2026-10-13T06:34:54Z to 06:35:26Z). 2 * ceil(32/60) = 2.
@@ -451,7 +589,8 @@ jobs:
   docs-check:
     name: Docs check
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.code == 'true'
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
@@ -485,7 +624,8 @@ jobs:
   browser-wasm:
     name: Browser WASM (Playwright)
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.code == 'true'
     # No GitHub run id: this branch was not pushed.
     # Local Mac, 2026-10-21, Playwright browsers already cached:
     #   node tests/browser/build-site.mjs            0.18s
@@ -518,7 +658,8 @@ jobs:
   glue-shape:
     name: Glue shape
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.code == 'true'
     # Run 39656935414: this job took 17s (2026-10-21T18:56:25Z to
     # 2026-10-21T18:56:42Z). 2 * ceil(17/60) = 2.
     timeout-minutes: 2
@@ -536,6 +677,8 @@ jobs:
   npm-audit:
     name: npm audit
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.root == 'true'
     # Run 39744061834: this job took 14s (2026-10-22T07:56:29Z to
     # 2026-10-22T07:56:43Z). 2 * ceil(14/60) = 2.
     timeout-minutes: 2
@@ -549,7 +692,8 @@ jobs:
 
   wasm-capacity:
     name: WASM capacity (${{ matrix.arch }})
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.rust == 'true'
     continue-on-error: true
     strategy:
       fail-fast: false
@@ -590,37 +734,44 @@ jobs:
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity]
+    needs: [changes, lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity]
     if: always()
     steps:
+      # A skipped job (draft, docs only, no Rust change, bench outside a full run) is not a failure.
       - name: Check all jobs
         run: |
-          if [ "${{ needs.lint.result }}"          != "success" ] || \
-             [ "${{ needs.rust.result }}"          != "success" ] || \
-             [ "${{ needs['rust-lint'].result }}"  != "success" ] || \
-             [ "${{ needs.typescript.result }}"    != "success" ] || \
-             [ "${{ needs.bench.result }}"         != "success" ] || \
-             [ "${{ needs.api-surface.result }}"   != "success" ] || \
-             [ "${{ needs.storage-bench.result }}" != "success" ] || \
-             [ "${{ needs.alloc-gate.result }}"    != "success" ] || \
-             [ "${{ needs['agent-hygiene'].result }}" != "success" ] || \
-             [ "${{ needs['verify-red'].result }}" != "success" ] || \
-             [ "${{ needs['rust-miri'].result }}" != "success" ] || \
-             [ "${{ needs['wasm-size'].result }}" != "success" ] || \
-             [ "${{ needs['rust-deny'].result }}" != "success" ] || \
-             [ "${{ needs['browser-wasm'].result }}" != "success" ] || \
-             [ "${{ needs['glue-shape'].result }}" != "success" ] || \
-             [ "${{ needs['npm-audit'].result }}" != "success" ] || \
-             [ "${{ needs['wasm-capacity'].result }}" != "success" ] || \
-             [ "${{ needs['docs-check'].result }}" != "success" ]; then
-            echo "❌ CI failed"
-            exit 1
-          fi
+          for result in \
+            "${{ needs.changes.result }}" \
+            "${{ needs.lint.result }}" \
+            "${{ needs.rust.result }}" \
+            "${{ needs['rust-lint'].result }}" \
+            "${{ needs.typescript.result }}" \
+            "${{ needs.bench.result }}" \
+            "${{ needs['api-surface'].result }}" \
+            "${{ needs['storage-bench'].result }}" \
+            "${{ needs['alloc-gate'].result }}" \
+            "${{ needs['agent-hygiene'].result }}" \
+            "${{ needs['verify-red'].result }}" \
+            "${{ needs['rust-miri'].result }}" \
+            "${{ needs['wasm-size'].result }}" \
+            "${{ needs['rust-deny'].result }}" \
+            "${{ needs['docs-check'].result }}" \
+            "${{ needs['browser-wasm'].result }}" \
+            "${{ needs['glue-shape'].result }}" \
+            "${{ needs['npm-audit'].result }}" \
+            "${{ needs['wasm-capacity'].result }}"; do
+            case "$result" in
+              success|skipped) ;;
+              *) echo "❌ CI failed"; exit 1 ;;
+            esac
+          done
           echo "✅ All checks passed"
 
   agent-hygiene:
     name: Agent hygiene
     runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.result == 'success'
     permissions:
       contents: read
       pull-requests: read
@@ -657,7 +808,8 @@ jobs:
   verify-red:
     name: Verify red
     runs-on: ubuntu-latest
-    needs: [rust]
+    needs: [changes, rust]
+    if: needs.changes.outputs.code == 'true'
     permissions:
       contents: read
       pull-requests: read
