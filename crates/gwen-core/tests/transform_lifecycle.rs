@@ -70,6 +70,37 @@ fn children_of_a_deleted_parent_keep_their_world_position() -> Result<(), CoreEr
 }
 
 #[test]
+fn bulk_destroy_removes_the_transform_nodes_and_detaches_children() -> Result<(), CoreError> {
+    let mut engine = engine(8)?;
+    let spawned = engine.bulk_spawn_with_transforms(&[0.0, 0.0, 4.0, 5.0], &[0.0, 0.0])?;
+    assert_eq!(spawned.len(), 2);
+    assert_eq!(engine.bulk_destroy(&spawned), Ok(()));
+    assert_eq!(engine.stats(), "{\"entities\":0,\"transforms\":0}");
+
+    let family = engine.bulk_spawn_with_transforms(&[0.0, 10.0, 0.0, 1.0], &[0.0, 0.0])?;
+    assert_eq!(family.len(), 2);
+    let parent = family[0];
+    let child = family[1];
+    engine.set_entity_parent(child, parent, false)?;
+    engine.update_transforms();
+    assert_eq!(engine.get_entity_world_y(child), 11.0);
+
+    assert_eq!(engine.bulk_destroy(&[parent]), Ok(()));
+    engine.update_transforms();
+    assert_eq!(engine.get_entity_world_y(child), 11.0);
+    // Same proof as delete_entity: local becomes the kept world pose, then a root.
+    let local_y = engine.get_entity_local_y(child);
+    let rooted = !engine.has_entity_parent(child);
+    engine.set_entity_local_position(child, 0.0, 5.0);
+    engine.update_transforms();
+    assert_eq!(engine.get_entity_world_y(child), 5.0);
+    assert_eq!(local_y, 11.0);
+    assert_eq!(u8::from(rooted), 1);
+    assert_eq!(engine.stats(), "{\"entities\":1,\"transforms\":1}");
+    Ok(())
+}
+
+#[test]
 fn children_of_a_deleted_parent_keep_their_world_rotation() -> Result<(), CoreError> {
     let mut engine = engine(4)?;
     let parent = engine.create_entity()?;

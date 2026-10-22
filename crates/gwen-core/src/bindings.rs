@@ -4137,8 +4137,6 @@ impl Engine {
         for &index in indices {
             let gen = self.get_entity_generation(index);
             if self.is_alive(index, gen) {
-                let entity = EntityId::from_parts(index, gen);
-                self.transform_system.remove_transform(entity);
                 self.delete_entity(index, gen)?;
             }
         }
