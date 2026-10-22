@@ -1,0 +1,1 @@
+{"variant":"light","arch":"x64","node":"v22.23.3","flags":[],"base_vm_gib":2.32,"samples":[],"failed_at":7,"error":"RangeError: WebAssembly.Instance(): Out of memory: Cannot allocate Wasm memory for new instance","held":6,"final_vm_gib":62.3,"final_rss_mib":67,"vm_per_inst_gib_avg":10}
