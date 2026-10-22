@@ -127,7 +127,7 @@ fn percentile_ms(samples_ms: &[f64], percentile: f64) -> f64 {
 fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
     let mut world = setup_stack_world(run);
     for _ in 0..STACK_WARMUP_STEPS {
-        world.step(DT);
+        must_unit(world.step(DT));
     }
 
     let probe_entity =
@@ -142,7 +142,7 @@ fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
             reason = "bench binary, not engine runtime"
         )]
         let t0 = Instant::now();
-        world.step(DT);
+        must_unit(world.step(DT));
         let elapsed_ms = t0.elapsed().as_secs_f64() * 1000.0;
         samples_ms.push(elapsed_ms);
 
@@ -191,7 +191,7 @@ fn measure_tunnel_rate(run: PresetRun) -> f64 {
     for _ in 0..TUNNEL_TRIALS {
         let mut world = setup_tunnel_world(run);
         for _ in 0..TUNNEL_STEPS {
-            world.step(TUNNEL_DT);
+            must_unit(world.step(TUNNEL_DT));
         }
         if let Some((x, _, _)) = world.get_position(3) {
             if x > 0.30 {

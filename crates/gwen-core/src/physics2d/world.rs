@@ -16,6 +16,18 @@ use std::num::NonZeroUsize;
 const COLLIDER_ID_ABSENT: u32 = u32::MAX;
 const MAX_BODY_ADDITIONAL_SOLVER_ITERATIONS: usize = 16;
 
+/// Largest absolute coordinate a query accepts, and the position past which a dynamic body is disabled.
+pub const MAX_WORLD_EXTENT: f32 = 1.0e7;
+
+/// Default linear-speed cap, in metres per second.
+pub const DEFAULT_MAX_LINEAR_VELOCITY: f32 = 400.0;
+
+const REASON_NON_FINITE: u32 = 0;
+const REASON_OUT_OF_BOUNDS: u32 = 1;
+const REASON_VELOCITY: u32 = 2;
+/// Room for 16 `[slot, reason]` pairs. `step` does not grow this buffer when nothing is disabled.
+const DISABLED_SLOT_CAPACITY: usize = 32;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum PhysicsQualityPreset {
@@ -174,6 +186,10 @@ pub struct PhysicsWorld {
     collision_events: CollisionEventBuffer,
     /// Reused by `physics_step` so a step does not allocate a pose list.
     dynamic_pose_scratch: Vec<(u32, f32, f32, f32)>,
+    /// Metres per second. Dynamic bodies faster than this are scaled down in [`Self::step`].
+    max_linear_velocity: f32,
+    /// Interleaved `[slot, reason]` pairs. Drained by [`Self::take_disabled_slots`].
+    disabled_slots: Vec<u32>,
 }
 
 struct OneWayHooks<'a> {
@@ -219,6 +235,8 @@ impl PhysicsWorld {
             one_way_colliders: HashSet::new(),
             collision_events: CollisionEventBuffer::new(),
             dynamic_pose_scratch: Vec::new(),
+            max_linear_velocity: DEFAULT_MAX_LINEAR_VELOCITY,
+            disabled_slots: Vec::with_capacity(DISABLED_SLOT_CAPACITY),
         };
         world.set_quality_preset(PhysicsQualityPreset::Medium);
         world
@@ -746,13 +764,87 @@ impl PhysicsWorld {
 
     /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
     ///
-    /// Nothing is recorded, so the vec is empty and does not allocate.
+    /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
+    /// An empty list returns `Vec::new` and keeps this world's spare capacity.
     pub fn take_disabled_slots(&mut self) -> Vec<u32> {
-        Vec::new()
+        if self.disabled_slots.is_empty() {
+            return Vec::new();
+        }
+        std::mem::replace(
+            &mut self.disabled_slots,
+            Vec::with_capacity(DISABLED_SLOT_CAPACITY),
+        )
+    }
+
+    /// Stores `value` when it is finite and greater than zero.
+    ///
+    /// Returns `false` and keeps the previous cap otherwise.
+    pub fn set_max_linear_velocity(&mut self, value: f32) -> bool {
+        if !value.is_finite() || value <= 0.0 {
+            return false;
+        }
+        self.max_linear_velocity = value;
+        true
+    }
+
+    /// Refuse a point that is not finite or sits outside [`MAX_WORLD_EXTENT`].
+    ///
+    /// `x` is checked before `y`. The world is not touched.
+    pub fn reject_point_query(x: f32, y: f32) -> Result<(), Physics2DError> {
+        reject_query_coordinate("x", x)?;
+        reject_query_coordinate("y", y)?;
+        Ok(())
+    }
+
+    /// Refuse a circle query. Centre first (`x`, then `y`), then `radius`.
+    ///
+    /// `radius` must be finite, `>= 0`, and `<= `[`MAX_WORLD_EXTENT`].
+    pub fn reject_query_radius(x: f32, y: f32, radius: f32) -> Result<(), Physics2DError> {
+        reject_query_coordinate("x", x)?;
+        reject_query_coordinate("y", y)?;
+        if !radius.is_finite() || radius < 0.0 || radius > MAX_WORLD_EXTENT {
+            return Err(Physics2DError::InvalidQuery {
+                field: "radius",
+                value: radius,
+            });
+        }
+        Ok(())
+    }
+
+    /// Refuse a rectangle query. Centre first (`x`, then `y`), then `hw`, then `hh`.
+    ///
+    /// Half-extents must be finite, `>= 0`, and `<= `[`MAX_WORLD_EXTENT`].
+    pub fn reject_query_rect(x: f32, y: f32, hw: f32, hh: f32) -> Result<(), Physics2DError> {
+        reject_query_coordinate("x", x)?;
+        reject_query_coordinate("y", y)?;
+        if !hw.is_finite() || hw < 0.0 || hw > MAX_WORLD_EXTENT {
+            return Err(Physics2DError::InvalidQuery {
+                field: "hw",
+                value: hw,
+            });
+        }
+        if !hh.is_finite() || hh < 0.0 || hh > MAX_WORLD_EXTENT {
+            return Err(Physics2DError::InvalidQuery {
+                field: "hh",
+                value: hh,
+            });
+        }
+        Ok(())
     }
 
     /// Advances the simulation by `delta` seconds.
-    pub fn step(&mut self, delta: f32) {
+    ///
+    /// A delta that is not finite, or is outside `0..=1`, is refused and the
+    /// world is not stepped. Dynamic bodies that are non-finite or past
+    /// [`MAX_WORLD_EXTENT`] are disabled and recorded. A faster body is scaled
+    /// to [`Self::set_max_linear_velocity`]'s cap and is not disabled for that
+    /// alone. The other bodies still step.
+    ///
+    /// # Errors
+    /// Returns [`Physics2DError::InvalidStepDelta`] when `delta` is refused.
+    pub fn step(&mut self, delta: f32) -> Result<(), Physics2DError> {
+        reject_step_delta(delta)?;
+        self.guard_dynamic_bodies(delta);
         self.integration_params.dt = delta;
         self.collision_events.clear();
         let buf = CollisionBufPtr(std::ptr::addr_of_mut!(self.collision_events));
@@ -774,6 +866,80 @@ impl PhysicsWorld {
             },
             &EventCollector { buf },
         );
+        Ok(())
+    }
+
+    /// Disable or clamp dynamic bodies before the broad phase.
+    ///
+    /// A disabled body is skipped before its pose is read. A push into
+    /// `disabled_slots` happens only when a body is disabled. Pairs appended
+    /// during this step are then ordered by slot.
+    fn guard_dynamic_bodies(&mut self, delta: f32) {
+        let max_speed = self.max_linear_velocity;
+        let recorded = self.disabled_slots.len();
+        let PhysicsWorld {
+            entity_to_body,
+            rigid_body_set,
+            disabled_slots,
+            ..
+        } = self;
+        for (&slot, &handle) in entity_to_body.iter() {
+            let Some(body) = rigid_body_set.get(handle) else {
+                continue;
+            };
+            if !body.is_dynamic() {
+                continue;
+            }
+            if !body.is_enabled() {
+                continue;
+            }
+            let tx = body.translation().x;
+            let ty = body.translation().y;
+            let mut vx = body.linvel().x;
+            let mut vy = body.linvel().y;
+            if linear_state_is_non_finite(tx, ty, vx, vy) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_NON_FINITE,
+                );
+                continue;
+            }
+            if translation_leaves_world(tx, ty) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_OUT_OF_BOUNDS,
+                );
+                continue;
+            }
+            if linear_speed_exceeds(vx, vy, max_speed) {
+                let scaled = scale_linvel(vx, vy, max_speed);
+                vx = scaled.0;
+                vy = scaled.1;
+                if let Some(body) = rigid_body_set.get_mut(handle) {
+                    body.set_linvel(vector![vx, vy], true);
+                }
+            }
+            let next_x = tx + vx * delta;
+            let next_y = ty + vy * delta;
+            if predicted_position_leaves_world(next_x, next_y) {
+                disable_recorded(
+                    rigid_body_set,
+                    disabled_slots,
+                    handle,
+                    slot,
+                    REASON_VELOCITY,
+                );
+            }
+        }
+        if disabled_slots.len() > recorded {
+            sort_disabled_pairs_by_slot(disabled_slots, recorded);
+        }
     }
 
     /// Fills `out` with dynamic-body poses `(entity index, x, y, rotation)`.
@@ -808,6 +974,103 @@ impl PhysicsWorld {
     pub fn restore_dynamic_pose_scratch(&mut self, poses: Vec<(u32, f32, f32, f32)>) {
         self.dynamic_pose_scratch = poses;
     }
+}
+
+fn reject_step_delta(delta: f32) -> Result<(), Physics2DError> {
+    if delta.is_nan() {
+        return Err(Physics2DError::InvalidStepDelta { delta });
+    }
+    if delta.is_infinite() || delta < 0.0 || delta > 1.0 {
+        return Err(Physics2DError::InvalidStepDelta { delta });
+    }
+    Ok(())
+}
+
+fn reject_query_coordinate(field: &'static str, value: f32) -> Result<(), Physics2DError> {
+    if !value.is_finite() {
+        return Err(Physics2DError::InvalidQuery { field, value });
+    }
+    if value.abs() > MAX_WORLD_EXTENT {
+        return Err(Physics2DError::InvalidQuery { field, value });
+    }
+    Ok(())
+}
+
+fn linear_state_is_non_finite(tx: f32, ty: f32, vx: f32, vy: f32) -> bool {
+    !tx.is_finite() || !ty.is_finite() || !vx.is_finite() || !vy.is_finite()
+}
+
+fn translation_leaves_world(x: f32, y: f32) -> bool {
+    x.abs() > MAX_WORLD_EXTENT || y.abs() > MAX_WORLD_EXTENT
+}
+
+fn predicted_position_leaves_world(x: f32, y: f32) -> bool {
+    x.abs() > MAX_WORLD_EXTENT || y.abs() > MAX_WORLD_EXTENT
+}
+
+fn axis_is_zero(value: f32) -> bool {
+    value.to_bits() == 0 || value.to_bits() == (-0.0f32).to_bits()
+}
+
+fn linear_speed_exceeds(vx: f32, vy: f32, max_speed: f32) -> bool {
+    if axis_is_zero(vx) {
+        return vy.abs() > max_speed;
+    }
+    if axis_is_zero(vy) {
+        return vx.abs() > max_speed;
+    }
+    let largest = vx.abs().max(vy.abs());
+    let norm = (vx / largest).hypot(vy / largest);
+    largest * norm > max_speed
+}
+
+/// Scales `(vx, vy)` onto the circle of radius `max_speed`.
+///
+/// The larger component divides both axes first, so a huge finite pair does
+/// not overflow to infinity and collapse to zero.
+fn scale_linvel(vx: f32, vy: f32, max_speed: f32) -> (f32, f32) {
+    if axis_is_zero(vy) {
+        return (max_speed.copysign(vx), 0.0);
+    }
+    if axis_is_zero(vx) {
+        return (0.0, max_speed.copysign(vy));
+    }
+    let largest = vx.abs().max(vy.abs());
+    let nx = vx / largest;
+    let ny = vy / largest;
+    let norm = nx.hypot(ny);
+    let scaled = max_speed / norm;
+    (nx * scaled, ny * scaled)
+}
+
+/// Orders the `[slot, reason]` pairs appended since `start` by ascending slot.
+///
+/// Insertion sort. No allocation. Called only when this step disabled a body.
+fn sort_disabled_pairs_by_slot(slots: &mut [u32], start: usize) {
+    let mut index = start.saturating_add(2);
+    while index + 1 < slots.len() {
+        let mut cursor = index;
+        while cursor >= start + 2 && slots[cursor] < slots[cursor - 2] {
+            slots.swap(cursor - 2, cursor);
+            slots.swap(cursor - 1, cursor + 1);
+            cursor -= 2;
+        }
+        index += 2;
+    }
+}
+
+fn disable_recorded(
+    rigid_body_set: &mut RigidBodySet,
+    disabled_slots: &mut Vec<u32>,
+    handle: RigidBodyHandle,
+    slot: u32,
+    reason: u32,
+) {
+    if let Some(body) = rigid_body_set.get_mut(handle) {
+        body.set_enabled(false);
+    }
+    disabled_slots.push(slot);
+    disabled_slots.push(reason);
 }
 
 #[cfg(test)]
@@ -869,7 +1132,7 @@ mod tests {
         assert_eq!(body.translation().y, 10.0);
 
         // Step
-        world.step(0.1);
+        world.step(0.1)?;
 
         // Should have moved down
         let body = world.rigid_body_set.get(handle).unwrap();
@@ -903,7 +1166,7 @@ mod tests {
         let vy = [0.0f32, 2.0f32];
         let updated = world.bulk_step_kinematics(&slots, &vx, &vy, 1.0)?;
         assert_eq!(updated, 2);
-        world.step(1.0 / 60.0); // advance sim so next_kinematic is applied
+        world.step(1.0 / 60.0)?; // advance sim so next_kinematic is applied
         let pos0 = world.get_position(0).unwrap();
         let pos1 = world.get_position(1).unwrap();
         assert!((pos0.0 - 1.0).abs() < 0.01, "slot 0 x should be ~1.0");
@@ -1024,7 +1287,7 @@ mod tests {
         let mut world = PhysicsWorld::new(0.0, 0.0); // no gravity
         world.add_rigid_body(0, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         world.set_linear_velocity(0, 10.0, 5.0);
-        world.step(0.1);
+        world.step(0.1)?;
         let (x, y, _) = world.get_position(0).expect("body should exist");
         // position = v * dt = (1.0, 0.5), allow some solver tolerance
         assert!(x > 0.5, "expected x > 0.5, got {x}");
@@ -1054,8 +1317,8 @@ mod multi_engine_collision {
         b.add_box_collider(hc, 0.5, 0.5, ColliderOptions::default())?;
         let hd = b.add_rigid_body(2, 50.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         b.add_box_collider(hd, 0.5, 0.5, ColliderOptions::default())?;
-        a.step(1.0 / 60.0);
-        b.step(1.0 / 60.0);
+        a.step(1.0 / 60.0)?;
+        b.step(1.0 / 60.0)?;
         assert_ne!(a.collision_events_ptr(), b.collision_events_ptr());
         assert_eq!(b.collision_event_count(), 0);
         assert_eq!(a.collision_event_count() > 0, true);
@@ -1098,7 +1361,7 @@ mod fixed_rotation {
                 let body = world.rigid_body_set.get_mut(handle).ok_or(missing)?;
                 body.add_torque(40.0, true);
             }
-            world.step(1.0 / 60.0);
+            world.step(1.0 / 60.0)?;
         }
         Ok(())
     }

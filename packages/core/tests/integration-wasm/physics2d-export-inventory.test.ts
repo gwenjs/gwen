@@ -7,8 +7,9 @@ import { describe, expect, it } from "vitest";
  * Physics2d glue classification.
  * `result` means the glue throws `takeObject` (a wasm-bindgen `Result`).
  * `infallible` names the mechanism that keeps the call from panicking.
- * `known-panic` is issue 217. `physics_step` reaches `PhysicsPipeline::step`
- * and the three queries reach Rapier shapes. Those calls stay unaudited.
+ * `known-panic` is a row that can still abort the instance. Issue 217 moves
+ * `physics_step` and the three queries to `result` (`PHYSICS2D:INVALID_QUERY`,
+ * `PHYSICS2D:INVALID_STEP_DELTA`).
  * An export matching the physics2d name rule that is missing from the table fails.
  */
 type ExportRow =
@@ -20,15 +21,9 @@ function infallible(why: string): { kind: "infallible"; why: string } {
   return { kind: "infallible", why };
 }
 
-function knownPanic(issue: number): { kind: "known-panic"; issue: number } {
-  return { kind: "known-panic", issue };
-}
-
 function result(): { kind: "result" } {
   return { kind: "result" };
 }
-
-const ISSUE = 217;
 
 const PHYSICS2D: Record<string, ExportRow> = {
   find_path_2d: result(),
@@ -59,9 +54,9 @@ const PHYSICS2D: Record<string, ExportRow> = {
     "PhysicsWorld::new stores the gravity vector and builds empty Rapier sets",
   ),
   physics_load_tilemap_chunk_body: result(),
-  physics_point_query: knownPanic(ISSUE),
-  physics_query_radius: knownPanic(ISSUE),
-  physics_query_rect: knownPanic(ISSUE),
+  physics_point_query: result(),
+  physics_query_radius: result(),
+  physics_query_rect: result(),
   physics_remove_rigid_body: result(),
   physics_set_event_coalescing: infallible("the body ignores the argument"),
   physics_set_fixed_rotation: result(),
@@ -69,10 +64,13 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics_set_kinematic_position: result(),
   physics_set_linear_damping: result(),
   physics_set_linear_velocity: result(),
+  physics_set_max_linear_velocity: infallible(
+    "returns 0 or 1 from physics_set_max_linear_velocity; a refused value keeps the previous cap in set_max_linear_velocity",
+  ),
   physics_set_quality: result(),
-  physics_step: knownPanic(ISSUE),
+  physics_step: result(),
   physics_take_disabled_slots: infallible(
-    "returns Vec::new at world.rs:751 via bindings.rs:1300; no slot is recorded",
+    "drains [slot, code] pairs recorded by guard_dynamic_bodies via physics_take_disabled_slots; an empty drain returns Vec::new from take_disabled_slots",
   ),
   physics_unload_tilemap_chunk_body: result(),
   physics_update_sensor_state: infallible("the body ignores its arguments"),

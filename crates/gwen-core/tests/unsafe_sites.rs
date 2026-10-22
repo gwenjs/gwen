@@ -112,7 +112,7 @@ fn unsafe_site_u005_step_records_a_collision() -> Result<(), gwen_core::physics2
     use gwen_core::physics2d::PhysicsCollisionEvent;
 
     let mut world = overlapping_pair()?;
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_ne!(world.collision_event_count(), 0);
     // SAFETY: `step` just wrote at least one event at the start of this world's buffer.
     let event = unsafe { *world.collision_events_ptr() };
@@ -133,8 +133,8 @@ fn unsafe_site_u006_two_worlds_do_not_share_events(
 ) -> Result<(), gwen_core::physics2d::Physics2DError> {
     let mut crowded = overlapping_pair()?;
     let mut quiet = separated_pair()?;
-    crowded.step(1.0 / 60.0);
-    quiet.step(1.0 / 60.0);
+    crowded.step(1.0 / 60.0)?;
+    quiet.step(1.0 / 60.0)?;
     assert_ne!(crowded.collision_event_count(), 0);
     assert_eq!(quiet.collision_event_count(), 0);
     assert_ne!(crowded.collision_events_ptr(), quiet.collision_events_ptr());
@@ -159,12 +159,12 @@ fn unsafe_site_u007_event_buffer_fills_then_clears(
             world.add_rigid_body(entity, 0.0, 0.0, BodyType::Dynamic, BodyOptions::default())?;
         world.add_box_collider(handle, 0.5, 0.5, ColliderOptions::default())?;
     }
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_eq!(world.collision_event_count(), MAX_COLLISION_EVENTS as u32);
     for entity in 0..46 {
         world.remove_rigid_body(entity);
     }
-    world.step(1.0 / 60.0);
+    world.step(1.0 / 60.0)?;
     assert_eq!(world.collision_event_count(), 0);
     Ok(())
 }
