@@ -34,7 +34,8 @@ run() { # name, ulimit-kib|unlimited, node-flags, script args...
 }
 G=$((1024 * 1024))
 run unl-default unlimited "" max2.mjs light 40000 1000
-run unl-notrap unlimited "--disable-wasm-trap-handler" max2.mjs light 40000 1000
+# The no-trap run is a sample for metrics only; 40000 instances took 462 s on arm64 and over 600 s on x64.
+run unl-notrap unlimited "--disable-wasm-trap-handler" max2.mjs light 2000 1000
 for g in 16 32 64; do
   run "ul$g-default" $((g * G)) "" max2.mjs light 40000 1
   run "ul$g-notrap" $((g * G)) "--disable-wasm-trap-handler" max2.mjs light 40000 25
