@@ -109,16 +109,18 @@ function shaFromStamp(version) {
  * @param {{ root: string, out: string, version: string }} options
  */
 export function packFramework({ root, out, version }) {
+  // pnpm pack runs in the package directory, so a relative out would land there.
+  const destination = path.resolve(out);
   const packages = listFrameworkPackages(root);
   /** @type {[string, Buffer][]} */
   const originals = packages.map((pkg) => {
     const file = path.join(pkg.dir, "package.json");
     return [file, readFileSync(file)];
   });
-  const tarballDir = path.join(out, "tarballs");
-  mkdirSync(out, { recursive: true });
+  const tarballDir = path.join(destination, "tarballs");
+  mkdirSync(destination, { recursive: true });
   rmSync(tarballDir, { recursive: true, force: true });
-  rmSync(path.join(out, "stack-manifest.json"), { force: true });
+  rmSync(path.join(destination, "stack-manifest.json"), { force: true });
   mkdirSync(tarballDir, { recursive: true });
   try {
     for (const [file] of originals) {
@@ -151,7 +153,7 @@ export function packFramework({ root, out, version }) {
       packed.push({ name: pkg.name, file });
     }
     const manifest = { version, sha: shaFromStamp(version), packages: packed };
-    writeFileSync(path.join(out, "stack-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
+    writeFileSync(path.join(destination, "stack-manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   } finally {
     for (const [file, bytes] of originals) writeFileSync(file, bytes);
   }
