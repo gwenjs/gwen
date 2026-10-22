@@ -66,6 +66,8 @@ export interface Physics3DConfig {
   coalesceEvents?: boolean;
   /**
    * Upper bound on a dynamic body's linear speed, in m/s.
+   * A faster dynamic body is scaled and stays enabled.
+   * @default 400
    */
   maxLinearVelocity?: number;
   /**
@@ -109,5 +111,7 @@ export interface ResolvedPhysics3DConfig {
   qualityPreset: Physics3DQualityPreset;
   debug: boolean;
   coalesceEvents: boolean;
+  /** Linear speed cap in m/s. A faster dynamic body is scaled and stays enabled. */
+  maxLinearVelocity: number;
   layers: string[];
 }

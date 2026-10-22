@@ -11,7 +11,7 @@ Un appel physics2d que vous faites vous-même lève un `GwenWasmError`. `code` e
 
 Un appel physics3d que vous faites vous-même fait de même : il lève un `GwenWasmError` avec un `code` `PHYSICS3D:*`. Voir [Erreurs](/fr/api/physics3d#erreurs).
 
-`physics_step` tourne dans `engine:before-update`. Un pas refusé est isolé : la frame continue, et `engine.errors` reçoit une erreur de hook. Le `code` de l'événement est `CORE:FRAME_LOOP_ERROR` et `error` est le `GwenWasmError`.
+`physics_step` et `physics3d_step` tournent dans `engine:before-update`. Un pas refusé est isolé : la frame continue, et `engine.errors` reçoit une erreur de hook. Le `code` de l'événement est `CORE:FRAME_LOOP_ERROR` et `error` est le `GwenWasmError`.
 
 Un piège lève `GwenWasmPanicError` et empoisonne le pont. Le `code` sur le bus est `CORE:WASM_PANIC`.
 
@@ -174,6 +174,8 @@ export const PathSystem = defineSystem(() => {
 Un piège est un `GwenWasmPanicError`. Le pont est empoisonné. Le `code` sur le bus est `CORE:WASM_PANIC`.
 
 `PHYSICS2D:INVALID_QUERY` est une coordonnée qui n'est pas finie ou qui est en dehors de ±1e7, ou une demi-étendue ou un rayon qui n'est pas fini, négatif, ou au-dessus de 1e7. `PHYSICS2D:INVALID_STEP_DELTA` est un `delta` de pas qui n'est pas fini, ou qui sort de 0 à 1. Le monde ne change pas. Un corps qui quitte le monde pendant le jeu n'est pas une de ces erreurs. Le plugin émet `physics2d:body-disabled` avec `{ entity, reason }`, où `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`.
+
+`PHYSICS3D:INVALID_QUERY` est une coordonnée de rayon ou de point qui n'est pas finie ou qui sort de ±1e7, une direction qui n'est pas finie ou qui est nulle, ou une distance max qui n'est pas finie ou qui est négative. La pose ou la taille d'un shape cast utilise `PHYSICS3D:INVALID_COLLIDER`. `PHYSICS3D:INVALID_STEP_DELTA` est un `delta` de pas qui n'est pas fini, ou qui sort de 0 à 1. Le monde ne change pas. Un corps qui quitte le monde pendant le jeu n'est pas une de ces erreurs. Le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`, où `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un sommet de maillage est refusé au-dessus de 1e9 par `trimesh_builder` (`crates/gwen-core/src/physics3d/world.rs:545-547`, `check_collider_coordinate`). `decoded_mesh_is_valid` applique ce plafond sur `load_bvh_collider` (`world.rs:624-627`). parry3d-0.17.6 `query/point/point_composite_shape.rs:152` déballe une projection absente. Les cas `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` et `mesh pose kinematic 1e19 cap` (`physics3d_float_probe.rs`) utilisent une pose jusqu'à `f32::MAX` et ne paniquent pas. Le plafond du point de requête, ±1e7, est un garde-fou d'entrée séparé.
 
 ```ts
 engine.errors.on((event) => {

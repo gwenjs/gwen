@@ -11,7 +11,7 @@ A physics2d call you make yourself throws `GwenWasmError`. `code` is `PHYSICS2D:
 
 A physics3d call you make yourself does the same: it throws `GwenWasmError` with a `PHYSICS3D:*` code. See [Errors](/api/physics3d#errors).
 
-`physics_step` runs inside `engine:before-update`. A rejected step is isolated: the frame continues, and `engine.errors` receives a hook error. The event `code` is `CORE:FRAME_LOOP_ERROR` and `error` is the `GwenWasmError`.
+`physics_step` and `physics3d_step` run inside `engine:before-update`. A rejected step is isolated: the frame continues, and `engine.errors` receives a hook error. The event `code` is `CORE:FRAME_LOOP_ERROR` and `error` is the `GwenWasmError`.
 
 A trap throws `GwenWasmPanicError` and poisons the bridge. The bus event `code` is `CORE:WASM_PANIC`.
 
@@ -174,6 +174,8 @@ export const PathSystem = defineSystem(() => {
 A trap is `GwenWasmPanicError`. The bridge is poisoned. The bus event `code` is `CORE:WASM_PANIC`.
 
 `PHYSICS2D:INVALID_QUERY` is a coordinate that is not finite or outside ±1e7, or a half-extent/radius that is not finite, negative, or above 1e7. `PHYSICS2D:INVALID_STEP_DELTA` is a step `delta` that is not finite or sits outside 0 to 1. The world is unchanged. A body that leaves the world during play is not one of these errors. The plugin emits `physics2d:body-disabled` with `{ entity, reason }` where `reason` is `non-finite`, `out-of-bounds`, or `velocity`.
+
+`PHYSICS3D:INVALID_QUERY` is a ray or point coordinate that is not finite or outside ±1e7, a direction that is not finite or is zero, or a max distance that is not finite or is negative. A shape-cast pose or size uses `PHYSICS3D:INVALID_COLLIDER`. `PHYSICS3D:INVALID_STEP_DELTA` is a step `delta` that is not finite or sits outside 0 to 1. The world is unchanged. A body that leaves the world during play is not one of these errors. The plugin emits `physics3d:body-disabled` with `{ entity, reason }` where `reason` is `non-finite`, `out-of-bounds`, or `velocity`. A mesh vertex is refused above 1e9 by `trimesh_builder` (`crates/gwen-core/src/physics3d/world.rs:545-547`, `check_collider_coordinate`). `decoded_mesh_is_valid` applies that cap on `load_bvh_collider` (`world.rs:624-627`). parry3d-0.17.6 `query/point/point_composite_shape.rs:152` unwraps a missing projection. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` (`physics3d_float_probe.rs`) use a pose up to `f32::MAX` and do not panic. The query-point cap of ±1e7 is a separate input guard.
 
 ```ts
 engine.errors.on((event) => {

@@ -7,6 +7,7 @@ Current scope:
 - validates `physics3d` core variant,
 - initializes 3D physics world via `physics3d_init`,
 - auto-steps simulation on the `engine:before-update` hook when enabled,
+- emits `physics3d:body-disabled` when a dynamic body is disabled,
 - registers typed `physics3d` service,
 - exposes an EntityId-native body registry foundation (`createBody/removeBody/hasBody/getBodyCount`).
 
@@ -56,6 +57,7 @@ console.log(body.bodyId, physics3d.getBodyCount(), state?.position.y);
   - `kinematic`: velocity integration without gravity,
   - `fixed`: no position integration.
 - `mass`, `linearDamping`, and `angularDamping` options are applied in local simulation.
+- `maxLinearVelocity?: number` (default `400`, metres per second). A faster dynamic body is scaled and stays enabled.
 - Higher-level rigid-body and collider APIs are added incrementally.
 
 ## Public exports

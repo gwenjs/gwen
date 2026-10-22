@@ -78,6 +78,8 @@ export default defineGwenModule<Physics3DConfig>({
             "physics3d:step": "(stepDt: number) => void",
             "physics3d:collisionStart": "(entityA: EntityId, entityB: EntityId) => void",
             "physics3d:collisionEnd": "(entityA: EntityId, entityB: EntityId) => void",
+            "physics3d:body-disabled":
+              "(payload: { readonly entity: EntityId; readonly reason: 'non-finite' | 'out-of-bounds' | 'velocity' }) => void",
           },
         }),
     });

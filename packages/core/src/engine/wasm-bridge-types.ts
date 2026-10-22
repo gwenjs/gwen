@@ -568,8 +568,18 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
   // ── World lifecycle ───────────────────────────────────────────────────────
 
   physics3d_init(gx: number, gy: number, gz: number, maxEntities: number): void;
-  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`. A Rapier trap stays a trap. */
+  /** Throws `PHYSICS3D:NOT_INITIALIZED` before `physics3d_init`, and `PHYSICS3D:INVALID_STEP_DELTA` when `delta` is not finite or sits outside 0 to 1. */
   physics3d_step(delta: number): void;
+  /**
+   * Drains bodies disabled during the last step.
+   * Interleaved `[slot, code]` pairs: `0` non-finite, `1` out-of-bounds, `2` velocity.
+   */
+  physics3d_take_disabled_slots(): Uint32Array;
+  /**
+   * Sets the linear-speed cap in metres per second.
+   * Returns `1` when the value is stored, `0` when it is refused.
+   */
+  physics3d_set_max_linear_velocity(value: number): number;
   physics3d_set_quality?(preset: number): void;
   physics3d_set_event_coalescing?(enabled: boolean): void;
   physics3d_set_body_solver_iterations?(entityIndex: number, iterations: number): boolean;
@@ -971,7 +981,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
 
   // ── Spatial queries ───────────────────────────────────────────────────────
 
-  /** `[1, entity, toi, nx, ny, nz, px, py, pz]` on a hit, `[0]` on a miss. */
+  /** `[1, entity, toi, nx, ny, nz, px, py, pz]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` for a refused origin, direction or max distance. */
   physics3d_cast_ray?(
     ox: number,
     oy: number,
@@ -984,7 +994,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     mask: number,
     solid: boolean,
   ): Float32Array;
-  /** 15 floats on a hit, `[0]` on a miss. */
+  /** 15 floats on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_COLLIDER` for a refused pose or size, and `PHYSICS3D:INVALID_QUERY` for a refused direction or max distance. */
   physics3d_cast_shape?(
     posX: number,
     posY: number,
@@ -1022,7 +1032,7 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
     outPtr: number,
     maxResults: number,
   ): number;
-  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. */
+  /** `[1, entity, px, py, pz, isInside]` on a hit, `[0]` on a miss. Throws `PHYSICS3D:INVALID_QUERY` when the point is not finite or sits outside ±1e7. That cap is a separate input guard. Vertex cap 1e9 at `world.rs:545-547`. `decoded_mesh_is_valid` applies it at `world.rs:624-627`. Probe cases `mesh pose fixed 1e19 1m`, `mesh pose fixed 1e19 cap`, `mesh pose fixed 1e30 1m`, `mesh pose fixed 1e30 cap`, `mesh pose fixed max 1m`, `mesh pose fixed max cap`, `mesh pose kinematic 1e19 1m` and `mesh pose kinematic 1e19 cap` use a pose up to `f32::MAX` and do not panic. parry3d-0.17.6 `point_composite_shape.rs:152` still unwraps a missing projection. */
   physics3d_project_point?(
     px: number,
     py: number,

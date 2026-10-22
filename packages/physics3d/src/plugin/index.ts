@@ -73,6 +73,38 @@ import { callPhysics3DExport, mapPhysics3DError } from "./wasm-errors";
 import { GwenError } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
 
+function disabledBodyReason(code: number): "non-finite" | "out-of-bounds" | "velocity" | undefined {
+  if (code === 0) return "non-finite";
+  if (code === 1) return "out-of-bounds";
+  if (code === 2) return "velocity";
+  return undefined;
+}
+
+/** Registry lookup only. A slot with no body is skipped. */
+function emitDisabledBodies(ctx: PluginContext): void {
+  const bridge = ctx.wasmBridge;
+  const take = bridge?.physics3d_take_disabled_slots;
+  if (bridge === null || typeof take !== "function") return;
+  const raw = take.call(bridge);
+  const engine = ctx._engine;
+  if (engine === null) return;
+  for (let index = 0; index + 1 < raw.length; index += 2) {
+    const slot = raw[index];
+    const code = raw[index + 1];
+    if (slot === undefined || code === undefined) continue;
+    const reason = disabledBodyReason(code);
+    if (reason === undefined) continue;
+    const entity = ctx.bodyByEntity.get(slot)?.entityId;
+    if (entity === undefined) continue;
+    reportRejectedHook(
+      engine,
+      "@gwenjs/physics3d",
+      "physics3d:body-disabled",
+      engine.hooks.callHook("physics3d:body-disabled", { entity, reason }),
+    );
+  }
+}
+
 // ─── Plugin implementation ──────────────────────────────────────────────────────
 
 /**
@@ -318,6 +350,16 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         ctx.cfg.maxEntities,
       );
 
+      if (typeof pb.physics3d_set_max_linear_velocity === "function") {
+        const setCap = pb.physics3d_set_max_linear_velocity;
+        const accepted = setCap.call(pb, ctx.cfg.maxLinearVelocity);
+        if (accepted === 0) {
+          ctx.log.warn("[Physics3D] maxLinearVelocity was refused; the previous cap stays", {
+            maxLinearVelocity: ctx.cfg.maxLinearVelocity,
+          });
+        }
+      }
+
       if (typeof pb.physics3d_set_quality === "function") {
         const setQuality = pb.physics3d_set_quality;
         callPhysics3DExport(ctx, "physics3d_set_quality", () =>
@@ -401,6 +443,7 @@ export const Physics3DPlugin = definePlugin((config: Physics3DConfig = {}) => {
         if (!ctx.ready || !ctx.stepFn) return;
         if (!(deltaTime > 0)) return;
         ctx.stepFn(deltaTime);
+        emitDisabledBodies(ctx);
         if (ctx.backendMode === "local") {
           advanceLocalState(ctx, deltaTime);
         }

@@ -2,6 +2,7 @@
  * Tests for Physics3D plugin configuration normalization.
  */
 import { describe, it, expect } from "vitest";
+import { GwenConfigError } from "@gwenjs/core";
 import {
   DEFAULT_PHYSICS3D_CONFIG,
   normalizePhysics3DConfig,
@@ -69,6 +70,26 @@ describe("normalizePhysics3DConfig", () => {
   it("stores provided layer names", () => {
     const cfg = normalizePhysics3DConfig({ layers: ["default", "player", "enemy"] });
     expect(cfg.layers).toEqual(["default", "player", "enemy"]);
+  });
+
+  it("rejects a cap that is not finite or not positive", () => {
+    for (const value of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+      let caught: unknown;
+      try {
+        normalizePhysics3DConfig({ maxLinearVelocity: value });
+      } catch (err: unknown) {
+        caught = err;
+      }
+      expect(caught).toBeInstanceOf(GwenConfigError);
+      if (!(caught instanceof GwenConfigError)) {
+        throw new Error("expected GwenConfigError");
+      }
+      expect(caught.code).toBe("GWEN_CONFIG_ERROR");
+      expect(caught.field).toBe("maxLinearVelocity");
+      expect(caught.hint).toBe("Must be finite and greater than 0. The default is 400.");
+    }
+    expect(normalizePhysics3DConfig({}).maxLinearVelocity).toBe(400);
+    expect(normalizePhysics3DConfig({ maxLinearVelocity: 50 }).maxLinearVelocity).toBe(50);
   });
 });
 
