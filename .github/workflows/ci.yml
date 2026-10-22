@@ -536,7 +536,9 @@ jobs:
   npm-audit:
     name: npm audit
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Run 39744061834: this job took 14s (2026-10-22T07:56:29Z to
+    # 2026-10-22T07:56:43Z). 2 * ceil(14/60) = 2.
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: ./.github/actions/setup-node-pnpm
