@@ -6,6 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { cleanGitEnv } from "./version.mjs";
 
 /**
  * @param {string} script
@@ -25,7 +26,7 @@ export function runNode(script, args, env = {}) {
  * @returns {string}
  */
 export function git(dir, args) {
-  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+  const result = spawnSync("git", args, { cwd: dir, encoding: "utf8", env: cleanGitEnv() });
   if (result.status !== 0) {
     throw new Error((result.stderr || result.stdout || "git failed").trim());
   }
