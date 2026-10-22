@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { Physics2DErrorCodes } from "@gwenjs/physics2d";
@@ -122,6 +123,84 @@ function requireReason(name: string, row: ExportRow): void {
   expect(PLACEHOLDER_WHY.has(why), name).toBe(false);
 }
 
+type Physics2dGlue = {
+  Engine: WasmCtor;
+  initSync: (input: { module: Uint8Array }) => unknown;
+};
+
+type Physics2dEngine = {
+  free: () => void;
+  physics_init: (gravX: number, gravY: number, maxEntities: number) => void;
+  physics_point_query: (x: number, y: number, membership: number, filter: number) => Uint32Array;
+  physics_query_radius: (
+    x: number,
+    y: number,
+    radius: number,
+    membership: number,
+    filter: number,
+  ) => Uint32Array;
+  physics_query_rect: (
+    x: number,
+    y: number,
+    hw: number,
+    hh: number,
+    membership: number,
+    filter: number,
+  ) => Uint32Array;
+  physics_step: (delta: number) => void;
+};
+
+async function loadPhysics2dGlue(): Promise<Physics2dGlue> {
+  const jsPath = fileURLToPath(new URL("../../wasm/physics2d/gwen_core.js", import.meta.url));
+  const loaded: unknown = await import(pathToFileURL(jsPath).href);
+  if (!isPhysics2dGlue(loaded)) {
+    throw new Error("physics2d glue is missing Engine");
+  }
+  return loaded;
+}
+
+function isPhysics2dGlue(value: unknown): value is Physics2dGlue {
+  if (typeof value !== "object" || value === null) return false;
+  return (
+    typeof Reflect.get(value, "Engine") === "function" &&
+    typeof Reflect.get(value, "initSync") === "function"
+  );
+}
+
+function physics2dWasmBytes(): Uint8Array<ArrayBuffer> {
+  const wasmPath = fileURLToPath(
+    new URL("../../wasm/physics2d/gwen_core_bg.wasm", import.meta.url),
+  );
+  const file = readFileSync(wasmPath);
+  const bytes = new Uint8Array(file.byteLength);
+  bytes.set(file);
+  return bytes;
+}
+
+function openPhysics2dEngine(glue: Physics2dGlue, maxEntities: number): Physics2dEngine {
+  const ctor: unknown = glue.Engine;
+  if (!isPhysics2dEngineCtor(ctor)) {
+    throw new Error("physics2d glue Engine cannot build a query engine");
+  }
+  return new ctor(maxEntities);
+}
+
+function isPhysics2dEngineCtor(
+  value: unknown,
+): value is new (maxEntities: number) => Physics2dEngine {
+  if (typeof value !== "function") return false;
+  const proto: unknown = Reflect.get(value, "prototype");
+  if (typeof proto !== "object" || proto === null) return false;
+  return (
+    typeof Reflect.get(proto, "free") === "function" &&
+    typeof Reflect.get(proto, "physics_init") === "function" &&
+    typeof Reflect.get(proto, "physics_point_query") === "function" &&
+    typeof Reflect.get(proto, "physics_query_radius") === "function" &&
+    typeof Reflect.get(proto, "physics_query_rect") === "function" &&
+    typeof Reflect.get(proto, "physics_step") === "function"
+  );
+}
+
 describe("physics2d export inventory", () => {
   it("classifies every physics2d export and the new PHYSICS2D codes", async () => {
     expect(Physics2DErrorCodes.NOT_INITIALIZED).toBe("PHYSICS2D:NOT_INITIALIZED");
@@ -138,8 +217,7 @@ describe("physics2d export inventory", () => {
     expect(errorCode("INVALID_QUERY")).toBe("PHYSICS2D:INVALID_QUERY");
     expect(errorCode("INVALID_STEP_DELTA")).toBe("PHYSICS2D:INVALID_STEP_DELTA");
 
-    const jsPath = fileURLToPath(new URL("../../wasm/physics2d/gwen_core.js", import.meta.url));
-    const glue = (await import(pathToFileURL(jsPath).href)) as { Engine: WasmCtor };
+    const glue = await loadPhysics2dGlue();
     const actual = [
       ...new Set([
         ...physicsNames(ownMethods(glue.Engine)),
@@ -161,9 +239,32 @@ describe("physics2d export inventory", () => {
     }
   });
 
-  it("has no known-panic row", () => {
+  it("has no known-panic row", async () => {
     const knownPanic = Object.values(PHYSICS2D).filter((row) => row.kind === "known-panic");
     expect(knownPanic).toEqual([]);
+    expect(errorCode("INVALID_QUERY")).toBe("PHYSICS2D:INVALID_QUERY");
+    expect(errorCode("INVALID_STEP_DELTA")).toBe("PHYSICS2D:INVALID_STEP_DELTA");
+
+    const glue = await loadPhysics2dGlue();
+    glue.initSync({ module: physics2dWasmBytes() });
+    const engine = openPhysics2dEngine(glue, 32);
+    try {
+      engine.physics_init(0, -9.81, 32);
+      expect(thrownWasmCode(() => engine.physics_point_query(Number.NaN, 0, 0, 0))).toBe(
+        "PHYSICS2D:INVALID_QUERY",
+      );
+      expect(thrownWasmCode(() => engine.physics_query_radius(Number.NaN, 0, 1, 0, 0))).toBe(
+        "PHYSICS2D:INVALID_QUERY",
+      );
+      expect(thrownWasmCode(() => engine.physics_query_rect(Number.NaN, 0, 1, 1, 0, 0))).toBe(
+        "PHYSICS2D:INVALID_QUERY",
+      );
+      expect(thrownWasmCode(() => engine.physics_step(Number.NaN))).toBe(
+        "PHYSICS2D:INVALID_STEP_DELTA",
+      );
+    } finally {
+      engine.free();
+    }
   });
 });
 
@@ -171,6 +272,16 @@ function errorCode(key: string): unknown {
   if (!Object.hasOwn(Physics2DErrorCodes, key)) return undefined;
   const value: unknown = Reflect.get(Physics2DErrorCodes, key);
   return value;
+}
+
+function thrownWasmCode(run: () => unknown): unknown {
+  try {
+    run();
+  } catch (err: unknown) {
+    if (typeof err !== "object" || err === null) return undefined;
+    return Reflect.get(err, "code");
+  }
+  return undefined;
 }
 
 function glueThrows(mod: object, ctor: WasmCtor, name: string): boolean {
