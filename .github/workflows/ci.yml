@@ -24,6 +24,7 @@ jobs:
       code: ${{ steps.mode.outputs.code }}
       rust: ${{ steps.mode.outputs.rust }}
       root: ${{ steps.mode.outputs.root }}
+      stack: ${{ steps.mode.outputs.stack }}
     steps:
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
@@ -54,6 +55,10 @@ jobs:
               - '.oxfmtrc.json'
               - 'scripts/**'
               - '.github/**'
+            stack:
+              - '{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}'
+              - '!**/*.md'
+              - '!docs/**'
       - name: Resolve mode
         id: mode
         env:
@@ -61,17 +66,20 @@ jobs:
           CODE: ${{ steps.filter.outputs.code }}
           RUST: ${{ steps.filter.outputs.rust }}
           ROOT: ${{ steps.filter.outputs.root }}
+          STACK: ${{ steps.filter.outputs.stack }}
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             echo "full=true" >> "$GITHUB_OUTPUT"
             echo "code=true" >> "$GITHUB_OUTPUT"
             echo "rust=true" >> "$GITHUB_OUTPUT"
             echo "root=true" >> "$GITHUB_OUTPUT"
+            echo "stack=true" >> "$GITHUB_OUTPUT"
           else
             echo "full=false" >> "$GITHUB_OUTPUT"
             echo "code=$CODE" >> "$GITHUB_OUTPUT"
             echo "rust=$RUST" >> "$GITHUB_OUTPUT"
             echo "root=$ROOT" >> "$GITHUB_OUTPUT"
+            echo "stack=$STACK" >> "$GITHUB_OUTPUT"
           fi
   lint:
     name: Lint & Format
@@ -735,7 +743,7 @@ jobs:
     name: Stack pack
     runs-on: ubuntu-latest
     needs: [changes, rust]
-    if: needs.changes.outputs.code == 'true'
+    if: needs.changes.outputs.stack == 'true'
     # Provisional. The orchestrator replaces this from a measured run.
     timeout-minutes: 20
     steps:
@@ -770,6 +778,7 @@ jobs:
         with:
           name: stack-tarballs
           path: stack/
+          retention-days: 7
           if-no-files-found: error
 
   ci-status:

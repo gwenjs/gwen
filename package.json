@@ -48,7 +48,7 @@
     "docs:preview": "vitepress preview docs",
     "docs:check": "pnpm --filter @gwenjs/docs-check test",
     "docs:check:wasm": "pnpm --filter @gwenjs/docs-check test:wasm",
-    "verdaccio:start": "verdaccio --config ./verdaccio.yaml",
+    "verdaccio:start": "mkdir -p .verdaccio && verdaccio --config ./verdaccio.yaml",
     "verdaccio:publish": "pnpm build:ts && node scripts/stack/pack.mjs --out stack && node scripts/stack/registry.mjs publish --out stack"
   },
   "devDependencies": {
