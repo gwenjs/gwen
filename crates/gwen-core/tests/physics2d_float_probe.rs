@@ -15,7 +15,7 @@ const MAX_WORLD_EXTENT: f32 = 1.0e7;
 const DT: f32 = 1.0 / 60.0;
 
 /// Number of probe cases built by `cases()`. Update together with the case list.
-const CASE_COUNT: usize = 92;
+const CASE_COUNT: usize = 98;
 
 /// Serialises tests that swap the process-wide panic hook.
 static HOOK_LOCK: Mutex<()> = Mutex::new(());
@@ -198,6 +198,22 @@ fn cases() -> Vec<Case> {
             let mut engine = fresh(-9.81)?;
             add_box(&mut engine, 0, 0.0, 0.0, 0, (50.0, 0.5), 0.0)?;
             add_box(&mut engine, 1, x, 1.0, 1, (0.5, 0.5), 0.0)?;
+            let _ = engine.physics_step(DT);
+            Ok(())
+        }));
+    }
+
+    for (label, x) in [("4.9e8", 4.9e8_f32), ("8.4e8", 8.4e8), ("1.2e9", 1.2e9)] {
+        out.push(case(format!("fixed position x={label}"), move || {
+            let mut engine = fresh(0.0)?;
+            add_box(&mut engine, 0, x, 0.0, 0, (0.5, 0.5), 0.0)?;
+            let _ = engine.physics_step(DT);
+            Ok(())
+        }));
+        out.push(case(format!("kinematic position x={label}"), move || {
+            let mut engine = fresh(0.0)?;
+            add_box(&mut engine, 0, x, 0.0, 2, (0.5, 0.5), 0.0)?;
+            engine.physics_set_kinematic_position(0, x, 0.0, 0.0)?;
             let _ = engine.physics_step(DT);
             Ok(())
         }));

@@ -22,7 +22,10 @@ pub enum PathRequestReject {
 }
 
 /// Failure returned by a fallible physics2d export.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+///
+/// `Eq` is omitted: [`Self::InvalidQuery`] and [`Self::InvalidStepDelta`] carry
+/// an `f32`, and `f32` is not `Eq`.
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Physics2DError {
     /// The export touched the world before `physics_init`.
     WorldNotInitialized,
@@ -64,6 +67,18 @@ pub enum Physics2DError {
         /// Which bound refused the request.
         reason: PathRequestReject,
     },
+    /// A query argument is not finite, is negative where a length is required, or is past the world extent.
+    InvalidQuery {
+        /// `x`, `y`, `hw`, `hh`, or `radius`.
+        field: &'static str,
+        /// The value the caller passed.
+        value: f32,
+    },
+    /// `physics_step` was given a delta that is not finite or is outside `0..=1`.
+    InvalidStepDelta {
+        /// The refused delta, in seconds.
+        delta: f32,
+    },
     /// A physics2d bulk export is forwarding a core bulk failure.
     Core(CoreError),
 }
@@ -81,6 +96,8 @@ impl Physics2DError {
             Self::TilemapChunkAlreadyLoaded => "PHYSICS2D:TILEMAP_CHUNK_ALREADY_LOADED",
             Self::TilemapChunkNotLoaded => "PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED",
             Self::InvalidPathRequest { .. } => "PHYSICS2D:INVALID_PATH_REQUEST",
+            Self::InvalidQuery { .. } => "PHYSICS2D:INVALID_QUERY",
+            Self::InvalidStepDelta { .. } => "PHYSICS2D:INVALID_STEP_DELTA",
             Self::Core(inner) => inner.code(),
         }
     }
@@ -126,6 +143,14 @@ impl fmt::Display for Physics2DError {
             } => write!(
                 f,
                 "path request refused: the Manhattan distance is past the accepted bound"
+            ),
+            Self::InvalidQuery { field, value } => write!(
+                f,
+                "physics2d query field {field} is {value}; it must be finite and within ±MAX_WORLD_EXTENT"
+            ),
+            Self::InvalidStepDelta { delta } => write!(
+                f,
+                "physics2d step delta is {delta}; it must be finite and within 0..=1"
             ),
             Self::Core(inner) => write!(f, "{inner}"),
         }

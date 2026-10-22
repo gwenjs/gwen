@@ -1265,7 +1265,7 @@ impl Engine {
             let Some(world) = self.physics_world.as_mut() else {
                 return Err(Physics2DError::WorldNotInitialized);
             };
-            world.step(delta);
+            world.step(delta)?;
             world.take_filled_dynamic_poses()
         };
         // Root nodes take the pose so a later history commit can interpolate
@@ -1291,13 +1291,26 @@ impl Engine {
     /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
     ///
     /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
-    /// `PhysicsWorld::take_disabled_slots` records nothing, so this is empty.
+    /// An empty list returns `Vec::new`. No world returns an empty list.
     #[cfg(feature = "physics2d")]
     pub fn physics_take_disabled_slots(&mut self) -> Vec<u32> {
         let Some(world) = self.physics_world.as_mut() else {
             return Vec::new();
         };
         world.take_disabled_slots()
+    }
+
+    /// Sets the linear-speed cap in metres per second.
+    ///
+    /// Returns `1` when `value` is finite and greater than zero.
+    /// Returns `0` and keeps the previous cap when the value is refused,
+    /// or when `physics_init` has not run.
+    #[cfg(feature = "physics2d")]
+    pub fn physics_set_max_linear_velocity(&mut self, value: f32) -> u32 {
+        let Some(world) = self.physics_world.as_mut() else {
+            return 0;
+        };
+        u32::from(world.set_max_linear_velocity(value))
     }
 
     #[cfg(feature = "physics2d")]
@@ -1688,6 +1701,7 @@ impl Engine {
         let Some(world) = self.physics_world.as_ref() else {
             return Err(Physics2DError::WorldNotInitialized);
         };
+        PhysicsWorld::reject_query_radius(x, y, radius)?;
         Ok(world.query_radius(x, y, radius, membership, filter))
     }
 
@@ -1704,6 +1718,7 @@ impl Engine {
         let Some(world) = self.physics_world.as_ref() else {
             return Err(Physics2DError::WorldNotInitialized);
         };
+        PhysicsWorld::reject_query_rect(x, y, hw, hh)?;
         Ok(world.query_rect(x, y, hw, hh, membership, filter))
     }
 
@@ -1718,6 +1733,7 @@ impl Engine {
         let Some(world) = self.physics_world.as_ref() else {
             return Err(Physics2DError::WorldNotInitialized);
         };
+        PhysicsWorld::reject_point_query(x, y)?;
         Ok(world.point_query(x, y, membership, filter))
     }
 
