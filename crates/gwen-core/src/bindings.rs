@@ -197,7 +197,11 @@ impl Engine {
         if !self.storage.delete_entity(index, generation)? {
             return Ok(false);
         }
-        Ok(self.entity_manager.delete_entity(id))
+        let deleted = self.entity_manager.delete_entity(id);
+        if deleted {
+            self.transform_system.remove_transform(id);
+        }
+        Ok(deleted)
     }
 
     /// Get count of live entities
@@ -3821,9 +3825,15 @@ impl Engine {
 
     // ─── Engine stats ─────────────────────────────────────────────────────────
 
-    /// Alive entity count as JSON: `{"entities":N}`.
+    /// Alive entity and transform-node counts: `{"entities":N,"transforms":M}`.
+    ///
+    /// `M` is [`TransformSystem::count`].
     pub fn stats(&self) -> String {
-        format!(r#"{{"entities":{}}}"#, self.entity_manager.count_entities())
+        format!(
+            r#"{{"entities":{},"transforms":{}}}"#,
+            self.entity_manager.count_entities(),
+            self.transform_system.count()
+        )
     }
 
     // ─── Bulk query-read API (Tier 1) ─────────────────────────────────────────

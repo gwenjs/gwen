@@ -330,15 +330,36 @@ impl TransformSystem {
         self.order_dirty = true;
     }
 
-    /// Remove transform for entity
+    /// Remove `entity`.
+    ///
+    /// Children become roots; local position and rotation are set from the last
+    /// computed (cached) world pose, scale stays local.
     pub fn remove_transform(&mut self, entity: EntityId) -> Option<Transform> {
-        if let Some(node) = self.transforms.remove(&entity) {
-            self.root_entities.retain(|&id| id != entity);
-            self.order_dirty = true;
-            Some(node.local)
-        } else {
-            None
+        let node = self.transforms.remove(&entity)?;
+        if let Some(parent_id) = node.parent() {
+            if let Some(parent) = self.transforms.get_mut(&parent_id) {
+                parent.remove_child(entity);
+            }
         }
+        self.root_entities.retain(|&id| id != entity);
+
+        for &child_id in node.children() {
+            let mut detached = false;
+            if let Some(child) = self.transforms.get_mut(&child_id) {
+                let world_pos = child.world_position();
+                let world_rot = child.world_rotation();
+                child.set_parent(None);
+                child.set_position(world_pos);
+                child.set_rotation(world_rot);
+                detached = true;
+            }
+            if detached && !self.root_entities.contains(&child_id) {
+                self.root_entities.push(child_id);
+            }
+        }
+
+        self.order_dirty = true;
+        Some(node.local)
     }
 
     /// Get transform node reference

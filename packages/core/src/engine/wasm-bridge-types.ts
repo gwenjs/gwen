@@ -352,7 +352,7 @@ export interface WasmEngineBase {
 
   // ── Stats ────────────────────────────────────────────────────────────────
 
-  /** Return a JSON string with engine runtime metrics (entity count, frame, etc.). */
+  /** JSON `{"entities":N,"transforms":M}`: alive entities and transform nodes. */
   stats(): string;
 }
 
