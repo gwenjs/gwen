@@ -18,7 +18,7 @@ fn stats_json_omits_frame_and_elapsed() {
             return;
         }
     };
-    assert_eq!(engine.stats(), "{\"entities\":0}");
+    assert_eq!(engine.stats(), "{\"entities\":0,\"transforms\":0}");
 
     match engine.create_entity() {
         Ok(_) => {}
@@ -27,5 +27,5 @@ fn stats_json_omits_frame_and_elapsed() {
             return;
         }
     }
-    assert_eq!(engine.stats(), "{\"entities\":1}");
+    assert_eq!(engine.stats(), "{\"entities\":1,\"transforms\":0}");
 }
