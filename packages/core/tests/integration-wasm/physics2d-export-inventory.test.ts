@@ -71,6 +71,9 @@ const PHYSICS2D: Record<string, ExportRow> = {
   physics_set_linear_velocity: result(),
   physics_set_quality: result(),
   physics_step: knownPanic(ISSUE),
+  physics_take_disabled_slots: infallible(
+    "returns Vec::new at world.rs:751 via bindings.rs:1300; no slot is recorded",
+  ),
   physics_unload_tilemap_chunk_body: result(),
   physics_update_sensor_state: infallible("the body ignores its arguments"),
 };
@@ -134,6 +137,8 @@ describe("physics2d export inventory", () => {
     expect(Physics2DErrorCodes.TILEMAP_CHUNK_NOT_LOADED).toBe("PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED");
     expect(Physics2DErrorCodes.INVALID_PATH_REQUEST).toBe("PHYSICS2D:INVALID_PATH_REQUEST");
     expect(Physics2DErrorCodes.STALE_BODY_HANDLE).toBe("PHYSICS2D:STALE_BODY_HANDLE");
+    expect(errorCode("INVALID_QUERY")).toBe("PHYSICS2D:INVALID_QUERY");
+    expect(errorCode("INVALID_STEP_DELTA")).toBe("PHYSICS2D:INVALID_STEP_DELTA");
 
     const jsPath = fileURLToPath(new URL("../../wasm/physics2d/gwen_core.js", import.meta.url));
     const glue = (await import(pathToFileURL(jsPath).href)) as { Engine: WasmCtor };
@@ -157,7 +162,18 @@ describe("physics2d export inventory", () => {
       }
     }
   });
+
+  it("has no known-panic row", () => {
+    const knownPanic = Object.values(PHYSICS2D).filter((row) => row.kind === "known-panic");
+    expect(knownPanic).toEqual([]);
+  });
 });
+
+function errorCode(key: string): unknown {
+  if (!Object.hasOwn(Physics2DErrorCodes, key)) return undefined;
+  const value: unknown = Reflect.get(Physics2DErrorCodes, key);
+  return value;
+}
 
 function glueThrows(mod: object, ctor: WasmCtor, name: string): boolean {
   const onProto = Object.getOwnPropertyDescriptor(ctor.prototype as object, name)?.value;

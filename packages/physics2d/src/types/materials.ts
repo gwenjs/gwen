@@ -2,10 +2,23 @@
  * Plugin hooks, material presets, and collider shapes.
  */
 
+import { defineHooks, type InferHooks } from "@gwenjs/core";
 import type { EntityId } from "@gwenjs/core";
 import type { CollisionContact, SensorState, CollisionEventsBatch } from "./events";
 
-export interface Physics2DPluginHooks {
+/**
+ * `physics2d:body-disabled` payload. The plugin does not emit this hook yet.
+ */
+export interface Physics2DBodyDisabled {
+  readonly entity: EntityId;
+  readonly reason: "non-finite" | "out-of-bounds" | "velocity";
+}
+
+const physics2dBodyDisabledHooks = defineHooks({
+  "physics2d:body-disabled": (_payload: Physics2DBodyDisabled): void => undefined,
+});
+
+export interface Physics2DPluginHooks extends InferHooks<typeof physics2dBodyDisabledHooks> {
   "physics:collision": (contacts: ReadonlyArray<CollisionContact>) => void;
   "physics:collision:batch": (batch: Readonly<CollisionEventsBatch>) => void;
   "physics:sensor:changed": (entityId: EntityId, sensorId: number, state: SensorState) => void;
