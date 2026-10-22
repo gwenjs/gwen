@@ -4,8 +4,10 @@
 # Usage : pnpm verdaccio:start
 # Publie  : pnpm verdaccio:publish
 #
-# Les packages @gwenjs/* sont publiés anonymement (pas de token nécessaire).
-# Ce registry est local uniquement — jamais utilisé en CI.
+# La publication enregistre un utilisateur jetable et envoie son token.
+# Registry persistant pour le dev local.
+# Le harness dans scripts/stack/ démarre son propre registry éphémère.
+# Le job CI stack-pack empaquette le framework dans l'artefact stack-tarballs.
 ################################################################################
 
 # Stockage des packages — utilise le storage global Verdaccio
