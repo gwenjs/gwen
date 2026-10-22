@@ -1,0 +1,39 @@
+{
+  "advisories": {
+    "1102444": {
+      "findings": [
+        {
+          "version": "1.2.3",
+          "paths": [
+            ".>word-wrap"
+          ],
+          "dev": false,
+          "optional": false,
+          "bundled": false
+        }
+      ],
+      "id": 1102444,
+      "title": "word-wrap vulnerable to Regular Expression Denial of Service",
+      "module_name": "word-wrap",
+      "vulnerable_versions": "<1.2.4",
+      "patched_versions": ">=1.2.4",
+      "severity": "moderate",
+      "cwe": "CWE-1333",
+      "github_advisory_id": "GHSA-j8xg-fqg3-53r7",
+      "url": "https://github.com/advisories/GHSA-j8xg-fqg3-53r7"
+    }
+  },
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 0,
+      "moderate": 1,
+      "high": 0,
+      "critical": 0
+    },
+    "dependencies": 1,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 1
+  }
+}
