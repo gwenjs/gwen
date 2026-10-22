@@ -1,5 +1,5 @@
 /**
- * Component type ids belong to each engine (#59), with the #52 definition checks kept.
+ * Component type ids belong to each engine (#59).
  */
 import { describe, expect, it } from "vitest";
 import { defineComponent, Types } from "../../src/index.js";
