@@ -3,6 +3,8 @@
 # Uses the shipped factory. No transform step.
 # Writes capacity.json and exits with the judge's code.
 set -u
+# GWEN_CAPACITY_STAGE_TIMEOUT: per-stage wall-clock seconds (default 600). Timeout exits 124.
+STAGE_TIMEOUT="${GWEN_CAPACITY_STAGE_TIMEOUT:-600}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 WASM="${1:-packages/core/wasm}"
 WORK="$(mktemp -d)"
@@ -21,8 +23,14 @@ node -p "process.arch" > "$R/arch.txt"
 run() { # name, ulimit-kib|unlimited, node-flags, script args...
   local n="$1" l="$2" f="$3"
   shift 3
-  ( ulimit -v "$l"; exec node $f "$@" ) > "$R/$n.out" 2> "$R/$n.err"
-  echo $? > "$R/$n.code"
+  local code t0 SECONDS_STAGE
+  echo "wasm-capacity stage $n start" >&2
+  t0=$SECONDS
+  ( ulimit -v "$l"; exec timeout "$STAGE_TIMEOUT" node $f "$@" ) > "$R/$n.out" 2> "$R/$n.err"
+  code=$?
+  SECONDS_STAGE=$((SECONDS - t0))
+  echo "$code" > "$R/$n.code"
+  echo "wasm-capacity stage $n exit=$code seconds=$SECONDS_STAGE" >&2
 }
 G=$((1024 * 1024))
 run unl-default unlimited "" max2.mjs light 40000 1000
@@ -40,4 +48,5 @@ node "$HERE/judge.mjs" "$R" > capacity.json
 code=$?
 cat capacity.json
 cp capacity.json "${GITHUB_WORKSPACE:-.}/capacity.json" 2>/dev/null
+echo "wasm-capacity total seconds=$SECONDS" >&2
 exit "$code"
