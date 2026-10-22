@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import test from "node:test";
+import test, { afterEach } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -41,7 +41,7 @@ function release(dir) {
   live.delete(dir);
 }
 
-test.afterEach(() => {
+afterEach(() => {
   for (const dir of live) release(dir);
 });
 
