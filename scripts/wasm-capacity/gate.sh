@@ -45,6 +45,8 @@ for v in light physics2d physics3d; do
 done
 run det unlimited "" det.mjs
 run leak64 $((64 * G)) "" leak.mjs 3000
+# THROWAWAY forced-fail: judge the 11000 ceiling fixture instead of the measured ceiling. Never merge.
+cp "$HERE/fixtures/x64-ceiling-11000/unl-default.out" "$R/unl-default.out"
 node "$HERE/judge.mjs" "$R" > capacity.json
 code=$?
 cat capacity.json
