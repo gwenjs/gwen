@@ -1354,14 +1354,70 @@ test("glue-shape job runs the golden check on the core-wasm artifact", () => {
   assert.match(status, /needs\['glue-shape'\]\.result/);
 });
 
-test("stack-pack runs after rust on code changes, packs and uploads stack-tarballs", () => {
+test("stack-pack runs after rust, packs and uploads stack-tarballs", () => {
   const job = jobBlock(readCi(), "stack-pack");
   assert.match(job, /needs: \[[^\]]*\bchanges\b[^\]]*\]/);
   assert.match(job, /needs: \[[^\]]*\brust\b[^\]]*\]/);
-  assert.match(job, /if: needs\.changes\.outputs\.code == 'true'/);
-  assert.match(job, /run: node scripts\/stack\/pack\.mjs --out stack/);
+  const packAt = job.indexOf("run: node scripts/stack/pack.mjs --out stack");
+  const buildAt = job.indexOf("run: pnpm build:ts");
+  assert.equal(buildAt >= 0 && packAt > buildAt, true);
+  for (const [name, artifactPath] of [
+    ["physics3d-build-tools", "packages/physics3d/build-tools/"],
+    ["physics3d-wasm-bvh", "packages/physics3d/wasm/bvh/"],
+    ["physics3d-fracture-wasm", "packages/physics3d-fracture/wasm/"],
+    ["core-wasm", "packages/core/wasm/"],
+  ]) {
+    const found = new RegExp(
+      `name: ${name}\\n\\s+path: ${artifactPath.replace(/\//g, "\\/")}`,
+    ).exec(job);
+    assert.ok(found, name);
+    assert.equal(found.index < packAt, true, name);
+  }
   assert.match(job, /uses: actions\/upload-artifact@/);
-  assert.match(job, /name: stack-tarballs\n/);
+  assert.match(job, /name: stack-tarballs\n\s+path: stack\/\n\s+retention-days: 7\n/);
+});
+
+test("stack-pack runs only when the change can impact the packed output", () => {
+  const yaml = readCi();
+  const job = jobBlock(yaml, "stack-pack");
+  assert.match(job, /if: needs\.changes\.outputs\.stack == 'true'/);
+  assert.doesNotMatch(job, /needs\.changes\.outputs\.code/);
+
+  const changes = jobBlock(yaml, "changes");
+  assert.match(changes, /^ {6}stack: \$\{\{ steps\.mode\.outputs\.stack \}\}$/m);
+  const modeAt = changes.indexOf("name: Resolve mode");
+  assert.equal(modeAt >= 0, true);
+  const mode = changes.slice(modeAt);
+  assert.match(mode, /STACK: \$\{\{ steps\.filter\.outputs\.stack \}\}/);
+  const nonPr = mode.indexOf('if [ "$EVENT" != "pull_request" ]; then');
+  const stackTrue = mode.indexOf('echo "stack=true" >> "$GITHUB_OUTPUT"');
+  const elseAt = mode.indexOf("\n          else\n");
+  const stackFromFilter = mode.indexOf('echo "stack=$STACK" >> "$GITHUB_OUTPUT"');
+  assert.equal(
+    nonPr >= 0 && stackTrue > nonPr && elseAt > stackTrue && stackFromFilter > elseAt,
+    true,
+  );
+
+  const lines = changes.split("\n");
+  const header = lines.indexOf("            stack:");
+  assert.notEqual(header, -1);
+  /** @type {string[]} */
+  const patterns = [];
+  for (let index = header + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? "";
+    if (!line.startsWith("              - '")) break;
+    assert.equal(line.endsWith("'"), true);
+    patterns.push(line.slice("              - '".length, -1));
+  }
+  const positive = patterns.filter((pattern) => !pattern.startsWith("!"));
+  assert.equal(positive.length, 1);
+  assert.equal(patterns[0], positive[0]);
+  const pattern = positive[0] ?? "";
+  assert.equal(pattern.includes("packages/**"), true);
+  assert.equal(pattern.includes("crates/**"), true);
+  assert.equal(pattern.includes("scripts/stack/**"), true);
+  assert.equal(pattern.includes(".github/workflows/ci.yml"), true);
+  assert.equal(patterns[1], "!**/*.md");
 });
 
 test("stack-pack has a timeout-minutes", () => {
@@ -1387,9 +1443,10 @@ test(`${deletedPublishScript} is deleted and verdaccio:publish runs the stack sc
   assert.equal(existsSync(scriptPath), false);
   const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
   const command = pkg.scripts?.["verdaccio:publish"];
-  assert.equal(typeof command, "string");
-  assert.equal(command.includes("scripts/stack/pack.mjs"), true);
-  assert.equal(command.includes("registry.mjs publish"), true);
+  assert.equal(
+    command,
+    "pnpm build:ts && node scripts/stack/pack.mjs --out stack && node scripts/stack/registry.mjs publish --out stack",
+  );
   const grep = spawnSync("git", ["grep", "-n", "-F", "--", deletedPublishScript], {
     cwd: root,
     encoding: "utf8",
@@ -1404,6 +1461,18 @@ test(`${deletedPublishScript} is deleted and verdaccio:publish runs the stack sc
   });
   assert.equal(control.status, 0, control.stderr);
   assert.match(control.stdout, /package\.json/);
+});
+
+test("verdaccio:start creates the htpasswd directory before starting Verdaccio", () => {
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8"));
+  const command = pkg.scripts?.["verdaccio:start"];
+  const yaml = readFileSync(join(root, "verdaccio.yaml"), "utf8");
+  const found = yaml.match(/^auth:\n {2}htpasswd:\n {4}file:\s*(\S+)\s*$/m);
+  assert.ok(found);
+  const directory = dirname(found[1]);
+  const authDir = directory.startsWith("./") ? directory.slice(2) : directory;
+  assert.equal(authDir, ".verdaccio");
+  assert.equal(command, `mkdir -p ${authDir} && verdaccio --config ./verdaccio.yaml`);
 });
 
 test("verdaccio.yaml does not claim the registry is never used in CI", () => {
