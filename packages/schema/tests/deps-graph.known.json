@@ -1,4 +1,600 @@
 {
-  "known": [],
-  "deferred": []
+  "known": [
+    {
+      "rule": "R1",
+      "file": "packages/core/src/scene/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/core/src/system/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/core/src/tween/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/physics2d/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/physics3d/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/renderer-core/src/camera-types.ts",
+      "match": "import type { Vec3 } from \"@gwenjs/math\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/renderer-core/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/renderer-core/src/screen-to-world.ts",
+      "match": "import type { Vec3 } from \"@gwenjs/math\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R1",
+      "file": "packages/vite/src/virtual.d.ts",
+      "match": "import type { GwenPlugin } from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R2b",
+      "file": "packages/kit/package.json",
+      "match": "dependencies: unexpected @gwenjs/core",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R2c",
+      "file": "packages/core/package.json",
+      "match": "dependencies: missing @gwenjs/kit",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/core/src/scene/engine-plugin.ts",
+      "match": "declare module \"../engine/engine-types.js\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/core/src/scene/runtime/scene-registrar.ts",
+      "match": "declare module \"../../engine/engine-types.js\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/core/src/tween/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/physics2d/src/augment.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/physics2d/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/physics3d/src/augment.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/physics3d/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/renderer-core/src/get-or-create-camera-manager.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/renderer-core/src/get-or-create-screen-service.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/renderer-core/src/get-or-create-viewport-manager.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/renderer-core/src/index.ts",
+      "match": "declare module \"@gwenjs/core\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R4",
+      "file": "packages/renderer-core/src/module.ts",
+      "match": "declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/core/src/scene/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/core/src/system/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/core/src/tween/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/physics2d/src/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/physics3d/src/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R5",
+      "file": "packages/renderer-core/src/module.ts",
+      "match": "ts-expect-error declare module \"@gwenjs/app\"",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R6",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "declare global { interface GwenPrefabExtensions }",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R6",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "declare global { interface GwenSceneExtensions }",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R6",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "declare global { interface GwenUIExtensions }",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R6",
+      "file": "packages/physics2d/src/augment.ts",
+      "match": "declare global { interface GwenPrefabExtensions }",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/app/src/types.ts",
+      "match": "export interface GwenModuleOptions",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/context.ts",
+      "match": "export class GwenContextError",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/context.ts",
+      "match": "export type GwenContextErrorCode",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/engine-errors.ts",
+      "match": "export class GwenComposableError",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/engine-types.ts",
+      "match": "export interface EngineStateChangePayload",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/engine-types.ts",
+      "match": "export interface GwenProvides",
+      "owner": "P-76-3"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/engine-types.ts",
+      "match": "export type GwenEngineState",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/engine-types.ts",
+      "match": "export type GwenEngineStateChangeReason",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/runtime-hooks.ts",
+      "match": "declare module \"@gwenjs/schema\" { interface GwenRuntimeHooks }",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/engine/runtime-hooks.ts",
+      "match": "export interface EngineErrorPayload",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/hooks/define-hooks.ts",
+      "match": "export type HookHandlerMap",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/hooks/define-hooks.ts",
+      "match": "export type InferHooks",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/types/entity.ts",
+      "match": "export type ComponentType",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/types/entity.ts",
+      "match": "export type EntityId",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "interface GwenPrefabExtensions",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "interface GwenSceneExtensions",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/core/src/types/global-augment.ts",
+      "match": "interface GwenUIExtensions",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R8",
+      "file": "packages/physics2d/src/augment.ts",
+      "match": "interface GwenPrefabExtensions",
+      "owner": "P-76-2"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/app/src/app.ts",
+      "match": "GwenPlugin from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/app/src/types.ts",
+      "match": "GwenPlugin from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/app/src/virtual.d.ts",
+      "match": "GwenPlugin from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/camera-core/src/camera-stores.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/camera-core/src/camera-system.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/camera-core/src/engine-verbs.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/camera-core/src/index.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/camera-core/src/types.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/context.ts",
+      "match": "import { CoreErrorCodes } from \"@gwenjs/core\"",
+      "owner": "P-76-4"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/context.ts",
+      "match": "import { GwenScope } from \"@gwenjs/core/internal\"",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/define-plugin.ts",
+      "match": "import type { GwenEngine } from \"@gwenjs/core\"",
+      "owner": "P-76-4"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/define-plugin.ts",
+      "match": "import { GwenComposableError } from \"@gwenjs/core\"",
+      "owner": "P-76-5"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/index.ts",
+      "match": "export { createErrorBus } from \"@gwenjs/core\"",
+      "owner": "P-76-4"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/plugin/index.ts",
+      "match": "export type { GwenPlugin, GwenEngine, GwenProvides, GwenEngineOptions, WasmBridge, MemoryRegion, WasmModuleOptions, WasmModuleHandle, EntityId, ComponentType, GwenRuntimeHooks, GwenHookable, EngineErrorBus, PluginErrorContext, } from \"@gwenjs/core\"",
+      "owner": "P-76-4"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/kit/src/plugin/index.ts",
+      "match": "export { createEntityId, unpackEntityId } from \"@gwenjs/core\"",
+      "owner": "P-76-4"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/composables.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/composables/on-contact.ts",
+      "match": "GwenContextError from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/errors.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/helpers/contact.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/helpers/movement.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/helpers/queries.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/plugin/index.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/systems.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/types/api.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/types/events.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/types/materials.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/types/materials.ts",
+      "match": "InferHooks from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics2d/src/types/tilemap.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/augment.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/composables/collider-id.ts",
+      "match": "GwenContextError from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/composables/on-contact.ts",
+      "match": "GwenContextError from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/composables/on-sensor.ts",
+      "match": "GwenContextError from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/helpers/contact.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/helpers/movement.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/helpers/queries.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/bvh.ts",
+      "match": "GwenContextError from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/character-controller.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/collider-management.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/entity-owner.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/index.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/plugin-helpers.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/plugin/spatial-queries.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/types/bodies.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/types/bulk.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/physics3d/src/types/events.ts",
+      "match": "EntityId from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R9",
+      "file": "packages/vite/src/virtual.d.ts",
+      "match": "GwenPlugin from \"@gwenjs/core\"",
+      "owner": "P-76-7"
+    },
+    {
+      "rule": "R10",
+      "file": "packages/kit/src/plugin-types.ts",
+      "match": "declare module '@gwenjs/core'",
+      "owner": "P-76-6"
+    }
+  ],
+  "deferred": [
+    {
+      "rule": "R8",
+      "file": "packages/app/src/types.ts",
+      "match": "export type GwenModuleEntry",
+      "owner": "#61"
+    }
+  ]
 }
