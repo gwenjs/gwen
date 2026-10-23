@@ -3566,6 +3566,16 @@ impl PhysicsWorld3D {
         self.cc_state[base + 4] = f32::from_bits(u32::MAX);
     }
 
+    /// Writes one grounded contact into a controller slot.
+    /// `base` is `slot * CC_STATE_STRIDE`. The index is bounds-checked.
+    fn write_cc_hit(&mut self, base: usize, normal: Unit<Vector<f32>>, ground_bits: u32) {
+        self.cc_state[base] = 1.0;
+        self.cc_state[base + 1] = normal.x;
+        self.cc_state[base + 2] = normal.y;
+        self.cc_state[base + 3] = normal.z;
+        self.cc_state[base + 4] = f32::from_bits(ground_bits);
+    }
+
     /// Moves the character controller for `entity_index` by `(vx, vy, vz) * dt`,
     /// resolving collisions against the scene.
     ///
@@ -3686,15 +3696,7 @@ impl PhysicsWorld3D {
                 // else: static collider (no parent body) → keep GROUND_ENTITY_STATIC
             }
 
-            // SAFETY: `cc_state` is this world's buffer and `base` is one controller slot. [U-022]
-            unsafe {
-                let buf = std::ptr::addr_of_mut!(self.cc_state);
-                (*buf)[base] = 1.0_f32;
-                (*buf)[base + 1] = n.x;
-                (*buf)[base + 2] = n.y;
-                (*buf)[base + 3] = n.z;
-                (*buf)[base + 4] = f32::from_bits(ground_entity_bits);
-            }
+            self.write_cc_hit(base, n, ground_entity_bits);
         } else {
             self.write_cc_no_hit(base);
         }
