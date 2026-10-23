@@ -3,8 +3,8 @@
 //! Native only. Run with `--features physics3d`.
 //!
 //! The overlap export takes `out_ptr: u32`. A 64-bit native host cannot pass its own heap address
-//! through a `u32`, so the pointer cases call `Engine::check_shared_u32_slots`, the check the
-//! export runs before it builds the slice, with a real `usize` address from
+//! through a `u32`, so the pointer cases call `Engine::check_shared_u32_slots`, the same
+//! registry lookup the export uses before it writes, with a real `usize` address from
 //! `alloc_shared_buffer`. The export itself is called with the addresses a `u32` can hold.
 
 #![cfg(feature = "physics3d")]
@@ -52,7 +52,7 @@ impl Drop for Shared<'_> {
     }
 }
 
-fn overlap(e: &Engine, out_ptr: u32, max_results: u32) -> Result<u32, Physics3DError> {
+fn overlap(e: &mut Engine, out_ptr: u32, max_results: u32) -> Result<u32, Physics3DError> {
     e.physics3d_overlap_shape(
         0.0,
         0.0,
@@ -76,10 +76,13 @@ fn overlap(e: &Engine, out_ptr: u32, max_results: u32) -> Result<u32, Physics3DE
 
 #[test]
 fn overlap_without_a_world_returns_not_initialized_before_looking_at_the_pointer() -> Outcome {
-    let e = Engine::new(4).map_err(Physics3DError::Core)?;
-    assert_eq!(overlap(&e, 0, 4), Err(Physics3DError::WorldNotInitialized));
+    let mut e = Engine::new(4).map_err(Physics3DError::Core)?;
     assert_eq!(
-        overlap(&e, 0xDEAD_BEEF, 4),
+        overlap(&mut e, 0, 4),
+        Err(Physics3DError::WorldNotInitialized)
+    );
+    assert_eq!(
+        overlap(&mut e, 0xDEAD_BEEF, 4),
         Err(Physics3DError::WorldNotInitialized)
     );
     Ok(())
@@ -87,14 +90,14 @@ fn overlap_without_a_world_returns_not_initialized_before_looking_at_the_pointer
 
 #[test]
 fn export_refuses_null_and_unregistered_pointers_with_invalid_shared_buffer() -> Outcome {
-    let e = engine_with_box()?;
-    assert_eq!(overlap(&e, 0, 4), Err(invalid_buffer(0, 0)));
-    assert_eq!(overlap(&e, 0, 0), Err(invalid_buffer(0, 0)));
+    let mut e = engine_with_box()?;
+    assert_eq!(overlap(&mut e, 0, 4), Err(invalid_buffer(0, 0)));
+    assert_eq!(overlap(&mut e, 0, 0), Err(invalid_buffer(0, 0)));
     assert_eq!(
-        overlap(&e, 0xDEAD_BEEF, 4),
+        overlap(&mut e, 0xDEAD_BEEF, 4),
         Err(invalid_buffer(0xDEAD_BEEF, 0))
     );
-    assert_eq!(overlap(&e, 8, u32::MAX), Err(invalid_buffer(8, 0)));
+    assert_eq!(overlap(&mut e, 8, u32::MAX), Err(invalid_buffer(8, 0)));
     Ok(())
 }
 

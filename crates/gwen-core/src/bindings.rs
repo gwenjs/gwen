@@ -8,8 +8,6 @@
 //! `create_entity` returns a `JsEntityId` struct exposing both fields,
 //! or an error when the entity limit is reached.
 
-use std::collections::HashMap;
-
 use crate::ecs::chunk_store::{ChunkStore, LAYOUT_REASON_UNREGISTERED_TYPE};
 use crate::ecs::entity::{EntityId, EntityManager};
 use crate::ecs::error::{CoreError, MAX_ENTITIES_LIMIT};
@@ -25,6 +23,7 @@ use crate::physics2d::{
 #[cfg(feature = "physics3d")]
 use crate::physics3d::{Physics3DError, PhysicsWorld3D};
 
+use crate::shared_buffer::SharedBuffers;
 use crate::transform::TRANSFORM_STRIDE;
 /// Local alias so all buffer arithmetic below reads as `STRIDE` unchanged.
 const STRIDE: usize = TRANSFORM_STRIDE;
@@ -125,8 +124,8 @@ pub struct Engine {
     transform_system: TransformSystem,
     /// Two world-pose buffers. Empty until the first history commit.
     transform_history: TransformHistory,
-    /// Live `alloc_shared_buffer` allocations: pointer → (byte length, alignment).
-    shared_buffers: HashMap<usize, (usize, usize)>,
+    /// Live `alloc_shared_buffer` allocations. Dropping the engine frees them.
+    shared_buffers: SharedBuffers,
     #[cfg(feature = "physics2d")]
     physics_world: Option<PhysicsWorld>,
     #[cfg(feature = "physics3d")]
@@ -159,7 +158,7 @@ impl Engine {
             query_result_buffer: vec![0u32; max_entities as usize],
             transform_system: TransformSystem::new(),
             transform_history: TransformHistory::new(),
-            shared_buffers: HashMap::new(),
+            shared_buffers: SharedBuffers::new(),
             #[cfg(feature = "physics2d")]
             physics_world: None,
             #[cfg(feature = "physics3d")]
@@ -1132,7 +1131,8 @@ impl Engine {
     ///   offset + 24 : reserved (8 bytes)
     ///
     /// # Safety
-    /// The returned pointer is valid for the lifetime of the WASM module.
+    /// The returned pointer stays valid until [`Self::free_shared_buffer`] frees it.
+    /// Dropping the engine frees every live shared buffer.
     /// TypeScript must not access it after the engine is destroyed.
     /// Allocates a zeroed buffer of `byte_length` bytes with 8-byte alignment.
     ///
@@ -1149,21 +1149,7 @@ impl Engine {
     /// - If allocation fails (OOM), returns 0 instead of panicking.
     /// - Callers must check the return value for 0 and handle gracefully.
     pub fn alloc_shared_buffer(&mut self, byte_length: usize) -> usize {
-        if byte_length == 0 {
-            return 0;
-        }
-        let Ok(layout) = std::alloc::Layout::from_size_align(byte_length, 8) else {
-            return 0;
-        };
-        // SAFETY: layout has non-zero size and valid alignment. [U-001]
-        let ptr = unsafe { std::alloc::alloc_zeroed(layout) };
-        if ptr.is_null() {
-            return 0; // OOM — caller must handle gracefully
-        }
-        let addr = ptr as usize;
-        self.shared_buffers
-            .insert(addr, (byte_length, layout.align()));
-        addr
+        self.shared_buffers.alloc(byte_length)
     }
 
     /// Release a buffer previously allocated by `alloc_shared_buffer`.
@@ -1177,23 +1163,7 @@ impl Engine {
     /// freed, or `byte_length` is not the recorded length. Those cases do not
     /// deallocate and leave the registry unchanged.
     pub fn free_shared_buffer(&mut self, ptr: usize, byte_length: usize) -> Result<(), CoreError> {
-        if ptr == 0 || byte_length == 0 {
-            return Ok(());
-        }
-        let Some((recorded, align)) = self.shared_buffers.get(&ptr).copied() else {
-            return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
-        };
-        if recorded != byte_length {
-            return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
-        }
-        let Ok(layout) = std::alloc::Layout::from_size_align(recorded, align) else {
-            return Err(CoreError::InvalidSharedBuffer { ptr, len: recorded });
-        };
-        self.shared_buffers.remove(&ptr);
-        // SAFETY: `ptr` is the address recorded for `recorded` bytes, and
-        // `layout` uses that length and the alignment stored at allocation. [U-002]
-        unsafe { std::alloc::dealloc(ptr as *mut u8, layout) };
-        Ok(())
+        self.shared_buffers.free(ptr, byte_length)
     }
 
     /// Copies world transforms from the hierarchy into a live shared buffer.
@@ -1221,33 +1191,29 @@ impl Engine {
                 max: cap,
             });
         }
-        let Some((len, _)) = self.shared_buffers.get(&ptr).copied() else {
-            return Err(CoreError::InvalidSharedBuffer { ptr, len: 0 });
-        };
         let needed = (max_entities as usize).saturating_mul(STRIDE);
-        if len < needed {
-            return Err(CoreError::InvalidSharedBuffer { ptr, len });
-        }
+        let bytes = self.shared_buffers.bytes_mut(ptr, needed)?;
         self.transform_system.update();
-        for idx in 0..max_entities {
-            let offset = idx as usize * STRIDE;
-            let mut slot = [0u8; STRIDE];
-            let entity = EntityId::from_parts(idx, self.get_entity_generation(idx));
+        let (slots, _) = bytes.as_chunks_mut::<STRIDE>();
+        for (idx, slot) in slots.iter_mut().enumerate() {
+            let mut packed = [0u8; STRIDE];
+            let index = idx as u32;
+            let generation = self
+                .entity_manager
+                .get_generation(index)
+                .unwrap_or(u32::MAX);
+            let entity = EntityId::from_parts(index, generation);
             if let Some(node) = self.transform_system.get_transform(entity) {
                 let position = node.world_position();
                 let scale = node.world_scale();
-                write_f32(&mut slot, 0, position.x);
-                write_f32(&mut slot, 4, position.y);
-                write_f32(&mut slot, 8, node.world_rotation());
-                write_f32(&mut slot, 12, scale.x);
-                write_f32(&mut slot, 16, scale.y);
-                slot[20..24].copy_from_slice(&FLAG_HAS_TRANSFORM.to_le_bytes());
+                write_f32(&mut packed, 0, position.x);
+                write_f32(&mut packed, 4, position.y);
+                write_f32(&mut packed, 8, node.world_rotation());
+                write_f32(&mut packed, 12, scale.x);
+                write_f32(&mut packed, 16, scale.y);
+                packed[20..24].copy_from_slice(&FLAG_HAS_TRANSFORM.to_le_bytes());
             }
-            // SAFETY: `ptr` starts a live allocation of `len` bytes and
-            // `offset + STRIDE <= needed <= len`, so `slot` fits in that allocation. [U-003]
-            unsafe {
-                std::ptr::copy_nonoverlapping(slot.as_ptr(), (ptr + offset) as *mut u8, STRIDE);
-            }
+            *slot = packed;
         }
         Ok(())
     }
@@ -3277,7 +3243,7 @@ impl Engine {
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_overlap_shape(
-        &self,
+        &mut self,
         pos_x: f32,
         pos_y: f32,
         pos_z: f32,
@@ -3294,15 +3260,13 @@ impl Engine {
         out_ptr: u32,
         max_results: u32,
     ) -> Result<u32, Physics3DError> {
-        let world = self.world3d()?;
-        self.check_shared_u32_slots(out_ptr as usize, max_results)?;
-        let out_slots = out_ptr as usize as *mut u32;
-        let slot_count = max_results as usize;
-        // SAFETY: `check_shared_u32_slots` just proved that `out_slots` is the start of a live
-        // allocation made by `alloc_shared_buffer` (8-byte aligned, so 4-byte aligned) of at
-        // least `slot_count * 4` bytes, and nothing else in this engine holds a reference into
-        // it. The slice does not outlive this call. [U-013]
-        let out = unsafe { std::slice::from_raw_parts_mut(out_slots, slot_count) };
+        let Some(world) = self.physics3d_world.as_ref() else {
+            return Err(Physics3DError::WorldNotInitialized);
+        };
+        let out = self
+            .shared_buffers
+            .u32_slots_mut(out_ptr as usize, max_results)
+            .map_err(Physics3DError::Core)?;
         Ok(world.overlap_shape(
             pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, rot_w, shape_type, p0, p1, p2, layers, mask,
             out,
@@ -4341,9 +4305,10 @@ impl Engine {
     /// Check that `ptr` is the start of a live [`Self::alloc_shared_buffer`] allocation of this
     /// engine and that the allocation holds at least `count` `u32` slots.
     ///
-    /// Not a `#[wasm_bindgen]` export: `physics3d_overlap_shape` runs it before it builds the
-    /// output slice. It is `pub` so a native test can drive it with a full-width address, which
-    /// the `u32` argument of the export cannot carry on a 64-bit host.
+    /// Not a `#[wasm_bindgen]` export. The overlap export uses the same registry lookup
+    /// (`recorded`) before it writes. This method stays `pub` so a native test can drive that
+    /// lookup with a full-width address, which the `u32` argument of the export cannot carry
+    /// on a 64-bit host.
     ///
     /// # Errors
     /// Returns [`CoreError::InvalidSharedBuffer`] inside [`Physics3DError::Core`]. `len` is 0
@@ -4351,7 +4316,7 @@ impl Engine {
     /// another engine. `len` is the recorded byte length when the allocation is too short. The
     /// byte count is computed in `u64`, so `count * 4` cannot overflow.
     pub fn check_shared_u32_slots(&self, ptr: usize, count: u32) -> Result<(), Physics3DError> {
-        let Some((len, _)) = self.shared_buffers.get(&ptr).copied() else {
+        let Some((len, _)) = self.shared_buffers.recorded(ptr) else {
             return Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
                 ptr,
                 len: 0,
@@ -4790,7 +4755,7 @@ mod tests {
             let ptr = engine.alloc_shared_buffer(length);
             assert_ne!(ptr, 0);
             assert_eq!(ptr % 8, 0);
-            let Some((_, align)) = engine.shared_buffers.get(&ptr).copied() else {
+            let Some((_, align)) = engine.shared_buffers.recorded(ptr) else {
                 assert_eq!("", "missing shared buffer");
                 return;
             };
