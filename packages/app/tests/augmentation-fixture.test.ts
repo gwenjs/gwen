@@ -77,6 +77,21 @@ function runTsc(projectDir: string): { status: number; stdout: string } {
   }
 }
 
+function runTscProject(projectFile: string): { status: number; stdout: string } {
+  try {
+    const stdout = execFileSync(
+      process.execPath,
+      [tscBin, "-p", projectFile, "--noEmit", "--listFiles", "--pretty", "false"],
+      { encoding: "utf8" },
+    );
+    return { status: 0, stdout };
+  } catch (error) {
+    if (!isExecFailure(error)) throw error;
+    const stdout = typeof error.stdout === "string" ? error.stdout : "";
+    return { status: error.status, stdout };
+  }
+}
+
 describe("schema augmentation fixture", () => {
   it("a project that augments @gwenjs/schema type-checks against core, app and vite", async () => {
     const runDir = copyFixtureRun();
@@ -85,6 +100,27 @@ describe("schema augmentation fixture", () => {
       const result = runTsc(runDir);
       expect(result.status).toBe(0);
       expect(result.stdout).toBe("");
+    } finally {
+      rmSync(runDir, { recursive: true, force: true });
+    }
+  }, 120_000);
+
+  it("the plugin file type-checks with core absent from the type graph", async () => {
+    const runDir = copyFixtureRun();
+    try {
+      // The shared fixture hooks module imports `@gwenjs/core`. This case only
+      // needs the hook map so the generated augmentation can name `game:over`.
+      writeFileSync(
+        path.join(runDir, "src", "hooks.ts"),
+        'export const fixtureHooks = {\n  "game:over": (_score: number) => {},\n};\n',
+      );
+      await writeHooksDts(runDir);
+      const result = runTscProject(path.join(runDir, "tsconfig.kit.json"));
+      expect(result.status).toBe(0);
+      const coreFiles = result.stdout
+        .split("\n")
+        .filter((line) => line.includes("/packages/core/"));
+      expect(coreFiles).toEqual([]);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }

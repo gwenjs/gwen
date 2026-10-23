@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "rootDir": "../..",
+    "noEmit": true,
+    "paths": {
+      "@gwenjs/schema": ["../schema/src/index.ts"],
+      "@gwenjs/kit": ["./src/index.ts"],
+      "@gwenjs/kit/*": ["./src/*"]
+    }
+  }
+}

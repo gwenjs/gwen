@@ -19,36 +19,6 @@
       "owner": "P-76-7"
     },
     {
-      "rule": "R2b",
-      "file": "packages/kit/package.json",
-      "match": "dependencies: unexpected @gwenjs/core",
-      "owner": "P-76-5"
-    },
-    {
-      "rule": "R2c",
-      "file": "packages/core/package.json",
-      "match": "dependencies: missing @gwenjs/kit",
-      "owner": "P-76-5"
-    },
-    {
-      "rule": "R8",
-      "file": "packages/core/src/engine/context.ts",
-      "match": "export class GwenContextError",
-      "owner": "P-76-5"
-    },
-    {
-      "rule": "R8",
-      "file": "packages/core/src/engine/context.ts",
-      "match": "export type GwenContextErrorCode",
-      "owner": "P-76-5"
-    },
-    {
-      "rule": "R8",
-      "file": "packages/core/src/engine/engine-errors.ts",
-      "match": "export class GwenComposableError",
-      "owner": "P-76-5"
-    },
-    {
       "rule": "R9",
       "file": "packages/app/src/app.ts",
       "match": "GwenPlugin from \"@gwenjs/core\"",
@@ -95,18 +65,6 @@
       "file": "packages/camera-core/src/types.ts",
       "match": "EntityId from \"@gwenjs/core\"",
       "owner": "P-76-7"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/context.ts",
-      "match": "import { GwenScope } from \"@gwenjs/core/internal\"",
-      "owner": "P-76-5"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/define-plugin.ts",
-      "match": "import { GwenComposableError } from \"@gwenjs/core\"",
-      "owner": "P-76-5"
     },
     {
       "rule": "R9",
