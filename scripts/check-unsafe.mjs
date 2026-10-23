@@ -14,7 +14,13 @@ const TEST_ATTR_RE = /^#\[\s*(tokio::test|wasm_bindgen_test|test)\b/;
 const UNSAFE_SITE_RE = /^unsafe_site_[A-Za-z0-9_]+$/;
 
 /**
- * @typedef {{ tests: Set<string>, all: Set<string>, ignored: Set<string> }} CrateFns
+ * @typedef {{
+ *   tests: Set<string>,
+ *   all: Set<string>,
+ *   ignored: Set<string>,
+ *   miriIgnored: Set<string>,
+ *   miriTargets: Set<string>,
+ * }} CrateFns
  * @typedef {{ exists?: (filePath: string) => boolean }} UnsafeAuditOptions
  */
 
@@ -141,6 +147,24 @@ function fileCountsAsTests(filePath) {
 }
 
 /**
+ * tests/unsafe_sites.rs directly under the crate, or any file under src/ (the rule of ticket #184 C5).
+ *
+ * @param {string} filePath
+ * @returns {boolean}
+ */
+function isMiriTarget(filePath) {
+  const parts = filePath.split('/');
+  const crates = parts.indexOf('crates');
+  if (crates === -1 || parts[crates + 1] === undefined) return false;
+  if (parts[crates + 2] === 'src') return parts.length > crates + 3;
+  return (
+    parts[crates + 2] === 'tests' &&
+    parts[crates + 3] === 'unsafe_sites.rs' &&
+    parts.length === crates + 4
+  );
+}
+
+/**
  * @param {Map<string, CrateFns>} fns
  * @param {string} crate
  * @returns {CrateFns}
@@ -148,7 +172,13 @@ function fileCountsAsTests(filePath) {
 function fnBucket(fns, crate) {
   let bucket = fns.get(crate);
   if (bucket === undefined) {
-    bucket = { tests: new Set(), all: new Set(), ignored: new Set() };
+    bucket = {
+      tests: new Set(),
+      all: new Set(),
+      ignored: new Set(),
+      miriIgnored: new Set(),
+      miriTargets: new Set(),
+    };
     fns.set(crate, bucket);
   }
   return bucket;
@@ -196,6 +226,8 @@ function collectFns(text, filePath, crate, fns) {
       if (fileIsTest || hasTestAttribute(lines, startLine)) {
         bucket.tests.add(name);
         if (hasUnconditionalIgnore(lines, startLine)) bucket.ignored.add(name);
+        if (hasMiriCfgIgnore(lines, startLine)) bucket.miriIgnored.add(name);
+        if (isMiriTarget(filePath)) bucket.miriTargets.add(name);
       }
       continue;
     }
@@ -236,14 +268,8 @@ function readNextIdent(text, index) {
  * @returns {boolean}
  */
 function hasTestAttribute(lines, fnLine) {
-  const own = (lines[fnLine - 1] ?? '').trim();
-  if (TEST_ATTR_RE.test(own)) return true;
-  for (let index = fnLine - 2; index >= 0; index -= 1) {
-    const trimmed = (lines[index] ?? '').trim();
-    if (trimmed === '') return false;
-    if (TEST_ATTR_RE.test(trimmed)) return true;
-    if (isPreludeLine(trimmed)) continue;
-    return false;
+  for (const line of collectPrelude(lines, fnLine).split('\n')) {
+    if (TEST_ATTR_RE.test(line.trim())) return true;
   }
   return false;
 }
@@ -272,16 +298,163 @@ function isUnconditionalIgnore(trimmed) {
  * @returns {boolean}
  */
 function hasUnconditionalIgnore(lines, fnLine) {
-  const own = (lines[fnLine - 1] ?? '').trim();
-  if (isUnconditionalIgnore(own)) return true;
-  for (let index = fnLine - 2; index >= 0; index -= 1) {
-    const trimmed = (lines[index] ?? '').trim();
-    if (trimmed === '') return false;
-    if (isUnconditionalIgnore(trimmed)) return true;
-    if (isPreludeLine(trimmed)) continue;
-    return false;
+  for (const line of collectPrelude(lines, fnLine).split('\n')) {
+    if (isUnconditionalIgnore(line.trim())) return true;
   }
   return false;
+}
+
+/**
+ * Attribute lines on this item, including a `#[...]` that rustfmt split
+ * across lines. A blank line or another item ends the prelude.
+ * A line from a previous item can enter the prelude (contrived: a macro call ending `);` right above `#[test]` with no blank line).
+ *
+ * @param {readonly string[]} lines
+ * @param {number} fnLine 1-based line of the `fn` token
+ * @returns {string}
+ */
+function collectPrelude(lines, fnLine) {
+  let first = fnLine - 1;
+  for (let index = fnLine - 2; index >= 0; index -= 1) {
+    const trimmed = (lines[index] ?? '').trim();
+    if (trimmed === '') break;
+    if (!isPreludeLine(trimmed) && !unmatchedCloses(lines, index, fnLine - 1)) break;
+    first = index;
+  }
+  return lines.slice(first, fnLine).join('\n');
+}
+
+/**
+ * True when `lines[from]` is inside a `#[...]` that closes before `end`.
+ *
+ * @param {readonly string[]} lines
+ * @param {number} from
+ * @param {number} end exclusive
+ * @returns {boolean}
+ */
+function unmatchedCloses(lines, from, end) {
+  let opens = 0;
+  let closes = 0;
+  for (let index = from; index < end; index += 1) {
+    const counts = bracketCounts((lines[index] ?? '').trim());
+    opens += counts.opens;
+    closes += counts.closes;
+  }
+  return closes > opens;
+}
+
+/**
+ * `#[cfg_attr(<predicate>, ignore, ...)]` when the predicate contains the word
+ * `miri`. Strings and comments do not count. `not(miri)` still counts.
+ * The outer nested form `cfg_attr(miri, cfg_attr(.., ignore))` and `#[cfg(not(miri))]` on the fn or its module are not detected.
+ *
+ * @param {readonly string[]} lines
+ * @param {number} fnLine 1-based line of the `fn` token
+ * @returns {boolean}
+ */
+function hasMiriCfgIgnore(lines, fnLine) {
+  const code = strip(collectPrelude(lines, fnLine));
+  let from = 0;
+  while (from < code.length) {
+    const at = findIdent(code, 'cfg_attr', from);
+    if (at === -1) return false;
+    const open = parenAfter(code, at + 'cfg_attr'.length);
+    if (open === -1) {
+      from = at + 'cfg_attr'.length;
+      continue;
+    }
+    const inner = balancedInner(code, open);
+    if (inner === null) return false;
+    const args = splitTopLevelArgs(inner);
+    const predicate = args[0] ?? '';
+    if (/\bmiri\b/.test(predicate) && args.slice(1).some((arg) => isIgnoreAttr(arg))) return true;
+    from = open + 1;
+  }
+  return false;
+}
+
+/**
+ * @param {string} text
+ * @param {string} word
+ * @param {number} from
+ * @returns {number}
+ */
+function findIdent(text, word, from) {
+  let index = from;
+  while (index < text.length) {
+    const at = text.indexOf(word, index);
+    if (at === -1) return -1;
+    if (!isIdent(text[at - 1]) && !isIdent(text[at + word.length])) return at;
+    index = at + word.length;
+  }
+  return -1;
+}
+
+/**
+ * @param {string} text
+ * @param {number} index index just after the ident
+ * @returns {number}
+ */
+function parenAfter(text, index) {
+  let cursor = index;
+  while (cursor < text.length && isSpace(text[cursor])) cursor += 1;
+  return text[cursor] === '(' ? cursor : -1;
+}
+
+/**
+ * @param {string} text
+ * @param {number} openIndex index of `(`
+ * @returns {string | null}
+ */
+function balancedInner(text, openIndex) {
+  let depth = 0;
+  for (let index = openIndex; index < text.length; index += 1) {
+    const char = text[index];
+    if (char === '(') depth += 1;
+    else if (char === ')') {
+      depth -= 1;
+      if (depth === 0) return text.slice(openIndex + 1, index);
+    }
+  }
+  return null;
+}
+
+/**
+ * @param {string} inner
+ * @returns {string[]}
+ */
+function splitTopLevelArgs(inner) {
+  /** @type {string[]} */
+  const args = [];
+  let depth = 0;
+  let start = 0;
+  for (let index = 0; index < inner.length; index += 1) {
+    const char = inner[index];
+    if (char === '(' || char === '[') depth += 1;
+    else if (char === ')' || char === ']') depth = Math.max(0, depth - 1);
+    else if (char === ',' && depth === 0) {
+      args.push(inner.slice(start, index));
+      start = index + 1;
+    }
+  }
+  args.push(inner.slice(start));
+  return args;
+}
+
+/**
+ * @param {string} arg
+ * @returns {boolean}
+ */
+function isIgnoreAttr(arg) {
+  return /^\s*ignore\b/.test(arg);
+}
+
+/**
+ * @param {string | undefined} char
+ * @returns {boolean}
+ */
+function isSpace(char) {
+  return char === ' ' || char === '\t' || char === '\n' || char === '\r';
 }
 
 /**
@@ -350,6 +523,12 @@ function proofProblem(id, row, bucket, exists) {
     if (number !== null) return number;
     if (bucket !== undefined && bucket.tests.has(row.test)) {
       if (bucket.ignored.has(row.test)) return `test ${row.test} is ignored: ${id}`;
+      if (bucket.miriIgnored.has(row.test)) {
+        return `test ${row.test} is ignored under Miri: ${id}`;
+      }
+      if (!bucket.miriTargets.has(row.test)) {
+        return `test ${row.test} is not in a Miri target: ${id}`;
+      }
       return null;
     }
     if (bucket !== undefined && bucket.all.has(row.test)) {
