@@ -5,16 +5,26 @@ on:
     branches: [main, v1-alpha, "hardening/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  # Called by ci-full.yml for a full run on demand.
+  # Called by ci-full.yml for a full run on demand. No input, so miri_full stays empty.
   workflow_call:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      miri_full:
+        description: run only the full Miri job
+        type: boolean
+        default: true
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # A Monday run, or a dispatch with miri_full, must not queue behind a push to the same ref.
+  group: ${{ github.workflow }}-${{ github.ref }}${{ (github.event_name == 'schedule' || github.event.inputs.miri_full == 'true') && '-miri' || '' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Decides what a run needs. A draft PR stops here and every job below is skipped.
-  # push and ci-full.yml (workflow_dispatch) run everything ("full"). A PR runs what its diff touches.
+  # push and ci-full.yml (no miri_full input) run everything ("full"). A PR runs what its diff touches.
+  # A Monday schedule, or a dispatch with miri_full, runs only the Miri full job.
   changes:
     name: Changes
     runs-on: ubuntu-latest
@@ -25,6 +35,8 @@ jobs:
       rust: ${{ steps.mode.outputs.rust }}
       root: ${{ steps.mode.outputs.root }}
       stack: ${{ steps.mode.outputs.stack }}
+      miri_full: ${{ steps.mode.outputs.miri_full }}
+      miri_only: ${{ steps.mode.outputs.miri_only }}
     steps:
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
         id: filter
@@ -67,19 +79,32 @@ jobs:
           RUST: ${{ steps.filter.outputs.rust }}
           ROOT: ${{ steps.filter.outputs.root }}
           STACK: ${{ steps.filter.outputs.stack }}
+          MIRI_FULL: ${{ github.event.inputs.miri_full }}
         run: |
-          if [ "$EVENT" != "pull_request" ]; then
+          if [ "$EVENT" = "schedule" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$MIRI_FULL" = "true" ]; }; then
+            echo "full=false" >> "$GITHUB_OUTPUT"
+            echo "code=false" >> "$GITHUB_OUTPUT"
+            echo "rust=false" >> "$GITHUB_OUTPUT"
+            echo "root=false" >> "$GITHUB_OUTPUT"
+            echo "stack=false" >> "$GITHUB_OUTPUT"
+            echo "miri_full=true" >> "$GITHUB_OUTPUT"
+            echo "miri_only=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" != "pull_request" ]; then
             echo "full=true" >> "$GITHUB_OUTPUT"
             echo "code=true" >> "$GITHUB_OUTPUT"
             echo "rust=true" >> "$GITHUB_OUTPUT"
             echo "root=true" >> "$GITHUB_OUTPUT"
             echo "stack=true" >> "$GITHUB_OUTPUT"
+            echo "miri_full=false" >> "$GITHUB_OUTPUT"
+            echo "miri_only=false" >> "$GITHUB_OUTPUT"
           else
             echo "full=false" >> "$GITHUB_OUTPUT"
             echo "code=$CODE" >> "$GITHUB_OUTPUT"
             echo "rust=$RUST" >> "$GITHUB_OUTPUT"
             echo "root=$ROOT" >> "$GITHUB_OUTPUT"
             echo "stack=$STACK" >> "$GITHUB_OUTPUT"
+            echo "miri_full=false" >> "$GITHUB_OUTPUT"
+            echo "miri_only=false" >> "$GITHUB_OUTPUT"
           fi
   lint:
     name: Lint & Format
@@ -559,6 +584,35 @@ jobs:
       - name: Miri physics3d overlap export
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test physics3d_overlap_bulk
 
+  rust-miri-full:
+    name: Miri full
+    runs-on: ubuntu-latest
+    needs: [changes]
+    if: needs.changes.outputs.miri_full == 'true'
+    # Ceiling until the workflow_dispatch run of this job is measured.
+    timeout-minutes: 240
+    env:
+      MIRI_TOOLCHAIN: nightly-2026-10-01
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
+        with:
+          toolchain: ${{ env.MIRI_TOOLCHAIN }}
+          components: miri, rust-src
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          prefix-key: v1-miri-full-2026-10-23
+          workspaces: '. -> target'
+          cache-on-failure: true
+      - name: Miri gwen-core lib and integration tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib --tests
+      - name: Miri gwen-core physics2d lib and integration tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --lib --tests
+      - name: Miri gwen-core physics3d lib and integration tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib --tests
+      - name: Miri gwen-wasm-utils
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
+
   wasm-size:
     name: WASM size budget
     runs-on: ubuntu-latest
@@ -819,7 +873,7 @@ jobs:
   ci-status:
     name: CI Status
     runs-on: ubuntu-latest
-    needs: [changes, lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, rust-miri-step, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity, stack-pack]
+    needs: [changes, lint, rust, rust-lint, typescript, bench, api-surface, storage-bench, alloc-gate, agent-hygiene, verify-red, rust-miri, rust-miri-step, rust-miri-full, wasm-size, rust-deny, docs-check, browser-wasm, glue-shape, npm-audit, wasm-capacity, stack-pack]
     if: always()
     steps:
       # A skipped job (draft, docs only, no Rust change, bench outside a full run) is not a failure.
@@ -839,6 +893,7 @@ jobs:
             "${{ needs['verify-red'].result }}" \
             "${{ needs['rust-miri'].result }}" \
             "${{ needs['rust-miri-step'].result }}" \
+            "${{ needs['rust-miri-full'].result }}" \
             "${{ needs['wasm-size'].result }}" \
             "${{ needs['rust-deny'].result }}" \
             "${{ needs['docs-check'].result }}" \
@@ -858,7 +913,7 @@ jobs:
     name: Agent hygiene
     runs-on: ubuntu-latest
     needs: [changes]
-    if: needs.changes.result == 'success'
+    if: needs.changes.result == 'success' && needs.changes.outputs.miri_only != 'true'
     permissions:
       contents: read
       pull-requests: read
