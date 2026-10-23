@@ -14,7 +14,8 @@ export type InternalCollisionEvent3D = {
  * WASM exports available in the physics3d variant.
  *
  * A fallible export throws an `Error` with a `code` property (`PHYSICS3D:*`, or
- * `CORE:INVALID_SHARED_BUFFER` for the overlap output pointer). It never returns a
+ * `CORE:INVALID_SHARED_BUFFER` for the overlap output pointer or a nav grid shorter
+ * than `width * height * depth`). It never returns a
  * sentinel for a failure: a `boolean` result is `true` on success, a joint or
  * controller result is the new id or slot. Absence stays a value: an empty
  * `Float32Array` for a vector getter on a missing body, `[0]` for a query miss.
@@ -478,6 +479,7 @@ export interface Physics3DWasmBridge {
   /**
    * Upload a voxel navigation grid.
    * Throws `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid over the cell limit.
+   * Throws `CORE:INVALID_SHARED_BUFFER` when the grid is shorter than `width * height * depth`.
    */
   physics3d_init_navgrid_3d?: (
     ptr: number,
@@ -507,12 +509,6 @@ export interface Physics3DWasmBridge {
 
   /** Return the WASM linear-memory pointer to the path waypoint buffer. */
   physics3d_get_path_buffer_ptr_3d?: () => number;
-
-  /** wasm-bindgen allocator on the generated glue. */
-  __wbindgen_malloc?: (size: number, align: number) => number;
-
-  /** wasm-bindgen free on the generated glue. */
-  __wbindgen_free?: (ptr: number, size: number, align: number) => void;
 
   // ─── RFC-07: Spatial queries ──────────────────────────────────────────────────
 
@@ -731,4 +727,6 @@ export interface Physics3DBridgeRuntime {
   getLinearMemory?(): WebAssembly.Memory | null;
   /** Returns the current generation counter for an entity slot index. */
   getEntityGeneration?(index: number): number | undefined;
+  allocSharedBuffer(byteLength: number): number;
+  freeSharedBuffer(ptr: number, byteLength: number): void;
 }

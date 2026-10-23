@@ -707,7 +707,8 @@ export interface Physics3DAPI {
    *
    * @param opts - Grid dimensions, cell size, origin, and the raw voxel data.
    * @throws {GwenWasmError} `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid
-   *   over the cell limit (WASM mode). The temporary upload buffer is freed either way.
+   *   over the cell limit (WASM mode). `CORE:INVALID_SHARED_BUFFER` when the grid is shorter than
+   *   `width * height * depth`. The temporary upload buffer is freed either way.
    */
   initNavGrid3D(opts: Pathfinding3DOptions): void;
 
