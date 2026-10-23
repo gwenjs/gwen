@@ -343,13 +343,139 @@ test('an unconditional ignore on an unsafe_site test is not a proof', () => {
     [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }],
   );
   assert.deepEqual(reason, ['test unsafe_site_u001 is ignored: U-001']);
+});
 
-  const miri = evaluateUnsafe(
-    withSite({
-      'crates/gwen-core/tests/unsafe_sites.rs':
-        '#[test]\n#[cfg_attr(miri, ignore = "slow under miri")]\nfn unsafe_site_u001() {}\n',
+test('a proof under cfg_attr(miri, ignore) is refused', () => {
+  const doc = [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }];
+  const expected = ['test unsafe_site_u001 is ignored under Miri: U-001'];
+  const bodies = [
+    '#[test]\n#[cfg_attr(miri, ignore = "x")]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(miri, ignore)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(all(miri, not(target_arch = "x86_64")), ignore)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(any(miri, windows), ignore)]\nfn unsafe_site_u001() {}\n',
+    [
+      '#[test]',
+      '#[cfg_attr(',
+      '    miri,',
+      '    ignore = "wall-clock bound; Miri interprets allocation and 100 ms cannot hold. Measured 4100 ms."',
+      ')]',
+      'fn unsafe_site_u001() {}',
+      '',
+    ].join('\n'),
+    '#[test]\n#[cfg_attr(miri, ignore, should_panic)]\nfn unsafe_site_u001() {}\n',
+  ];
+  for (const body of bodies) {
+    const errors = evaluateUnsafe(
+      withSite({ 'crates/gwen-core/tests/unsafe_sites.rs': body }),
+      doc,
+    );
+    assert.deepEqual(errors, expected);
+  }
+
+  const src = `${validBlock}#[cfg(test)]\nmod tests {\n    #[test]\n    #[cfg_attr(miri, ignore = "x")]\n    fn unsafe_site_u001() {}\n}\n`;
+  const srcErrors = evaluateUnsafe(files({ 'crates/gwen-core/src/a.rs': src }), doc);
+  assert.deepEqual(srcErrors, expected);
+
+  const quiet = [
+    '#[test]\n#[cfg_attr(feature = "slow", ignore)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(target_arch = "wasm32", ignore)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(miri, should_panic)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n#[cfg_attr(feature = "miri", ignore)]\nfn unsafe_site_u001() {}\n',
+    '#[test]\n// #[cfg_attr(miri, ignore)]\nfn unsafe_site_u001() {}\n',
+  ];
+  for (const body of quiet) {
+    const errors = evaluateUnsafe(
+      withSite({ 'crates/gwen-core/tests/unsafe_sites.rs': body }),
+      doc,
+    );
+    assert.deepEqual(errors, []);
+  }
+
+  const precedence = evaluateUnsafe(
+    files({
+      'crates/gwen-core/src/a.rs': validBlock,
+      'crates/gwen-core/tests/other.rs':
+        '#[ignore]\n#[cfg_attr(miri, ignore)]\nfn unsafe_site_u001() {}\n',
     }),
-    [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }],
+    doc,
   );
-  assert.deepEqual(miri, []);
+  assert.deepEqual(precedence, ['test unsafe_site_u001 is ignored: U-001']);
+});
+
+test('a proof outside unsafe_sites.rs and src tests is refused', () => {
+  const doc = [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }];
+  const other = evaluateUnsafe(
+    files({
+      'crates/gwen-core/src/a.rs': validBlock,
+      'crates/gwen-core/tests/other.rs': 'fn unsafe_site_u001() {}\n',
+    }),
+    doc,
+  );
+  assert.deepEqual(other, ['test unsafe_site_u001 is not in a Miri target: U-001']);
+
+  const nested = evaluateUnsafe(
+    files({
+      'crates/gwen-core/src/a.rs': validBlock,
+      'crates/gwen-core/tests/sub/unsafe_sites.rs': '#[test]\nfn unsafe_site_u001() {}\n',
+    }),
+    doc,
+  );
+  assert.deepEqual(nested, ['test unsafe_site_u001 is not in a Miri target: U-001']);
+
+  const sites = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs': '#[test]\nfn unsafe_site_u001() {}\n',
+    }),
+    doc,
+  );
+  assert.deepEqual(sites, []);
+
+  const src = `${validBlock}#[cfg(test)]\nmod tests {\n    #[test]\n    fn unsafe_site_u001() {}\n}\n`;
+  const srcErrors = evaluateUnsafe(files({ 'crates/gwen-core/src/a.rs': src }), doc);
+  assert.deepEqual(srcErrors, []);
+
+  const nestedSrc = evaluateUnsafe(
+    files({
+      'crates/gwen-core/src/a.rs': validBlock,
+      'crates/gwen-core/src/x/tests/y.rs': '#[test]\nfn unsafe_site_u001() {}\n',
+    }),
+    doc,
+  );
+  assert.deepEqual(nestedSrc, []);
+
+  const wasm = evaluateUnsafe(
+    files({
+      'crates/gwen-wasm-utils/src/a.rs': validBlock,
+      'crates/gwen-wasm-utils/tests/unsafe_sites.rs': '#[test]\nfn unsafe_site_u001() {}\n',
+    }),
+    [{ path: 'crates/gwen-wasm-utils/UNSAFE.md', text: validDoc }],
+  );
+  assert.deepEqual(wasm, []);
+});
+
+test('a multi-line attribute between the test attribute and the fn does not hide either', () => {
+  const between = ['#[allow(', '    dead_code,', '    reason = "x"', ')]'].join('\n');
+  const doc = [{ path: 'crates/gwen-core/UNSAFE.md', text: validDoc }];
+  const seen = evaluateUnsafe(
+    files({
+      'crates/gwen-core/src/a.rs': validBlock,
+      'crates/gwen-core/src/b.rs': ['#[test]', between, 'fn unsafe_site_u001() {}', ''].join('\n'),
+    }),
+    doc,
+  );
+  assert.deepEqual(seen, []);
+
+  const ignored = evaluateUnsafe(
+    withSite({
+      'crates/gwen-core/tests/unsafe_sites.rs': [
+        '#[ignore]',
+        between,
+        '#[test]',
+        'fn unsafe_site_u001() {}',
+        '',
+      ].join('\n'),
+    }),
+    doc,
+  );
+  assert.deepEqual(ignored, ['test unsafe_site_u001 is ignored: U-001']);
 });
