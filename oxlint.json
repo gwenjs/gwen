@@ -50,6 +50,24 @@
       }
     },
     {
+      "files": ["packages/kit/src/**", "packages/kit/tests/**"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              "*/wasm/gwen_core*",
+              "*/wasm/gwen-core*",
+              "gwen_core",
+              "gwen-core",
+              "@gwenjs/core",
+              "@gwenjs/core/*"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "files": [
         "packages/core/src/engine/gwen-engine.ts",
         "packages/core/src/engine/engine-loop.ts",

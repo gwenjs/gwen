@@ -38,10 +38,10 @@
     "build": "vite build",
     "postbuild": "node ../../scripts/fix-dts-extensions.mjs .",
     "test": "vitest run",
+    "typecheck:isolated": "tsc --noEmit -p tsconfig.isolated.json",
     "watch": "vite build --watch"
   },
   "dependencies": {
-    "@gwenjs/core": "workspace:^",
     "@gwenjs/schema": "workspace:^"
   },
   "devDependencies": {

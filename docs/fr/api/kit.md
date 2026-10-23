@@ -9,6 +9,8 @@ description: "Référence API pour @gwenjs/kit."
 
 Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires pour créer des modules réutilisables, des auto-imports et des intégrations au moment du build.
 
+`@gwenjs/kit` exporte aussi `getCurrentScope`, `GwenContextError`, `GwenComposableError` et `GwenContextErrorCodes`.
+
 ## Définition de plugins
 
 ### definePlugin(factory)
