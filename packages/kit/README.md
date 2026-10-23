@@ -92,7 +92,7 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### `.`
 
-Values: `createChildScope`, `createErrorBus`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+Values: `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
 Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenTypeTemplate`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
 
@@ -100,7 +100,7 @@ Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenTypeTemplate`, `MergePlug
 
 Values: `createEntityId`, `definePlugin`, `definePluginTypes`, `satisfiesPluginContract`, `unpackEntityId`
 
-Types: `ComponentType`, `EngineErrorBus`, `EntityId`, `GwenEngine`, `GwenEngineOptions`, `GwenHookable`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `MemoryRegion`, `PluginErrorContext`, `PluginTypesOptions`, `WasmBridge`, `WasmModuleHandle`, `WasmModuleOptions`
+Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`, `PluginTypesOptions`
 
 ### `./module`
 

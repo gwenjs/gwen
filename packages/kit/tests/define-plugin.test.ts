@@ -10,7 +10,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { definePlugin } from "../src/plugin";
 import { GwenComposableError } from "@gwenjs/core";
-import type { GwenEngine } from "@gwenjs/core";
+import type { GwenEngineBase as GwenEngine } from "@gwenjs/schema";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 

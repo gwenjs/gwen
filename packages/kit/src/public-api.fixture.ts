@@ -17,21 +17,13 @@ type _0 = [
 ];
 type _1 = [
   T_plugin.ComponentType,
-  T_plugin.EngineErrorBus,
   T_plugin.EntityId,
-  T_plugin.GwenEngine,
-  T_plugin.GwenEngineOptions,
-  T_plugin.GwenHookable<never>,
   T_plugin.GwenPlugin,
   T_plugin.GwenPluginFactory<never, never>,
   T_plugin.GwenProvides,
   T_plugin.GwenRuntimeHooks,
-  T_plugin.MemoryRegion,
   T_plugin.PluginErrorContext,
   T_plugin.PluginTypesOptions,
-  T_plugin.WasmBridge,
-  T_plugin.WasmModuleHandle,
-  T_plugin.WasmModuleOptions,
 ];
 type _2 = [
   T_module.GwenBaseConfig,

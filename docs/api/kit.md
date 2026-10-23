@@ -20,14 +20,15 @@ import type { AutoImport, GwenTypeTemplate, DeepPartial } from '@gwenjs/kit'
 
 ## `@gwenjs/kit/plugin`
 
-Plugin authoring utilities and core type re-exports.
+Plugin authoring utilities and schema type re-exports.
 
-**Exports:** `definePlugin`, `satisfiesPluginContract`, `definePluginTypes`, `GwenPluginFactory` (type), plus core type re-exports: `GwenPlugin`, `GwenEngine`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, etc.
+**Exports:** `definePlugin`, `satisfiesPluginContract`, `definePluginTypes`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
 
 **Usage:**
 ```ts
 import { definePlugin, satisfiesPluginContract } from '@gwenjs/kit/plugin'
-import type { GwenEngine, GwenPlugin } from '@gwenjs/kit/plugin'
+import type { GwenPlugin } from '@gwenjs/kit/plugin'
+import type { GwenEngineBase } from '@gwenjs/schema'
 ```
 
 ### definePlugin(factory)

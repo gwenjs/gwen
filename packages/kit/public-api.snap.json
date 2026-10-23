@@ -1,13 +1,6 @@
 {
   ".": {
-    "values": [
-      "createChildScope",
-      "createErrorBus",
-      "useCurrentScope",
-      "useErrorReporter",
-      "useLogger",
-      "usePerfMark"
-    ],
+    "values": ["useCurrentScope", "useErrorReporter", "useLogger", "usePerfMark"],
     "types": [
       "AutoImport",
       "DeepPartial",
@@ -30,21 +23,13 @@
     ],
     "types": [
       "ComponentType",
-      "EngineErrorBus",
       "EntityId",
-      "GwenEngine",
-      "GwenEngineOptions",
-      "GwenHookable",
       "GwenPlugin",
       "GwenPluginFactory",
       "GwenProvides",
       "GwenRuntimeHooks",
-      "MemoryRegion",
       "PluginErrorContext",
-      "PluginTypesOptions",
-      "WasmBridge",
-      "WasmModuleHandle",
-      "WasmModuleOptions"
+      "PluginTypesOptions"
     ]
   },
   "./module": {

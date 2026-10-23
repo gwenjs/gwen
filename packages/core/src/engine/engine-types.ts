@@ -200,7 +200,7 @@ export interface PlacementBridge {
 /**
  * Error bus used by the engine.
  *
- * Implemented by `createErrorBus()` in `@gwenjs/core` (re-exported from `@gwenjs/kit`).
+ * Implemented by `createErrorBus()` in `@gwenjs/core`.
  * Core does not import kit.
  *
  * @example
@@ -275,7 +275,7 @@ export interface GwenEngineOptions {
    * `onFatal` moves a non-terminal engine to `faulted`. `stop()` is not called.
    * The engine subscribes in the constructor. `stop()` unsubscribes.
    * `start()` after `stop()` rejects. Create a new engine.
-   * `createErrorBus()` is exported from `@gwenjs/core` and `@gwenjs/kit`.
+   * `createErrorBus()` is exported from `@gwenjs/core`.
    */
   errorBus?: EngineErrorBus;
 

@@ -5,22 +5,14 @@ export type { GwenPluginFactory } from "../define-plugin.js";
 export { satisfiesPluginContract, definePluginTypes } from "../plugin-types.js";
 export type { PluginTypesOptions } from "../plugin-types.js";
 
-// Type re-exports from @gwenjs/core — everything a plugin author needs
+// Type and value re-exports from @gwenjs/schema — everything a plugin author needs
 export type {
   GwenPlugin,
-  GwenEngine,
   GwenProvides,
-  GwenEngineOptions,
-  WasmBridge,
-  MemoryRegion,
-  WasmModuleOptions,
-  WasmModuleHandle,
+  GwenRuntimeHooks,
   EntityId,
   ComponentType,
-  GwenRuntimeHooks,
-  GwenHookable,
-  EngineErrorBus,
   PluginErrorContext,
-} from "@gwenjs/core";
+} from "@gwenjs/schema";
 
-export { createEntityId, unpackEntityId } from "@gwenjs/core";
+export { createEntityId, unpackEntityId } from "@gwenjs/schema";
