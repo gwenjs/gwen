@@ -15,6 +15,11 @@ export interface GwenLogEntry {
   entityId?: string | undefined;
   /** Timestamp from `performance.now()` at the moment of emission. */
   timestamp: number;
+  /**
+   * Engine frame index when the logger was built with a frame getter.
+   * `0` is a real frame. The key is absent when no getter is set.
+   */
+  frame?: number | undefined;
 }
 
 /** Receives log entries from `GwenLogger`. Implement to ship logs to any destination. */
