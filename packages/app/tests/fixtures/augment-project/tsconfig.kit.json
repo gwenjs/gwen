@@ -1,0 +1,14 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      "@gwenjs/schema": ["../../../../schema/src/index.ts"],
+      "@gwenjs/kit": ["../../../../kit/src/index.ts"],
+      "@gwenjs/kit/*": ["../../../../kit/src/*"]
+    }
+  },
+  "include": ["src/plugin.ts", ".gwen/hooks.d.ts"]
+}

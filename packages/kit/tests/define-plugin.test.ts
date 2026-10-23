@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { definePlugin } from "../src/plugin";
-import { GwenComposableError } from "@gwenjs/core";
+import * as kit from "@gwenjs/kit";
 import type { GwenEngineBase as GwenEngine } from "@gwenjs/schema";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -178,7 +178,8 @@ describe("definePlugin() — setup error reporting", () => {
         throw new Error("boom");
       },
     }));
-    await expect(P().setup(mockEngine())).rejects.toBeInstanceOf(GwenComposableError);
+    expect(typeof kit.GwenComposableError).toBe("function");
+    await expect(P().setup(mockEngine())).rejects.toBeInstanceOf(kit.GwenComposableError);
     await expect(P().setup(mockEngine())).rejects.toMatchObject({
       code: "engine:plugin-setup-failed",
     });

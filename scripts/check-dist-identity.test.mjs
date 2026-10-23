@@ -66,7 +66,7 @@ test("judge flags the class-field form of the class", () => {
   const subclassField = {
     pkg: "core",
     path: "packages/core/dist/index.js",
-    text: 'class GwenContextError extends GwenError { name = "GwenContextError"; }',
+    text: 'class GwenPluginNotFoundError extends GwenError { name = "GwenPluginNotFoundError"; }',
   };
   assert.deepEqual(judge([subclassField]), []);
 });
@@ -75,9 +75,60 @@ test("judge ignores a subclass that only sets its own name", () => {
   const subclass = {
     pkg: "core",
     path: "packages/core/dist/chunks/context.js",
-    text: 'class GwenContextError extends GwenError { constructor(m) { super("c", m); this.name = "GwenContextError"; } }',
+    text: 'class GwenPluginNotFoundError extends GwenError { constructor(m) { super("c", m); this.name = "GwenPluginNotFoundError"; } }',
   };
   assert.deepEqual(judge([subclass]), []);
+});
+
+test("judge flags a core dist that declares the GwenContextError class", () => {
+  const file = {
+    pkg: "core",
+    path: "packages/core/dist/chunks/context.js",
+    text: 'class GwenContextError extends GwenError { constructor(m) { super("c", m); this.name = "GwenContextError"; } }',
+  };
+  const problems = judge([file]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /packages\/core\/dist\/chunks\/context\.js/);
+  assert.match(problems[0], /GwenContextError/);
+});
+
+test("judge flags a core dist that declares the GwenComposableError class", () => {
+  const file = {
+    pkg: "core",
+    path: "packages/core/dist/chunks/context.js",
+    text: 'class GwenComposableError extends GwenError { constructor(m) { super("c", m); this.name = "GwenComposableError"; } }',
+  };
+  const problems = judge([file]);
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], /packages\/core\/dist\/chunks\/context\.js/);
+  assert.match(problems[0], /GwenComposableError/);
+});
+
+test("judge flags a kit dist chunk set where the scope slot module appears twice", () => {
+  const slot = [
+    "//#region src/scope-slot.ts",
+    "var l = null;",
+    "function u() {",
+    "\treturn l;",
+    "}",
+    "function d(e) {",
+    "\tl = e;",
+    "}",
+    "//#endregion",
+  ].join("\n");
+  const problems = judge([
+    { pkg: "kit", path: "packages/kit/dist/index.js", text: slot },
+    { pkg: "kit", path: "packages/kit/dist/plugin/index.js", text: slot },
+  ]);
+  assert.equal(problems.length, 1);
+  assert.ok(problems[0].startsWith("packages/kit/dist/plugin/index.js:"), problems[0]);
+  assert.deepEqual(judge([{ pkg: "kit", path: "packages/kit/dist/index.js", text: slot }]), []);
+  const across = judge([
+    { pkg: "kit", path: "packages/kit/dist/index.js", text: slot },
+    { pkg: "core", path: "packages/core/dist/chunks/context-slot.js", text: slot },
+  ]);
+  assert.equal(across.length, 1);
+  assert.ok(across[0].startsWith("packages/core/dist/chunks/context-slot.js:"), across[0]);
 });
 
 /**
@@ -89,8 +140,16 @@ function runCli(coreSource) {
   const root = mkdtempSync(join(tmpdir(), "dist-identity-"));
   try {
     writeFileSync(join(root, "package.json"), '{ "type": "module" }');
+    const kitSource = [
+      'import { GwenError } from "../../schema/dist/index.js";',
+      "export class GwenContextError extends GwenError {",
+      '  constructor(message) { super("c", message); this.name = "GwenContextError"; }',
+      "}",
+      "",
+    ].join("\n");
     for (const [pkg, source] of [
       ["schema", schemaDist.text],
+      ["kit", kitSource],
       ["core", coreSource],
     ]) {
       mkdirSync(join(root, "packages", pkg, "dist"), { recursive: true });
@@ -120,9 +179,15 @@ test("the CLI exits 1 and lists a core dist that bundles GwenError", () => {
 });
 
 test("the CLI exits 0 when core extends the GwenError of schema", () => {
-  const result = runCli(
-    'import { GwenError } from "../../schema/dist/index.js";\nexport class GwenContextError extends GwenError {}',
-  );
+  const result = runCli('export { GwenContextError } from "../../kit/dist/index.js";\n');
   assert.equal(result.status, 0, result.output);
   assert.match(result.output, /Dist identity ok/);
+});
+
+test("the CLI exits 1 when core declares its own GwenContextError without a name assignment", () => {
+  const result = runCli(
+    'import { GwenError } from "../../schema/dist/index.js";\nexport class GwenContextError extends GwenError {}\n',
+  );
+  assert.equal(result.status, 1);
+  assert.match(result.output, /is not the GwenContextError of kit\/dist/);
 });

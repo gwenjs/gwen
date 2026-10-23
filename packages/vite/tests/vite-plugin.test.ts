@@ -72,6 +72,13 @@ describe("gwen() config hook — optimizeDeps", () => {
     const config = await (plugin.config as Function)({}, { command: "serve" });
     expect(config.resolve.dedupe).toContain("@gwenjs/core");
   });
+
+  it("dedupes and pre-bundles @gwenjs/kit with core", async () => {
+    const plugin = gwenPlugin();
+    const config = await (plugin.config as Function)({}, { command: "serve" });
+    expect(config.resolve.dedupe).toContain("@gwenjs/kit");
+    expect(config.optimizeDeps.include).toContain("@gwenjs/core > @gwenjs/kit");
+  });
 });
 
 // ── Virtual module — resolveId ────────────────────────────────────────────────
