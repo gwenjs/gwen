@@ -136,7 +136,11 @@ pub fn get_path_buffer_ptr_3d() -> *const f32 {
 /// # Errors
 /// Returns [`Physics3DError::InvalidNavGrid`] when a dimension is zero, when `width * height *
 /// depth` overflows (`checked_mul`), or when the product is above [`MAX_NAVGRID_CELLS`].
-fn navgrid_cell_count(width: u32, height: u32, depth: u32) -> Result<usize, Physics3DError> {
+pub(crate) fn navgrid_cell_count(
+    width: u32,
+    height: u32,
+    depth: u32,
+) -> Result<usize, Physics3DError> {
     let invalid = Physics3DError::InvalidNavGrid {
         w: width,
         h: height,
@@ -178,17 +182,17 @@ fn navgrid_cell_count(width: u32, height: u32, depth: u32) -> Result<usize, Phys
 ///
 /// # Safety
 ///
-/// The dimensions are validated and capped. The pointer is not: it comes from
-/// `__wbindgen_malloc`, which keeps no record this crate can read, so nothing here can tell
-/// whether `ptr` addresses `width * height * depth` readable bytes. The caller must guarantee
-/// it. A null pointer stores no grid and does not read.
+/// The dimensions are validated and capped. The non-test caller, `physics3d_init_navgrid_3d`,
+/// checks the address against the shared-buffer record before the call; the function itself
+/// still trusts `ptr`. A null pointer stores no grid and does not read.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
 // SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
-// `width * height * depth` bytes, a count that is validated and capped. The pointer's origin is
-// not checked: the caller must pass an address that holds that many bytes. [U-024]
+// `width * height * depth` bytes, a count that is validated and capped. The non-test caller,
+// `physics3d_init_navgrid_3d`, checks the address against the shared-buffer record before the
+// call; the function itself still trusts `ptr`. [U-024]
 pub(crate) unsafe fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
     ptr: *const u8,
@@ -205,9 +209,9 @@ pub(crate) unsafe fn init_navgrid_3d(
         *slot = None;
         return Ok(());
     }
-    // SAFETY: the null pointer is handled above and `len` is validated and capped. The caller
-    // guarantees `ptr` addresses `len` readable bytes; the pointer's origin cannot be checked.
-    // [U-025]
+    // SAFETY: the null pointer is handled above and `len` is validated and capped. The non-test
+    // caller, `physics3d_init_navgrid_3d`, checks the address against the shared-buffer record
+    // before the call; the function itself still trusts `ptr`. [U-025]
     let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,

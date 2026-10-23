@@ -1,7 +1,7 @@
 //! Nav grid upload and 3D path search through the public physics3d exports.
 //!
-//! Native only. Run with `--features physics3d`. The grid pointer is the address of a `Vec<u8>`
-//! owned by the test, the same shape of call JavaScript makes with a `__wbindgen_malloc` address.
+//! Native only. Run with `--features physics3d`. Each upload asks `alloc_shared_buffer` for
+//! the cells, copies them into that allocation when it is live, calls the export, then frees it.
 //! `worst_accepted_grid_search` is ignored by default; its rustdoc in `pathfinding.rs` names the
 //! command that measures it.
 
@@ -33,7 +33,7 @@ fn bad_request(reason: PathRequestReject) -> Physics3DError {
 
 /// Uploads `cells` as a `w x h x d` grid with cell size 1 and origin 0.
 fn upload(e: &mut Engine, cells: &[u8], w: u32, h: u32, d: u32) -> Outcome {
-    e.physics3d_init_navgrid_3d(cells.as_ptr() as usize, w, h, d, 1.0, 0.0, 0.0, 0.0)
+    upload_cells(e, cells, w, h, d, 1.0, [0.0, 0.0, 0.0])
 }
 
 /// Uploads an all-open `w x h x d` grid with the given cell size and origin.
@@ -44,16 +44,34 @@ fn upload_open(
     origin: [f32; 3],
 ) -> Result<(), Physics3DError> {
     let cells = vec![0u8; dims[0] as usize * dims[1] as usize * dims[2] as usize];
-    e.physics3d_init_navgrid_3d(
-        cells.as_ptr() as usize,
-        dims[0],
-        dims[1],
-        dims[2],
-        cell_size,
-        origin[0],
-        origin[1],
-        origin[2],
-    )
+    upload_cells(e, &cells, dims[0], dims[1], dims[2], cell_size, origin)
+}
+
+/// Copies `cells` into a live shared buffer, calls the export, then frees the buffer.
+fn upload_cells(
+    e: &mut Engine,
+    cells: &[u8],
+    w: u32,
+    h: u32,
+    d: u32,
+    cell_size: f32,
+    origin: [f32; 3],
+) -> Outcome {
+    let len = cells.len();
+    let alloc_len = len.max(1);
+    let ptr = e.alloc_shared_buffer(alloc_len);
+    if ptr != 0 {
+        // SAFETY: `ptr` is the start of the live allocation just returned for `alloc_len`
+        // bytes, and `alloc_len` is at least `len`. `cells` holds `len` bytes, so the copy
+        // stays inside both.
+        unsafe {
+            std::ptr::copy_nonoverlapping(cells.as_ptr(), ptr as *mut u8, len);
+        }
+    }
+    let r = e.physics3d_init_navgrid_3d(ptr, w, h, d, cell_size, origin[0], origin[1], origin[2]);
+    e.free_shared_buffer(ptr, alloc_len)
+        .map_err(Physics3DError::Core)?;
+    r
 }
 
 /// Reads the first `count` waypoints of the calling thread's path buffer.
