@@ -25,7 +25,7 @@
 
 import type { GwenEngineBase, GwenPlugin } from "@gwenjs/schema";
 import { GwenErrorCode } from "@gwenjs/schema";
-import { GwenComposableError } from "@gwenjs/core";
+import { GwenComposableError } from "./context-errors.js";
 
 /**
  * A typed factory function returned by {@link definePlugin}.

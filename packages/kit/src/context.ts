@@ -9,7 +9,7 @@
 
 import type { IGwenScope } from "@gwenjs/schema";
 
-import { GwenScope } from "@gwenjs/core/internal";
+import { getCurrentScope } from "./scope-slot.js";
 
 /**
  * Returns the currently active scope, or null if outside any context.
@@ -34,5 +34,5 @@ import { GwenScope } from "@gwenjs/core/internal";
  * ```
  */
 export function useCurrentScope(): IGwenScope | null {
-  return GwenScope.current();
+  return getCurrentScope();
 }
