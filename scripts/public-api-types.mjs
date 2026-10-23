@@ -4,11 +4,13 @@
  * Default: compare each package snap to the built dist/*.d.ts exports
  * that are not already runtime values.
  * `--write-source` fills types from the TypeScript source entries.
+ * Export targets other than .d.ts, .d.mts, .ts, .tsx, .js and .mjs (a .wasm binary, for example) are skipped.
  */
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { isModuleEntry } from "./public-api-entry.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const writeSource = process.argv.includes("--write-source");
@@ -85,6 +87,7 @@ for (const dir of packages) {
   for (const [subpath, target] of Object.entries(manifest.exports)) {
     if (subpath === "./package.json") continue;
     const file = entryFile(pkgDir, target);
+    if (file && !isModuleEntry(file)) continue;
     if (!file || !existsSync(file)) {
       if (!writeSource) {
         console.error(
