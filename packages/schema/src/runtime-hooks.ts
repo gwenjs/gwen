@@ -1,0 +1,144 @@
+import type { EntityId } from "./entity.js";
+import type { EngineStateChangePayload } from "./engine-state.js";
+import type { GwenErrorTarget } from "./errors.js";
+import type { GwenPrefabExtensions } from "./extensions.js";
+
+/**
+ * Payload emitted with the `engine:error` hook when the frame loop catches an error.
+ *
+ * @example
+ * ```typescript
+ * engine.hooks.hook('engine:error', (payload) => {
+ *   console.error(`[${payload.code}] ${payload.message}`, payload.cause)
+ * })
+ * ```
+ */
+export interface EngineErrorPayload {
+  /** `error` isolates a target when one is set. `fatal` moves a non-terminal engine to `faulted`. `stop()` is not called. */
+  readonly level: "error" | "fatal";
+  /** Error code identifying the failure (e.g., `CORE:FRAME_LOOP_ERROR`). */
+  readonly code: string;
+  /** Human-readable message describing the error. */
+  readonly message: string;
+  /** The original thrown value, if any. */
+  readonly cause?: unknown;
+  /** Frame counter at the time of the error. */
+  readonly frame?: number;
+  /** Package or system that produced the event. */
+  readonly source?: string;
+  /** Owner of the failure, when identified. */
+  readonly target?: GwenErrorTarget;
+}
+
+/**
+ * Payload of the `plugin:error` hook.
+ * Fired when a plugin lifecycle hook throws and the error is not recovered
+ * via `context.recover()`.
+ */
+export interface PluginErrorEvent {
+  pluginName: string;
+  phase:
+    | "setup"
+    | "teardown"
+    | "onBeforeUpdate"
+    | "onUpdate"
+    | "onAfterUpdate"
+    | "onRender"
+    | "hook";
+  hook?: string;
+  error: unknown;
+  frame: number;
+}
+
+/**
+ * Core engine runtime hooks.
+ *
+ * Extensible map of all GWEN runtime hook event names to their handler signatures.
+ * Populated by declaration merging. The core engine hooks are declared in this package.
+ * Plugin packages add their own hooks the same way:
+ * ```typescript
+ * declare module "@gwenjs/schema" {
+ *   interface GwenRuntimeHooks {
+ *     "my-plugin:event": (payload: MyPayload) => void;
+ *   }
+ * }
+ * ```
+ */
+export interface GwenRuntimeHooks {
+  /** Fired once when `engine.start()` is called, after all plugins are set up. */
+  "engine:init": () => void;
+  /** Fired once when `engine.start()` begins the RAF loop. */
+  "engine:start": () => void;
+  /** Fired once when `engine.stop()` tears down the engine. */
+  "engine:stop": () => void;
+  /** Fired once per real lifecycle transition. Not fired for a no-op. */
+  "engine:state-change": (payload: EngineStateChangePayload) => void;
+  /** Fired after a plugin completes its `setup()` and is registered in the engine. */
+  "plugin:registered": (pluginName: string) => void;
+  /** Fired at the start of every tick, before any phase runs. */
+  "engine:tick": (dt: number) => void;
+  /**
+   * Fired after each simulation step.
+   * In the variable loop this is after `engine:render`.
+   * In fixed mode it is before the display frame's render.
+   */
+  "engine:afterTick": (dt: number) => void;
+  /** Fired when a new entity is created. */
+  "entity:spawn": (id: EntityId) => void;
+  /** Fired when an entity is destroyed. */
+  "entity:destroy": (id: EntityId) => void;
+  /** Fired when the frame loop catches an unhandled error. */
+  "engine:error": (payload: EngineErrorPayload) => void;
+  /** Fired at Phase 2 of the frame loop — before physics. Replaces plugin.onBeforeUpdate(). */
+  "engine:before-update": (dt: number) => void;
+  /** Fired at Phase 6 of the frame loop — after physics. Replaces plugin.onUpdate(). */
+  "engine:update": (dt: number) => void;
+  /** Fired at Phase 7a of the frame loop — after update. Replaces plugin.onAfterUpdate(). */
+  "engine:after-update": (dt: number) => void;
+  /**
+   * Fired once per display frame.
+   * `alpha` is `1` when `physicsHz` is `0`.
+   * In fixed mode it is the leftover fraction of a step, in `[0, 1)`.
+   */
+  "engine:render": (alpha: number) => void;
+  /**
+   * Fired when gwen-core linear memory grew, before the next frame phase.
+   * `epoch` is the new per-engine epoch.
+   */
+  "engine:memory-grow": (info: { epoch: number; byteLength: number; frame: number }) => void;
+  /** Fired by the router when a scene becomes active. Payload: scene name + optional navigation params. */
+  "scene:enter": (name: string, params?: Record<string, unknown>) => void;
+  /** Fired by the router before leaving a scene. Payload: scene name. */
+  "scene:beforeLeave": (name: string) => void;
+  /** Fired by the router after a scene is fully left. Payload: scene name. */
+  "scene:leave": (name: string) => void;
+  /**
+   * Fired by the router before the leave animation. Async — awaited before
+   * `scene:beforeLeave`. Payload: { from, to }.
+   */
+  "scene:transition:leave": (payload: { from: string; to: string }) => void | Promise<void>;
+  /**
+   * Fired by the router after `scene:enter`. Async — awaited after scene is active.
+   * Payload: { from, to }.
+   */
+  "scene:transition:enter": (payload: { from: string; to: string }) => void | Promise<void>;
+  /** Fired when an actor scope is resumed (pool re-acquire or explicit enable). */
+  "actor:enable": (entityId: bigint) => void;
+  /** Fired when an actor scope is paused (pool release or explicit disable). */
+  "actor:disable": (entityId: bigint) => void;
+
+  /**
+   * Fired when a plugin lifecycle hook throws and the error is not recovered
+   * via `context.recover()`.
+   */
+  "plugin:error": (payload: PluginErrorEvent) => void;
+
+  /**
+   * Fired to trigger plugin-specific setup when an entity is created from a
+   * prefab declaration. Plugins (e.g. Physics2D) subscribe to create rigid bodies.
+   */
+  "prefab:instantiate": (
+    entityId: EntityId,
+    extensions: Readonly<Partial<GwenPrefabExtensions>>,
+  ) => void;
+}
