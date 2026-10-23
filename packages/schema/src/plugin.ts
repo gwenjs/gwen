@@ -16,6 +16,25 @@ import type { DisposableRegistryBase } from "./disposable.js";
 import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 
 /**
+ * Augmentable interface for the typed provide/inject registry.
+ * Plugin packages extend this via declaration merging.
+ *
+ * @example
+ * ```typescript
+ * // In @gwenjs/physics2d:
+ * declare module "@gwenjs/schema" {
+ *   interface GwenProvides {
+ *     physics2d: Physics2DAPI
+ *   }
+ * }
+ * ```
+ */
+export interface GwenProvides {
+  /** The engine-level structured logger. Inject via `engine.inject('logger')`. */
+  logger: IGwenLogger;
+}
+
+/**
  * Minimal hook bus surface exposed to plugins via `GwenEngineBase.hooks`.
  *
  * The full `Hookable<GwenRuntimeHooks>` in `@gwenjs/core` satisfies this

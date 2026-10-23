@@ -57,7 +57,13 @@ export type {
 
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
-export type { HookBusBase, GwenEngineBase, PluginErrorContext, GwenPlugin } from "./plugin";
+export type {
+  HookBusBase,
+  GwenEngineBase,
+  PluginErrorContext,
+  GwenPlugin,
+  GwenProvides,
+} from "./plugin";
 
 // ─── Entity ──────────────────────────────────────────────────────────────────
 
@@ -97,5 +103,6 @@ export type {
   GwenKit,
   GwenModuleDefinition,
   GwenModule,
+  GwenModuleOptions,
   PluginDeclaration,
 } from "./module";
