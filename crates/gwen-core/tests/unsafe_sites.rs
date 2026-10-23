@@ -461,6 +461,8 @@ fn unsafe_site_u022_grounded_move_writes_contact(
     assert_eq!(slot[1], 0.0f32.to_bits());
     assert_eq!(slot[2], (-1.0f32).to_bits());
     assert_eq!(slot[3], 0.0f32.to_bits());
+    // Floor collider is parented to body 1, so the slot stores that entity index.
+    assert_eq!(slot[4], 1);
 
     Ok(())
 }
