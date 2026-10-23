@@ -11,7 +11,7 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`
+**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`
 
 **Usage:**
 ```ts

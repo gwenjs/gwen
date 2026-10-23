@@ -7,10 +7,13 @@
  */
 
 import { createContext } from "unctx";
-import { GwenError } from "@gwenjs/schema";
+import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngine } from "./engine-types";
 import { GwenScope } from "../context/scope.js";
 import { CoreErrorCodes } from "./engine-errors.js";
+
+export { GwenContextError, GwenContextErrorCodes };
+export type { GwenContextErrorCode } from "@gwenjs/kit";
 
 // ─── Context ─────────────────────────────────────────────────────────────────
 
@@ -130,42 +133,6 @@ export function withAsyncContext<T extends (...args: unknown[]) => Promise<unkno
       GwenScope._setCurrent(previousScope);
     });
   }) as T;
-}
-
-// ─── Error codes ─────────────────────────────────────────────────────────────
-
-/**
- * Structured error codes for {@link GwenContextError}.
- *
- * - `CORE:OUTSIDE_ENGINE_CONTEXT` — composable called outside any active engine context
- *   (e.g. at module top-level, in a plain DOM callback, or after an `await`
- *   without context propagation). Same code as {@link CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT}.
- * - `ACTOR_SETUP_ONLY` — composable is only valid during an actor factory phase.
- */
-export type GwenContextErrorCode =
-  | typeof CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT
-  | "ACTOR_SETUP_ONLY";
-
-// ─── GwenContextError ────────────────────────────────────────────────────────
-
-/**
- * Thrown when a GWEN composable is called outside an active engine context.
- *
- * Check {@link GwenContextError.code} to distinguish the root cause, and read
- * the message for a step-by-step fix.
- */
-export class GwenContextError extends GwenError {
-  /**
-   * Structured code identifying the root cause.
-   * @see {@link GwenContextErrorCode}
-   */
-  override readonly code: GwenContextErrorCode;
-
-  constructor(message: string, code: GwenContextErrorCode = CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT) {
-    super(code, message);
-    this.name = "GwenContextError";
-    this.code = code;
-  }
 }
 
 const OUTSIDE_ENGINE_MESSAGE = `\

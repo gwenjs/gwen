@@ -6,7 +6,11 @@
  *
  * Two checks, both on BUILT dists (run after `pnpm build:ts` and `fix-dts-extensions.mjs`):
  *   1. the class marker occurs only in the owner package's dist;
- *   2. runtime probe: `new core.GwenContextError("probe") instanceof schema.GwenError`.
+ *   2. runtime probe: `core.GwenContextError === kit.GwenContextError` and
+ *      `new core.GwenContextError("probe") instanceof schema.GwenError`.
+ *
+ * The scope slot (owner kit) is the rolldown comment `//#region src/scope-slot.ts`.
+ * It may occur in one dist file, counted across every package.
  *
  * Run: node scripts/check-dist-identity.mjs [--root <repo>]
  */
@@ -34,6 +38,16 @@ export const MARKERS = [
     pattern: /(?:this\.|(?<![\w$.]))name\s*=\s*["'`]GwenError["'`]/,
     owner: "schema",
   },
+  {
+    name: "GwenContextError",
+    pattern: /(?:this\.|(?<![\w$.]))name\s*=\s*["'`]GwenContextError["'`]/,
+    owner: "kit",
+  },
+  {
+    name: "GwenComposableError",
+    pattern: /(?:this\.|(?<![\w$.]))name\s*=\s*["'`]GwenComposableError["'`]/,
+    owner: "kit",
+  },
 ];
 
 /**
@@ -53,6 +67,14 @@ export function judge(distFiles, markers = MARKERS) {
         );
       }
     }
+  }
+  // Rolldown minifies `getCurrentScope` / `_setCurrentScope`. This comment survives the build.
+  const scopeSlotCopies = distFiles.filter((file) =>
+    file.text.includes("//#region src/scope-slot.ts"),
+  );
+  if (scopeSlotCopies.length > 1) {
+    const second = scopeSlotCopies[1];
+    problems.push(`${second.path}: scope slot module appears ${scopeSlotCopies.length} times`);
   }
   return problems;
 }
@@ -108,14 +130,27 @@ export async function probe(root) {
   const entry = (pkg) => pathToFileURL(path.join(root, "packages", pkg, "dist", "index.js")).href;
   try {
     const core = await import(entry("core"));
+    const kit = await import(entry("kit"));
     const schema = await import(entry("schema"));
-    if (typeof core.GwenContextError !== "function" || typeof schema.GwenError !== "function") {
-      return ["probe: core.GwenContextError or schema.GwenError is not exported by the built dist"];
+    /** @type {string[]} */
+    const problems = [];
+    if (
+      typeof core.GwenContextError !== "function" ||
+      typeof kit.GwenContextError !== "function" ||
+      typeof schema.GwenError !== "function"
+    ) {
+      problems.push(
+        "probe: core.GwenContextError, kit.GwenContextError or schema.GwenError is not exported by the built dist",
+      );
+      return problems;
+    }
+    if (core.GwenContextError !== kit.GwenContextError) {
+      problems.push("probe: core.GwenContextError is not the GwenContextError of kit/dist");
     }
     if (!(new core.GwenContextError("probe") instanceof schema.GwenError)) {
-      return ["probe: core.GwenContextError is not instanceof the GwenError of schema/dist"];
+      problems.push("probe: core.GwenContextError is not instanceof the GwenError of schema/dist");
     }
-    return [];
+    return problems;
   } catch (error) {
     return [
       `probe: cannot load the built dists (${error instanceof Error ? error.message : error})`,

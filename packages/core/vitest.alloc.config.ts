@@ -4,12 +4,14 @@ import { defineConfig } from "vitest/config";
 
 // Same alias as vitest.wasm.config.ts: `@gwenjs/kit` dist may be unbuilt.
 const kitPlugin = fileURLToPath(new URL("../kit/src/plugin/index.ts", import.meta.url));
+const kitIndex = fileURLToPath(new URL("../kit/src/index.ts", import.meta.url));
 
 export default defineConfig({
   define: { __GWEN_DEV__: "true" },
   resolve: {
     alias: {
       "@gwenjs/kit/plugin": kitPlugin,
+      "@gwenjs/kit": kitIndex,
     },
   },
   test: {

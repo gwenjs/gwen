@@ -1,10 +1,21 @@
 {
   ".": {
-    "values": ["useCurrentScope", "useErrorReporter", "useLogger", "usePerfMark"],
+    "values": [
+      "GwenComposableError",
+      "GwenContextError",
+      "GwenContextErrorCodes",
+      "_setCurrentScope",
+      "getCurrentScope",
+      "useCurrentScope",
+      "useErrorReporter",
+      "useLogger",
+      "usePerfMark"
+    ],
     "types": [
       "AutoImport",
       "DeepPartial",
       "GwenConfig",
+      "GwenContextErrorCode",
       "GwenTypeTemplate",
       "MergePluginsPrefabExtensions",
       "MergePluginsSceneExtensions",

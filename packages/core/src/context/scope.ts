@@ -14,6 +14,7 @@
 
 import type { GwenScopeMeta, IGwenScope } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "@gwenjs/schema";
+import { getCurrentScope, _setCurrentScope } from "@gwenjs/kit";
 import { ScopedHookable } from "../hooks/scoped-hookable.js";
 import type { GwenEngine } from "../engine/engine-types.js";
 import { enterSystemDepth, leaveSystemDepth } from "../engine/engine-internals.js";
@@ -63,15 +64,15 @@ export class GwenScope implements IGwenScope {
     return this._hookable.paused;
   }
 
-  private static _current: GwenScope | null = null;
-
   static current(): GwenScope | null {
-    return GwenScope._current;
+    const slot = getCurrentScope();
+    if (!(slot instanceof GwenScope)) return null;
+    return slot;
   }
 
   /** @internal */
   static _setCurrent(scope: GwenScope | null): void {
-    GwenScope._current = scope;
+    _setCurrentScope(scope);
   }
 
   constructor(
@@ -92,12 +93,12 @@ export class GwenScope implements IGwenScope {
   }
 
   run<T>(fn: () => T): T {
-    const prev = GwenScope._current;
-    GwenScope._current = this;
+    const prev = getCurrentScope();
+    _setCurrentScope(this);
     try {
       return fn();
     } finally {
-      GwenScope._current = prev;
+      _setCurrentScope(prev);
     }
   }
 

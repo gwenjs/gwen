@@ -29,6 +29,9 @@
     },
     {
       "path": "../math"
+    },
+    {
+      "path": "../kit"
     }
   ],
   "extends": "../../tsconfig.base.json"

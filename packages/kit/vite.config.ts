@@ -30,9 +30,6 @@ export default defineConfig({
     },
     rollupOptions: {
       external: [/^@gwenjs\//],
-      output: {
-        globals: { "@gwenjs/core": "GwenEngineCore" },
-      },
     },
   },
 });

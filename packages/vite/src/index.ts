@@ -476,10 +476,11 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
             "@gwenjs/core/scene/module",
             "@gwenjs/core/router/module",
             "@gwenjs/core/tween/module",
+            "@gwenjs/core > @gwenjs/kit",
           ],
         },
         resolve: {
-          dedupe: ["@gwenjs/core"],
+          dedupe: ["@gwenjs/core", "@gwenjs/kit"],
         },
       };
     },

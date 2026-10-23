@@ -6,6 +6,7 @@
  */
 
 import { GwenError } from "@gwenjs/schema";
+import { GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngineState } from "./engine-types.js";
 
 /** Lifecycle call rejected by {@link GwenEngineStateError}. */
@@ -96,7 +97,7 @@ export const CoreErrorCodes = {
   WASM_CHANNEL_NOT_FOUND: "CORE:WASM_CHANNEL_NOT_FOUND",
   WASM_MODULE_NOT_FOUND: "CORE:WASM_MODULE_NOT_FOUND",
   OUTSIDE_CLEANUP_CONTEXT: "CORE:OUTSIDE_CLEANUP_CONTEXT",
-  OUTSIDE_ENGINE_CONTEXT: "CORE:OUTSIDE_ENGINE_CONTEXT",
+  OUTSIDE_ENGINE_CONTEXT: GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT,
   ACTOR_POOL_EXHAUSTED: "CORE:ACTOR_POOL_EXHAUSTED",
   COMPONENT_LAYOUT_INVALID: "CORE:COMPONENT_LAYOUT_INVALID",
   ARCHETYPE_LIMIT_REACHED: "CORE:ARCHETYPE_LIMIT_REACHED",
@@ -301,31 +302,7 @@ export const ComposableErrorCodes = {
   LAYOUT_DISPOSE_FAILED: "COMPOSABLE:LAYOUT_DISPOSE_FAILED",
 } as const;
 
-/**
- * Thrown when a composable is called outside its valid context.
- *
- * All GWEN composables (`useEntityId`, `useComponent`, `onStart`, `onDestroy`,
- * `onEvent`, etc.) throw this error when invoked at the wrong lifecycle phase.
- * Catch it with `instanceof GwenComposableError` to handle composable misuse
- * independently from engine or actor errors.
- *
- * @example
- * ```ts
- * try {
- *   useEntityId(); // called outside a factory
- * } catch (e) {
- *   if (e instanceof GwenComposableError) {
- *     console.error('Composable misuse:', e.code, e.message);
- *   }
- * }
- * ```
- */
-export class GwenComposableError extends GwenError {
-  constructor(code: string, message: string) {
-    super(code, message);
-    this.name = "GwenComposableError";
-  }
-}
+export { GwenComposableError } from "@gwenjs/kit";
 
 /**
  * All error code namespaces exported from a single entry point.

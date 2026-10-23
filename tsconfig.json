@@ -1,11 +1,11 @@
 {
   "files": [],
   "references": [
-    { "path": "packages/math" },
     { "path": "packages/schema" },
+    { "path": "packages/math" },
+    { "path": "packages/kit" },
     { "path": "packages/core" },
     { "path": "packages/renderer-core" },
-    { "path": "packages/kit" },
     { "path": "packages/app" },
     { "path": "packages/vite" },
     { "path": "packages/physics2d" },
