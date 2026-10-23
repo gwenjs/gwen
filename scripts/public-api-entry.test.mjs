@@ -10,6 +10,7 @@ import {
   symlinkSync,
   writeFileSync,
 } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -149,41 +150,67 @@ test("a json target is not a module entry", () => {
   assert.equal(mod.isModuleEntry("./dist/index.d.ts.map"), false);
 });
 
-test("the script skips a .wasm subpath whose file exists", () => {
+// Agent hygiene runs node --test without pnpm install (.github/workflows/ci.yml:876).
+const skipWithoutTypescript = (() => {
+  try {
+    createRequire(import.meta.url).resolve("typescript");
+    return false;
+  } catch {
+    return "typescript is not installed: the Agent hygiene job runs node --test without pnpm install; pnpm test:scripts runs this test";
+  }
+})();
+
+test("the script skips a .wasm subpath whose file exists", { skip: skipWithoutTypescript }, () => {
   const result = runTypes({ wasmFile: true });
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
 });
 
-test("the script does not report a missing .wasm file as missing built types", () => {
-  const result = runTypes({ wasmFile: false });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr.includes("missing built types"), false, result.stderr);
-});
+test(
+  "the script does not report a missing .wasm file as missing built types",
+  { skip: skipWithoutTypescript },
+  () => {
+    const result = runTypes({ wasmFile: false });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr.includes("missing built types"), false, result.stderr);
+  },
+);
 
-test("the script still compares a .d.ts subpath while it skips the .wasm one", () => {
-  const result = runTypes({ wasmFile: true, factory: true });
-  assert.equal(result.status, 1, result.stderr);
-  assert.equal(result.stderr.includes("types differ"), true, result.stderr);
-  assert.equal(result.stderr.includes("./wasm/light/factory"), true, result.stderr);
-  assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
-});
+test(
+  "the script still compares a .d.ts subpath while it skips the .wasm one",
+  { skip: skipWithoutTypescript },
+  () => {
+    const result = runTypes({ wasmFile: true, factory: true });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stderr.includes("types differ"), true, result.stderr);
+    assert.equal(result.stderr.includes("./wasm/light/factory"), true, result.stderr);
+    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+  },
+);
 
-test("the script still compares the . and ./wasm/light subpaths while it skips the .wasm one", () => {
-  const result = runTypes({ wasmFile: true, glue: true });
-  assert.equal(result.status, 1, result.stderr);
-  assert.equal(result.stderr.includes("@gwenjs/demo . types differ"), true, result.stderr);
-  assert.equal(result.stderr.includes("./wasm/light types differ"), true, result.stderr);
-  assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
-});
+test(
+  "the script still compares the . and ./wasm/light subpaths while it skips the .wasm one",
+  { skip: skipWithoutTypescript },
+  () => {
+    const result = runTypes({ wasmFile: true, glue: true });
+    assert.equal(result.status, 1, result.stderr);
+    assert.equal(result.stderr.includes("@gwenjs/demo . types differ"), true, result.stderr);
+    assert.equal(result.stderr.includes("./wasm/light types differ"), true, result.stderr);
+    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+  },
+);
 
-test("the script skips a .wasm subpath in --write-source mode and writes no snapshot key for it", () => {
-  const result = runTypes({ wasmFile: true, writeSource: true });
-  assert.equal(result.status, 0, result.stderr);
-  assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
-  assert.equal(result.stderr.includes("No source for"), false, result.stderr);
-  const written = JSON.parse(result.snapshot);
-  assert.equal(Object.hasOwn(written, "./wasm/light.wasm"), false);
-  assert.equal(Object.hasOwn(written, "."), true);
-  assert.deepEqual(written["."].types, []);
-});
+test(
+  "the script skips a .wasm subpath in --write-source mode and writes no snapshot key for it",
+  { skip: skipWithoutTypescript },
+  () => {
+    const result = runTypes({ wasmFile: true, writeSource: true });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stderr.includes("Missing source file"), false, result.stderr);
+    assert.equal(result.stderr.includes("No source for"), false, result.stderr);
+    const written = JSON.parse(result.snapshot);
+    assert.equal(Object.hasOwn(written, "./wasm/light.wasm"), false);
+    assert.equal(Object.hasOwn(written, "."), true);
+    assert.deepEqual(written["."].types, []);
+  },
+);
