@@ -99,44 +99,14 @@
     {
       "rule": "R9",
       "file": "packages/kit/src/context.ts",
-      "match": "import { CoreErrorCodes } from \"@gwenjs/core\"",
-      "owner": "P-76-4"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/context.ts",
       "match": "import { GwenScope } from \"@gwenjs/core/internal\"",
       "owner": "P-76-5"
     },
     {
       "rule": "R9",
       "file": "packages/kit/src/define-plugin.ts",
-      "match": "import type { GwenEngine } from \"@gwenjs/core\"",
-      "owner": "P-76-4"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/define-plugin.ts",
       "match": "import { GwenComposableError } from \"@gwenjs/core\"",
       "owner": "P-76-5"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/index.ts",
-      "match": "export { createErrorBus } from \"@gwenjs/core\"",
-      "owner": "P-76-4"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/plugin/index.ts",
-      "match": "export type { GwenPlugin, GwenEngine, GwenProvides, GwenEngineOptions, WasmBridge, MemoryRegion, WasmModuleOptions, WasmModuleHandle, EntityId, ComponentType, GwenRuntimeHooks, GwenHookable, EngineErrorBus, PluginErrorContext, } from \"@gwenjs/core\"",
-      "owner": "P-76-4"
-    },
-    {
-      "rule": "R9",
-      "file": "packages/kit/src/plugin/index.ts",
-      "match": "export { createEntityId, unpackEntityId } from \"@gwenjs/core\"",
-      "owner": "P-76-4"
     },
     {
       "rule": "R9",
