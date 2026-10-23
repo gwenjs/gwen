@@ -114,8 +114,24 @@ fn collision_record(
     colliders: &ColliderSet,
     event: CollisionEvent,
 ) -> Option<StaticCollisionEvent> {
-    // stub
-    None
+    let (ea, ca) = colliders
+        .get(event.collider1())
+        .map(|c| unpack_collider_user_data(c.user_data))
+        .unwrap_or((u32::MAX, None));
+    let (eb, cb) = colliders
+        .get(event.collider2())
+        .map(|c| unpack_collider_user_data(c.user_data))
+        .unwrap_or((u32::MAX, None));
+    if ea == u32::MAX || eb == u32::MAX {
+        return None;
+    }
+    Some(StaticCollisionEvent {
+        entity_a: ea,
+        entity_b: eb,
+        collider_a_id: ca.unwrap_or(u32::MAX),
+        collider_b_id: cb.unwrap_or(u32::MAX),
+        flags: if event.started() { 1 } else { 0 },
+    })
 }
 
 impl EventHandler for EventCollector<'_> {

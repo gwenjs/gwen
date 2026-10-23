@@ -184,8 +184,30 @@ fn collision_record(
     colliders: &ColliderSet,
     event: CollisionEvent,
 ) -> Option<PhysicsCollisionEvent3D> {
-    // stub
-    None
+    let (ea, ca) = colliders
+        .get(event.collider1())
+        .map(|c| unpack_user_data(c.user_data))
+        .unwrap_or((u32::MAX, None));
+    let (eb, cb) = colliders
+        .get(event.collider2())
+        .map(|c| unpack_user_data(c.user_data))
+        .unwrap_or((u32::MAX, None));
+    if ea == u32::MAX || eb == u32::MAX {
+        return None;
+    }
+    Some(PhysicsCollisionEvent3D {
+        entity_a: ea,
+        entity_b: eb,
+        flags: if event.started() { 1 } else { 0 },
+        collider_a_id: match ca {
+            Some(id) => id as u16,
+            None => u16::MAX,
+        },
+        collider_b_id: match cb {
+            Some(id) => id as u16,
+            None => u16::MAX,
+        },
+    })
 }
 
 impl EventHandler for EventCollector3D<'_> {
