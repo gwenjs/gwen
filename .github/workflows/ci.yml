@@ -342,6 +342,8 @@ jobs:
         run: pnpm build:ts
       - name: Add .js extensions to declaration imports
         run: node scripts/fix-dts-extensions.mjs
+      - name: Dist identity
+        run: node scripts/check-dist-identity.mjs
       - name: publint
         run: |
           set -euo pipefail
