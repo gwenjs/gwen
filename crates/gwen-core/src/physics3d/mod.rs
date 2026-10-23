@@ -11,6 +11,9 @@
 //! BVH mesh pre-baking utilities used exclusively by the Vite CLI plugin —
 //! never included in a runtime WASM binary.
 
+/// Must equal the `(major, minor)` of the `rapier3d` dependency and is bumped with it.
+pub const RAPIER_VERSION: (u16, u16) = (0, 22);
+
 pub mod components;
 pub mod error;
 pub mod events;

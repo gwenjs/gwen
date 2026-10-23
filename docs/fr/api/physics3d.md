@@ -369,7 +369,7 @@ try {
 | `INVALID_SHAPE` | Les données de forme ne permettent pas de construire un collider (index de maillage hors limites, heightfield trop petit ou au mauvais nombre d'échantillons, enveloppe convexe de moins de 4 points ou dégénérée) |
 | `INVALID_MESH_BUFFER` | La longueur des positions ou des indices d'un maillage n'est pas un multiple de 3 |
 | `INVALID_COMPOUND` | La longueur d'un tampon composé n'est pas un multiple de 12, ou une partie a une forme inconnue |
-| `BVH_LOAD_FAILED` | Un BVH précalculé est trop court, a un en-tête incorrect, ou ne se décode pas en maillage valide |
+| `BVH_LOAD_FAILED` | Un BVH précalculé est trop court, a un en-tête incorrect, a été précalculé pour une autre version de Rapier, ou ne se décode pas en maillage valide |
 | `INVALID_COLLIDER` | Une taille, un rayon, un décalage, une densité ou une marge de peau est NaN, infini, négatif ou trop grand |
 | `JOINT_NOT_FOUND` | Aucune articulation n'est enregistrée pour cet id |
 | `INVALID_JOINT` | Un ancrage, un axe, une valeur de ressort, de moteur ou une limite d'articulation est NaN ou infini |

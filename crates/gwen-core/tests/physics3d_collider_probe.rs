@@ -8,6 +8,7 @@
 
 use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::MAX_COLLIDER_MAGNITUDE;
+use gwen_core::physics3d::RAPIER_VERSION;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Mutex;
 
@@ -16,7 +17,7 @@ const INF: f32 = f32::INFINITY;
 const ALL: u32 = 0xFFFF_FFFF;
 
 /// Number of probe cases built by `cases()`. Update together with the case list.
-const CASE_COUNT: usize = 314;
+const CASE_COUNT: usize = 315;
 
 /// Hostile values tried at every float position.
 const VALUES: [(&str, f32); 7] = [
@@ -110,6 +111,15 @@ fn part(shape: f32, p: [f32; 3], offset: [f32; 3], friction: f32, restitution: f
         restitution,
         1.0,
     ]
+}
+
+/// GBVH header for `version` plus `payload`.
+fn bvh_at_version(version: (u16, u16), payload: &[u8]) -> Vec<u8> {
+    let mut out = b"GBVH".to_vec();
+    out.extend_from_slice(&version.0.to_le_bytes());
+    out.extend_from_slice(&version.1.to_le_bytes());
+    out.extend_from_slice(payload);
+    out
 }
 
 fn cases() -> Vec<Case> {
@@ -496,16 +506,19 @@ fn cases() -> Vec<Case> {
         }));
     }
     // BVH buffers.
-    let bvh: [(&str, Vec<u8>); 5] = [
+    let bvh: [(&str, Vec<u8>); 6] = [
         ("empty", Vec::new()),
         ("short", b"GBVH".to_vec()),
         ("bad magic", b"XXXXxxxxpayload".to_vec()),
-        ("header only", b"GBVH\0\0\0\0".to_vec()),
-        ("garbage payload", {
-            let mut b = b"GBVH\0\0\0\0".to_vec();
-            b.extend_from_slice(&[0xFF; 64]);
-            b
-        }),
+        ("header only", bvh_at_version(RAPIER_VERSION, &[])),
+        (
+            "garbage payload",
+            bvh_at_version(RAPIER_VERSION, &[0xFF; 64]),
+        ),
+        (
+            "version mismatch",
+            bvh_at_version((RAPIER_VERSION.0, RAPIER_VERSION.1.wrapping_add(1)), &[]),
+        ),
     ];
     for (n, bytes) in bvh {
         v.push(on_world(format!("bvh {n}"), move |e| {

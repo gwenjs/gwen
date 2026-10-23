@@ -2677,7 +2677,7 @@ impl Engine {
     /// # Errors
     /// Returns [`Physics3DError::WorldNotInitialized`] before `physics3d_init`,
     /// [`Physics3DError::BodyNotFound`] when the entity has no body, and typed shape errors:
-    /// BVH_LOAD_FAILED for a short buffer, a wrong magic, an undecodable payload or an invalid decoded mesh, and INVALID_COLLIDER.
+    /// BVH_LOAD_FAILED for a short buffer, a wrong magic, a Rapier version mismatch, an undecodable payload or an invalid decoded mesh, and INVALID_COLLIDER.
     /// COLLIDER_ALREADY_EXISTS when `(entity_index, collider_id)` is already registered; this is checked after the shape and values, and before anything is inserted.
     /// The world is unchanged on error. The success value is `true`.
     #[cfg(feature = "physics3d")]
