@@ -90,6 +90,14 @@ function corruptBvhMagic(bytes: Uint8Array): Uint8Array {
   return copy;
 }
 
+/** Copy `bytes` and add one to the GBVH header byte at `index` (major is 4, minor is 6). */
+function bumpHeaderByte(bytes: Uint8Array, index: number): Uint8Array {
+  const copy = new Uint8Array(bytes);
+  const value = copy[index] ?? 0;
+  copy[index] = (value + 1) & 0xff;
+  return copy;
+}
+
 function loadCollider(raw: WasmEnginePhysics3D, slot: number, bytes: Uint8Array): boolean {
   const load = raw.physics3d_load_bvh_collider;
   if (load === undefined) {
@@ -144,6 +152,21 @@ describe("optimised bvh worker wasm", () => {
       expect(hit.length).toBe(9);
       expect(floatAt(hit, 0)).toBe(1);
       expect(Math.abs(floatAt(hit, 2) - 5)).toBeLessThanOrEqual(1e-4);
+    });
+  });
+
+  it("a bvh buffer baked for another Rapier version is refused with BVH_LOAD_FAILED", async () => {
+    const baked = build_bvh_buffer(QUAD_VERTICES, QUAD_INDICES);
+    const wrongMinor = bumpHeaderByte(baked, 6);
+    const wrongMajor = bumpHeaderByte(baked, 4);
+
+    await withFixedBody((raw, slot) => {
+      const thrown = caught(() => loadCollider(raw, slot, wrongMinor));
+      expect(errorCode(thrown)).toBe("PHYSICS3D:BVH_LOAD_FAILED");
+    });
+    await withFixedBody((raw, slot) => {
+      const thrown = caught(() => loadCollider(raw, slot, wrongMajor));
+      expect(errorCode(thrown)).toBe("PHYSICS3D:BVH_LOAD_FAILED");
     });
   });
 

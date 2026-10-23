@@ -167,6 +167,15 @@ fn bvh_bytes(vertices: &[f32], indices: &[u32]) -> Vec<u8> {
     out
 }
 
+/// GBVH header for `(major, minor)` plus `payload`.
+fn bvh_header(major: u16, minor: u16, payload: &[u8]) -> Vec<u8> {
+    let mut out = b"GBVH".to_vec();
+    out.extend_from_slice(&major.to_le_bytes());
+    out.extend_from_slice(&minor.to_le_bytes());
+    out.extend_from_slice(payload);
+    out
+}
+
 fn load_bvh(e: &mut Engine, slot: u32, bytes: &[u8]) -> Outcome {
     ok(e.physics3d_load_bvh_collider(slot, bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 9))
 }
@@ -1036,8 +1045,8 @@ fn bvh_payload_failures_are_typed() -> Outcome {
     refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
         load_bvh(e, 3, &valid[..valid.len() / 2])
     })?;
-    let mut garbage = b"GBVH\0\0\0\0".to_vec();
-    garbage.extend_from_slice(&[0xFF; 64]);
+    // Version (0, 22): this build. A mismatch is refused before decode.
+    let garbage = bvh_header(0, 22, &[0xFF; 64]);
     refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
         load_bvh(e, 3, &garbage)
     })
@@ -1064,6 +1073,60 @@ fn bvh_valid_buffer_is_accepted() -> Outcome {
     let valid = bvh_bytes(&QUAD, &QUAD_IDX);
     assert_eq!(load_bvh(&mut e, 3, &valid), Ok(()));
     Ok(())
+}
+
+#[test]
+fn bvh_from_another_rapier_version_is_refused() -> Outcome {
+    let baked = bvh_bytes(&QUAD, &QUAD_IDX);
+    let payload = &baked[8..];
+    for (major, minor) in [
+        (0u16, 21u16),
+        (0, 23),
+        (1, 22),
+        (0, 0),
+        (0xFFFF, 0xFFFF),
+        (22, 0),
+    ] {
+        let bytes = bvh_header(major, minor, payload);
+        let mut engine = scene()?;
+        let result = load_bvh(&mut engine, 3, &bytes);
+        assert_eq!(
+            format!("{:?}", result),
+            "Err(BvhLoadFailed { reason: VersionMismatch })",
+            "version ({major}, {minor})"
+        );
+    }
+    let garbage = bvh_header(0, 21, &[0xFF; 64]);
+    let mut engine = scene()?;
+    let result = load_bvh(&mut engine, 3, &garbage);
+    assert_eq!(
+        format!("{:?}", result),
+        "Err(BvhLoadFailed { reason: VersionMismatch })",
+        "version (0, 21) with a garbage payload is checked before decode"
+    );
+    Ok(())
+}
+
+#[test]
+fn bvh_with_this_build_version_is_accepted() -> Outcome {
+    let baked = bvh_bytes(&QUAD, &QUAD_IDX);
+    let bytes = bvh_header(0, 22, &baked[8..]);
+    let mut engine = scene()?;
+    assert_eq!(load_bvh(&mut engine, 3, &bytes), Ok(()));
+    let header_only = bvh_header(0, 22, &[]);
+    refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
+        load_bvh(e, 3, &header_only)
+    })
+}
+
+#[test]
+fn bvh_bad_magic_is_reported_before_a_version_mismatch() -> Outcome {
+    let baked = bvh_bytes(&QUAD, &QUAD_IDX);
+    let mut bytes = bvh_header(0, 21, &baked[8..]);
+    bytes[0] = b'X';
+    refused(no_setup, bvh_failure(BvhLoadReason::BadMagic), |e| {
+        load_bvh(e, 3, &bytes)
+    })
 }
 
 // ── bulk_spawn_static_boxes ──────────────────────────────────────────────────

@@ -12,6 +12,13 @@
 mod build_tools_tests {
     use gwen_core::build_tools::{build_bvh_buffer, build_bvh_from_glb};
 
+    fn must_ok<T, E>(result: Result<T, E>) -> T {
+        match result {
+            Ok(value) => value,
+            Err(_) => unreachable!(),
+        }
+    }
+
     #[test]
     fn test_build_bvh_buffer_valid() {
         #[rustfmt::skip]
@@ -30,6 +37,42 @@ mod build_tools_tests {
         let minor = u16::from_le_bytes([buf[6], buf[7]]);
         assert_eq!(major, 0, "rapier major should be 0");
         assert_eq!(minor, 22, "rapier minor should be 22");
+    }
+
+    #[test]
+    fn a_baked_buffer_is_accepted_by_the_physics3d_loader() {
+        use gwen_core::bindings::Engine;
+
+        #[rustfmt::skip]
+        let vertices: Vec<f32> = vec![
+            0.0, 0.0, 0.0,
+            1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+        ];
+        let indices = [0u32, 1, 2];
+        let buf = valid_bvh(&vertices, &indices);
+        let mut engine = must_ok(Engine::new(4));
+        engine.physics3d_init(0.0, -9.81, 0.0, 4);
+        assert_eq!(
+            engine.physics3d_add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.0, 0.0),
+            Ok(true)
+        );
+        assert_eq!(
+            engine.physics3d_load_bvh_collider(
+                0,
+                &buf,
+                0.0,
+                0.0,
+                0.0,
+                false,
+                0.5,
+                0.0,
+                u32::MAX,
+                u32::MAX,
+                1,
+            ),
+            Ok(true)
+        );
     }
 
     #[test]
