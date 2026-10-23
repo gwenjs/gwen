@@ -20,13 +20,11 @@ import { ViewportManagerImpl } from "./viewport-manager.js";
 import type { ViewportManager } from "./viewport-manager.js";
 import type { ViewportRegion } from "./camera-types.js";
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     viewportManager: ViewportManager;
   }
-}
 
-declare module "@gwenjs/schema" {
   interface GwenRuntimeHooks {
     "viewport:add": (payload: { id: string; region: ViewportRegion }) => void;
     "viewport:resize": (payload: { id: string; region: ViewportRegion }) => void;

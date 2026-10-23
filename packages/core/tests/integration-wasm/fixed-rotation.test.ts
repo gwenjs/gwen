@@ -12,7 +12,7 @@ import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 import { useDynamicBody } from "../../../physics2d/src/composables/use-dynamic-body";
 import type { Physics2DAPI } from "../../../physics2d/src/types";
 
-declare module "../../src/engine/engine-types.js" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
   }

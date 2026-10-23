@@ -10,7 +10,7 @@ import type { Physics2DAPI } from "../../../physics2d/src/types";
 import "../../../physics2d/src/augment";
 import { Physics2DPlugin } from "../../../physics2d/src/plugin/index";
 
-declare module "../../src/engine/engine-types.js" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
     physics3d: Physics3DAPI;

@@ -72,26 +72,6 @@ export {
   UnknownLayerError,
 } from "./errors.js";
 
-// Import from @gwenjs/core to enable the declare module augmentation below.
-import type {} from "@gwenjs/core";
-
-// Renderer stats are exposed by the shared LayerManager at runtime via
-// `layerManager.getStats()`. This package does not attach renderer stats to
-// `engine.getStats()` — type-augmenting EngineStats would imply runtime
-// population that never happens.
-declare module "@gwenjs/core" {
-  interface GwenProvides {
-    /**
-     * The shared LayerManager for this engine instance.
-     * Created automatically by the first renderer plugin via `getOrCreateLayerManager()`.
-     * Do not create or provide this manually.
-     *
-     * Use `engine.inject('layerManager').getStats()` to read renderer stats.
-     */
-    layerManager: import("./layer-manager.js").LayerManager;
-  }
-}
-
 // ── Camera and viewport types ────────────────────────────────────────────────
 export type {
   WorldTransform,

@@ -16,7 +16,7 @@ import { useService, defineSystem, onUpdate } from "../src/system/index";
 
 // ─── Declaration merging for test scope ───────────────────────────────────────
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     /** Test service registered in these tests. */
     testCounter: { increment(): number; count(): number };

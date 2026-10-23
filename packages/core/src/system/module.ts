@@ -1,8 +1,7 @@
 import type { GwenModule } from "@gwenjs/schema";
 
-// @ts-expect-error augmenting @gwenjs/app from @gwenjs/core (intentional, activated at app build time)
-declare module "@gwenjs/app" {
-  interface GwenUserConfig {
+declare module "@gwenjs/schema" {
+  interface GwenModuleOptions {
     system?: Record<string, never>; // reserved — no options yet
   }
 }

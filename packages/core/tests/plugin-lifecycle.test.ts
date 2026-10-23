@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { createEngine, GwenPluginNotFoundError } from "../src/index";
 
-declare module "../src/index" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     testSvc: { value: number };
   }
