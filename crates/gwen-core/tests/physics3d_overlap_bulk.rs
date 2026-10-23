@@ -1,6 +1,8 @@
 //! `physics3d_overlap_shape` output pointer checks and `physics3d_bulk_*` error propagation.
 //!
-//! Native only. Run with `--features physics3d`.
+//! `rust-miri-step` runs this file under Miri with Tree Borrows on aarch64 (`ci.yml`, step
+//! `Miri physics3d overlap export`). Natively:
+//! `cargo test -p gwen-core --features physics3d --test physics3d_overlap_bulk`.
 //!
 //! The overlap export takes `out_ptr: u32`. A 64-bit native host cannot pass its own heap address
 //! through a `u32`, so the pointer cases call `Engine::check_shared_u32_slots`, the same
