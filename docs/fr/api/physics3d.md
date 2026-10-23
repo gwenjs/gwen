@@ -343,7 +343,7 @@ Le plafond par défaut de 400 m/s ralentit un corps dynamique plus rapide. Un de
 
 ## Erreurs
 
-Un appel WASM `@gwenjs/physics3d` refusé lève un `GwenWasmError`. `code` commence par `PHYSICS3D:` et `exportName` est l'export WASM. `cause` est l'erreur d'origine. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Ces erreurs ne sont pas émises sur le [bus d'erreurs](/fr/advanced/error-bus).
+Un appel WASM `@gwenjs/physics3d` refusé lève un `GwenWasmError`. `code` commence par `PHYSICS3D:` ou vaut `CORE:INVALID_SHARED_BUFFER`, et `exportName` est l'export WASM. `cause` est l'erreur d'origine. Un piège lève `GwenWasmPanicError` et empoisonne le pont. Ces erreurs ne sont pas émises sur le [bus d'erreurs](/fr/advanced/error-bus).
 
 ```ts
 import { GwenWasmError } from '@gwenjs/core'
@@ -377,13 +377,12 @@ try {
 | `CHARACTER_CONTROLLER_LIMIT_REACHED` | Les 32 emplacements de contrôleur de personnage sont utilisés |
 | `NAVGRID_NOT_INITIALIZED` | Une requête de chemin a eu lieu avant l'envoi de la grille de navigation |
 | `INVALID_NAVGRID` | Une dimension de la grille est nulle, le nombre de cellules déborde, ou la grille dépasse 64 au cube |
+| `CORE:INVALID_SHARED_BUFFER` | La grille passée à `initNavGrid3D` est plus courte que `width * height * depth` |
 | `INVALID_PATH_REQUEST` | Une coordonnée de chemin n'est pas finie ou dépasse la borne acceptée |
 | `INVALID_QUERY` | Une coordonnée de rayon ou de point n'est pas finie ou sort de ±1e7, une direction n'est pas finie ou est nulle, ou une distance max n'est pas finie ou est négative |
 | `INVALID_STEP_DELTA` | Un `delta` de pas n'est pas fini ou sort de 0 à 1. Le monde ne change pas |
 
 `findPath3D` fait exception : sans grille de navigation envoyée, elle renvoie un tableau vide au lieu de lever `NAVGRID_NOT_INITIALIZED`.
-
-**Limite connue (issue #218) :** avec le backend WASM, `initNavGrid3D` n'envoie pas encore la grille, donc `findPath3D` renvoie toujours un tableau vide. La recherche de chemin ne fonctionne qu'avec le backend local tant que #218 n'est pas corrigée.
 
 Une lecture groupée dont le pointeur de sortie n'est pas un tampon partagé actif lève `CORE:INVALID_SHARED_BUFFER`.
 

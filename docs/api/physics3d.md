@@ -343,7 +343,7 @@ The default cap of 400 m/s slows a faster dynamic body. A step delta above 1 s i
 
 ## Errors
 
-A rejected `@gwenjs/physics3d` WASM call throws a `GwenWasmError`. `code` starts with `PHYSICS3D:` and `exportName` is the WASM export. `cause` is the original error. A trap throws `GwenWasmPanicError` and poisons the bridge. These errors are not emitted on the [error bus](/advanced/error-bus).
+A rejected `@gwenjs/physics3d` WASM call throws a `GwenWasmError`. `code` starts with `PHYSICS3D:` or is `CORE:INVALID_SHARED_BUFFER`, and `exportName` is the WASM export. `cause` is the original error. A trap throws `GwenWasmPanicError` and poisons the bridge. These errors are not emitted on the [error bus](/advanced/error-bus).
 
 ```ts
 import { GwenWasmError } from '@gwenjs/core'
@@ -377,13 +377,12 @@ try {
 | `CHARACTER_CONTROLLER_LIMIT_REACHED` | All 32 character controller slots are in use |
 | `NAVGRID_NOT_INITIALIZED` | A path query ran before the navigation grid was uploaded |
 | `INVALID_NAVGRID` | A grid dimension is zero, the cell count overflows, or the grid is above 64 cubed |
+| `CORE:INVALID_SHARED_BUFFER` | The grid passed to `initNavGrid3D` is shorter than `width * height * depth` |
 | `INVALID_PATH_REQUEST` | A path coordinate is not finite or is past the accepted bound |
 | `INVALID_QUERY` | A ray or point coordinate is not finite or sits outside ±1e7, a direction is not finite or is zero, or a max distance is not finite or is negative |
 | `INVALID_STEP_DELTA` | A step `delta` is not finite or sits outside 0 to 1. The world is unchanged |
 
 `findPath3D` is the one exception: with no navigation grid uploaded it returns an empty array instead of throwing `NAVGRID_NOT_INITIALIZED`.
-
-**Known limit (issue #218):** in the WASM backend `initNavGrid3D` does not upload the grid yet, so `findPath3D` always returns an empty array. Pathfinding works in the local backend only until #218 is fixed.
 
 A bulk read whose output pointer is not a live shared buffer throws `CORE:INVALID_SHARED_BUFFER`.
 
