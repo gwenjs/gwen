@@ -15,8 +15,7 @@
 import { defineGwenModule } from "@gwenjs/kit/module";
 import { ScreenPlugin, type ScreenPluginOptions } from "./screen-plugin";
 
-// @ts-expect-error augmenting @gwenjs/app (intentional, activated at app build time)
-declare module "@gwenjs/app" {
+declare module "@gwenjs/schema" {
   interface GwenModuleOptions {
     /** Options for `@gwenjs/renderer-core`. Configure the screen size provider. */
     screen?: ScreenPluginOptions;

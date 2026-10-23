@@ -1,9 +1,8 @@
 import type { GwenModule } from "@gwenjs/schema";
 import { SceneEnginePlugin } from "./engine-plugin.js";
 
-// @ts-expect-error augmenting @gwenjs/app from @gwenjs/core (intentional, activated at app build time)
-declare module "@gwenjs/app" {
-  interface GwenUserConfig {
+declare module "@gwenjs/schema" {
+  interface GwenModuleOptions {
     scene?: Record<string, never>; // reserved — no options yet
   }
 }

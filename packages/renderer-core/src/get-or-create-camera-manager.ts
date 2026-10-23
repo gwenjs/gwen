@@ -17,7 +17,7 @@ import type { GwenEngine } from "@gwenjs/core";
 import { CameraManagerImpl } from "./camera-manager.js";
 import type { CameraManager } from "./camera-manager.js";
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     cameraManager: CameraManager;
   }

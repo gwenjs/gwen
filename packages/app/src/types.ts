@@ -8,7 +8,7 @@
 import type { GwenPlugin } from "@gwenjs/core";
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
-import type { IGwenLogProvider, GwenLogLevel } from "@gwenjs/schema";
+import type { GwenModuleOptions, IGwenLogProvider, GwenLogLevel } from "@gwenjs/schema";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ScreenSizeProvider } from "@gwenjs/renderer-core";
@@ -59,15 +59,14 @@ export interface GwenDebugConfig {
  * @example Adding physics2d options
  * ```typescript
  * // In @gwenjs/physics2d:
- * declare module '@gwenjs/app' {
+ * declare module '@gwenjs/schema' {
  *   interface GwenModuleOptions {
  *     physics2d: { gravity: number }
  *   }
  * }
  * ```
  */
-// eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface GwenModuleOptions {}
+export type { GwenModuleOptions } from "@gwenjs/schema";
 
 /**
  * A module entry in `gwen.config.ts` — the npm package name of the module.

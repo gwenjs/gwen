@@ -26,8 +26,7 @@ import type { Physics2DConfig } from "./types";
  * 2. Adds `usePhysics2D`, `useRigidBody`, `useCollider` as auto-imports.
  * 3. Generates `.gwen/types/physics2d.d.ts` with typed service/hook declarations.
  */
-// @ts-expect-error augmenting @gwenjs/app (intentional, activated at app build time)
-declare module "@gwenjs/app" {
+declare module "@gwenjs/schema" {
   interface GwenModuleOptions {
     /** Options for `@gwenjs/physics2d`. Configure gravity and physics quality. */
     physics2d?: Physics2DConfig;

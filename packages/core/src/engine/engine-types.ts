@@ -30,11 +30,13 @@ import type {
 import type { WasmBridgeImpl } from "./wasm-bridge";
 import type { EngineMemory } from "./engine-memory.js";
 import type { TransformPair2D } from "./transform-pair.js";
+import type { GwenProvides } from "@gwenjs/schema";
 import { DisposableRegistry } from "../disposable";
 import { GwenWasmAbiError } from "./engine-errors.js";
 
 // Re-export plugin-related types from @gwenjs/schema so plugin authors can import them from a single source.
 export type { GwenPlugin, PluginErrorContext } from "@gwenjs/schema";
+export type { GwenProvides } from "@gwenjs/schema";
 
 // ─── WASM module types ────────────────────────────────────────────
 
@@ -333,40 +335,26 @@ export interface GwenEngineOptions {
 }
 
 /**
- * Augmentable interface for the typed provide/inject registry.
- * Plugin packages extend this via declaration merging.
- *
- * @example
- * ```typescript
- * // In @gwenjs/physics2d:
- * declare module '@gwenjs/core' {
- *   interface GwenProvides {
- *     physics2d: Physics2DAPI
- *   }
- * }
- * ```
- */
-/**
  * Augmentable registry of loaded WASM module names to their export types.
  * Module authors augment this by hand, the same way as {@link GwenProvides}.
  * Generation from the registration call is not done here.
  */
 export interface GwenWasmModules {}
 
-export interface GwenProvides {
-  /** The engine-level error bus. Inject via `engine.inject('errors')`. */
-  errors: EngineErrorBus;
-  /** The engine-level structured logger. Inject via `engine.inject('logger')`. */
-  logger: IGwenLogger;
-  /**
-   * The per-engine TweenManager singleton. Provided by TweenPlugin.
-   * Retrieve via `engine.inject('tween:manager')` or `getTweenManager(engine)`.
-   */
-  "tween:manager": import("../tween/runtime/tween-manager.js").TweenManager;
-  /** Per-engine WASM bridge. Retrieve via `engine.tryInject("wasm:bridge")`. @internal */
-  "wasm:bridge": WasmBridgeImpl;
-  /** Linear-memory views. Same object as `engine.memory`. */
-  memory: EngineMemory;
+declare module "@gwenjs/schema" {
+  interface GwenProvides {
+    /** The engine-level error bus. Inject via `engine.inject('errors')`. */
+    errors: EngineErrorBus;
+    /**
+     * The per-engine TweenManager singleton. Provided by TweenPlugin.
+     * Retrieve via `engine.inject('tween:manager')` or `getTweenManager(engine)`.
+     */
+    "tween:manager": import("../tween/runtime/tween-manager.js").TweenManager;
+    /** Per-engine WASM bridge. Retrieve via `engine.tryInject("wasm:bridge")`. @internal */
+    "wasm:bridge": WasmBridgeImpl;
+    /** Linear-memory views. Same object as `engine.memory`. */
+    memory: EngineMemory;
+  }
 }
 
 /**

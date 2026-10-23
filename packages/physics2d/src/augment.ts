@@ -4,13 +4,13 @@
  *
  * This file contains only TypeScript declaration merging — no runtime code.
  * Importing any symbol from `@gwenjs/physics2d` automatically augments
- * `@gwenjs/core` with the physics service key and `@gwenjs/schema` with
- * the runtime hooks and the prefab extension.
+ * `@gwenjs/schema` with the physics service key, the runtime hooks and
+ * the prefab extension.
  */
 
 import type { Physics2DAPI, Physics2DPluginHooks, Physics2DPrefabExtension } from "./types";
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   /**
    * Physics 2D service slot in the engine's provide/inject registry.
    * Available after `engine.use(physics2dPlugin())` completes setup.
@@ -23,9 +23,7 @@ declare module "@gwenjs/core" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
   }
-}
 
-declare module "@gwenjs/schema" {
   /**
    * Physics 2D runtime hooks augmenting the engine hook bus.
    *

@@ -23,8 +23,7 @@ import { physics3dVitePlugin, type GwenPhysics3DPluginOptions } from "./vite-plu
  * GWEN module for the Physics 3D plugin.
  */
 
-// @ts-expect-error augmenting @gwenjs/app (intentional, activated at app build time)
-declare module "@gwenjs/app" {
+declare module "@gwenjs/schema" {
   interface GwenModuleOptions {
     /** Options for `@gwenjs/physics3d`. Configure gravity and physics quality. */
     physics3d?: Physics3DConfig;

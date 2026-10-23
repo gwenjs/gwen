@@ -11,7 +11,7 @@ import "../../../physics3d/src/augment";
 import { Physics3DPlugin } from "../../../physics3d/src/plugin/index";
 import type { Physics3DAPI } from "../../../physics3d/src/types";
 
-declare module "../../src/engine/engine-types.js" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     physics2d: Physics2DAPI;
     physics3d: Physics3DAPI;
