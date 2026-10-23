@@ -194,11 +194,13 @@ describe("physics3d nav grid through the shared buffer", () => {
     }
   });
 
-  it("a grid shorter than its dimensions throws CORE:INVALID_SHARED_BUFFER", async () => {
+  it("a grid shorter than its dimensions throws PHYSICS3D:INVALID_NAVGRID", async () => {
     const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
     const allocated = recordAlloc(handle);
     try {
       const physics = await startPhysics(handle);
+      physics.initNavGrid3D(openGrid(4, 4, 4));
+      const before = physics.findPath3D(start, goal);
 
       const err = caught(() =>
         physics.initNavGrid3D({
@@ -210,8 +212,39 @@ describe("physics3d nav grid through the shared buffer", () => {
         }),
       );
 
-      requireWasmError(err, "CORE:INVALID_SHARED_BUFFER", "physics3d_init_navgrid_3d");
-      expectUploadReleased(handle, allocated, 0);
+      requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
+      const after = physics.findPath3D(start, goal);
+      expect(after).toEqual(before);
+      expectNearGoal(after);
+      expectUploadReleased(handle, allocated, 1);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("a grid longer than its dimensions throws PHYSICS3D:INVALID_NAVGRID", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
+    const allocated = recordAlloc(handle);
+    try {
+      const physics = await startPhysics(handle);
+      physics.initNavGrid3D(openGrid(4, 4, 4));
+      const before = physics.findPath3D(start, goal);
+
+      const err = caught(() =>
+        physics.initNavGrid3D({
+          grid: new Uint8Array(10),
+          width: 3,
+          height: 1,
+          depth: 3,
+          cellSize,
+        }),
+      );
+
+      requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
+      const after = physics.findPath3D(start, goal);
+      expect(after).toEqual(before);
+      expectNearGoal(after);
+      expectUploadReleased(handle, allocated, 1);
     } finally {
       await handle.dispose();
     }

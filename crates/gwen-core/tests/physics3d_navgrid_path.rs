@@ -206,6 +206,29 @@ fn a_cubic_grid_at_the_cap_is_accepted_and_a_larger_one_is_refused() -> Outcome 
 }
 
 #[test]
+fn navgrid_export_refuses_a_slice_shorter_than_the_cells() -> Outcome {
+    let mut e = primed()?;
+    // 3 x 1 x 3 needs 9 cells. Eight bytes is one short.
+    assert_eq!(upload(&mut e, &[0; 8], 3, 1, 3), Err(invalid_grid(3, 1, 3)));
+    assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
+    assert_eq!(path(3), PRIMED_PATH);
+    Ok(())
+}
+
+#[test]
+fn navgrid_export_refuses_a_slice_longer_than_the_cells() -> Outcome {
+    let mut e = primed()?;
+    // 3 x 1 x 3 needs 9 cells. Ten bytes is one long.
+    assert_eq!(
+        upload(&mut e, &[0; 10], 3, 1, 3),
+        Err(invalid_grid(3, 1, 3))
+    );
+    assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
+    assert_eq!(path(3), PRIMED_PATH);
+    Ok(())
+}
+
+#[test]
 fn null_pointer_with_valid_dimensions_clears_the_grid() -> Outcome {
     let mut e = primed()?;
     assert_eq!(
