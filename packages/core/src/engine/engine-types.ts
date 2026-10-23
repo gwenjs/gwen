@@ -23,6 +23,7 @@ import type {
   GwenPlugin,
   GwenEngineBase,
   GwenErrorBusBase,
+  GwenEngineState,
   GwenErrorPayload,
   GwenErrorTarget,
 } from "@gwenjs/schema";
@@ -213,15 +214,7 @@ export interface EngineErrorBus extends GwenErrorBusBase {
    * Both run synchronously inside `emit`.
    * A handler that throws is caught. The other handlers still run.
    */
-  emit(event: {
-    level: "fatal" | "error" | "warning" | "info" | "verbose";
-    code: string;
-    message: string;
-    source?: string;
-    error?: unknown;
-    context?: Record<string, unknown>;
-    target?: GwenErrorTarget;
-  }): void;
+  emit(event: GwenErrorPayload): void;
   /**
    * Register a listener for every event, including fatal. Runs before `onFatal`.
    * @returns Unsubscribe.
@@ -453,24 +446,11 @@ export interface EngineStats {
   overBudget?: boolean;
 }
 
-/**
- * Lifecycle state of a {@link GwenEngine}.
- * There is no `paused` state. `timeScale = 0` pauses simulation time.
- */
-export type GwenEngineState = "idle" | "starting" | "running" | "stopping" | "stopped" | "faulted";
-
-/** Why {@link GwenEngine} moved from one {@link GwenEngineState} to another. */
-export type GwenEngineStateChangeReason = "USER" | "WASM_PANIC" | "FATAL_ERROR";
-
-/**
- * Payload of the `engine:state-change` hook.
- * Emitted once per real transition. A no-op does not emit.
- */
-export interface EngineStateChangePayload {
-  readonly from: GwenEngineState;
-  readonly to: GwenEngineState;
-  readonly reason: GwenEngineStateChangeReason;
-}
+export type {
+  EngineStateChangePayload,
+  GwenEngineState,
+  GwenEngineStateChangeReason,
+} from "@gwenjs/schema";
 
 /**
  * The GWEN engine instance returned by {@link createEngine}.

@@ -1,19 +1,6 @@
-/** A map of hook names to handler function types. */
-export type HookHandlerMap = Record<string, (...args: never[]) => void>;
+import type { HookHandlerMap } from "@gwenjs/schema";
 
-/**
- * Maps a `HookHandlerMap` created with `defineHooks` into a shape compatible
- * with `GwenRuntimeHooks` declaration merging.
- *
- * @example
- * ```ts
- * type MyHooks = InferHooks<typeof GameHooks>
- * // { 'enemy:died': (id: bigint) => void; 'player:damage': (amount: number) => void }
- * ```
- */
-export type InferHooks<T extends HookHandlerMap> = {
-  [K in keyof T]: T[K];
-};
+export type { HookHandlerMap, InferHooks } from "@gwenjs/schema";
 
 /**
  * Declare a typed set of custom game hooks.

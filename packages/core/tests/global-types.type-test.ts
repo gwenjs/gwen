@@ -1,6 +1,7 @@
 import { describe, it, expectTypeOf } from "vitest";
+import type { GwenPrefabExtensions } from "@gwenjs/schema";
 
-describe("global default type strictness", () => {
+describe("schema extension types", () => {
   it("GwenPrefabExtensions has open index signature", () => {
     expectTypeOf<GwenPrefabExtensions>().toMatchTypeOf<Record<string, unknown>>();
   });
