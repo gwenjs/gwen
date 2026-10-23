@@ -95,30 +95,9 @@ function cancelsInProgress(yaml, eventName) {
   return false;
 }
 
-// The group expression, read back from ci.yml and translated here.
-// A truthy left side of `&&` keeps the '-miri' string; `|| ''` keeps a push group bare.
+// Exact concurrency.group text. The test compares this string. It does not evaluate it.
 const CONCURRENCY_GROUP =
   "${{ github.workflow }}-${{ github.ref }}${{ (github.event_name == 'schedule' || github.event.inputs.miri_full == 'true') && '-miri' || '' }}";
-
-/**
- * @param {string} expr
- * @param {{ workflow: string, ref: string, eventName: string, miriFull: string }} ctx
- * @returns {string}
- */
-function concurrencyGroupFor(expr, ctx) {
-  const prefix = "${{ github.workflow }}-${{ github.ref }}";
-  assert.ok(expr.startsWith(prefix), expr);
-  const tail = expr.slice(prefix.length);
-  const wrapped = tail.match(/^\$\{\{ (.+) \}\}$/);
-  assert.ok(wrapped, tail);
-  const inner = wrapped[1] ?? "";
-  const suffix = inner.match(/&& '([^']*)' \|\| ''$/);
-  assert.ok(suffix, inner);
-  assert.match(inner, /github\.event_name == 'schedule'/);
-  assert.match(inner, /github\.event\.inputs\.miri_full == 'true'/);
-  const selected = ctx.eventName === "schedule" || ctx.miriFull === "true";
-  return `${ctx.workflow}-${ctx.ref}${selected ? (suffix[1] ?? "") : ""}`;
-}
 
 test("cancels an in-progress run for the same ref", () => {
   const yaml = readCi();
@@ -1373,6 +1352,28 @@ function onKeyBlock(on, key) {
 }
 
 /**
+ * Env lines of the "Resolve mode" step.
+ *
+ * @param {string} yaml
+ * @returns {string[]}
+ */
+function resolveModeEnv(yaml) {
+  const lines = jobBlock(yaml, "changes").split("\n");
+  const nameAt = lines.findIndex((line) => line === "      - name: Resolve mode");
+  assert.ok(nameAt !== -1, "Resolve mode step is missing");
+  const envAt = lines.findIndex((line, index) => index > nameAt && line === "        env:");
+  assert.ok(envAt !== -1 && envAt > nameAt, "Resolve mode env is missing");
+  /** @type {string[]} */
+  const body = [];
+  for (let i = envAt + 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (!line.startsWith("          ")) break;
+    body.push(line);
+  }
+  return body;
+}
+
+/**
  * Shell of the "Resolve mode" step, YAML indent removed.
  *
  * @param {string} yaml
@@ -1461,13 +1462,18 @@ test("ci.yml runs the full Miri job by schedule and manual dispatch only", () =>
   assert.match(on, /push:\n {4}branches: \[main, v1-alpha, "hardening\/\*\*"\]/);
   const pull = onKeyBlock(on, "pull_request");
   assert.match(pull, /pull_request:/);
-  assert.doesNotMatch(pull, /schedule:/);
-  assert.doesNotMatch(pull, /workflow_dispatch:/);
-  assert.equal(existsSync(join(root, ".github/workflows/miri-full.yml")), false);
+  assert.equal(pull.includes("\n    branches:"), false);
+  assert.equal(pull.includes("\n    paths:"), false);
+  assert.equal(on.split("\n").filter((line) => line === "  schedule:").length, 1);
+  assert.equal(on.split("\n").filter((line) => line === "  workflow_dispatch:").length, 1);
 });
 
 test("Resolve mode never selects the Miri job for a pull request or a push", () => {
-  const script = resolveModeScript(readCi());
+  const yaml = readCi();
+  assert.ok(
+    resolveModeEnv(yaml).includes("          MIRI_FULL: ${{ github.event.inputs.miri_full }}"),
+  );
+  const script = resolveModeScript(yaml);
   const pull = runResolveMode(script, {
     EVENT: "pull_request",
     CODE: "true",
@@ -1508,6 +1514,21 @@ test("Resolve mode never selects the Miri job for a pull request or a push", () 
   });
   assert.equal(dispatched.miri_full, "false");
   assert.equal(dispatched.full, "true");
+  const unticked = runResolveMode(script, {
+    EVENT: "workflow_dispatch",
+    CODE: "false",
+    RUST: "false",
+    ROOT: "false",
+    STACK: "false",
+    MIRI_FULL: "false",
+  });
+  assert.equal(unticked.miri_full, "false");
+  assert.equal(unticked.miri_only, "false");
+  assert.equal(unticked.full, "true");
+  assert.equal(unticked.code, "true");
+  assert.equal(unticked.rust, "true");
+  assert.equal(unticked.root, "true");
+  assert.equal(unticked.stack, "true");
   const called = runResolveMode(script, {
     EVENT: "workflow_call",
     CODE: "false",
@@ -1521,7 +1542,11 @@ test("Resolve mode never selects the Miri job for a pull request or a push", () 
 });
 
 test("Resolve mode runs only the Miri job for a schedule and a miri dispatch", () => {
-  const script = resolveModeScript(readCi());
+  const yaml = readCi();
+  assert.ok(
+    resolveModeEnv(yaml).includes("          MIRI_FULL: ${{ github.event.inputs.miri_full }}"),
+  );
+  const script = resolveModeScript(yaml);
   for (const env of [
     { EVENT: "schedule", MIRI_FULL: "" },
     { EVENT: "workflow_dispatch", MIRI_FULL: "true" },
@@ -1561,20 +1586,24 @@ test("rust-miri-full is skipped unless the mode selects it and runs the lib and 
 
 test("no other job can start in a miri-only run", () => {
   const yaml = readCi();
-  const exempt = new Set(["changes", "rust-miri-full", "ci-status"]);
+  const exempt = new Set(["changes", "rust-miri-full", "ci-status", "agent-hygiene"]);
   const ids = jobIds(yaml).filter((id) => !exempt.has(id));
-  assert.ok(ids.includes("agent-hygiene"));
+  assert.ok(ids.includes("lint"));
+  const gate = /^if: needs\.changes\.outputs\.(code|rust|root|full|stack) == 'true'$/;
   for (const id of ids) {
     const ifLine = jobBlock(yaml, id)
       .split("\n")
       .find((line) => /^ {4}if:/.test(line));
     assert.ok(ifLine, `${id} has no if`);
-    if (id === "agent-hygiene") {
-      assert.match(ifLine, /needs\.changes\.outputs\.miri_only != 'true'/);
-    } else {
-      assert.match(ifLine, /needs\.changes\.outputs\.(?:code|rust|root|full|stack)\b/);
-    }
+    assert.match(ifLine.trim(), gate, id);
   }
+  const hygiene = jobBlock(yaml, "agent-hygiene")
+    .split("\n")
+    .find((line) => /^ {4}if:/.test(line));
+  assert.equal(
+    hygiene?.trim(),
+    "if: needs.changes.result == 'success' && needs.changes.outputs.miri_only != 'true'",
+  );
 });
 
 test("ci-status needs and reads rust-miri-full", () => {
@@ -1595,33 +1624,9 @@ test("a Miri run does not share a concurrency group with a push", () => {
     concurrencyValue(yaml, "cancel-in-progress"),
     "${{ github.event_name == 'pull_request' }}",
   );
-  const cases = [
-    { eventName: "push", ref: "refs/heads/main", miriFull: "", group: "CI-refs/heads/main" },
-    {
-      eventName: "schedule",
-      ref: "refs/heads/main",
-      miriFull: "",
-      group: "CI-refs/heads/main-miri",
-    },
-    {
-      eventName: "pull_request",
-      ref: "refs/pull/184/merge",
-      miriFull: "",
-      group: "CI-refs/pull/184/merge",
-    },
-  ];
-  for (const item of cases) {
-    assert.equal(
-      concurrencyGroupFor(group ?? "", {
-        workflow: "CI",
-        ref: item.ref,
-        eventName: item.eventName,
-        miriFull: item.miriFull,
-      }),
-      item.group,
-      item.eventName,
-    );
-  }
+  assert.match(group ?? "", /github\.event_name == 'schedule'/);
+  assert.match(group ?? "", /github\.event\.inputs\.miri_full == 'true'/);
+  assert.match(group ?? "", /'-miri'/);
 });
 
 test("miri-full.yml is deleted", () => {
