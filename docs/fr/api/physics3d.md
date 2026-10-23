@@ -376,8 +376,7 @@ try {
 | `CHARACTER_CONTROLLER_NOT_FOUND` | Aucun contrôleur de personnage n'est enregistré pour le slot |
 | `CHARACTER_CONTROLLER_LIMIT_REACHED` | Les 32 emplacements de contrôleur de personnage sont utilisés |
 | `NAVGRID_NOT_INITIALIZED` | Une requête de chemin a eu lieu avant l'envoi de la grille de navigation |
-| `INVALID_NAVGRID` | Une dimension de la grille est nulle, le nombre de cellules déborde, ou la grille dépasse 64 au cube |
-| `CORE:INVALID_SHARED_BUFFER` | La grille passée à `initNavGrid3D` est plus courte que `width * height * depth` |
+| `INVALID_NAVGRID` | Une dimension de la grille est nulle, le nombre de cellules déborde, la grille dépasse 64 au cube, ou le nombre d'octets des cellules diffère du nombre de cellules |
 | `INVALID_PATH_REQUEST` | Une coordonnée de chemin n'est pas finie ou dépasse la borne acceptée |
 | `INVALID_QUERY` | Une coordonnée de rayon ou de point n'est pas finie ou sort de ±1e7, une direction n'est pas finie ou est nulle, ou une distance max n'est pas finie ou est négative |
 | `INVALID_STEP_DELTA` | Un `delta` de pas n'est pas fini ou sort de 0 à 1. Le monde ne change pas |

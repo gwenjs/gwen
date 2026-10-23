@@ -376,8 +376,7 @@ try {
 | `CHARACTER_CONTROLLER_NOT_FOUND` | No character controller is registered for the slot |
 | `CHARACTER_CONTROLLER_LIMIT_REACHED` | All 32 character controller slots are in use |
 | `NAVGRID_NOT_INITIALIZED` | A path query ran before the navigation grid was uploaded |
-| `INVALID_NAVGRID` | A grid dimension is zero, the cell count overflows, or the grid is above 64 cubed |
-| `CORE:INVALID_SHARED_BUFFER` | The grid passed to `initNavGrid3D` is shorter than `width * height * depth` |
+| `INVALID_NAVGRID` | A grid dimension is zero, the cell count overflows, the grid is above 64 cubed, or the number of cell bytes differs from the cell count |
 | `INVALID_PATH_REQUEST` | A path coordinate is not finite or is past the accepted bound |
 | `INVALID_QUERY` | A ray or point coordinate is not finite or sits outside ±1e7, a direction is not finite or is zero, or a max distance is not finite or is negative |
 | `INVALID_STEP_DELTA` | A step `delta` is not finite or sits outside 0 to 1. The world is unchanged |

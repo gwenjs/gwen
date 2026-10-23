@@ -706,9 +706,9 @@ export interface Physics3DAPI {
    * In local mode the grid is stored for JavaScript A* use.
    *
    * @param opts - Grid dimensions, cell size, origin, and the raw voxel data.
-   * @throws {GwenWasmError} `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid
-   *   over the cell limit (WASM mode). `CORE:INVALID_SHARED_BUFFER` when the grid is shorter than
-   *   `width * height * depth`. The temporary upload buffer is freed either way.
+   * @throws {GwenWasmError} `PHYSICS3D:INVALID_NAVGRID` when a dimension is zero, the cell count
+   *   overflows, the grid is above the cell limit, or the number of cell bytes differs from the
+   *   cell count (WASM mode).
    */
   initNavGrid3D(opts: Pathfinding3DOptions): void;
 
