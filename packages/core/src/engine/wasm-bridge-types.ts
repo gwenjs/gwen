@@ -957,9 +957,9 @@ export interface WasmEnginePhysics3D extends WasmEngineBase {
 
   // ── Navigation grid ───────────────────────────────────────────────────────
 
-  /** Throws `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow or a grid over the cell limit. */
+  /** Throws `PHYSICS3D:INVALID_NAVGRID` for a zero dimension, an overflow, a grid over the cell limit, or a byte length that differs from the cell count. */
   physics3d_init_navgrid_3d?(
-    ptr: number,
+    cells: Uint8Array,
     width: number,
     height: number,
     depth: number,

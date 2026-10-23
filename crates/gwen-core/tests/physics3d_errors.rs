@@ -533,7 +533,7 @@ fn navgrid_not_initialized_code_message_and_equality() -> TestResult {
 
 fn invalid_navgrid_message() -> String {
     format!(
-        "navigation grid 0x4x4 is invalid: a dimension is zero, the cell count overflows, or it is above {MAX_NAVGRID_CELLS} cells"
+        "navigation grid 0x4x4 is invalid: a dimension is zero, the cell count overflows, it is above {MAX_NAVGRID_CELLS} cells, or the number of cell bytes differs from the cell count"
     )
 }
 

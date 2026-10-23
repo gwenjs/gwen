@@ -1756,11 +1756,12 @@ impl Engine {
 
     /// Upload a voxel navigation grid for 3D A* pathfinding.
     ///
-    /// The grid memory at `ptr` is immediately copied into Rust-owned storage —
-    /// the caller may free the source buffer after this returns.
+    /// `cells` is moved into the world's grid. The function does not copy those bytes.
+    /// The world is checked first. The dimensions and the byte length are checked by
+    /// `init_navgrid_3d`, which this export forwards to.
     ///
     /// # Arguments
-    /// * `ptr`       — WASM linear-memory pointer to the flat `u8` cell array.
+    /// * `cells`     — Flat `u8` cell array. Its length must equal `width * height * depth`.
     /// * `width`     — Cell count along X.
     /// * `height`    — Cell count along Y.
     /// * `depth`     — Cell count along Z.
@@ -1769,23 +1770,16 @@ impl Engine {
     /// * `origin_y`  — World-space Y origin of the first cell.
     /// * `origin_z`  — World-space Z origin of the first cell.
     ///
-    /// The cell count is validated and capped before any read. A null pointer stores no grid
-    /// and does not read. Any other address must be the start of a live
-    /// [`Self::alloc_shared_buffer`] allocation of at least `width * height * depth` bytes
-    /// ([`Self::check_shared_bytes`]).
-    ///
     /// # Errors
-    /// `WorldNotInitialized` when `physics3d_init` has not run.
-    /// `InvalidNavGrid` when a dimension is zero, the cell count overflows, or the cell count is
-    /// above `MAX_NAVGRID_CELLS`. A dimension error wins over a buffer error.
-    /// `Core(InvalidSharedBuffer)` when a non-null `ptr` is not the start of a live shared
-    /// allocation of this engine, or the allocation is shorter than the grid.
-    /// A refusal keeps the grid that was uploaded before.
+    /// `WorldNotInitialized` when `physics3d_init` has not run. It wins over `InvalidNavGrid`.
+    /// `InvalidNavGrid` when a dimension is zero, the cell count overflows, the cell count is
+    /// above `MAX_NAVGRID_CELLS`, or the number of cell bytes differs from the cell count.
+    /// A dimension error wins over a length error. A refusal keeps the grid that was uploaded before.
     #[cfg(feature = "physics3d")]
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
     pub fn physics3d_init_navgrid_3d(
         &mut self,
-        ptr: usize,
+        cells: Vec<u8>,
         width: u32,
         height: u32,
         depth: u32,
@@ -1794,30 +1788,18 @@ impl Engine {
         origin_y: f32,
         origin_z: f32,
     ) -> Result<(), Physics3DError> {
-        // Drop this borrow before the shared-buffer check, which borrows `self` again.
-        self.world3d_mut()?;
-        let len = crate::physics3d::pathfinding::navgrid_cell_count(width, height, depth)?;
-        if ptr != 0 {
-            self.check_shared_bytes(ptr, len)?;
-        }
         let world = self.world3d_mut()?;
-        // SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
-        // `width * height * depth` bytes. The cell count is validated and capped first, and a
-        // non-null address is checked against the shared-buffer record before this call.
-        // [U-004]
-        unsafe {
-            crate::physics3d::pathfinding::init_navgrid_3d(
-                world.nav_grid_mut(),
-                ptr as *const u8,
-                width,
-                height,
-                depth,
-                cell_size,
-                origin_x,
-                origin_y,
-                origin_z,
-            )
-        }
+        crate::physics3d::pathfinding::init_navgrid_3d(
+            world.nav_grid_mut(),
+            Some(cells),
+            width,
+            height,
+            depth,
+            cell_size,
+            origin_x,
+            origin_y,
+            origin_z,
+        )
     }
 
     /// Find a path in the uploaded 3D voxel grid using A*.
@@ -4340,33 +4322,6 @@ impl Engine {
         Ok(())
     }
 
-    /// Check that `ptr` is the start of a live [`Self::alloc_shared_buffer`] allocation of this
-    /// engine and that the allocation holds at least `len` bytes.
-    ///
-    /// Not a `#[wasm_bindgen]` export. The nav-grid export uses the same registry lookup
-    /// (`recorded`) before it reads.
-    ///
-    /// # Errors
-    /// Returns [`CoreError::InvalidSharedBuffer`] inside [`Physics3DError::Core`]. The error's
-    /// `len` is 0 when `ptr` is null, is not the start of a live allocation, was freed, or
-    /// belongs to another engine. The error's `len` is the recorded byte length when the
-    /// allocation is shorter than `len`.
-    pub fn check_shared_bytes(&self, ptr: usize, len: usize) -> Result<(), Physics3DError> {
-        let Some((recorded, _)) = self.shared_buffers.recorded(ptr) else {
-            return Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
-                ptr,
-                len: 0,
-            }));
-        };
-        if len > recorded {
-            return Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
-                ptr,
-                len: recorded,
-            }));
-        }
-        Ok(())
-    }
-
     /// Mutably borrow the 3D world, or refuse when `physics3d_init` has not run.
     ///
     /// Not a `#[wasm_bindgen]` export.
@@ -4801,130 +4756,6 @@ mod tests {
         for (index, length) in lengths.iter().copied().enumerate() {
             assert_eq!(engine.free_shared_buffer(ptrs[index], length), Ok(()));
         }
-    }
-
-    /// The export copies nine cells from a shared buffer of that exact length.
-    #[cfg(feature = "physics3d")]
-    #[test]
-    fn unsafe_site_u004_export_copies_cells() {
-        let mut engine = Engine::new(4).unwrap_or_else(|err| {
-            assert_eq!("", err.code());
-            std::process::abort();
-        });
-        engine.physics3d_init(0.0, 0.0, 0.0, 4);
-        let cells = [9u8, 8, 7, 6, 5, 4, 3, 2, 1];
-        let ptr = engine.alloc_shared_buffer(cells.len());
-        if ptr != 0 {
-            // SAFETY: `ptr` is the start of a live allocation of `cells.len()` bytes, and
-            // `cells` holds that many bytes. The copy stays inside both.
-            unsafe {
-                std::ptr::copy_nonoverlapping(cells.as_ptr(), ptr as *mut u8, cells.len());
-            }
-        }
-        let uploaded = engine.physics3d_init_navgrid_3d(ptr, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
-        let copied = engine
-            .physics3d_world
-            .as_ref()
-            .and_then(|world| world.nav_grid())
-            .map(|grid| crate::physics3d::pathfinding::navgrid_cells(grid).to_vec());
-        assert_eq!(engine.free_shared_buffer(ptr, cells.len()), Ok(()));
-        assert_eq!(uploaded, Ok(()));
-        let Some(copied) = copied else {
-            assert_eq!("", "no nav grid");
-            return;
-        };
-        assert_eq!(copied.as_slice(), cells.as_slice());
-    }
-
-    /// A `Vec` address is not a live shared buffer, so the export refuses it.
-    #[cfg(feature = "physics3d")]
-    #[test]
-    fn navgrid_export_rejects_a_pointer_that_is_not_a_shared_buffer() {
-        let mut engine = Engine::new(4).unwrap_or_else(|err| {
-            assert_eq!("", err.code());
-            std::process::abort();
-        });
-        engine.physics3d_init(0.0, 0.0, 0.0, 4);
-        let cells = vec![9u8, 8, 7, 6, 5, 4, 3, 2, 1];
-        let ptr = cells.as_ptr() as usize;
-        assert_eq!(
-            engine.physics3d_init_navgrid_3d(ptr, 3, 1, 3, 1.0, 0.0, 0.0, 0.0),
-            Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
-                ptr,
-                len: 0,
-            }))
-        );
-    }
-
-    /// A live allocation shorter than the 3x1x3 grid is refused with its recorded length.
-    #[cfg(feature = "physics3d")]
-    #[test]
-    fn navgrid_export_rejects_a_shared_buffer_shorter_than_the_grid() {
-        let mut engine = Engine::new(4).unwrap_or_else(|err| {
-            assert_eq!("", err.code());
-            std::process::abort();
-        });
-        engine.physics3d_init(0.0, 0.0, 0.0, 4);
-        let ptr = engine.alloc_shared_buffer(8);
-        let result = engine.physics3d_init_navgrid_3d(ptr, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
-        assert_eq!(engine.free_shared_buffer(ptr, 8), Ok(()));
-        assert_eq!(
-            result,
-            Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
-                ptr,
-                len: 8,
-            }))
-        );
-    }
-
-    /// Nine bytes is exactly a 3x1x3 grid. A zero dimension and a cell count above the cap are
-    /// `InvalidNavGrid` even when the buffer is only 8 bytes.
-    #[cfg(feature = "physics3d")]
-    #[test]
-    fn navgrid_export_accepts_an_exact_buffer_and_dimension_errors_win() {
-        let mut engine = Engine::new(4).unwrap_or_else(|err| {
-            assert_eq!("", err.code());
-            std::process::abort();
-        });
-        engine.physics3d_init(0.0, 0.0, 0.0, 4);
-        let cells = [9u8, 8, 7, 6, 5, 4, 3, 2, 1];
-        let exact = engine.alloc_shared_buffer(cells.len());
-        if exact != 0 {
-            // SAFETY: `exact` is the start of a live allocation of `cells.len()` bytes, and
-            // `cells` holds that many bytes. The copy stays inside both.
-            unsafe {
-                std::ptr::copy_nonoverlapping(cells.as_ptr(), exact as *mut u8, cells.len());
-            }
-        }
-        let uploaded = engine.physics3d_init_navgrid_3d(exact, 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
-        let copied = engine
-            .physics3d_world
-            .as_ref()
-            .and_then(|world| world.nav_grid())
-            .map(|grid| crate::physics3d::pathfinding::navgrid_cells(grid).to_vec());
-        assert_eq!(engine.free_shared_buffer(exact, cells.len()), Ok(()));
-        assert_eq!(uploaded, Ok(()));
-        assert_eq!(copied.as_deref(), Some(cells.as_slice()));
-
-        let short = engine.alloc_shared_buffer(8);
-        let zero_width = engine.physics3d_init_navgrid_3d(short, 0, 1, 1, 1.0, 0.0, 0.0, 0.0);
-        assert_eq!(engine.free_shared_buffer(short, 8), Ok(()));
-        assert_eq!(
-            zero_width,
-            Err(Physics3DError::InvalidNavGrid { w: 0, h: 1, d: 1 })
-        );
-
-        let over = engine.alloc_shared_buffer(8);
-        let over_cap = engine.physics3d_init_navgrid_3d(over, 65, 64, 64, 1.0, 0.0, 0.0, 0.0);
-        assert_eq!(engine.free_shared_buffer(over, 8), Ok(()));
-        assert_eq!(
-            over_cap,
-            Err(Physics3DError::InvalidNavGrid {
-                w: 65,
-                h: 64,
-                d: 64,
-            })
-        );
     }
 
     /// Allocation failure of `transform_history_commit` on a native host.
