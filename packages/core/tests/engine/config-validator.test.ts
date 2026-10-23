@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from "vitest";
+import type { IGwenLogProvider } from "@gwenjs/schema";
 import { validateEngineConfig } from "../../src/engine/engine-config-validator.js";
 import { GwenConfigError } from "../../src/engine/config-error.js";
 
@@ -223,5 +224,79 @@ describe("validateEngineConfig — multiple field validation", () => {
     expect(() => validateEngineConfig({ maxEntities: -1 })).toThrow(GwenConfigError);
     expect(warnSpy).not.toHaveBeenCalled();
     warnSpy.mockRestore();
+  });
+});
+
+describe("validateEngineConfig — logger.providers shape", () => {
+  type EngineOptions = Parameters<typeof validateEngineConfig>[0];
+
+  it("a non-array logger.providers throws GWEN_CONFIG_ERROR", () => {
+    const providers: { length: number } = { length: 1 };
+    const options: EngineOptions | { logger: { providers: { length: number } } } = {
+      logger: { providers },
+    };
+    let error: GwenConfigError | undefined;
+    try {
+      validateEngineConfig(options as EngineOptions);
+    } catch (caught: unknown) {
+      if (caught instanceof GwenConfigError) error = caught;
+    }
+    expect({
+      code: error?.code,
+      field: error?.field,
+      hint: error?.hint,
+    }).toEqual({
+      code: "GWEN_CONFIG_ERROR",
+      field: "logger.providers",
+      hint: "Pass objects with a handle(entry) method.",
+    });
+  });
+
+  it("a null logger provider throws GWEN_CONFIG_ERROR", () => {
+    const providers: ReadonlyArray<IGwenLogProvider | null> = [null];
+    const options:
+      | EngineOptions
+      | {
+          logger: { providers: ReadonlyArray<IGwenLogProvider | null> };
+        } = { logger: { providers } };
+    let error: GwenConfigError | undefined;
+    try {
+      validateEngineConfig(options as EngineOptions);
+    } catch (caught: unknown) {
+      if (caught instanceof GwenConfigError) error = caught;
+    }
+    expect({
+      code: error?.code,
+      field: error?.field,
+      hint: error?.hint,
+    }).toEqual({
+      code: "GWEN_CONFIG_ERROR",
+      field: "logger.providers",
+      hint: "Pass objects with a handle(entry) method.",
+    });
+  });
+
+  it("a provider whose handle is not a function throws GWEN_CONFIG_ERROR", () => {
+    const providers: ReadonlyArray<IGwenLogProvider | { handle: string }> = [{ handle: "nope" }];
+    const options:
+      | EngineOptions
+      | {
+          logger: { providers: ReadonlyArray<IGwenLogProvider | { handle: string }> };
+        } = { logger: { providers } };
+    let error: GwenConfigError | undefined;
+    try {
+      validateEngineConfig(options as EngineOptions);
+    } catch (caught: unknown) {
+      if (caught instanceof GwenConfigError) error = caught;
+    }
+    expect({
+      code: error?.code,
+      field: error?.field,
+      hint: error?.hint,
+    }).toEqual({
+      code: "GWEN_CONFIG_ERROR",
+      field: "logger.providers",
+      hint: "Pass objects with a handle(entry) method.",
+    });
   });
 });

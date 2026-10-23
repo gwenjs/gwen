@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { GwenLogger } from "../../src/logger/gwen-logger";
 import { consoleLogProvider } from "../../src/logger/console-log-provider";
 import type { IGwenLogProvider, GwenLogEntry } from "@gwenjs/schema";
@@ -97,17 +97,13 @@ describe("GwenLogger", () => {
 });
 
 function consoleWarnCalls(run: () => void): unknown[][] {
-  const calls: unknown[][] = [];
-  const previous = console.warn;
-  console.warn = (...args) => {
-    calls.push(args);
-  };
+  const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
     run();
+    return spy.mock.calls.map((args) => [...args]);
   } finally {
-    console.warn = previous;
+    spy.mockRestore();
   }
-  return calls;
 }
 
 function argsInclude(calls: unknown[][], text: string): boolean {

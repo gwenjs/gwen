@@ -25,9 +25,9 @@ describe("generateEntryModule logger", () => {
   it("the generated entry passes logger to createEngine and does not assign engine.logger", () => {
     const source = generateEntryModule(false);
     const argument = createEngineArgument(source);
-    expect([source.includes("engine.logger ="), argument.includes("logger")]).toEqual([
-      false,
-      true,
-    ]);
+    expect([
+      source.includes("engine.logger ="),
+      argument.includes("logger: gwenConfig.logger"),
+    ]).toEqual([false, true]);
   });
 });

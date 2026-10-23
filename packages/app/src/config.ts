@@ -30,6 +30,10 @@ const DEFAULT_ENGINE = {
   maxCatchupSteps: 2,
 };
 
+/**
+ * The resolved `minLevel` is the app-level default and is not what the engine receives
+ * (the generated entry passes the raw `logger` config).
+ */
 const DEFAULT_LOGGER = {
   minLevel: "warn" as const,
 };

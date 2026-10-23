@@ -219,9 +219,7 @@ describe("generateEntryModule — bootstrap correctness", () => {
 
   it("imports createEngine from @gwenjs/core and WasmBridgeImpl from @gwenjs/core/internal", () => {
     const code = generateEntryModule(false);
-    expect(code).toContain(
-      'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
-    );
+    expect(code).toContain('import { createEngine } from "@gwenjs/core";');
     expect(code).toContain(
       'import { WasmBridgeImpl, detectCoreVariant } from "@gwenjs/core/internal";',
     );

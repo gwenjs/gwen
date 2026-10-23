@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from "vitest";
 import { createLogger } from "../src/logger/index";
 import { createEngine } from "../src/index";
 import type { LogEntry } from "../src/logger/index";
-import type { GwenLogger } from "@gwenjs/schema";
+import type { GwenLogEntry } from "@gwenjs/schema";
 
 describe("GwenLogger", () => {
   describe("sink routing", () => {
@@ -140,45 +140,74 @@ describe("GwenLogger", () => {
   });
 
   describe("engine.logger integration", () => {
+    function capturing(): {
+      seen: GwenLogEntry[];
+      logger: { providers: [{ handle(entry: GwenLogEntry): void }] };
+    } {
+      const seen: GwenLogEntry[] = [];
+      return {
+        seen,
+        logger: {
+          providers: [
+            {
+              handle(entry) {
+                seen.push(entry);
+              },
+            },
+          ],
+        },
+      };
+    }
+
     it("engine.logger is available after createEngine()", async () => {
       const engine = await createEngine();
-      expect(engine.logger).toBeDefined();
-      expect(typeof engine.logger.debug).toBe("function");
-      expect(typeof engine.logger.child).toBe("function");
+      try {
+        expect(engine.logger).toBeDefined();
+        expect(typeof engine.logger.debug).toBe("function");
+        expect(typeof engine.logger.child).toBe("function");
+      } finally {
+        await engine.stop();
+      }
     });
 
     it("engine.logger.child() produces a scoped logger", async () => {
-      const engine = await createEngine({ debug: true });
-      const sink = vi.fn();
-      (engine.logger as GwenLogger).setSink(sink);
+      const { seen, logger } = capturing();
+      const engine = await createEngine({ debug: true, logger });
+      try {
+        const child = engine.logger.child("@gwenjs/test-plugin");
+        child.warn("child message");
 
-      const child = engine.logger.child("@gwenjs/test-plugin");
-      child.warn("child message");
-
-      expect(sink).toHaveBeenCalledOnce();
-      expect(sink.mock.calls[0]![0].source).toBe("@gwenjs/test-plugin");
+        expect(seen).toHaveLength(1);
+        expect(seen[0]!.tag).toBe("@gwenjs/test-plugin");
+      } finally {
+        await engine.stop();
+      }
     });
 
     it("debug mode off: engine.logger.debug() is silent", async () => {
-      const engine = await createEngine({ debug: false });
-      const sink = vi.fn();
-      (engine.logger as GwenLogger).setSink(sink);
+      const { seen, logger } = capturing();
+      const engine = await createEngine({ debug: false, logger });
+      try {
+        engine.logger.debug("this should be silent");
+        engine.logger.info("this too");
 
-      engine.logger.debug("this should be silent");
-      engine.logger.info("this too");
-
-      expect(sink).not.toHaveBeenCalled();
+        expect(seen).toEqual([]);
+      } finally {
+        await engine.stop();
+      }
     });
 
     it("debug mode on: engine.logger.debug() reaches the sink", async () => {
-      const engine = await createEngine({ debug: true });
-      const sink = vi.fn();
-      (engine.logger as GwenLogger).setSink(sink);
+      const { seen, logger } = capturing();
+      const engine = await createEngine({ debug: true, logger });
+      try {
+        engine.logger.debug("visible in debug mode");
 
-      engine.logger.debug("visible in debug mode");
-
-      expect(sink).toHaveBeenCalledOnce();
-      expect(sink.mock.calls[0]![0].message).toBe("visible in debug mode");
+        expect(seen).toHaveLength(1);
+        expect(seen[0]!.message).toBe("visible in debug mode");
+      } finally {
+        await engine.stop();
+      }
     });
   });
 });

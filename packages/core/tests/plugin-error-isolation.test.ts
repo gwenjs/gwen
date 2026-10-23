@@ -1,10 +1,9 @@
 /**
  * Tests for plugin error isolation (RFC-011 Phase 2)
  */
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect } from "vitest";
 import { createEngine } from "../src/index";
 import type { GwenPlugin, EngineErrorBus } from "../src/index";
-import type { GwenLogger } from "@gwenjs/schema";
 import { CoreErrorCodes } from "../src/index";
 import { createMockWasmEngine } from "./helpers/mock-wasm-engine";
 
@@ -155,16 +154,25 @@ describe("plugin error isolation", () => {
     });
 
     it("child logger from inject has correct source", async () => {
-      const engine = await createEngine({ debug: true });
+      const seen: string[] = [];
+      const engine = await createEngine({
+        debug: true,
+        logger: {
+          providers: [
+            {
+              handle(entry) {
+                if (entry.tag !== undefined) seen.push(entry.tag);
+              },
+            },
+          ],
+        },
+      });
       const logger = engine.inject("logger");
-      const sink = vi.fn();
-      (logger as GwenLogger).setSink(sink);
 
       const child = logger.child("@gwenjs/test");
       child.warn("test");
 
-      expect(sink).toHaveBeenCalledOnce();
-      expect(sink.mock.calls[0]![0].source).toBe("@gwenjs/test");
+      expect(seen).toEqual(["@gwenjs/test"]);
     });
   });
 

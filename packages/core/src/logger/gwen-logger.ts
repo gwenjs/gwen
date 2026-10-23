@@ -12,17 +12,19 @@ const LEVELS: Record<GwenLogLevel, number> = {
  *
  * Fan-outs log entries to all registered providers after filtering by `minLevel`.
  * Create child loggers via `child()` to attach scope metadata without allocating a
- * new provider array.
+ * new provider array. A child keeps the providers, the minimum level and the frame getter.
+ * An entry includes `frame` only when a frame getter was set. `0` is kept.
  *
- * Instantiated by `setupGwen` — do not construct directly in application code.
+ * Instantiated by the engine — do not construct directly in application code.
  * Use `useLogger()` from `@gwenjs/kit` instead.
  */
 export class GwenLogger implements IGwenLogger {
   constructor(
-    private readonly _providers: IGwenLogProvider[],
+    private readonly _providers: readonly IGwenLogProvider[],
     private readonly _minLevel: GwenLogLevel,
     private readonly _tag?: string,
     private readonly _entityId?: string,
+    private readonly _getFrame?: () => number,
   ) {}
 
   debug(message: string, payload?: Record<string, unknown>): void {
@@ -39,7 +41,7 @@ export class GwenLogger implements IGwenLogger {
   }
 
   child(tag: string, entityId?: string): IGwenLogger {
-    return new GwenLogger(this._providers, this._minLevel, tag, entityId);
+    return new GwenLogger(this._providers, this._minLevel, tag, entityId, this._getFrame);
   }
 
   private _emit(level: GwenLogLevel, message: string, payload?: Record<string, unknown>): void {
@@ -52,6 +54,15 @@ export class GwenLogger implements IGwenLogger {
       entityId: this._entityId,
       timestamp: performance.now(),
     };
-    for (const p of this._providers) p.handle(entry);
+    if (this._getFrame !== undefined) {
+      entry.frame = this._getFrame();
+    }
+    for (const provider of this._providers) {
+      try {
+        provider.handle(entry);
+      } catch {
+        // One provider must not stop the others or crash the engine.
+      }
+    }
   }
 }

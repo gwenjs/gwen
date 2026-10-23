@@ -11,7 +11,7 @@ Le mode debug active les diagnostics visuels et console pour comprendre ce qui s
 
 ### Debug global du moteur
 
-Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Les logs `debug` et `info` suivent ce drapeau dans chaque build. Ceci ne tourne que si `__GWEN_DEV__` est aussi vrai :
+Définissez `engine.debug: true` dans `gwen.config.ts` pour activer le mode debug global. Quand `logger.minLevel` est omis, cela abaisse le niveau minimum du logger du moteur à `debug`, donc `debug` et `info` sont livrés. Un `logger.minLevel` fixé l'emporte. Ceci ne tourne que si `__GWEN_DEV__` est aussi vrai :
 - Vérifications sentinelles par frame
 - Avertissements de timing de phase en cas de dépassement du budget de frame
 - L'avertissement d'isolation (`isolated after …`)
@@ -301,7 +301,7 @@ describe('MySystem', () => {
 
 ### Impact sur les performances
 
-Les builds de production (`__GWEN_DEV__ === false`) retirent les avertissements réservés au dev et l'instrumentation par frame, même si `debug` vaut `true`. Les logs `debug` et `info` suivent toujours `engine.debug`.
+Les builds de production (`__GWEN_DEV__ === false`) retirent les avertissements réservés au dev et l'instrumentation par frame, même si `debug` vaut `true`. Quand `logger.minLevel` est omis, les logs `debug` et `info` suivent toujours `engine.debug`. Un `logger.minLevel` fixé l'emporte.
 
 ### Vérifications de sentinelle
 

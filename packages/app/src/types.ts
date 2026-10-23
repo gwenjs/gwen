@@ -34,7 +34,7 @@ export interface GwenLoggerConfig {
   providers?: IGwenLogProvider[];
   /**
    * Entries below this level are silently dropped before reaching providers.
-   * @default 'warn'
+   * `debug` when `engine.debug` is true, otherwise `'warn'`; when set, wins over `engine.debug`.
    */
   minLevel?: GwenLogLevel;
 }
@@ -114,7 +114,9 @@ export interface GwenUserConfig extends GwenModuleOptions {
     maxCatchupSteps?: number; // défaut 2
     maxDeltaSeconds?: number;
     /**
-     * Enable global debug mode. Logger `debug` and `info` follow this flag.
+     * Enable global debug mode. When `logger.minLevel` is omitted, `true` lowers
+     * the engine logger minimum level to `debug`, so `debug` and `info` are delivered.
+     * A set `logger.minLevel` wins over this flag.
      * Per-frame sentinel checks, phase timing, and the isolation warning run only
      * in a development build (`__GWEN_DEV__`) when this is also `true`.
      * @default false

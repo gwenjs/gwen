@@ -103,7 +103,7 @@ function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): La
 ```
 
 Point d'entrée pour les plugins renderer. Retourne le `LayerManager` partagé pour cette instance d'engine, en le créant au premier appel. Au premier appel, il :
-- Lie le manager à `engine.logger` pour que tous les avertissements transitent par le log sink de l'engine.
+- Lie le manager à `engine.logger` pour que tous les avertissements transitent par le logger du moteur.
 - Enregistre un handler `engine:tick` qui appelle `manager.beginFrame()` au début de chaque frame, maintenant les totaux de stats par frame sans aucun câblage côté plugin.
 
 ```ts

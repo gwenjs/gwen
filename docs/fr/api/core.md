@@ -23,7 +23,9 @@ function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| options | `GwenEngineOptions` | Configuration du moteur (variant, maxEntities, debug). |
+| options | `GwenEngineOptions` | Configuration du moteur (`variant`, `maxEntities`, `debug`, `logger`). |
+
+`logger.providers` reçoit chaque message du moteur. Le défaut est le fournisseur console. `[]` ne livre rien. `logger.minLevel`, quand il est fixé, l'emporte sur `debug`. Quand `minLevel` est omis, `debug: true` abaisse le niveau minimum à `debug` ; sinon il vaut `warn`.
 
 **Retourne:** `Promise<GwenEngine>` — le moteur, WASM chargé.
 

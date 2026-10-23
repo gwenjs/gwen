@@ -55,7 +55,9 @@ export default defineConfig({
 | `engine.maxDeltaSeconds` | `number` | `0.1` | Maximum delta time clamp per frame (seconds). |
 | `engine.physicsHz` | `number` | `0` | Fixed simulation rate in Hz. When non-zero, each display frame runs up to `maxCatchupSteps` steps and one `engine:render(alpha)`. `advance(dt)` uses the same accumulator. |
 | `engine.maxCatchupSteps` | `number` | `2` | Maximum fixed steps per display frame. Whole steps beyond the cap are dropped. |
-| `engine.debug` | `boolean` | `false` | Logger `debug` and `info`, and plugin setup logs, follow this flag in every build. Per-frame sentinel checks, phase timing, and the isolation warning run only when `__GWEN_DEV__` is also true (`true` with `vite` and `vite build --mode development`, `false` with `vite build`). |
+| `engine.debug` | `boolean` | `false` | When `logger.minLevel` is omitted, `true` lowers the engine logger minimum level to `debug` (plugin setup logs included). A set `logger.minLevel` wins. Per-frame sentinel checks, phase timing, and the isolation warning run only when `__GWEN_DEV__` is also true (`true` with `vite` and `vite build --mode development`, `false` with `vite build`). |
+| `logger.providers` | `IGwenLogProvider[]` | console provider | Providers for the engine logger. Passed to `createEngine`. `[]` delivers nothing. |
+| `logger.minLevel` | `'debug' \| 'info' \| 'warn' \| 'error'` | `debug` when `engine.debug` is true and this is omitted, otherwise `warn` | Minimum level delivered to the providers. When set, it wins over `engine.debug`. |
 | `globalCss` | `string[]` | `[]` | CSS files injected into every page, relative to project root (e.g. `'./src/styles/global.css'`). |
 | `viewports` | `Record<string, ViewportRegion>` | — | Static viewport declarations (normalized 0–1 screen regions). If absent, a fullscreen `'main'` viewport is created automatically. |
 | `screen.sizeProvider` | `ScreenSizeProvider` | auto | Custom size provider for `ScreenPlugin`. Auto-detected in browser (ResizeObserver). Required for Node.js or non-browser environments. |

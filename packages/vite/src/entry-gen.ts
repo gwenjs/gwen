@@ -408,7 +408,7 @@ export function generateEntryModule(
   }
 
   lines.push(
-    'import { createEngine, GwenLogger, consoleLogProvider } from "@gwenjs/core";',
+    'import { createEngine } from "@gwenjs/core";',
     'import { WasmBridgeImpl, detectCoreVariant } from "@gwenjs/core/internal";',
     'import { createViewportsPlugin, createScreenPlugin } from "@gwenjs/app";',
     'import gwenConfig from "/gwen.config.ts";',
@@ -436,9 +436,7 @@ export function generateEntryModule(
     "  const variant = detectCoreVariant(gwenConfig);",
     "  const bridge = new WasmBridgeImpl();",
     "  await bridge.init(variant);",
-    "  const engine = await createEngine({ ...gwenConfig.engine, variant, _bridge: bridge });",
-    "  const _logCfg = gwenConfig.logger ?? {};",
-    '  engine.logger = new GwenLogger(_logCfg.providers ?? [consoleLogProvider()], _logCfg.minLevel ?? "warn");',
+    "  const engine = await createEngine({ ...gwenConfig.engine, logger: gwenConfig.logger, variant, _bridge: bridge });",
     "",
     "  await engine.use(createViewportsPlugin(gwenConfig.viewports));",
     "  await engine.use(createScreenPlugin(gwenConfig.screen));",

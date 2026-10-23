@@ -38,7 +38,7 @@ declare module "@gwenjs/schema" {
  * ignored. Register all renderer plugins before calling `LayerManager.mount()`.
  *
  * The LayerManager is automatically bound to `engine.logger` so all renderer
- * warnings flow through the single engine log sink.
+ * warnings flow through the engine logger.
  *
  * @example
  * ```ts
