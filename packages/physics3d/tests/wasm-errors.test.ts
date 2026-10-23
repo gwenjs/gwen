@@ -22,7 +22,7 @@ import { createForcesAndConstraints } from "../src/plugin/forces-and-constraints
 import { createJointMethods } from "../src/plugin/joint-management";
 import { createPathfindingMethods } from "../src/plugin/pathfinding-service";
 import { createPluginContext, type PluginContext } from "../src/plugin/plugin-context";
-import type { Physics3DWasmBridge } from "../src/plugin/bridge";
+import type { Physics3DBridgeRuntime, Physics3DWasmBridge } from "../src/plugin/bridge";
 import { createGetSensorState, createUpdateSensorState } from "../src/plugin/sensor-management";
 import type { Physics3DBodyHandle } from "../src/types";
 
@@ -31,17 +31,46 @@ function codedError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code });
 }
 
+interface RecordingBridgeRuntime extends Physics3DBridgeRuntime {
+  allocSharedBuffer(byteLength: number): number;
+  freeSharedBuffer(ptr: number, byteLength: number): void;
+  readonly freed: Array<[number, number]>;
+}
+
+function isRecordingRuntime(
+  runtime: Physics3DBridgeRuntime | null,
+): runtime is RecordingBridgeRuntime {
+  return runtime !== null && "freed" in runtime && "freeSharedBuffer" in runtime;
+}
+
+function recordedFrees(ctx: PluginContext): Array<[number, number]> {
+  const runtime = ctx.bridgeRuntime;
+  if (!isRecordingRuntime(runtime)) {
+    throw new Error("expected the shared-buffer recorder");
+  }
+  return runtime.freed;
+}
+
 function makeContext(bridge: Physics3DWasmBridge): PluginContext {
   const cfg = normalizePhysics3DConfig({});
   const ctx = createPluginContext(cfg, buildLayerRegistry(cfg.layers));
   const memory = new WebAssembly.Memory({ initial: 1 });
-  ctx.backendMode = "wasm";
-  ctx.wasmBridge = bridge;
-  ctx.bridgeRuntime = {
+  const freed: Array<[number, number]> = [];
+  const runtime: RecordingBridgeRuntime = {
     variant: "physics3d",
     getPhysicsBridge: () => bridge,
     getLinearMemory: () => memory,
+    freed,
+    allocSharedBuffer(_byteLength: number): number {
+      return 16;
+    },
+    freeSharedBuffer(ptr: number, byteLength: number): void {
+      freed.push([ptr, byteLength]);
+    },
   };
+  ctx.backendMode = "wasm";
+  ctx.wasmBridge = bridge;
+  ctx.bridgeRuntime = runtime;
   return ctx;
 }
 
@@ -598,37 +627,27 @@ describe("navigation grid", () => {
   const grid = new Uint8Array(8);
   const options = { grid, width: 2, height: 2, depth: 2, cellSize: 1 };
 
-  function navContext(
-    init: () => void,
-    freed: Array<[number, number, number]>,
-    find?: () => number,
-  ): PluginContext {
+  function navContext(init: () => void, find?: () => number): PluginContext {
     return makeContext({
-      __wbindgen_malloc: () => 16,
-      __wbindgen_free: (ptr, size, align) => {
-        freed.push([ptr, size, align]);
-      },
       physics3d_init_navgrid_3d: init,
       ...(find !== undefined ? { physics3d_find_path_3d: find } : {}),
     });
   }
 
   it("frees the upload buffer when the export rejects, and throws INVALID_NAVGRID", () => {
-    const freed: Array<[number, number, number]> = [];
     const ctx = navContext(() => {
       throw codedError("PHYSICS3D:INVALID_NAVGRID", "invalid nav grid 0x2x2");
-    }, freed);
+    });
 
     const err = caught(() => createPathfindingMethods(ctx).initNavGrid3D(options));
 
+    expect(recordedFrees(ctx)).toEqual([[16, 8]]);
     requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
-    expect(freed).toEqual([[16, 8, 1]]);
   });
 
   it("findPath3D keeps the documented empty path when no grid was uploaded", () => {
     const ctx = navContext(
       () => undefined,
-      [],
       () => {
         throw codedError(
           "PHYSICS3D:NAVGRID_NOT_INITIALIZED",
@@ -645,7 +664,6 @@ describe("navigation grid", () => {
   it("findPath3D throws INVALID_PATH_REQUEST for a coordinate Rust refuses", () => {
     const ctx = navContext(
       () => undefined,
-      [],
       () => {
         throw codedError("PHYSICS3D:INVALID_PATH_REQUEST", "path coordinate is not finite");
       },

@@ -11,10 +11,11 @@ import type { Physics3DAPI } from "../../../physics3d/src/types";
 import { createRealEngine, type RealEngineHandle } from "./harness.js";
 
 /**
- * Real physics3d WASM, exports the plugin cannot reach today. The plugin skips the nav grid
- * upload (the real bridge has no `__wbindgen_malloc`) and never sets its overlap scratch
- * pointer. Each case calls the export directly and puts the thrown error through the plugin
- * mapper, the one the plugin uses for every other export.
+ * Real physics3d WASM. Each case calls an export directly and puts the thrown error
+ * through the plugin mapper, the one the plugin uses for every other export.
+ * The two nav-grid cases stay mapper tests: they do not go through `initNavGrid3D`
+ * or `findPath3D`. The overlap case calls the export because the plugin never sets
+ * its scratch pointer.
  */
 describe("physics3d WASM errors through the plugin mapper", () => {
   async function startPhysics(handle: RealEngineHandle): Promise<Physics3DAPI> {
@@ -68,9 +69,8 @@ describe("physics3d WASM errors through the plugin mapper", () => {
   }
 
   /**
-   * `initNavGrid3D` cannot reach Rust today: it needs `__wbindgen_malloc` on the physics bridge
-   * and the real bridge has none, so the plugin skips the upload. These two cases call the
-   * export directly and put its error through the plugin mapper, the same one the plugin uses.
+   * These two cases call the nav-grid exports directly and put the thrown error
+   * through the plugin mapper. They stay mapper tests.
    */
   function uploadGrid(handle: RealEngineHandle, width: number): number {
     const raw = rawPhysics(handle);

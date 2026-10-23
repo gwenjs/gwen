@@ -4794,6 +4794,27 @@ mod tests {
             cells.as_slice()
         );
     }
+
+    /// A `Vec` address is not a live shared buffer, so the export refuses it.
+    #[cfg(feature = "physics3d")]
+    #[test]
+    fn navgrid_export_rejects_a_pointer_that_is_not_a_shared_buffer() {
+        let mut engine = Engine::new(4).unwrap_or_else(|err| {
+            assert_eq!("", err.code());
+            std::process::abort();
+        });
+        engine.physics3d_init(0.0, 0.0, 0.0, 4);
+        let cells = vec![9u8, 8, 7, 6, 5, 4, 3, 2, 1];
+        let ptr = cells.as_ptr() as usize;
+        assert_eq!(
+            engine.physics3d_init_navgrid_3d(ptr, 3, 1, 3, 1.0, 0.0, 0.0, 0.0),
+            Err(Physics3DError::Core(CoreError::InvalidSharedBuffer {
+                ptr,
+                len: 0,
+            }))
+        );
+    }
+
     /// Allocation failure of `transform_history_commit` on a native host.
     /// A process-wide counter would count other lib tests. The flag is per thread.
     #[cfg(all(test, not(target_arch = "wasm32")))]
