@@ -1491,7 +1491,7 @@ function matrixInclude(job) {
       rows.push(row);
       continue;
     }
-    const field = /^ {12}(runner|miriflags|features|skip): (.*)$/.exec(line);
+    const field = /^ {12}(runner|timeout|miriflags|features|skip): (.*)$/.exec(line);
     if (field && row) {
       row[field[1] ?? ""] = yamlScalar(field[2] ?? "");
       continue;
@@ -1629,9 +1629,7 @@ test("rust-miri-full is skipped unless the mode selects it and runs the lib and 
   );
   assert.match(job, /^ {6}MIRIFLAGS: \$\{\{ matrix\.miriflags \}\}$/m);
   assert.doesNotMatch(job, /-Zmiri-disable/);
-  const timeout = job.match(/timeout-minutes:\s*(\d+)/);
-  assert.ok(timeout, "timeout-minutes is missing");
-  assert.ok(Number(timeout[1]) > 0);
+  assert.match(job, /^ {4}timeout-minutes: \$\{\{ matrix\.timeout \}\}$/m);
 });
 
 test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
@@ -1646,6 +1644,7 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
     {
       leg: "core",
       runner: "ubuntu-latest",
+      timeout: "76",
       miriflags: "",
       features: "",
       skip: "",
@@ -1653,6 +1652,7 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
     {
       leg: "physics2d",
       runner: "ubuntu-24.04-arm",
+      timeout: "216",
       miriflags: "-Zmiri-tree-borrows",
       features: "--features physics2d",
       skip: PHYSICS_LEG_SKIP,
@@ -1660,6 +1660,7 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
     {
       leg: "physics3d",
       runner: "ubuntu-24.04-arm",
+      timeout: "360",
       miriflags: "-Zmiri-tree-borrows",
       features: "--features physics3d",
       skip: PHYSICS_LEG_SKIP,
@@ -1757,6 +1758,33 @@ test("rust-miri timeout is twice the cold wall in whole minutes", () => {
   const timeout = job.match(/timeout-minutes:\s*(\d+)/);
   assert.ok(timeout);
   assert.equal(Number(timeout[1]), minutes);
+});
+
+test("rust-miri-full leg timeouts are twice the measured wall in whole minutes", () => {
+  const job = jobBlock(readCi(), "rust-miri-full");
+  const rows = matrixInclude(job);
+  const measured = [
+    ...job.matchAll(
+      /# Job (\d+) wall (\d+)s, .*\. 2 \* ceil\(\2\/60\) = (\d+)\.\n\s+- leg: (\S+)/g,
+    ),
+  ];
+  assert.deepEqual(
+    measured.map((match) => match[4]),
+    ["core", "physics2d"],
+  );
+  for (const match of measured) {
+    const row = rows.find((item) => item.leg === match[4]);
+    assert.ok(row, match[4]);
+    assert.equal(Number(match[3]), 2 * Math.ceil(Number(match[2]) / 60), match[4]);
+    assert.equal(Number(row.timeout), Number(match[3]), match[4]);
+  }
+  const unmeasured = rows.find((item) => item.leg === "physics3d");
+  assert.ok(unmeasured, "physics3d leg is missing");
+  assert.match(
+    job,
+    /# NOT MEASURED\. Job 120500269625 in run 39978760134 was cancelled[^\n]*\n\s+- leg: physics3d/,
+  );
+  assert.equal(Number(unmeasured.timeout), 360);
 });
 
 const MIRI_CARGO = "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core";
