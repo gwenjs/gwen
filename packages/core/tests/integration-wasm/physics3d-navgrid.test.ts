@@ -14,7 +14,7 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
  * Real physics3d WASM. `initNavGrid3D` uploads the grid and `findPath3D` reads it.
  * Each engine is disposed in `finally`.
  */
-describe("physics3d nav grid", () => {
+describe("physics3d nav grid through the shared buffer", () => {
   const cellSize = 1;
   const start = { x: 0.5, y: 0.5, z: 0.5 };
   const goal = { x: 3.5, y: 0.5, z: 3.5 };
