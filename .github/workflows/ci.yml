@@ -586,14 +586,37 @@ jobs:
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test physics3d_overlap_bulk
 
   rust-miri-full:
-    name: Miri full
-    runs-on: ubuntu-latest
+    name: Miri full (${{ matrix.leg }})
+    runs-on: ${{ matrix.runner }}
     needs: [changes]
     if: needs.changes.outputs.miri_full == 'true'
     # Ceiling until the workflow_dispatch run of this job is measured.
     timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - leg: core
+            runner: ubuntu-latest
+            miriflags: ""
+            features: ""
+            skip: ""
+          # Rapier 0.22: x86_64 stops on llvm.x86.sse.stmxcsr (rapier2d-0.22.0/src/utils.rs:523, run 39946499120); aarch64 Stacked Borrows rejects Rapier IndexMut2 (utils.rs:629-632). Tree Borrows here only until #286 P-RAP-3a / P-RAP-5 (Rapier 0.36.1 removes both; the legs then move to x86_64).
+          # The core leg runs archetype_limit_leaves_the_store_unchanged and new_rejects_zero_and_the_limit_plus_one. The physics legs skip them (about 35 min per leg). Same two names as rust-miri, "Miri archetype storage without the two long tests".
+          - leg: physics2d
+            runner: ubuntu-24.04-arm
+            miriflags: -Zmiri-tree-borrows
+            features: --features physics2d
+            skip: -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
+          # physics2d is expected red on velocity_far_above_the_clamp_keeps_speed_and_direction until the follow-up tolerance fix (Miri perturbs libm hypot). It fails under Miri with 400.00012 instead of 400.0 (local aarch64 Tree Borrows run).
+          - leg: physics3d
+            runner: ubuntu-24.04-arm
+            miriflags: -Zmiri-tree-borrows
+            features: --features physics3d
+            skip: -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
+      MIRIFLAGS: ${{ matrix.miriflags }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -603,15 +626,13 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           prefix-key: v1-miri-full-2026-10-23
+          key: ${{ matrix.leg }}
           workspaces: '. -> target'
           cache-on-failure: true
       - name: Miri gwen-core lib and integration tests
-        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib --tests
-      - name: Miri gwen-core physics2d lib and integration tests
-        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --lib --tests
-      - name: Miri gwen-core physics3d lib and integration tests
-        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib --tests
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test --no-fail-fast -p gwen-core ${{ matrix.features }} --lib --tests ${{ matrix.skip }}
       - name: Miri gwen-wasm-utils
+        if: matrix.leg == 'core'
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
 
   wasm-size:
