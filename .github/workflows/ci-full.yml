@@ -1,7 +1,7 @@
 name: CI Full
 
 # Runs the whole CI on demand: gh workflow run ci-full.yml --ref <branch>
-# ci.yml sees a workflow_dispatch event, so every job runs (benches included).
+# ci.yml sees a workflow_dispatch event, so every job except the full Miri job runs (benches included).
 on:
   workflow_dispatch:
 
