@@ -1374,6 +1374,18 @@ test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
   assert.match(status, /needs\['rust-miri-step'\]\.result/);
 });
 
+test("rust-miri-step timeout is twice the cold wall in whole minutes", () => {
+  const job = jobBlock(readCi(), "rust-miri-step");
+  const found = job.match(/2 \* ceil\((\d+)\/60\) = (\d+)/);
+  assert.ok(found, "the comment is missing");
+  const seconds = Number(found[1]);
+  const minutes = Number(found[2]);
+  assert.equal(minutes, 2 * Math.ceil(seconds / 60));
+  const timeout = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeout, "timeout-minutes is missing");
+  assert.equal(Number(timeout[1]), minutes);
+});
+
 test("rust-miri runs the lib unsafe_site_ tests for no feature, physics2d and physics3d", () => {
   const job = jobBlock(readCi(), "rust-miri");
   for (const command of [
