@@ -2,45 +2,9 @@
   "known": [
     {
       "rule": "R1",
-      "file": "packages/core/src/scene/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R1",
-      "file": "packages/core/src/system/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R1",
-      "file": "packages/core/src/tween/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R1",
-      "file": "packages/physics2d/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R1",
-      "file": "packages/physics3d/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R1",
       "file": "packages/renderer-core/src/camera-types.ts",
       "match": "import type { Vec3 } from \"@gwenjs/math\"",
       "owner": "P-76-7"
-    },
-    {
-      "rule": "R1",
-      "file": "packages/renderer-core/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
     },
     {
       "rule": "R1",
@@ -67,120 +31,6 @@
       "owner": "P-76-5"
     },
     {
-      "rule": "R4",
-      "file": "packages/core/src/scene/engine-plugin.ts",
-      "match": "declare module \"../engine/engine-types.js\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/core/src/scene/runtime/scene-registrar.ts",
-      "match": "declare module \"../../engine/engine-types.js\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/core/src/tween/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/physics2d/src/augment.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/physics2d/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/physics3d/src/augment.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/physics3d/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/renderer-core/src/get-or-create-camera-manager.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/renderer-core/src/get-or-create-screen-service.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/renderer-core/src/get-or-create-viewport-manager.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/renderer-core/src/index.ts",
-      "match": "declare module \"@gwenjs/core\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R4",
-      "file": "packages/renderer-core/src/module.ts",
-      "match": "declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/core/src/scene/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/core/src/system/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/core/src/tween/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/physics2d/src/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/physics3d/src/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R5",
-      "file": "packages/renderer-core/src/module.ts",
-      "match": "ts-expect-error declare module \"@gwenjs/app\"",
-      "owner": "P-76-3"
-    },
-    {
-      "rule": "R8",
-      "file": "packages/app/src/types.ts",
-      "match": "export interface GwenModuleOptions",
-      "owner": "P-76-3"
-    },
-    {
       "rule": "R8",
       "file": "packages/core/src/engine/context.ts",
       "match": "export class GwenContextError",
@@ -197,12 +47,6 @@
       "file": "packages/core/src/engine/engine-errors.ts",
       "match": "export class GwenComposableError",
       "owner": "P-76-5"
-    },
-    {
-      "rule": "R8",
-      "file": "packages/core/src/engine/engine-types.ts",
-      "match": "export interface GwenProvides",
-      "owner": "P-76-3"
     },
     {
       "rule": "R9",

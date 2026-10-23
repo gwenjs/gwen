@@ -13,6 +13,7 @@
     "customConditions": ["development"]
   },
   "include": ["src", "tests"],
+  "exclude": ["tests/fixtures"],
   "references": [
     {
       "path": "../core"
