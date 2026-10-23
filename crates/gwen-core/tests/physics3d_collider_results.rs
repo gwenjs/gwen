@@ -716,6 +716,96 @@ fn heightfield_two_by_two_is_accepted() -> Outcome {
     Ok(())
 }
 
+/// Local (x, z) of sample (row, col).
+///
+/// `x_at` / `z_at` in parry3d-0.17.6 `shape/heightfield3.rs:225-231`:
+/// `(-0.5 + j / (cols-1)) * scale_x`, `(-0.5 + i / (rows-1)) * scale_z`.
+fn heightfield_sample_xz(
+    row: u32,
+    col: u32,
+    rows: u32,
+    cols: u32,
+    scale_x: f32,
+    scale_z: f32,
+) -> (f32, f32) {
+    let cell_x = 1.0 / (cols as f32 - 1.0);
+    let cell_z = 1.0 / (rows as f32 - 1.0);
+    let x = (-0.5 + cell_x * col as f32) * scale_x;
+    let z = (-0.5 + cell_z * row as f32) * scale_z;
+    (x, z)
+}
+
+fn downward_ray(e: &Engine, x: f32, z: f32) -> Result<Vec<f32>, Physics3DError> {
+    // Hit layout is 9 floats: [1, entity, toi, nx, ny, nz, px, py, pz]
+    // (`physics3d/world.rs:2859-2868`). A miss is `[0]` (`:2851`).
+    e.physics3d_cast_ray(x, 20.0, z, 0.0, -1.0, 0.0, 100.0, ALL, ALL, true)
+}
+
+fn assert_ray_height(hit: &[f32], entity: f32, y: f32, tol: f32) {
+    assert_eq!(hit.len(), 9, "ray missed");
+    assert_eq!(hit[0], 1.0);
+    assert_eq!(hit[1], entity);
+    let delta = (hit[7] - y).abs();
+    assert_eq!(
+        delta.clamp(0.0, tol),
+        delta,
+        "hit y {} expected {y} ± {tol}",
+        hit[7]
+    );
+}
+
+#[test]
+fn heightfield_row_major_cell_is_where_the_ray_hits() -> Outcome {
+    // 2×3, row-major. Only (row 0, col 2) is raised. Scales differ so an axis swap moves the cell.
+    const ROWS: u32 = 2;
+    const COLS: u32 = 3;
+    const RAISED: f32 = 4.0;
+    const SCALE_X: f32 = 8.0;
+    const SCALE_Y: f32 = 2.0;
+    const SCALE_Z: f32 = 6.0;
+    const ORIGIN_X: f32 = 30.0;
+    const ORIGIN_Y: f32 = 0.0;
+    const ORIGIN_Z: f32 = 0.0;
+    const SLOT: f32 = 5.0;
+    let heights = [0.0, 0.0, RAISED, 0.0, 0.0, 0.0];
+    let mut e = scene()?;
+    e.physics3d_add_body(5, ORIGIN_X, ORIGIN_Y, ORIGIN_Z, 0, 1.0, 0.0, 0.0)?;
+    e.physics3d_add_heightfield_collider(
+        5, &heights, ROWS, COLS, SCALE_X, SCALE_Y, SCALE_Z, 0.5, 0.0, ALL, ALL, 7,
+    )?;
+    // The query pipeline updates inside `step` (`physics3d/world.rs:939`).
+    e.physics3d_step(1.0 / 60.0)?;
+
+    let cell_x = SCALE_X / (COLS as f32 - 1.0);
+    let cell_z = SCALE_Z / (ROWS as f32 - 1.0);
+    let (peak_x, peak_z) = heightfield_sample_xz(0, 2, ROWS, COLS, SCALE_X, SCALE_Z);
+    // (row 0, col 2) is the +X/−Z corner, on the AABB face (`heightfield3.rs:100-101`).
+    // A ray exactly on that face can miss the triangle, so the ray steps inside the
+    // left triangle of the cell that owns the vertex (`heightfield3.rs:394-398`).
+    // ez is half the limit ez <= ex * cell_z / cell_x that keeps the point in that triangle.
+    let ex = cell_x * 1.0e-3;
+    let ez = ex * cell_z / cell_x * 0.5;
+    let raised_y = ORIGIN_Y + RAISED * SCALE_Y;
+    // On that triangle y falls linearly with ex. The drop is raised_y * (ex / cell_x).
+    let raised_tol = (RAISED * SCALE_Y) * (ex / cell_x) * 2.0;
+    let peak = downward_ray(&e, ORIGIN_X + peak_x - ex, ORIGIN_Z + peak_z + ez)?;
+    assert_ray_height(&peak, SLOT, raised_y, raised_tol);
+
+    // (row 1, col 0) is the opposite corner, where a reversed or doubly mirrored
+    // fill would put the raised sample.
+    let (flat_x, flat_z) = heightfield_sample_xz(1, 0, ROWS, COLS, SCALE_X, SCALE_Z);
+    // That sample is the other corner. The ray steps into the cell whose four samples are 0.
+    let flat = downward_ray(&e, ORIGIN_X + flat_x + ex, ORIGIN_Z + flat_z - ez)?;
+    assert_ray_height(&flat, SLOT, ORIGIN_Y, 1.0e-3);
+
+    // (row 0, col 1) is the neighbour along the raised edge. The ray steps away from the
+    // peak, into the same all-zero cell, so a column-major fill would raise this point.
+    let (mid_x, mid_z) = heightfield_sample_xz(0, 1, ROWS, COLS, SCALE_X, SCALE_Z);
+    let neighbour = downward_ray(&e, ORIGIN_X + mid_x - ex, ORIGIN_Z + mid_z + ez)?;
+    assert_ray_height(&neighbour, SLOT, ORIGIN_Y, 1.0e-3);
+    Ok(())
+}
+
 #[test]
 fn update_heightfield_refused_keeps_the_old_collider() -> Outcome {
     let too_small = invalid_shape(InvalidShapeReason::HeightfieldTooSmall);
