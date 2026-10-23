@@ -7,6 +7,7 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   # Called by ci-full.yml for a full run on demand. No input, so miri_full stays empty.
   workflow_call:
+  # GitHub fires a schedule only from the default branch (main): it starts once this file is on main.
   schedule:
     - cron: "0 6 * * 1"
   workflow_dispatch:
