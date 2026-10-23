@@ -31,42 +31,14 @@ function codedError(code: string, message: string): Error {
   return Object.assign(new Error(message), { code });
 }
 
-interface RecordingBridgeRuntime extends Physics3DBridgeRuntime {
-  allocSharedBuffer(byteLength: number): number;
-  freeSharedBuffer(ptr: number, byteLength: number): void;
-  readonly freed: Array<[number, number]>;
-}
-
-function isRecordingRuntime(
-  runtime: Physics3DBridgeRuntime | null,
-): runtime is RecordingBridgeRuntime {
-  return runtime !== null && "freed" in runtime && "freeSharedBuffer" in runtime;
-}
-
-function recordedFrees(ctx: PluginContext): Array<[number, number]> {
-  const runtime = ctx.bridgeRuntime;
-  if (!isRecordingRuntime(runtime)) {
-    throw new Error("expected the shared-buffer recorder");
-  }
-  return runtime.freed;
-}
-
 function makeContext(bridge: Physics3DWasmBridge): PluginContext {
   const cfg = normalizePhysics3DConfig({});
   const ctx = createPluginContext(cfg, buildLayerRegistry(cfg.layers));
   const memory = new WebAssembly.Memory({ initial: 1 });
-  const freed: Array<[number, number]> = [];
-  const runtime: RecordingBridgeRuntime = {
+  const runtime: Physics3DBridgeRuntime = {
     variant: "physics3d",
     getPhysicsBridge: () => bridge,
     getLinearMemory: () => memory,
-    freed,
-    allocSharedBuffer(_byteLength: number): number {
-      return 16;
-    },
-    freeSharedBuffer(ptr: number, byteLength: number): void {
-      freed.push([ptr, byteLength]);
-    },
   };
   ctx.backendMode = "wasm";
   ctx.wasmBridge = bridge;
@@ -627,21 +599,35 @@ describe("navigation grid", () => {
   const grid = new Uint8Array(8);
   const options = { grid, width: 2, height: 2, depth: 2, cellSize: 1 };
 
-  function navContext(init: () => void, find?: () => number): PluginContext {
+  function navContext(
+    init: (
+      cells: Uint8Array,
+      width: number,
+      height: number,
+      depth: number,
+      cellSize: number,
+      originX: number,
+      originY: number,
+      originZ: number,
+    ) => void,
+    find?: () => number,
+  ): PluginContext {
     return makeContext({
       physics3d_init_navgrid_3d: init,
       ...(find !== undefined ? { physics3d_find_path_3d: find } : {}),
     });
   }
 
-  it("frees the upload buffer when the export rejects, and throws INVALID_NAVGRID", () => {
-    const ctx = navContext(() => {
+  it("passes the grid bytes to the export and throws INVALID_NAVGRID", () => {
+    const seen: Uint8Array[] = [];
+    const ctx = navContext((cells) => {
+      seen.push(cells);
       throw codedError("PHYSICS3D:INVALID_NAVGRID", "invalid nav grid 0x2x2");
     });
 
     const err = caught(() => createPathfindingMethods(ctx).initNavGrid3D(options));
 
-    expect(recordedFrees(ctx)).toEqual([[16, 8]]);
+    expect(seen[0]).toBe(options.grid);
     requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
   });
 
