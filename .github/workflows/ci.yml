@@ -531,6 +531,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     needs: [changes]
     if: needs.changes.outputs.rust == 'true'
+    # aarch64 run 39929151171 job 120332858681, sha 38d4483a (push to hardening/184-miri-step-measure).
+    # Cache prefix v1-miri-step-2026-10-23, first use of the prefix.
+    # Job wall 168s, 2026-10-23T09:04:13Z to 2026-10-23T09:07:01Z.
+    # 2 * ceil(168/60) = 6.
+    timeout-minutes: 6
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
       MIRIFLAGS: -Zmiri-tree-borrows
