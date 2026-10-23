@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { GwenRuntimeHooks } from "./plugin.js";
+import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 
 /** Discriminant for the runtime object that owns a scope. */
 export type GwenScopeType = "engine" | "plugin" | "scene" | "actor" | "system";

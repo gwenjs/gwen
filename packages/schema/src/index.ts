@@ -57,13 +57,29 @@ export type {
 
 // ─── Plugin ──────────────────────────────────────────────────────────────────
 
+export type { HookBusBase, GwenEngineBase, PluginErrorContext, GwenPlugin } from "./plugin";
+
+// ─── Entity ──────────────────────────────────────────────────────────────────
+
+export { createEntityId, unpackEntityId, entityIndex, entityGeneration } from "./entity";
+export type { EntityId, ComponentType } from "./entity";
+
+// ─── Engine state ────────────────────────────────────────────────────────────
+
 export type {
-  GwenRuntimeHooks,
-  HookBusBase,
-  GwenEngineBase,
-  PluginErrorContext,
-  GwenPlugin,
-} from "./plugin";
+  EngineStateChangePayload,
+  GwenEngineState,
+  GwenEngineStateChangeReason,
+} from "./engine-state";
+
+// ─── Extensions ──────────────────────────────────────────────────────────────
+
+export type { GwenPrefabExtensions, GwenSceneExtensions, GwenUIExtensions } from "./extensions";
+
+// ─── Hook map ────────────────────────────────────────────────────────────────
+
+export type { HookHandlerMap, InferHooks } from "./hook-types";
+export type { EngineErrorPayload, GwenRuntimeHooks, PluginErrorEvent } from "./runtime-hooks";
 
 // ─── Scope ───────────────────────────────────────────────────────────────────
 

@@ -13,22 +13,7 @@
 
 import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
-
-/**
- * Extensible map of all GWEN runtime hook event names to their handler signatures.
- *
- * Populated by declaration merging. Core engine hooks are added by `@gwenjs/core`.
- * Plugin packages add their own hooks the same way:
- *
- * ```ts
- * declare module "@gwenjs/schema" {
- *   interface GwenRuntimeHooks {
- *     "my-plugin:event": (payload: MyPayload) => void;
- *   }
- * }
- * ```
- */
-export interface GwenRuntimeHooks {}
+import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 
 /**
  * Minimal hook bus surface exposed to plugins via `GwenEngineBase.hooks`.
