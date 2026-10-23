@@ -135,8 +135,8 @@ These are the engine lifecycle events you can subscribe to. All fire automatical
 | `engine:error` | `(payload: EngineErrorPayload) => void` | Frame loop catches an unhandled error |
 | `entity:destroy` | `(id: EntityId) => void` | `destroyEntity` removed that id |
 | `plugin:registered` | `(pluginName: string) => void` | Plugin setup completes and registers |
-| `plugin:error` | `(payload: PluginErrorPayload) => void` | Plugin lifecycle hook throws and isn't recovered |
-| `prefab:instantiate` | `(entityId: EntityId, extensions: GwenPrefabExtensions) => void` | Entity created from a prefab (used internally by plugins like Physics2D) |
+| `plugin:error` | `(payload: PluginErrorEvent) => void` | Plugin lifecycle hook throws and isn't recovered |
+| `prefab:instantiate` | `(entityId: EntityId, extensions: GwenPrefabExtensions) => void` | Entity created from a prefab (used internally by plugins like Physics2D). Augment `GwenPrefabExtensions` with `declare module "@gwenjs/schema"`. |
 
 With `physicsHz` at 0, one `advance` runs `engine:tick`, `engine:before-update`, `engine:update`, `engine:after-update`, `engine:render`, then `engine:afterTick`.
 

@@ -386,9 +386,9 @@ Tests live in `tests/` and cover defaults, merge logic, all validation rules, an
 
 ### `.`
 
-Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `defaultOptions`, `resolveConfig`, `validateResolvedConfig`
+Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `createEntityId`, `defaultOptions`, `entityGeneration`, `entityIndex`, `resolveConfig`, `unpackEntityId`, `validateResolvedConfig`
 
-Types: `AutoImport`, `ComponentLifecycleHooks`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineLifecycleHooks`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenLogger`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenOptions`, `GwenPlugin`, `GwenRuntimeHooks`, `GwenScopeMeta`, `GwenScopeType`, `GwenTypeTemplate`, `HookBusBase`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `LogEntry`, `LogLevel`, `PluginDeclaration`, `PluginErrorContext`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `ComponentLifecycleHooks`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineErrorPayload`, `EngineLifecycleHooks`, `EngineStateChangePayload`, `EntityId`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenLogger`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenOptions`, `GwenPlugin`, `GwenPrefabExtensions`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenTypeTemplate`, `GwenUIExtensions`, `HookBusBase`, `HookHandlerMap`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `LogEntry`, `LogLevel`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`
 
 `GwenErrorOptions` — Options for a `GwenError`.
 
