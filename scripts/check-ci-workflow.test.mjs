@@ -1342,6 +1342,49 @@ test("rust-miri timeout is twice the cold wall in whole minutes", () => {
   assert.equal(Number(timeout[1]), minutes);
 });
 
+const MIRI_CARGO = "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core";
+
+test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
+  const ci = readCi();
+  const job = jobBlock(ci, "rust-miri-step");
+  assert.notEqual(job, "", "rust-miri-step job is missing");
+  assert.match(job, /^ {4}runs-on: ubuntu-24\.04-arm$/m);
+  assert.match(job, /^ {4}needs: \[changes\]$/m);
+  assert.match(job, /^ {4}if: needs\.changes\.outputs\.rust == 'true'$/m);
+  assert.deepEqual(
+    [...job.matchAll(/^\s+MIRIFLAGS:\s*(.+)$/gm)].map((m) => m[1]),
+    ["-Zmiri-tree-borrows"],
+  );
+  for (const command of [
+    `${MIRI_CARGO} --features physics2d --test physics_step_miri`,
+    `${MIRI_CARGO} --features physics3d --test physics_step_miri`,
+    `${MIRI_CARGO} --features physics3d --test physics3d_overlap_bulk`,
+  ]) {
+    assert.ok(job.includes(`run: ${command}\n`), command);
+  }
+  assert.equal(
+    ci.split("-Zmiri-tree-borrows").length - 1,
+    1,
+    "Tree Borrows is only in rust-miri-step",
+  );
+  assert.equal(ci.includes("-Zmiri-disable"), false, "no -Zmiri-disable flag");
+  assert.doesNotMatch(jobBlock(ci, "rust-miri"), /MIRIFLAGS/);
+  const status = jobBlock(ci, "ci-status");
+  assert.match(status, /needs: \[[^\]]*\brust-miri-step\b[^\]]*\]/);
+  assert.match(status, /needs\['rust-miri-step'\]\.result/);
+});
+
+test("rust-miri runs the lib unsafe_site_ tests for no feature, physics2d and physics3d", () => {
+  const job = jobBlock(readCi(), "rust-miri");
+  for (const command of [
+    `${MIRI_CARGO} --lib unsafe_site_`,
+    `${MIRI_CARGO} --features physics2d --lib unsafe_site_`,
+    `${MIRI_CARGO} --features physics3d --lib unsafe_site_`,
+  ]) {
+    assert.ok(job.includes(`run: ${command}\n`), command);
+  }
+});
+
 test("glue-shape job runs the golden check on the core-wasm artifact", () => {
   const yaml = readCi();
   const job = jobBlock(yaml, "glue-shape");
