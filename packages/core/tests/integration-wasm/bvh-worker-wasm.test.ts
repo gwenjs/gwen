@@ -163,10 +163,16 @@ describe("optimised bvh worker wasm", () => {
     await withFixedBody((raw, slot) => {
       const thrown = caught(() => loadCollider(raw, slot, wrongMinor));
       expect(errorCode(thrown)).toBe("PHYSICS3D:BVH_LOAD_FAILED");
+      expect(errorMessage(thrown)).toBe(
+        "BVH load failed: the buffer was baked for another Rapier version, bake it again",
+      );
     });
     await withFixedBody((raw, slot) => {
       const thrown = caught(() => loadCollider(raw, slot, wrongMajor));
       expect(errorCode(thrown)).toBe("PHYSICS3D:BVH_LOAD_FAILED");
+      expect(errorMessage(thrown)).toBe(
+        "BVH load failed: the buffer was baked for another Rapier version, bake it again",
+      );
     });
   });
 

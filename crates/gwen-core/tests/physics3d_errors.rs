@@ -403,6 +403,16 @@ fn bvh_load_failed_bad_magic_code_message_and_equality() -> TestResult {
 }
 
 #[test]
+fn bvh_load_failed_version_mismatch_code_message_and_equality() -> TestResult {
+    check_error(
+        bvh(BvhLoadReason::VersionMismatch),
+        "PHYSICS3D:BVH_LOAD_FAILED",
+        "BVH load failed: the buffer was baked for another Rapier version, bake it again",
+        bvh(BvhLoadReason::DecodeFailed),
+    )
+}
+
+#[test]
 fn bvh_load_failed_decode_failed_code_message_and_equality() -> TestResult {
     check_error(
         bvh(BvhLoadReason::DecodeFailed),

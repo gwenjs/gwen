@@ -11,6 +11,7 @@
 #[cfg(feature = "build-tools")]
 mod build_tools_tests {
     use gwen_core::build_tools::{build_bvh_buffer, build_bvh_from_glb};
+    use gwen_core::physics3d::RAPIER_VERSION;
 
     fn must_ok<T, E>(result: Result<T, E>) -> T {
         match result {
@@ -35,8 +36,7 @@ mod build_tools_tests {
         assert_eq!(&buf[0..4], b"GBVH", "header magic should be GBVH");
         let major = u16::from_le_bytes([buf[4], buf[5]]);
         let minor = u16::from_le_bytes([buf[6], buf[7]]);
-        assert_eq!(major, 0, "rapier major should be 0");
-        assert_eq!(minor, 22, "rapier minor should be 22");
+        assert_eq!((major, minor), RAPIER_VERSION);
     }
 
     #[test]

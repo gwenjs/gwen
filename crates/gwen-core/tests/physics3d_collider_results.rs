@@ -9,7 +9,8 @@
 use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::MAX_COLLIDER_MAGNITUDE;
 use gwen_core::physics3d::{
-    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason, Physics3DError,
+    BvhLoadReason, InvalidColliderReason, InvalidCompoundReason, InvalidShapeReason,
+    Physics3DError, RAPIER_VERSION,
 };
 
 const ALL: u32 = 0xFFFF_FFFF;
@@ -161,8 +162,8 @@ fn bvh_bytes(vertices: &[f32], indices: &[u32]) -> Vec<u8> {
     let payload =
         bincode::serde::encode_to_vec(&mesh, bincode::config::standard()).unwrap_or_default();
     let mut out = b"GBVH".to_vec();
-    out.extend_from_slice(&0u16.to_le_bytes());
-    out.extend_from_slice(&22u16.to_le_bytes());
+    out.extend_from_slice(&RAPIER_VERSION.0.to_le_bytes());
+    out.extend_from_slice(&RAPIER_VERSION.1.to_le_bytes());
     out.extend_from_slice(&payload);
     out
 }
@@ -1045,8 +1046,8 @@ fn bvh_payload_failures_are_typed() -> Outcome {
     refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
         load_bvh(e, 3, &valid[..valid.len() / 2])
     })?;
-    // Version (0, 22): this build. A mismatch is refused before decode.
-    let garbage = bvh_header(0, 22, &[0xFF; 64]);
+    // Version: this build. A mismatch is refused before decode.
+    let garbage = bvh_header(RAPIER_VERSION.0, RAPIER_VERSION.1, &[0xFF; 64]);
     refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
         load_bvh(e, 3, &garbage)
     })
@@ -1091,8 +1092,8 @@ fn bvh_from_another_rapier_version_is_refused() -> Outcome {
         let mut engine = scene()?;
         let result = load_bvh(&mut engine, 3, &bytes);
         assert_eq!(
-            format!("{:?}", result),
-            "Err(BvhLoadFailed { reason: VersionMismatch })",
+            result,
+            Err(bvh_failure(BvhLoadReason::VersionMismatch)),
             "version ({major}, {minor})"
         );
     }
@@ -1100,8 +1101,8 @@ fn bvh_from_another_rapier_version_is_refused() -> Outcome {
     let mut engine = scene()?;
     let result = load_bvh(&mut engine, 3, &garbage);
     assert_eq!(
-        format!("{:?}", result),
-        "Err(BvhLoadFailed { reason: VersionMismatch })",
+        result,
+        Err(bvh_failure(BvhLoadReason::VersionMismatch)),
         "version (0, 21) with a garbage payload is checked before decode"
     );
     Ok(())
@@ -1110,10 +1111,10 @@ fn bvh_from_another_rapier_version_is_refused() -> Outcome {
 #[test]
 fn bvh_with_this_build_version_is_accepted() -> Outcome {
     let baked = bvh_bytes(&QUAD, &QUAD_IDX);
-    let bytes = bvh_header(0, 22, &baked[8..]);
+    let bytes = bvh_header(RAPIER_VERSION.0, RAPIER_VERSION.1, &baked[8..]);
     let mut engine = scene()?;
     assert_eq!(load_bvh(&mut engine, 3, &bytes), Ok(()));
-    let header_only = bvh_header(0, 22, &[]);
+    let header_only = bvh_header(RAPIER_VERSION.0, RAPIER_VERSION.1, &[]);
     refused(no_setup, bvh_failure(BvhLoadReason::DecodeFailed), |e| {
         load_bvh(e, 3, &header_only)
     })

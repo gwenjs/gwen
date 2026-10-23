@@ -369,7 +369,7 @@ try {
 | `INVALID_SHAPE` | Shape data cannot build a collider (mesh index out of range, heightfield too small or wrong sample count, convex hull with fewer than 4 points or degenerate) |
 | `INVALID_MESH_BUFFER` | A mesh positions or indices length is not a multiple of 3 |
 | `INVALID_COMPOUND` | A compound buffer length is not a multiple of 12, or a part has an unknown shape |
-| `BVH_LOAD_FAILED` | A baked BVH is too short, has a bad header, or does not decode to a valid mesh |
+| `BVH_LOAD_FAILED` | A baked BVH is too short, has a bad header, was baked for another Rapier version, or does not decode to a valid mesh |
 | `INVALID_COLLIDER` | A size, radius, offset, density or skin width is NaN, infinite, negative or too large |
 | `JOINT_NOT_FOUND` | No joint is registered for the joint id |
 | `INVALID_JOINT` | A joint anchor, axis, spring value, motor value or limit is NaN or infinite |

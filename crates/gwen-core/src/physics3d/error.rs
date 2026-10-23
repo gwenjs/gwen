@@ -34,12 +34,17 @@ pub enum InvalidCompoundReason {
 }
 
 /// Why `physics3d_load_bvh_collider` refuses a baked BVH.
+///
+/// `VersionMismatch` means the header's Rapier major and minor are not
+/// [`RAPIER_VERSION`](crate::physics3d::RAPIER_VERSION).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BvhLoadReason {
     /// The buffer is shorter than the 8-byte header.
     TooShort,
     /// The first four bytes are not `GBVH`.
     BadMagic,
+    /// The header Rapier version is not [`RAPIER_VERSION`](crate::physics3d::RAPIER_VERSION).
+    VersionMismatch,
     /// The payload is not a valid bincode `TriMesh`.
     DecodeFailed,
     /// The decoded mesh has no triangle, a vertex that is not finite or too large, or an
@@ -142,7 +147,8 @@ pub enum Physics3DError {
         /// Which check refused the buffer.
         reason: InvalidCompoundReason,
     },
-    /// A baked BVH could not be loaded.
+    /// A baked BVH could not be loaded (`TooShort`, `BadMagic`, `VersionMismatch`,
+    /// `DecodeFailed`, or `InvalidMesh`).
     BvhLoadFailed {
         /// Which check refused the BVH.
         reason: BvhLoadReason,
@@ -304,6 +310,10 @@ impl fmt::Display for Physics3DError {
                     write!(f, "BVH load failed: the buffer is shorter than the 8-byte header")
                 }
                 BvhLoadReason::BadMagic => write!(f, "BVH load failed: the magic is not GBVH"),
+                BvhLoadReason::VersionMismatch => write!(
+                    f,
+                    "BVH load failed: the buffer was baked for another Rapier version, bake it again"
+                ),
                 BvhLoadReason::DecodeFailed => {
                     write!(f, "BVH load failed: the payload is not a valid triangle mesh")
                 }

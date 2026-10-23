@@ -13,7 +13,7 @@
 //! # Output format
 //!
 //! Both functions produce a buffer with the layout:
-//! `[4: magic "GBVH"][2: rapier_major u16 LE][2: rapier_minor u16 LE][N: bincode(TriMesh)]`
+//! `[4: magic "GBVH"][2: RAPIER_VERSION major u16 LE][2: RAPIER_VERSION minor u16 LE][N: bincode(TriMesh)]`
 //!
 //! This buffer can be passed directly to `physics3d_load_bvh_collider` at browser
 //! runtime, avoiding the ~50 ms QBVH construction cost on large meshes.
@@ -28,7 +28,7 @@ use rapier3d::{geometry::TriMesh, na::Point3};
 /// QBVH construction cost on large meshes.
 ///
 /// # Output format
-/// `[4: magic "GBVH"][2: rapier_major u16 LE][2: rapier_minor u16 LE][N: bincode(TriMesh)]`
+/// `[4: magic "GBVH"][2: RAPIER_VERSION major u16 LE][2: RAPIER_VERSION minor u16 LE][N: bincode(TriMesh)]`
 ///
 /// # Arguments
 /// * `vertices_flat` — Flat vertex positions `[x0,y0,z0, x1,y1,z1, ...]`.
@@ -161,15 +161,15 @@ pub fn build_bvh_from_glb(glb_bytes: &[u8], mesh_name: Option<&str>) -> Result<V
 /// combined buffer.
 ///
 /// Header layout:
-/// `[0..4]  b"GBVH"     — magic`
-/// `[4..6]  0u16 LE     — rapier major (0.22 → encoded as 0)`
-/// `[6..8]  22u16 LE    — rapier minor`
+/// `[0..4]  b"GBVH"                      — magic`
+/// `[4..6]  RAPIER_VERSION major u16 LE — rapier major`
+/// `[6..8]  RAPIER_VERSION minor u16 LE — rapier minor`
 /// `[8..]   bincode data`
 fn write_gbvh_header(bvh_bytes: Vec<u8>) -> Vec<u8> {
     let mut out = Vec::with_capacity(8 + bvh_bytes.len());
     out.extend_from_slice(b"GBVH");
-    out.extend_from_slice(&0u16.to_le_bytes()); // rapier major
-    out.extend_from_slice(&22u16.to_le_bytes()); // rapier minor
+    out.extend_from_slice(&crate::physics3d::RAPIER_VERSION.0.to_le_bytes());
+    out.extend_from_slice(&crate::physics3d::RAPIER_VERSION.1.to_le_bytes());
     out.extend_from_slice(&bvh_bytes);
     out
 }

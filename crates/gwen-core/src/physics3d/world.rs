@@ -596,6 +596,11 @@ fn bvh_builder(bvh_bytes: &[u8]) -> Result<ColliderBuilder, Physics3DError> {
     if !header.starts_with(b"GBVH") {
         return Err(failure(BvhLoadReason::BadMagic));
     }
+    let file_major = u16::from_le_bytes([header[4], header[5]]);
+    let file_minor = u16::from_le_bytes([header[6], header[7]]);
+    if (file_major, file_minor) != crate::physics3d::RAPIER_VERSION {
+        return Err(failure(BvhLoadReason::VersionMismatch));
+    }
     let decoded: Result<(TriMesh, usize), _> =
         bincode::serde::decode_from_slice(payload, bincode::config::standard());
     let Ok((trimesh, _)) = decoded else {
@@ -1772,11 +1777,12 @@ impl PhysicsWorld3D {
     /// # Format
     /// `[4: "GBVH"][2: rapier_major u16 LE][2: rapier_minor u16 LE][N: bincode(TriMesh)]`
     ///
-    /// The two version words are not read. The decoded mesh is checked before it is used: at
-    /// least one triangle, finite bounded vertices, every triangle index below the vertex count
-    /// and every BVH leaf below the triangle count. The inner BVH node links, topology and
-    /// pseudo-normals come from the bytes and are trusted: the buffer is expected to come from
-    /// the build tool.
+    /// The version words must equal [`RAPIER_VERSION`](crate::physics3d::RAPIER_VERSION). A
+    /// different pair is [`BvhLoadReason::VersionMismatch`]. The decoded mesh is checked before
+    /// it is used: at least one triangle, finite bounded vertices, every triangle index below the
+    /// vertex count and every BVH leaf below the triangle count. The inner BVH node links,
+    /// topology and pseudo-normals come from the bytes and are trusted: the buffer is expected to
+    /// come from the build tool.
     ///
     /// # Arguments
     /// * `entity_index`  — ECS entity slot index.
@@ -1791,8 +1797,9 @@ impl PhysicsWorld3D {
     ///
     /// # Errors
     /// Returns [`Physics3DError::BodyNotFound`] when the entity has no body,
-    /// [`Physics3DError::BvhLoadFailed`] with `TooShort`, `BadMagic`, `DecodeFailed` or
-    /// `InvalidMesh`, [`Physics3DError::InvalidCollider`] for an offset or coefficient, and
+    /// [`Physics3DError::BvhLoadFailed`] with `TooShort`, `BadMagic`, `VersionMismatch`,
+    /// `DecodeFailed` or `InvalidMesh`, [`Physics3DError::InvalidCollider`] for an offset or
+    /// coefficient, and
     /// [`Physics3DError::ColliderAlreadyExists`] when the id is registered.
     /// The world is unchanged on error.
     #[allow(clippy::too_many_arguments, reason = "flat wasm-bindgen ABI")]
@@ -5427,9 +5434,10 @@ mod tests {
         let idxs = vec![[0u32, 1, 2], [1, 3, 2]];
         let trimesh = TriMesh::new(verts, idxs);
         let bvh = bincode::serde::encode_to_vec(&trimesh, bincode::config::standard()).unwrap();
+        let (major, minor) = crate::physics3d::RAPIER_VERSION;
         let mut out = b"GBVH".to_vec();
-        out.extend_from_slice(&0u16.to_le_bytes()); // rapier major
-        out.extend_from_slice(&22u16.to_le_bytes()); // rapier minor
+        out.extend_from_slice(&major.to_le_bytes());
+        out.extend_from_slice(&minor.to_le_bytes());
         out.extend_from_slice(&bvh);
         out
     }
@@ -5457,6 +5465,23 @@ mod tests {
             ok,
             Err(Physics3DError::BvhLoadFailed {
                 reason: BvhLoadReason::BadMagic
+            })
+        );
+    }
+
+    #[test]
+    fn test_load_bvh_collider_version_mismatch_is_refused() {
+        let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
+        world.add_body(0, 0.0, 0.0, 0.0, 0, 1.0, 0.1, 0.1);
+        let mut bytes = make_simple_trimesh_bytes();
+        let minor = crate::physics3d::RAPIER_VERSION.1.wrapping_add(1);
+        bytes[6..8].copy_from_slice(&minor.to_le_bytes());
+        let ok =
+            world.load_bvh_collider(0, &bytes, 0.0, 0.0, 0.0, false, 0.5, 0.0, 0xFFFF, 0xFFFF, 1);
+        assert_eq!(
+            ok,
+            Err(Physics3DError::BvhLoadFailed {
+                reason: BvhLoadReason::VersionMismatch
             })
         );
     }
