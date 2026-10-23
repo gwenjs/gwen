@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { GwenPlugin } from "@gwenjs/core";
+import type { GwenPlugin } from "@gwenjs/schema";
 import {
   type MergePluginsPrefabExtensions,
   type MergePluginsSceneExtensions,
@@ -12,7 +12,7 @@ const PluginA: GwenPlugin = { name: "A", setup(_engine) {} };
 // Plugins with extension schemas (structural extension pattern)
 const PhysicsPlugin = {
   name: "physics" as const,
-  setup(_engine: import("@gwenjs/core").GwenEngine) {},
+  setup(_engine: import("@gwenjs/schema").GwenEngineBase) {},
   extensions: {
     prefab: {} as { mass: number; isStatic: boolean },
     scene: {} as { gravity: number },
@@ -23,7 +23,7 @@ const PhysicsPlugin = {
 
 const AudioPlugin = {
   name: "audio" as const,
-  setup(_engine: import("@gwenjs/core").GwenEngine) {},
+  setup(_engine: import("@gwenjs/schema").GwenEngineBase) {},
   extensions: {
     prefab: {} as { volume: number },
     ui: {} as { layer: string },

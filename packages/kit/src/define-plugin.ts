@@ -23,12 +23,9 @@
  * ```
  */
 
-import type { GwenPlugin } from "@gwenjs/schema";
+import type { GwenEngineBase, GwenPlugin } from "@gwenjs/schema";
 import { GwenErrorCode } from "@gwenjs/schema";
 import { GwenComposableError } from "@gwenjs/core";
-import type { GwenEngine } from "@gwenjs/core";
-
-export type { GwenEngine };
 
 /**
  * A typed factory function returned by {@link definePlugin}.
@@ -95,8 +92,8 @@ export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
     const originalSetup = plugin.setup;
     if (originalSetup) {
       // eslint-disable-next-line @typescript-eslint/no-misused-promises
-      plugin.setup = async (engine: GwenEngine) => {
-        const log = (engine as any).logger?.child?.(`plugin:${plugin.name}`) ?? null;
+      plugin.setup = async (engine: GwenEngineBase) => {
+        const log = engine.logger?.child?.(`plugin:${plugin.name}`) ?? null;
         try {
           await originalSetup.call(plugin, engine);
         } catch (err) {

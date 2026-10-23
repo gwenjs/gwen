@@ -134,7 +134,7 @@ export interface GwenErrorPayload {
  *
  * Defined in schema so plugin authors can emit structured errors through the
  * bus without depending on `@gwenjs/core`. `createErrorBus()` in `@gwenjs/core`
- * implements this interface and is re-exported from `@gwenjs/kit`.
+ * implements this interface.
  *
  * `createEngine()` always registers a bus. A caller can still pass their own
  * via the `errorBus` option. Read it inside `plugin.setup()` with

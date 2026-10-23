@@ -23,8 +23,5 @@ export type {
 // Observability composables for plugin authors
 export { useLogger, useErrorReporter, usePerfMark } from "./observability.js";
 
-// Error bus — implementation lives in @gwenjs/core. Do not duplicate it here.
-export { createErrorBus } from "@gwenjs/core";
-
 // Scope API for plugin authors
-export { useCurrentScope, createChildScope } from "./context.js";
+export { useCurrentScope } from "./context.js";
