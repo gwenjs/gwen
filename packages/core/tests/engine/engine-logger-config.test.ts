@@ -1,7 +1,7 @@
 /**
  * Engine logger built from GwenEngineOptions.logger and debug.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type { GwenLogEntry, GwenLogLevel, IGwenLogProvider } from "@gwenjs/schema";
 import { createEngine, GwenConfigError, type GwenEngine, type GwenPlugin } from "../../src/index";
 
@@ -31,17 +31,13 @@ async function withEngine(
 
 /** Console.warn calls made by one logger.warn on a fresh engine. */
 async function warnCalls(options: Parameters<typeof createEngine>[0]): Promise<unknown[][]> {
-  const calls: unknown[][] = [];
-  const previous = console.warn;
   const engine = await createEngine(options);
-  console.warn = (...args) => {
-    calls.push(args);
-  };
+  const spy = vi.spyOn(console, "warn").mockImplementation(() => {});
   try {
     engine.inject("logger").warn("ping");
-    return calls;
+    return spy.mock.calls.map((args) => [...args]);
   } finally {
-    console.warn = previous;
+    spy.mockRestore();
     await engine.stop();
   }
 }
@@ -193,6 +189,69 @@ describe("createEngine logger", () => {
       [["[gwen:core]", "ping", "frame=0"]],
       [["[gwen:core]", "ping", "frame=0"]],
     ]);
+  });
+
+  it("an unknown key next to the logger fields is ignored", async () => {
+    const { seen, provider } = captureProvider();
+    const logger: {
+      providers: IGwenLogProvider[];
+      minLevel: GwenLogLevel;
+      extra: number;
+    } = {
+      providers: [provider],
+      minLevel: "debug",
+      extra: 1,
+    };
+    await withEngine({ logger }, (engine) => {
+      engine.inject("logger").error("kept");
+      expect(seen).toEqual([
+        expect.objectContaining({ level: "error", message: "kept", tag: "gwen:core" }),
+      ]);
+    });
+  });
+
+  it("an unknown top-level option is ignored", async () => {
+    const { seen, provider } = captureProvider();
+    const options: {
+      logger: { providers: IGwenLogProvider[]; minLevel: GwenLogLevel };
+      extra: number;
+    } = {
+      logger: { providers: [provider], minLevel: "debug" },
+      extra: 1,
+    };
+    await withEngine(options, (engine) => {
+      engine.inject("logger").error("kept");
+      expect(seen).toEqual([
+        expect.objectContaining({ level: "error", message: "kept", tag: "gwen:core" }),
+      ]);
+    });
+  });
+
+  it("a null logger behaves as no logger", async () => {
+    type EngineOptions = NonNullable<Parameters<typeof createEngine>[0]>;
+    type LoggerField = NonNullable<EngineOptions["logger"]>;
+    function nullLogger(): { logger: LoggerField | null } {
+      return { logger: null };
+    }
+    const options: EngineOptions | { logger: LoggerField | null } = nullLogger();
+    const fromNull = await warnCalls(options as EngineOptions);
+    const fromOmitted = await warnCalls(undefined);
+    expect([fromNull, fromOmitted]).toEqual([
+      [["[gwen:core]", "ping", "frame=0"]],
+      [["[gwen:core]", "ping", "frame=0"]],
+    ]);
+  });
+
+  it("the engine logger entries carry the engine frame count", async () => {
+    const { seen, provider } = captureProvider();
+    await withEngine({ logger: { providers: [provider], minLevel: "debug" } }, async (engine) => {
+      await engine.advance(0.016);
+      await engine.advance(0.016);
+      engine.inject("logger").error("tick");
+      const frame = seen.find((entry) => entry.message === "tick")?.frame;
+      const stats = engine.getStats().frameCount;
+      expect([frame, frame !== undefined && frame > 0]).toEqual([stats, true]);
+    });
   });
 
   it("two engines do not cross-deliver", async () => {

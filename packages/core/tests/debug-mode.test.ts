@@ -10,7 +10,19 @@
 
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { createEngine } from "../src/engine/engine-factory";
-import type { GwenLogger } from "@gwenjs/schema";
+import type { GwenLogEntry } from "@gwenjs/schema";
+
+function captureLogger(onEntry: (entry: GwenLogEntry) => void) {
+  return {
+    providers: [
+      {
+        handle(entry: GwenLogEntry) {
+          onEntry(entry);
+        },
+      },
+    ],
+  };
+}
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -39,9 +51,11 @@ describe("engine.debug flag", () => {
 
 describe("logger level gating", () => {
   it("debug and info are silent when debug mode is off", async () => {
-    const engine = await createEngine({ debug: false });
     const levels: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => levels.push(entry.level));
+    const engine = await createEngine({
+      debug: false,
+      logger: captureLogger((entry) => levels.push(entry.level)),
+    });
 
     engine.logger.debug("test-debug");
     engine.logger.info("test-info");
@@ -50,9 +64,11 @@ describe("logger level gating", () => {
   });
 
   it("debug and info reach the sink when debug mode is on", async () => {
-    const engine = await createEngine({ debug: true });
     const levels: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => levels.push(entry.level));
+    const engine = await createEngine({
+      debug: true,
+      logger: captureLogger((entry) => levels.push(entry.level)),
+    });
 
     engine.logger.debug("test-debug");
     engine.logger.info("test-info");
@@ -61,9 +77,11 @@ describe("logger level gating", () => {
   });
 
   it("warn and error always reach the sink regardless of debug mode", async () => {
-    const engine = await createEngine({ debug: false });
     const levels: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => levels.push(entry.level));
+    const engine = await createEngine({
+      debug: false,
+      logger: captureLogger((entry) => levels.push(entry.level)),
+    });
 
     engine.logger.warn("test-warn");
     engine.logger.error("test-error");
@@ -72,9 +90,11 @@ describe("logger level gating", () => {
   });
 
   it("warn and error also reach the sink in debug mode", async () => {
-    const engine = await createEngine({ debug: true });
     const levels: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => levels.push(entry.level));
+    const engine = await createEngine({
+      debug: true,
+      logger: captureLogger((entry) => levels.push(entry.level)),
+    });
 
     engine.logger.warn("test-warn");
     engine.logger.error("test-error");
@@ -87,9 +107,11 @@ describe("logger level gating", () => {
 
 describe("plugin setup logging", () => {
   it('logs "plugin registered: <name>" for each plugin when debug mode is on', async () => {
-    const engine = await createEngine({ debug: true });
     const messages: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => messages.push(entry.message));
+    const engine = await createEngine({
+      debug: true,
+      logger: captureLogger((entry) => messages.push(entry.message)),
+    });
 
     await engine.use({ name: "test-plugin", setup() {} });
 
@@ -99,9 +121,11 @@ describe("plugin setup logging", () => {
   });
 
   it("does not log plugin registration when debug mode is off", async () => {
-    const engine = await createEngine({ debug: false });
     const messages: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => messages.push(entry.message));
+    const engine = await createEngine({
+      debug: false,
+      logger: captureLogger((entry) => messages.push(entry.message)),
+    });
 
     await engine.use({ name: "test-plugin", setup() {} });
 
@@ -110,9 +134,11 @@ describe("plugin setup logging", () => {
   });
 
   it("logs each plugin by name when multiple plugins are registered in debug mode", async () => {
-    const engine = await createEngine({ debug: true });
     const messages: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => messages.push(entry.message));
+    const engine = await createEngine({
+      debug: true,
+      logger: captureLogger((entry) => messages.push(entry.message)),
+    });
 
     await engine.use({ name: "alpha", setup() {} });
     await engine.use({ name: "beta", setup() {} });
@@ -126,10 +152,13 @@ describe("plugin setup logging", () => {
 
 describe("over-budget phase warning", () => {
   it("does not emit phase warnings when debug mode is off", async () => {
-    const engine = await createEngine({ debug: false, targetFPS: 60 });
     const warnings: string[] = [];
-    (engine.logger as GwenLogger).setSink((entry) => {
-      if (entry.level === "warn") warnings.push(entry.message);
+    const engine = await createEngine({
+      debug: false,
+      targetFPS: 60,
+      logger: captureLogger((entry) => {
+        if (entry.level === "warn") warnings.push(entry.message);
+      }),
     });
 
     // Make every performance.now() call advance by 10 ms so every phase looks slow
@@ -144,10 +173,13 @@ describe("over-budget phase warning", () => {
   it.runIf(__GWEN_DEV__)(
     "emits warn logs when a phase exceeds 50% of the frame budget in debug mode",
     async () => {
-      const engine = await createEngine({ debug: true, targetFPS: 60 });
       const warnings: string[] = [];
-      (engine.logger as GwenLogger).setSink((entry) => {
-        if (entry.level === "warn") warnings.push(entry.message);
+      const engine = await createEngine({
+        debug: true,
+        targetFPS: 60,
+        logger: captureLogger((entry) => {
+          if (entry.level === "warn") warnings.push(entry.message);
+        }),
       });
 
       // Simulate each phase taking 10 ms: any phase > 8.33 ms (50% of 16.67 ms) triggers warning
@@ -165,10 +197,13 @@ describe("over-budget phase warning", () => {
   it.runIf(!__GWEN_DEV__)(
     "prod + debug: true does not emit over-budget phase warnings",
     async () => {
-      const engine = await createEngine({ debug: true, targetFPS: 60 });
       const warnings: string[] = [];
-      (engine.logger as GwenLogger).setSink((entry) => {
-        if (entry.level === "warn") warnings.push(entry.message);
+      const engine = await createEngine({
+        debug: true,
+        targetFPS: 60,
+        logger: captureLogger((entry) => {
+          if (entry.level === "warn") warnings.push(entry.message);
+        }),
       });
       let callCount = 0;
       vi.spyOn(performance, "now").mockImplementation(() => callCount++ * 10);
@@ -180,10 +215,15 @@ describe("over-budget phase warning", () => {
   it.runIf(__GWEN_DEV__)(
     "warning entries include phase, ms, budgetMs, and frame context data",
     async () => {
-      const engine = await createEngine({ debug: true, targetFPS: 60 });
-      const entries: Array<{ message: string; data?: Record<string, unknown> | undefined }> = [];
-      (engine.logger as GwenLogger).setSink((entry) => {
-        if (entry.level === "warn") entries.push({ message: entry.message, data: entry.data });
+      const entries: Array<{ message: string; payload?: Record<string, unknown> | undefined }> = [];
+      const engine = await createEngine({
+        debug: true,
+        targetFPS: 60,
+        logger: captureLogger((entry) => {
+          if (entry.level === "warn") {
+            entries.push({ message: entry.message, payload: entry.payload });
+          }
+        }),
       });
 
       let callCount = 0;
@@ -192,19 +232,22 @@ describe("over-budget phase warning", () => {
       await engine.advance(1 / 60);
 
       // At least one warning entry should carry structured context
-      const withData = entries.filter((e) => e.data !== undefined);
-      expect(withData.length).toBeGreaterThan(0);
-      const first = withData[0]!;
-      expect(first.data).toHaveProperty("phase");
-      expect(first.data).toHaveProperty("ms");
-      expect(first.data).toHaveProperty("budgetMs");
-      expect(first.data).toHaveProperty("frame");
+      const withPayload = entries.filter((e) => e.payload !== undefined);
+      expect(withPayload.length).toBeGreaterThan(0);
+      const first = withPayload[0]!;
+      expect(first.payload).toHaveProperty("phase");
+      expect(first.payload).toHaveProperty("ms");
+      expect(first.payload).toHaveProperty("budgetMs");
+      expect(first.payload).toHaveProperty("frame");
     },
   );
 
   it("does not crash when debug mode is on and no plugins are registered", async () => {
-    const engine = await createEngine({ debug: true, targetFPS: 60 });
-    (engine.logger as GwenLogger).setSink(() => {}); // silence output
+    const engine = await createEngine({
+      debug: true,
+      targetFPS: 60,
+      logger: { providers: [] },
+    });
 
     await expect(engine.advance(1 / 60)).resolves.not.toThrow();
   });

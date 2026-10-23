@@ -4,10 +4,11 @@
  */
 
 import { createHooks, type Hookable } from "hookable";
-import type { IGwenLogger } from "@gwenjs/schema";
+import type { GwenLogLevel, IGwenLogger } from "@gwenjs/schema";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
 import { stringPoolFor } from "../utils/string-pool";
-import { createLogger } from "../logger/index";
+import { consoleLogProvider } from "../logger/console-log-provider";
+import { GwenLogger } from "../logger/gwen-logger";
 import { WasmBridgeImpl } from "./wasm-bridge";
 import { EngineMemory } from "./engine-memory.js";
 import type { EntityId } from "./engine-api";
@@ -83,7 +84,16 @@ export abstract class EngineCollaborators {
       },
       phaseMs: () => this._loop.lastPhaseMs,
     });
-    this.logger = createLogger("gwen:core", this.debug, () => this._stats.frameCount);
+    const configured = opts.logger;
+    const providers = configured?.providers ?? [consoleLogProvider()];
+    const level: GwenLogLevel = configured?.minLevel ?? (this.debug ? "debug" : "warn");
+    this.logger = new GwenLogger(
+      providers,
+      level,
+      "gwen:core",
+      undefined,
+      () => this._stats.frameCount,
+    );
     // `provide` calls `assert` immediately. The machine exists before the first one.
     this._stateMachine = new EngineStateMachine({
       hooks: this.hooks,

@@ -33,7 +33,9 @@ function setupGwen(options?: GwenEngineOptions): Promise<GwenEngine>
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| options | `GwenEngineOptions` | Engine configuration (variant, maxEntities, debug). |
+| options | `GwenEngineOptions` | Engine configuration (`variant`, `maxEntities`, `debug`, `logger`). |
+
+`logger.providers` receives every engine message. The default is the console provider. `[]` delivers nothing. `logger.minLevel`, when set, wins over `debug`. When `minLevel` is omitted, `debug: true` lowers the minimum level to `debug`; otherwise it is `warn`.
 
 **Returns:** `Promise<GwenEngine>` — the engine, with WASM loaded.
 

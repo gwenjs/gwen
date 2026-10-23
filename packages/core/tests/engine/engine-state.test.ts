@@ -14,7 +14,6 @@ import {
 import { GwenLogger as CoreGwenLogger } from "../../src/logger/gwen-logger";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenError } from "@gwenjs/schema";
-import type { GwenLogger, IGwenLogger } from "@gwenjs/schema";
 
 type Change = { from: string; to: string; reason: string };
 
@@ -24,11 +23,6 @@ function watch(engine: GwenEngine): Change[] {
     seen.push({ from: payload.from, to: payload.to, reason: payload.reason });
   });
   return seen;
-}
-
-/** True when the logger exposes the `setSink()` of the core console logger. */
-function hasSink(logger: IGwenLogger): logger is IGwenLogger & Pick<GwenLogger, "setSink"> {
-  return "setSink" in logger && typeof logger.setSink === "function";
 }
 
 /**
@@ -524,14 +518,19 @@ describe("engine state machine", () => {
   });
 
   it("a throwing state-change handler does not undo the transition", async () => {
-    const engine = await createEngine();
+    const logs: string[] = [];
+    const engine = await createEngine({
+      logger: {
+        providers: [
+          {
+            handle(entry) {
+              if (entry.level === "error") logs.push(entry.message);
+            },
+          },
+        ],
+      },
+    });
     try {
-      const logs: string[] = [];
-      const logger = engine.logger;
-      if (!hasSink(logger)) throw new Error("the engine logger has no setSink()");
-      logger.setSink((entry) => {
-        if (entry.level === "error") logs.push(entry.message);
-      });
       engine.hooks.hook("engine:state-change", () => {
         throw new Error("handler blew up");
       });

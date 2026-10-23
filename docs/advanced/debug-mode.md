@@ -11,7 +11,7 @@ Debug mode enables visual and console diagnostics to understand what's happening
 
 ### Global Engine Debug
 
-Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. Logger `debug` and `info` follow this flag in every build. These run only when `__GWEN_DEV__` is also true:
+Set `engine.debug: true` in `gwen.config.ts` to activate engine-wide debug mode. When `logger.minLevel` is omitted, this lowers the engine logger minimum level to `debug`, so `debug` and `info` are delivered. A set `logger.minLevel` wins. These run only when `__GWEN_DEV__` is also true:
 - Per-frame sentinel checks
 - Phase timing warnings when the frame budget is exceeded
 - The isolation warning (`isolated after …`)
@@ -285,7 +285,7 @@ Debug mode has measurable overhead:
 - Collider rendering: ~1–2ms per frame
 - Structured logging: Negligible if filtered at runtime
 
-Production builds (`__GWEN_DEV__ === false`) remove dev-only warnings and the per-frame instrumentation, even when `debug` is `true`. Logger `debug` and `info` still follow `engine.debug`.
+Production builds (`__GWEN_DEV__ === false`) remove dev-only warnings and the per-frame instrumentation, even when `debug` is `true`. When `logger.minLevel` is omitted, logger `debug` and `info` still follow `engine.debug`. A set `logger.minLevel` wins.
 
 ### Sentinel Checks
 

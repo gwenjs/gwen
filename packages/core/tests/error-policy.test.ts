@@ -39,10 +39,18 @@ function wait(ms: number): Promise<void> {
 
 describe("error policy table", () => {
   it("logs each level, fires engine:error only for error and fatal, and isolates a target", async () => {
-    const engine = await createEngine({ debug: true });
     const logs: Array<{ level: string; message: string }> = [];
-    engine.logger.setSink((entry) => {
-      logs.push({ level: entry.level, message: entry.message });
+    const engine = await createEngine({
+      debug: true,
+      logger: {
+        providers: [
+          {
+            handle(entry) {
+              logs.push({ level: entry.level, message: entry.message });
+            },
+          },
+        ],
+      },
     });
     const hookLevels: string[] = [];
     const order: string[] = [];
@@ -129,12 +137,20 @@ describe("error policy table", () => {
 
 describe("frame isolation", () => {
   it.runIf(!__GWEN_DEV__)("prod + debug: true does not log the isolation warning", async () => {
-    const engine = await createEngine({ debug: true });
+    const warns: string[] = [];
+    const engine = await createEngine({
+      debug: true,
+      logger: {
+        providers: [
+          {
+            handle(entry) {
+              if (entry.level === "warn") warns.push(entry.message);
+            },
+          },
+        ],
+      },
+    });
     try {
-      const warns: string[] = [];
-      engine.logger.setSink((entry) => {
-        if (entry.level === "warn") warns.push(entry.message);
-      });
       engine.errors.emit({
         level: "error",
         code: "TEST:ERROR",
@@ -149,10 +165,18 @@ describe("frame isolation", () => {
   });
 
   it("isolates a throwing system, keeps the sibling and the frame, then re-isolates after reenable", async () => {
-    const engine = await createEngine({ debug: true });
     const warns: string[] = [];
-    engine.logger.setSink((entry) => {
-      if (entry.level === "warn") warns.push(entry.message);
+    const engine = await createEngine({
+      debug: true,
+      logger: {
+        providers: [
+          {
+            handle(entry) {
+              if (entry.level === "warn") warns.push(entry.message);
+            },
+          },
+        ],
+      },
     });
     const runtime: GwenErrorPayload[] = [];
     const pluginErrors: string[] = [];

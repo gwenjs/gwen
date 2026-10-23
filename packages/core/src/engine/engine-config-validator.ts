@@ -3,8 +3,23 @@
  * Validates `GwenEngineOptions` and throws `GwenConfigError` on invalid values.
  */
 
+import type { GwenLogLevel, IGwenLogProvider } from "@gwenjs/schema";
 import type { GwenEngineOptions } from "./engine-types.js";
 import { GwenConfigError } from "./config-error.js";
+
+function isGwenLogLevel(value: unknown): value is GwenLogLevel {
+  return value === "debug" || value === "info" || value === "warn" || value === "error";
+}
+
+function isLogProvider(value: unknown): value is IGwenLogProvider {
+  if (typeof value !== "object" || value === null) return false;
+  if (!("handle" in value)) return false;
+  return typeof value.handle === "function";
+}
+
+function isProviderList(providers: unknown): boolean {
+  return Array.isArray(providers) && providers.every(isLogProvider);
+}
 
 /**
  * Validates engine configuration options.
@@ -15,6 +30,9 @@ import { GwenConfigError } from "./config-error.js";
  * - `maxEntities`: Must be a positive integer [1, 2_000_000]. Warns if > 500_000.
  * - `targetFPS`: Must be in range [1, 300] and finite. Warns if > 144.
  * - `maxDeltaSeconds`: Must be > 0 and ≤ 10, and finite.
+ * - `logger.minLevel`: When set, one of `debug`, `info`, `warn`, `error`.
+ * - `logger.providers`: When set, an array of objects with a `handle` function.
+ * - `logger`: `null` is omitted. Any other key is ignored.
  *
  * Fields that are undefined are skipped (will use defaults).
  *
@@ -85,6 +103,26 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
         "maxDeltaSeconds",
         v,
         "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
+      );
+    }
+  }
+
+  // logger validation. Null is omitted. Read as unknown so a cast at the call site is still checked.
+  if (opts.logger !== undefined && opts.logger !== null) {
+    const minLevel: unknown = opts.logger.minLevel;
+    const providers: unknown = opts.logger.providers;
+    if (minLevel !== undefined && !isGwenLogLevel(minLevel)) {
+      throw new GwenConfigError(
+        "logger.minLevel",
+        minLevel,
+        'Use "debug", "info", "warn" or "error".',
+      );
+    }
+    if (providers !== undefined && !isProviderList(providers)) {
+      throw new GwenConfigError(
+        "logger.providers",
+        providers,
+        "Pass objects with a handle(entry) method.",
       );
     }
   }

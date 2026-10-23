@@ -8,7 +8,7 @@
 
 import type { Hookable } from "hookable";
 import type { GwenRuntimeHooks } from "./runtime-hooks";
-import type { IGwenLogger } from "@gwenjs/schema";
+import type { GwenLogLevel, IGwenLogProvider, IGwenLogger } from "@gwenjs/schema";
 import type { WasmRegionView, WasmRingBuffer } from "./wasm-module-handle";
 import type { EntityId } from "./engine-api";
 import type { ComponentDefinition, ComponentSchema, InferComponent } from "../schema";
@@ -281,13 +281,35 @@ export interface GwenEngineOptions {
 
   /**
    * Enable debug mode for the engine and all plugins.
-   * Logger `debug` and `info` follow this flag in every build.
+   * When `logger.minLevel` is omitted, `true` lowers the engine logger's
+   * default minimum level to `debug`, so `debug` and `info` are delivered.
+   * A set `logger.minLevel` wins over this flag.
    * Per-frame sentinel checks, phase timing, and the isolation warning run only
    * when this is `true` and the build is a development build (`__GWEN_DEV__`).
    * Production builds skip them even when this is `true`.
    * @default false
    */
   debug?: boolean;
+
+  /**
+   * Structured logger used by the engine and the `"logger"` service.
+   * Omitted and `{}` both use the console provider.
+   * `providers: []` is accepted and delivers nothing.
+   * `minLevel`, when set, wins over {@link debug}. Otherwise the minimum level
+   * is `debug` when {@link debug} is `true`, and `warn` otherwise.
+   */
+  logger?: {
+    /**
+     * Providers that receive each delivered entry.
+     * @default [consoleLogProvider()]
+     */
+    providers?: readonly IGwenLogProvider[];
+    /**
+     * Minimum level delivered to providers.
+     * One of `debug`, `info`, `warn`, `error`.
+     */
+    minLevel?: GwenLogLevel;
+  };
 
   /**
    * Pre-configured WasmBridgeImpl to use instead of creating a new one.
