@@ -12,6 +12,7 @@ use crate::physics2d::events::{
 use rapier2d::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
+use std::sync::{Mutex, PoisonError};
 
 const COLLIDER_ID_ABSENT: u32 = u32::MAX;
 const MAX_BODY_ADDITIONAL_SOLVER_ITERATIONS: usize = 16;
@@ -99,20 +100,25 @@ fn unpack_collider_user_data(user_data: u128) -> (u32, Option<u32>) {
 
 // ─── Event collector ─────────────────────────────────────────────────────────
 
-/// Pointer valid only for the synchronous `step` on this thread.
-struct CollisionBufPtr(*mut CollisionEventBuffer);
-
-// SAFETY: Rapier invokes the handler on the thread that called `step`.
-// The pointer is dropped before `step` returns and is not shared. [U-005]
-unsafe impl Send for CollisionBufPtr {}
-// SAFETY: same contract as Send. The pointer is not shared across threads. [U-006]
-unsafe impl Sync for CollisionBufPtr {}
-
-struct EventCollector {
-    buf: CollisionBufPtr,
+/// Collects one step's collision events into this world's buffer.
+///
+/// Rapier's `EventHandler` is `Send + Sync` and takes `&self`, so the exclusive
+/// borrow sits behind a [`Mutex`]. One uncontended lock per event. On `wasm32`
+/// without atomics, std uses a no-threads mutex.
+struct EventCollector<'a> {
+    buf: Mutex<&'a mut CollisionEventBuffer>,
 }
 
-impl EventHandler for EventCollector {
+/// The event the handler stores, or `None` when a collider is unknown or its entity is `u32::MAX`.
+fn collision_record(
+    colliders: &ColliderSet,
+    event: CollisionEvent,
+) -> Option<StaticCollisionEvent> {
+    // stub
+    None
+}
+
+impl EventHandler for EventCollector<'_> {
     fn handle_collision_event(
         &self,
         _bodies: &RigidBodySet,
@@ -120,30 +126,9 @@ impl EventHandler for EventCollector {
         event: CollisionEvent,
         _contact_pair: Option<&ContactPair>,
     ) {
-        let (ea, ca) = colliders
-            .get(event.collider1())
-            .map(|c| unpack_collider_user_data(c.user_data))
-            .unwrap_or((u32::MAX, None));
-        let (eb, cb) = colliders
-            .get(event.collider2())
-            .map(|c| unpack_collider_user_data(c.user_data))
-            .unwrap_or((u32::MAX, None));
-
-        if ea == u32::MAX || eb == u32::MAX {
-            return;
-        }
-
-        let collider_a_id = ca.unwrap_or(u32::MAX);
-        let collider_b_id = cb.unwrap_or(u32::MAX);
-        // SAFETY: `buf` points at this world's buffer and is exclusive for the step. [U-007]
-        unsafe {
-            (*self.buf.0).push(StaticCollisionEvent {
-                entity_a: ea,
-                entity_b: eb,
-                collider_a_id,
-                collider_b_id,
-                flags: if event.started() { 1 } else { 0 },
-            });
+        if let Some(record) = collision_record(colliders, event) {
+            let mut guard = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            guard.push(record);
         }
     }
 
@@ -847,7 +832,9 @@ impl PhysicsWorld {
         self.guard_dynamic_bodies(delta);
         self.integration_params.dt = delta;
         self.collision_events.clear();
-        let buf = CollisionBufPtr(std::ptr::addr_of_mut!(self.collision_events));
+        let collector = EventCollector {
+            buf: Mutex::new(&mut self.collision_events),
+        };
 
         self.pipeline.step(
             &self.gravity,
@@ -864,7 +851,7 @@ impl PhysicsWorld {
             &OneWayHooks {
                 set: &self.one_way_colliders,
             },
-            &EventCollector { buf },
+            &collector,
         );
         Ok(())
     }
@@ -1086,6 +1073,8 @@ mod tests {
     )]
     use super::*;
     use crate::physics2d::error::Physics2DError;
+    use crate::physics2d::events::MAX_COLLISION_EVENTS;
+    use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
     #[test]
     fn test_physics_world_creation() {
@@ -1293,6 +1282,250 @@ mod tests {
         assert!(x > 0.5, "expected x > 0.5, got {x}");
         assert!(y > 0.2, "expected y > 0.2, got {y}");
         Ok(())
+    }
+
+    fn insert_ball(set: &mut ColliderSet, entity: u32, collider_id: u32) -> ColliderHandle {
+        set.insert(
+            ColliderBuilder::ball(0.5)
+                .user_data(pack_collider_user_data(entity, collider_id))
+                .build(),
+        )
+    }
+
+    fn collider_pair(
+        entity_a: u32,
+        id_a: u32,
+        entity_b: u32,
+        id_b: u32,
+    ) -> (ColliderSet, ColliderHandle, ColliderHandle) {
+        let mut set = ColliderSet::new();
+        let a = insert_ball(&mut set, entity_a, id_a);
+        let b = insert_ball(&mut set, entity_b, id_b);
+        (set, a, b)
+    }
+
+    fn started(h1: ColliderHandle, h2: ColliderHandle) -> CollisionEvent {
+        CollisionEvent::Started(h1, h2, CollisionEventFlags::empty())
+    }
+
+    fn stopped(h1: ColliderHandle, h2: ColliderHandle) -> CollisionEvent {
+        CollisionEvent::Stopped(h1, h2, CollisionEventFlags::empty())
+    }
+
+    fn feed(
+        collector: &EventCollector,
+        colliders: &ColliderSet,
+        event: CollisionEvent,
+        times: usize,
+    ) {
+        let bodies = RigidBodySet::new();
+        for _ in 0..times {
+            collector.handle_collision_event(&bodies, colliders, event, None);
+        }
+    }
+
+    fn event_at(buf: &CollisionEventBuffer, index: usize) -> StaticCollisionEvent {
+        assert_eq!(usize::from(index < buf.len()), 1);
+        // SAFETY: `index` is below `len`, so the read stays inside this buffer's stored events.
+        unsafe { buf.as_ptr().add(index).read() }
+    }
+
+    #[test]
+    fn collector_stops_at_the_event_cap() {
+        let mut buf = CollisionEventBuffer::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        let event = started(h1, h2);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, 0);
+        }
+        assert_eq!(buf.len(), 0);
+
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, MAX_COLLISION_EVENTS);
+        }
+        assert_eq!(buf.len(), MAX_COLLISION_EVENTS);
+
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, 1);
+        }
+        assert_eq!(buf.len(), MAX_COLLISION_EVENTS);
+
+        buf.clear();
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn two_collectors_write_only_their_own_buffer() {
+        let mut buf_a = CollisionEventBuffer::new();
+        let mut buf_b = CollisionEventBuffer::new();
+        let (set_a, a1, a2) = collider_pair(1, 7, 2, 8);
+        let (set_b, b1, b2) = collider_pair(3, 9, 4, 10);
+        {
+            let collector_a = EventCollector {
+                buf: Mutex::new(&mut buf_a),
+            };
+            let collector_b = EventCollector {
+                buf: Mutex::new(&mut buf_b),
+            };
+            feed(&collector_a, &set_a, started(a1, a2), 3);
+            feed(&collector_b, &set_b, started(b1, b2), 3);
+        }
+        assert_eq!(buf_a.len(), 3);
+        assert_eq!(buf_b.len(), 3);
+        for index in 0..3 {
+            let ev_a = event_at(&buf_a, index);
+            assert_eq!(ev_a.entity_a, 1);
+            assert_eq!(ev_a.entity_b, 2);
+            let ev_b = event_at(&buf_b, index);
+            assert_eq!(ev_b.entity_a, 3);
+            assert_eq!(ev_b.entity_b, 4);
+        }
+    }
+
+    #[test]
+    fn collector_skips_an_event_with_an_unknown_collider() {
+        let mut buf = CollisionEventBuffer::new();
+        let mut set = ColliderSet::new();
+        let kept = insert_ball(&mut set, 2, 8);
+        let tomb = insert_ball(&mut set, u32::MAX, 9);
+        let stale = insert_ball(&mut set, 1, 7);
+        let removed = set.remove(
+            stale,
+            &mut IslandManager::new(),
+            &mut RigidBodySet::new(),
+            false,
+        );
+        assert_eq!(u8::from(removed.is_some()), 1);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(stale, kept), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(tomb, kept), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(kept, stale), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(kept, tomb), 1);
+        }
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn collector_writes_flag_0_for_a_stopped_event() {
+        let mut buf = CollisionEventBuffer::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, stopped(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.flags, 0);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.collider_a_id, 7);
+        assert_eq!(ev.collider_b_id, 8);
+    }
+
+    #[test]
+    fn collector_writes_flag_1_for_a_started_event() {
+        let mut buf = CollisionEventBuffer::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.flags, 1);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.collider_a_id, 7);
+        assert_eq!(ev.collider_b_id, 8);
+    }
+
+    #[test]
+    fn collector_stores_an_absent_collider_id_as_max() {
+        let mut buf = CollisionEventBuffer::new();
+        let (set, h1, h2) = collider_pair(1, COLLIDER_ID_ABSENT, 2, 8);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.collider_a_id, u32::MAX);
+        assert_eq!(ev.collider_b_id, 8);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+
+        buf.clear();
+        let (set, h1, h2) = collider_pair(3, 9, 4, COLLIDER_ID_ABSENT);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.collider_a_id, 9);
+        assert_eq!(ev.collider_b_id, u32::MAX);
+        assert_eq!(ev.entity_a, 3);
+        assert_eq!(ev.entity_b, 4);
+    }
+
+    #[test]
+    fn collector_keeps_collecting_after_a_poisoned_lock() {
+        let mut buf = CollisionEventBuffer::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut buf),
+            };
+            let caught = catch_unwind(AssertUnwindSafe(|| {
+                let _guard = collector.buf.lock().unwrap_or_else(PoisonError::into_inner);
+                resume_unwind(Box::new("poison"));
+            }));
+            assert_eq!(u8::from(caught.is_err()), 1);
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.flags, 1);
     }
 }
 

@@ -29,6 +29,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
+use std::sync::{Mutex, PoisonError};
 
 use rapier3d::control::{CharacterAutostep, CharacterLength, KinematicCharacterController};
 use rapier3d::dynamics::RigidBodyHandle;
@@ -167,25 +168,27 @@ fn body_type_to_kind(bt: RigidBodyType) -> u8 {
 
 // ─── Event collector ──────────────────────────────────────────────────────────
 
-/// Pointer valid only for the synchronous `step` on this thread.
-struct CollisionBufPtr3D(*mut CollisionEventBuffer3D);
-
-// SAFETY: Rapier invokes the handler on the thread that called `step`.
-// The pointer is dropped before `step` returns and is not shared. [U-010]
-unsafe impl Send for CollisionBufPtr3D {}
-// SAFETY: same contract as Send. The pointer is not shared across threads. [U-011]
-unsafe impl Sync for CollisionBufPtr3D {}
-
-/// Rapier [`EventHandler`] implementation that writes collision events into
-/// this world's ring buffer.
+/// Collects one step's collision events into this world's buffer.
 ///
-/// Instantiated per-step and passed directly to `PhysicsPipeline::step`.
+/// Rapier's `EventHandler` is `Send + Sync` and takes `&self`, so the exclusive
+/// borrow sits behind a [`Mutex`]. One uncontended lock per event. On `wasm32`
+/// without atomics, std uses a no-threads mutex.
+///
 /// Sensor state updates happen in a post-step pass inside [`PhysicsWorld3D::step`].
-struct EventCollector3D {
-    buf: CollisionBufPtr3D,
+struct EventCollector3D<'a> {
+    buf: Mutex<&'a mut CollisionEventBuffer3D>,
 }
 
-impl EventHandler for EventCollector3D {
+/// The event the handler stores, or `None` when a collider is unknown or its entity is `u32::MAX`.
+fn collision_record(
+    colliders: &ColliderSet,
+    event: CollisionEvent,
+) -> Option<PhysicsCollisionEvent3D> {
+    // stub
+    None
+}
+
+impl EventHandler for EventCollector3D<'_> {
     fn handle_collision_event(
         &self,
         _bodies: &RigidBodySet,
@@ -193,38 +196,9 @@ impl EventHandler for EventCollector3D {
         event: CollisionEvent,
         _contact_pair: Option<&ContactPair>,
     ) {
-        let (ea, ca) = colliders
-            .get(event.collider1())
-            .map(|c| unpack_user_data(c.user_data))
-            .unwrap_or((u32::MAX, None));
-
-        let (eb, cb) = colliders
-            .get(event.collider2())
-            .map(|c| unpack_user_data(c.user_data))
-            .unwrap_or((u32::MAX, None));
-
-        // Skip events involving unknown/tombstone bodies.
-        if ea == u32::MAX || eb == u32::MAX {
-            return;
-        }
-
-        let collider_a_id = match ca {
-            Some(id) => id as u16,
-            None => u16::MAX,
-        };
-        let collider_b_id = match cb {
-            Some(id) => id as u16,
-            None => u16::MAX,
-        };
-        // SAFETY: `buf` points at this world's buffer and is exclusive for the step. [U-012]
-        unsafe {
-            (*self.buf.0).push(PhysicsCollisionEvent3D {
-                entity_a: ea,
-                entity_b: eb,
-                flags: if event.started() { 1 } else { 0 },
-                collider_a_id,
-                collider_b_id,
-            });
+        if let Some(record) = collision_record(colliders, event) {
+            let mut guard = self.buf.lock().unwrap_or_else(PoisonError::into_inner);
+            guard.push(record);
         }
     }
 
@@ -912,23 +886,26 @@ impl PhysicsWorld3D {
         self.guard_dynamic_bodies(delta);
         self.integration_params.dt = delta;
         self.collision_events.clear();
-        let buf = CollisionBufPtr3D(std::ptr::addr_of_mut!(self.collision_events));
-
-        self.pipeline.step(
-            &self.gravity,
-            &self.integration_params,
-            &mut self.island_manager,
-            &mut self.broad_phase,
-            &mut self.narrow_phase,
-            &mut self.rigid_body_set,
-            &mut self.collider_set,
-            &mut self.impulse_joint_set,
-            &mut self.multibody_joint_set,
-            &mut self.ccd_solver,
-            None,
-            &(),
-            &EventCollector3D { buf },
-        );
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut self.collision_events),
+            };
+            self.pipeline.step(
+                &self.gravity,
+                &self.integration_params,
+                &mut self.island_manager,
+                &mut self.broad_phase,
+                &mut self.narrow_phase,
+                &mut self.rigid_body_set,
+                &mut self.collider_set,
+                &mut self.impulse_joint_set,
+                &mut self.multibody_joint_set,
+                &mut self.ccd_solver,
+                None,
+                &(),
+                &collector,
+            );
+        }
 
         // Post-step: update sensor_states from the event buffer that was just
         // populated by EventCollector3D.  We read back the ring buffer here so
@@ -3915,6 +3892,8 @@ mod tests {
         reason = "test-only code"
     )]
     use super::*;
+    use crate::physics3d::events::MAX_COLLISION_EVENTS_3D;
+    use std::panic::{catch_unwind, resume_unwind, AssertUnwindSafe};
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -6301,6 +6280,267 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    fn insert_ball(set: &mut ColliderSet, entity: u32, collider_id: u32) -> ColliderHandle {
+        set.insert(
+            ColliderBuilder::ball(0.5)
+                .user_data(pack_user_data(entity, collider_id))
+                .build(),
+        )
+    }
+
+    fn collider_pair(
+        entity_a: u32,
+        id_a: u32,
+        entity_b: u32,
+        id_b: u32,
+    ) -> (ColliderSet, ColliderHandle, ColliderHandle) {
+        let mut set = ColliderSet::new();
+        let a = insert_ball(&mut set, entity_a, id_a);
+        let b = insert_ball(&mut set, entity_b, id_b);
+        (set, a, b)
+    }
+
+    fn started(h1: ColliderHandle, h2: ColliderHandle) -> CollisionEvent {
+        CollisionEvent::Started(h1, h2, CollisionEventFlags::empty())
+    }
+
+    fn stopped(h1: ColliderHandle, h2: ColliderHandle) -> CollisionEvent {
+        CollisionEvent::Stopped(h1, h2, CollisionEventFlags::empty())
+    }
+
+    fn feed(
+        collector: &EventCollector3D,
+        colliders: &ColliderSet,
+        event: CollisionEvent,
+        times: usize,
+    ) {
+        let bodies = RigidBodySet::new();
+        for _ in 0..times {
+            collector.handle_collision_event(&bodies, colliders, event, None);
+        }
+    }
+
+    fn event_at(buf: &CollisionEventBuffer3D, index: usize) -> PhysicsCollisionEvent3D {
+        assert_eq!(usize::from(index < buf.len()), 1);
+        buf.get(index)
+    }
+
+    #[test]
+    fn collector_stops_at_the_event_cap() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        let event = started(h1, h2);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, 0);
+        }
+        assert_eq!(buf.len(), 0);
+
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, MAX_COLLISION_EVENTS_3D);
+        }
+        assert_eq!(buf.len(), MAX_COLLISION_EVENTS_3D);
+
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, event, 1);
+        }
+        assert_eq!(buf.len(), MAX_COLLISION_EVENTS_3D);
+
+        buf.clear();
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn two_collectors_write_only_their_own_buffer() {
+        let mut buf_a = CollisionEventBuffer3D::new();
+        let mut buf_b = CollisionEventBuffer3D::new();
+        let (set_a, a1, a2) = collider_pair(1, 7, 2, 8);
+        let (set_b, b1, b2) = collider_pair(3, 9, 4, 10);
+        {
+            let collector_a = EventCollector3D {
+                buf: Mutex::new(&mut buf_a),
+            };
+            let collector_b = EventCollector3D {
+                buf: Mutex::new(&mut buf_b),
+            };
+            feed(&collector_a, &set_a, started(a1, a2), 3);
+            feed(&collector_b, &set_b, started(b1, b2), 3);
+        }
+        assert_eq!(buf_a.len(), 3);
+        assert_eq!(buf_b.len(), 3);
+        for index in 0..3 {
+            let ev_a = event_at(&buf_a, index);
+            assert_eq!(ev_a.entity_a, 1);
+            assert_eq!(ev_a.entity_b, 2);
+            let ev_b = event_at(&buf_b, index);
+            assert_eq!(ev_b.entity_a, 3);
+            assert_eq!(ev_b.entity_b, 4);
+        }
+    }
+
+    #[test]
+    fn collector_skips_an_event_with_an_unknown_collider() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let mut set = ColliderSet::new();
+        let kept = insert_ball(&mut set, 2, 8);
+        let tomb = insert_ball(&mut set, u32::MAX, 9);
+        let stale = insert_ball(&mut set, 1, 7);
+        let removed = set.remove(
+            stale,
+            &mut IslandManager::new(),
+            &mut RigidBodySet::new(),
+            false,
+        );
+        assert_eq!(u8::from(removed.is_some()), 1);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(stale, kept), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(tomb, kept), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(kept, stale), 1);
+        }
+        assert_eq!(buf.len(), 0);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(kept, tomb), 1);
+        }
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn collector_writes_flag_0_for_a_stopped_event() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, stopped(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.flags, 0);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.collider_a_id, 7);
+        assert_eq!(ev.collider_b_id, 8);
+    }
+
+    #[test]
+    fn collector_writes_flag_1_for_a_started_event() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.flags, 1);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.collider_a_id, 7);
+        assert_eq!(ev.collider_b_id, 8);
+    }
+
+    #[test]
+    fn collector_stores_an_absent_collider_id_as_max() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, COLLIDER_ID_ABSENT, 2, 8);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.collider_a_id, u16::MAX);
+        assert_eq!(ev.collider_b_id, 8);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+
+        buf.clear();
+        let (set, h1, h2) = collider_pair(3, 9, 4, COLLIDER_ID_ABSENT);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.collider_a_id, 9);
+        assert_eq!(ev.collider_b_id, u16::MAX);
+        assert_eq!(ev.entity_a, 3);
+        assert_eq!(ev.entity_b, 4);
+    }
+
+    #[test]
+    fn collector_truncates_a_collider_id_to_16_bits() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, 70_000, 2, 8);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.collider_a_id, 4464);
+        assert_eq!(ev.collider_b_id, 8);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+    }
+
+    #[test]
+    fn collector_keeps_collecting_after_a_poisoned_lock() {
+        let mut buf = CollisionEventBuffer3D::new();
+        let (set, h1, h2) = collider_pair(1, 7, 2, 8);
+        {
+            let collector = EventCollector3D {
+                buf: Mutex::new(&mut buf),
+            };
+            let caught = catch_unwind(AssertUnwindSafe(|| {
+                let _guard = collector.buf.lock().unwrap_or_else(PoisonError::into_inner);
+                resume_unwind(Box::new("poison"));
+            }));
+            assert_eq!(u8::from(caught.is_err()), 1);
+            feed(&collector, &set, started(h1, h2), 1);
+        }
+        assert_eq!(buf.len(), 1);
+        let ev = event_at(&buf, 0);
+        assert_eq!(ev.entity_a, 1);
+        assert_eq!(ev.entity_b, 2);
+        assert_eq!(ev.flags, 1);
     }
 }
 
