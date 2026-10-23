@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -87,9 +95,34 @@ function cancelsInProgress(yaml, eventName) {
   return false;
 }
 
+// The group expression, read back from ci.yml and translated here.
+// A truthy left side of `&&` keeps the '-miri' string; `|| ''` keeps a push group bare.
+const CONCURRENCY_GROUP =
+  "${{ github.workflow }}-${{ github.ref }}${{ (github.event_name == 'schedule' || github.event.inputs.miri_full == 'true') && '-miri' || '' }}";
+
+/**
+ * @param {string} expr
+ * @param {{ workflow: string, ref: string, eventName: string, miriFull: string }} ctx
+ * @returns {string}
+ */
+function concurrencyGroupFor(expr, ctx) {
+  const prefix = "${{ github.workflow }}-${{ github.ref }}";
+  assert.ok(expr.startsWith(prefix), expr);
+  const tail = expr.slice(prefix.length);
+  const wrapped = tail.match(/^\$\{\{ (.+) \}\}$/);
+  assert.ok(wrapped, tail);
+  const inner = wrapped[1] ?? "";
+  const suffix = inner.match(/&& '([^']*)' \|\| ''$/);
+  assert.ok(suffix, inner);
+  assert.match(inner, /github\.event_name == 'schedule'/);
+  assert.match(inner, /github\.event\.inputs\.miri_full == 'true'/);
+  const selected = ctx.eventName === "schedule" || ctx.miriFull === "true";
+  return `${ctx.workflow}-${ctx.ref}${selected ? (suffix[1] ?? "") : ""}`;
+}
+
 test("cancels an in-progress run for the same ref", () => {
   const yaml = readCi();
-  assert.equal(concurrencyValue(yaml, "group"), "${{ github.workflow }}-${{ github.ref }}");
+  assert.equal(concurrencyValue(yaml, "group"), CONCURRENCY_GROUP);
   assert.equal(cancelsInProgress(yaml, "pull_request"), true);
   assert.equal(cancelsInProgress(yaml, "push"), false);
 });
@@ -512,7 +545,10 @@ test("verify-red does not copy a production module the PR adds onto the base", (
   });
   // The fixture is copied, the src/ module it re-exports is not: the file
   // still does not load on the base and is run on the head.
-  assert.match(output, /copied test-support file packages\/demo\/tests\/fixtures\/helper\.mjs onto the base/);
+  assert.match(
+    output,
+    /copied test-support file packages\/demo\/tests\/fixtures\/helper\.mjs onto the base/,
+  );
   assert.doesNotMatch(output, /copied test-support file packages\/demo\/src\//);
   assert.match(output, /FAIL answers 42 \(base load error/);
   assert.match(output, /verify-red: RED packages\/demo\/tests\/answer\.test\.mjs/);
@@ -554,7 +590,7 @@ test("verify-red runs an excluded bench file", () => {
       'case "$*" in',
       "  *vitest*)",
       '    if [ -n "$config" ] && [ -n "$out" ]; then',
-      "      printf '%s\\n' '{\"testResults\":[{\"assertionResults\":[{\"fullName\":\"bench gate fails on the base\",\"status\":\"failed\"}]}]}' > \"$out\"",
+      '      printf \'%s\\n\' \'{"testResults":[{"assertionResults":[{"fullName":"bench gate fails on the base","status":"failed"}]}]}\' > "$out"',
       "      exit 0",
       "    fi",
       '    echo "No test files found" >&2',
@@ -613,7 +649,7 @@ test("verify-red bench config aliases workspace packages to source", () => {
       "  *vitest*)",
       '    if [ -n "$config" ] && [ -n "$out" ]; then',
       '      cat "$config" >&2',
-      "      printf '%s\\n' '{\"testResults\":[{\"assertionResults\":[{\"fullName\":\"bench gate fails on the base\",\"status\":\"failed\"}]}]}' > \"$out\"",
+      '      printf \'%s\\n\' \'{"testResults":[{"assertionResults":[{"fullName":"bench gate fails on the base","status":"failed"}]}]}\' > "$out"',
       "      exit 0",
       "    fi",
       '    echo "No test files found" >&2',
@@ -1283,8 +1319,14 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   assert.match(job, /cargo clippy --workspace --all-targets -- -D warnings/);
   assert.match(job, /cargo clippy -p gwen-core --all-targets --features physics2d -- -D warnings/);
   assert.match(job, /cargo clippy -p gwen-core --all-targets --features physics3d -- -D warnings/);
-  assert.match(job, /cargo clippy -p gwen-core --all-targets --features build-tools -- -D warnings/);
-  assert.match(job, /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown -- -D warnings/);
+  assert.match(
+    job,
+    /cargo clippy -p gwen-core --all-targets --features build-tools -- -D warnings/,
+  );
+  assert.match(
+    job,
+    /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown -- -D warnings/,
+  );
   assert.match(
     job,
     /cargo clippy -p gwen-core --lib --target wasm32-unknown-unknown --features physics2d -- -D warnings/,
@@ -1314,20 +1356,276 @@ test("rust-lint job runs fmt and the clippy deny set and ci-status reads it", ()
   }
 });
 
-test("miri-full.yml runs on a weekly schedule or a manual dispatch", () => {
-  const path = join(root, ".github/workflows/miri-full.yml");
-  assert.equal(existsSync(path), true);
-  const full = readFileSync(path, "utf8");
-  const on = onBlock(full);
+/**
+ * One key of the `on:` block, from its line to the next key.
+ *
+ * @param {string} on
+ * @param {string} key
+ * @returns {string}
+ */
+function onKeyBlock(on, key) {
+  const lines = on.split("\n");
+  const start = lines.findIndex((line) => line === `  ${key}:`);
+  assert.ok(start !== -1, key);
+  let end = start + 1;
+  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:/.test(lines[end] ?? "")) end++;
+  return lines.slice(start, end).join("\n");
+}
+
+/**
+ * Shell of the "Resolve mode" step, YAML indent removed.
+ *
+ * @param {string} yaml
+ * @returns {string}
+ */
+function resolveModeScript(yaml) {
+  const lines = jobBlock(yaml, "changes").split("\n");
+  const nameAt = lines.findIndex((line) => line === "      - name: Resolve mode");
+  assert.ok(nameAt !== -1, "Resolve mode step is missing");
+  const runAt = lines.findIndex((line, index) => index > nameAt && line === "        run: |");
+  assert.ok(runAt !== -1 && runAt > nameAt, "Resolve mode run is missing");
+  /** @type {string[]} */
+  const body = [];
+  for (let i = runAt + 1; i < lines.length; i++) {
+    const line = lines[i] ?? "";
+    if (line === "") {
+      body.push("");
+      continue;
+    }
+    if (!line.startsWith("          ")) break;
+    body.push(line.slice(10));
+  }
+  assert.ok(body.some((line) => line.includes('>> "$GITHUB_OUTPUT"')));
+  return `${body.join("\n")}\n`;
+}
+
+/**
+ * @param {string} script
+ * @param {Record<string, string>} env
+ * @returns {Record<string, string>}
+ */
+function runResolveMode(script, env) {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-resolve-mode-"));
+  const output = join(dir, "github-output.txt");
+  try {
+    writeFileSync(join(dir, "resolve.sh"), script);
+    const result = spawnSync("bash", ["resolve.sh"], {
+      cwd: dir,
+      encoding: "utf8",
+      env: { ...process.env, ...env, GITHUB_OUTPUT: output },
+    });
+    assert.equal(result.status, 0, `${result.stderr}\n${result.stdout}`);
+    /** @type {Record<string, string>} */
+    const outputs = {};
+    const text = existsSync(output) ? readFileSync(output, "utf8") : "";
+    for (const line of text.split("\n")) {
+      if (line === "") continue;
+      const eq = line.indexOf("=");
+      assert.ok(eq > 0, line);
+      outputs[line.slice(0, eq)] = line.slice(eq + 1);
+    }
+    return outputs;
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * @param {string} yaml
+ * @returns {string[]}
+ */
+function jobIds(yaml) {
+  const marker = "\njobs:\n";
+  const start = yaml.indexOf(marker);
+  assert.ok(start !== -1);
+  return [...yaml.slice(start + marker.length).matchAll(/^ {2}([A-Za-z0-9_-]+):\s*$/gm)].map(
+    (match) => match[1] ?? "",
+  );
+}
+
+const MIRI_FULL_COMMANDS = [
+  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --lib --tests",
+  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics2d --lib --tests",
+  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --lib --tests",
+  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils",
+];
+
+test("ci.yml runs the full Miri job by schedule and manual dispatch only", () => {
+  const on = onBlock(readCi());
   assert.match(on, /schedule:\n {4}- cron: "0 6 \* \* 1"/);
-  assert.match(on, /workflow_dispatch:\n/);
-  assert.doesNotMatch(on, /^\s+push:/m);
-  assert.doesNotMatch(on, /^\s+pull_request:/m);
-  assert.match(full, /timeout-minutes:\s*\d+/);
-  const ci = readCi();
-  assert.doesNotMatch(ci, /rust-miri-full/);
-  assert.doesNotMatch(onBlock(ci), /schedule:/);
-  assert.doesNotMatch(onBlock(ci), /workflow_dispatch:/);
+  const dispatch = onKeyBlock(on, "workflow_dispatch");
+  assert.match(dispatch, /^ {4}inputs:\n {6}miri_full:\n/m);
+  assert.match(dispatch, /description: run only the full Miri job/);
+  assert.match(dispatch, /type: boolean/);
+  assert.match(dispatch, /default: true/);
+  assert.match(on, /push:\n {4}branches: \[main, v1-alpha, "hardening\/\*\*"\]/);
+  const pull = onKeyBlock(on, "pull_request");
+  assert.match(pull, /pull_request:/);
+  assert.doesNotMatch(pull, /schedule:/);
+  assert.doesNotMatch(pull, /workflow_dispatch:/);
+  assert.equal(existsSync(join(root, ".github/workflows/miri-full.yml")), false);
+});
+
+test("Resolve mode never selects the Miri job for a pull request or a push", () => {
+  const script = resolveModeScript(readCi());
+  const pull = runResolveMode(script, {
+    EVENT: "pull_request",
+    CODE: "true",
+    RUST: "true",
+    ROOT: "true",
+    STACK: "true",
+    MIRI_FULL: "",
+  });
+  assert.equal(pull.miri_full, "false");
+  assert.equal(pull.miri_only, "false");
+  assert.equal(pull.full, "false");
+  assert.equal(pull.code, "true");
+  assert.equal(pull.rust, "true");
+  assert.equal(pull.root, "true");
+  assert.equal(pull.stack, "true");
+  const push = runResolveMode(script, {
+    EVENT: "push",
+    CODE: "false",
+    RUST: "false",
+    ROOT: "false",
+    STACK: "false",
+    MIRI_FULL: "",
+  });
+  assert.equal(push.miri_full, "false");
+  assert.equal(push.miri_only, "false");
+  assert.equal(push.full, "true");
+  assert.equal(push.code, "true");
+  assert.equal(push.rust, "true");
+  assert.equal(push.root, "true");
+  assert.equal(push.stack, "true");
+  const dispatched = runResolveMode(script, {
+    EVENT: "workflow_dispatch",
+    CODE: "false",
+    RUST: "false",
+    ROOT: "false",
+    STACK: "false",
+    MIRI_FULL: "",
+  });
+  assert.equal(dispatched.miri_full, "false");
+  assert.equal(dispatched.full, "true");
+  const called = runResolveMode(script, {
+    EVENT: "workflow_call",
+    CODE: "false",
+    RUST: "false",
+    ROOT: "false",
+    STACK: "false",
+    MIRI_FULL: "",
+  });
+  assert.equal(called.miri_full, "false");
+  assert.equal(called.full, "true");
+});
+
+test("Resolve mode runs only the Miri job for a schedule and a miri dispatch", () => {
+  const script = resolveModeScript(readCi());
+  for (const env of [
+    { EVENT: "schedule", MIRI_FULL: "" },
+    { EVENT: "workflow_dispatch", MIRI_FULL: "true" },
+  ]) {
+    const outputs = runResolveMode(script, {
+      EVENT: env.EVENT,
+      MIRI_FULL: env.MIRI_FULL,
+      CODE: "true",
+      RUST: "true",
+      ROOT: "true",
+      STACK: "true",
+    });
+    assert.equal(outputs.miri_full, "true", env.EVENT);
+    assert.equal(outputs.miri_only, "true", env.EVENT);
+    assert.equal(outputs.full, "false", env.EVENT);
+    assert.equal(outputs.code, "false", env.EVENT);
+    assert.equal(outputs.rust, "false", env.EVENT);
+    assert.equal(outputs.root, "false", env.EVENT);
+    assert.equal(outputs.stack, "false", env.EVENT);
+  }
+});
+
+test("rust-miri-full is skipped unless the mode selects it and runs the lib and integration tests per feature", () => {
+  const job = jobBlock(readCi(), "rust-miri-full");
+  assert.match(job, /^ {4}if: needs\.changes\.outputs\.miri_full == 'true'$/m);
+  assert.match(job, /^ {4}needs: \[changes\]$/m);
+  assert.deepEqual(
+    [...job.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1] ?? ""),
+    MIRI_FULL_COMMANDS,
+  );
+  assert.doesNotMatch(job, /MIRIFLAGS/);
+  assert.doesNotMatch(job, /-Zmiri-disable/);
+  const timeout = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeout, "timeout-minutes is missing");
+  assert.ok(Number(timeout[1]) > 0);
+});
+
+test("no other job can start in a miri-only run", () => {
+  const yaml = readCi();
+  const exempt = new Set(["changes", "rust-miri-full", "ci-status"]);
+  const ids = jobIds(yaml).filter((id) => !exempt.has(id));
+  assert.ok(ids.includes("agent-hygiene"));
+  for (const id of ids) {
+    const ifLine = jobBlock(yaml, id)
+      .split("\n")
+      .find((line) => /^ {4}if:/.test(line));
+    assert.ok(ifLine, `${id} has no if`);
+    if (id === "agent-hygiene") {
+      assert.match(ifLine, /needs\.changes\.outputs\.miri_only != 'true'/);
+    } else {
+      assert.match(ifLine, /needs\.changes\.outputs\.(?:code|rust|root|full|stack)\b/);
+    }
+  }
+});
+
+test("ci-status needs and reads rust-miri-full", () => {
+  const yaml = readCi();
+  const report = evaluateCiStatus(yaml);
+  assert.equal(report.jobs.includes("rust-miri-full"), true);
+  assert.deepEqual(report.missing, []);
+  assert.deepEqual(report.unread, []);
+  assert.equal(report.error, null);
+  assert.match(jobBlock(yaml, "ci-status"), /needs\['rust-miri-full'\]\.result/);
+});
+
+test("a Miri run does not share a concurrency group with a push", () => {
+  const yaml = readCi();
+  const group = concurrencyValue(yaml, "group");
+  assert.equal(group, CONCURRENCY_GROUP);
+  assert.equal(
+    concurrencyValue(yaml, "cancel-in-progress"),
+    "${{ github.event_name == 'pull_request' }}",
+  );
+  const cases = [
+    { eventName: "push", ref: "refs/heads/main", miriFull: "", group: "CI-refs/heads/main" },
+    {
+      eventName: "schedule",
+      ref: "refs/heads/main",
+      miriFull: "",
+      group: "CI-refs/heads/main-miri",
+    },
+    {
+      eventName: "pull_request",
+      ref: "refs/pull/184/merge",
+      miriFull: "",
+      group: "CI-refs/pull/184/merge",
+    },
+  ];
+  for (const item of cases) {
+    assert.equal(
+      concurrencyGroupFor(group ?? "", {
+        workflow: "CI",
+        ref: item.ref,
+        eventName: item.eventName,
+        miriFull: item.miriFull,
+      }),
+      item.group,
+      item.eventName,
+    );
+  }
+});
+
+test("miri-full.yml is deleted", () => {
+  assert.equal(existsSync(join(root, ".github/workflows/miri-full.yml")), false);
 });
 
 test("rust-miri timeout is twice the cold wall in whole minutes", () => {
