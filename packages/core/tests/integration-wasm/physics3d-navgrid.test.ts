@@ -14,7 +14,7 @@ import { createRealEngine, type RealEngineHandle } from "./harness.js";
  * Real physics3d WASM. `initNavGrid3D` uploads the grid and `findPath3D` reads it.
  * Each engine is disposed in `finally`.
  */
-describe("physics3d nav grid through the shared buffer", () => {
+describe("physics3d nav grid", () => {
   const cellSize = 1;
   const start = { x: 0.5, y: 0.5, z: 0.5 };
   const goal = { x: 3.5, y: 0.5, z: 3.5 };
@@ -63,37 +63,6 @@ describe("physics3d nav grid through the shared buffer", () => {
     expect(Math.abs(last.x - goal.x)).toBeLessThanOrEqual(cellSize);
     expect(Math.abs(last.y - goal.y)).toBeLessThanOrEqual(cellSize);
     expect(Math.abs(last.z - goal.z)).toBeLessThanOrEqual(cellSize);
-  }
-
-  /**
-   * Record each `[ptr, size]` from the real `allocSharedBuffer` and still allocate it.
-   */
-  function recordAlloc(handle: RealEngineHandle): Array<[number, number]> {
-    const allocated: Array<[number, number]> = [];
-    const alloc = handle.bridge.allocSharedBuffer.bind(handle.bridge);
-    handle.bridge.allocSharedBuffer = (byteLength: number): number => {
-      const ptr = alloc(byteLength);
-      allocated.push([ptr, byteLength]);
-      return ptr;
-    };
-    return allocated;
-  }
-
-  /**
-   * The upload already freed this buffer: a second free throws `CORE:INVALID_SHARED_BUFFER`.
-   */
-  function expectUploadReleased(
-    handle: RealEngineHandle,
-    allocated: ReadonlyArray<readonly [number, number]>,
-    index: number,
-  ): void {
-    expect(allocated.length).toBe(index + 1);
-    const recorded = allocated[index];
-    if (recorded === undefined) {
-      throw new Error("expected a recorded shared buffer");
-    }
-    const err = caught(() => handle.bridge.freeSharedBuffer(recorded[0], recorded[1]));
-    requireWasmError(err, "CORE:INVALID_SHARED_BUFFER", "free_shared_buffer");
   }
 
   it("initNavGrid3D then findPath3D returns a path on an open 4x4x4 grid", async () => {
@@ -168,35 +137,8 @@ describe("physics3d nav grid through the shared buffer", () => {
     }
   });
 
-  it("the upload buffer is released when the export throws", async () => {
-    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
-    const allocated = recordAlloc(handle);
-    try {
-      const physics = await startPhysics(handle);
-
-      const refused = caught(() =>
-        physics.initNavGrid3D({
-          grid: new Uint8Array(0),
-          width: 0,
-          height: 1,
-          depth: 1,
-          cellSize,
-        }),
-      );
-      expectUploadReleased(handle, allocated, 0);
-      requireWasmError(refused, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
-
-      const before = allocated.length;
-      physics.initNavGrid3D(openGrid(4, 4, 4));
-      expectUploadReleased(handle, allocated, before);
-    } finally {
-      await handle.dispose();
-    }
-  });
-
   it("a grid shorter than its dimensions throws PHYSICS3D:INVALID_NAVGRID", async () => {
     const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
-    const allocated = recordAlloc(handle);
     try {
       const physics = await startPhysics(handle);
       physics.initNavGrid3D(openGrid(4, 4, 4));
@@ -216,7 +158,6 @@ describe("physics3d nav grid through the shared buffer", () => {
       const after = physics.findPath3D(start, goal);
       expect(after).toEqual(before);
       expectNearGoal(after);
-      expectUploadReleased(handle, allocated, 1);
     } finally {
       await handle.dispose();
     }
@@ -224,7 +165,6 @@ describe("physics3d nav grid through the shared buffer", () => {
 
   it("a grid longer than its dimensions throws PHYSICS3D:INVALID_NAVGRID", async () => {
     const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
-    const allocated = recordAlloc(handle);
     try {
       const physics = await startPhysics(handle);
       physics.initNavGrid3D(openGrid(4, 4, 4));
@@ -244,7 +184,32 @@ describe("physics3d nav grid through the shared buffer", () => {
       const after = physics.findPath3D(start, goal);
       expect(after).toEqual(before);
       expectNearGoal(after);
-      expectUploadReleased(handle, allocated, 1);
+    } finally {
+      await handle.dispose();
+    }
+  });
+
+  it("an empty grid with valid dimensions throws PHYSICS3D:INVALID_NAVGRID", async () => {
+    const handle = await createRealEngine({ variant: "physics3d", maxEntities: 64 });
+    try {
+      const physics = await startPhysics(handle);
+      physics.initNavGrid3D(openGrid(4, 4, 4));
+      const before = physics.findPath3D(start, goal);
+
+      const err = caught(() =>
+        physics.initNavGrid3D({
+          grid: new Uint8Array(0),
+          width: 4,
+          height: 4,
+          depth: 4,
+          cellSize,
+        }),
+      );
+
+      requireWasmError(err, "PHYSICS3D:INVALID_NAVGRID", "physics3d_init_navgrid_3d");
+      const after = physics.findPath3D(start, goal);
+      expect(after).toEqual(before);
+      expectNearGoal(after);
     } finally {
       await handle.dispose();
     }

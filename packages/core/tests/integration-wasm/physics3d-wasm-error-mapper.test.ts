@@ -72,11 +72,9 @@ describe("physics3d WASM errors through the plugin mapper", () => {
    * These two cases call the nav-grid exports directly and put the thrown error
    * through the plugin mapper. They stay mapper tests.
    */
-  function uploadGrid(handle: RealEngineHandle, width: number): number {
+  function uploadGrid(handle: RealEngineHandle, width: number): void {
     const raw = rawPhysics(handle);
-    const ptr = handle.bridge.allocSharedBuffer(Math.max(width, 1));
-    raw.physics3d_init_navgrid_3d?.(ptr, width, 1, 1, 1, 0, 0, 0);
-    return ptr;
+    raw.physics3d_init_navgrid_3d?.(new Uint8Array(width), width, 1, 1, 1, 0, 0, 0);
   }
 
   function mapped<T>(exportName: string, run: () => T): T {
@@ -100,7 +98,7 @@ describe("physics3d WASM errors through the plugin mapper", () => {
 
       const err = caught(() =>
         mapped("physics3d_init_navgrid_3d", () =>
-          raw.physics3d_init_navgrid_3d?.(handle.bridge.allocSharedBuffer(1), 0, 1, 1, 1, 0, 0, 0),
+          raw.physics3d_init_navgrid_3d?.(new Uint8Array(1), 0, 1, 1, 1, 0, 0, 0),
         ),
       );
 

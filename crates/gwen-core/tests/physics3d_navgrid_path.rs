@@ -1,7 +1,7 @@
 //! Nav grid upload and 3D path search through the public physics3d exports.
 //!
-//! Native only. Run with `--features physics3d`. Each upload asks `alloc_shared_buffer` for
-//! the cells, copies them into that allocation when it is live, calls the export, then frees it.
+//! Native only. Run with `--features physics3d`. Each upload passes an owned copy of the
+//! cells to the export.
 //! `worst_accepted_grid_search` is ignored by default; its rustdoc in `pathfinding.rs` names the
 //! command that measures it.
 
@@ -47,7 +47,7 @@ fn upload_open(
     upload_cells(e, &cells, dims[0], dims[1], dims[2], cell_size, origin)
 }
 
-/// Copies `cells` into a live shared buffer, calls the export, then frees the buffer.
+/// Passes an owned copy of `cells` to the export.
 fn upload_cells(
     e: &mut Engine,
     cells: &[u8],
@@ -57,21 +57,16 @@ fn upload_cells(
     cell_size: f32,
     origin: [f32; 3],
 ) -> Outcome {
-    let len = cells.len();
-    let alloc_len = len.max(1);
-    let ptr = e.alloc_shared_buffer(alloc_len);
-    if ptr != 0 {
-        // SAFETY: `ptr` is the start of the live allocation just returned for `alloc_len`
-        // bytes, and `alloc_len` is at least `len`. `cells` holds `len` bytes, so the copy
-        // stays inside both.
-        unsafe {
-            std::ptr::copy_nonoverlapping(cells.as_ptr(), ptr as *mut u8, len);
-        }
-    }
-    let r = e.physics3d_init_navgrid_3d(ptr, w, h, d, cell_size, origin[0], origin[1], origin[2]);
-    e.free_shared_buffer(ptr, alloc_len)
-        .map_err(Physics3DError::Core)?;
-    r
+    e.physics3d_init_navgrid_3d(
+        cells.to_vec(),
+        w,
+        h,
+        d,
+        cell_size,
+        origin[0],
+        origin[1],
+        origin[2],
+    )
 }
 
 /// Reads the first `count` waypoints of the calling thread's path buffer.
@@ -138,8 +133,8 @@ fn zero_dimension_is_refused_and_keeps_the_previous_grid() -> Outcome {
 #[test]
 fn overflowing_cell_count_is_refused_and_keeps_the_previous_grid() -> Outcome {
     let mut e = primed()?;
-    // The buffer holds a full cap's worth of bytes, so a call that wrongly accepts a wrapped
-    // count still reads inside the allocation.
+    // The slice is one full cap. The dimensions below overflow `checked_mul` or sit above the
+    // cap, so the export refuses them and the earlier grid stays.
     let cells = vec![0u8; MAX_NAVGRID_CELLS];
     // u32::MAX cubed overflows usize on a 64-bit host. 65536 x 65536 overflows usize on wasm32
     // and is far above the cap on a 64-bit host. 2 * 2147516409 * 4294901775 is 2^64 + 1900334:
@@ -209,7 +204,13 @@ fn a_cubic_grid_at_the_cap_is_accepted_and_a_larger_one_is_refused() -> Outcome 
 fn navgrid_export_refuses_a_slice_shorter_than_the_cells() -> Outcome {
     let mut e = primed()?;
     // 3 x 1 x 3 needs 9 cells. Eight bytes is one short.
-    assert_eq!(upload(&mut e, &[0; 8], 3, 1, 3), Err(invalid_grid(3, 1, 3)));
+    let refused = upload(&mut e, &[0; 8], 3, 1, 3);
+    let message = match &refused {
+        Err(err) => err.to_string(),
+        Ok(()) => String::new(),
+    };
+    assert_eq!(refused, Err(invalid_grid(3, 1, 3)));
+    assert_eq!(message.match_indices("number of cell bytes").count(), 1);
     assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
     assert_eq!(path(3), PRIMED_PATH);
     Ok(())
@@ -229,16 +230,12 @@ fn navgrid_export_refuses_a_slice_longer_than_the_cells() -> Outcome {
 }
 
 #[test]
-fn null_pointer_with_valid_dimensions_clears_the_grid() -> Outcome {
+fn navgrid_export_refuses_an_empty_slice() -> Outcome {
     let mut e = primed()?;
-    assert_eq!(
-        e.physics3d_init_navgrid_3d(0, 3, 1, 3, 1.0, 0.0, 0.0, 0.0),
-        Ok(())
-    );
-    assert_eq!(
-        find(&mut e, [0.0; 3], [1.0; 3]),
-        Err(Physics3DError::NavGridNotInitialized)
-    );
+    // 3 x 1 x 3 needs 9 cells. An empty slice has none.
+    assert_eq!(upload(&mut e, &[], 3, 1, 3), Err(invalid_grid(3, 1, 3)));
+    assert_eq!(find(&mut e, [1.0, 0.0, 0.0], [1.0, 0.0, 2.0]), Ok(3));
+    assert_eq!(path(3), PRIMED_PATH);
     Ok(())
 }
 

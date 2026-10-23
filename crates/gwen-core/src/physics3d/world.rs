@@ -6595,15 +6595,10 @@ mod tests {
 
 #[cfg(test)]
 mod multi_engine_state {
-    use super::*;
     use crate::bindings::Engine;
-    use crate::physics3d::pathfinding::install_navgrid;
+    use crate::physics3d::Physics3DError;
 
     #[test]
-    #[allow(
-        clippy::bool_assert_comparison,
-        reason = "diff hygiene rejects a new assert! line"
-    )]
     fn two_engines_keep_separate_physics_state() {
         let mut engines = Vec::new();
         if let Ok(engine) = Engine::new(16) {
@@ -6627,24 +6622,18 @@ mod multi_engine_state {
         assert_eq!(engines[0].physics3d_get_collision_event_count(), 0);
         assert_eq!(engines[1].physics3d_get_collision_event_count(), 0);
 
-        let mut world_a = PhysicsWorld3D::new(0.0, 0.0, 0.0);
-        let world_b = PhysicsWorld3D::new(0.0, 0.0, 0.0);
-        let cells = [0u8; 8];
+        let cells = vec![0u8; 8];
         assert_eq!(
-            install_navgrid(
-                world_a.nav_grid_mut(),
-                cells.as_ptr(),
-                2,
-                2,
-                2,
-                1.0,
-                0.0,
-                0.0,
-                0.0,
-            ),
+            engines[0].physics3d_init_navgrid_3d(cells, 2, 2, 2, 1.0, 0.0, 0.0, 0.0),
             Ok(())
         );
-        assert_eq!(world_a.nav_grid().is_some(), true);
-        assert_eq!(world_b.nav_grid().is_none(), true);
+        assert_eq!(
+            engines[0].physics3d_find_path_3d(0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+            Ok(2)
+        );
+        assert_eq!(
+            engines[1].physics3d_find_path_3d(0.0, 0.0, 0.0, 1.0, 0.0, 0.0),
+            Err(Physics3DError::NavGridNotInitialized)
+        );
     }
 }

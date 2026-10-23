@@ -16,7 +16,7 @@
 //!
 //! # Usage
 //! 1. Call [`Engine::physics3d_init_navgrid_3d`] once (or whenever the grid
-//!    changes) to upload the voxel data from WASM linear memory.
+//!    changes) to store the voxel bytes on that world.
 //!    [`init_navgrid_3d`] is `pub(crate)` and is not the public call.
 //! 2. Call [`find_path_3d`] to compute a path; the return value is the waypoint count.
 //! 3. Call [`get_path_buffer_ptr_3d`] to obtain a pointer to the result buffer and
@@ -39,7 +39,7 @@ pub const MAX_PATH_NODES_3D: usize = 512;
 
 /// Largest cell count [`init_navgrid_3d`] accepts, inclusive: `64 * 64 * 64`.
 ///
-/// A grid is `width * height * depth` bytes copied into Rust-owned storage. The worst search
+/// A grid is `width * height * depth` bytes moved into Rust-owned storage. The worst search
 /// on it is an open grid with a goal outside it: A* visits every cell and finds no route.
 ///
 /// The cap was chosen from native runs of that worst search on open cubic grids, the ignored
@@ -156,46 +156,29 @@ pub(crate) fn navgrid_cell_count(
     Ok(cells)
 }
 
-/// Uploads a voxel navigation grid for 3D A* pathfinding.
+/// Stores a voxel navigation grid for 3D A* pathfinding.
 ///
 /// # Description
-/// The grid is immediately copied from the supplied pointer into Rust-owned
-/// heap storage so the caller may free the source buffer after this returns.
-/// Any previously uploaded grid is replaced.
+/// `None` clears `slot` and checks nothing. No production caller passes `None`:
+/// `Engine::physics3d_init_navgrid_3d` always passes `Some`, and the spec's `Option` is kept.
+/// `Some` moves the bytes into the slot after [`navgrid_cell_count`] accepts the dimensions
+/// and the byte length equals that count. A refusal leaves `slot` unchanged.
 ///
 /// Cell encoding: `0` = walkable, any non-zero value = solid/blocked.
 /// The flat array is indexed as `x + y*width + z*width*height`.
 ///
-/// # Arguments
-/// * `ptr`       — WASM linear-memory pointer to the flat `u8` cell array.
-/// * `width`     — Number of cells along the X axis.
-/// * `height`    — Number of cells along the Y axis.
-/// * `depth`     — Number of cells along the Z axis.
-/// * `cell_size` — World-space size of one cubic cell in metres.
-/// * `origin_x`  — World-space X coordinate of the grid origin.
-/// * `origin_y`  — World-space Y coordinate of the grid origin.
-/// * `origin_z`  — World-space Z coordinate of the grid origin.
-///
 /// # Errors
 /// Returns [`Physics3DError::InvalidNavGrid`] when a dimension is zero, when the cell count
-/// overflows, or when it is above [`MAX_NAVGRID_CELLS`]. A refusal does not touch `slot`.
-///
-/// # Safety
-///
-/// The dimensions are validated and capped. The non-test caller, `physics3d_init_navgrid_3d`,
-/// checks the address against the shared-buffer record before the call; the function itself
-/// still trusts `ptr`. A null pointer stores no grid and does not read.
+/// overflows, when it is above [`MAX_NAVGRID_CELLS`], or when the number of cell bytes differs
+/// from the cell count. A dimension error is returned before the length is compared.
+/// `None` does not return an error. A refusal does not touch `slot`.
 #[allow(
     clippy::too_many_arguments,
     reason = "matches the navgrid upload signature"
 )]
-// SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
-// `width * height * depth` bytes, a count that is validated and capped. The non-test caller,
-// `physics3d_init_navgrid_3d`, checks the address against the shared-buffer record before the
-// call; the function itself still trusts `ptr`. [U-024]
-pub(crate) unsafe fn init_navgrid_3d(
+pub(crate) fn init_navgrid_3d(
     slot: &mut Option<NavGrid3D>,
-    ptr: *const u8,
+    cells: Option<Vec<u8>>,
     width: u32,
     height: u32,
     depth: u32,
@@ -204,15 +187,18 @@ pub(crate) unsafe fn init_navgrid_3d(
     origin_y: f32,
     origin_z: f32,
 ) -> Result<(), Physics3DError> {
-    let len = navgrid_cell_count(width, height, depth)?;
-    if ptr.is_null() {
+    let Some(cells) = cells else {
         *slot = None;
         return Ok(());
+    };
+    let count = navgrid_cell_count(width, height, depth)?;
+    if cells.len() != count {
+        return Err(Physics3DError::InvalidNavGrid {
+            w: width,
+            h: height,
+            d: depth,
+        });
     }
-    // SAFETY: the null pointer is handled above and `len` is validated and capped. The non-test
-    // caller, `physics3d_init_navgrid_3d`, checks the address against the shared-buffer record
-    // before the call; the function itself still trusts `ptr`. [U-025]
-    let cells = unsafe { std::slice::from_raw_parts(ptr, len).to_vec() };
     *slot = Some(NavGrid3D {
         cells,
         width: width as usize,
@@ -224,42 +210,6 @@ pub(crate) unsafe fn init_navgrid_3d(
         origin_z,
     });
     Ok(())
-}
-
-/// Copy a voxel grid into `slot`. A refused call returns the same error as
-/// [`init_navgrid_3d`]. Any other call reads `width * height * depth` bytes from `ptr`.
-#[allow(
-    clippy::too_many_arguments,
-    reason = "matches the navgrid upload signature"
-)]
-#[cfg(test)]
-pub(crate) fn install_navgrid(
-    slot: &mut Option<NavGrid3D>,
-    ptr: *const u8,
-    width: u32,
-    height: u32,
-    depth: u32,
-    cell_size: f32,
-    origin_x: f32,
-    origin_y: f32,
-    origin_z: f32,
-) -> Result<(), Physics3DError> {
-    // SAFETY: a null pointer stores no grid and does not read. Otherwise this reads
-    // `width * height * depth` bytes, a validated and capped count. The caller of this test
-    // wrapper passes the address of a buffer that holds that many bytes. [U-026]
-    unsafe {
-        init_navgrid_3d(
-            slot, ptr, width, height, depth, cell_size, origin_x, origin_y, origin_z,
-        )
-    }
-}
-
-/// Cells copied into `grid`.
-///
-/// Test-only. The export test lives in another module and cannot see the field.
-#[cfg(test)]
-pub(crate) fn navgrid_cells(grid: &NavGrid3D) -> &[u8] {
-    &grid.cells
 }
 
 /// Find a path between two world-space points using A* on the uploaded voxel grid.
@@ -614,64 +564,67 @@ mod tests {
         );
     }
 
-    /// A null pointer stores no grid. A zero dimension is refused and leaves the slot alone.
-    #[cfg(feature = "pathfinding-3d")]
+    /// `None` clears a slot that already holds a grid.
     #[test]
-    fn unsafe_site_u024_null_or_empty_stores_no_grid() {
-        let mut slot = Some(NavGrid3D::default());
-        // SAFETY: the pointer is null, so this call takes the no-read branch.
-        let result =
-            unsafe { init_navgrid_3d(&mut slot, std::ptr::null(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0) };
+    fn init_navgrid_3d_none_clears_the_slot() {
+        let mut slot = Some(make_open_grid(1, 1, 1));
+        let result = init_navgrid_3d(&mut slot, None, 1, 1, 1, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(result, Ok(()));
         assert_eq!(slot.map(|grid| grid.cells.len()), None);
+    }
 
-        let cells = [9u8];
-        let mut slot = Some(NavGrid3D::default());
-        // SAFETY: the cell count is zero, so this call is refused before it reads `cells`.
-        let result =
-            unsafe { init_navgrid_3d(&mut slot, cells.as_ptr(), 0, 1, 1, 1.0, 0.0, 0.0, 0.0) };
+    /// `Some` moves the nine bytes into the slot.
+    #[test]
+    fn init_navgrid_3d_stores_the_nine_bytes() {
+        let cells = vec![0u8, 1, 2, 3, 4, 5, 6, 7, 8];
+        let mut slot = None;
+        let result = init_navgrid_3d(&mut slot, Some(cells.clone()), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(result, Ok(()));
+        assert_eq!(slot.map(|grid| grid.cells), Some(cells));
+    }
+
+    /// A zero dimension with `Some` bytes is refused and leaves the slot alone.
+    #[test]
+    fn init_navgrid_3d_zero_dimension_leaves_the_slot_unchanged() {
+        let mut slot = Some(make_open_grid(1, 1, 1));
+        let result = init_navgrid_3d(&mut slot, Some(vec![1, 2, 3]), 0, 1, 1, 1.0, 0.0, 0.0, 0.0);
         assert_eq!(
             result,
             Err(Physics3DError::InvalidNavGrid { w: 0, h: 1, d: 1 })
         );
-        assert_eq!(slot.map(|grid| grid.cells.len()), Some(0));
+        assert_eq!(slot.map(|grid| grid.cells), Some(vec![0]));
     }
 
-    /// `init_navgrid_3d` copies the nine bytes the caller sized.
-    #[cfg(feature = "pathfinding-3d")]
+    /// Fewer bytes than the cell count is refused and leaves the slot alone.
     #[test]
-    fn unsafe_site_u025_read_copies_cells() {
-        let cells = [0u8, 1, 2, 3, 4, 5, 6, 7, 8];
-        let mut slot = None;
-        // SAFETY: `cells` is nine bytes, the count the call names: 3 * 1 * 3.
-        let result =
-            unsafe { init_navgrid_3d(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0) };
-        assert_eq!(result, Ok(()));
-        let Some(grid) = slot else {
-            assert_eq!("", "nav grid missing");
-            return;
-        };
-        assert_eq!(grid.cells, cells);
+    fn init_navgrid_3d_refuses_fewer_bytes_than_the_cell_count() {
+        let mut slot = Some(make_open_grid(1, 1, 1));
+        let result = init_navgrid_3d(&mut slot, Some(vec![0; 8]), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(
+            result,
+            Err(Physics3DError::InvalidNavGrid { w: 3, h: 1, d: 3 })
+        );
+        assert_eq!(slot.map(|grid| grid.cells), Some(vec![0]));
     }
 
-    /// Copies a 3×1×3 grid (cell size 1, origin 0) through [`install_navgrid`].
+    /// More bytes than the cell count is refused and leaves the slot alone.
+    #[test]
+    fn init_navgrid_3d_refuses_more_bytes_than_the_cell_count() {
+        let mut slot = Some(make_open_grid(1, 1, 1));
+        let result = init_navgrid_3d(&mut slot, Some(vec![0; 10]), 3, 1, 3, 1.0, 0.0, 0.0, 0.0);
+        assert_eq!(
+            result,
+            Err(Physics3DError::InvalidNavGrid { w: 3, h: 1, d: 3 })
+        );
+        assert_eq!(slot.map(|grid| grid.cells), Some(vec![0]));
+    }
+
+    /// Stores a 3×1×3 grid (cell size 1, origin 0) through [`init_navgrid_3d`].
     #[cfg(feature = "pathfinding-3d")]
     fn upload_3x1x3(cells: &[u8; 9]) -> Option<NavGrid3D> {
         let mut slot = None;
-        install_navgrid(&mut slot, cells.as_ptr(), 3, 1, 3, 1.0, 0.0, 0.0, 0.0).ok()?;
+        init_navgrid_3d(&mut slot, Some(cells.to_vec()), 3, 1, 3, 1.0, 0.0, 0.0, 0.0).ok()?;
         slot
-    }
-
-    /// `install_navgrid` copies the nine bytes the caller sized.
-    #[cfg(feature = "pathfinding-3d")]
-    #[test]
-    fn unsafe_site_u026_install_copies_cells() {
-        let cells = [0u8, 1, 2, 3, 4, 5, 6, 7, 8];
-        let Some(grid) = upload_3x1x3(&cells) else {
-            assert_eq!("", "nav grid missing");
-            return;
-        };
-        assert_eq!(grid.cells, cells);
     }
 
     /// Reads the first `count` waypoints through the public [`get_path_buffer_ptr_3d`] export.

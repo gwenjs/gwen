@@ -170,8 +170,9 @@ pub enum Physics3DError {
     },
     /// `physics3d_find_path_3d` ran before `physics3d_init_navgrid_3d`.
     NavGridNotInitialized,
-    /// A navigation grid dimension is zero, the cell count overflows, or the cell count is above
-    /// [`MAX_NAVGRID_CELLS`](crate::physics3d::pathfinding::MAX_NAVGRID_CELLS).
+    /// A navigation grid dimension is zero, the cell count overflows, the cell count is above
+    /// [`MAX_NAVGRID_CELLS`](crate::physics3d::pathfinding::MAX_NAVGRID_CELLS), or the number of
+    /// cell bytes differs from the cell count.
     InvalidNavGrid {
         /// Width in cells.
         w: u32,
@@ -334,7 +335,7 @@ impl fmt::Display for Physics3DError {
             Self::NavGridNotInitialized => write!(f, "navigation grid is not initialized"),
             Self::InvalidNavGrid { w, h, d } => write!(
                 f,
-                "navigation grid {w}x{h}x{d} is invalid: a dimension is zero, the cell count overflows, or it is above {} cells",
+                "navigation grid {w}x{h}x{d} is invalid: a dimension is zero, the cell count overflows, it is above {} cells, or the number of cell bytes differs from the cell count",
                 crate::physics3d::pathfinding::MAX_NAVGRID_CELLS
             ),
             Self::InvalidPathRequest { reason } => match reason {
