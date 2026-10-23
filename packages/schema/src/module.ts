@@ -14,6 +14,21 @@
 import type { GwenPlugin } from "./plugin.js";
 import type { DeepPartial } from "./config.js";
 
+/**
+ * Augmentable module options merged into `defineConfig`.
+ * Each module package adds its key through declaration merging.
+ *
+ * @example
+ * ```typescript
+ * declare module "@gwenjs/schema" {
+ *   interface GwenModuleOptions {
+ *     physics2d?: { gravity: number }
+ *   }
+ * }
+ * ```
+ */
+export interface GwenModuleOptions {}
+
 // ─── AutoImport ───────────────────────────────────────────────────────────────
 
 /**
