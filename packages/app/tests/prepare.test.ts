@@ -119,7 +119,7 @@ describe("GwenApp.prepare()", () => {
         gwen.addTypeTemplate({
           filename: "physics2d.d.ts",
           getContents: () =>
-            `declare module '@gwenjs/core' { interface GwenProvides { physics2d: unknown } }`,
+            `declare module '@gwenjs/schema' { interface GwenProvides { physics2d: unknown } }`,
         });
       },
     });
