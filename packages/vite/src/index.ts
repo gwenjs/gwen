@@ -33,12 +33,11 @@ import { spawnSync, spawn, type ChildProcess } from "node:child_process";
 import type { Plugin, ViteDevServer } from "vite";
 import { resolveGwenConfig, GwenApp } from "@gwenjs/app/resolve";
 import type { PluginDeclaration, GwenModule } from "@gwenjs/schema";
-import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+import type { AutoImport } from "@gwenjs/kit";
 import {
   gwenLocalPluginsPlugin,
   gwenLocalModulesPlugin,
   gwenAutoImportsPlugin,
-  gwenTypesPlugin,
   gwenDevStripPlugin,
 } from "./plugins/index.js";
 import {
@@ -189,7 +188,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
   let _declarations: PluginDeclaration[] = [];
   let _modulesLoaded = false;
   const _sharedAutoImports: AutoImport[] = [];
-  const _sharedTypeTemplates: GwenTypeTemplate[] = [];
 
   function log(msg: string) {
     // eslint-disable-next-line no-console
@@ -443,7 +441,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
       await app.setupModules(gwenConfig, moduleLoader);
       _declarations = app.pluginDeclarations;
       _sharedAutoImports.push(...app.autoImports);
-      _sharedTypeTemplates.push(...app.typeTemplates);
       _moduleVitePlugins.push(
         ...(app.vitePlugins as unknown as Plugin[]), // boundary: app VitePlugin is not vite's Plugin #77
       );
@@ -694,7 +691,6 @@ export function gwen(options: GwenPluginOptions = {}): Plugin[] {
     mainPlugin,
     gwenDevStripPlugin(),
     gwenAutoImportsPlugin({ autoImports: _sharedAutoImports }),
-    gwenTypesPlugin({ typeTemplates: _sharedTypeTemplates }),
     gwenLocalPluginsPlugin({}),
     gwenLocalModulesPlugin({}),
   ];

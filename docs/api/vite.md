@@ -44,7 +44,6 @@ export default defineConfig({
 | `wasm.wasmPath` | `string` | — | Override the resolved WASM file path. |
 | `wasm.hmr` | `boolean` | `true` | Enable WASM hot-module replacement in dev. |
 | `autoImports` | `AutoImport[]` | `[]` | Additional auto-import entries injected into the virtual module. |
-| `typeTemplates` | `GwenTypeTemplate[]` | `[]` | Additional `.d.ts` template entries. |
 | `gwenDir` | `string` | `'.gwen'` | Directory where generated files (dts, virtual modules) are written. |
 | `dts` | `boolean` | `true` | Emit a `gwen.d.ts` type declaration file. |
 | `actors.dir` | `string` | `'src/actors'` | Root directory scanned for actor files. |
@@ -255,7 +254,6 @@ interface GwenViteOptions {
     hmr?: boolean
   }
   autoImports?: AutoImport[]
-  typeTemplates?: GwenTypeTemplate[]
   gwenDir?: string
   dts?: boolean
   actors?: {

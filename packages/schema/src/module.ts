@@ -59,37 +59,6 @@ export interface AutoImport {
   as?: string;
 }
 
-// ─── GwenTypeTemplate ─────────────────────────────────────────────────────────
-
-/**
- * A type template that generates a `.d.ts` file inside the `.gwen/` directory.
- *
- * `getContents()` is called during `gwen prepare` to produce declaration files
- * that power IDE auto-complete and type checking for game code that relies on
- * services or hooks added by a GWEN module.
- *
- * @example
- * ```ts
- * import type { GwenTypeTemplate } from '@gwenjs/schema'
- *
- * const template: GwenTypeTemplate = {
- *   filename: 'types/physics2d.d.ts',
- *   getContents() {
- *     return `declare module '@gwenjs/core' {
- *       interface GwenProvides { physics2d: Physics2DAPI }
- *     }`
- *   },
- * }
- * ```
- *
- */
-export interface GwenTypeTemplate {
-  /** Relative path inside `.gwen/`, e.g. `'types/physics2d.d.ts'`. */
-  filename: string;
-  /** Called during `gwen prepare` to produce the file contents. */
-  getContents(): string;
-}
-
 // ─── VitePlugin / ViteUserConfig ─────────────────────────────────────────────
 
 /**
@@ -264,36 +233,6 @@ export interface GwenKit {
   extendViteConfig(extender: (config: ViteUserConfig) => Partial<ViteUserConfig>): void;
 
   /**
-   * Registers a type template. `getContents()` is called during `gwen prepare`
-   * to generate a `.d.ts` file inside the `.gwen/` directory.
-   *
-   * @param template - Template definition with filename and content factory.
-   * @example
-   * gwen.addTypeTemplate({
-   *   filename: 'types/physics2d.d.ts',
-   *   getContents: () => `declare module '@gwenjs/core' { ... }`,
-   * })
-   */
-  addTypeTemplate(template: GwenTypeTemplate): void;
-
-  /**
-   * Registers a TypeScript declaration snippet to be aggregated into
-   * `.gwen/types/module-augments.d.ts` during `gwen prepare`.
-   *
-   * Use this to extend `GwenProvides` or `GwenRuntimeHooks` without creating
-   * a separate type-template file.
-   *
-   * @param snippet - A valid TypeScript declaration string.
-   * @example
-   * gwen.addModuleAugment(`
-   *   declare module '@gwenjs/core' {
-   *     interface GwenProvides { myService: MyServiceAPI }
-   *   }
-   * `)
-   */
-  addModuleAugment(snippet: string): void;
-
-  /**
    * Subscribes to a build-time hook.
    *
    * @param event - A {@link GwenBuildHooks} event name.
@@ -354,7 +293,7 @@ export interface GwenModuleDefinition<Options extends object = Record<string, un
    * `gwen build`, or `gwen prepare`.
    *
    * Use the {@link GwenKit} argument to register plugins, auto-imports,
-   * Vite plugins, and type templates.
+   * and Vite plugins.
    *
    * @param options - Resolved options (user values merged with `defaults`).
    * @param gwen - The build-time kit API.

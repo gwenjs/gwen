@@ -94,13 +94,13 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 
 Values: `GwenComposableError`, `GwenContextError`, `GwenContextErrorCodes`, `_setCurrentScope`, `getCurrentScope`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
-Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenContextErrorCode`, `GwenTypeTemplate`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
 
 ### `./plugin`
 
-Values: `createEntityId`, `definePlugin`, `definePluginTypes`, `satisfiesPluginContract`, `unpackEntityId`
+Values: `createEntityId`, `definePlugin`, `satisfiesPluginContract`, `unpackEntityId`
 
-Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`, `PluginTypesOptions`
+Types: `ComponentType`, `EntityId`, `GwenPlugin`, `GwenPluginFactory`, `GwenProvides`, `GwenRuntimeHooks`, `PluginErrorContext`
 
 ### `./module`
 

@@ -11,18 +11,18 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `GwenTypeTemplate`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`
+**Exports:** `AutoImport`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`
 
 **Usage:**
 ```ts
-import type { AutoImport, GwenTypeTemplate, DeepPartial } from '@gwenjs/kit'
+import type { AutoImport, DeepPartial } from '@gwenjs/kit'
 ```
 
 ## `@gwenjs/kit/plugin`
 
 Plugin authoring utilities and schema type re-exports.
 
-**Exports:** `definePlugin`, `satisfiesPluginContract`, `definePluginTypes`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
+**Exports:** `definePlugin`, `satisfiesPluginContract`, `GwenPluginFactory` (type), plus schema re-exports: `GwenPlugin`, `GwenProvides`, `GwenRuntimeHooks`, `EntityId`, `ComponentType`, `PluginErrorContext`, `createEntityId`, `unpackEntityId`.
 
 **Usage:**
 ```ts
@@ -78,7 +78,7 @@ function defineGwenModule<Options extends object = Record<string, unknown>>(
 ): GwenModule<Options>
 ```
 
-**Description.** Defines a GWEN module for build-time configuration. A module registers plugins, auto-imports, Vite extensions, and type templates. It is referenced by name in `gwen.config.ts`.
+**Description.** Defines a GWEN module for build-time configuration. A module registers plugins, auto-imports, and Vite extensions. It is referenced by name in `gwen.config.ts`.
 
 **Parameters:**
 | Param | Type | Description |
@@ -131,8 +131,6 @@ The build-time API passed to `setup()`:
 | `addAutoImports(imports)` | Declare auto-imported utilities |
 | `addVitePlugin(plugin)` | Add a Vite plugin to the build |
 | `extendViteConfig(fn)` | Extend Vite configuration |
-| `addTypeTemplate(template)` | Generate `.d.ts` files |
-| `addModuleAugment(snippet)` | Add TypeScript declarations inline |
 | `hook(event, fn)` | Subscribe to a build-time event |
 | `options` | Access resolved config options |
 
@@ -155,14 +153,5 @@ interface AutoImport {
   name: string   // Export name from the source module
   from: string   // npm package or path
   as?: string    // Override the name used in auto-import
-}
-```
-
-#### GwenTypeTemplate
-
-```ts
-interface GwenTypeTemplate {
-  filename: string         // Path inside .gwen/, e.g. 'types/audio.d.ts'
-  getContents(): string    // Returns the .d.ts content
 }
 ```

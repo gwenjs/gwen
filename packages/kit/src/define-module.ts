@@ -15,7 +15,6 @@
 export type {
   DeepPartial,
   AutoImport,
-  GwenTypeTemplate,
   VitePlugin,
   ViteUserConfig,
   GwenBuildHooks,
@@ -29,7 +28,7 @@ import type { GwenModuleDefinition, GwenModule } from "@gwenjs/schema";
 
 /**
  * Defines a GWEN module — a build-time extension that registers runtime
- * plugins, auto-imports, Vite extensions, and type templates.
+ * plugins, auto-imports, and Vite extensions.
  *
  * Modules run in Node.js during `gwen dev`, `gwen build`, or `gwen prepare`.
  * They are the primary way to add capabilities to a GWEN project.
@@ -48,10 +47,6 @@ import type { GwenModuleDefinition, GwenModule } from "@gwenjs/schema";
  *   async setup(options, gwen) {
  *     gwen.addPlugin(createPhysics2DPlugin(options))
  *     gwen.addAutoImports([{ name: 'usePhysics2D', from: '@gwenjs/physics2d' }])
- *     gwen.addTypeTemplate({
- *       filename: 'types/physics2d.d.ts',
- *       getContents: () => `declare module '@gwenjs/core' { ... }`,
- *     })
  *   },
  * })
  * ```

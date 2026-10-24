@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { defineGwenModule } from "@gwenjs/kit/module";
 import type { GwenModule } from "@gwenjs/kit/module";
-import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+import type { AutoImport } from "@gwenjs/kit";
 import type { GwenPlugin } from "@gwenjs/core";
 import { GwenApp } from "../src/app.js";
 import { resolveConfig } from "../src/config.js";
@@ -283,9 +283,9 @@ describe("GwenApp.setupModules — plugin collection", () => {
   });
 });
 
-// ─── GwenApp — auto-imports & type templates ──────────────────────────────────
+// ─── GwenApp — auto-imports ───────────────────────────────────────────────────
 
-describe("GwenApp.setupModules — auto-imports and type templates", () => {
+describe("GwenApp.setupModules — auto-imports", () => {
   it("accumulates auto-imports from multiple modules", async () => {
     const importA: AutoImport = { name: "usePhysics", from: "@test/physics" };
     const importB: AutoImport = { name: "useInput", from: "@test/input" };
@@ -312,27 +312,6 @@ describe("GwenApp.setupModules — auto-imports and type templates", () => {
     // + 2 user imports = ~41 total
     expect(app.autoImports).toContainEqual(importA);
     expect(app.autoImports).toContainEqual(importB);
-  });
-
-  it("accumulates type templates from modules", async () => {
-    const template: GwenTypeTemplate = {
-      filename: "types/test.d.ts",
-      getContents: () => `declare module '@test/mod' {}`,
-    };
-
-    const mod = defineGwenModule({
-      meta: { name: "@test/type-mod" },
-      setup(_opts, gwen) {
-        gwen.addTypeTemplate(template);
-      },
-    });
-
-    const config = resolveConfig({ modules: ["@test/type-mod"] });
-    const app = new GwenApp();
-    await app.setupModules(config, makeLoader({ "@test/type-mod": mod }));
-
-    expect(app.typeTemplates).toHaveLength(1);
-    expect(app.typeTemplates[0]).toBe(template);
   });
 
   it("gwen.options exposes the resolved config", async () => {

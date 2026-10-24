@@ -9,7 +9,6 @@ type _0 = [
   Root.DeepPartial<never>,
   Root.GwenConfig,
   Root.GwenContextErrorCode,
-  Root.GwenTypeTemplate,
   Root.MergePluginsPrefabExtensions<never>,
   Root.MergePluginsSceneExtensions<never>,
   Root.MergePluginsUIExtensions<never>,
@@ -24,7 +23,6 @@ type _1 = [
   T_plugin.GwenProvides,
   T_plugin.GwenRuntimeHooks,
   T_plugin.PluginErrorContext,
-  T_plugin.PluginTypesOptions,
 ];
 type _2 = [
   T_module.GwenBaseConfig,

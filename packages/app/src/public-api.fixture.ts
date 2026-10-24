@@ -11,7 +11,6 @@ type _0 = [
   Root.GwenModuleDefinition,
   Root.GwenModuleEntry,
   Root.GwenModuleOptions,
-  Root.GwenTypeTemplate,
   Root.GwenUserConfig,
   Root.ResolvedGwenConfig,
 ];

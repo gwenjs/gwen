@@ -211,7 +211,7 @@ L'ajout ou la suppression d'un fichier dans `src/modules/` déclenche un recharg
 
 ## API à la compilation (GwenKit)
 
-Le paramètre `gwen` passé à `setup()` est l'API à la compilation. Utilisez-le pour configurer les plugins, les auto-imports, les extensions Vite et les modèles de type.
+Le paramètre `gwen` passé à `setup()` est l'API à la compilation. Utilisez-le pour configurer les plugins, les auto-imports et les extensions Vite.
 
 ### Ajouter des plugins
 
@@ -270,36 +270,7 @@ gwen.addVitePlugin({
 })
 ```
 
-### Modèles de type
-
-Générez les fichiers de déclaration TypeScript pour l'auto-complétion de l'IDE et la vérification de type :
-
-```ts
-gwen.addTypeTemplate({
-  filename: 'types/my-service.d.ts',
-  getContents() {
-    return `declare module '@gwenjs/core' {
-      interface GwenProvides {
-        myService: MyServiceAPI
-      }
-    }`
-  },
-})
-```
-
-### Augmentation de module
-
-Ajoutez les déclarations TypeScript en ligne sans créer un fichier séparé :
-
-```ts
-gwen.addModuleAugment(`
-  declare module '@gwenjs/core' {
-    interface GwenProvides {
-      myService: { greet(): string }
-    }
-  }
-`)
-```
+Les services et les hooks sont typés par fusion de déclaration statique dans le source du paquet (comme le fait `packages/physics2d/src/augment.ts`), et non générés par le module.
 
 ## Exemple du monde réel : Module de score
 
@@ -308,6 +279,17 @@ Voici un module complet qui fournit un système de suivi des scores :
 ```ts
 import { defineGwenModule } from '@gwenjs/kit/module'
 import { definePlugin } from '@gwenjs/kit/plugin'
+
+declare module '@gwenjs/schema' {
+  interface GwenProvides {
+    score: {
+      get(): number
+      add(amount: number): void
+      set(value: number): void
+      reset(): void
+    }
+  }
+}
 
 interface ScoreModuleOptions {
   initialScore?: number
@@ -352,19 +334,6 @@ export default defineGwenModule<ScoreModuleOptions>({
     gwen.addAutoImports([
       { name: 'useScore', from: '@my-scope/score' },
     ])
-
-    gwen.addModuleAugment(`
-      declare module '@gwenjs/core' {
-        interface GwenProvides {
-          score: {
-            get(): number
-            add(amount: number): void
-            set(value: number): void
-            reset(): void
-          }
-        }
-      }
-    `)
   },
 })
 ```
@@ -460,8 +429,6 @@ export default defineGwenModule<Options>({
 | `addAutoImports(imports)` | Déclarez les utilitaires auto-importés |
 | `addVitePlugin(plugin)` | Ajoutez un plugin Vite à la compilation |
 | `extendViteConfig(extender)` | Étendez la configuration Vite |
-| `addTypeTemplate(template)` | Générez les fichiers `.d.ts` |
-| `addModuleAugment(snippet)` | Ajouter les déclarations TypeScript en ligne |
 | `hook(event, fn)` | S'abonner aux événements à la compilation |
 | `options` (propriété) | Accédez aux options de configuration résolues |
 
@@ -472,14 +439,5 @@ interface AutoImport {
   name: string          // Export name from the module
   from: string          // NPM package or path
   as?: string           // Override name in auto-import
-}
-```
-
-### GwenTypeTemplate
-
-```ts
-interface GwenTypeTemplate {
-  filename: string      // Path inside `.gwen/`, e.g. 'types/my-service.d.ts'
-  getContents(): string // Content factory called during `gwen prepare`
 }
 ```

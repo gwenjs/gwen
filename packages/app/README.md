@@ -74,7 +74,7 @@ export default defineConfig({
 
 Values: `createScreenPlugin`, `createViewportsPlugin`, `defineConfig`, `defineGwenModule`
 
-Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenTypeTemplate`, `GwenUserConfig`, `ResolvedGwenConfig`
+Types: `AutoImport`, `GwenBuildHooks`, `GwenKit`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenUserConfig`, `ResolvedGwenConfig`
 
 ### `./resolve`
 

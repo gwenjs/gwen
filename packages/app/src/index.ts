@@ -45,4 +45,4 @@ export type {
  */
 export { defineGwenModule } from "@gwenjs/kit/module";
 export type { GwenModule, GwenModuleDefinition, GwenKit } from "@gwenjs/kit/module";
-export type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+export type { AutoImport } from "@gwenjs/kit";

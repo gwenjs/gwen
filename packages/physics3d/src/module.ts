@@ -13,7 +13,6 @@
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
-import { definePluginTypes } from "@gwenjs/kit/plugin";
 import type { VitePlugin } from "@gwenjs/kit";
 import { Physics3DPlugin } from "./index";
 import type { Physics3DConfig } from "./types";
@@ -66,21 +65,5 @@ export default defineGwenModule<Physics3DConfig>({
       ...(options.vite?.debug !== undefined ? { debug: options.vite.debug } : {}),
     };
     kit.addVitePlugin(physics3dVitePlugin(viteOptions) as unknown as VitePlugin);
-
-    kit.addTypeTemplate({
-      filename: "physics3d.d.ts",
-      getContents: () =>
-        definePluginTypes({
-          imports: ["import type { Physics3DAPI } from '@gwenjs/physics3d'"],
-          provides: { physics3d: "Physics3DAPI" },
-          hooks: {
-            "physics3d:step": "(stepDt: number) => void",
-            "physics3d:collisionStart": "(entityA: EntityId, entityB: EntityId) => void",
-            "physics3d:collisionEnd": "(entityA: EntityId, entityB: EntityId) => void",
-            "physics3d:body-disabled":
-              "(payload: { readonly entity: EntityId; readonly reason: 'non-finite' | 'out-of-bounds' | 'velocity' }) => void",
-          },
-        }),
-    });
   },
 });

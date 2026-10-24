@@ -308,13 +308,6 @@ export default defineGwenModule<MyTechRendererPluginOptions>({
     gwen.addAutoImports([
       { name: 'useMyTechObject', from: '@gwenjs/renderer-mytech' },
     ])
-    gwen.addModuleAugment(`
-      declare module '@gwenjs/core' {
-        interface GwenProvides {
-          'renderer:mytech': ReturnType<typeof import('@gwenjs/renderer-mytech').MyTechRenderer>
-        }
-      }
-    `)
   },
 })
 ```

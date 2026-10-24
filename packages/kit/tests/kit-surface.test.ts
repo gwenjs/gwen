@@ -16,9 +16,7 @@ const KEPT_NAMES = {
   plugin: [
     "definePlugin",
     "satisfiesPluginContract",
-    "definePluginTypes",
     "GwenPluginFactory",
-    "PluginTypesOptions",
     "GwenPlugin",
     "GwenProvides",
     "GwenRuntimeHooks",
@@ -31,7 +29,7 @@ const KEPT_NAMES = {
 } as const;
 
 const REMOVED_NAMES = {
-  kit: ["createErrorBus", "createChildScope"],
+  kit: ["createErrorBus", "createChildScope", "GwenTypeTemplate"],
   plugin: [
     "GwenEngine",
     "GwenEngineOptions",
@@ -41,6 +39,8 @@ const REMOVED_NAMES = {
     "WasmModuleHandle",
     "GwenHookable",
     "EngineErrorBus",
+    "definePluginTypes",
+    "PluginTypesOptions",
   ],
 } as const;
 

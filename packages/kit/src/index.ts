@@ -5,13 +5,7 @@
  * For module authoring:  import from '@gwenjs/kit/module'
  */
 // Types sourced from @gwenjs/schema — re-exported here for convenience.
-export type {
-  AutoImport,
-  GwenTypeTemplate,
-  VitePlugin,
-  ViteUserConfig,
-  DeepPartial,
-} from "@gwenjs/schema";
+export type { AutoImport, VitePlugin, ViteUserConfig, DeepPartial } from "@gwenjs/schema";
 
 export type {
   GwenConfig,

@@ -2,13 +2,13 @@
  * @file RFC-004 — GwenApp orchestrator class
  *
  * GwenApp collects registrations from modules (plugins, auto-imports,
- * Vite plugins, type templates) and fires build-time hooks via `hookable`.
+ * Vite plugins) and fires build-time hooks via `hookable`.
  *
  * @internal — not part of the public API surface. Use `@gwenjs/app` exports.
  */
 
 import type { GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
-import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
+import type { AutoImport, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
 import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";
 import { writeFileSync, mkdirSync, readFileSync, existsSync } from "node:fs";
@@ -40,7 +40,7 @@ const RESERVED_KEYS = new Set([
 
 /**
  * Internal orchestrator that runs module setup and accumulates build-time
- * registrations (plugins, auto-imports, Vite extensions, type templates).
+ * registrations (plugins, auto-imports, Vite extensions).
  *
  * Instantiate once per build and call {@link GwenApp.setupModules} to process
  * the project configuration.
@@ -59,9 +59,6 @@ export class GwenApp {
   private readonly _autoImports: AutoImport[] = [];
   private readonly _vitePlugins: VitePlugin[] = [];
   private readonly _viteConfigExtenders: Array<(c: ViteUserConfig) => Partial<ViteUserConfig>> = [];
-  private readonly _typeTemplates: GwenTypeTemplate[] = [];
-  /** Collected module-augmentation snippets (e.g. `GwenProvides` / `GwenRuntimeHooks` extensions). */
-  private readonly _moduleAugments: string[] = [];
   /** Collected path-based plugin declarations (used by @gwenjs/vite for static imports). */
   private readonly _pluginDeclarations: PluginDeclaration[] = [];
 
@@ -103,14 +100,6 @@ export class GwenApp {
    */
   get pluginDeclarations(): PluginDeclaration[] {
     return [...this._pluginDeclarations];
-  }
-
-  /**
-   * Returns a snapshot of all type templates registered by modules.
-   * Each call returns a fresh array — safe to mutate.
-   */
-  get typeTemplates(): GwenTypeTemplate[] {
-    return [...this._typeTemplates];
   }
 
   // ── setupModules ─────────────────────────────────────────────────────────────
@@ -262,7 +251,6 @@ export class GwenApp {
    * Creates:
    * - `.gwen/types/auto-imports.d.ts` — global stubs for auto-imported composables
    * - `.gwen/types/env.d.ts` — `virtual:gwen/*` module types
-   * - `.gwen/types/<filename>` — per-module type templates (from `addTypeTemplate`)
    * - `.gwen/tsconfig.json` — TypeScript project config referencing all generated types
    *
    * Idempotent: uses `writeIfChanged` so unchanged files are not rewritten
@@ -287,24 +275,10 @@ export class GwenApp {
     // 1. auto-imports.d.ts
     writeIfChanged(join(typesDir, "auto-imports.d.ts"), generateAutoImportsDts(this._autoImports));
 
-    // 2. per-module type templates
-    for (const template of this._typeTemplates) {
-      const dest = join(typesDir, template.filename);
-      // Ensure sub-directories exist (e.g. 'types/physics2d.d.ts')
-      mkdirSync(join(dest, ".."), { recursive: true });
-      writeIfChanged(dest, template.getContents());
-    }
-
-    // 3. env.d.ts
+    // 2. env.d.ts
     writeIfChanged(join(typesDir, "env.d.ts"), GWEN_ENV_DTS);
 
-    // 4. module-augments.d.ts — collected GwenProvides / GwenRuntimeHooks augmentations
-    writeIfChanged(
-      join(typesDir, "module-augments.d.ts"),
-      generateModuleAugmentsDts(this._moduleAugments),
-    );
-
-    // 5. .gwen/tsconfig.json
+    // 3. .gwen/tsconfig.json
     writeIfChanged(join(gwenDir, "tsconfig.json"), generateGwenTsConfig());
   }
 
@@ -372,29 +346,6 @@ export class GwenApp {
       /** Queues a Vite config extender function. */
       extendViteConfig(extender: (c: ViteUserConfig) => Partial<ViteUserConfig>): void {
         app._viteConfigExtenders.push(extender);
-      },
-
-      /** Registers a type template for `gwen prepare`. */
-      addTypeTemplate(template: GwenTypeTemplate): void {
-        app._typeTemplates.push(template);
-      },
-
-      /**
-       * Registers a TypeScript snippet that will be aggregated into
-       * `.gwen/types/module-augments.d.ts`.  Use this to extend
-       * `GwenProvides` or `GwenRuntimeHooks` from a module.
-       *
-       * @example
-       * ```typescript
-       * kit.addModuleAugment(`
-       *   declare module '@gwenjs/core' {
-       *     interface GwenProvides { physics2d: Physics2DAPI }
-       *   }
-       * `)
-       * ```
-       */
-      addModuleAugment(snippet: string): void {
-        app._moduleAugments.push(snippet);
       },
 
       /** Subscribes to a build-time hook. */
@@ -615,25 +566,4 @@ function generateGwenTsConfig(): string {
       2,
     ) + "\n"
   );
-}
-
-/**
- * Generates `.gwen/types/module-augments.d.ts` which aggregates all
- * `GwenProvides` / `GwenRuntimeHooks` augmentations registered by modules
- * via `kit.addModuleAugment(snippet)`.
- *
- * @param snippets - TypeScript declaration snippets collected from all modules.
- */
-function generateModuleAugmentsDts(snippets: string[]): string {
-  const header = [
-    "// Generated by gwen prepare — do not edit",
-    "// Aggregated GwenProvides / GwenRuntimeHooks module augmentations.",
-    "",
-  ];
-
-  if (snippets.length === 0) {
-    return [...header, "export {};\n"].join("\n");
-  }
-
-  return [...header, ...snippets.map((s) => s.trim()), "", "export {};\n"].join("\n");
 }

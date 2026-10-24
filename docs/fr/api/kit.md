@@ -177,16 +177,3 @@ const autoImports: AutoImport[] = [
   { name: 'defineSystem', from: '@gwenjs/core' }
 ];
 ```
-
-### GwenTypeTemplate
-
-**Signature:**
-```ts
-interface GwenTypeTemplate {
-  name: string;
-  path: string;
-  description?: string;
-}
-```
-
-**Description.** Modèle pour les définitions de type qui peuvent être générées automatiquement lors du build.
