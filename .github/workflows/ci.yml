@@ -590,36 +590,30 @@ jobs:
     runs-on: ${{ matrix.runner }}
     needs: [changes]
     if: needs.changes.outputs.miri_full == 'true'
-    # Each leg sets its own ceiling in the matrix: 2 * ceil(job wall s / 60), from workflow_dispatch run 39978760134.
+    # Each leg sets its own ceiling in the matrix: 2 * ceil(job wall s / 60), from workflow_dispatch run 40025452025.
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Job 120500269534 wall 2228s, 2026-10-23T15:30:02Z to 2026-10-23T16:07:10Z. 2 * ceil(2228/60) = 76.
+          # Job 120660409859 wall 2440s, 2026-10-23T21:15:48Z to 2026-10-23T21:56:28Z. 2 * ceil(2440/60) = 82.
           - leg: core
             runner: ubuntu-latest
-            timeout: 76
+            timeout: 82
             miriflags: ""
             features: ""
             skip: ""
-          # Rapier 0.22: x86_64 stops on llvm.x86.sse.stmxcsr (rapier2d-0.22.0/src/utils.rs:523, run 39946499120); aarch64 Stacked Borrows rejects Rapier IndexMut2 (utils.rs:629-632). Tree Borrows here only until #286 P-RAP-3a / P-RAP-5 (Rapier 0.36.1 removes both; the legs then move to x86_64).
-          # The core leg runs archetype_limit_leaves_the_store_unchanged and new_rejects_zero_and_the_limit_plus_one. The physics legs skip them (about 35 min per leg). Same two names as rust-miri, "Miri archetype storage without the two long tests".
-          # Job 120500269898 wall 6428s, 2026-10-23T15:30:05Z to 2026-10-23T17:17:13Z. 2 * ceil(6428/60) = 216.
+          # Rapier 0.22: x86_64 stops on llvm.x86.sse.stmxcsr (rapier2d-0.22.0/src/utils.rs:523, run 39946499120); aarch64 Stacked Borrows rejects Rapier IndexMut2 (utils.rs:629-632). Tree Borrows on this leg only until #286 P-RAP-3a / P-RAP-5 (Rapier 0.36.1 removes both; the leg then moves to x86_64).
+          # The core leg runs archetype_limit_leaves_the_store_unchanged and new_rejects_zero_and_the_limit_plus_one. The physics2d leg skips them (about 35 min). Same two names as rust-miri, "Miri archetype storage without the two long tests".
+          # Job 120660410101 wall 7710s, 2026-10-23T21:15:51Z to 2026-10-23T23:24:21Z. 2 * ceil(7710/60) = 258.
           - leg: physics2d
             runner: ubuntu-24.04-arm
-            timeout: 216
+            timeout: 258
             miriflags: -Zmiri-tree-borrows
             features: --features physics2d
             skip: -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
           # physics2d is expected red on velocity_far_above_the_clamp_keeps_speed_and_direction until the follow-up tolerance fix (Miri perturbs libm hypot). It fails under Miri with 400.00012 instead of 400.0 (local aarch64 Tree Borrows run).
-          # NOT MEASURED. Job 120500269625 in run 39978760134 was cancelled at its 240 min ceiling (15:30:02Z to 19:30:30Z) while running physics3d_cc_joint_results, after physics3d_cc_joint_probe took 8718s and failed on "cc move vx huge" and "cc push dynamic dt huge". 360 is the GitHub maximum for a hosted job; replace it with 2 * ceil(wall/60) from a completed dispatch.
-          - leg: physics3d
-            runner: ubuntu-24.04-arm
-            timeout: 360
-            miriflags: -Zmiri-tree-borrows
-            features: --features physics3d
-            skip: -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
+          # No physics3d leg. Two dispatches could not finish it: job 120500269625 (run 39978760134) was cancelled at its 240 min ceiling, job 120660409864 (run 40025452025) at the 360 min hosted maximum. physics3d_cc_joint_probe takes 8718s and fails on "cc move vx huge" and "cc push dynamic dt huge"; physics3d_cc_joint_results then runs for hours and fails on add_joint_refuses_a_non_finite_value_and_consumes_nothing. The binaries after it were never reached. Not proven here; follow-up ticket.
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
       MIRIFLAGS: ${{ matrix.miriflags }}
