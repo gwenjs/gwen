@@ -97,24 +97,6 @@ type DeepPartial<T> = {
 
 **Description.** Recursively makes all properties optional.
 
-### EngineAPI
-
-**Signature:**
-```ts
-interface EngineAPI {
-  name: string;
-  version: string;
-  deltaTime: number;
-  isRunning: boolean;
-  start(): void;
-  stop(): void;
-  update(dt: number): void;
-  render(): void;
-}
-```
-
-**Description.** Core engine runtime interface.
-
 ## Configuration Functions
 
 ### defaultOptions()
@@ -196,71 +178,3 @@ function assertModuleFirstInput(input: GwenConfigInput): void
 ```ts
 assertModuleFirstInput(input);
 ```
-
-## Lifecycle Hooks
-
-### EngineLifecycleHooks
-
-**Signature:**
-```ts
-interface EngineLifecycleHooks {
-  'engine:init': GwenHookHandler;
-  'engine:start': GwenHookHandler;
-  'engine:stop': GwenHookHandler;
-  'engine:update': GwenHookHandler<{ dt: number }>;
-  'engine:render': GwenHookHandler;
-}
-```
-
-**Description.** Engine lifecycle hooks for plugins.
-
-### PluginLifecycleHooks
-
-**Signature:**
-```ts
-interface PluginLifecycleHooks {
-  'plugin:load': GwenHookHandler;
-  'plugin:setup': GwenHookHandler;
-  'plugin:unload': GwenHookHandler;
-}
-```
-
-**Description.** Plugin lifecycle hooks.
-
-### EntityLifecycleHooks
-
-**Signature:**
-```ts
-interface EntityLifecycleHooks {
-  'entity:create': GwenHookHandler<{ entity: Entity }>;
-  'entity:destroy': GwenHookHandler<{ entity: Entity }>;
-}
-```
-
-**Description.** Entity lifecycle hooks.
-
-### ComponentLifecycleHooks
-
-**Signature:**
-```ts
-interface ComponentLifecycleHooks<EntityId = unknown> {
-  'component:add': (id: EntityId, type: string, data: unknown) => void;
-  'component:remove': (id: EntityId, type: string) => void;
-  'component:removed': (id: EntityId, type: string) => void;
-  'component:update': (id: EntityId, type: string, data: unknown) => void;
-}
-```
-
-**Description.** Component lifecycle hooks.
-
-### SceneLifecycleHooks
-
-**Signature:**
-```ts
-interface SceneLifecycleHooks {
-  'scene:enter': GwenHookHandler<{ scene: string }>;
-  'scene:exit': GwenHookHandler<{ scene: string }>;
-}
-```
-
-**Description.** Scene lifecycle hooks.

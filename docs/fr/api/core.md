@@ -916,12 +916,12 @@ tween.play();
 
 **Signature:**
 ```ts
-function createGwenHooks(): GwenHooks
+function createGwenHooks(): GwenHookable<GwenRuntimeHooks>
 ```
 
-**Description.** Crée une instance de hooks pour le développement de plugins avancés.
+**Description.** Crée une instance de hooks pour le développement de plugins avancés. Elle s'importe depuis `@gwenjs/core/internal`. Le paramètre de type `H` (une table de hooks, `GwenRuntimeHooks` par défaut) permet de typer une table personnalisée.
 
-**Retourne:** `GwenHooks`
+**Retourne:** `GwenHookable<H>` — par défaut `GwenHookable<GwenRuntimeHooks>`.
 
 ### useService(name)
 

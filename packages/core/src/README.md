@@ -45,7 +45,6 @@ src/
 │                                  # - setupGwen(), getWasmBridge()
 │
 ├── api/                           # High-Level APIs
-│   ├── api.ts                     # ServiceLocator, EngineAPI
 │   ├── scene.ts                   # SceneManager, defineScene()
 │   └── ui.ts                      # UIManager, defineUI()
 │

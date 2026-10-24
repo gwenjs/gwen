@@ -13,18 +13,7 @@ export type {
   GwenOptions,
   GwenConfigInput,
   DeepPartial,
-  EngineAPI,
 } from "./config";
-
-export type {
-  EngineLifecycleHooks,
-  PluginLifecycleHooks,
-  EntityLifecycleHooks,
-  ComponentLifecycleHooks,
-  SceneLifecycleHooks,
-  ExtensionLifecycleHooks,
-  GwenHooks,
-} from "./hooks";
 
 // ─── Runtime ─────────────────────────────────────────────────────────────────
 export { defaultOptions, resolveConfig } from "./defaults";

@@ -29,7 +29,7 @@ export type {
 } from "./schema";
 
 export { useHook, onCleanup, withCleanup, defineHooks } from "./hooks";
-export type { GwenHooks, GwenHookable, HookHandlerMap, InferHooks } from "./hooks";
+export type { GwenHookable, HookHandlerMap, InferHooks } from "./hooks";
 
 export { emit } from "./hooks";
 

@@ -12,56 +12,46 @@
  * const hooks = createGwenHooks();
  *
  * // Register a handler
- * hooks.hook('entity:create', (id) => {
- *   console.log('Entity created:', id);
+ * hooks.hook('engine:start', () => {
+ *   console.log('Engine started');
  * });
  *
  * // Call the hook (automatically called by engine)
- * await hooks.callHook('entity:create', 42);
+ * await hooks.callHook('engine:start');
  * ```
  *
- * @example In a plugin
+ * @example In a system
  * ```typescript
- * import { defineSystem } from '@gwenjs/core';
+ * import { useHook } from '@gwenjs/core';
+ * import { defineSystem } from '@gwenjs/core/system';
  *
- * export const MyPlugin = defineSystem({
- *   name: 'MyPlugin',
- *   onInit(api) {
- *     api.hooks.hook('entity:create', (id) => {
- *       console.log('Entity created:', id);
- *     });
- *   }
+ * export const SpawnLogSystem = defineSystem(() => {
+ *   useHook('entity:spawn', (id) => {
+ *     console.log('Entity spawned:', id);
+ *   });
  * });
  * ```
  */
 
 import { createHooks } from "hookable";
 import type { Hookable } from "hookable";
-import type { GwenHooks } from "./types";
+import type { GwenRuntimeHooks } from "@gwenjs/schema";
+
+// Local, never exported: it keeps the two hookable boundary lines that use `= GwenHooks` unchanged.
+type GwenHooks = GwenRuntimeHooks;
 
 // ════════════════════════════════════════════════════════════════════════════
 // Exports
 // ════════════════════════════════════════════════════════════════════════════
 
-export type {
-  EngineLifecycleHooks,
-  PluginLifecycleHooks,
-  EntityLifecycleHooks,
-  ComponentLifecycleHooks,
-  SceneLifecycleHooks,
-  ExtensionLifecycleHooks,
-} from "@gwenjs/schema";
-
-export type { GwenHooks } from "./types";
-
 /**
  * Type alias for a GWEN hooks instance.
  *
  * Intentionally unconstrained (`H extends Record<string, any>` rather than
- * `extends GwenHooks`) so that hook maps carrying an interface can be used
+ * `extends GwenRuntimeHooks`) so that hook maps carrying an interface can be used
  * as `H`. An `any` index is the only constraint hookable accepts for that.
  *
- * Defaults to `GwenHooks` (system hooks only) for tests and internal usage.
+ * Defaults to `GwenRuntimeHooks`, the map plugins extend by declaration merging.
  */
 // boundary: hookable only accepts an any-valued index signature for interface hook maps.
 export type GwenHookable<H extends Record<string, any> = GwenHooks> = Hookable<H>;
@@ -88,7 +78,7 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  *
  * Creates a fully typed and initialized Hookable instance with all GWEN hooks.
  * This is typically called once during engine initialization and passed to all
- * plugins via the EngineAPI.
+ * plugins via the engine.
  *
  * **Features:**
  * - Full TypeScript type safety
@@ -113,12 +103,12 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  * const hooks = createGwenHooks();
  *
  * // Register a handler
- * const unregister = hooks.hook('entity:create', (id) => {
- *   console.log('Entity:', id);
+ * const unregister = hooks.hook('engine:tick', (dt) => {
+ *   console.log('Tick:', dt);
  * });
  *
  * // Call the hook
- * await hooks.callHook('entity:create', 42);
+ * await hooks.callHook('engine:tick', 0.016);
  *
  * // Unregister if needed
  * unregister();
@@ -140,7 +130,7 @@ export type { HookHandlerMap, InferHooks } from "./define-hooks.js";
  * await hooks.callHook('physics:collision', { bodyA: 1, bodyB: 2 });
  * ```
  *
- * @see {@link GwenHooks} for available hooks
+ * @see {@link GwenRuntimeHooks} for available hooks
  * @see {@link GwenHookable} for the return type
  * @see https://github.com/unjs/hookable for hookable documentation
  */

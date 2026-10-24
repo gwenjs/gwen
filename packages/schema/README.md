@@ -9,13 +9,13 @@
 
 `@gwenjs/schema` centralises every concern related to the GWEN engine configuration:
 
-| Responsibility      | What is exported                                                                                                     |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------- |
-| **Canonical types** | `GwenOptions`, `GwenConfigInput`, `GwenPluginBase`, `GwenModuleEntry`, `GwenHookHandler`, `DeepPartial`, `EngineAPI` |
-| **Hook contracts**  | `GwenHooks` and its five constituent interfaces                                                                      |
-| **Default values**  | `defaultOptions` — the fully typed baseline config                                                                   |
-| **Resolution**      | `resolveConfig()` — merges partial user input with defaults                                                          |
-| **Validation**      | `validateResolvedConfig()`, `assertModuleFirstInput()`                                                               |
+| Responsibility      | What is exported                                                                                        |
+| ------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Canonical types** | `GwenOptions`, `GwenConfigInput`, `GwenPluginBase`, `GwenModuleEntry`, `GwenHookHandler`, `DeepPartial` |
+| **Hook contracts**  | `GwenRuntimeHooks`, `HookHandlerMap`, `InferHooks`                                                      |
+| **Default values**  | `defaultOptions` — the fully typed baseline config                                                      |
+| **Resolution**      | `resolveConfig()` — merges partial user input with defaults                                             |
+| **Validation**      | `validateResolvedConfig()`, `assertModuleFirstInput()`                                                  |
 
 All other packages in the monorepo (`@gwenjs/app`, `@gwenjs/core`, `@gwenjs/vite`, the CLI) import their config types **only** from `@gwenjs/schema`. No package duplicates these definitions.
 
@@ -126,69 +126,18 @@ type PartialConfig = DeepPartial<GwenOptions>;
 // All nested fields become optional — used as the base of GwenConfigInput.
 ```
 
-### `EngineAPI<Services, Hooks>`
-
-Lightweight engine API contract used by CLI tooling and `gwen prepare`. Not intended for runtime plugin code (use the full `EngineAPI` from `@gwenjs/core` instead).
-
-```typescript
-import type { EngineAPI } from "@gwenjs/schema";
-
-type MyServices = { physics: { applyForce(x: number, y: number): void } };
-type MyHooks = { "physics:step": (dt: number) => void };
-
-function toolingHelper(api: EngineAPI<MyServices, MyHooks>) {
-  api.services.get("physics").applyForce(0, -9.8);
-  api.hooks.hook("physics:step", (dt) => console.log(dt));
-}
-```
-
 ---
 
-## Hook contracts (`GwenHooks` and friends)
+## Hook contracts (`GwenRuntimeHooks`)
 
-`@gwenjs/schema` is the canonical home for all hook name → handler signature mappings.
-
-### `GwenHooks`
-
-The aggregate hook map. Composed from five sub-interfaces via TypeScript `extends`.
+`@gwenjs/schema` is the canonical home of the hook name → handler signature map. Plugin packages add their own hooks to `GwenRuntimeHooks` by declaration merging:
 
 ```typescript
-import type { GwenHooks } from "@gwenjs/schema";
-
-// Default — all type parameters are `unknown` (safe for generic tooling):
-type Hooks = GwenHooks;
-
-// Runtime-bound (used by engine-core with concrete entity/plugin types):
-type RuntimeHooks = GwenHooks<
-  number, // EntityId
-  MyPlugin, // Plugin
-  MyAPI, // API
-  object, // ReloadContext
-  PrefabExt,
-  SceneExt,
-  UIExt
->;
-```
-
-### Sub-interfaces
-
-| Interface                 | Hook names                                                                                                                   |
-| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `EngineLifecycleHooks`    | `engine:init`, `engine:start`, `engine:stop`, `engine:tick`, `engine:runtimeError`                                           |
-| `PluginLifecycleHooks`    | `plugin:register`, `plugin:init`, `plugin:beforeUpdate`, `plugin:update`, `plugin:render`, `plugin:destroy`                  |
-| `EntityLifecycleHooks`    | `entity:create`, `entity:destroy`, `entity:destroyed`                                                                        |
-| `ComponentLifecycleHooks` | `component:add`, `component:remove`, `component:removed`, `component:update`                                                 |
-| `SceneLifecycleHooks`     | `scene:beforeLoad`, `scene:load`, `scene:loaded`, `scene:beforeUnload`, `scene:unload`, `scene:unloaded`, `scene:willReload` |
-| `ExtensionLifecycleHooks` | `prefab:instantiate`, `scene:extensions`, `ui:extensions`                                                                    |
-
-### `RuntimeErrorRecord`
-
-Payload emitted on `engine:runtimeError`. Useful for monitoring pipelines.
-
-```typescript
-import type { EngineLifecycleHooks } from "@gwenjs/schema";
-// RuntimeErrorRecord is the argument type of 'engine:runtimeError':
-// { phase, plugin, message, stack?, timestamp, frame }
+declare module "@gwenjs/schema" {
+  interface GwenRuntimeHooks {
+    "my-plugin:event": (payload: MyPayload) => void;
+  }
+}
 ```
 
 ---
@@ -360,7 +309,7 @@ Then import types or runtime helpers:
 
 ```typescript
 import { resolveConfig, defaultOptions } from "@gwenjs/schema";
-import type { GwenOptions, GwenHooks, GwenConfigInput } from "@gwenjs/schema";
+import type { GwenOptions, GwenRuntimeHooks, GwenConfigInput } from "@gwenjs/schema";
 ```
 
 Do **not** import `@gwenjs/schema` in browser bundles or end-user plugin code — those contexts should use the types re-exported by `@gwenjs/app` and the full API from `@gwenjs/core`.
@@ -388,7 +337,7 @@ Tests live in `tests/` and cover defaults, merge logic, all validation rules, an
 
 Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `createEntityId`, `defaultOptions`, `entityGeneration`, `entityIndex`, `resolveConfig`, `unpackEntityId`, `validateResolvedConfig`
 
-Types: `AutoImport`, `ComponentLifecycleHooks`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineAPI`, `EngineErrorPayload`, `EngineLifecycleHooks`, `EngineStateChangePayload`, `EntityId`, `EntityLifecycleHooks`, `ExtensionLifecycleHooks`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenHooks`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenOptions`, `GwenPlugin`, `GwenPrefabExtensions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenUIExtensions`, `HookBusBase`, `HookHandlerMap`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `PluginLifecycleHooks`, `SceneLifecycleHooks`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineErrorPayload`, `EngineStateChangePayload`, `EntityId`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenOptions`, `GwenPlugin`, `GwenPrefabExtensions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenUIExtensions`, `HookBusBase`, `HookHandlerMap`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `VitePlugin`, `ViteUserConfig`
 
 `GwenErrorOptions` — Options for a `GwenError`.
 
