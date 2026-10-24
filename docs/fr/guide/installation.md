@@ -19,12 +19,13 @@ WASM est livré précompilé dans les packages npm. Vous n'aurez jamais besoin d
 ## Installer les packages principaux
 
 ```sh
-pnpm add @gwenjs/core @gwenjs/app @gwenjs/kit
+pnpm add @gwenjs/core @gwenjs/app @gwenjs/kit @gwenjs/schema
 ```
 
 - **`@gwenjs/core`** — Moteur ECS, composants, systèmes, scènes
 - **`@gwenjs/app`** — Initialisation et configuration du moteur
 - **`@gwenjs/kit`** — Système de plugins et modules pour étendre GWEN
+- **`@gwenjs/schema`** — Types des contrats partagés ; les plugins et modules les augmentent avec `declare module "@gwenjs/schema"`
 
 ## Optionnel : Physique
 

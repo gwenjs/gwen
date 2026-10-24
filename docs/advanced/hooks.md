@@ -234,7 +234,7 @@ export const GameHooks = defineHooks({
 })
 
 // Augment GwenRuntimeHooks for type safety across the project
-declare module '@gwenjs/core' {
+declare module '@gwenjs/schema' {
   interface GwenRuntimeHooks extends InferHooks<typeof GameHooks> {}
 }
 ```

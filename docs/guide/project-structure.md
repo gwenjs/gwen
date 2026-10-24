@@ -238,7 +238,7 @@ interface ScoreOptions {
   maxScore?: number
 }
 
-declare module '@gwenjs/app' {
+declare module '@gwenjs/schema' {
   interface GwenModuleOptions {
     score?: ScoreOptions
   }

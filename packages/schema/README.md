@@ -1,7 +1,7 @@
 # @gwenjs/schema
 
-> **Internal workspace package — not published to npm.**
 > This package is the Single Source of Truth (SSOT) for all GWEN engine configuration types, defaults, and validation logic.
+> It is also the only augmentation target for the shared contracts (`GwenRuntimeHooks`, `GwenProvides`, `GwenModuleOptions`, …).
 
 ---
 
@@ -292,9 +292,7 @@ export default defineConfig({
 
 ## Installation
 
-This package is an **internal workspace dependency** and is not published to npm.
-
-To use it within the monorepo:
+Add it to the `package.json` of any package or project that imports its types or augments its contracts. Inside the monorepo:
 
 ```jsonc
 // packages/your-package/package.json
@@ -312,7 +310,13 @@ import { resolveConfig, defaultOptions } from "@gwenjs/schema";
 import type { GwenOptions, GwenRuntimeHooks, GwenConfigInput } from "@gwenjs/schema";
 ```
 
-Do **not** import `@gwenjs/schema` in browser bundles or end-user plugin code — those contexts should use the types re-exported by `@gwenjs/app` and the full API from `@gwenjs/core`.
+Plugin and module authors augment the shared contracts (`GwenRuntimeHooks`, `GwenProvides`, `GwenModuleOptions`, `GwenPrefabExtensions`, `GwenSceneExtensions`, `GwenUIExtensions`) with `declare module "@gwenjs/schema"` and import the shared types from `@gwenjs/schema`.
+
+---
+
+## One copy of @gwenjs/schema per app
+
+`instanceof GwenError` requires one copy of `@gwenjs/schema` in the app. Do not mix `require` and `import` of the schema, and do not install two versions.
 
 ---
 

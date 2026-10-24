@@ -146,7 +146,7 @@ interface InputOptions {
   preventDefault?: string[]
 }
 
-declare module '@gwenjs/app' {
+declare module '@gwenjs/schema' {
   interface GwenModuleOptions {
     input?: InputOptions
   }
