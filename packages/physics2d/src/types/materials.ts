@@ -2,8 +2,8 @@
  * Plugin hooks, material presets, and collider shapes.
  */
 
-import { defineHooks, type InferHooks } from "@gwenjs/core";
-import type { EntityId } from "@gwenjs/core";
+import { defineHooks } from "@gwenjs/core";
+import type { InferHooks, EntityId } from "@gwenjs/schema";
 import type { CollisionContact, SensorState, CollisionEventsBatch } from "./events";
 
 /**

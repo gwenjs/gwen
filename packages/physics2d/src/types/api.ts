@@ -2,7 +2,7 @@
  * Collision event parsing and Physics2D service API.
  */
 
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { CollisionEvent, CollisionEventsBatch, SensorState } from "./events";
 import type { RigidBodyType, ColliderOptions } from "./bodies";
 import type { TilemapPhysicsChunk, ResolvedCollisionContact } from "./tilemap";

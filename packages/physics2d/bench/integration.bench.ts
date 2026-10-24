@@ -16,7 +16,7 @@
 
 import { describe, bench } from "vitest";
 import { createEntityId } from "@gwenjs/core";
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 
 import { buildTilemapPhysicsChunks } from "../src/helpers/tilemap";
 import { createTilemapChunkOrchestrator } from "../src/helpers/orchestration";
