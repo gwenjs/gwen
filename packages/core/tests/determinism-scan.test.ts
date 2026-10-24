@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -11,7 +11,6 @@ const PERFORMANCE_NOW_ALLOWLIST = new Set([
   "packages/core/src/engine/engine-loop.ts",
   "packages/core/src/engine/frame-scheduler.ts",
   "packages/core/src/logger/gwen-logger.ts",
-  "packages/core/src/logger/console-logger.ts",
   "packages/kit/src/observability.ts",
 ]);
 
@@ -110,6 +109,12 @@ describe("determinism call scan", () => {
     expect(forbiddenCallsIn("/* Math.random() */\nconst n = 1;", "packages/core/src/x.ts")).toEqual(
       [],
     );
+  });
+
+  it("the legacy logger modules are deleted", () => {
+    expect(existsSync(join(REPO_ROOT, "packages/core/src/logger/console-logger.ts"))).toBe(false);
+    expect(existsSync(join(REPO_ROOT, "packages/core/src/logger/types.ts"))).toBe(false);
+    expect(existsSync(join(REPO_ROOT, "packages/schema/src/logger.ts"))).toBe(false);
   });
 
   it("finds no forbidden calls in runtime packages/*/src", () => {

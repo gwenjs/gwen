@@ -222,7 +222,10 @@ describe("LayerManager", () => {
     const svc2 = makeService("renderer:html", { overlay: { order: 10 } });
     manager.register(svc1);
     manager.register(svc2);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"));
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[renderer-core:layer-manager]",
+      expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"),
+    );
     warnSpy.mockRestore();
   });
 
@@ -230,7 +233,10 @@ describe("LayerManager", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const svc = makeService("renderer:canvas", { bg: { order: 10 }, fg: { order: 10 } });
     manager.register(svc);
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"));
+    expect(warnSpy).toHaveBeenCalledWith(
+      "[renderer-core:layer-manager]",
+      expect.stringContaining("RENDERER:LAYER_ORDER_CONFLICT"),
+    );
     warnSpy.mockRestore();
   });
 

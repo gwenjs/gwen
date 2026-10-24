@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { createLogger, type GwenEngine } from "@gwenjs/core";
+import type { GwenLogEntry } from "@gwenjs/schema";
 import { engineContext } from "@gwenjs/core/internal";
 import Physics3DPlugin, { Physics3DPlugin as NamedPhysics3DPlugin } from "../src/index";
 
@@ -21,9 +22,14 @@ describe("Physics3DPlugin foundation", () => {
   it("warns when the speed cap setter returns 0", async () => {
     const warnings: string[] = [];
     const seen: number[] = [];
-    const logger = createLogger("test", false);
-    logger.setSink((entry) => {
-      warnings.push(entry.message);
+    const logger = createLogger("test", {
+      providers: [
+        {
+          handle(entry: GwenLogEntry) {
+            warnings.push(entry.message);
+          },
+        },
+      ],
     });
     const bridge = {
       variant: "physics3d" as const,
