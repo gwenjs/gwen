@@ -297,6 +297,9 @@ importers:
       '@gwenjs/kit':
         specifier: workspace:^
         version: link:../kit
+      '@gwenjs/math':
+        specifier: workspace:^
+        version: link:../math
       '@gwenjs/schema':
         specifier: workspace:^
         version: link:../schema
