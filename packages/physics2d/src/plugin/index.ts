@@ -163,7 +163,7 @@ export const Physics2DPlugin = definePlugin((config: Physics2DConfig = {}) => {
     bridge: null,
     currentEngine: null,
     physicsService: null,
-    log: createLogger("@gwenjs/physics2d", cfg.debug),
+    log: createLogger("@gwenjs/physics2d", { minLevel: cfg.debug ? "debug" : "warn" }),
     collisionEvents: null,
     pooledCollisionEvents: [],
     cachedCollisionBatch: null,

@@ -73,7 +73,7 @@ export class LayerManager {
 
   constructor(root: HTMLElement, logger?: GwenLogger, engine?: GwenEngine) {
     this._root = root;
-    this._log = logger ?? createLogger("renderer-core:layer-manager", false);
+    this._log = logger ?? createLogger("renderer-core:layer-manager");
     this._engine = engine;
     if (engine !== undefined) {
       this._unhookRender = engine.hooks.hook("engine:render", () => {

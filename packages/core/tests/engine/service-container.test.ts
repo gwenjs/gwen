@@ -14,7 +14,7 @@ describe("ServiceContainer", () => {
     const container = new ServiceContainer({
       assertState() {},
     });
-    const logger = createLogger("svc", false);
+    const logger = createLogger("svc");
 
     container.provide("logger", logger);
 
@@ -25,8 +25,8 @@ describe("ServiceContainer", () => {
     const container = new ServiceContainer({
       assertState() {},
     });
-    const first = createLogger("svc-a", false);
-    const second = createLogger("svc-b", false);
+    const first = createLogger("svc-a");
+    const second = createLogger("svc-b");
     container.provide("logger", first);
 
     container.provide("logger", second);
@@ -69,7 +69,7 @@ describe("ServiceContainer", () => {
     const container = new ServiceContainer({
       assertState() {},
     });
-    const logger = createLogger("svc", false);
+    const logger = createLogger("svc");
 
     container.provide("logger", logger);
 
@@ -86,7 +86,7 @@ describe("ServiceContainer", () => {
         throw gate;
       },
     });
-    const logger = createLogger("svc", false);
+    const logger = createLogger("svc");
 
     let caught: unknown;
     try {
@@ -106,7 +106,7 @@ describe("ServiceContainer", () => {
     const second = new ServiceContainer({
       assertState() {},
     });
-    const logger = createLogger("svc", false);
+    const logger = createLogger("svc");
     first.provide("logger", logger);
 
     expect(second.tryInject("logger")).toBeUndefined();

@@ -82,7 +82,7 @@ export type {
 export type { WasmRegionView, WasmRingBuffer } from "./engine/wasm-module-handle";
 
 export { createLogger, GwenLogger, consoleLogProvider } from "./logger/index";
-export type { LogLevel, LogEntry, IGwenLogger } from "./logger/index";
+export type { CreateLoggerOptions, IGwenLogger } from "./logger/index";
 
 export type { GwenRuntimeHooks, EngineErrorPayload } from "./engine/runtime-hooks";
 

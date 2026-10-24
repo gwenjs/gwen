@@ -12,7 +12,6 @@ function makeEngine(): GwenEngine {
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnThis(),
-    setSink: vi.fn(),
   };
   const logger: GwenLogger = {
     debug: vi.fn(),
@@ -20,7 +19,6 @@ function makeEngine(): GwenEngine {
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnValue(childLogger),
-    setSink: vi.fn(),
   };
 
   return {

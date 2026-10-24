@@ -177,7 +177,6 @@ export function createPluginContext(
       child() {
         return this;
       },
-      setSink: () => {},
     } as GwenLogger,
 
     bodyByEntity: new Map(),

@@ -10,7 +10,6 @@ function makeLogger(): GwenLogger {
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnThis(),
-    setSink: vi.fn(),
   };
   return {
     debug: vi.fn(),
@@ -18,7 +17,6 @@ function makeLogger(): GwenLogger {
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnValue(child),
-    setSink: vi.fn(),
   };
 }
 

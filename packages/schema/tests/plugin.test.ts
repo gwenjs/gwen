@@ -8,18 +8,17 @@
 import { describe, it, expect, vi } from "vitest";
 import type { GwenPlugin, GwenEngineBase, HookBusBase, PluginErrorContext } from "../src/plugin";
 import type { GwenDisposable, DisposableRegistryBase } from "../src/disposable";
-import type { GwenLogger } from "../src/logger";
+import type { IGwenLogger } from "@gwenjs/schema";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
 
-function makeLogger(): GwenLogger {
+function makeLogger(): IGwenLogger {
   return {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnThis(),
-    setSink: vi.fn(),
   };
 }
 
