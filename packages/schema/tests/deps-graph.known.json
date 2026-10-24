@@ -1,12 +1,5 @@
 {
-  "known": [
-    {
-      "rule": "R10",
-      "file": "packages/kit/src/plugin-types.ts",
-      "match": "declare module '@gwenjs/core'",
-      "owner": "P-76-6"
-    }
-  ],
+  "known": [],
   "deferred": [
     {
       "rule": "R8",
