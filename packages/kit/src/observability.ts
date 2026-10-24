@@ -1,80 +1,78 @@
 /**
- * @file Observability composables for plugin authors.
+ * @file Observability composables.
  *
- * These helpers provide access to logging, error reporting, and performance
- * timing in a consistent way across GWEN plugins and modules.
+ * `useLogger()`, `useErrorReporter()` and `usePerfMark()` read the logger of
+ * the active scope. Call them inside a defineSystem(), defineActor() or
+ * defineScene() factory. Outside any scope they throw `GwenContextError`
+ * with code `CORE:OUTSIDE_ENGINE_CONTEXT`. A plugin `setup()` has no scope
+ * until #73, so these composables throw there too.
  *
  * @example
  * ```typescript
+ * import { defineSystem } from '@gwenjs/core/system'
  * import { useLogger, usePerfMark } from '@gwenjs/kit'
  *
- * export const MyPlugin = definePlugin(() => ({
- *   name: 'MyPlugin',
- *   setup(engine) {
- *     const log = useLogger()
- *     const stopTimer = usePerfMark('initialization')
- *     // ... do work ...
- *     stopTimer()
- *   },
- * }))
+ * export const mover = defineSystem('Mover', () => {
+ *   const log = useLogger()
+ *   const stopTimer = usePerfMark('initialization')
+ *   log.info('ready')
+ *   stopTimer()
+ * })
  * ```
  */
 
 import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 
-/**
- * No-op logger that silently drops all messages.
- */
-const _noopLogger: IGwenLogger = {
-  debug() {},
-  info() {},
-  warn() {},
-  error() {},
-  child() {
-    return _noopLogger;
-  },
-};
+import { GwenContextError, GwenContextErrorCodes } from "./context-errors.js";
+import { getCurrentScope } from "./scope-slot.js";
 
-/**
- * Attempts to retrieve the current engine's logger.
- * Falls back to a no-op logger if called outside an engine context.
- *
- * @internal
- */
-function _getLogger(): IGwenLogger {
-  try {
-    // Try to get logger from engine context if available
-    // Return the noop logger. This function does not read an engine context.
-    // This will be enhanced when engine context is available
-    return _noopLogger;
-  } catch {
-    return _noopLogger;
-  }
+const OUTSIDE_LOGGER =
+  "[GWEN] useLogger() must be called inside a defineSystem(), defineActor() or defineScene() factory.";
+
+/** Engine object that carries the public logger. */
+function hasLogger(e: unknown): e is { logger: IGwenLogger } {
+  if (typeof e !== "object" || e === null) return false;
+  if (!("logger" in e)) return false;
+  const logger = e.logger;
+  if (typeof logger !== "object" || logger === null) return false;
+  if (!("child" in logger)) return false;
+  return typeof logger.child === "function";
 }
 
 /**
- * Returns a logger pre-tagged with the current scope type and name.
- * Falls back to the root engine logger if called outside any scope.
+ * Returns the active scope's engine logger, tagged `<type>:<name>`.
+ * When the scope has no name, the tag uses `<type>:<id>`.
+ * `meta.entityId` is passed to `child()` as a string when the scope has one.
  *
- * When scope context is available (Groupe C), this will automatically
- * include scope information like `'actor:PlayerController'` or `'system:PhysicsSystem'`.
+ * @throws {GwenContextError} Code `CORE:OUTSIDE_ENGINE_CONTEXT` when there is
+ *   no active scope, or when that scope's engine has no logger.
  *
  * @example
  * ```typescript
+ * // Inside a defineSystem(), defineActor() or defineScene() factory
  * const log = useLogger()
  * log.info('Starting initialization', { module: 'physics' })
  * ```
  */
 export function useLogger(): IGwenLogger {
-  return _getLogger();
+  const scope = getCurrentScope();
+  if (scope === null) {
+    throw new GwenContextError(OUTSIDE_LOGGER, GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+  }
+  if (!hasLogger(scope.engine)) {
+    throw new GwenContextError(OUTSIDE_LOGGER, GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+  }
+  return scope.engine.logger.child(
+    `${scope.meta.type}:${scope.meta.name ?? scope.meta.id}`,
+    scope.meta.entityId?.toString(),
+  );
 }
 
 /**
- * Error reporter composable.
+ * Reports a typed error on the scope-tagged logger, then throws `GwenError`.
  *
- * Used to report typed errors with structured information about
- * the current scope. When GwenScope is available, includes context like
- * actor name, system name, and phase.
+ * Throws `GwenContextError` (`CORE:OUTSIDE_ENGINE_CONTEXT`) outside any scope,
+ * same as {@link useLogger}.
  *
  * @example
  * ```typescript
@@ -104,17 +102,18 @@ export function useErrorReporter() {
 
 /**
  * Records a named performance mark and returns a stop function.
- * Automatically logs elapsed time when stopped.
+ * The stop function logs elapsed time on the scope-tagged logger.
  *
- * Useful for measuring initialization, frame phases, or any other timing-sensitive operation.
+ * Throws `GwenContextError` (`CORE:OUTSIDE_ENGINE_CONTEXT`) outside any scope,
+ * same as {@link useLogger}.
  *
  * @param label - A human-readable label for this mark (e.g., 'physics-step', 'asset-load')
  * @returns A stop function that logs the elapsed time and returns the duration in milliseconds
+ * @throws {GwenContextError} Code `CORE:OUTSIDE_ENGINE_CONTEXT` outside any scope.
  *
  * @example
  * ```typescript
  * const stopTimer = usePerfMark('asset-loading')
- * await loadAssets()
  * const durationMs = stopTimer()
  * // Logs: [perf] asset-loading  durationMs=123.45
  * ```

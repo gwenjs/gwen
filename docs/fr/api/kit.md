@@ -11,6 +11,24 @@ Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires po
 
 `@gwenjs/kit` exporte aussi `getCurrentScope`, `GwenContextError`, `GwenComposableError` et `GwenContextErrorCodes`.
 
+## Composables d'observabilité
+
+`useLogger()`, `useErrorReporter()` et `usePerfMark()` lisent le logger du moteur du scope actif.
+
+`useLogger()` s'appelle dans une fabrique `defineSystem()`, `defineActor()` ou `defineScene()`. Il retourne le logger du moteur, étiqueté `<type>:<nom>` (par exemple `system:Mover`). Sans nom, l'étiquette utilise l'id du scope.
+
+Hors de tout scope, y compris dans le `setup()` d'un plugin (pas de scope tant que #73 n'est pas là), il lance `GwenContextError` avec le code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` et `usePerfMark()` font de même.
+
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useLogger } from '@gwenjs/kit'
+
+export const mover = defineSystem('Mover', () => {
+  const log = useLogger()
+  log.info('ready')
+})
+```
+
 ## Définition de plugins
 
 ### definePlugin(factory)
