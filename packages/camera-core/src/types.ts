@@ -3,7 +3,7 @@
  * @file Shared option types and value objects for camera-core, camera2d, camera3d.
  */
 
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { Vec3 } from "@gwenjs/math";
 
 /** Easing function names accepted by CameraWaypoint and BlendOpts. */

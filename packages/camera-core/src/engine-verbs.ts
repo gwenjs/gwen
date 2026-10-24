@@ -4,7 +4,8 @@
  * `CameraSystem` and `useCamera` use those same stores.
  */
 
-import type { EntityId, GwenEngine } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import { getCameraStores } from "./camera-stores.js";
 import { CameraEmptyPathError } from "./errors.js";
 import type { CameraPathData } from "./types.js";
