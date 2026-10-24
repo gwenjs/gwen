@@ -38,7 +38,7 @@ L'isolation cross-origin est facultative. Définissez-la via les en-têtes Vite 
 
 ## Identifiant de build et empreinte
 
-Chaque binaire du noyau porte une section personnalisée `gwen.fingerprint`. Le texte de la section est `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. L'export `gwen_abi_fingerprint()` est le hachage FNV-1a 32 bits de cette chaîne. Un binaire doit être livré avec la factory du même build.
+Chaque binaire du noyau porte une section personnalisée `gwen.fingerprint`. Le texte de la section est `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. L'export `gwen_abi_fingerprint()` est le hachage FNV-1a 32 bits de cette chaîne. Chaque variante navigateur (`light`, `physics2d`, `physics3d`) porte aussi une section `gwen.build` : le sha256 hexadécimal des octets avant l'ajout de cette section. La factory lit les deux sections dans `CONTRACT`. Un binaire doit être livré avec la factory du même build.
 
 ## Aperçu de l'ECS
 

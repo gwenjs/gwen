@@ -81,7 +81,7 @@ assert.equal(engine.memory, engine.inject("memory"));
 
 ## Build id and fingerprint
 
-Each core binary carries a `gwen.fingerprint` custom section. The section text is `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. The export `gwen_abi_fingerprint()` is the FNV-1a 32-bit hash of that string. A binary must ship with the factory of the same build.
+Each core binary carries a `gwen.fingerprint` custom section. The section text is `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. The export `gwen_abi_fingerprint()` is the FNV-1a 32-bit hash of that string. Each browser variant (`light`, `physics2d`, `physics3d`) also carries a `gwen.build` section: the sha256 hex of the bytes before that section was appended. The factory reads both sections into `CONTRACT`. A binary must ship with the factory of the same build.
 
 ## ECS Overview
 
