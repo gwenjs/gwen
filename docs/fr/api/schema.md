@@ -97,24 +97,6 @@ type DeepPartial<T> = {
 
 **Description.** Rend récursivement toutes les propriétés optionnelles.
 
-### EngineAPI
-
-**Signature:**
-```ts
-interface EngineAPI {
-  name: string;
-  version: string;
-  deltaTime: number;
-  isRunning: boolean;
-  start(): void;
-  stop(): void;
-  update(dt: number): void;
-  render(): void;
-}
-```
-
-**Description.** Interface d'exécution du moteur principal.
-
 ## Fonctions de configuration
 
 ### defaultOptions()
@@ -196,71 +178,3 @@ function assertModuleFirstInput(input: GwenConfigInput): void
 ```ts
 assertModuleFirstInput(input);
 ```
-
-## Hooks de cycle de vie
-
-### EngineLifecycleHooks
-
-**Signature:**
-```ts
-interface EngineLifecycleHooks {
-  'engine:init': GwenHookHandler;
-  'engine:start': GwenHookHandler;
-  'engine:stop': GwenHookHandler;
-  'engine:update': GwenHookHandler<{ dt: number }>;
-  'engine:render': GwenHookHandler;
-}
-```
-
-**Description.** Hooks de cycle de vie du moteur pour les plugins.
-
-### PluginLifecycleHooks
-
-**Signature:**
-```ts
-interface PluginLifecycleHooks {
-  'plugin:load': GwenHookHandler;
-  'plugin:setup': GwenHookHandler;
-  'plugin:unload': GwenHookHandler;
-}
-```
-
-**Description.** Hooks de cycle de vie des plugins.
-
-### EntityLifecycleHooks
-
-**Signature:**
-```ts
-interface EntityLifecycleHooks {
-  'entity:create': GwenHookHandler<{ entity: Entity }>;
-  'entity:destroy': GwenHookHandler<{ entity: Entity }>;
-}
-```
-
-**Description.** Hooks de cycle de vie des entités.
-
-### ComponentLifecycleHooks
-
-**Signature:**
-```ts
-interface ComponentLifecycleHooks<EntityId = unknown> {
-  'component:add': (id: EntityId, type: string, data: unknown) => void;
-  'component:remove': (id: EntityId, type: string) => void;
-  'component:removed': (id: EntityId, type: string) => void;
-  'component:update': (id: EntityId, type: string, data: unknown) => void;
-}
-```
-
-**Description.** Hooks de cycle de vie des composants.
-
-### SceneLifecycleHooks
-
-**Signature:**
-```ts
-interface SceneLifecycleHooks {
-  'scene:enter': GwenHookHandler<{ scene: string }>;
-  'scene:exit': GwenHookHandler<{ scene: string }>;
-}
-```
-
-**Description.** Hooks de cycle de vie des scènes.

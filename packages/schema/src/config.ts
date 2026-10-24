@@ -127,35 +127,3 @@ export type DeepPartial<T> = T extends object
       [P in keyof T]?: DeepPartial<T[P]>;
     }
   : T;
-
-/**
- * Minimal Engine API contract for schema/prepare tooling.
- *
- * Important:
- * - This is intentionally lightweight and focused on service/hook typing.
- * - It is used by CLI/type-generation flows (`gwen prepare`).
- * - Runtime plugins should rely on the full `EngineAPI` exposed by
- *   `@gwenjs/core`.
- *
- * @internal
- */
-export interface EngineAPI<
-  Services extends object = Record<string, unknown>,
-  Hooks extends object = Record<string, GwenHookHandler>,
-> {
-  services: {
-    /** Typed access to known services. */
-    get<K extends keyof Services & string>(name: K): Services[K];
-    /** Fallback accessor for dynamic keys. */
-    get<T = unknown>(name: string): T;
-  };
-  hooks: {
-    /** Typed hook subscription for known hook names. */
-    hook<K extends keyof Hooks & string>(
-      name: K,
-      callback: Hooks[K] extends (...args: infer A) => unknown ? (...args: A) => unknown : never,
-    ): void;
-    /** Fallback hook subscription for dynamic hook names. */
-    hook(name: string, callback: (...args: unknown[]) => unknown): void;
-  };
-}
