@@ -47,7 +47,6 @@ export { GwenErrorCode } from "./error-codes";
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 
-export type { LogLevel, LogEntry, GwenLogger } from "./logger";
 export type {
   GwenLogLevel,
   GwenLogEntry,

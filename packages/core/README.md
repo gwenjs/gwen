@@ -248,7 +248,6 @@ await engine.stop();
 import { createLogger } from "@gwenjs/core";
 
 const log = createLogger("game:my-system");
-log.info("hello");
 log.warn("something odd");
 log.error("oops");
 ```
@@ -263,7 +262,7 @@ log.error("oops");
 
 Values: `ActorErrorCodes`, `ComposableErrorCodes`, `CoreErrorCodes`, `EngineMemory`, `FLAG_TELEPORT`, `GwenActorError`, `GwenComposableError`, `GwenConfigError`, `GwenContextError`, `GwenEngineStateError`, `GwenLogger`, `GwenPluginNotFoundError`, `GwenWasmAbiError`, `GwenWasmError`, `GwenWasmPanicError`, `Types`, `consoleLogProvider`, `createEngine`, `createEngineLocal`, `createEntityId`, `createErrorBus`, `createLogger`, `defineComponent`, `defineHooks`, `defineSequence`, `emit`, `onCleanup`, `readInterpolatedTransform2D`, `setupGwen`, `unpackEntityId`, `useEngine`, `useHook`, `useTween`, `withAsyncContext`, `withCleanup`
 
-Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `EasingName`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenHookable`, `GwenHooks`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `LogEntry`, `LogLevel`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
+Types: `Color`, `ComponentAccessor`, `ComponentBody`, `ComponentDefinition`, `ComponentSchema`, `ComponentType`, `CoreVariant`, `CoreWasmErrorCode`, `CreateLoggerOptions`, `EasingName`, `EngineConfig`, `EngineErrorBus`, `EngineErrorPayload`, `EngineFrame`, `EngineFramePhaseMs`, `EngineLocal`, `EngineStateChangePayload`, `EngineStats`, `EntityId`, `GwenDisposable`, `GwenEngine`, `GwenEngineOptions`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenEngineStateMethod`, `GwenHookable`, `GwenHooks`, `GwenPlugin`, `GwenPluginNotFoundErrorOptions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenWasmModules`, `HookHandlerMap`, `IGwenLogger`, `InferComponent`, `InferHooks`, `InferSchemaType`, `InterpolatedTransform2D`, `MemoryRegion`, `MemoryView`, `MemoryViewArray`, `MemoryViewDescriptor`, `MemoryViewType`, `PlacementBridge`, `PluginErrorContext`, `SchemaLayout`, `SchemaType`, `TransformPair2D`, `TweenHandle`, `TweenOptions`, `TweenableValue`, `Vector2D`, `WasmBridge`, `WasmChannelOptions`, `WasmMemoryOptions`, `WasmMemoryRegion`, `WasmModuleHandle`, `WasmModuleOptions`, `WasmRegionView`, `WasmRingBuffer`
 
 `EngineMemory` — Per-engine views over gwen-core linear memory.
 

@@ -16,21 +16,20 @@
 
 import { describe, it, expect, vi } from "vitest";
 import { TweenPool } from "../../src/tween/runtime/tween-pool";
-import type { GwenLogger } from "../../src/logger/types";
+import type { IGwenLogger } from "@gwenjs/schema";
 
 // ── Helper: build a minimal mock GwenLogger ───────────────────────────────────
 
 /**
- * Create a mock {@link GwenLogger} spy for use in policy tests.
+ * Create a mock {@link IGwenLogger} spy for use in policy tests.
  */
-function mockLogger(): GwenLogger {
+function mockLogger(): IGwenLogger {
   return {
     debug: vi.fn(),
     info: vi.fn(),
     warn: vi.fn(),
     error: vi.fn(),
     child: vi.fn().mockReturnThis(),
-    setSink: vi.fn(),
   };
 }
 

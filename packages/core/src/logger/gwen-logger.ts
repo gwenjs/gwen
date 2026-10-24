@@ -1,4 +1,5 @@
 import type { IGwenLogger, IGwenLogProvider, GwenLogEntry, GwenLogLevel } from "@gwenjs/schema";
+import { consoleLogProvider } from "./console-log-provider";
 
 const LEVELS: Record<GwenLogLevel, number> = {
   debug: 0,
@@ -15,8 +16,9 @@ const LEVELS: Record<GwenLogLevel, number> = {
  * new provider array. A child keeps the providers, the minimum level and the frame getter.
  * An entry includes `frame` only when a frame getter was set. `0` is kept.
  *
- * Instantiated by the engine — do not construct directly in application code.
- * Use `useLogger()` from `@gwenjs/kit` instead.
+ * Application code builds a standalone logger with `createLogger()`.
+ * The engine builds its own from `GwenEngineOptions.logger`.
+ * Plugin and system code use `useLogger()`.
  */
 export class GwenLogger implements IGwenLogger {
   constructor(
@@ -65,4 +67,20 @@ export class GwenLogger implements IGwenLogger {
       }
     }
   }
+}
+
+export interface CreateLoggerOptions {
+  /** Lowest level that is delivered. Default `"warn"`. */
+  minLevel?: GwenLogLevel;
+  /** Destinations. Default is one console provider. `[]` delivers nothing. */
+  providers?: readonly IGwenLogProvider[];
+  /** When set, every entry includes `frame`, and `0` is kept. */
+  getFrame?: () => number;
+}
+
+/** Build a logger for `tag`. Defaults: minimum level `"warn"`, console provider. */
+export function createLogger(tag: string, options?: CreateLoggerOptions): IGwenLogger {
+  const minLevel = options?.minLevel ?? "warn";
+  const providers = options?.providers ?? [consoleLogProvider()];
+  return new GwenLogger(providers, minLevel, tag, undefined, options?.getFrame);
 }
