@@ -37,6 +37,7 @@ export const LIGHT_JS = [
   "get_entity_world_y(index)",
   "get_query_result_capacity()",
   "get_query_result_ptr()",
+  "gwen_abi_fingerprint()",
   "has_component(index, generation, component_type_id)",
   "has_entity_parent(index)",
   "is_alive(index, generation)",
@@ -238,6 +239,7 @@ export const LIGHT_WASM = [
   "engine_update_entity_archetype (i32,i32,i32,i32)->()",
   "engine_update_transforms (i32)->()",
   "engine_write_component_staged (i32,i32,i32,i32,i32)->()",
+  "gwen_abi_fingerprint ()->(i32)",
   "jsentityid_generation (i32)->(i32)",
   "jsentityid_index (i32)->(i32)",
 ] as const;
@@ -446,6 +448,7 @@ export const LIGHT_DTS = [
   "JsEntityId.private constructor();",
   "JsEntityId.readonly generation: number;",
   "JsEntityId.readonly index: number;",
+  "gwen_abi_fingerprint(): number;",
 ];
 
 export const PHYSICS2D_DTS_EXTRA = [

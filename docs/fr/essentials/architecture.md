@@ -36,6 +36,10 @@ La communication entre TypeScript et WASM s'effectue via des appels de fonctions
 
 L'isolation cross-origin est facultative. Définissez-la via les en-têtes Vite `server.headers` et `preview.headers` si vous en avez besoin.
 
+## Identifiant de build et empreinte
+
+Chaque binaire du noyau porte une section personnalisée `gwen.fingerprint`. Le texte de la section est `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. L'export `gwen_abi_fingerprint()` est le hachage FNV-1a 32 bits de cette chaîne. Un binaire doit être livré avec la factory du même build.
+
 ## Aperçu de l'ECS
 
 GWEN utilise le pattern **Entité-Composant-Système** (ECS) pour organiser les données et la logique de jeu :

@@ -52,6 +52,7 @@ const FREE_FUNCTIONS = new Set([
   "get_path_buffer_ptr",
   "find_path_3d",
   "get_path_buffer_ptr_3d",
+  "gwen_abi_fingerprint",
 ]);
 
 // Glue module exports that are not compiled Rust functions.
