@@ -79,6 +79,10 @@ assert.equal(engine.memory.epoch, 0);
 assert.equal(engine.memory, engine.inject("memory"));
 ```
 
+## Build id and fingerprint
+
+Each core binary carries a `gwen.fingerprint` custom section. The section text is `gwen-core;variant=<v>;abi=<N>;profile=<release|dev>`. The export `gwen_abi_fingerprint()` is the FNV-1a 32-bit hash of that string. A binary must ship with the factory of the same build.
+
 ## ECS Overview
 
 GWEN uses the **Entity-Component-System** (ECS) pattern to organize game data and logic:
