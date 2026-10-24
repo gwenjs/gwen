@@ -2,7 +2,8 @@
  * @fileoverview Character controller creation and management.
  */
 
-import { useEngine, type EntityId } from "@gwenjs/core";
+import { useEngine } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import { engineContext } from "@gwenjs/core/internal";
 import type {
   Physics3DAPI,

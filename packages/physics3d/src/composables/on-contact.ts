@@ -3,7 +3,8 @@
  *
  * Callbacks live on the current engine. Engine A never receives engine B's contacts.
  */
-import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+import { createEngineLocal } from "@gwenjs/core";
+import { GwenContextError } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
 import type { Physics3DCollisionContact } from "../types";
 

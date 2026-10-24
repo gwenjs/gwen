@@ -4,9 +4,8 @@
  * These helpers depend on the PluginContext for WASM bridge and runtime access.
  */
 
-import type { EntityId } from "@gwenjs/core";
 import { ownerEntityId } from "./entity-owner";
-import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
+import type { EntityId, IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import type { Physics3DColliderShape, JointHandle3D } from "../types";
 import type { PluginContext } from "./plugin-context";
 

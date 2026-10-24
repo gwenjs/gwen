@@ -4,7 +4,7 @@
  * Includes both imperative one-shot queries and persistent slot registration.
  */
 
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type {
   Physics3DAPI,
   Physics3DVec3,

@@ -1,7 +1,7 @@
 import { definePlugin } from "@gwenjs/kit/plugin";
 import { engineContext, getWasmBridge, reportRejectedHook } from "@gwenjs/core/internal";
 import { createEngineLocal, useEngine } from "@gwenjs/core";
-import type { EntityId, GwenEngine } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
 
 import type {
   Physics3DAPI,
@@ -70,7 +70,7 @@ import { createSpatialQueryMethods } from "./spatial-queries";
 
 import { createPathfindingMethods } from "./pathfinding-service";
 import { callPhysics3DExport, mapPhysics3DError } from "./wasm-errors";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type EntityId } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
 
 function disabledBodyReason(code: number): "non-finite" | "out-of-bounds" | "velocity" | undefined {

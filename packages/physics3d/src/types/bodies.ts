@@ -1,4 +1,4 @@
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 
 import type { Physics3DVec3, Physics3DQuat, Physics3DQualityPreset } from "./config";
 import type { Physics3DColliderOptions, Physics3DMaterialPreset } from "./colliders";
