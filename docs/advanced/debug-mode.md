@@ -119,20 +119,18 @@ assert.equal(hasPhases, false);
 
 ## Structured Logging
 
-GWEN provides a built-in logger via `createLogger()`. Log levels: `debug` < `info` < `warn` < `error`. Each entry is a structured `LogEntry` object, compatible with custom log sinks.
+GWEN provides a built-in logger via `createLogger(tag, options?)`. Log levels: `debug` < `info` < `warn` < `error`. The default minimum level is `warn`, so `debug` and `info` are dropped. Each entry goes to the providers you pass. The default provider writes to the console. `providers: []` delivers nothing.
 
 ```typescript
 import { createLogger } from '@gwenjs/core'
 
-const logger = createLogger('MyPlugin')
+const logger = createLogger('MyPlugin', { minLevel: 'debug' })
 
 logger.debug('initializing...')
 logger.info('plugin started')
 logger.warn('slow frame detected', { frameMs: 32 })
-logger.error('unhandled error', error)
+logger.error('unhandled error', { reason: 'load failed' })
 ```
-
-
 
 ```ts
 import { createLogger, useEngine } from '@gwenjs/core'
@@ -140,7 +138,7 @@ import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
 export const MySystem = defineSystem(function MySystem() {
   const engine = useEngine()
-  const log = createLogger('game:my-system')
+  const log = createLogger('game:my-system', { minLevel: 'info' })
 
   // This runs once during setup
   log.info('System initialized')
@@ -155,37 +153,40 @@ export const MySystem = defineSystem(function MySystem() {
 
 ### Log Levels
 
-The logger respects the `debug` flag:
+`createLogger` keeps entries at or above `minLevel`. The default is `warn`.
 
-| Level | When Active | Use |
+| Level | When it is delivered | Use |
 |---|---|---|
-| `debug` | Only when `debug: true` | Detailed diagnostics (disabled in production) |
-| `info` | Only when `debug: true` | Informational events |
-| `warn` | Always | Unexpected but recoverable conditions |
-| `error` | Always | Problems that need attention |
+| `debug` | `minLevel` is `debug` | Detailed diagnostics |
+| `info` | `minLevel` is `debug` or `info` | Informational events |
+| `warn` | `minLevel` is `debug`, `info`, or `warn` | Unexpected but recoverable conditions |
+| `error` | Always, for a non-empty `providers` list | Problems that need attention |
 
-This means your `log.debug()` calls are no-ops in production, avoiding overhead.
+`log.debug()` does nothing unless `minLevel` is `debug`.
 
-### Custom Log Sinks
+### Custom providers
 
-Redirect logs to a custom sink (e.g., a server, external service, or test spy):
+Pass a provider to send entries somewhere other than the console:
 
 ```ts
 import { createLogger } from '@gwenjs/core'
+import type { GwenLogEntry } from '@gwenjs/schema'
 
-const log = createLogger('app:core', true)
-
-// Replace the default console sink
-log.setSink((entry) => {
-  console.log(`[${entry.level.toUpperCase()}] ${entry.source}: ${entry.message}`)
-  if (entry.data) {
-    console.table(entry.data)
-  }
-
-  // Forward to analytics
-  if (entry.level === 'error') {
-    analytics.logError(entry.source, entry.message, entry.data)
-  }
+const log = createLogger('app:core', {
+  minLevel: 'debug',
+  providers: [
+    {
+      handle(entry: GwenLogEntry) {
+        console.log(`[${entry.level.toUpperCase()}] ${entry.tag}: ${entry.message}`)
+        if (entry.payload) {
+          console.table(entry.payload)
+        }
+        if (entry.level === 'error' && entry.tag !== undefined) {
+          analytics.logError(entry.tag, entry.message, entry.payload)
+        }
+      },
+    },
+  ],
 })
 
 log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
@@ -230,7 +231,7 @@ You've noticed frame rate drops. Debug mode helps:
 
 3. **Check the system's logging:**
    ```ts
-   const log = createLogger('game:physics', engine.debug)
+   const log = createLogger('game:physics', { minLevel: engine.debug ? 'debug' : 'warn' })
    onUpdate(() => {
      log.debug('Physics step', { bodyCount: physics.bodyCount() })
    })
@@ -258,19 +259,28 @@ export const TestScene = defineScene({
 
 ### Filtering Logs During Testing
 
-Redirect logs to a test spy:
+Pass a capture provider:
 
 ```ts
 import { createLogger } from '@gwenjs/core'
+import type { GwenLogEntry } from '@gwenjs/schema'
 import { describe, it, expect } from 'vitest'
 
 describe('MySystem', () => {
   it('logs initialization', () => {
     const messages: string[] = []
-    const log = createLogger('test:system', true)
-    log.setSink((entry) => messages.push(entry.message))
+    const log = createLogger('test:system', {
+      minLevel: 'info',
+      providers: [
+        {
+          handle(entry: GwenLogEntry) {
+            messages.push(entry.message)
+          },
+        },
+      ],
+    })
 
-    // ... run system setup ...
+    log.info('System initialized')
 
     expect(messages).toContain('System initialized')
   })
@@ -296,13 +306,13 @@ When `__GWEN_DEV__` and `debug: true`, GWEN checks the WASM memory sentinel afte
 | Function | Description |
 |---|---|
 | `defineConfig({ debug })` | Enable/disable debug mode |
-| `createLogger(source, debugMode)` | Create a logger instance |
-| `logger.debug(msg, data?)` | Log only when debug mode is on |
-| `logger.info(msg, data?)` | Informational log (debug-only) |
-| `logger.warn(msg, data?)` | Warning log (always active) |
-| `logger.error(msg, data?)` | Error log (always active) |
-| `logger.child(source)` | Create a scoped child logger |
-| `logger.setSink(callback)` | Redirect logs to custom sink |
+| `createLogger(tag, options?)` | Create a logger. Default `minLevel` is `warn`. Default provider is the console. |
+| `logger.debug(msg, payload?)` | Delivered when `minLevel` is `debug` |
+| `logger.info(msg, payload?)` | Delivered when `minLevel` is `debug` or `info` |
+| `logger.warn(msg, payload?)` | Delivered when `minLevel` allows `warn` |
+| `logger.error(msg, payload?)` | Delivered when `minLevel` allows `error` |
+| `logger.child(tag, entityId?)` | Child sharing providers, minimum level and frame getter |
+| `options.providers` | Objects with `handle(entry)`. `[]` delivers nothing. |
 | `__GWEN_DEV__` | Build-time flag. `true` in dev, `false` in production |
 
 ## Next Steps

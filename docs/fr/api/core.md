@@ -852,27 +852,29 @@ emit('player-hit', { damage: 10 });
 
 ## Utilitaires
 
-### createLogger(name, opts?)
+### createLogger(tag, options?)
 
 **Signature:**
 ```ts
-function createLogger(name: string, opts?: LoggerOptions): GwenLogger
+function createLogger(tag: string, options?: CreateLoggerOptions): IGwenLogger
 ```
 
-**Description.** Crée une instance de journal nommée pour le débogage et la journalisation.
+**Description.** Crée un journal autonome pour `tag`. Le niveau minimum par défaut est `warn` : `debug` et `info` ne sont pas remis. Le provider par défaut écrit sur la console.
 
 **Paramètres:**
 | Paramètre | Type | Description |
 |---|---|---|
-| name | `string` | Nom de l'espace de noms du journal |
-| opts | `object` | Options du journal (optionnel) |
+| tag | `string` | Étiquette du journal |
+| options.minLevel | `'debug' \| 'info' \| 'warn' \| 'error'` | Niveau minimum remis. Défaut : `'warn'` |
+| options.providers | `readonly IGwenLogProvider[]` | Destinations. Défaut : un provider console. `[]` ne remet rien |
+| options.getFrame | `() => number` | Quand il est présent, chaque entrée inclut `frame`. `0` est conservé |
 
-**Retourne:** `GwenLogger` — avec des méthodes: `.info()`, `.warn()`, `.error()`, `.debug()`
+**Retourne:** `IGwenLogger` — avec des méthodes: `.info()`, `.warn()`, `.error()`, `.debug()`
 
 **Exemple:**
 ```ts
 const log = createLogger('Player');
-log.info('Player spawned');
+log.warn('Player spawned');
 ```
 
 ### useTween(options)
