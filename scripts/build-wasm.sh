@@ -195,6 +195,9 @@ build_variant() {
 
   optimize_wasm "$out_dir/gwen_core_bg.wasm" "$variant"
 
+  # Stamp gwen.build after the last byte-changing step. BVH and build-tools are not stamped.
+  node "$PROJECT_ROOT/scripts/wasm-build-id.mjs" "$out_dir/gwen_core_bg.wasm"
+
   # Per-instance glue. Only build_variant calls this, so BVH and build-tools stay raw.
   node "$PROJECT_ROOT/scripts/wasm-factory.mjs" "$out_dir"
 

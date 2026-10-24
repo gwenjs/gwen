@@ -8,10 +8,14 @@
  *   node scripts/wasm-factory.mjs <out_dir>
  *
  * Reads `gwen_core.js`, `gwen_core.d.ts` and `gwen_core_bg.wasm` from `out_dir`.
+ * The wasm file must contain exactly one `gwen.build` section and exactly one
+ * `gwen.fingerprint` section. `CONTRACT.buildId` is the build section text.
+ * This script reads that text. It does not hash the binary.
  * Writes `gwen_core_factory.js` and `gwen_core_factory.d.ts` next to them.
- * No dependency. The ten rules below run in order. A failure throws
- * `Error("[wasm-factory] <rule>: line <n>: <text>")`. The CLI prints that
- * message on stderr and exits 1.
+ * No dependency. The ten rules below run in order. A glue failure throws
+ * `Error("[wasm-factory] <rule>: line <n>: <text>")`. A section failure throws
+ * `Error("[wasm-factory] <file>: expected one <name> section, found <n>")`.
+ * The CLI prints that message on stderr and exits 1.
  */
 
 import { readFileSync, realpathSync, writeFileSync } from "node:fs";
@@ -54,11 +58,13 @@ const LOAD_THROW =
  * @property {string} variant
  * @property {string} glueFile
  * @property {string} wasmBindgenVersion
+ * @property {string} buildId
  * @property {string} fingerprint
  */
 
 /**
  * @typedef {Object} GlueContract
+ * @property {string} buildId
  * @property {string} fingerprint
  * @property {string[]} names
  * @property {string[]} rawExports
@@ -176,6 +182,7 @@ function readOptions(options) {
   const variant = options.variant;
   const glueFile = options.glueFile;
   const wasmBindgenVersion = options.wasmBindgenVersion;
+  const buildId = options.buildId;
   const fingerprint = options.fingerprint;
   if (typeof variant !== "string" || variant.length === 0) {
     throw ruleError("variant", 0, "expected a non-empty string");
@@ -186,10 +193,13 @@ function readOptions(options) {
   if (typeof wasmBindgenVersion !== "string" || wasmBindgenVersion.length === 0) {
     throw ruleError("wasm-bindgen version", 0, "expected a non-empty string");
   }
+  if (typeof buildId !== "string") {
+    throw ruleError("buildId", 0, "expected a string");
+  }
   if (typeof fingerprint !== "string") {
     throw ruleError("fingerprint", 0, "expected a string");
   }
-  return { variant, glueFile, wasmBindgenVersion, fingerprint };
+  return { variant, glueFile, wasmBindgenVersion, buildId, fingerprint };
 }
 
 /**
@@ -310,7 +320,7 @@ function renderDts(names) {
   return [
     'import type * as Glue from "./gwen_core.js";',
     "export declare const wasmUrl: URL;",
-    "export declare const CONTRACT: { readonly fingerprint: string; readonly names: readonly string[]; readonly rawExports: readonly string[]; readonly imports: readonly string[] };",
+    "export declare const CONTRACT: { readonly buildId: string; readonly fingerprint: string; readonly names: readonly string[]; readonly rawExports: readonly string[]; readonly imports: readonly string[] };",
     "export interface GwenCoreGlueInstance {",
     ...members,
     "}",
@@ -342,6 +352,7 @@ export function transformGlue(source, options) {
   const body = rows.map((row) => row.text).join("\n");
   /** @type {GlueContract} */
   const contract = {
+    buildId: opts.buildId,
     fingerprint: opts.fingerprint,
     names,
     rawExports: rawExportNames(body),
@@ -384,24 +395,22 @@ export function readWasmBindgenVersion(lockText) {
 }
 
 /**
- * Rule 9. UTF-8 of the `gwen.fingerprint` custom section, or "" when absent.
+ * Rule 9. UTF-8 of exactly one custom section.
+ * `gwen.build` and `gwen.fingerprint` each have to appear once.
  * @param {Buffer} wasmBytes
+ * @param {string} sectionName
+ * @param {string} wasmFile
  * @returns {string}
  */
-export function readFingerprint(wasmBytes) {
+function readRequiredSection(wasmBytes, sectionName, wasmFile) {
   const compiled = new WebAssembly.Module(wasmBytes);
-  const sections = WebAssembly.Module.customSections(compiled, "gwen.fingerprint");
-  if (sections.length === 0) return "";
+  const sections = WebAssembly.Module.customSections(compiled, sectionName);
   if (sections.length !== 1) {
-    throw ruleError(
-      "fingerprint",
-      0,
-      `expected one gwen.fingerprint section, found ${sections.length}`,
+    throw new Error(
+      `[wasm-factory] ${wasmFile}: expected one ${sectionName} section, found ${sections.length}`,
     );
   }
-  const section = sections[0];
-  if (!section) return "";
-  return new TextDecoder().decode(section);
+  return new TextDecoder().decode(sections[0]);
 }
 
 /**
@@ -418,11 +427,14 @@ function writeFactory(outDir) {
   }
   const wasmBytes = readFileSync(wasmPath);
   const lockText = readFileSync(path.join(ROOT, "Cargo.lock"), "utf8");
+  const buildId = readRequiredSection(wasmBytes, "gwen.build", wasmPath);
+  const fingerprint = readRequiredSection(wasmBytes, "gwen.fingerprint", wasmPath);
   const result = transformGlue(glue, {
     variant: path.basename(outDir),
     glueFile: "gwen_core.js",
     wasmBindgenVersion: readWasmBindgenVersion(lockText),
-    fingerprint: readFingerprint(wasmBytes),
+    buildId,
+    fingerprint,
   });
   writeFileSync(path.join(outDir, "gwen_core_factory.js"), result.js);
   writeFileSync(path.join(outDir, "gwen_core_factory.d.ts"), result.dts);

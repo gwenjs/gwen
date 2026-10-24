@@ -23,7 +23,7 @@ Community modules load through `loadWasmModule`.
 The core glue loads with `import()` (`packages/core/src/engine/wasm-bridge.ts:142-179`).
 The bridge does not build a script from that URL (`packages/core/src/engine/wasm-bridge.ts:127-132`).
 
-The build writes `gwen_core_factory.js` next to each browser variant (`scripts/build-wasm.sh:199`).
+The build writes `gwen_core_factory.js` next to each browser variant (`scripts/build-wasm.sh:202`).
 The running bridge still loads `gwen_core.js` (`packages/core/src/engine/wasm-bridge.ts:320-323`).
 
 No earlier document states what the engine trusts, what it checks, and what the host must do.
@@ -66,13 +66,14 @@ No earlier document states what the engine trusts, what it checks, and what the 
 ### Checked input
 
 4. The generated factory is `gwen_core_factory.js`, one file per browser variant.
-   `scripts/build-wasm.sh:199` runs `scripts/wasm-factory.mjs` after `wasm-pack`.
-   The package exports `./wasm/<variant>/factory` for `light`, `physics2d`, and `physics3d` (`packages/core/package.json:68-86`).
-   The script reads the `gwen.fingerprint` custom section (`scripts/wasm-factory.mjs:387-405`).
-   Zero sections store `""`.
-   More than one section throws.
-   That value is passed at `scripts/wasm-factory.mjs:425` and stored on `CONTRACT.fingerprint` at `:345`.
-   The generated header names wasm-bindgen and `MIT OR Apache-2.0` (`scripts/wasm-factory.mjs:356`).
+   `scripts/build-wasm.sh:199` stamps `gwen.build` after `optimize_wasm`.
+   `scripts/build-wasm.sh:202` runs `scripts/wasm-factory.mjs`.
+   The package exports `./wasm/<variant>/factory` for `light`, `physics2d`, and `physics3d` (`packages/core/package.json:69-88`).
+   `readRequiredSection` reads `gwen.build` and `gwen.fingerprint` (`scripts/wasm-factory.mjs:405-414`).
+   Each section must appear once. Any other count throws.
+   The build id is read at `scripts/wasm-factory.mjs:430` and passed at `:436`. It is stored on `CONTRACT.buildId` at `:355`.
+   The fingerprint is read at `:431` and passed at `:437`. It is stored on `CONTRACT.fingerprint` at `:356`.
+   The generated header names wasm-bindgen and `MIT OR Apache-2.0` (`scripts/wasm-factory.mjs:367`).
    `packages/core/src` does not read `CONTRACT`, `createGlue`, or `gwen_core_factory`.
    The fingerprint check is planned in #260.
    It does not exist yet.
@@ -202,7 +203,7 @@ Community module, inside `WasmModuleRunner.load`.
 | 1   | `jsUrl` glue URL                                                  | host config   | trusted            | `import()` of the absolute URL (`wasm-bridge.ts:167`). A bad URL or a rejected import is `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:157-177`). The module must expose `default` or `initSync`, and `Engine` (`wasm-bridge.ts:364-382`). No source is built from the URL.                                                           | host; loader change is #262                                                     |
 | 2   | `wasmUrl`, including a `data:` URL                                | host config   | trusted            | HTTP status (`wasm-bridge.ts:344-349`), a 10 s abort mapped to `CORE:WASM_TIMEOUT` (`wasm-bridge.ts:336-357`), and `data:` decode (`wasm-bridge.ts:111-125`, used at `:341-342`). The `initSync` fallback fetches again with no status check and no 10 s abort (`wasm-bridge.ts:367-369`).                                           | host                                                                            |
 | 3   | core binary (bytes or a compiled module)                          | host / caller | trusted            | Today the option is `wasmUrl` only (`wasm-bridge-types.ts:1074-1081`). There is no `wasmBytes` or `wasmModule` field. A failure that is not a `GwenError` is wrapped as `CORE:WASM_LOAD_ERROR` (`wasm-bridge.ts:398-412`). A trap in the `Engine` constructor is `CORE:WASM_PANIC` (`wasm-bridge.ts:385-389`). `CORE:WASM_GLUE_MISMATCH` is absent from `CoreErrorCodes` (`engine-errors.ts:58-117`) and from `packages/schema/src`. Planned in #260. | host; mismatch check planned in #260; bytes or module option is #89, still open |
-| 4   | generated factory `gwen_core_factory.js`, one per browser variant | build         | trusted            | `scripts/build-wasm.sh:199` writes it via `scripts/wasm-factory.mjs`. `readFingerprint` reads the `gwen.fingerprint` section, or `""` (`scripts/wasm-factory.mjs:387-405`). That value is passed at `:425` and stored on `CONTRACT.fingerprint` at `:345`. Exported at `packages/core/package.json:68-86`. The engine source does not compare it. Fingerprint check planned in #260. | #259 for the generator; check planned in #260                                   |
+| 4   | generated factory `gwen_core_factory.js`, one per browser variant | build         | trusted            | `scripts/build-wasm.sh:199` stamps `gwen.build`. `scripts/build-wasm.sh:202` writes the factory via `scripts/wasm-factory.mjs`. `readRequiredSection` requires one `gwen.build` and one `gwen.fingerprint` (`scripts/wasm-factory.mjs:405-414`). Those strings are read at `:430` and `:431`, passed at `:436` and `:437`, and stored on `CONTRACT.buildId` and `CONTRACT.fingerprint` at `:355-356`. Exported at `packages/core/package.json:69-88`. The engine source does not compare them. The runtime check is planned in #260. | #259 for the generator; check planned in #260                                   |
 | 5   | community WASM via `loadWasmModule`                               | third party   | semi-trusted       | Fetch and compile (`wasm-module-runner.ts:94-104`). ABI at `:113` and `:141`. Regions at `:306-375`, plus probe offset at `:151-157`. Traps in `stepAll` at `:242-279`. No byte cap, no `memory.grow` cap, no call timeout. Those limits are planned in #270.                                                                   | engine for ABI, regions, and traps (#92); caps planned in #270                  |
 | 6   | `{gwen}` imports handed to a module                               | engine        | engine-built       | Four numeric functions only (`wasm-module-runner.ts:84-89`). The instantiate object is `{ gwen: gwenImports }` (`:111`, `:130`).                                                                                                                                                                                                | #92                                                                             |
 | 7   | JS plugin `use()` / config modules                                | host          | trusted            | None. Plugin JS runs on the caller thread. No `worker_threads` in `packages/core/src`.                                                                                                                                                                                                                                          | host; CPU containment planned in #268                                           |
@@ -210,7 +211,7 @@ Community module, inside `WasmModuleRunner.load`.
 | 9   | scene / layout / asset paths                                      | app           | trusted            | Not audited. This record claims no engine check.                                                                                                                                                                                                                                                                                | host                                                                            |
 | 10  | dev middleware under `/wasm` (default `wasmPublicPath`)           | dev request   | semi-trusted       | `resolveWasmFileWithin` decodes the name, allows only `.wasm` and `.js`, and requires `startsWith(base + sep)` (`packages/vite/src/index.ts:114-134`). Default `wasmPublicPath` is `"/wasm"` (`:176`). Called at `:594`, and through `findWasmPluginFile` (`:149`, used at `:605`). An escaping path returns null.            | Vite plugin                                                                     |
 | 11  | Vite HMR / reload messages                                        | dev server    | trusted (dev only) | Scene changes and `.wasm` changes send `{ type: "full-reload" }` and no evaluated payload (`packages/vite/src/index.ts:565-571`, `packages/vite/src/plugins/wasm.ts:97-101`).                                                                                                                                                   | Vite plugin                                                                     |
-| 12  | licence / provenance of the generated factory                     | build         | trusted            | The generated header names wasm-bindgen and `MIT OR Apache-2.0` (`scripts/wasm-factory.mjs:356`). No `THIRD-PARTY-NOTICES` file is in the repo. #259 decided that `packages/core/THIRD-PARTY-NOTICES` will list wasm-bindgen under the Apache-2.0 option. That file is planned.                                                 | #259                                                                            |
+| 12  | licence / provenance of the generated factory                     | build         | trusted            | The generated header names wasm-bindgen and `MIT OR Apache-2.0` (`scripts/wasm-factory.mjs:367`). No `THIRD-PARTY-NOTICES` file is in the repo. #259 decided that `packages/core/THIRD-PARTY-NOTICES` will list wasm-bindgen under the Apache-2.0 option. That file is planned.                                                 | #259                                                                            |
 
 Paths in the table are under `packages/core/src/engine/` unless the cell names another directory.
 
