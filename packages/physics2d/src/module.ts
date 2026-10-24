@@ -13,7 +13,6 @@
  */
 
 import { defineGwenModule } from "@gwenjs/kit/module";
-import { definePluginTypes } from "@gwenjs/kit/plugin";
 import { Physics2DPlugin } from "./plugin/index";
 import { physics2dVitePlugin } from "./vite-plugin";
 import type { Physics2DConfig } from "./types";
@@ -24,7 +23,7 @@ import type { Physics2DConfig } from "./types";
  * When installed via `gwen add @gwenjs/physics2d`, this module:
  * 1. Registers the physics2d runtime plugin.
  * 2. Adds `usePhysics2D`, `useRigidBody`, `useCollider` as auto-imports.
- * 3. Generates `.gwen/types/physics2d.d.ts` with typed service/hook declarations.
+ * 3. Adds the physics2d Vite plugin.
  */
 declare module "@gwenjs/schema" {
   interface GwenModuleOptions {
@@ -65,24 +64,5 @@ export default defineGwenModule<Physics2DConfig>({
       { name: "useShape", from: "@gwenjs/physics2d" },
       { name: "useKinematicBody", from: "@gwenjs/physics2d" },
     ]);
-
-    kit.addTypeTemplate({
-      filename: "physics2d.d.ts",
-      getContents: () =>
-        definePluginTypes({
-          imports: [
-            "import type { Physics2DAPI, CollisionContact, CollisionEventsBatch, SensorState } from '@gwenjs/physics2d'",
-          ],
-          provides: { physics2d: "Physics2DAPI" },
-          hooks: {
-            "physics:collision": "(contacts: ReadonlyArray<CollisionContact>) => void",
-            "physics:collision:batch": "(batch: Readonly<CollisionEventsBatch>) => void",
-            "physics:sensor:changed":
-              "(entityId: EntityId, sensorId: number, state: SensorState) => void",
-            "physics2d:body-disabled":
-              "(payload: { readonly entity: EntityId; readonly reason: 'non-finite' | 'out-of-bounds' | 'velocity' }) => void",
-          },
-        }),
-    });
   },
 });

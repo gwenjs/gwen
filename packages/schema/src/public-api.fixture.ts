@@ -41,7 +41,6 @@ type _0 = [
   Root.GwenSceneExtensions,
   Root.GwenScopeMeta,
   Root.GwenScopeType,
-  Root.GwenTypeTemplate,
   Root.GwenUIExtensions,
   Root.HookBusBase,
   Root.HookHandlerMap,

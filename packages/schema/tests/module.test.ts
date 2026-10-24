@@ -2,12 +2,12 @@
  * @gwenjs/schema — module types structural tests.
  *
  * These tests verify the runtime shape of objects conforming to the
- * build-time module interfaces: AutoImport, GwenTypeTemplate, GwenBaseConfig,
+ * build-time module interfaces: AutoImport, GwenBaseConfig,
  * and GwenBuildHooks handler signatures.
  */
 
 import { describe, it, expect, vi } from "vitest";
-import type { AutoImport, GwenTypeTemplate, GwenBaseConfig, GwenBuildHooks } from "../src";
+import type { AutoImport, GwenBaseConfig, GwenBuildHooks } from "../src";
 
 describe("AutoImport", () => {
   it("accepts an object with required name and from fields", () => {
@@ -28,27 +28,6 @@ describe("AutoImport", () => {
   it("'as' is undefined when not provided", () => {
     const entry: AutoImport = { name: "usePhysics2D", from: "@gwenjs/physics2d" };
     expect(entry.as).toBeUndefined();
-  });
-});
-
-describe("GwenTypeTemplate", () => {
-  it("accepts a filename and getContents function", () => {
-    const template: GwenTypeTemplate = {
-      filename: "types/physics.d.ts",
-      getContents() {
-        return "declare module '...' {}";
-      },
-    };
-    expect(template.filename).toBe("types/physics.d.ts");
-    expect(template.getContents()).toBe("declare module '...' {}");
-  });
-
-  it("getContents is callable and returns a string", () => {
-    const template: GwenTypeTemplate = {
-      filename: "types/foo.d.ts",
-      getContents: () => "// generated",
-    };
-    expect(typeof template.getContents()).toBe("string");
   });
 });
 

@@ -95,7 +95,6 @@ export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";
 
 export type {
   AutoImport,
-  GwenTypeTemplate,
   VitePlugin,
   ViteUserConfig,
   GwenBuildHooks,

@@ -1,4 +1,4 @@
-import type { AutoImport, GwenTypeTemplate } from "@gwenjs/kit";
+import type { AutoImport } from "@gwenjs/kit";
 import type { GwenSceneRouterOptions } from "./plugins/scene-router.js";
 import type { GwenTweenOptions } from "./plugins/tween.js";
 import type { HooksPluginOptions } from "./plugins/hooks.js";
@@ -115,12 +115,6 @@ export interface GwenViteOptions {
    * @default []
    */
   autoImports?: AutoImport[];
-
-  /**
-   * Type templates to write into `.gwen/types/` at build start.
-   * @default []
-   */
-  typeTemplates?: GwenTypeTemplate[];
 
   /**
    * Directory (relative to project root) where generated files are written.

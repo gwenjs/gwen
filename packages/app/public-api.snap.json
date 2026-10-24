@@ -9,7 +9,6 @@
       "GwenModuleDefinition",
       "GwenModuleEntry",
       "GwenModuleOptions",
-      "GwenTypeTemplate",
       "GwenUserConfig",
       "ResolvedGwenConfig"
     ]

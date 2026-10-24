@@ -1,6 +1,5 @@
 import { gwenWasmPlugin } from "./wasm.js";
 import { gwenAutoImportsPlugin } from "./auto-imports.js";
-import { gwenTypesPlugin } from "./types-writer.js";
 import { gwenVirtualPlugin } from "./virtual-env.js";
 import { gwenActorPlugin } from "./actor.js";
 import { gwenLayoutPlugin } from "./layout.js";
@@ -19,7 +18,6 @@ import type { PluginOption } from "vite";
 
 export { gwenWasmPlugin } from "./wasm.js";
 export { gwenAutoImportsPlugin, generateAutoImportsModule } from "./auto-imports.js";
-export { gwenTypesPlugin } from "./types-writer.js";
 export { gwenVirtualPlugin } from "./virtual-env.js";
 export { gwenActorPlugin, generateActorsModule, transformActorNames } from "./actor.js";
 export {
@@ -57,7 +55,6 @@ export { gwenDevStripPlugin, type GwenDevStripReport } from "./dev-strip.js";
  *
  * - `gwen:wasm` — serves / inlines the WASM binary
  * - `gwen:auto-imports` — virtual module for composable re-exports
- * - `gwen:types` — writes type-template `.d.ts` files
  * - `gwen:virtual` — injects `virtual:gwen/env` constants
  * - `gwen:actor` — actor auto-discovery and name injection
  * - `gwen:layout` — layout virtual module and name injection
@@ -108,7 +105,6 @@ export function gwenVitePlugin(options: GwenViteOptions = {}): PluginOption {
   return [
     gwenWasmPlugin(options),
     gwenAutoImportsPlugin(options),
-    gwenTypesPlugin(options),
     gwenVirtualPlugin(options),
     gwenActorPlugin(options),
     gwenLayoutPlugin(options),

@@ -22,7 +22,7 @@ Together they allow you to extend GWEN with custom or third-party capabilities.
 | Registered in | `src/plugins/` (auto-discovered) or `gwen.addPlugin()` inside a module | `src/modules/` (auto-discovered) or `modules` key in `gwen.config.ts` |
 | Execution context | Runtime (browser) | Build-time (Node.js: `gwen dev`, `gwen build`, `gwen prepare`) |
 | Scope | Engine-wide lifecycle | Feature setup, configuration, code generation |
-| Example | Input handling, physics simulation | Registering plugins, auto-imports, Vite extensions, type templates |
+| Example | Input handling, physics simulation | Registering plugins, auto-imports, Vite extensions |
 | Access | `engine` instance passed to `setup()` | `gwen` build API passed to `setup()` |
 
 ## Quick Example

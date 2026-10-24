@@ -22,8 +22,6 @@ function mockKit(): GwenKit {
     addAutoImports: vi.fn(),
     addVitePlugin: vi.fn(),
     extendViteConfig: vi.fn(),
-    addTypeTemplate: vi.fn(),
-    addModuleAugment: vi.fn(),
     hook: vi.fn(),
     options: {},
   };
@@ -126,22 +124,6 @@ describe("defineGwenModule() — setup() call contract", () => {
     const kit = mockKit();
     mod.setup({}, kit);
     expect(kit.addAutoImports).toHaveBeenCalledWith([{ name: "useTest", from: "@test/module" }]);
-  });
-
-  it("setup() can call gwen.addTypeTemplate without throwing", () => {
-    const mod = defineGwenModule({
-      meta: { name: "@test/module" },
-      setup(_opts, gwen) {
-        gwen.addTypeTemplate({
-          filename: "types/test.d.ts",
-          getContents: () => "declare module '...' {}",
-        });
-      },
-    });
-
-    const kit = mockKit();
-    mod.setup({}, kit);
-    expect(kit.addTypeTemplate).toHaveBeenCalledTimes(1);
   });
 
   it("setup() can register a build-time hook", () => {

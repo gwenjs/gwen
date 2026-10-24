@@ -16,7 +16,6 @@
       "DeepPartial",
       "GwenConfig",
       "GwenContextErrorCode",
-      "GwenTypeTemplate",
       "MergePluginsPrefabExtensions",
       "MergePluginsSceneExtensions",
       "MergePluginsUIExtensions",
@@ -25,13 +24,7 @@
     ]
   },
   "./plugin": {
-    "values": [
-      "createEntityId",
-      "definePlugin",
-      "definePluginTypes",
-      "satisfiesPluginContract",
-      "unpackEntityId"
-    ],
+    "values": ["createEntityId", "definePlugin", "satisfiesPluginContract", "unpackEntityId"],
     "types": [
       "ComponentType",
       "EntityId",
@@ -39,8 +32,7 @@
       "GwenPluginFactory",
       "GwenProvides",
       "GwenRuntimeHooks",
-      "PluginErrorContext",
-      "PluginTypesOptions"
+      "PluginErrorContext"
     ]
   },
   "./module": {

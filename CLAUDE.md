@@ -240,7 +240,7 @@ systems that need it. Never call `.acquire()` on the `defineActorPool` value dir
 ### Module system (framework extensions)
 
 `defineGwenModule` is the build-time equivalent of `definePlugin`. Modules run in Node.js
-(not the browser) and extend the framework itself: adding plugins, generating type templates,
+(not the browser) and extend the framework itself: adding plugins,
 registering auto-imports, and extending the Vite config. They are declared by package name in
 `gwen.config.ts → modules`.
 
