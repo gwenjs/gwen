@@ -1,7 +1,8 @@
 /**
  * @file onContact() — subscribes to collision events for one actor entity.
  */
-import { GwenContextError, useEngine, createEngineLocal } from "@gwenjs/core";
+import { useEngine, createEngineLocal } from "@gwenjs/core";
+import { GwenContextError } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
 import type { ContactEvent } from "../types";

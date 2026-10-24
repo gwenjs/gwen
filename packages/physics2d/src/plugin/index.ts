@@ -8,15 +8,14 @@ import { definePlugin } from "@gwenjs/kit/plugin";
 import { createLogger, createEntityId, createEngineLocal, useEngine } from "@gwenjs/core";
 import {
   engineContext,
-  entityIndex,
   getWasmBridge,
   poisonWasmBridge,
   reportRejectedHook,
   toGwenWasmError,
 } from "@gwenjs/core/internal";
-import type { GwenEngine, EntityId, IGwenLogger, MemoryView, WasmBridge } from "@gwenjs/core";
+import type { GwenEngine, IGwenLogger, MemoryView, WasmBridge } from "@gwenjs/core";
 import type { WasmEnginePhysics2D } from "@gwenjs/core/internal";
-import { GwenError } from "@gwenjs/schema";
+import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
 
 import type {
   Physics2DConfig,

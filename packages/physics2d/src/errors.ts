@@ -1,5 +1,4 @@
-import type { EntityId } from "@gwenjs/core";
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type EntityId } from "@gwenjs/schema";
 
 /** Error codes emitted by the GWEN Physics2D plugin. */
 export const Physics2DErrorCodes = {

@@ -14,7 +14,7 @@
  */
 
 import { describe, bench, vi, beforeAll } from "vitest";
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { ComponentDef } from "@gwenjs/core/system";
 import { createPhysicsKinematicSyncSystem } from "../src/systems";
 

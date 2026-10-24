@@ -1,4 +1,4 @@
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { Physics2DAPI, PhysicsEntitySnapshot } from "../types";
 
 /**

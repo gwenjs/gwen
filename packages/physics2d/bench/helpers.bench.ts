@@ -16,7 +16,7 @@
 
 import { describe, bench } from "vitest";
 import { createEntityId } from "@gwenjs/core";
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import { dedupeContactsByPair, selectContactsForEntityId } from "../src/helpers/contact";
 import type { CollisionEvent, CollisionEventsBatch } from "../src/types";
 
