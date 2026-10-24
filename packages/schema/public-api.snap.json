@@ -1,6 +1,7 @@
 {
   ".": {
     "values": [
+      "GWEN_DOCS_BASE",
       "GwenError",
       "GwenErrorCode",
       "assertModuleFirstInput",
@@ -8,6 +9,8 @@
       "defaultOptions",
       "entityGeneration",
       "entityIndex",
+      "errorDocsAnchor",
+      "errorDocsUrl",
       "resolveConfig",
       "unpackEntityId",
       "validateResolvedConfig"

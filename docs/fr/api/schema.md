@@ -178,3 +178,11 @@ function assertModuleFirstInput(input: GwenConfigInput): void
 ```ts
 assertModuleFirstInput(input);
 ```
+
+## Erreurs
+
+Champs de `GwenError` : `code`, `composable`, `hint`, `docsUrl`.
+
+Un troisième argument produit `[where] what`, une ligne `Fix:` facultative et une ligne `See`. Deux arguments gardent le message brut. `docsUrl` est toujours défini à partir du code et du `docsBase` de la classe qui construit l'erreur.
+
+Valeurs : `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.

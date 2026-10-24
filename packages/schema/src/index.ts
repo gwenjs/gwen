@@ -24,7 +24,7 @@ export type { GwenDisposable, DisposableRegistryBase } from "./disposable";
 
 // ─── Errors ──────────────────────────────────────────────────────────────────
 
-export { GwenError } from "./errors";
+export { GwenError, GWEN_DOCS_BASE, errorDocsAnchor, errorDocsUrl } from "./errors";
 export type {
   GwenErrorLevel,
   GwenErrorPayload,
