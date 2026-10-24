@@ -78,6 +78,7 @@ const enSidebar = [
       { text: '@gwenjs/renderer-core', link: '/api/renderer-core' },
       { text: '@gwenjs/camera-core', link: '/api/camera-core' },
       { text: '@gwenjs/vite', link: '/api/vite' },
+      { text: 'Errors', link: '/api/errors' },
     ],
   },
 ]
@@ -160,6 +161,7 @@ const frSidebar = [
       { text: '@gwenjs/renderer-core', link: '/fr/api/renderer-core' },
       { text: '@gwenjs/camera-core', link: '/fr/api/camera-core' },
       { text: '@gwenjs/vite', link: '/fr/api/vite' },
+      { text: 'Erreurs', link: '/fr/api/errors' },
     ],
   },
 ]

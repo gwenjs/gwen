@@ -154,13 +154,9 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
   try {
     absoluteUrl = new URL(jsUrl, base).href;
   } catch (cause) {
-    throw new GwenError(
-      CoreErrorCodes.WASM_LOAD_ERROR,
-      `[GWEN] Unable to load WASM glue: ${jsUrl}`,
-      {
-        cause,
-      },
-    );
+    throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, `Unable to load WASM glue: ${jsUrl}.`, {
+      cause,
+    });
   }
 
   try {
@@ -168,13 +164,9 @@ async function loadWasmGlue(jsUrl: string): Promise<WasmGlueModule> {
     ctx[key] = glue;
     return glue;
   } catch (cause) {
-    throw new GwenError(
-      CoreErrorCodes.WASM_LOAD_ERROR,
-      `[GWEN] Unable to load WASM glue: ${jsUrl}`,
-      {
-        cause,
-      },
-    );
+    throw new GwenError(CoreErrorCodes.WASM_LOAD_ERROR, `Unable to load WASM glue: ${jsUrl}.`, {
+      cause,
+    });
   }
 }
 

@@ -25,7 +25,7 @@ import { existsSync } from "node:fs";
 import { loadConfig } from "c12";
 import { GwenError } from "@gwenjs/schema";
 import type { GwenUserConfig } from "./types";
-import { AppErrorCodes } from "./error-codes";
+import { AppErrorCodes, causeText } from "./error-codes";
 
 // ─── GwenConfigLoadError ─────────────────────────────────────────────────────
 
@@ -90,7 +90,7 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
 
     if (!configFile || !existsSync(configFile)) {
       throw new GwenConfigLoadError(
-        `No gwen.config.ts (or .js / .mjs / .cjs) found in ${cwd}`,
+        `No gwen.config.ts (or .js / .mjs / .cjs) found in ${cwd}.`,
         undefined,
         null,
       );
@@ -103,9 +103,8 @@ export async function loadRawGwenConfig(cwd: string): Promise<RawGwenConfig> {
   } catch (error) {
     if (error instanceof GwenConfigLoadError) throw error;
 
-    const msg = error instanceof Error ? error.message : String(error);
     throw new GwenConfigLoadError(
-      `Failed to load gwen config from ${configFile ?? cwd}: ${msg}. ` +
+      `Failed to load gwen config from ${configFile ?? cwd}: ${causeText(error)} ` +
         `Check for syntax errors or missing imports in your config file.`,
       configFile,
       error,

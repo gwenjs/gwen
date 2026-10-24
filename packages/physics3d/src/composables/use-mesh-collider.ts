@@ -38,7 +38,7 @@ function isRejectionOf(err: unknown, exportName: string): err is GwenError {
 }
 
 function rebuildFailedMessage(err: GwenError): string {
-  return `physics3d_rebuild_mesh_collider failed (${err.code}): ${err.message}`;
+  return `physics3d_rebuild_mesh_collider failed (${err.code}): ${err.message}.`;
 }
 
 /**
