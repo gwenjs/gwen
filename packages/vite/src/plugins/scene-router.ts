@@ -39,34 +39,7 @@ export function transformRouterNames(code: string): string {
 }
 
 /**
- * Generates a devtools script for the GWEN scene router.
- *
- * @returns JavaScript string to inject into the page.
- */
-export function generateRouterDevtools(): string {
-  return `
-if (typeof window !== 'undefined') {
-  window.__GWEN_ROUTER__ = {
-    get current() {
-      return window.__GWEN_ROUTER_INSTANCE__?.current ?? '(no router active)';
-    },
-    send(event, params) {
-      if (window.__GWEN_ROUTER_INSTANCE__) {
-        window.__GWEN_ROUTER_INSTANCE__.send(event, params);
-      } else {
-        console.warn('[GWEN DevTools] No router registered.');
-      }
-    },
-    can(event) {
-      return window.__GWEN_ROUTER_INSTANCE__?.can(event) ?? false;
-    },
-  };
-}
-`;
-}
-
-/**
- * GWEN sub-plugin for scene router debug name injection and devtools.
+ * GWEN sub-plugin for scene router debug name injection.
  *
  * @param options - Top-level GWEN Vite plugin options.
  * @returns Vite plugin instance.
@@ -86,14 +59,6 @@ export function gwenSceneRouterPlugin(options: GwenViteOptions = {}): Plugin {
       const transformed = transformRouterNames(code);
       if (transformed === code) return;
       return { code: transformed, map: null };
-    },
-    transformIndexHtml: {
-      order: "post",
-      handler(html, ctx) {
-        if (ctx.server && ctx.server.config.command === "serve") {
-          return html.replace(/<head>/i, `<head>\n<script>${generateRouterDevtools()}</script>`);
-        }
-      },
     },
   };
 }

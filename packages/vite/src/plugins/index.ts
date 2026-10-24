@@ -26,11 +26,7 @@ export {
   transformLayoutNames,
   extractLayoutNames,
 } from "./layout.js";
-export {
-  gwenSceneRouterPlugin,
-  generateRouterDevtools,
-  transformRouterNames,
-} from "./scene-router.js";
+export { gwenSceneRouterPlugin, transformRouterNames } from "./scene-router.js";
 export { gwenTweenPlugin, extractUsedEasings, type GwenTweenOptions } from "./tween.js";
 export { gwenHooksPlugin, extractDefineHooksExports, generateHooksDts } from "./hooks.js";
 export type { HooksPluginOptions } from "./hooks.js";
