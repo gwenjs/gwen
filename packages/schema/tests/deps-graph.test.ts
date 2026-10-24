@@ -79,6 +79,7 @@ const SCHEMA_CONTRACTS = new Set([
   "PluginErrorEvent",
   "PluginErrorContext",
   "EntityId",
+  "entityIndex",
   "ComponentType",
   "InferHooks",
   "HookHandlerMap",
