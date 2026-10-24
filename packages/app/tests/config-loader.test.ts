@@ -114,4 +114,16 @@ describe("loadRawGwenConfig", () => {
       expect((err as Error).message).toMatch(/gwen\.config/i);
     }
   });
+
+  it("loadRawGwenConfig on an empty directory renders [GWEN] and See (APP:CONFIG_LOAD_FAILED)", async () => {
+    const { loadRawGwenConfig, GwenConfigLoadError } = await import("../src/config-loader.js");
+    const caught: unknown = await loadRawGwenConfig(tmpDir).catch((err: unknown) => err);
+    expect(caught).toBeInstanceOf(GwenConfigLoadError);
+    if (!(caught instanceof GwenConfigLoadError)) return;
+    expect(caught.message).toBe(
+      `[GWEN] No gwen.config.ts (or .js / .mjs / .cjs) found in ${tmpDir}.\n` +
+        "See https://gwenjs.github.io/gwen/api/errors#app-config-load-failed (APP:CONFIG_LOAD_FAILED)",
+    );
+    expect(caught.cause).toBeNull();
+  });
 });

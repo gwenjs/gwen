@@ -7,6 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 import { GwenError } from "../src/errors";
+import * as schema from "../src/index.js";
 import type {
   GwenErrorLevel,
   GwenErrorPayload,
@@ -180,5 +181,81 @@ describe("GwenErrorBusBase (structural)", () => {
     expect(called).toBe(true);
     unsubscribe();
     expect(fatalCb).toBeNull();
+  });
+});
+
+const DOCS = "https://gwenjs.github.io/gwen/api/errors";
+
+describe("GwenError message grammar", () => {
+  it("renders [composable()] what, Fix and See lines", () => {
+    const error = new schema.GwenError(
+      "CORE:OUTSIDE_ACTOR_CONTEXT",
+      "Called outside defineActor().",
+      {
+        composable: "useDynamicBody",
+        hint: "Call it inside defineActor().",
+      },
+    );
+    expect(error.message).toBe(
+      `[useDynamicBody()] Called outside defineActor().\nFix: Call it inside defineActor().\nSee ${DOCS}#core-outside-actor-context (CORE:OUTSIDE_ACTOR_CONTEXT)`,
+    );
+  });
+  it("where falls back to GWEN when composable is unset", () => {
+    const error = new schema.GwenError("SCHEMA:INVALID_CONFIG", "Broken.", {});
+    expect(error.message.startsWith("[GWEN] Broken.")).toBe(true);
+  });
+  it("has no Fix line when hint is undefined", () => {
+    const error = new schema.GwenError("C:A", "Broken.", { composable: "x", hint: undefined });
+    expect(error.message.includes("\nFix:")).toBe(false);
+    expect(error.message.split("\n")).toHaveLength(2);
+    expect(error.message.startsWith("[x()] Broken.")).toBe(true);
+  });
+  it("keeps a multi-line hint verbatim", () => {
+    const hint = "Call it inside defineActor().\nKeep the handle.";
+    const error = new schema.GwenError("C:A", "Out.", { composable: "useDynamicBody", hint });
+    expect(error.message).toContain(`\nFix: ${hint}`);
+  });
+  it("derives docsUrl from the code", () => {
+    expect(typeof schema.errorDocsUrl).toBe("function");
+    expect(typeof schema.errorDocsAnchor).toBe("function");
+    const error = new schema.GwenError("PHYSICS2D:INVALID_LAYERS", "Bad layers.", {});
+    expect(schema.errorDocsAnchor("PHYSICS2D:INVALID_LAYERS")).toBe("physics2d-invalid-layers");
+    expect(error.docsUrl).toBe(`${DOCS}#physics2d-invalid-layers`);
+    expect(error.docsUrl).toBe(schema.errorDocsUrl(error.code));
+  });
+  it("a subclass with a static docsBase links to its own site", () => {
+    expect(typeof schema.errorDocsUrl).toBe("function");
+    class OwnSite extends schema.GwenError {
+      static docsBase = "https://x.test";
+    }
+    const own = new OwnSite("RENDERER_THREE:NOT_MOUNTED", "Not mounted.", {});
+    expect(own.docsUrl).toBe("https://x.test/api/errors#renderer-three-not-mounted");
+    expect(own.message).toContain("https://x.test/api/errors#renderer-three-not-mounted");
+    class FrameworkSite extends schema.GwenError {}
+    const plain = new FrameworkSite("RENDERER_THREE:NOT_MOUNTED", "Not mounted.", {});
+    expect(plain.docsUrl).toBe(`${schema.GWEN_DOCS_BASE}/api/errors#renderer-three-not-mounted`);
+    expect(schema.GWEN_DOCS_BASE).toBe("https://gwenjs.github.io/gwen");
+  });
+  it("stores composable and hint", () => {
+    const named = new schema.GwenError("CORE:A", "One.", { composable: "useA", hint: "Fix A." });
+    const plain = new schema.GwenError("CORE:B", "Two.", {});
+    expect(named.composable).toBe("useA");
+    expect(named.hint).toBe("Fix A.");
+    expect(plain.composable).toBeUndefined();
+    expect(plain.hint).toBeUndefined();
+  });
+  it("keeps cause", () => {
+    const original = new Error("root");
+    const error = new schema.GwenError("CORE:OUTSIDE_ACTOR_CONTEXT", "Wrapped.", {
+      cause: original,
+    });
+    expect(error.cause).toBe(original);
+    expect(error.message.startsWith("[GWEN] Wrapped.\nSee ")).toBe(true);
+  });
+  it("a two-argument GwenError keeps its raw message during the migration", () => {
+    const error = new schema.GwenError("CORE:OUTSIDE_ACTOR_CONTEXT", "detailed message");
+    expect(error.message).toBe("detailed message");
+    expect(typeof schema.errorDocsUrl).toBe("function");
+    expect(error.docsUrl).toBe(schema.errorDocsUrl("CORE:OUTSIDE_ACTOR_CONTEXT"));
   });
 });

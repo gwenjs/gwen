@@ -6,7 +6,9 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { GwenError } from "@gwenjs/schema";
 import { WasmBridgeImpl } from "../../src/internal";
@@ -18,6 +20,8 @@ const MINIMAL_WASM_URL = `data:application/wasm;base64,${Buffer.from(
 ).toString("base64")}`;
 
 const BRIDGE_SOURCE = fileURLToPath(new URL("../../src/engine/wasm-bridge.ts", import.meta.url));
+const GLUE_URL = "https://gwenjs.github.io/gwen/api/errors#core-wasm-load-error";
+const GLUE_SEE = `See ${GLUE_URL} (CORE:WASM_LOAD_ERROR)`;
 
 afterEach(() => {
   for (const key of Object.keys(globalThis)) {
@@ -50,7 +54,7 @@ describe("loadWasmGlue", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
-    expect(caught.message).toContain(`[GWEN] Unable to load WASM glue: ${jsUrl}`);
+    expect(caught.message).toBe(`[GWEN] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
     expect(caught.cause).toBeInstanceOf(Error);
   });
 
@@ -76,7 +80,43 @@ describe("loadWasmGlue", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
-    expect(caught.message).toBe(`[GWEN] Unable to load WASM glue: ${jsUrl}`);
+    expect(caught.message).toBe(`[GWEN] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
     expect(caught.cause).toBeInstanceOf(TypeError);
   });
+
+  it("init wraps a plain glue init Error as CORE:WASM_LOAD_ERROR and keeps the cause", async () => {
+    const rejected = new Error("glue init failed");
+    Reflect.set(globalThis, "__gwenGlue_rejected", rejected);
+    const caught = await catchGlue(
+      "export default function init() { throw globalThis.__gwenGlue_rejected; }\n",
+    );
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) return;
+    expect(caught.message).toBe(`[GWEN] glue init failed\n${GLUE_SEE}`);
+    expect(caught.cause).toBe(rejected);
+    expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+  });
+  it("init keeps a non-Error glue failure raw and still sets docsUrl", async () => {
+    const caught = await catchGlue("export default function init() { throw 'not-an-error'; }\n");
+    expect(caught).toBeInstanceOf(GwenError);
+    if (!(caught instanceof GwenError)) return;
+    expect(caught.message).toBe("not-an-error");
+    expect(caught.docsUrl).toBe(GLUE_URL);
+    expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
+  });
 });
+async function catchGlue(source: string): Promise<unknown> {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-glue-"));
+  const bridge = new WasmBridgeImpl();
+  try {
+    const jsUrl = pathToFileURL(join(dir, "glue.mjs")).href;
+    writeFileSync(fileURLToPath(jsUrl), source, "utf8");
+    await bridge.init("light", { jsUrl, wasmUrl: MINIMAL_WASM_URL });
+    return undefined;
+  } catch (err: unknown) {
+    return err;
+  } finally {
+    bridge._reset();
+    rmSync(dir, { recursive: true, force: true });
+  }
+}

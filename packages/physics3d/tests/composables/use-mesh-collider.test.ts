@@ -170,6 +170,10 @@ describe("useMeshCollider", () => {
     if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
     expect(caught.code).toBe("PHYSICS3D:MESH_REBUILD_FAILED");
     expect(caught.cause).toBe(rejected);
+    expect(caught.message).toBe(
+      "[GWEN] physics3d_rebuild_mesh_collider failed (PHYSICS3D:COLLIDER_NOT_FOUND): no collider 1 registered for slot 1.\n" +
+        "See https://gwenjs.github.io/gwen/api/errors#physics3d-mesh-rebuild-failed (PHYSICS3D:MESH_REBUILD_FAILED)",
+    );
     expect(handle.status).toBe("error");
   });
 
