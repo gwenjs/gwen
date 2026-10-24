@@ -113,6 +113,7 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 });
 
 import { createEntityId, createLogger } from "@gwenjs/core";
+import type { GwenLogEntry } from "@gwenjs/schema";
 import { engineContext, getWasmBridge } from "@gwenjs/core/internal";
 import { Physics2DPlugin } from "../src";
 import { physics2D } from "../src/plugin/index.js";
@@ -250,9 +251,14 @@ describe("Physics2DPlugin", () => {
   it("warns when the speed cap setter returns 0", async () => {
     mockWasmPlugin.physics_set_max_linear_velocity = () => 0;
     const warnings: string[] = [];
-    const logger = createLogger("test", false);
-    logger.setSink((entry) => {
-      warnings.push(entry.message);
+    const logger = createLogger("test", {
+      providers: [
+        {
+          handle(entry: GwenLogEntry) {
+            warnings.push(entry.message);
+          },
+        },
+      ],
     });
     Object.assign(mockEngine, { logger });
     const plugin = Physics2DPlugin({ maxLinearVelocity: 50 });
