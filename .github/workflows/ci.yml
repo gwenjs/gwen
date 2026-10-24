@@ -586,37 +586,16 @@ jobs:
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core --features physics3d --test physics3d_overlap_bulk
 
   rust-miri-full:
-    name: Miri full (${{ matrix.leg }})
-    runs-on: ${{ matrix.runner }}
+    name: Miri full
+    runs-on: ubuntu-latest
     needs: [changes]
     if: needs.changes.outputs.miri_full == 'true'
-    # Each leg sets its own ceiling in the matrix: 2 * ceil(job wall s / 60), from workflow_dispatch run 40025452025.
-    timeout-minutes: ${{ matrix.timeout }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # Job 120660409859 wall 2440s, 2026-10-23T21:15:48Z to 2026-10-23T21:56:28Z. 2 * ceil(2440/60) = 82.
-          - leg: core
-            runner: ubuntu-latest
-            timeout: 82
-            miriflags: ""
-            features: ""
-            skip: ""
-          # Rapier 0.22: x86_64 stops on llvm.x86.sse.stmxcsr (rapier2d-0.22.0/src/utils.rs:523, run 39946499120); aarch64 Stacked Borrows rejects Rapier IndexMut2 (utils.rs:629-632). Tree Borrows on this leg only until #286 P-RAP-3a / P-RAP-5 (Rapier 0.36.1 removes both; the leg then moves to x86_64).
-          # The core leg runs archetype_limit_leaves_the_store_unchanged and new_rejects_zero_and_the_limit_plus_one. The physics2d leg skips them (about 35 min). Same two names as rust-miri, "Miri archetype storage without the two long tests".
-          # Job 120660410101 wall 7710s, 2026-10-23T21:15:51Z to 2026-10-23T23:24:21Z. 2 * ceil(7710/60) = 258.
-          - leg: physics2d
-            runner: ubuntu-24.04-arm
-            timeout: 258
-            miriflags: -Zmiri-tree-borrows
-            features: --features physics2d
-            skip: -- --skip archetype_limit_leaves_the_store_unchanged --skip new_rejects_zero_and_the_limit_plus_one
-          # physics2d is expected red on velocity_far_above_the_clamp_keeps_speed_and_direction until the follow-up tolerance fix (Miri perturbs libm hypot). It fails under Miri with 400.00012 instead of 400.0 (local aarch64 Tree Borrows run).
-          # No physics3d leg. Two dispatches could not finish it: job 120500269625 (run 39978760134) was cancelled at its 240 min ceiling, job 120660409864 (run 40025452025) at the 360 min hosted maximum. physics3d_cc_joint_probe takes 8718s and fails on "cc move vx huge" and "cc push dynamic dt huge"; physics3d_cc_joint_results then runs for hours and fails on add_joint_refuses_a_non_finite_value_and_consumes_nothing. The binaries after it were never reached. Not proven here; follow-up ticket.
+    # Job 120660409859 wall 2440s, 2026-10-23T21:15:48Z to 2026-10-23T21:56:28Z, workflow_dispatch run 40025452025.
+    # 2 * ceil(2440/60) = 82.
+    # No physics legs: Rapier 0.22 stops Miri on x86_64 (llvm.x86.sse.stmxcsr, rapier2d-0.22.0/src/utils.rs:523) and Stacked Borrows rejects it on aarch64 (IndexMut2, utils.rs:629-632). They return with #286 P-RAP-5.
+    timeout-minutes: 82
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
-      MIRIFLAGS: ${{ matrix.miriflags }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -625,14 +604,12 @@ jobs:
           components: miri, rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          prefix-key: v1-miri-full-2026-10-23
-          key: ${{ matrix.leg }}
+          prefix-key: v1-miri-full-2026-10-24
           workspaces: '. -> target'
           cache-on-failure: true
       - name: Miri gwen-core lib and integration tests
-        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test --no-fail-fast -p gwen-core ${{ matrix.features }} --lib --tests ${{ matrix.skip }}
+        run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test --no-fail-fast -p gwen-core --lib --tests
       - name: Miri gwen-wasm-utils
-        if: matrix.leg == 'core'
         run: cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils
 
   wasm-size:
