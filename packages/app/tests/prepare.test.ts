@@ -112,26 +112,12 @@ describe("GwenApp.prepare()", () => {
     expect(tsconfig.include).toContain("types/**/*.d.ts");
   });
 
-  it("writes per-module type templates from addTypeTemplate", async () => {
-    const mod = defineGwenModule({
-      meta: { name: "typed-mod" },
-      setup(_opts, gwen) {
-        gwen.addTypeTemplate({
-          filename: "physics2d.d.ts",
-          getContents: () =>
-            `declare module '@gwenjs/schema' { interface GwenProvides { physics2d: unknown } }`,
-        });
-      },
-    });
-
+  it("prepare writes no module-augments.d.ts", async () => {
     const app = new GwenApp();
-    await app.setupModules(makeConfig({ modules: ["typed-mod"] }), async () => mod);
+    await app.setupModules(makeConfig());
     await app.prepare(tmpRoot);
 
-    const dest = join(tmpRoot, ".gwen", "types", "physics2d.d.ts");
-    expect(existsSync(dest)).toBe(true);
-    const content = readFileSync(dest, "utf8");
-    expect(content).toContain("GwenProvides");
+    expect(existsSync(join(tmpRoot, ".gwen/types/module-augments.d.ts"))).toBe(false);
   });
 
   it("with no module auto-imports still includes the built-in useScreen", async () => {
