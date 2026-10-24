@@ -1632,7 +1632,7 @@ test("rust-miri-full is skipped unless the mode selects it and runs the lib and 
   assert.match(job, /^ {4}timeout-minutes: \$\{\{ matrix\.timeout \}\}$/m);
 });
 
-test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
+test("rust-miri-full is a two-leg matrix: x86_64 core, arm64 physics2d", () => {
   const job = jobBlock(readCi(), "rust-miri-full");
   assert.match(job, /^ {4}name: Miri full \(\$\{\{ matrix\.leg \}\}\)$/m);
   assert.match(job, /^ {4}runs-on: \$\{\{ matrix\.runner \}\}$/m);
@@ -1644,7 +1644,7 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
     {
       leg: "core",
       runner: "ubuntu-latest",
-      timeout: "76",
+      timeout: "82",
       miriflags: "",
       features: "",
       skip: "",
@@ -1652,17 +1652,9 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
     {
       leg: "physics2d",
       runner: "ubuntu-24.04-arm",
-      timeout: "216",
+      timeout: "258",
       miriflags: "-Zmiri-tree-borrows",
       features: "--features physics2d",
-      skip: PHYSICS_LEG_SKIP,
-    },
-    {
-      leg: "physics3d",
-      runner: "ubuntu-24.04-arm",
-      timeout: "360",
-      miriflags: "-Zmiri-tree-borrows",
-      features: "--features physics3d",
       skip: PHYSICS_LEG_SKIP,
     },
   ]);
@@ -1672,22 +1664,22 @@ test("rust-miri-full is a three-leg matrix: x86_64 core, arm64 physics", () => {
   );
 });
 
-test("Tree Borrows appears only in rust-miri-step and the physics legs of rust-miri-full", () => {
+test("Tree Borrows appears only in rust-miri-step and the physics2d leg of rust-miri-full", () => {
   const ci = readCi();
-  assert.equal(ci.split("-Zmiri-tree-borrows").length - 1, 3);
+  assert.equal(ci.split("-Zmiri-tree-borrows").length - 1, 2);
   assert.equal(jobBlock(ci, "rust-miri-step").split("-Zmiri-tree-borrows").length - 1, 1);
   const full = jobBlock(ci, "rust-miri-full");
-  assert.equal(full.split("-Zmiri-tree-borrows").length - 1, 2);
+  assert.equal(full.split("-Zmiri-tree-borrows").length - 1, 1);
   const core = matrixInclude(full).find((row) => row.leg === "core");
   assert.ok(core, "core leg is missing");
   assert.equal(core.miriflags, "");
   assert.equal(ci.includes("-Zmiri-disable"), false);
 });
 
-test("the physics legs skip only the two long archetype tests", () => {
+test("the physics2d leg skips only the two long archetype tests", () => {
   const ci = readCi();
   const rows = matrixInclude(jobBlock(ci, "rust-miri-full"));
-  for (const leg of ["physics2d", "physics3d"]) {
+  for (const leg of ["physics2d"]) {
     const row = rows.find((item) => item.leg === leg);
     assert.ok(row, leg);
     const found = [...(row.skip ?? "").matchAll(/--skip (\S+)/g)].map((match) => match[1] ?? "");
@@ -1778,13 +1770,14 @@ test("rust-miri-full leg timeouts are twice the measured wall in whole minutes",
     assert.equal(Number(match[3]), 2 * Math.ceil(Number(match[2]) / 60), match[4]);
     assert.equal(Number(row.timeout), Number(match[3]), match[4]);
   }
-  const unmeasured = rows.find((item) => item.leg === "physics3d");
-  assert.ok(unmeasured, "physics3d leg is missing");
+  assert.deepEqual(
+    rows.map((row) => row.leg),
+    ["core", "physics2d"],
+  );
   assert.match(
     job,
-    /# NOT MEASURED\. Job 120500269625 in run 39978760134 was cancelled[^\n]*\n\s+- leg: physics3d/,
+    /# No physics3d leg\. Two dispatches could not finish it: job 120500269625 \(run 39978760134\)[^\n]*job 120660409864 \(run 40025452025\)/,
   );
-  assert.equal(Number(unmeasured.timeout), 360);
 });
 
 const MIRI_CARGO = "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core";
@@ -1809,8 +1802,8 @@ test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
   }
   assert.equal(
     ci.split("-Zmiri-tree-borrows").length - 1,
-    3,
-    "Tree Borrows is in rust-miri-step and the two physics legs of rust-miri-full",
+    2,
+    "Tree Borrows is in rust-miri-step and the physics2d leg of rust-miri-full",
   );
   assert.equal(ci.includes("-Zmiri-disable"), false, "no -Zmiri-disable flag");
   assert.doesNotMatch(jobBlock(ci, "rust-miri"), /MIRIFLAGS/);
