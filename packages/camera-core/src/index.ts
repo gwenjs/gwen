@@ -68,7 +68,7 @@ export type { XRViewData, XRCameraHandle } from "./xr-camera-handle";
 
 // ── GwenRuntimeHooks augmentation — camera:* hooks ───────────────────────────
 // viewport:* hooks are declared in @gwenjs/renderer-core.
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   interface GwenRuntimeHooks {

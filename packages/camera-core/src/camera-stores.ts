@@ -6,7 +6,8 @@
  */
 
 import { createEngineLocal } from "@gwenjs/core";
-import type { EntityId, GwenEngine } from "@gwenjs/core";
+import type { GwenEngine } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { CameraPathData } from "./types.js";
 import type { XRViewData } from "./xr-camera-handle";
 

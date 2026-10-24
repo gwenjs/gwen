@@ -20,7 +20,7 @@ import {
   type DiscoverablePlugin,
 } from "@gwenjs/core/system";
 import { useEngine, emit } from "@gwenjs/core";
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import { useCameraManager, useViewportManager } from "@gwenjs/renderer-core";
 import type { CameraState } from "@gwenjs/renderer-core";
 import { Camera, FollowTarget, CameraBounds, CameraShake, CameraPath } from "./components.js";
