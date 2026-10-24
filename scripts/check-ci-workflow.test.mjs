@@ -1445,61 +1445,9 @@ function jobIds(yaml) {
 }
 
 const MIRI_FULL_COMMANDS = [
-  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test --no-fail-fast -p gwen-core ${{ matrix.features }} --lib --tests ${{ matrix.skip }}",
+  "cargo +${{ env.MIRI_TOOLCHAIN }} miri test --no-fail-fast -p gwen-core --lib --tests",
   "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-wasm-utils",
 ];
-
-const LONG_ARCHETYPE_TESTS = [
-  "archetype_limit_leaves_the_store_unchanged",
-  "new_rejects_zero_and_the_limit_plus_one",
-];
-
-const PHYSICS_LEG_SKIP = `-- --skip ${LONG_ARCHETYPE_TESTS[0]} --skip ${LONG_ARCHETYPE_TESTS[1]}`;
-
-/**
- * @param {string} raw
- * @returns {string}
- */
-function yamlScalar(raw) {
-  const text = raw.trim();
-  if (text.length >= 2 && text.startsWith('"') && text.endsWith('"')) return JSON.parse(text);
-  if (text.length >= 2 && text.startsWith("'") && text.endsWith("'")) {
-    return text.slice(1, -1).replaceAll("''", "'");
-  }
-  return text;
-}
-
-/**
- * Rows of strategy.matrix.include in one job.
- *
- * @param {string} job
- * @returns {Record<string, string>[]}
- */
-function matrixInclude(job) {
-  const lines = job.split("\n");
-  const start = lines.findIndex((line) => line === "        include:");
-  assert.ok(start !== -1, "matrix include is missing");
-  /** @type {Record<string, string>[]} */
-  const rows = [];
-  /** @type {Record<string, string> | null} */
-  let row = null;
-  for (const line of lines.slice(start + 1)) {
-    if (line === "" || /^ {10}#/.test(line)) continue;
-    const leg = /^ {10}- leg: (\S+)\s*$/.exec(line);
-    if (leg) {
-      row = { leg: leg[1] ?? "" };
-      rows.push(row);
-      continue;
-    }
-    const field = /^ {12}(runner|timeout|miriflags|features|skip): (.*)$/.exec(line);
-    if (field && row) {
-      row[field[1] ?? ""] = yamlScalar(field[2] ?? "");
-      continue;
-    }
-    break;
-  }
-  return rows;
-}
 
 test("ci.yml runs the full Miri job by schedule and manual dispatch only", () => {
   const on = onBlock(readCi());
@@ -1619,7 +1567,7 @@ test("Resolve mode runs only the Miri job for a schedule and a miri dispatch", (
   }
 });
 
-test("rust-miri-full is skipped unless the mode selects it and runs the lib and integration tests per feature", () => {
+test("rust-miri-full is skipped unless the mode selects it and runs the lib and integration tests", () => {
   const job = jobBlock(readCi(), "rust-miri-full");
   assert.match(job, /^ {4}if: needs\.changes\.outputs\.miri_full == 'true'$/m);
   assert.match(job, /^ {4}needs: \[changes\]$/m);
@@ -1627,68 +1575,14 @@ test("rust-miri-full is skipped unless the mode selects it and runs the lib and 
     [...job.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1] ?? ""),
     MIRI_FULL_COMMANDS,
   );
-  assert.match(job, /^ {6}MIRIFLAGS: \$\{\{ matrix\.miriflags \}\}$/m);
-  assert.doesNotMatch(job, /-Zmiri-disable/);
-  assert.match(job, /^ {4}timeout-minutes: \$\{\{ matrix\.timeout \}\}$/m);
-});
-
-test("rust-miri-full is a two-leg matrix: x86_64 core, arm64 physics2d", () => {
-  const job = jobBlock(readCi(), "rust-miri-full");
-  assert.match(job, /^ {4}name: Miri full \(\$\{\{ matrix\.leg \}\}\)$/m);
-  assert.match(job, /^ {4}runs-on: \$\{\{ matrix\.runner \}\}$/m);
-  assert.match(job, /^ {6}fail-fast: false$/m);
-  assert.match(job, /^ {10}key: \$\{\{ matrix\.leg \}\}$/m);
-  assert.match(job, /^ {8}if: matrix\.leg == 'core'$/m);
-  assert.ok(job.includes("--no-fail-fast"), "--no-fail-fast is missing");
-  assert.deepEqual(matrixInclude(job), [
-    {
-      leg: "core",
-      runner: "ubuntu-latest",
-      timeout: "82",
-      miriflags: "",
-      features: "",
-      skip: "",
-    },
-    {
-      leg: "physics2d",
-      runner: "ubuntu-24.04-arm",
-      timeout: "258",
-      miriflags: "-Zmiri-tree-borrows",
-      features: "--features physics2d",
-      skip: PHYSICS_LEG_SKIP,
-    },
-  ]);
-  assert.deepEqual(
-    [...job.matchAll(/^ {8}run: (.+)$/gm)].map((match) => match[1] ?? ""),
-    MIRI_FULL_COMMANDS,
-  );
-});
-
-test("Tree Borrows appears only in rust-miri-step and the physics2d leg of rust-miri-full", () => {
-  const ci = readCi();
-  assert.equal(ci.split("-Zmiri-tree-borrows").length - 1, 2);
-  assert.equal(jobBlock(ci, "rust-miri-step").split("-Zmiri-tree-borrows").length - 1, 1);
-  const full = jobBlock(ci, "rust-miri-full");
-  assert.equal(full.split("-Zmiri-tree-borrows").length - 1, 1);
-  const core = matrixInclude(full).find((row) => row.leg === "core");
-  assert.ok(core, "core leg is missing");
-  assert.equal(core.miriflags, "");
-  assert.equal(ci.includes("-Zmiri-disable"), false);
-});
-
-test("the physics2d leg skips only the two long archetype tests", () => {
-  const ci = readCi();
-  const rows = matrixInclude(jobBlock(ci, "rust-miri-full"));
-  for (const leg of ["physics2d"]) {
-    const row = rows.find((item) => item.leg === leg);
-    assert.ok(row, leg);
-    const found = [...(row.skip ?? "").matchAll(/--skip (\S+)/g)].map((match) => match[1] ?? "");
-    assert.deepEqual(found, LONG_ARCHETYPE_TESTS, leg);
-  }
-  const miriSkips = [...jobBlock(ci, "rust-miri").matchAll(/--skip (\S+)/g)].map(
-    (match) => match[1] ?? "",
-  );
-  assert.deepEqual(miriSkips, LONG_ARCHETYPE_TESTS);
+  assert.doesNotMatch(job, /MIRIFLAGS|-Zmiri-/);
+  const found = job.match(/2 \* ceil\((\d+)\/60\) = (\d+)\./);
+  assert.ok(found, "the timeout comment is missing");
+  const minutes = 2 * Math.ceil(Number(found[1]) / 60);
+  assert.equal(Number(found[2]), minutes);
+  const timeout = job.match(/timeout-minutes:\s*(\d+)/);
+  assert.ok(timeout, "timeout-minutes is missing");
+  assert.equal(Number(timeout[1]), minutes);
 });
 
 test("no other job can start in a miri-only run", () => {
@@ -1713,16 +1607,6 @@ test("no other job can start in a miri-only run", () => {
   );
 });
 
-test("ci-status needs and reads rust-miri-full", () => {
-  const yaml = readCi();
-  const report = evaluateCiStatus(yaml);
-  assert.equal(report.jobs.includes("rust-miri-full"), true);
-  assert.deepEqual(report.missing, []);
-  assert.deepEqual(report.unread, []);
-  assert.equal(report.error, null);
-  assert.match(jobBlock(yaml, "ci-status"), /needs\['rust-miri-full'\]\.result/);
-});
-
 test("a Miri run does not share a concurrency group with a push", () => {
   const yaml = readCi();
   const group = concurrencyValue(yaml, "group");
@@ -1736,10 +1620,6 @@ test("a Miri run does not share a concurrency group with a push", () => {
   assert.match(group ?? "", /'-miri'/);
 });
 
-test("miri-full.yml is deleted", () => {
-  assert.equal(existsSync(join(root, ".github/workflows/miri-full.yml")), false);
-});
-
 test("rust-miri timeout is twice the cold wall in whole minutes", () => {
   const job = jobBlock(readCi(), "rust-miri");
   const found = job.match(/2 \* ceil\((\d+)\/60\) = (\d+)/);
@@ -1750,34 +1630,6 @@ test("rust-miri timeout is twice the cold wall in whole minutes", () => {
   const timeout = job.match(/timeout-minutes:\s*(\d+)/);
   assert.ok(timeout);
   assert.equal(Number(timeout[1]), minutes);
-});
-
-test("rust-miri-full leg timeouts are twice the measured wall in whole minutes", () => {
-  const job = jobBlock(readCi(), "rust-miri-full");
-  const rows = matrixInclude(job);
-  const measured = [
-    ...job.matchAll(
-      /# Job (\d+) wall (\d+)s, .*\. 2 \* ceil\(\2\/60\) = (\d+)\.\n\s+- leg: (\S+)/g,
-    ),
-  ];
-  assert.deepEqual(
-    measured.map((match) => match[4]),
-    ["core", "physics2d"],
-  );
-  for (const match of measured) {
-    const row = rows.find((item) => item.leg === match[4]);
-    assert.ok(row, match[4]);
-    assert.equal(Number(match[3]), 2 * Math.ceil(Number(match[2]) / 60), match[4]);
-    assert.equal(Number(row.timeout), Number(match[3]), match[4]);
-  }
-  assert.deepEqual(
-    rows.map((row) => row.leg),
-    ["core", "physics2d"],
-  );
-  assert.match(
-    job,
-    /# No physics3d leg\. Two dispatches could not finish it: job 120500269625 \(run 39978760134\)[^\n]*job 120660409864 \(run 40025452025\)/,
-  );
 });
 
 const MIRI_CARGO = "cargo +${{ env.MIRI_TOOLCHAIN }} miri test -p gwen-core";
@@ -1802,8 +1654,8 @@ test("rust-miri-step runs the step tests on arm64 under Tree Borrows", () => {
   }
   assert.equal(
     ci.split("-Zmiri-tree-borrows").length - 1,
-    2,
-    "Tree Borrows is in rust-miri-step and the physics2d leg of rust-miri-full",
+    1,
+    "Tree Borrows is only in rust-miri-step",
   );
   assert.equal(ci.includes("-Zmiri-disable"), false, "no -Zmiri-disable flag");
   assert.doesNotMatch(jobBlock(ci, "rust-miri"), /MIRIFLAGS/);
