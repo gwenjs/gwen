@@ -1,6 +1,14 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -28,6 +36,7 @@ function glueOpts(glueFile) {
     variant: glueFile.startsWith("dev-") ? "physics2d" : "light",
     glueFile,
     wasmBindgenVersion: "0.2.117",
+    buildId: "",
     fingerprint: "",
   };
 }
@@ -332,4 +341,154 @@ test("a glue with no exported class fails", async () => {
     if (error instanceof Error) message = error.message;
   }
   assert.equal(message, "[wasm-factory] no exported API");
+});
+
+function emptyModule() {
+  return Uint8Array.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+}
+
+/**
+ * @param {{ fingerprint?: Uint8Array, build?: Uint8Array[] }} sections
+ */
+async function writeVariantDir(sections) {
+  const { appendCustomSection } = await import("./wasm-build-id.mjs");
+  const outDir = mkdtempSync(join(tmpdir(), "wasm-factory-id-"));
+  copyFileSync(
+    join(repoRoot, "scripts/fixtures/wasm-factory/release-light.js"),
+    join(outDir, "gwen_core.js"),
+  );
+  writeFileSync(join(outDir, "gwen_core.d.ts"), "export {};\n");
+  let wasm = emptyModule();
+  if (sections.fingerprint)
+    wasm = appendCustomSection(wasm, "gwen.fingerprint", sections.fingerprint);
+  for (const payload of sections.build ?? [])
+    wasm = appendCustomSection(wasm, "gwen.build", payload);
+  const wasmFile = join(outDir, "gwen_core_bg.wasm");
+  writeFileSync(wasmFile, wasm);
+  return { outDir, wasmFile };
+}
+
+/**
+ * @param {string} outDir
+ */
+function runFactoryCli(outDir) {
+  return spawnSync(process.execPath, [join(repoRoot, "scripts/wasm-factory.mjs"), outDir], {
+    encoding: "utf8",
+  });
+}
+
+const fingerprintText = new TextEncoder().encode("gwen-core;variant=light;abi=1;profile=release");
+
+test("a binary without gwen.build fails the factory build", async () => {
+  const { outDir, wasmFile } = await writeVariantDir({ fingerprint: fingerprintText });
+  try {
+    const result = runFactoryCli(outDir);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.includes(
+        `[wasm-factory] ${wasmFile}: expected one gwen.build section, found 0`,
+      ),
+      true,
+      result.stderr ?? "",
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test("a binary without gwen.fingerprint fails the factory build", async () => {
+  const { outDir, wasmFile } = await writeVariantDir({
+    build: [new TextEncoder().encode("ab".repeat(32))],
+  });
+  try {
+    const result = runFactoryCli(outDir);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.includes(
+        `[wasm-factory] ${wasmFile}: expected one gwen.fingerprint section, found 0`,
+      ),
+      true,
+      result.stderr ?? "",
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test("a binary with two gwen.fingerprint sections fails", async () => {
+  const { appendCustomSection } = await import("./wasm-build-id.mjs");
+  const { outDir, wasmFile } = await writeVariantDir({
+    fingerprint: fingerprintText,
+    build: [new TextEncoder().encode("ab".repeat(32))],
+  });
+  try {
+    const wasmFileBytes = readFileSync(wasmFile);
+    writeFileSync(
+      wasmFile,
+      appendCustomSection(wasmFileBytes, "gwen.fingerprint", new TextEncoder().encode("second")),
+    );
+    const result = runFactoryCli(outDir);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.includes(
+        `[wasm-factory] ${wasmFile}: expected one gwen.fingerprint section, found 2`,
+      ),
+      true,
+      result.stderr ?? "",
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test("a binary with two gwen.build sections fails", async () => {
+  const planted = new TextEncoder().encode("ab".repeat(32));
+  const { outDir, wasmFile } = await writeVariantDir({
+    fingerprint: fingerprintText,
+    build: [planted, planted],
+  });
+  try {
+    const result = runFactoryCli(outDir);
+    assert.equal(result.status, 1);
+    assert.equal(
+      result.stderr.includes(
+        `[wasm-factory] ${wasmFile}: expected one gwen.build section, found 2`,
+      ),
+      true,
+      result.stderr ?? "",
+    );
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
+});
+
+test("transformGlue refuses a missing buildId", async () => {
+  const transformGlue = requireTransform(await loadFactory());
+  const options = { ...glueOpts("release-light.js") };
+  delete options.buildId;
+  assert.throws(() => transformGlue(releaseGlue, options), {
+    message: "[wasm-factory] buildId: line 0: expected a string",
+  });
+});
+
+test("CONTRACT.buildId equals the gwen.build section", async () => {
+  const { createHash } = await import("node:crypto");
+  const planted = "ab".repeat(32);
+  const { outDir, wasmFile } = await writeVariantDir({
+    fingerprint: fingerprintText,
+    build: [new TextEncoder().encode(planted)],
+  });
+  try {
+    const fileHash = createHash("sha256").update(readFileSync(wasmFile)).digest("hex");
+    assert.notEqual(planted, fileHash);
+    const result = runFactoryCli(outDir);
+    assert.equal(result.status, 0, result.stderr ?? "");
+    const factoryPath = join(outDir, "gwen_core_factory.js");
+    const loaded = await import(pathToFileURL(factoryPath).href);
+    assert.equal(loaded.CONTRACT.buildId, planted);
+    const dts = readFileSync(join(outDir, "gwen_core_factory.d.ts"), "utf8");
+    assert.equal(dts.includes("readonly buildId: string"), true);
+  } finally {
+    rmSync(outDir, { recursive: true, force: true });
+  }
 });
