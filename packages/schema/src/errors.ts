@@ -29,6 +29,42 @@ export interface GwenErrorOptions {
   cause?: unknown;
 }
 
+/** Docs origin for framework error codes. Plugin classes override it with `static docsBase`. */
+export const GWEN_DOCS_BASE = "https://gwenjs.github.io/gwen";
+
+/** `CORE:OUTSIDE_ACTOR_CONTEXT` → `core-outside-actor-context`. Pure. */
+export function errorDocsAnchor(code: string): string {
+  return code.toLowerCase().replace(/[:_]/g, "-");
+}
+
+/** Page URL for `code`. `docsBase` defaults to {@link GWEN_DOCS_BASE}. */
+export function errorDocsUrl(code: string, docsBase: string = GWEN_DOCS_BASE): string {
+  return `${docsBase}/api/errors#${errorDocsAnchor(code)}`;
+}
+
+interface DocsBaseConstructor {
+  readonly docsBase?: string;
+}
+
+function docsBaseOf(ctor: DocsBaseConstructor): string {
+  return ctor.docsBase ?? GWEN_DOCS_BASE;
+}
+
+/**
+ * `[where] what`, then `Fix:` when `hint` is set, then `See`.
+ * @internal Exported for MathError parity tests only. Not re-exported from the package index.
+ */
+export function renderGwenMessage(
+  code: string,
+  what: string,
+  options: GwenErrorOptions,
+  docsBase: string = GWEN_DOCS_BASE,
+): string {
+  const where = options.composable !== undefined ? `${options.composable}()` : "GWEN";
+  const fix = options.hint !== undefined ? `\nFix: ${options.hint}` : "";
+  return `[${where}] ${what}${fix}\nSee ${errorDocsUrl(code, docsBase)} (${code})`;
+}
+
 /**
  * Base class for all GWEN framework errors.
  *
@@ -55,8 +91,10 @@ export interface GwenErrorOptions {
  * import { GwenError } from '@gwenjs/schema'
  *
  * export class AudioPluginError extends GwenError {
+ *   static readonly docsBase = "https://gwenjs.github.io/audio"
  *   constructor(message: string) {
- *     super('AUDIO:ERROR', message)
+ *     // A third argument turns on the grammar.
+ *     super('AUDIO:ERROR', message, {})
  *     this.name = 'AudioPluginError'
  *   }
  * }
@@ -65,14 +103,34 @@ export interface GwenErrorOptions {
 export class GwenError extends Error {
   /**
    * Machine-readable error code in `NAMESPACE:REASON` format.
-   * @example `'GWEN_PLUGIN_NOT_FOUND'`, `'CORE:WASM_LOAD_ERROR'`
+   * @example `'CORE:OUTSIDE_ACTOR_CONTEXT'`, `'CORE:WASM_LOAD_ERROR'`
    */
   public readonly code: string;
 
-  constructor(code: string, message: string, options?: GwenErrorOptions) {
-    super(message, options?.cause !== undefined ? { cause: options.cause } : undefined);
+  /** Public function name, when the throw site set one. */
+  public readonly composable: string | undefined;
+
+  /** Fix text. `undefined` when the caller omitted it. */
+  public readonly hint: string | undefined;
+
+  /** Docs URL derived from {@link code} and the constructing class's `docsBase`. */
+  public readonly docsUrl: string;
+
+  /**
+   * A third argument, including `{}`, renders `[where] what`, an optional `Fix:` line,
+   * and a `See` line. Two arguments keep `what` as the message. `docsUrl` is always set.
+   */
+  constructor(code: string, what: string, options?: GwenErrorOptions) {
+    const docsBase = docsBaseOf(new.target as DocsBaseConstructor);
+    super(
+      options === undefined ? what : renderGwenMessage(code, what, options, docsBase),
+      options?.cause !== undefined ? { cause: options.cause } : undefined,
+    );
     this.name = "GwenError";
     this.code = code;
+    this.composable = options?.composable;
+    this.hint = options?.hint;
+    this.docsUrl = errorDocsUrl(code, docsBase);
   }
 }
 

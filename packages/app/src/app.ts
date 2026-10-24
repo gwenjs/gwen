@@ -18,7 +18,7 @@ import { createViewportsPlugin } from "./viewports-plugin";
 import { createScreenPlugin } from "./create-screen-plugin";
 import { BUILT_IN_MODULES } from "./built-in-modules";
 import { GwenError } from "@gwenjs/schema";
-import { AppErrorCodes } from "./error-codes";
+import { AppErrorCodes, causeText } from "./error-codes";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -153,7 +153,7 @@ export class GwenApp {
       } catch (cause) {
         throw new GwenError(
           AppErrorCodes.MODULE_SETUP_FAILED,
-          `[gwen] Built-in module "${mod.meta.name}" setup() threw: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `Built-in module "${mod.meta.name}" setup() threw: ${causeText(cause)}`,
           { cause },
         );
       }
@@ -189,13 +189,16 @@ export class GwenApp {
       try {
         mod = moduleLoader ? await moduleLoader(name) : await loadModule(name);
       } catch (cause) {
+        if (cause instanceof GwenError && cause.code === AppErrorCodes.MODULE_LOAD_FAILED) {
+          throw cause;
+        }
         const hint =
           cause instanceof Error && cause.message.includes("Cannot find package")
             ? ` Hint: run 'gwen add ${name}' to install it.`
             : "";
         throw new GwenError(
           AppErrorCodes.MODULE_LOAD_FAILED,
-          `[gwen] Failed to load module "${name}": ${cause instanceof Error ? cause.message : String(cause)}.${hint}`,
+          `Failed to load module "${name}": ${causeText(cause)}${hint}`,
           { cause },
         );
       }
@@ -226,7 +229,7 @@ export class GwenApp {
       } catch (cause) {
         throw new GwenError(
           AppErrorCodes.MODULE_SETUP_FAILED,
-          `[gwen] Module "${name}" setup() threw: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `Module "${name}" setup() threw: ${causeText(cause)}`,
           { cause },
         );
       }
@@ -427,12 +430,20 @@ async function loadModule(name: string): Promise<GwenModule> {
   try {
     imported = (await import(/* @vite-ignore */ name)) as typeof imported;
   } catch (cause) {
+    const missing = cause instanceof Error && cause.message.includes("Cannot find package");
     throw new GwenError(
       AppErrorCodes.MODULE_LOAD_FAILED,
-      `[GWEN] Failed to load module "${name}". ` +
-        `Check that the package is installed and the name is spelled correctly.\n` +
-        `Cause: ${cause instanceof Error ? cause.message : String(cause)}`,
-      { cause },
+      `Failed to load module "${name}". ` +
+        `Check that the package is installed and the name is spelled correctly. ` +
+        `Cause: ${causeText(cause)}`,
+      {
+        cause,
+        hint: __GWEN_DEV__
+          ? missing
+            ? `run 'gwen add ${name}' to install it.`
+            : undefined
+          : undefined,
+      },
     );
   }
 

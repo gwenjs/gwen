@@ -339,7 +339,7 @@ Tests live in `tests/` and cover defaults, merge logic, all validation rules, an
 
 ### `.`
 
-Values: `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `createEntityId`, `defaultOptions`, `entityGeneration`, `entityIndex`, `resolveConfig`, `unpackEntityId`, `validateResolvedConfig`
+Values: `GWEN_DOCS_BASE`, `GwenError`, `GwenErrorCode`, `assertModuleFirstInput`, `createEntityId`, `defaultOptions`, `entityGeneration`, `entityIndex`, `errorDocsAnchor`, `errorDocsUrl`, `resolveConfig`, `unpackEntityId`, `validateResolvedConfig`
 
 Types: `AutoImport`, `ComponentType`, `DeepPartial`, `DisposableRegistryBase`, `EngineErrorPayload`, `EngineStateChangePayload`, `EntityId`, `GwenBaseConfig`, `GwenBuildHooks`, `GwenConfigInput`, `GwenDisposable`, `GwenEngineBase`, `GwenEngineState`, `GwenEngineStateChangeReason`, `GwenErrorBusBase`, `GwenErrorLevel`, `GwenErrorOptions`, `GwenErrorPayload`, `GwenErrorTarget`, `GwenHookHandler`, `GwenKit`, `GwenLogEntry`, `GwenLogLevel`, `GwenModule`, `GwenModuleDefinition`, `GwenModuleEntry`, `GwenModuleOptions`, `GwenOptions`, `GwenPlugin`, `GwenPrefabExtensions`, `GwenProvides`, `GwenRuntimeHooks`, `GwenSceneExtensions`, `GwenScopeMeta`, `GwenScopeType`, `GwenUIExtensions`, `HookBusBase`, `HookHandlerMap`, `IGwenLogProvider`, `IGwenLogger`, `IGwenScope`, `InferHooks`, `PluginDeclaration`, `PluginErrorContext`, `PluginErrorEvent`, `VitePlugin`, `ViteUserConfig`
 
