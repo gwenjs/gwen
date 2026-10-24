@@ -4,7 +4,8 @@
  * Each engine has its own counter. IDs are unique inside that engine.
  */
 
-import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+import { createEngineLocal } from "@gwenjs/core";
+import { GwenContextError } from "@gwenjs/kit";
 
 const counters = createEngineLocal(() => ({ next: 0 }));
 

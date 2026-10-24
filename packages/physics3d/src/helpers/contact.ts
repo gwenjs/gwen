@@ -5,7 +5,7 @@
  * the plugin — no WASM dependency.
  */
 
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 import type { Physics3DCollisionContact } from "../types";
 
 /**

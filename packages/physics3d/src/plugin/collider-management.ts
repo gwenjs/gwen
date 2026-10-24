@@ -4,8 +4,6 @@
  * Also contains the bulk static box spawning logic.
  */
 
-import type { EntityId } from "@gwenjs/core";
-import { entityIndex } from "@gwenjs/core/internal";
 import type {
   Physics3DAPI,
   Physics3DBodyHandle,
@@ -32,7 +30,7 @@ import { nextColliderIdForEntity } from "./plugin-helpers";
 import { createBodyLocal } from "./body-management";
 import type { PluginContext } from "./plugin-context";
 import { callPhysics3DExport, hasPhysics3DCode } from "./wasm-errors";
-import { GwenError } from "@gwenjs/schema";
+import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
 import { Physics3DErrorCodes } from "../errors/codes";
 
 // ─── Helper ────────────────────────────────────────────────────────────────────

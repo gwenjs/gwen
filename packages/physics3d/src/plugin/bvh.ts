@@ -1,6 +1,7 @@
 // ─── BVH fetch cache (one map per engine) ───────────────────────────────────────
 
-import { createEngineLocal, GwenContextError, useEngine } from "@gwenjs/core";
+import { createEngineLocal, useEngine } from "@gwenjs/core";
+import { GwenContextError } from "@gwenjs/kit";
 import { Physics3DErrorCodes } from "../errors/codes";
 import { GwenError } from "@gwenjs/schema";
 

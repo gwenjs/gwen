@@ -7,7 +7,7 @@
  */
 
 import type { Physics3DAPI, Physics3DPluginHooks } from "./types";
-import type { EntityId } from "@gwenjs/core";
+import type { EntityId } from "@gwenjs/schema";
 
 declare module "@gwenjs/schema" {
   /**

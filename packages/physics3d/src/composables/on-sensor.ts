@@ -3,7 +3,8 @@
  *
  * Maps live on the current engine.
  */
-import { createEngineLocal, GwenContextError } from "@gwenjs/core";
+import { createEngineLocal } from "@gwenjs/core";
+import { GwenContextError } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
 

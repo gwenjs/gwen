@@ -1,6 +1,5 @@
-import type { EntityId, GwenEngine } from "@gwenjs/core";
-import { entityIndex } from "@gwenjs/core/internal";
-import { GwenError } from "@gwenjs/schema";
+import type { GwenEngine } from "@gwenjs/core";
+import { entityIndex, GwenError, type EntityId } from "@gwenjs/schema";
 
 import { Physics3DErrorCodes } from "../errors/codes";
 import type { Physics3DBodyHandle, Physics3DEntityId } from "../types";
