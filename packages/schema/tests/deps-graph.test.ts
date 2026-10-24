@@ -4,16 +4,13 @@
  * `@gwenjs/schema` is the single source of shared contracts. This suite scans
  * `packages/*\/src` (comments and strings are never read as code, the source is
  * parsed with the TypeScript compiler) and the package manifests, and enforces
- * rules R1-R11 on the package graph.
+ * rules R1-R12 on the package graph.
  *
- * Violations that later #76 pull requests fix are recorded in
- * `deps-graph.known.json` (`known`: one row per hit, with the pull request that
- * deletes it as `owner`; `deferred`: violations owned by another ticket). The
- * ratchet works in both directions:
- *   - a hit with no row fails its rule (a new violation cannot slip in);
- *   - a row with no hit fails the ratchet (a fixed violation must delete its row).
- * Owner PRs only delete rows, until P-76-8 empties `known`; nothing in this suite stops a PR from
- * adding one, so review reads the diff of `deps-graph.known.json`.
+ * Every rule is at zero hits. The one exception is the `DEFERRED` list below: violations owned by
+ * another ticket (today the `GwenModuleEntry` declaration of #61). The ratchet works in both
+ * directions:
+ *   - a hit that is not a deferred row fails its rule (a new violation cannot slip in);
+ *   - a deferred row with no hit fails the ratchet (a fixed violation must delete its row).
  *
  * Known limits of the scanner:
  *   - a second identical violation (same rule, file and match) in a file that already has a row is
@@ -25,7 +22,7 @@
  * is the text found, with comments removed and whitespace collapsed to one line
  * (no line number, so an edit above the hit does not stale the row).
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,7 +30,6 @@ import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const knownPath = path.join(path.dirname(fileURLToPath(import.meta.url)), "deps-graph.known.json");
 
 const RULE_IDS = [
   "R1",
@@ -49,6 +45,7 @@ const RULE_IDS = [
   "R9",
   "R10",
   "R11",
+  "R12",
 ] as const;
 type RuleId = (typeof RULE_IDS)[number];
 
@@ -800,6 +797,34 @@ function scanR11(): Hit[] {
   return out.list();
 }
 
+/** R12: no explicit `any` in `packages/schema/src`. The AST is read, so a comment or a string never counts. */
+function scanR12(): Hit[] {
+  const out = new HitSet();
+  for (const source of corpus().sources) {
+    if (source.dir !== "schema") continue;
+    const text = readFileSync(path.join(repoRoot, source.file), "utf8");
+    const sf = ts.createSourceFile(
+      source.file,
+      text,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
+    );
+    const visit = (node: ts.Node): void => {
+      if (node.kind === ts.SyntaxKind.AnyKeyword) {
+        let statement: ts.Node = node;
+        while (!ts.isSourceFile(statement.parent) && !ts.isModuleBlock(statement.parent)) {
+          statement = statement.parent;
+        }
+        out.add("R12", source.file, cleanText(statement.getText(sf)));
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(sf);
+  }
+  return out.list();
+}
+
 const SCANNERS: Record<RuleId, () => Hit[] | Promise<Hit[]>> = {
   R1: scanR1,
   R2a: scanR2a,
@@ -814,6 +839,7 @@ const SCANNERS: Record<RuleId, () => Hit[] | Promise<Hit[]>> = {
   R9: scanR9,
   R10: scanR10,
   R11: scanR11,
+  R12: scanR12,
 };
 
 const hitCache = new Map<RuleId, Promise<Hit[]>>();
@@ -826,7 +852,7 @@ function hitsOf(rule: RuleId): Promise<Hit[]> {
   return cached;
 }
 
-// ── known violations (the ratchet data) ─────────────────────────────────────
+// ── deferred violations (the ratchet data) ─────────────────────────────────
 
 interface Row {
   rule: string;
@@ -835,83 +861,33 @@ interface Row {
   owner: string;
 }
 
-interface KnownData {
-  known: Row[];
-  deferred: Row[];
-  /** Rows that are not `{ rule, file, match, owner }` strings. */
-  malformed: string[];
-}
-
-function rowsOf(value: unknown, field: string, malformed: string[]): Row[] {
-  if (!Array.isArray(value)) {
-    malformed.push(`${field} is not an array`);
-    return [];
-  }
-  const rows: Row[] = [];
-  value.forEach((entry: unknown, index: number) => {
-    if (
-      isRecord(entry) &&
-      typeof entry.rule === "string" &&
-      typeof entry.file === "string" &&
-      typeof entry.match === "string"
-    ) {
-      // A missing owner is kept as "" so that the owner test names the row.
-      const owner = typeof entry.owner === "string" ? entry.owner : "";
-      rows.push({ rule: entry.rule, file: entry.file, match: entry.match, owner });
-    } else {
-      malformed.push(`${field}[${index}] needs string rule, file and match`);
-    }
-  });
-  return rows;
-}
-
-function loadKnown(): KnownData {
-  const raw = readJson(knownPath);
-  const malformed: string[] = [];
-  if (!isRecord(raw)) {
-    return { known: [], deferred: [], malformed: ["deps-graph.known.json is not an object"] };
-  }
-  return {
-    known: rowsOf(raw.known, "known", malformed),
-    deferred: rowsOf(raw.deferred, "deferred", malformed),
-    malformed,
-  };
-}
-
-async function unrecordedHits(rule: RuleId): Promise<string[]> {
-  const data = loadKnown();
-  const recorded = new Set([...data.known, ...data.deferred].map(hitKey));
-  const hits = await hitsOf(rule);
-  return hits
-    .filter((hit) => !recorded.has(hitKey(hit)))
-    .map((hit) => `${describeHit(hit)} (no row in deps-graph.known.json)`);
-}
-
-/** The pull requests that delete `known` rows (P-76-9 is docs only and owns none). */
-const KNOWN_OWNERS = new Set([
-  "P-76-2",
-  "P-76-3",
-  "P-76-4",
-  "P-76-5",
-  "P-76-5b",
-  "P-76-6",
-  "P-76-7",
-  "P-76-8",
-]);
-/** Rules a `known` row may silence. R2a, R3, R7 and R11 are at zero and stay there. */
-const KNOWN_RULES = new Set<string>(["R1", "R2b", "R2c", "R4", "R5", "R6", "R8", "R9", "R10"]);
-/** `deferred` holds the `GwenModuleEntry` declaration owned by #61 (D-76-c), nothing else. */
+/** Violations owned by another ticket: the `GwenModuleEntry` declaration of #61 (D-76-c), nothing else. */
+const DEFERRED: Row[] = [
+  {
+    rule: "R8",
+    file: "packages/app/src/types.ts",
+    match: "export type GwenModuleEntry",
+    owner: "#61",
+  },
+];
 const DEFERRED_OWNER = "#61";
 const DEFERRED_RULE = "R8";
 const DEFERRED_SYMBOL = "GwenModuleEntry";
+
+async function unrecordedHits(rule: RuleId): Promise<string[]> {
+  const recorded = new Set(DEFERRED.map(hitKey));
+  const hits = await hitsOf(rule);
+  return hits
+    .filter((hit) => !recorded.has(hitKey(hit)))
+    .map((hit) => `${describeHit(hit)} (no row in the deferred list)`);
+}
 
 // ── tests ────────────────────────────────────────────────────────────────────
 
 describe("deps-graph", () => {
   it("every @gwenjs import and augmentation is a declared dependency", async () => {
-    // The scanner fixtures live in this test, not in a test of their own: they read no data file,
-    // so a stand-alone test would pass on the base (verify-red copies only this file there) and
-    // count as "not red". This rule test reads deps-graph.known.json and is red on the base.
+    // The scanner fixtures live in this test, not in a test of their own: a stand-alone test
+    // would pass on the base (verify-red copies only this file there) and count as "not red".
     const directive = "@ts-" + "expect-error";
     const source = [
       '// import { A } from "@gwenjs/fake-line";',
@@ -1094,53 +1070,33 @@ describe("deps-graph", () => {
     expect(await unrecordedHits("R11")).toEqual([]);
   });
 
-  it("every known violation still occurs", async () => {
-    const data = loadKnown();
+  it("every rule has zero hits outside the deferred list", async () => {
+    const problems: string[] = [];
+    if (existsSync(path.join(repoRoot, "packages/schema/tests/deps-graph.known.json"))) {
+      problems.push("packages/schema/tests/deps-graph.known.json must be deleted");
+    }
     const hits = (await Promise.all(RULE_IDS.map(hitsOf))).flat();
     const hitKeys = new Set(hits.map(hitKey));
     const rowKeys = new Set<string>();
-    const problems: string[] = [...data.malformed];
-    for (const row of [...data.known, ...data.deferred]) {
+    for (const row of DEFERRED) {
       const key = hitKey(row);
       if (rowKeys.has(key)) problems.push(`duplicate row: ${describeHit(row)}`);
       rowKeys.add(key);
-      if (!hitKeys.has(key)) {
-        problems.push(`stale row (${row.owner}): ${describeHit(row)}`);
+      if (!hitKeys.has(key)) problems.push(`stale row (${row.owner}): ${describeHit(row)}`);
+      if (row.owner !== DEFERRED_OWNER) {
+        problems.push(
+          `deferred row without owner ${DEFERRED_OWNER} ("${row.owner}"): ${row.rule} ${row.file}`,
+        );
+      }
+      if (row.rule !== DEFERRED_RULE || !row.match.includes(DEFERRED_SYMBOL)) {
+        problems.push(
+          `deferred row that is not a ${DEFERRED_RULE} hit on ${DEFERRED_SYMBOL}: ${describeHit(row)}`,
+        );
       }
     }
     for (const hit of hits) {
-      if (!rowKeys.has(hitKey(hit))) {
-        problems.push(`unrecorded hit: ${describeHit(hit)}`);
-      }
+      if (!rowKeys.has(hitKey(hit))) problems.push(`unrecorded hit: ${describeHit(hit)}`);
     }
-    expect(problems).toEqual([]);
-  });
-
-  it("every known violation names the pull request that removes it", () => {
-    const data = loadKnown();
-    const problems = [
-      ...data.known
-        .filter((row) => !KNOWN_OWNERS.has(row.owner))
-        .map(
-          (row) =>
-            `known row without an owner among ${[...KNOWN_OWNERS].join(", ")} ("${row.owner}"): ${row.rule} ${row.file}`,
-        ),
-      ...data.known
-        .filter((row) => !KNOWN_RULES.has(row.rule))
-        .map((row) => `known row for a rule that must stay at zero: ${describeHit(row)}`),
-      ...data.deferred
-        .filter((row) => row.owner !== DEFERRED_OWNER)
-        .map(
-          (row) =>
-            `deferred row without owner ${DEFERRED_OWNER} ("${row.owner}"): ${row.rule} ${row.file}`,
-        ),
-      ...data.deferred
-        .filter((row) => row.rule !== DEFERRED_RULE || !row.match.includes(DEFERRED_SYMBOL))
-        .map(
-          (row) =>
-            `deferred row that is not a ${DEFERRED_RULE} hit on ${DEFERRED_SYMBOL}: ${describeHit(row)}`,
-        ),
-    ];
     expect(problems).toEqual([]);
   });
 });
