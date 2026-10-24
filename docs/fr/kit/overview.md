@@ -5,7 +5,7 @@ description: GWEN est étendu à travers les plugins et les modules via @gwenjs/
 
 # Vue d'ensemble du système de plugins
 
-GWEN est livré avec un cœur ECS et c'est tout. Pas de moteur de rendu, pas de gestionnaire d'entrée, pas de système audio, pas de moteur physique. Tout au-delà de l'ECS est un **plugin**—et vous ne choisissez que ce dont votre jeu a besoin.
+GWEN est livré avec un cœur ECS et c'est tout. Pas de moteur de rendu, pas de gestionnaire d'entrée, pas de système audio, pas de moteur physique. Tout au-delà de l'ECS est un **plugin**—et vous ne choisissez que ce dont votre jeu a besoin. Le préchargement est un point d'extension du cœur (`onPreload`, #116) ; les chargeurs vivent dans `@gwenjs/assets`. Voir [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
 
 Le système de plugins se compose de deux mécanismes complémentaires :
 

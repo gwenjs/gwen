@@ -49,6 +49,8 @@ B: onEnter(params?)                              ← spawner les acteurs, charge
 B: onTransitionEnter({ from: 'A', to: 'B' })    ← jouer l'animation d'entrée, attendu
 ```
 
+Le préchargement est un point d'extension du cœur (`onPreload`, #116) ; les chargeurs vivent dans `@gwenjs/assets`. Voir [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
+
 ## Déclarer des acteurs
 
 Utilisez `useActor(def)` dans le corps de la factory pour enregistrer un acteur et obtenir un handle de spawn :

@@ -5,7 +5,7 @@ description: GWEN is extended through plugins and modules via @gwenjs/kit.
 
 # Plugin System Overview
 
-GWEN ships with an ECS core and nothing else. No renderer, no input handler, no audio system, no physics engine. Everything beyond ECS is a **plugin**—and you pick only what your game needs.
+GWEN ships with an ECS core and nothing else. No renderer, no input handler, no audio system, no physics engine. Everything beyond ECS is a **plugin**—and you pick only what your game needs. Preloading is a core seam (`onPreload`, #116); loaders live in `@gwenjs/assets`. See [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
 
 The plugin system consists of two complementary mechanisms:
 

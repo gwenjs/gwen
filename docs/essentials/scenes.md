@@ -49,6 +49,8 @@ B: onEnter(params?)                              ← spawn actors, load layouts
 B: onTransitionEnter({ from: 'A', to: 'B' })    ← play enter animation, awaited
 ```
 
+Preloading is a core seam (`onPreload`, #116); loaders live in `@gwenjs/assets`. See [ADR-0005](https://github.com/gwenjs/gwen/blob/v1-alpha/internals-docs/adr/0005-asset-management.md).
+
 ## Declaring Actors
 
 Use `useActor(def)` in the factory body to register an actor and get a spawn handle:
