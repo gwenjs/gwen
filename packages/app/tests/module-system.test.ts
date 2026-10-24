@@ -285,7 +285,7 @@ describe("GwenApp.setupModules — plugin collection", () => {
 
 // ─── GwenApp — auto-imports ───────────────────────────────────────────────────
 
-describe("GwenApp.setupModules — auto-imports", () => {
+describe("GwenApp.setupModules — auto-imports and type templates", () => {
   it("accumulates auto-imports from multiple modules", async () => {
     const importA: AutoImport = { name: "usePhysics", from: "@test/physics" };
     const importB: AutoImport = { name: "useInput", from: "@test/input" };
