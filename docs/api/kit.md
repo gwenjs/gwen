@@ -18,6 +18,24 @@ Types shared between plugin and module authors.
 import type { AutoImport, DeepPartial } from '@gwenjs/kit'
 ```
 
+## Observability composables
+
+`useLogger()`, `useErrorReporter()`, and `usePerfMark()` read the logger of the active scope.
+
+`useLogger()` must run inside a `defineSystem()`, `defineActor()` or `defineScene()` factory. It returns that engine's logger, tagged `<type>:<name>` (for example `system:Mover`). When the scope has no name, the tag uses the scope id.
+
+Outside any scope, including a plugin `setup()` (no scope until #73), it throws `GwenContextError` with code `CORE:OUTSIDE_ENGINE_CONTEXT`. `useErrorReporter()` and `usePerfMark()` throw the same way.
+
+```ts
+import { defineSystem } from '@gwenjs/core/system'
+import { useLogger } from '@gwenjs/kit'
+
+export const mover = defineSystem('Mover', () => {
+  const log = useLogger()
+  log.info('ready')
+})
+```
+
 ## `@gwenjs/kit/plugin`
 
 Plugin authoring utilities and schema type re-exports.
