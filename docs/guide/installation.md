@@ -19,12 +19,13 @@ WASM ships pre-compiled in npm packages. You'll never need Rust tools.
 ## Install Core Packages
 
 ```sh
-pnpm add @gwenjs/core @gwenjs/app @gwenjs/kit
+pnpm add @gwenjs/core @gwenjs/app @gwenjs/kit @gwenjs/schema
 ```
 
 - **`@gwenjs/core`** — ECS engine, components, systems, scenes
 - **`@gwenjs/app`** — Engine initialization and configuration
 - **`@gwenjs/kit`** — Plugin and module system for extending GWEN
+- **`@gwenjs/schema`** — Shared contract types; plugins and modules augment them with `declare module "@gwenjs/schema"`
 
 ## Optional: Physics
 

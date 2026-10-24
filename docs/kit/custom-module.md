@@ -150,7 +150,7 @@ interface ScoreOptions {
   maxScore?: number
 }
 
-declare module '@gwenjs/app' {
+declare module '@gwenjs/schema' {
   interface GwenModuleOptions {
     score?: ScoreOptions
   }
@@ -189,7 +189,7 @@ export default defineConfig({
 ```
 
 ::: tip No `@ts-expect-error` for local modules
-Unlike npm packages, your project already has `@gwenjs/app` as a direct dependency. The `declare module "@gwenjs/app"` augmentation works without any suppression comment.
+Augment `@gwenjs/schema`, not `@gwenjs/app`. Add `@gwenjs/schema` to your project's own dependencies so that it resolves from your project; the `declare module "@gwenjs/schema"` augmentation then works without any suppression comment.
 :::
 
 ### Subdirectory Support

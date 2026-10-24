@@ -157,7 +157,7 @@ import { defineComponent, Types } from "@gwenjs/core";
 import { defineActor, definePrefab } from "@gwenjs/core/actor";
 import { defineSystem, onUpdate, useService } from "@gwenjs/core/system";
 
-declare module "@gwenjs/core" {
+declare module "@gwenjs/schema" {
   interface GwenProvides {
     scoreBoard: { total: number };
   }

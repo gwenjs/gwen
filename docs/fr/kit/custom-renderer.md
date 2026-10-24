@@ -193,7 +193,7 @@ import { onCleanup } from '@gwenjs/core'
 import { useService } from '@gwenjs/core/system'
 import type { MyTechHandle, MyTechRendererService } from './mytech-renderer-service.js'
 
-declare module '@gwenjs/core' {
+declare module '@gwenjs/schema' {
   interface GwenProvides {
     'renderer:mytech': MyTechRendererService
   }

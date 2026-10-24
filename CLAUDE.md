@@ -220,7 +220,7 @@ useSystem(CombatSystem(player))
 `onEvent` does not exist. Use `useHook()`.
 
 Custom hooks must be declared with `defineHooks()` and merged into `GwenRuntimeHooks` via
-declaration merging (`InferHooks<T>`) for full type safety project-wide.
+`declare module "@gwenjs/schema"` and declaration merging (`InferHooks<T>`) for full type safety project-wide.
 Hook names must follow `'namespace:action'` convention — `engine:*` and `entity:*` are
 reserved for internal hooks.
 
