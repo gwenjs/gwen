@@ -7,7 +7,7 @@
  */
 
 declare module "virtual:gwen/local-plugins" {
-  import type { GwenPlugin } from "@gwenjs/core";
+  import type { GwenPlugin } from "@gwenjs/schema";
 
   /** Factories for each file found in `src/plugins/`. Call each factory to get a plugin instance. */
   export const plugins: Array<() => GwenPlugin>;
