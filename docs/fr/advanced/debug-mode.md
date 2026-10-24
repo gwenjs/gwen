@@ -110,33 +110,31 @@ Avec `physicsHz > 0`, une frame d'affichage peut exécuter plusieurs pas de simu
 
 ## Journalisation structurée
 
-GWEN fournit un logger intégré via `createLogger()`. Niveaux de log : `debug` < `info` < `warn` < `error`. Chaque entrée est un objet `LogEntry` structuré, compatible avec des sinks de logs personnalisés.
+GWEN fournit un logger intégré via `createLogger(tag, options?)`. Niveaux de log : `debug` < `info` < `warn` < `error`. Le niveau minimum par défaut est `warn` : `debug` et `info` sont ignorés. Chaque entrée est remise aux providers passés. Le provider par défaut écrit sur la console. `providers: []` ne remet rien.
 
 ```typescript
 import { createLogger } from '@gwenjs/core'
 
-const logger = createLogger('MyPlugin')
+const logger = createLogger('MyPlugin', { minLevel: 'debug' })
 
 logger.debug('initializing...')
 logger.info('plugin started')
 logger.warn('slow frame detected', { frameMs: 32 })
-logger.error('unhandled error', error)
+logger.error('unhandled error', { reason: 'load failed' })
 ```
 
 Utilisez-le à l'intérieur d'un système avec accès au contexte d'initialisation :
 
 ```ts
 import { createLogger, useEngine } from '@gwenjs/core'
-import { defineSystem } from '@gwenjs/core/system'
+import { defineSystem, onUpdate } from '@gwenjs/core/system'
 
-export const MySystem = defineSystem(() => {
+export const MySystem = defineSystem(function MySystem() {
   const engine = useEngine()
-  const log = createLogger('game:my-system', engine.debug)
+  const log = createLogger('game:my-system', { minLevel: 'info' })
 
-  onStart(() => {
-    log.info('System initialized', { entityCount: 42 })
-    log.debug('Detailed initialization data', { config: {...} })
-  })
+  // Ceci s'exécute une fois pendant le setup
+  log.info('System initialized')
 
   onUpdate(() => {
     if (someWarning) {
@@ -148,37 +146,40 @@ export const MySystem = defineSystem(() => {
 
 ### Niveaux de journalisation
 
-Le journal respecte le drapeau `debug` :
+`createLogger` garde les entrées au niveau de `minLevel` ou au-dessus. Le défaut est `warn`.
 
-| Niveau | Quand actif | Utilisation |
+| Niveau | Quand il est remis | Utilisation |
 |---|---|---|
-| `debug` | Uniquement quand `debug: true` | Diagnostics détaillés (désactivé en production) |
-| `info` | Uniquement quand `debug: true` | Événements informationnels |
-| `warn` | Toujours | Conditions inattendues mais récupérables |
-| `error` | Toujours | Problèmes qui nécessitent une attention |
+| `debug` | `minLevel` vaut `debug` | Diagnostics détaillés |
+| `info` | `minLevel` vaut `debug` ou `info` | Événements informationnels |
+| `warn` | `minLevel` vaut `debug`, `info` ou `warn` | Conditions inattendues mais récupérables |
+| `error` | Toujours, si `providers` n'est pas vide | Problèmes qui nécessitent une attention |
 
-Cela signifie que vos appels `log.debug()` sont des no-ops en production, évitant les surcharges.
+`log.debug()` ne fait rien tant que `minLevel` n'est pas `debug`.
 
-### Puits de journalisation personnalisés
+### Providers personnalisés
 
-Redirigez les journaux vers un puits personnalisé (par exemple, un serveur, un service externe ou un espion de test) :
+Passez un provider pour envoyer les entrées ailleurs que sur la console :
 
 ```ts
 import { createLogger } from '@gwenjs/core'
+import type { GwenLogEntry } from '@gwenjs/schema'
 
-const log = createLogger('app:core', true)
-
-// Remplacer le puits de console par défaut
-log.setSink((entry) => {
-  console.log(`[${entry.level.toUpperCase()}] ${entry.source}: ${entry.message}`)
-  if (entry.data) {
-    console.table(entry.data)
-  }
-
-  // Transmettre à l'analyse
-  if (entry.level === 'error') {
-    analytics.logError(entry.source, entry.message, entry.data)
-  }
+const log = createLogger('app:core', {
+  minLevel: 'debug',
+  providers: [
+    {
+      handle(entry: GwenLogEntry) {
+        console.log(`[${entry.level.toUpperCase()}] ${entry.tag}: ${entry.message}`)
+        if (entry.payload) {
+          console.table(entry.payload)
+        }
+        if (entry.level === 'error' && entry.tag !== undefined) {
+          analytics.logError(entry.tag, entry.message, entry.payload)
+        }
+      },
+    },
+  ],
 })
 
 log.error('Critical issue', { userId: 123, errorCode: 'LOAD_FAILED' })
@@ -245,7 +246,7 @@ Vous avez remarqué des baisses de fréquence d'images. Le mode debug aide :
 
 3. **Vérifiez la journalisation du système :**
    ```ts
-   const log = createLogger('game:physics', engine.debug)
+   const log = createLogger('game:physics', { minLevel: engine.debug ? 'debug' : 'warn' })
    onUpdate(() => {
      log.debug('Physics step', { bodyCount: physics.bodyCount() })
    })
@@ -278,19 +279,28 @@ export class TestScene extends defineScene {
 
 ### Filtrage des journaux lors des tests
 
-Redirigez les journaux vers un espion de test :
+Passez un provider de capture :
 
 ```ts
 import { createLogger } from '@gwenjs/core'
+import type { GwenLogEntry } from '@gwenjs/schema'
 import { describe, it, expect } from 'vitest'
 
 describe('MySystem', () => {
   it('logs initialization', () => {
     const messages: string[] = []
-    const log = createLogger('test:system', true)
-    log.setSink((entry) => messages.push(entry.message))
+    const log = createLogger('test:system', {
+      minLevel: 'info',
+      providers: [
+        {
+          handle(entry: GwenLogEntry) {
+            messages.push(entry.message)
+          },
+        },
+      ],
+    })
 
-    // ... exécuter la configuration du système ...
+    log.info('System initialized')
 
     expect(messages).toContain('System initialized')
   })
@@ -312,13 +322,13 @@ Quand `__GWEN_DEV__` et `debug: true`, GWEN vérifie la sentinelle de mémoire W
 | Fonction | Description |
 |---|---|
 | `defineConfig({ debug })` | Activer/désactiver le mode debug |
-| `createLogger(source, debugMode)` | Créer une instance de journal |
-| `logger.debug(msg, data?)` | Journaliser uniquement quand le mode debug est activé |
-| `logger.info(msg, data?)` | Journal informatif (debug uniquement) |
-| `logger.warn(msg, data?)` | Journal d'avertissement (toujours actif) |
-| `logger.error(msg, data?)` | Journal d'erreur (toujours actif) |
-| `logger.child(source)` | Créer un journal enfant avec portée |
-| `logger.setSink(callback)` | Rediriger les journaux vers un puits personnalisé |
+| `createLogger(tag, options?)` | Créer un journal. `minLevel` par défaut : `warn`. Provider par défaut : la console. |
+| `logger.debug(msg, payload?)` | Remis quand `minLevel` vaut `debug` |
+| `logger.info(msg, payload?)` | Remis quand `minLevel` vaut `debug` ou `info` |
+| `logger.warn(msg, payload?)` | Remis quand `minLevel` autorise `warn` |
+| `logger.error(msg, payload?)` | Remis quand `minLevel` autorise `error` |
+| `logger.child(tag, entityId?)` | Enfant qui partage les providers, le niveau minimum et le getter de frame |
+| `options.providers` | Objets avec `handle(entry)`. `[]` ne remet rien. |
 | `__GWEN_DEV__` | Drapeau de build. `true` en dev, `false` en production |
 
 ## Prochaines étapes
