@@ -7,8 +7,7 @@
  * @internal — not part of the public API surface. Use `@gwenjs/app` exports.
  */
 
-import type { GwenPlugin } from "@gwenjs/core";
-import type { PluginDeclaration } from "@gwenjs/schema";
+import type { GwenPlugin, PluginDeclaration } from "@gwenjs/schema";
 import type { AutoImport, GwenTypeTemplate, VitePlugin, ViteUserConfig } from "@gwenjs/kit";
 import type { GwenModule, GwenKit, GwenBuildHooks } from "@gwenjs/kit/module";
 import { createHooks } from "hookable";

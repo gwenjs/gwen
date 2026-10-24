@@ -5,10 +5,9 @@
  * contexts (e.g. gwen.config.ts bundled by Vite).
  */
 
-import type { GwenPlugin } from "@gwenjs/core";
 import type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ViewportRegion } from "@gwenjs/renderer-core";
-import type { GwenModuleOptions, IGwenLogProvider, GwenLogLevel } from "@gwenjs/schema";
+import type { GwenModuleOptions, IGwenLogProvider, GwenLogLevel, GwenPlugin } from "@gwenjs/schema";
 
 export type { GwenBuildHooks } from "@gwenjs/kit/module";
 import type { ScreenSizeProvider } from "@gwenjs/renderer-core";
