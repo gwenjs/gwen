@@ -2,9 +2,8 @@ import { GwenError } from "@gwenjs/schema";
 /**
  * @file Renderer error codes and error classes.
  *
- * All renderer errors carry a `code` (for programmatic matching), a human-readable
- * `hint` (how to fix the issue), and a `docsUrl` (link to documentation).
- * This pattern mirrors {@link GwenPluginNotFoundError} from `@gwenjs/core`.
+ * Each class extends {@link GwenError}. `docsUrl` is derived from the code.
+ * `hint` is passed only inside `__GWEN_DEV__ ? … : undefined`.
  */
 
 /** Error codes emitted by the GWEN renderer system. */
@@ -30,6 +29,8 @@ export const RendererErrorCodes = {
   SCREEN_TO_WORLD_PERSPECTIVE: "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
   /** A provided `layerManager` is not a `LayerManager` from this package. */
   FOREIGN_LAYER_MANAGER: "RENDERER:FOREIGN_LAYER_MANAGER",
+  /** A conformance check failed. */
+  CONFORMANCE_FAILED: "RENDERER:CONFORMANCE_FAILED",
 } as const;
 
 /** Union of all renderer error code string literals. */
@@ -46,18 +47,19 @@ export type RendererErrorCode = (typeof RendererErrorCodes)[keyof typeof Rendere
 export class RendererAlreadyRegisteredError extends GwenError {
   override readonly code = RendererErrorCodes.ALREADY_REGISTERED;
   readonly rendererName: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(rendererName: string) {
     super(
       RendererErrorCodes.ALREADY_REGISTERED,
-      `[GwenRenderer] "${rendererName}" is already registered. Only one renderer per key is allowed.`,
+      `"${rendererName}" is already registered. Only one renderer per key is allowed.`,
+      {
+        hint: __GWEN_DEV__
+          ? `Remove the duplicate module entry for "${rendererName}" in gwen.config.ts.`
+          : undefined,
+      },
     );
     this.name = "RendererAlreadyRegisteredError";
     this.rendererName = rendererName;
-    this.hint = `Remove the duplicate module entry for "${rendererName}" in gwen.config.ts.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#errors";
   }
 }
 
@@ -74,20 +76,21 @@ export class RendererContractVersionError extends GwenError {
   readonly rendererName: string;
   readonly actual: number;
   readonly expected: number;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(rendererName: string, actual: number, expected: number) {
     super(
       RendererErrorCodes.CONTRACT_VERSION,
-      `[GwenRenderer] "${rendererName}" contractVersion ${actual} is incompatible with renderer-core v${expected}.`,
+      `"${rendererName}" contractVersion ${actual} is incompatible with renderer-core v${expected}.`,
+      {
+        hint: __GWEN_DEV__
+          ? `Update @gwenjs/renderer-core or "${rendererName}" so their versions match.`
+          : undefined,
+      },
     );
     this.name = "RendererContractVersionError";
     this.rendererName = rendererName;
     this.actual = actual;
     this.expected = expected;
-    this.hint = `Update @gwenjs/renderer-core or "${rendererName}" so their versions match.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#versioning";
   }
 }
 
@@ -102,18 +105,19 @@ export class RendererContractVersionError extends GwenError {
 export class EmptyLayersError extends GwenError {
   override readonly code = RendererErrorCodes.MISSING_LAYER;
   readonly rendererName: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(rendererName: string) {
     super(
       RendererErrorCodes.MISSING_LAYER,
-      `[GwenRenderer] "${rendererName}" declares zero layers. At least one layer is required.`,
+      `"${rendererName}" declares zero layers. At least one layer is required.`,
+      {
+        hint: __GWEN_DEV__
+          ? `Add at least one layer entry to the "${rendererName}" config, e.g. layers: { game: { order: 10 } }.`
+          : undefined,
+      },
     );
     this.name = "EmptyLayersError";
     this.rendererName = rendererName;
-    this.hint = `Add at least one layer entry to the "${rendererName}" config, e.g. layers: { game: { order: 10 } }.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
   }
 }
 
@@ -128,18 +132,19 @@ export class EmptyLayersError extends GwenError {
 export class SurfaceInvalidError extends GwenError {
   override readonly code = RendererErrorCodes.SURFACE_INVALID;
   readonly rendererName: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(rendererName: string) {
     super(
       RendererErrorCodes.SURFACE_INVALID,
-      `[GwenRenderer] "${rendererName}" is a surface renderer and must declare exactly one layer with coordinate "world".`,
+      `"${rendererName}" is a surface renderer and must declare exactly one layer with coordinate "world".`,
+      {
+        hint: __GWEN_DEV__
+          ? `Use a single world layer, for example layers: { scene: { order: 0, coordinate: "world" } }.`
+          : undefined,
+      },
     );
     this.name = "SurfaceInvalidError";
     this.rendererName = rendererName;
-    this.hint = `Use a single world layer, for example layers: { scene: { order: 0, coordinate: "world" } }.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#surface";
   }
 }
 
@@ -157,20 +162,19 @@ export class LayerOrderConflictError extends GwenError {
   readonly left: string;
   readonly right: string;
   readonly order: number;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(left: string, right: string, order: number) {
     super(
       RendererErrorCodes.LAYER_ORDER_CONFLICT,
-      `[GwenRenderer] [${RendererErrorCodes.LAYER_ORDER_CONFLICT}] "${left}" and "${right}" both use order ${order}. A surface layer requires every other layer to use a different order. Give a HUD a strictly greater order.`,
+      `"${left}" and "${right}" both use order ${order}. A surface layer requires every other layer to use a different order.`,
+      {
+        hint: __GWEN_DEV__ ? "Give a HUD a strictly greater order." : undefined,
+      },
     );
     this.name = "LayerOrderConflictError";
     this.left = left;
     this.right = right;
     this.order = order;
-    this.hint = `Raise the HUD layer order above the surface layer order.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
   }
 }
 
@@ -186,19 +190,20 @@ export class UnknownLayerError extends GwenError {
   override readonly code = RendererErrorCodes.UNKNOWN_LAYER;
   readonly layerName: string;
   readonly rendererName: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(layerName: string, rendererName: string) {
     super(
       RendererErrorCodes.UNKNOWN_LAYER,
-      `[GwenRenderer] Layer "${layerName}" not found in "${rendererName}".`,
+      `Layer "${layerName}" not found in "${rendererName}".`,
+      {
+        hint: __GWEN_DEV__
+          ? `Declare a layer named "${layerName}" in gwen.config.ts under the "${rendererName}" module config.`
+          : undefined,
+      },
     );
     this.name = "UnknownLayerError";
     this.layerName = layerName;
     this.rendererName = rendererName;
-    this.hint = `Declare a layer named "${layerName}" in gwen.config.ts under the "${rendererName}" module config.`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#layers";
   }
 }
 
@@ -223,18 +228,19 @@ export class UnknownLayerError extends GwenError {
 export class UnavailableCameraError extends GwenError {
   override readonly code = RendererErrorCodes.UNAVAILABLE_CAMERA;
   readonly viewportId: string | undefined;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(viewportId?: string) {
     super(
       RendererErrorCodes.UNAVAILABLE_CAMERA,
-      `[GwenRenderer] No active camera found${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}.`,
+      `No active camera found${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}.`,
+      {
+        hint: __GWEN_DEV__
+          ? `Ensure a Camera component with active: true exists in the scene${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}. Check that CameraSystem is registered via useSystem().`
+          : undefined,
+      },
     );
     this.name = "UnavailableCameraError";
     this.viewportId = viewportId;
-    this.hint = `Ensure a Camera component with active: true exists in the scene${viewportId !== undefined ? ` for viewport '${viewportId}'` : ""}. Check that CameraSystem is registered via useSystem().`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#cameras";
   }
 }
 
@@ -254,17 +260,18 @@ export class UnavailableCameraError extends GwenError {
 export class ScreenToWorldPerspectiveError extends GwenError {
   override readonly code = RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE;
   readonly projectionType: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(projectionType: string) {
     super(
       RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE,
-      `[GwenRenderer] screenToWorld() cannot be used with "${projectionType}" projection — a screen pixel maps to a ray, not a unique world point.`,
+      `screenToWorld() cannot be used with "${projectionType}" projection — a screen pixel maps to a ray, not a unique world point.`,
+      {
+        hint: __GWEN_DEV__
+          ? "Use screenToRay() instead — it returns { origin, direction } for use with useRaycast()."
+          : undefined,
+      },
     );
     this.name = "ScreenToWorldPerspectiveError";
     this.projectionType = projectionType;
-    this.hint = `Use screenToRay() instead — it returns { origin, direction } for use with useRaycast().`;
-    this.docsUrl = "https://gwenengine.dev/docs/renderer#screen-to-world";
   }
 }

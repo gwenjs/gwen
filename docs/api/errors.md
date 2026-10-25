@@ -101,8 +101,70 @@ Cause. A resolved option is outside the range or shape `validateResolvedConfig` 
 
 ## @gwenjs/renderer-core
 
+### RENDERER:ALREADY_REGISTERED {#renderer-already-registered}
+
+Cause. A renderer name is already registered. Fix. Remove the duplicate module entry in `gwen.config.ts`.
+
+### RENDERER:CONTRACT_VERSION {#renderer-contract-version}
+
+Cause. `contractVersion` does not match `RENDERER_CONTRACT_VERSION`. Fix. Update the renderer plugin or `@gwenjs/renderer-core` so the versions match.
+
+### RENDERER:UNKNOWN_LAYER {#renderer-unknown-layer}
+
+Cause. A layer name is not declared on the renderer. Fix. Declare that layer in the renderer config.
+
+### RENDERER:LAYER_ORDER_CONFLICT {#renderer-layer-order-conflict}
+
+Cause. A surface layer shares its order with another layer. Fix. Give the HUD a strictly greater order.
+
+### RENDERER:MISSING_LAYER {#renderer-missing-layer}
+
+Cause. A renderer declared zero layers. Fix. Add at least one layer.
+
+### RENDERER:SURFACE_INVALID {#renderer-surface-invalid}
+
+Cause. A surface renderer does not declare exactly one world layer. Fix. Use one layer with `coordinate: "world"`.
+
+### RENDERER:UNAVAILABLE_CAMERA {#renderer-unavailable-camera}
+
+Cause. No active camera was found for the viewport. Fix. Add a `Camera` with `active: true` and register `CameraSystem`.
+
+### RENDERER:SCREEN_TO_WORLD_PERSPECTIVE {#renderer-screen-to-world-perspective}
+
+Cause. `screenToWorld` was called with a perspective camera. Fix. Use `screenToRay()`.
+
 ### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
 
 Cause. `getOrCreateLayerManager` found a `layerManager` value that is not this package's `LayerManager`. Fix. Remove that value and let `getOrCreateLayerManager` create the manager, or provide the `LayerManager` it created.
 
+### RENDERER:CONFORMANCE_FAILED {#renderer-conformance-failed}
+
+Cause. A renderer service failed `runConformanceTests` or `runSurfaceConformance`. Fix. Update the renderer plugin to the `RendererService` contract.
+
+### RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE {#renderer-screen-resize-observer-not-available}
+
+Cause. `ResizeObserver` is missing and no `sizeProvider` was set. Fix. Pass `screen.sizeProvider` in `gwen.config.ts`.
+
+### RENDERER:SCREEN_VIEWPORT_NOT_FOUND {#renderer-screen-viewport-not-found}
+
+Cause. The viewport id is not registered. Fix. Declare it under `viewports` in `gwen.config.ts`.
+
 ## @gwenjs/camera-core
+
+### CAMERA:VIEWPORT_NOT_FOUND {#camera-viewport-not-found}
+
+Cause. The viewport id is not registered. Fix. Declare it in `defineConfig` viewports, or call `useViewportManager().set()`.
+
+Declared for camera consumers. camera-core never throws it (`packages/camera-core/src/errors.ts`).
+
+### CAMERA:EMPTY_PATH {#camera-empty-path}
+
+Cause. `playPath()` was called with no waypoints. Fix. Pass a non-empty waypoints array.
+
+### CAMERA:PERSPECTIVE_FALLBACK {#camera-perspective-fallback}
+
+Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-core/src/errors.ts`).
+
+### CAMERA:PRIORITY_CONFLICT {#camera-priority-conflict}
+
+Warn only. Declared on `CameraErrorCodes` and never thrown (`packages/camera-core/src/errors.ts`).
