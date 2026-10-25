@@ -32,6 +32,7 @@ import { entityIndex } from "../../engine/engine-api";
 import { spawnActor } from "./spawn-tuple";
 import type { PlacementBridge } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
+import { GwenContextError, GwenContextErrorCodes } from "../../engine/context";
 import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
@@ -183,7 +184,7 @@ export interface PlaceOptions<Props> {
 /**
  * Spawn a transform-only group entity — a virtual anchor with no visual representation.
  *
- * @throws {Error} If called outside a `defineLayout()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_LAYOUT_CONTEXT` if called outside a `defineLayout()` factory.
  * @example
  * ```typescript
  * const MyLayout = defineLayout(() => {
@@ -194,11 +195,7 @@ export interface PlaceOptions<Props> {
  */
 export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
-      "[GWEN] placeGroup() must be called inside a defineLayout() factory. " +
-        "See https://docs.gwen.sh/layouts for examples.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_LAYOUT_CONTEXT, "placeGroup");
   }
 
   const engine = useEngine();
@@ -226,7 +223,7 @@ export function placeGroup(options: Omit<PlaceOptions<unknown>, "props"> = {}): 
 /**
  * Spawn an actor and return a typed handle with access to the actor's public API.
  *
- * @throws {Error} If called outside a `defineLayout()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_LAYOUT_CONTEXT` if called outside a `defineLayout()` factory.
  * @example
  * ```typescript
  * const MyLayout = defineLayout(() => {
@@ -240,11 +237,7 @@ export function placeActor<Props, API>(
   options: PlaceOptions<Props> = {},
 ): PlaceHandle<API> {
   if (!_isInLayoutContext()) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
-      "[GWEN] placeActor() must be called inside a defineLayout() factory. " +
-        "See https://docs.gwen.sh/layouts for examples.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_LAYOUT_CONTEXT, "placeActor");
   }
 
   const engine = useEngine();
@@ -275,7 +268,7 @@ export function placeActor<Props, API>(
 /**
  * Spawn a prefab entity with optional value overrides.
  *
- * @throws {Error} If called outside a `defineLayout()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_LAYOUT_CONTEXT` if called outside a `defineLayout()` factory.
  * @example
  * ```typescript
  * const MyLayout = defineLayout(() => {
@@ -289,11 +282,7 @@ export function placePrefab<E extends readonly ComponentDef[]>(
   options: PlaceOptions<PrefabOverrides<E>> = {},
 ): PlaceHandle<void> {
   if (!_isInLayoutContext()) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_LAYOUT_CONTEXT,
-      "[GWEN] placePrefab() must be called inside a defineLayout() factory. " +
-        "See https://docs.gwen.sh/layouts for examples.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_LAYOUT_CONTEXT, "placePrefab");
   }
 
   const engine = useEngine();

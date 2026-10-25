@@ -271,18 +271,13 @@ export class GwenActorError extends GwenError {
 // ─── Composable error ───────────────────────────────────────────────────────
 
 /**
- * Error codes emitted by GWEN composables when called outside their valid context.
+ * Error codes emitted by GWEN composables for misuse other than a missing context.
  *
- * Use these codes with `instanceof GwenComposableError` to distinguish composable
- * misuse from actor lifecycle errors or engine errors.
+ * Context boundaries throw `GwenContextError`. Use these codes with
+ * `instanceof GwenComposableError` to distinguish the remaining composable misuse
+ * from actor lifecycle errors or engine errors.
  */
 export const ComposableErrorCodes = {
-  /** Composable called outside an active `defineActor()` factory. */
-  OUTSIDE_ACTOR_CONTEXT: "COMPOSABLE:OUTSIDE_ACTOR_CONTEXT",
-  /** Composable called outside an active engine context. */
-  OUTSIDE_ENGINE_CONTEXT: "COMPOSABLE:OUTSIDE_ENGINE_CONTEXT",
-  /** Composable called outside a `defineLayout()` factory. */
-  OUTSIDE_LAYOUT_CONTEXT: "COMPOSABLE:OUTSIDE_LAYOUT_CONTEXT",
   /** `useLayout()` received a `chunkSize` that is not a positive integer. */
   INVALID_CHUNK_SIZE: "COMPOSABLE:INVALID_CHUNK_SIZE",
   /**

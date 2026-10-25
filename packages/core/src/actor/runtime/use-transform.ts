@@ -54,7 +54,6 @@
 
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
-import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { entityIndex, type EntityId } from "../../engine/engine-api";
 import type { GwenEngine } from "../../engine/engine-types";
 import {
@@ -88,7 +87,7 @@ function renderedSampleFor(engine: GwenEngine, slot: number): InterpolatedTransf
  *
  * Must be called synchronously inside a `defineActor()` factory.
  *
- * @throws {Error} If called outside an active actor spawn context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor spawn context.
  *
  * @example
  * ```typescript
@@ -102,23 +101,11 @@ function renderedSampleFor(engine: GwenEngine, slot: number): InterpolatedTransf
  * ```
  */
 export function useTransform(): TransformHandle {
-  let entityId: EntityId;
-  let idx: number;
-  let engine: GwenEngine;
+  const entityId = _getActorEntityId("useTransform");
+  const engine = _getActorEngine("useTransform");
+  const idx = entityIndex(entityId);
 
-  try {
-    entityId = _getActorEntityId();
-    engine = _getActorEngine();
-    idx = entityIndex(entityId);
-  } catch {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] useTransform() must be called synchronously inside a defineActor() factory. " +
-        "Use it to capture the entity ID and engine reference at actor spawn time.",
-    );
-  }
-
-  const bridgeOwner = getWasmBridge();
+  const bridgeOwner = getWasmBridge("useTransform");
   const bridge = bridgeOwner.engine();
   const parentBridge = bridgeOwner instanceof WasmBridgeImpl ? bridgeOwner : null;
 

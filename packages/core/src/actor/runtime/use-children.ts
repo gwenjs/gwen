@@ -19,12 +19,8 @@
 import type { ActorDefinition, PlaceHandle } from "./types";
 import type { EntityId } from "../../engine/engine-api";
 import { entityIndex } from "../../engine/engine-api";
-import {
-  GwenComposableError,
-  GwenActorError,
-  ComposableErrorCodes,
-  ActorErrorCodes,
-} from "../../engine/engine-errors";
+import { GwenContextError, GwenContextErrorCodes } from "../../engine/context";
+import { GwenActorError, ActorErrorCodes } from "../../engine/engine-errors";
 import { _getActorContext } from "./define-actor";
 import { _applyTransformOpts } from "./place";
 import type { PlaceOptions } from "./place";
@@ -99,11 +95,11 @@ function _isAncestor(tables: ActorTables, candidate: EntityId, of: EntityId): bo
  * Children added via the returned handle are automatically despawned or released
  * when this actor is despawned or released back to its pool.
  *
- * Must be called inside a `defineActor()` factory. Throws `GwenComposableError`
- * if called outside an actor context.
+ * Must be called inside a `defineActor()` factory. Throws `GwenContextError`
+ * (`CORE:OUTSIDE_ACTOR_CONTEXT`) if called outside an actor context.
  *
  * @returns A ChildrenHandle to manage owned children.
- * @throws {GwenComposableError} If called outside an actor factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an actor factory.
  *
  * @example
  * ```ts
@@ -126,10 +122,7 @@ function _isAncestor(tables: ActorTables, candidate: EntityId, of: EntityId): bo
 export function useChildren(): ChildrenHandle {
   const ctx = _getActorContext();
   if (!ctx) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      `[GWEN] useChildren() must be called inside a defineActor() factory function. Code: ${ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT}`,
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "useChildren");
   }
 
   const { instance, engine } = ctx;

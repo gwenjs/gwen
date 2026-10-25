@@ -57,6 +57,8 @@ Cause. The call is outside `defineSystem()`, `defineActor()`, `defineScene()`, `
 
 Cause. The call is outside `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
 
+`useEntityId`, `useTransform`, `useChildren`, `useComponent`, `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable`, and `onDisable` throw this code. So do the physics composables `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider`, and `useCompoundCollider`.
+
 ### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
 
 Cause. The call is outside `defineSystem()` or `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
@@ -68,6 +70,8 @@ Cause. The call is outside `defineScene()`. Fix. Capture the handle synchronousl
 ### CORE:OUTSIDE_LAYOUT_CONTEXT {#core-outside-layout-context}
 
 Cause. The call is outside `defineLayout()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+`placeActor`, `placeGroup`, and `placePrefab` throw this code.
 
 ### CORE:OUTSIDE_CLEANUP_CONTEXT {#core-outside-cleanup-context}
 
