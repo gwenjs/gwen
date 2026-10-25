@@ -1,3 +1,4 @@
+import { GwenContextError } from "@gwenjs/core";
 import { stubComponent, stubValue } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { definePrefab, defineActor } from "../../src/actor/index";
@@ -245,7 +246,16 @@ describe("onRelease composable", () => {
   });
 
   it("throws when called outside a defineActor factory", () => {
-    expect(() => onRelease(() => {})).toThrow("[GWEN]");
+    let thrown: unknown;
+    try {
+      onRelease(() => {});
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("onRelease");
   });
 });
 
@@ -266,7 +276,16 @@ describe("onReset composable", () => {
   });
 
   it("throws when called outside a defineActor factory", () => {
-    expect(() => onReset(() => {})).toThrow("[GWEN]");
+    let thrown: unknown;
+    try {
+      onReset(() => {});
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("onReset");
   });
 });
 

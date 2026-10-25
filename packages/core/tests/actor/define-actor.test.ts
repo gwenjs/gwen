@@ -5,7 +5,7 @@ import { defineActor, onStart, onDestroy, useEntityId } from "../../src/actor/ru
 import { useHook } from "../../src/hooks/use-hook";
 import { onUpdate } from "../../src/system/runtime/define-system";
 import { createEngine } from "../../src/engine/engine-factory";
-import { GwenComposableError, ComposableErrorCodes } from "../../src/engine/engine-errors";
+import { GwenContextError } from "../../src/engine/context";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 
 // Minimal component defs
@@ -186,9 +186,7 @@ describe("useEntityId", () => {
   });
 
   it("throws when called outside a defineActor factory", () => {
-    expect(() => useEntityId()).toThrow(
-      /\[GWEN\] useEntityId\(\) must be called inside a defineActor\(\) factory function\./,
-    );
+    expect(() => useEntityId()).toThrow(/\[useEntityId\(\)\] Called outside defineActor\(\)\./);
   });
 
   it("throws when called inside onStart (not setup phase)", async () => {
@@ -197,9 +195,7 @@ describe("useEntityId", () => {
     const Actor = defineActor(SimplePrefab, () => {
       onStart(() => {
         // onStart runs after setup — no actor context active here
-        expect(() => useEntityId()).toThrow(
-          /\[GWEN\] useEntityId\(\) must be called inside a defineActor\(\) factory function\./,
-        );
+        expect(() => useEntityId()).toThrow(/\[useEntityId\(\)\] Called outside defineActor\(\)\./);
       });
     });
     await engine.use(Actor._plugin);
@@ -320,21 +316,25 @@ describe("actor context — atomic save/restore", () => {
   });
 });
 
-describe("GwenComposableError — composable context guards", () => {
-  it("useEntityId throws GwenComposableError outside a factory", () => {
-    expect(() => useEntityId()).toThrow(GwenComposableError);
+describe("GwenContextError — composable context guards", () => {
+  it("useEntityId throws GwenContextError outside a factory", () => {
+    expect(() => useEntityId()).toThrow(GwenContextError);
   });
 
   it("useEntityId error has OUTSIDE_ACTOR_CONTEXT code", () => {
+    let thrown: unknown;
     try {
       useEntityId();
-    } catch (e) {
-      expect(e).toBeInstanceOf(GwenComposableError);
-      expect((e as GwenComposableError).code).toBe(ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT);
+    } catch (error) {
+      thrown = error;
     }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("useEntityId");
   });
 
-  it("onDestroy throws GwenComposableError outside a factory", () => {
-    expect(() => onDestroy(() => {})).toThrow(GwenComposableError);
+  it("onDestroy throws GwenContextError outside a factory", () => {
+    expect(() => onDestroy(() => {})).toThrow(GwenContextError);
   });
 });
