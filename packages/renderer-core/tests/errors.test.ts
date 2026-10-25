@@ -1,14 +1,21 @@
+import { GwenError } from "@gwenjs/schema";
 import { describe, it, expect } from "vitest";
 import {
   RendererErrorCodes,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
+  EmptyLayersError,
   SurfaceInvalidError,
   LayerOrderConflictError,
   UnknownLayerError,
   UnavailableCameraError,
   ScreenToWorldPerspectiveError,
 } from "../src/errors.js";
+import {
+  ScreenErrorCodes,
+  ScreenResizeObserverError,
+  ScreenViewportNotFoundError,
+} from "../src/screen-errors.js";
 
 describe("RendererErrorCodes", () => {
   it("has the expected namespace prefix on all codes", () => {
@@ -29,6 +36,7 @@ describe("RendererErrorCodes", () => {
       "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
     );
     expect(RendererErrorCodes.FOREIGN_LAYER_MANAGER).toBe("RENDERER:FOREIGN_LAYER_MANAGER");
+    expect(RendererErrorCodes.CONFORMANCE_FAILED).toBe("RENDERER:CONFORMANCE_FAILED");
   });
 });
 
@@ -55,8 +63,8 @@ describe("RendererAlreadyRegisteredError", () => {
 
   it("has a non-empty hint and docsUrl", () => {
     const err = new RendererAlreadyRegisteredError("renderer:canvas");
-    expect(err.hint.length).toBeGreaterThan(0);
-    expect(err.docsUrl.length).toBeGreaterThan(0);
+    if (__GWEN_DEV__) expect(err.hint?.length).toBeGreaterThan(0);
+    else expect(err.hint).toBeUndefined();
   });
 
   it("exposes rendererName as a public field", () => {
@@ -158,8 +166,8 @@ describe("UnavailableCameraError", () => {
 
   it("has a non-empty hint and docsUrl", () => {
     const err = new UnavailableCameraError();
-    expect(err.hint.length).toBeGreaterThan(0);
-    expect(err.docsUrl.length).toBeGreaterThan(0);
+    if (__GWEN_DEV__) expect(err.hint?.length).toBeGreaterThan(0);
+    else expect(err.hint).toBeUndefined();
   });
 });
 
@@ -190,12 +198,14 @@ describe("ScreenToWorldPerspectiveError", () => {
 
   it("has a non-empty hint and docsUrl", () => {
     const err = new ScreenToWorldPerspectiveError("perspective");
-    expect(err.hint.length).toBeGreaterThan(0);
-    expect(err.docsUrl.length).toBeGreaterThan(0);
+    if (__GWEN_DEV__) expect(err.hint?.length).toBeGreaterThan(0);
+    else expect(err.hint).toBeUndefined();
   });
 
   it("hint mentions screenToRay", () => {
-    expect(new ScreenToWorldPerspectiveError("perspective").hint).toContain("screenToRay");
+    const err = new ScreenToWorldPerspectiveError("perspective");
+    if (__GWEN_DEV__) expect(err.hint).toContain("screenToRay");
+    else expect(err.hint).toBeUndefined();
   });
 });
 
@@ -218,5 +228,121 @@ describe("LayerOrderConflictError", () => {
     expect(err.code).toBe(RendererErrorCodes.LAYER_ORDER_CONFLICT);
     expect(err.order).toBe(10);
     expect(err.message).toContain("renderer:html:hud");
+  });
+});
+
+const RENDERER_GRAMMAR = [
+  {
+    label: "RendererAlreadyRegisteredError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-already-registered",
+    make: () => new RendererAlreadyRegisteredError("renderer:canvas"),
+  },
+  {
+    label: "RendererContractVersionError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-contract-version",
+    make: () => new RendererContractVersionError("renderer:canvas", 2, 1),
+  },
+  {
+    label: "EmptyLayersError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-missing-layer",
+    make: () => new EmptyLayersError("renderer:canvas"),
+  },
+  {
+    label: "SurfaceInvalidError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-surface-invalid",
+    make: () => new SurfaceInvalidError("renderer:three"),
+  },
+  {
+    label: "LayerOrderConflictError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-layer-order-conflict",
+    make: () => new LayerOrderConflictError("renderer:three:scene", "renderer:html:hud", 0),
+  },
+  {
+    label: "UnknownLayerError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-unknown-layer",
+    make: () => new UnknownLayerError("hud", "renderer:html"),
+  },
+  {
+    label: "UnavailableCameraError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-unavailable-camera",
+    make: () => new UnavailableCameraError("main"),
+  },
+  {
+    label: "ScreenToWorldPerspectiveError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-screen-to-world-perspective",
+    make: () => new ScreenToWorldPerspectiveError("perspective"),
+  },
+  {
+    label: "ScreenResizeObserverError",
+    docsUrl:
+      "https://gwenjs.github.io/gwen/api/errors#renderer-screen-resize-observer-not-available",
+    make: () => new ScreenResizeObserverError(),
+  },
+  {
+    label: "ScreenViewportNotFoundError",
+    docsUrl: "https://gwenjs.github.io/gwen/api/errors#renderer-screen-viewport-not-found",
+    make: () => new ScreenViewportNotFoundError("p3", ["main"]),
+  },
+] as const;
+
+describe("renderer error grammar", () => {
+  it.each(RENDERER_GRAMMAR)(
+    "every renderer error class is a GwenError whose docsUrl is derived from its code ($label)",
+    ({ make, docsUrl }) => {
+      const err = make();
+      expect(err).toBeInstanceOf(GwenError);
+      expect(err.docsUrl).toBe(docsUrl);
+      expect(err.docsUrl).not.toContain("gwen" + "engine");
+    },
+  );
+
+  it("the screen codes carry the RENDERER prefix", () => {
+    expect(ScreenErrorCodes.ResizeObserverNotAvailable).toBe(
+      "RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE",
+    );
+    expect(ScreenErrorCodes.ViewportNotFound).toBe("RENDERER:SCREEN_VIEWPORT_NOT_FOUND");
+    expect(new ScreenResizeObserverError().code).toBe(ScreenErrorCodes.ResizeObserverNotAvailable);
+    expect(new ScreenViewportNotFoundError("p3", []).code).toBe(ScreenErrorCodes.ViewportNotFound);
+  });
+
+  it.runIf(!__GWEN_DEV__)("a renderer error has no Fix line in production", () => {
+    for (const { make } of RENDERER_GRAMMAR) {
+      const err = make();
+      expect(err.hint).toBeUndefined();
+      expect(err.message).not.toContain("Fix:");
+    }
+  });
+
+  it.runIf(__GWEN_DEV__)("a renderer error has a Fix line in development", () => {
+    for (const { make } of RENDERER_GRAMMAR) {
+      const err = make();
+      expect(typeof err.hint).toBe("string");
+      expect(err.hint?.length).toBeGreaterThan(0);
+      expect(err.message).toContain(`\nFix: ${err.hint}`);
+    }
+  });
+
+  it("every renderer error keeps its domain fields", () => {
+    expect(new RendererAlreadyRegisteredError('say "hi"').rendererName).toBe('say "hi"');
+    const version = new RendererContractVersionError("renderer:canvas", 0, 1);
+    expect(version.rendererName).toBe("renderer:canvas");
+    expect(version.actual).toBe(0);
+    expect(version.expected).toBe(1);
+    expect(new EmptyLayersError("").rendererName).toBe("");
+    expect(new SurfaceInvalidError('layer "world"').rendererName).toBe('layer "world"');
+    const order = new LayerOrderConflictError("left", "right", 0);
+    expect(order.left).toBe("left");
+    expect(order.right).toBe("right");
+    expect(order.order).toBe(0);
+    const unknown = new UnknownLayerError("", 'ren "der"');
+    expect(unknown.layerName).toBe("");
+    expect(unknown.rendererName).toBe('ren "der"');
+    expect(new UnavailableCameraError("main").viewportId).toBe("main");
+    expect(new UnavailableCameraError().viewportId).toBeUndefined();
+    expect(new ScreenToWorldPerspectiveError("perspective").projectionType).toBe("perspective");
+    const missing = new ScreenViewportNotFoundError("p3", []);
+    expect(missing.viewportId).toBe("p3");
+    expect(missing.knownViewports).toEqual([]);
+    expect(new ScreenResizeObserverError().code).toBe(ScreenErrorCodes.ResizeObserverNotAvailable);
   });
 });

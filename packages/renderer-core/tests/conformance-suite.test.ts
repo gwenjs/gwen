@@ -1,7 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
 import { createEngine } from "@gwenjs/core";
+import { GwenError } from "@gwenjs/schema";
 import { runConformanceTests, runSurfaceConformance } from "../src/testing/index.js";
+import { RendererErrorCodes } from "../src/errors.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
@@ -41,13 +43,31 @@ describe("runConformanceTests", () => {
   });
 
   it("fails when getLayerElement throws for a declared layer", () => {
+    const cause = new Error("not found");
     const svc = {
       ...makeCompliantService(),
-      getLayerElement: vi.fn(() => {
-        throw new Error("not found");
-      }),
+      getLayerElement() {
+        throw cause;
+      },
     };
-    expect(() => runConformanceTests(svc)).toThrow();
+    expect(thrownBy(() => runConformanceTests(svc)).cause).toBe(cause);
+  });
+
+  it("fails when getLayerElement does not return an Element", () => {
+    const svc = {
+      ...makeCompliantService(),
+      name: "renderer:bad-element",
+      getLayerElement(): HTMLElement {
+        const node = document.createElement("div");
+        Object.setPrototypeOf(node, null);
+        return node;
+      },
+    };
+    const error = thrownBy(() => runConformanceTests(svc));
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.composable).toBe("runConformanceTests");
+    expect(error.message).toContain("renderer:bad-element");
+    expect(error.message).not.toContain("threw");
   });
 
   it("fails when mount is not a function", () => {
@@ -243,5 +263,55 @@ describe("runSurfaceConformance", () => {
     const service = makeSurface();
     (service as { kind: "layers" }).kind = "layers";
     expect(() => runSurfaceConformance(service, engine)).toThrow(/surface/);
+  });
+});
+
+function thrownBy(run: () => void): GwenError {
+  let caught: unknown;
+  try {
+    run();
+  } catch (error) {
+    caught = error;
+  }
+  expect(caught).toBeInstanceOf(GwenError);
+  if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
+  return caught;
+}
+
+describe("conformance error grammar", () => {
+  it("a failing check throws RENDERER:CONFORMANCE_FAILED naming runConformanceTests", () => {
+    const error = thrownBy(() =>
+      runConformanceTests({ ...makeCompliantService(), contractVersion: 999 }),
+    );
+    expect(error.code).toBe(RendererErrorCodes.CONFORMANCE_FAILED);
+    expect(error.code).toBe("RENDERER:CONFORMANCE_FAILED");
+    expect(error.composable).toBe("runConformanceTests");
+    expect(error.message.startsWith("[runConformanceTests()] ")).toBe(true);
+    expect(error.message).not.toContain("[run" + "ConformanceTests] ");
+    if (__GWEN_DEV__) {
+      expect(error.hint).toBe(
+        "Update the renderer plugin or @gwenjs/renderer-core to matching versions.",
+      );
+      expect(error.message).toContain(`\nFix: ${error.hint}`);
+    } else {
+      expect(error.hint).toBeUndefined();
+      expect(error.message).not.toContain("Fix:");
+    }
+  });
+
+  it("a failing surface check throws RENDERER:CONFORMANCE_FAILED naming runSurfaceConformance", async () => {
+    const engine = await createEngine({ maxEntities: 4 });
+    try {
+      const service = makeSurface((svc) => {
+        svc.resize = () => {};
+      });
+      const error = thrownBy(() => runSurfaceConformance(service, engine));
+      expect(error.code).toBe(RendererErrorCodes.CONFORMANCE_FAILED);
+      expect(error.composable).toBe("runSurfaceConformance");
+      expect(error.message.startsWith("[runSurfaceConformance()] ")).toBe(true);
+      expect(error.message).not.toContain("[runSurfaceConformance] ");
+    } finally {
+      await engine.stop();
+    }
   });
 });

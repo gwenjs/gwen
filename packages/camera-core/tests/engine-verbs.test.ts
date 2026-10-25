@@ -113,7 +113,15 @@ describe("engine verbs", () => {
     expect(thrown).toBeInstanceOf(CameraEmptyPathError);
     if (thrown instanceof CameraEmptyPathError) {
       expect(thrown.code).toBe("CAMERA:EMPTY_PATH");
-      expect(thrown.message).toBe("[GwenCamera] playPath() requires at least one waypoint.");
+      const see =
+        "See https://gwenjs.github.io/gwen/api/errors#camera-empty-path (CAMERA:EMPTY_PATH)";
+      const first = "[GWEN] playPath() requires at least one waypoint.";
+      expect(thrown.message).toBe(
+        __GWEN_DEV__
+          ? `${first}\nFix: Provide a non-empty waypoints array to playPath().\n${see}`
+          : `${first}\n${see}`,
+      );
+      expect(thrown.message).not.toContain("[Gwen" + "Camera]");
     }
     expect(getCameraPath(engine, id)).toBeUndefined();
 

@@ -132,7 +132,16 @@ describe("ScreenPlugin", () => {
     expect(info.pixels.height).toBe(600);
   });
 
-  it("warn with SCREEN:VIEWPORT_NOT_FOUND code when useScreen() uses an unknown viewport id", () => {
+  it("warns RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE and no URL when sizeProvider is missing", () => {
+    const engine = makeEngine();
+    const warnSpy = vi.spyOn(engine.logger.child("renderer-core:screen"), "warn");
+    ScreenPlugin().setup(engine);
+    const text = warnSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(text).toContain("RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE");
+    expect(text).not.toContain("http");
+  });
+
+  it("warns RENDERER:SCREEN_VIEWPORT_NOT_FOUND and no URL when the viewport is unknown", () => {
     const engine = makeEngine();
     const plugin = ScreenPlugin({ sizeProvider: StaticSizeProvider({ width: 800, height: 600 }) });
     plugin.setup(engine);
@@ -151,7 +160,9 @@ describe("ScreenPlugin", () => {
     // setContainerSize re-run to trigger the warning path
     svc.setContainerSize(800, 600);
 
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("SCREEN:VIEWPORT_NOT_FOUND"));
-    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("typo-viewport"));
+    const text = warnSpy.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(text).toContain("RENDERER:SCREEN_VIEWPORT_NOT_FOUND");
+    expect(text).toContain("typo-viewport");
+    expect(text).not.toContain("http");
   });
 });
