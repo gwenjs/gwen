@@ -24,7 +24,7 @@
  * ```
  */
 
-import { useEngine, GwenContextError } from "../../engine/context";
+import { useEngine, GwenContextError, GwenContextErrorCodes } from "../../engine/context";
 import type {
   GwenPlugin,
   GwenProvides,
@@ -62,9 +62,7 @@ type RenderFn = (alpha: number) => void;
 export function onBeforeUpdate(fn: UpdateFn): void {
   const scope = GwenScope.current();
   if (!scope) {
-    throw new GwenContextError(
-      "[GWEN] onBeforeUpdate() must be called inside a defineSystem() or defineActor() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onBeforeUpdate");
   }
   scope.hook("engine:before-update", fn);
 }
@@ -80,9 +78,7 @@ export function onBeforeUpdate(fn: UpdateFn): void {
 export function onUpdate(fn: UpdateFn): void {
   const scope = GwenScope.current();
   if (!scope) {
-    throw new GwenContextError(
-      "[GWEN] onUpdate() must be called inside a defineSystem() or defineActor() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onUpdate");
   }
   scope.hook("engine:update", fn);
 }
@@ -98,9 +94,7 @@ export function onUpdate(fn: UpdateFn): void {
 export function onAfterUpdate(fn: UpdateFn): void {
   const scope = GwenScope.current();
   if (!scope) {
-    throw new GwenContextError(
-      "[GWEN] onAfterUpdate() must be called inside a defineSystem() or defineActor() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onAfterUpdate");
   }
   scope.hook("engine:after-update", fn);
 }
@@ -117,9 +111,7 @@ export function onAfterUpdate(fn: UpdateFn): void {
 export function onRender(fn: RenderFn): void {
   const scope = GwenScope.current();
   if (!scope) {
-    throw new GwenContextError(
-      "[GWEN] onRender() must be called inside a defineSystem() or defineActor() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SYSTEM_CONTEXT, "onRender");
   }
   scope.hook("engine:render", fn);
 }

@@ -49,6 +49,30 @@ onStart(async () => {
 
 ## @gwenjs/core
 
+### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
+
+Cause. L'appel est hors de `defineSystem()`, `defineActor()`, `defineScene()`, `plugin setup()` ou `engine.run()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+### CORE:OUTSIDE_ACTOR_CONTEXT {#core-outside-actor-context}
+
+Cause. L'appel est hors de `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
+
+Cause. L'appel est hors de `defineSystem()` ou `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+### CORE:OUTSIDE_SCENE_CONTEXT {#core-outside-scene-context}
+
+Cause. L'appel est hors de `defineScene()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+### CORE:OUTSIDE_LAYOUT_CONTEXT {#core-outside-layout-context}
+
+Cause. L'appel est hors de `defineLayout()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+### CORE:OUTSIDE_CLEANUP_CONTEXT {#core-outside-cleanup-context}
+
+Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
 ## @gwenjs/kit
 
 ## @gwenjs/schema

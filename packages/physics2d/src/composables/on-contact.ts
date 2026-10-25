@@ -2,7 +2,7 @@
  * @file onContact() — subscribes to collision events for one actor entity.
  */
 import { useEngine, createEngineLocal } from "@gwenjs/core";
-import { GwenContextError } from "@gwenjs/kit";
+import { GwenContextError, GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngine } from "@gwenjs/core";
 import { _getActorContext } from "@gwenjs/core/internal";
 import type { ContactEvent } from "../types";
@@ -34,17 +34,18 @@ export function _dispatchContactEvent(entityId: bigint, event: ContactEvent): vo
  * the id is the actor being spawned.
  *
  * @throws {GwenContextError} `CORE:OUTSIDE_ENGINE_CONTEXT` when no engine is current.
- * @throws {GwenContextError} `ACTOR_SETUP_ONLY` when neither an actor nor `entityId` is set.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when neither an actor nor `entityId` is set.
  */
 export function onContact(callback: (contact: ContactEvent) => void, entityId?: bigint): void {
   const engine = useEngine();
   const registry = contacts.get(engine);
   const id = entityId ?? _getActorContext()?.entityId ?? registry.setupEntityId;
   if (id === null) {
-    throw new GwenContextError(
-      "[GWEN] onContact() must run inside an actor factory, or be given an entityId.",
-      "ACTOR_SETUP_ONLY",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onContact", {
+      hint: __GWEN_DEV__
+        ? "Call onContact() inside defineActor(), or pass { entityId }."
+        : undefined,
+    });
   }
   const key = String(id);
   const list = registry.byEntity.get(key);

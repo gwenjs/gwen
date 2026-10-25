@@ -10,7 +10,7 @@
  * - `onExit(cb)` — callback when scene is exited
  */
 
-import { GwenContextError, engineContext } from "../../engine/context";
+import { GwenContextError, GwenContextErrorCodes, engineContext } from "../../engine/context";
 import type { GwenPlugin } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { createSystemHandle } from "./system-handle";
@@ -133,7 +133,7 @@ export function _registerScenePlugin(plugin: GwenPlugin): void {
 export function useSystem(plugin: GwenPlugin): SystemHandle {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError("[GWEN] useSystem() must be called inside a defineScene() factory.");
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "useSystem");
   }
 
   // Collect pass: run the system setup in no-op mode to discover useActor() deps.
@@ -172,7 +172,7 @@ export function useSystem(plugin: GwenPlugin): SystemHandle {
 export function onEnter(cb: (params?: Record<string, unknown>) => void | Promise<void>): void {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError("[GWEN] onEnter() must be called inside a defineScene() factory.");
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onEnter");
   }
   ctx.onEnterCb = cb;
 }
@@ -196,7 +196,7 @@ export function onEnter(cb: (params?: Record<string, unknown>) => void | Promise
 export function onExit(cb: () => void | Promise<void>): void {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError("[GWEN] onExit() must be called inside a defineScene() factory.");
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onExit");
   }
   ctx.onExitCb = cb;
 }
@@ -226,9 +226,7 @@ export function onTransitionLeave(
 ): void {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError(
-      "[GWEN] onTransitionLeave() must be called inside a defineScene() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onTransitionLeave");
   }
   ctx.onTransitionLeaveCb = cb;
 }
@@ -258,9 +256,7 @@ export function onTransitionEnter(
 ): void {
   const ctx = _getActiveSceneContext();
   if (!ctx) {
-    throw new GwenContextError(
-      "[GWEN] onTransitionEnter() must be called inside a defineScene() factory.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_SCENE_CONTEXT, "onTransitionEnter");
   }
   ctx.onTransitionEnterCb = cb;
 }

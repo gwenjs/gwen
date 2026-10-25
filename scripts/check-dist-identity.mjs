@@ -7,7 +7,7 @@
  * Two checks, both on BUILT dists (run after `pnpm build:ts` and `fix-dts-extensions.mjs`):
  *   1. the class marker occurs only in the owner package's dist;
  *   2. runtime probe: `core.GwenContextError === kit.GwenContextError` and
- *      `new core.GwenContextError("probe") instanceof schema.GwenError`.
+ *      `new core.GwenContextError("CORE:OUTSIDE_ENGINE_CONTEXT", "probe") instanceof schema.GwenError`.
  *
  * The scope slot (owner kit) is the rolldown comment `//#region src/scope-slot.ts`.
  * It may occur in one dist file, counted across every package.
@@ -147,7 +147,12 @@ export async function probe(root) {
     if (core.GwenContextError !== kit.GwenContextError) {
       problems.push("probe: core.GwenContextError is not the GwenContextError of kit/dist");
     }
-    if (!(new core.GwenContextError("probe") instanceof schema.GwenError)) {
+    if (
+      !(
+        new core.GwenContextError("CORE:OUTSIDE_ENGINE_CONTEXT", "probe") instanceof
+        schema.GwenError
+      )
+    ) {
       problems.push("probe: core.GwenContextError is not instanceof the GwenError of schema/dist");
     }
     return problems;

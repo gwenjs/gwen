@@ -49,6 +49,30 @@ onStart(async () => {
 
 ## @gwenjs/core
 
+### CORE:OUTSIDE_ENGINE_CONTEXT {#core-outside-engine-context}
+
+Cause. The call is outside `defineSystem()`, `defineActor()`, `defineScene()`, `plugin setup()`, or `engine.run()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+### CORE:OUTSIDE_ACTOR_CONTEXT {#core-outside-actor-context}
+
+Cause. The call is outside `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
+
+Cause. The call is outside `defineSystem()` or `defineActor()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+### CORE:OUTSIDE_SCENE_CONTEXT {#core-outside-scene-context}
+
+Cause. The call is outside `defineScene()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+### CORE:OUTSIDE_LAYOUT_CONTEXT {#core-outside-layout-context}
+
+Cause. The call is outside `defineLayout()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
+### CORE:OUTSIDE_CLEANUP_CONTEXT {#core-outside-cleanup-context}
+
+Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`. Fix. Capture the handle synchronously in the factory, then use it as a closure after await.
+
 ## @gwenjs/kit
 
 ## @gwenjs/schema

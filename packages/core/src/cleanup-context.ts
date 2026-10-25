@@ -13,8 +13,7 @@
  */
 
 import { GwenScope } from "./context/scope.js";
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "./engine/engine-errors.js";
+import { GwenContextError, GwenContextErrorCodes } from "./engine/context.js";
 
 /**
  * Module-level stack of cleanup callback arrays.
@@ -110,7 +109,7 @@ export function onCleanupIfActive(fn: () => void): void {
 /**
  * Registers a cleanup callback in the currently active lifecycle context.
  *
- * **Strict variant** — throws {@link Error} when called outside an active
+ * **Strict variant** — throws {@link GwenContextError} when called outside an active
  * cleanup context. Use this in composables that always require a lifecycle
  * context (actor factory, plugin `setup()`, `withCleanup()`). For composables
  * that work both inside and outside a context, use {@link onCleanupIfActive}
@@ -125,7 +124,7 @@ export function onCleanupIfActive(fn: () => void): void {
  * @param fn - Callback to invoke when the active lifecycle ends (actor despawn,
  *   plugin teardown, or manual {@link withCleanup} dispose).
  *
- * @throws {GwenError} If called outside an active cleanup context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_CLEANUP_CONTEXT` outside a cleanup context.
  *
  * @example Inside a defineActor factory:
  * ```typescript
@@ -172,12 +171,7 @@ export function onCleanup(fn: () => void): void {
   // Fallback: legacy _cleanupStack for withCleanup() contexts
   const top = _cleanupStack[_cleanupStack.length - 1];
   if (!top) {
-    throw new GwenError(
-      CoreErrorCodes.OUTSIDE_CLEANUP_CONTEXT,
-      "[GWEN] onCleanup() called outside an active cleanup context. " +
-        "Call it inside a defineActor() factory, plugin setup(), or withCleanup(). " +
-        "For composables that work both inside and outside a context, use onCleanupIfActive() instead.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_CLEANUP_CONTEXT, "onCleanup");
   }
   top.push(fn);
 }

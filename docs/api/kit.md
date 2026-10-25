@@ -11,7 +11,9 @@ description: "API reference for @gwenjs/kit."
 
 Types shared between plugin and module authors.
 
-**Exports:** `AutoImport`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`
+**Exports:** `AutoImport`, `DeepPartial`, `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES`, `GwenContextBoundary`
+
+`GwenContextError(code, composable, options?)` names the composable and `validContexts`. `GWEN_CONTEXT_BOUNDARIES` maps each code to those callsites.
 
 **Usage:**
 ```ts
