@@ -74,7 +74,7 @@ export function useCamera(opts: Camera2DOpts | Camera3DOpts): Camera2DHandle | C
   const boundsComp = useComponent(CameraBounds);
   const shakeComp = useComponent(CameraShake);
 
-  const viewports = getCameraStores(useEngine()).viewports;
+  const viewports = getCameraStores(useEngine("useCamera")).viewports;
   let currentViewport = opts.viewport ?? "main";
   viewports.set(entityId, currentViewport);
   onCleanup(() => viewports.delete(entityId));
