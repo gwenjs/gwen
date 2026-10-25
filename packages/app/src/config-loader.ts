@@ -37,7 +37,7 @@ export class GwenConfigLoadError extends GwenError {
   constructor(
     message: string,
     public readonly configFile: string | undefined,
-    public readonly cause: unknown,
+    cause: unknown,
   ) {
     super(AppErrorCodes.CONFIG_LOAD_FAILED, message, { cause });
     this.name = "GwenConfigLoadError";

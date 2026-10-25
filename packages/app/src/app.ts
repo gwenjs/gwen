@@ -421,8 +421,8 @@ function mergeDefaults(
  * @param name - The npm package name or file path to import.
  * @returns The resolved `GwenModule` exported as `default` or as the module object.
  *
- * @throws {GwenError} `[GWEN] Module "${name}" does not export a valid GwenModule`
- *   if the imported value has no `setup` function.
+ * @throws {GwenError} `KIT:MODULE_INVALID` when the imported value has no `setup` function.
+ *   In development the hint says to export the object from `defineGwenModule()`.
  */
 async function loadModule(name: string): Promise<GwenModule> {
   let imported: { default?: unknown } & Record<string, unknown>;
@@ -452,8 +452,12 @@ async function loadModule(name: string): Promise<GwenModule> {
   if (!definition || typeof (definition as Record<string, unknown>)["setup"] !== "function") {
     throw new GwenError(
       AppErrorCodes.MODULE_INVALID,
-      `[GWEN] Module "${name}" does not export a valid GwenModule (missing setup function). ` +
-        `Ensure the module exports a default object created with defineGwenModule().`,
+      `Module "${name}" does not export a valid GwenModule (missing setup function).`,
+      {
+        hint: __GWEN_DEV__
+          ? "Ensure the module exports a default object created with defineGwenModule()."
+          : undefined,
+      },
     );
   }
 
