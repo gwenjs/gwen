@@ -445,7 +445,7 @@ export function usePrefab<E extends readonly ComponentDef[]>(
  * @param def - The component definition to target.
  * @returns A mutable proxy typed as `T & { $set(values: Partial<T>): void }`.
  *
- * @throws {Error} If called outside an active actor spawn context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor spawn context.
  *
  * @example
  * ```typescript
@@ -464,5 +464,5 @@ export function usePrefab<E extends readonly ComponentDef[]>(
 export function useComponent<D extends ComponentDef>(
   def: D,
 ): InferComponent<D> & { $set(patch: Partial<InferComponent<D>>): void } {
-  return useComponentFor(_getActorEntityId(), def, _getActorEngine());
+  return useComponentFor(_getActorEntityId("useComponent"), def, _getActorEngine("useComponent"));
 }

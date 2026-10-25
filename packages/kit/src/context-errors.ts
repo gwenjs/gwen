@@ -123,17 +123,15 @@ export class GwenContextError extends GwenError {
 }
 
 /**
- * Thrown when a composable is called outside its valid context.
+ * Thrown for composable misuse other than a missing context.
  *
- * All GWEN composables (`useEntityId`, `useComponent`, `onStart`, `onDestroy`,
- * `onEvent`, etc.) throw this error when invoked at the wrong lifecycle phase.
- * Catch it with `instanceof GwenComposableError` to handle composable misuse
- * independently from engine or actor errors.
+ * A missing context throws {@link GwenContextError}. This class remains for
+ * the non-context codes `COMPOSABLE:INVALID_CHUNK_SIZE` and `COMPOSABLE:LAYOUT_*`.
  *
  * @example
  * ```ts
  * try {
- *   useEntityId(); // called outside a factory
+ *   useLayout(layout, { chunkSize: 0 }); // not a positive integer
  * } catch (e) {
  *   if (e instanceof GwenComposableError) {
  *     console.error('Composable misuse:', e.code, e.message);

@@ -57,6 +57,8 @@ Cause. L'appel est hors de `defineSystem()`, `defineActor()`, `defineScene()`, `
 
 Cause. L'appel est hors de `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
 
+`useEntityId`, `useTransform`, `useChildren`, `useComponent`, `onStart`, `onDestroy`, `onRelease`, `onReset`, `onEnable` et `onDisable` lancent ce code. Les composables physique aussi : `useDynamicBody`, `useKinematicBody`, `useStaticBody`, `useShape`, `useBoxCollider`, `useSphereCollider`, `useCapsuleCollider`, `useConvexCollider`, `useMeshCollider`, `useHeightfieldCollider` et `useCompoundCollider`.
+
 ### CORE:OUTSIDE_SYSTEM_CONTEXT {#core-outside-system-context}
 
 Cause. L'appel est hors de `defineSystem()` ou `defineActor()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
@@ -68,6 +70,8 @@ Cause. L'appel est hors de `defineScene()`. Fix. Capturez la poignée dans la fa
 ### CORE:OUTSIDE_LAYOUT_CONTEXT {#core-outside-layout-context}
 
 Cause. L'appel est hors de `defineLayout()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
+
+`placeActor`, `placeGroup` et `placePrefab` lancent ce code.
 
 ### CORE:OUTSIDE_CLEANUP_CONTEXT {#core-outside-cleanup-context}
 

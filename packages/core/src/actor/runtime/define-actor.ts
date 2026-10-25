@@ -51,7 +51,6 @@ import type {
   PrefabDefinition,
   VoidFn,
 } from "./types";
-import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
 import { ScopedHookable } from "../../hooks/scoped-hookable";
 import { createEngineLocal, popEngine, pushEngine } from "../../engine/engine-local";
 import { ContextSlot } from "../../engine/context-slot";
@@ -207,18 +206,15 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
 /**
  * Returns the entity ID of the actor currently being spawned.
  *
+ * @param composable - Public name reported when no actor factory is current.
  * @returns The active actor's entity ID as a `EntityId`.
- * @throws {Error} If called outside an active actor spawn context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when no actor is current.
  * @internal
  */
-export function _getActorEntityId(): EntityId {
+export function _getActorEntityId(composable: string): EntityId {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] _getActorEntityId() must be called inside a defineActor() factory function. " +
-        "It is only valid during actor spawn.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, composable);
   }
   return ctx.entityId;
 }
@@ -272,18 +268,10 @@ export function _getActorEntityId(): EntityId {
  * at runtime.
  *
  * @returns The `EntityId` entity ID for the actor being set up.
- * @throws {Error} If called outside an active `defineActor()` factory context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when called outside a `defineActor()` factory.
  */
 export function useEntityId(): EntityId {
-  const ctx = _actorCtx.get();
-  if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] useEntityId() must be called inside a defineActor() factory function. " +
-        "It is only valid during actor spawn.",
-    );
-  }
-  return ctx.entityId;
+  return _getActorEntityId("useEntityId");
 }
 
 /**
@@ -307,18 +295,15 @@ export function _getActorContext(): {
 /**
  * Returns the engine of the actor currently being spawned.
  *
+ * @param composable - Public name reported when no actor factory is current.
  * @returns The active engine.
- * @throws {Error} If called outside an active actor spawn context.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` when no actor is current.
  * @internal
  */
-export function _getActorEngine(): GwenEngine {
+export function _getActorEngine(composable: string): GwenEngine {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] _getActorEngine() must be called inside a defineActor() factory function. " +
-        "It is only valid during actor spawn.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, composable);
   }
   return ctx.engine;
 }
@@ -331,7 +316,7 @@ export function _getActorEngine(): GwenEngine {
  * Must be called synchronously inside a {@link defineActor} factory function.
  *
  * @param fn - The callback to invoke on actor start.
- * @throws {Error} If called outside an active actor factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  *
  * @example
  * ```typescript
@@ -343,10 +328,7 @@ export function _getActorEngine(): GwenEngine {
 export function onStart(fn: VoidFn): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onStart() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onStart");
   }
   ctx.instance._start.push(fn);
 }
@@ -357,7 +339,7 @@ export function onStart(fn: VoidFn): void {
  * Must be called synchronously inside a {@link defineActor} factory function.
  *
  * @param fn - The callback to invoke on actor destruction.
- * @throws {Error} If called outside an active actor factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  *
  * @example
  * ```typescript
@@ -369,10 +351,7 @@ export function onStart(fn: VoidFn): void {
 export function onDestroy(fn: VoidFn): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onDestroy() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onDestroy");
   }
   ctx.instance._destroy.push(fn);
 }
@@ -385,14 +364,12 @@ export function onDestroy(fn: VoidFn): void {
  * Must be called synchronously inside a `defineActor()` factory function.
  *
  * @param fn - Callback invoked on pool release.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  */
 export function onRelease(fn: VoidFn): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onRelease() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onRelease");
   }
   ctx.instance._release.push(fn);
 }
@@ -407,14 +384,12 @@ export function onRelease(fn: VoidFn): void {
  *
  * @param fn - Callback receiving the new props passed to `acquire()`.
  * @template Props - The props type inferred from `defineActor`.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  */
 export function onReset<Props = unknown>(fn: (props: Props) => void): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onReset() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onReset");
   }
   ctx.instance._reset.push(fn as (props: unknown) => void);
 }
@@ -430,14 +405,12 @@ export function onReset<Props = unknown>(fn: (props: Props) => void): void {
  * Must be called synchronously inside a `defineActor()` factory function.
  *
  * @param fn - Callback invoked when the actor is enabled.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  */
 export function onEnable(fn: VoidFn): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onEnable() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onEnable");
   }
   ctx.instance._enable.push(fn);
 }
@@ -453,14 +426,12 @@ export function onEnable(fn: VoidFn): void {
  * Must be called synchronously inside a `defineActor()` factory function.
  *
  * @param fn - Callback invoked when the actor is disabled.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside an active actor factory.
  */
 export function onDisable(fn: VoidFn): void {
   const ctx = _actorCtx.get();
   if (ctx === null) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT,
-      "[GWEN] onDisable() must be called synchronously inside a defineActor() factory function.",
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ACTOR_CONTEXT, "onDisable");
   }
   ctx.instance._disable.push(fn);
 }
