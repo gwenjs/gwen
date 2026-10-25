@@ -44,6 +44,9 @@ type _0 = [
   Root.PluginDeclaration,
   Root.PluginErrorContext,
   Root.PluginErrorEvent,
+  Root.TransformReader2D,
+  Root.TransformRef2D,
+  Root.TransformSample2D,
   Root.VitePlugin,
   Root.ViteUserConfig,
 ];

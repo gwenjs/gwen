@@ -15,6 +15,7 @@ import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
 import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
+import type { TransformReader2D } from "./transforms.js";
 
 /**
  * Augmentable interface for the typed provide/inject registry.
@@ -41,6 +42,8 @@ export interface GwenProvides {
   viewportManager: ViewportStore;
   /** Shared camera state. Inject via `engine.inject('cameraManager')`. */
   cameraManager: CameraStateStore;
+  /** 2D transform reader. Inject via `engine.inject('transform:2d')`. */
+  "transform:2d": TransformReader2D;
 }
 
 /**
