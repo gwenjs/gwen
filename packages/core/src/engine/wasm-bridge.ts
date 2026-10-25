@@ -27,7 +27,7 @@ import {
   GwenWasmPanicError,
   isCoreWasmErrorCode,
 } from "./engine-errors";
-import { engineContext, GwenContextError } from "./context";
+import { engineContext, GwenContextError, GwenContextErrorCodes } from "./context";
 import {
   deferBulkDestroy,
   deferBulkSpawn,
@@ -1084,14 +1084,11 @@ export class WasmBridgeImpl implements WasmBridge {
  * There is no module-level fallback. Outside an engine, or when the engine
  * has no `wasm:bridge` service, this throws `GwenContextError` `CORE:OUTSIDE_ENGINE_CONTEXT`.
  */
-export function getWasmBridge(): WasmBridge {
+export function getWasmBridge(composable = "getWasmBridge"): WasmBridge {
   const engine = engineContext.tryUse();
   const bridge = engine?.tryInject("wasm:bridge");
   if (!engine || !bridge) {
-    throw new GwenContextError(
-      "[GWEN] getWasmBridge() was called outside an active engine context.",
-      CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
-    );
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, composable);
   }
   return bridge;
 }

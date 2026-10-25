@@ -30,7 +30,12 @@
  * ```
  */
 
-import { engineContext, GwenContextError, useEngine } from "../../engine/context.js";
+import {
+  engineContext,
+  GwenContextError,
+  GwenContextErrorCodes,
+  useEngine,
+} from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
 import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/engine-types";
@@ -123,11 +128,13 @@ class DefinitionInstances<API> extends Map<EntityId, ActorInstance<API>> {
     const current = engineContext.tryUse();
     if (current) return this.buckets.get(unwrapEngine(current));
     if (this.engines.size > 1) {
-      throw new GwenContextError(
-        "[GWEN] An actor installed on several engines was read with no engine current.\n" +
-          "  Fix: read it inside engine.run(), or through a useActor() handle.\n" +
-          "  A useActor() handle's count() and getAll() follow this rule too: call them inside engine.run().",
-      );
+      throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "Actor.spawn", {
+        hint: __GWEN_DEV__
+          ? "An actor installed on several engines was read with no engine current.\n" +
+            "  read it inside engine.run(), or through a useActor() handle.\n" +
+            "  A useActor() handle's count() and getAll() follow this rule too: call them inside engine.run()."
+          : undefined,
+      });
     }
     for (const engine of this.engines) return this.buckets.get(engine);
     return undefined;

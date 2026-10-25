@@ -29,18 +29,6 @@ describe("ContextSlot", () => {
     });
   });
 
-  it("require() throws outside run()", () => {
-    const slot = new ContextSlot<number>();
-    expect(() => slot.require("must be inside run()")).toThrow("must be inside run()");
-  });
-
-  it("require() returns the value inside run()", () => {
-    const slot = new ContextSlot<number>();
-    slot.run(7, () => {
-      expect(slot.require("err")).toBe(7);
-    });
-  });
-
   it("restores null after run() returns", () => {
     const slot = new ContextSlot<number>();
     slot.run(1, () => {});

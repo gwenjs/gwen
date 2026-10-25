@@ -9,7 +9,9 @@ description: "Référence API pour @gwenjs/kit."
 
 Système de plugins et de modules pour étendre GWEN. Fournit des utilitaires pour créer des modules réutilisables, des auto-imports et des intégrations au moment du build.
 
-`@gwenjs/kit` exporte aussi `getCurrentScope`, `GwenContextError`, `GwenComposableError` et `GwenContextErrorCodes`.
+`@gwenjs/kit` exporte aussi `getCurrentScope`, `GwenContextError`, `GwenComposableError`, `GwenContextErrorCodes`, `GWEN_CONTEXT_BOUNDARIES` et `GwenContextBoundary`.
+
+`GwenContextError(code, composable, options?)` nomme le composable et `validContexts`. `GWEN_CONTEXT_BOUNDARIES` associe chaque code à ces sites d'appel.
 
 ## Composables d'observabilité
 

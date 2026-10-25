@@ -1,5 +1,3 @@
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "./engine-errors";
 /**
  * A typed, nestable context slot.
  *
@@ -17,8 +15,8 @@ import { CoreErrorCodes } from "./engine-errors";
  * export function _withMyContext<R>(value: MyContext, fn: () => R): R {
  *   return _ctx.run(value, fn);
  * }
- * export function _getMyContext(): MyContext {
- *   return _ctx.require('[GWEN] must be called inside _withMyContext()');
+ * export function _getMyContext(): MyContext | null {
+ *   return _ctx.get();
  * }
  * ```
  */
@@ -48,18 +46,6 @@ export class ContextSlot<T> {
    * Returns the currently active value, or `null` if outside a {@link run} call.
    */
   get(): T | null {
-    return this._current;
-  }
-
-  /**
-   * Returns the active value or throws if the slot is empty.
-   *
-   * @param errorMsg - Message for the thrown `Error` when called outside a `run()`.
-   * @throws {GwenError} When called outside an active `run()` call.
-   */
-  require(errorMsg: string): T {
-    if (this._current === null)
-      throw new GwenError(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT, errorMsg);
     return this._current;
   }
 

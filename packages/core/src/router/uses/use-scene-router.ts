@@ -29,8 +29,6 @@ import type {
   StatesOf,
 } from "../router-types";
 import type { SceneDefinition, SceneFactory } from "../../scene/runtime/define-scene";
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "../../engine/engine-errors";
 import { reportRejectedHook } from "../../hooks/report-rejected-hook.js";
 
 // Module-level WeakMap keyed by engine instance — avoids monkey-patching the engine object.
@@ -62,16 +60,7 @@ function resolveScene(input: SceneDefinition | SceneFactory): SceneDefinition {
 export function useSceneRouter<TRoutes extends Record<string, RouteConfig<TRoutes>>>(
   routerDef: SceneRouterDefinition<TRoutes>,
 ): SceneRouterHandle<TRoutes> {
-  let engine: GwenEngine;
-  try {
-    engine = useEngine();
-  } catch {
-    // Rethrow with a useSceneRouter-specific message for test compatibility
-    throw new GwenError(
-      CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT,
-      "[GWEN] useSceneRouter() must be called inside an active engine context. Call it inside engine.run(), defineActor(), defineSystem(), or scene lifecycle hooks.",
-    );
-  }
+  const engine = useEngine("useSceneRouter");
 
   // Singleton cache per (engine, routerDef) pair — stored in a module-level WeakMap
   // so the engine object itself is never mutated.

@@ -131,7 +131,7 @@ const RenderSystem = defineSystem(() => {
 
 ## Error guide — `GwenContextError`
 
-When a composable is called outside an active engine context, GWEN throws a `GwenContextError` with a structured `code` property and an actionable message.
+When a composable is called outside its context, GWEN throws a `GwenContextError`. `code` is the boundary. `composable` is the call. `validContexts` lists the callsites that are valid.
 
 ```ts
 import { GwenContextError } from '@gwenjs/core'
@@ -140,8 +140,9 @@ try {
   useEngine()
 } catch (e) {
   if (e instanceof GwenContextError) {
-    console.log(e.code)     // 'CORE:OUTSIDE_ENGINE_CONTEXT'
-    console.log(e.message)  // explains the fix step by step
+    console.log(e.code)          // 'CORE:OUTSIDE_ENGINE_CONTEXT'
+    console.log(e.composable)    // 'useEngine'
+    console.log(e.validContexts) // defineSystem(), defineActor(), ...
   }
 }
 ```
