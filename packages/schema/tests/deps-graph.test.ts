@@ -110,6 +110,10 @@ const SCHEMA_CONTRACTS = new Set([
   "ViewportBounds",
   "ViewportScreenInfo",
   "ViewportBoundsProvider",
+  "TRANSFORM_2D_SERVICE",
+  "TransformReader2D",
+  "TransformRef2D",
+  "TransformSample2D",
 ]);
 
 /** Context symbols owned by `packages/kit/src` (R8, R9; D-76-a). */
@@ -1170,7 +1174,77 @@ describe("deps-graph", () => {
         "export const RENDER_VIEW_MATRIX_LENGTH",
       ]),
     );
-    expect(rendererRuntimeViolations(text)).toEqual([]);
+    expect(rendererRuntimeViolations(file, text)).toEqual([]);
+  });
+
+  it("transforms.ts exports only types and the transform:2d service key", () => {
+    const file = "packages/schema/src/transforms.ts";
+    const absolute = path.join(repoRoot, file);
+    const text = existsSync(absolute) ? readFileSync(absolute, "utf8") : "";
+    const { declarations } = analyze(file, text);
+    expect(illegalTransformExports(declarations, erasedDeclareConsts(file, text))).toEqual([]);
+    expect(declarations.map((declaration) => declaration.text)).toEqual(
+      expect.arrayContaining(["export const TRANSFORM_2D_SERVICE"]),
+    );
+    expect(rendererRuntimeViolations(file, text)).toEqual([]);
+  });
+
+  it("does not exempt a runtime value that reuses the erased brand name", () => {
+    const file = path.join(repoRoot, "packages/schema/src/transforms.ts");
+    expect(existsSync(file)).toBe(true);
+    const text = readFileSync(file, "utf8");
+    expect(text).toContain("declare const transformRef2D: unique symbol;");
+    const cases: ReadonlyArray<{ source: string; expected: readonly string[] }> = [
+      {
+        source: "export const transformRef2D = Symbol();",
+        expected: ["export const transformRef2D"],
+      },
+      {
+        source: "export function transformRef2D() {}",
+        expected: ["export function transformRef2D"],
+      },
+      {
+        source: "export let transformRef2D = 1;",
+        expected: ["export let transformRef2D"],
+      },
+      {
+        source: "export class transformRef2D {}",
+        expected: ["export class transformRef2D"],
+      },
+      {
+        source: "export enum transformRef2D {}",
+        expected: ["export enum transformRef2D"],
+      },
+      {
+        source: "declare const transformRef2D: unique symbol;\nexport { transformRef2D };",
+        expected: ["export { transformRef2D }"],
+      },
+      {
+        source: "export declare const transformRef2D: unique symbol;",
+        expected: ["export const transformRef2D", "export declare transformRef2D"],
+      },
+      {
+        source: "const transformRef2D = Symbol();",
+        expected: ["const transformRef2D"],
+      },
+      {
+        source: "function transformRef2D() {}",
+        expected: ["function transformRef2D"],
+      },
+      {
+        source: "declare const transformRef2D: unique symbol;",
+        expected: [],
+      },
+    ];
+    const problems: string[] = [];
+    for (const entry of cases) {
+      const hits = transformRuntimeHits(entry.source);
+      const same =
+        hits.length === entry.expected.length &&
+        hits.every((hit, index) => hit === entry.expected[index]);
+      if (!same) problems.push(`${entry.source} => ${hits.join(" | ")}`);
+    }
+    expect(problems).toEqual([]);
   });
 
   it("renderer-core and camera-core declare no host alias and only schema owns the four host keys", () => {
@@ -1219,15 +1293,68 @@ function hasDefaultExport(node: ts.Node): boolean {
   return (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Default) !== 0;
 }
 
+/**
+ * Top-level `declare` consts with no `export` modifier.
+ * `analyze` records them as `const Name` and drops the `declare` keyword.
+ */
+function erasedDeclareConsts(fileName: string, text: string): ReadonlySet<string> {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = new Set<string>();
+  for (const statement of sf.statements) {
+    if (!ts.isVariableStatement(statement)) continue;
+    const modifiers = statement.modifiers;
+    const declared =
+      modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword) === true;
+    const exported =
+      modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true;
+    if (!declared || exported) continue;
+    const flags = statement.declarationList.flags;
+    if ((flags & ts.NodeFlags.Const) === 0) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+    }
+  }
+  return names;
+}
+
+/**
+ * Public values of `transforms.ts`, plus any other runtime binding.
+ * The only exemption is a non-exported `declare const` (the erased brand).
+ */
+function illegalTransformExports(
+  declarations: readonly Declaration[],
+  erased: ReadonlySet<string>,
+): string[] {
+  const allowedConsts = new Set(["TRANSFORM_2D_SERVICE"]);
+  return declarations
+    .filter((declaration) => {
+      const keyword = declaration.text.replace(/^export /, "").split(" ")[0] ?? "";
+      if (keyword === "interface" || keyword === "type") return false;
+      if (
+        keyword === "const" &&
+        !declaration.text.startsWith("export ") &&
+        erased.has(declaration.name)
+      ) {
+        return false;
+      }
+      return keyword !== "const" || !allowedConsts.has(declaration.name);
+    })
+    .map((declaration) => declaration.text);
+}
+
+/** Value-export hits for one `transforms.ts` source. Illegal declarations, then runtime forms. */
+function transformRuntimeHits(source: string): string[] {
+  const file = "packages/schema/src/transforms.ts";
+  const { declarations } = analyze(file, source);
+  return [
+    ...illegalTransformExports(declarations, erasedDeclareConsts(file, source)),
+    ...rendererRuntimeViolations(file, source),
+  ];
+}
+
 /** Runtime forms the declaration scan does not record. One string per offending statement. */
-function rendererRuntimeViolations(text: string): string[] {
-  const sf = ts.createSourceFile(
-    "renderer.ts",
-    text,
-    ts.ScriptTarget.Latest,
-    true,
-    ts.ScriptKind.TS,
-  );
+function rendererRuntimeViolations(fileName: string, text: string): string[] {
+  const sf = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const violations: string[] = [];
   for (const statement of sf.statements) {
     if (ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement)) {
@@ -1235,12 +1362,23 @@ function rendererRuntimeViolations(text: string): string[] {
       violations.push(`value import ${statement.getText(sf)}`);
       continue;
     }
-    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier !== undefined) {
+    if (ts.isExportDeclaration(statement)) {
+      if (statement.moduleSpecifier !== undefined) {
+        const clause = statement.exportClause;
+        if (clause === undefined || ts.isNamespaceExport(clause)) {
+          violations.push(`export * ${statement.getText(sf)}`);
+        } else {
+          violations.push(`export from ${statement.getText(sf)}`);
+        }
+        continue;
+      }
+      // `export { name }` publishes a local binding. A type-only export does not.
       const clause = statement.exportClause;
-      if (clause === undefined || ts.isNamespaceExport(clause)) {
-        violations.push(`export * ${statement.getText(sf)}`);
-      } else {
-        violations.push(`export from ${statement.getText(sf)}`);
+      if (!statement.isTypeOnly && clause !== undefined && ts.isNamedExports(clause)) {
+        const names = clause.elements
+          .filter((element) => !element.isTypeOnly)
+          .map((element) => element.name.text);
+        if (names.length > 0) violations.push(`export { ${names.join(", ")} }`);
       }
       continue;
     }
@@ -1257,6 +1395,22 @@ function rendererRuntimeViolations(text: string): string[] {
       continue;
     }
     if (!ts.isVariableStatement(statement)) continue;
+    const modifiers = statement.modifiers;
+    const declared =
+      modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword) === true;
+    const exported =
+      modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword) === true;
+    // Erased `declare` without `export` is not a runtime value. `export declare` is public.
+    if (declared && !exported) continue;
+    if (declared && exported) {
+      for (const declaration of statement.declarationList.declarations) {
+        const name = ts.isIdentifier(declaration.name)
+          ? declaration.name.text
+          : declaration.name.getText(sf);
+        violations.push(`export declare ${name}`);
+      }
+      continue;
+    }
     for (const declaration of statement.declarationList.declarations) {
       if (!ts.isIdentifier(declaration.name)) {
         violations.push(`destructured const ${declaration.name.getText(sf)}`);
