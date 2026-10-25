@@ -242,6 +242,18 @@ export default defineConfig({
 
 ---
 
+## `ViteErrorCodes`
+
+Exporté par `@gwenjs/vite`.
+
+| Clé | Code |
+|---|---|
+| `WASM_NOT_FOUND` | `VITE:WASM_NOT_FOUND` |
+| `OPTIMIZER_UNKNOWN_COMPONENT` | `VITE:OPTIMIZER_UNKNOWN_COMPONENT` |
+| `OPTIMIZER_UNKNOWN_FIELD` | `VITE:OPTIMIZER_UNKNOWN_FIELD` |
+
+`gwenWasmPlugin` lève `VITE:WASM_NOT_FOUND` quand le fichier WASM résolu est absent. L'indice de développement dit de lancer d'abord `cargo build --target wasm32-unknown-unknown`. Le générateur de code lève `VITE:OPTIMIZER_UNKNOWN_COMPONENT` pour un composant absent du manifeste, et `VITE:OPTIMIZER_UNKNOWN_FIELD` pour un champ que le manifeste ne liste pas. Ces levées sont des `GwenError`, sans étiquette `[gwen:wasm]` ni `[gwen:optimizer]`. L'indice est présent quand `NODE_ENV` n'est pas `production`.
+
 ## Définitions de types
 
 ### `GwenViteOptions`

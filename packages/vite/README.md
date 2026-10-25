@@ -245,7 +245,7 @@ console.log(manifest.wasmPath); // Path to WASM binary
 
 ### `.`
 
-Values: `default`, `gwen`, `gwenOptimizerPlugin`, `gwenPhysics3DOptimizerPlugin`, `gwenTransform`, `gwenVitePlugin`
+Values: `ViteErrorCodes`, `default`, `gwen`, `gwenOptimizerPlugin`, `gwenPhysics3DOptimizerPlugin`, `gwenTransform`, `gwenVitePlugin`
 
 Types: `ActorPluginOptions`, `CoreVariant`, `GwenDevStripReport`, `GwenOptimizerOptions`, `GwenPhysics3DOptimizerOptions`, `GwenPluginOptions`, `GwenTransformOptions`, `GwenViteOptions`, `GwenWasmOptions`, `WasmVariant`
 

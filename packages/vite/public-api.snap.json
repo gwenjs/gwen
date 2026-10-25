@@ -1,6 +1,7 @@
 {
   ".": {
     "values": [
+      "ViteErrorCodes",
       "default",
       "gwen",
       "gwenOptimizerPlugin",

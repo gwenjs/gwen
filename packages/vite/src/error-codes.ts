@@ -1,0 +1,6 @@
+/** Codes thrown by `@gwenjs/vite`. */
+export const ViteErrorCodes = {
+  WASM_NOT_FOUND: "VITE:WASM_NOT_FOUND",
+  OPTIMIZER_UNKNOWN_COMPONENT: "VITE:OPTIMIZER_UNKNOWN_COMPONENT",
+  OPTIMIZER_UNKNOWN_FIELD: "VITE:OPTIMIZER_UNKNOWN_FIELD",
+} as const;
