@@ -322,7 +322,7 @@ describe("renderer error grammar", () => {
     }
   });
 
-  it("every renderer error keeps its domain fields", () => {
+  it("every renderer error keeps its domain fields under the grammar message", () => {
     expect(new RendererAlreadyRegisteredError('say "hi"').rendererName).toBe('say "hi"');
     const version = new RendererContractVersionError("renderer:canvas", 0, 1);
     expect(version.rendererName).toBe("renderer:canvas");
@@ -344,5 +344,7 @@ describe("renderer error grammar", () => {
     expect(missing.viewportId).toBe("p3");
     expect(missing.knownViewports).toEqual([]);
     expect(new ScreenResizeObserverError().code).toBe(ScreenErrorCodes.ResizeObserverNotAvailable);
+    for (const { make } of RENDERER_GRAMMAR)
+      expect(make().message.startsWith("[GWEN] ")).toBe(true);
   });
 });
