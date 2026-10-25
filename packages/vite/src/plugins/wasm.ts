@@ -4,8 +4,7 @@ import { resolve } from "node:path";
 import type { Plugin } from "vite";
 import type { GwenViteOptions } from "../types.js";
 import { GwenError } from "@gwenjs/schema";
-
-const VITE_WASM_NOT_FOUND = "VITE:WASM_NOT_FOUND";
+import { ViteErrorCodes } from "../error-codes.js";
 
 const WASM_VIRTUAL_ID = "virtual:gwen/wasm";
 const RESOLVED_WASM_VIRTUAL_ID = "\0" + WASM_VIRTUAL_ID;
@@ -57,9 +56,14 @@ export function gwenWasmPlugin(options: GwenViteOptions): Plugin {
 
       if (!existsSync(wasmPath)) {
         throw new GwenError(
-          VITE_WASM_NOT_FOUND,
-          `[gwen:wasm] WASM binary not found at ${wasmPath}.\n` +
-            `Run 'cargo build --target wasm32-unknown-unknown' first.`,
+          ViteErrorCodes.WASM_NOT_FOUND,
+          `WASM binary not found at ${wasmPath}.`,
+          {
+            hint:
+              process.env["NODE_ENV"] !== "production"
+                ? "Run 'cargo build --target wasm32-unknown-unknown' first."
+                : undefined,
+          },
         );
       }
 

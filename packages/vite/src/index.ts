@@ -712,4 +712,5 @@ export type { GwenOptimizerOptions } from "./plugins/optimizer.js";
 
 // RFC-008: Physics3D query optimizer plugin (opt-in, Phase 1 — warn)
 export { gwenPhysics3DOptimizerPlugin } from "./plugins/physics3d-optimizer.js";
+export { ViteErrorCodes } from "./error-codes.js";
 export type { GwenPhysics3DOptimizerOptions } from "./plugins/physics3d-optimizer.js";
