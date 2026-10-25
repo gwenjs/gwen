@@ -27,7 +27,7 @@ export interface SphereColliderOptions {
  * @param options - Radius and collider options.
  * @returns A {@link CircleColliderHandle} with the collider ID.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
- * @throws {Error} If called outside a `defineActor()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
  *
  * @example
  * ```typescript
@@ -39,7 +39,7 @@ export interface SphereColliderOptions {
  */
 export function useSphereCollider(options: SphereColliderOptions): CircleColliderHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useSphereCollider");
 
   const bodyHandle = physics.addRigidBody(
     entityId,

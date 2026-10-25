@@ -14,7 +14,7 @@ import { usePhysics2D } from "../composables";
  * @param options - Dynamic body configuration.
  * @returns A {@link DynamicBodyHandle} for applying impulses and reading velocity.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
- * @throws {Error} If called outside a `defineActor()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
  *
  * @example
  * ```typescript
@@ -28,7 +28,7 @@ import { usePhysics2D } from "../composables";
  */
 export function useDynamicBody(options: DynamicBodyOptions = {}): DynamicBodyHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useDynamicBody");
 
   // Stored creation options so enable() can re-register the body after disable().
   const rigidBodyOpts = {
