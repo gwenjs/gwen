@@ -16,7 +16,7 @@ import { ShapeComponent } from "../shape-component";
  * @param options - Optional body and collider configuration.
  * @returns A {@link StaticBodyHandle} for enabling/disabling the body at runtime.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
- * @throws {Error} If called outside a `defineActor()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
  *
  * @example
  * ```typescript
@@ -30,7 +30,7 @@ import { ShapeComponent } from "../shape-component";
 export function useStaticBody(options: StaticBodyOptions = {}): StaticBodyHandle {
   const physics = usePhysics2D();
   const engine = useEngine();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useStaticBody");
 
   // Stored creation options so enable() can re-register the body after disable().
   const colliderOpts: ColliderOptions = {

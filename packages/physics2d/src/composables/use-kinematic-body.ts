@@ -37,7 +37,7 @@ import { usePhysics2D } from "../composables";
  */
 export function useKinematicBody(options: KinematicBodyOptions = {}): KinematicBodyHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useKinematicBody");
   const _fixedRotation = options.fixedRotation ?? false;
   const _initX = options.initialPosition?.x ?? 0;
   const _initY = options.initialPosition?.y ?? 0;

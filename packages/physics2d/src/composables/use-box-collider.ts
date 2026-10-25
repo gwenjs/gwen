@@ -33,7 +33,7 @@ export interface BoxColliderOptions {
  * @param options - Box dimensions and collider options.
  * @returns A {@link BoxColliderHandle} with the collider ID.
  * @throws {GwenPluginNotFoundError} If `@gwenjs/physics2d` is not registered.
- * @throws {Error} If called outside a `defineActor()` factory.
+ * @throws {GwenContextError} `CORE:OUTSIDE_ACTOR_CONTEXT` if called outside a `defineActor()` factory.
  *
  * @example
  * ```typescript
@@ -44,7 +44,7 @@ export interface BoxColliderOptions {
  */
 export function useBoxCollider(options: BoxColliderOptions): BoxColliderHandle {
   const physics = usePhysics2D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useBoxCollider");
 
   const bodyHandle = physics.addRigidBody(
     entityId,
