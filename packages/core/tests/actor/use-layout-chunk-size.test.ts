@@ -10,7 +10,7 @@ import { defineActor } from "../../src/actor/runtime/define-actor";
 import { placeActor, placeGroup, placePrefab } from "../../src/actor/runtime/place";
 import type { LayoutHandle, PlaceHandle } from "../../src/actor/runtime/types";
 import { WasmBridgeImpl } from "../../src/engine/wasm-bridge";
-import { GwenComposableError } from "../../src/engine/engine-errors";
+
 import { createMockWasmEngine, mockEntitySurface } from "../helpers/mock-wasm-engine";
 
 /** Test switch: makes the mock `bulk_destroy` throw. Reset in `afterEach`. */
@@ -182,9 +182,9 @@ describe("useLayout chunkSize — progressive spawn", () => {
         } catch (error: unknown) {
           caught = error;
         }
-        expect(caught).toBeInstanceOf(GwenComposableError);
+        expect(caught).toMatchObject({ name: "GwenError" });
         expect(caught).toMatchObject({
-          code: "COMPOSABLE:INVALID_CHUNK_SIZE",
+          code: "CORE:INVALID_CHUNK_SIZE",
           message: expect.stringContaining(text),
         });
       });
@@ -251,8 +251,13 @@ describe("useLayout chunkSize — progressive spawn", () => {
           () => undefined,
           (rejection: unknown) => rejection,
         );
-        expect(error).toBeInstanceOf(GwenComposableError);
-        expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+        expect(error).toMatchObject({ name: "GwenError" });
+        expect(error).toMatchObject({ code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED" });
+        expect(error).toMatchObject({
+          message: expect.stringContaining(
+            `Layout handle member "${read}" was read before its entity was spawned.`,
+          ),
+        });
         expect(handle.active).toBe(false);
       });
     },
@@ -282,8 +287,8 @@ describe("useLayout chunkSize — progressive spawn", () => {
       await engine.advance(FRAME);
       await engine.advance(FRAME);
       const error = await outcome;
-      expect(error).toBeInstanceOf(GwenComposableError);
-      expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+      expect(error).toMatchObject({ name: "GwenError" });
+      expect(error).toMatchObject({ code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED" });
       expect(handle.active).toBe(false);
     });
   });
@@ -545,8 +550,8 @@ describe("useLayout chunkSize — progressive spawn", () => {
         );
         for (let frame = 0; frame < frames; frame++) await engine.advance(FRAME);
         const error = await outcome;
-        expect(error).toBeInstanceOf(GwenComposableError);
-        expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+        expect(error).toMatchObject({ name: "GwenError" });
+        expect(error).toMatchObject({ code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED" });
         expect(engine.getStats().entityCount - base).toBe(0);
         expect(handle.active).toBe(false);
         expect(handle.refs).toEqual({});
@@ -589,8 +594,8 @@ describe("useLayout chunkSize — progressive spawn", () => {
       await engine.advance(FRAME);
       bulkDestroyFault.fail = false;
       const error = await outcome;
-      expect(error).toBeInstanceOf(GwenComposableError);
-      expect(error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+      expect(error).toMatchObject({ name: "GwenError" });
+      expect(error).toMatchObject({ code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED" });
       expect(handle.active).toBe(false);
     });
   });
@@ -622,9 +627,9 @@ describe("useLayout chunkSize — progressive spawn", () => {
       const handle = useLayout(failingLayout(1), { chunkSize: 5 });
       await engine.advance(FRAME);
       await flush();
-      expect(events.map((event) => event.code)).toEqual(["COMPOSABLE:LAYOUT_LOAD_FAILED"]);
+      expect(events.map((event) => event.code)).toEqual(["CORE:LAYOUT_LOAD_FAILED"]);
       expect(events[0]?.level).toBe("error");
-      expect(events[0]?.error).toMatchObject({ code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED" });
+      expect(events[0]?.error).toMatchObject({ code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED" });
       expect(engine.getStats().entityCount - base).toBe(0);
       expect(handle.active).toBe(false);
     });
@@ -648,9 +653,9 @@ describe("useLayout chunkSize — progressive spawn", () => {
         );
         await engine.advance(FRAME);
         const error = await outcome;
-        expect(error).toBeInstanceOf(GwenComposableError);
+        expect(error).toMatchObject({ name: "GwenError" });
         expect(error).toMatchObject({
-          code: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
+          code: "CORE:LAYOUT_HANDLE_NOT_SPAWNED",
           message: expect.stringContaining(`${member}()`),
         });
       });

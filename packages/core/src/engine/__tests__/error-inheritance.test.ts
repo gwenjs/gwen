@@ -7,12 +7,11 @@
 
 import { describe, it, expect } from "vitest";
 import { GwenError } from "@gwenjs/schema";
-import {
-  GwenPluginNotFoundError,
-  GwenActorError,
-  GwenComposableError,
-} from "../../engine/engine-errors.js";
+import * as core from "@gwenjs/core";
+import * as kit from "@gwenjs/kit";
+import { GwenPluginNotFoundError, GwenActorError } from "../../engine/engine-errors.js";
 import { GwenConfigError } from "../../engine/config-error.js";
+import { PoolExhaustedError } from "../../actor/runtime/pool/errors.js";
 
 describe("Error class inheritance — all extend GwenError", () => {
   it("GwenPluginNotFoundError extends GwenError", () => {
@@ -27,17 +26,24 @@ describe("Error class inheritance — all extend GwenError", () => {
   });
 
   it("GwenActorError extends GwenError", () => {
-    const e = new GwenActorError("ACTOR:PLUGIN_NOT_READY", "actor plugin not ready");
+    const e = new GwenActorError("CORE:ACTOR_PLUGIN_NOT_READY", "actor plugin not ready");
     expect(e).toBeInstanceOf(GwenError);
     expect(e).toBeInstanceOf(Error);
-    expect(e.code).toBe("ACTOR:PLUGIN_NOT_READY");
+    expect(e.code).toBe("CORE:ACTOR_PLUGIN_NOT_READY");
   });
 
-  it("GwenComposableError extends GwenError", () => {
-    const e = new GwenComposableError("COMPOSABLE:OUTSIDE_ACTOR_CONTEXT", "called outside actor");
-    expect(e).toBeInstanceOf(GwenError);
-    expect(e).toBeInstanceOf(Error);
-    expect(e.code).toBe("COMPOSABLE:OUTSIDE_ACTOR_CONTEXT");
+  it("PoolExhaustedError is a GwenActorError and a GwenError", () => {
+    const error = new PoolExhaustedError("Enemy", 2);
+    expect(error).toBeInstanceOf(GwenActorError);
+    expect(error).toBeInstanceOf(GwenError);
+    expect(error.code).toBe("CORE:ACTOR_POOL_EXHAUSTED");
+    expect(error.composable).toBe("pool.acquire");
+  });
+
+  it("ComposableErrorCodes and GwenComposableError are gone from @gwenjs/core", () => {
+    expect("GwenComposableError" in core).toBe(false);
+    expect("ComposableErrorCodes" in core).toBe(false);
+    expect("GwenComposableError" in kit).toBe(false);
   });
 
   it("GwenConfigError extends GwenError", () => {
@@ -55,7 +61,7 @@ describe("Error class inheritance — all extend GwenError", () => {
         docsUrl: "https://x",
       }),
       new GwenActorError("A", "a"),
-      new GwenComposableError("C", "c"),
+      new PoolExhaustedError("Enemy", 1),
       new GwenConfigError("field", 0, "hint"),
     ];
     for (const e of errors) {

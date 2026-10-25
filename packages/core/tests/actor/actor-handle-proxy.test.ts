@@ -45,7 +45,7 @@ describe("ActorHandle Proxy — method delegation", () => {
     });
 
     // No instance spawned — must throw GwenActorError, not silently return undefined
-    expect(() => (handle as unknown as { heal(): number }).heal()).toThrow("[GWEN]");
+    expect(() => handle.heal()).toThrow(/CORE:ACTOR_NO_LIVE_INSTANCE/);
   });
 
   it("ActorHandle methods take priority over PublicAPI methods", async () => {

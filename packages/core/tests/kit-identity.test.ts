@@ -3,6 +3,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { CoreErrorCodes, createEngine, useEngine } from "@gwenjs/core";
 import { definePlugin } from "@gwenjs/kit/plugin";
 import * as core from "@gwenjs/core";
@@ -21,9 +22,9 @@ describe("core re-exports kit context errors", () => {
     expect(core.GwenContextError).toBe(kit.GwenContextError);
   });
 
-  it("core re-exports kit's GwenComposableError class", () => {
-    expect(typeof kit.GwenComposableError).toBe("function");
-    expect(core.GwenComposableError).toBe(kit.GwenComposableError);
+  it("core and kit do not export GwenComposableError", () => {
+    expect("GwenComposableError" in core).toBe(false);
+    expect("GwenComposableError" in kit).toBe(false);
   });
 
   it("CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT is kit's string", () => {
@@ -56,8 +57,7 @@ describe("core re-exports kit context errors", () => {
     }
   });
 
-  it("a failing plugin setup rejects with kit's GwenComposableError", async () => {
-    expect(typeof kit.GwenComposableError).toBe("function");
+  it("a failing plugin setup rejects with KIT:PLUGIN_SETUP_FAILED and keeps the cause", async () => {
     const engine = await createEngine({ maxEntities: 64 });
     engines.push(engine);
     const plugin = definePlugin(() => ({
@@ -72,9 +72,13 @@ describe("core re-exports kit context errors", () => {
     } catch (error) {
       thrown = error;
     }
-    expect(thrown instanceof kit.GwenComposableError).toBe(true);
-    if (!(thrown instanceof kit.GwenComposableError)) return;
-    expect(thrown.code).toBe("engine:plugin-setup-failed");
-    expect(thrown.message).toBe('Plugin "boom" setup failed: x');
+    expect(thrown).toBeInstanceOf(GwenError);
+    if (!(thrown instanceof GwenError)) return;
+    expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
+    expect(thrown.composable).toBe("definePlugin");
+    expect(thrown.message).toContain('Plugin "boom" setup failed.');
+    expect(thrown.cause).toBeInstanceOf(Error);
+    if (!(thrown.cause instanceof Error)) return;
+    expect(thrown.cause.message).toBe("x");
   });
 });

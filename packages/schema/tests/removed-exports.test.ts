@@ -37,6 +37,7 @@ const ENTRIES: readonly EntryCase[] = [
       "SceneLifecycleHooks",
       "ExtensionLifecycleHooks",
       "EngineAPI",
+      "GwenErrorCode",
     ],
     kept: "GwenRuntimeHooks",
   },

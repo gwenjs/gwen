@@ -121,7 +121,6 @@ const KIT_CONTRACTS = new Set([
   "GwenContextError",
   "GwenContextErrorCode",
   "GwenContextErrorCodes",
-  "GwenComposableError",
   "getCurrentScope",
   "_setCurrentScope",
 ]);
