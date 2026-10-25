@@ -81,3 +81,26 @@ it("a GwenError from setup() keeps one [GWEN], one See line, and the cause", asy
   );
   expect([caught.cause, caught.code]).toEqual([inner, "APP:MODULE_SETUP_FAILED"]);
 });
+
+it("an invalid module export throws KIT:MODULE_INVALID without a tag", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "gwen-p648-"));
+  try {
+    const name = join(dir, "no-setup.mjs");
+    writeFileSync(name, "export default { meta: { name: 'no-setup' } };\n");
+    const caught = await thrown(name);
+    expect(caught.code).toBe("APP:MODULE_LOAD_FAILED");
+    const cause = caught.cause;
+    expect(cause).toBeInstanceOf(GwenError);
+    if (!(cause instanceof GwenError)) return;
+    const fix = __GWEN_DEV__
+      ? "\nFix: Ensure the module exports a default object created with defineGwenModule()."
+      : "";
+    expect(cause.code).toBe("KIT:MODULE_INVALID");
+    expect(cause.message).toBe(
+      `[GWEN] Module "${name}" does not export a valid GwenModule (missing setup function).${fix}\n${see("KIT:MODULE_INVALID")}`,
+    );
+    expect(cause.message.includes("[GWEN] [GWEN]")).toBe(false);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

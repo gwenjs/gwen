@@ -2,7 +2,7 @@
  * AST scan of the GWEN error grammar (P-64-1b).
  * `scanSource` is pure. Repo cases walk each package `src` tree.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
@@ -46,6 +46,7 @@ const FRAMEWORK_PREFIX = new Set(
 );
 const PLUGIN_PREFIX = new Set(["AUDIO", "ASSETS", "RENDERER_THREE", "INSPECTOR"]);
 const R1_EXEMPT_FILE = "packages/schema/src/errors.ts";
+const MATH_ERROR_FILE = "packages/math/src/errors.ts";
 const R5_EXEMPT_FILE = "packages/schema/src/errors.ts";
 const USE_ENGINE_FILE = "packages/core/src/engine/context.ts";
 const SKIP_DIRS = new Set(["node_modules", "dist", "__tests__"]);
@@ -276,6 +277,7 @@ export function scanFile(text: string, file: string): ScanHit {
     if (heritageText(cls, sourceFile) !== "Error") return;
     const className = ts.isClassDeclaration(cls) && cls.name ? cls.name.text : "";
     if (className === "GwenError" && file === R1_EXEMPT_FILE) return;
+    if (className === "MathError" && file === MATH_ERROR_FILE) return;
     add(cls, "R1", "class extends Error", true);
   };
   const visit = (node: ts.Node): void => {
@@ -308,7 +310,9 @@ export function scanFile(text: string, file: string): ScanHit {
       const parts = [node.head.text, ...node.templateSpans.map((span) => span.literal.text)];
       if (parts.some((part) => textHasDocsHost(part))) add(node, "R5", "hard-coded docs host");
     }
-    if (isDocsUrlWrite(node) && file !== R5_EXEMPT_FILE) add(node, "R5", "docsUrl write");
+    if (isDocsUrlWrite(node) && file !== R5_EXEMPT_FILE && file !== MATH_ERROR_FILE) {
+      add(node, "R5", "docsUrl write");
+    }
     if (
       ts.isPropertyAssignment(node) &&
       propertyName(node.name) === "composable" &&
@@ -495,6 +499,15 @@ describe("scanSource fixtures", () => {
       'class Ok extends GwenError { constructor() { super(codes.X, "Fine.", {}); } }',
     ].join("\n");
     expectLines(text, "R1", [1, 2, 3]);
+  });
+  it("the MathError class and its docsUrl write pass R1 and R5 only in packages/math/src/errors.ts", () => {
+    const full = path.join(repoRoot, MATH_ERROR_FILE);
+    expect(existsSync(full)).toBe(true);
+    const text = readFileSync(full, "utf8");
+    expect(linesOf(text, MATH_ERROR_FILE, "R1")).toEqual([]);
+    expect(linesOf(text, MATH_ERROR_FILE, "R5")).toEqual([]);
+    expect(linesOf(text, "packages/math/src/color.ts", "R1")).not.toEqual([]);
+    expect(linesOf(text, "packages/math/src/color.ts", "R5")).not.toEqual([]);
   });
   it("flags a code outside the allowed prefixes", () => {
     const text = 'const DemoErrorCodes = { BAD: "NOPE:NOT_ALLOWED" } as const;\n';

@@ -126,4 +126,18 @@ describe("loadRawGwenConfig", () => {
     );
     expect(caught.cause).toBeNull();
   });
+
+  it("a config load failure keeps the cause on GwenError", async () => {
+    writeFileSync(join(tmpDir, "gwen.config.ts"), "throw new Error('config blew');\n");
+    const { loadRawGwenConfig, GwenConfigLoadError } = await import("../src/config-loader.js");
+    const bare = new GwenConfigLoadError("m", "/f.ts", undefined);
+    expect(Object.hasOwn(bare, "cause")).toBe(false);
+    const caught: unknown = await loadRawGwenConfig(tmpDir).catch((err: unknown) => err);
+    expect(caught).toBeInstanceOf(GwenConfigLoadError);
+    if (!(caught instanceof GwenConfigLoadError)) return;
+    expect(caught.code).toBe("APP:CONFIG_LOAD_FAILED");
+    expect(caught.cause).toBeInstanceOf(Error);
+    if (!(caught.cause instanceof Error)) return;
+    expect(caught.cause.message).toContain("config blew");
+  });
 });
