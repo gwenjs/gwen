@@ -155,7 +155,7 @@ engine.hooks.hook('camera:activate', ({ viewportId, entityId }) => {
 ```
 
 Les hooks `viewport:*` (`viewport:add`, `viewport:resize`, `viewport:remove`) sont déclarés dans
-`@gwenjs/renderer-core`.
+`@gwenjs/schema`.
 
 ## Pipeline `CameraSystem`
 

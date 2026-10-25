@@ -10,24 +10,14 @@
  */
 
 import type { GwenEngine } from "@gwenjs/core";
+import { GwenError } from "@gwenjs/schema";
+import { RendererErrorCodes } from "./errors.js";
 import { LayerManager } from "./layer-manager.js";
 
 // Renderer stats are exposed by the shared LayerManager at runtime via
 // `layerManager.getStats()`. This package does not attach renderer stats to
 // `engine.getStats()` — type-augmenting EngineStats would imply runtime
 // population that never happens.
-declare module "@gwenjs/schema" {
-  interface GwenProvides {
-    /**
-     * The shared LayerManager for this engine instance.
-     * Created automatically by the first renderer plugin via `getOrCreateLayerManager()`.
-     * Do not create or provide this manually.
-     *
-     * Use `engine.inject('layerManager').getStats()` to read renderer stats.
-     */
-    layerManager: import("./layer-manager.js").LayerManager;
-  }
-}
 
 /**
  * Return the shared {@link LayerManager} for this engine instance, creating it
@@ -58,7 +48,19 @@ declare module "@gwenjs/schema" {
  */
 export function getOrCreateLayerManager(engine: GwenEngine, container: HTMLElement): LayerManager {
   const existing = engine.tryInject("layerManager");
-  if (existing) return existing;
+  if (existing instanceof LayerManager) return existing;
+  if (existing !== undefined) {
+    throw new GwenError(
+      RendererErrorCodes.FOREIGN_LAYER_MANAGER,
+      "The provided layerManager is not a LayerManager from this package.",
+      {
+        composable: "getOrCreateLayerManager",
+        hint: __GWEN_DEV__
+          ? "Call getOrCreateLayerManager before providing layerManager, or provide the LayerManager this package created."
+          : undefined,
+      },
+    );
+  }
 
   const manager = new LayerManager(container, engine.logger.child("renderer-core"), engine);
   engine.provide("layerManager", manager);

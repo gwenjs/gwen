@@ -73,4 +73,8 @@ Cause. Une option résolue est hors de la plage ou de la forme que vérifie `val
 
 ## @gwenjs/renderer-core
 
+### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
+
+Cause. `getOrCreateLayerManager` a trouvé une valeur `layerManager` qui n'est pas le `LayerManager` de ce package. Fix. Retirez cette valeur et laissez `getOrCreateLayerManager` créer le manager, ou fournissez le `LayerManager` qu'il a créé.
+
 ## @gwenjs/camera-core

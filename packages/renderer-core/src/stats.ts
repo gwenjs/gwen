@@ -6,62 +6,19 @@
  * gate, so the hot path stays inactive unless a caller enables stats itself.
  */
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+import type {
+  RendererLayerStats,
+  RendererRendererStats,
+  RendererStats,
+  RendererStatsCollector,
+} from "@gwenjs/schema";
 
-/** Per-layer stats snapshot for one frame. */
-export interface RendererLayerStats {
-  /** Render depth (mirrors LayerDef.order). */
-  order: number;
-  /** Coordinate space (mirrors LayerDef.coordinate). */
-  coordinate: "world" | "screen";
-  /** Number of live entities contributing to this layer this frame. */
-  entityCount: number;
-  /** Number of GPU draw calls issued by this layer this frame (0 for HTML layers). */
-  drawCalls: number;
-  /** Number of active DOM nodes in this layer (0 for canvas/WebGL layers). */
-  domNodes: number;
-  /** Whether this layer is currently visible. */
-  visible: boolean;
-  /** Wall-clock time in ms spent flushing this layer this frame. */
-  frameTimeMs: number;
-}
-
-/** Per-renderer stats snapshot. */
-export interface RendererRendererStats {
-  /** Renderer type string (e.g. `'html'`, `'canvas'`, `'webgl'`, `'r3f'`). */
-  type: string;
-  /** Total wall-clock time in ms spent in this renderer's onRender() this frame. */
-  frameTimeMs: number;
-  /** Per-layer breakdown. */
-  layers: Record<string, RendererLayerStats>;
-}
-
-/**
- * Full renderer stats snapshot.
- * Available from `engine.inject('layerManager').getStats()` when stats are enabled.
- */
-export interface RendererStats {
-  /** Per-renderer breakdown. Keys are GwenProvides keys (e.g. `'renderer:canvas'`). */
-  renderers: Record<string, RendererRendererStats>;
-  /** Total wall-clock render time across all renderers this frame. */
-  totalRenderTimeMs: number;
-  /** Total GPU draw calls across all renderers this frame. */
-  totalDrawCalls: number;
-  /** Total entities rendered across all layers and renderers this frame. */
-  totalEntitiesRendered: number;
-  /**
-   * Ring buffer history for the last 60 frames.
-   * Use `head` to find the most-recently written slot: `history.frameTimeMs[(head - 1 + 60) % 60]`.
-   */
-  history: {
-    /** Frame render time in ms for each of the last 60 frames. */
-    frameTimeMs: Float32Array;
-    /** Total draw calls for each of the last 60 frames. */
-    drawCalls: Uint32Array;
-    /** Index of the next slot to be written. Wraps at 60. */
-    head: number;
-  };
-}
+export type {
+  RendererLayerStats,
+  RendererRendererStats,
+  RendererStats,
+  RendererStatsCollector,
+} from "@gwenjs/schema";
 
 /** Creates a fresh, zero-initialised RendererStats object. */
 export function createRendererStats(): RendererStats {
@@ -84,21 +41,6 @@ export function createRendererStats(): RendererStats {
  * Injected by LayerManager into each renderer after mount().
  * Renderers call these methods during their onRender() to report stats.
  */
-export interface RendererStatsCollector {
-  /**
-   * Report stats for one layer. Partial — only provide the fields you measured.
-   * @param layerName - The layer key as declared in RendererService.layers.
-   * @param stats     - Partial layer stats for this frame.
-   */
-  reportLayer(layerName: string, stats: Partial<RendererLayerStats>): void;
-  /**
-   * Report total wall-clock time for this renderer's onRender() call.
-   * Automatically advances the global ring-buffer head.
-   * @param ms - Duration in milliseconds.
-   */
-  reportFrameTime(ms: number): void;
-}
-
 /** @internal Concrete implementation used by LayerManager. */
 export class RendererStatsCollectorImpl implements RendererStatsCollector {
   private _enabled = false;

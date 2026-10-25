@@ -22,13 +22,6 @@ import { getOrCreateViewportManager } from "./get-or-create-viewport-manager.js"
 import { ScreenServiceImpl } from "./screen-service.js";
 import type { ScreenService } from "./screen-service.js";
 
-declare module "@gwenjs/schema" {
-  interface GwenProvides {
-    /** The shared ScreenService for this engine instance. Use `useScreen()` in game code. */
-    screenService: ScreenService;
-  }
-}
-
 /**
  * Return the shared {@link ScreenService} for this engine instance, creating it if needed.
  *

@@ -1,9 +1,9 @@
 /**
- * @file Core type contracts for the GWEN renderer plugin system.
+ * @file Composable handles for the GWEN renderer plugin system.
  *
- * These interfaces define the surface area every renderer plugin must implement
- * and the handles every composable must return. They are the shared language
- * between renderer-core, renderer plugins, and game code.
+ * The renderer contract (`RendererService`, `LayerDef`, `RenderView`, and the
+ * contract version) lives in `@gwenjs/schema` and is re-exported here.
+ * The handles below are what the composables return.
  *
  * @see {@link RendererService} — the interface each renderer plugin implements
  * @see {@link SpriteHandle} — returned by useSprite()
@@ -11,157 +11,14 @@
  * @see {@link MeshHandle} — returned by useMesh() / useR3F()
  */
 
-import type { RendererStatsCollector } from "./stats.js";
-
-/** Current renderer contract version. Bump on breaking changes to RendererService. */
-export const RENDERER_CONTRACT_VERSION = 2;
-
-/**
- * Renderer kind.
- * Omitted on {@link RendererService} means `"layers"` (one DOM node per layer).
- */
-export type RendererKind = "layers" | "surface";
-
-/**
- * One rendered view: a viewport camera or an XR eye.
- * Caller-owned and reused. `writeCameraViews` fills it and does not allocate a new one.
- */
-export interface RenderView {
-  /** Filled by `writeCameraViews`. The matrix and `pixelRect` objects stay put. */
-  viewportId: string;
-  /** Same union as `XRViewData.eye`. Non-XR views use `"none"`. */
-  eye: "left" | "right" | "none";
-  /** Length 16, column-major, world → view. The buffer is reused, not replaced. */
-  readonly viewMatrix: Float32Array;
-  /** Length 16, column-major. The buffer is reused, not replaced. */
-  readonly projectionMatrix: Float32Array;
-  /** Device pixels. The object is reused, not replaced. */
-  readonly pixelRect: { x: number; y: number; width: number; height: number };
-}
-
-/**
- * Declares a single named rendering slot within a renderer plugin.
- *
- * @example
- * ```ts
- * const layers = {
- *   background: { order: 0, coordinate: 'screen' },
- *   game:       { order: 10 },
- *   hud:        { order: 100, coordinate: 'screen' },
- * }
- * ```
- */
-export interface LayerDef {
-  /**
-   * Rendering depth. Lower values render first (behind). Higher values render last (in front).
-   * Must be unique across registered renderers. LayerManager warns on a conflict between
-   * layer renderers. An equal order between a surface layer and any other layer throws
-   * `RENDERER:LAYER_ORDER_CONFLICT`. A HUD layer must use a strictly greater order.
-   */
-  order: number;
-  /**
-   * Coordinate space for this layer.
-   * - `'screen'` — positions are in CSS pixels relative to the viewport (default)
-   * - `'world'`  — positions are in world units; the renderer must project them to screen space
-   * @default 'screen'
-   */
-  coordinate?: "world" | "screen";
-  /**
-   * Whether this layer belongs to a specific viewport or is rendered globally.
-   *
-   * - `'viewport'` — the layer is instanced once per viewport and receives the
-   *   corresponding camera transform. Default for `coordinate: 'world'` layers.
-   * - `'global'` — the layer is mounted once for the entire screen (e.g. a HUD
-   *   that sits above all viewports). Default for `coordinate: 'screen'` layers.
-   *
-   * @default `'viewport'` when `coordinate === 'world'`, `'global'` otherwise
-   */
-  scope?: "viewport" | "global";
-}
-
-/**
- * The interface every GWEN renderer plugin must implement.
- *
- * Register the implementation via `engine.provide('renderer:<name>', service)`.
- * The LayerManager validates the contract version and mounts the DOM elements.
- *
- * @example
- * ```ts
- * class MyRendererService implements RendererService {
- *   readonly name = 'renderer:my'
- *   readonly contractVersion = RENDERER_CONTRACT_VERSION
- *   readonly layers = { game: { order: 10 } }
- *   mount(container: HTMLElement) { ... }
- *   unmount() { ... }
- *   resize(w: number, h: number) { ... }
- *   getLayerElement(name: string): HTMLElement { ... }
- * }
- * ```
- */
-export interface RendererService {
-  /** Unique key matching the GwenProvides declaration (e.g. `'renderer:canvas'`). */
-  readonly name: string;
-  /**
-   * Must equal {@link RENDERER_CONTRACT_VERSION}.
-   * LayerManager throws {@link RendererContractVersionError} on mismatch.
-   */
-  readonly contractVersion: number;
-  /**
-   * Omitted means `"layers"`. `"surface"` opts into {@link SurfaceRendererService}.
-   */
-  readonly kind?: RendererKind;
-  /**
-   * Named layers managed by this renderer. At least one layer is required.
-   * Each entry becomes a DOM element mounted by LayerManager.
-   */
-  readonly layers: Record<string, LayerDef>;
-  /**
-   * Called by LayerManager after all layer DOM elements have been inserted into
-   * the shared root container. The `container` argument is that shared root —
-   * use it to read dimensions, attach resize observers, or initialise a WebGL
-   * context that targets the full viewport.
-   * @param container - The shared root container passed to LayerManager.
-   */
-  mount(container: HTMLElement): void;
-  /** Called by LayerManager when the engine shuts down. Must free all resources. */
-  unmount(): void;
-  /**
-   * Called by LayerManager whenever the game viewport is resized.
-   * @param width  - New width in CSS pixels.
-   * @param height - New height in CSS pixels.
-   */
-  resize(width: number, height: number): void;
-  /**
-   * Returns the DOM element (HTMLElement or HTMLCanvasElement) for a named layer.
-   * Throws {@link UnknownLayerError} if `layerName` was not declared in `layers`.
-   * @param layerName - A key from the `layers` record.
-   */
-  getLayerElement(layerName: string): HTMLElement | HTMLCanvasElement;
-  /**
-   * Optional. Called by LayerManager after mount() to inject the stats collector.
-   * When provided, the renderer should call `collector.reportLayer()` each frame.
-   * Only called when `__GWEN_DEV__ && engine.debug` is true.
-   */
-  setStatsCollector?(collector: RendererStatsCollector): void;
-}
-
-/**
- * A renderer that owns exactly one drawing surface.
- * It creates that canvas in `mount` and removes it in `unmount`.
- */
-export interface SurfaceRendererService extends RendererService {
-  readonly kind: "surface";
-  /** Exactly one entry, `coordinate: "world"` (keeps pointer events). */
-  readonly layers: Record<string, LayerDef>;
-  /** Canvas created by the renderer in `mount()`, removed in `unmount()`. */
-  getLayerElement(layerName: string): HTMLCanvasElement;
-  /**
-   * Called by `LayerManager` once per `engine:render` after the surface is mounted.
-   * `views` is the written prefix of the `writeCameraViews` buffer.
-   * `alpha` is `1` until #79 supplies `engine.frame`.
-   */
-  renderViews(views: readonly RenderView[], alpha: number): void;
-}
+export { RENDERER_CONTRACT_VERSION } from "@gwenjs/schema";
+export type {
+  LayerDef,
+  RenderView,
+  RendererKind,
+  RendererService,
+  SurfaceRendererService,
+} from "@gwenjs/schema";
 
 // ─── Composable handles ──────────────────────────────────────────────────────
 

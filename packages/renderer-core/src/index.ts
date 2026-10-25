@@ -115,7 +115,6 @@ export { ScreenPlugin } from "./screen-plugin.js";
 export type { ScreenPluginOptions } from "./screen-plugin.js";
 export { useScreen } from "./use-screen.js";
 
-// cameraManager, viewportManager and viewport:* hook augmentations live in
-// get-or-create-camera-manager.ts and get-or-create-viewport-manager.ts,
-// co-located with their implementations. They activate automatically via
-// the re-exports above.
+// cameraManager, viewportManager, layerManager, screenService and the
+// viewport:* hooks are declared on GwenProvides / GwenRuntimeHooks in
+// @gwenjs/schema. This package re-exports the same types.
