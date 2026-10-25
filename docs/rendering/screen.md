@@ -211,5 +211,5 @@ See [Async Context](/advanced/async-context) for details.
 
 | Code | When | Fix |
 |---|---|---|
-| `SCREEN:RESIZE_OBSERVER_NOT_AVAILABLE` | Browser without `ResizeObserver`, or Node.js without `sizeProvider` | Add `screen.sizeProvider` in `gwen.config.ts` |
-| `SCREEN:VIEWPORT_NOT_FOUND` | `useScreen('unknown')` for an unregistered id | Check the id or declare the viewport in `gwen.config.ts` |
+| `RENDERER:SCREEN_RESIZE_OBSERVER_NOT_AVAILABLE` | Browser without `ResizeObserver`, or Node.js without `sizeProvider` | Add `screen.sizeProvider` in `gwen.config.ts` |
+| `RENDERER:SCREEN_VIEWPORT_NOT_FOUND` | `useScreen('unknown')` for an unregistered id | Check the id or declare the viewport in `gwen.config.ts` |

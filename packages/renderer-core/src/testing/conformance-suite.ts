@@ -6,11 +6,10 @@
  */
 
 import type { GwenEngine } from "@gwenjs/core";
+import { GwenError } from "@gwenjs/schema";
+import { RendererErrorCodes } from "../errors.js";
 import { RENDERER_CONTRACT_VERSION } from "../types.js";
 import type { RendererService, RenderView, SurfaceRendererService } from "../types.js";
-import { GwenError } from "@gwenjs/schema";
-
-const CONFORMANCE_FAILED = "RENDERER:CONFORMANCE_FAILED";
 
 /**
  * Throws a descriptive error if `service` violates the RendererService contract.
@@ -36,10 +35,14 @@ export function runConformanceTests(service: RendererService): void {
 function assertContractVersion(service: RendererService): void {
   if (service.contractVersion !== RENDERER_CONTRACT_VERSION) {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runConformanceTests] "${service.name}" contractVersion is ${service.contractVersion}, ` +
-        `expected ${RENDERER_CONTRACT_VERSION}. ` +
-        `Update the renderer plugin or @gwenjs/renderer-core to matching versions.`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" contractVersion is ${service.contractVersion}, expected ${RENDERER_CONTRACT_VERSION}.`,
+      {
+        composable: "runConformanceTests",
+        hint: __GWEN_DEV__
+          ? "Update the renderer plugin or @gwenjs/renderer-core to matching versions."
+          : undefined,
+      },
     );
   }
 }
@@ -48,9 +51,14 @@ function assertHasLayers(service: RendererService): void {
   const layerCount = Object.keys(service.layers).length;
   if (layerCount === 0) {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runConformanceTests] "${service.name}" declares zero layers. ` +
-        `At least one layer is required. Add a layers entry to the renderer config.`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" declares zero layers.`,
+      {
+        composable: "runConformanceTests",
+        hint: __GWEN_DEV__
+          ? "At least one layer is required. Add a layers entry to the renderer config."
+          : undefined,
+      },
     );
   }
 }
@@ -60,9 +68,12 @@ function assertRequiredMethods(service: RendererService): void {
   for (const method of required) {
     if (typeof service[method] !== "function") {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runConformanceTests] "${service.name}" is missing required method "${method}". ` +
-          `Implement it to satisfy the RendererService contract.`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" is missing required method "${method}".`,
+        {
+          composable: "runConformanceTests",
+          hint: __GWEN_DEV__ ? "Implement it to satisfy the RendererService contract." : undefined,
+        },
       );
     }
   }
@@ -73,19 +84,30 @@ function assertLayerElementsAccessible(service: RendererService): void {
   // runSurfaceConformance reads it after mount.
   if (service.kind === "surface") return;
   for (const layerName of Object.keys(service.layers)) {
+    let el: unknown;
     try {
-      const el = service.getLayerElement(layerName);
-      if (!el || !(el instanceof Element)) {
-        throw new GwenError(
-          CONFORMANCE_FAILED,
-          `getLayerElement("${layerName}") did not return an Element`,
-        );
-      }
+      el = service.getLayerElement(layerName);
     } catch (cause) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runConformanceTests] "${service.name}" getLayerElement("${layerName}") threw: ${cause}. ` +
-          `getLayerElement() must return a valid DOM element for every declared layer.`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" getLayerElement("${layerName}") threw: ${cause}.`,
+        {
+          composable: "runConformanceTests",
+          cause,
+          hint: __GWEN_DEV__
+            ? "getLayerElement() must return a valid DOM element for every declared layer."
+            : undefined,
+        },
+      );
+    }
+    if (!el || !(el instanceof Element)) {
+      throw new GwenError(
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" getLayerElement("${layerName}") did not return an Element.`,
+        {
+          composable: "runConformanceTests",
+          hint: __GWEN_DEV__ ? "Return an Element for every declared layer." : undefined,
+        },
       );
     }
   }
@@ -103,37 +125,44 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
   runConformanceTests(service);
   if (service.kind !== "surface") {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] "${service.name}" kind is ${String(service.kind)}, expected "surface".`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" kind is ${String(service.kind)}, expected "surface".`,
+      { composable: "runSurfaceConformance" },
     );
   }
 
   const layerNames = Object.keys(service.layers);
   if (layerNames.length !== 1) {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] "${service.name}" declares ${layerNames.length} layers. ` +
-        `A surface renderer must declare exactly one.`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" declares ${layerNames.length} layers.`,
+      {
+        composable: "runSurfaceConformance",
+        hint: __GWEN_DEV__ ? "A surface renderer must declare exactly one." : undefined,
+      },
     );
   }
   const layerName = layerNames[0];
   if (layerName === undefined) {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] "${service.name}" declares no layer.`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" declares no layer.`,
+      { composable: "runSurfaceConformance" },
     );
   }
   const layer = service.layers[layerName];
   if (layer === undefined || layer.coordinate !== "world") {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] "${service.name}" layer "${layerName}" must use coordinate "world".`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" layer "${layerName}" must use coordinate "world".`,
+      { composable: "runSurfaceConformance" },
     );
   }
   if (typeof service.renderViews !== "function") {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] "${service.name}" is missing required method "renderViews".`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `"${service.name}" is missing required method "renderViews".`,
+      { composable: "runSurfaceConformance" },
     );
   }
 
@@ -149,39 +178,43 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
     const canvas = service.getLayerElement(layerName);
     if (!(canvas instanceof HTMLCanvasElement)) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+        { composable: "runSurfaceConformance" },
       );
     }
     if (!canvas.isConnected) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" did not attach its canvas during mount().`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" did not attach its canvas during mount().`,
+        { composable: "runSurfaceConformance" },
       );
     }
     service.resize(cssW, cssH, dpr);
     const sized = service.getLayerElement(layerName);
     if (!(sized instanceof HTMLCanvasElement)) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" getLayerElement("${layerName}") must return an HTMLCanvasElement.`,
+        { composable: "runSurfaceConformance" },
       );
     }
     const expectW = Math.round(cssW * dpr);
     const expectH = Math.round(cssH * dpr);
     if (sized.width !== expectW || sized.height !== expectH) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" resize(${cssW}, ${cssH}, ${dpr}) ` +
-          `left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" resize(${cssW}, ${cssH}, ${dpr}) left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
+        { composable: "runSurfaceConformance" },
       );
     }
     service.unmount();
     mounted = false;
     if (canvas.isConnected) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" left its canvas attached after unmount().`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" left its canvas attached after unmount().`,
+        { composable: "runSurfaceConformance" },
       );
     }
   } finally {
@@ -199,8 +232,9 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
       service.renderViews(views.slice(0, n), alphas[n] ?? 0);
     } catch (cause) {
       throw new GwenError(
-        CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" renderViews with ${n} views threw: ${String(cause)}`,
+        RendererErrorCodes.CONFORMANCE_FAILED,
+        `"${service.name}" renderViews with ${n} views threw: ${String(cause)}.`,
+        { composable: "runSurfaceConformance", cause },
       );
     }
   }
@@ -209,10 +243,10 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
 function readConformanceDpr(engine: GwenEngine): number {
   const screen = engine.tryInject("screenService");
   if (screen === undefined) {
-    throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] screenService is missing. Set a device pixel ratio before checking resize.`,
-    );
+    throw new GwenError(RendererErrorCodes.CONFORMANCE_FAILED, "screenService is missing.", {
+      composable: "runSurfaceConformance",
+      hint: __GWEN_DEV__ ? "Set a device pixel ratio before checking resize." : undefined,
+    });
   }
   const viewports = engine.tryInject("viewportManager");
   let viewportId = "__surface_conformance__";
@@ -223,8 +257,12 @@ function readConformanceDpr(engine: GwenEngine): number {
   const dpr = screen.getOrCreateInfo(viewportId).dpr;
   if (!(dpr > 0) || !Number.isFinite(dpr)) {
     throw new GwenError(
-      CONFORMANCE_FAILED,
-      `[runSurfaceConformance] ViewportScreenInfo.dpr is ${dpr}. Set a positive dpr.`,
+      RendererErrorCodes.CONFORMANCE_FAILED,
+      `ViewportScreenInfo.dpr is ${dpr}.`,
+      {
+        composable: "runSurfaceConformance",
+        hint: __GWEN_DEV__ ? "Set a positive dpr." : undefined,
+      },
     );
   }
   return dpr;

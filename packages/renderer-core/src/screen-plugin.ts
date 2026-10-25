@@ -62,8 +62,7 @@ export const ScreenPlugin = definePlugin((opts: ScreenPluginOptions = {}) => ({
         `[${ScreenErrorCodes.ResizeObserverNotAvailable}] ` +
           "No DOM and no sizeProvider configured. " +
           "Screen size will be { width: 0, height: 0 }. " +
-          "Configure screen.sizeProvider in gwen.config.ts for non-browser environments. " +
-          "See: https://gwenengine.dev/docs/screen#node",
+          "Configure screen.sizeProvider in gwen.config.ts for non-browser environments.",
       );
       sizeProvider = StaticSizeProvider({ width: 0, height: 0 });
     }

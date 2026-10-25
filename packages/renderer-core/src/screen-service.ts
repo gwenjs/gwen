@@ -123,8 +123,7 @@ export class ScreenServiceImpl implements ScreenService {
         this._log.warn(
           `[${ScreenErrorCodes.ViewportNotFound}] useScreen('${id}') — viewport '${id}' is not registered in ViewportManager. ` +
             `Known viewports: [${known.length > 0 ? known.map((v) => `'${v}'`).join(", ") : "none"}]. ` +
-            `Declare it in gwen.config.ts under viewports:{} or check the viewport id for typos. ` +
-            `See: https://gwenengine.dev/docs/screen#viewports`,
+            `Declare it in gwen.config.ts under viewports:{} or check the viewport id for typos.`,
         );
       }
       return;
