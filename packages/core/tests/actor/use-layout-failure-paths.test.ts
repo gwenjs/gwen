@@ -127,7 +127,7 @@ describe("useLayout failure paths", () => {
       bulkDestroyFault.onCall = 2;
       await engine.advance(FRAME);
       await loading;
-      expect(events.map((event) => event.code)).toEqual(["COMPOSABLE:LAYOUT_DISPOSE_FAILED"]);
+      expect(events.map((event) => event.code)).toEqual(["CORE:LAYOUT_DISPOSE_FAILED"]);
       expect(events[0]?.level).toBe("error");
       expect(self.active).toBe(false);
       expect(engine.getStats().entityCount - base).toBe(1);
@@ -154,7 +154,7 @@ describe("useLayout failure paths", () => {
     bulkDestroyFault.all = false;
     await loading;
     expect(engine.state).toBe("stopped");
-    expect(events.map((event) => event.code)).toContain("COMPOSABLE:LAYOUT_DISPOSE_FAILED");
+    expect(events.map((event) => event.code)).toContain("CORE:LAYOUT_DISPOSE_FAILED");
     expect(handle?.active).toBe(false);
   });
 
@@ -231,7 +231,7 @@ describe("useLayout failure paths", () => {
       });
       const handle = useLayout(layout);
       await flush();
-      expect(events.map((event) => event.code)).toEqual(["COMPOSABLE:LAYOUT_LOAD_FAILED"]);
+      expect(events.map((event) => event.code)).toEqual(["CORE:LAYOUT_LOAD_FAILED"]);
       expect(events[0]?.level).toBe("error");
       expect(events[0]?.error).toMatchObject({ message: "factory boom" });
       expect(handle.active).toBe(false);

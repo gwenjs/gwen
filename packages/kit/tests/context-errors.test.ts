@@ -130,12 +130,8 @@ describe("kit context errors", () => {
     expect(error.cause).toBe(cause);
   });
 
-  it("GwenComposableError keeps its code, message and name", () => {
-    expect(typeof kit.GwenComposableError).toBe("function");
-    const error = new kit.GwenComposableError("COMPOSABLE:X", "m");
-    expect(error.code).toBe("COMPOSABLE:X");
-    expect(error.message).toBe("m");
-    expect(error.name).toBe("GwenComposableError");
+  it("GwenComposableError is not exported", () => {
+    expect("GwenComposableError" in kit).toBe(false);
   });
 
   it("getCurrentScope is null until a scope is set, and returns the set scope", () => {

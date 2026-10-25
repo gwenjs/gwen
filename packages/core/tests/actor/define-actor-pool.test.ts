@@ -451,7 +451,7 @@ describe("defineActorPool — acquire", () => {
     const pool = defineActorPool(Actor, { size: 5 });
     // NOT calling engine.use(pool.plugin)
 
-    expect(() => pool.acquire()).toThrow("[GWEN]");
+    expect(() => pool.acquire()).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
   });
 });
 
@@ -875,7 +875,7 @@ describe("defineActorPool — teardown", () => {
 
     await engine.unuse(pool.plugin.name);
 
-    expect(() => pool.acquire()).toThrow("[GWEN]");
+    expect(() => pool.acquire()).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
   });
 
   it("resets stats to zero after teardown", async () => {

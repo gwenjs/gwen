@@ -23,14 +23,6 @@ vi.mock("@gwenjs/core/internal", async (importOriginal) => {
 });
 
 vi.mock("@gwenjs/core", () => ({
-  GwenComposableError: class GwenComposableError extends Error {
-    readonly code: string;
-    constructor(code: string, message: string) {
-      super(message);
-      this.name = "GwenComposableError";
-      this.code = code;
-    }
-  },
   getWasmBridge: () => mockBridge,
   unpackEntityId: (id: bigint) => ({ index: Number(id & 0xffffffffn), generation: 0 }),
   createEntityId: (index: number, gen: number) => BigInt(index) | (BigInt(gen) << 32n),
@@ -161,10 +153,10 @@ describe("createPhysicsKinematicSyncSystem", () => {
     const factory = createPhysicsKinematicSyncSystem({ positionComponent: position });
     const instance = factory();
     const engine = createMockEngine();
-    // definePlugin keeps only the inject error message, not the error as `cause`.
     await expect(Promise.resolve(instance.setup(engine))).rejects.toMatchObject({
-      code: "engine:plugin-setup-failed",
-      message: expect.stringContaining("No service: physics3d"),
+      code: "KIT:PLUGIN_SETUP_FAILED",
+      composable: "definePlugin",
+      cause: expect.objectContaining({ message: "No service: physics3d" }),
     });
   });
 

@@ -225,7 +225,7 @@ describe("two engines", () => {
     const Actor = defineActor(Prefab, () => ({}));
     try {
       await a.use(Actor._plugin);
-      expect(() => b.run(() => Actor._plugin.spawn())).toThrow(/ACTOR:PLUGIN_NOT_READY/);
+      expect(() => b.run(() => Actor._plugin.spawn())).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
       expect(a.run(() => Actor._instances.size)).toBe(0);
     } finally {
       await a.stop();
@@ -342,7 +342,7 @@ describe("two engines", () => {
     const a = await createEngine({ maxEntities: 16 });
     await a.use(Actor._plugin);
     await a.stop();
-    expect(() => Actor._plugin.spawn()).toThrow(/ACTOR:PLUGIN_NOT_READY/);
+    expect(() => Actor._plugin.spawn()).toThrow(/CORE:ACTOR_PLUGIN_NOT_READY/);
   });
 
   it("leaves the other engine's local intact after stop", async () => {

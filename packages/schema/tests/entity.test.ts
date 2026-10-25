@@ -44,7 +44,8 @@ describe("entity ids", () => {
     if (!(caught instanceof schema.GwenError)) return;
     expect(caught.code).toBe("CORE:INVALID_ENTITY_ID");
     expect(caught.code).toBe(core.CoreErrorCodes.INVALID_ENTITY_ID);
-    expect(caught.message).toBe("EntityId must be a bigint");
+    expect(caught.message).toContain("EntityId must be a bigint.");
+    expect(caught.composable).toBe("entityIndex");
   });
 
   it("entityGeneration rejects a number with CORE:INVALID_ENTITY_ID", () => {
@@ -58,7 +59,8 @@ describe("entity ids", () => {
     if (!(caught instanceof schema.GwenError)) return;
     expect(caught.code).toBe("CORE:INVALID_ENTITY_ID");
     expect(caught.code).toBe(core.CoreErrorCodes.INVALID_ENTITY_ID);
-    expect(caught.message).toBe("EntityId must be a bigint");
+    expect(caught.message).toContain("EntityId must be a bigint.");
+    expect(caught.composable).toBe("entityGeneration");
   });
 
   it("core re-exports the same entity functions", () => {

@@ -8,8 +8,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { definePlugin } from "../src/plugin";
-import * as kit from "@gwenjs/kit";
 import type { GwenEngineBase as GwenEngine } from "@gwenjs/schema";
 
 // ─── Test helpers ─────────────────────────────────────────────────────────────
@@ -171,18 +171,25 @@ describe("definePlugin() — TS-only plugin", () => {
 // ─── Error reporting ──────────────────────────────────────────────────────────
 
 describe("definePlugin() — setup error reporting", () => {
-  it("wraps setup errors as GwenComposableError with PLUGIN_SETUP_FAILED code", async () => {
+  it("a failing setup rejects with KIT:PLUGIN_SETUP_FAILED and keeps the cause", async () => {
+    const cause = new Error("x");
     const P = definePlugin(() => ({
       name: "Broken",
       setup() {
-        throw new Error("boom");
+        throw cause;
       },
     }));
-    expect(typeof kit.GwenComposableError).toBe("function");
-    await expect(P().setup(mockEngine())).rejects.toBeInstanceOf(kit.GwenComposableError);
-    await expect(P().setup(mockEngine())).rejects.toMatchObject({
-      code: "engine:plugin-setup-failed",
-    });
+    let thrown: unknown;
+    try {
+      await P().setup(mockEngine());
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenError);
+    if (!(thrown instanceof GwenError)) return;
+    expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
+    expect(thrown.composable).toBe("definePlugin");
+    expect(thrown.cause).toBe(cause);
   });
 
   it("re-throws — does not swallow setup errors", async () => {
@@ -202,8 +209,18 @@ describe("definePlugin() — setup error reporting", () => {
         throw new Error("original cause");
       },
     }));
-    await expect(P().setup(mockEngine())).rejects.toThrow(/Broken/);
-    await expect(P().setup(mockEngine())).rejects.toThrow(/original cause/);
+    await expect(P().setup(mockEngine())).rejects.toThrow(/Plugin "Broken" setup failed\./);
+    let thrown: unknown;
+    try {
+      await P().setup(mockEngine());
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenError);
+    if (!(thrown instanceof GwenError)) return;
+    expect(thrown.cause).toBeInstanceOf(Error);
+    if (!(thrown.cause instanceof Error)) return;
+    expect(thrown.cause.message).toBe("original cause");
   });
 });
 

@@ -169,7 +169,7 @@ describe("useActor — Proxy PublicAPI delegation", () => {
     >;
 
     // No instance has been spawned yet — must throw, not silently return undefined
-    expect(() => (handle as unknown as { shoot(): string }).shoot()).toThrow("[GWEN]");
+    expect(() => handle.shoot()).toThrow(/CORE:ACTOR_NO_LIVE_INSTANCE/);
   });
 
   it("delegates to the first live instance PublicAPI after spawn", async () => {

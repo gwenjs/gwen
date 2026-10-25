@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { defineComponent, GwenComposableError, Types, type EntityId } from "../../src/index.js";
+import { defineComponent, Types, type EntityId } from "../../src/index.js";
+import { GwenError } from "@gwenjs/schema";
 import { createRealEngine } from "./harness.js";
 import "../../../physics3d/src/augment";
 import { Physics3DPlugin } from "../../../physics3d/src/plugin/index";
@@ -403,11 +404,19 @@ describe("P0 physics loop", () => {
     });
     try {
       const sync = createKinematicSync3D({ positionComponent: Transform3D })();
-      await expect(handle.engine.use(sync)).rejects.toBeInstanceOf(GwenComposableError);
-      await expect(handle.engine.use(sync)).rejects.toMatchObject({
-        code: "engine:plugin-setup-failed",
-        message: expect.stringContaining('Plugin/service "physics3d" not found'),
-      });
+      let thrown: unknown;
+      try {
+        await handle.engine.use(sync);
+      } catch (error) {
+        thrown = error;
+      }
+      expect(thrown).toBeInstanceOf(GwenError);
+      if (!(thrown instanceof GwenError)) return;
+      expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
+      expect(thrown.composable).toBe("definePlugin");
+      expect(thrown.cause).toBeInstanceOf(Error);
+      if (!(thrown.cause instanceof Error)) return;
+      expect(thrown.cause.message).toContain('Plugin/service "physics3d" not found');
     } finally {
       await handle.dispose();
     }
