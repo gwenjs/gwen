@@ -299,14 +299,15 @@ describe("context error names", () => {
     });
     const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
     const Inner = defineActor(prefab, () => {
-      throw new Error("nested factory");
+      placeGroup();
     });
     let outerId: ReturnType<typeof useEntityId> | undefined;
+    let caught: unknown;
     const Outer = defineActor(prefab, () => {
       try {
         Inner._plugin.spawn();
       } catch (error) {
-        if (!(error instanceof Error) || error.message !== "nested factory") throw error;
+        caught = error;
       }
       outerId = useEntityId();
     });
@@ -314,6 +315,10 @@ describe("context error names", () => {
     await engine.use(Outer._plugin);
     const spawned = Outer._plugin.spawn();
     expect(outerId).toBe(spawned);
+    expect(caught).toBeInstanceOf(GwenContextError);
+    if (!(caught instanceof GwenContextError)) throw new Error("expected GwenContextError");
+    expect(caught.code).toBe("CORE:OUTSIDE_LAYOUT_CONTEXT");
+    expect(caught.composable).toBe("placeGroup");
   });
 
   it("every actor hook names itself", async () => {
