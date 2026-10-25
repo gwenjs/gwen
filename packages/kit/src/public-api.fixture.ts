@@ -8,6 +8,7 @@ type _0 = [
   Root.AutoImport,
   Root.DeepPartial<never>,
   Root.GwenConfig,
+  Root.GwenContextBoundary,
   Root.GwenContextErrorCode,
   Root.MergePluginsPrefabExtensions<never>,
   Root.MergePluginsSceneExtensions<never>,

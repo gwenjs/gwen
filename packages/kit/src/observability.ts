@@ -26,9 +26,6 @@ import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 import { GwenContextError, GwenContextErrorCodes } from "./context-errors.js";
 import { getCurrentScope } from "./scope-slot.js";
 
-const OUTSIDE_LOGGER =
-  "[GWEN] useLogger() must be called inside a defineSystem(), defineActor() or defineScene() factory.";
-
 /** Engine object that carries the public logger. */
 function hasLogger(e: unknown): e is { logger: IGwenLogger } {
   if (typeof e !== "object" || e === null) return false;
@@ -57,10 +54,10 @@ function hasLogger(e: unknown): e is { logger: IGwenLogger } {
 export function useLogger(): IGwenLogger {
   const scope = getCurrentScope();
   if (scope === null) {
-    throw new GwenContextError(OUTSIDE_LOGGER, GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "useLogger");
   }
   if (!hasLogger(scope.engine)) {
-    throw new GwenContextError(OUTSIDE_LOGGER, GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    throw new GwenContextError(GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT, "useLogger");
   }
   return scope.engine.logger.child(
     `${scope.meta.type}:${scope.meta.name ?? scope.meta.id}`,

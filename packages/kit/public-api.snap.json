@@ -1,6 +1,7 @@
 {
   ".": {
     "values": [
+      "GWEN_CONTEXT_BOUNDARIES",
       "GwenComposableError",
       "GwenContextError",
       "GwenContextErrorCodes",
@@ -15,6 +16,7 @@
       "AutoImport",
       "DeepPartial",
       "GwenConfig",
+      "GwenContextBoundary",
       "GwenContextErrorCode",
       "MergePluginsPrefabExtensions",
       "MergePluginsSceneExtensions",
