@@ -206,7 +206,12 @@ describe("two engines", () => {
         }
         expect(caught).toBeInstanceOf(GwenContextError);
         expect((caught as GwenContextError).code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
-        expect((caught as GwenContextError).message).toContain("count() and getAll()");
+        expect((caught as GwenContextError).composable).toBe("Actor.spawn");
+        if (__GWEN_DEV__) {
+          expect((caught as GwenContextError).message).toContain("count() and getAll()");
+        } else {
+          expect((caught as GwenContextError).message).not.toContain("Fix:");
+        }
       }
       expect(a.run(() => handle.count())).toBe(1);
     } finally {

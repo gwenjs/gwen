@@ -69,6 +69,16 @@ afterEach(() => {
 });
 
 describe("useLogger", () => {
+  it("useLogger outside a scope names useLogger", () => {
+    expect(typeof kit.GwenContextError).toBe("function");
+    const thrown = thrownBy(() => {
+      kit.useLogger();
+    });
+    expect(thrown instanceof kit.GwenContextError).toBe(true);
+    if (!(thrown instanceof kit.GwenContextError)) return;
+    expect(thrown.composable).toBe("useLogger");
+  });
+
   it("useLogger outside a scope throws CORE:OUTSIDE_ENGINE_CONTEXT", () => {
     expect(typeof kit.GwenContextError).toBe("function");
     const thrown = thrownBy(() => {

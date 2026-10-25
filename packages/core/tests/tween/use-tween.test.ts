@@ -298,7 +298,9 @@ describe("getTweenManager() singleton", () => {
   });
 
   it("throws when called outside engine context without explicit engine", () => {
-    expect(() => getTweenManager()).toThrow("[GWEN]");
+    expect(() => getTweenManager()).toThrow(
+      /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
+    );
   });
 
   it("accepts explicit engine parameter", async () => {

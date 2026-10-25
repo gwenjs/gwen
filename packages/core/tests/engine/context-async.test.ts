@@ -30,19 +30,31 @@ describe("GwenContextError — error codes", () => {
     } catch (e) {
       msg = (e as Error).message;
     }
-    expect(msg).toContain("withAsyncContext");
-    expect(msg).toContain("onEnter");
-    expect(msg).toContain("@gwenjs/vite");
+    const lines = msg.split("\n");
+    expect(lines[0]).toBe(
+      "[useEngine()] Called outside defineSystem() or defineActor() or defineScene() or plugin setup() or engine.run().",
+    );
+    if (__GWEN_DEV__) {
+      expect(msg).toContain("withAsyncContext");
+      expect(msg).toContain("onEnter");
+      expect(msg).toContain("run through `gwen dev` / `gwen build`");
+      expect(msg).not.toContain("@gwenjs/vite");
+    } else {
+      expect(msg).not.toContain("Fix:");
+      expect(lines).toHaveLength(2);
+    }
   });
 
   it("GwenContextError has a code property", () => {
-    const err = new GwenContextError("test", CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    const err = new GwenContextError(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT, "useEngine");
     expect(err.code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    expect(err.composable).toBe("useEngine");
   });
 
-  it("GwenContextError defaults code to CORE:OUTSIDE_ENGINE_CONTEXT", () => {
-    const err = new GwenContextError("test");
+  it("GwenContextError reports the composable passed with the engine code", () => {
+    const err = new GwenContextError(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT, "withAsyncContext");
     expect(err.code).toBe(CoreErrorCodes.OUTSIDE_ENGINE_CONTEXT);
+    expect(err.composable).toBe("withAsyncContext");
   });
 });
 

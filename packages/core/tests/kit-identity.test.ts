@@ -45,9 +45,15 @@ describe("core re-exports kit context errors", () => {
     expect(thrown instanceof kit.GwenContextError).toBe(true);
     if (!(thrown instanceof kit.GwenContextError)) return;
     expect(thrown.code).toBe("CORE:OUTSIDE_ENGINE_CONTEXT");
-    expect(
-      thrown.message.startsWith("[GWEN] useEngine() was called outside an active engine context."),
-    ).toBe(true);
+    expect(thrown.composable).toBe("useEngine");
+    expect(thrown.message.split("\n")[0]).toBe(
+      "[useEngine()] Called outside defineSystem() or defineActor() or defineScene() or plugin setup() or engine.run().",
+    );
+    if (__GWEN_DEV__) {
+      expect(thrown.message).toContain("gwen dev");
+    } else {
+      expect(thrown.message).not.toContain("Fix:");
+    }
   });
 
   it("a failing plugin setup rejects with kit's GwenComposableError", async () => {

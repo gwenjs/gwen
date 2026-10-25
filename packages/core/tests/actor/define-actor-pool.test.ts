@@ -776,7 +776,9 @@ describe("useActorPool — scene integration", () => {
       defineActor(TestPrefab, () => {}),
       { size: 5 },
     );
-    expect(() => useActorPool(pool)).toThrow("[GWEN]");
+    expect(() => useActorPool(pool)).toThrow(
+      /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
+    );
   });
 
   it("populates ctx.systems with actor and pool plugins — no manual engine.use() required", async () => {

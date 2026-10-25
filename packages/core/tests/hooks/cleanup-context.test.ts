@@ -18,9 +18,9 @@ import { onCleanup, onCleanupIfActive, withCleanup } from "../../src/cleanup-con
 
 describe("onCleanup() outside context", () => {
   it("throws when no cleanup context is active", () => {
-    expect(() => {
-      onCleanup(() => {});
-    }).toThrow(/onCleanup.*context|context.*onCleanup/i);
+    expect(() => onCleanup(() => {})).toThrow(
+      /^\[onCleanup\(\)\] Called outside defineActor\(\) or plugin setup\(\) or withCleanup\(\)\.[\s\S]*\(CORE:OUTSIDE_CLEANUP_CONTEXT\)$/,
+    );
   });
 
   it("does not invoke the callback when it throws", () => {

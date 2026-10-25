@@ -7,18 +7,25 @@ import {
   onRender,
 } from "../../src/system/runtime/define-system";
 
+const OUTSIDE_SYSTEM =
+  /^\[(onUpdate|onBeforeUpdate|onAfterUpdate|onRender)\(\)\] Called outside defineSystem\(\) or defineActor\(\)\.[\s\S]*\(CORE:OUTSIDE_SYSTEM_CONTEXT\)$/;
+
 describe("system lifecycle composables — context guard", () => {
   it("onUpdate throws outside context", () => {
-    expect(() => onUpdate(() => {})).toThrow("[GWEN] onUpdate()");
+    expect(() => onUpdate(() => {})).toThrow(OUTSIDE_SYSTEM);
+    expect(() => onUpdate(() => {})).toThrow("[onUpdate()]");
   });
   it("onBeforeUpdate throws outside context", () => {
-    expect(() => onBeforeUpdate(() => {})).toThrow("[GWEN] onBeforeUpdate()");
+    expect(() => onBeforeUpdate(() => {})).toThrow(OUTSIDE_SYSTEM);
+    expect(() => onBeforeUpdate(() => {})).toThrow("[onBeforeUpdate()]");
   });
   it("onAfterUpdate throws outside context", () => {
-    expect(() => onAfterUpdate(() => {})).toThrow("[GWEN] onAfterUpdate()");
+    expect(() => onAfterUpdate(() => {})).toThrow(OUTSIDE_SYSTEM);
+    expect(() => onAfterUpdate(() => {})).toThrow("[onAfterUpdate()]");
   });
   it("onRender throws outside context", () => {
-    expect(() => onRender(() => {})).toThrow("[GWEN] onRender()");
+    expect(() => onRender(() => {})).toThrow(OUTSIDE_SYSTEM);
+    expect(() => onRender(() => {})).toThrow("[onRender()]");
   });
   it("onUpdate works inside defineSystem", async () => {
     const engine = await createEngine({});

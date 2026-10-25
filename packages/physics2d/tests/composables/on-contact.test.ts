@@ -63,9 +63,18 @@ describe("onContact / _dispatchContactEvent", () => {
     expect(() => _dispatchContactEvent(999n, sampleEvent)).not.toThrow();
   });
 
-  it("throws ACTOR_SETUP_ONLY when entityId is missing and no actor is current", () => {
+  it("throws CORE:OUTSIDE_ACTOR_CONTEXT when entityId is missing and no actor is current", () => {
     _setCurrentContactEntityId(null);
-    expect(() => onContact(() => {})).toThrow(GwenContextError);
+    let caught: unknown;
+    try {
+      onContact(() => {});
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenContextError);
+    if (!(caught instanceof GwenContextError)) return;
+    expect(caught.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(caught.composable).toBe("onContact");
   });
 
   it("registers callback using context entity ID set via _setCurrentContactEntityId", () => {
