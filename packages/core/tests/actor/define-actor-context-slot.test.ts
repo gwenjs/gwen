@@ -1,3 +1,4 @@
+import { GwenContextError } from "@gwenjs/core";
 import { stubComponent } from "../helpers/stub-component";
 import { describe, it, expect } from "vitest";
 import { createEngine } from "../../src/engine/engine-factory";
@@ -11,15 +12,42 @@ const EmptyPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }]);
 
 describe("define-actor — ContextSlot<ActorContext>", () => {
   it("useEntityId throws outside factory", () => {
-    expect(() => useEntityId()).toThrow("[GWEN]");
+    let thrown: unknown;
+    try {
+      useEntityId();
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("useEntityId");
   });
 
   it("onStart throws outside factory", () => {
-    expect(() => onStart(() => {})).toThrow("[GWEN]");
+    let thrown: unknown;
+    try {
+      onStart(() => {});
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("onStart");
   });
 
   it("onDestroy throws outside factory", () => {
-    expect(() => onDestroy(() => {})).toThrow("[GWEN]");
+    let thrown: unknown;
+    try {
+      onDestroy(() => {});
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(GwenContextError);
+    if (!(thrown instanceof GwenContextError)) return;
+    expect(thrown.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(thrown.composable).toBe("onDestroy");
   });
 
   it("useEntityId returns stable id across callbacks", async () => {

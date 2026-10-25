@@ -7,12 +7,8 @@ import { useChildren } from "../../src/actor/runtime/use-children";
 import type { PlaceHandle } from "../../src/actor/runtime/types";
 import { defineActorPool } from "../../src/actor/runtime/pool/define-actor-pool";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
-import {
-  GwenComposableError,
-  GwenActorError,
-  ComposableErrorCodes,
-  ActorErrorCodes,
-} from "../../src/engine/engine-errors";
+import { GwenContextError } from "../../src/engine/context";
+import { GwenActorError, ActorErrorCodes } from "../../src/engine/engine-errors";
 
 const Hp = stubValue("Hp");
 const Prefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
@@ -20,9 +16,16 @@ const Prefab = definePrefab([{ def: Hp, defaults: { value: 100 } }]);
 // ─── Context guard ─────────────────────────────────────────────────────────────
 
 describe("useChildren — context guard", () => {
-  it("throws GwenComposableError with OUTSIDE_ACTOR_CONTEXT when called outside a factory", () => {
-    expect(() => useChildren()).toThrow(GwenComposableError);
-    expect(() => useChildren()).toThrow(ComposableErrorCodes.OUTSIDE_ACTOR_CONTEXT);
+  it("throws GwenContextError with OUTSIDE_ACTOR_CONTEXT when called outside a factory", () => {
+    expect(() => useChildren()).toThrow(GwenContextError);
+    try {
+      useChildren();
+    } catch (e) {
+      expect(e).toBeInstanceOf(GwenContextError);
+      if (!(e instanceof GwenContextError)) return;
+      expect(e.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+      expect(e.composable).toBe("useChildren");
+    }
   });
 });
 

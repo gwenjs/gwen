@@ -1,7 +1,7 @@
 {
   "R2": {
     "packages/core/src/engine/config-error.ts": 1,
-    "packages/core/src/engine/engine-errors.ts": 11,
+    "packages/core/src/engine/engine-errors.ts": 8,
     "packages/math/src/color.ts": 1,
     "packages/physics3d/src/plugin/body-management.ts": 1,
     "packages/renderer-core/src/screen-errors.ts": 2,
@@ -51,7 +51,6 @@
   },
   "R5": {
     "packages/camera-core/src/errors.ts": 4,
-    "packages/core/src/actor/runtime/place.ts": 3,
     "packages/core/src/engine/engine-errors.ts": 2,
     "packages/core/src/engine/service-container.ts": 2,
     "packages/physics2d/src/composables.ts": 2,

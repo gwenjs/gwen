@@ -12,7 +12,24 @@ import {
   withAsyncContext,
   type GwenEngine,
 } from "@gwenjs/core";
-import { defineActor, definePrefab, useActor } from "@gwenjs/core/actor";
+import {
+  defineActor,
+  definePrefab,
+  onDestroy,
+  onDisable,
+  onEnable,
+  onRelease,
+  onReset,
+  onStart,
+  placeActor,
+  placeGroup,
+  placePrefab,
+  useActor,
+  useChildren,
+  useComponent,
+  useEntityId,
+  useTransform,
+} from "@gwenjs/core/actor";
 import { getWasmBridge } from "@gwenjs/core/internal";
 import {
   defineScene,
@@ -208,5 +225,138 @@ describe("context error names", () => {
     const handle = a.run(() => useActor(Actor));
     a.run(() => handle.spawn());
     expect(thrownBy(() => handle.count()).composable).toBe("Actor.spawn");
+  });
+
+  it("useEntityId inside a system names useEntityId, not _getActorEntityId", async () => {
+    const engine = await open();
+    const system = defineSystem("EntityIdOutside", () => {
+      useEntityId();
+    });
+    let error: unknown;
+    try {
+      await engine.use(system());
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenContextError);
+    if (!(error instanceof GwenContextError)) return;
+    expect(error.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+    expect(error.composable).toBe("useEntityId");
+    expect(error.message.includes("_getActor")).toBe(false);
+  });
+
+  it("useEntityId outside an actor has no Fix line in production", async () => {
+    const engine = await open();
+    const system = defineSystem("EntityIdProd", () => {
+      useEntityId();
+    });
+    let error: unknown;
+    try {
+      await engine.use(system());
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenContextError);
+    if (!(error instanceof GwenContextError)) return;
+    const lines = error.message.split("\n");
+    expect(lines[0]).toBe("[useEntityId()] Called outside defineActor().");
+    expect(lines[lines.length - 1]).toBe(
+      "See https://gwenjs.github.io/gwen/api/errors#core-outside-actor-context (CORE:OUTSIDE_ACTOR_CONTEXT)",
+    );
+    if (__GWEN_DEV__) {
+      expect(error.message).toContain("Fix:");
+    } else {
+      expect(lines).toHaveLength(2);
+      expect(error.message.includes("Fix:")).toBe(false);
+    }
+  });
+
+  it("useTransform outside an actor names useTransform", async () => {
+    const engine = await open();
+    const error = thrownBy(() => engine.run(() => useTransform()));
+    expect(error.composable).toBe("useTransform");
+    expect(error.message.includes("_getActor")).toBe(false);
+  });
+
+  it("placeActor outside a layout names placeActor", async () => {
+    await open();
+    const Position = defineComponent({
+      name: "PlaceActorNamesPos",
+      schema: { x: Types.f32 },
+    });
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const actor = defineActor(prefab, () => ({}));
+    const error = thrownBy(() => placeActor(actor));
+    expect(error.code).toBe("CORE:OUTSIDE_LAYOUT_CONTEXT");
+    expect(error.composable).toBe("placeActor");
+  });
+
+  it("the outer actor context is back after a nested factory throws", async () => {
+    const engine = await open();
+    const Position = defineComponent({
+      name: "NestedCtxPos",
+      schema: { x: Types.f32 },
+    });
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const Inner = defineActor(prefab, () => {
+      throw new Error("nested factory");
+    });
+    let outerId: ReturnType<typeof useEntityId> | undefined;
+    const Outer = defineActor(prefab, () => {
+      try {
+        Inner._plugin.spawn();
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "nested factory") throw error;
+      }
+      outerId = useEntityId();
+    });
+    await engine.use(Inner._plugin);
+    await engine.use(Outer._plugin);
+    const spawned = Outer._plugin.spawn();
+    expect(outerId).toBe(spawned);
+  });
+
+  it("every actor hook names itself", async () => {
+    const engine = await open();
+    const Position = defineComponent({
+      name: "HookNamesPos",
+      schema: { x: Types.f32 },
+    });
+    const hooks: readonly [string, () => void][] = [
+      ["useEntityId", () => useEntityId()],
+      ["onStart", () => onStart(() => {})],
+      ["onDestroy", () => onDestroy(() => {})],
+      ["onRelease", () => onRelease(() => {})],
+      ["onReset", () => onReset(() => {})],
+      ["onEnable", () => onEnable(() => {})],
+      ["onDisable", () => onDisable(() => {})],
+      ["useChildren", () => useChildren()],
+      ["useComponent", () => useComponent(Position)],
+    ];
+    engine.run(() => {
+      for (const [name, hook] of hooks) {
+        const error = thrownBy(() => hook());
+        expect(error.code).toBe("CORE:OUTSIDE_ACTOR_CONTEXT");
+        expect(error.composable).toBe(name);
+      }
+    });
+  });
+
+  it("placeGroup and placePrefab outside a layout name themselves", async () => {
+    await open();
+    const Position = defineComponent({
+      name: "PlaceNamesPos",
+      schema: { x: Types.f32 },
+    });
+    const prefab = definePrefab([{ def: Position, defaults: { x: 0 } }]);
+    const hooks: readonly [string, () => void][] = [
+      ["placeGroup", () => placeGroup()],
+      ["placePrefab", () => placePrefab(prefab)],
+    ];
+    for (const [name, hook] of hooks) {
+      const error = thrownBy(() => hook());
+      expect(error.code).toBe("CORE:OUTSIDE_LAYOUT_CONTEXT");
+      expect(error.composable).toBe(name);
+    }
   });
 });
