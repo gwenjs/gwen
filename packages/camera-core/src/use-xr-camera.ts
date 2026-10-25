@@ -43,7 +43,7 @@ export function useXRCamera(opts: XRCameraOpts = {}): XRCameraHandle {
   const entityId = useEntityId();
   const camComp = useComponent(Camera);
 
-  const stores = getCameraStores(useEngine());
+  const stores = getCameraStores(useEngine("useXRCamera"));
   let currentViewport = opts.viewport ?? "main";
   let lastViews: XRViewData[] | undefined;
 

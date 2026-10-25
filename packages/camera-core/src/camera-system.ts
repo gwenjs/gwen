@@ -32,7 +32,7 @@ function shakeOffset(trauma: number, seed: number): number {
 }
 
 export const CameraSystem: () => DiscoverablePlugin = defineSystem("CameraSystem", () => {
-  const engine = useEngine();
+  const engine = useEngine("CameraSystem");
   const cameraStores = getCameraStores(engine);
   const cameras = useCameraManager();
   const _viewports = useViewportManager();

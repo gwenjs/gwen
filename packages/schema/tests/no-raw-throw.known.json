@@ -9,14 +9,12 @@
   },
   "R3": {
     "packages/app/src/error-codes.ts": 4,
-    "packages/camera-core/src/errors.ts": 4,
     "packages/core/src/engine/engine-errors.ts": 44,
     "packages/physics2d/src/errors.ts": 18,
     "packages/physics3d/src/errors/codes.ts": 30,
     "packages/vite/src/optimizer/code-generator.ts": 2
   },
   "R4": {
-    "packages/camera-core/src/errors.ts": 2,
     "packages/core/src/core/component-type-normalizer.ts": 3,
     "packages/core/src/engine/config-error.ts": 1,
     "packages/core/src/engine/engine-component-registry.ts": 1,
@@ -45,7 +43,6 @@
     "packages/vite/src/optimizer/code-generator.ts": 5
   },
   "R5": {
-    "packages/camera-core/src/errors.ts": 4,
     "packages/core/src/engine/engine-errors.ts": 2,
     "packages/core/src/engine/service-container.ts": 2,
     "packages/physics2d/src/composables.ts": 2,
@@ -53,7 +50,6 @@
   },
   "R6": {
     "packages/app/src/app.ts": 1,
-    "packages/camera-core/src/errors.ts": 2,
     "packages/core/src/actor/runtime/pool/errors.ts": 1,
     "packages/core/src/core/component-type-normalizer.ts": 3,
     "packages/core/src/engine/chunk-query.ts": 16,
@@ -93,7 +89,6 @@
     "packages/vite/src/plugins/wasm.ts": 1
   },
   "R8": {
-    "packages/camera-core/src/errors.ts": 4,
     "packages/core/src/engine/config-error.ts": 2,
     "packages/core/src/engine/engine-errors.ts": 2
   }
