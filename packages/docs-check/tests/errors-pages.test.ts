@@ -9,7 +9,7 @@ const PREFIXES =
     " ",
   );
 const ANCHORS =
-  "app-plugin-requirement-missing app-plugin-requirement-order app-service-provider-missing core-introspection-page-invalid core-plugin-extension-api-mismatch schema-invalid-config schema-modules-required"
+  "app-plugin-requirement-missing app-plugin-requirement-order app-service-provider-missing core-introspection-page-invalid core-plugin-extension-api-mismatch renderer-foreign-layer-manager schema-invalid-config schema-modules-required"
     .split(" ")
     .sort();
 

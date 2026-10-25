@@ -130,7 +130,7 @@ describe("defineRendererService", () => {
       unmount: vi.fn(),
       resize: resizeFn,
     }))({});
-    s.resize(1280, 720);
+    s.resize(1280, 720, 1);
     expect(resizeFn).toHaveBeenCalledWith(1280, 720);
   });
 
