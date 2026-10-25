@@ -5,7 +5,7 @@
  * engine dependencies. Safe to import without pulling in the full engine module.
  */
 
-import { GwenError } from "@gwenjs/schema";
+import { GwenError, type GwenErrorOptions } from "@gwenjs/schema";
 import { GwenContextErrorCodes } from "@gwenjs/kit";
 import type { GwenEngineState } from "./engine-types.js";
 
@@ -99,6 +99,14 @@ export const CoreErrorCodes = {
   OUTSIDE_CLEANUP_CONTEXT: GwenContextErrorCodes.OUTSIDE_CLEANUP_CONTEXT,
   OUTSIDE_ENGINE_CONTEXT: GwenContextErrorCodes.OUTSIDE_ENGINE_CONTEXT,
   ACTOR_POOL_EXHAUSTED: "CORE:ACTOR_POOL_EXHAUSTED",
+  /** `useLayout({ chunkSize })` received a value that is not a positive integer. */
+  INVALID_CHUNK_SIZE: "CORE:INVALID_CHUNK_SIZE",
+  /** A chunked layout handle was read before its entity was spawned. */
+  LAYOUT_HANDLE_NOT_SPAWNED: "CORE:LAYOUT_HANDLE_NOT_SPAWNED",
+  /** A non-lazy `useLayout()` load failed and was emitted on the error bus. */
+  LAYOUT_LOAD_FAILED: "CORE:LAYOUT_LOAD_FAILED",
+  /** Destroying layout entities failed where no caller can receive the error. */
+  LAYOUT_DISPOSE_FAILED: "CORE:LAYOUT_DISPOSE_FAILED",
   COMPONENT_LAYOUT_INVALID: "CORE:COMPONENT_LAYOUT_INVALID",
   ARCHETYPE_LIMIT_REACHED: "CORE:ARCHETYPE_LIMIT_REACHED",
   /**
@@ -243,67 +251,27 @@ export class GwenEngineStateError extends GwenError {
 
 /** Error codes emitted by the GWEN actor system. */
 export const ActorErrorCodes = {
-  PLUGIN_NOT_READY: "ACTOR:PLUGIN_NOT_READY",
+  PLUGIN_NOT_READY: "CORE:ACTOR_PLUGIN_NOT_READY",
   /** A PublicAPI method was called via the `useActor` handle but no live instance exists. */
-  NO_LIVE_INSTANCE: "ACTOR:NO_LIVE_INSTANCE",
+  NO_LIVE_INSTANCE: "CORE:ACTOR_NO_LIVE_INSTANCE",
   /** Circular actor ownership detected via `useChildren()`. */
-  CIRCULAR_OWNERSHIP: "ACTOR:CIRCULAR_OWNERSHIP",
+  CIRCULAR_OWNERSHIP: "CORE:ACTOR_CIRCULAR_OWNERSHIP",
 } as const;
 
 /**
- * Thrown when an actor operation is attempted before the actor's plugin has
- * been installed with `engine.use()`.
+ * Thrown when an actor operation fails.
+ * Pass `options` through so the grammar renders `what`.
  *
  * @example
  * ```ts
- * if (err instanceof GwenActorError && err.code === 'ACTOR:PLUGIN_NOT_READY') {
+ * if (err instanceof GwenActorError && err.code === 'CORE:ACTOR_PLUGIN_NOT_READY') {
  *   // actor plugin was not installed before spawning
  * }
  * ```
  */
 export class GwenActorError extends GwenError {
-  constructor(code: string, message: string) {
-    super(code, message);
+  constructor(code: string, what: string, options?: GwenErrorOptions) {
+    super(code, what, options);
     this.name = "GwenActorError";
   }
 }
-
-// ─── Composable error ───────────────────────────────────────────────────────
-
-/**
- * Error codes emitted by GWEN composables for misuse other than a missing context.
- *
- * Context boundaries throw `GwenContextError`. Use these codes with
- * `instanceof GwenComposableError` to distinguish the remaining composable misuse
- * from actor lifecycle errors or engine errors.
- */
-export const ComposableErrorCodes = {
-  /** `useLayout()` received a `chunkSize` that is not a positive integer. */
-  INVALID_CHUNK_SIZE: "COMPOSABLE:INVALID_CHUNK_SIZE",
-  /**
-   * A layout handle was read (`entityId`, `api`, `moveTo`, `despawn`) before its
-   * entity was spawned. Only possible with `useLayout({ chunkSize })`.
-   */
-  LAYOUT_HANDLE_NOT_SPAWNED: "COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED",
-  /**
-   * A non-lazy `useLayout()` load failed. Nobody awaits that load, so the
-   * failure is emitted on the engine error bus with the original error in `error`.
-   */
-  LAYOUT_LOAD_FAILED: "COMPOSABLE:LAYOUT_LOAD_FAILED",
-  /**
-   * Destroying a layout's entities failed where no caller can receive the error: a frame
-   * hook of a progressive load, or `engine.stop()`. Emitted on the engine error bus.
-   */
-  LAYOUT_DISPOSE_FAILED: "COMPOSABLE:LAYOUT_DISPOSE_FAILED",
-} as const;
-
-export { GwenComposableError } from "@gwenjs/kit";
-
-/**
- * All error code namespaces exported from a single entry point.
- * Import from `@gwenjs/core` rather than from internal paths.
- */
-export const ErrorCodes = {
-  Actor: ActorErrorCodes,
-  Composable: ComposableErrorCodes,
-} as const;

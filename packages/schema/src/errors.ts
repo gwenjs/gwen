@@ -69,7 +69,7 @@ export function renderGwenMessage(
  * Base class for all GWEN framework errors.
  *
  * Every built-in error class (`GwenPluginNotFoundError`, `GwenActorError`,
- * `GwenComposableError`, `GwenConfigError`, …) extends this class, so you can
+ * `GwenConfigError`, …) extends this class, so you can
  * catch any GWEN error with a single `instanceof GwenError` check across
  * package boundaries without importing from `@gwenjs/core`.
  *

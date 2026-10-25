@@ -124,7 +124,7 @@ Cinq entités avec `chunkSize: 2` demandent trois frames : deux, puis deux, puis
 
 Fonctionnement :
 
-- `chunkSize` doit être un entier strictement positif. Sinon `useLayout()` lève une `GwenComposableError` de code `COMPOSABLE:INVALID_CHUNK_SIZE`, et le message nomme la valeur.
+- `chunkSize` doit être un entier strictement positif. Sinon `useLayout()` lève une `GwenError` de code `CORE:INVALID_CHUNK_SIZE`, et le message nomme la valeur.
 - La factory s'exécute une seule fois, à l'appel de `load()`. Chaque appel à `placeActor`, `placePrefab` ou `placeGroup` enregistre seulement son spawn.
 - Les spawns enregistrés s'exécutent dans l'ordre des appels, au plus `chunkSize` par frame, dans la phase `engine:before-update`. Le moteur doit avancer pour que le chargement se termine.
 - `load()` est résolu quand la dernière entité est vivante. Jusque-là, `layout.refs` vaut `{}` et `layout.active` vaut `false`.
@@ -133,7 +133,7 @@ Fonctionnement :
 
 ### Les handles dans la factory
 
-Pendant que la factory s'exécute, aucune entité n'existe encore. Lire `entityId`, `api`, `moveTo` ou `despawn` sur un handle à cet endroit lève une `GwenComposableError` de code `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`.
+Pendant que la factory s'exécute, aucune entité n'existe encore. Lire `entityId`, `api`, `moveTo` ou `despawn` sur un handle à cet endroit lève une `GwenError` de code `CORE:LAYOUT_HANDLE_NOT_SPAWNED`.
 
 Vous pouvez quand même passer un handle en `parent`. Le parent est lu au moment où l'enfant spawne, et les spawns suivent l'ordre des appels. Placez le parent en premier :
 
@@ -155,9 +155,9 @@ Si un `parent` est placé après son enfant, le spawn de l'enfant lève la même
 
 Si un appel `place*` ou la factory lève une erreur, le chargement s'arrête, toutes les entités créées par le layout sont détruites (y compris celle qui était à moitié construite au moment de l'erreur), et `load()` est rejeté avec cette erreur. Cela vaut avec et sans `chunkSize`. Si la destruction échoue aussi, `load()` est quand même rejeté avec l'erreur d'origine. Après un chargement en échec, `layout.active` vaut `false`, `layout.refs` vaut `{}`, et un `load()` ultérieur relance la factory.
 
-Avec `lazy: false`, personne n'attend `load()`. Un échec, progressif ou non, est émis sur le bus d'erreurs du moteur (`engine.errors`) avec le niveau `error`, le code `COMPOSABLE:LAYOUT_LOAD_FAILED` et l'erreur d'origine dans `error`. Utilisez `lazy: true` et attendez `load()` si vous voulez la gérer vous-même.
+Avec `lazy: false`, personne n'attend `load()`. Un échec, progressif ou non, est émis sur le bus d'erreurs du moteur (`engine.errors`) avec le niveau `error`, le code `CORE:LAYOUT_LOAD_FAILED` et l'erreur d'origine dans `error`. Utilisez `lazy: true` et attendez `load()` si vous voulez la gérer vous-même.
 
-Quand personne ne peut recevoir l'erreur d'un nettoyage, elle va aussi sur le bus d'erreurs, avec le code `COMPOSABLE:LAYOUT_DISPOSE_FAILED`. Cela arrive quand le nettoyage s'exécute dans un hook de frame (un `dispose()` appelé depuis un spawn) ou dans `engine.stop()`. `engine.stop()` n'est jamais rejeté à cause d'un layout.
+Quand personne ne peut recevoir l'erreur d'un nettoyage, elle va aussi sur le bus d'erreurs, avec le code `CORE:LAYOUT_DISPOSE_FAILED`. Cela arrive quand le nettoyage s'exécute dans un hook de frame (un `dispose()` appelé depuis un spawn) ou dans `engine.stop()`. `engine.stop()` n'est jamais rejeté à cause d'un layout.
 
 ## Layouts et cycle de vie des scènes
 

@@ -67,7 +67,7 @@ function readQuat(value: unknown): Physics3DQuat | null {
  *
  * @param options - Position component, and an optional rotation component.
  * @returns A `definePlugin` class ready to be instantiated and registered.
- * @throws {GwenComposableError} with code `engine:plugin-setup-failed`, from
+ * @throws {GwenError} with code `KIT:PLUGIN_SETUP_FAILED`, from
  * `engine.use`, when `physics3d` is not registered.
  *
  * @example

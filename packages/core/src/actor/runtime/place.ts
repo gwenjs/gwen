@@ -33,7 +33,8 @@ import { spawnActor } from "./spawn-tuple";
 import type { PlacementBridge } from "../../engine/engine-types";
 import { ContextSlot } from "../../engine/context-slot";
 import { GwenContextError, GwenContextErrorCodes } from "../../engine/context";
-import { GwenComposableError, ComposableErrorCodes } from "../../engine/engine-errors";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 
 // ─── Layout context ───────────────────────────────────────────────────────────
 
@@ -98,12 +99,15 @@ function _place<API>(
   let spawned: PlaceHandle<API> | undefined;
   const spawnedHandle = (member: string): PlaceHandle<API> => {
     if (spawned === undefined) {
-      throw new GwenComposableError(
-        ComposableErrorCodes.LAYOUT_HANDLE_NOT_SPAWNED,
-        `[GWEN] "${member}" of a layout handle was read before its entity was spawned. ` +
-          "With useLayout({ chunkSize }) entities spawn one chunk per frame, after the layout " +
-          "factory returns. Read handles after load() resolves, or pass them only as `parent` " +
-          "to entities placed after them.",
+      throw new GwenError(
+        CoreErrorCodes.LAYOUT_HANDLE_NOT_SPAWNED,
+        `Layout handle member "${member}" was read before its entity was spawned.`,
+        {
+          composable: "useLayout",
+          hint: __GWEN_DEV__
+            ? "With useLayout({ chunkSize }) entities spawn one chunk per frame, after the layout factory returns. Read handles after load() resolves, or pass them only as parent to entities placed after them."
+            : undefined,
+        },
       );
     }
     return spawned;

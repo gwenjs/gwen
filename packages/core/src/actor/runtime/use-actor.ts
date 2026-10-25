@@ -333,10 +333,13 @@ export function useActor<Props, PublicAPI>(
           return () => {
             throw new GwenActorError(
               ActorErrorCodes.NO_LIVE_INSTANCE,
-              `[GWEN] useActor(${actorDef.__actorName__}) — no live instance. ` +
-                `Spawn an instance before calling PublicAPI methods via the handle proxy.\n` +
-                `  Handle methods (spawn, despawn, count, get, getAll, despawnAll, spawnOnce) ` +
-                `are always available regardless of instance state.`,
+              `No live instance of "${actorDef.__actorName__}".`,
+              {
+                composable: "useActor",
+                hint: __GWEN_DEV__
+                  ? "Spawn an instance before calling a public method. Handle methods spawn, despawn, count, get, getAll, despawnAll, and spawnOnce stay available."
+                  : undefined,
+              },
             );
           };
         }

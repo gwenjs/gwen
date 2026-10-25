@@ -110,10 +110,9 @@ const actorPlugins = new WeakMap<object, GwenPlugin>();
 export function actorPluginOf(pool: object): GwenPlugin {
   const plugin = actorPlugins.get(pool);
   if (!plugin) {
-    throw new GwenActorError(
-      ActorErrorCodes.PLUGIN_NOT_READY,
-      "[GWEN] useActorPool() received a pool that has no actor plugin.",
-    );
+    throw new GwenActorError(ActorErrorCodes.PLUGIN_NOT_READY, "The pool has no actor plugin.", {
+      composable: "useActorPool",
+    });
   }
   return plugin;
 }
@@ -379,9 +378,13 @@ export function defineActorPool<Props, PublicAPI>(
     if (!_engine) {
       throw new GwenActorError(
         ActorErrorCodes.PLUGIN_NOT_READY,
-        `[GWEN] pool(${actorName}).acquire() or release() was called before the pool plugin was installed.\n` +
-          `  Fix: await engine.use(pool.plugin) before calling pool methods.\n` +
-          `  Make sure engine.use(Actor._plugin) is called first.`,
+        "acquire() or release() was called before the pool plugin was installed.",
+        {
+          composable: "pool.acquire",
+          hint: __GWEN_DEV__
+            ? "await engine.use(pool.plugin) after engine.use(Actor._plugin)."
+            : undefined,
+        },
       );
     }
     return _engine;

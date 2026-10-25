@@ -1,8 +1,8 @@
 /**
  * @file Context and composable errors.
  *
- * Canonical home of `GwenContextError` and `GwenComposableError`.
- * `@gwenjs/core` re-exports the same class objects.
+ * Canonical home of `GwenContextError`.
+ * `@gwenjs/core` re-exports the same class object.
  */
 
 import { GwenError } from "@gwenjs/schema";
@@ -119,29 +119,5 @@ export class GwenContextError extends GwenError {
     this.code = code;
     this.composable = composable;
     this.validContexts = valid;
-  }
-}
-
-/**
- * Thrown for composable misuse other than a missing context.
- *
- * A missing context throws {@link GwenContextError}. This class remains for
- * the non-context codes `COMPOSABLE:INVALID_CHUNK_SIZE` and `COMPOSABLE:LAYOUT_*`.
- *
- * @example
- * ```ts
- * try {
- *   useLayout(layout, { chunkSize: 0 }); // not a positive integer
- * } catch (e) {
- *   if (e instanceof GwenComposableError) {
- *     console.error('Composable misuse:', e.code, e.message);
- *   }
- * }
- * ```
- */
-export class GwenComposableError extends GwenError {
-  constructor(code: string, message: string) {
-    super(code, message);
-    this.name = "GwenComposableError";
   }
 }

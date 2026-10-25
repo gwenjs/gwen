@@ -189,7 +189,8 @@ export function useChildren(): ChildrenHandle {
       if (handle === null || handle === undefined) {
         throw new GwenActorError(
           ActorErrorCodes.CIRCULAR_OWNERSHIP,
-          `[GWEN] useChildren().adopt(): circular ownership detected — actor ${String(parentId)} cannot adopt a null/undefined handle. Code: ${ActorErrorCodes.CIRCULAR_OWNERSHIP}`,
+          `Actor ${String(parentId)} cannot adopt a null or undefined handle.`,
+          { composable: "useChildren().adopt" },
         );
       }
 
@@ -198,7 +199,8 @@ export function useChildren(): ChildrenHandle {
       if (childId === parentId || _isAncestor(tables, childId, parentId)) {
         throw new GwenActorError(
           ActorErrorCodes.CIRCULAR_OWNERSHIP,
-          `[GWEN] useChildren().adopt(): circular ownership detected — actor ${String(childId)} is an ancestor of ${String(parentId)}. Code: ${ActorErrorCodes.CIRCULAR_OWNERSHIP}`,
+          `Actor ${String(childId)} is an ancestor of ${String(parentId)}.`,
+          { composable: "useChildren().adopt" },
         );
       }
 

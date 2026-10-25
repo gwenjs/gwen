@@ -124,7 +124,7 @@ Five entities with `chunkSize: 2` take three frames: two, then two, then one. In
 
 How it works:
 
-- `chunkSize` must be a positive integer. Otherwise `useLayout()` throws a `GwenComposableError` with code `COMPOSABLE:INVALID_CHUNK_SIZE`, and the message names the value.
+- `chunkSize` must be a positive integer. Otherwise `useLayout()` throws a `GwenError` with code `CORE:INVALID_CHUNK_SIZE`, and the message names the value.
 - The factory runs once, when you call `load()`. Each `placeActor`, `placePrefab` and `placeGroup` call only records its spawn.
 - The recorded spawns run in call order, at most `chunkSize` per frame, in the `engine:before-update` phase. The engine must advance for the load to finish.
 - `load()` resolves when the last entity is alive. Until then `layout.refs` is `{}` and `layout.active` is `false`.
@@ -133,7 +133,7 @@ How it works:
 
 ### Handles inside the factory
 
-While the factory runs, no entity exists yet. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle there throws a `GwenComposableError` with code `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`.
+While the factory runs, no entity exists yet. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle there throws a `GwenError` with code `CORE:LAYOUT_HANDLE_NOT_SPAWNED`.
 
 You can still pass a handle as `parent`. The parent is read when the child spawns, and spawns run in call order. Place the parent first:
 
@@ -155,9 +155,9 @@ If a `parent` is placed after its child, the child's spawn throws the same error
 
 If a `place*` call or the factory throws, the load stops, every entity the layout created is destroyed (including the one that was half built when the error was thrown), and `load()` rejects with that error. This holds with and without `chunkSize`. If destroying also fails, `load()` still rejects with the original error. After a failed load `layout.active` is `false`, `layout.refs` is `{}`, and a later `load()` runs the factory again.
 
-With `lazy: false`, nothing awaits `load()`. A failure, chunked or not, is emitted on the engine error bus (`engine.errors`) with level `error`, code `COMPOSABLE:LAYOUT_LOAD_FAILED`, and the original error in `error`. Use `lazy: true` and await `load()` if you want to handle it yourself.
+With `lazy: false`, nothing awaits `load()`. A failure, chunked or not, is emitted on the engine error bus (`engine.errors`) with level `error`, code `CORE:LAYOUT_LOAD_FAILED`, and the original error in `error`. Use `lazy: true` and await `load()` if you want to handle it yourself.
 
-When nobody can receive the error of a cleanup, it goes to the error bus too, with code `COMPOSABLE:LAYOUT_DISPOSE_FAILED`. This happens when the cleanup runs in a frame hook (a `dispose()` from inside a spawn) or in `engine.stop()`. `engine.stop()` never rejects because of a layout.
+When nobody can receive the error of a cleanup, it goes to the error bus too, with code `CORE:LAYOUT_DISPOSE_FAILED`. This happens when the cleanup runs in a frame hook (a `dispose()` from inside a spawn) or in `engine.stop()`. `engine.stop()` never rejects because of a layout.
 
 ## Layouts and Scene Lifecycle
 

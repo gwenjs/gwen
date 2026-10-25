@@ -3,7 +3,6 @@
     "values": [
       "GWEN_DOCS_BASE",
       "GwenError",
-      "GwenErrorCode",
       "RENDERER_CONTRACT_VERSION",
       "RENDER_VIEW_MATRIX_LENGTH",
       "TRANSFORM_2D_SERVICE",
