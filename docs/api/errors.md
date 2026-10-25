@@ -107,9 +107,37 @@ Cause. A resolved option is outside the range or shape `validateResolvedConfig` 
 
 ## @gwenjs/app
 
+### APP:MODULE_SETUP_FAILED {#app-module-setup-failed}
+
+Cause. A module `setup()` threw. The `cause` is that throw. Fix. Read the cause message and fix the module setup.
+
+### APP:MODULE_LOAD_FAILED {#app-module-load-failed}
+
+Cause. The module package or file could not be imported, the import has no `setup()` (the `cause` is `KIT:MODULE_INVALID`), or a custom `moduleLoader` threw. Fix. Check the name and that the package is installed. In development a missing package says to run `gwen add <name>`.
+
+### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
+
+Cause. No `gwen.config.ts` (or `.js` / `.mjs` / `.cjs`) was found, or the file threw while loading. Fix. Add the config file, or fix the syntax error named in the message. When the file threw, `cause` is that error.
+
 ## @gwenjs/vite
 
+### VITE:WASM_NOT_FOUND {#vite-wasm-not-found}
+
+Cause. The WASM binary is not at the path the plugin resolved. Fix. Run `cargo build --target wasm32-unknown-unknown` first.
+
+### VITE:OPTIMIZER_UNKNOWN_COMPONENT {#vite-optimizer-unknown-component}
+
+Cause. The code generator was asked for a component the manifest does not contain. Fix. Register the component before generating bulk code.
+
+### VITE:OPTIMIZER_UNKNOWN_FIELD {#vite-optimizer-unknown-field}
+
+Cause. The field is not on that component in the manifest. Fix. Use a field that the component manifest lists.
+
 ## @gwenjs/math
+
+### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}
+
+Cause. `colorFromHex` received a string that is not `#RGB`, `#RGBA`, `#RRGGBB`, or `#RRGGBBAA`. Fix. Use one of those forms.
 
 ## @gwenjs/physics2d
 
