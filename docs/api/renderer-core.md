@@ -5,9 +5,15 @@ description: Type contracts, LayerManager, stats, and error codes for the GWEN r
 
 # `@gwenjs/renderer-core`
 
-The zero-dependency contract package for GWEN renderer plugins. Contains the
-`RendererService` interface, `LayerManager`, stats types, error classes, and
-the `runConformanceTests()` utility.
+Contract package for GWEN renderer plugins. The contract types (`RendererService`,
+`LayerDef`, `CameraState`, `ScreenService`, and the host stores) are declared in
+`@gwenjs/schema` and re-exported here. This package also contains `LayerManager`,
+stats helpers, error classes, and the `runConformanceTests()` utility.
+
+```ts
+import type { LayerDef, RendererService } from '@gwenjs/schema'
+import { RENDERER_CONTRACT_VERSION } from '@gwenjs/schema'
+```
 
 ```bash
 pnpm add @gwenjs/renderer-core
@@ -37,11 +43,11 @@ The interface every renderer plugin must implement. Register via
 |---|---|---|---|
 | `name` | `string` | ✅ | Unique key matching the `GwenProvides` declaration |
 | `contractVersion` | `number` | ✅ | Must equal `RENDERER_CONTRACT_VERSION` |
-| `layers` | `Record<string, LayerDef>` | ✅ | Named depth slots. Minimum 1. |
+| `layers` | `Readonly<Record<string, LayerDef>>` | ✅ | Named depth slots. Minimum 1. |
 | `mount(container)` | `void` | ✅ | Called after LayerManager inserts DOM elements |
 | `unmount()` | `void` | ✅ | Called on engine shutdown — release all resources |
-| `resize(w, h)` | `void` | ✅ | Called on viewport resize |
-| `getLayerElement(name)` | `HTMLElement \| HTMLCanvasElement` | ✅ | Returns DOM element for named layer |
+| `resize(width, height, dpr)` | `void` | ✅ | Called on viewport resize. A two-parameter implementation stays assignable. |
+| `getLayerElement(name)` | `HTMLElement` | ✅ | Returns the DOM element for a named layer. A surface renderer returns `HTMLCanvasElement`. |
 | `setStatsCollector(c)` | `void` | Optional | Inject stats collector — called after mount() in debug mode |
 
 ### `LayerDef`
@@ -51,6 +57,7 @@ interface LayerDef {
   order: number
   coordinate?: 'world' | 'screen'  // default: 'screen'
   scope?: 'viewport' | 'global'    // default: 'global' when screen, 'viewport' when world
+  parallax?: { readonly x: number; readonly y: number }
 }
 ```
 
@@ -81,8 +88,8 @@ A renderer that owns exactly one drawing surface. It extends `RendererService`.
 | `getLayerElement` | `HTMLCanvasElement` | The canvas created in `mount()` and removed in `unmount()`. |
 | `renderViews(views, alpha)` | `void` | Called by `LayerManager` once per `engine:render` after that surface is mounted. `alpha` is `1` until #79 supplies `engine.frame`. |
 
-`resize(width, height)` stays in CSS pixels. The canvas backing store is
-`width × dpr` and `height × dpr`, with `dpr` from `ViewportScreenInfo`.
+`resize(width, height, dpr)` takes CSS pixels for `width` and `height`. The canvas backing store is
+`width × dpr` and `height × dpr`.
 
 A DOM HUD (renderer-html screen layers) stacks above the surface by using a
 strictly greater `order`. An equal order throws `RENDERER:LAYER_ORDER_CONFLICT`.
@@ -256,6 +263,25 @@ setup(engine) {
 
 The `container` argument is only used on the first call. Subsequent renderer plugins
 reuse the existing instance regardless of the container they pass.
+
+### `LayerManager`
+
+Returned by `getOrCreateLayerManager`.
+
+| Method | Description |
+|---|---|
+| `has(name)` | `true` when a renderer with this name is registered. |
+| `setParallax(layer, factor)` | Writes `{ x, y }` onto each registered renderer's own `LayerDef` for `layer`. That object is shared by every holder. An unknown layer throws `GwenError` `RENDERER:UNKNOWN_LAYER`: no registered renderer declares it, and the hint lists the registered renderer names. A frozen `LayerDef` throws `TypeError`. |
+| `resize(width, height, dpr = 1)` | Forwards the three numbers to every renderer. An omitted `dpr` forwards `1`. |
+
+### `ScreenService`
+
+The `screenService` host. `devicePixelRatio` is `1` before any `setContainerSize` call, then the last `dpr` passed. `setContainerSize(width, height, dpr?)` leaves `devicePixelRatio` unchanged when `dpr` is omitted.
+
+| Member | Description |
+|---|---|
+| `devicePixelRatio` | `1` before `setContainerSize`, then the last `dpr` argument. |
+| `setContainerSize(width, height, dpr?)` | Updates the container size. `dpr` is optional. |
 
 ## Camera and viewport
 
@@ -582,6 +608,7 @@ const RendererErrorCodes = {
   SURFACE_INVALID:           'RENDERER:SURFACE_INVALID',
   UNAVAILABLE_CAMERA:        'RENDERER:UNAVAILABLE_CAMERA',
   SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
+  FOREIGN_LAYER_MANAGER:    'RENDERER:FOREIGN_LAYER_MANAGER',
 }
 ```
 

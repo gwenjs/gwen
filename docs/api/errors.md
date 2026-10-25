@@ -73,4 +73,8 @@ Cause. A resolved option is outside the range or shape `validateResolvedConfig` 
 
 ## @gwenjs/renderer-core
 
+### RENDERER:FOREIGN_LAYER_MANAGER {#renderer-foreign-layer-manager}
+
+Cause. `getOrCreateLayerManager` found a `layerManager` value that is not this package's `LayerManager`. Fix. Remove that value and let `getOrCreateLayerManager` create the manager, or provide the `LayerManager` it created.
+
 ## @gwenjs/camera-core

@@ -9,7 +9,7 @@
 
 import { createLogger } from "@gwenjs/core";
 import type { GwenEngine } from "@gwenjs/core";
-import type { IGwenLogger as GwenLogger } from "@gwenjs/schema";
+import { GwenError, type IGwenLogger as GwenLogger } from "@gwenjs/schema";
 import {
   EmptyLayersError,
   LayerOrderConflictError,
@@ -43,7 +43,7 @@ interface RegisteredRenderer {
  * manager.register(canvasService)
  * manager.register(htmlService)
  * manager.mount()        // call once after all renderers are registered
- * manager.resize(800, 600)
+ * manager.resize(800, 600, 1)
  * ```
  */
 function isSurfaceRenderer(service: RendererService): service is SurfaceRendererService {
@@ -198,10 +198,11 @@ export class LayerManager {
    * Propagate a viewport resize to all registered renderers.
    * @param width  - New width in CSS pixels.
    * @param height - New height in CSS pixels.
+   * @param dpr    - Device pixel ratio forwarded to each renderer. Omitted forwards `1`.
    */
-  resize(width: number, height: number): void {
+  resize(width: number, height: number, dpr = 1): void {
     for (const { service } of this._renderers.values()) {
-      service.resize(width, height);
+      service.resize(width, height, dpr);
     }
   }
 
@@ -225,6 +226,42 @@ export class LayerManager {
   /** Return the current stats snapshot. Only populated when stats are enabled. */
   getStats(): RendererStats {
     return this._stats;
+  }
+
+  /** `true` when a renderer with this name is registered. */
+  has(name: string): boolean {
+    return this._renderers.has(name);
+  }
+
+  /**
+   * Write `{ x: factor.x, y: factor.y }` onto each registered renderer's own
+   * `layers[layer]` object. That object is mutated in place and is shared by
+   * every holder, including another renderer or another engine given the same
+   * `LayerDef`. A frozen `LayerDef` throws `TypeError`.
+   * @throws {GwenError} `RENDERER:UNKNOWN_LAYER` when no registered renderer
+   * declares `layer`. When `__GWEN_DEV__` is on, the hint lists the registered
+   * renderer names.
+   */
+  setParallax(layer: string, factor: { x: number; y: number }): void {
+    let found = false;
+    for (const { service } of this._renderers.values()) {
+      const def = service.layers[layer];
+      if (def === undefined) continue;
+      found = true;
+      def.parallax = { x: factor.x, y: factor.y };
+    }
+    if (!found) {
+      const registered = [...this._renderers.keys()];
+      const listed = registered.length === 0 ? "none" : registered.join(", ");
+      throw new GwenError(
+        RendererErrorCodes.UNKNOWN_LAYER,
+        `No registered renderer declares layer "${layer}".`,
+        {
+          composable: "setParallax",
+          hint: __GWEN_DEV__ ? `Registered renderers: ${listed}.` : undefined,
+        },
+      );
+    }
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────

@@ -28,6 +28,8 @@ export const RendererErrorCodes = {
   UNAVAILABLE_CAMERA: "RENDERER:UNAVAILABLE_CAMERA",
   /** Projection not supported for screen to world*/
   SCREEN_TO_WORLD_PERSPECTIVE: "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
+  /** A provided `layerManager` is not a `LayerManager` from this package. */
+  FOREIGN_LAYER_MANAGER: "RENDERER:FOREIGN_LAYER_MANAGER",
 } as const;
 
 /** Union of all renderer error code string literals. */

@@ -159,7 +159,7 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
         `[runSurfaceConformance] "${service.name}" did not attach its canvas during mount().`,
       );
     }
-    service.resize(cssW, cssH);
+    service.resize(cssW, cssH, dpr);
     const sized = service.getLayerElement(layerName);
     if (!(sized instanceof HTMLCanvasElement)) {
       throw new GwenError(
@@ -172,7 +172,7 @@ export function runSurfaceConformance(service: SurfaceRendererService, engine: G
     if (sized.width !== expectW || sized.height !== expectH) {
       throw new GwenError(
         CONFORMANCE_FAILED,
-        `[runSurfaceConformance] "${service.name}" resize(${cssW}, ${cssH}) ` +
+        `[runSurfaceConformance] "${service.name}" resize(${cssW}, ${cssH}, ${dpr}) ` +
           `left the canvas at ${sized.width}×${sized.height}, expected ${expectW}×${expectH} (dpr ${dpr}).`,
       );
     }

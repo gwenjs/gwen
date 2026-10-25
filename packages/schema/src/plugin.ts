@@ -14,6 +14,7 @@
 import type { IGwenLogger } from "./logger-structured.js";
 import type { DisposableRegistryBase } from "./disposable.js";
 import type { GwenRuntimeHooks } from "./runtime-hooks.js";
+import type { CameraStateStore, LayerHost, ScreenInfoStore, ViewportStore } from "./renderer.js";
 
 /**
  * Augmentable interface for the typed provide/inject registry.
@@ -32,6 +33,14 @@ import type { GwenRuntimeHooks } from "./runtime-hooks.js";
 export interface GwenProvides {
   /** The engine-level structured logger. Inject via `engine.inject('logger')`. */
   logger: IGwenLogger;
+  /** Shared layer host. Inject via `engine.inject('layerManager')`. */
+  layerManager: LayerHost;
+  /** Shared screen info. Inject via `engine.inject('screenService')`. */
+  screenService: ScreenInfoStore;
+  /** Shared viewport registry. Inject via `engine.inject('viewportManager')`. */
+  viewportManager: ViewportStore;
+  /** Shared camera state. Inject via `engine.inject('cameraManager')`. */
+  cameraManager: CameraStateStore;
 }
 
 /**

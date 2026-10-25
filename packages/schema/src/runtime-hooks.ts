@@ -2,6 +2,7 @@ import type { EntityId } from "./entity.js";
 import type { EngineStateChangePayload } from "./engine-state.js";
 import type { GwenErrorTarget } from "./errors.js";
 import type { GwenPrefabExtensions } from "./extensions.js";
+import type { ViewportRegion } from "./renderer.js";
 
 /**
  * Payload emitted with the `engine:error` hook when the frame loop catches an error.
@@ -141,4 +142,11 @@ export interface GwenRuntimeHooks {
     entityId: EntityId,
     extensions: Readonly<Partial<GwenPrefabExtensions>>,
   ) => void;
+
+  /** Fired when a viewport is first registered. */
+  "viewport:add": (payload: { id: string; region: ViewportRegion }) => void;
+  /** Fired when an existing viewport's region changes. */
+  "viewport:resize": (payload: { id: string; region: ViewportRegion }) => void;
+  /** Fired when a viewport is removed. */
+  "viewport:remove": (payload: { id: string }) => void;
 }

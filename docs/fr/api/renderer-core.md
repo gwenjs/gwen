@@ -7,7 +7,12 @@ description: "Référence API pour @gwenjs/renderer-core — contrat des plugins
 
 `pnpm add @gwenjs/renderer-core`
 
-Package de contrat pour les plugins renderer GWEN. Aucune dépendance graphique — uniquement des interfaces TypeScript, `defineRendererService`, `getOrCreateLayerManager`, des utilitaires de stats et des classes d'erreur.
+Package de contrat pour les plugins renderer GWEN. Les types du contrat (`RendererService`, `LayerDef`, `CameraState`, `ScreenService` et les stores hôte) sont déclarés dans `@gwenjs/schema` et réexportés ici. Ce package contient aussi `LayerManager`, des utilitaires de stats, des classes d'erreur et `runConformanceTests()`.
+
+```ts
+import type { LayerDef, RendererService } from '@gwenjs/schema'
+import { RENDERER_CONTRACT_VERSION } from '@gwenjs/schema'
+```
 
 ## defineRendererService()
 
@@ -118,6 +123,25 @@ setup(engine) {
 
 L'argument `container` n'est utilisé que lors du premier appel. Les plugins suivants réutilisent l'instance existante.
 
+### `LayerManager`
+
+Retourné par `getOrCreateLayerManager`.
+
+| Méthode | Description |
+|---|---|
+| `has(name)` | `true` quand un renderer de ce nom est enregistré. |
+| `setParallax(layer, factor)` | Écrit `{ x, y }` sur le `LayerDef` déclaré par chaque renderer enregistré pour `layer`. Cet objet est partagé par tous ceux qui le détiennent. Un layer inconnu lève `GwenError` `RENDERER:UNKNOWN_LAYER` : aucun renderer enregistré ne le déclare, et l'indice liste les noms des renderers enregistrés. Un `LayerDef` gelé lève `TypeError`. |
+| `resize(width, height, dpr = 1)` | Transmet les trois nombres à chaque renderer. Un `dpr` omis transmet `1`. |
+
+### `ScreenService`
+
+Hôte `screenService`. `devicePixelRatio` vaut `1` avant tout appel à `setContainerSize`, puis le dernier `dpr` passé. `setContainerSize(width, height, dpr?)` laisse `devicePixelRatio` inchangé quand `dpr` est omis.
+
+| Membre | Description |
+|---|---|
+| `devicePixelRatio` | `1` avant `setContainerSize`, puis le dernier argument `dpr`. |
+| `setContainerSize(width, height, dpr?)` | Met à jour la taille du conteneur. `dpr` est optionnel. |
+
 ## Interfaces
 
 ### RendererService
@@ -128,10 +152,10 @@ Contrat que chaque plugin renderer doit implémenter. Utiliser `defineRendererSe
 interface RendererService {
   readonly name: string
   readonly contractVersion: number
-  readonly layers: Record<string, LayerDef>
+  readonly layers: Readonly<Record<string, LayerDef>>
   mount(root: HTMLElement): void
   unmount(): void
-  resize(width: number, height: number): void
+  resize(width: number, height: number, dpr: number): void
   getLayerElement(layerName: string): HTMLElement
   setStatsCollector?(collector: RendererStatsCollector): void
 }
@@ -143,6 +167,7 @@ interface RendererService {
 interface LayerDef {
   order: number
   coordinate?: 'world' | 'screen'
+  parallax?: { readonly x: number; readonly y: number }
 }
 ```
 
@@ -477,6 +502,7 @@ const RendererErrorCodes = {
   MISSING_LAYER:               'RENDERER:MISSING_LAYER',
   UNAVAILABLE_CAMERA:          'RENDERER:UNAVAILABLE_CAMERA',
   SCREEN_TO_WORLD_PERSPECTIVE: 'RENDERER:SCREEN_TO_WORLD_PERSPECTIVE',
+  FOREIGN_LAYER_MANAGER:      'RENDERER:FOREIGN_LAYER_MANAGER',
 }
 ```
 
@@ -489,6 +515,7 @@ const RendererErrorCodes = {
 | `UNAVAILABLE_CAMERA` | `screenToWorld()` ou `screenToRay()` sans caméra active |
 | `SCREEN_TO_WORLD_PERSPECTIVE` | `screenToWorld()` appelé avec une caméra perspective |
 | `MISSING_LAYER` | Layer déclaré mais élément DOM manquant |
+| `FOREIGN_LAYER_MANAGER` | `getOrCreateLayerManager` trouve un `layerManager` qui n'est pas un `LayerManager` de ce package |
 
 ## Stats (dev uniquement)
 

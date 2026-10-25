@@ -13,7 +13,8 @@ scaffolding the package to exposing composables and passing the conformance suit
 A renderer plugin connects a graphical technology (Canvas, WebGL, Three.js, a custom
 2D engine…) to the GWEN engine. It:
 
-- Implements `RendererService` from `@gwenjs/renderer-core`
+- Implements `RendererService` from `@gwenjs/schema` (re-exported by `@gwenjs/renderer-core`)
+- Uses `defineRendererService` from `@gwenjs/renderer-core`
 - Registers itself via `engine.provide('renderer:<name>', service)`
 - Manages one or more named DOM layers (each a `<canvas>` or `<div>`)
 - Exposes composables (`useMyRenderer()`) that game code calls inside `defineActor`
@@ -64,7 +65,8 @@ element caching, `UnknownLayerError`, and stats wiring automatically.
 Create `src/mytech-renderer-service.ts`:
 
 ```ts
-import { defineRendererService, type LayerDef } from '@gwenjs/renderer-core'
+import { defineRendererService } from '@gwenjs/renderer-core'
+import type { LayerDef } from '@gwenjs/schema'
 import { MyTechEngine } from 'mytech'
 
 export interface MyTechRendererOptions {
@@ -96,8 +98,8 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
     engine = null
   },
 
-  resize(w, h) {
-    engine?.setSize(w, h)
+  resize(width, height) {
+    engine?.setSize(width, height)
   },
 
   // Called each frame via service.flush() — stats are no-ops when disabled
@@ -108,6 +110,8 @@ export const MyTechRenderer = defineRendererService<MyTechRendererOptions>((opts
   },
 }))
 ```
+
+`RendererService.resize` is `(width, height, dpr)`. `defineRendererService` still types the definition as `(width, height)` and does not forward `dpr`.
 
 ## How LayerManager orchestrates mount
 
@@ -144,7 +148,8 @@ the returned service and typed via the second generic, with no `Object.assign` a
 no boilerplate reimplementation.
 
 ```ts
-import { defineRendererService, UnknownLayerError, type LayerDef } from '@gwenjs/renderer-core'
+import { defineRendererService, UnknownLayerError } from '@gwenjs/renderer-core'
+import type { LayerDef } from '@gwenjs/schema'
 
 export interface MyTechRendererOptions {
   layers: Record<string, LayerDef>
@@ -220,7 +225,7 @@ Create `src/mytech-plugin.ts`:
 ```ts
 import { definePlugin } from '@gwenjs/kit/plugin'
 import { getOrCreateLayerManager } from '@gwenjs/renderer-core'
-import type { LayerDef } from '@gwenjs/renderer-core'
+import type { LayerDef } from '@gwenjs/schema'
 import { MyTechRenderer } from './mytech-renderer-service.js'
 
 export interface MyTechRendererPluginOptions {
@@ -407,7 +412,7 @@ for each viewport. Read it in your render flush to apply transforms.
 
 ```ts
 import { getOrCreateCameraManager } from '@gwenjs/renderer-core'
-import type { CameraState } from '@gwenjs/renderer-core'
+import type { CameraState } from '@gwenjs/schema'
 
 // Inside GwenPlugin.setup(engine):
 const cameras = getOrCreateCameraManager(engine)

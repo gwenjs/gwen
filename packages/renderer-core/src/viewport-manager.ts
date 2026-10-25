@@ -7,32 +7,14 @@
  * to size/position their render containers.
  */
 
-import type { ViewportContext, ViewportRegion } from "./camera-types.js";
+import type {
+  ViewportContext,
+  ViewportRegion,
+  ViewportStore as ViewportManager,
+} from "@gwenjs/schema";
 
-/**
- * Registry of named screen regions.
- *
- * @example
- * ```ts
- * const viewports = useViewportManager()
- * viewports.set('p1', { x: 0, y: 0, width: 0.5, height: 1 })
- * viewports.set('p2', { x: 0.5, y: 0, width: 0.5, height: 1 })
- * viewports.remove('main')
- * ```
- */
-export interface ViewportManager {
-  /**
-   * Register or update a viewport. Emits `viewport:add` on first registration,
-   * `viewport:resize` on update.
-   */
-  set(id: string, region: ViewportRegion): void;
-  /** Remove a viewport. Emits `viewport:remove`. No-op for unknown ids. */
-  remove(id: string): void;
-  /** Read a viewport context, or `undefined` if not registered. */
-  get(id: string): ViewportContext | undefined;
-  /** All registered viewports. The returned map is live — do not mutate it. */
-  getAll(): ReadonlyMap<string, ViewportContext>;
-}
+/** Same type as schema {@link ViewportStore}. */
+export type { ViewportManager };
 
 /** @internal — injected by getOrCreateViewportManager */
 export type ViewportCallHook = (event: string, payload: unknown) => void;

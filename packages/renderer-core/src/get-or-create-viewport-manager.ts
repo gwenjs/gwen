@@ -18,19 +18,6 @@ import type { GwenEngine } from "@gwenjs/core";
 import { reportRejectedHook } from "@gwenjs/core/internal";
 import { ViewportManagerImpl } from "./viewport-manager.js";
 import type { ViewportManager } from "./viewport-manager.js";
-import type { ViewportRegion } from "./camera-types.js";
-
-declare module "@gwenjs/schema" {
-  interface GwenProvides {
-    viewportManager: ViewportManager;
-  }
-
-  interface GwenRuntimeHooks {
-    "viewport:add": (payload: { id: string; region: ViewportRegion }) => void;
-    "viewport:resize": (payload: { id: string; region: ViewportRegion }) => void;
-    "viewport:remove": (payload: { id: string }) => void;
-  }
-}
 
 /**
  * Return the shared {@link ViewportManager} for this engine instance, creating it

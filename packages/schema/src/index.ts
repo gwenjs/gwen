@@ -75,6 +75,35 @@ export type { GwenPrefabExtensions, GwenSceneExtensions, GwenUIExtensions } from
 export type { HookHandlerMap, InferHooks } from "./hook-types";
 export type { EngineErrorPayload, GwenRuntimeHooks, PluginErrorEvent } from "./runtime-hooks";
 
+// ─── Renderer contract ───────────────────────────────────────────────────────
+
+export { RENDERER_CONTRACT_VERSION, RENDER_VIEW_MATRIX_LENGTH } from "./renderer";
+export type {
+  CameraProjection,
+  CameraState,
+  CameraStateStore,
+  LayerDef,
+  LayerHost,
+  RenderView,
+  RendererKind,
+  RendererLayerStats,
+  RendererRendererStats,
+  RendererService,
+  RendererStats,
+  RendererStatsCollector,
+  ScreenInfoStore,
+  SurfaceRendererService,
+  Vec3Like,
+  ViewportBounds,
+  ViewportBoundsProvider,
+  ViewportContext,
+  ViewportPixels,
+  ViewportRegion,
+  ViewportScreenInfo,
+  ViewportStore,
+  WorldTransform,
+} from "./renderer";
+
 // ─── Scope ───────────────────────────────────────────────────────────────────
 
 export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";
