@@ -113,9 +113,9 @@ describe("onCleanup with GwenScope (Phase 2)", () => {
     expect(GwenScope.current()).toBeNull();
 
     // Outside withCleanup and GwenScope, onCleanup should throw
-    expect(() => {
-      onCleanup(() => {});
-    }).toThrow(/onCleanup.*context|context.*onCleanup/i);
+    expect(() => onCleanup(() => {})).toThrow(
+      /^\[onCleanup\(\)\] Called outside defineActor\(\) or plugin setup\(\) or withCleanup\(\)\.[\s\S]*\(CORE:OUTSIDE_CLEANUP_CONTEXT\)$/,
+    );
   });
 
   it("scope.run() with onCleanup works multiple times on same scope", () => {

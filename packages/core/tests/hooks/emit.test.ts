@@ -2,7 +2,7 @@
  * @file Tests for `emit()` — RFC-011 Task 8
  *
  * Verifies that `emit` is sugar over `engine.hooks.callHook` and that it
- * throws with a `[GWEN]` prefix when called outside an engine context.
+ * throws when called outside an engine context.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -48,6 +48,8 @@ describe("emit()", () => {
 
   it("throws with [GWEN] prefix when called outside engine context", () => {
     engineContext.unset();
-    expect(() => emit("engine:init")).toThrow("[GWEN]");
+    expect(() => emit("engine:init")).toThrow(
+      /^\[useEngine\(\)\] Called outside defineSystem\(\) or defineActor\(\) or defineScene\(\) or plugin setup\(\) or engine\.run\(\)\.[\s\S]*\(CORE:OUTSIDE_ENGINE_CONTEXT\)$/,
+    );
   });
 });
