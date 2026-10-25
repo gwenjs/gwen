@@ -26,4 +26,5 @@ export {
   GwenContextErrorCodes,
   GWEN_CONTEXT_BOUNDARIES,
 } from "./context-errors.js";
+export { KitErrorCodes } from "./error-codes.js";
 export type { GwenContextErrorCode, GwenContextBoundary } from "./context-errors.js";

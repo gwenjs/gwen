@@ -92,7 +92,7 @@ export function useErrorReporter() {
      */
     report(code: string, message: string): never {
       log.error(`[${code}] ${message}`);
-      throw new GwenError(code, `[${code}] ${message}`);
+      throw new GwenError(code, message, { composable: "useErrorReporter" });
     },
   };
 }

@@ -5,6 +5,7 @@
       "GwenComposableError",
       "GwenContextError",
       "GwenContextErrorCodes",
+      "KitErrorCodes",
       "_setCurrentScope",
       "getCurrentScope",
       "useCurrentScope",

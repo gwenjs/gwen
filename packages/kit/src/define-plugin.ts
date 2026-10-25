@@ -23,9 +23,8 @@
  * ```
  */
 
-import type { GwenEngineBase, GwenPlugin } from "@gwenjs/schema";
-import { GwenErrorCode } from "@gwenjs/schema";
-import { GwenComposableError } from "./context-errors.js";
+import { GwenError, type GwenEngineBase, type GwenPlugin } from "@gwenjs/schema";
+import { KitErrorCodes } from "./error-codes.js";
 
 /**
  * A typed factory function returned by {@link definePlugin}.
@@ -47,7 +46,7 @@ export type GwenPluginFactory<Options, P extends GwenPlugin> = [Options] extends
  * The factory receives optional options and returns a plain object conforming
  * to the {@link GwenPlugin} interface. `definePlugin` wraps the factory and
  * returns a typed factory function. Plugin setup errors are automatically
- * caught, logged, and re-thrown as structured {@link GwenComposableError}s.
+ * caught, logged, and re-thrown as {@link GwenError} with `KIT:PLUGIN_SETUP_FAILED`.
  *
  * @typeParam TOptions - The type of options the factory accepts. Inferred from
  *   the factory parameter — leave it unspecified for automatic inference.
@@ -98,9 +97,10 @@ export function definePlugin<TOptions, TPlugin extends GwenPlugin>(
           await originalSetup.call(plugin, engine);
         } catch (err) {
           log?.error("Plugin setup failed", { cause: String(err) });
-          throw new GwenComposableError(
-            GwenErrorCode.Engine.PLUGIN_SETUP_FAILED,
-            `Plugin "${plugin.name}" setup failed: ${err instanceof Error ? err.message : String(err)}`,
+          throw new GwenError(
+            KitErrorCodes.PLUGIN_SETUP_FAILED,
+            `Plugin "${plugin.name}" setup failed.`,
+            { composable: "definePlugin", cause: err },
           );
         }
       };
