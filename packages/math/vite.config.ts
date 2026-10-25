@@ -11,7 +11,7 @@ export default defineConfig({
     gwenLibDevGuard(vitePackageJson),
     dts({
       include: ["src"],
-      exclude: ["src/**/*.fixture.ts"],
+      exclude: ["src/**/*.fixture.ts", "src/gwen-dev.d.ts"],
       outDir: "dist",
       rollupTypes: false,
       entryRoot: "src",

@@ -7,9 +7,14 @@
 
 import type { Color } from "./types.js";
 import { clamp01 } from "./scalar.js";
-import { GwenError } from "@gwenjs/schema";
+import { MathError, MathErrorCodes } from "./errors.js";
 
-const MATH_INVALID_HEX_COLOR = "MATH:INVALID_HEX_COLOR";
+function invalidHex(hex: string): never {
+  throw new MathError(MathErrorCodes.INVALID_HEX_COLOR, `Invalid hex "${hex}".`, {
+    composable: "colorFromHex",
+    hint: __GWEN_DEV__ ? "Use #RGB, #RGBA, #RRGGBB, or #RRGGBBAA." : undefined,
+  });
+}
 
 // ── Constructors ──────────────────────────────────────────────────────────────
 
@@ -37,7 +42,8 @@ export function colorTransparent(): Color {
 
 /**
  * Parse a CSS hex string (`#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`) into a Color.
- * Throws if the format is not recognised.
+ *
+ * @throws {MathError} `MATH:INVALID_HEX_COLOR` when `hex` is not one of those forms.
  */
 export function colorFromHex(hex: string): Color {
   const h = hex.startsWith("#") ? hex.slice(1) : hex;
@@ -61,11 +67,11 @@ export function colorFromHex(hex: string): Color {
     b = parseInt(h.slice(4, 6), 16) / 255;
     if (h.length === 8) a = parseInt(h.slice(6, 8), 16) / 255;
   } else {
-    throw new GwenError(MATH_INVALID_HEX_COLOR, `colorFromHex: invalid hex "${hex}"`);
+    invalidHex(hex);
   }
 
   if (isNaN(r) || isNaN(g) || isNaN(b) || isNaN(a)) {
-    throw new GwenError(MATH_INVALID_HEX_COLOR, `colorFromHex: invalid hex "${hex}"`);
+    invalidHex(hex);
   }
 
   return { r, g, b, a };

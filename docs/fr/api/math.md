@@ -386,7 +386,7 @@ Tous les canaux sont dans `[0, 1]` (espace linéaire).
 | `colorWhite()` | `{ r: 1, g: 1, b: 1, a: 1 }` |
 | `colorBlack()` | `{ r: 0, g: 0, b: 0, a: 1 }` |
 | `colorTransparent()` | `{ r: 0, g: 0, b: 0, a: 0 }` |
-| `colorFromHex(hex)` | Parse un hex CSS : `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA` |
+| `colorFromHex(hex)` | Parse un hex CSS : `#RGB`, `#RGBA`, `#RRGGBB`, `#RRGGBBAA`. Une chaîne invalide lève `MathError` `MATH:INVALID_HEX_COLOR`. |
 | `colorFromRGB255(r, g, b, a?)` | Depuis des canaux entiers `[0, 255]` |
 | `colorFromHSL(h, s, l, a?)` | Depuis teinte `[0, 360]`, saturation/luminosité `[0, 1]` |
 | `colorClone(c)` | Copie superficielle |
@@ -410,6 +410,10 @@ const violet = colorLerp(rouge, bleu, 0.5)
 
 const ciel   = colorFromHSL(200, 0.8, 0.6)  // teinte=200, s=80%, l=60%
 ```
+
+### Erreurs
+
+`MathError` et `MathErrorCodes` sont exportés par `@gwenjs/math`. `colorFromHex` lève `MathError` avec le code `MATH:INVALID_HEX_COLOR` et le composable `colorFromHex`. Le message a les mêmes lignes que `GwenError` (`[where]`, `Fix:` optionnel, `See`). L'indice de développement nomme les quatre formes hex. Math ne dépend pas de `@gwenjs/schema`.
 
 ---
 
