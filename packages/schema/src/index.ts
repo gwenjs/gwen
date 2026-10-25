@@ -104,6 +104,11 @@ export type {
   WorldTransform,
 } from "./renderer";
 
+// ─── Transform 2D ────────────────────────────────────────────────────────────
+
+export { TRANSFORM_2D_SERVICE } from "./transforms";
+export type { TransformReader2D, TransformRef2D, TransformSample2D } from "./transforms";
+
 // ─── Scope ───────────────────────────────────────────────────────────────────
 
 export type { GwenScopeType, GwenScopeMeta, IGwenScope } from "./scope";
