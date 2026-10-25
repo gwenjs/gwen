@@ -38,7 +38,7 @@ const ZERO_VEC3: Physics3DVec3 = Object.freeze({ x: 0, y: 0, z: 0 });
  */
 export function useDynamicBody(options: DynamicBodyOptions3D = {}): DynamicBodyHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useDynamicBody");
 
   const creationOptions: Physics3DBodyOptions = {
     kind: "dynamic",

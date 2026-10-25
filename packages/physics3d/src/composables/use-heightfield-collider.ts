@@ -87,7 +87,7 @@ export function useHeightfieldCollider(
   options: HeightfieldColliderOptions,
 ): HeightfieldColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useHeightfieldCollider");
   const colliderId = nextColliderId();
 
   const scaleX = options.scaleX ?? 1;

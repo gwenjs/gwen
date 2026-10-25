@@ -81,7 +81,7 @@ export type { CompoundColliderOptions3D };
  */
 export function useCompoundCollider(options: CompoundColliderOptions3D): CompoundColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useCompoundCollider");
 
   const handle = physics.addCompoundCollider(entityId, options);
   if (!handle) {

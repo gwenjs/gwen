@@ -67,7 +67,7 @@ export interface CapsuleColliderOptions3D {
  */
 export function useCapsuleCollider(options: CapsuleColliderOptions3D): CapsuleColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useCapsuleCollider");
   const colliderId = nextColliderId();
 
   // axis is stored for future WASM bridge use; the current bridge uses Y-up by default
