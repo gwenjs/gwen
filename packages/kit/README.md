@@ -92,9 +92,9 @@ const PlayerActor = defineActor(PlayerPrefab, () => {
 
 ### `.`
 
-Values: `GwenComposableError`, `GwenContextError`, `GwenContextErrorCodes`, `_setCurrentScope`, `getCurrentScope`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
+Values: `GWEN_CONTEXT_BOUNDARIES`, `GwenComposableError`, `GwenContextError`, `GwenContextErrorCodes`, `_setCurrentScope`, `getCurrentScope`, `useCurrentScope`, `useErrorReporter`, `useLogger`, `usePerfMark`
 
-Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
+Types: `AutoImport`, `DeepPartial`, `GwenConfig`, `GwenContextBoundary`, `GwenContextErrorCode`, `MergePluginsPrefabExtensions`, `MergePluginsSceneExtensions`, `MergePluginsUIExtensions`, `VitePlugin`, `ViteUserConfig`
 
 ### `./plugin`
 
