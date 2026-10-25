@@ -30,7 +30,7 @@ import { _getActorEntityId } from "@gwenjs/core/internal";
  */
 export function useStaticBody(options: StaticBodyOptions3D = {}): StaticBodyHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useStaticBody");
 
   // isSensor is a collider-level option, not a body option, but we accept it here
   // for convenience and forward it to any colliders added separately.

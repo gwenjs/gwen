@@ -61,7 +61,7 @@ export interface BoxColliderOptions3D {
  */
 export function useBoxCollider(options: BoxColliderOptions3D): BoxColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useBoxCollider");
   const colliderId = nextColliderId();
 
   const collider: Physics3DColliderOptions = {

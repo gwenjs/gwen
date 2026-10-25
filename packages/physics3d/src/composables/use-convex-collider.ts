@@ -63,7 +63,7 @@ export interface ConvexColliderOptions {
  */
 export function useConvexCollider(options: ConvexColliderOptions): ConvexColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useConvexCollider");
   const colliderId = nextColliderId();
 
   const collider: Physics3DColliderOptions = {

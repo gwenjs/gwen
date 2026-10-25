@@ -54,7 +54,7 @@ export interface SphereColliderOptions3D {
  */
 export function useSphereCollider(options: SphereColliderOptions3D): SphereColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useSphereCollider");
   const colliderId = nextColliderId();
 
   const collider: Physics3DColliderOptions = {

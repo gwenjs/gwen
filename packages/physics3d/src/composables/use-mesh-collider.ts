@@ -79,7 +79,7 @@ export function useMeshCollider(
   options: MeshColliderOptions | PreloadedBvhHandle,
 ): MeshColliderHandle3D {
   const physics = usePhysics3D();
-  const entityId = _getActorEntityId();
+  const entityId = _getActorEntityId("useMeshCollider");
   const colliderId = nextColliderId();
 
   // Normalise: PreloadedBvhHandle → MeshColliderOptions
