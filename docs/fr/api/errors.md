@@ -107,9 +107,37 @@ Cause. Une option résolue est hors de la plage ou de la forme que vérifie `val
 
 ## @gwenjs/app
 
+### APP:MODULE_SETUP_FAILED {#app-module-setup-failed}
+
+Cause. Le `setup()` d'un module a levé une erreur. `cause` est cette erreur. Fix. Lisez le message de `cause` et corrigez le setup du module.
+
+### APP:MODULE_LOAD_FAILED {#app-module-load-failed}
+
+Cause. Le paquet ou le fichier du module n'a pas pu être importé, l'import n'a pas de `setup()` (`cause` est `KIT:MODULE_INVALID`), ou un `moduleLoader` personnalisé a levé une erreur. Fix. Vérifiez le nom et que le paquet est installé. En développement, un paquet manquant indique de lancer `gwen add <name>`.
+
+### APP:CONFIG_LOAD_FAILED {#app-config-load-failed}
+
+Cause. Aucun `gwen.config.ts` (ou `.js` / `.mjs` / `.cjs`) n'a été trouvé, ou le fichier a levé une erreur au chargement. Fix. Ajoutez le fichier de config, ou corrigez l'erreur de syntaxe nommée dans le message. Quand le fichier a levé, `cause` est cette erreur.
+
 ## @gwenjs/vite
 
+### VITE:WASM_NOT_FOUND {#vite-wasm-not-found}
+
+Cause. Le binaire WASM n'est pas au chemin résolu par le plugin. Fix. Lancez d'abord `cargo build --target wasm32-unknown-unknown`.
+
+### VITE:OPTIMIZER_UNKNOWN_COMPONENT {#vite-optimizer-unknown-component}
+
+Cause. Le générateur de code a demandé un composant absent du manifeste. Fix. Enregistrez le composant avant de générer le code bulk.
+
+### VITE:OPTIMIZER_UNKNOWN_FIELD {#vite-optimizer-unknown-field}
+
+Cause. Le champ n'est pas sur ce composant dans le manifeste. Fix. Utilisez un champ listé par le manifeste du composant.
+
 ## @gwenjs/math
+
+### MATH:INVALID_HEX_COLOR {#math-invalid-hex-color}
+
+Cause. `colorFromHex` a reçu une chaîne qui n'est pas `#RGB`, `#RGBA`, `#RRGGBB` ou `#RRGGBBAA`. Fix. Utilisez l'une de ces formes.
 
 ## @gwenjs/physics2d
 
