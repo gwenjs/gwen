@@ -1,5 +1,4 @@
-import { GwenError } from "@gwenjs/schema";
-import { CoreErrorCodes } from "../../../engine/engine-errors";
+import { CoreErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 /**
  * Thrown by `pool.acquire()` when all slots are active and no new entity can
  * be created because `size` has been reached.
@@ -18,7 +17,7 @@ import { CoreErrorCodes } from "../../../engine/engine-errors";
  * }
  * ```
  */
-export class PoolExhaustedError extends GwenError {
+export class PoolExhaustedError extends GwenActorError {
   /** Name of the actor whose pool is exhausted. */
   readonly actorName: string;
   /** Maximum pool size that was configured. */
@@ -27,10 +26,13 @@ export class PoolExhaustedError extends GwenError {
   constructor(actorName: string, poolSize: number) {
     super(
       CoreErrorCodes.ACTOR_POOL_EXHAUSTED,
-      `[GWEN] Pool exhausted: all ${poolSize} slots of actor "${actorName}" are active.\n` +
-        `  Increase 'size' in defineActorPool options, or ensure release() is always called.\n` +
-        `  Tip: if release() is called but the pool still exhausts, check pool.stats().peakActive ` +
-        `to calibrate the right size.`,
+      `Pool "${actorName}" is exhausted: all ${poolSize} slots are active.`,
+      {
+        composable: "pool.acquire",
+        hint: __GWEN_DEV__
+          ? "Increase size in defineActorPool, or release a slot. pool.stats().peakActive shows the size you need."
+          : undefined,
+      },
     );
     this.name = "PoolExhaustedError";
     this.actorName = actorName;

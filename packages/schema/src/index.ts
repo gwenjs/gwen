@@ -32,7 +32,6 @@ export type {
   GwenErrorBusBase,
   GwenErrorOptions,
 } from "./errors";
-export { GwenErrorCode } from "./error-codes";
 
 // ─── Logger ──────────────────────────────────────────────────────────────────
 

@@ -211,14 +211,14 @@ export interface UseLayoutOptions {
    * Maximum number of entities to spawn per frame when loading.
    * Prevents frame drops for layouts with >100 entities.
    *
-   * Must be a positive integer; `useLayout()` throws `COMPOSABLE:INVALID_CHUNK_SIZE`
+   * Must be a positive integer; `useLayout()` throws `CORE:INVALID_CHUNK_SIZE`
    * otherwise. When set, the layout factory runs once and its `placeActor`,
    * `placePrefab` and `placeGroup` calls only record their spawn. `load()` then spawns
    * at most `chunkSize` of them per frame, in call order, on `engine:before-update`,
    * and resolves when the last one is alive. `refs` stays `{}` until then.
    *
    * Inside the factory, a returned handle is not spawned yet: reading its `entityId`,
-   * `api`, `moveTo` or `despawn` throws `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`. Passing
+   * `api`, `moveTo` or `despawn` throws `CORE:LAYOUT_HANDLE_NOT_SPAWNED`. Passing
    * a handle as `parent` works when it was placed earlier (it is spawned first).
    *
    * Without this option, `load()` spawns everything in one pass.
@@ -252,9 +252,9 @@ export interface LayoutHandle<Refs> {
    * a failure while destroying does not replace the original error. `active` stays `false`,
    * `refs` stays `{}` and a later `load()` runs the factory again. With `lazy: false` nobody awaits
    * `load()`, so a failure is emitted on the engine error bus (`engine.errors`) with code
-   * `COMPOSABLE:LAYOUT_LOAD_FAILED` and the original error in `error`. `engine.stop()` never
+   * `CORE:LAYOUT_LOAD_FAILED` and the original error in `error`. `engine.stop()` never
    * rejects because of a layout: a cleanup failure there, or in a frame hook, is emitted with code
-   * `COMPOSABLE:LAYOUT_DISPOSE_FAILED`.
+   * `CORE:LAYOUT_DISPOSE_FAILED`.
    */
   load(): Promise<void>;
   /**

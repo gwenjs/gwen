@@ -2,7 +2,6 @@
   ".": {
     "values": [
       "GWEN_CONTEXT_BOUNDARIES",
-      "GwenComposableError",
       "GwenContextError",
       "GwenContextErrorCodes",
       "KitErrorCodes",

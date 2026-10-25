@@ -22,7 +22,8 @@ import { useEngine } from "../../engine/context";
 import { popEngine, pushEngine } from "../../engine/engine-local";
 import { toGwenWasmError } from "../../engine/wasm-bridge";
 import { _withLayoutContext } from "./place";
-import { ComposableErrorCodes, GwenComposableError } from "../../engine/engine-errors";
+import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 import { entityIndex } from "../../engine/engine-api";
 import type { EntityId } from "../../engine/engine-api";
 import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } from "./types";
@@ -37,7 +38,7 @@ import type { LayoutDefinition, LayoutHandle, UseLayoutOptions, PlaceHandle } fr
  * @param options   - `lazy`: defer load until `load()` is called.
  *                    `chunkSize`: spawn at most this many entities per frame (positive integer).
  * @returns A `LayoutHandle` with `load()`, `dispose()`, `refs`, and `active`.
- * @throws {GwenComposableError} `COMPOSABLE:INVALID_CHUNK_SIZE` if `chunkSize` is not a positive integer.
+ * @throws {GwenError} `CORE:INVALID_CHUNK_SIZE` if `chunkSize` is not a positive integer.
  *
  * @example
  * ```typescript
@@ -53,9 +54,10 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
 ): LayoutHandle<Refs> {
   const chunkSize = options.chunkSize;
   if (chunkSize !== undefined && !(Number.isInteger(chunkSize) && chunkSize > 0)) {
-    throw new GwenComposableError(
-      ComposableErrorCodes.INVALID_CHUNK_SIZE,
-      `[GWEN] useLayout: chunkSize must be a positive integer, received ${String(chunkSize)}.`,
+    throw new GwenError(
+      CoreErrorCodes.INVALID_CHUNK_SIZE,
+      `chunkSize must be a positive integer, received ${String(chunkSize)}.`,
+      { composable: "useLayout" },
     );
   }
 
@@ -210,7 +212,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
   function reportDisposeFailure(error: unknown): void {
     engine.errors.emit({
       level: "error",
-      code: ComposableErrorCodes.LAYOUT_DISPOSE_FAILED,
+      code: CoreErrorCodes.LAYOUT_DISPOSE_FAILED,
       message: "[GWEN] useLayout: destroying the layout entities failed.",
       source: "useLayout",
       error,
@@ -292,7 +294,7 @@ export function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
     load().catch((error: unknown) => {
       engine.errors.emit({
         level: "error",
-        code: ComposableErrorCodes.LAYOUT_LOAD_FAILED,
+        code: CoreErrorCodes.LAYOUT_LOAD_FAILED,
         message: "[GWEN] useLayout: the layout load failed.",
         source: "useLayout",
         error,

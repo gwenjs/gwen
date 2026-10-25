@@ -25,7 +25,7 @@ export const BulletManagerActor = defineActor(BulletManagerPrefab, () => {
 Sans traitement particulier, le plugin de `BulletActor` ne serait jamais
 installé : `useActor()` dans un factory d'acteur s'exécute au moment du
 **spawn** (dans `onEnter`), après la fermeture du contexte de scène. Appeler
-`bullet.spawn()` lèverait alors une erreur `ACTOR:PLUGIN_NOT_READY`.
+`bullet.spawn()` lèverait alors une erreur `CORE:ACTOR_PLUGIN_NOT_READY`.
 
 ## Résolution automatique avec `@gwenjs/vite`
 

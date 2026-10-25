@@ -442,10 +442,13 @@ function _validateComponentSchema(componentName: string, schema: ComponentSchema
     ) {
       throw new GwenError(
         CoreErrorCodes.INVALID_COMPONENT_SCHEMA,
-        `[GWEN] defineComponent('${componentName}'): field '${field}' is not a valid SchemaType. ` +
-          `Received ${JSON.stringify(typeObj)}. ` +
-          `Did you accidentally use a nested object instead of a Types.* value? ` +
-          `Example fix: { ${field}: Types.f32 } instead of { ${field}: { ... } }.`,
+        `Component "${componentName}" field "${field}" is not a SchemaType (nested plain object or other non-Types value).`,
+        {
+          composable: "defineComponent",
+          hint: __GWEN_DEV__
+            ? `Received ${JSON.stringify(typeObj)}. Example: { ${field}: Types.f32 }.`
+            : undefined,
+        },
       );
     }
   }

@@ -2,12 +2,10 @@
   ".": {
     "values": [
       "ActorErrorCodes",
-      "ComposableErrorCodes",
       "CoreErrorCodes",
       "EngineMemory",
       "FLAG_TELEPORT",
       "GwenActorError",
-      "GwenComposableError",
       "GwenConfigError",
       "GwenContextError",
       "GwenEngineStateError",

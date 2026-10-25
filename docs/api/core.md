@@ -367,7 +367,7 @@ export const SpawnSystem = defineSystem(() => {
 });
 ```
 
-Register the actor with `engine.use(EnemyActor._plugin)` before the scene runs. `spawn()` inside a `defineScene()` factory throws `ACTOR:PLUGIN_NOT_READY`. The system above is the call that type-checks.
+Register the actor with `engine.use(EnemyActor._plugin)` before the scene runs. `spawn()` inside a `defineScene()` factory throws `CORE:ACTOR_PLUGIN_NOT_READY`. The system above is the call that type-checks.
 
 #### useActor(ActorDef)
 
@@ -709,11 +709,11 @@ function useLayout<Refs extends Record<string, PlaceHandle<unknown>>>(
 
 **Returns:** `LayoutHandle<Refs>` with `load()`, `dispose()`, `refs` and `active`.
 
-**Throws:** `GwenComposableError` with code `COMPOSABLE:INVALID_CHUNK_SIZE` if `chunkSize` is not a positive integer. The message names the value.
+**Throws:** `GwenError` with code `CORE:INVALID_CHUNK_SIZE` if `chunkSize` is not a positive integer. The message names the value.
 
-**Failures (with or without `chunkSize`).** If the factory or a `place*` call throws, the load stops, every entity the layout created (including a half-built one) is destroyed, and `load()` rejects with the original error, even if destroying also fails. `active` stays `false`, `refs` stays `{}`, and a later `load()` runs the factory again. With `lazy: false`, a failed load is emitted on `engine.errors` with code `COMPOSABLE:LAYOUT_LOAD_FAILED` (level `error`, original error in `error`).
+**Failures (with or without `chunkSize`).** If the factory or a `place*` call throws, the load stops, every entity the layout created (including a half-built one) is destroyed, and `load()` rejects with the original error, even if destroying also fails. `active` stays `false`, `refs` stays `{}`, and a later `load()` runs the factory again. With `lazy: false`, a failed load is emitted on `engine.errors` with code `CORE:LAYOUT_LOAD_FAILED` (level `error`, original error in `error`).
 
-**`chunkSize` behaviour.** The factory runs once. Each `place*` call records its spawn. `load()` spawns the recorded entities in call order, at most `chunkSize` per frame, on `engine:before-update`. It resolves when the last one is alive, after `ceil(m / chunkSize)` frames for `m` entities. `refs` is `{}` until then. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle inside the factory throws `COMPOSABLE:LAYOUT_HANDLE_NOT_SPAWNED`. A handle passed as `parent` is read at spawn time, so place the parent first. A second `load()` while loading returns the same promise. `dispose()` or `engine.stop()` during the load stops the spawns, destroys what exists, and resolves the pending `load()` with `active` still `false`. `dispose()` also stops a load when called from another frame hook or from inside a spawn; the entity being built is destroyed too. `engine.stop()` never rejects because of a layout. If a cleanup fails where no caller can receive the error (a frame hook, `engine.stop()`), it is emitted on `engine.errors` with code `COMPOSABLE:LAYOUT_DISPOSE_FAILED`. See [Layouts](/essentials/layouts#progressive-spawn-with-chunksize).
+**`chunkSize` behaviour.** The factory runs once. Each `place*` call records its spawn. `load()` spawns the recorded entities in call order, at most `chunkSize` per frame, on `engine:before-update`. It resolves when the last one is alive, after `ceil(m / chunkSize)` frames for `m` entities. `refs` is `{}` until then. Reading `entityId`, `api`, `moveTo` or `despawn` on a handle inside the factory throws `CORE:LAYOUT_HANDLE_NOT_SPAWNED`. A handle passed as `parent` is read at spawn time, so place the parent first. A second `load()` while loading returns the same promise. `dispose()` or `engine.stop()` during the load stops the spawns, destroys what exists, and resolves the pending `load()` with `active` still `false`. `dispose()` also stops a load when called from another frame hook or from inside a spawn; the entity being built is destroyed too. `engine.stop()` never rejects because of a layout. If a cleanup fails where no caller can receive the error (a frame hook, `engine.stop()`), it is emitted on `engine.errors` with code `CORE:LAYOUT_DISPOSE_FAILED`. See [Layouts](/essentials/layouts#progressive-spawn-with-chunksize).
 
 **Example:**
 ```ts

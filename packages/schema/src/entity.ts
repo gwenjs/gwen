@@ -50,6 +50,10 @@ export function unpackEntityId(id: EntityId): { index: number; generation: numbe
  */
 const MAX_EXACT_ENTITY_ID = (1n << 53n) - 1n;
 
+const EntityIdErrorCodes = {
+  INVALID_ENTITY_ID: "CORE:INVALID_ENTITY_ID",
+} as const;
+
 /**
  * Extract the entity index (lower 32 bits) from an EntityId.
  *
@@ -59,7 +63,9 @@ const MAX_EXACT_ENTITY_ID = (1n << 53n) - 1n;
 export function entityIndex(id: EntityId): number {
   // A number used to throw when mixed with the BigInt mask. Keep that rejection.
   if (typeof id !== "bigint")
-    throw new GwenError("CORE:INVALID_ENTITY_ID", "EntityId must be a bigint");
+    throw new GwenError(EntityIdErrorCodes.INVALID_ENTITY_ID, "EntityId must be a bigint.", {
+      composable: "entityIndex",
+    });
   if (id <= MAX_EXACT_ENTITY_ID) return Number(id) >>> 0;
   return Number(id & 0xffffffffn);
 }
@@ -70,7 +76,9 @@ export function entityIndex(id: EntityId): number {
  */
 export function entityGeneration(id: EntityId): number {
   if (typeof id !== "bigint")
-    throw new GwenError("CORE:INVALID_ENTITY_ID", "EntityId must be a bigint");
+    throw new GwenError(EntityIdErrorCodes.INVALID_ENTITY_ID, "EntityId must be a bigint.", {
+      composable: "entityGeneration",
+    });
   if (id <= MAX_EXACT_ENTITY_ID) return Math.floor(Number(id) / 4294967296);
   return Number(id >> 32n);
 }

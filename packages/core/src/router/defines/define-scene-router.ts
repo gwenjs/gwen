@@ -54,8 +54,11 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
   if (!keys.includes(options.initial as string)) {
     throw new GwenError(
       CoreErrorCodes.INVALID_SCENE_ROUTE,
-      `[GWEN] defineSceneRouter: initial state "${String(options.initial)}" not found in routes. ` +
-        `Valid states: ${keys.join(", ")}`,
+      `Initial state "${String(options.initial)}" is not found in routes.`,
+      {
+        composable: "defineSceneRouter",
+        hint: __GWEN_DEV__ ? `Valid states: ${keys.join(", ")}.` : undefined,
+      },
     );
   }
 
@@ -68,8 +71,11 @@ export function defineSceneRouter<TRoutes extends Record<string, RouteConfig<TRo
         if (!keys.includes(target as string)) {
           throw new GwenError(
             CoreErrorCodes.INVALID_SCENE_ROUTE,
-            `[GWEN] defineSceneRouter: transition "${event}" in state "${state}" points to ` +
-              `"${String(target)}" which is not a valid route. Valid states: ${keys.join(", ")}`,
+            `Transition "${event}" in state "${state}" points to "${String(target)}", which is not a valid route.`,
+            {
+              composable: "defineSceneRouter",
+              hint: __GWEN_DEV__ ? `Valid states: ${keys.join(", ")}.` : undefined,
+            },
           );
         }
       }

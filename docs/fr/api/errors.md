@@ -77,7 +77,23 @@ Cause. L'appel est hors de `defineLayout()`. Fix. Capturez la poignée dans la f
 
 Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`. Fix. Capturez la poignée dans la fabrique, puis utilisez-la comme closure après `await`.
 
+- `CORE:ACTOR_PLUGIN_NOT_READY` {#core-actor-plugin-not-ready}
+- `CORE:ACTOR_NO_LIVE_INSTANCE` {#core-actor-no-live-instance}
+- `CORE:ACTOR_CIRCULAR_OWNERSHIP` {#core-actor-circular-ownership}
+- `CORE:INVALID_CHUNK_SIZE` {#core-invalid-chunk-size}
+- `CORE:INVALID_ENTITY_ID` {#core-invalid-entity-id}
+- `CORE:LAYOUT_DISPOSE_FAILED` {#core-layout-dispose-failed}
+- `CORE:LAYOUT_HANDLE_NOT_SPAWNED` {#core-layout-handle-not-spawned}
+- `CORE:LAYOUT_LOAD_FAILED` {#core-layout-load-failed}
+- `CORE:ACTOR_POOL_EXHAUSTED` {#core-actor-pool-exhausted}
+- `CORE:INVALID_COMPONENT_SCHEMA` {#core-invalid-component-schema}
+- `CORE:INVALID_COMPONENT_TYPE` {#core-invalid-component-type}
+- `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route}
+
 ## @gwenjs/kit
+
+- `KIT:MODULE_INVALID` {#kit-module-invalid}
+- `KIT:PLUGIN_SETUP_FAILED` {#kit-plugin-setup-failed}
 
 ## @gwenjs/schema
 

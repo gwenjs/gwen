@@ -22,7 +22,6 @@ export { useCurrentScope } from "./context.js";
 export { getCurrentScope, _setCurrentScope } from "./scope-slot.js";
 export {
   GwenContextError,
-  GwenComposableError,
   GwenContextErrorCodes,
   GWEN_CONTEXT_BOUNDARIES,
 } from "./context-errors.js";

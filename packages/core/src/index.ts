@@ -52,7 +52,6 @@ export type {
 } from "./engine/engine-memory";
 export { createErrorBus } from "./engine/error-bus";
 export { GwenConfigError, GwenActorError, ActorErrorCodes } from "./errors";
-export { GwenComposableError, ComposableErrorCodes } from "./engine/engine-errors";
 
 export type { GwenDisposable } from "@gwenjs/schema";
 export type {

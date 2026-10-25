@@ -584,19 +584,13 @@ export function defineActor<Props, PublicAPI>(
     }
     throw new GwenActorError(
       ActorErrorCodes.PLUGIN_NOT_READY,
-      "[GWEN] Actor.spawn() was called before the actor plugin was installed.\n" +
-        "  Code: ACTOR:PLUGIN_NOT_READY\n\n" +
-        "  Possible causes:\n" +
-        "  1. spawn() was called directly inside a defineScene() factory body.\n" +
-        "     Fix: wrap the call in onEnter(() => actor.spawnOnce(...)).\n" +
-        "  2. spawn() was called from a system (e.g. SpawnSystem.onUpdate), but the\n" +
-        "     actor was only declared inside defineSystem() — not in the scene factory.\n" +
-        "     Fix: also call useActor(MyActor) inside the defineScene() factory that\n" +
-        "     includes the system, so the plugin is auto-installed at bootstrap.\n" +
-        "  3. The same actor is installed on more than one engine.\n" +
-        "     Fix: call spawn() inside engine.run() so the engine is current.\n" +
-        "  4. The current engine does not have this actor installed.\n" +
-        "     Fix: install it on that engine, or spawn inside the run() of the engine that has it.",
+      "Spawn was called before the actor plugin was installed.",
+      {
+        composable: "Actor.spawn",
+        hint: __GWEN_DEV__
+          ? "Call engine.use(plugin) before spawn(). Inside defineScene(), spawn from onEnter. A system that spawns also needs useActor in the scene factory. Two engines need spawn() inside engine.run() of the engine that installed the actor."
+          : undefined,
+      },
     );
   }
 
