@@ -1,21 +1,30 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { createEngine } from "@gwenjs/core";
+import type { LayerHost } from "@gwenjs/schema";
+import { GwenError } from "@gwenjs/schema";
 import { LayerManager } from "../src/layer-manager.js";
 import { getOrCreateLayerManager } from "../src/get-or-create-layer-manager.js";
 import { getOrCreateCameraManager } from "../src/get-or-create-camera-manager.js";
 import { getOrCreateScreenService } from "../src/get-or-create-screen-service.js";
 import { getOrCreateViewportManager } from "../src/get-or-create-viewport-manager.js";
 import { writeCameraViews } from "../src/write-camera-views.js";
-import type { RendererService, RenderView, SurfaceRendererService } from "../src/types.js";
+import type {
+  LayerDef,
+  RendererService,
+  RenderView,
+  SurfaceRendererService,
+} from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
 import {
   EmptyLayersError,
   LayerOrderConflictError,
   RendererAlreadyRegisteredError,
   RendererContractVersionError,
+  RendererErrorCodes,
   SurfaceInvalidError,
 } from "../src/errors.js";
+import { createRendererStats } from "../src/stats.js";
 import type { RendererKind } from "../src/types.js";
 
 function surfaceService(name: string, order: number, onRender: () => void): SurfaceRendererService {
@@ -184,9 +193,9 @@ describe("LayerManager", () => {
     const svc2 = makeService("renderer:html", { hud: { order: 100 } });
     manager.register(svc1);
     manager.register(svc2);
-    manager.resize(1280, 720);
-    expect(svc1.resize).toHaveBeenCalledWith(1280, 720);
-    expect(svc2.resize).toHaveBeenCalledWith(1280, 720);
+    manager.resize(1280, 720, 1);
+    expect(svc1.resize).toHaveBeenCalledWith(1280, 720, 1);
+    expect(svc2.resize).toHaveBeenCalledWith(1280, 720, 1);
   });
 
   // ── Unregister ────────────────────────────────────────────────────────────
@@ -557,5 +566,246 @@ describe("LayerManager", () => {
 
     expect(stats.renderers["renderer:canvas"]?.frameTimeMs).toBe(0);
     expect(stats.renderers["renderer:canvas"]?.layers["game"]?.drawCalls).toBe(0);
+  });
+});
+
+interface SeenResize {
+  width: number;
+  height: number;
+  dpr: number | undefined;
+}
+
+/** Real RendererService. Stores the resize arguments. Does not use a mock. */
+function liveService(
+  name: string,
+  layers: RendererService["layers"],
+): RendererService & { readonly seen: SeenResize | undefined } {
+  const elements = new Map<string, HTMLElement>();
+  let seen: SeenResize | undefined;
+  return {
+    name,
+    contractVersion: RENDERER_CONTRACT_VERSION,
+    layers,
+    get seen() {
+      return seen;
+    },
+    mount(_container: HTMLElement): void {},
+    unmount(): void {},
+    resize(width: number, height: number, dpr?: number): void {
+      seen = { width, height, dpr };
+    },
+    getLayerElement(layerName: string): HTMLElement {
+      const existing = elements.get(layerName);
+      if (existing !== undefined) return existing;
+      const created = document.createElement("div");
+      elements.set(layerName, created);
+      return created;
+    },
+  };
+}
+
+function mountRoot(): HTMLElement {
+  const root = document.createElement("div");
+  document.body.appendChild(root);
+  return root;
+}
+
+describe("LayerManager host contract", () => {
+  it("has() is true for a registered renderer, false for an unknown name and after unregister, per manager instance", () => {
+    const rootA = mountRoot();
+    const rootB = mountRoot();
+    const managerA = new LayerManager(rootA);
+    const managerB = new LayerManager(rootB);
+    try {
+      const service = liveService("renderer:a", { game: { order: 1 } });
+      managerA.register(service);
+      expect(managerA.has("renderer:missing")).toBe(false);
+      expect(managerB.has("renderer:a")).toBe(false);
+      expect(managerA.has("renderer:a")).toBe(true);
+      managerA.unregister("renderer:a");
+      expect(managerA.has("renderer:a")).toBe(false);
+      expect(managerB.has("renderer:a")).toBe(false);
+    } finally {
+      rootA.remove();
+      rootB.remove();
+    }
+  });
+
+  it("setParallax copies x and y onto every registered layer of that name and throws for an unknown name", () => {
+    const rootA = mountRoot();
+    const rootB = mountRoot();
+    const managerA = new LayerManager(rootA);
+    const managerB = new LayerManager(rootB);
+    try {
+      const gameA: LayerDef = { order: 1 };
+      const gameC: LayerDef = { order: 3 };
+      const gameB: LayerDef = { order: 1 };
+      managerA.register(liveService("renderer:a", { game: gameA }));
+      managerA.register(liveService("renderer:c", { game: gameC }));
+      managerB.register(liveService("renderer:b", { game: gameB }));
+      managerA.setParallax?.("game", { x: 0.5, y: 0.25 });
+      expect(gameA.parallax).toEqual({ x: 0.5, y: 0.25 });
+      expect(gameC.parallax).toEqual({ x: 0.5, y: 0.25 });
+      expect(gameB.parallax).toBeUndefined();
+      managerA.setParallax("game", { x: 2, y: 3 });
+      expect(gameA.parallax).toEqual({ x: 2, y: 3 });
+      expect(gameC.parallax).toEqual({ x: 2, y: 3 });
+      let caught: unknown;
+      try {
+        managerA.setParallax("nope", { x: 1, y: 1 });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) return;
+      const hint = "Registered renderers: renderer:a, renderer:c.";
+      expect(caught.hint).toBe(__GWEN_DEV__ ? hint : undefined);
+      expect(caught.code).toBe("RENDERER:UNKNOWN_LAYER");
+      expect(caught.message).toBe(
+        [
+          '[setParallax()] No registered renderer declares layer "nope".',
+          ...(__GWEN_DEV__ ? [`Fix: ${hint}`] : []),
+          "See https://gwenjs.github.io/gwen/api/errors#renderer-unknown-layer (RENDERER:UNKNOWN_LAYER)",
+        ].join("\n"),
+      );
+    } finally {
+      rootA.remove();
+      rootB.remove();
+    }
+  });
+
+  it("resize forwards (width, height, dpr) to every renderer", () => {
+    const root = mountRoot();
+    const manager = new LayerManager(root);
+    try {
+      const first = liveService("renderer:a", { game: { order: 1 } });
+      const second = liveService("renderer:b", { hud: { order: 2 } });
+      manager.register(first);
+      manager.register(second);
+      manager.resize(800, 600, 2);
+      expect(first.seen).toEqual({ width: 800, height: 600, dpr: 2 });
+      expect(second.seen).toEqual({ width: 800, height: 600, dpr: 2 });
+    } finally {
+      root.remove();
+    }
+  });
+
+  it("resize forwards 1 when dpr is omitted", () => {
+    const root = mountRoot();
+    const manager = new LayerManager(root);
+    try {
+      const service = liveService("renderer:a", { game: { order: 1 } });
+      manager.register(service);
+      manager.resize(800, 600);
+      expect(service.seen).toEqual({ width: 800, height: 600, dpr: 1 });
+    } finally {
+      root.remove();
+    }
+  });
+
+  it("setParallax copies the factor onto a LayerDef shared by two managers", () => {
+    const rootA = mountRoot();
+    const rootB = mountRoot();
+    const managerA = new LayerManager(rootA);
+    const managerB = new LayerManager(rootB);
+    try {
+      const shared: LayerDef = { order: 1 };
+      managerA.register(liveService("renderer:a", { game: shared }));
+      managerB.register(liveService("renderer:b", { game: shared }));
+      managerA.setParallax("game", { x: 0.5, y: 0.25 });
+      expect(shared.parallax).toEqual({ x: 0.5, y: 0.25 });
+    } finally {
+      rootA.remove();
+      rootB.remove();
+    }
+  });
+
+  it("setParallax names no renderer when none are registered", () => {
+    const root = mountRoot();
+    const manager = new LayerManager(root);
+    try {
+      let caught: unknown;
+      try {
+        manager.setParallax("nope", { x: 1, y: 1 });
+      } catch (error) {
+        caught = error;
+      }
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) return;
+      const hint = "Registered renderers: none.";
+      expect(caught.hint).toBe(__GWEN_DEV__ ? hint : undefined);
+      expect(caught.code).toBe("RENDERER:UNKNOWN_LAYER");
+      expect(caught.message).toBe(
+        [
+          '[setParallax()] No registered renderer declares layer "nope".',
+          ...(__GWEN_DEV__ ? [`Fix: ${hint}`] : []),
+          "See https://gwenjs.github.io/gwen/api/errors#renderer-unknown-layer (RENDERER:UNKNOWN_LAYER)",
+        ].join("\n"),
+      );
+    } finally {
+      root.remove();
+    }
+  });
+});
+
+describe("getOrCreateLayerManager layerManager guard", () => {
+  it("throws when the provided layerManager is not a LayerManager and keeps that value", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    const root = mountRoot();
+    try {
+      const other = mountRoot();
+      try {
+        const first = getOrCreateLayerManager(engine, root);
+        const second = getOrCreateLayerManager(engine, other);
+        expect(second).toBe(first);
+      } finally {
+        other.remove();
+      }
+
+      const engineB = await createEngine({ maxEntities: 32 });
+      const rootB = mountRoot();
+      try {
+        const onB = getOrCreateLayerManager(engineB, rootB);
+        const onA = getOrCreateLayerManager(engine, root);
+        expect(onB).not.toBe(onA);
+      } finally {
+        rootB.remove();
+        await engineB.stop();
+      }
+
+      const host: LayerHost = {
+        register() {},
+        unregister() {},
+        has() {
+          return false;
+        },
+        getStats: () => createRendererStats(),
+        setParallax() {},
+      };
+      engine.provide("layerManager", host);
+      let caught: unknown;
+      try {
+        getOrCreateLayerManager(engine, root);
+      } catch (error) {
+        caught = error;
+      }
+      const hint =
+        "Call getOrCreateLayerManager before providing layerManager, or provide the LayerManager this package created.";
+      expect(caught).toBeInstanceOf(GwenError);
+      if (!(caught instanceof GwenError)) return;
+      expect(caught.hint).toBe(__GWEN_DEV__ ? hint : undefined);
+      expect(caught.code).toBe(RendererErrorCodes.FOREIGN_LAYER_MANAGER);
+      expect(caught.message).toBe(
+        [
+          "[getOrCreateLayerManager()] The provided layerManager is not a LayerManager from this package.",
+          ...(__GWEN_DEV__ ? [`Fix: ${hint}`] : []),
+          "See https://gwenjs.github.io/gwen/api/errors#renderer-foreign-layer-manager (RENDERER:FOREIGN_LAYER_MANAGER)",
+        ].join("\n"),
+      );
+      expect(engine.tryInject("layerManager")).toBe(host);
+    } finally {
+      root.remove();
+      await engine.stop();
+    }
   });
 });

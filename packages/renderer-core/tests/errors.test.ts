@@ -28,6 +28,7 @@ describe("RendererErrorCodes", () => {
     expect(RendererErrorCodes.SCREEN_TO_WORLD_PERSPECTIVE).toBe(
       "RENDERER:SCREEN_TO_WORLD_PERSPECTIVE",
     );
+    expect(RendererErrorCodes.FOREIGN_LAYER_MANAGER).toBe("RENDERER:FOREIGN_LAYER_MANAGER");
   });
 });
 

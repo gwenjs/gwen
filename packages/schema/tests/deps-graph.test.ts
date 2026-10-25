@@ -85,6 +85,31 @@ const SCHEMA_CONTRACTS = new Set([
   "GwenEngineStateChangeReason",
   "GwenPlugin",
   "GwenModuleEntry",
+  "RENDERER_CONTRACT_VERSION",
+  "RENDER_VIEW_MATRIX_LENGTH",
+  "RendererKind",
+  "LayerDef",
+  "RenderView",
+  "RendererService",
+  "SurfaceRendererService",
+  "RendererStatsCollector",
+  "RendererLayerStats",
+  "RendererRendererStats",
+  "RendererStats",
+  "Vec3Like",
+  "WorldTransform",
+  "CameraProjection",
+  "ViewportRegion",
+  "ViewportContext",
+  "CameraState",
+  "LayerHost",
+  "CameraStateStore",
+  "ViewportStore",
+  "ScreenInfoStore",
+  "ViewportPixels",
+  "ViewportBounds",
+  "ViewportScreenInfo",
+  "ViewportBoundsProvider",
 ]);
 
 /** Context symbols owned by `packages/kit/src` (R8, R9; D-76-a). */
@@ -175,6 +200,8 @@ interface ModuleBlock {
   /** `declare module "<target>"`. */
   text: string;
   interfaces: string[];
+  /** Property names of `GwenProvides` and `GwenRuntimeHooks` inside this block. */
+  members: string[];
   /** The type-error suppression directive that applies to the block, if any. */
   suppression: string | undefined;
 }
@@ -237,6 +264,30 @@ function suppressionBefore(sf: ts.SourceFile, node: ts.Node): string | undefined
 
 function leftmostName(name: ts.EntityName): string {
   return ts.isIdentifier(name) ? name.text : leftmostName(name.left);
+}
+
+const HOST_AUGMENT_INTERFACES = new Set(["GwenProvides", "GwenRuntimeHooks"]);
+
+/** Property names declared on the host contracts inside one `declare module` body. */
+function hostContractMembers(body: ts.ModuleBody | undefined): string[] {
+  if (body === undefined || !ts.isModuleBlock(body)) return [];
+  const names: string[] = [];
+  for (const statement of body.statements) {
+    if (!ts.isInterfaceDeclaration(statement)) continue;
+    if (!HOST_AUGMENT_INTERFACES.has(statement.name.text)) continue;
+    for (const member of statement.members) {
+      const memberName = member.name;
+      if (memberName === undefined) continue;
+      if (
+        ts.isIdentifier(memberName) ||
+        ts.isStringLiteral(memberName) ||
+        ts.isNumericLiteral(memberName)
+      ) {
+        names.push(memberName.text);
+      }
+    }
+  }
+  return names;
 }
 
 function analyze(file: string, text: string): Analysis {
@@ -359,6 +410,7 @@ function analyze(file: string, text: string): Analysis {
             node.body !== undefined && ts.isModuleBlock(node.body)
               ? node.body.statements.filter(ts.isInterfaceDeclaration).map((n) => n.name.text)
               : [],
+          members: hostContractMembers(node.body),
           suppression: suppressionBefore(sf, node),
         });
         nested = true;
@@ -1099,4 +1151,128 @@ describe("deps-graph", () => {
     }
     expect(problems).toEqual([]);
   });
+
+  it("renderer.ts exports only types and the two frozen constants", () => {
+    const file = "packages/schema/src/renderer.ts";
+    const absolute = path.join(repoRoot, file);
+    const text = existsSync(absolute) ? readFileSync(absolute, "utf8") : "";
+    const { declarations } = analyze(file, text);
+    const allowedConsts = new Set(["RENDERER_CONTRACT_VERSION", "RENDER_VIEW_MATRIX_LENGTH"]);
+    const illegal = declarations.filter((declaration) => {
+      const keyword = declaration.text.replace(/^export /, "").split(" ")[0] ?? "";
+      if (keyword === "interface" || keyword === "type") return false;
+      return keyword !== "const" || !allowedConsts.has(declaration.name);
+    });
+    expect(illegal.map((declaration) => declaration.text)).toEqual([]);
+    expect(declarations.map((declaration) => declaration.text)).toEqual(
+      expect.arrayContaining([
+        "export const RENDERER_CONTRACT_VERSION",
+        "export const RENDER_VIEW_MATRIX_LENGTH",
+      ]),
+    );
+    expect(rendererRuntimeViolations(text)).toEqual([]);
+  });
+
+  it("renderer-core and camera-core declare no host alias and only schema owns the four host keys", () => {
+    const aliases = new Set(["CameraManager", "ViewportManager", "ScreenService"]);
+    const hostKeys = new Set(["layerManager", "screenService", "viewportManager", "cameraManager"]);
+    const viewportHooks = new Set(["viewport:add", "viewport:resize", "viewport:remove"]);
+    const problems: string[] = [];
+    for (const source of corpus().sources) {
+      if (source.dir === "renderer-core" || source.dir === "camera-core") {
+        for (const declaration of source.analysis.declarations) {
+          const keyword = declaration.text.replace(/^export /, "").split(" ")[0] ?? "";
+          if ((keyword === "interface" || keyword === "type") && aliases.has(declaration.name)) {
+            problems.push(`${source.file} ${declaration.text}`);
+          }
+        }
+      }
+      if (source.file.startsWith("packages/schema/src/")) continue;
+      for (const block of source.analysis.moduleBlocks) {
+        for (const member of block.members) {
+          if (hostKeys.has(member) || viewportHooks.has(member)) {
+            problems.push(`${source.file} augments ${member}`);
+          }
+        }
+      }
+    }
+    expect(problems).toEqual([]);
+  });
 });
+
+const FROZEN_RENDERER_CONSTANTS: Readonly<Record<string, string>> = {
+  RENDERER_CONTRACT_VERSION: "2",
+  RENDER_VIEW_MATRIX_LENGTH: "16",
+};
+
+function isTypeOnlyImport(node: ts.ImportDeclaration): boolean {
+  const clause = node.importClause;
+  if (clause === undefined) return false;
+  if (clause.isTypeOnly) return true;
+  if (clause.name !== undefined) return false;
+  const bindings = clause.namedBindings;
+  if (bindings === undefined || !ts.isNamedImports(bindings)) return false;
+  return bindings.elements.every((element) => element.isTypeOnly);
+}
+
+function hasDefaultExport(node: ts.Node): boolean {
+  return (ts.getCombinedModifierFlags(node) & ts.ModifierFlags.Default) !== 0;
+}
+
+/** Runtime forms the declaration scan does not record. One string per offending statement. */
+function rendererRuntimeViolations(text: string): string[] {
+  const sf = ts.createSourceFile(
+    "renderer.ts",
+    text,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const violations: string[] = [];
+  for (const statement of sf.statements) {
+    if (ts.isImportDeclaration(statement) || ts.isImportEqualsDeclaration(statement)) {
+      if (ts.isImportDeclaration(statement) && isTypeOnlyImport(statement)) continue;
+      violations.push(`value import ${statement.getText(sf)}`);
+      continue;
+    }
+    if (ts.isExportDeclaration(statement) && statement.moduleSpecifier !== undefined) {
+      const clause = statement.exportClause;
+      if (clause === undefined || ts.isNamespaceExport(clause)) {
+        violations.push(`export * ${statement.getText(sf)}`);
+      } else {
+        violations.push(`export from ${statement.getText(sf)}`);
+      }
+      continue;
+    }
+    if (
+      ts.isExportAssignment(statement) ||
+      ((ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+        hasDefaultExport(statement))
+    ) {
+      violations.push(`export assignment ${statement.getText(sf)}`);
+      continue;
+    }
+    if (ts.isExpressionStatement(statement)) {
+      violations.push(`expression ${statement.getText(sf)}`);
+      continue;
+    }
+    if (!ts.isVariableStatement(statement)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      if (!ts.isIdentifier(declaration.name)) {
+        violations.push(`destructured const ${declaration.name.getText(sf)}`);
+        continue;
+      }
+      const expected = FROZEN_RENDERER_CONSTANTS[declaration.name.text];
+      if (expected === undefined) continue;
+      const initializer = declaration.initializer;
+      if (
+        initializer === undefined ||
+        !ts.isNumericLiteral(initializer) ||
+        initializer.text !== expected
+      ) {
+        violations.push(`${declaration.name.text} initializer`);
+      }
+    }
+  }
+  return violations;
+}

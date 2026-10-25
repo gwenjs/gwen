@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
+import { createEngine } from "@gwenjs/core";
 import { runConformanceTests, runSurfaceConformance } from "../src/testing/index.js";
 import type { RendererService, SurfaceRendererService } from "../src/types.js";
 import { RENDERER_CONTRACT_VERSION } from "../src/types.js";
@@ -170,6 +171,34 @@ describe("runSurfaceConformance", () => {
       };
     });
     expect(() => runSurfaceConformance(service, engine)).not.toThrow();
+  });
+
+  it("sizes the canvas from the third resize argument only", async () => {
+    const engine = await createEngine({ maxEntities: 32 });
+    try {
+      getOrCreateViewportManager(engine).set("main", { x: 0, y: 0, width: 1, height: 1 });
+      getOrCreateScreenService(engine).setContainerSize(800, 600, 3);
+      const service = makeSurface((svc) => {
+        svc.resize = (width, height, dpr = 1) => {
+          const canvas = svc.getLayerElement("scene");
+          if (!(canvas instanceof HTMLCanvasElement)) return;
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+        };
+      });
+      let thrown: unknown;
+      try {
+        runSurfaceConformance(service, engine);
+      } catch (error) {
+        thrown = error;
+      }
+      const canvas = service.getLayerElement("scene");
+      expect(canvas instanceof HTMLCanvasElement ? canvas.width : 0).toBe(960);
+      expect(canvas instanceof HTMLCanvasElement ? canvas.height : 0).toBe(540);
+      expect(thrown).toBeUndefined();
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("fails when the canvas stays attached after unmount", () => {

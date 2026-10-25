@@ -187,3 +187,20 @@ describe("ScreenServiceImpl — bounds provider", () => {
     expect(info.bounds).toBeUndefined();
   });
 });
+
+describe("ScreenServiceImpl — devicePixelRatio", () => {
+  it("devicePixelRatio is 1 before setContainerSize and the last dpr after; two services independent", () => {
+    const first = new ScreenServiceImpl(makeLogger(), makeVm());
+    const second = new ScreenServiceImpl(makeLogger(), makeVm());
+    expect(first.devicePixelRatio).toBe(1);
+    expect(second.devicePixelRatio).toBe(1);
+    first.setContainerSize(800, 600, 2);
+    expect(first.devicePixelRatio).toBe(2);
+    expect(second.devicePixelRatio).toBe(1);
+    first.setContainerSize(10, 10, 3);
+    expect(first.devicePixelRatio).toBe(3);
+    first.setContainerSize(10, 10);
+    expect(first.devicePixelRatio).toBe(3);
+    expect(second.devicePixelRatio).toBe(1);
+  });
+});
