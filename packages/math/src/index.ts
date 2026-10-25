@@ -228,6 +228,7 @@ export {
   mat4LookAt,
   mat4Equals,
 } from "./mat4.js";
+export { MathError, MathErrorCodes } from "./errors.js";
 export {
   color,
   colorWhite,

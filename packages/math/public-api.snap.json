@@ -3,6 +3,8 @@
     "values": [
       "DEG2RAD",
       "EPSILON",
+      "MathError",
+      "MathErrorCodes",
       "RAD2DEG",
       "TAU",
       "approxEqual",
