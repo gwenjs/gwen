@@ -1,3 +1,6 @@
+import type { GwenPrefabExtensions } from "@gwenjs/schema";
+import { expectTypeOf, it } from "vitest";
+
 import { defineComponent, Types } from "../../src/schema";
 import { definePrefab } from "../../src/actor/runtime/define-prefab";
 import { defineActor } from "../../src/actor/runtime/define-actor";
@@ -54,4 +57,11 @@ placeActor(actor, {
     // @ts-expect-error wrong props
     hp: "x",
   },
+});
+
+it("definePrefab accepts typed extensions as 2nd argument", () => {
+  const defined = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }], {
+    extensions: { label: "typed" },
+  });
+  expectTypeOf(defined.extensions).toEqualTypeOf<Readonly<Partial<GwenPrefabExtensions>>>();
 });
