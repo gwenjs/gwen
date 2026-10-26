@@ -1825,3 +1825,94 @@ test("verdaccio.yaml does not claim the registry is never used in CI", () => {
   assert.equal(text.includes("jamais utilisé en CI"), false);
   assert.equal(text.includes("scripts/stack/"), true);
 });
+
+/**
+ * Name and run of each step in one job. A folded run block is joined with " && ".
+ *
+ * @param {string} jobText
+ * @returns {{ name: string, run: string }[]}
+ */
+function namedSteps(jobText) {
+  /** @type {{ name: string, run: string }[]} */
+  const steps = [];
+  /** @type {{ name: string, run: string } | null} */
+  let step = null;
+  let runBlock = false;
+  for (const line of jobText.split("\n")) {
+    if (/^ {6}- /.test(line)) {
+      if (step) steps.push(step);
+      step = { name: "", run: "" };
+      runBlock = false;
+      const inlineName = /^ {6}- name: (.*)$/.exec(line);
+      if (inlineName) step.name = inlineName[1] ?? "";
+      continue;
+    }
+    if (!step) continue;
+    const name = /^ {8}name: (.*)$/.exec(line);
+    const run = /^ {8}run: ?(.*)$/.exec(line);
+    if (name) step.name = name[1] ?? "";
+    if (run) {
+      if (run[1] === "|" || run[1] === ">") runBlock = true;
+      else step.run = run[1] ?? "";
+      continue;
+    }
+    if (runBlock && /^ {10}\S/.test(line)) {
+      step.run = step.run ? `${step.run} && ${line.trim()}` : line.trim();
+    } else if (runBlock && line.trim() !== "") {
+      runBlock = false;
+    }
+  }
+  if (step) steps.push(step);
+  return steps;
+}
+
+test("browser-wasm installs system deps through the retry guard", () => {
+  const steps = namedSteps(jobBlock(readCi(), "browser-wasm"));
+  assert.equal(
+    steps.some((step) => step.run.includes("--with-deps")),
+    false,
+  );
+  const deps = steps.findIndex((step) => step.name === "Install Playwright system dependencies");
+  const browsers = steps.findIndex((step) => step.name === "Install Playwright browsers");
+  const browserTests = steps.findIndex((step) => step.name === "Browser tests");
+  assert.notEqual(deps, -1);
+  const depsRun = steps[deps]?.run ?? "";
+  assert.equal(depsRun.includes("sudo"), true, depsRun);
+  assert.equal(
+    depsRun.includes("scripts/retry-with-timeout.mjs --attempts 3 --timeout 120 --"),
+    true,
+    depsRun,
+  );
+  assert.equal(depsRun.includes("dpkg --configure -a"), true, depsRun);
+  assert.equal(depsRun.includes("install-deps chromium firefox webkit"), true, depsRun);
+  assert.equal(depsRun.includes("pnpm"), false, depsRun);
+  assert.ok(browsers > deps);
+  assert.equal(
+    steps[browsers]?.run,
+    "pnpm --filter @gwenjs/core exec playwright install chromium firefox webkit",
+  );
+  assert.ok(browserTests > browsers);
+});
+
+test("browser-wasm guard fits inside the job timeout", () => {
+  const job = jobBlock(readCi(), "browser-wasm");
+  const minutes = /^ {4}timeout-minutes: (\d+)$/m.exec(job);
+  assert.ok(minutes, "browser-wasm has no timeout-minutes");
+  const timeoutMinutes = Number(minutes[1]);
+  const deps = namedSteps(job).find(
+    (step) => step.name === "Install Playwright system dependencies",
+  );
+  assert.ok(deps, "missing system dependencies step");
+  const attempts = /--attempts (\d+)/.exec(deps.run);
+  const timeout = /--timeout (\d+)/.exec(deps.run);
+  assert.ok(attempts && timeout, deps.run);
+  const attemptsN = Number(attempts[1]);
+  const timeoutS = Number(timeout[1]);
+  // 2 x the default 5 s grace (SIGTERM wait, then SIGKILL wait).
+  const graceAllowanceS = 10;
+  assert.equal(timeoutMinutes, 10);
+  assert.ok(
+    attemptsN * (timeoutS + graceAllowanceS) <= timeoutMinutes * 60 - 120,
+    `${attemptsN}*(${timeoutS}+${graceAllowanceS})s exceeds ${timeoutMinutes} min minus 120s`,
+  );
+});
