@@ -17,6 +17,7 @@ import { useHook } from "../../../hooks/use-hook";
 import { actorTablesFor } from "../define-actor";
 import { ActorErrorCodes, GwenActorError } from "../../../engine/engine-errors";
 import { reportRejectedHook } from "../../../hooks/report-rejected-hook.js";
+import { emitActorDisable, emitActorEnable } from "../../../engine/hook-dispatch.js";
 
 /**
  * Deferred releases. Two id buffers swap on flush so a release() inside a
@@ -315,6 +316,8 @@ export function defineActorPool<Props, PublicAPI>(
     if (!inst) return;
 
     for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    const releaseEngine = _engine;
+    if (releaseEngine) emitActorDisable(releaseEngine, id);
     for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
 
     if (inst._children && inst._children.size > 0) {
@@ -484,6 +487,7 @@ export function defineActorPool<Props, PublicAPI>(
       inst._scope.resume();
       for (let i = 0; i < inst._reset.length; i += 1) inst._reset[i]!(props);
       for (let i = 0; i < inst._enable.length; i += 1) inst._enable[i]!();
+      emitActorEnable(engine, candidate);
       id = candidate;
       break;
     }
@@ -526,6 +530,7 @@ export function defineActorPool<Props, PublicAPI>(
     }
 
     for (let i = 0; i < inst._disable.length; i += 1) inst._disable[i]!();
+    emitActorDisable(_engine, id);
     for (let i = 0; i < inst._release.length; i += 1) inst._release[i]!();
 
     if (inst._children && inst._children.size > 0) {

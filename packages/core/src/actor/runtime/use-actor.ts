@@ -23,6 +23,7 @@
  */
 
 import { engineContext, useEngine } from "../../engine/context";
+import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
 import { _getActorEntityId, _getActorEngine } from "./define-actor";
 import { SCENE_REGISTRAR_KEY } from "../../scene/runtime/scene-registrar";
 import { GwenScope } from "../../context/scope.js";
@@ -394,6 +395,7 @@ export function usePrefab<E extends readonly ComponentDef[]>(
           ...overrides,
         });
       }
+      queuePrefabInstantiate(engine, id, prefabDef.extensions);
       return id;
     },
 

@@ -118,10 +118,13 @@ Ce sont les événements du cycle de vie du moteur auxquels vous pouvez vous abo
 | `engine:tick` | `(dt: number) => void` | Chaque frame commence (dt en secondes) |
 | `engine:afterTick` | `(dt: number) => void` | Après chaque pas de simulation. Après le rendu quand `physicsHz` vaut 0. Avant le rendu d'affichage en mode fixe. |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | La boucle de frames capture une erreur non gérée |
+| `entity:spawn` | `(id: EntityId) => void` | `createEntity` ou `bulkSpawnWithTransforms` a créé cet id |
 | `entity:destroy` | `(id: EntityId) => void` | Entité supprimée |
+| `actor:enable` | `(entityId: bigint) => void` | Un acteur du pool est acquis à nouveau. La première acquisition ne le déclenche pas |
+| `actor:disable` | `(entityId: bigint) => void` | Un acteur du pool est relâché |
 | `plugin:registered` | `(pluginName: string) => void` | La configuration du plugin se termine et s'enregistre |
 | `plugin:error` | `(payload: PluginErrorEvent) => void` | Le hook de cycle de vie du plugin lance et n'est pas récupéré |
-| `prefab:instantiate` | `(entityId: EntityId, extensions: GwenPrefabExtensions) => void` | Entité créée à partir d'un préfabriqué (utilisé en interne par les plugins comme Physics2D). Augmenter `GwenPrefabExtensions` avec `declare module "@gwenjs/schema"`. |
+| `prefab:instantiate` | `(entityId: EntityId, extensions: Readonly<Partial<GwenPrefabExtensions>>) => void` | Après l'écriture des composants, pour un acteur, `usePrefab().spawn` et `placePrefab`. Augmenter `GwenPrefabExtensions` avec `declare module "@gwenjs/schema"`. |
 
 ## onCleanup()
 

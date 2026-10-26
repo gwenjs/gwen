@@ -120,14 +120,15 @@ Les espaces de noms `engine:*`, `entity:*`, `scene:*`, `actor:*` et `plugin:*` s
 | `engine:update` | `dt: number` | Phase de mise à jour principale |
 | `engine:after-update` | `dt: number` | Après la phase de mise à jour |
 | `engine:render` | `alpha: number` | Une fois par frame d'affichage |
+| `entity:spawn` | `id` | `createEntity` ou `bulkSpawnWithTransforms` a créé cet id |
 | `entity:destroy` | `id: EntityId` | Entité détruite |
 | `scene:enter` | `name, params?` | Scène activée |
 | `scene:beforeLeave` | `name` | Avant la désactivation de la scène |
 | `scene:leave` | `name` | Scène désactivée |
 | `scene:transition:leave` | `{ from, to }` | Avant l'animation de sortie |
 | `scene:transition:enter` | `{ from, to }` | Après l'animation d'entrée |
-| `actor:enable` | `entityId` | Portée de l'acteur reprise |
-| `actor:disable` | `entityId` | Portée de l'acteur mise en pause |
+| `actor:enable` | `entityId` | Ré-acquisition d'un acteur du pool |
+| `actor:disable` | `entityId` | Relâchement d'un acteur du pool |
 | `engine:error` | `EngineErrorPayload` | Erreur de frame non gérée |
 
 ## Résumé de l'API

@@ -38,7 +38,7 @@ declare module "@gwenjs/schema" {
 
   /**
    * Physics 2D prefab extension — enables typed `extensions.physics` blocks
-   * inside `definePrefab({ extensions: { physics: { … } } })`.
+   * inside `definePrefab(components, { extensions: { physics: { … } } })`.
    */
   interface GwenPrefabExtensions {
     physics?: Physics2DPrefabExtension;

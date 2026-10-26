@@ -42,6 +42,9 @@ async function open(patch: Partial<Pick<EngineEntitiesDeps, "maxEntities" | "ass
       expect(entities.getComponent(id, Position)).toBeUndefined();
       destroyed.push(id);
     },
+    emitSpawn() {},
+    emitBulkSpawn() {},
+    hookCounts: { entitySpawn: 0 },
     reportInconsistent(error) {
       throw error;
     },

@@ -37,6 +37,7 @@ import {
   useEngine,
 } from "../../engine/context.js";
 import { unwrapEngine } from "../../engine/engine-local.js";
+import { queuePrefabInstantiate } from "../../engine/hook-dispatch.js";
 import { createDisposable } from "../../disposable.js";
 import type { GwenEngine } from "../../engine/engine-types";
 import type { GwenEngineBase } from "@gwenjs/schema";
@@ -622,6 +623,8 @@ export function defineActor<Props, PublicAPI>(
       const entry = prefab.components[i]!;
       engine.addComponent(entityId, entry.def, entry.defaults);
     }
+
+    queuePrefabInstantiate(engine, entityId, prefab.extensions);
 
     // 3. Build a blank instance.
     const instance: ActorInstance<PublicAPI> = {

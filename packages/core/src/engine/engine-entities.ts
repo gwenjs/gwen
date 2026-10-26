@@ -16,16 +16,22 @@ import { componentRegistryFor } from "./engine-component-registry.js";
 import { componentStaging } from "./chunk-lanes.js";
 import type { WasmBridgeImpl } from "./wasm-bridge.js";
 import { stringPoolFor } from "../utils/string-pool.js";
+import { unwrapEngine } from "./engine-local.js";
 
 /**
  * `createEntity`, `addComponent`, `removeComponent`, and `destroyEntity` call
  * `assertState` before they change storage. The facade passes `_assertNotFaulted`.
  * `emitDestroy` is the facade's entity:destroy fan-out.
+ * `emitSpawn` and `emitBulkSpawn` are the entity:spawn fan-out.
  */
 export interface EngineEntitiesDeps {
   maxEntities: number;
   assertState: (method: string) => void;
   emitDestroy: (id: EntityId) => unknown;
+  emitSpawn: (id: EntityId) => void;
+  emitBulkSpawn: (spawned: Uint32Array, generations: Uint32Array) => void;
+  /** `entitySpawn` is listeners plus spies. Zero skips the spawn call. */
+  hookCounts: { entitySpawn: number };
   reportInconsistent: (error: GwenWasmError) => void;
   engine: GwenEngine;
   bridge: WasmBridgeImpl;
@@ -54,7 +60,20 @@ const OP_ADD = 3;
 const OP_REMOVE = 4;
 const OP_DORMANT = 5;
 const OP_BULK_SPAWN = 6;
+const OP_CALLBACK = 7;
 const NO_OP = 0xffffffff;
+
+const entityStores = new WeakMap<object, EngineEntities>();
+
+/** Run now, or after the queued create and add ops when a chunk loop is open. */
+export function afterPendingEntityOps(engine: GwenEngine, run: () => void): void {
+  const store = entityStores.get(unwrapEngine(engine));
+  if (store === undefined) {
+    run();
+    return;
+  }
+  store.afterPendingOps(run);
+}
 
 /**
  * `object` has no string index signature. A component partial is a plain record.
@@ -135,6 +154,8 @@ export class EngineEntities {
   private bulkRotations: (Float32Array | null)[] = [];
   private bulkIndices: (Uint32Array | null)[] = [];
   private bulkGenerations: (Uint32Array | null)[] = [];
+  /** Callback queued behind create and add. Cleared on flush so it cannot run twice. */
+  private opRuns: ((() => void) | undefined)[] = [];
   /** Component rows in the simulated state. Index is the entity slot. */
   private rowCounts = new Uint16Array(0);
   /** Key comparisons while walking one entity's queued ops. Read by the test seam. */
@@ -147,9 +168,12 @@ export class EngineEntities {
   private nonDormant = 0;
 
   private readonly readStagingPtr = (): number => this.deps.bridge.componentStagingPtr();
+  private readonly hookCounts: { entitySpawn: number };
 
   constructor(private readonly deps: EngineEntitiesDeps) {
+    this.hookCounts = deps.hookCounts;
     this.mirror = new EntityIdMirror(deps.maxEntities);
+    entityStores.set(deps.engine, this);
     bindEntityTrace(deps.bridge, {
       allocated: (index, generation) => {
         this.mirror.noteAllocated(index, generation);
@@ -161,6 +185,16 @@ export class EngineEntities {
       deferDestroy: (index, generation) => this.reserveDestroy(index, generation),
       deferBulkSpawn: (positions, rotations) => this.reserveBulkSpawn(positions, rotations),
       deferBulkDestroy: (indices) => this.reserveBulkDestroy(indices),
+      bulkSpawned: (spawned) => {
+        if (this.wasmDirect > 0 || spawned.length === 0) return;
+        if (this.hookCounts.entitySpawn === 0) return;
+        const generations = new Uint32Array(spawned.length);
+        for (let cursor = 0; cursor < spawned.length; cursor += 1) {
+          const index = spawned[cursor] ?? 0;
+          generations[cursor] = this.deps.bridge.getEntityGeneration(index);
+        }
+        this.deps.emitBulkSpawn(spawned, generations);
+      },
     });
   }
 
@@ -187,7 +221,9 @@ export class EngineEntities {
     const created = this.deps.bridge.createEntity();
     if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
     this.aliveEpoch += 1;
-    return createEntityId(created.index, created.generation);
+    const id = createEntityId(created.index, created.generation);
+    if (this.hookCounts.entitySpawn !== 0) this.deps.emitSpawn(id);
+    return id;
   }
 
   canSpawn(count: number): boolean {
@@ -270,6 +306,7 @@ export class EngineEntities {
       else if (kind === OP_REMOVE) this.applyRemove(index, generation, typeId);
       else if (kind === OP_DORMANT) this.applyDormant(index, generation, flag === 1);
       else if (kind === OP_BULK_SPAWN) this.applyBulkSpawn(slot);
+      else if (kind === OP_CALLBACK) this.applyCallback(slot);
     }
     if (failure !== undefined) throw failure;
   }
@@ -295,6 +332,9 @@ export class EngineEntities {
     if (created.index !== index || created.generation !== generation) this.faultCreate();
     if (created.index >= this.slotSpan) this.slotSpan = created.index + 1;
     this.aliveEpoch += 1;
+    if (this.hookCounts.entitySpawn !== 0) {
+      this.deps.emitSpawn(createEntityId(index, generation));
+    }
   }
 
   private applyDestroy(index: number, generation: number): unknown {
@@ -507,6 +547,23 @@ export class EngineEntities {
       if (index >= this.slotSpan) this.slotSpan = index + 1;
     }
     this.aliveEpoch += spawned.length;
+    if (this.hookCounts.entitySpawn !== 0) this.deps.emitBulkSpawn(spawned, generations);
+  }
+
+  /** Run `run` now, or behind the ops already queued for this open chunk loop. */
+  afterPendingOps(run: () => void): void {
+    if (this.depth === 0) {
+      run();
+      return;
+    }
+    const slot = this.pushOp(OP_CALLBACK, 0, 0, 0, 0, false);
+    this.opRuns[slot] = run;
+  }
+
+  private applyCallback(slot: number): void {
+    const run = this.opRuns[slot];
+    this.opRuns[slot] = undefined;
+    if (run !== undefined) run();
   }
 
   private callWasm<T>(run: () => T): T {
@@ -620,12 +677,14 @@ export class EngineEntities {
     const rotations: (Float32Array | null)[] = [];
     const bulkIndices: (Uint32Array | null)[] = [];
     const bulkGenerations: (Uint32Array | null)[] = [];
+    const runs: ((() => void) | undefined)[] = [];
     defs.length = next;
     data.length = next;
     positions.length = next;
     rotations.length = next;
     bulkIndices.length = next;
     bulkGenerations.length = next;
+    runs.length = next;
     for (let slot = 0; slot < this.opCount; slot += 1) {
       defs[slot] = this.addDefs[slot] ?? null;
       data[slot] = this.addData[slot] ?? null;
@@ -633,6 +692,7 @@ export class EngineEntities {
       rotations[slot] = this.bulkRotations[slot] ?? null;
       bulkIndices[slot] = this.bulkIndices[slot] ?? null;
       bulkGenerations[slot] = this.bulkGenerations[slot] ?? null;
+      runs[slot] = this.opRuns[slot];
     }
     this.opKinds = kinds;
     this.opIndexes = indexes;
@@ -646,6 +706,7 @@ export class EngineEntities {
     this.bulkRotations = rotations;
     this.bulkIndices = bulkIndices;
     this.bulkGenerations = bulkGenerations;
+    this.opRuns = runs;
     this.opCapacity = next;
   }
 
@@ -664,6 +725,8 @@ export class EngineEntities {
         this.bulkRotations[slot] = null;
         this.bulkIndices[slot] = null;
         this.bulkGenerations[slot] = null;
+      } else if (kind === OP_CALLBACK) {
+        this.opRuns[slot] = undefined;
       }
     }
     this.opCount = 0;
