@@ -110,7 +110,7 @@ export class WasmModuleRunner {
         if (hasPtrExport) {
           const probe = await WebAssembly.instantiate(wasmModule, { gwen: gwenImports });
           // The export can trap. Check the ABI first, and do not let this catch rewrap it.
-          checkPluginApiVersion(probe.exports, options.name);
+          checkPluginApiVersion(probe.exports, options.name, "engine.loadWasmModule");
           probeOffset = this._resolveTransformOffset(probe.exports, declared);
           // The real start() reads modulePtr, so publish the probe offset first.
           modulePtr = probeOffset;
@@ -138,7 +138,7 @@ export class WasmModuleRunner {
 
     // Plugin ABI version before any resolved-region check. Outside both
     // instantiate catches, so GwenWasmAbiError is not rewrapped.
-    checkPluginApiVersion(instance.exports, options.name);
+    checkPluginApiVersion(instance.exports, options.name, "engine.loadWasmModule");
 
     const memory =
       instance.exports["memory"] instanceof WebAssembly.Memory

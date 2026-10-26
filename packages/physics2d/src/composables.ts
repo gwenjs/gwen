@@ -47,8 +47,10 @@ export function usePhysics2D(): Physics2DAPI {
 
   throw new GwenPluginNotFoundError({
     pluginName: "@gwenjs/physics2d",
-    hint: "Call engine.use(physics2dPlugin()) before starting the engine.",
-    docsUrl: "https://gwenengine.dev/plugins/physics2d",
+    composable: "usePhysics2D",
+    hint: __GWEN_DEV__
+      ? "Call engine.use(Physics2DPlugin()) before starting the engine."
+      : undefined,
   });
 }
 

@@ -11,8 +11,9 @@
 import { EASING_MAP, type EasingName } from "./easing";
 import type { TweenHandle, TweenOptions, TweenableValue } from "./tween-types";
 import { lerp } from "@gwenjs/math";
-import type { IGwenLogger } from "@gwenjs/schema";
+import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 import { GwenConfigError } from "../../engine/config-error";
+import { CoreErrorCodes } from "../../engine/engine-errors";
 
 // ── TweenPoolPolicy ──────────────────────────────────────────────────────────
 
@@ -30,7 +31,7 @@ export interface TweenPoolPolicy {
   /**
    * Strategy to apply when every slot is claimed:
    * - `'grow'`  — allocate more slots (up to `maxSize`) and emit a warn log (default)
-   * - `'throw'` — throw {@link GwenConfigError} immediately
+   * - `'throw'` — throw `GwenError` `CORE:TWEEN_POOL_EXHAUSTED` immediately
    * - `'drop'`  — silently return `null`; the caller must handle the null return value
    */
   onExhausted: "grow" | "throw" | "drop";
@@ -433,11 +434,9 @@ export class TweenPool {
    */
   constructor(size: number = 256, policy?: TweenPoolPolicy, logger?: IGwenLogger) {
     if (size < 1) {
-      throw new GwenConfigError(
-        "tweenPoolSize",
-        size,
-        "TweenPool size must be >= 1. Use at least 1 slot.",
-      );
+      throw new GwenConfigError("tweenPoolSize", size, {
+        hint: "TweenPool size must be >= 1. Use at least 1 slot.",
+      });
     }
 
     this._policy = {
@@ -466,9 +465,9 @@ export class TweenPool {
    * The slot is removed from the available pool and marked as active.
    * Exhaustion behaviour is governed by the {@link TweenPoolPolicy} passed
    * to the constructor:
-   * - `'grow'`  — the pool expands automatically; throws {@link GwenConfigError}
+   * - `'grow'`  — the pool expands automatically; throws `CORE:TWEEN_POOL_EXHAUSTED`
    *               only when `maxSize` is already reached.
-   * - `'throw'` — throws {@link GwenConfigError} immediately when exhausted.
+   * - `'throw'` — throws `CORE:TWEEN_POOL_EXHAUSTED` immediately when exhausted.
    * - `'drop'`  — returns `null`; the caller is responsible for handling it.
    *
    * When active usage reaches the `warnAt` fraction of total capacity a
@@ -477,7 +476,7 @@ export class TweenPool {
    * @param options - Tween configuration
    * @returns A configured {@link TweenHandle} ready to use, or `null` when
    *   policy is `'drop'` and the pool is exhausted.
-   * @throws {GwenConfigError} When policy is `'throw'` and the pool is
+   * @throws {GwenError} `CORE:TWEEN_POOL_EXHAUSTED` when policy is `'throw'` and the pool is
    *   exhausted, or when policy is `'grow'` but `maxSize` has been reached.
    * @since 1.0.0
    */
@@ -488,19 +487,27 @@ export class TweenPool {
           this._grow();
           if (this._available.length === 0) {
             // maxSize reached and still exhausted — escalate to error
-            throw new GwenConfigError(
-              "tweenPoolSize",
-              this._slots.length,
-              "Increase tweenPoolSize or set maxSize to Infinity",
+            throw new GwenError(
+              CoreErrorCodes.TWEEN_POOL_EXHAUSTED,
+              `Tween pool is exhausted: ${String(this._slots.length)} slots in use.`,
+              {
+                composable: "useTween",
+                hint: __GWEN_DEV__
+                  ? "Increase tweenPoolSize or set maxSize to Infinity."
+                  : undefined,
+              },
             );
           }
           break;
         }
         case "throw": {
-          throw new GwenConfigError(
-            "tweenPoolSize",
-            this._slots.length,
-            "Increase tweenPoolSize or set maxSize to Infinity",
+          throw new GwenError(
+            CoreErrorCodes.TWEEN_POOL_EXHAUSTED,
+            `Tween pool is exhausted: ${String(this._slots.length)} slots in use.`,
+            {
+              composable: "useTween",
+              hint: __GWEN_DEV__ ? "Increase tweenPoolSize or set maxSize to Infinity." : undefined,
+            },
           );
         }
         case "drop": {

@@ -36,6 +36,7 @@ export function entityIdFromString(str: string): EntityId {
     throw new GwenError(
       CoreErrorCodes.INVALID_ENTITY_ID,
       `Invalid EntityId string format: "${str}". Expected "index:generation".`,
+      { composable: "entityIdFromString" },
     );
   }
   const index = Number.parseInt(indexStr, 10);
@@ -44,8 +45,8 @@ export function entityIdFromString(str: string): EntityId {
   if (Number.isNaN(index) || Number.isNaN(generation)) {
     throw new GwenError(
       CoreErrorCodes.INVALID_ENTITY_ID,
-      `Invalid EntityId string format: "${str}". Expected "index:generation" ` +
-        `where both are valid integers.`,
+      `Invalid EntityId string format: "${str}". Expected "index:generation" where both are valid integers.`,
+      { composable: "entityIdFromString" },
     );
   }
 

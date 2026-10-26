@@ -25,31 +25,30 @@ export type GwenEngineStateMethod =
  * Use this form when constructing the error from plugin composables.
  */
 export interface GwenPluginNotFoundErrorOptions {
-  /** The npm package name of the missing plugin. */
+  /** The npm package name or service key of the missing plugin. */
   pluginName: string;
+  /** Replaces the default sentence. */
+  what?: string;
   /** Human-readable hint explaining how to fix the issue. */
-  hint: string;
-  /** URL to the plugin's documentation. */
-  docsUrl: string;
+  hint?: string | undefined;
+  /** Public name rendered in front of the message. */
+  composable?: string;
 }
 
 export class GwenPluginNotFoundError extends GwenError {
   readonly pluginName: string;
-  readonly hint: string;
-  readonly docsUrl: string;
 
   constructor(opts: GwenPluginNotFoundErrorOptions) {
-    const hint =
-      opts.hint || `Add the "${opts.pluginName}" plugin via engine.use() or in gwen.config.ts.`;
-    const docsUrl = opts.docsUrl || "https://gwenengine.dev/docs/plugins";
-    super(
-      "GWEN_PLUGIN_NOT_FOUND",
-      `[GwenEngine] Plugin/service "${opts.pluginName}" not found. ${hint}`,
-    );
+    const pluginName = opts.pluginName;
+    const what = opts.what ?? `Plugin or service "${pluginName}" is not installed.`;
+    super(CoreErrorCodes.PLUGIN_NOT_FOUND, what, {
+      ...(opts.composable !== undefined ? { composable: opts.composable } : {}),
+      hint: __GWEN_DEV__
+        ? (opts.hint ?? `Add the "${pluginName}" plugin via engine.use() or in gwen.config.ts.`)
+        : undefined,
+    });
     this.name = "GwenPluginNotFoundError";
-    this.pluginName = opts.pluginName;
-    this.hint = hint;
-    this.docsUrl = docsUrl;
+    this.pluginName = pluginName;
   }
 }
 
@@ -123,6 +122,18 @@ export const CoreErrorCodes = {
   QUERY_PER_ENTITY_PATH: "CORE:QUERY_PER_ENTITY_PATH",
   /** The chunk store broke an invariant. `site` is in the Rust error. Report the bug. */
   STORAGE_INCONSISTENT: "CORE:STORAGE_INCONSISTENT",
+  /** Thrown by `GwenConfigError`. */
+  INVALID_CONFIG: "CORE:INVALID_CONFIG",
+  /** Thrown by `GwenPluginNotFoundError`. */
+  PLUGIN_NOT_FOUND: "CORE:PLUGIN_NOT_FOUND",
+  /** Thrown by `TweenPool.claim`. */
+  TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
+  /** Thrown by the WASM glue loader (#260). */
+  WASM_GLUE_MISMATCH: "CORE:WASM_GLUE_MISMATCH",
+  /** Thrown by engine dispose (#261). */
+  ENGINE_DISPOSED: "CORE:ENGINE_DISPOSED",
+  /** Thrown by WASM instance capacity (#263). */
+  WASM_CAPACITY_EXHAUSTED: "CORE:WASM_CAPACITY_EXHAUSTED",
 } as const;
 
 /**
@@ -196,11 +207,22 @@ export class GwenWasmAbiError extends GwenError {
   readonly expected: number;
   readonly actual: number | null;
 
-  constructor(moduleName: string, expected: number, actual: number | null) {
+  constructor(
+    moduleName: string,
+    expected: number,
+    actual: number | null,
+    composable = "engine.loadWasmModule",
+  ) {
     const shown = actual === null ? "none declared" : String(actual);
     super(
       CoreErrorCodes.WASM_MODULE_ABI_MISMATCH,
-      `[GWEN] loadWasmModule("${moduleName}"): plugin ABI version ${shown} does not match ${expected}. Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.`,
+      `Plugin "${moduleName}" declares ABI version ${shown}, expected ${expected}.`,
+      {
+        composable,
+        hint: __GWEN_DEV__
+          ? "recompile the plugin against the current gwen-wasm-utils / ABI version."
+          : undefined,
+      },
     );
     this.name = "GwenWasmAbiError";
     this.code = CoreErrorCodes.WASM_MODULE_ABI_MISMATCH;
@@ -238,10 +260,9 @@ export class GwenEngineStateError extends GwenError {
   readonly method: GwenEngineStateMethod;
 
   constructor(from: GwenEngineState, method: GwenEngineStateMethod) {
-    super(
-      CoreErrorCodes.INVALID_STATE_TRANSITION,
-      `[GwenEngine] ${method}() is not allowed while the engine is ${from}.`,
-    );
+    super(CoreErrorCodes.INVALID_STATE_TRANSITION, `Not allowed while the engine is ${from}.`, {
+      composable: `engine.${method}`,
+    });
     this.name = "GwenEngineStateError";
     this.code = CoreErrorCodes.INVALID_STATE_TRANSITION;
     this.from = from;

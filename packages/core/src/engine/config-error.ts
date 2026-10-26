@@ -3,6 +3,7 @@
  */
 
 import { GwenError } from "@gwenjs/schema";
+import { CoreErrorCodes } from "./engine-errors.js";
 
 /**
  * Thrown by {@link validateEngineConfig} when a config value is invalid or
@@ -24,17 +25,14 @@ export class GwenConfigError extends GwenError {
   readonly field: string;
   /** The value that was rejected. */
   readonly value: unknown;
-  /**
-   * Developer-friendly suggestion for fixing the issue.
-   * @example "Try 10_000 for a typical game."
-   */
-  readonly hint: string;
 
-  constructor(field: string, value: unknown, hint: string) {
-    super("GWEN_CONFIG_ERROR", `[GWEN] Invalid config — "${field}": ${String(value)}. ${hint}`);
+  constructor(field: string, value: unknown, options?: { hint?: string | undefined }) {
+    super(CoreErrorCodes.INVALID_CONFIG, `Invalid config "${field}": ${String(value)}.`, {
+      composable: "createEngine",
+      hint: __GWEN_DEV__ ? options?.hint : undefined,
+    });
     this.name = "GwenConfigError";
     this.field = field;
     this.value = value;
-    this.hint = hint;
   }
 }

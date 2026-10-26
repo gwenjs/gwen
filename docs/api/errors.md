@@ -89,6 +89,51 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:INVALID_COMPONENT_SCHEMA` {#core-invalid-component-schema}
 - `CORE:INVALID_COMPONENT_TYPE` {#core-invalid-component-type}
 - `CORE:INVALID_SCENE_ROUTE` {#core-invalid-scene-route}
+- `CORE:FRAME_LOOP_ERROR` {#core-frame-loop-error}
+- `CORE:PLUGIN_SETUP_ERROR` {#core-plugin-setup-error}
+- `CORE:PLUGIN_RUNTIME_ERROR` {#core-plugin-runtime-error}
+- `CORE:WASM_LOAD_ERROR` {#core-wasm-load-error}
+- `CORE:WASM_TIMEOUT` {#core-wasm-timeout}
+- `CORE:WASM_PANIC` {#core-wasm-panic}
+- `CORE:QUERY_CAPACITY_EXCEEDED` {#core-query-capacity-exceeded}
+- `CORE:ENTITY_LIMIT_REACHED` {#core-entity-limit-reached}
+- `CORE:COMPONENT_TYPE_LIMIT_REACHED` {#core-component-type-limit-reached}
+- `CORE:INVALID_PARENT` {#core-invalid-parent}
+- `CORE:INVALID_MAX_ENTITIES` {#core-invalid-max-entities}
+- `CORE:BUFFER_LENGTH_MISMATCH` {#core-buffer-length-mismatch}
+- `CORE:WASM_MODULE_REGION_TOO_SMALL` {#core-wasm-module-region-too-small}
+- `CORE:WASM_MODULE_REGION_INVALID` {#core-wasm-module-region-invalid}
+- `CORE:INVALID_SHARED_BUFFER` {#core-invalid-shared-buffer}
+- `CORE:COMPONENT_WRITE_REJECTED` {#core-component-write-rejected}
+- `CORE:UNCAUGHT_ERROR` {#core-uncaught-error}
+- `CORE:UNHANDLED_REJECTION` {#core-unhandled-rejection}
+- `CORE:ERROR_HANDLER_FAILED` {#core-error-handler-failed}
+- `CORE:MEMORY_VIEW_INVALID` {#core-memory-view-invalid}
+- `CORE:MEMORY_VIEW_DETACHED` {#core-memory-view-detached}
+- `CORE:WASM_NOT_INITIALIZED` {#core-wasm-not-initialized}
+- `CORE:WASM_VARIANT_MISMATCH` {#core-wasm-variant-mismatch}
+- `CORE:SHARED_BUFFER_ALLOC_FAILED` {#core-shared-buffer-alloc-failed}
+- `CORE:SHARED_MEMORY_INVALID_SIZE` {#core-shared-memory-invalid-size}
+- `CORE:SHARED_MEMORY_EXHAUSTED` {#core-shared-memory-exhausted}
+- `CORE:SHARED_MEMORY_SENTINEL_OVERWRITE` {#core-shared-memory-sentinel-overwrite}
+- `CORE:WASM_MODULE_ABI_MISMATCH` {#core-wasm-module-abi-mismatch}
+- `CORE:ADVANCE_REENTRANT` {#core-advance-reentrant}
+- `CORE:INVALID_STATE_TRANSITION` {#core-invalid-state-transition}
+- `CORE:WASM_MODULE_NO_MEMORY` {#core-wasm-module-no-memory}
+- `CORE:WASM_REGION_NOT_FOUND` {#core-wasm-region-not-found}
+- `CORE:WASM_CHANNEL_NOT_FOUND` {#core-wasm-channel-not-found}
+- `CORE:WASM_MODULE_NOT_FOUND` {#core-wasm-module-not-found}
+- `CORE:COMPONENT_LAYOUT_INVALID` {#core-component-layout-invalid}
+- `CORE:ARCHETYPE_LIMIT_REACHED` {#core-archetype-limit-reached}
+- `CORE:QUERY_INVALID` {#core-query-invalid}
+- `CORE:QUERY_PER_ENTITY_PATH` {#core-query-per-entity-path}
+- `CORE:STORAGE_INCONSISTENT` {#core-storage-inconsistent}
+- `CORE:INVALID_CONFIG` {#core-invalid-config}
+- `CORE:PLUGIN_NOT_FOUND` {#core-plugin-not-found}
+- `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
+- `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} Thrown by the WASM glue loader (#260).
+- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by engine dispose (#261).
+- `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by WASM instance capacity (#263).
 
 ## @gwenjs/kit
 

@@ -34,8 +34,11 @@ export class ServiceContainer {
     if (!this._services.has(key)) {
       throw new GwenPluginNotFoundError({
         pluginName: String(key),
-        hint: `Call engine.use(${String(key)}Plugin()) before using this service.`,
-        docsUrl: "https://gwenengine.dev/docs/plugins",
+        composable: "engine.inject",
+        what: `No plugin provides service "${String(key)}".`,
+        hint: __GWEN_DEV__
+          ? `Install a plugin that declares provides: ["${String(key)}"].`
+          : undefined,
       });
     }
     return readProvidedService(this._services, key);

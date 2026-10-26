@@ -31,7 +31,9 @@ export function usePhysics3D(): Physics3DAPI {
   if (service) return service;
   throw new GwenPluginNotFoundError({
     pluginName: "@gwenjs/physics3d",
-    hint: "Call engine.use(physics3dPlugin()) before starting the engine.",
-    docsUrl: "https://gwenengine.dev/plugins/physics3d",
+    composable: "usePhysics3D",
+    hint: __GWEN_DEV__
+      ? "Call engine.use(Physics3DPlugin()) before starting the engine."
+      : undefined,
   });
 }

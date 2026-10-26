@@ -191,11 +191,12 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     const state = this._stateMachine.state;
     if (state !== "idle") throw new GwenEngineStateError(state, "start");
     if (!this._bridge.isActive()) {
-      throw new GwenError(
-        CoreErrorCodes.WASM_NOT_INITIALIZED,
-        "[GWEN] WASM core not initialized.\n" +
-          "Call `await bridge.init()` or `setupGwen()` before starting the Engine.",
-      );
+      throw new GwenError(CoreErrorCodes.WASM_NOT_INITIALIZED, "WASM core not initialized.", {
+        composable: "engine.start",
+        hint: __GWEN_DEV__
+          ? "Call `await bridge.init()` or `setupGwen()` before starting the Engine."
+          : undefined,
+      });
     }
     this._policy.attach();
     this._loop.markStart();
@@ -478,8 +479,13 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     if (!bridge) {
       throw new GwenError(
         CoreErrorCodes.WASM_NOT_INITIALIZED,
-        "[GWEN] getPlacementBridge() called before WASM is initialised. " +
-          "Await bridge.init() before calling placement composables.",
+        "getPlacementBridge() called before WASM is initialised.",
+        {
+          composable: "getPlacementBridge",
+          hint: __GWEN_DEV__
+            ? "Await bridge.init() before calling placement composables."
+            : undefined,
+        },
       );
     }
     // boundary: WASM bridge object is an untyped export bag. PlacementBridge is its typed view.
