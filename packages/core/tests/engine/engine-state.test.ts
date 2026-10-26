@@ -930,8 +930,9 @@ describe("EngineStateMachine", () => {
     if (!(caught instanceof GwenError)) throw caught ?? new Error("expected GwenError");
     expect(caught instanceof GwenEngineStateError).toBe(false);
     expect(caught.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
+    expect(caught.composable).toBe("engine.createEntity");
     expect(caught.message).toBe(
-      "[GwenEngine] createEntity() is not allowed while the engine is faulted.",
+      "[engine.createEntity()] Not allowed while the engine is faulted.\nSee https://gwenjs.github.io/gwen/api/errors#core-invalid-state-transition (CORE:INVALID_STATE_TRANSITION)",
     );
     expect(first.machine.state).toBe("faulted");
 
@@ -963,7 +964,10 @@ describe("EngineStateMachine", () => {
       expect(caught.from).toBe(from);
       expect(caught.method).toBe("use");
       expect(caught.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
-      expect(caught.message).toBe(`[GwenEngine] use() is not allowed while the engine is ${from}.`);
+      expect(caught.composable).toBe("engine.use");
+      expect(caught.message).toBe(
+        `[engine.use()] Not allowed while the engine is ${from}.\nSee https://gwenjs.github.io/gwen/api/errors#core-invalid-state-transition (CORE:INVALID_STATE_TRANSITION)`,
+      );
       expect(machine.state).toBe(from);
     }
 

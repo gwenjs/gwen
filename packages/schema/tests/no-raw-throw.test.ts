@@ -471,6 +471,13 @@ describe("package throws", () => {
       knownFile().R3,
     );
   });
+
+  it("WASM_GLUE_MISMATCH is anchored in docs/api/errors.md", () => {
+    const enPage = readFileSync(path.join(repoRoot, "docs/api/errors.md"), "utf8");
+    const frPage = readFileSync(path.join(repoRoot, "docs/fr/api/errors.md"), "utf8");
+    expect(enPage).toContain("{#core-wasm-glue-mismatch}");
+    expect(frPage).toContain("{#core-wasm-glue-mismatch}");
+  });
   it("no message carries a tag, fix, URL or code", () => {
     const { findings } = repoScan();
     expect(tally(findings, "R4", "hard")).toEqual({});

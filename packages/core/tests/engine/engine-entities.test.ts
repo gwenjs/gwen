@@ -210,7 +210,7 @@ describe("EngineEntities", async () => {
   it("constructs without createEngine and createEntity while faulted does not store an entity", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
-      "[GwenEngine] createEntity() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     const { entities, calls } = await open({
       assertState() {
@@ -232,7 +232,7 @@ describe("EngineEntities", async () => {
   it("constructs without createEngine and addComponent while faulted does not store the component", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
-      "[GwenEngine] addComponent() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     let armed = false;
     const { entities } = await open({
@@ -256,7 +256,7 @@ describe("EngineEntities", async () => {
   it("constructs without createEngine and destroyEntity while faulted leaves the entity alive", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
-      "[GwenEngine] destroyEntity() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     let armed = false;
     const { entities, destroyed } = await open({
@@ -281,7 +281,7 @@ describe("EngineEntities", async () => {
   it("constructs without createEngine and removeComponent while faulted leaves the component", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
-      "[GwenEngine] removeComponent() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     let armed = false;
     const { entities } = await open({
@@ -306,7 +306,7 @@ describe("EngineEntities", async () => {
   it("constructs without createEngine and canSpawn while faulted still reports capacity", async () => {
     const gate = new GwenError(
       "CORE:INVALID_STATE_TRANSITION",
-      "[GwenEngine] canSpawn() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     const { entities, calls } = await open({
       maxEntities: 1,

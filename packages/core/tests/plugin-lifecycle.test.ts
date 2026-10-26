@@ -2,6 +2,7 @@
  * RFC-001: engine.use / engine.unuse lifecycle tests
  */
 import { describe, it, expect, vi } from "vitest";
+import { GwenError } from "@gwenjs/schema";
 import { createEngine, GwenPluginNotFoundError } from "../src/index";
 
 declare module "@gwenjs/schema" {
@@ -87,7 +88,11 @@ describe("engine.provide / inject / tryInject", () => {
 
   it("inject() throws GwenPluginNotFoundError when absent", async () => {
     const engine = await createEngine();
-    expect(() => engine.inject("testSvc" as never)).toThrow(GwenPluginNotFoundError);
+    try {
+      expect(() => engine.inject("testSvc" as never)).toThrow(GwenPluginNotFoundError);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("GwenPluginNotFoundError has plugin, hint, docsUrl", async () => {
@@ -96,10 +101,13 @@ describe("engine.provide / inject / tryInject", () => {
       engine.inject("testSvc" as never);
     } catch (e) {
       expect(e).toBeInstanceOf(GwenPluginNotFoundError);
-      const err = e as GwenPluginNotFoundError;
-      expect(err.pluginName).toBe("testSvc");
-      expect(err.hint.length).toBeGreaterThan(0);
-      expect(err.docsUrl).toMatch(/^https?:\/\//);
+      if (!(e instanceof GwenPluginNotFoundError)) return;
+      expect(e.pluginName).toBe("testSvc");
+      expect(e.docsUrl).toBe("https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found");
+      if (__GWEN_DEV__) expect(e.hint).toContain('provides: ["testSvc"]');
+      else expect(e.hint).toBeUndefined();
+    } finally {
+      await engine.stop();
     }
   });
 
@@ -127,19 +135,25 @@ describe("engine.advance()", () => {
 
   it("throws on re-entrant advance()", async () => {
     const engine = await createEngine();
-    let secondCallError: Error | null = null;
+    let secondCallError: unknown = null;
     await engine.use({
       name: "reentrant",
       setup(e) {
         e.hooks.hook("engine:update", () => {
-          engine.advance(0.016).catch((e: Error) => {
-            secondCallError = e;
+          engine.advance(0.016).catch((caught: unknown) => {
+            secondCallError = caught;
           });
         });
       },
     });
-    await engine.advance(0.016);
-    expect(secondCallError).not.toBeNull();
-    expect((secondCallError as unknown as Error).message).toMatch(/re-entrantly/);
+    try {
+      await engine.advance(0.016);
+      expect(secondCallError).toBeInstanceOf(GwenError);
+      if (!(secondCallError instanceof GwenError)) return;
+      expect(secondCallError.composable).toBe("engine.advance");
+      expect(secondCallError.message).toContain("re-entrantly");
+    } finally {
+      await engine.stop();
+    }
   });
 });

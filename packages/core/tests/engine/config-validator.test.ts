@@ -9,27 +9,27 @@ import { GwenConfigError } from "../../src/engine/config-error.js";
 
 describe("GwenConfigError", () => {
   it("is an Error instance", () => {
-    const err = new GwenConfigError("maxEntities", -1, "Must be positive");
+    const err = new GwenConfigError("maxEntities", -1, { hint: "Must be positive" });
     expect(err).toBeInstanceOf(Error);
   });
 
   it("has name property set to GwenConfigError", () => {
-    const err = new GwenConfigError("maxEntities", -1, "Must be positive");
+    const err = new GwenConfigError("maxEntities", -1, { hint: "Must be positive" });
     expect(err.name).toBe("GwenConfigError");
   });
 
   it("exposes field, value, and hint properties", () => {
-    const err = new GwenConfigError("maxEntities", -1, "Must be positive");
+    const err = new GwenConfigError("maxEntities", -1, { hint: "Must be positive" });
     expect(err.field).toBe("maxEntities");
     expect(err.value).toBe(-1);
-    expect(err.hint).toBe("Must be positive");
+    expect(err.code).toBe("CORE:INVALID_CONFIG");
+    expect(err.hint).toBe(__GWEN_DEV__ ? "Must be positive" : undefined);
   });
 
   it("formats message with field, value, and hint", () => {
-    const err = new GwenConfigError("maxEntities", -1, "Must be positive");
-    expect(err.message).toContain("maxEntities");
-    expect(err.message).toContain("-1");
-    expect(err.message).toContain("Must be positive");
+    const err = new GwenConfigError("maxEntities", -1, { hint: "Must be positive" });
+    expect(err.message).toContain('Invalid config "maxEntities": -1.');
+    if (__GWEN_DEV__) expect(err.message).toContain("Must be positive");
   });
 });
 
@@ -230,7 +230,7 @@ describe("validateEngineConfig — multiple field validation", () => {
 describe("validateEngineConfig — logger.providers shape", () => {
   type EngineOptions = Parameters<typeof validateEngineConfig>[0];
 
-  it("a non-array logger.providers throws GWEN_CONFIG_ERROR", () => {
+  it("a non-array logger.providers throws CORE:INVALID_CONFIG", () => {
     const providers: { length: number } = { length: 1 };
     const options: EngineOptions | { logger: { providers: { length: number } } } = {
       logger: { providers },
@@ -246,13 +246,13 @@ describe("validateEngineConfig — logger.providers shape", () => {
       field: error?.field,
       hint: error?.hint,
     }).toEqual({
-      code: "GWEN_CONFIG_ERROR",
+      code: "CORE:INVALID_CONFIG",
       field: "logger.providers",
-      hint: "Pass objects with a handle(entry) method.",
+      hint: __GWEN_DEV__ ? "Pass objects with a handle(entry) method." : undefined,
     });
   });
 
-  it("a null logger provider throws GWEN_CONFIG_ERROR", () => {
+  it("a null logger provider throws CORE:INVALID_CONFIG", () => {
     const providers: ReadonlyArray<IGwenLogProvider | null> = [null];
     const options:
       | EngineOptions
@@ -270,13 +270,13 @@ describe("validateEngineConfig — logger.providers shape", () => {
       field: error?.field,
       hint: error?.hint,
     }).toEqual({
-      code: "GWEN_CONFIG_ERROR",
+      code: "CORE:INVALID_CONFIG",
       field: "logger.providers",
-      hint: "Pass objects with a handle(entry) method.",
+      hint: __GWEN_DEV__ ? "Pass objects with a handle(entry) method." : undefined,
     });
   });
 
-  it("a provider whose handle is not a function throws GWEN_CONFIG_ERROR", () => {
+  it("a provider whose handle is not a function throws CORE:INVALID_CONFIG", () => {
     const providers: ReadonlyArray<IGwenLogProvider | { handle: string }> = [{ handle: "nope" }];
     const options:
       | EngineOptions
@@ -294,9 +294,9 @@ describe("validateEngineConfig — logger.providers shape", () => {
       field: error?.field,
       hint: error?.hint,
     }).toEqual({
-      code: "GWEN_CONFIG_ERROR",
+      code: "CORE:INVALID_CONFIG",
       field: "logger.providers",
-      hint: "Pass objects with a handle(entry) method.",
+      hint: __GWEN_DEV__ ? "Pass objects with a handle(entry) method." : undefined,
     });
   });
 });

@@ -5,7 +5,13 @@
 import { describe, it, expect } from "vitest";
 import { checkPluginApiVersion, GWEN_PLUGIN_API_VERSION } from "../../src/engine/engine-types";
 
-const FIX = "Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.";
+const ADVICE = "recompile the plugin against the current gwen-wasm-utils / ABI version.";
+
+function abiMessage(moduleName: string, shown: string): string {
+  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2000000.`;
+  const fix = __GWEN_DEV__ ? `\nFix: ${ADVICE}` : "";
+  return `[checkPluginApiVersion()] ${what}${fix}\nSee https://gwenjs.github.io/gwen/api/errors#core-wasm-module-abi-mismatch (CORE:WASM_MODULE_ABI_MISMATCH)`;
+}
 
 function readField(value: object, key: string): unknown {
   return Reflect.get(value, key);
@@ -27,9 +33,10 @@ describe("checkPluginApiVersion", () => {
     expect(readField(caught, "module")).toBe("bare");
     expect(readField(caught, "expected")).toBe(2_000_000);
     expect(readField(caught, "actual")).toBeNull();
-    expect(caught.message).toBe(
-      `[GWEN] loadWasmModule("bare"): plugin ABI version none declared does not match 2000000. ${FIX}`,
-    );
+    expect(readField(caught, "composable")).toBe("checkPluginApiVersion");
+    expect(readField(caught, "hint")).toBe(__GWEN_DEV__ ? ADVICE : undefined);
+    expect(caught.message.split("\n")[0]).not.toContain("Fix:");
+    expect(caught.message).toBe(abiMessage("bare", "none declared"));
   });
 
   it("throws GwenWasmAbiError with actual null when the export is not a function", () => {
@@ -46,9 +53,11 @@ describe("checkPluginApiVersion", () => {
     expect(caught.name).toBe("GwenWasmAbiError");
     expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
     expect(readField(caught, "actual")).toBeNull();
+    expect(readField(caught, "composable")).toBe("checkPluginApiVersion");
+    expect(readField(caught, "hint")).toBe(__GWEN_DEV__ ? ADVICE : undefined);
+    expect(caught.message.split("\n")[0]).not.toContain("Fix:");
     expect(caught.message).toContain("none declared");
     expect(caught.message).toContain("bad-export");
-    expect(caught.message).toContain(FIX);
   });
 
   it("throws GwenWasmAbiError with actual null when the export returns a non-number", () => {
@@ -65,7 +74,7 @@ describe("checkPluginApiVersion", () => {
     if (!(caught instanceof Error)) return;
     expect(readField(caught, "code")).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
     expect(readField(caught, "actual")).toBeNull();
-    expect(caught.message).toContain('loadWasmModule("text-version")');
+    expect(caught.message).toContain('Plugin "text-version"');
     expect(caught.message).toContain("none declared");
   });
 
@@ -86,9 +95,10 @@ describe("checkPluginApiVersion", () => {
     expect(readField(caught, "module")).toBe("next");
     expect(readField(caught, "expected")).toBe(2_000_000);
     expect(readField(caught, "actual")).toBe(2_000_001);
-    expect(caught.message).toBe(
-      `[GWEN] loadWasmModule("next"): plugin ABI version 2000001 does not match 2000000. ${FIX}`,
-    );
+    expect(readField(caught, "composable")).toBe("checkPluginApiVersion");
+    expect(readField(caught, "hint")).toBe(__GWEN_DEV__ ? ADVICE : undefined);
+    expect(caught.message.split("\n")[0]).not.toContain("Fix:");
+    expect(caught.message).toBe(abiMessage("next", "2000001"));
   });
 
   it("returns undefined when the export equals the current version", () => {

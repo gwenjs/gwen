@@ -29,8 +29,8 @@ describe("GwenError", () => {
   });
 
   it("stores the code", () => {
-    const e = new GwenError("GWEN_PLUGIN_NOT_FOUND", "plugin not found");
-    expect(e.code).toBe("GWEN_PLUGIN_NOT_FOUND");
+    const e = new GwenError("CORE:PLUGIN_NOT_FOUND", "plugin not found");
+    expect(e.code).toBe("CORE:PLUGIN_NOT_FOUND");
   });
 
   it("stores the message", () => {
