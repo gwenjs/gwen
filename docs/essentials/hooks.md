@@ -121,17 +121,16 @@ The namespaces `engine:*`, `entity:*`, `scene:*`, `actor:*`, and `plugin:*` are 
 | `engine:after-update` | `dt: number` | After update phase |
 | `engine:render` | `alpha: number` | Once per display frame |
 | `engine:memory-grow` | `{ epoch, byteLength, frame }` | Linear memory grew, before the next phase |
+| `entity:spawn` | `id` | `createEntity` or `bulkSpawnWithTransforms` created that id |
 | `entity:destroy` | `id: EntityId` | `destroyEntity` destroyed that id |
 | `scene:enter` | `name, params?` | Scene activated |
 | `scene:beforeLeave` | `name` | Before scene deactivation |
 | `scene:leave` | `name` | Scene deactivated |
 | `scene:transition:leave` | `{ from, to }` | Before leave animation |
 | `scene:transition:enter` | `{ from, to }` | After enter animation |
-| `actor:enable` | `entityId` | Actor scope resumed |
-| `actor:disable` | `entityId` | Actor scope paused |
+| `actor:enable` | `entityId` | Pooled actor acquired again |
+| `actor:disable` | `entityId` | Pooled actor released |
 | `engine:error` | `EngineErrorPayload` | Unhandled frame error |
-
-There is no `entity:spawn` event. `destroyEntity` emits `entity:destroy` with that id.
 
 ```ts run
 import assert from "node:assert/strict";

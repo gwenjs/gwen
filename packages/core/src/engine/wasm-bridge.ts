@@ -34,6 +34,7 @@ import {
   deferEntityCreate,
   deferEntityDestroy,
   hasEntityTrace,
+  noteBulkSpawned,
   noteEntityAllocated,
   noteEntityDeallocated,
 } from "./entity-trace.js";
@@ -547,6 +548,7 @@ export class WasmBridgeImpl implements WasmBridge {
         const slot = spawned[index] ?? 0;
         noteEntityAllocated(this, slot, this.getEntityGeneration(slot));
       }
+      noteBulkSpawned(this, spawned);
       return spawned;
     } catch (error: unknown) {
       throw this._mapWasmError(error, "bulk_spawn_with_transforms");

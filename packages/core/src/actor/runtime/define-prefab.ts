@@ -18,6 +18,8 @@
  * ```
  */
 
+import type { GwenPrefabExtensions } from "@gwenjs/schema";
+
 import type { InferComponent } from "../../schema";
 import type { ComponentDef } from "../../system/runtime/define-system";
 
@@ -54,7 +56,12 @@ export interface PrefabDefinition<E extends readonly ComponentDef[]> {
   readonly __prefabName__: string;
   /** Declared components, in insertion order. */
   readonly components: PrefabEntries<E>;
+  /** Plugin data carried into `prefab:instantiate`. Shared empty object when omitted. */
+  readonly extensions: Readonly<Partial<GwenPrefabExtensions>>;
 }
+
+/** One frozen object for every prefab that declares no extensions. */
+const EMPTY_PREFAB_EXTENSIONS: Readonly<Partial<GwenPrefabExtensions>> = Object.freeze({});
 
 // ─── Implementation ───────────────────────────────────────────────────────────
 
@@ -66,6 +73,7 @@ export interface PrefabDefinition<E extends readonly ComponentDef[]> {
  * of per-instance tracking.
  *
  * @param components - Component definitions with their default values.
+ * @param options - Optional `extensions` carried into `prefab:instantiate`.
  *
  * @example
  * ```typescript
@@ -77,9 +85,12 @@ export interface PrefabDefinition<E extends readonly ComponentDef[]> {
  */
 export function definePrefab<const E extends readonly ComponentDef[]>(
   components: PrefabEntries<E>,
+  options?: { readonly extensions?: Readonly<Partial<GwenPrefabExtensions>> },
 ): PrefabDefinition<E> {
+  const extensions = options?.extensions ?? EMPTY_PREFAB_EXTENSIONS;
   return Object.freeze({
     __prefabName__: "anonymous",
     components: [...components] as PrefabEntries<E>,
+    extensions,
   });
 }

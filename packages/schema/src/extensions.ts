@@ -8,8 +8,7 @@
  * @example
  * ```ts
  * // After gwen prepare — typed automatically from plugins
- * definePrefab({
- *   name: 'Player',
+ * definePrefab(components, {
  *   extensions: { physics: { mass: 10 } }, // ✅ typed
  * });
  * ```

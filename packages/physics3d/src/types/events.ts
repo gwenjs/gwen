@@ -37,7 +37,7 @@ export interface Physics3DCollisionContact {
 // ─── Prefab extension ──────────────────────────────────────────────────────────
 
 /**
- * Extension schema for `definePrefab({ extensions: { physics3d: … } })`.
+ * Extension schema for `definePrefab(components, { extensions: { physics3d: … } })`.
  *
  * When a prefab is instantiated, the Physics3D plugin reads this object and
  * automatically creates the rigid body and attaches all declared colliders.

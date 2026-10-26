@@ -23,6 +23,7 @@
  */
 
 import { useEngine } from "../../engine/context";
+import { queuePrefabInstantiate } from "../../engine/hook-dispatch";
 import { getWasmBridge, WasmBridgeImpl } from "../../engine/wasm-bridge";
 import type { PlaceHandle, ActorDefinition } from "./types";
 import type { PrefabDefinition, PrefabOverrides } from "./define-prefab";
@@ -298,6 +299,8 @@ export function placePrefab<E extends readonly ComponentDef[]>(
     for (const entry of prefabDef.components) {
       engine.addComponent(entityId, entry.def, { ...entry.defaults, ...options.props });
     }
+
+    queuePrefabInstantiate(engine, entityId, prefabDef.extensions);
 
     _applyTransformOpts(bridge, entityId, options);
 

@@ -15,6 +15,8 @@ export interface EntityTrace {
   deferDestroy?(index: number, generation: number): boolean | undefined;
   /** `undefined` means the bridge should call WASM now. */
   deferBulkSpawn?(positions: Float32Array, rotations: Float32Array): Uint32Array | undefined;
+  /** Immediate bulk spawn, after the ids exist. Absent while a chunk loop defers the call. */
+  bulkSpawned?(spawned: Uint32Array): void;
   /** `true` means the destroy was queued. `undefined` means call WASM. */
   deferBulkDestroy?(indices: Uint32Array): true | undefined;
 }
@@ -57,6 +59,11 @@ export function deferBulkSpawn(
   rotations: Float32Array,
 ): Uint32Array | undefined {
   return traces.get(bridge)?.deferBulkSpawn?.(positions, rotations);
+}
+
+/** The immediate bulk path. A deferred call does not notify here. */
+export function noteBulkSpawned(bridge: object, spawned: Uint32Array): void {
+  traces.get(bridge)?.bulkSpawned?.(spawned);
 }
 
 export function deferBulkDestroy(bridge: object, indices: Uint32Array): true | undefined {

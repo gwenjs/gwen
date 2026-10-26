@@ -22,7 +22,13 @@ import { EngineStatsRecorder } from "./engine-stats.js";
 import { EngineStateMachine } from "./engine-state.js";
 import { EngineErrorPolicy } from "./engine-error-policy.js";
 import { EngineLoop } from "./engine-loop.js";
-import { bindEngineOnHooks, emitEntityDestroy } from "./hook-dispatch.js";
+import {
+  bindEngineOnHooks,
+  emitBulkSpawn,
+  emitEntityDestroy,
+  emitEntitySpawn,
+  trackCoreHookListeners,
+} from "./hook-dispatch.js";
 import { rememberEngineInternals } from "./engine-internals.js";
 import { WasmModuleRunner } from "./wasm-module-runner.js";
 import type { GwenEngine, GwenEngineOptions } from "./engine-types.js";
@@ -65,6 +71,7 @@ export abstract class EngineCollaborators {
 
   constructor(opts: GwenEngineOptions) {
     const engine = this.asEngine();
+    const hookCounts = trackCoreHookListeners(this.hooks);
     this._bridge = opts._bridge ?? new WasmBridgeImpl();
     this.maxEntities = opts.maxEntities ?? 10_000;
     this.targetFPS = opts.targetFPS ?? 60;
@@ -112,6 +119,9 @@ export abstract class EngineCollaborators {
       maxEntities: this.maxEntities,
       assertState: (method) => this._stateMachine.assert(method),
       emitDestroy: (id) => emitEntityDestroy(engine, this.hooks, reportDestroyFailure, id),
+      emitSpawn: (id) => emitEntitySpawn(engine, id),
+      emitBulkSpawn: (spawned, generations) => emitBulkSpawn(engine, spawned, generations),
+      hookCounts,
       reportInconsistent: (error) => {
         this._policy.reportCaught(error, "defer-create");
       },

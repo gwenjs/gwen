@@ -133,10 +133,13 @@ These are the engine lifecycle events you can subscribe to. All fire automatical
 | `engine:afterTick` | `(dt: number) => void` | After each simulation step. After render when `physicsHz` is 0. Before the display render in fixed mode. |
 | `engine:memory-grow` | `(info: { epoch, byteLength, frame }) => void` | Linear memory grew, before the next phase |
 | `engine:error` | `(payload: EngineErrorPayload) => void` | Frame loop catches an unhandled error |
+| `entity:spawn` | `(id: EntityId) => void` | `createEntity` or `bulkSpawnWithTransforms` created that id |
 | `entity:destroy` | `(id: EntityId) => void` | `destroyEntity` removed that id |
+| `actor:enable` | `(entityId: bigint) => void` | A pooled actor is acquired again. The first acquire does not fire it |
+| `actor:disable` | `(entityId: bigint) => void` | A pooled actor is released |
 | `plugin:registered` | `(pluginName: string) => void` | Plugin setup completes and registers |
 | `plugin:error` | `(payload: PluginErrorEvent) => void` | Plugin lifecycle hook throws and isn't recovered |
-| `prefab:instantiate` | `(entityId: EntityId, extensions: GwenPrefabExtensions) => void` | Entity created from a prefab (used internally by plugins like Physics2D). Augment `GwenPrefabExtensions` with `declare module "@gwenjs/schema"`. |
+| `prefab:instantiate` | `(entityId: EntityId, extensions: Readonly<Partial<GwenPrefabExtensions>>) => void` | After the prefab components are written, for an actor spawn, `usePrefab().spawn`, and `placePrefab`. Augment `GwenPrefabExtensions` with `declare module "@gwenjs/schema"`. |
 
 With `physicsHz` at 0, one `advance` runs `engine:tick`, `engine:before-update`, `engine:update`, `engine:after-update`, `engine:render`, then `engine:afterTick`.
 

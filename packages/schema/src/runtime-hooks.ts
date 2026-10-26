@@ -123,9 +123,9 @@ export interface GwenRuntimeHooks {
    * Payload: { from, to }.
    */
   "scene:transition:enter": (payload: { from: string; to: string }) => void | Promise<void>;
-  /** Fired when an actor scope is resumed (pool re-acquire or explicit enable). */
+  /** Fired when a pooled actor is acquired again. The first acquire does not fire this hook. */
   "actor:enable": (entityId: bigint) => void;
-  /** Fired when an actor scope is paused (pool release or explicit disable). */
+  /** Fired when a pooled actor is released. */
   "actor:disable": (entityId: bigint) => void;
 
   /**
@@ -135,8 +135,9 @@ export interface GwenRuntimeHooks {
   "plugin:error": (payload: PluginErrorEvent) => void;
 
   /**
-   * Fired to trigger plugin-specific setup when an entity is created from a
-   * prefab declaration. Plugins (e.g. Physics2D) subscribe to create rigid bodies.
+   * Fired after the prefab components are written, before the actor factory.
+   * Also fired by `usePrefab().spawn` and `placePrefab`.
+   * Plugins (e.g. Physics2D) subscribe to create rigid bodies.
    */
   "prefab:instantiate": (
     entityId: EntityId,

@@ -508,21 +508,25 @@ function placeGroup(actors: (ActorDef | () => ActorDef)[]): Entity[]
 
 ### Prefabs
 
-#### definePrefab(entries)
+#### definePrefab(components, options?)
 
 **Signature:**
 ```ts
-function definePrefab(entries: Array<{ def: ComponentDef; defaults: Record<string, any> }>): PrefabDef
+function definePrefab(
+  components: PrefabEntries<E>,
+  options?: { readonly extensions?: Readonly<Partial<GwenPrefabExtensions>> },
+): PrefabDefinition<E>
 ```
 
-**Description.** Defines a reusable entity template (prefab) with predefined components and default values.
+**Description.** Defines a reusable entity template (prefab) with predefined components and default values. `options.extensions` is carried into `prefab:instantiate`.
 
 **Parameters:**
 | Param | Type | Description |
 |---|---|---|
-| entries | `Array<{ def, defaults }>` | List of components with their default values |
+| components | `PrefabEntries<E>` | List of components with their default values |
+| options | `{ extensions? }` | Optional plugin extensions stored on the prefab |
 
-**Returns:** `PrefabDef` — prefab definition.
+**Returns:** `PrefabDefinition<E>` — prefab definition.
 
 **Example:**
 ```ts

@@ -87,25 +87,22 @@ import { createTilemapChunkOrchestrator } from "@gwenjs/physics2d/helpers/orches
 ## Prefab example (vNext)
 
 ```ts
+import { defineComponent, Types } from "@gwenjs/core";
 import { definePrefab } from "@gwenjs/core/actor";
 
-export const BulletPrefab = definePrefab({
-  name: "Bullet",
+const Position = defineComponent({
+  name: "BulletPosition",
+  schema: { x: Types.f32, y: Types.f32 },
+  defaults: { x: 0, y: 0 },
+});
+
+export const BulletPrefab = definePrefab([{ def: Position, defaults: { x: 0, y: 0 } }], {
   extensions: {
     physics: {
       bodyType: "dynamic",
       ccdEnabled: true,
       colliders: [{ shape: "ball", radius: 4 }],
-      onCollision(self, _other, contact, api) {
-        if (!contact.started) return;
-        api.destroyEntity(self);
-      },
     },
-  },
-  create: (api, x: number, y: number) => {
-    const id = api.createEntity();
-    api.addComponent(id, "position", { x, y });
-    return id;
   },
 });
 ```

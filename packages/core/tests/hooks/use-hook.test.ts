@@ -291,6 +291,8 @@ describe("useHook() in actor context — dormancy via ScopedHookable", () => {
       id1 = Actor._plugin.spawn!();
       id2 = Actor._plugin.spawn!();
     });
+    // The second spawn fires entity:spawn for real. The explicit call is the check.
+    handler.mockClear();
 
     // Pause only instance 1
     Actor._instances.get(id1!)!._scope.pause();
