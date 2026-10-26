@@ -56,18 +56,14 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
   if (opts.maxEntities !== undefined) {
     const v = opts.maxEntities;
     if (!Number.isInteger(v) || v < 1) {
-      throw new GwenConfigError(
-        "maxEntities",
-        v,
-        "Must be a positive integer. Try 10_000 for a typical game.",
-      );
+      throw new GwenConfigError("maxEntities", v, {
+        hint: "Must be a positive integer. Try 10_000 for a typical game.",
+      });
     }
     if (v > 2_000_000) {
-      throw new GwenConfigError(
-        "maxEntities",
-        v,
-        "Above 2 000 000 entities, consider chunking your world.",
-      );
+      throw new GwenConfigError("maxEntities", v, {
+        hint: "Above 2 000 000 entities, consider chunking your world.",
+      });
     }
     if (v > 500_000) {
       // eslint-disable-next-line no-console
@@ -81,11 +77,9 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
   if (opts.targetFPS !== undefined) {
     const v = opts.targetFPS;
     if (!Number.isFinite(v) || v < 1 || v > 300) {
-      throw new GwenConfigError(
-        "targetFPS",
-        v,
-        "Must be between 1 and 300. Common values: 30, 60, 120.",
-      );
+      throw new GwenConfigError("targetFPS", v, {
+        hint: "Must be between 1 and 300. Common values: 30, 60, 120.",
+      });
     }
     if (v > 144) {
       // eslint-disable-next-line no-console
@@ -99,11 +93,9 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
   if (opts.maxDeltaSeconds !== undefined) {
     const v = opts.maxDeltaSeconds;
     if (!Number.isFinite(v) || v <= 0 || v > 10) {
-      throw new GwenConfigError(
-        "maxDeltaSeconds",
-        v,
-        "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
-      );
+      throw new GwenConfigError("maxDeltaSeconds", v, {
+        hint: "Must be > 0 and ≤ 10. Default 0.1 s prevents spiral-of-death.",
+      });
     }
   }
 
@@ -112,18 +104,14 @@ export function validateEngineConfig(opts: GwenEngineOptions): void {
     const minLevel: unknown = opts.logger.minLevel;
     const providers: unknown = opts.logger.providers;
     if (minLevel !== undefined && !isGwenLogLevel(minLevel)) {
-      throw new GwenConfigError(
-        "logger.minLevel",
-        minLevel,
-        'Use "debug", "info", "warn" or "error".',
-      );
+      throw new GwenConfigError("logger.minLevel", minLevel, {
+        hint: 'Use "debug", "info", "warn" or "error".',
+      });
     }
     if (providers !== undefined && !isProviderList(providers)) {
-      throw new GwenConfigError(
-        "logger.providers",
-        providers,
-        "Pass objects with a handle(entry) method.",
-      );
+      throw new GwenConfigError("logger.providers", providers, {
+        hint: "Pass objects with a handle(entry) method.",
+      });
     }
   }
 }

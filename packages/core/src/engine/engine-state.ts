@@ -67,7 +67,8 @@ export class EngineStateMachine {
     if (this._state !== "faulted") return;
     throw new GwenError(
       CoreErrorCodes.INVALID_STATE_TRANSITION,
-      `[GwenEngine] ${method}() is not allowed while the engine is faulted.`,
+      "Not allowed while the engine is faulted.",
+      { composable: `engine.${method}` },
     );
   }
 

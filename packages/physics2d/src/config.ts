@@ -48,11 +48,9 @@ export function normalizeConfig(config: Physics2DConfig): NormalizedPhysics2DCon
     config.maxLinearVelocity !== undefined &&
     (!Number.isFinite(config.maxLinearVelocity) || config.maxLinearVelocity <= 0)
   ) {
-    throw new GwenConfigError(
-      "maxLinearVelocity",
-      config.maxLinearVelocity,
-      "Must be finite and greater than 0. The default is 400.",
-    );
+    throw new GwenConfigError("maxLinearVelocity", config.maxLinearVelocity, {
+      hint: "Must be finite and greater than 0. The default is 400.",
+    });
   }
   return {
     gravity: config.gravity ?? -9.81,

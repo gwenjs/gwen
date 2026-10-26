@@ -181,7 +181,8 @@ export class EngineLoop {
     if (this._advancing) {
       throw new GwenError(
         CoreErrorCodes.ADVANCE_REENTRANT,
-        "[GwenEngine] advance() called re-entrantly — only one advance per frame.",
+        "advance() called re-entrantly — only one advance per frame.",
+        { composable: "engine.advance" },
       );
     }
     this._advancing = true;

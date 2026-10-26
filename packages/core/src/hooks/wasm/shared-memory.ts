@@ -183,8 +183,10 @@ export class SharedMemoryManager {
    */
   static create(bridge: WasmBridge, maxEntities = 10_000): SharedMemoryManager {
     if (!bridge.isActive()) {
-      throw new GwenError(CoreErrorCodes.WASM_NOT_INITIALIZED, 
-        "[GWEN:SharedMemory] bridge.init() or setupGwen() must be called before SharedMemoryManager.create().",
+      throw new GwenError(
+        CoreErrorCodes.WASM_NOT_INITIALIZED,
+        "bridge.init() or setupGwen() must be called before SharedMemoryManager.create().",
+        { composable: "SharedMemoryManager.create" },
       );
     }
 
@@ -198,19 +200,20 @@ export class SharedMemoryManager {
     if (totalBytes > MAX_SAB_BYTES) {
       const mb = (totalBytes / 1024 / 1024).toFixed(1);
       const maxMb = (MAX_SAB_BYTES / 1024 / 1024).toFixed(0);
-      throw new GwenConfigError(
-        "maxEntities",
-        maxEntities,
-        `Requested ${mb} MiB of shared memory exceeds the ${maxMb} MiB limit. ` +
+      throw new GwenConfigError("maxEntities", maxEntities, {
+        hint:
+          `Requested ${mb} MiB of shared memory exceeds the ${maxMb} MiB limit. ` +
           `Reduce maxEntities or increase MAX_SAB_BYTES if you know what you're doing.`,
-      );
+      });
     }
 
     const ptr = bridge.allocSharedBuffer(totalBytes);
 
     if (ptr === 0) {
-      throw new GwenError(CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED, 
-        "[GWEN:SharedMemory] alloc_shared_buffer() returned a null pointer — out of WASM memory?",
+      throw new GwenError(
+        CoreErrorCodes.SHARED_BUFFER_ALLOC_FAILED,
+        "alloc_shared_buffer() returned a null pointer — out of WASM memory?",
+        { composable: "SharedMemoryManager.create" },
       );
     }
 
@@ -240,8 +243,10 @@ export class SharedMemoryManager {
    */
   allocateRegion(pluginId: string, byteLength: number): MemoryRegion {
     if (byteLength <= 0) {
-      throw new GwenError(CoreErrorCodes.SHARED_MEMORY_INVALID_SIZE, 
-        `[GWEN:SharedMemory] Invalid byteLength ${byteLength} for plugin '${pluginId}'.`,
+      throw new GwenError(
+        CoreErrorCodes.SHARED_MEMORY_INVALID_SIZE,
+        `Invalid byteLength ${byteLength} for plugin '${pluginId}'.`,
+        { composable: "allocateRegion" },
       );
     }
 
@@ -256,10 +261,10 @@ export class SharedMemoryManager {
     const totalReservation = aligned + SENTINEL_BYTES;
 
     if (this.usedBytes + totalReservation > this.totalBytes) {
-      throw new GwenError(CoreErrorCodes.SHARED_MEMORY_EXHAUSTED, 
-        `[GWEN:SharedMemory] Insufficient space for plugin '${pluginId}': ` +
-          `need ${totalReservation}B (${aligned}B data + ${SENTINEL_BYTES}B sentinel), ` +
-          `only ${this.totalBytes - this.usedBytes}B remaining.`,
+      throw new GwenError(
+        CoreErrorCodes.SHARED_MEMORY_EXHAUSTED,
+        `Insufficient space for plugin '${pluginId}': need ${totalReservation}B (${aligned}B data + ${SENTINEL_BYTES}B sentinel), only ${this.totalBytes - this.usedBytes}B remaining.`,
+        { composable: "allocateRegion" },
       );
     }
 
@@ -310,11 +315,15 @@ export class SharedMemoryManager {
       // so sentinelAddr is already the correct byte offset.
       const value = view.getUint32(sentinelAddr, /* littleEndian= */ true);
       if (value !== SENTINEL) {
-        throw new GwenError(CoreErrorCodes.SHARED_MEMORY_SENTINEL_OVERWRITE, 
-          `[GWEN:SharedMemory] Sentinel overwrite detected for plugin '${pluginId}'!\n` +
-            `Expected 0x${SENTINEL.toString(16).toUpperCase()} at address ${sentinelAddr}, ` +
-            `found 0x${value.toString(16).toUpperCase()}.\n` +
-            `The plugin wrote past its MemoryRegion.byteLength boundary.`,
+        throw new GwenError(
+          CoreErrorCodes.SHARED_MEMORY_SENTINEL_OVERWRITE,
+          `Sentinel overwrite detected for plugin '${pluginId}'. Expected 0x${SENTINEL.toString(16).toUpperCase()} at address ${sentinelAddr}, found 0x${value.toString(16).toUpperCase()}.`,
+          {
+            composable: "checkSentinels",
+            hint: __GWEN_DEV__
+              ? "The plugin wrote past its MemoryRegion.byteLength boundary."
+              : undefined,
+          },
         );
       }
     }

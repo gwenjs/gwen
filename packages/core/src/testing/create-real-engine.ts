@@ -42,6 +42,7 @@ function assertArtifact(variant: CoreVariant, filePath: string): void {
     throw new GwenError(
       CoreErrorCodes.WASM_LOAD_ERROR,
       `WASM artifact missing for variant "${variant}": ${filePath}. Run pnpm build:wasm.`,
+      { composable: "createRealEngine" },
     );
   }
 }

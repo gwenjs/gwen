@@ -1,24 +1,16 @@
 {
   "R2": {
-    "packages/core/src/engine/config-error.ts": 1,
-    "packages/core/src/engine/engine-errors.ts": 1,
     "packages/physics3d/src/plugin/body-management.ts": 1
   },
   "R3": {
-    "packages/core/src/engine/engine-errors.ts": 39,
     "packages/physics2d/src/errors.ts": 18,
     "packages/physics3d/src/errors/codes.ts": 30
   },
   "R4": {
-    "packages/core/src/engine/config-error.ts": 1,
     "packages/core/src/engine/engine-component-registry.ts": 1,
-    "packages/core/src/engine/engine-errors.ts": 4,
-    "packages/core/src/engine/engine-loop.ts": 1,
     "packages/core/src/engine/engine-memory.ts": 1,
-    "packages/core/src/engine/engine-state.ts": 1,
     "packages/core/src/engine/wasm-bridge.ts": 9,
     "packages/core/src/engine/wasm-module-runner.ts": 4,
-    "packages/core/src/hooks/wasm/shared-memory.ts": 3,
     "packages/physics2d/src/config.ts": 2,
     "packages/physics2d/src/errors.ts": 4,
     "packages/physics2d/src/plugin/index.ts": 2,
@@ -32,26 +24,14 @@
     "packages/physics3d/src/plugin/entity-owner.ts": 2,
     "packages/physics3d/src/plugin/index.ts": 2
   },
-  "R5": {
-    "packages/core/src/engine/engine-errors.ts": 2,
-    "packages/core/src/engine/service-container.ts": 2,
-    "packages/physics2d/src/composables.ts": 2,
-    "packages/physics3d/src/composables.ts": 2
-  },
+  "R5": {},
   "R6": {
     "packages/core/src/engine/chunk-query.ts": 16,
-    "packages/core/src/engine/config-error.ts": 1,
-    "packages/core/src/engine/engine-api.ts": 2,
     "packages/core/src/engine/engine-component-registry.ts": 5,
-    "packages/core/src/engine/engine-errors.ts": 5,
-    "packages/core/src/engine/engine-loop.ts": 1,
+    "packages/core/src/engine/engine-errors.ts": 2,
     "packages/core/src/engine/engine-memory.ts": 1,
-    "packages/core/src/engine/engine-state.ts": 1,
-    "packages/core/src/engine/gwen-engine.ts": 2,
     "packages/core/src/engine/wasm-bridge.ts": 12,
     "packages/core/src/engine/wasm-module-runner.ts": 11,
-    "packages/core/src/hooks/wasm/shared-memory.ts": 5,
-    "packages/core/src/testing/create-real-engine.ts": 1,
     "packages/physics2d/src/config.ts": 3,
     "packages/physics2d/src/errors.ts": 2,
     "packages/physics2d/src/plugin/index.ts": 2,
@@ -67,8 +47,5 @@
     "packages/physics3d/src/plugin/entity-owner.ts": 1,
     "packages/physics3d/src/plugin/index.ts": 3
   },
-  "R8": {
-    "packages/core/src/engine/config-error.ts": 2,
-    "packages/core/src/engine/engine-errors.ts": 2
-  }
+  "R8": {}
 }

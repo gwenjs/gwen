@@ -96,7 +96,11 @@ export const GWEN_PLUGIN_API_VERSION = 2_000_000; // v2.0.0
  * @param moduleName - Name passed to `loadWasmModule`
  * @throws {GwenWasmAbiError} `CORE:WASM_MODULE_ABI_MISMATCH`
  */
-export function checkPluginApiVersion(exports: WebAssembly.Exports, moduleName: string): void {
+export function checkPluginApiVersion(
+  exports: WebAssembly.Exports,
+  moduleName: string,
+  composable = "checkPluginApiVersion",
+): void {
   const versionFn = exports["gwen_plugin_api_version"];
   let actual: number | null = null;
   if (typeof versionFn === "function") {
@@ -104,7 +108,7 @@ export function checkPluginApiVersion(exports: WebAssembly.Exports, moduleName: 
     if (typeof returned === "number") actual = returned;
   }
   if (actual === GWEN_PLUGIN_API_VERSION) return;
-  throw new GwenWasmAbiError(moduleName, GWEN_PLUGIN_API_VERSION, actual);
+  throw new GwenWasmAbiError(moduleName, GWEN_PLUGIN_API_VERSION, actual, composable);
 }
 
 /**
