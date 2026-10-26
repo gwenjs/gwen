@@ -225,7 +225,7 @@ describe("WasmModuleRunner", () => {
     const served = await serve(EMPTY_WASM);
     const gate = new GwenError(
       CoreErrorCodes.INVALID_STATE_TRANSITION,
-      "[GwenEngine] loadWasmModule() is not allowed while the engine is faulted.",
+      "Not allowed while the engine is faulted.",
     );
     try {
       const { runner, calls } = open({
@@ -564,8 +564,9 @@ describe("WasmModuleRunner", () => {
       expect(caught).toBeInstanceOf(GwenError);
       if (!(caught instanceof GwenError)) throw caught;
       expect(caught.code).toBe(CoreErrorCodes.INVALID_STATE_TRANSITION);
+      expect(caught.composable).toBe("engine.loadWasmModule");
       expect(caught.message).toBe(
-        "[GwenEngine] loadWasmModule() is not allowed while the engine is faulted.",
+        "[engine.loadWasmModule()] Not allowed while the engine is faulted.\nSee https://gwenjs.github.io/gwen/api/errors#core-invalid-state-transition (CORE:INVALID_STATE_TRANSITION)",
       );
 
       const faultOrder = await orderOf(() => faulted.loadWasmModule({ name: "audio", url }));

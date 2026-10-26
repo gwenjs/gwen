@@ -414,9 +414,10 @@ describe("P0 physics loop", () => {
       if (!(thrown instanceof GwenError)) return;
       expect(thrown.code).toBe("KIT:PLUGIN_SETUP_FAILED");
       expect(thrown.composable).toBe("definePlugin");
-      expect(thrown.cause).toBeInstanceOf(Error);
-      if (!(thrown.cause instanceof Error)) return;
-      expect(thrown.cause.message).toContain('Plugin/service "physics3d" not found');
+      expect(thrown.cause).toBeInstanceOf(GwenError);
+      if (!(thrown.cause instanceof GwenError)) return;
+      expect(thrown.cause.code).toBe("CORE:PLUGIN_NOT_FOUND");
+      expect(thrown.cause.message).toContain('No plugin provides service "physics3d".');
     } finally {
       await handle.dispose();
     }

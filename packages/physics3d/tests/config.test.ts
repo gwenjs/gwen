@@ -84,9 +84,11 @@ describe("normalizePhysics3DConfig", () => {
       if (!(caught instanceof GwenConfigError)) {
         throw new Error("expected GwenConfigError");
       }
-      expect(caught.code).toBe("GWEN_CONFIG_ERROR");
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
       expect(caught.field).toBe("maxLinearVelocity");
-      expect(caught.hint).toBe("Must be finite and greater than 0. The default is 400.");
+      expect(caught.hint).toBe(
+        __GWEN_DEV__ ? "Must be finite and greater than 0. The default is 400." : undefined,
+      );
     }
     expect(normalizePhysics3DConfig({}).maxLinearVelocity).toBe(400);
     expect(normalizePhysics3DConfig({ maxLinearVelocity: 50 }).maxLinearVelocity).toBe(50);

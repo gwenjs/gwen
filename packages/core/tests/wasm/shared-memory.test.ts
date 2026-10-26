@@ -99,10 +99,13 @@ describe("SharedMemoryManager.create()", () => {
     }
 
     expect(caught).toBeInstanceOf(GwenConfigError);
-    const err = caught as GwenConfigError;
-    // The hint should contain both the requested size and the 256 MiB limit
-    expect(err.hint).toMatch(/MiB/);
-    expect(err.hint).toMatch(/256/);
+    if (!(caught instanceof GwenConfigError)) return;
+    if (__GWEN_DEV__) {
+      expect(caught.hint).toMatch(/MiB/);
+      expect(caught.hint).toMatch(/256/);
+    } else {
+      expect(caught.hint).toBeUndefined();
+    }
   });
 
   it("does not throw for maxEntities within safe limits (10_000)", () => {

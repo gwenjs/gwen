@@ -386,8 +386,9 @@ describe("EngineErrorPolicy", () => {
         caught = error;
       }
       if (!(caught instanceof GwenEngineStateError)) throw caught;
+      expect(caught.composable).toBe("engine.start");
       expect(caught.message).toBe(
-        "[GwenEngine] start() is not allowed while the engine is stopped.",
+        "[engine.start()] Not allowed while the engine is stopped.\nSee https://gwenjs.github.io/gwen/api/errors#core-invalid-state-transition (CORE:INVALID_STATE_TRANSITION)",
       );
       expect(first.state).toBe("stopped");
 

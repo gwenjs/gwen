@@ -15,7 +15,7 @@ describe("normalizeConfig maxLinearVelocity", () => {
       if (!(caught instanceof GwenConfigError)) {
         throw new Error("expected GwenConfigError");
       }
-      expect(caught.code).toBe("GWEN_CONFIG_ERROR");
+      expect(caught.code).toBe("CORE:INVALID_CONFIG");
       expect(caught.field).toBe("maxLinearVelocity");
     }
     expect(normalizeConfig({}).maxLinearVelocity).toBe(400);

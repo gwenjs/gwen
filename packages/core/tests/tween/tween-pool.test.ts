@@ -15,8 +15,8 @@
  */
 
 import { describe, it, expect, vi } from "vitest";
+import { GwenError, type IGwenLogger } from "@gwenjs/schema";
 import { TweenPool } from "../../src/tween/runtime/tween-pool";
-import type { IGwenLogger } from "@gwenjs/schema";
 
 // ── Helper: build a minimal mock GwenLogger ───────────────────────────────────
 
@@ -47,7 +47,7 @@ describe("TweenPool construction", () => {
   });
 
   it("throws when size < 1", () => {
-    expect(() => new TweenPool(0)).toThrow("[GWEN]");
+    expect(() => new TweenPool(0)).toThrow('Invalid config "tweenPoolSize": 0.');
   });
 });
 
@@ -98,7 +98,18 @@ describe("TweenPool claim() and release()", () => {
     const pool = new TweenPool(2, { onExhausted: "throw" });
     pool.claim({ duration: 1 });
     pool.claim({ duration: 1 });
-    expect(() => pool.claim({ duration: 1 })).toThrow("[GWEN]");
+    let error: unknown;
+    try {
+      pool.claim({ duration: 1 });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenError);
+    if (!(error instanceof GwenError)) return;
+    expect(error.code).toBe("CORE:TWEEN_POOL_EXHAUSTED");
+    expect(error.composable).toBe("useTween");
+    expect(error.message).toContain("Tween pool is exhausted: 2 slots in use.");
+    expect(error.message).not.toContain("[GWEN");
   });
 
   it("exhausted pool can accept a claim after a release", () => {
@@ -122,12 +133,37 @@ describe("TweenPool growth policy", () => {
     expect(pool.activeCount).toBe(3);
   });
 
-  it("respects throw policy — throws GwenConfigError when exhausted", async () => {
-    const { GwenConfigError } = await import("../../src/engine/config-error");
+  it("a full pool at maxSize throws CORE:TWEEN_POOL_EXHAUSTED naming useTween", () => {
+    const pool = new TweenPool(1, { onExhausted: "grow", maxSize: 1 });
+    pool.claim({ duration: 1 });
+    let error: unknown;
+    try {
+      pool.claim({ duration: 1 });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenError);
+    if (!(error instanceof GwenError)) return;
+    expect(error.code).toBe("CORE:TWEEN_POOL_EXHAUSTED");
+    expect(error.composable).toBe("useTween");
+    expect(error.message).toContain("Tween pool is exhausted: 1 slots in use.");
+    expect(error.message).not.toContain("[GWEN");
+  });
+
+  it("respects throw policy — throws CORE:TWEEN_POOL_EXHAUSTED when exhausted", () => {
     const pool = new TweenPool(2, { onExhausted: "throw" });
     pool.claim({ duration: 1 });
     pool.claim({ duration: 1 });
-    expect(() => pool.claim({ duration: 1 })).toThrow(GwenConfigError);
+    let error: unknown;
+    try {
+      pool.claim({ duration: 1 });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenError);
+    if (!(error instanceof GwenError)) return;
+    expect(error.code).toBe("CORE:TWEEN_POOL_EXHAUSTED");
+    expect(error.composable).toBe("useTween");
   });
 
   it("respects drop policy — returns null when exhausted", () => {
@@ -150,13 +186,20 @@ describe("TweenPool growth policy", () => {
     );
   });
 
-  it("respects maxSize cap in grow policy — throws GwenConfigError when maxSize reached", async () => {
-    const { GwenConfigError } = await import("../../src/engine/config-error");
-    // pool of 2 with maxSize 2 — cannot grow beyond 2
+  it("respects maxSize cap in grow policy — throws CORE:TWEEN_POOL_EXHAUSTED when maxSize reached", () => {
     const pool = new TweenPool(2, { onExhausted: "grow", growthFactor: 2, maxSize: 2 });
     pool.claim({ duration: 1 });
     pool.claim({ duration: 1 });
-    expect(() => pool.claim({ duration: 1 })).toThrow(GwenConfigError);
+    let error: unknown;
+    try {
+      pool.claim({ duration: 1 });
+    } catch (caught) {
+      error = caught;
+    }
+    expect(error).toBeInstanceOf(GwenError);
+    if (!(error instanceof GwenError)) return;
+    expect(error.code).toBe("CORE:TWEEN_POOL_EXHAUSTED");
+    expect(error.composable).toBe("useTween");
   });
 
   it("emits debug at warnAt threshold", () => {

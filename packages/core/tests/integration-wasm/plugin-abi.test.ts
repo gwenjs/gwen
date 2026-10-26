@@ -50,7 +50,13 @@ declare module "../../src/engine/engine-types.js" {
   }
 }
 
-const FIX = "Fix: recompile the plugin against the current gwen-wasm-utils / ABI version.";
+const ADVICE = "recompile the plugin against the current gwen-wasm-utils / ABI version.";
+
+function abiMessage(moduleName: string, shown: string): string {
+  const what = `Plugin "${moduleName}" declares ABI version ${shown}, expected 2000000.`;
+  const fix = __GWEN_DEV__ ? `\nFix: ${ADVICE}` : "";
+  return `[engine.loadWasmModule()] ${what}${fix}\nSee https://gwenjs.github.io/gwen/api/errors#core-wasm-module-abi-mismatch (CORE:WASM_MODULE_ABI_MISMATCH)`;
+}
 
 const CURRENT_HEX =
   "0061736d010000000105016000017f0303020000072402176777656e5f706c7567696e5f6170695f76657273696f6e0000066d61726b657200010a0e020700418089fa000b040041070b";
@@ -90,6 +96,8 @@ function failureOf(caught: unknown): {
   module: unknown;
   expected: unknown;
   actual: unknown;
+  composable: unknown;
+  hint: unknown;
   message: string;
 } {
   if (!(caught instanceof Error)) {
@@ -99,6 +107,8 @@ function failureOf(caught: unknown): {
       module: undefined,
       expected: undefined,
       actual: undefined,
+      composable: undefined,
+      hint: undefined,
       message: "",
     };
   }
@@ -108,6 +118,8 @@ function failureOf(caught: unknown): {
     module: Reflect.get(caught, "module"),
     expected: Reflect.get(caught, "expected"),
     actual: Reflect.get(caught, "actual"),
+    composable: Reflect.get(caught, "composable"),
+    hint: Reflect.get(caught, "hint"),
     message: caught.message,
   };
 }
@@ -159,9 +171,10 @@ describe("plugin ABI handshake", () => {
       expect(failure.module).toBe("next");
       expect(failure.expected).toBe(2_000_000);
       expect(failure.actual).toBe(2_000_001);
-      expect(failure.message).toBe(
-        `[GWEN] loadWasmModule("next"): plugin ABI version 2000001 does not match 2000000. ${FIX}`,
-      );
+      expect(failure.composable).toBe("engine.loadWasmModule");
+      expect(failure.hint).toBe(__GWEN_DEV__ ? ADVICE : undefined);
+      expect(failure.message.split("\n")[0]).not.toContain("Fix:");
+      expect(failure.message).toBe(abiMessage("next", "2000001"));
       expect(seen).not.toContain("CORE:WASM_MODULE_ABI_MISMATCH");
       expect(() => rejected.engine.getWasmModule("next")).toThrow(/next/);
       const before = rejected.engine.frameCount;
@@ -221,9 +234,10 @@ describe("plugin ABI handshake", () => {
       expect(failure.code).toBe("CORE:WASM_MODULE_ABI_MISMATCH");
       expect(failure.actual).toBeNull();
       expect(failure.expected).toBe(2_000_000);
-      expect(failure.message).toBe(
-        `[GWEN] loadWasmModule("bare"): plugin ABI version none declared does not match 2000000. ${FIX}`,
-      );
+      expect(failure.composable).toBe("engine.loadWasmModule");
+      expect(failure.hint).toBe(__GWEN_DEV__ ? ADVICE : undefined);
+      expect(failure.message.split("\n")[0]).not.toContain("Fix:");
+      expect(failure.message).toBe(abiMessage("bare", "none declared"));
       expect(() => started.engine.getWasmModule("bare")).toThrow(/bare/);
       await started.advance(1, 1 / 60);
       expect(started.engine.state).not.toBe("faulted");

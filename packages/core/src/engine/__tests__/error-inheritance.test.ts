@@ -18,11 +18,12 @@ describe("Error class inheritance — all extend GwenError", () => {
     const e = new GwenPluginNotFoundError({
       pluginName: "physics2d",
       hint: "Add @gwenjs/physics2d.",
-      docsUrl: "https://gwenengine.dev",
     });
     expect(e).toBeInstanceOf(GwenError);
     expect(e).toBeInstanceOf(Error);
-    expect(e.code).toBe("GWEN_PLUGIN_NOT_FOUND");
+    expect(e.code).toBe("CORE:PLUGIN_NOT_FOUND");
+    expect(e.docsUrl).toBe("https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found");
+    expect(e.hint).toBe(__GWEN_DEV__ ? "Add @gwenjs/physics2d." : undefined);
   });
 
   it("GwenActorError extends GwenError", () => {
@@ -47,10 +48,14 @@ describe("Error class inheritance — all extend GwenError", () => {
   });
 
   it("GwenConfigError extends GwenError", () => {
-    const e = new GwenConfigError("maxEntities", -1, "Must be between 100 and 1 000 000.");
+    const e = new GwenConfigError("maxEntities", -1, {
+      hint: "Must be between 100 and 1 000 000.",
+    });
     expect(e).toBeInstanceOf(GwenError);
     expect(e).toBeInstanceOf(Error);
-    expect(e.code).toBe("GWEN_CONFIG_ERROR");
+    expect(e.code).toBe("CORE:INVALID_CONFIG");
+    expect(e.composable).toBe("createEngine");
+    expect(e.message).toContain('Invalid config "maxEntities": -1.');
   });
 
   it("a single instanceof GwenError catches all four", () => {
@@ -58,14 +63,42 @@ describe("Error class inheritance — all extend GwenError", () => {
       new GwenPluginNotFoundError({
         pluginName: "p",
         hint: "h",
-        docsUrl: "https://x",
       }),
       new GwenActorError("A", "a"),
       new PoolExhaustedError("Enemy", 1),
-      new GwenConfigError("field", 0, "hint"),
+      new GwenConfigError("field", 0, { hint: "hint" }),
     ];
     for (const e of errors) {
       expect(e).toBeInstanceOf(GwenError);
+    }
+  });
+
+  it("the new codes have CORE: values", () => {
+    const table: unknown = Reflect.get(core, "CoreErrorCodes");
+    expect(typeof table).toBe("object");
+    if (typeof table !== "object" || table === null) return;
+    expect(Reflect.get(table, "WASM_GLUE_MISMATCH")).toBe("CORE:WASM_GLUE_MISMATCH");
+    expect(Reflect.get(table, "ENGINE_DISPOSED")).toBe("CORE:ENGINE_DISPOSED");
+    expect(Reflect.get(table, "WASM_CAPACITY_EXHAUSTED")).toBe("CORE:WASM_CAPACITY_EXHAUSTED");
+    expect(Reflect.get(table, "INVALID_CONFIG")).toBe("CORE:INVALID_CONFIG");
+    expect(Reflect.get(table, "PLUGIN_NOT_FOUND")).toBe("CORE:PLUGIN_NOT_FOUND");
+    expect(Reflect.get(table, "TWEEN_POOL_EXHAUSTED")).toBe("CORE:TWEEN_POOL_EXHAUSTED");
+  });
+
+  it("GwenPluginNotFoundError derives docsUrl and lets what override the default", () => {
+    const err = new GwenPluginNotFoundError({
+      pluginName: "physics2d",
+      what: 'No plugin provides service "physics2d".',
+    });
+    expect(err.code).toBe("CORE:PLUGIN_NOT_FOUND");
+    expect(err.docsUrl).toBe("https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found");
+    expect(err.message).toContain('No plugin provides service "physics2d".');
+    expect(err.message).not.toContain("is not installed");
+    if (__GWEN_DEV__) {
+      expect(err.hint).toBe('Add the "physics2d" plugin via engine.use() or in gwen.config.ts.');
+    } else {
+      expect(err.hint).toBeUndefined();
+      expect(err.message).not.toContain("Fix:");
     }
   });
 });

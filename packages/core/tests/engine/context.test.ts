@@ -254,47 +254,58 @@ describe("GwenPluginNotFoundError", () => {
     const err = new GwenPluginNotFoundError({
       pluginName: "@gwenjs/physics2d",
       hint: "Add @gwenjs/physics2d to the modules array in gwen.config.ts",
-      docsUrl: "https://gwenengine.dev/modules/physics2d",
     });
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(GwenPluginNotFoundError);
     expect(err.pluginName).toBe("@gwenjs/physics2d");
-    expect(err.hint).toContain("gwen.config.ts");
-    expect(err.docsUrl).toMatch(/^https?:\/\//);
+    expect(err.docsUrl).toBe("https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found");
+    if (__GWEN_DEV__) expect(err.hint).toContain("gwen.config.ts");
+    else expect(err.hint).toBeUndefined();
   });
 
-  it("supports positional constructor (legacy form)", () => {
-    const err = new GwenPluginNotFoundError({
-      pluginName: "math",
-      hint: "",
-      docsUrl: "",
-    });
+  it("omits hint and uses the default in development", () => {
+    const err = new GwenPluginNotFoundError({ pluginName: "math" });
     expect(err.pluginName).toBe("math");
-    expect(err.hint.length).toBeGreaterThan(0);
-    expect(err.docsUrl).toMatch(/^https?:\/\//);
+    expect(err.docsUrl).toBe("https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found");
+    if (__GWEN_DEV__) {
+      expect(err.hint).toBe('Add the "math" plugin via engine.use() or in gwen.config.ts.');
+    } else {
+      expect(err.hint).toBeUndefined();
+    }
   });
 
   it("message contains the plugin name", () => {
     const err = new GwenPluginNotFoundError({
       pluginName: "@gwenjs/physics2d",
       hint: "hint text",
-      docsUrl: "https://example.com",
     });
     expect(err.message).toContain("@gwenjs/physics2d");
+  });
+
+  it("what option overrides the default", () => {
+    const err = new GwenPluginNotFoundError({
+      pluginName: "math",
+      what: 'No plugin provides service "math".',
+    });
+    expect(err.message).toContain('No plugin provides service "math".');
+    expect(err.message).not.toContain("is not installed");
   });
 
   it("has name GwenPluginNotFoundError", () => {
     const err = new GwenPluginNotFoundError({
       pluginName: "test",
       hint: "test hint",
-      docsUrl: "https://example.com",
     });
     expect(err.name).toBe("GwenPluginNotFoundError");
   });
 
   it("engine.inject() throws GwenPluginNotFoundError when service is absent", async () => {
     const engine = await createEngine({ maxEntities: 100 });
-    expect(() => engine.inject("testSvc" as never)).toThrow(GwenPluginNotFoundError);
+    try {
+      expect(() => engine.inject("testSvc" as never)).toThrow(GwenPluginNotFoundError);
+    } finally {
+      await engine.stop();
+    }
   });
 
   it("thrown error from inject() can be caught as GwenPluginNotFoundError", async () => {
@@ -304,11 +315,18 @@ describe("GwenPluginNotFoundError", () => {
       engine.inject("testSvc" as never);
     } catch (e) {
       if (e instanceof GwenPluginNotFoundError) caughtErr = e;
+    } finally {
+      await engine.stop();
     }
     expect(caughtErr).not.toBeNull();
-    expect(caughtErr!.pluginName).toBe("testSvc");
-    expect(caughtErr!.hint.length).toBeGreaterThan(0);
-    expect(caughtErr!.docsUrl).toMatch(/^https?:\/\//);
+    if (caughtErr === null) return;
+    expect(caughtErr.pluginName).toBe("testSvc");
+    expect(caughtErr.composable).toBe("engine.inject");
+    expect(caughtErr.docsUrl).toBe(
+      "https://gwenjs.github.io/gwen/api/errors#core-plugin-not-found",
+    );
+    if (__GWEN_DEV__) expect(caughtErr.hint).toContain('provides: ["testSvc"]');
+    else expect(caughtErr.hint).toBeUndefined();
   });
 });
 

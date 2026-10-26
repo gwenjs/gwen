@@ -16,7 +16,9 @@ import { createEngine, useEngine } from "../../src/index.js";
 import { activateTestWasm } from "../helpers/activate-test-wasm";
 import { GwenLogger } from "../../src/logger/gwen-logger.js";
 
-const REENTRANT = "[GwenEngine] advance() called re-entrantly — only one advance per frame.";
+const REENTRANT =
+  "[engine.advance()] advance() called re-entrantly — only one advance per frame.\n" +
+  "See https://gwenjs.github.io/gwen/api/errors#core-advance-reentrant (CORE:ADVANCE_REENTRANT)";
 
 interface HarnessOptions {
   grow?: boolean;

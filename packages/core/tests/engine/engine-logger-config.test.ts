@@ -129,7 +129,7 @@ describe("createEngine logger", () => {
     });
   });
 
-  it("an unknown logger.minLevel throws GWEN_CONFIG_ERROR", async () => {
+  it("an unknown logger.minLevel throws CORE:INVALID_CONFIG", async () => {
     let engine: GwenEngine | undefined;
     let caught: unknown;
     try {
@@ -147,13 +147,13 @@ describe("createEngine logger", () => {
       field: error?.field,
       hint: error?.hint,
     }).toEqual({
-      code: "GWEN_CONFIG_ERROR",
+      code: "CORE:INVALID_CONFIG",
       field: "logger.minLevel",
-      hint: 'Use "debug", "info", "warn" or "error".',
+      hint: __GWEN_DEV__ ? 'Use "debug", "info", "warn" or "error".' : undefined,
     });
   });
 
-  it("a provider without handle throws GWEN_CONFIG_ERROR", async () => {
+  it("a provider without handle throws CORE:INVALID_CONFIG", async () => {
     let engine: GwenEngine | undefined;
     let caught: unknown;
     try {
@@ -171,9 +171,9 @@ describe("createEngine logger", () => {
       field: error?.field,
       hint: error?.hint,
     }).toEqual({
-      code: "GWEN_CONFIG_ERROR",
+      code: "CORE:INVALID_CONFIG",
       field: "logger.providers",
-      hint: "Pass objects with a handle(entry) method.",
+      hint: __GWEN_DEV__ ? "Pass objects with a handle(entry) method." : undefined,
     });
   });
 
