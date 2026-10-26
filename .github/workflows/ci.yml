@@ -721,14 +721,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [changes, rust]
     if: needs.changes.outputs.code == 'true'
-    # No GitHub run id: this branch was not pushed.
-    # Local Mac, 2026-10-21, Playwright browsers already cached:
-    #   node tests/browser/build-site.mjs            0.18s
-    #   playwright install chromium firefox webkit   0.23s
-    #   playwright test                              2.99s
-    # ubuntu `playwright install --with-deps` is not in those numbers.
-    # 2 * ceil(3.4/60) = 2 from the measured steps alone. Ceiling is 10
-    # until a CI run replaces this comment with its run id.
+    # 14 of 153 browser-wasm jobs between 2026-10-21 and 2026-10-26 hit the
+    # 10 min ceiling. In the logs of all 14 the last install output is an apt
+    # `Get:` from azure.archive.ubuntu.com (for example runs 40373323747,
+    # 39927221011, 39761622691); the browser download is never reached.
+    # Healthy jobs finish the install step in a median 47 s. The system-deps
+    # step now has 3 attempts of 120 s, run as root so the whole apt process
+    # group can be killed. This is a mitigation: the slow mirror itself is
+    # not fixed. The ceiling stays 10.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -738,8 +738,12 @@ jobs:
         with:
           name: core-wasm
           path: packages/core/wasm/
+      - name: Install Playwright system dependencies
+        run: |
+          PLAYWRIGHT_CLI="$(cd packages/core && node -p "require.resolve('@playwright/test/cli')")"
+          sudo "$(command -v node)" scripts/retry-with-timeout.mjs --attempts 3 --timeout 120 -- sh -c 'dpkg --configure -a; exec "$@"' sh "$(command -v node)" "$PLAYWRIGHT_CLI" install-deps chromium firefox webkit
       - name: Install Playwright browsers
-        run: pnpm --filter @gwenjs/core exec playwright install --with-deps chromium firefox webkit
+        run: pnpm --filter @gwenjs/core exec playwright install chromium firefox webkit
       - name: Browser tests
         run: pnpm --filter @gwenjs/core test:browser
       - name: Upload Playwright results
