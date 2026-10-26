@@ -256,8 +256,11 @@ describe("declared core hooks", () => {
   });
 
   it("ignores a test file and a property emit", () => {
-    const declarationText = `"engine:never": () => void;\n`;
-    const missed = missingFiringSites(declarationText, [
+    // Real sources stay in the input so an unfired declared hook still shows up.
+    // The fake test file, spec file, and property emit are the extra input.
+    const synthetic = `${declaration}\n"engine:never": () => void;\n`;
+    const missed = missingFiringSites(synthetic, [
+      ...sources,
       {
         path: "/repo/packages/core/src/engine/__tests__/fake.test.ts",
         text: `hooks.callHook("engine:never");`,
