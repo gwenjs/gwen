@@ -1,7 +1,7 @@
 //! Physics step tests that run under Miri as well as natively.
 //!
 //! Each test steps a world and then reads what the step wrote through a raw pointer or a slot.
-//! `rust-miri-step` runs this file under Miri with Tree Borrows on aarch64 (`ci.yml`): once with
+//! `rust-miri-step` runs this file under Miri with Stacked Borrows on x86_64 (`ci.yml`): once with
 //! `--features physics2d` for the 2D tests, once with `--features physics3d` for the 3D ones.
 //! Natively: `cargo test -p gwen-core --features physics2d --test physics_step_miri`, and the same
 //! with `physics3d`. Without a physics feature this file holds no test.
