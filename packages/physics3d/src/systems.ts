@@ -67,8 +67,8 @@ function readQuat(value: unknown): Physics3DQuat | null {
  *
  * @param options - Position component, and an optional rotation component.
  * @returns A `definePlugin` class ready to be instantiated and registered.
- * @throws {GwenError} with code `KIT:PLUGIN_SETUP_FAILED`, from
- * `engine.use`, when `physics3d` is not registered.
+ * @throws {GwenError} with code `CORE:PLUGIN_DEPENDENCY_MISSING`, from
+ * `engine.use`, before `setup`, when `physics3d` is not registered.
  *
  * @example
  * ```ts
@@ -87,6 +87,7 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
 
     return {
       name: "Physics3DKinematicSyncSystem",
+      requires: { services: ["physics3d"] },
 
       setup(engine: GwenEngine): void {
         _engine = engine;
