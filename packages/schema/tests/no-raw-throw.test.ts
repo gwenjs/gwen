@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 import { errorDocsAnchor } from "../src/errors.js";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-export type RuleId = "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8";
+export type RuleId = "R1" | "R2" | "R3" | "R4" | "R5" | "R7" | "R8" | "R9";
 export interface Finding {
   rule: RuleId;
   file: string;
@@ -28,9 +28,6 @@ export interface ScanHit {
   codes: CollectedCode[];
 }
 type CountMap = Record<string, number>;
-type KnownRule = "R2" | "R3" | "R4" | "R5" | "R6" | "R8";
-type KnownFile = Record<KnownRule, CountMap>;
-const KNOWN_RULES: readonly KnownRule[] = ["R2", "R3", "R4", "R5", "R6", "R8"];
 const RAW_BUILTINS = new Set(["Error", "TypeError", "RangeError"]);
 /** Longer prefixes first so `RENDERER_THREE` is not eaten by `RENDERER`. */
 const CODE_VALUE =
@@ -102,6 +99,11 @@ function unwrap(expression: ts.Expression): ts.Expression {
   let current = expression;
   while (isTypeWrapper(current) || ts.isNonNullExpression(current)) current = current.expression;
   return current;
+}
+/** The third argument is exactly `{}`, not a spread or a nested literal. */
+function isEmptyOptionsLiteral(expression: ts.Expression): boolean {
+  const value = unwrap(expression);
+  return ts.isObjectLiteralExpression(value) && value.properties.length === 0;
 }
 function outermost(node: ts.Node): ts.Node {
   let cursor = node;
@@ -269,9 +271,11 @@ export function scanFile(text: string, file: string): ScanHit {
     }
     if (count >= 2 && args) {
       const second = args[1];
-      if (second) checkWhat(second, count >= 3);
+      if (second) checkWhat(second, true);
     }
-    if (count === 2) add(call, "R6", "two arguments");
+    // An empty `{}` is the third argument itself. A spread inside a wider object is not.
+    const third = count >= 3 && args ? args[2] : undefined;
+    if (third && isEmptyOptionsLiteral(third)) add(third, "R9", "empty options object", true);
   };
   const checkClass = (cls: ts.ClassLikeDeclaration): void => {
     if (heritageText(cls, sourceFile) !== "Error") return;
@@ -388,13 +392,10 @@ export function anchorFindings(codes: readonly CollectedCode[], en: string, fr: 
   }
   return missingAnchors;
 }
-type TallyMode = "hard" | "soft" | "all";
-export function tally(findings: readonly Finding[], rule: RuleId, mode: TallyMode): CountMap {
+export function tally(findings: readonly Finding[], rule: RuleId): CountMap {
   const map: CountMap = {};
   for (const finding of findings) {
     if (finding.rule !== rule) continue;
-    if (mode === "hard" && finding.hard !== true) continue;
-    if (mode === "soft" && finding.hard === true) continue;
     map[finding.file] = (map[finding.file] ?? 0) + 1;
   }
   const sorted: CountMap = {};
@@ -403,27 +404,6 @@ export function tally(findings: readonly Finding[], rule: RuleId, mode: TallyMod
     if (count !== undefined) sorted[key] = count;
   }
   return sorted;
-}
-function isCountMap(value: unknown): value is CountMap {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
-  const record = value as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    if (typeof record[key] !== "number") return false;
-  }
-  return true;
-}
-function isKnown(value: unknown): value is KnownFile {
-  if (typeof value !== "object" || value === null) return false;
-  const record = value as Record<string, unknown>;
-  return KNOWN_RULES.every((rule) => isCountMap(record[rule]));
-}
-
-function knownFile(): KnownFile {
-  const raw: unknown = JSON.parse(
-    readFileSync(path.join(repoRoot, "packages/schema/tests/no-raw-throw.known.json"), "utf8"),
-  );
-  if (!isKnown(raw)) throw new Error("no-raw-throw.known.json has the wrong shape");
-  return raw;
 }
 let repoCache: ScanHit | undefined;
 function repoScan(): ScanHit {
@@ -462,14 +442,12 @@ describe("package throws", () => {
     expect(located("R1")).toEqual([]);
   });
   it("every codes value has an allowed prefix", () => {
-    expect(tally(repoScan().findings, "R2", "all")).toEqual(knownFile().R2);
+    expect(tally(repoScan().findings, "R2")).toEqual({});
   });
   it("every code has an anchor in docs/api/errors.md", () => {
     const enPage = readFileSync(path.join(repoRoot, "docs/api/errors.md"), "utf8");
     const frPage = readFileSync(path.join(repoRoot, "docs/fr/api/errors.md"), "utf8");
-    expect(tally(anchorFindings(repoScan().codes, enPage, frPage), "R3", "all")).toEqual(
-      knownFile().R3,
-    );
+    expect(tally(anchorFindings(repoScan().codes, enPage, frPage), "R3")).toEqual({});
   });
 
   it("WASM_GLUE_MISMATCH is anchored in docs/api/errors.md", () => {
@@ -480,20 +458,26 @@ describe("package throws", () => {
   });
   it("no message carries a tag, fix, URL or code", () => {
     const { findings } = repoScan();
-    expect(tally(findings, "R4", "hard")).toEqual({});
-    expect(tally(findings, "R4", "soft")).toEqual(knownFile().R4);
+    expect(tally(findings, "R4")).toEqual({});
   });
   it("no hard-coded docs URL", () => {
-    expect(tally(repoScan().findings, "R5", "all")).toEqual(knownFile().R5);
+    expect(tally(repoScan().findings, "R5")).toEqual({});
   });
-  it("no two-argument GwenError outside the ratchet", () => {
-    expect(tally(repoScan().findings, "R6", "all")).toEqual(knownFile().R6);
+  it("every rule finds nothing in packages src", () => {
+    const known = path.join(repoRoot, "packages/schema/tests/no-raw-throw.known.json");
+    expect(existsSync(known)).toBe(false);
+    const enPage = readFileSync(path.join(repoRoot, "docs/api/errors.md"), "utf8");
+    const frPage = readFileSync(path.join(repoRoot, "docs/fr/api/errors.md"), "utf8");
+    const { findings, codes } = repoScan();
+    const all = [...findings, ...anchorFindings(codes, enPage, frPage)];
+    const rules = ["R1", "R2", "R3", "R4", "R5", "R7", "R8", "R9"] as const;
+    for (const rule of rules) expect(tally(all, rule), rule).toEqual({});
   });
   it("composable names are public names", () => {
     expect(located("R7")).toEqual([]);
   });
   it("no error class declares its own hint or docsUrl", () => {
-    expect(tally(repoScan().findings, "R8", "all")).toEqual(knownFile().R8);
+    expect(tally(repoScan().findings, "R8")).toEqual({});
   });
 });
 
@@ -548,7 +532,7 @@ describe("scanSource fixtures", () => {
     const r4 = (text: string): Finding | undefined =>
       scanSource(text, "fixture.ts").find((item) => item.rule === "R4");
     expect(r4('new GwenError("CORE:X_Y", "[GWEN] x.", {});\n')?.hard).toBe(true);
-    expect(r4('new GwenError("CORE:X_Y", "[GWEN] x.");\n')?.hard).toBeUndefined();
+    expect(r4('new GwenError("CORE:X_Y", "[GWEN] x.");\n')?.hard).toBe(true);
   });
   it("flags a code written in what", () => {
     expectLines('new GwenError(codes.X, "Failed with SCHEMA:INVALID_CONFIG.", {});\n', "R4", [1]);
@@ -579,17 +563,31 @@ describe("scanSource fixtures", () => {
     const text = 'const url = "https://gwenengine.dev/x";\nconst row = { docsUrl: url };';
     expectLines(text, "R5", [1, 2]);
   });
-  it("flags a two-argument GwenError and a two-argument super", () => {
-    const text = [
+  it("flags an empty options object and allows a composable option", () => {
+    const empty = scanSource('new GwenError(C, "x.", {});\n', "fixture.ts").filter(
+      (finding) => finding.rule === "R9",
+    );
+    expect(empty).toHaveLength(1);
+    expect(empty[0]?.hard).toBe(true);
+    expect(empty[0]?.line).toBe(1);
+    const named = scanSource('new GwenError(C, "x.", { composable: "f" });\n', "fixture.ts");
+    expect(named.filter((finding) => finding.rule === "R9")).toEqual([]);
+    const spread = scanSource(
+      'new GwenError(C, "x.", { composable: "f", ...{} });\n',
+      "fixture.ts",
+    );
+    expect(spread.filter((finding) => finding.rule === "R9")).toEqual([]);
+    const viaSuper = [
       "class Sub extends GwenError {",
       "  constructor() {",
-      '    super(codes.X, "Fine.");',
+      '    super(codes.X, "Fine.", {});',
       "  }",
       "}",
-      'new GwenError(codes.X, "Fine.");',
-      'new GwenError(codes.X, "Fine.", {});',
+      'class Kept extends GwenError { constructor() { super(codes.X, "Fine."); } }',
     ].join("\n");
-    expectLines(text, "R6", [3, 6]);
+    const supers = scanSource(viaSuper, "fixture.ts").filter((finding) => finding.rule === "R9");
+    expect(supers.map((finding) => finding.line)).toEqual([3]);
+    expect(supers[0]?.hard).toBe(true);
   });
   it("flags an underscore composable", () => {
     const outside = 'const a = { composable: "_x" };\nconst b = { composable: "useEngine" };';

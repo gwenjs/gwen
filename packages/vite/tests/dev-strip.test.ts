@@ -24,29 +24,40 @@ declare const __GWEN_DEV__: boolean;
 const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
 
 /**
- * #64 classes are not in this tree. These strings stand in for one inline hint
- * per class named by that spec, so the strip can be proved without landing #64.
+ * Real hint phrases. Each occurs once under package src and is reached
+ * only from a __GWEN_DEV__ branch (the context sentence via contextHint).
+ * GwenPluginNotFoundError keeps the `}` of `${pluginName}` so the slice is
+ * not the rendered sentence also written in an unbundled test.
  */
-const HINT_CLASSES = [
-  "GwenContextError",
-  "GwenActorError",
-  "PoolExhaustedError",
-  "GwenEngineStateError",
-  "GwenPluginNotFoundError",
-  "GwenWasmError",
-  "GwenConfigError",
-  "GwenModuleDefinitionError",
-  "GwenConfigLoadError",
-  "GwenPluginDependencyError",
-  "GwenPluginShapeError",
-  "GwenWasmAbiError",
+const REAL_HINTS = [
+  "the GWEN Vite plugin restores the context",
+  "Call engine.use(plugin) before spawn()",
+  "pool.stats().peakActive",
+  "recompile the plugin against the current gwen-wasm-utils",
+  '}" plugin via engine.use() or in gwen.config.ts.',
 ];
 
-/** Unique phrases. Bare class names already exist on prod error classes. */
-const HINT_TEXTS = HINT_CLASSES.map((name) => `dev-only hint for ${name}`);
+/**
+ * Named stand-ins. These classes are not in this tree, or their hint text is
+ * not a single gated phrase: GwenPluginDependencyError, GwenPluginShapeError,
+ * GwenModuleDefinitionError, GwenEngineStateError, GwenWasmError,
+ * GwenConfigError, GwenConfigLoadError.
+ */
+const STAND_IN_CLASSES = [
+  "GwenPluginDependencyError",
+  "GwenPluginShapeError",
+  "GwenModuleDefinitionError",
+  "GwenEngineStateError",
+  "GwenWasmError",
+  "GwenConfigError",
+  "GwenConfigLoadError",
+];
+
+const STAND_IN_TEXTS = STAND_IN_CLASSES.map((name) => `dev-only hint for ${name}`);
 
 const SENTINELS = [
-  ...HINT_TEXTS,
+  ...REAL_HINTS,
+  ...STAND_IN_TEXTS,
   "not available in local mode",
   "WASM core loaded",
   "exceeded 50% of frame budget",
@@ -94,11 +105,16 @@ function stripTypesForParser(): Plugin {
   };
 }
 
+/** Src runs load this class from source. The rest of `@gwenjs/core` stays on dist. */
+const CORE_SRC_ENTRY = "\0gwen-core-src-entry";
+
 function gwenAlias(mode: "src" | "dist"): Plugin {
   return {
     name: "gwen-src-or-dist",
     enforce: "pre",
     resolveId(id) {
+      // The plugin-not-found hint lives in core source. Dist would hide a leak.
+      if (mode === "src" && id === "@gwenjs/core") return CORE_SRC_ENTRY;
       if (!id.startsWith("@gwenjs/") || id.startsWith("@gwenjs/vite")) return null;
       const rest = id.slice("@gwenjs/".length);
       const slash = rest.indexOf("/");
@@ -112,23 +128,53 @@ function gwenAlias(mode: "src" | "dist"): Plugin {
       const table = mode === "dist" ? (pkg.publishConfig?.exports ?? pkg.exports) : pkg.exports;
       const target = table ? pickExport(table[sub]) : null;
       if (!target) return null;
+      // Kit's export map points at dist. The src run bundles packages/kit/src
+      // so a context-hint edit is visible to the prod sentinel check.
+      if (mode === "src" && name === "kit" && sub === ".") {
+        const source = join(pkgDir, "src", "index.ts");
+        if (existsSync(source)) return source;
+      }
       return join(pkgDir, target);
+    },
+    load(id) {
+      if (id !== CORE_SRC_ENTRY) return null;
+      const dist = join(repoRoot, "packages/core/dist/index.js");
+      const errors = join(repoRoot, "packages/core/src/engine/engine-errors.ts");
+      return `export {
+  createEngine,
+  createEngineLocal,
+  GwenActorError,
+  GwenConfigError,
+  GwenContextError,
+  GwenWasmAbiError,
+  useEngine,
+} from ${JSON.stringify(dist)};
+export { GwenPluginNotFoundError } from ${JSON.stringify(errors)};
+`;
     },
   };
 }
 
 function writeFixture(dir: string): void {
   mkdirSync(join(dir, "src", "layouts"), { recursive: true });
-  const hintText = `${HINT_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
+  const hintText = `${STAND_IN_TEXTS.join(" ")} __GWEN_DEV__ import.meta.env`;
   writeFileSync(
     join(dir, "src", "main.ts"),
-    `import { createEngine } from "@gwenjs/core";
-import { useChildren } from "@gwenjs/core/actor";
+    `import { createEngine, GwenActorError, GwenContextError, GwenPluginNotFoundError, GwenWasmAbiError, useEngine } from "@gwenjs/core";
+import { defineActor, PoolExhaustedError, useChildren } from "@gwenjs/core/actor";
 import { Physics3DPlugin } from "@gwenjs/physics3d";
 import "./layouts/level.ts";
 import "./router.ts";
 
-console.log(createEngine, useChildren, Physics3DPlugin);
+console.log(createEngine, useChildren, Physics3DPlugin, GwenActorError, GwenContextError, GwenWasmAbiError, PoolExhaustedError, defineActor);
+
+try {
+  useEngine();
+} catch (error) {
+  console.log(error instanceof Error ? error.message : "");
+}
+
+console.log(new GwenPluginNotFoundError({ pluginName: "demo" }).message);
 
 export function devHints(): string | undefined {
   return __GWEN_DEV__ ? ${JSON.stringify(hintText)} : undefined;
