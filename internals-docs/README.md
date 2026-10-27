@@ -7,6 +7,7 @@ This directory contains documentation for contributors working on the GWEN engin
 - **[Architecture Overview](./architecture.md)** — Two-layer design, package structure, key decisions
 - **[ADR-0001 — Component storage](./adr/0001-component-storage.md)** — chosen layout, rejected options, measured numbers
 - **[Threading model](./adr/0002-threading-model.md)** — ADR 0002, main thread for v1.0
+- **[WASM size baselines](./adr/0006-wasm-size-baselines-rapier-0-36.md)** — ADR 0006, size cost of Rapier 0.36.1 accepted
 - **[Contributing Guide](./contributing.md)** — Setup, build commands, commit conventions, release process
 - **[WASM & Crate Builds](./crate-builds.md)** — Rust/WASM variants, build process, output locations
 
