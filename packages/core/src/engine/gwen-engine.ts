@@ -209,8 +209,15 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
   /**
    * Tear down once. Only the first `stop()` runs teardown. A `stop()` called while
    * teardown runs returns immediately and does not wait for it, so awaiting `stop()`
-   * inside `engine:stop` or an `engine:state-change` handler for `stopping` resolves.
+   * inside `engine:stop`, a plugin `teardown`, or an `engine:state-change` handler
+   * for `stopping` resolves.
+   * After `engine:stop`, each installed plugin's `teardown` runs, last installed
+   * first. That `teardown` must be idempotent with work already done on `engine:stop`.
+   * Services provided through the `engine` argument of `setup()` are removed before
+   * its `teardown`. A `provide` on a captured engine, or `useEngine().provide(...)`
+   * inside `setup`, is not removed.
    * To know when teardown has finished, observe `engine:state-change` to `stopped`.
+   * A `faulted` engine stays `faulted`.
    */
   async stop(): Promise<void> {
     if (this._teardownOnce !== null) return;
@@ -223,7 +230,11 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     await this._teardown();
   }
 
-  /** Cancel the frame, run `engine:stop`, then clear hooks, this engine's module handles, and disposables. */
+  /**
+   * Cancel the frame, run `engine:stop`, tear plugins down last-installed-first,
+   * then clear hooks, isolation, this engine's module handles, and disposables.
+   * Plugin teardown runs while the error policy is still attached.
+   */
   private async _teardown(): Promise<void> {
     this._loop.cancel();
     this._loop.releaseHistory();
@@ -232,6 +243,7 @@ export class GwenEngineImpl extends EngineCollaborators implements GwenEngine {
     } catch (err) {
       this._policy.handleFrameLoopError(err);
     }
+    await this._pluginRegistry.teardownAll(this);
     this._pluginRegistry.clearHooks();
     this._policy.clearIsolated();
 

@@ -53,8 +53,9 @@ export class GwenPluginNotFoundError extends GwenError {
 }
 
 /**
- * A plugin requirement is missing at `engine.use`. Reserved: `engine.unuse`
- * will reject with it once dependents are tracked. `missing` and `dependents` are frozen.
+ * A plugin requirement is missing at `engine.use`, or `engine.unuse` was asked
+ * to remove a plugin that an installed plugin still requires.
+ * `missing` and `dependents` are frozen.
  */
 export class GwenPluginDependencyError extends GwenError {
   override readonly code:
@@ -172,7 +173,7 @@ export const CoreErrorCodes = {
   PLUGIN_NOT_FOUND: "CORE:PLUGIN_NOT_FOUND",
   /** `engine.use` rejected because a required plugin or service is not installed. */
   PLUGIN_DEPENDENCY_MISSING: "CORE:PLUGIN_DEPENDENCY_MISSING",
-  /** Reserved: `engine.unuse` will reject with it once dependents are tracked. */
+  /** `engine.unuse` rejected: an installed plugin still requires this plugin or one of its services. */
   PLUGIN_IN_USE: "CORE:PLUGIN_IN_USE",
   /** Thrown by `TweenPool.claim`. */
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
