@@ -42,11 +42,21 @@ export default defineConfig({
 | `qualityPreset` | `Physics3DQualityPreset` | `'medium'` | Solver quality: `'low'`, `'medium'`, `'high'`, or `'esport'` |
 | `debug` | `boolean` | `false` | Enable runtime physics debug logs |
 | `coalesceEvents` | `boolean` | `true` | Merge duplicate contact events within a frame |
-| `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). A faster dynamic body is scaled and stays enabled |
+| `maxLinearVelocity` | `number` | `400` | Linear speed cap (m/s). Also Rapier's per-substep cap. A faster dynamic body is scaled and stays enabled |
 | `layers` | `string[]` | `['default']` | Named collision layer list (max 32) |
 | `vite` | `object` | — | Build-time Vite plugin options (see below) |
 | `vite.bvhPrebake` | `boolean` | `false` | Pre-bake BVH for `useMeshCollider('./x.glb')` at build time |
 | `vite.debug` | `boolean` | `false` | Enable Vite plugin logging |
+
+## Rapier 0.36
+
+Rapier clamps linear speed after each solver substep. The default cap is 400 m/s. `maxLinearVelocity` sets GWEN's cap and that Rapier cap (`crates/gwen-core/src/physics2d/world.rs:787-793`, `crates/gwen-core/src/physics3d/world.rs:799-805`). A new world starts at 400 (`crates/gwen-core/src/physics2d/world.rs:244`, `crates/gwen-core/src/physics3d/world.rs:715`). A value that is not finite, or that is zero or negative, is refused and both caps stay.
+
+A body falls asleep after half a second below the sleep threshold (`rapier3d-0.36.1/src/dynamics/rigid_body_components.rs:1375`, `crates/gwen-core/tests/physics3d_rapier_036.rs:333`). An island sleeps once every body in it is eligible (`crates/gwen-core/tests/physics3d_rapier_036.rs:356`).
+
+With one CCD substep, a fast dynamic box does not pass through a thin fixed wall even when its own CCD flag is off (`crates/gwen-core/tests/physics2d_rapier_036.rs:241`). The Low preset keeps that one substep (`crates/gwen-core/src/physics2d/world.rs:60-63`, `crates/gwen-core/src/physics3d/components.rs:101-104`). Zero substeps turns this CCD off, and the same box passes the wall (`crates/gwen-core/src/physics2d/world.rs:1728`).
+
+Extra solver iterations add substeps for the whole island that contains the body. In 2D, `additionalSolverIterations` is stored at 16 or below (`packages/physics2d/src/types/api.ts:71`, `crates/gwen-core/src/physics2d/world.rs:17`, `crates/gwen-core/src/physics2d/world.rs:292`). In 3D, `set_body_solver_iterations` uses the same cap of 0–16 (`crates/gwen-core/src/physics3d/world.rs:338`, `crates/gwen-core/src/physics3d/world.rs:2776-2778`). 0 adds no extra substeps. 17 and above are stored as 16. The physics3d plugin invokes `physics3d_set_body_solver_iterations` only when the mapped count is above 0 (`packages/physics3d/src/plugin/body-management.ts:276-279`).
 
 ## Composables
 
