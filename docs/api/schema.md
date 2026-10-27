@@ -183,6 +183,6 @@ assertModuleFirstInput(input);
 
 `GwenError` fields: `code`, `composable`, `hint`, `docsUrl`.
 
-A third argument renders `[where] what`, an optional `Fix:` line, and a `See` line. Two arguments keep the raw message. `docsUrl` is always set from the code and the constructing class's `docsBase`.
+Every call renders `[where] what`, an optional `Fix:` line, and a `See` line. Two arguments use `GWEN` as where. `docsUrl` is always set from the code and the constructing class's `docsBase`.
 
 Values: `GWEN_DOCS_BASE`, `errorDocsAnchor`, `errorDocsUrl`.
