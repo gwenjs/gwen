@@ -1,0 +1,15 @@
+diff --git a/crates/gwen-core/src/bindings.rs b/crates/gwen-core/src/bindings.rs
+index 2c4abec5..59a66546 100644
+--- a/crates/gwen-core/src/bindings.rs
++++ b/crates/gwen-core/src/bindings.rs
+@@ -204,8 +204,8 @@ impl Engine {
+     }
+ 
+     /// Get count of live entities
+-    pub fn count_entities(&self) -> u32 {
+-        self.entity_manager.count_entities()
++    pub fn count_entities(&self) -> f64 {
++        f64::from(self.entity_manager.count_entities())
+     }
+ 
+     /// Check if entity is alive. Requires `{index, generation}` – returns

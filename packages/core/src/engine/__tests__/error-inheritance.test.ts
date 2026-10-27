@@ -101,4 +101,18 @@ describe("Error class inheritance — all extend GwenError", () => {
       expect(err.message).not.toContain("Fix:");
     }
   });
+
+  it("GwenWasmMismatchError is a GwenError with CORE:WASM_GLUE_MISMATCH", () => {
+    const error = new core.GwenWasmMismatchError("build", "glue-build", "binary-build", {
+      expectedFingerprint: "glue-fp",
+      actualFingerprint: "binary-fp",
+    });
+    expect(error).toBeInstanceOf(GwenError);
+    expect(error).toBeInstanceOf(core.GwenWasmMismatchError);
+    expect(error.name).toBe("GwenWasmMismatchError");
+    expect(error.code).toBe("CORE:WASM_GLUE_MISMATCH");
+    expect(error.reason).toBe("build");
+    expect(error.expected).toBe("glue-build");
+    expect(error.actual).toBe("binary-build");
+  });
 });

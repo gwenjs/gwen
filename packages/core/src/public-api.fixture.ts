@@ -39,6 +39,7 @@ type _0 = [
   Root.GwenPluginNotFoundErrorOptions,
   Root.GwenProvides,
   Root.GwenRuntimeHooks,
+  Root.GwenWasmMismatchReason,
   Root.HookHandlerMap,
   Root.IGwenLogger,
   Root.InferComponent<never>,

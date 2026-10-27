@@ -44,6 +44,8 @@ export {
   GwenEngineStateError,
 } from "./engine/engine-errors";
 export type { CoreWasmErrorCode, GwenEngineStateMethod } from "./engine/engine-errors";
+export { GwenWasmMismatchError } from "./engine/wasm-contract";
+export type { GwenWasmMismatchReason } from "./engine/wasm-contract";
 export { EngineMemory } from "./engine/engine-memory";
 export type {
   MemoryView,
