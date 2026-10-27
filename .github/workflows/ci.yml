@@ -556,17 +556,14 @@ jobs:
 
   rust-miri-step:
     name: Miri physics step
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-latest
     needs: [changes]
     if: needs.changes.outputs.rust == 'true'
-    # aarch64 run 39929151171 job 120332858681, sha 38d4483a (push to hardening/184-miri-step-measure).
-    # Cache prefix v1-miri-step-2026-10-23, first use of the prefix.
-    # Job wall 168s, 2026-10-23T09:04:13Z to 2026-10-23T09:07:01Z.
-    # 2 * ceil(168/60) = 6.
-    timeout-minutes: 6
+    # PROVISIONAL, to be replaced by a measured run: 2 * ceil(1800/60) = 60.
+    # x86_64, Stacked Borrows. aarch64 Miri is blocked on Rapier 0.36.1 (llvm.aarch64.neon.fmaxnm.v4f32, prefetch.rs prfm); no aarch64 Miri leg exists in CI.
+    timeout-minutes: 60
     env:
       MIRI_TOOLCHAIN: nightly-2026-10-01
-      MIRIFLAGS: -Zmiri-tree-borrows
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: dtolnay/rust-toolchain@7e38f4b43b4db5c8dd498af069a4f6196df1d067 # master
@@ -575,7 +572,7 @@ jobs:
           components: miri, rust-src
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
-          prefix-key: v1-miri-step-2026-10-23
+          prefix-key: v1-miri-step-x86_64-2026-10-27
           workspaces: '. -> target'
           cache-on-failure: true
       - name: Miri physics2d step tests

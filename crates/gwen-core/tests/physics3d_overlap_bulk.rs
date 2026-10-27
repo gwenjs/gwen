@@ -1,6 +1,6 @@
 //! `physics3d_overlap_shape` output pointer checks and `physics3d_bulk_*` error propagation.
 //!
-//! `rust-miri-step` runs this file under Miri with Tree Borrows on aarch64 (`ci.yml`, step
+//! `rust-miri-step` runs this file under Miri with Stacked Borrows on x86_64 (`ci.yml`, step
 //! `Miri physics3d overlap export`). Natively:
 //! `cargo test -p gwen-core --features physics3d --test physics3d_overlap_bulk`.
 //!
@@ -95,11 +95,11 @@ fn overlap_without_a_world_returns_not_initialized_before_looking_at_the_pointer
 // (`src/neon.rs:65`, `vaddvq_f32`) through `Vec4::dot`
 // (`src/f32/neon/vec4.rs:243`), `length` (`:563`, `math::sqrt(self.dot(self))`),
 // and `length_recip` (`:588`, `1.0 / self.length()`). That is the aarch64 Miri
-// limit. These tests return to x86_64 with P-RAP-5.
+// limit; these tests run under Miri on x86_64.
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn export_refuses_null_and_unregistered_pointers_with_invalid_shared_buffer() -> Outcome {
     let mut e = engine_with_box()?;
@@ -116,7 +116,7 @@ fn export_refuses_null_and_unregistered_pointers_with_invalid_shared_buffer() ->
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_accepts_the_exact_size_and_refuses_one_slot_more() -> Outcome {
     let mut e = engine_with_box()?;
@@ -135,7 +135,7 @@ fn check_accepts_the_exact_size_and_refuses_one_slot_more() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_a_count_whose_byte_size_overflows_32_bits() -> Outcome {
     let mut e = engine_with_box()?;
@@ -155,7 +155,7 @@ fn check_refuses_a_count_whose_byte_size_overflows_32_bits() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_null_even_for_zero_slots() -> Outcome {
     let e = engine_with_box()?;
@@ -167,7 +167,7 @@ fn check_refuses_null_even_for_zero_slots() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_an_address_outside_every_live_allocation() -> Outcome {
     let e = engine_with_box()?;
@@ -183,7 +183,7 @@ fn check_refuses_an_address_outside_every_live_allocation() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_an_interior_or_misaligned_address() -> Outcome {
     let mut e = engine_with_box()?;
@@ -202,7 +202,7 @@ fn check_refuses_an_interior_or_misaligned_address() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_a_freed_allocation() -> Outcome {
     let mut e = engine_with_box()?;
@@ -219,7 +219,7 @@ fn check_refuses_a_freed_allocation() -> Outcome {
 #[test]
 #[cfg_attr(
     all(miri, not(target_arch = "x86_64")),
-    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit that returns to x86_64 with P-RAP-5"
+    ignore = "aarch64 Miri: llvm.aarch64.neon.faddv.f32.v4f32 (glam 0.33.12 src/neon.rs:65 dot4 vaddvq_f32 via src/f32/neon/vec4.rs Vec4::dot, length, length_recip). The aarch64 Miri limit; these tests run under Miri on x86_64."
 )]
 fn check_refuses_an_allocation_that_belongs_to_another_engine() -> Outcome {
     let mut owner = engine_with_box()?;
