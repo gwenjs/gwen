@@ -39,7 +39,7 @@ import "./augment";
  * ```
  */
 export function usePhysics2D(): Physics2DAPI {
-  const engine = useEngine();
+  const engine = useEngine("usePhysics2D");
 
   // Try new RFC-001 provide/inject registry first.
   const newService = engine.tryInject("physics2d");

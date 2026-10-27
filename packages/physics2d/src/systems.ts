@@ -78,7 +78,8 @@ export function createPhysicsKinematicSyncSystem(options: PhysicsKinematicSyncSy
   if (options?.positionComponent === undefined) {
     throw new GwenError(
       Physics2DErrorCodes.POSITION_COMPONENT_REQUIRED,
-      "physics2d positionComponent is required",
+      "positionComponent is required.",
+      { composable: "createPhysicsKinematicSyncSystem" },
     );
   }
   const _pixelsPerMeter = options.pixelsPerMeter ?? DEFAULT_PIXELS_PER_METER;

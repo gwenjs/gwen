@@ -44,12 +44,12 @@ function fire(
 
 /** @internal Called by the physics2d plugin for sensor enter events on this engine. */
 export function _dispatchSensorEnter(sensorId: number, entityId: bigint): void {
-  fire(sensors.peek(useEngine())?.enter, sensorId, entityId);
+  fire(sensors.peek(useEngine("Physics2DPlugin"))?.enter, sensorId, entityId);
 }
 
 /** @internal Called by the physics2d plugin for sensor exit events on this engine. */
 export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
-  fire(sensors.peek(useEngine())?.exit, sensorId, entityId);
+  fire(sensors.peek(useEngine("Physics2DPlugin"))?.exit, sensorId, entityId);
 }
 
 /**
@@ -58,7 +58,7 @@ export function _dispatchSensorExit(sensorId: number, entityId: bigint): void {
  * A bigint plus `sensorId` clears that entity only.
  */
 export function _clearSensorCallbacks(sensorOrEntity: number | bigint, sensorId?: number): void {
-  const registry = sensors.peek(useEngine());
+  const registry = sensors.peek(useEngine("Physics2DPlugin"));
   if (!registry) return;
   if (typeof sensorOrEntity === "number") {
     registry.enter.delete(sensorKey(sensorOrEntity));

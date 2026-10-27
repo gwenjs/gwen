@@ -28,8 +28,8 @@ import { ShapeComponent } from "../shape-component";
  * @since 1.0.0
  */
 export function useStaticBody(options: StaticBodyOptions = {}): StaticBodyHandle {
+  const engine = useEngine("useStaticBody");
   const physics = usePhysics2D();
-  const engine = useEngine();
   const entityId = _getActorEntityId("useStaticBody");
 
   // Stored creation options so enable() can re-register the body after disable().

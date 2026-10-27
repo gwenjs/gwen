@@ -186,7 +186,199 @@ Cause. `colorFromHex` a reçu une chaîne qui n'est pas `#RGB`, `#RGBA`, `#RRGGB
 
 ## @gwenjs/physics2d
 
+### PHYSICS2D:STALE_ENTITY {#physics2d-stale-entity}
+
+Cause. L'entité n'est plus vivante. Fix. Recréez-la avant l'appel.
+
+### PHYSICS2D:STALE_BODY_HANDLE {#physics2d-stale-body-handle}
+
+Cause. Le handle de corps n'a aucun propriétaire. Fix. Ajoutez le corps avant le collider.
+
+### PHYSICS2D:INVALID_LAYERS {#physics2d-invalid-layers}
+
+Cause. Bit de calque invalide, ou plus de 32 calques. Fix. Bits entiers de 0 à 31.
+
+### PHYSICS2D:UNKNOWN_LAYER {#physics2d-unknown-layer}
+
+Cause. Ce nom de calque n'est pas déclaré. Fix. Ajoutez-le à Physics2DConfig.layers.
+
+### PHYSICS2D:INVALID_COLLIDER {#physics2d-invalid-collider}
+
+Cause. Un collider de prefab n'a pas le rayon, la taille ou une forme connue. Fix. Passez ces champs.
+
+### PHYSICS2D:WASM_VARIANT_MISMATCH {#physics2d-wasm-variant-mismatch}
+
+Cause. Le WASM du core n'a pas la physique. Fix. Chargez une variante qui l'inclut.
+
+### PHYSICS2D:INVALID_PREFAB_EXTENSION {#physics2d-invalid-prefab-extension}
+
+Cause. L'extension de prefab n'a pas de tableau colliders. Fix. Posez extensions.physics.colliders.
+
+### PHYSICS2D:POSITION_COMPONENT_REQUIRED {#physics2d-position-component-required}
+
+Cause. positionComponent est absent. Fix. Passez-le à createPhysicsKinematicSyncSystem.
+
+### PHYSICS2D:NOT_INITIALIZED {#physics2d-not-initialized}
+
+Cause. Un export a tourné avant physics_init. Fix. Installez d'abord le plugin physics2d.
+
+### PHYSICS2D:BODY_NOT_FOUND {#physics2d-body-not-found}
+
+Cause. Aucun corps rigide n'est enregistré pour ce slot. Fix. Ajoutez un corps avant l'appel.
+
+### PHYSICS2D:BODY_ALREADY_EXISTS {#physics2d-body-already-exists}
+
+Cause. Ce slot a déjà un corps rigide. Fix. Retirez-le avant d'en ajouter un.
+
+### PHYSICS2D:INVALID_BODY_KIND {#physics2d-invalid-body-kind}
+
+Cause. Le type de corps n'est pas 0, 1 ou 2. Fix. Utilisez fixe, dynamique ou cinématique.
+
+### PHYSICS2D:BUFFER_LENGTH_MISMATCH {#physics2d-buffer-length-mismatch}
+
+Cause. Des tranches groupées n'ont pas la même longueur. Fix. Passez des tampons de même taille.
+
+### PHYSICS2D:TILEMAP_CHUNK_ALREADY_LOADED {#physics2d-tilemap-chunk-already-loaded}
+
+Cause. Ce chunk de tilemap est déjà chargé. Fix. Déchargez-le avant de le recharger.
+
+### PHYSICS2D:TILEMAP_CHUNK_NOT_LOADED {#physics2d-tilemap-chunk-not-loaded}
+
+Cause. Ce chunk de tilemap n'est pas chargé. Fix. Chargez-le avant de le décharger.
+
+### PHYSICS2D:INVALID_PATH_REQUEST {#physics2d-invalid-path-request}
+
+Cause. Une coordonnée ou une distance de chemin sort des limites. Fix. Envoyez une requête finie et valide.
+
+### PHYSICS2D:INVALID_QUERY {#physics2d-invalid-query}
+
+Cause. Une coordonnée ou un rayon de requête est refusé. Fix. Utilisez une valeur finie dans les bornes.
+
+### PHYSICS2D:INVALID_STEP_DELTA {#physics2d-invalid-step-delta}
+
+Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet intervalle.
+
 ## @gwenjs/physics3d
+
+### PHYSICS3D:BVH_WORKER_TIMEOUT {#physics3d-bvh-worker-timeout}
+
+Cause. Le worker BVH n'a pas répondu à temps. Fix. Réessayez ou réduisez le mesh.
+
+### PHYSICS3D:BVH_CALLBACK_HANG {#physics3d-bvh-callback-hang}
+
+Cause. Le code est déclaré et ce paquet ne le lance pas. Fix. Un worker en retard est BVH_WORKER_TIMEOUT.
+
+### PHYSICS3D:MESH_FALLBACK {#physics3d-mesh-fallback}
+
+Cause. L'avertissement est journalisé sans ce code : un mesh local devient une boîte. Fix. Utilisez un build WASM.
+
+### PHYSICS3D:CONVEX_FALLBACK {#physics3d-convex-fallback}
+
+Cause. L'avertissement est journalisé sans ce code : une coque convexe locale devient une boîte. Fix. Utilisez WASM.
+
+### PHYSICS3D:STALE_ENTITY {#physics3d-stale-entity}
+
+Cause. L'entité n'est plus vivante. Fix. Recréez-la avant l'appel.
+
+### PHYSICS3D:UNKNOWN_LAYER {#physics3d-unknown-layer}
+
+Cause. Ce nom de calque n'est pas dans le registre. Fix. Déclarez-le avant de résoudre les bits.
+
+### PHYSICS3D:INVALID_COMPOUND {#physics3d-invalid-compound}
+
+Cause. Les ids de formes diffèrent, une forme n'a pas été insérée, la longueur du tampon Rust n'est pas un multiple de 12, ou une partie a un type de forme inconnu. Fix. Alignez les longueurs.
+
+### PHYSICS3D:BVH_LOAD_FAILED {#physics3d-bvh-load-failed}
+
+Cause. Le fetch BVH, le worker ou l'export a échoué. Rust refuse aussi un tampon trop court, une magie autre que GBVH, une autre version de Rapier, ou une charge qui n'est pas un mesh valide. Fix. Vérifiez l'URL, le worker et le WASM.
+
+### PHYSICS3D:NOT_INITIALIZED {#physics3d-not-initialized}
+
+Cause. step() a tourné avant l'initialisation. Fix. Appelez setup avant step.
+
+### PHYSICS3D:WASM_VARIANT_MISMATCH {#physics3d-wasm-variant-mismatch}
+
+Cause. La variante active n'est pas physics3d, ou init manque. Fix. Passez variant physics3d.
+
+### PHYSICS3D:INVALID_MESH_BUFFER {#physics3d-invalid-mesh-buffer}
+
+Cause. Une longueur de positions ou d'indices n'est pas un multiple de 3. Fix. Passez des triplets.
+
+### PHYSICS3D:NO_RIGID_BODY {#physics3d-no-rigid-body}
+
+Cause. L'entité n'a pas encore de corps rigide. Fix. Appelez useDynamicBody ou useStaticBody d'abord.
+
+### PHYSICS3D:MESH_REBUILD_FAILED {#physics3d-mesh-rebuild-failed}
+
+Cause. La reconstruction du collider mesh a échoué. Fix. Vérifiez sommets, indices et corps.
+
+### PHYSICS3D:BODY_NOT_FOUND {#physics3d-body-not-found}
+
+Cause. Un export WASM n'a pas trouvé de corps pour ce slot. Fix. Ajoutez le corps d'abord.
+
+### PHYSICS3D:BODY_ALREADY_EXISTS {#physics3d-body-already-exists}
+
+Cause. Ce slot a déjà un corps rigide. Fix. Retirez-le avant d'en ajouter un.
+
+### PHYSICS3D:INVALID_BODY_KIND {#physics3d-invalid-body-kind}
+
+Cause. Le type de corps n'est pas 0, 1 ou 2. Fix. Utilisez fixe, dynamique ou cinématique.
+
+### PHYSICS3D:BUFFER_LENGTH_MISMATCH {#physics3d-buffer-length-mismatch}
+
+Cause. Des tranches d'un appel groupé n'ont pas la même longueur. Fix. Passez des tampons égaux.
+
+### PHYSICS3D:COLLIDER_NOT_FOUND {#physics3d-collider-not-found}
+
+Cause. Aucun collider n'est enregistré pour ce slot et cet id. Fix. Ajoutez-le avant l'appel.
+
+### PHYSICS3D:COLLIDER_ALREADY_EXISTS {#physics3d-collider-already-exists}
+
+Cause. Cet id de collider est déjà enregistré sur le slot. Fix. Choisissez un nouvel id.
+
+### PHYSICS3D:INVALID_SHAPE {#physics3d-invalid-shape}
+
+Cause. Les données de forme ne peuvent pas bâtir un collider. Fix. Vérifiez heightfield, mesh ou points.
+
+### PHYSICS3D:JOINT_NOT_FOUND {#physics3d-joint-not-found}
+
+Cause. Aucune jointure n'est enregistrée pour cet id. Fix. Créez la jointure avant de l'utiliser.
+
+### PHYSICS3D:CHARACTER_CONTROLLER_NOT_FOUND {#physics3d-character-controller-not-found}
+
+Cause. Aucun contrôleur de personnage n'est enregistré pour ce slot. Fix. Ajoutez-en un d'abord.
+
+### PHYSICS3D:CHARACTER_CONTROLLER_LIMIT_REACHED {#physics3d-character-controller-limit-reached}
+
+Cause. Le pool de contrôleurs de personnage est plein. Fix. Retirez-en un ou levez la limite.
+
+### PHYSICS3D:NAVGRID_NOT_INITIALIZED {#physics3d-navgrid-not-initialized}
+
+Cause. Une requête de chemin a tourné avant l'envoi de la grille. Fix. Envoyez la grille d'abord.
+
+### PHYSICS3D:INVALID_NAVGRID {#physics3d-invalid-navgrid}
+
+Cause. Les dimensions de grille sont nulles, débordent ou passent la limite. Fix. Réduisez la grille.
+
+### PHYSICS3D:INVALID_PATH_REQUEST {#physics3d-invalid-path-request}
+
+Cause. Une coordonnée de chemin n'est pas finie ou dépasse la cellule. Fix. Utilisez une cellule valide.
+
+### PHYSICS3D:INVALID_COLLIDER {#physics3d-invalid-collider}
+
+Cause. Une taille, un rayon ou une largeur de peau a été refusé. Fix. Passez une valeur finie acceptée.
+
+### PHYSICS3D:INVALID_JOINT {#physics3d-invalid-joint}
+
+Cause. Une ancre, un axe, un ressort, un moteur ou une limite n'est pas fini. Fix. Passez des nombres finis.
+
+### PHYSICS3D:INVALID_QUERY {#physics3d-invalid-query}
+
+Cause. Une coordonnée, une direction ou une distance a été refusée. Fix. Passez des valeurs finies.
+
+### PHYSICS3D:INVALID_STEP_DELTA {#physics3d-invalid-step-delta}
+
+Cause. Un delta de pas n'est pas fini ou sort de 0 à 1. Fix. Restez dans cet intervalle.
 
 ## @gwenjs/renderer-core
 

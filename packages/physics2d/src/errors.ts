@@ -43,10 +43,7 @@ export class Physics2DStaleEntityError extends GwenError {
   readonly operation: string;
 
   constructor(entityId: EntityId, operation: string) {
-    super(
-      Physics2DErrorCodes.STALE_ENTITY,
-      `[${Physics2DErrorCodes.STALE_ENTITY}] ${operation} rejected a stale entity`,
-    );
+    super(Physics2DErrorCodes.STALE_ENTITY, `${operation} rejected a stale entity.`, {});
     this.name = "Physics2DStaleEntityError";
     this.entityId = entityId;
     this.operation = operation;
@@ -61,7 +58,8 @@ export class Physics2DStaleBodyHandleError extends GwenError {
   constructor(bodyHandle: number, operation: "addBoxCollider" | "addBallCollider") {
     super(
       Physics2DErrorCodes.STALE_BODY_HANDLE,
-      `[${Physics2DErrorCodes.STALE_BODY_HANDLE}] ${operation} rejected an unregistered body handle`,
+      `${operation} rejected an unregistered body handle.`,
+      {},
     );
     this.name = "Physics2DStaleBodyHandleError";
     this.bodyHandle = bodyHandle;
