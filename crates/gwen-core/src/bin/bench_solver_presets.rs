@@ -137,6 +137,13 @@ fn measure_stack(run: PresetRun) -> (f64, f64, f64, usize, usize) {
     let mut y_max = f32::MIN;
 
     for _ in 0..STACK_MEASURE_STEPS {
+        // A slept stack steps in negligible time. Re-apply the current velocity
+        // so each measured step runs with the stack awake.
+        for entity in 100..(100 + (STACK_ROWS * STACK_COLS) as u32) {
+            if let Some((vx, vy)) = world.get_linear_velocity(entity) {
+                world.set_linear_velocity(entity, vx, vy);
+            }
+        }
         #[allow(
             clippy::disallowed_methods,
             reason = "bench binary, not engine runtime"
