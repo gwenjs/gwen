@@ -133,7 +133,14 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejeté parce qu'un plugin ou un service requis n'est pas installé.
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} `engine.unuse` rejeté parce qu'un plugin installé exige encore ce plugin ou l'un de ses services.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
-- `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} Lancé par le chargeur de glue WASM (#260).
+- `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} `checkGwenModule` rejette un module compilé qui ne correspond pas à sa glue. Le moteur n'appelle pas encore ce contrôle (#263).
+
+  | `reason` | Sens | `expected` | `actual` |
+  | --- | --- | --- | --- |
+  | `build` | Les ids de build diffèrent, ou `gwen.build` est absent ou répété. | `buildId` de la glue. | Texte de la section, `<no gwen.build section>`, ou `<n gwen.build sections>`. |
+  | `fingerprint` | Les empreintes diffèrent, ou `gwen.fingerprint` est absente ou répétée. | Empreinte de la glue. | Texte de la section, `<no gwen.fingerprint section>`, ou `<n gwen.fingerprint sections>`. |
+  | `exports` | Un nom de `rawExports` n'est pas un export du module. | Noms manquants joints par `,`. | `<absent>` |
+  | `imports` | Le module importe un nom absent du contrat. | `<not in contract>` | Ces noms joints par `,`. |
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Lancé par `createEngineLocal().get()` quand il créerait une valeur après le début de la libération par `engine.stop()`, et par la libération du moteur (#261).
 - `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Lancé par la capacité d'instance WASM (#263).
 - `CORE:INVALID_ENGINE` {#core-invalid-engine} Lancé par `createEngineLocal().get()` quand l'argument n'est pas un moteur.
