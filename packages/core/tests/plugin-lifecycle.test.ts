@@ -6,6 +6,7 @@ import { GwenError } from "@gwenjs/schema";
 import {
   createEngine as openEngine,
   GwenEngineStateError,
+  GwenPluginDependencyError,
   GwenPluginNotFoundError,
   type GwenEngine,
   type GwenPlugin,
@@ -381,6 +382,69 @@ describe("engine.use / engine.unuse", () => {
       missing: [{ kind: "plugin", name: "camera-core" }],
     });
     expect(setups).toBe(0);
+  });
+
+  it("unuse() of a required plugin rejects CORE:PLUGIN_IN_USE and keeps it", async () => {
+    const engine = await createEngine();
+    const torn: string[] = [];
+    let hits = 0;
+    await engine.use({
+      name: "B",
+      setup(host) {
+        host.provide("testSvc", { value: 1 });
+        host.hooks.hook("engine:update", () => {
+          hits += 1;
+        });
+      },
+      teardown() {
+        torn.push("B");
+      },
+    });
+    await engine.use({
+      name: "A",
+      requires: { plugins: ["B"] },
+      setup() {},
+    });
+    let caught: unknown;
+    try {
+      await engine.unuse("B");
+    } catch (error) {
+      caught = error;
+    }
+    expect(caught).toBeInstanceOf(GwenPluginDependencyError);
+    if (!(caught instanceof GwenPluginDependencyError)) return;
+    expect(caught.code).toBe("CORE:PLUGIN_IN_USE");
+    expect([...caught.dependents]).toEqual(["A"]);
+    expect(caught.message.split("\n")[0]).toBe(
+      '[engine.unuse()] Cannot unuse "B": required by "A".',
+    );
+    expect(torn).toEqual([]);
+    expect(engine.inject("testSvc")).toEqual({ value: 1 });
+    await engine.hooks.callHook("engine:update", 0);
+    expect(hits).toBe(1);
+    await expect(engine.unuse("A")).resolves.toBeUndefined();
+    await expect(engine.unuse("B")).resolves.toBeUndefined();
+  });
+
+  it("unuse() of a plugin whose service another plugin requires rejects CORE:PLUGIN_IN_USE", async () => {
+    const engine = await createEngine();
+    await engine.use({
+      name: "B",
+      setup(host) {
+        host.provide("testSvc", { value: 2 });
+      },
+    });
+    await engine.use({
+      name: "A",
+      requires: { services: ["testSvc"] },
+      setup() {},
+    });
+    await expect(engine.unuse("B")).rejects.toMatchObject({
+      code: "CORE:PLUGIN_IN_USE",
+      plugin: "B",
+      dependents: ["A"],
+    });
+    expect(engine.inject("testSvc")).toEqual({ value: 2 });
   });
 });
 
