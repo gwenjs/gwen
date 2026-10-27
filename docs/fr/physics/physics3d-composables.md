@@ -41,7 +41,7 @@ Le plugin fait automatiquement :
 - Gère les raycasts, les shape casts et les chevauchements par image
 - Nettoie quand l'acteur disparaît
 
-`maxLinearVelocity` (défaut `400` m/s) règle le plafond de GWEN et le plafond Rapier après chaque sous-pas. Un corps dynamique plus rapide est ramené à ce plafond et reste actif. Après un pas qui désactive un corps dynamique, le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`. Une coordonnée de requête hors de ±1e7 est refusée avec `PHYSICS3D:INVALID_QUERY`.
+`maxLinearVelocity` (défaut `400` m/s) règle le plafond de GWEN et le plafond Rapier après chaque sous-pas. Un corps dynamique plus rapide est ramené à ce plafond et reste actif. Après un pas qui désactive un corps, le plugin émet `physics3d:body-disabled` avec `{ entity, reason }`. Cela comprend un corps dynamique hors du monde et un corps mis en quarantaine par Rapier (`crates/gwen-core/src/physics3d/world.rs:1019`). `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS3D:INVALID_STEP_DELTA`. Une coordonnée de requête hors de ±1e7 est refusée avec `PHYSICS3D:INVALID_QUERY`.
 
 ## Comportement Rapier 0.36
 

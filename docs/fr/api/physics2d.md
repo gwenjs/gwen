@@ -180,7 +180,7 @@ function useCapsuleCollider(options: CapsuleColliderOptions): void
 
 ### physics2d:body-disabled
 
-Le plugin émet ce hook après un pas qui a désactivé un corps dynamique. La charge est `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Le corps reste enregistré. Une requête ou `getPosition` répond encore.
+Le plugin émet ce hook après un pas qui a désactivé un corps. La charge est `{ entity, reason }`. `reason` vaut `non-finite`, `out-of-bounds` ou `velocity`. Le corps reste enregistré. Une requête ou `getPosition` répond encore. Un corps dynamique et un corps mis en quarantaine par Rapier sont tous les deux inclus (`crates/gwen-core/src/physics2d/world.rs:972`).
 
 ```ts
 engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
@@ -190,7 +190,7 @@ engine.hooks.hook("physics2d:body-disabled", ({ entity, reason }) => {
 });
 ```
 
-`non-finite` signifie que la translation ou la vitesse linéaire n'est pas finie. `out-of-bounds` signifie que la position sort de ±1e7. `velocity` signifie que la position après le plafond de vitesse sortirait de ±1e7.
+`non-finite` signifie qu'une translation ou une vitesse linéaire dynamique n'est pas finie, ou que Rapier a mis le corps en quarantaine, y compris une cible cinématique non finie. `out-of-bounds` signifie qu'une position dynamique sort de ±1e7. `velocity` signifie qu'une position dynamique après le plafond de vitesse sortirait de ±1e7.
 
 Le plafond par défaut de 400 m/s ralentit un corps dynamique plus rapide. Un delta de pas au-dessus de 1 s est refusé avec `PHYSICS2D:INVALID_STEP_DELTA`.
 

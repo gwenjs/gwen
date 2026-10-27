@@ -56,7 +56,7 @@ export interface Physics3DPrefabExtension {
 
 /**
  * `physics3d:body-disabled` payload.
- * The plugin emits this after a step that disabled a dynamic body.
+ * The plugin emits this after a step that disabled a body, including one Rapier quarantined.
  */
 export interface Physics3DBodyDisabled {
   readonly entity: EntityId;
@@ -70,7 +70,7 @@ export interface Physics3DBodyDisabled {
  */
 export interface Physics3DPluginHooks {
   /**
-   * Fired when a step disables a dynamic body that left the accepted world.
+   * Fired when a step disables a body: a dynamic body that left the accepted world, or a body Rapier quarantined.
    * `reason` is `non-finite`, `out-of-bounds` or `velocity`.
    */
   "physics3d:body-disabled": (payload: Physics3DBodyDisabled) => void;
