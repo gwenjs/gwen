@@ -54,7 +54,7 @@ describe("loadWasmGlue", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
-    expect(caught.message).toBe(`[GWEN] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
+    expect(caught.message).toBe(`[initWasm()] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
     expect(caught.cause).toBeInstanceOf(Error);
   });
 
@@ -80,7 +80,7 @@ describe("loadWasmGlue", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
-    expect(caught.message).toBe(`[GWEN] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
+    expect(caught.message).toBe(`[initWasm()] Unable to load WASM glue: ${jsUrl}.\n${GLUE_SEE}`);
     expect(caught.cause).toBeInstanceOf(TypeError);
   });
 
@@ -92,7 +92,7 @@ describe("loadWasmGlue", () => {
     );
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
-    expect(caught.message).toBe(`[GWEN] glue init failed\n${GLUE_SEE}`);
+    expect(caught.message).toBe(`[initWasm()] glue init failed.\n${GLUE_SEE}`);
     expect(caught.cause).toBe(rejected);
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
   });
@@ -100,7 +100,7 @@ describe("loadWasmGlue", () => {
     const caught = await catchGlue("export default function init() { throw 'not-an-error'; }\n");
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) return;
-    expect(caught.message).toBe("not-an-error");
+    expect(caught.message).toBe(`[initWasm()] not-an-error.\n${GLUE_SEE}`);
     expect(caught.docsUrl).toBe(GLUE_URL);
     expect(caught.code).toBe(CoreErrorCodes.WASM_LOAD_ERROR);
   });
