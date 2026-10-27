@@ -178,8 +178,15 @@ export const CoreErrorCodes = {
   TWEEN_POOL_EXHAUSTED: "CORE:TWEEN_POOL_EXHAUSTED",
   /** Thrown by the WASM glue loader (#260). */
   WASM_GLUE_MISMATCH: "CORE:WASM_GLUE_MISMATCH",
-  /** Thrown by engine dispose (#261). */
+  /**
+   * Thrown by `createEngineLocal().get()` when it would create a value after
+   * `engine.stop()` began disposing, and by engine dispose (#261).
+   */
   ENGINE_DISPOSED: "CORE:ENGINE_DISPOSED",
+  /** `createEngineLocal().get()` received a value that is not an engine. */
+  INVALID_ENGINE: "CORE:INVALID_ENGINE",
+  /** A `createEngineLocal` `init` read the same local for the engine it is building. */
+  ENGINE_LOCAL_REENTRANT: "CORE:ENGINE_LOCAL_REENTRANT",
   /** Thrown by WASM instance capacity (#263). */
   WASM_CAPACITY_EXHAUSTED: "CORE:WASM_CAPACITY_EXHAUSTED",
 } as const;

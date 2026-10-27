@@ -134,8 +134,10 @@ Cause. The call is outside `defineActor()`, `plugin setup()`, or `withCleanup()`
 - `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} Reserved: `engine.unuse` will reject with it once dependents are tracked.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} Thrown by the WASM glue loader (#260).
-- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by engine dispose (#261).
+- `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Thrown by `createEngineLocal().get()` when it would create a value after `engine.stop()` began disposing, and by engine dispose (#261).
 - `CORE:WASM_CAPACITY_EXHAUSTED` {#core-wasm-capacity-exhausted} Thrown by WASM instance capacity (#263).
+- `CORE:INVALID_ENGINE` {#core-invalid-engine} Thrown by `createEngineLocal().get()` when the argument is not an engine.
+- `CORE:ENGINE_LOCAL_REENTRANT` {#core-engine-local-reentrant} Thrown by `createEngineLocal().get()` when `init` reads the same local for the engine it is building.
 
 ## @gwenjs/kit
 

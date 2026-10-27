@@ -73,6 +73,15 @@ export function createDisposable(fn: () => void): GwenDisposable {
  */
 export class DisposableRegistry implements DisposableRegistryBase {
   private readonly _stack: Array<{ name: string; d: GwenDisposable }> = [];
+  private _closed = false;
+
+  /**
+   * True once {@link disposeAll} has started. A later `add` is not disposed by
+   * that run (`engine.stop()` disposes once).
+   */
+  get closed(): boolean {
+    return this._closed;
+  }
 
   /**
    * Register a named disposable.
@@ -95,6 +104,7 @@ export class DisposableRegistry implements DisposableRegistryBase {
    * The first error is rethrown after the loop.
    */
   disposeAll(): void {
+    this._closed = true;
     const stack = this._stack.splice(0);
     let firstError: unknown;
     let failed = false;
