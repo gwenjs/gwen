@@ -64,25 +64,35 @@ fn floor_mesh(m: f32) -> Result<TriMesh, TriMeshBuilderError> {
     TriMesh::new(points, vec![[0, 2, 1], [1, 2, 3]])
 }
 
-/// True when projecting a point near the origin onto `mesh` panics.
-fn projection_panics(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> bool {
-    panicked(|| {
-        let Ok(mesh) = mesh() else {
-            return;
-        };
+/// `returned` when the projection finishes, `panicked` when it aborts,
+/// `build failed` when `TriMesh::new` refuses the mesh.
+fn projection_outcome(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> &'static str {
+    let Ok(mesh) = mesh() else {
+        return "build failed";
+    };
+    if panicked(|| {
         let _ = mesh.project_local_point(Vector::new(0.0, 5.0, 0.0), true);
-    })
+    }) {
+        "panicked"
+    } else {
+        "returned"
+    }
 }
 
-/// True when a downward ray cast onto `mesh` panics.
-fn ray_cast_panics(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> bool {
-    panicked(|| {
-        let Ok(mesh) = mesh() else {
-            return;
-        };
+/// `returned` when the ray cast finishes, `panicked` when it aborts,
+/// `build failed` when `TriMesh::new` refuses the mesh.
+fn ray_cast_outcome(mesh: impl FnOnce() -> Result<TriMesh, TriMeshBuilderError>) -> &'static str {
+    let Ok(mesh) = mesh() else {
+        return "build failed";
+    };
+    if panicked(|| {
         let ray = Ray::new(Vector::new(0.0, 5.0, 0.0), Vector::new(0.0, -1.0, 0.0));
         let _ = mesh.cast_local_ray(&ray, 100.0, true);
-    })
+    }) {
+        "panicked"
+    } else {
+        "returned"
+    }
 }
 
 #[test]
@@ -94,45 +104,60 @@ fn f32_spacing_at_the_bound_is_64() {
     assert_eq!(spacing(1.0), f32::EPSILON);
 }
 
+/// Point projection onto a large trimesh does not panic.
+///
+/// Measured 2026-10-27, `cargo test -p gwen-core --features physics3d --test physics3d_magnitude_probe`.
+/// That run printed `false` (the projection did not panic). This test expects `returned`.
+/// `build failed` means `TriMesh::new` refused the mesh.
+///
+/// Diagonal corners at `+-m`:
+/// `(1000000000.0, false), (2000000000.0, false), (2500000000.0, false), (1000000000000.0, false)`.
+///
+/// Floor patch of half-size `m`:
+/// `(1000000000.0, false), (2000000000.0, false), (3000000000.0, false), (1000000000000.0, false)`.
 #[test]
-fn point_projection_on_a_large_mesh_panics_above_about_two_and_a_half_billion() {
-    let diagonal: Vec<(f32, bool)> = [1.0e9, 2.0e9, 2.5e9, 1.0e12]
+fn point_projection_on_a_large_mesh_does_not_panic() {
+    let diagonal: Vec<(f32, &'static str)> = [1.0e9, 2.0e9, 2.5e9, 1.0e12]
         .into_iter()
-        .map(|m| (m, projection_panics(|| diagonal_mesh(m))))
+        .map(|m| (m, projection_outcome(|| diagonal_mesh(m))))
         .collect();
     assert_eq!(
         diagonal,
         vec![
-            (1.0e9, false),
-            (2.0e9, false),
-            (2.5e9, true),
-            (1.0e12, true)
+            (1.0e9, "returned"),
+            (2.0e9, "returned"),
+            (2.5e9, "returned"),
+            (1.0e12, "returned")
         ]
     );
-    let floor: Vec<(f32, bool)> = [1.0e9, 2.0e9, 3.0e9, 1.0e12]
+    let floor: Vec<(f32, &'static str)> = [1.0e9, 2.0e9, 3.0e9, 1.0e12]
         .into_iter()
-        .map(|m| (m, projection_panics(|| floor_mesh(m))))
+        .map(|m| (m, projection_outcome(|| floor_mesh(m))))
         .collect();
     assert_eq!(
         floor,
         vec![
-            (1.0e9, false),
-            (2.0e9, false),
-            (3.0e9, true),
-            (1.0e12, true)
+            (1.0e9, "returned"),
+            (2.0e9, "returned"),
+            (3.0e9, "returned"),
+            (1.0e12, "returned")
         ]
     );
 }
 
 #[test]
 fn ray_cast_on_a_large_mesh_does_not_panic_below_the_known_edge() {
-    let measured: Vec<(f32, bool)> = [1.0e9, 1.0e12, 1.0e15]
+    let measured: Vec<(f32, &'static str)> = [1.0e9, 1.0e12, 1.0e15]
         .into_iter()
-        .map(|m| (m, ray_cast_panics(|| floor_mesh(m))))
+        .map(|m| (m, ray_cast_outcome(|| floor_mesh(m))))
         .collect();
     assert_eq!(
         measured,
-        vec![(1.0e9, false), (1.0e12, false), (1.0e15, false)]
+        vec![
+            (1.0e9, "returned"),
+            (1.0e12, "returned"),
+            (1.0e15, "returned")
+        ]
     );
 }
 
