@@ -50,6 +50,8 @@
       "GwenModuleOptions",
       "GwenOptions",
       "GwenPlugin",
+      "GwenPluginRequirement",
+      "GwenPluginRequires",
       "GwenPrefabExtensions",
       "GwenProvides",
       "GwenRuntimeHooks",

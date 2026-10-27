@@ -49,6 +49,8 @@ export type {
   GwenEngineBase,
   PluginErrorContext,
   GwenPlugin,
+  GwenPluginRequirement,
+  GwenPluginRequires,
   GwenProvides,
 } from "./plugin";
 

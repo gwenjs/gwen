@@ -153,7 +153,7 @@ export interface GwenEngineBase {
    * Named LIFO registry of engine-level disposables.
    *
    * Register every resource your plugin acquires here so it is automatically
-   * released in the correct order when `engine.teardown()` or `engine.unuse()`
+   * released in the correct order when `engine.unuse(name)` or `engine.stop()`
    * is called — without needing to implement `teardown()` manually.
    *
    * @example
@@ -204,6 +204,21 @@ export interface PluginErrorContext {
 }
 
 /**
+ * Plugins and services that must already be installed.
+ * `engine.use()` checks this before `setup()`. Names are strings.
+ */
+export interface GwenPluginRequires {
+  readonly plugins?: readonly string[];
+  readonly services?: readonly string[];
+}
+
+/** One unmet plugin or service named by {@link GwenPluginRequires}. */
+export interface GwenPluginRequirement {
+  readonly kind: "plugin" | "service";
+  readonly name: string;
+}
+
+/**
  * Runtime plugin contract for GWEN.
  *
  * Implemented by `definePlugin()` factories in `@gwenjs/kit` and by
@@ -213,7 +228,7 @@ export interface PluginErrorContext {
  * **Lifecycle:**
  * 1. `setup(engine)` — called once when `engine.use(plugin)` is awaited.
  *    Acquire resources; register them in `engine.disposables`.
- * 2. `teardown()` — called when `engine.unuse(name)` or `engine.teardown()`.
+ * 2. `teardown()` — called when `engine.unuse(name)` or `engine.stop()`.
  *    Optional: prefer `engine.disposables` for cleanup.
  * 3. `onError(error, context)` — called when an error is caught during setup or teardown.
  *    Call `context.recover()` to suppress escalation.
@@ -249,6 +264,12 @@ export interface GwenPlugin {
   name: string;
 
   /**
+   * Plugins and services that must be installed before this plugin.
+   * Checked by `engine.use()` before `setup()`.
+   */
+  requires?: GwenPluginRequires;
+
+  /**
    * Called once when the plugin is registered via `engine.use()`.
    *
    * Receive `GwenEngineBase` (not the full `GwenEngine`) — the minimal
@@ -260,8 +281,7 @@ export interface GwenPlugin {
   setup(engine: GwenEngineBase): void | Promise<void>;
 
   /**
-   * Called when the plugin is removed via `engine.unuse()` or during
-   * `engine.teardown()`.
+   * Called when the plugin is removed via `engine.unuse(name)` or `engine.stop()`.
    *
    * Optional — prefer registering cleanup via `engine.disposables` in
    * `setup()` so teardown order is guaranteed and explicit.
