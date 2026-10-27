@@ -2,19 +2,11 @@
   "R2": {},
   "R3": {},
   "R4": {
-    "packages/core/src/engine/engine-component-registry.ts": 1,
-    "packages/core/src/engine/engine-memory.ts": 1,
-    "packages/core/src/engine/wasm-bridge.ts": 9,
-    "packages/core/src/engine/wasm-module-runner.ts": 4
+    "packages/core/src/engine/wasm-bridge.ts": 9
   },
   "R5": {},
   "R6": {
-    "packages/core/src/engine/chunk-query.ts": 16,
-    "packages/core/src/engine/engine-component-registry.ts": 5,
-    "packages/core/src/engine/engine-errors.ts": 2,
-    "packages/core/src/engine/engine-memory.ts": 1,
-    "packages/core/src/engine/wasm-bridge.ts": 12,
-    "packages/core/src/engine/wasm-module-runner.ts": 11
+    "packages/core/src/engine/wasm-bridge.ts": 12
   },
   "R8": {}
 }

@@ -49,7 +49,7 @@ describe("callPhysics3DExport and mapPhysics3DError", () => {
     );
     const wasmError = requireWasmError(err, "PHYSICS3D:BODY_NOT_FOUND", "physics3d_remove_body");
     expect(wasmError.cause).toBe(original);
-    expect(wasmError.message.split("\n")[0]).toBe("no body registered for slot 5.");
+    expect(wasmError.message.split("\n")[0]).toBe("[GWEN] no body registered for slot 5.");
   });
 
   it("a Rust text ending in ? or ! gets no second period", () => {
@@ -63,9 +63,9 @@ describe("callPhysics3DExport and mapPhysics3DError", () => {
       if (!(mapped instanceof GwenWasmError)) return "";
       return mapped.message.split("\n")[0] ?? "";
     };
-    expect(line("really?")).toBe("really?");
-    expect(line("stop!")).toBe("stop!");
-    expect(line("no body registered for slot 5")).toBe("no body registered for slot 5.");
+    expect(line("really?")).toBe("[GWEN] really?");
+    expect(line("stop!")).toBe("[GWEN] stop!");
+    expect(line("no body registered for slot 5")).toBe("[GWEN] no body registered for slot 5.");
   });
 
   it("returns an already mapped GwenWasmError unchanged", () => {

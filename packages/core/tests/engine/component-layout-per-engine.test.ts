@@ -93,7 +93,9 @@ describe("component layouts per engine", () => {
       throw new Error("expected GwenError");
     }
     expect(caught.code).toBe(CoreErrorCodes.COMPONENT_LAYOUT_INVALID);
-    expect(caught.message).toBe("Component layout invalid: PerEngineMismatch");
+    expect(caught.message).toBe(
+      "[GWEN] Component layout invalid: PerEngineMismatch.\nSee https://gwenjs.github.io/gwen/api/errors#core-component-layout-invalid (CORE:COMPONENT_LAYOUT_INVALID)",
+    );
     expect(engine.getComponent(entity, first)?.x).toBe(1);
     expect(engine.getComponent(entity, first)?.y).toBe(2);
     expect(engine.registeredComponentTypes().size).toBe(1);

@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
+import { errorDocsUrl } from "@gwenjs/schema";
 
 import { CoreErrorCodes, GwenWasmError } from "../../src/engine/engine-errors.js";
 import { createRealEngine } from "./harness.js";
 
 const TRANSFORM_STRIDE = 32;
+
+function shared(text: string): string {
+  const code = CoreErrorCodes.INVALID_SHARED_BUFFER;
+  return `[GWEN] ${text}.\nSee ${errorDocsUrl(code)} (${code})`;
+}
 
 describe("shared buffer free", () => {
   it("a wrong-length free throws CORE:INVALID_SHARED_BUFFER and the buffer still syncs", async () => {
@@ -19,7 +25,9 @@ describe("shared buffer free", () => {
       expect(caught).toBeInstanceOf(GwenWasmError);
       if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
       expect(caught.code).toBe(CoreErrorCodes.INVALID_SHARED_BUFFER);
-      expect(caught.message).toBe(`invalid shared buffer: ptr ${ptr}, len ${TRANSFORM_STRIDE}`);
+      expect(caught.message).toBe(
+        shared(`invalid shared buffer: ptr ${ptr}, len ${TRANSFORM_STRIDE}`),
+      );
       handle.bridge.syncTransformsToBuffer(ptr, 1);
     } finally {
       await handle.dispose();
@@ -38,7 +46,7 @@ describe("shared buffer free", () => {
       expect(caught).toBeInstanceOf(GwenWasmError);
       if (!(caught instanceof GwenWasmError)) throw new Error("expected GwenWasmError");
       expect(caught.code).toBe(CoreErrorCodes.INVALID_SHARED_BUFFER);
-      expect(caught.message).toBe("invalid shared buffer: ptr 4096, len 0");
+      expect(caught.message).toBe(shared("invalid shared buffer: ptr 4096, len 0"));
       const ptr = handle.bridge.allocSharedBuffer(TRANSFORM_STRIDE);
       handle.bridge.syncTransformsToBuffer(ptr, 1);
     } finally {
