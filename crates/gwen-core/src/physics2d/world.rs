@@ -101,9 +101,11 @@ fn unpack_collider_user_data(user_data: u128) -> (u32, Option<u32>) {
 
 /// Collects one step's collision events into this world's buffer.
 ///
-/// Rapier's `EventHandler` is `Send + Sync` and takes `&self`, so the exclusive
-/// borrow sits behind a [`Mutex`]. One uncontended lock per event. On `wasm32`
-/// without atomics, std uses a no-threads mutex.
+/// Rapier's `EventHandler` takes `&self`, so the exclusive borrow sits behind a
+/// [`Mutex`]. `unsync-callbacks` is on for the `rapier2d` dependency in
+/// `crates/gwen-core/Cargo.toml`, so the type is not required to be `Sync`. One
+/// uncontended lock per event. On `wasm32` without atomics, std uses a no-threads
+/// mutex.
 struct EventCollector<'a> {
     buf: Mutex<&'a mut CollisionEventBuffer>,
 }
