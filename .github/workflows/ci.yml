@@ -39,8 +39,9 @@ jobs:
       miri_full: ${{ steps.mode.outputs.miri_full }}
       miri_only: ${{ steps.mode.outputs.miri_only }}
     steps:
+      # Include plus ! exclusions: a file must match every pattern.
       - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
-        id: filter
+        id: filter_every
         if: github.event_name == 'pull_request'
         with:
           predicate-quantifier: every
@@ -51,6 +52,17 @@ jobs:
               - '!docs/**'
               - '!notes/**'
               - '!internals-docs/**'
+            stack:
+              - '{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}'
+              - '!**/*.md'
+              - '!docs/**'
+      # Alternatives: a file must match some pattern.
+      - uses: dorny/paths-filter@0e4a8c6effa4802afeda77dc8d303f8176d7dfad # v3
+        id: filter_some
+        if: github.event_name == 'pull_request'
+        with:
+          predicate-quantifier: some
+          filters: |
             rust:
               - 'crates/**'
               - 'Cargo.toml'
@@ -68,18 +80,14 @@ jobs:
               - '.oxfmtrc.json'
               - 'scripts/**'
               - '.github/**'
-            stack:
-              - '{packages/**,crates/**,scripts/stack/**,scripts/fix-dts-extensions.mjs,scripts/build-wasm.sh,pnpm-lock.yaml,pnpm-workspace.yaml,package.json,.github/workflows/ci.yml,.github/actions/**}'
-              - '!**/*.md'
-              - '!docs/**'
       - name: Resolve mode
         id: mode
         env:
           EVENT: ${{ github.event_name }}
-          CODE: ${{ steps.filter.outputs.code }}
-          RUST: ${{ steps.filter.outputs.rust }}
-          ROOT: ${{ steps.filter.outputs.root }}
-          STACK: ${{ steps.filter.outputs.stack }}
+          CODE: ${{ steps.filter_every.outputs.code }}
+          RUST: ${{ steps.filter_some.outputs.rust }}
+          ROOT: ${{ steps.filter_some.outputs.root }}
+          STACK: ${{ steps.filter_every.outputs.stack }}
           MIRI_FULL: ${{ github.event.inputs.miri_full }}
         run: |
           if [ "$EVENT" = "schedule" ] || { [ "$EVENT" = "workflow_dispatch" ] && [ "$MIRI_FULL" = "true" ]; }; then
