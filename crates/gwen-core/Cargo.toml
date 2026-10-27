@@ -19,12 +19,14 @@ rapier2d = { version = "0.36.1", default-features = false, features = [
   "std",
   "f32",
   "dim2",
+  "unsync-callbacks",
 ], optional = true }
 # Physics — 3D (Rapier3D)
 rapier3d = { version = "0.36.1", default-features = false, features = [
   "std",
   "f32",
   "dim3",
+  "unsync-callbacks",
 ], optional = true }
 # BVH serialisation — used at browser runtime (physics3d) and build time (build-tools)
 bincode = { version = "2", features = ["serde"], optional = true }
