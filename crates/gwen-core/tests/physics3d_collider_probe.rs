@@ -2,7 +2,7 @@
 //! bulk exports must never panic. Each case runs in its own `catch_unwind` on a fresh engine,
 //! then steps twice and runs a ray cast and a point projection so a poisoned collider is reached.
 //! The export results are ignored on purpose: a typed refusal and an accepted value both count as
-//! "did not panic". Three controls are known to panic through the raw parry and nalgebra paths and
+//! "did not panic". Two controls are known to panic through the raw parry paths and
 //! prove the probe can detect a panic.
 #![cfg(feature = "physics3d")]
 
@@ -10,7 +10,7 @@ use gwen_core::bindings::Engine;
 use gwen_core::physics3d::world::MAX_COLLIDER_MAGNITUDE;
 use gwen_core::physics3d::RAPIER_VERSION;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 const NAN: f32 = f32::NAN;
 const INF: f32 = f32::INFINITY;
@@ -576,15 +576,40 @@ fn panicked(f: impl FnOnce()) -> bool {
     catch_unwind(AssertUnwindSafe(f)).is_err()
 }
 
-fn outcome(f: impl FnOnce()) -> &'static str {
-    if panicked(f) {
-        "panicked"
-    } else {
-        "returned"
+/// Panic message and source location, or `None` when `f` returns.
+fn panic_report(f: impl FnOnce()) -> Option<String> {
+    let _lock = HOOK_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+    let prev = std::panic::take_hook();
+    let slot = Arc::new(Mutex::new(String::new()));
+    let hook_slot = Arc::clone(&slot);
+    std::panic::set_hook(Box::new(move |info| {
+        let message = match info.payload().downcast_ref::<&str>() {
+            Some(text) => (*text).to_string(),
+            None => match info.payload().downcast_ref::<String>() {
+                Some(text) => text.clone(),
+                None => "non-string panic".to_string(),
+            },
+        };
+        let location = match info.location() {
+            Some(loc) => format!("{}:{}:{}", loc.file(), loc.line(), loc.column()),
+            None => "unknown location".to_string(),
+        };
+        let mut stored = hook_slot.lock().unwrap_or_else(|p| p.into_inner());
+        *stored = format!("{message} at {location}");
+    }));
+    let result = catch_unwind(AssertUnwindSafe(f));
+    std::panic::set_hook(prev);
+    match result {
+        Ok(()) => None,
+        Err(_) => Some(match slot.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }),
     }
 }
 
-/// Control: a 1x1 heightfield reaches parry `HeightField::with_flags` its row and column count assert.
+/// Control: a 1x1 heightfield reaches parry3d 0.31.1 `HeightField::with_flags`
+/// (`shape/heightfield3.rs:90`).
 fn raw_one_by_one_heightfield() {
     use rapier3d::math::Vector;
     use rapier3d::parry::utils::Array2;
@@ -592,7 +617,9 @@ fn raw_one_by_one_heightfield() {
     let _ = rapier3d::geometry::ColliderBuilder::heightfield(heights, Vector::new(1.0, 1.0, 1.0));
 }
 
-/// Control: a triangle index past the vertex list still panics on parry 0.31.1.
+/// Control: a triangle index past the vertex list panics in parry3d 0.31.1
+/// `shape/trimesh.rs` `rebuild_bvh`. `ColliderBuilder::trimesh` returns `Result`
+/// (`rapier3d-0.36.1` `geometry/collider.rs:1008`).
 fn raw_out_of_range_trimesh() {
     use rapier3d::math::Vector;
     let verts: Vec<Vector> = QUAD
@@ -613,12 +640,19 @@ fn collider_inputs_never_panic() {
 
 #[test]
 fn control_one_by_one_heightfield_panics() {
-    assert_eq!(outcome(raw_one_by_one_heightfield), "panicked");
+    let report = panic_report(raw_one_by_one_heightfield).unwrap_or_default();
+    assert_ne!(
+        report.find("at least 2 rows and columns."),
+        None,
+        "{report}"
+    );
 }
 
 #[test]
 fn control_out_of_range_trimesh_panics() {
-    assert_eq!(outcome(raw_out_of_range_trimesh), "panicked");
+    let report = panic_report(raw_out_of_range_trimesh).unwrap_or_default();
+    assert_ne!(report.find("index out of bounds"), None, "{report}");
+    assert_ne!(report.find("trimesh.rs"), None, "{report}");
 }
 
 #[test]
