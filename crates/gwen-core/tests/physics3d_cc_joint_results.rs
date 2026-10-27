@@ -829,3 +829,39 @@ fn motor_setters_accept_finite_edge_values() -> Outcome {
     );
     Ok(())
 }
+
+/// One step fills the broad phase. The fixed wall (slot 2, centre x = 0.47,
+/// half-extent 0.05) stands 0.02 m from the box, the same gap as the controller
+/// skin. A sideways move of 3 m/s stops against that wall. The current centre
+/// stays at x = 0. The next step applies the kinematic target. Measured x is
+/// the bits below.
+#[test]
+fn lateral_move_on_flat_ground_stays_grounded() -> Outcome {
+    let mut world = PhysicsWorld3D::new(0.0, -9.81, 0.0);
+    world.add_body(0, 0.0, -0.5, 0.0, 0, 1.0, 0.0, 0.0);
+    world.add_box_collider(
+        0, 20.0, 0.5, 20.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 1,
+    )?;
+    world.add_body(1, 0.0, 0.5, 0.0, 2, 1.0, 0.0, 0.0);
+    world.add_box_collider(
+        1, 0.4, 0.5, 0.4, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 2,
+    )?;
+    world.add_body(2, 0.47, 0.5, 0.0, 0, 0.0, 0.0, 0.0);
+    world.add_box_collider(
+        2, 0.05, 1.0, 1.0, 0.0, 0.0, 0.0, false, 0.5, 0.0, ALL, ALL, 3,
+    )?;
+    assert_eq!(
+        world.add_character_controller(1, 0.0, 45.0, 0.02, 0.2, true, true),
+        Ok(0)
+    );
+    let y_before = world.get_body_state(1)[1];
+    world.step(1.0 / 60.0)?;
+    world.character_controller_move(1, 3.0, 0.0, 0.0, 1.0 / 60.0)?;
+    let grounded = f32::from_bits(cc_slot_bits(&world)[0]);
+    assert_eq!(grounded, 1.0);
+    assert_eq!(world.get_body_state(1)[1], y_before);
+    assert_eq!(world.get_body_state(1)[0], 0.0);
+    world.step(1.0 / 60.0)?;
+    assert_eq!(world.get_body_state(1)[0], f32::from_bits(957512236));
+    Ok(())
+}
