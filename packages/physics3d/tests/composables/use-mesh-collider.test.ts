@@ -141,7 +141,7 @@ describe("useMeshCollider", () => {
     mockPhysics3D.rebuildMeshCollider.mockReturnValueOnce(false);
     const handle = useMeshCollider({ vertices, indices });
     await expect(handle.rebuild(vertices, indices)).rejects.toThrow(
-      "physics3d_rebuild_mesh_collider failed",
+      "[useMeshCollider()] Mesh collider rebuild failed for entity 1, collider 1.",
     );
     expect(handle.status).toBe("error");
   });
@@ -169,11 +169,10 @@ describe("useMeshCollider", () => {
     expect(caught).toBeInstanceOf(GwenError);
     if (!(caught instanceof GwenError)) throw new Error("expected GwenError");
     expect(caught.code).toBe("PHYSICS3D:MESH_REBUILD_FAILED");
+    expect(caught.composable).toBe("useMeshCollider");
     expect(caught.cause).toBe(rejected);
-    expect(caught.message).toBe(
-      "[GWEN] physics3d_rebuild_mesh_collider failed (PHYSICS3D:COLLIDER_NOT_FOUND): no collider 1 registered for slot 1.\n" +
-        "See https://gwenjs.github.io/gwen/api/errors#physics3d-mesh-rebuild-failed (PHYSICS3D:MESH_REBUILD_FAILED)",
-    );
+    expect(caught.message.split("\n")[0]).toBe("[useMeshCollider()] Mesh collider rebuild failed.");
+    expect(caught.message).not.toContain("physics3d_rebuild_mesh_collider");
     expect(handle.status).toBe("error");
   });
 
