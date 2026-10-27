@@ -130,6 +130,8 @@ Cause. L'appel est hors de `defineActor()`, `plugin setup()` ou `withCleanup()`.
 - `CORE:STORAGE_INCONSISTENT` {#core-storage-inconsistent}
 - `CORE:INVALID_CONFIG` {#core-invalid-config}
 - `CORE:PLUGIN_NOT_FOUND` {#core-plugin-not-found}
+- `CORE:PLUGIN_DEPENDENCY_MISSING` {#core-plugin-dependency-missing} `engine.use` rejeté parce qu'un plugin ou un service requis n'est pas installé.
+- `CORE:PLUGIN_IN_USE` {#core-plugin-in-use} Réservé : `engine.unuse` le rejettera une fois les dépendants suivis.
 - `CORE:TWEEN_POOL_EXHAUSTED` {#core-tween-pool-exhausted}
 - `CORE:WASM_GLUE_MISMATCH` {#core-wasm-glue-mismatch} Lancé par le chargeur de glue WASM (#260).
 - `CORE:ENGINE_DISPOSED` {#core-engine-disposed} Lancé par la libération du moteur (#261).

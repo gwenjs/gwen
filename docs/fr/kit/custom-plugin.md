@@ -222,6 +222,27 @@ export const MyPlugin = definePlugin(() => ({
 }))
 ```
 
+## Requirements
+
+Un plugin nomme ce qui doit déjà être installé. `engine.use()` vérifie `requires` avant `setup()`. GWEN ne réordonne pas ces exigences et ne les installe pas à votre place.
+
+```ts
+export const GamePlugin = definePlugin(() => ({
+  name: 'game',
+  requires: {
+    plugins: ['input'],
+    services: ['logger'],
+  },
+  setup(engine) {
+    engine.inject('logger')
+  },
+}))
+```
+
+Les `plugins` sont vérifiés d'abord, puis les `services`, chacun dans l'ordre écrit. Un service que le moteur fournit déjà (`wasm:bridge`, `logger`, `errors`, `memory`) compte comme installé. Un plugin dont `setup()` est encore en cours ne compte pas.
+
+Si un nom manque, `engine.use()` rejette `GwenPluginDependencyError` avec le code `CORE:PLUGIN_DEPENDENCY_MISSING` et n'appelle pas `setup()`. Appeler `use()` une seconde fois avec un nom déjà installé réussit. Dans un build de développement avec `debug: true`, un avertissement est aussi écrit.
+
 ## Fournir des services
 
 Utilisez `engine.provide()` pour enregistrer un service que les systèmes peuvent accéder :
