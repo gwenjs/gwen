@@ -34,8 +34,8 @@ describe("GwenError", () => {
   });
 
   it("stores the message", () => {
-    const e = new GwenError("CODE", "detailed message");
-    expect(e.message).toBe("detailed message");
+    const e = new GwenError("CODE", "detailed message.");
+    expect(e.message).toBe(`[GWEN] detailed message.\nSee ${schema.errorDocsUrl("CODE")} (CODE)`);
   });
 
   it("sets name to GwenError", () => {
@@ -252,10 +252,14 @@ describe("GwenError message grammar", () => {
     expect(error.cause).toBe(original);
     expect(error.message.startsWith("[GWEN] Wrapped.\nSee ")).toBe(true);
   });
-  it("a two-argument GwenError keeps its raw message during the migration", () => {
-    const error = new schema.GwenError("CORE:OUTSIDE_ACTOR_CONTEXT", "detailed message");
-    expect(error.message).toBe("detailed message");
-    expect(typeof schema.errorDocsUrl).toBe("function");
-    expect(error.docsUrl).toBe(schema.errorDocsUrl("CORE:OUTSIDE_ACTOR_CONTEXT"));
+  it("a two-argument GwenError renders the grammar with GWEN as where", () => {
+    const code = "CORE:OUTSIDE_ACTOR_CONTEXT";
+    const expected = `[GWEN] detailed message.\nSee ${schema.errorDocsUrl(code)} (${code})`;
+    const error = new schema.GwenError(code, "detailed message.");
+    expect(error.message).toBe(expected);
+    expect(error.docsUrl).toBe(schema.errorDocsUrl(code));
+    const withEmpty = new schema.GwenError(code, "detailed message.", {});
+    expect(withEmpty.message).toBe(expected);
+    expect(withEmpty.docsUrl).toBe(error.docsUrl);
   });
 });
