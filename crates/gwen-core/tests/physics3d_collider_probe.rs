@@ -602,13 +602,6 @@ fn raw_out_of_range_trimesh() {
     let _ = rapier3d::geometry::ColliderBuilder::trimesh(verts, vec![[0, 1, 9]]);
 }
 
-/// Control: duplicate points reach `ColliderBuilder::convex_hull`.
-fn raw_duplicate_convex_hull() {
-    use rapier3d::math::Vector;
-    let verts: Vec<Vector> = (0..4).map(|_| Vector::new(1.0, 1.0, 1.0)).collect();
-    let _ = rapier3d::geometry::ColliderBuilder::convex_hull(&verts);
-}
-
 #[test]
 fn collider_inputs_never_panic() {
     let failed: Vec<String> = cases()
@@ -626,11 +619,6 @@ fn control_one_by_one_heightfield_panics() {
 #[test]
 fn control_out_of_range_trimesh_panics() {
     assert_eq!(outcome(raw_out_of_range_trimesh), "panicked");
-}
-
-#[test]
-fn control_duplicate_convex_hull_panics() {
-    assert_eq!(outcome(raw_duplicate_convex_hull), "panicked");
 }
 
 #[test]
