@@ -17,6 +17,14 @@ const COLLIDER_ID_ABSENT: u32 = u32::MAX;
 const MAX_BODY_ADDITIONAL_SOLVER_ITERATIONS: usize = 16;
 
 /// Largest absolute coordinate a query accepts, and the position past which a dynamic body is disabled.
+///
+/// This is a game-world policy. The value stays `1.0e7`.
+/// On 2026-10-27, rapier 0.36.1 did not panic at or below it.
+/// `tests/physics3d_magnitude_probe.rs` `broad_phase_extent_scan` stepped a dynamic box and ran a
+/// ray, a point and a shape query at `1.0e6`, `1.0e7`, `1.0e8`, `4.9e8`, `8.4e8`, `1.0e9`,
+/// `1.2e9`, `2.0e9` and `2.5e9`. Every call returned.
+/// `tests/physics2d_float_probe.rs` `broad_phase_extent_scan` stepped a dynamic ball of radius
+/// `0.5` at the same magnitudes. Every step returned.
 pub const MAX_WORLD_EXTENT: f32 = 1.0e7;
 
 /// Default linear-speed cap, in metres per second.
@@ -771,6 +779,7 @@ impl PhysicsWorld {
     /// Drains disabled-slot records as interleaved `[slot, code, ...]` pairs.
     ///
     /// Codes are `0` non-finite, `1` out-of-bounds, `2` velocity.
+    /// A Rapier-quarantined body is code `0` in this list.
     /// An empty list returns `Vec::new` and keeps this world's spare capacity.
     pub fn take_disabled_slots(&mut self) -> Vec<u32> {
         if self.disabled_slots.is_empty() {
@@ -846,47 +855,54 @@ impl PhysicsWorld {
     /// world is not stepped. Dynamic bodies that are non-finite or past
     /// [`MAX_WORLD_EXTENT`] are disabled and recorded. A faster body is scaled
     /// to [`Self::set_max_linear_velocity`]'s cap and is not disabled for that
-    /// alone. The other bodies still step.
+    /// alone. Rapier-quarantined bodies are reported too, as non-finite.
+    /// Pairs appended during this step are then ordered by slot.
+    /// The other bodies still step.
     ///
     /// # Errors
     /// Returns [`Physics2DError::InvalidStepDelta`] when `delta` is refused.
     pub fn step(&mut self, delta: f32) -> Result<(), Physics2DError> {
         reject_step_delta(delta)?;
+        let recorded = self.disabled_slots.len();
         self.guard_dynamic_bodies(delta);
         self.integration_params.dt = delta;
         self.collision_events.clear();
-        let collector = EventCollector {
-            buf: Mutex::new(&mut self.collision_events),
-        };
+        {
+            let collector = EventCollector {
+                buf: Mutex::new(&mut self.collision_events),
+            };
 
-        self.pipeline.step(
-            self.gravity,
-            &self.integration_params,
-            &mut self.island_manager,
-            &mut self.broad_phase,
-            &mut self.narrow_phase,
-            &mut self.rigid_body_set,
-            &mut self.collider_set,
-            &mut self.impulse_joint_set,
-            &mut self.multibody_joint_set,
-            &mut self.soft_bodies,
-            &mut self.ccd_solver,
-            &OneWayHooks {
-                set: &self.one_way_colliders,
-            },
-            &collector,
-        );
+            self.pipeline.step(
+                self.gravity,
+                &self.integration_params,
+                &mut self.island_manager,
+                &mut self.broad_phase,
+                &mut self.narrow_phase,
+                &mut self.rigid_body_set,
+                &mut self.collider_set,
+                &mut self.impulse_joint_set,
+                &mut self.multibody_joint_set,
+                &mut self.soft_bodies,
+                &mut self.ccd_solver,
+                &OneWayHooks {
+                    set: &self.one_way_colliders,
+                },
+                &collector,
+            );
+        }
+        self.record_rapier_quarantine();
+        if self.disabled_slots.len() > recorded {
+            sort_disabled_pairs_by_slot(&mut self.disabled_slots, recorded);
+        }
         Ok(())
     }
 
     /// Disable or clamp dynamic bodies before the broad phase.
     ///
     /// A disabled body is skipped before its pose is read. A push into
-    /// `disabled_slots` happens only when a body is disabled. Pairs appended
-    /// during this step are then ordered by slot.
+    /// `disabled_slots` happens only when a body is disabled.
     fn guard_dynamic_bodies(&mut self, delta: f32) {
         let max_speed = self.max_linear_velocity;
-        let recorded = self.disabled_slots.len();
         let PhysicsWorld {
             entity_to_body,
             rigid_body_set,
@@ -947,8 +963,26 @@ impl PhysicsWorld {
                 );
             }
         }
-        if disabled_slots.len() > recorded {
-            sort_disabled_pairs_by_slot(disabled_slots, recorded);
+    }
+
+    /// Append `[slot, 0]` for each body Rapier quarantined during the last step.
+    ///
+    /// An empty report returns before any allocation. A handle with no slot is skipped.
+    /// rapier2d 0.36.1 `pipeline/physics_pipeline/quarantine.rs:37`.
+    fn record_rapier_quarantine(&mut self) {
+        let handles = {
+            let bodies = self.pipeline.quarantine().bodies();
+            if bodies.is_empty() {
+                return;
+            }
+            bodies.to_vec()
+        };
+        for handle in handles {
+            let Some(&slot) = self.body_to_entity.get(&handle) else {
+                continue;
+            };
+            self.disabled_slots.push(slot);
+            self.disabled_slots.push(REASON_NON_FINITE);
         }
     }
 
